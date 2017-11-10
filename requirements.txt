@@ -1,1 +1,2 @@
-pyrsistent==0.12.3
+pyrsistent==0.14.0
+pytest==3.2.3
