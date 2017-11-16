@@ -5,9 +5,14 @@ class Map:
     def __init__(self, kvs=None):
         self._members = pyrsistent.pmap(kvs)
 
+    def __eq__(self, other):
+        return self._members == other._members
+
     def __repr__(self):
-        kvs = ["{k} {v}".format(k=repr(k), v=repr(v))
-              for k, v in self._members.items()]
+        kvs = [
+            "{k} {v}".format(k=repr(k), v=repr(v))
+            for k, v in self._members.items()
+        ]
         return "{{{kvs}}}".format(kvs=" ".join(kvs))
 
 
