@@ -1,0 +1,16 @@
+(in-ns 'apylisp.core)
+
+(def identity
+  (fn* identity [v] v))
+
+(def print
+     (fn* print [& args]
+         (builtins/print args)))
+
+(def meta
+     (fn* meta [o]
+         (.-meta o)))
+
+(def with-meta
+     (fn* with-meta [o meta]
+         (.with-meta o meta)))

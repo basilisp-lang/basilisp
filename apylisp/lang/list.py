@@ -1,22 +1,43 @@
 import pyrsistent
+import wrapt
+from apylisp.lang.util import lrepr
 
 
-class List:
-    def __init__(self, members=()):
-        self._members = pyrsistent.plist(members)
+class List(wrapt.ObjectProxy):
+    __slots__ = ('_self_meta', )
+
+    def __init__(self, wrapped, meta=None):
+        super(List, self).__init__(wrapped)
+        self._self_meta = meta
 
     def __repr__(self):
-        return "({list})".format(list=" ".join(map(repr, self._members)))
+        return "({list})".format(list=" ".join(map(lrepr, self)))
 
-    def __eq__(self, other):
-        return self._members == self._members
+    @property
+    def meta(self):
+        return self._self_meta
+
+    def with_meta(self, meta):
+        new_meta = meta if self._self_meta is None else self._self_meta.update(
+            meta)
+        return list(self.__wrapped__, meta=new_meta)
+
+    @property
+    def rest(self):
+        return List(self.__wrapped__.rest)
+
+    def conj(self, elem):
+        return self.cons(elem)
+
+    def empty(self):
+        return l()
 
 
-def list(members):
+def list(members, meta=None):
     """Creates a new list."""
-    return List(members=members)
+    return List(pyrsistent.plist(iterable=members), meta=meta)
 
 
-def l(*members):
+def l(*members, meta=None):
     """Creates a new list from members."""
-    return List(members=members)
+    return List(pyrsistent.plist(iterable=members), meta=meta)

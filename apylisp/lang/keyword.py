@@ -1,16 +1,12 @@
-import ast
+import pyrsistent
+import apylisp.lang.atom as atom
 
-
-__INTERN = {}
-
-
-def _as_str(name, ns=None):
-    if ns is not None:
-        return "{ns}/{name}".format(ns=ns, name=name)
-    return "{name}".format(name=name)
+__INTERN = atom.Atom(pyrsistent.pmap())
 
 
 class Keyword:
+    __slots__ = ('_name', '_ns')
+
     def __init__(self, name, ns=None):
         self._name = name
         self._ns = ns
@@ -24,7 +20,9 @@ class Keyword:
         return self._ns
 
     def __str__(self):
-        return _as_str(self.name, ns=self.ns)
+        if self._ns is not None:
+            return "{ns}/{name}".format(ns=self._ns, name=self._name)
+        return "{name}".format(name=self._name)
 
     def __repr__(self):
         return ":{me}".format(me=str(self))
@@ -35,18 +33,21 @@ class Keyword:
     def __hash__(self):
         return hash(str(self))
 
-    def to_ast(self):
-        return ast.Expr(value=ast.Call(func=ast.Name(id='lang.keyword.keyword',
-                                                     ctx=ast.Load()),
-                                       args=[ast.Str(self._name)],
-                                       keywords=[ast.keyword(arg='ns', value=ast.Str(self._ns))]))
+    def __call__(self, m, default=None):
+        return m.get(self, default)
 
 
-def keyword(name, ns=None):
-    """Create a new keyword."""
-    s = _as_str(name, ns=ns)
-    if s in __INTERN:
-        return __INTERN[s]
+def __get_or_create(kw_cache: pyrsistent.PMap, h: int, name: str, ns: str):
+    """Private swap function used to either get the interned keyword
+    instance from the input string."""
+    if h in kw_cache:
+        return kw_cache
     kw = Keyword(name, ns=ns)
-    __INTERN[s] = kw
-    return kw
+    return kw_cache.set(h, kw)
+
+
+def keyword(name: str, ns: str = None,
+            kw_cache: atom.Atom = __INTERN) -> Keyword:
+    """Create a new keyword."""
+    h = hash((name, ns))
+    return kw_cache.swap(__get_or_create, h, name, ns)[h]

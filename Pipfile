@@ -7,12 +7,21 @@ name = "pypi"
 
 [dev-packages]
 
+pyflakes = "*"
 pytest = "*"
+yapf = "*"
+mypy = "*"
+autoflake = "*"
 
 
 [packages]
 
+astor = "*"
 pyrsistent = "*"
+wrapt = "*"
+toolz = "*"
+atomos = "*"
+python-dateutil = "*"
 
 
 [requires]

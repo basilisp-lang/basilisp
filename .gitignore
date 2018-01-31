@@ -54,3 +54,10 @@ ENV/
 
 # mkdocs documentation
 /site
+
+# mypy cache
+.mypy_cache/
+
+# Misc
+TODO
+.idea/

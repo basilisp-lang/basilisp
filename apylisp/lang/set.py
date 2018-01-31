@@ -1,30 +1,39 @@
-import ast
 import pyrsistent
+import wrapt
+from apylisp.lang.util import lrepr
 
 
-class Set:
-    def __init__(self, members=()):
-        self._members = pyrsistent.pset(members)
+class Set(wrapt.ObjectProxy):
+    __slots__ = ('_self_meta', )
+
+    def __init__(self, wrapped, meta=None):
+        super(Set, self).__init__(wrapped)
+        self._self_meta = meta
 
     def __repr__(self):
-        return "#\{{set}\}".format(set=" ".join(map(repr, self._members)))
+        return "#{{{set}}}".format(set=" ".join(map(lrepr, self)))
 
-    def __eq__(self, other):
-        return self._members == other._members
+    @property
+    def meta(self):
+        return self._self_meta
 
-    def to_ast(self):
-        elems_ast = map(lambda elem: elem.to_ast(),
-                        pyrsistent.thaw(self._members))
-        return ast.Expr(value=ast.Call(
-            func=ast.Name(id='lang.set.set', ctx=ast.Load()),
-            args=[ast.List(elems_ast, ast.Load())]))
+    def with_meta(self, meta):
+        new_meta = meta if self._self_meta is None else self._self_meta.update(
+            meta)
+        return set(self.__wrapped__, meta=new_meta)
+
+    def conj(self, elem):
+        return self.add(elem)
+
+    def empty(self):
+        return s()
 
 
-def set(members):
+def set(members, meta=None):
     """Creates a new set."""
-    return Set(members=members)
+    return Set(pyrsistent.pset(members), meta=meta)
 
 
-def s(*members):
+def s(*members, meta=None):
     """Creates a new set from members."""
-    return Set(members=members)
+    return Set(pyrsistent.pset(members), meta=meta)

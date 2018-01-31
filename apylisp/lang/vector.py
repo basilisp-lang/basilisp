@@ -1,30 +1,39 @@
-import ast
 import pyrsistent
+import wrapt
+from apylisp.lang.util import lrepr
 
 
-class Vector:
-    def __init__(self, members=()):
-        self._members = pyrsistent.pvector(members)
+class Vector(wrapt.ObjectProxy):
+    __slots__ = ('_self_meta', )
+
+    def __init__(self, wrapped, meta=None):
+        super(Vector, self).__init__(wrapped)
+        self._self_meta = meta
 
     def __repr__(self):
-        return "[{vec}]".format(vec=" ".join(map(repr, self._members)))
+        return "[{vec}]".format(vec=" ".join(map(lrepr, self)))
 
-    def __eq__(self, other):
-        return self._members == other._members
+    @property
+    def meta(self):
+        return self._self_meta
 
-    def to_ast(self):
-        elems_ast = map(lambda elem: elem.to_ast(),
-                        pyrsistent.thaw(self._members))
-        return ast.Expr(value=ast.Call(
-            func=ast.Name(id='lang.vector.vector', ctx=ast.Load()),
-            args=[ast.List(elems_ast, ast.Load())]))
+    def with_meta(self, meta):
+        new_meta = meta if self._self_meta is None else self._self_meta.update(
+            meta)
+        return vector(self.__wrapped__, meta=new_meta)
+
+    def conj(self, elem):
+        return Vector(self.append(elem))
+
+    def empty(self):
+        return v()
 
 
-def vector(members):
+def vector(members, meta=None):
     """Creates a new vector."""
-    return Vector(members=members)
+    return Vector(pyrsistent.pvector(members), meta=meta)
 
 
-def v(*members):
+def v(*members, meta=None):
     """Creates a new vector from members."""
-    return Vector(members=members)
+    return Vector(pyrsistent.pvector(members), meta=meta)
