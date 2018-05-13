@@ -2,7 +2,8 @@ import collections
 import contextlib
 import io
 import re
-from typing import Deque, List, Tuple
+from typing import Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping
+
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
@@ -95,7 +96,7 @@ class ReaderContext:
 __EOF = 'EOF'
 
 
-def _read_namespaced(ctx: ReaderContext) -> Tuple[str, str]:
+def _read_namespaced(ctx: ReaderContext) -> Tuple[Optional[str], str]:
     """Read a namespaced token from the input stream."""
     ns: List[str] = []
     name: List[str] = []
@@ -124,10 +125,11 @@ def _read_namespaced(ctx: ReaderContext) -> Tuple[str, str]:
     return None if not has_ns else ''.join(ns), ''.join(name)
 
 
-def _read_coll(ctx: ReaderContext, f, end_token: str, coll_name: str):
+def _read_coll(ctx: ReaderContext, f: Callable[[Collection[Any]], Union[
+        llist.List, lset.Set, vector.Vector]], end_token: str, coll_name: str):
     """Read a collection from the input stream and create the
     collection using f."""
-    coll = []
+    coll: List = []
     reader = ctx.reader
     while True:
         token = reader.peek()
@@ -235,7 +237,7 @@ def _read_set(ctx: ReaderContext) -> lset.Set:
     start = ctx.reader.advance()
     assert start == '{'
 
-    def set_if_valid(s):
+    def set_if_valid(s: Collection) -> lset.Set:
         if len(s) != len(set(s)):
             raise SyntaxError("Duplicated values in set")
         return lset.set(s)
@@ -248,7 +250,7 @@ def _read_map(ctx: ReaderContext) -> lmap.Map:
     reader = ctx.reader
     start = reader.advance()
     assert start == '{'
-    d = {}
+    d: MutableMapping[Any, Any] = {}
     while True:
         if reader.peek() == '}':
             reader.next_token()
@@ -425,7 +427,7 @@ def _read_regex(ctx: ReaderContext):
     s = _read_str(ctx)
     try:
         return langutil.regex_from_str(s)
-    except (re.error):
+    except re.error:
         raise SyntaxError(f"Unrecognized regex pattern syntax: {s}")
 
 
@@ -537,7 +539,7 @@ def _read_next(ctx: ReaderContext):
         raise SyntaxError("Unexpected token '{token}'".format(token=token))
 
 
-def read(stream) -> llist.List:
+def read(stream) -> Optional[llist.List]:
     """Read the contents of a stream as a Lisp expression.
 
     The caller is responsible for closing the input stream."""
@@ -556,13 +558,13 @@ def read(stream) -> llist.List:
     return llist.list(data)
 
 
-def read_str(s: str) -> llist.List:
+def read_str(s: str) -> Optional[llist.List]:
     """Read the contents of a string as a Lisp expression."""
     with io.StringIO(s) as buf:
         return read(buf)
 
 
-def read_file(filename: str) -> llist.List:
+def read_file(filename: str) -> Optional[llist.List]:
     """Read the contents of a file as a Lisp expression."""
     with open(filename) as f:
         return read(f)

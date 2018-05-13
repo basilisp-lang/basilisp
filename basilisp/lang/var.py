@@ -10,7 +10,7 @@ class Var:
     def __init__(self,
                  ns: namespace.Namespace,
                  name: sym.Symbol,
-                 dynamic=False,
+                 dynamic: bool = False,
                  meta=None) -> None:
         self._ns = ns
         self._name = name

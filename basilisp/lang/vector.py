@@ -1,9 +1,11 @@
 import pyrsistent
-import wrapt
+from wrapt import ObjectProxy
+
+from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 
 
-class Vector(wrapt.ObjectProxy):
+class Vector(ObjectProxy, Meta):
     __slots__ = ('_self_meta', )
 
     def __init__(self, wrapped, meta=None):
@@ -29,11 +31,11 @@ class Vector(wrapt.ObjectProxy):
         return v()
 
 
-def vector(members, meta=None):
+def vector(members, meta=None) -> Vector:
     """Creates a new vector."""
     return Vector(pyrsistent.pvector(members), meta=meta)
 
 
-def v(*members, meta=None):
+def v(*members, meta=None) -> Vector:
     """Creates a new vector from members."""
     return Vector(pyrsistent.pvector(members), meta=meta)

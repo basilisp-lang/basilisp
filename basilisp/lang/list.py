@@ -1,9 +1,11 @@
 import pyrsistent
-import wrapt
+from wrapt import ObjectProxy
+
+from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 
 
-class List(wrapt.ObjectProxy):
+class List(ObjectProxy, Meta):
     __slots__ = ('_self_meta', )
 
     def __init__(self, wrapped, meta=None):
@@ -23,7 +25,7 @@ class List(wrapt.ObjectProxy):
         return list(self.__wrapped__, meta=new_meta)
 
     @property
-    def rest(self):
+    def rest(self) -> "List":
         return List(self.__wrapped__.rest)
 
     def conj(self, elem):
@@ -33,11 +35,11 @@ class List(wrapt.ObjectProxy):
         return l()
 
 
-def list(members, meta=None):
+def list(members, meta=None) -> List:
     """Creates a new list."""
     return List(pyrsistent.plist(iterable=members), meta=meta)
 
 
-def l(*members, meta=None):
+def l(*members, meta=None) -> List:
     """Creates a new list from members."""
     return List(pyrsistent.plist(iterable=members), meta=meta)

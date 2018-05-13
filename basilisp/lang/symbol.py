@@ -1,4 +1,7 @@
-class Symbol:
+from basilisp.lang.meta import Meta
+
+
+class Symbol(Meta):
     __slots__ = ('_name', '_ns', '_meta')
 
     def __init__(self, name, ns=None, meta=None):
@@ -33,7 +36,7 @@ class Symbol:
     def __eq__(self, other):
         if not isinstance(other, Symbol):
             return False
-        return (self._ns == other._ns and self._name == other._name)
+        return self._ns == other._ns and self._name == other._name
 
     def __hash__(self):
         return hash(str(self))

@@ -1,23 +1,25 @@
 import ast
 import collections
 import contextlib
-from datetime import datetime
-import re
 import types
-from typing import Dict, Iterable, Pattern, Tuple
 import uuid
+from datetime import datetime
+from typing import Dict, Iterable, Pattern, Tuple, Optional, Collection, List, Union, Any
+
 import astor.code_gen as codegen
-import toolz.itertoolz as itertoolz
+from functional import seq
+
 import basilisp.lang.atom as atom
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.meta as meta
+import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util
 import basilisp.lang.vector as vec
 import basilisp.reader as reader
-import basilisp.lang.runtime as runtime
 import basilisp.walker as walk
 from basilisp.util import drop_last
 
@@ -93,7 +95,8 @@ class SymbolTable:
         return self._name
 
     def __repr__(self):
-        return f"SymbolTable({self._name}, parent={repr(self._parent)}, table={repr(self._table)}, children={len(self._children)})"
+        return (f"SymbolTable({self._name}, parent={repr(self._parent)}, "
+                f"table={repr(self._table)}, children={len(self._children)})")
 
     def new_symbol(self, s: sym.Symbol, munged: str,
                    ctx: kw.Keyword) -> 'SymbolTable':
@@ -102,7 +105,7 @@ class SymbolTable:
         self._table[s] = (munged, ctx)
         return self
 
-    def find_symbol(self, s: sym.Symbol) -> Tuple[str, kw.Keyword]:
+    def find_symbol(self, s: sym.Symbol) -> Optional[Tuple[str, kw.Keyword]]:
         t = self
         while True:
             if s in t._table:
@@ -229,16 +232,37 @@ def _statementize(e: ast.AST) -> ast.AST:
     stand alone as statements."""
     if isinstance(
             e,
-        (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Raise, ast.Assert,
-         ast.Pass, ast.Import, ast.ImportFrom, ast.If, ast.For, ast.While,
-         ast.Continue, ast.Break, ast.Try, ast.ExceptHandler, ast.With,
-         ast.FunctionDef, ast.Return, ast.Yield, ast.YieldFrom, ast.Global,
-         ast.ClassDef, ast.AsyncFunctionDef, ast.AsyncFor, ast.AsyncWith)):
+        (
+            ast.Assign,
+            ast.AnnAssign,  # type: ignore
+            ast.AugAssign,
+            ast.Raise,
+            ast.Assert,
+            ast.Pass,
+            ast.Import,
+            ast.ImportFrom,
+            ast.If,
+            ast.For,
+            ast.While,
+            ast.Continue,
+            ast.Break,
+            ast.Try,
+            ast.ExceptHandler,
+            ast.With,
+            ast.FunctionDef,
+            ast.Return,
+            ast.Yield,
+            ast.YieldFrom,
+            ast.Global,
+            ast.ClassDef,
+            ast.AsyncFunctionDef,
+            ast.AsyncFor,
+            ast.AsyncWith)):
         return e
     return ast.Expr(value=e)
 
 
-def _expressionize(body: Iterable[ast.AST],
+def _expressionize(body: Collection[ast.AST],
                    fn_name: str,
                    args: Iterable[ast.arg] = None,
                    vargs: ast.arg = None) -> ast.FunctionDef:
@@ -254,7 +278,7 @@ def _expressionize(body: Iterable[ast.AST],
     try:
         if len(body) > 1:
             body_nodes.extend([_statementize(e) for e in drop_last(body)])
-        body_nodes.append(ast.Return(value=itertoolz.last(body)))
+        body_nodes.append(ast.Return(value=seq(body).last()))
     except TypeError:
         body_nodes.append(ast.Return(value=body))
 
@@ -305,8 +329,14 @@ _NEW_VEC_FN_NAME = _load_attr(f'{_VEC_ALIAS}.vector')
 _INTERN_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.intern')
 _FIND_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.find')
 
+LispFormAST = Union[bool, datetime, int, float, kw.Keyword, llist.List,
+                    lmap.Map, None, Pattern, lset.Set, str, sym.Symbol,
+                    vec.Vector, uuid.UUID]
+LispSymbolAST = Union[ast.Attribute, ast.Call, ast.Name, ast.Starred]
 
-def _meta_kwargs_ast(ctx: CompilerContext, form) -> Iterable[ast.keyword]:
+
+def _meta_kwargs_ast(ctx: CompilerContext,
+                     form: meta.Meta) -> Iterable[ast.keyword]:
     if hasattr(form, 'meta') and form.meta is not None:
         return [ast.keyword(arg='meta', value=_to_ast(ctx, form.meta))]
     return []
@@ -326,7 +356,7 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
                                 _SYM_CTX_NS)
 
     try:
-        def_value = _to_ast(ctx, form[2])
+        def_value: Optional[ast.AST] = _to_ast(ctx, form[2])
     except KeyError:
         def_value = None
     return ast.Call(
@@ -340,8 +370,8 @@ def _do_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
     assert form.first == _DO
 
     with ctx.new_nodes() as (inner_nodes, nodes):
-        gen_body = [_to_ast(ctx, f) for f in form.rest]
-        body = []
+        gen_body = _collection_ast(ctx, form.rest)
+        body: List[ast.AST] = []
 
         found_inner_nodes = inner_nodes.deref()
         if len(found_inner_nodes) > 0:
@@ -357,7 +387,7 @@ def _do_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
 
 
 def _fn_args_body(ctx: CompilerContext, arg_vec, body_exprs
-                  ) -> Tuple[Iterable[ast.arg], Iterable[ast.AST], ast.arg]:
+                  ) -> Tuple[List[ast.arg], List[ast.AST], Optional[ast.arg]]:
     """Generate the Python AST Nodes for a Lisp function argument vector
     and body expressions. Return a tuple of arg nodes and body AST nodes."""
     st = ctx.symbol_table
@@ -384,7 +414,7 @@ def _fn_args_body(ctx: CompilerContext, arg_vec, body_exprs
                 f"Expected variadic argument name after '&'")
 
     args = [ast.arg(arg=a, annotation=None) for a in munged]
-    body = [_to_ast(ctx, e) for e in body_exprs]
+    body = _collection_ast(ctx, body_exprs)
     return args, body, vargs
 
 
@@ -414,7 +444,7 @@ def _if_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
     assert len(form) in range(3, 5)
 
     with ctx.new_nodes() as (inner_nodes, nodes):
-        body = []
+        body: List[ast.AST] = []
         ifstmt = ast.If(
             test=_to_ast(ctx, form[1]),
             body=[ast.Return(value=_to_ast(ctx, form[2]))],
@@ -478,9 +508,9 @@ def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
     call_target = ast.Attribute(
         value=_to_ast(ctx, form[1]), attr=munge(form[2].name), ctx=ast.Load())
 
-    args = []
+    args: List[ast.AST] = []
     if len(form) > 3:
-        args = [_to_ast(ctx, f) for f in form[3:]]
+        args = _collection_ast(ctx, form[3:])
 
     return ast.Call(func=call_target, args=args, keywords=[])
 
@@ -497,7 +527,7 @@ def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ast.Attribute:
         value=_to_ast(ctx, form[1]), attr=munge(form[2].name), ctx=ast.Load())
 
 
-def _quote_ast(ctx: CompilerContext, form: llist.List) -> ast.AST:
+def _quote_ast(ctx: CompilerContext, form: llist.List) -> Optional[ast.AST]:
     """Generate a Python AST Node for quoted forms."""
     assert form[0] == _QUOTE
     assert len(form) == 2
@@ -512,7 +542,7 @@ def _catch_expr_body(body) -> Iterable[ast.AST]:
     try:
         if len(body) > 1:
             body_nodes.extend([_statementize(e) for e in drop_last(body)])
-        body_nodes.append(ast.Return(value=itertoolz.last(body)))
+        body_nodes.append(ast.Return(value=seq(body).last()))
     except TypeError:
         body_nodes.append(ast.Return(value=body))
     return body_nodes
@@ -551,18 +581,17 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
         # the final clauses are catch clauses
         final_clause = form[-1]
         assert isinstance(final_clause, llist.List)
-        final_exprs = []
+        final_exprs: List[ast.AST] = []
         if final_clause.first == _FINALLY:
-            final_exprs = [
-                _statementize(_to_ast(ctx, clause))
-                for clause in final_clause.rest
-            ]
+            final_exprs = seq(final_clause.rest).map(
+                lambda clause: _to_ast(ctx, clause)).map(
+                    lambda node: _statementize(node)).to_list()
         else:
             catches.append(_catch_ast(ctx, final_clause))
 
         # Start building up the try/except block that will be inserted
         # into a function to expressionize it
-        try_body = []
+        try_body: List[ast.AST] = []
 
         found_inner_nodes = inner_nodes.deref()
         if len(found_inner_nodes) > 0:
@@ -597,16 +626,12 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
             keywords=[])
 
 
-def _var_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
+def _var_ast(form: llist.List) -> ast.Call:
     """Generate a Python AST Node for the `var` special form."""
     assert form[0] == _VAR
     assert isinstance(form[1], sym.Symbol)
 
-    ns = None
-    if form[1].ns is None:
-        ns = _NS_VAR_NAME
-    else:
-        ns = ast.Str(form[1].ns)
+    ns: ast.expr = _NS_VAR_NAME if form[1].ns is None else ast.Str(form[1].ns)
 
     base_sym = ast.Call(
         func=_NEW_SYM_FN_NAME,
@@ -616,7 +641,8 @@ def _var_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
     return ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[])
 
 
-def _special_form_ast(ctx: CompilerContext, form: llist.List) -> ast.AST:
+def _special_form_ast(ctx: CompilerContext,
+                      form: llist.List) -> Optional[ast.AST]:
     """Generate a Python AST Node for any Lisp special forms."""
     assert form.first in _SPECIAL_FORMS
     which = form.first
@@ -627,7 +653,7 @@ def _special_form_ast(ctx: CompilerContext, form: llist.List) -> ast.AST:
     elif which == _IF:
         return _if_ast(ctx, form)
     elif which == _IMPORT:
-        return _import_ast(ctx, form)
+        return _import_ast(ctx, form)  # type: ignore
     elif which == _INTEROP_CALL:
         return _interop_call_ast(ctx, form)
     elif which == _INTEROP_PROP:
@@ -639,16 +665,16 @@ def _special_form_ast(ctx: CompilerContext, form: llist.List) -> ast.AST:
     elif which == _TRY:
         return _try_ast(ctx, form)
     elif which == _VAR:
-        return _var_ast(ctx, form)
+        return _var_ast(form)
     assert False, "Special form identified, but not handled"
 
 
-def _list_ast(ctx: CompilerContext, form: llist.List) -> ast.AST:
+def _list_ast(ctx: CompilerContext, form: llist.List) -> Optional[ast.AST]:
     # Special forms
     if form.first in _SPECIAL_FORMS and not ctx.is_quoted:
         return _special_form_ast(ctx, form)
 
-    elems_ast = [_to_ast(ctx, x) for x in form]
+    elems_ast = _collection_ast(ctx, form)
 
     # Quoted list
     if ctx.is_quoted:
@@ -663,8 +689,8 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ast.AST:
 
 
 def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ast.Call:
-    keys = [_to_ast(ctx, k) for k in form.keys()]
-    vals = [_to_ast(ctx, v) for v in form.values()]
+    keys = _collection_ast(ctx, form.keys())
+    vals = _collection_ast(ctx, form.values())
 
     return ast.Call(
         func=_NEW_MAP_FN_NAME,
@@ -673,7 +699,7 @@ def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ast.Call:
 
 
 def _set_ast(ctx: CompilerContext, form: lset.Set) -> ast.Call:
-    elems_ast = [_to_ast(ctx, x) for x in form]
+    elems_ast = _collection_ast(ctx, form)
     return ast.Call(
         func=_NEW_SET_FN_NAME,
         args=[ast.List(elems_ast, ast.Load())],
@@ -681,7 +707,7 @@ def _set_ast(ctx: CompilerContext, form: lset.Set) -> ast.Call:
 
 
 def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ast.Call:
-    elems_ast = [_to_ast(ctx, x) for x in form]
+    elems_ast = _collection_ast(ctx, form)
     return ast.Call(
         func=_NEW_VEC_FN_NAME,
         args=[ast.List(elems_ast, ast.Load())],
@@ -695,13 +721,13 @@ def _kw_ast(form: kw.Keyword) -> ast.Call:
         func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg)
 
 
-def _sym_ast(ctx: CompilerContext, form: sym.Symbol):
+def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> LispSymbolAST:
     """Return a Python AST node for a Lisp symbol.
 
     If the symbol is quoted (as determined by the `quoted` kwarg),
     return just the raw symbol.
 
-    If the symbol is not namespaced and the `kwargs` contains a
+    If the symbol is not namespaced and the CompilerContext contains a
     SymbolTable (`sym_table` key) and the name of this symbol is
     found in that table, directly generate a Python `Name` node,
     so that we use a raw Python variable.
@@ -710,7 +736,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol):
     includes a namespace, use that namespace to resolve the Var. If no
     namespace is provided with the symbol, generate code to resolve the
     current namespace at the time of execution."""
-    ns = None
+    ns: Optional[ast.expr] = None
     if form.ns is None and not ctx.is_quoted:
         ns = _NS_VAR_NAME
     elif form.ns is not None:
@@ -728,13 +754,13 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol):
     st_sym = st.find_symbol(form)
 
     if st_sym is not None:
-        munged, ctx = st_sym
+        munged, sym_ctx = st_sym
         if munged is None:
             raise ValueError(f"Lisp symbol '{form}' not found in {repr(st)}")
 
-        if ctx == _SYM_CTX_LOCAL:
+        if sym_ctx == _SYM_CTX_LOCAL:
             return ast.Name(id=munged, ctx=ast.Load())
-        elif ctx == _SYM_CTX_LOCAL_STARRED:
+        elif sym_ctx == _SYM_CTX_LOCAL_STARRED:
             return ast.Starred(
                 value=ast.Name(id=munged, ctx=ast.Load()), ctx=ast.Load())
 
@@ -742,8 +768,8 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol):
         ns_sym = sym.symbol(form.ns)
         ns_sym_info = st.find_symbol(ns_sym)
         if ns_sym_info is not None:
-            _, ctx = ns_sym_info
-            if ctx == _SYM_CTX_IMPORT:
+            _, sym_ctx = ns_sym_info
+            if sym_ctx == _SYM_CTX_IMPORT:
                 return _load_attr(f"{form.ns}.{form.name}")
         if ctx.current_ns.get_import(ns_sym):
             safe_ns = munge(form.ns)
@@ -771,7 +797,14 @@ def _uuid_ast(form: uuid.UUID) -> ast.Call:
         func=_NEW_UUID_FN_NAME, args=[ast.Str(str(form))], keywords=[])
 
 
-def _to_ast(ctx: CompilerContext, form) -> ast.AST:
+def _collection_ast(ctx: CompilerContext,
+                    form: Iterable[LispFormAST]) -> List[ast.AST]:
+    """Turn a collection of Lisp forms into Python AST nodes, filtering out """
+    return seq(form).map(lambda x: _to_ast(ctx, x)).filter(
+        lambda x: x is not None).to_list()
+
+
+def _to_ast(ctx: CompilerContext, form: LispFormAST) -> Optional[ast.AST]:
     """Take a Lisp form as an argument and produce a Python AST node.
 
     This function passes along keyword arguments to any eligible
@@ -807,7 +840,7 @@ def _to_ast(ctx: CompilerContext, form) -> ast.AST:
         return _inst_ast(form)
     elif isinstance(form, uuid.UUID):
         return _uuid_ast(form)
-    elif isinstance(form, re._pattern_type):
+    elif isinstance(form, Pattern):
         return _regex_ast(form)
     else:
         raise TypeError(f"Unexpected form type {type(form)}")
@@ -848,7 +881,8 @@ def _ns_var(py_ns_var=_NS_VAR, lisp_ns_var=_LISP_NS_VAR,
             keywords=[]))
 
 
-def compile_forms(forms, wrapped_fn_name: str = _DEFAULT_FN) -> ast.Module:
+def compile_forms(forms,
+                  wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
     """Compile the given forms into final module which can be compiled into
     valid Python code. Returns a Python module AST node.
 
@@ -880,13 +914,14 @@ def compile_forms(forms, wrapped_fn_name: str = _DEFAULT_FN) -> ast.Module:
 
 
 def compile_file(filename: str,
-                 wrapped_fn_name: str = _DEFAULT_FN) -> ast.Module:
+                 wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
     """Compile a file with the given name into a Python module AST node."""
     forms = reader.read_file(filename)
     return compile_forms(forms, wrapped_fn_name)
 
 
-def compile_str(s: str, wrapped_fn_name: str = _DEFAULT_FN) -> ast.Module:
+def compile_str(s: str,
+                wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
     """Compile the forms in a string into a Python module AST node."""
     forms = reader.read_str(s)
     return compile_forms(forms, wrapped_fn_name)
@@ -910,7 +945,7 @@ def exec_ast(ast: ast.Module,
              source_filename: str = '<REPL Input>'):
     """Execute a Python AST node generated from one of the compile functions
     provided in this module. Return the result of the executed module code."""
-    global_scope = {}
+    global_scope: Dict[str, Any] = {}
     mod = types.ModuleType(module_name)
     bytecode = compile(ast, source_filename, 'exec')
     exec(bytecode, global_scope, mod.__dict__)

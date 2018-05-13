@@ -1,10 +1,12 @@
 import pyrsistent
-import wrapt
+from wrapt import ObjectProxy
+
 import basilisp.lang.vector as vec
+from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 
 
-class MapEntry(wrapt.ObjectProxy):
+class MapEntry(ObjectProxy):
     def __init__(self, wrapped):
         super().__init__(wrapped)
         try:
@@ -29,7 +31,7 @@ def map_entry(k, v):
     return MapEntry(vec.v(k, v))
 
 
-class Map(wrapt.ObjectProxy):
+class Map(ObjectProxy, Meta):
     __slots__ = ('_self_meta', )
 
     def __init__(self, wrapped, meta=None):

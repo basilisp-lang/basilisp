@@ -21,7 +21,7 @@ def lrepr(f):
     elif isinstance(f, uuid.UUID):
         uuid_str = str(f)
         return f'#uuid "{uuid_str}"'
-    elif isinstance(f, re._pattern_type):
+    elif isinstance(f, Pattern):
         return f'#"{f.pattern}"'
     else:
         return repr(f)

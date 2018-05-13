@@ -16,7 +16,7 @@ def init_ns_var(which_ns=_CORE_NS, ns_var_name=_NS_VAR_NAME) -> var.Var:
     core_sym = sym.Symbol(which_ns)
     core_ns = namespace.get_or_create(core_sym)
     ns_var = var.intern(
-        core_sym, sym.Symbol(_NS_VAR_NAME), core_ns, dynamic=True)
+        core_sym, sym.Symbol(ns_var_name), core_ns, dynamic=True)
     return ns_var
 
 

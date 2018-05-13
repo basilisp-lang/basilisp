@@ -1,9 +1,11 @@
 import pyrsistent
-import wrapt
+from wrapt import ObjectProxy
+
+from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 
 
-class Set(wrapt.ObjectProxy):
+class Set(ObjectProxy, Meta):
     __slots__ = ('_self_meta', )
 
     def __init__(self, wrapped, meta=None):
