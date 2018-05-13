@@ -1,5 +1,5 @@
 import pyrsistent
-import apylisp.lang.atom as atom
+import basilisp.lang.atom as atom
 
 __INTERN = atom.Atom(pyrsistent.pmap())
 

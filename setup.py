@@ -4,10 +4,10 @@ except ImportError:
     from distutils.core import setup
 
 setup(
-    name='apylisp',
+    name='basilisp',
     version='0.1',
-    packages=['apylisp'],
-    url='http://github.com/chrisrink10/apylisp',
+    packages=['basilisp'],
+    url='http://github.com/chrisrink10/basilisp',
     license='MIT License',
     author='Christopher Rink',
     author_email='chrisrink10@gmail.com',

@@ -1,7 +1,7 @@
 .PHONY: format
 format:
 	@pipenv install --dev
-	@pipenv run yapf --recursive --in-place ./apylisp/* --exclude *.lpy
+	@pipenv run yapf --recursive --in-place ./basilisp/* --exclude *.lpy
 
 .PHONY: lint
 lint:
@@ -12,7 +12,7 @@ lint:
 .PHONY: repl
 repl:
 	@pipenv install
-	@pipenv run python -m apylisp.main
+	@pipenv run python -m basilisp.main
 
 
 .PHONY: test
@@ -23,4 +23,4 @@ test:
 
 .PHONY: typecheck
 typecheck:
-	@pipenv run mypy --ignore-missing-imports --follow-imports=skip apylisp
+	@pipenv run mypy --ignore-missing-imports --follow-imports=skip basilisp

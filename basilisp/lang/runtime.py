@@ -1,7 +1,7 @@
 import pkg_resources
-import apylisp.lang.namespace as namespace
-import apylisp.lang.symbol as sym
-import apylisp.lang.var as var
+import basilisp.lang.namespace as namespace
+import basilisp.lang.symbol as sym
+import basilisp.lang.var as var
 
 _CORE_NS = namespace._CORE_NS
 _CORE_NS_FILE = 'core.lpy'
@@ -44,7 +44,7 @@ def print_generated_python(var_name=_PRINT_GENERATED_PY_VAR_NAME,
 
 
 def core_resource(resource=_CORE_NS_FILE):
-    return pkg_resources.resource_filename('apylisp', resource)
+    return pkg_resources.resource_filename('basilisp', resource)
 
 
 def bootstrap(ns_var_name=_NS_VAR_NAME, core_ns_name=_CORE_NS) -> None:

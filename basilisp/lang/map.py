@@ -1,7 +1,7 @@
 import pyrsistent
 import wrapt
-import apylisp.lang.vector as vec
-from apylisp.lang.util import lrepr
+import basilisp.lang.vector as vec
+from basilisp.lang.util import lrepr
 
 
 class MapEntry(wrapt.ObjectProxy):

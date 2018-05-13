@@ -1,4 +1,4 @@
-# apylisp
+# 🐍 basilisp 🐍
 
 A Lisp dialect inspired by Clojure targeting Python.
 

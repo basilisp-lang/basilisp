@@ -1,6 +1,6 @@
 import pyrsistent
 import wrapt
-from apylisp.lang.util import lrepr
+from basilisp.lang.util import lrepr
 
 
 class Vector(wrapt.ObjectProxy):

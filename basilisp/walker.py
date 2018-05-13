@@ -1,8 +1,8 @@
 from functools import partial
-import apylisp.lang.list as llist
-import apylisp.lang.map as lmap
-import apylisp.lang.set as lset
-import apylisp.lang.vector as vector
+import basilisp.lang.list as llist
+import basilisp.lang.map as lmap
+import basilisp.lang.set as lset
+import basilisp.lang.vector as vector
 
 
 def walk(inner_f, outer_f, form):

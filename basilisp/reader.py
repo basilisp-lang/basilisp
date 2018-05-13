@@ -3,14 +3,14 @@ import contextlib
 import io
 import re
 from typing import Deque, List, Tuple
-import apylisp.lang.keyword as keyword
-import apylisp.lang.list as llist
-import apylisp.lang.map as lmap
-import apylisp.lang.set as lset
-import apylisp.lang.symbol as symbol
-import apylisp.lang.util as langutil
-import apylisp.lang.vector as vector
-import apylisp.walker as walk
+import basilisp.lang.keyword as keyword
+import basilisp.lang.list as llist
+import basilisp.lang.map as lmap
+import basilisp.lang.set as lset
+import basilisp.lang.symbol as symbol
+import basilisp.lang.util as langutil
+import basilisp.lang.vector as vector
+import basilisp.walker as walk
 
 ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%')
 begin_num_chars = re.compile('[0-9\-]')

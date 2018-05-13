@@ -1,13 +1,13 @@
 import io
 import pytest
-import apylisp.lang.keyword as kw
-import apylisp.lang.list as llist
-import apylisp.lang.map as lmap
-import apylisp.lang.set as lset
-import apylisp.lang.symbol as sym
-import apylisp.lang.util as langutil
-import apylisp.lang.vector as vec
-import apylisp.reader as reader
+import basilisp.lang.keyword as kw
+import basilisp.lang.list as llist
+import basilisp.lang.map as lmap
+import basilisp.lang.set as lset
+import basilisp.lang.symbol as sym
+import basilisp.lang.util as langutil
+import basilisp.lang.vector as vec
+import basilisp.reader as reader
 
 
 def read_str_first(s):

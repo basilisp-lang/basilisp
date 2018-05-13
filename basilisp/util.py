@@ -2,7 +2,7 @@ import functools
 import inspect
 import os.path
 import toolz.itertoolz as itertoolz
-from apylisp.lang.util import lrepr
+from basilisp.lang.util import lrepr
 
 
 def drop_last(s, n=1):

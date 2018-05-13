@@ -8,20 +8,20 @@ from typing import Dict, Iterable, Pattern, Tuple
 import uuid
 import astor.code_gen as codegen
 import toolz.itertoolz as itertoolz
-import apylisp.lang.atom as atom
-import apylisp.lang.keyword as kw
-import apylisp.lang.list as llist
-import apylisp.lang.map as lmap
-import apylisp.lang.set as lset
-import apylisp.lang.symbol as sym
-import apylisp.lang.util
-import apylisp.lang.vector as vec
-import apylisp.reader as reader
-import apylisp.lang.runtime as runtime
-import apylisp.walker as walk
-from apylisp.util import drop_last
+import basilisp.lang.atom as atom
+import basilisp.lang.keyword as kw
+import basilisp.lang.list as llist
+import basilisp.lang.map as lmap
+import basilisp.lang.set as lset
+import basilisp.lang.symbol as sym
+import basilisp.lang.util
+import basilisp.lang.vector as vec
+import basilisp.reader as reader
+import basilisp.lang.runtime as runtime
+import basilisp.walker as walk
+from basilisp.util import drop_last
 
-_CORE_NS = 'apylisp.core'
+_CORE_NS = 'basilisp.core'
 _DEFAULT_FN = '__lisp_expr__'
 _DO_PREFIX = 'lisp_do'
 _FN_PREFIX = 'lisp_fn'
@@ -66,10 +66,10 @@ _MUNGE_REPLACEMENTS = {
 _NAME_COUNTER = atom.Atom(1)
 
 _SYM_CTX_LOCAL_STARRED = kw.keyword(
-    'local-starred', ns='apylisp.compiler.var-context')
-_SYM_CTX_LOCAL = kw.keyword('local', ns='apylisp.compiler.var-context')
-_SYM_CTX_NS = kw.keyword('namespace', ns='apylisp.compiler.var-context')
-_SYM_CTX_IMPORT = kw.keyword('import', ns='apylisp.compiler.var-context')
+    'local-starred', ns='basilisp.compiler.var-context')
+_SYM_CTX_LOCAL = kw.keyword('local', ns='basilisp.compiler.var-context')
+_SYM_CTX_NS = kw.keyword('namespace', ns='basilisp.compiler.var-context')
+_SYM_CTX_IMPORT = kw.keyword('import', ns='basilisp.compiler.var-context')
 
 
 class SymbolTable:
@@ -818,14 +818,14 @@ def _module_imports() -> ast.Import:
     language support modules."""
     return ast.Import(names=[
         ast.alias(name='builtins', asname=None),
-        ast.alias(name='apylisp.lang.keyword', asname=_KW_ALIAS),
-        ast.alias(name='apylisp.lang.list', asname=_LIST_ALIAS),
-        ast.alias(name='apylisp.lang.map', asname=_MAP_ALIAS),
-        ast.alias(name='apylisp.lang.set', asname=_SET_ALIAS),
-        ast.alias(name='apylisp.lang.symbol', asname=_SYM_ALIAS),
-        ast.alias(name='apylisp.lang.vector', asname=_VEC_ALIAS),
-        ast.alias(name='apylisp.lang.var', asname=_VAR_ALIAS),
-        ast.alias(name='apylisp.lang.util', asname=_UTIL_ALIAS)
+        ast.alias(name='basilisp.lang.keyword', asname=_KW_ALIAS),
+        ast.alias(name='basilisp.lang.list', asname=_LIST_ALIAS),
+        ast.alias(name='basilisp.lang.map', asname=_MAP_ALIAS),
+        ast.alias(name='basilisp.lang.set', asname=_SET_ALIAS),
+        ast.alias(name='basilisp.lang.symbol', asname=_SYM_ALIAS),
+        ast.alias(name='basilisp.lang.vector', asname=_VEC_ALIAS),
+        ast.alias(name='basilisp.lang.var', asname=_VAR_ALIAS),
+        ast.alias(name='basilisp.lang.util', asname=_UTIL_ALIAS)
     ])
 
 
@@ -917,4 +917,4 @@ def exec_ast(ast: ast.Module,
     return getattr(mod, expr_fn)()
 
 
-lrepr = apylisp.lang.util.lrepr
+lrepr = basilisp.lang.util.lrepr

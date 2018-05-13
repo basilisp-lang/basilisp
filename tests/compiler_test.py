@@ -2,16 +2,16 @@ import dateutil.parser as dateparser
 import re
 import uuid
 import pytest
-import apylisp.compiler as compiler
-import apylisp.lang.keyword as kw
-import apylisp.lang.list as llist
-import apylisp.lang.map as lmap
-import apylisp.lang.namespace as namespace
-import apylisp.lang.set as lset
-import apylisp.lang.runtime as runtime
-import apylisp.lang.symbol as sym
-import apylisp.lang.var as var
-import apylisp.lang.vector as vec
+import basilisp.compiler as compiler
+import basilisp.lang.keyword as kw
+import basilisp.lang.list as llist
+import basilisp.lang.map as lmap
+import basilisp.lang.namespace as namespace
+import basilisp.lang.set as lset
+import basilisp.lang.runtime as runtime
+import basilisp.lang.symbol as sym
+import basilisp.lang.var as var
+import basilisp.lang.vector as vec
 
 
 @pytest.fixture

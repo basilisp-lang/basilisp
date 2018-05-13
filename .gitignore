@@ -38,6 +38,7 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+.pytest_cache
 
 # Sphinx documentation
 docs/_build/

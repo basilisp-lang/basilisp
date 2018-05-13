@@ -1,9 +1,9 @@
 import threading
 import pyrsistent
-import apylisp.lang.atom as atom
-import apylisp.lang.symbol as sym
+import basilisp.lang.atom as atom
+import basilisp.lang.symbol as sym
 
-_CORE_NS = 'apylisp.core'
+_CORE_NS = 'basilisp.core'
 _NAMESPACES = atom.Atom(pyrsistent.pmap())
 
 

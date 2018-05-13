@@ -1,11 +1,11 @@
 import pyrsistent
 import pytest
-import apylisp.lang.atom as atom
-import apylisp.lang.keyword as kw
-import apylisp.lang.namespace as namespace
-import apylisp.lang.symbol as sym
-import apylisp.lang.var as var
-import apylisp.lang.vector as vec
+import basilisp.lang.atom as atom
+import basilisp.lang.keyword as kw
+import basilisp.lang.namespace as namespace
+import basilisp.lang.symbol as sym
+import basilisp.lang.var as var
+import basilisp.lang.vector as vec
 
 
 @pytest.fixture

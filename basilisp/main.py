@@ -1,10 +1,10 @@
 import readline
 import traceback
-import apylisp.compiler as compiler
-import apylisp.reader as reader
-import apylisp.lang.namespace as namespace
-import apylisp.lang.runtime as runtime
-import apylisp.lang.symbol as sym
+import basilisp.compiler as compiler
+import basilisp.reader as reader
+import basilisp.lang.namespace as namespace
+import basilisp.lang.runtime as runtime
+import basilisp.lang.symbol as sym
 
 
 def entrypoint(filename, default_ns=runtime._REPL_DEFAULT_NS):

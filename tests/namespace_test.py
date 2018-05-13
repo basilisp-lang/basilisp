@@ -1,8 +1,8 @@
 import pyrsistent
 import pytest
-import apylisp.lang.atom as atom
-import apylisp.lang.namespace as namespace
-import apylisp.lang.symbol as sym
+import basilisp.lang.atom as atom
+import basilisp.lang.namespace as namespace
+import basilisp.lang.symbol as sym
 
 
 @pytest.fixture
