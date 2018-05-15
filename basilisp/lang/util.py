@@ -1,11 +1,12 @@
 import datetime
-import dateutil.parser as dateparser
 import re
-from typing import Pattern
 import uuid
+from typing import Pattern
+
+import dateutil.parser as dateparser
 
 
-def lrepr(f):
+def lrepr(f) -> str:
     """Return the canonical Lisp representation of an object."""
     if f is True:
         return "true"

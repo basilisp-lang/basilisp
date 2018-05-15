@@ -1,7 +1,9 @@
 import threading
+
 import basilisp.lang.atom as atom
 import basilisp.lang.namespace as namespace
 import basilisp.lang.symbol as sym
+from basilisp.lang.maybe import Maybe
 
 
 class Var:
@@ -31,19 +33,19 @@ class Var:
         self._meta = meta
 
     @property
-    def ns(self):
+    def ns(self) -> namespace.Namespace:
         return self._ns
 
     @property
-    def name(self):
+    def name(self) -> sym.Symbol:
         return self._name
 
     @property
-    def dynamic(self):
+    def dynamic(self) -> bool:
         return self._dynamic
 
     @dynamic.setter
-    def dynamic(self, is_dynamic):
+    def dynamic(self, is_dynamic: bool):
         self._dynamic = is_dynamic
 
     @property
@@ -59,7 +61,7 @@ class Var:
             self._tl.bindings = []
         self._tl.bindings.append(val)
 
-    def pop_bindings(self, val):
+    def pop_bindings(self):
         return self._tl.bindings.pop()
 
     @property
@@ -81,7 +83,7 @@ def intern(ns: sym.Symbol,
            name: sym.Symbol,
            val,
            ns_cache: atom.Atom = namespace._NAMESPACES,
-           dynamic=False,
+           dynamic: bool = False,
            meta=None) -> Var:
     """Intern the value bound to the symbol `name` in namespace `ns`.
 
@@ -108,6 +110,8 @@ def find(ns_qualified_sym: sym.Symbol,
          ns_cache: atom.Atom = namespace._NAMESPACES) -> Var:
     """Return the value currently bound to the name in the namespace specified
     by `ns_qualified_sym`."""
-    ns_sym = sym.symbol(ns_qualified_sym.ns)
+    ns = Maybe(ns_qualified_sym.ns).or_else_raise(
+        lambda: ValueError("Namespace must be specified"))
+    ns_sym = sym.symbol(ns)
     name_sym = sym.symbol(ns_qualified_sym.name)
     return find_in_ns(ns_sym, name_sym, ns_cache=ns_cache)
