@@ -1,22 +1,25 @@
-import pyrsistent
+from typing import Optional
+
+from pyrsistent import pmap, PMap
+
 import basilisp.lang.atom as atom
 
-__INTERN = atom.Atom(pyrsistent.pmap())
+__INTERN = atom.Atom(pmap())
 
 
 class Keyword:
     __slots__ = ('_name', '_ns')
 
-    def __init__(self, name, ns=None):
+    def __init__(self, name: str, ns: Optional[str] = None) -> None:
         self._name = name
         self._ns = ns
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @property
-    def ns(self):
+    def ns(self) -> Optional[str]:
         return self._ns
 
     def __str__(self):
@@ -37,7 +40,8 @@ class Keyword:
         return m.get(self, default)
 
 
-def __get_or_create(kw_cache: pyrsistent.PMap, h: int, name: str, ns: str):
+def __get_or_create(kw_cache: PMap, h: int, name: str,
+                    ns: Optional[str]) -> PMap:
     """Private swap function used to either get the interned keyword
     instance from the input string."""
     if h in kw_cache:
@@ -46,7 +50,8 @@ def __get_or_create(kw_cache: pyrsistent.PMap, h: int, name: str, ns: str):
     return kw_cache.set(h, kw)
 
 
-def keyword(name: str, ns: str = None,
+def keyword(name: str,
+            ns: Optional[str] = None,
             kw_cache: atom.Atom = __INTERN) -> Keyword:
     """Create a new keyword."""
     h = hash((name, ns))
