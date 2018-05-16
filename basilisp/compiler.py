@@ -886,8 +886,33 @@ def _ns_var(py_ns_var=_NS_VAR, lisp_ns_var=_LISP_NS_VAR,
             keywords=[]))
 
 
-def compile_forms(forms,
-                  wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
+def _to_py_source(ast: ast.AST, outfile: str) -> None:
+    source = codegen.to_source(ast)
+    with open(outfile, mode='w') as f:
+        f.writelines(source)
+
+
+def _to_py_str(ast: ast.AST) -> str:
+    """Return a string of the Python code which would generate the input
+    AST node."""
+    return codegen.to_source(ast)
+
+
+def _exec_ast(ast: ast.Module,
+              module_name: str = 'REPL',
+              expr_fn: str = _DEFAULT_FN,
+              source_filename: str = '<REPL Input>'):
+    """Execute a Python AST node generated from one of the compile functions
+    provided in this module. Return the result of the executed module code."""
+    global_scope: Dict[str, Any] = {}
+    mod = types.ModuleType(module_name)
+    bytecode = compile(ast, source_filename, 'exec')
+    exec(bytecode, global_scope, mod.__dict__)
+    return getattr(mod, expr_fn)()
+
+
+def _compile_forms(forms: LispFormAST,
+                   wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
     """Compile the given forms into final module which can be compiled into
     valid Python code. Returns a Python module AST node.
 
@@ -898,63 +923,46 @@ def compile_forms(forms,
 
     ctx = CompilerContext()
 
-    expr_body = [
-        _module_imports(),
-        _ns_var(),
-    ]
+    def compile_form(form: LispFormAST):
+        expr_body = [
+            _module_imports(),
+            _ns_var(),
+        ]
 
-    for form in forms:
         ctx.clear_nodes()
         form_ast = walk.prewalk(lambda f: _to_ast(ctx, f), form)
         if form_ast is None:
-            continue
+            return None
         expr_body.extend(list(ctx.nodes.deref()))
         expr_body.append(form_ast)
 
-    body = _expressionize(expr_body, wrapped_fn_name)
+        body = _expressionize(expr_body, wrapped_fn_name)
 
-    module = ast.Module(body=[body])
-    ast.fix_missing_locations(module)
-    return module
+        module = ast.Module(body=[body])
+        ast.fix_missing_locations(module)
+
+        if runtime.print_generated_python():
+            print(_to_py_str(module))
+
+        return _exec_ast(module, expr_fn=wrapped_fn_name)
+
+    return seq(forms) \
+        .map(compile_form) \
+        .sequence[-1]
 
 
 def compile_file(filename: str,
                  wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
     """Compile a file with the given name into a Python module AST node."""
     forms = reader.read_file(filename)
-    return compile_forms(forms, wrapped_fn_name)
+    return _compile_forms(forms, wrapped_fn_name)
 
 
 def compile_str(s: str,
                 wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
     """Compile the forms in a string into a Python module AST node."""
     forms = reader.read_str(s)
-    return compile_forms(forms, wrapped_fn_name)
-
-
-def to_py_source(ast: ast.AST, outfile: str) -> None:
-    source = codegen.to_source(ast)
-    with open(outfile, mode='w') as f:
-        f.writelines(source)
-
-
-def to_py_str(ast: ast.AST) -> str:
-    """Return a string of the Python code which would generate the input
-    AST node."""
-    return codegen.to_source(ast)
-
-
-def exec_ast(ast: ast.Module,
-             module_name: str = 'REPL',
-             expr_fn: str = _DEFAULT_FN,
-             source_filename: str = '<REPL Input>'):
-    """Execute a Python AST node generated from one of the compile functions
-    provided in this module. Return the result of the executed module code."""
-    global_scope: Dict[str, Any] = {}
-    mod = types.ModuleType(module_name)
-    bytecode = compile(ast, source_filename, 'exec')
-    exec(bytecode, global_scope, mod.__dict__)
-    return getattr(mod, expr_fn)()
+    return _compile_forms(forms, wrapped_fn_name)
 
 
 lrepr = basilisp.lang.util.lrepr

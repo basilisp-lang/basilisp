@@ -1,17 +1,30 @@
-import dateutil.parser as dateparser
 import re
 import uuid
+from unittest.mock import Mock
+
+import dateutil.parser as dateparser
 import pytest
+
 import basilisp.compiler as compiler
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.namespace as namespace
-import basilisp.lang.set as lset
 import basilisp.lang.runtime as runtime
+import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.var as var
 import basilisp.lang.vector as vec
+
+__PRINT_GENERATED_PYTHON_FN = runtime.print_generated_python
+
+
+def setup_module(module):
+    runtime.print_generated_python = Mock(return_value=False)
+
+
+def teardown_module(module):
+    runtime.print_generated_python = __PRINT_GENERATED_PYTHON_FN
 
 
 @pytest.fixture
@@ -30,8 +43,7 @@ def lcompile(s: str):
     """Compile and execute the code in the input string.
 
     Return the resulting expression."""
-    ast = compiler.compile_str(s)
-    return compiler.exec_ast(ast)
+    return compiler.compile_str(s)
 
 
 def test_string():
@@ -82,9 +94,9 @@ def test_map():
     assert lcompile('{:a "string"}') == lmap.map({kw.keyword("a"): "string"})
     assert lcompile('{:a "string" 45 :my-age}') == lmap.map({
         kw.keyword("a"):
-        "string",
+            "string",
         45:
-        kw.keyword("my-age")
+            kw.keyword("my-age")
     })
 
 

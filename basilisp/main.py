@@ -1,10 +1,10 @@
-import readline
 import traceback
+
 import basilisp.compiler as compiler
-import basilisp.reader as reader
 import basilisp.lang.namespace as namespace
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
+import basilisp.reader as reader
 
 
 def entrypoint(filename, default_ns=runtime._REPL_DEFAULT_NS):
@@ -14,11 +14,8 @@ def entrypoint(filename, default_ns=runtime._REPL_DEFAULT_NS):
 
 def import_core_ns():
     core_ns_filename = runtime.core_resource()
-    core_ns_fn = '__apylisp_core__'
-    core_ast = compiler.compile_file(
-        core_ns_filename, wrapped_fn_name=core_ns_fn)
-    print(compiler.to_py_str(core_ast))
-    compiler.exec_ast(core_ast, expr_fn=core_ns_fn)
+    core_ns_fn = '__basilisp_core__'
+    compiler.compile_file(core_ns_filename, wrapped_fn_name=core_ns_fn)
 
 
 def repl(default_ns=runtime._REPL_DEFAULT_NS):
@@ -38,17 +35,14 @@ def repl(default_ns=runtime._REPL_DEFAULT_NS):
             continue
 
         try:
-            ast = compiler.compile_str(lsrc)
-            if ast is None:
-                continue
+            print(compiler.lrepr(compiler.compile_str(lsrc)))
         except reader.SyntaxError as e:
             traceback.print_exception(reader.SyntaxError, e, e.__traceback__)
             continue
-
-        if runtime.print_generated_python():
-            print(compiler.to_py_str(ast))
-
-        print(compiler.lrepr(compiler.exec_ast(ast)))
+        except compiler.CompilerException as e:
+            traceback.print_exception(compiler.CompilerException, e,
+                                      e.__traceback__)
+            continue
 
 
 if __name__ == "__main__":

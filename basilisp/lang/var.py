@@ -111,7 +111,8 @@ def find(ns_qualified_sym: sym.Symbol,
     """Return the value currently bound to the name in the namespace specified
     by `ns_qualified_sym`."""
     ns = Maybe(ns_qualified_sym.ns).or_else_raise(
-        lambda: ValueError("Namespace must be specified"))
+        lambda: ValueError(f"Namespace must be specified in Symbol {ns_qualified_sym}")
+    )
     ns_sym = sym.symbol(ns)
     name_sym = sym.symbol(ns_qualified_sym.name)
     return find_in_ns(ns_sym, name_sym, ns_cache=ns_cache)
