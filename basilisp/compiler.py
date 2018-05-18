@@ -312,7 +312,7 @@ _MAP_ALIAS = 'lmap'
 _SET_ALIAS = 'lset'
 _SYM_ALIAS = 'sym'
 _VEC_ALIAS = 'vec'
-_VAR_ALIAS = 'var'
+_VAR_ALIAS = 'Var'
 _UTIL_ALIAS = 'langutil'
 _NS_VAR_VALUE = f'{_NS_VAR}.value'
 
@@ -857,13 +857,22 @@ def _module_imports() -> ast.Import:
         ast.alias(name='basilisp.lang.set', asname=_SET_ALIAS),
         ast.alias(name='basilisp.lang.symbol', asname=_SYM_ALIAS),
         ast.alias(name='basilisp.lang.vector', asname=_VEC_ALIAS),
-        ast.alias(name='basilisp.lang.var', asname=_VAR_ALIAS),
         ast.alias(name='basilisp.lang.util', asname=_UTIL_ALIAS)
     ])
 
 
-def _ns_var(py_ns_var=_NS_VAR, lisp_ns_var=_LISP_NS_VAR,
-            lisp_ns_ns=_CORE_NS) -> ast.Assign:
+def _from_module_import() -> ast.ImportFrom:
+    """Generate the Python From ... Import AST node for importing
+    language support modules."""
+    return ast.ImportFrom(
+        module='basilisp.lang.runtime',
+        names=[ast.alias(name='Var', asname=None)],
+        level=0)
+
+
+def _ns_var(py_ns_var: str = _NS_VAR,
+            lisp_ns_var: str = _LISP_NS_VAR,
+            lisp_ns_ns: str = _CORE_NS) -> ast.Assign:
     """Assign a Python variable named `ns_var` to the value of the current
     namespace."""
     return ast.Assign(
@@ -921,6 +930,7 @@ def _compile_forms(forms: LispFormAST,
     def compile_form(form: LispFormAST):
         expr_body = [
             _module_imports(),
+            _from_module_import(),
             _ns_var(),
         ]
 

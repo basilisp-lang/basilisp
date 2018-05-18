@@ -1,15 +1,8 @@
 import traceback
 
 import basilisp.compiler as compiler
-import basilisp.lang.namespace as namespace
 import basilisp.lang.runtime as runtime
-import basilisp.lang.symbol as sym
 import basilisp.reader as reader
-
-
-def entrypoint(filename, default_ns=runtime._REPL_DEFAULT_NS):
-    ns = namespace.Namespace(sym.Symbol(default_ns))
-    return
 
 
 def import_core_ns():
