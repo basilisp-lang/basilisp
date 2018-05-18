@@ -9,12 +9,11 @@ import basilisp.compiler as compiler
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.namespace as namespace
 import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
-import basilisp.lang.var as var
 import basilisp.lang.vector as vec
+from basilisp.lang.runtime import Namespace, Var
 
 __PRINT_GENERATED_PYTHON_FN = runtime.print_generated_python
 
@@ -36,7 +35,7 @@ def test_ns() -> str:
 def ns_var(test_ns: str):
     runtime.init_ns_var(which_ns=runtime._CORE_NS)
     yield runtime.set_current_ns(test_ns)
-    namespace.remove(sym.symbol(runtime._CORE_NS))
+    Namespace.remove(sym.symbol(runtime._CORE_NS))
 
 
 def lcompile(s: str):
@@ -112,36 +111,36 @@ def test_vec():
     assert lcompile("[:a 1]") == vec.v(kw.keyword("a"), 1)
 
 
-def test_def(ns_var: var.Var):
+def test_def(ns_var: Var):
     ns_name = ns_var.value.name
-    assert lcompile("(def a :some-val)") == var.find_in_ns(
+    assert lcompile("(def a :some-val)") == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('a'))
-    assert lcompile('(def beep "a sound a robot makes")') == var.find_in_ns(
+    assert lcompile('(def beep "a sound a robot makes")') == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('beep'))
     assert lcompile("a") == kw.keyword("some-val")
     assert lcompile("beep") == "a sound a robot makes"
 
 
-def test_do(ns_var: var.Var):
+def test_do(ns_var: Var):
     code = """
     (do
       (def first-name :Darth)
       (def last-name "Vader"))
     """
     ns_name = ns_var.value.name
-    assert lcompile(code) == var.find_in_ns(
+    assert lcompile(code) == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('last-name'))
     assert lcompile("first-name") == kw.keyword("Darth")
     assert lcompile("last-name") == "Vader"
 
 
-def test_fn(ns_var: var.Var):
+def test_fn(ns_var: Var):
     code = """
     (def string-upper (fn* [s] (.upper s)))
     """
     ns_name = ns_var.value.name
     fvar = lcompile(code)
-    assert fvar == var.find_in_ns(
+    assert fvar == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('string-upper'))
     assert callable(fvar.value)
     assert fvar.value("lower") == "LOWER"
@@ -151,7 +150,7 @@ def test_fn(ns_var: var.Var):
     """
     ns_name = ns_var.value.name
     fvar = lcompile(code)
-    assert fvar == var.find_in_ns(
+    assert fvar == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('string-lower'))
     assert callable(fvar.value)
     assert fvar.value("UPPER") == "upper"
@@ -216,7 +215,7 @@ def test_try_catch(capsys):
     assert captured.out == "neither\n"
 
 
-def test_var(ns_var: var.Var):
+def test_var(ns_var: Var):
     code = """
     (def some-var "a value")
 
@@ -224,7 +223,7 @@ def test_var(ns_var: var.Var):
 
     ns_name = ns_var.value.name
     v = lcompile(code)
-    assert v == var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
+    assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
     assert v.value == "a value"
 
     code = """
@@ -234,7 +233,7 @@ def test_var(ns_var: var.Var):
 
     ns_name = ns_var.value.name
     v = lcompile(code)
-    assert v == var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
+    assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
     assert v.value == "a value"
 
 
