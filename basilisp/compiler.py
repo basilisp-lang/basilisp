@@ -585,9 +585,10 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
         assert isinstance(final_clause, llist.List)
         final_exprs: List[ast.AST] = []
         if final_clause.first == _FINALLY:
-            final_exprs = seq(final_clause.rest).map(
-                lambda clause: _to_ast(ctx, clause)).map(
-                    lambda node: _statementize(node)).to_list()
+            final_exprs = seq(final_clause.rest) \
+                .map(lambda clause: _to_ast(ctx, clause)) \
+                .map(lambda node: _statementize(node)) \
+                .to_list()
         else:
             catches.append(_catch_ast(ctx, final_clause))
 
