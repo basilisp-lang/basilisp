@@ -21,6 +21,7 @@ import basilisp.lang.util
 import basilisp.lang.vector as vec
 import basilisp.reader as reader
 import basilisp.walker as walk
+from basilisp.util import Maybe
 
 _CORE_NS = 'basilisp.core'
 _DEFAULT_FN = '__lisp_expr__'
@@ -273,7 +274,7 @@ def _expressionize(body: Collection[ast.AST],
     statements and expressions, and Lisps, which have only expressions.
     """
     args = [] if args is None else args
-    body_nodes = []
+    body_nodes: List[ast.AST] = []
     try:
         if len(body) > 1:
             body_nodes.extend(seq(body).drop_right(1).map(_statementize).to_list())
@@ -537,7 +538,7 @@ def _quote_ast(ctx: CompilerContext, form: llist.List) -> Optional[ast.AST]:
 def _catch_expr_body(body) -> Iterable[ast.AST]:
     """Given a series of expression AST nodes, create a body of expression
     nodes with a final return node at the end of the list."""
-    body_nodes = []
+    body_nodes: List[ast.AST] = []
     try:
         if len(body) > 1:
             body_nodes.extend(seq(body).drop_right(1).map(_statementize).to_list())
@@ -715,8 +716,10 @@ def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ast.Call:
 
 
 def _kw_ast(form: kw.Keyword) -> ast.Call:
-    kwarg = [ast.keyword(arg='ns', value=ast.Str(
-        form.ns))] if form.ns is not None else []
+    kwarg = Maybe(form.ns) \
+        .stream \
+        .map(lambda ns: ast.keyword(arg='ns', value=ast.Str(form.ns))) \
+        .to_list()
     return ast.Call(
         func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg)
 
@@ -742,7 +745,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> LispSymbolAST:
     elif form.ns is not None:
         ns = ast.Str(form.ns)
 
-    sym_kwargs = [ast.keyword(arg='ns', value=ns)] if ns is not None else []
+    sym_kwargs = Maybe(ns).stream.map(lambda v: ast.keyword(arg='ns', value=ns)).to_list()
     sym_kwargs.extend(_meta_kwargs_ast(ctx, form))
     base_sym = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Str(form.name)], keywords=sym_kwargs)
@@ -800,8 +803,10 @@ def _uuid_ast(form: uuid.UUID) -> ast.Call:
 def _collection_ast(ctx: CompilerContext,
                     form: Iterable[LispFormAST]) -> List[ast.AST]:
     """Turn a collection of Lisp forms into Python AST nodes, filtering out """
-    return seq(form).map(lambda x: _to_ast(ctx, x)).filter(
-        lambda x: x is not None).to_list()
+    return seq(form) \
+        .map(lambda x: _to_ast(ctx, x)) \
+        .filter(lambda x: x is not None) \
+        .to_list()
 
 
 def _to_ast(ctx: CompilerContext, form: LispFormAST) -> Optional[ast.AST]:

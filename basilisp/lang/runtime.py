@@ -6,7 +6,7 @@ from pyrsistent import pmap, PMap, PSet, pset
 
 import basilisp.lang.symbol as sym
 from basilisp.lang import atom
-from basilisp.lang.maybe import Maybe
+from basilisp.util import Maybe
 
 _CORE_NS = 'basilisp.core'
 _CORE_NS_FILE = 'core.lpy'
