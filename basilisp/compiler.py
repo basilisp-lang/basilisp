@@ -806,8 +806,10 @@ def _uuid_ast(form: uuid.UUID) -> ast.Call:
 def _collection_ast(ctx: CompilerContext,
                     form: Iterable[LispFormAST]) -> List[ast.AST]:
     """Turn a collection of Lisp forms into Python AST nodes, filtering out """
-    return seq(form).map(lambda x: _to_ast(ctx, x)).filter(
-        lambda x: x is not None).to_list()
+    return seq(form) \
+        .map(lambda x: _to_ast(ctx, x)) \
+        .filter(lambda x: x is not None) \
+        .to_list()
 
 
 def _to_ast(ctx: CompilerContext, form: LispFormAST) -> Optional[ast.AST]:

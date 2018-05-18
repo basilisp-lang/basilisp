@@ -1,7 +1,7 @@
 import functools
 import inspect
 import os.path
-from typing import TypeVar, Generic, Optional, Callable
+from typing import Generic, Optional, Callable, TypeVar
 
 from functional import seq
 from functional.pipeline import Sequence

@@ -2,11 +2,11 @@ import threading
 from typing import Optional
 
 import pkg_resources
+from basilisp.lang.maybe import Maybe
 from pyrsistent import pmap, PMap, PSet, pset
 
 import basilisp.lang.symbol as sym
 from basilisp.lang import atom
-from basilisp.lang.maybe import Maybe
 from basilisp.util import Maybe
 
 _CORE_NS = 'basilisp.core'
