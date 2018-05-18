@@ -21,7 +21,6 @@ import basilisp.lang.util
 import basilisp.lang.vector as vec
 import basilisp.reader as reader
 import basilisp.walker as walk
-from basilisp.util import drop_last
 
 _CORE_NS = 'basilisp.core'
 _DEFAULT_FN = '__lisp_expr__'
@@ -277,7 +276,7 @@ def _expressionize(body: Collection[ast.AST],
     body_nodes = []
     try:
         if len(body) > 1:
-            body_nodes.extend([_statementize(e) for e in drop_last(body)])
+            body_nodes.extend(seq(body).drop_right(1).map(_statementize).to_list())
         body_nodes.append(ast.Return(value=seq(body).last()))
     except TypeError:
         body_nodes.append(ast.Return(value=body))
@@ -541,7 +540,7 @@ def _catch_expr_body(body) -> Iterable[ast.AST]:
     body_nodes = []
     try:
         if len(body) > 1:
-            body_nodes.extend([_statementize(e) for e in drop_last(body)])
+            body_nodes.extend(seq(body).drop_right(1).map(_statementize).to_list())
         body_nodes.append(ast.Return(value=seq(body).last()))
     except TypeError:
         body_nodes.append(ast.Return(value=body))
@@ -583,9 +582,10 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
         assert isinstance(final_clause, llist.List)
         final_exprs: List[ast.AST] = []
         if final_clause.first == _FINALLY:
-            final_exprs = seq(final_clause.rest).map(
-                lambda clause: _to_ast(ctx, clause)).map(
-                    lambda node: _statementize(node)).to_list()
+            final_exprs = seq(final_clause.rest) \
+                .map(lambda clause: _to_ast(ctx, clause)) \
+                .map(lambda node: _statementize(node)) \
+                .to_list()
         else:
             catches.append(_catch_ast(ctx, final_clause))
 
