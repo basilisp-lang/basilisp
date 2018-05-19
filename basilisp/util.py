@@ -68,7 +68,6 @@ class Maybe(Generic[T]):
     def value(self) -> Optional[T]:
         return self._inner
 
-    @property
     def stream(self) -> Sequence:
         if self._inner is None:
             return seq([])
