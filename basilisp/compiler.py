@@ -745,7 +745,8 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> LispSymbolAST:
     elif form.ns is not None:
         ns = ast.Str(form.ns)
 
-    sym_kwargs = Maybe(ns).stream().map(lambda v: ast.keyword(arg='ns', value=ns)).to_list()
+    sym_kwargs = Maybe(ns).stream().map(
+        lambda v: ast.keyword(arg='ns', value=ns)).to_list()
     sym_kwargs.extend(_meta_kwargs_ast(ctx, form))
     base_sym = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Str(form.name)], keywords=sym_kwargs)
