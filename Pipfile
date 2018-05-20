@@ -9,6 +9,7 @@ pytest = "*"
 yapf = "*"
 mypy = "*"
 autoflake = "*"
+pytest-cov = "*"
 
 [packages]
 astor = "*"
