@@ -9,11 +9,6 @@ from functional.pipeline import Sequence
 from basilisp.lang.util import lrepr
 
 
-def drop_last(s, n=1):
-    """Drop the last n items in the sequence s."""
-    return seq(s).drop_right(n)
-
-
 def trace(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
