@@ -1,4 +1,4 @@
-import pyrsistent
+from pyrsistent import PVector, pvector
 from wrapt import ObjectProxy
 
 from basilisp.lang.meta import Meta
@@ -8,7 +8,7 @@ from basilisp.lang.util import lrepr
 class Vector(ObjectProxy, Meta):
     __slots__ = ('_self_meta', )
 
-    def __init__(self, wrapped, meta=None):
+    def __init__(self, wrapped: PVector, meta=None) -> None:
         super(Vector, self).__init__(wrapped)
         self._self_meta = meta
 
@@ -19,23 +19,23 @@ class Vector(ObjectProxy, Meta):
     def meta(self):
         return self._self_meta
 
-    def with_meta(self, meta):
+    def with_meta(self, meta) -> "Vector":
         new_meta = meta if self._self_meta is None else self._self_meta.update(
             meta)
         return vector(self.__wrapped__, meta=new_meta)
 
-    def conj(self, elem):
-        return Vector(self.append(elem))
+    def conj(self, elem) -> "Vector":
+        return Vector(self.append(elem), meta=self.meta)
 
-    def empty(self):
+    def empty(self) -> "Vector":
         return v()
 
 
 def vector(members, meta=None) -> Vector:
     """Creates a new vector."""
-    return Vector(pyrsistent.pvector(members), meta=meta)
+    return Vector(pvector(members), meta=meta)
 
 
 def v(*members, meta=None) -> Vector:
     """Creates a new vector from members."""
-    return Vector(pyrsistent.pvector(members), meta=meta)
+    return Vector(pvector(members), meta=meta)
