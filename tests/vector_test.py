@@ -42,11 +42,11 @@ def test_vector_with_meta():
 
 
 def test_vector_repr():
-    sym = vector.v()
-    assert repr(sym) == "[]"
+    v = vector.v()
+    assert repr(v) == "[]"
 
-    sym = vector.v(keyword("kw1"))
-    assert repr(sym) == "[:kw1]"
+    v = vector.v(keyword("kw1"))
+    assert repr(v) == "[:kw1]"
 
-    sym = vector.v(keyword("kw1"), keyword("kw2"))
-    assert repr(sym) == "[:kw1 :kw2]"
+    v = vector.v(keyword("kw1"), keyword("kw2"))
+    assert repr(v) == "[:kw1 :kw2]"
