@@ -31,7 +31,8 @@ class List(ObjectProxy, Meta):
     def conj(self, elem) -> "List":
         return List(self.cons(elem))
 
-    def empty(self) -> "List":
+    @staticmethod
+    def empty() -> "List":
         return l()
 
 

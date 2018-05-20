@@ -1,3 +1,6 @@
+from collections import Sequence
+from typing import Any
+
 from pyrsistent import pmap, PMap
 from wrapt import ObjectProxy
 
@@ -27,11 +30,11 @@ class MapEntry(ObjectProxy):
         return self[1]
 
     @staticmethod
-    def of(k, v):
+    def of(k, v) -> "MapEntry":
         return MapEntry(vec.v(k, v))
 
     @staticmethod
-    def from_vec(v):
+    def from_vec(v: Sequence) -> "MapEntry":
         return MapEntry(vec.vector(v))
 
 
@@ -76,13 +79,14 @@ class Map(ObjectProxy, Meta):
             raise ValueError(
                 "Argument to map conj must be castable to MapEntry")
 
-    def conj(self, entry: MapEntry) -> "Map":
+    def conj(self, entry: Any) -> "Map":
         try:
             return Map(self.set(entry.key, entry.value), meta=self.meta)
         except AttributeError:
             return self._conj(MapEntry.from_vec(entry))
 
-    def empty(self) -> "Map":
+    @staticmethod
+    def empty() -> "Map":
         return m()
 
 
