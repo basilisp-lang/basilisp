@@ -27,7 +27,8 @@ class Vector(ObjectProxy, Meta):
     def conj(self, elem) -> "Vector":
         return Vector(self.append(elem), meta=self.meta)
 
-    def empty(self) -> "Vector":
+    @staticmethod
+    def empty() -> "Vector":
         return v()
 
 

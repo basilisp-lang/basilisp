@@ -27,7 +27,8 @@ class Set(ObjectProxy, Meta):
     def conj(self, elem) -> "Set":
         return Set(self.add(elem), meta=self.meta)
 
-    def empty(self) -> "Set":
+    @staticmethod
+    def empty() -> "Set":
         return s()
 
 
