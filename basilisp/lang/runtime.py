@@ -2,7 +2,6 @@ import threading
 from typing import Optional
 
 import pkg_resources
-from basilisp.lang.maybe import Maybe
 from pyrsistent import pmap, PMap, PSet, pset
 
 import basilisp.lang.symbol as sym
