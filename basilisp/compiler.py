@@ -21,7 +21,7 @@ import basilisp.lang.util
 import basilisp.lang.vector as vec
 import basilisp.reader as reader
 import basilisp.walker as walk
-from basilisp.util import drop_last
+from basilisp.util import drop_last, Maybe
 
 _CORE_NS = 'basilisp.core'
 _DEFAULT_FN = '__lisp_expr__'
@@ -715,8 +715,10 @@ def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ast.Call:
 
 
 def _kw_ast(form: kw.Keyword) -> ast.Call:
-    kwarg = [ast.keyword(arg='ns', value=ast.Str(
-        form.ns))] if form.ns is not None else []
+    kwarg = Maybe(form.ns) \
+        .stream() \
+        .map(lambda ns: ast.keyword(arg='ns', value=ast.Str(form.ns))) \
+        .to_list()
     return ast.Call(
         func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg)
 
@@ -742,7 +744,8 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> LispSymbolAST:
     elif form.ns is not None:
         ns = ast.Str(form.ns)
 
-    sym_kwargs = [ast.keyword(arg='ns', value=ns)] if ns is not None else []
+    sym_kwargs = Maybe(ns).stream().map(
+        lambda v: ast.keyword(arg='ns', value=ns)).to_list()
     sym_kwargs.extend(_meta_kwargs_ast(ctx, form))
     base_sym = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Str(form.name)], keywords=sym_kwargs)

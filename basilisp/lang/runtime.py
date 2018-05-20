@@ -1,7 +1,9 @@
 import pkg_resources
+
 import basilisp.lang.namespace as namespace
 import basilisp.lang.symbol as sym
 import basilisp.lang.var as var
+from basilisp.util import Maybe
 
 _CORE_NS = namespace._CORE_NS
 _CORE_NS_FILE = 'core.lpy'
@@ -55,9 +57,8 @@ def bootstrap(ns_var_name=_NS_VAR_NAME, core_ns_name=_CORE_NS) -> None:
     __NS = var.find(ns_var_sym)
 
     def set_BANG_(var_sym: sym.Symbol, expr):
-        ns, name = None, var_sym.name
-        if var_sym.ns is None:
-            ns = __NS.value.name
+        ns = Maybe(var_sym.ns).or_else(lambda: __NS.value.name)
+        name = var_sym.name
 
         v = var.find(sym.symbol(name, ns=ns))
         v.value = expr
