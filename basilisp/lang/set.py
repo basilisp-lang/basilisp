@@ -1,4 +1,4 @@
-import pyrsistent
+from pyrsistent import PSet, pset
 from wrapt import ObjectProxy
 
 from basilisp.lang.meta import Meta
@@ -8,7 +8,7 @@ from basilisp.lang.util import lrepr
 class Set(ObjectProxy, Meta):
     __slots__ = ('_self_meta', )
 
-    def __init__(self, wrapped, meta=None):
+    def __init__(self, wrapped: PSet, meta=None) -> None:
         super(Set, self).__init__(wrapped)
         self._self_meta = meta
 
@@ -19,23 +19,24 @@ class Set(ObjectProxy, Meta):
     def meta(self):
         return self._self_meta
 
-    def with_meta(self, meta):
+    def with_meta(self, meta) -> "Set":
         new_meta = meta if self._self_meta is None else self._self_meta.update(
             meta)
         return set(self.__wrapped__, meta=new_meta)
 
-    def conj(self, elem):
-        return self.add(elem)
+    def conj(self, elem) -> "Set":
+        return Set(self.add(elem), meta=self.meta)
 
-    def empty(self):
+    @staticmethod
+    def empty() -> "Set":
         return s()
 
 
-def set(members, meta=None):
+def set(members, meta=None) -> Set:
     """Creates a new set."""
-    return Set(pyrsistent.pset(members), meta=meta)
+    return Set(pset(members), meta=meta)
 
 
-def s(*members, meta=None):
+def s(*members, meta=None) -> Set:
     """Creates a new set from members."""
-    return Set(pyrsistent.pset(members), meta=meta)
+    return Set(pset(members), meta=meta)

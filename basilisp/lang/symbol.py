@@ -1,27 +1,29 @@
+from typing import Optional
+
 from basilisp.lang.meta import Meta
 
 
 class Symbol(Meta):
     __slots__ = ('_name', '_ns', '_meta')
 
-    def __init__(self, name, ns=None, meta=None):
+    def __init__(self, name: str, ns: Optional[str] = None, meta=None) -> None:
         self._name = name
         self._ns = ns
         self._meta = meta
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @property
-    def ns(self):
+    def ns(self) -> Optional[str]:
         return self._ns
 
     @property
     def meta(self):
         return self._meta
 
-    def with_meta(self, meta):
+    def with_meta(self, meta) -> "Symbol":
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return Symbol(self._name, self._ns, meta=new_meta)
 
@@ -42,6 +44,6 @@ class Symbol(Meta):
         return hash(str(self))
 
 
-def symbol(name, ns=None, meta=None):
+def symbol(name: str, ns: Optional[str] = None, meta=None) -> Symbol:
     """Create a new symbol."""
     return Symbol(name, ns=ns, meta=meta)

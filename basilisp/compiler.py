@@ -277,7 +277,8 @@ def _expressionize(body: Collection[ast.AST],
     body_nodes: List[ast.AST] = []
     try:
         if len(body) > 1:
-            body_nodes.extend(seq(body).drop_right(1).map(_statementize).to_list())
+            body_nodes.extend(
+                seq(body).drop_right(1).map(_statementize).to_list())
         body_nodes.append(ast.Return(value=seq(body).last()))
     except TypeError:
         body_nodes.append(ast.Return(value=body))
@@ -541,7 +542,8 @@ def _catch_expr_body(body) -> Iterable[ast.AST]:
     body_nodes: List[ast.AST] = []
     try:
         if len(body) > 1:
-            body_nodes.extend(seq(body).drop_right(1).map(_statementize).to_list())
+            body_nodes.extend(
+                seq(body).drop_right(1).map(_statementize).to_list())
         body_nodes.append(ast.Return(value=seq(body).last()))
     except TypeError:
         body_nodes.append(ast.Return(value=body))

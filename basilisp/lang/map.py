@@ -1,4 +1,7 @@
-import pyrsistent
+from collections import Sequence
+from typing import Any
+
+from pyrsistent import pmap, PMap
 from wrapt import ObjectProxy
 
 import basilisp.lang.vector as vec
@@ -26,15 +29,19 @@ class MapEntry(ObjectProxy):
     def value(self):
         return self[1]
 
+    @staticmethod
+    def of(k, v) -> "MapEntry":
+        return MapEntry(vec.v(k, v))
 
-def map_entry(k, v):
-    return MapEntry(vec.v(k, v))
+    @staticmethod
+    def from_vec(v: Sequence) -> "MapEntry":
+        return MapEntry(vec.vector(v))
 
 
 class Map(ObjectProxy, Meta):
     __slots__ = ('_self_meta', )
 
-    def __init__(self, wrapped, meta=None):
+    def __init__(self, wrapped: PMap, meta=None) -> None:
         super(Map, self).__init__(wrapped)
         self._self_meta = meta
 
@@ -52,48 +59,49 @@ class Map(ObjectProxy, Meta):
     def meta(self):
         return self._self_meta
 
-    def with_meta(self, meta):
+    def with_meta(self, meta) -> "Map":
         new_meta = meta if self._self_meta is None else self._self_meta.update(
             meta)
         return map(self.__wrapped__, meta=new_meta)
 
-    def update(self, *maps):
-        m = self.__wrapped__.update(*maps)
+    def update(self, *maps) -> "Map":
+        m: PMap = self.__wrapped__.update(*maps)
         return map(m)
 
     def __iter__(self):
         for k, v in self.iteritems():
-            yield map_entry(k, v)
+            yield MapEntry.of(k, v)
 
-    def _conj(self, entry):
+    def _conj(self, entry: MapEntry) -> "Map":
         try:
-            return self.set(entry.key, entry.value)
+            return Map(self.set(entry.key, entry.value), meta=self.meta)
         except AttributeError:
             raise ValueError(
                 "Argument to map conj must be castable to MapEntry")
 
-    def conj(self, entry):
+    def conj(self, entry: Any) -> "Map":
         try:
-            return self.set(entry.key, entry.value)
+            return Map(self.set(entry.key, entry.value), meta=self.meta)
         except AttributeError:
-            return self._conj(self, map_entry(entry))
+            return self._conj(MapEntry.from_vec(entry))
 
-    def empty(self):
+    @staticmethod
+    def empty() -> "Map":
         return m()
 
 
-def map(kvs, meta=None):
+def map(kvs, meta=None) -> Map:
     """Creates a new map."""
-    return Map(pyrsistent.pmap(initial=kvs), meta=meta)
+    return Map(pmap(initial=kvs), meta=meta)
 
 
-def m(**kvs):
+def m(**kvs) -> Map:
     """Creates a new map from keyword arguments."""
-    return Map(pyrsistent.pmap(initial=kvs))
+    return Map(pmap(initial=kvs))
 
 
 def from_entries(entries):
-    m = pyrsistent.pmap().evolver()
+    m = pmap().evolver()
     for entry in entries:
         m.set(entry.key, entry.value)
     return m.persistent()
