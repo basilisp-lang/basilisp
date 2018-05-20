@@ -1,6 +1,7 @@
 import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 from basilisp.lang.keyword import keyword
+from basilisp.lang.symbol import symbol
 
 
 def test_set_conj():
@@ -16,7 +17,7 @@ def test_set_conj():
 
 def test_set_meta():
     assert lset.s("vec").meta is None
-    meta = lmap.m(type=lset.s("str"))
+    meta = lmap.m(type=symbol("str"))
     assert lset.s("vec", meta=meta).meta == meta
 
 
@@ -24,7 +25,7 @@ def test_set_with_meta():
     s1 = lset.s("vec")
     assert s1.meta is None
 
-    meta1 = lmap.m(type=lset.s("str"))
+    meta1 = lmap.m(type=symbol("str"))
     s2 = lset.s("vec", meta=meta1)
     assert s2.meta == meta1
 
@@ -32,13 +33,13 @@ def test_set_with_meta():
     s3 = s2.with_meta(meta2)
     assert s2 is not s3
     assert s2 == s3
-    assert s3.meta == lmap.m(type=lset.s("str"), tag=keyword("async"))
+    assert s3.meta == lmap.m(type=symbol("str"), tag=keyword("async"))
 
     meta3 = lmap.m(tag=keyword("macro"))
     s4 = s3.with_meta(meta3)
     assert s3 is not s4
     assert s3 == s4
-    assert s4.meta == lmap.m(type=lset.s("str"), tag=keyword("macro"))
+    assert s4.meta == lmap.m(type=symbol("str"), tag=keyword("macro"))
 
 
 def test_set_repr():

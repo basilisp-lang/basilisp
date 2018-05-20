@@ -1,6 +1,7 @@
 import basilisp.lang.map as lmap
 import basilisp.lang.vector as vector
 from basilisp.lang.keyword import keyword
+from basilisp.lang.symbol import symbol
 
 
 def test_vector_conj():
@@ -16,7 +17,7 @@ def test_vector_conj():
 
 def test_vector_meta():
     assert vector.v("vec").meta is None
-    meta = lmap.m(type=vector.v("str"))
+    meta = lmap.m(type=symbol("str"))
     assert vector.v("vec", meta=meta).meta == meta
 
 
@@ -24,7 +25,7 @@ def test_vector_with_meta():
     vec = vector.v("vec")
     assert vec.meta is None
 
-    meta1 = lmap.m(type=vector.v("str"))
+    meta1 = lmap.m(type=symbol("str"))
     vec1 = vector.v("vec", meta=meta1)
     assert vec1.meta == meta1
 
@@ -32,13 +33,13 @@ def test_vector_with_meta():
     vec2 = vec1.with_meta(meta2)
     assert vec1 is not vec2
     assert vec1 == vec2
-    assert vec2.meta == lmap.m(type=vector.v("str"), tag=keyword("async"))
+    assert vec2.meta == lmap.m(type=symbol("str"), tag=keyword("async"))
 
     meta3 = lmap.m(tag=keyword("macro"))
     vec3 = vec2.with_meta(meta3)
     assert vec2 is not vec3
     assert vec2 == vec3
-    assert vec3.meta == lmap.m(type=vector.v("str"), tag=keyword("macro"))
+    assert vec3.meta == lmap.m(type=symbol("str"), tag=keyword("macro"))
 
 
 def test_vector_repr():

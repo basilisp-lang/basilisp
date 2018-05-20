@@ -1,6 +1,7 @@
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 from basilisp.lang.keyword import keyword
+from basilisp.lang.symbol import symbol
 
 
 def test_list_conj():
@@ -16,7 +17,7 @@ def test_list_conj():
 
 def test_list_meta():
     assert llist.l("vec").meta is None
-    meta = lmap.m(type=llist.l("str"))
+    meta = lmap.m(type=symbol("str"))
     assert llist.l("vec", meta=meta).meta == meta
 
 
@@ -24,7 +25,7 @@ def test_list_with_meta():
     l1 = llist.l("vec")
     assert l1.meta is None
 
-    meta1 = lmap.m(type=llist.l("str"))
+    meta1 = lmap.m(type=symbol("str"))
     l2 = llist.l("vec", meta=meta1)
     assert l2.meta == meta1
 
@@ -32,13 +33,13 @@ def test_list_with_meta():
     l3 = l2.with_meta(meta2)
     assert l2 is not l3
     assert l2 == l3
-    assert l3.meta == lmap.m(type=llist.l("str"), tag=keyword("async"))
+    assert l3.meta == lmap.m(type=symbol("str"), tag=keyword("async"))
 
     meta3 = lmap.m(tag=keyword("macro"))
     l4 = l3.with_meta(meta3)
     assert l3 is not l4
     assert l3 == l4
-    assert l4.meta == lmap.m(type=llist.l("str"), tag=keyword("macro"))
+    assert l4.meta == lmap.m(type=symbol("str"), tag=keyword("macro"))
 
 
 def test_list_rest():
