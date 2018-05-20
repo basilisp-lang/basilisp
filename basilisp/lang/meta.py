@@ -10,5 +10,5 @@ class Meta(ABC):
         raise NotImplemented()
 
     @abstractmethod
-    def with_meta(self, meta):
+    def with_meta(self, meta) -> "Meta":
         raise NotImplemented()
