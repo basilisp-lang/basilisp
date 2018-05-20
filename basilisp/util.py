@@ -44,6 +44,17 @@ class Maybe(Generic[T]):
     def __init__(self, inner: Optional[T]) -> None:
         self._inner = inner
 
+    def __eq__(self, other):
+        if isinstance(other, Maybe):
+            return self._inner == other.value
+        return self._inner == other
+
+    def __repr__(self):
+        return repr(self._inner)
+
+    def __str__(self):
+        return str(self._inner)
+
     def or_else(self, else_fn: Callable[[], T]) -> T:
         if self._inner is None:
             return else_fn()
