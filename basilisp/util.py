@@ -39,7 +39,7 @@ U = TypeVar('U')
 
 
 class Maybe(Generic[T]):
-    __slots__ = ('_inner',)
+    __slots__ = ('_inner', )
 
     def __init__(self, inner: Optional[T]) -> None:
         self._inner = inner
