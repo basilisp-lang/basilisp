@@ -1,5 +1,5 @@
 from collections import Sequence
-from typing import Union
+from typing import Any
 
 from pyrsistent import pmap, PMap
 from wrapt import ObjectProxy
@@ -79,7 +79,7 @@ class Map(ObjectProxy, Meta):
             raise ValueError(
                 "Argument to map conj must be castable to MapEntry")
 
-    def conj(self, entry: Union[MapEntry, Sequence]) -> "Map":
+    def conj(self, entry: Any) -> "Map":
         try:
             return Map(self.set(entry.key, entry.value), meta=self.meta)
         except AttributeError:
