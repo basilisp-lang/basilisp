@@ -15,6 +15,12 @@ repl:
 	@pipenv run python -m basilisp.main
 
 
+.PHONE: coverage
+coverage:
+	@pipenv install --dev
+	@pipenv run python -m pytest --cov=basilisp --cov-report html
+
+
 .PHONY: test
 test:
 	@pipenv install --dev
