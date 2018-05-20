@@ -21,7 +21,7 @@ import basilisp.lang.util
 import basilisp.lang.vector as vec
 import basilisp.reader as reader
 import basilisp.walker as walk
-from basilisp.util import drop_last, Maybe
+from basilisp.util import Maybe
 
 _CORE_NS = 'basilisp.core'
 _DEFAULT_FN = '__lisp_expr__'
@@ -274,10 +274,10 @@ def _expressionize(body: Collection[ast.AST],
     statements and expressions, and Lisps, which have only expressions.
     """
     args = [] if args is None else args
-    body_nodes = []
+    body_nodes: List[ast.AST] = []
     try:
         if len(body) > 1:
-            body_nodes.extend([_statementize(e) for e in drop_last(body)])
+            body_nodes.extend(seq(body).drop_right(1).map(_statementize).to_list())
         body_nodes.append(ast.Return(value=seq(body).last()))
     except TypeError:
         body_nodes.append(ast.Return(value=body))
@@ -538,10 +538,10 @@ def _quote_ast(ctx: CompilerContext, form: llist.List) -> Optional[ast.AST]:
 def _catch_expr_body(body) -> Iterable[ast.AST]:
     """Given a series of expression AST nodes, create a body of expression
     nodes with a final return node at the end of the list."""
-    body_nodes = []
+    body_nodes: List[ast.AST] = []
     try:
         if len(body) > 1:
-            body_nodes.extend([_statementize(e) for e in drop_last(body)])
+            body_nodes.extend(seq(body).drop_right(1).map(_statementize).to_list())
         body_nodes.append(ast.Return(value=seq(body).last()))
     except TypeError:
         body_nodes.append(ast.Return(value=body))

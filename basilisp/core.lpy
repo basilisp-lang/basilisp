@@ -1,4 +1,4 @@
-(in-ns 'apylisp.core)
+(in-ns 'basilisp.core)
 
 (def identity
   (fn* identity [v] v))
