@@ -95,7 +95,7 @@ class SymbolTable:
         return self._name
 
     def __repr__(self):
-        return (f"SymbolTable({self._name}, parent={repr(self._parent)}, "
+        return (f"SymbolTable({self._name}, parent={repr(self._parent.name)}, "
                 f"table={repr(self._table)}, children={len(self._children)})")
 
     def new_symbol(self, s: sym.Symbol, munged: str,
@@ -106,13 +106,11 @@ class SymbolTable:
         return self
 
     def find_symbol(self, s: sym.Symbol) -> Optional[Tuple[str, kw.Keyword]]:
-        t = self
-        while True:
-            if s in t._table:
-                return t._table[s]
-            if t._parent is None:
-                return None
-            t = t._parent
+        if s in self._table:
+            return self._table[s]
+        if self._parent is None:
+            return None
+        return self._parent.find_symbol(s)
 
     def append_frame(self, name: str,
                      parent: 'SymbolTable' = None) -> 'SymbolTable':

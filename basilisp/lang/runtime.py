@@ -176,7 +176,8 @@ class Namespace:
         return m.get(sym)
 
     @staticmethod
-    def _intern(m: PMap, sym: sym.Symbol, new_var: Var, force: bool = False) -> PMap:
+    def _intern(m: PMap, sym: sym.Symbol, new_var: Var,
+                force: bool = False) -> PMap:
         """Swap function used by intern to atomically intern a new variable in
         the symbol mapping for this Namespace."""
         var = m.get(sym, None)
