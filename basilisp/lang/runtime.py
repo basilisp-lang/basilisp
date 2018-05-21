@@ -101,8 +101,7 @@ class Var:
         a lambda to avoid circular dependencies between the var and namespace
         modules. Shameful."""
         var_ns = Namespace.get_or_create(ns)
-        var = var_ns.intern(name,
-                            lambda ns, name: Var(ns, name, dynamic=dynamic))
+        var = var_ns.intern(name, Var(var_ns, name, dynamic=dynamic))
         var.root = val
         var.meta = meta
         return var
@@ -133,24 +132,25 @@ class Namespace:
 
     def __init__(self, name: sym.Symbol) -> None:
         self._name = name
-        self._mappings: PMap = pmap()
-        self._aliases: PMap = pmap()
-        self._imports: PSet = pset([sym.symbol('builtins')])
-        self._lock: threading.Lock = threading.Lock()
+        self._mappings: atom.Atom = atom.Atom(pmap())
+        self._aliases: atom.Atom = atom.Atom(pmap())
+        self._imports: atom.Atom = atom.Atom(pset([sym.symbol('builtins')]))
 
     @property
     def name(self) -> str:
         return self._name.name
 
     @property
+    def aliases(self) -> PMap:
+        return self._aliases.deref()
+
+    @property
     def mappings(self) -> PMap:
-        with self._lock:
-            return self._mappings
+        return self._mappings.deref()
 
     @property
     def imports(self) -> PSet:
-        with self._lock:
-            return self._imports
+        return self._imports.deref()
 
     def __repr__(self):
         return f"{self._name}"
@@ -159,38 +159,45 @@ class Namespace:
         return hash(self._name)
 
     def add_alias(self, alias: sym.Symbol, namespace: "Namespace") -> None:
-        with self._lock:
-            self._aliases = self._aliases.set(alias, namespace)
+        """Add a Symbol alias for the given Namespace."""
+        self._aliases.swap(lambda m: m.set(alias, namespace))
 
-    def get_alias(self, alias: sym.Symbol) -> "Namespace":
-        with self._lock:
-            return self._aliases[alias]
+    def get_alias(self, alias: sym.Symbol) -> "Optional[Namespace]":
+        """Get the Namespace aliased by Symbol or None if it does not exist."""
+        return self.aliases.get(alias, None)
 
-    def intern(self, sym: sym.Symbol, make_var):
-        return self._intern(sym, make_var(self, sym))
+    def intern(self, sym: sym.Symbol, var: Var, force: bool = False) -> Var:
+        """Intern the Var given in this namespace mapped by the given Symbol.
 
-    def _intern(self, sym: sym.Symbol, new_var):
-        with self._lock:
-            var = self._mappings.get(sym, None)
-            if var is None:
-                var = new_var
-                self._mappings = self._mappings.set(sym, var)
-            return var
+        If the Symbol already maps to a Var, this method _will not overwrite_
+        the existing Var mapping unless the force keyword argument is given
+        and is True."""
+        m: PMap = self._mappings.swap(Namespace._intern, sym, var, force=force)
+        return m.get(sym)
 
-    def find(self, sym: sym.Symbol):
-        with self._lock:
-            return self._mappings.get(sym, None)
+    @staticmethod
+    def _intern(m: PMap, sym: sym.Symbol, new_var: Var, force: bool = False) -> PMap:
+        """Swap function used by intern to atomically intern a new variable in
+        the symbol mapping for this Namespace."""
+        var = m.get(sym, None)
+        if var is None or force:
+            return m.set(sym, new_var)
+        return m
+
+    def find(self, sym: sym.Symbol) -> Var:
+        """Find Vars mapped by the given Symbol input or None if no Vars are
+        mapped by that Symbol."""
+        return self.mappings.get(sym, None)
 
     def add_import(self, sym: sym.Symbol) -> None:
-        with self._lock:
-            if sym not in self._imports:
-                self._imports = self._imports.add(sym)
+        """Add the Symbol as an imported Symbol in this Namespace."""
+        self._imports.swap(lambda s: s.add(sym))
 
     def get_import(self, sym: sym.Symbol) -> Optional[sym.Symbol]:
-        with self._lock:
-            if sym in self._imports:
-                return sym
-            return None
+        """Return the Symbol if it is imported into this Namespace, None otherwise."""
+        if sym in self.imports:
+            return sym
+        return None
 
     @classmethod
     def ns_cache(cls) -> PMap:
@@ -206,7 +213,7 @@ class Namespace:
         if core_ns is None:
             raise KeyError(f"Namespace {core_ns_name} not found")
         for s, var in core_ns.mappings.items():
-            new_ns._intern(s, var)
+            new_ns.intern(s, var)
 
     @staticmethod
     def __get_or_create(ns_cache: PMap,
