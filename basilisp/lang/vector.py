@@ -1,6 +1,9 @@
+from typing import Optional
+
 from pyrsistent import PVector, pvector
 from wrapt import ObjectProxy
 
+from basilisp.lang.map import Map
 from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 
@@ -16,10 +19,10 @@ class Vector(ObjectProxy, Meta):
         return "[{vec}]".format(vec=" ".join(map(lrepr, self)))
 
     @property
-    def meta(self):
+    def meta(self) -> Optional[Map]:
         return self._self_meta
 
-    def with_meta(self, meta) -> "Vector":
+    def with_meta(self, meta: Map) -> "Vector":
         new_meta = meta if self._self_meta is None else self._self_meta.update(
             meta)
         return vector(self.__wrapped__, meta=new_meta)

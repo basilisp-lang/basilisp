@@ -1,4 +1,7 @@
 from abc import ABC, abstractmethod
+from typing import Optional
+
+from basilisp.lang.map import Map
 
 
 class Meta(ABC):
@@ -6,9 +9,9 @@ class Meta(ABC):
 
     @property
     @abstractmethod
-    def meta(self):
+    def meta(self) -> Optional[Map]:
         raise NotImplemented()
 
     @abstractmethod
-    def with_meta(self, meta) -> "Meta":
+    def with_meta(self, meta: Map) -> "Meta":
         raise NotImplemented()

@@ -1,5 +1,6 @@
 from typing import Optional
 
+from basilisp.lang.map import Map
 from basilisp.lang.meta import Meta
 
 
@@ -20,10 +21,10 @@ class Symbol(Meta):
         return self._ns
 
     @property
-    def meta(self):
+    def meta(self) -> Optional[Map]:
         return self._meta
 
-    def with_meta(self, meta) -> "Symbol":
+    def with_meta(self, meta: Map) -> "Symbol":
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return Symbol(self._name, self._ns, meta=new_meta)
 
