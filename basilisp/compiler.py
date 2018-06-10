@@ -21,6 +21,7 @@ import basilisp.lang.util
 import basilisp.lang.vector as vec
 import basilisp.reader as reader
 import basilisp.walker as walk
+from basilisp.lang.runtime import Var
 from basilisp.util import Maybe
 
 _CORE_NS = 'basilisp.core'
@@ -70,20 +71,29 @@ _NAME_COUNTER = atom.Atom(1)
 _SYM_CTX_LOCAL_STARRED = kw.keyword(
     'local-starred', ns='basilisp.compiler.var-context')
 _SYM_CTX_LOCAL = kw.keyword('local', ns='basilisp.compiler.var-context')
-_SYM_CTX_NS = kw.keyword('namespace', ns='basilisp.compiler.var-context')
+_SYM_CTX_NS_DEF = kw.keyword(
+    'namespace-defined', ns='basilisp.compiler.var-context')
+_SYM_CTX_NS_REQ = kw.keyword(
+    'namespace-required', ns='basilisp.compiler.var-context')
+_SYM_CTX_NS_REFER = kw.keyword(
+    'namespace-referred', ns='basilisp.compiler.var-context')
 _SYM_CTX_IMPORT = kw.keyword('import', ns='basilisp.compiler.var-context')
+
+SymbolTableEntry = Tuple[str, kw.Keyword, sym.Symbol]
 
 
 class SymbolTable:
-    CONTEXTS = frozenset(
-        [_SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED, _SYM_CTX_NS, _SYM_CTX_IMPORT])
+    CONTEXTS = frozenset([
+        _SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED, _SYM_CTX_NS_DEF,
+        _SYM_CTX_NS_REQ, _SYM_CTX_NS_REFER, _SYM_CTX_IMPORT
+    ])
 
     __slots__ = ('_name', '_parent', '_table', '_children')
 
     def __init__(self,
                  name: str,
                  parent: 'SymbolTable' = None,
-                 table: Dict[sym.Symbol, Tuple[str, kw.Keyword]] = None,
+                 table: Dict[sym.Symbol, SymbolTableEntry] = None,
                  children: Dict[str, 'SymbolTable'] = None) -> None:
         self._name = name
         self._parent = parent
@@ -102,10 +112,10 @@ class SymbolTable:
                    ctx: kw.Keyword) -> 'SymbolTable':
         if ctx not in SymbolTable.CONTEXTS:
             raise TypeError(f"Context {ctx} not a valid Symbol Context")
-        self._table[s] = (munged, ctx)
+        self._table[s] = (munged, ctx, s)
         return self
 
-    def find_symbol(self, s: sym.Symbol) -> Optional[Tuple[str, kw.Keyword]]:
+    def find_symbol(self, s: sym.Symbol) -> Optional[SymbolTableEntry]:
         if s in self._table:
             return self._table[s]
         if self._parent is None:
@@ -341,6 +351,21 @@ def _meta_kwargs_ast(ctx: CompilerContext,
     return []
 
 
+_SYM_MACRO_META_KEY = kw.keyword("macro")
+
+
+def _is_macro(s: sym.Symbol) -> bool:
+    """Return True if the Var pointed to by this Symbol holds a macro
+    function."""
+    try:
+        return Maybe(s.meta).map(
+            lambda m: m.get(_SYM_MACRO_META_KEY, None)  # type: ignore
+        ).or_else_get(
+            False)
+    except (KeyError, AttributeError):
+        return False
+
+
 def _def_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
     """Return a Python AST Node for a `def` expression."""
     assert form.first == _DEF
@@ -352,7 +377,7 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
 
     # Put this def'ed name into the symbol table as a namespace var
     ctx.symbol_table.new_symbol(form[1], genname(munge(form[1].name)),
-                                _SYM_CTX_NS)
+                                _SYM_CTX_NS_DEF)
 
     try:
         def_value: Optional[ast.AST] = _to_ast(ctx, form[2])
@@ -385,7 +410,8 @@ def _do_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
             func=ast.Name(id=do_fn_name, ctx=ast.Load()), args=[], keywords=[])
 
 
-def _fn_args_body(ctx: CompilerContext, arg_vec, body_exprs
+def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,
+                  body_exprs: llist.List
                   ) -> Tuple[List[ast.arg], List[ast.AST], Optional[ast.arg]]:
     """Generate the Python AST Nodes for a Lisp function argument vector
     and body expressions. Return a tuple of arg nodes and body AST nodes."""
@@ -675,6 +701,16 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> Optional[ast.AST]:
     if form.first in _SPECIAL_FORMS and not ctx.is_quoted:
         return _special_form_ast(ctx, form)
 
+    # Macros are immediately evaluated so the modified form can be compiled
+    if isinstance(form.first, sym.Symbol):
+        sym_info = ctx.symbol_table.find_symbol(form.first)
+        if sym_info is not None:
+            _, sym_ctx, s = sym_info
+            if _is_macro(s):
+                v = Var.find(s)
+                if v is not None:
+                    return _to_ast(ctx, v.value(form.rest))
+
     elems_ast = _collection_ast(ctx, form)
 
     # Quoted list
@@ -745,8 +781,9 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> LispSymbolAST:
     elif form.ns is not None:
         ns = ast.Str(form.ns)
 
-    sym_kwargs = Maybe(ns).stream().map(
-        lambda v: ast.keyword(arg='ns', value=ns)).to_list()
+    sym_kwargs = Maybe(ns).stream() \
+        .map(lambda v: ast.keyword(arg='ns', value=ns)) \
+        .to_list()
     sym_kwargs.extend(_meta_kwargs_ast(ctx, form))
     base_sym = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Str(form.name)], keywords=sym_kwargs)
@@ -758,7 +795,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> LispSymbolAST:
     st_sym = st.find_symbol(form)
 
     if st_sym is not None:
-        munged, sym_ctx = st_sym
+        munged, sym_ctx, _ = st_sym
         if munged is None:
             raise ValueError(f"Lisp symbol '{form}' not found in {repr(st)}")
 
@@ -772,7 +809,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> LispSymbolAST:
         ns_sym = sym.symbol(form.ns)
         ns_sym_info = st.find_symbol(ns_sym)
         if ns_sym_info is not None:
-            _, sym_ctx = ns_sym_info
+            _, sym_ctx, _ = ns_sym_info
             if sym_ctx == _SYM_CTX_IMPORT:
                 return _load_attr(f"{form.ns}.{form.name}")
         if ctx.current_ns.get_import(ns_sym):
