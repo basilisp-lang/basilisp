@@ -12,6 +12,7 @@ import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vector
 import basilisp.walker as walk
+from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%')
 begin_num_chars = re.compile('[0-9\-]')
@@ -19,6 +20,8 @@ num_chars = re.compile('[0-9]')
 whitespace_chars = re.compile('[\s,]')
 newline_chars = re.compile('(\r\n|\r|\n)')
 fn_macro_args = re.compile('(%)(&|[0-9])?')
+
+Resolver = Callable[[symbol.Symbol], symbol.Symbol]
 
 
 class SyntaxError(Exception):
@@ -69,15 +72,20 @@ class StreamReader:
 
 
 class ReaderContext:
-    __slots__ = ('_reader', '_in_anon_fn')
+    __slots__ = ('_reader', '_resolve', '_in_anon_fn', '_syntax_quoted')
 
-    def __init__(self, reader: StreamReader) -> None:
+    def __init__(self, reader: StreamReader, resolver: Resolver = None) -> None:
         self._reader = reader
+        self._resolve = Maybe(resolver).or_else_get(lambda x: x)
         self._in_anon_fn: Deque[bool] = collections.deque([])
+        self._syntax_quoted: Deque[bool] = collections.deque([])
 
     @property
     def reader(self) -> StreamReader:
         return self._reader
+
+    def resolve(self, sym: symbol.Symbol) -> symbol.Symbol:
+        return self._resolve(sym)
 
     @contextlib.contextmanager
     def in_anon_fn(self):
@@ -89,6 +97,25 @@ class ReaderContext:
     def is_in_anon_fn(self) -> bool:
         try:
             return self._in_anon_fn[-1] is True
+        except IndexError:
+            return False
+
+    @contextlib.contextmanager
+    def syntax_quoted(self):
+        self._syntax_quoted.append(True)
+        yield
+        self._syntax_quoted.pop()
+
+    @contextlib.contextmanager
+    def unquoted(self):
+        self._syntax_quoted.append(False)
+        yield
+        self._syntax_quoted.pop()
+
+    @property
+    def is_syntax_quoted(self) -> bool:
+        try:
+            return self._syntax_quoted[-1] is True
         except IndexError:
             return False
 
@@ -320,7 +347,12 @@ def _read_str(ctx: ReaderContext) -> str:
 
 
 def _read_sym(ctx: ReaderContext):
-    """Return a symbol from the input stream."""
+    """Return a symbol from the input stream.
+
+    If a symbol appears in a syntax quoted form, the reader will attempt
+    to resolve the symbol using the resolver in the ReaderContext `ctx`.
+    The resolver will look into the current namespace for an alias or
+    namespace matching the symbol's namespace."""
     ns, name = _read_namespaced(ctx)
     if ns is None:
         if name == 'nil':
@@ -329,6 +361,8 @@ def _read_sym(ctx: ReaderContext):
             return True
         elif name == 'false':
             return False
+    if ctx.is_syntax_quoted:
+        return ctx.resolve(symbol.symbol(name, ns))
     return symbol.symbol(name, ns=ns)
 
 
@@ -420,6 +454,42 @@ def _read_quoted(ctx: ReaderContext) -> llist.List:
     assert start == "'"
     next_form = _read_next(ctx)
     return llist.l(symbol.symbol('quote'), next_form)
+
+
+def _read_syntax_quoted(ctx: ReaderContext):
+    """Read a syntax-quote and set the syntax-quoting state in the reader."""
+    start = ctx.reader.advance()
+    assert start == "`"
+
+    with ctx.syntax_quoted():
+        return llist.l(symbol.symbol('quote'), _read_next(ctx))
+
+
+def _read_unquote(ctx: ReaderContext):
+    """Read an unquoted form and handle any special logic of unquoting.
+
+    Unquoted forms can take two, well... forms:
+
+      `~form` is read as `(unquote form)` and any nested forms are read
+      literally and passed along to the compiler untouched.
+
+      `~@form` is read as `(unquote-splicing form` which tells the compiler
+      to splice in the contents of a sequential form such as a list or
+      vector into the final compiled form. This helps macro writers create
+      longer forms such as function calls, function bodies, or data structures
+      with the contents of another collection they have."""
+    start = ctx.reader.advance()
+    assert start == "~"
+
+    with ctx.unquoted():
+        next_char = ctx.reader.peek()
+        if next_char == '@':
+            ctx.reader.advance()
+            next_form = _read_next(ctx)
+            return llist.l(symbol.symbol('unquote-splicing', 'basilisp.core'), next_form)
+
+        next_form = _read_next(ctx)
+        return llist.l(symbol.symbol('unquote', 'basilisp.core'), next_form)
 
 
 def _read_regex(ctx: ReaderContext):
@@ -533,38 +603,36 @@ def _read_next(ctx: ReaderContext):
         return _read_meta(ctx)
     elif token == ';':
         return _read_comment(ctx)
+    elif token == '`':
+        return _read_syntax_quoted(ctx)
+    elif token == '~':
+        return _read_unquote(ctx)
     elif token == '':
         return __EOF
     else:
         raise SyntaxError("Unexpected token '{token}'".format(token=token))
 
 
-def read(stream) -> Optional[llist.List]:
+def read(stream, resolver: Resolver = None) -> Optional[llist.List]:
     """Read the contents of a stream as a Lisp expression.
 
     The caller is responsible for closing the input stream."""
     reader = StreamReader(stream)
-    ctx = ReaderContext(reader)
-    data = []
+    ctx = ReaderContext(reader, resolver=resolver)
     while True:
         expr = _read_next(ctx)
         if expr is __EOF:
-            break
-        data.append(expr)
-
-    if len(data) == 0:
-        return None
-
-    return llist.list(data)
+            return
+        yield expr
 
 
-def read_str(s: str) -> Optional[llist.List]:
+def read_str(s: str, resolver: Resolver = None) -> Optional[llist.List]:
     """Read the contents of a string as a Lisp expression."""
     with io.StringIO(s) as buf:
-        return read(buf)
+        yield from read(buf, resolver=resolver)
 
 
-def read_file(filename: str) -> Optional[llist.List]:
+def read_file(filename: str, resolver: Resolver = None) -> Optional[llist.List]:
     """Read the contents of a file as a Lisp expression."""
     with open(filename) as f:
-        return read(f)
+        yield from read(f, resolver=resolver)

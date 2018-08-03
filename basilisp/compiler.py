@@ -19,7 +19,6 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util
 import basilisp.lang.vector as vec
-import basilisp.reader as reader
 import basilisp.walker as walk
 from basilisp.lang.runtime import Var
 from basilisp.util import Maybe
@@ -48,6 +47,9 @@ _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
 _SPECIAL_FORMS = lset.s(_DEF, _DO, _FN, _IF, _IMPORT, _INTEROP_CALL,
                         _INTEROP_PROP, _QUOTE, _TRY, _VAR)
+
+_UNQUOTE = sym.symbol("unquote", _CORE_NS)
+_UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
 
 _MUNGE_REPLACEMENTS = {
     '+': '__PLUS__',
@@ -147,8 +149,8 @@ class CompilerContext:
         self._is_quoted = collections.deque([])
 
     @property
-    def current_ns(self):
-        return runtime.get_current_ns().value
+    def current_ns(self) -> runtime.Namespace:
+        return runtime.get_current_ns()
 
     @property
     def is_quoted(self) -> bool:
@@ -160,6 +162,12 @@ class CompilerContext:
     @contextlib.contextmanager
     def quoted(self):
         self._is_quoted.append(True)
+        yield
+        self._is_quoted.pop()
+
+    @contextlib.contextmanager
+    def unquoted(self):
+        self._is_quoted.append(False)
         yield
         self._is_quoted.pop()
 
@@ -696,10 +704,28 @@ def _special_form_ast(ctx: CompilerContext,
     assert False, "Special form identified, but not handled"
 
 
+def _unquote_ast(ctx: CompilerContext, form: llist.List) -> ast.AST:
+    """Generate a Python AST Node for the `unquote` special form."""
+    assert form[0] == _UNQUOTE
+    assert isinstance(form[1], sym.Symbol)
+    assert len(form) == 2
+
+    with ctx.unquoted():
+        return Maybe(_to_ast(ctx, form[1])) \
+            .or_else_raise(lambda: CompilerException("Expected form for (unquote form), but none found"))
+
+
 def _list_ast(ctx: CompilerContext, form: llist.List) -> Optional[ast.AST]:
     # Special forms
     if form.first in _SPECIAL_FORMS and not ctx.is_quoted:
         return _special_form_ast(ctx, form)
+
+    # Unquote and unquote splicing handling
+    if ctx.is_quoted:
+        if form.first == _UNQUOTE:
+            return _unquote_ast(ctx, form)
+        elif form.first == _UNQUOTE_SPLICING:
+            raise CompilerException("Unable to unquote splice here")
 
     # Macros are immediately evaluated so the modified form can be compiled
     if isinstance(form.first, sym.Symbol):
@@ -958,59 +984,39 @@ def _exec_ast(ast: ast.Module,
     return getattr(mod, expr_fn)()
 
 
-def _compile_forms(forms: LispFormAST,
-                   wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
-    """Compile the given forms into final module which can be compiled into
+def compile_form(form: LispFormAST,
+                 ctx: CompilerContext,
+                 wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
+    """Compile the given form into final module which can be compiled into
     valid Python code. Returns a Python module AST node.
 
     Callers may override the wrapped function name, which is used by the
     REPL to evaluate the result of an expression and print it back out."""
-    if forms is None:
+    if form is None:
         return None
 
-    ctx = CompilerContext()
+    expr_body = [
+        _module_imports(),
+        _from_module_import(),
+        _ns_var(),
+    ]
 
-    def compile_form(form: LispFormAST):
-        expr_body = [
-            _module_imports(),
-            _from_module_import(),
-            _ns_var(),
-        ]
+    ctx.clear_nodes()
+    form_ast = walk.prewalk(lambda f: _to_ast(ctx, f), form)
+    if form_ast is None:
+        return None
+    expr_body.extend(list(ctx.nodes.deref()))
+    expr_body.append(form_ast)
 
-        ctx.clear_nodes()
-        form_ast = walk.prewalk(lambda f: _to_ast(ctx, f), form)
-        if form_ast is None:
-            return None
-        expr_body.extend(list(ctx.nodes.deref()))
-        expr_body.append(form_ast)
+    body = _expressionize(expr_body, wrapped_fn_name)
 
-        body = _expressionize(expr_body, wrapped_fn_name)
+    module = ast.Module(body=[body])
+    ast.fix_missing_locations(module)
 
-        module = ast.Module(body=[body])
-        ast.fix_missing_locations(module)
+    if runtime.print_generated_python():
+        print(_to_py_str(module))
 
-        if runtime.print_generated_python():
-            print(_to_py_str(module))
-
-        return _exec_ast(module, expr_fn=wrapped_fn_name)
-
-    return seq(forms) \
-        .map(compile_form) \
-        .sequence[-1]
-
-
-def compile_file(filename: str,
-                 wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
-    """Compile a file with the given name into a Python module AST node."""
-    forms = reader.read_file(filename)
-    return _compile_forms(forms, wrapped_fn_name)
-
-
-def compile_str(s: str,
-                wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
-    """Compile the forms in a string into a Python module AST node."""
-    forms = reader.read_str(s)
-    return _compile_forms(forms, wrapped_fn_name)
+    return _exec_ast(module, expr_fn=wrapped_fn_name)
 
 
 lrepr = basilisp.lang.util.lrepr

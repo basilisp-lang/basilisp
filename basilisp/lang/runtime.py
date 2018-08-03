@@ -18,7 +18,7 @@ _PRINT_GENERATED_PY_VAR_NAME = '*print-generated-python*'
 
 
 class Var:
-    __slots__ = ('_name', '_ns', '_root', '_dynamic', '_tl', '_meta')
+    __slots__ = ('_name', '_ns', '_root', '_dynamic', '_is_bound', '_tl', '_meta')
 
     def __init__(self,
                  ns: "Namespace",
@@ -29,6 +29,7 @@ class Var:
         self._name = name
         self._root = None
         self._dynamic = dynamic
+        self._is_bound = False
         self._tl = threading.local()
         self._meta = meta
 
@@ -65,6 +66,7 @@ class Var:
 
     @root.setter
     def root(self, val):
+        self._is_bound = True
         self._root = val
 
     def push_bindings(self, val):
@@ -95,14 +97,21 @@ class Var:
                val,
                dynamic: bool = False,
                meta=None) -> "Var":
-        """Intern the value bound to the symbol `name` in namespace `ns`.
-
-        This function uses a dirty hack of hiding the `Var` constructor in
-        a lambda to avoid circular dependencies between the var and namespace
-        modules. Shameful."""
+        """Intern the value bound to the symbol `name` in namespace `ns`."""
         var_ns = Namespace.get_or_create(ns)
         var = var_ns.intern(name, Var(var_ns, name, dynamic=dynamic))
         var.root = val
+        var.meta = meta
+        return var
+
+    @staticmethod
+    def intern_unbound(ns: sym.Symbol,
+                       name: sym.Symbol,
+                       dynamic: bool = False,
+                       meta=None) -> "Var":
+        """Create a new unbound `Var` instance to the symbol `name` in namespace `ns`."""
+        var_ns = Namespace.get_or_create(ns)
+        var = var_ns.intern(name, Var(var_ns, name, dynamic=dynamic))
         var.meta = meta
         return var
 
@@ -126,9 +135,31 @@ class Var:
 
 
 class Namespace:
+    """Namespaces serve as organizational units in Basilisp code, just as
+    they do in Clojure code. Vars are mutable containers for functions and
+    data which may be interned in a namespace and referred to by a Symbol.
+
+    Namespaces additionally may have aliases to other namespaces, so code
+    organized in one namespace may conveniently refer to code or data in
+    other namespaces using that alias as the Symbol's namespace.
+
+    Namespaces are constructed def-by-def as Basilisp reads in each form
+    in a file (which will typically declare a namespace at the top).
+
+    Namespaces have the following fields of interest:
+
+    - `mappings` is a mapping between a symbolic name and a Var. The
+      Var may point to code, data, or nothing, if it is unbound.
+
+    - `aliases` is a mapping between a symbolic alias and another
+      Namespace. The fully qualified name of a namespace is also
+      an alias for itself.
+
+    - `imports` is a set of Python modules imported into the current
+      namespace"""
     _NAMESPACES = atom.Atom(pmap())
 
-    __slots__ = ('_name', '_mappings', '_aliases', '_imports', '_lock')
+    __slots__ = ('_name', '_mappings', '_refers', '_aliases', '_imports')
 
     def __init__(self, name: sym.Symbol) -> None:
         self._name = name
@@ -277,10 +308,25 @@ def set_current_ns(ns_name: str,
 
 
 def get_current_ns(ns_var_name: str = _NS_VAR_NAME,
-                   ns_var_ns: str = _NS_VAR_NS) -> Var:
+                   ns_var_ns: str = _NS_VAR_NS) -> Namespace:
     """Set the value of the dynamic variable `*ns*` in the current thread."""
     ns_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    return Var.find(ns_sym)
+    ns: Namespace = Var.find(ns_sym).value
+    return ns
+
+
+def resolve_alias(s: sym.Symbol) -> sym.Symbol:
+    """Resolve the aliased symbol in the current namespace."""
+    ns = get_current_ns()
+    if s.ns is not None:
+        aliased_ns = ns.get_alias(sym.symbol(s.ns))
+        if aliased_ns is not None:
+            return sym.symbol(s.name, aliased_ns.name)
+    else:
+        which_var = ns.find(sym.symbol(s.name))
+        if which_var is not None:
+            return sym.symbol(which_var.name.name, which_var.ns.name)
+    return s
 
 
 def print_generated_python(var_name: str = _PRINT_GENERATED_PY_VAR_NAME,
@@ -316,6 +362,8 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME,
         set_BANG_(ns_var_sym, ns)
         return ns
 
+    Var.intern_unbound(core_ns_sym, sym.symbol('unquote'))
+    Var.intern_unbound(core_ns_sym, sym.symbol('unquote-splicing'))
     Var.intern(core_ns_sym, sym.symbol('set!'), set_BANG_)
     Var.intern(core_ns_sym, sym.symbol('in-ns'), in_ns)
     Var.intern(

@@ -5,15 +5,31 @@ import basilisp.lang.runtime as runtime
 import basilisp.reader as reader
 
 
-def import_core_ns():
+def eval_file(filename: str, ctx: compiler.CompilerContext):
+    """Evaluate a file with the given name into a Python module AST node."""
+    last = None
+    for form in reader.read_file(filename, resolver=runtime.resolve_alias):
+        last = compiler.compile_form(form, ctx=ctx)
+    return last
+
+
+def eval_str(s: str, ctx: compiler.CompilerContext):
+    """Evaluate the forms in a string into a Python module AST node."""
+    last = None
+    for form in reader.read_str(s, resolver=runtime.resolve_alias):
+        last = compiler.compile_form(form, ctx=ctx)
+    return last
+
+
+def import_core_ns(ctx: compiler.CompilerContext):
     core_ns_filename = runtime.core_resource()
-    core_ns_fn = '__basilisp_core__'
-    compiler.compile_file(core_ns_filename, wrapped_fn_name=core_ns_fn)
+    eval_file(core_ns_filename, ctx)
 
 
 def repl(default_ns=runtime._REPL_DEFAULT_NS):
+    ctx = compiler.CompilerContext()
     runtime.bootstrap()
-    import_core_ns()
+    import_core_ns(ctx)
     ns_var = runtime.set_current_ns(default_ns)
     while True:
         try:
@@ -28,7 +44,7 @@ def repl(default_ns=runtime._REPL_DEFAULT_NS):
             continue
 
         try:
-            print(compiler.lrepr(compiler.compile_str(lsrc)))
+            print(compiler.lrepr(eval_str(lsrc, ctx)))
         except reader.SyntaxError as e:
             traceback.print_exception(reader.SyntaxError, e, e.__traceback__)
             continue
