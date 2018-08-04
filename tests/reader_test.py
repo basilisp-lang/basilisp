@@ -1,5 +1,7 @@
 import io
+
 import pytest
+
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
@@ -13,8 +15,10 @@ import basilisp.reader as reader
 def read_str_first(s):
     """Read the first form from the input string. If no form
     is found, return None."""
-    form = reader.read_str(s)
-    return None if form is None else form.first
+    try:
+        return next(reader.read_str(s))
+    except StopIteration:
+        return None
 
 
 def test_stream_reader():
