@@ -13,7 +13,9 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+import basilisp.reader as reader
 from basilisp.lang.runtime import Namespace, Var
+from basilisp.util import Maybe
 
 __PRINT_GENERATED_PYTHON_FN = runtime.print_generated_python
 
@@ -38,11 +40,17 @@ def ns_var(test_ns: str):
     Namespace.remove(sym.symbol(runtime._CORE_NS))
 
 
-def lcompile(s: str):
+def lcompile(s: str, ctx: compiler.CompilerContext = None):
     """Compile and execute the code in the input string.
 
     Return the resulting expression."""
-    return compiler.compile_str(s)
+    ctx = Maybe(ctx).or_else(lambda: compiler.CompilerContext())
+
+    last = None
+    for form in reader.read_str(s):
+        last = compiler.compile_form(form, ctx)
+
+    return last
 
 
 def test_string():
@@ -156,6 +164,26 @@ def test_fn(ns_var: Var):
     assert fvar.value("UPPER") == "upper"
 
 
+def test_fn_call(ns_var: Var):
+    code = """
+    (do
+      (def string-upper (fn* [s] (.upper s)))
+
+      (string-upper "bloop"))
+    """
+    fvar = lcompile(code)
+    assert fvar == "BLOOP"
+
+    code = """
+    (do
+      (def string-lower #(.lower %))
+
+      (string-lower "BLEEP"))
+    """
+    fvar = lcompile(code)
+    assert fvar == "bleep"
+
+
 def test_if():
     assert lcompile("(if true :a :b)") == kw.keyword("a")
     assert lcompile("(if false :a :b)") == kw.keyword("b")
@@ -186,7 +214,7 @@ def test_quoted_list():
         sym.symbol('str'), 3, kw.keyword("feet-deep"))
 
 
-def test_try_catch(capsys):
+def test_try_catch(capsys, ns_var):
     code = """
       (try
         (.fake-lower "UPPER")
