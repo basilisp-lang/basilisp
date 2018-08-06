@@ -244,6 +244,9 @@ def test_interop_prop():
     with pytest.raises(reader.SyntaxError):
         read_str_first('(.- name sym)')
 
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('(.-"string" sym)')
+
 
 def test_meta():
     s = read_str_first("^str s")
