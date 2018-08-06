@@ -314,6 +314,7 @@ def _nodes_and_expr(s: ASTStream) -> Tuple[ASTStream, Optional[ASTNode]]:
 def _statementize(e: ast.AST) -> ast.AST:
     """Transform non-statements into ast.Expr nodes so they can
     stand alone as statements."""
+    # noinspection PyPep8
     if isinstance(
             e,
         (
@@ -787,6 +788,9 @@ def _unquote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     assert isinstance(form[1], sym.Symbol)
     assert len(form) == 2
 
+    if not ctx.is_quoted:
+        raise CompilerException("Must be inside a quote to unquote")
+
     with ctx.unquoted():
         yield compile_form(form[1], ctx)
 
@@ -795,6 +799,9 @@ def _unquote_splicing_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for the `unquote` special form."""
     assert form.first == _UNQUOTE_SPLICING
     assert len(form) == 2
+
+    if not ctx.is_quoted:
+        raise CompilerException("Must be inside a quote to unquote-splice")
 
     with ctx.unquoted():
         try:
@@ -1133,27 +1140,28 @@ def _ns_var(py_ns_var: str = _NS_VAR,
             keywords=[]))
 
 
-def _to_py_source(ast: ast.AST, outfile: str) -> None:
-    source = codegen.to_source(ast)
+def _to_py_source(t: ast.AST, outfile: str) -> None:
+    source = codegen.to_source(t)
     with open(outfile, mode='w') as f:
         f.writelines(source)
 
 
-def _to_py_str(ast: ast.AST) -> str:
+def _to_py_str(t: ast.AST) -> str:
     """Return a string of the Python code which would generate the input
     AST node."""
-    return codegen.to_source(ast)
+    return codegen.to_source(t)
 
 
-def _exec_ast(ast: ast.Module,
+def _exec_ast(t: ast.Module,
               module_name: str = 'REPL',
               expr_fn: str = _DEFAULT_FN,
               source_filename: str = '<REPL Input>'):
     """Execute a Python AST node generated from one of the compile functions
     provided in this module. Return the result of the executed module code."""
     global_scope: Dict[str, Any] = {}
+    # noinspection PyUnresolvedReferences
     mod = types.ModuleType(module_name)
-    bytecode = compile(ast, source_filename, 'exec')
+    bytecode = compile(t, source_filename, 'exec')
     exec(bytecode, global_scope, mod.__dict__)
     return getattr(mod, expr_fn)()
 
