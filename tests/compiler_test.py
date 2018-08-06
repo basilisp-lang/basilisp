@@ -17,14 +17,18 @@ import basilisp.reader as reader
 from basilisp.lang.runtime import Namespace, Var
 from basilisp.util import Maybe
 
+# Cache the initial state of the `print_generated_python` flag.
 __PRINT_GENERATED_PYTHON_FN = runtime.print_generated_python
 
 
 def setup_module(module):
+    """Disable the `print_generated_python` flag so we can safely capture
+    stderr and stdout for tests which require those facilities."""
     runtime.print_generated_python = Mock(return_value=False)
 
 
 def teardown_module(module):
+    """Restore the `print_generated_python` flag after we finish running tests."""
     runtime.print_generated_python = __PRINT_GENERATED_PYTHON_FN
 
 
@@ -144,7 +148,7 @@ def test_do(ns_var: Var):
 
 def test_fn(ns_var: Var):
     code = """
-    (def string-upper (fn* [s] (.upper s)))
+    (def string-upper (fn* string-upper [s] (.upper s)))
     """
     ns_name = ns_var.value.name
     fvar = lcompile(code)
@@ -230,6 +234,8 @@ def test_try_catch(capsys, ns_var):
     """
     assert lcompile(code) == "mIxEd"
 
+    # If you hit an error here, do yourself a favor
+    # and look in the import code first.
     code = """
       (import* builtins)
       (try

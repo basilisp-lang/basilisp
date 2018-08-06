@@ -5,8 +5,9 @@ import functools
 import types
 import uuid
 from datetime import datetime
+from enum import Enum
 from itertools import chain
-from typing import Dict, Iterable, Pattern, Tuple, Optional, List, Union, Any, Callable
+from typing import Dict, Iterable, Pattern, Tuple, Optional, List, Union, Any, Callable, NamedTuple
 
 import astor.code_gen as codegen
 from functional import seq
@@ -235,9 +236,48 @@ LispFormAST = Union[bool, datetime, int, float, kw.Keyword, llist.List,
                     lmap.Map, None, Pattern, lset.Set, str, sym.Symbol,
                     vec.Vector, uuid.UUID]
 
-ASTStream = Iterable[ast.AST]
+
+class ASTNodeType(Enum):
+    DEPENDENT = 1
+    NODE = 2
+
+
+class ASTNode(NamedTuple):
+    """ASTNodes are a container for generated Python AST nodes to indicate
+    which broadly which type of AST node is being yielded.
+
+    Node types can be either 'dependent' or 'node'. 'dependent' type nodes
+    are those which must appear _before_ the generated 'node'(s)."""
+    type: ASTNodeType
+    node: ast.AST
+
+
+MixedNode = Union[ASTNode, ast.AST]
+MixedNodeStream = Iterable[MixedNode]
+ASTStream = Iterable[ASTNode]
+PyASTStream = Iterable[ast.AST]
 SimpleASTProcessor = Callable[[CompilerContext, LispFormAST], ast.AST]
 ASTProcessor = Callable[[CompilerContext, LispFormAST], ASTStream]
+
+
+def _node(node: ast.AST) -> ASTNode:
+    return ASTNode(ASTNodeType.NODE, node)
+
+
+def _dependent(node: ast.AST) -> ASTNode:
+    return ASTNode(ASTNodeType.DEPENDENT, node)
+
+
+def _unwrap_node(n: MixedNode) -> ast.AST:
+    if isinstance(n, ASTNode):
+        return n.node
+    if isinstance(n, ast.AST):
+        return n
+    raise CompilerException(f"Cannot unwrap object of type {type(n)}: {n}")
+
+
+def _unwrap_nodes(s: MixedNodeStream) -> List[ast.AST]:
+    return seq(s).map(_unwrap_node).to_list()
 
 
 def _ast_gen(f: SimpleASTProcessor) -> ASTProcessor:
@@ -246,25 +286,26 @@ def _ast_gen(f: SimpleASTProcessor) -> ASTProcessor:
 
     @functools.wraps(f)
     def wrapper(ctx: CompilerContext, form: LispFormAST) -> ASTStream:
-        yield f(ctx, form)
+        yield _node(f(ctx, form))
 
     return wrapper
 
 
-def _nodes_and_exprl(s: ASTStream) -> Tuple[ASTStream, List[ast.AST]]:
+def _nodes_and_exprl(s: ASTStream) -> Tuple[ASTStream, List[ASTNode]]:
     """Split a stream of expressions into the preceding nodes and a list
     containing the final expression."""
-    ss = seq(list(s))
-    inits = ss.drop_right(1).to_list()
-    tail = Maybe(ss.last_option()).map(lambda x: [x]).or_else_get([])
+    groups: Dict[ASTNodeType, ASTStream] = seq(s).group_by(lambda n: n.type).to_dict()
+    inits = groups.get(ASTNodeType.DEPENDENT, [])
+    tail = groups.get(ASTNodeType.NODE, [])
     return inits, tail
 
 
-def _nodes_and_expr(s: ASTStream) -> Tuple[ASTStream, Optional[ast.AST]]:
+def _nodes_and_expr(s: ASTStream) -> Tuple[ASTStream, Optional[ASTNode]]:
     """Split a stream of expressions into the preceding nodes and the
     final expression."""
     inits, tail = _nodes_and_exprl(s)
     try:
+        assert len(tail) in [0, 1], "Use of _nodes_and_expr function with greater than 1 expression"
         return inits, tail[0]
     except IndexError:
         return inits, None
@@ -305,7 +346,7 @@ def _statementize(e: ast.AST) -> ast.AST:
     return ast.Expr(value=e)
 
 
-def _expressionize(body: ASTStream,
+def _expressionize(body: MixedNodeStream,
                    fn_name: str,
                    args: Iterable[ast.arg] = None,
                    vargs: ast.arg = None) -> ast.FunctionDef:
@@ -318,7 +359,7 @@ def _expressionize(body: ASTStream,
     """
     args = [] if args is None else args
     body_nodes: List[ast.AST] = []
-    body_list = list(body)
+    body_list = _unwrap_nodes(body)
     try:
         if len(body_list) > 1:
             body_nodes.extend(
@@ -380,7 +421,7 @@ def _meta_kwargs_ast(ctx: CompilerContext,
     if hasattr(form, 'meta') and form.meta is not None:
         meta_nodes, meta = _nodes_and_expr(_to_ast(ctx, form.meta))
         yield from meta_nodes
-        yield ast.keyword(arg='meta', value=meta)
+        yield _node(ast.keyword(arg='meta', value=meta))
     else:
         return []
 
@@ -422,10 +463,10 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     yield from meta_nodes
     yield from def_nodes
-    yield ast.Call(
+    yield _node(ast.Call(
         func=_INTERN_VAR_FN_NAME,
-        args=[ns_name, def_name, def_value],
-        keywords=meta)
+        args=[ns_name, def_name, Maybe(def_value).map(_unwrap_node).value],
+        keywords=meta))
 
 
 def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -435,9 +476,9 @@ def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     body = _collection_ast(ctx, form.rest)
     do_fn_name = genname(_DO_PREFIX)
 
-    yield _expressionize(body, do_fn_name)
-    yield ast.Call(
-        func=ast.Name(id=do_fn_name, ctx=ast.Load()), args=[], keywords=[])
+    yield _dependent(_expressionize(body, do_fn_name))
+    yield _node(ast.Call(
+        func=ast.Name(id=do_fn_name, ctx=ast.Load()), args=[], keywords=[]))
 
 
 def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,
@@ -487,8 +528,8 @@ def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     with ctx.new_symbol_table(name):
         args, body, vargs = _fn_args_body(ctx, form[arg_idx], form[body_idx:])
 
-        yield _expressionize(body, name, args=args, vargs=vargs)
-        yield ast.Name(id=name, ctx=ast.Load())
+        yield _dependent(_expressionize(body, name, args=args, vargs=vargs))
+        yield _node(ast.Name(id=name, ctx=ast.Load()))
 
 
 def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -506,13 +547,13 @@ def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         else_nodes, lelse = _nodes_and_expr(_to_ast(ctx, form[3]))
 
     ifstmt = ast.If(
-        test=test,
-        body=[ast.Return(value=body)],
-        orelse=[ast.Return(value=lelse)])
+        test=_unwrap_node(test),
+        body=[ast.Return(value=_unwrap_node(body))],
+        orelse=[ast.Return(value=_unwrap_node(lelse))])
 
     ifname = genname(_IF_PREFIX)
 
-    yield ast.FunctionDef(
+    yield _dependent(ast.FunctionDef(
         name=ifname,
         args=ast.arguments(
             args=[],
@@ -521,11 +562,11 @@ def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
             kwonlyargs=[],
             defaults=[],
             kw_defaults=[]),
-        body=list(chain(test_nodes, body_nodes, else_nodes, [ifstmt])),
+        body=_unwrap_nodes(chain(test_nodes, body_nodes, else_nodes, [ifstmt])),
         decorator_list=[],
-        returns=None)
-    yield ast.Call(
-            func=ast.Name(id=ifname, ctx=ast.Load()), args=[], keywords=[])
+        returns=None))
+    yield _node(ast.Call(
+        func=ast.Name(id=ifname, ctx=ast.Load()), args=[], keywords=[]))
 
 
 def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -540,13 +581,13 @@ def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         ctx.symbol_table.new_symbol(s, munge(s.name), _SYM_CTX_IMPORT)
         ctx.add_import(s)
         with ctx.quoted():
-            yield ast.Call(
+            yield _dependent(ast.Call(
                 func=_load_attr(f'{_NS_VAR_VALUE}.add_import'),
-                args=list(_to_ast(ctx, s)),
-                keywords=[])
+                args=_unwrap_nodes(_to_ast(ctx, s)),
+                keywords=[]))
         import_names.append(ast.alias(name=s.name, asname=None))
-    yield ast.Import(names=import_names)
-    yield ast.NameConstant(None)
+    yield _dependent(ast.Import(names=import_names))
+    yield _node(ast.NameConstant(None))
 
 
 def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -561,7 +602,7 @@ def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     yield from target_nodes
 
     call_target = ast.Attribute(
-        value=target, attr=munge(form[2].name), ctx=ast.Load())
+        value=_unwrap_node(target), attr=munge(form[2].name), ctx=ast.Load())
 
     args: Iterable[ast.AST] = []
     if len(form) > 3:
@@ -569,7 +610,7 @@ def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         yield from nodes
         yield from args
 
-    yield ast.Call(func=call_target, args=list(args), keywords=[])
+    yield _node(ast.Call(func=call_target, args=list(args), keywords=[]))
 
 
 def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -582,8 +623,8 @@ def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     target_nodes, target = _nodes_and_expr(_to_ast(ctx, form[1]))
     yield from target_nodes
-    yield ast.Attribute(
-        value=target, attr=munge(form[2].name), ctx=ast.Load())
+    yield _node(ast.Attribute(
+        value=_unwrap_node(target), attr=munge(form[2].name), ctx=ast.Load()))
 
 
 def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -599,7 +640,7 @@ def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         yield from _to_ast(ctx, form[1])
 
 
-def _catch_expr_body(body) -> ASTStream:
+def _catch_expr_body(body) -> PyASTStream:
     """Given a series of expression AST nodes, create a body of expression
     nodes with a final return node at the end of the list."""
     try:
@@ -610,7 +651,6 @@ def _catch_expr_body(body) -> ASTStream:
         yield ast.Return(value=body)
 
 
-@_ast_gen
 def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
     """Generate Python AST nodes for `catch` forms."""
     assert form[0] == _CATCH
@@ -618,7 +658,7 @@ def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
     assert isinstance(form[1], sym.Symbol)
     assert isinstance(form[2], sym.Symbol)
 
-    body = seq(form[3:]).flat_map(lambda f: _to_ast(ctx, f)).to_list()
+    body = seq(form[3:]).flat_map(lambda f: _to_ast(ctx, f)).map(_unwrap_node).to_list()
     return ast.ExceptHandler(
         type=ast.Name(id=form[1].name, ctx=ast.Load()),
         name=munge(form[2].name),
@@ -633,6 +673,7 @@ def _finally_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     yield from seq(form.rest) \
         .flat_map(lambda clause: _to_ast(ctx, clause)) \
+        .map(_unwrap_node) \
         .map(lambda node: _statementize(node))
 
 
@@ -642,7 +683,7 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     assert len(form) >= 3
 
     expr_nodes, expr = _nodes_and_expr(_to_ast(ctx, form[1]))
-    expr = ast.Return(value=expr)
+    expr = ast.Return(value=_unwrap_node(expr))
 
     # Split clauses by the first form (which should be either the
     # symbol `catch` or the symbol `finally`). Validate we have 0
@@ -653,13 +694,13 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     if len(finallys) not in [0, 1]:
         raise CompilerException("Only one finally clause may be provided in a try/catch block")
 
-    catch_exprs: List[ast.AST] = seq(clauses.get("catch", [])).flat_map(lambda f: _catch_ast(ctx, f)).to_list()
+    catch_exprs: List[ast.AST] = seq(clauses.get("catch", [])).map(lambda f: _catch_ast(ctx, f)).to_list()
     final_exprs: List[ast.AST] = seq(finallys).flat_map(lambda f: _finally_ast(ctx, f)).to_list()
 
     # Start building up the try/except block that will be inserted
     # into a function to expressionize it
     try_body = ast.Try(
-        body=list(chain(expr_nodes, [expr])),
+        body=_unwrap_nodes(chain(expr_nodes, [expr])),
         handlers=catch_exprs,
         orelse=[],
         finalbody=final_exprs)
@@ -667,7 +708,7 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     # Insert the try/except function into the container
     # nodes vector so it will be available in the calling context
     try_fn_name = genname(_TRY_PREFIX)
-    yield ast.FunctionDef(
+    yield _dependent(ast.FunctionDef(
         name=try_fn_name,
         args=ast.arguments(
             args=[],
@@ -678,12 +719,12 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
             kw_defaults=[]),
         body=[try_body],
         decorator_list=[],
-        returns=None)
+        returns=None))
 
-    yield ast.Call(
+    yield _node(ast.Call(
         func=ast.Name(id=try_fn_name, ctx=ast.Load()),
         args=[],
-        keywords=[])
+        keywords=[]))
 
 
 @_ast_gen
@@ -747,7 +788,22 @@ def _unquote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     assert len(form) == 2
 
     with ctx.unquoted():
-        yield from _to_ast(ctx, form[1])
+        yield compile_form(form[1], ctx)
+
+
+def _unquote_splicing_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+    """Generate a Python AST Node for the `unquote` special form."""
+    assert form.first == _UNQUOTE_SPLICING
+    assert len(form) == 2
+
+    with ctx.unquoted():
+        try:
+            for compiled in compile_form(form[1], ctx):
+                deps, nodes = _nodes_and_exprl(_to_ast(ctx, compiled))
+                yield from deps
+                yield from nodes
+        except TypeError:
+            raise CompilerException("Cannot unquote splice a non-iterable value")
 
 
 def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -780,7 +836,8 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
             yield from _unquote_ast(ctx, form)
             return
         elif form.first == _UNQUOTE_SPLICING:
-            raise CompilerException("Unable to unquote splice here")
+            yield from _unquote_splicing_ast(ctx, form)
+            return
 
     # Macros are immediately evaluated so the modified form can be compiled
     if isinstance(form.first, sym.Symbol):
@@ -799,18 +856,18 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     if ctx.is_quoted:
         meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
         yield from meta_nodes
-        yield ast.Call(
+        yield _node(ast.Call(
             func=_NEW_LIST_FN_NAME,
             args=[ast.List(elems, ast.Load())],
-            keywords=meta)
+            keywords=meta))
         return
 
     yield from elems_nodes
     elems_ast = seq(elems)
 
     # Function call
-    yield ast.Call(
-        func=elems_ast.first(), args=elems_ast.drop(1).to_list(), keywords=[])
+    yield _node(ast.Call(
+        func=elems_ast.first(), args=elems_ast.drop(1).to_list(), keywords=[]))
 
 
 def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ASTStream:
@@ -820,10 +877,10 @@ def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ASTStream:
     yield from meta_nodes
     yield from key_nodes
     yield from val_nodes
-    yield ast.Call(
+    yield _node(ast.Call(
         func=_NEW_MAP_FN_NAME,
         args=[ast.Dict(keys=keys, values=vals)],
-        keywords=meta)
+        keywords=meta))
 
 
 def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
@@ -831,10 +888,10 @@ def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
     yield from meta_nodes
     yield from elem_nodes
-    yield ast.Call(
+    yield _node(ast.Call(
         func=_NEW_SET_FN_NAME,
         args=[ast.List(elems_ast, ast.Load())],
-        keywords=meta)
+        keywords=meta))
 
 
 def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ASTStream:
@@ -842,10 +899,10 @@ def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ASTStream:
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
     yield from meta_nodes
     yield from elem_nodes
-    yield ast.Call(
+    yield _node(ast.Call(
         func=_NEW_VEC_FN_NAME,
         args=[ast.List(elems_ast, ast.Load())],
-        keywords=meta)
+        keywords=meta))
 
 
 @_ast_gen
@@ -890,7 +947,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         func=_NEW_SYM_FN_NAME, args=[ast.Str(form.name)], keywords=sym_kwargs)
 
     if ctx.is_quoted:
-        yield base_sym
+        yield _node(base_sym)
         return
 
     st = ctx.symbol_table
@@ -902,11 +959,11 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
             raise ValueError(f"Lisp symbol '{form}' not found in {repr(st)}")
 
         if sym_ctx == _SYM_CTX_LOCAL:
-            yield ast.Name(id=munged, ctx=ast.Load())
+            yield _node(ast.Name(id=munged, ctx=ast.Load()))
             return
         elif sym_ctx == _SYM_CTX_LOCAL_STARRED:
-            yield ast.Starred(
-                value=ast.Name(id=munged, ctx=ast.Load()), ctx=ast.Load())
+            yield _node(ast.Starred(
+                value=ast.Name(id=munged, ctx=ast.Load()), ctx=ast.Load()))
             return
 
     if form.ns is not None:
@@ -915,18 +972,18 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         if ns_sym_info is not None:
             _, sym_ctx, _ = ns_sym_info
             if sym_ctx == _SYM_CTX_IMPORT:
-                yield _load_attr(f"{form.ns}.{form.name}")
+                yield _node(_load_attr(f"{form.ns}.{form.name}"))
                 return
         if ctx.current_ns.get_import(ns_sym):
             safe_ns = munge(form.ns)
             safe_name = munge(form.name)
-            yield _load_attr(f"{safe_ns}.{safe_name}")
+            yield _node(_load_attr(f"{safe_ns}.{safe_name}"))
             return
 
-    yield ast.Attribute(
+    yield _node(ast.Attribute(
         value=ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]),
         attr='value',
-        ctx=ast.Load())
+        ctx=ast.Load()))
 
 
 @_ast_gen
@@ -957,14 +1014,15 @@ def _collection_ast(ctx: CompilerContext,
 
 
 def _collection_literal_ast(ctx: CompilerContext,
-                            form: Iterable[LispFormAST]) -> ASTStream:
+                            form: Iterable[LispFormAST]) -> Tuple[ASTStream, PyASTStream]:
     """Turn a collection literal of Lisp forms into Python AST nodes, filtering
     out empty nodes."""
     orig = seq(form) \
         .map(lambda x: _to_ast(ctx, x)) \
         .map(lambda x: _nodes_and_exprl(x))
 
-    return orig.flat_map(lambda x: x[0]).to_list(), orig.flat_map(lambda x: x[1]).to_list()
+    return (orig.flat_map(lambda x: x[0]).to_list(),
+            orig.flat_map(lambda x: x[1]).map(_unwrap_node).to_list())
 
 
 def _to_ast(ctx: CompilerContext, form: LispFormAST) -> ASTStream:
@@ -1000,18 +1058,19 @@ def _to_ast(ctx: CompilerContext, form: LispFormAST) -> ASTStream:
         yield from _sym_ast(ctx, form)
         return
     elif isinstance(form, str):
-        yield ast.Str(form)
+        yield _node(ast.Str(form))
+        return
     elif isinstance(form, bool):
-        yield ast.NameConstant(form)
+        yield _node(ast.NameConstant(form))
         return
     elif isinstance(form, type(None)):
-        yield ast.NameConstant(None)
+        yield _node(ast.NameConstant(None))
         return
     elif isinstance(form, float):
-        yield ast.Num(form)
+        yield _node(ast.Num(form))
         return
     elif isinstance(form, int):
-        yield ast.Num(form)
+        yield _node(ast.Num(form))
         return
     elif isinstance(form, datetime):
         yield from _inst_ast(ctx, form)
@@ -1116,7 +1175,7 @@ def compile_form(form: LispFormAST,
         _ns_var(),
     ]
 
-    form_ast = list(_to_ast(ctx, form))
+    form_ast = seq(_to_ast(ctx, form)).map(_unwrap_node).to_list()
     if form_ast is None:
         return None
     expr_body.extend(form_ast)
