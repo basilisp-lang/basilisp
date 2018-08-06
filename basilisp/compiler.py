@@ -1,7 +1,6 @@
 import ast
 import collections
 import contextlib
-import functools
 import types
 import uuid
 from datetime import datetime
@@ -289,17 +288,6 @@ def _unwrap_node(n: Optional[MixedNode]) -> ast.AST:
 def _unwrap_nodes(s: MixedNodeStream) -> List[ast.AST]:
     """Unwrap a stream of Basilisp AST nodes into a list of Python AST nodes."""
     return seq(s).map(_unwrap_node).to_list()
-
-
-def _ast_gen(f: SimpleASTProcessor) -> ASTProcessor:
-    """Turns a function returning a single AST node into a generator
-    which returns one AST node."""
-
-    @functools.wraps(f)
-    def wrapper(ctx: CompilerContext, form: LispForm) -> ASTStream:
-        yield _node(f(ctx, form))
-
-    return wrapper
 
 
 def _nodes_and_exprl(s: ASTStream) -> Tuple[ASTStream, List[ASTNode]]:
