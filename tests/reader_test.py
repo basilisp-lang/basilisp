@@ -12,11 +12,11 @@ import basilisp.lang.vector as vec
 import basilisp.reader as reader
 
 
-def read_str_first(s):
+def read_str_first(s, resolver: reader.Resolver = None):
     """Read the first form from the input string. If no form
     is found, return None."""
     try:
-        return next(reader.read_str(s))
+        return next(reader.read_str(s, resolver=resolver))
     except StopIteration:
         return None
 
@@ -142,6 +142,9 @@ def test_whitespace():
 
 
 def test_vector():
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('[')
+
     assert read_str_first('[]') == vec.vector([])
     assert read_str_first('[:a]') == vec.v(kw.keyword("a"))
     assert read_str_first('[:a :b]') == vec.v(kw.keyword("a"), kw.keyword("b"))
@@ -162,6 +165,9 @@ def test_vector():
 
 
 def test_list():
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('(')
+
     assert read_str_first('()') == llist.list([])
     assert read_str_first('(func-with-no-args)') == llist.l(
         sym.symbol("func-with-no-args"))
@@ -173,6 +179,9 @@ def test_list():
 
 
 def test_set():
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('#{')
+
     assert read_str_first('#{}') == lset.set([])
     assert read_str_first('#{:a}') == lset.s(kw.keyword("a"))
     assert read_str_first('#{:a :b}') == lset.s(
@@ -187,6 +196,9 @@ def test_set():
 
 
 def test_map():
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('{')
+
     assert read_str_first('{}') == lmap.map({})
     assert read_str_first('{:a 1}') == lmap.map({kw.keyword('a'): 1})
     assert read_str_first('{:a 1 :b "string"}') == lmap.map({
@@ -213,6 +225,34 @@ def test_quoted():
         sym.symbol('quote'), sym.symbol('sym', ns='some.ns'))
     assert read_str_first("'(def a 3)") == llist.l(
         sym.symbol('quote'), llist.l(sym.symbol('def'), sym.symbol('a'), 3))
+
+
+def test_syntax_quoted():
+    resolver = lambda s: sym.symbol(s.name, ns='test-ns')
+    assert read_str_first('`(my-symbol)', resolver=resolver) == llist.l(
+        sym.symbol('quote'), llist.l(sym.symbol('my-symbol', ns='test-ns')))
+    assert read_str_first('`(my-symbol)') == llist.l(
+        sym.symbol('quote'), llist.l(sym.symbol('my-symbol')))
+
+    def complex_resolver(s: sym.Symbol) -> sym.Symbol:
+        if s.name == 'other-symbol':
+            return s
+        return sym.symbol(s.name, ns='test-ns')
+
+    assert read_str_first('`(my-symbol other-symbol)', resolver=complex_resolver) == llist.l(
+        sym.symbol('quote'), llist.l(sym.symbol('my-symbol', ns='test-ns'), sym.symbol('other-symbol')))
+
+
+def test_unquote():
+    assert read_str_first("'(print ~val)") == llist.l(
+        sym.symbol('quote'), llist.l(sym.symbol('print'), llist.l(
+            sym.symbol('unquote', ns='basilisp.core'), sym.symbol('val'))))
+
+
+def test_unquote_splicing():
+    assert read_str_first("'(print ~@[1 2 3])") == llist.l(
+        sym.symbol('quote'), llist.l(sym.symbol('print'), llist.l(
+            sym.symbol('unquote-splicing', ns='basilisp.core'), vec.v(1, 2, 3))))
 
 
 def test_var():
@@ -375,6 +415,9 @@ def test_function_reader_macro():
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("#(identity #(%1 %2))")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("#app/ermagrd [1 2 3]")
 
 
 def test_regex_reader_literal():
