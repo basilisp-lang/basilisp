@@ -15,7 +15,7 @@ class List(ObjectProxy, Meta):
     def __repr__(self):
         return "({list})".format(list=" ".join(map(lrepr, self)))
 
-    @property  # type: ignore
+    @property
     def meta(self):
         return self._self_meta
 

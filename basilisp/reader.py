@@ -2,16 +2,21 @@ import collections
 import contextlib
 import io
 import re
-from typing import Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping
+import uuid
+from datetime import datetime
+from typing import Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping, Pattern, Iterable
 
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.meta as meta
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vector
 import basilisp.walker as walk
+from basilisp.lang.typing import LispForm
+from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%')
 begin_num_chars = re.compile('[0-9\-]')
@@ -19,6 +24,8 @@ num_chars = re.compile('[0-9]')
 whitespace_chars = re.compile('[\s,]')
 newline_chars = re.compile('(\r\n|\r|\n)')
 fn_macro_args = re.compile('(%)(&|[0-9])?')
+
+Resolver = Callable[[symbol.Symbol], symbol.Symbol]
 
 
 class SyntaxError(Exception):
@@ -69,15 +76,20 @@ class StreamReader:
 
 
 class ReaderContext:
-    __slots__ = ('_reader', '_in_anon_fn')
+    __slots__ = ('_reader', '_resolve', '_in_anon_fn', '_syntax_quoted')
 
-    def __init__(self, reader: StreamReader) -> None:
+    def __init__(self, reader: StreamReader, resolver: Resolver = None) -> None:
         self._reader = reader
+        self._resolve = Maybe(resolver).or_else_get(lambda x: x)
         self._in_anon_fn: Deque[bool] = collections.deque([])
+        self._syntax_quoted: Deque[bool] = collections.deque([])
 
     @property
     def reader(self) -> StreamReader:
         return self._reader
+
+    def resolve(self, sym: symbol.Symbol) -> symbol.Symbol:
+        return self._resolve(sym)
 
     @contextlib.contextmanager
     def in_anon_fn(self):
@@ -89,6 +101,25 @@ class ReaderContext:
     def is_in_anon_fn(self) -> bool:
         try:
             return self._in_anon_fn[-1] is True
+        except IndexError:
+            return False
+
+    @contextlib.contextmanager
+    def syntax_quoted(self):
+        self._syntax_quoted.append(True)
+        yield
+        self._syntax_quoted.pop()
+
+    @contextlib.contextmanager
+    def unquoted(self):
+        self._syntax_quoted.append(False)
+        yield
+        self._syntax_quoted.pop()
+
+    @property
+    def is_syntax_quoted(self) -> bool:
+        try:
+            return self._syntax_quoted[-1] is True
         except IndexError:
             return False
 
@@ -170,7 +201,7 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
     reader = ctx.reader
     start = reader.advance()
     assert start == '.'
-    seq = []
+    seq: List[LispForm] = []
 
     token = reader.peek()
     if whitespace_chars.match(token):
@@ -192,6 +223,8 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
         if whitespace_chars.match(reader.peek()):
             raise SyntaxError(f"Expected Symbol; found whitespace")
         member = _read_next(ctx)
+        if not isinstance(member, symbol.Symbol):
+            raise SyntaxError(f"Expected Symbol; found {type(member)}")
         instance = _read_next(ctx)
         seq.append(instance)
         seq.append(member)
@@ -266,7 +299,14 @@ def _read_map(ctx: ReaderContext) -> lmap.Map:
     return lmap.map(d)
 
 
-def _read_num(ctx: ReaderContext):
+# Due to some ambiguities that arise in parsing symbols, numbers, and the
+# special keywords `true`, `false`, and `nil`, we have to have a looser
+# type defined for the return from these reader functions.
+MaybeSymbol = Union[bool, None, symbol.Symbol]
+MaybeNumber = Union[float, int, MaybeSymbol]
+
+
+def _read_num(ctx: ReaderContext) -> MaybeNumber:
     """Return a numeric (integer or float) from the input stream."""
     chars = []
     reader = ctx.reader
@@ -319,8 +359,13 @@ def _read_str(ctx: ReaderContext) -> str:
         s.append(token)
 
 
-def _read_sym(ctx: ReaderContext):
-    """Return a symbol from the input stream."""
+def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
+    """Return a symbol from the input stream.
+
+    If a symbol appears in a syntax quoted form, the reader will attempt
+    to resolve the symbol using the resolver in the ReaderContext `ctx`.
+    The resolver will look into the current namespace for an alias or
+    namespace matching the symbol's namespace."""
     ns, name = _read_namespaced(ctx)
     if ns is None:
         if name == 'nil':
@@ -329,6 +374,8 @@ def _read_sym(ctx: ReaderContext):
             return True
         elif name == 'false':
             return False
+    if ctx.is_syntax_quoted:
+        return ctx.resolve(symbol.symbol(name, ns))
     return symbol.symbol(name, ns=ns)
 
 
@@ -342,7 +389,7 @@ def _read_kw(ctx: ReaderContext) -> keyword.Keyword:
     return keyword.keyword(name, ns=ns)
 
 
-def _read_meta(ctx: ReaderContext):
+def _read_meta(ctx: ReaderContext) -> meta.Meta:
     """Read metadata and apply that to the next object in the
     input stream."""
     start = ctx.reader.advance()
@@ -362,7 +409,7 @@ def _read_meta(ctx: ReaderContext):
 
     obj_with_meta = _read_next(ctx)
     try:
-        return obj_with_meta.with_meta(meta_map)
+        return obj_with_meta.with_meta(meta_map)  # type: ignore
     except AttributeError as e:
         raise SyntaxError(
             f"Can not attach metadata to object of type {type(obj_with_meta)}")
@@ -422,7 +469,43 @@ def _read_quoted(ctx: ReaderContext) -> llist.List:
     return llist.l(symbol.symbol('quote'), next_form)
 
 
-def _read_regex(ctx: ReaderContext):
+def _read_syntax_quoted(ctx: ReaderContext) -> llist.List:
+    """Read a syntax-quote and set the syntax-quoting state in the reader."""
+    start = ctx.reader.advance()
+    assert start == "`"
+
+    with ctx.syntax_quoted():
+        return llist.l(symbol.symbol('quote'), _read_next(ctx))
+
+
+def _read_unquote(ctx: ReaderContext) -> llist.List:
+    """Read an unquoted form and handle any special logic of unquoting.
+
+    Unquoted forms can take two, well... forms:
+
+      `~form` is read as `(unquote form)` and any nested forms are read
+      literally and passed along to the compiler untouched.
+
+      `~@form` is read as `(unquote-splicing form` which tells the compiler
+      to splice in the contents of a sequential form such as a list or
+      vector into the final compiled form. This helps macro writers create
+      longer forms such as function calls, function bodies, or data structures
+      with the contents of another collection they have."""
+    start = ctx.reader.advance()
+    assert start == "~"
+
+    with ctx.unquoted():
+        next_char = ctx.reader.peek()
+        if next_char == '@':
+            ctx.reader.advance()
+            next_form = _read_next(ctx)
+            return llist.l(symbol.symbol('unquote-splicing', 'basilisp.core'), next_form)
+
+        next_form = _read_next(ctx)
+        return llist.l(symbol.symbol('unquote', 'basilisp.core'), next_form)
+
+
+def _read_regex(ctx: ReaderContext) -> Pattern:
     """Read a regex reader macro from the input stream."""
     s = _read_str(ctx)
     try:
@@ -431,14 +514,14 @@ def _read_regex(ctx: ReaderContext):
         raise SyntaxError(f"Unrecognized regex pattern syntax: {s}")
 
 
-def _inst_from_str(inst_str: str):
+def _inst_from_str(inst_str: str) -> datetime:
     try:
         return langutil.inst_from_str(inst_str)
     except (ValueError, OverflowError):
         raise SyntaxError(f"Unrecognized date/time syntax: {inst_str}")
 
 
-def _uuid_from_str(uuid_str: str):
+def _uuid_from_str(uuid_str: str) -> uuid.UUID:
     try:
         return langutil.uuid_from_str(uuid_str)
     except (ValueError, TypeError):
@@ -451,7 +534,7 @@ _DATA_READERS = lmap.map({
 })
 
 
-def _read_reader_macro(ctx: ReaderContext):
+def _read_reader_macro(ctx: ReaderContext) -> LispForm:
     """Return a data structure evaluated as a reader
     macro from the input stream."""
     start = ctx.reader.advance()
@@ -473,6 +556,7 @@ def _read_reader_macro(ctx: ReaderContext):
         return _read_next(ctx)
     elif ns_name_chars.match(token):
         s = _read_sym(ctx)
+        assert isinstance(s, symbol.Symbol)
         if s.ns is None and s not in _DATA_READERS:
             raise SyntaxError(
                 f"Non-namespaced tags are reserved by the reader (#{s} not found)"
@@ -488,7 +572,7 @@ def _read_reader_macro(ctx: ReaderContext):
     raise SyntaxError(f"Unexpected token '{token}' in reader macro")
 
 
-def _read_comment(ctx: ReaderContext):
+def _read_comment(ctx: ReaderContext) -> LispForm:
     """Read (and ignore) a single-line comment from the input stream.
     Return the next form after the next line break."""
     reader = ctx.reader
@@ -504,7 +588,7 @@ def _read_comment(ctx: ReaderContext):
         reader.advance()
 
 
-def _read_next(ctx: ReaderContext):
+def _read_next(ctx: ReaderContext) -> LispForm:
     """Read the next full token from the input stream."""
     reader = ctx.reader
     token = reader.peek()
@@ -530,41 +614,39 @@ def _read_next(ctx: ReaderContext):
     elif token == '#':
         return _read_reader_macro(ctx)
     elif token == '^':
-        return _read_meta(ctx)
+        return _read_meta(ctx)  # type: ignore
     elif token == ';':
         return _read_comment(ctx)
+    elif token == '`':
+        return _read_syntax_quoted(ctx)
+    elif token == '~':
+        return _read_unquote(ctx)
     elif token == '':
         return __EOF
     else:
         raise SyntaxError("Unexpected token '{token}'".format(token=token))
 
 
-def read(stream) -> Optional[llist.List]:
+def read(stream, resolver: Resolver = None) -> Iterable[LispForm]:
     """Read the contents of a stream as a Lisp expression.
 
     The caller is responsible for closing the input stream."""
     reader = StreamReader(stream)
-    ctx = ReaderContext(reader)
-    data = []
+    ctx = ReaderContext(reader, resolver=resolver)
     while True:
         expr = _read_next(ctx)
         if expr is __EOF:
-            break
-        data.append(expr)
-
-    if len(data) == 0:
-        return None
-
-    return llist.list(data)
+            return
+        yield expr
 
 
-def read_str(s: str) -> Optional[llist.List]:
+def read_str(s: str, resolver: Resolver = None) -> Iterable[LispForm]:
     """Read the contents of a string as a Lisp expression."""
     with io.StringIO(s) as buf:
-        return read(buf)
+        yield from read(buf, resolver=resolver)
 
 
-def read_file(filename: str) -> Optional[llist.List]:
+def read_file(filename: str, resolver: Resolver = None) -> Iterable[LispForm]:
     """Read the contents of a file as a Lisp expression."""
     with open(filename) as f:
-        return read(f)
+        yield from read(f, resolver=resolver)

@@ -1,6 +1,9 @@
+from typing import Optional
+
 from pyrsistent import PSet, pset
 from wrapt import ObjectProxy
 
+from basilisp.lang.map import Map
 from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 
@@ -16,10 +19,10 @@ class Set(ObjectProxy, Meta):
         return "#{{{set}}}".format(set=" ".join(map(lrepr, self)))
 
     @property
-    def meta(self):
+    def meta(self) -> Optional[Map]:
         return self._self_meta
 
-    def with_meta(self, meta) -> "Set":
+    def with_meta(self, meta: Map) -> "Set":
         new_meta = meta if self._self_meta is None else self._self_meta.update(
             meta)
         return set(self.__wrapped__, meta=new_meta)

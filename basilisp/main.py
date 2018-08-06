@@ -1,29 +1,35 @@
-import readline
 import traceback
+
 import basilisp.compiler as compiler
-import basilisp.reader as reader
-import basilisp.lang.namespace as namespace
 import basilisp.lang.runtime as runtime
-import basilisp.lang.symbol as sym
+import basilisp.reader as reader
 
 
-def entrypoint(filename, default_ns=runtime._REPL_DEFAULT_NS):
-    ns = namespace.Namespace(sym.Symbol(default_ns))
-    return
+def eval_file(filename: str, ctx: compiler.CompilerContext):
+    """Evaluate a file with the given name into a Python module AST node."""
+    last = None
+    for form in reader.read_file(filename, resolver=runtime.resolve_alias):
+        last = compiler.compile_form(form, ctx=ctx)
+    return last
 
 
-def import_core_ns():
+def eval_str(s: str, ctx: compiler.CompilerContext):
+    """Evaluate the forms in a string into a Python module AST node."""
+    last = None
+    for form in reader.read_str(s, resolver=runtime.resolve_alias):
+        last = compiler.compile_form(form, ctx=ctx)
+    return last
+
+
+def import_core_ns(ctx: compiler.CompilerContext):
     core_ns_filename = runtime.core_resource()
-    core_ns_fn = '__apylisp_core__'
-    core_ast = compiler.compile_file(
-        core_ns_filename, wrapped_fn_name=core_ns_fn)
-    print(compiler.to_py_str(core_ast))
-    compiler.exec_ast(core_ast, expr_fn=core_ns_fn)
+    eval_file(core_ns_filename, ctx)
 
 
 def repl(default_ns=runtime._REPL_DEFAULT_NS):
+    ctx = compiler.CompilerContext()
     runtime.bootstrap()
-    import_core_ns()
+    import_core_ns(ctx)
     ns_var = runtime.set_current_ns(default_ns)
     while True:
         try:
@@ -38,17 +44,14 @@ def repl(default_ns=runtime._REPL_DEFAULT_NS):
             continue
 
         try:
-            ast = compiler.compile_str(lsrc)
-            if ast is None:
-                continue
+            print(compiler.lrepr(eval_str(lsrc, ctx)))
         except reader.SyntaxError as e:
             traceback.print_exception(reader.SyntaxError, e, e.__traceback__)
             continue
-
-        if runtime.print_generated_python():
-            print(compiler.to_py_str(ast))
-
-        print(compiler.lrepr(compiler.exec_ast(ast)))
+        except compiler.CompilerException as e:
+            traceback.print_exception(compiler.CompilerException, e,
+                                      e.__traceback__)
+            continue
 
 
 if __name__ == "__main__":

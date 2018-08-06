@@ -1,17 +1,35 @@
-import dateutil.parser as dateparser
 import re
 import uuid
+from unittest.mock import Mock
+
+import dateutil.parser as dateparser
 import pytest
+
 import basilisp.compiler as compiler
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.namespace as namespace
-import basilisp.lang.set as lset
 import basilisp.lang.runtime as runtime
+import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
-import basilisp.lang.var as var
 import basilisp.lang.vector as vec
+import basilisp.reader as reader
+from basilisp.lang.runtime import Namespace, Var
+from basilisp.util import Maybe
+
+# Cache the initial state of the `print_generated_python` flag.
+__PRINT_GENERATED_PYTHON_FN = runtime.print_generated_python
+
+
+def setup_module(module):
+    """Disable the `print_generated_python` flag so we can safely capture
+    stderr and stdout for tests which require those facilities."""
+    runtime.print_generated_python = Mock(return_value=False)
+
+
+def teardown_module(module):
+    """Restore the `print_generated_python` flag after we finish running tests."""
+    runtime.print_generated_python = __PRINT_GENERATED_PYTHON_FN
 
 
 @pytest.fixture
@@ -23,15 +41,20 @@ def test_ns() -> str:
 def ns_var(test_ns: str):
     runtime.init_ns_var(which_ns=runtime._CORE_NS)
     yield runtime.set_current_ns(test_ns)
-    namespace.remove(sym.symbol(runtime._CORE_NS))
+    Namespace.remove(sym.symbol(runtime._CORE_NS))
 
 
-def lcompile(s: str):
+def lcompile(s: str, resolver: reader.Resolver = None, ctx: compiler.CompilerContext = None):
     """Compile and execute the code in the input string.
 
     Return the resulting expression."""
-    ast = compiler.compile_str(s)
-    return compiler.exec_ast(ast)
+    ctx = Maybe(ctx).or_else(lambda: compiler.CompilerContext())
+
+    last = None
+    for form in reader.read_str(s, resolver=resolver):
+        last = compiler.compile_form(form, ctx)
+
+    return last
 
 
 def test_string():
@@ -82,9 +105,9 @@ def test_map():
     assert lcompile('{:a "string"}') == lmap.map({kw.keyword("a"): "string"})
     assert lcompile('{:a "string" 45 :my-age}') == lmap.map({
         kw.keyword("a"):
-        "string",
+            "string",
         45:
-        kw.keyword("my-age")
+            kw.keyword("my-age")
     })
 
 
@@ -100,36 +123,36 @@ def test_vec():
     assert lcompile("[:a 1]") == vec.v(kw.keyword("a"), 1)
 
 
-def test_def(ns_var: var.Var):
+def test_def(ns_var: Var):
     ns_name = ns_var.value.name
-    assert lcompile("(def a :some-val)") == var.find_in_ns(
+    assert lcompile("(def a :some-val)") == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('a'))
-    assert lcompile('(def beep "a sound a robot makes")') == var.find_in_ns(
+    assert lcompile('(def beep "a sound a robot makes")') == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('beep'))
     assert lcompile("a") == kw.keyword("some-val")
     assert lcompile("beep") == "a sound a robot makes"
 
 
-def test_do(ns_var: var.Var):
+def test_do(ns_var: Var):
     code = """
     (do
       (def first-name :Darth)
       (def last-name "Vader"))
     """
     ns_name = ns_var.value.name
-    assert lcompile(code) == var.find_in_ns(
+    assert lcompile(code) == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('last-name'))
     assert lcompile("first-name") == kw.keyword("Darth")
     assert lcompile("last-name") == "Vader"
 
 
-def test_fn(ns_var: var.Var):
+def test_fn(ns_var: Var):
     code = """
-    (def string-upper (fn* [s] (.upper s)))
+    (def string-upper (fn* string-upper [s] (.upper s)))
     """
     ns_name = ns_var.value.name
     fvar = lcompile(code)
-    assert fvar == var.find_in_ns(
+    assert fvar == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('string-upper'))
     assert callable(fvar.value)
     assert fvar.value("lower") == "LOWER"
@@ -139,10 +162,28 @@ def test_fn(ns_var: var.Var):
     """
     ns_name = ns_var.value.name
     fvar = lcompile(code)
-    assert fvar == var.find_in_ns(
+    assert fvar == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('string-lower'))
     assert callable(fvar.value)
     assert fvar.value("UPPER") == "upper"
+
+
+def test_fn_call(ns_var: Var):
+    code = """
+    (def string-upper (fn* [s] (.upper s)))
+
+    (string-upper "bloop")
+    """
+    fvar = lcompile(code)
+    assert fvar == "BLOOP"
+
+    code = """
+    (def string-lower #(.lower %))
+
+    (string-lower "BLEEP")
+    """
+    fvar = lcompile(code)
+    assert fvar == "bleep"
 
 
 def test_if():
@@ -175,7 +216,37 @@ def test_quoted_list():
         sym.symbol('str'), 3, kw.keyword("feet-deep"))
 
 
-def test_try_catch(capsys):
+def test_syntax_quoting(test_ns: str, ns_var: Var):
+    resolver = lambda s: sym.symbol(s.name, ns=test_ns)
+
+    code = """
+    (def some-val \"some value!\")
+
+    `(some-val)"""
+    assert llist.l(sym.symbol('some-val', ns=test_ns)) == lcompile(code, resolver=resolver)
+
+    code = """
+    (def second-val \"some value!\")
+
+    `(other-val)"""
+    assert llist.l(sym.symbol('other-val')) == lcompile(code)
+
+    code = """
+    (def a-str \"a definite string\")
+    (def a-number 1583)
+
+    `(a-str ~a-number)"""
+    assert llist.l(sym.symbol('a-str', ns=test_ns), 1583) == lcompile(code, resolver=resolver)
+
+    code = """
+    (def whatever \"yes, whatever\")
+    (def ssss \"a snake\")
+
+    `(whatever ~@[ssss 45])"""
+    assert llist.l(sym.symbol('whatever', ns=test_ns), "a snake", 45) == lcompile(code, resolver=resolver)
+
+
+def test_try_catch(capsys, ns_var):
     code = """
       (try
         (.fake-lower "UPPER")
@@ -191,6 +262,8 @@ def test_try_catch(capsys):
     """
     assert lcompile(code) == "mIxEd"
 
+    # If you hit an error here, do yourself a favor
+    # and look in the import code first.
     code = """
       (import* builtins)
       (try
@@ -204,7 +277,20 @@ def test_try_catch(capsys):
     assert captured.out == "neither\n"
 
 
-def test_var(ns_var: var.Var):
+def test_unquote(ns_var: Var):
+    with pytest.raises(compiler.CompilerException):
+        lcompile("~s")
+
+
+def test_unquote_splicing(ns_var: Var):
+    with pytest.raises(compiler.CompilerException):
+        lcompile("~@[1 2 3]")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("'(~@53233)")
+
+
+def test_var(ns_var: Var):
     code = """
     (def some-var "a value")
 
@@ -212,7 +298,7 @@ def test_var(ns_var: var.Var):
 
     ns_name = ns_var.value.name
     v = lcompile(code)
-    assert v == var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
+    assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
     assert v.value == "a value"
 
     code = """
@@ -222,7 +308,7 @@ def test_var(ns_var: var.Var):
 
     ns_name = ns_var.value.name
     v = lcompile(code)
-    assert v == var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
+    assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
     assert v.value == "a value"
 
 

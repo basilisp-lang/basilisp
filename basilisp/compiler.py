@@ -4,7 +4,9 @@ import contextlib
 import types
 import uuid
 from datetime import datetime
-from typing import Dict, Iterable, Pattern, Tuple, Optional, Collection, List, Union, Any
+from enum import Enum
+from itertools import chain
+from typing import Dict, Iterable, Pattern, Tuple, Optional, List, Union, Any, Callable, NamedTuple
 
 import astor.code_gen as codegen
 from functional import seq
@@ -19,8 +21,8 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util
 import basilisp.lang.vector as vec
-import basilisp.reader as reader
-import basilisp.walker as walk
+from basilisp.lang.runtime import Var
+from basilisp.lang.typing import LispForm
 from basilisp.util import Maybe
 
 _CORE_NS = 'basilisp.core'
@@ -48,6 +50,9 @@ _VAR = sym.symbol("var")
 _SPECIAL_FORMS = lset.s(_DEF, _DO, _FN, _IF, _IMPORT, _INTEROP_CALL,
                         _INTEROP_PROP, _QUOTE, _TRY, _VAR)
 
+_UNQUOTE = sym.symbol("unquote", _CORE_NS)
+_UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
+
 _MUNGE_REPLACEMENTS = {
     '+': '__PLUS__',
     '-': '_',
@@ -70,20 +75,29 @@ _NAME_COUNTER = atom.Atom(1)
 _SYM_CTX_LOCAL_STARRED = kw.keyword(
     'local-starred', ns='basilisp.compiler.var-context')
 _SYM_CTX_LOCAL = kw.keyword('local', ns='basilisp.compiler.var-context')
-_SYM_CTX_NS = kw.keyword('namespace', ns='basilisp.compiler.var-context')
+_SYM_CTX_NS_DEF = kw.keyword(
+    'namespace-defined', ns='basilisp.compiler.var-context')
+_SYM_CTX_NS_REQ = kw.keyword(
+    'namespace-required', ns='basilisp.compiler.var-context')
+_SYM_CTX_NS_REFER = kw.keyword(
+    'namespace-referred', ns='basilisp.compiler.var-context')
 _SYM_CTX_IMPORT = kw.keyword('import', ns='basilisp.compiler.var-context')
+
+SymbolTableEntry = Tuple[str, kw.Keyword, sym.Symbol]
 
 
 class SymbolTable:
-    CONTEXTS = frozenset(
-        [_SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED, _SYM_CTX_NS, _SYM_CTX_IMPORT])
+    CONTEXTS = frozenset([
+        _SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED, _SYM_CTX_NS_DEF,
+        _SYM_CTX_NS_REQ, _SYM_CTX_NS_REFER, _SYM_CTX_IMPORT
+    ])
 
     __slots__ = ('_name', '_parent', '_table', '_children')
 
     def __init__(self,
                  name: str,
                  parent: 'SymbolTable' = None,
-                 table: Dict[sym.Symbol, Tuple[str, kw.Keyword]] = None,
+                 table: Dict[sym.Symbol, SymbolTableEntry] = None,
                  children: Dict[str, 'SymbolTable'] = None) -> None:
         self._name = name
         self._parent = parent
@@ -95,24 +109,22 @@ class SymbolTable:
         return self._name
 
     def __repr__(self):
-        return (f"SymbolTable({self._name}, parent={repr(self._parent)}, "
+        return (f"SymbolTable({self._name}, parent={repr(self._parent.name)}, "
                 f"table={repr(self._table)}, children={len(self._children)})")
 
     def new_symbol(self, s: sym.Symbol, munged: str,
                    ctx: kw.Keyword) -> 'SymbolTable':
         if ctx not in SymbolTable.CONTEXTS:
             raise TypeError(f"Context {ctx} not a valid Symbol Context")
-        self._table[s] = (munged, ctx)
+        self._table[s] = (munged, ctx, s)
         return self
 
-    def find_symbol(self, s: sym.Symbol) -> Optional[Tuple[str, kw.Keyword]]:
-        t = self
-        while True:
-            if s in t._table:
-                return t._table[s]
-            if t._parent is None:
-                return None
-            t = t._parent
+    def find_symbol(self, s: sym.Symbol) -> Optional[SymbolTableEntry]:
+        if s in self._table:
+            return self._table[s]
+        if self._parent is None:
+            return None
+        return self._parent.find_symbol(s)
 
     def append_frame(self, name: str,
                      parent: 'SymbolTable' = None) -> 'SymbolTable':
@@ -131,16 +143,16 @@ class SymbolTable:
 
 
 class CompilerContext:
-    __slots__ = ('_st', '_nodes', '_is_quoted')
+    __slots__ = ('_st', '_imports', '_is_quoted')
 
     def __init__(self):
         self._st = collections.deque([SymbolTable('<Top>')])
-        self._nodes = collections.deque([atom.Atom(vec.v())])
+        self._imports = set()
         self._is_quoted = collections.deque([])
 
     @property
-    def current_ns(self):
-        return runtime.get_current_ns().value
+    def current_ns(self) -> runtime.Namespace:
+        return runtime.get_current_ns()
 
     @property
     def is_quoted(self) -> bool:
@@ -155,25 +167,18 @@ class CompilerContext:
         yield
         self._is_quoted.pop()
 
-    def append_node(self, node) -> None:
-        nodes = self.nodes
-        nodes.swap(lambda v: v.conj(node))
+    @contextlib.contextmanager
+    def unquoted(self):
+        self._is_quoted.append(False)
+        yield
+        self._is_quoted.pop()
+
+    def add_import(self, imp: sym.Symbol):
+        self._imports.add(imp)
 
     @property
-    def nodes(self):
-        return self._nodes[-1]
-
-    @contextlib.contextmanager
-    def new_nodes(self):
-        parent_nodes = self.nodes
-        new_nodes = atom.Atom(vec.v())
-        self._nodes.append(new_nodes)
-        yield new_nodes, parent_nodes
-        self._nodes.pop()
-
-    def clear_nodes(self) -> None:
-        self._nodes.clear()
-        self._nodes = collections.deque([atom.Atom(vec.v())])
+    def imports(self):
+        return self._imports
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -227,9 +232,88 @@ def _is_py_module(name: str) -> bool:
         return False
 
 
+class ASTNodeType(Enum):
+    DEPENDENCY = 1
+    NODE = 2
+
+
+class ASTNode(NamedTuple):
+    """ASTNodes are a container for generated Python AST nodes to indicate
+    which broadly which type of AST node is being yielded.
+
+    Node types can be either 'dependent' or 'node'. 'dependent' type nodes
+    are those which must appear _before_ the generated 'node'(s)."""
+    type: ASTNodeType
+    node: ast.AST
+
+
+MixedNode = Union[ASTNode, ast.AST]
+MixedNodeStream = Iterable[MixedNode]
+ASTStream = Iterable[ASTNode]
+PyASTStream = Iterable[ast.AST]
+SimpleASTProcessor = Callable[[CompilerContext, LispForm], ast.AST]
+ASTProcessor = Callable[[CompilerContext, LispForm], ASTStream]
+
+
+def _node(node: ast.AST) -> ASTNode:
+    """Wrap a Python AST node in a 'node' type Basilisp ASTNode.
+
+    Nodes are the 'real' node(s) generated by any given S-expression. While other
+    dependency nodes may be generated as well, the 'node'(s) generated from an
+    expression should be considered the primary result of the expression compilation."""
+    return ASTNode(ASTNodeType.NODE, node)
+
+
+def _dependency(node: ast.AST) -> ASTNode:
+    """Wrap a Python AST node in a 'dependency' type Basilisp ASTNode.
+
+    Dependency nodes are nodes which much appear before other nodes in order
+    for those other nodes to be valid. The most common example is when a Python
+    statement must be coerced to an expression. In that case, Basilisp generates
+    a function dependency node and then follows up by generating a function call,
+    which sits in the expression position for the final expression."""
+    return ASTNode(ASTNodeType.DEPENDENCY, node)
+
+
+def _unwrap_node(n: Optional[MixedNode]) -> ast.AST:
+    """Unwrap a possibly wrapped Python AST node into its inner Python AST node type."""
+    if isinstance(n, ASTNode):
+        return n.node
+    elif isinstance(n, ast.AST):
+        return n
+    else:
+        raise CompilerException(f"Cannot unwrap object of type {type(n)}: {n}")
+
+
+def _unwrap_nodes(s: MixedNodeStream) -> List[ast.AST]:
+    """Unwrap a stream of Basilisp AST nodes into a list of Python AST nodes."""
+    return seq(s).map(_unwrap_node).to_list()
+
+
+def _nodes_and_exprl(s: ASTStream) -> Tuple[ASTStream, List[ASTNode]]:
+    """Split a stream of expressions into the preceding nodes and a list
+    containing the final expression."""
+    groups: Dict[ASTNodeType, ASTStream] = seq(s).group_by(lambda n: n.type).to_dict()
+    inits = groups.get(ASTNodeType.DEPENDENCY, [])
+    tail = groups.get(ASTNodeType.NODE, [])
+    return inits, list(tail)
+
+
+def _nodes_and_expr(s: ASTStream) -> Tuple[ASTStream, Optional[ASTNode]]:
+    """Split a stream of expressions into the preceding nodes and the
+    final expression."""
+    inits, tail = _nodes_and_exprl(s)
+    try:
+        assert len(tail) in [0, 1], "Use of _nodes_and_expr function with greater than 1 expression"
+        return inits, tail[0]
+    except IndexError:
+        return inits, None
+
+
 def _statementize(e: ast.AST) -> ast.AST:
     """Transform non-statements into ast.Expr nodes so they can
     stand alone as statements."""
+    # noinspection PyPep8
     if isinstance(
             e,
         (
@@ -262,7 +346,7 @@ def _statementize(e: ast.AST) -> ast.AST:
     return ast.Expr(value=e)
 
 
-def _expressionize(body: Collection[ast.AST],
+def _expressionize(body: MixedNodeStream,
                    fn_name: str,
                    args: Iterable[ast.arg] = None,
                    vargs: ast.arg = None) -> ast.FunctionDef:
@@ -275,13 +359,14 @@ def _expressionize(body: Collection[ast.AST],
     """
     args = [] if args is None else args
     body_nodes: List[ast.AST] = []
+    body_list = _unwrap_nodes(body)
     try:
-        if len(body) > 1:
+        if len(body_list) > 1:
             body_nodes.extend(
-                seq(body).drop_right(1).map(_statementize).to_list())
-        body_nodes.append(ast.Return(value=seq(body).last()))
+                seq(body_list).drop_right(1).map(_statementize).to_list())
+        body_nodes.append(ast.Return(value=seq(body_list).last()))
     except TypeError:
-        body_nodes.append(ast.Return(value=body))
+        body_nodes.append(ast.Return(value=body_list))
 
     return ast.FunctionDef(
         name=fn_name,
@@ -313,7 +398,7 @@ _MAP_ALIAS = 'lmap'
 _SET_ALIAS = 'lset'
 _SYM_ALIAS = 'sym'
 _VEC_ALIAS = 'vec'
-_VAR_ALIAS = 'var'
+_VAR_ALIAS = 'Var'
 _UTIL_ALIAS = 'langutil'
 _NS_VAR_VALUE = f'{_NS_VAR}.value'
 
@@ -330,20 +415,33 @@ _NEW_VEC_FN_NAME = _load_attr(f'{_VEC_ALIAS}.vector')
 _INTERN_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.intern')
 _FIND_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.find')
 
-LispFormAST = Union[bool, datetime, int, float, kw.Keyword, llist.List,
-                    lmap.Map, None, Pattern, lset.Set, str, sym.Symbol,
-                    vec.Vector, uuid.UUID]
-LispSymbolAST = Union[ast.Attribute, ast.Call, ast.Name, ast.Starred]
-
 
 def _meta_kwargs_ast(ctx: CompilerContext,
-                     form: meta.Meta) -> Iterable[ast.keyword]:
+                     form: meta.Meta) -> ASTStream:
     if hasattr(form, 'meta') and form.meta is not None:
-        return [ast.keyword(arg='meta', value=_to_ast(ctx, form.meta))]
-    return []
+        meta_nodes, meta = _nodes_and_expr(_to_ast(ctx, form.meta))
+        yield from meta_nodes
+        yield _node(ast.keyword(arg='meta', value=meta))
+    else:
+        return []
 
 
-def _def_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
+_SYM_MACRO_META_KEY = kw.keyword("macro")
+
+
+def _is_macro(s: sym.Symbol) -> bool:
+    """Return True if the Var pointed to by this Symbol holds a macro
+    function."""
+    try:
+        return Maybe(s.meta).map(
+            lambda m: m.get(_SYM_MACRO_META_KEY, None)  # type: ignore
+        ).or_else_get(
+            False)
+    except (KeyError, AttributeError):
+        return False
+
+
+def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Return a Python AST Node for a `def` expression."""
     assert form.first == _DEF
     assert len(form) in range(2, 4)
@@ -354,41 +452,38 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
 
     # Put this def'ed name into the symbol table as a namespace var
     ctx.symbol_table.new_symbol(form[1], genname(munge(form[1].name)),
-                                _SYM_CTX_NS)
+                                _SYM_CTX_NS_DEF)
 
     try:
-        def_value: Optional[ast.AST] = _to_ast(ctx, form[2])
+        def_nodes, def_value = _nodes_and_expr(_to_ast(ctx, form[2]))
     except KeyError:
-        def_value = None
-    return ast.Call(
+        def_nodes, def_value = [], None
+
+    meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form[1]))
+
+    yield from meta_nodes
+    yield from def_nodes
+    yield _node(ast.Call(
         func=_INTERN_VAR_FN_NAME,
-        args=[ns_name, def_name, def_value],
-        keywords=_meta_kwargs_ast(ctx, form[1]))
+        args=[ns_name, def_name, Maybe(def_value).map(_unwrap_node).value],
+        keywords=meta))
 
 
-def _do_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
+def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Return a Python AST Node for a `do` expression."""
     assert form.first == _DO
 
-    with ctx.new_nodes() as (inner_nodes, nodes):
-        gen_body = _collection_ast(ctx, form.rest)
-        body: List[ast.AST] = []
+    body = _collection_ast(ctx, form.rest)
+    do_fn_name = genname(_DO_PREFIX)
 
-        found_inner_nodes = inner_nodes.deref()
-        if len(found_inner_nodes) > 0:
-            body.extend(found_inner_nodes)
-        body.extend(gen_body)
-
-        do_fn_name = genname(_DO_PREFIX)
-        do_fn = _expressionize(body, do_fn_name)
-        nodes.swap(lambda v: v.conj(do_fn))
-
-        return ast.Call(
-            func=ast.Name(id=do_fn_name, ctx=ast.Load()), args=[], keywords=[])
+    yield _dependency(_expressionize(body, do_fn_name))
+    yield _node(ast.Call(
+        func=ast.Name(id=do_fn_name, ctx=ast.Load()), args=[], keywords=[]))
 
 
-def _fn_args_body(ctx: CompilerContext, arg_vec, body_exprs
-                  ) -> Tuple[List[ast.arg], List[ast.AST], Optional[ast.arg]]:
+def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,
+                  body_exprs: llist.List
+                  ) -> Tuple[List[ast.arg], ASTStream, Optional[ast.arg]]:
     """Generate the Python AST Nodes for a Lisp function argument vector
     and body expressions. Return a tuple of arg nodes and body AST nodes."""
     st = ctx.symbol_table
@@ -419,7 +514,7 @@ def _fn_args_body(ctx: CompilerContext, arg_vec, body_exprs
     return args, body, vargs
 
 
-def _fn_ast(ctx: CompilerContext, form: llist.List) -> ast.Name:
+def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for an anonymous function."""
     assert form.first == _FN
     has_name = isinstance(form[1], sym.Symbol)
@@ -433,50 +528,49 @@ def _fn_ast(ctx: CompilerContext, form: llist.List) -> ast.Name:
     with ctx.new_symbol_table(name):
         args, body, vargs = _fn_args_body(ctx, form[arg_idx], form[body_idx:])
 
-        fn = _expressionize(body, name, args=args, vargs=vargs)
-        ctx.append_node(fn)
-        return ast.Name(id=name, ctx=ast.Load())
+        yield _dependency(_expressionize(body, name, args=args, vargs=vargs))
+        yield _node(ast.Name(id=name, ctx=ast.Load()))
 
 
-def _if_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
+def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a function call to a utility function which acts as
     an if expression and works around Python's if statement."""
     assert form.first == _IF
     assert len(form) in range(3, 5)
 
-    with ctx.new_nodes() as (inner_nodes, nodes):
-        body: List[ast.AST] = []
-        ifstmt = ast.If(
-            test=_to_ast(ctx, form[1]),
-            body=[ast.Return(value=_to_ast(ctx, form[2]))],
-            orelse=[ast.Return(value=ast.NameConstant(None))]
-            if len(form) < 4 else [ast.Return(value=_to_ast(ctx, form[3]))])
+    test_nodes, test = _nodes_and_expr(_to_ast(ctx, form[1]))
+    body_nodes, body = _nodes_and_expr(_to_ast(ctx, form[2]))
 
-        found_inner_nodes = inner_nodes.deref()
-        if len(found_inner_nodes) > 0:
-            body.extend(found_inner_nodes)
-        body.append(ifstmt)
+    try:
+        else_nodes, lelse = _nodes_and_expr(_to_ast(ctx, form[3]))  # type: ignore
+    except IndexError:
+        else_nodes = []  # type: ignore
+        lelse = ast.NameConstant(None)  # type: ignore
 
-        ifname = genname(_IF_PREFIX)
-        if_fn = ast.FunctionDef(
-            name=ifname,
-            args=ast.arguments(
-                args=[],
-                kwarg=None,
-                vararg=None,
-                kwonlyargs=[],
-                defaults=[],
-                kw_defaults=[]),
-            body=body,
-            decorator_list=[],
-            returns=None)
-        nodes.swap(lambda v: v.conj(if_fn))
+    ifstmt = ast.If(
+        test=_unwrap_node(test),
+        body=[ast.Return(value=_unwrap_node(body))],
+        orelse=[ast.Return(value=_unwrap_node(lelse))])
 
-        return ast.Call(
-            func=ast.Name(id=ifname, ctx=ast.Load()), args=[], keywords=[])
+    ifname = genname(_IF_PREFIX)
+
+    yield _dependency(ast.FunctionDef(
+        name=ifname,
+        args=ast.arguments(
+            args=[],
+            kwarg=None,
+            vararg=None,
+            kwonlyargs=[],
+            defaults=[],
+            kw_defaults=[]),
+        body=_unwrap_nodes(chain(test_nodes, body_nodes, else_nodes, [ifstmt])),
+        decorator_list=[],
+        returns=None))
+    yield _node(ast.Call(
+        func=ast.Name(id=ifname, ctx=ast.Load()), args=[], keywords=[]))
 
 
-def _import_ast(ctx: CompilerContext, form: llist.List) -> None:
+def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Append Import statements into the compiler context nodes."""
     assert form[0] == _IMPORT
     assert all([isinstance(f, sym.Symbol) for f in form.rest])
@@ -486,19 +580,18 @@ def _import_ast(ctx: CompilerContext, form: llist.List) -> None:
         if not _is_py_module(s.name):
             raise ImportError(f"Module '{s.name}' not found")
         ctx.symbol_table.new_symbol(s, munge(s.name), _SYM_CTX_IMPORT)
+        ctx.add_import(s)
         with ctx.quoted():
-            ctx.append_node(
-                ast.Call(
-                    func=_load_attr(f'{_NS_VAR_VALUE}.add_import'),
-                    args=[_to_ast(ctx, s)],
-                    keywords=[]))
+            yield _dependency(ast.Call(
+                func=_load_attr(f'{_NS_VAR_VALUE}.add_import'),
+                args=_unwrap_nodes(_to_ast(ctx, s)),
+                keywords=[]))
         import_names.append(ast.alias(name=s.name, asname=None))
-    ctx.append_node(ast.Import(names=import_names))
+    yield _dependency(ast.Import(names=import_names))
+    yield _node(ast.NameConstant(None))
 
-    return None
 
-
-def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
+def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST node for Python interop method calls."""
     assert form[0] == _INTEROP_CALL
     assert form[1] is not None
@@ -506,17 +599,22 @@ def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
     assert form[2] is not None
     assert form[2].ns is None
 
+    target_nodes, target = _nodes_and_expr(_to_ast(ctx, form[1]))
+    yield from target_nodes
+
     call_target = ast.Attribute(
-        value=_to_ast(ctx, form[1]), attr=munge(form[2].name), ctx=ast.Load())
+        value=_unwrap_node(target), attr=munge(form[2].name), ctx=ast.Load())
 
-    args: List[ast.AST] = []
+    args: Iterable[ast.AST] = []
     if len(form) > 3:
-        args = _collection_ast(ctx, form[3:])
+        nodes, args = _collection_literal_ast(ctx, form[3:])
+        yield from nodes
+        yield from map(_dependency, args)
 
-    return ast.Call(func=call_target, args=args, keywords=[])
+    yield _node(ast.Call(func=call_target, args=list(args), keywords=[]))
 
 
-def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ast.Attribute:
+def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST node for Python interop property access."""
     assert form[0] == _INTEROP_PROP
     assert form[1] is not None
@@ -524,30 +622,34 @@ def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ast.Attribute:
     assert form[2].ns is None
     assert len(form) == 3
 
-    return ast.Attribute(
-        value=_to_ast(ctx, form[1]), attr=munge(form[2].name), ctx=ast.Load())
+    target_nodes, target = _nodes_and_expr(_to_ast(ctx, form[1]))
+    yield from target_nodes
+    yield _node(ast.Attribute(
+        value=_unwrap_node(target), attr=munge(form[2].name), ctx=ast.Load()))
 
 
-def _quote_ast(ctx: CompilerContext, form: llist.List) -> Optional[ast.AST]:
-    """Generate a Python AST Node for quoted forms."""
+def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+    """Generate a Python AST Node for quoted forms.
+
+    Quoted forms are actually handled in their respective AST processor,
+    since only a small number of forms are quoted. This function merely
+    marks the `quoted` flag in the compiler context to let any functions
+    downstream know that they must quote the form they are compiling."""
     assert form[0] == _QUOTE
     assert len(form) == 2
     with ctx.quoted():
-        return _to_ast(ctx, form[1])
+        yield from _to_ast(ctx, form[1])
 
 
-def _catch_expr_body(body) -> Iterable[ast.AST]:
+def _catch_expr_body(body) -> PyASTStream:
     """Given a series of expression AST nodes, create a body of expression
     nodes with a final return node at the end of the list."""
-    body_nodes: List[ast.AST] = []
     try:
         if len(body) > 1:
-            body_nodes.extend(
-                seq(body).drop_right(1).map(_statementize).to_list())
-        body_nodes.append(ast.Return(value=seq(body).last()))
+            yield from seq(body).drop_right(1).map(_statementize).to_list()
+        yield ast.Return(value=seq(body).last())
     except TypeError:
-        body_nodes.append(ast.Return(value=body))
-    return body_nodes
+        yield ast.Return(value=body)
 
 
 def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
@@ -557,78 +659,76 @@ def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
     assert isinstance(form[1], sym.Symbol)
     assert isinstance(form[2], sym.Symbol)
 
-    body = [_to_ast(ctx, f) for f in form[3:]]
+    body = seq(form[3:]).flat_map(lambda f: _to_ast(ctx, f)).map(_unwrap_node).to_list()
     return ast.ExceptHandler(
         type=ast.Name(id=form[1].name, ctx=ast.Load()),
         name=munge(form[2].name),
-        body=_catch_expr_body(body))
+        body=list(_catch_expr_body(body)))
 
 
-def _try_ast(ctx: CompilerContext, form: llist.List) -> ast.Call:
+def _finally_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+    """Generate Python AST nodes for `finally` forms."""
+    assert isinstance(form, llist.List)
+    assert form.first == _FINALLY
+    assert len(form) >= 2
+
+    yield from seq(form.rest) \
+        .flat_map(lambda clause: _to_ast(ctx, clause)) \
+        .map(_unwrap_node) \
+        .map(lambda node: _statementize(node))
+
+
+def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST nodes for `try` forms."""
     assert form[0] == _TRY
     assert len(form) >= 3
 
-    with ctx.new_nodes() as (inner_nodes, nodes):
-        expr = ast.Return(value=_to_ast(ctx, form[1]))
+    expr_nodes, expr_v = _nodes_and_expr(_to_ast(ctx, form[1]))
+    expr = ast.Return(value=_unwrap_node(expr_v))
 
-        # Generate Python exception handlers
-        catches = form[2:-1]
-        if len(catches) > 0:
-            catches = [_catch_ast(ctx, f) for f in form[2:-1]]
-        else:
-            catches = []
+    # Split clauses by the first form (which should be either the
+    # symbol `catch` or the symbol `finally`). Validate we have 0
+    # or 1 finally clauses.
+    clauses = seq(form[2:]).group_by(lambda f: f.first.name).to_dict()
 
-        # Determine if a finally clause was provided or if all of
-        # the final clauses are catch clauses
-        final_clause = form[-1]
-        assert isinstance(final_clause, llist.List)
-        final_exprs: List[ast.AST] = []
-        if final_clause.first == _FINALLY:
-            final_exprs = seq(final_clause.rest).map(
-                lambda clause: _to_ast(ctx, clause)).map(
-                    lambda node: _statementize(node)).to_list()
-        else:
-            catches.append(_catch_ast(ctx, final_clause))
+    finallys = clauses.get("finally", [])
+    if len(finallys) not in [0, 1]:
+        raise CompilerException("Only one finally clause may be provided in a try/catch block")
 
-        # Start building up the try/except block that will be inserted
-        # into a function to expressionize it
-        try_body: List[ast.AST] = []
+    catch_exprs: List[ast.AST] = seq(clauses.get("catch", [])).map(lambda f: _catch_ast(ctx, f)).to_list()
+    final_exprs: List[ast.AST] = seq(finallys).flat_map(lambda f: _finally_ast(ctx, f)).to_list()
 
-        found_inner_nodes = inner_nodes.deref()
-        if len(found_inner_nodes) > 0:
-            try_body.extend(found_inner_nodes)
+    # Start building up the try/except block that will be inserted
+    # into a function to expressionize it
+    try_body = ast.Try(
+        body=_unwrap_nodes(chain(expr_nodes, [expr])),
+        handlers=catch_exprs,
+        orelse=[],
+        finalbody=final_exprs)
 
-        try_body.append(
-            ast.Try(
-                body=[expr],
-                handlers=catches,
-                orelse=[],
-                finalbody=final_exprs))
-
-        # Insert the try/except function into the container
-        # nodes vector so it will be available in the calling context
-        try_fn_name = genname(_TRY_PREFIX)
-        nodes.swap(lambda v: v.conj(ast.FunctionDef(
-            name=try_fn_name,
-            args=ast.arguments(
-                args=[],
-                kwarg=None,
-                vararg=None,
-                kwonlyargs=[],
-                defaults=[],
-                kw_defaults=[]),
-            body=try_body,
-            decorator_list=[],
-            returns=None)))
-
-        return ast.Call(
-            func=ast.Name(id=try_fn_name, ctx=ast.Load()),
+    # Insert the try/except function into the container
+    # nodes vector so it will be available in the calling context
+    try_fn_name = genname(_TRY_PREFIX)
+    yield _dependency(ast.FunctionDef(
+        name=try_fn_name,
+        args=ast.arguments(
             args=[],
-            keywords=[])
+            kwarg=None,
+            vararg=None,
+            kwonlyargs=[],
+            defaults=[],
+            kw_defaults=[]),
+        body=[try_body],
+        decorator_list=[],
+        returns=None))
+
+    yield _node(ast.Call(
+        func=ast.Name(id=try_fn_name, ctx=ast.Load()),
+        args=[],
+        keywords=[]))
 
 
-def _var_ast(form: llist.List) -> ast.Call:
+def _var_ast(_: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for the `var` special form."""
     assert form[0] == _VAR
     assert isinstance(form[1], sym.Symbol)
@@ -640,92 +740,187 @@ def _var_ast(form: llist.List) -> ast.Call:
         args=[ast.Str(form[1].name)],
         keywords=[ast.keyword(arg='ns', value=ns)])
 
-    return ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[])
+    yield _node(ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]))
 
 
 def _special_form_ast(ctx: CompilerContext,
-                      form: llist.List) -> Optional[ast.AST]:
+                      form: llist.List) -> ASTStream:
     """Generate a Python AST Node for any Lisp special forms."""
     assert form.first in _SPECIAL_FORMS
     which = form.first
     if which == _DEF:
-        return _def_ast(ctx, form)
+        yield from _def_ast(ctx, form)
+        return
     elif which == _FN:
-        return _fn_ast(ctx, form)
+        yield from _fn_ast(ctx, form)
+        return
     elif which == _IF:
-        return _if_ast(ctx, form)
+        yield from _if_ast(ctx, form)
+        return
     elif which == _IMPORT:
-        return _import_ast(ctx, form)  # type: ignore
+        yield from _import_ast(ctx, form)  # type: ignore
+        return
     elif which == _INTEROP_CALL:
-        return _interop_call_ast(ctx, form)
+        yield from _interop_call_ast(ctx, form)
+        return
     elif which == _INTEROP_PROP:
-        return _interop_prop_ast(ctx, form)
+        yield from _interop_prop_ast(ctx, form)
+        return
     elif which == _DO:
-        return _do_ast(ctx, form)
+        yield from _do_ast(ctx, form)
+        return
     elif which == _QUOTE:
-        return _quote_ast(ctx, form)
+        yield from _quote_ast(ctx, form)
+        return
     elif which == _TRY:
-        return _try_ast(ctx, form)
+        yield from _try_ast(ctx, form)
+        return
     elif which == _VAR:
-        return _var_ast(form)
-    assert False, "Special form identified, but not handled"
+        yield from _var_ast(ctx, form)
+        return
+    raise CompilerException("Special form identified, but not handled")
 
 
-def _list_ast(ctx: CompilerContext, form: llist.List) -> Optional[ast.AST]:
+def _unquote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+    """Generate a Python AST Node for the `unquote` special form."""
+    assert form[0] == _UNQUOTE
+    assert isinstance(form[1], sym.Symbol)
+    assert len(form) == 2
+
+    with ctx.unquoted():
+        yield from _to_ast(ctx, compile_form(form[1], ctx))
+
+
+def _unquote_splicing_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+    """Generate a Python AST Node for the `unquote` special form."""
+    assert form.first == _UNQUOTE_SPLICING
+    assert len(form) == 2
+
+    with ctx.unquoted():
+        try:
+            for compiled in compile_form(form[1], ctx):
+                deps, nodes = _nodes_and_exprl(_to_ast(ctx, compiled))
+                yield from deps
+                yield from nodes
+        except TypeError:
+            raise CompilerException("Cannot unquote splice a non-iterable value")
+
+
+def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+    """Generate a stream of Python AST nodes for a source code list.
+
+    Being the basis of any Lisp language, Lists have a lot of special cases
+    which do not apply to other forms returned from the reader.
+
+    First and foremost, lists contain special forms which are fundamental
+    pieces of the language which are defined here at the compiler level
+    rather than as a macro on top of the language. Forms such as `if`,
+    `do`, `def`, and `try` are defined here and must be handled specially
+    to generate correct Python code.
+
+    Lists can be quoted, which results in them not being evaluated, but
+    returned as a data structure literal, but quoted elements may also
+    have _unquoted_ elements contained inside of them, so provision must
+    be made to evaluate some elements while leaving others un-evaluated.
+
+    Finally, function and macro calls are also written as lists, so both
+    cases must be handled herein."""
     # Special forms
     if form.first in _SPECIAL_FORMS and not ctx.is_quoted:
-        return _special_form_ast(ctx, form)
+        yield from _special_form_ast(ctx, form)
+        return
 
-    elems_ast = _collection_ast(ctx, form)
+    # Unquote and unquote splicing handling
+
+    if form.first == _UNQUOTE:
+        if ctx.is_quoted:
+            yield from _unquote_ast(ctx, form)
+            return
+        else:
+            raise CompilerException("Must be inside a quote to unquote")
+    elif form.first == _UNQUOTE_SPLICING:
+        if ctx.is_quoted:
+            yield from _unquote_splicing_ast(ctx, form)
+            return
+        else:
+            raise CompilerException("Must be inside a quote to unquote-splice")
+
+    # Macros are immediately evaluated so the modified form can be compiled
+    if isinstance(form.first, sym.Symbol):
+        sym_info = ctx.symbol_table.find_symbol(form.first)
+        if sym_info is not None:
+            _, sym_ctx, s = sym_info
+            if _is_macro(s):
+                v = Var.find(s)
+                if v is not None:
+                    yield from _to_ast(ctx, v.value(form.rest))
+                    return
+
+    elems_nodes, elems = _collection_literal_ast(ctx, form)
 
     # Quoted list
     if ctx.is_quoted:
-        return ast.Call(
+        meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
+        yield from meta_nodes
+        yield _node(ast.Call(
             func=_NEW_LIST_FN_NAME,
-            args=[ast.List(elems_ast, ast.Load())],
-            keywords=_meta_kwargs_ast(ctx, form))
+            args=[ast.List(elems, ast.Load())],
+            keywords=meta))
+        return
+
+    yield from elems_nodes
+    elems_ast = seq(elems)
 
     # Function call
-    return ast.Call(
-        func=elems_ast[0], args=[e for e in elems_ast[1:]], keywords=[])
+    yield _node(ast.Call(
+        func=elems_ast.first(), args=elems_ast.drop(1).to_list(), keywords=[]))
 
 
-def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ast.Call:
-    keys = _collection_ast(ctx, form.keys())
-    vals = _collection_ast(ctx, form.values())
-
-    return ast.Call(
+def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ASTStream:
+    key_nodes, keys = _collection_literal_ast(ctx, form.keys())
+    val_nodes, vals = _collection_literal_ast(ctx, form.values())
+    meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
+    yield from meta_nodes
+    yield from key_nodes
+    yield from val_nodes
+    yield _node(ast.Call(
         func=_NEW_MAP_FN_NAME,
         args=[ast.Dict(keys=keys, values=vals)],
-        keywords=_meta_kwargs_ast(ctx, form))
+        keywords=meta))
 
 
-def _set_ast(ctx: CompilerContext, form: lset.Set) -> ast.Call:
-    elems_ast = _collection_ast(ctx, form)
-    return ast.Call(
+def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
+    elem_nodes, elems_ast = _collection_literal_ast(ctx, form)
+    meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
+    yield from meta_nodes
+    yield from elem_nodes
+    yield _node(ast.Call(
         func=_NEW_SET_FN_NAME,
         args=[ast.List(elems_ast, ast.Load())],
-        keywords=_meta_kwargs_ast(ctx, form))
+        keywords=meta))
 
 
-def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ast.Call:
-    elems_ast = _collection_ast(ctx, form)
-    return ast.Call(
+def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ASTStream:
+    elem_nodes, elems_ast = _collection_literal_ast(ctx, form)
+    meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
+    yield from meta_nodes
+    yield from elem_nodes
+    yield _node(ast.Call(
         func=_NEW_VEC_FN_NAME,
         args=[ast.List(elems_ast, ast.Load())],
-        keywords=_meta_kwargs_ast(ctx, form))
+        keywords=meta))
 
 
-def _kw_ast(form: kw.Keyword) -> ast.Call:
+def _kw_ast(_: CompilerContext, form: kw.Keyword) -> ASTStream:
     kwarg = Maybe(form.ns) \
         .stream() \
         .map(lambda ns: ast.keyword(arg='ns', value=ast.Str(form.ns))) \
         .to_list()
-    return ast.Call(
-        func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg)
+    yield _node(ast.Call(
+        func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg))
 
 
-def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> LispSymbolAST:
+def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
     """Return a Python AST node for a Lisp symbol.
 
     If the symbol is quoted (as determined by the `quoted` kwarg),
@@ -746,129 +941,181 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> LispSymbolAST:
     elif form.ns is not None:
         ns = ast.Str(form.ns)
 
-    sym_kwargs = Maybe(ns).stream().map(
-        lambda v: ast.keyword(arg='ns', value=ns)).to_list()
-    sym_kwargs.extend(_meta_kwargs_ast(ctx, form))
+    meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
+    yield from meta_nodes
+
+    sym_kwargs = Maybe(ns).stream() \
+        .map(lambda v: ast.keyword(arg='ns', value=ns)) \
+        .to_list()
+    sym_kwargs.extend(meta)
     base_sym = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Str(form.name)], keywords=sym_kwargs)
 
     if ctx.is_quoted:
-        return base_sym
+        yield _node(base_sym)
+        return
 
     st = ctx.symbol_table
     st_sym = st.find_symbol(form)
 
     if st_sym is not None:
-        munged, sym_ctx = st_sym
+        munged, sym_ctx, _ = st_sym
         if munged is None:
             raise ValueError(f"Lisp symbol '{form}' not found in {repr(st)}")
 
         if sym_ctx == _SYM_CTX_LOCAL:
-            return ast.Name(id=munged, ctx=ast.Load())
+            yield _node(ast.Name(id=munged, ctx=ast.Load()))
+            return
         elif sym_ctx == _SYM_CTX_LOCAL_STARRED:
-            return ast.Starred(
-                value=ast.Name(id=munged, ctx=ast.Load()), ctx=ast.Load())
+            yield _node(ast.Starred(
+                value=ast.Name(id=munged, ctx=ast.Load()), ctx=ast.Load()))
+            return
 
     if form.ns is not None:
         ns_sym = sym.symbol(form.ns)
         ns_sym_info = st.find_symbol(ns_sym)
         if ns_sym_info is not None:
-            _, sym_ctx = ns_sym_info
+            _, sym_ctx, _ = ns_sym_info
             if sym_ctx == _SYM_CTX_IMPORT:
-                return _load_attr(f"{form.ns}.{form.name}")
+                yield _node(_load_attr(f"{form.ns}.{form.name}"))
+                return
         if ctx.current_ns.get_import(ns_sym):
             safe_ns = munge(form.ns)
             safe_name = munge(form.name)
-            return _load_attr(f"{safe_ns}.{safe_name}")
+            yield _node(_load_attr(f"{safe_ns}.{safe_name}"))
+            return
 
-    return ast.Attribute(
+    yield _node(ast.Attribute(
         value=ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]),
         attr='value',
-        ctx=ast.Load())
+        ctx=ast.Load()))
 
 
-def _regex_ast(form: Pattern) -> ast.Call:
-    return ast.Call(
-        func=_NEW_REGEX_FN_NAME, args=[ast.Str(form.pattern)], keywords=[])
+def _regex_ast(_: CompilerContext, form: Pattern) -> ASTStream:
+    yield _node(ast.Call(
+        func=_NEW_REGEX_FN_NAME, args=[ast.Str(form.pattern)], keywords=[]))
 
 
-def _inst_ast(form: datetime) -> ast.Call:
-    return ast.Call(
-        func=_NEW_INST_FN_NAME, args=[ast.Str(form.isoformat())], keywords=[])
+def _inst_ast(_: CompilerContext, form: datetime) -> ASTStream:
+    yield _node(ast.Call(
+        func=_NEW_INST_FN_NAME, args=[ast.Str(form.isoformat())], keywords=[]))
 
 
-def _uuid_ast(form: uuid.UUID) -> ast.Call:
-    return ast.Call(
-        func=_NEW_UUID_FN_NAME, args=[ast.Str(str(form))], keywords=[])
+def _uuid_ast(_: CompilerContext, form: uuid.UUID) -> ASTStream:
+    yield _node(ast.Call(
+        func=_NEW_UUID_FN_NAME, args=[ast.Str(str(form))], keywords=[]))
 
 
 def _collection_ast(ctx: CompilerContext,
-                    form: Iterable[LispFormAST]) -> List[ast.AST]:
-    """Turn a collection of Lisp forms into Python AST nodes, filtering out """
-    return seq(form).map(lambda x: _to_ast(ctx, x)).filter(
-        lambda x: x is not None).to_list()
+                    form: Iterable[LispForm]) -> ASTStream:
+    """Turn a collection of Lisp forms into Python AST nodes, filtering out
+    empty nodes."""
+    yield from seq(form) \
+        .flat_map(lambda x: _to_ast(ctx, x)) \
+        .filter(lambda x: x is not None)
 
 
-def _to_ast(ctx: CompilerContext, form: LispFormAST) -> Optional[ast.AST]:
-    """Take a Lisp form as an argument and produce a Python AST node.
+def _collection_literal_ast(ctx: CompilerContext,
+                            form: Iterable[LispForm]) -> Tuple[ASTStream, PyASTStream]:
+    """Turn a collection literal of Lisp forms into Python AST nodes, filtering
+    out empty nodes."""
+    orig = seq(form) \
+        .map(lambda x: _to_ast(ctx, x)) \
+        .map(lambda x: _nodes_and_exprl(x))
 
-    This function passes along keyword arguments to any eligible
-    downstream functions.
+    return (orig.flat_map(lambda x: x[0]).to_list(),
+            orig.flat_map(lambda x: x[1]).map(_unwrap_node).to_list())
 
-    The `nodes` argument is an Atom containing a List, which is used
-    to accumulate nodes which cannot be directly replaced into the
-    tree and which will need to be injected to the generated Python
-    module at the very end."""
+
+def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:
+    """Take a Lisp form as an argument and produce zero or more Python
+    AST nodes.
+
+    This is the primary entrypoint for generating AST nodes from Lisp
+    syntax. It may be called recursively to compile child forms.
+
+    All of the various types of elements which are compiled by this
+    function delegate to external functions, which are functions of
+    two arguments (a `CompilerContext` object, and the form to compile).
+    Each function returns a generator, which may contain 0 or more AST
+    nodes."""
     if isinstance(form, llist.List):
-        return _list_ast(ctx, form)
+        yield from _list_ast(ctx, form)
+        return
     elif isinstance(form, vec.Vector):
-        return _vec_ast(ctx, form)
+        yield from _vec_ast(ctx, form)
+        return
     elif isinstance(form, lmap.Map):
-        return _map_ast(ctx, form)
+        yield from _map_ast(ctx, form)
+        return
     elif isinstance(form, lset.Set):
-        return _set_ast(ctx, form)
+        yield from _set_ast(ctx, form)
+        return
     elif isinstance(form, kw.Keyword):
-        return _kw_ast(form)
+        yield from _kw_ast(ctx, form)
+        return
     elif isinstance(form, sym.Symbol):
-        return _sym_ast(ctx, form)
+        yield from _sym_ast(ctx, form)
+        return
     elif isinstance(form, str):
-        return ast.Str(form)
+        yield _node(ast.Str(form))
+        return
     elif isinstance(form, bool):
-        return ast.NameConstant(form)
+        yield _node(ast.NameConstant(form))
+        return
     elif isinstance(form, type(None)):
-        return ast.NameConstant(None)
+        yield _node(ast.NameConstant(None))
+        return
     elif isinstance(form, float):
-        return ast.Num(form)
+        yield _node(ast.Num(form))
+        return
     elif isinstance(form, int):
-        return ast.Num(form)
+        yield _node(ast.Num(form))
+        return
     elif isinstance(form, datetime):
-        return _inst_ast(form)
+        yield from _inst_ast(ctx, form)
+        return
     elif isinstance(form, uuid.UUID):
-        return _uuid_ast(form)
+        yield from _uuid_ast(ctx, form)
+        return
     elif isinstance(form, Pattern):
-        return _regex_ast(form)
+        yield from _regex_ast(ctx, form)
+        return
     else:
         raise TypeError(f"Unexpected form type {type(form)}")
 
 
-def _module_imports() -> ast.Import:
+def _module_imports(ctx: CompilerContext) -> ast.Import:
     """Generate the Python Import AST node for importing all required
     language support modules."""
-    return ast.Import(names=[
-        ast.alias(name='builtins', asname=None),
-        ast.alias(name='basilisp.lang.keyword', asname=_KW_ALIAS),
-        ast.alias(name='basilisp.lang.list', asname=_LIST_ALIAS),
-        ast.alias(name='basilisp.lang.map', asname=_MAP_ALIAS),
-        ast.alias(name='basilisp.lang.set', asname=_SET_ALIAS),
-        ast.alias(name='basilisp.lang.symbol', asname=_SYM_ALIAS),
-        ast.alias(name='basilisp.lang.vector', asname=_VEC_ALIAS),
-        ast.alias(name='basilisp.lang.var', asname=_VAR_ALIAS),
-        ast.alias(name='basilisp.lang.util', asname=_UTIL_ALIAS)
-    ])
+    import_names = [
+        ('builtins', None),
+        ('basilisp.lang.keyword', _KW_ALIAS),
+        ('basilisp.lang.list', _LIST_ALIAS),
+        ('basilisp.lang.map', _MAP_ALIAS),
+        ('basilisp.lang.set', _SET_ALIAS),
+        ('basilisp.lang.symbol', _SYM_ALIAS),
+        ('basilisp.lang.vector', _VEC_ALIAS),
+        ('basilisp.lang.util', _UTIL_ALIAS)
+    ]
+    import_names.extend(seq(ctx.imports).map(lambda v: (v.name, None)))
+    return ast.Import(names=seq(import_names)
+                      .map(lambda v: ast.alias(name=v[0], asname=v[1]))
+                      .to_list())
 
 
-def _ns_var(py_ns_var=_NS_VAR, lisp_ns_var=_LISP_NS_VAR,
-            lisp_ns_ns=_CORE_NS) -> ast.Assign:
+def _from_module_import() -> ast.ImportFrom:
+    """Generate the Python From ... Import AST node for importing
+    language support modules."""
+    return ast.ImportFrom(
+        module='basilisp.lang.runtime',
+        names=[ast.alias(name='Var', asname=None)],
+        level=0)
+
+
+def _ns_var(py_ns_var: str = _NS_VAR,
+            lisp_ns_var: str = _LISP_NS_VAR,
+            lisp_ns_ns: str = _CORE_NS) -> ast.Assign:
     """Assign a Python variable named `ns_var` to the value of the current
     namespace."""
     return ast.Assign(
@@ -886,75 +1133,63 @@ def _ns_var(py_ns_var=_NS_VAR, lisp_ns_var=_LISP_NS_VAR,
             keywords=[]))
 
 
-def compile_forms(forms,
-                  wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
-    """Compile the given forms into final module which can be compiled into
-    valid Python code. Returns a Python module AST node.
+def _to_py_source(t: ast.AST, outfile: str) -> None:
+    source = codegen.to_source(t)
+    with open(outfile, mode='w') as f:
+        f.writelines(source)
+
+
+def _to_py_str(t: ast.AST) -> str:
+    """Return a string of the Python code which would generate the input
+    AST node."""
+    return codegen.to_source(t)
+
+
+def _exec_ast(t: ast.Module,
+              module_name: str = 'REPL',
+              expr_fn: str = _DEFAULT_FN,
+              source_filename: str = '<REPL Input>'):
+    """Execute a Python AST node generated from one of the compile functions
+    provided in this module. Return the result of the executed module code."""
+    global_scope: Dict[str, Any] = {}
+    # noinspection PyUnresolvedReferences
+    mod = types.ModuleType(module_name)
+    bytecode = compile(t, source_filename, 'exec')
+    exec(bytecode, global_scope, mod.__dict__)
+    return getattr(mod, expr_fn)()
+
+
+def compile_form(form: LispForm,
+                 ctx: CompilerContext,
+                 wrapped_fn_name: str = _DEFAULT_FN) -> Any:
+    """Compile the given form into final module which can be compiled into
+    valid Python code. Returns the result of the compiled expression.
 
     Callers may override the wrapped function name, which is used by the
     REPL to evaluate the result of an expression and print it back out."""
-    if forms is None:
+    if form is None:
         return None
 
-    ctx = CompilerContext()
-
     expr_body = [
-        _module_imports(),
+        _module_imports(ctx),
+        _from_module_import(),
         _ns_var(),
     ]
 
-    for form in forms:
-        ctx.clear_nodes()
-        form_ast = walk.prewalk(lambda f: _to_ast(ctx, f), form)
-        if form_ast is None:
-            continue
-        expr_body.extend(list(ctx.nodes.deref()))
-        expr_body.append(form_ast)
+    form_ast = seq(_to_ast(ctx, form)).map(_unwrap_node).to_list()
+    if form_ast is None:
+        return None
+    expr_body.extend(form_ast)
 
     body = _expressionize(expr_body, wrapped_fn_name)
 
     module = ast.Module(body=[body])
     ast.fix_missing_locations(module)
-    return module
 
+    if runtime.print_generated_python():
+        print(_to_py_str(module))
 
-def compile_file(filename: str,
-                 wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
-    """Compile a file with the given name into a Python module AST node."""
-    forms = reader.read_file(filename)
-    return compile_forms(forms, wrapped_fn_name)
-
-
-def compile_str(s: str,
-                wrapped_fn_name: str = _DEFAULT_FN) -> Optional[ast.Module]:
-    """Compile the forms in a string into a Python module AST node."""
-    forms = reader.read_str(s)
-    return compile_forms(forms, wrapped_fn_name)
-
-
-def to_py_source(ast: ast.AST, outfile: str) -> None:
-    source = codegen.to_source(ast)
-    with open(outfile, mode='w') as f:
-        f.writelines(source)
-
-
-def to_py_str(ast: ast.AST) -> str:
-    """Return a string of the Python code which would generate the input
-    AST node."""
-    return codegen.to_source(ast)
-
-
-def exec_ast(ast: ast.Module,
-             module_name: str = 'REPL',
-             expr_fn: str = _DEFAULT_FN,
-             source_filename: str = '<REPL Input>'):
-    """Execute a Python AST node generated from one of the compile functions
-    provided in this module. Return the result of the executed module code."""
-    global_scope: Dict[str, Any] = {}
-    mod = types.ModuleType(module_name)
-    bytecode = compile(ast, source_filename, 'exec')
-    exec(bytecode, global_scope, mod.__dict__)
-    return getattr(mod, expr_fn)()
+    return _exec_ast(module, expr_fn=wrapped_fn_name)
 
 
 lrepr = basilisp.lang.util.lrepr

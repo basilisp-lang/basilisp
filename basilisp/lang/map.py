@@ -1,5 +1,5 @@
 from collections import Sequence
-from typing import Any
+from typing import Any, Optional
 
 from pyrsistent import pmap, PMap
 from wrapt import ObjectProxy
@@ -56,10 +56,10 @@ class Map(ObjectProxy, Meta):
         return self.get(key, default)
 
     @property
-    def meta(self):
+    def meta(self) -> "Optional[Map]":
         return self._self_meta
 
-    def with_meta(self, meta) -> "Map":
+    def with_meta(self, meta: "Map") -> "Map":
         new_meta = meta if self._self_meta is None else self._self_meta.update(
             meta)
         return map(self.__wrapped__, meta=new_meta)
