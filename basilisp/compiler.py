@@ -799,9 +799,6 @@ def _unquote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     assert isinstance(form[1], sym.Symbol)
     assert len(form) == 2
 
-    if not ctx.is_quoted:
-        raise CompilerException("Must be inside a quote to unquote")
-
     with ctx.unquoted():
         yield from _to_ast(ctx, compile_form(form[1], ctx))
 
@@ -810,9 +807,6 @@ def _unquote_splicing_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for the `unquote` special form."""
     assert form.first == _UNQUOTE_SPLICING
     assert len(form) == 2
-
-    if not ctx.is_quoted:
-        raise CompilerException("Must be inside a quote to unquote-splice")
 
     with ctx.unquoted():
         try:
@@ -849,13 +843,19 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         return
 
     # Unquote and unquote splicing handling
-    if ctx.is_quoted:
-        if form.first == _UNQUOTE:
+
+    if form.first == _UNQUOTE:
+        if ctx.is_quoted:
             yield from _unquote_ast(ctx, form)
             return
-        elif form.first == _UNQUOTE_SPLICING:
+        else:
+            raise CompilerException("Must be inside a quote to unquote")
+    elif form.first == _UNQUOTE_SPLICING:
+        if ctx.is_quoted:
             yield from _unquote_splicing_ast(ctx, form)
             return
+        else:
+            raise CompilerException("Must be inside a quote to unquote-splice")
 
     # Macros are immediately evaluated so the modified form can be compiled
     if isinstance(form.first, sym.Symbol):

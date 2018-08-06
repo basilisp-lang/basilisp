@@ -277,6 +277,19 @@ def test_try_catch(capsys, ns_var):
     assert captured.out == "neither\n"
 
 
+def test_unquote(ns_var: Var):
+    with pytest.raises(compiler.CompilerException):
+        lcompile("~s")
+
+
+def test_unquote_splicing(ns_var: Var):
+    with pytest.raises(compiler.CompilerException):
+        lcompile("~@[1 2 3]")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("'(~@53233)")
+
+
 def test_var(ns_var: Var):
     code = """
     (def some-var "a value")
