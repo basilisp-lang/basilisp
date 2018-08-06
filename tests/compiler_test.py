@@ -44,14 +44,14 @@ def ns_var(test_ns: str):
     Namespace.remove(sym.symbol(runtime._CORE_NS))
 
 
-def lcompile(s: str, ctx: compiler.CompilerContext = None):
+def lcompile(s: str, resolver: reader.Resolver = None, ctx: compiler.CompilerContext = None):
     """Compile and execute the code in the input string.
 
     Return the resulting expression."""
     ctx = Maybe(ctx).or_else(lambda: compiler.CompilerContext())
 
     last = None
-    for form in reader.read_str(s):
+    for form in reader.read_str(s, resolver=resolver):
         last = compiler.compile_form(form, ctx)
 
     return last
@@ -170,19 +170,17 @@ def test_fn(ns_var: Var):
 
 def test_fn_call(ns_var: Var):
     code = """
-    (do
-      (def string-upper (fn* [s] (.upper s)))
+    (def string-upper (fn* [s] (.upper s)))
 
-      (string-upper "bloop"))
+    (string-upper "bloop")
     """
     fvar = lcompile(code)
     assert fvar == "BLOOP"
 
     code = """
-    (do
-      (def string-lower #(.lower %))
+    (def string-lower #(.lower %))
 
-      (string-lower "BLEEP"))
+    (string-lower "BLEEP")
     """
     fvar = lcompile(code)
     assert fvar == "bleep"
@@ -216,6 +214,36 @@ def test_quoted_list():
     assert lcompile("'(str 3)") == llist.l(sym.symbol('str'), 3)
     assert lcompile("'(str 3 :feet-deep)") == llist.l(
         sym.symbol('str'), 3, kw.keyword("feet-deep"))
+
+
+def test_syntax_quoting(test_ns: str, ns_var: Var):
+    resolver = lambda s: sym.symbol(s.name, ns=test_ns)
+
+    code = """
+    (def some-val \"some value!\")
+
+    `(some-val)"""
+    assert llist.l(sym.symbol('some-val', ns=test_ns)) == lcompile(code, resolver=resolver)
+
+    code = """
+    (def second-val \"some value!\")
+
+    `(other-val)"""
+    assert llist.l(sym.symbol('other-val')) == lcompile(code)
+
+    code = """
+    (def a-str \"a definite string\")
+    (def a-number 1583)
+
+    `(a-str ~a-number)"""
+    assert llist.l(sym.symbol('a-str', ns=test_ns), 1583) == lcompile(code, resolver=resolver)
+
+    code = """
+    (def whatever \"yes, whatever\")
+    (def ssss \"a snake\")
+
+    `(whatever ~@[ssss 45])"""
+    assert llist.l(sym.symbol('whatever', ns=test_ns), "a snake", 45) == lcompile(code, resolver=resolver)
 
 
 def test_try_catch(capsys, ns_var):
