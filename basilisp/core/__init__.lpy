@@ -1,5 +1,18 @@
 (in-ns 'basilisp.core)
 
+(def list
+  (fn* list [& args]
+       (basilisp.lang.list/l args)))
+
+(def first
+  (fn* first [seq] (.-first seq)))
+
+(def rest
+  (fn* rest [seq] (.-rest seq)))
+
+(def cons
+  (fn* cons [v seq] (.cons seq v)))
+
 (def identity
   (fn* identity [v] v))
 

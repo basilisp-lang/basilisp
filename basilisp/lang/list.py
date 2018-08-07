@@ -29,7 +29,10 @@ class List(ObjectProxy, Meta):
         return List(self.__wrapped__.rest)
 
     def conj(self, elem) -> "List":
-        return List(self.cons(elem))
+        return List(self.__wrapped__.cons(elem))
+
+    def cons(self, elem) -> "List":
+        return List(self.__wrapped__.cons(elem))
 
     @staticmethod
     def empty() -> "List":

@@ -382,6 +382,7 @@ _NS_VAR_NAME = _load_attr(f'{_NS_VAR_VALUE}.name')
 _NEW_INST_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.inst_from_str')
 _NEW_KW_FN_NAME = _load_attr(f'{_KW_ALIAS}.keyword')
 _NEW_LIST_FN_NAME = _load_attr(f'{_LIST_ALIAS}.list')
+_EMPTY_LIST_FN_NAME = _load_attr(f'{_LIST_ALIAS}.List.empty')
 _NEW_MAP_FN_NAME = _load_attr(f'{_MAP_ALIAS}.map')
 _NEW_REGEX_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.regex_from_str')
 _NEW_SET_FN_NAME = _load_attr(f'{_SET_ALIAS}.set')
@@ -801,19 +802,31 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     Finally, function and macro calls are also written as lists, so both
     cases must be handled herein."""
+    # Empty list
+    try:
+        first = form.first
+    except AttributeError:
+        meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
+        yield from meta_nodes
+        yield _node(ast.Call(
+            func=_EMPTY_LIST_FN_NAME,
+            args=[],
+            keywords=meta))
+        return
+
     # Special forms
-    if form.first in _SPECIAL_FORMS and not ctx.is_quoted:
+    if first in _SPECIAL_FORMS and not ctx.is_quoted:
         yield from _special_form_ast(ctx, form)
         return
 
     # Unquote and unquote splicing handling
-    if form.first == _UNQUOTE:
+    if first == _UNQUOTE:
         if ctx.is_quoted:
             yield from _unquote_ast(ctx, form)
             return
         else:
             raise CompilerException("Must be inside a quote to unquote")
-    elif form.first == _UNQUOTE_SPLICING:
+    elif first == _UNQUOTE_SPLICING:
         if ctx.is_quoted:
             yield from _unquote_splicing_ast(ctx, form)
             return
@@ -821,7 +834,7 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
             raise CompilerException("Must be inside a quote to unquote-splice")
 
     # Macros are immediately evaluated so the modified form can be compiled
-    if isinstance(form.first, sym.Symbol):
+    if isinstance(first, sym.Symbol):
         sym_info = ctx.symbol_table.find_symbol(form.first)
         if sym_info is not None:
             _, sym_ctx, s = sym_info
