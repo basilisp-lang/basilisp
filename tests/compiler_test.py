@@ -210,6 +210,7 @@ def test_interop_prop():
 
 
 def test_quoted_list():
+    assert lcompile("'()") == llist.l()
     assert lcompile("'(str)") == llist.l(sym.symbol('str'))
     assert lcompile("'(str 3)") == llist.l(sym.symbol('str'), 3)
     assert lcompile("'(str 3 :feet-deep)") == llist.l(
