@@ -1,9 +1,3 @@
-.PHONY: check-vulnerabilities
-check-vulnerabilities:
-	@pipenv install --dev
-	@pipenv check
-
-
 .PHONY: format
 format:
 	@pipenv install --dev
