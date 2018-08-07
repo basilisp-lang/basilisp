@@ -1,6 +1,10 @@
+import importlib
+# noinspection PyUnresolvedReferences
+import readline
 import traceback
 
 import basilisp.compiler as compiler
+import basilisp.importer as importer
 import basilisp.lang.runtime as runtime
 import basilisp.reader as reader
 
@@ -9,7 +13,7 @@ def eval_file(filename: str, ctx: compiler.CompilerContext):
     """Evaluate a file with the given name into a Python module AST node."""
     last = None
     for form in reader.read_file(filename, resolver=runtime.resolve_alias):
-        last = compiler.compile_form(form, ctx=ctx)
+        last = compiler.compile_and_exec_form(form, ctx=ctx)
     return last
 
 
@@ -17,19 +21,12 @@ def eval_str(s: str, ctx: compiler.CompilerContext):
     """Evaluate the forms in a string into a Python module AST node."""
     last = None
     for form in reader.read_str(s, resolver=runtime.resolve_alias):
-        last = compiler.compile_form(form, ctx=ctx)
+        last = compiler.compile_and_exec_form(form, ctx=ctx)
     return last
-
-
-def import_core_ns(ctx: compiler.CompilerContext):
-    core_ns_filename = runtime.core_resource()
-    eval_file(core_ns_filename, ctx)
 
 
 def repl(default_ns=runtime._REPL_DEFAULT_NS):
     ctx = compiler.CompilerContext()
-    runtime.bootstrap()
-    import_core_ns(ctx)
     ns_var = runtime.set_current_ns(default_ns)
     while True:
         try:
@@ -52,8 +49,19 @@ def repl(default_ns=runtime._REPL_DEFAULT_NS):
             traceback.print_exception(compiler.CompilerException, e,
                                       e.__traceback__)
             continue
+        except Exception as e:
+            traceback.print_exception(Exception, e, e.__traceback__)
+            continue
+
+
+def init():
+    """Initialize the runtime environment for evaluation."""
+    runtime.init_ns_var()
+    runtime.bootstrap()
+    importer.hook_imports()
+    importlib.import_module('basilisp.core')
 
 
 if __name__ == "__main__":
-    runtime.init_ns_var()
+    init()
     repl()

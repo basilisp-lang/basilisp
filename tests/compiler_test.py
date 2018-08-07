@@ -52,7 +52,7 @@ def lcompile(s: str, resolver: reader.Resolver = None, ctx: compiler.CompilerCon
 
     last = None
     for form in reader.read_str(s, resolver=resolver):
-        last = compiler.compile_form(form, ctx)
+        last = compiler.compile_and_exec_form(form, ctx)
 
     return last
 

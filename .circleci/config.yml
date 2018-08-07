@@ -24,10 +24,10 @@ jobs:
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
       - run:
-          name: Run Tests
-          command: |
-            make test
-      - run:
           name: Run Type Checks
           command: |
             make typecheck
+      - run:
+          name: Run Tests
+          command: |
+            make test

@@ -23,7 +23,7 @@ import basilisp.lang.util
 import basilisp.lang.vector as vec
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
-from basilisp.util import Maybe
+from basilisp.util import Maybe, munge
 
 _CORE_NS = 'basilisp.core'
 _DEFAULT_FN = '__lisp_expr__'
@@ -52,20 +52,6 @@ _SPECIAL_FORMS = lset.s(_DEF, _DO, _FN, _IF, _IMPORT, _INTEROP_CALL,
 
 _UNQUOTE = sym.symbol("unquote", _CORE_NS)
 _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
-
-_MUNGE_REPLACEMENTS = {
-    '+': '__PLUS__',
-    '-': '_',
-    '*': '__STAR__',
-    '/': '__DIV__',
-    '>': '__GT__',
-    '<': '__LT__',
-    '!': '__BANG__',
-    '=': '__EQ__',
-    '?': '__Q__',
-    '\\': '__IDIV__',
-    '&': '__AMP__'
-}
 
 # Use an atomically incremented integer as a suffix for all
 # user-defined function and variable names compiled into Python
@@ -147,7 +133,7 @@ class CompilerContext:
 
     def __init__(self):
         self._st = collections.deque([SymbolTable('<Top>')])
-        self._imports = set()
+        self._imports = set(runtime.Namespace.DEFAULT_IMPORTS)
         self._is_quoted = collections.deque([])
 
     @property
@@ -380,16 +366,6 @@ def _expressionize(body: MixedNodeStream,
         body=body_nodes,
         decorator_list=[],
         returns=None)
-
-
-def munge(s: str) -> str:
-    """Replace characters which are not valid in Python symbols
-    with valid replacement strings."""
-    new_str = []
-    for c in s:
-        new_str.append(_MUNGE_REPLACEMENTS.get(c, c))
-
-    return ''.join(new_str)
 
 
 _KW_ALIAS = 'kw'
@@ -788,7 +764,7 @@ def _unquote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     assert len(form) == 2
 
     with ctx.unquoted():
-        yield from _to_ast(ctx, compile_form(form[1], ctx))
+        yield from _to_ast(ctx, compile_and_exec_form(form[1], ctx))
 
 
 def _unquote_splicing_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -798,7 +774,7 @@ def _unquote_splicing_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     with ctx.unquoted():
         try:
-            for compiled in compile_form(form[1], ctx):
+            for compiled in compile_and_exec_form(form[1], ctx):
                 deps, nodes = _nodes_and_exprl(_to_ast(ctx, compiled))
                 yield from deps
                 yield from nodes
@@ -831,7 +807,6 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         return
 
     # Unquote and unquote splicing handling
-
     if form.first == _UNQUOTE:
         if ctx.is_quoted:
             yield from _unquote_ast(ctx, form)
@@ -979,7 +954,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
             if sym_ctx == _SYM_CTX_IMPORT:
                 yield _node(_load_attr(f"{form.ns}.{form.name}"))
                 return
-        if ctx.current_ns.get_import(ns_sym):
+        if ns_sym in ctx.imports:
             safe_ns = munge(form.ns)
             safe_name = munge(form.name)
             yield _node(_load_attr(f"{safe_ns}.{safe_name}"))
@@ -1085,23 +1060,22 @@ def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:
         raise TypeError(f"Unexpected form type {type(form)}")
 
 
-def _module_imports(ctx: CompilerContext) -> ast.Import:
+def _module_imports(ctx: CompilerContext) -> Iterable[ast.Import]:
     """Generate the Python Import AST node for importing all required
     language support modules."""
-    import_names = [
-        ('builtins', None),
-        ('basilisp.lang.keyword', _KW_ALIAS),
-        ('basilisp.lang.list', _LIST_ALIAS),
-        ('basilisp.lang.map', _MAP_ALIAS),
-        ('basilisp.lang.set', _SET_ALIAS),
-        ('basilisp.lang.symbol', _SYM_ALIAS),
-        ('basilisp.lang.vector', _VEC_ALIAS),
-        ('basilisp.lang.util', _UTIL_ALIAS)
-    ]
-    import_names.extend(seq(ctx.imports).map(lambda v: (v.name, None)))
-    return ast.Import(names=seq(import_names)
-                      .map(lambda v: ast.alias(name=v[0], asname=v[1]))
-                      .to_list())
+    aliases = {'builtins': None,
+               'basilisp.lang.keyword': _KW_ALIAS,
+               'basilisp.lang.list': _LIST_ALIAS,
+               'basilisp.lang.map': _MAP_ALIAS,
+               'basilisp.lang.set': _SET_ALIAS,
+               'basilisp.lang.symbol': _SYM_ALIAS,
+               'basilisp.lang.vector': _VEC_ALIAS,
+               'basilisp.lang.util': _UTIL_ALIAS}
+    return seq(ctx.imports) \
+        .map(lambda s: s.name) \
+        .map(lambda name: (name, aliases.get(name, None))) \
+        .map(lambda t: ast.Import(names=[ast.alias(name=t[0], asname=t[1])])) \
+        .to_list()
 
 
 def _from_module_import() -> ast.ImportFrom:
@@ -1133,48 +1107,54 @@ def _ns_var(py_ns_var: str = _NS_VAR,
             keywords=[]))
 
 
-def _to_py_source(t: ast.AST, outfile: str) -> None:
+def to_py_source(t: ast.AST, outfile: str) -> None:
     source = codegen.to_source(t)
     with open(outfile, mode='w') as f:
         f.writelines(source)
 
 
-def _to_py_str(t: ast.AST) -> str:
+def to_py_str(t: ast.AST) -> str:
     """Return a string of the Python code which would generate the input
     AST node."""
     return codegen.to_source(t)
 
 
-def _exec_ast(t: ast.Module,
-              module_name: str = 'REPL',
-              expr_fn: str = _DEFAULT_FN,
-              source_filename: str = '<REPL Input>'):
-    """Execute a Python AST node generated from one of the compile functions
-    provided in this module. Return the result of the executed module code."""
+def print_py_str(t: ast.AST) -> None:
+    print("")
+    print("Generated Python:")
+    for line in to_py_str(t).splitlines():
+        print(' ' * 4, line)
+    print("")
+
+
+def _compile_and_exec_ast(tree: ast.Module,
+                          module_name: str = 'REPL',
+                          expr_fn: str = _DEFAULT_FN,
+                          source_filename: str = '<REPL Input>'):
+    """Compile and execute a Python AST node generated from one of the compile
+    functions provided in this module. Return the result of the executed module code."""
     global_scope: Dict[str, Any] = {}
-    # noinspection PyUnresolvedReferences
     mod = types.ModuleType(module_name)
-    bytecode = compile(t, source_filename, 'exec')
+    bytecode = compile(tree, source_filename, 'exec')
     exec(bytecode, global_scope, mod.__dict__)
     return getattr(mod, expr_fn)()
 
 
-def compile_form(form: LispForm,
-                 ctx: CompilerContext,
-                 wrapped_fn_name: str = _DEFAULT_FN) -> Any:
-    """Compile the given form into final module which can be compiled into
-    valid Python code. Returns the result of the compiled expression.
+def compile_and_exec_form(form: LispForm,
+                          ctx: CompilerContext,
+                          wrapped_fn_name: str = _DEFAULT_FN) -> Any:
+    """Compile and execute the given form. This function will be most useful
+    for the REPL and testing purposes. Returns the result of the executed expression.
 
     Callers may override the wrapped function name, which is used by the
     REPL to evaluate the result of an expression and print it back out."""
     if form is None:
         return None
 
-    expr_body = [
-        _module_imports(ctx),
-        _from_module_import(),
-        _ns_var(),
-    ]
+    expr_body: List[ast.AST] = []
+    expr_body.extend(_module_imports(ctx))
+    expr_body.append(_from_module_import())
+    expr_body.append(_ns_var())
 
     form_ast = seq(_to_ast(ctx, form)).map(_unwrap_node).to_list()
     if form_ast is None:
@@ -1187,9 +1167,38 @@ def compile_form(form: LispForm,
     ast.fix_missing_locations(module)
 
     if runtime.print_generated_python():
-        print(_to_py_str(module))
+        print_py_str(module)
 
-    return _exec_ast(module, expr_fn=wrapped_fn_name)
+    return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name)
+
+
+def compile_module_bytecode(forms: Iterable[LispForm],
+                            ctx: CompilerContext,
+                            source_filename: str) -> types.CodeType:
+    """Compile an entire Basilisp into Python bytecode which can be executed as
+    a Python module.
+
+    This function is designed to generate bytecode which can be used for the
+    Basilisp import machinery, to allow callers to import Basilisp modules from
+    Python code."""
+    module_body: List[ast.AST] = []
+    module_body.extend(_module_imports(ctx))
+    module_body.append(_from_module_import())
+    module_body.append(_ns_var())
+
+    for form in forms:
+        form_ast = seq(_to_ast(ctx, form)).map(_unwrap_node).map(_statementize).to_list()
+        if form_ast is None:
+            continue
+        module_body.extend(form_ast)
+
+    module = ast.Module(body=module_body)
+    ast.fix_missing_locations(module)
+
+    if runtime.print_generated_python():
+        print_py_str(module)
+
+    return compile(module, source_filename, 'exec')
 
 
 lrepr = basilisp.lang.util.lrepr
