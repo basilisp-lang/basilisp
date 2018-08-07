@@ -30,5 +30,5 @@ test:
 
 .PHONY: typecheck
 typecheck:
-    @pipenv install --dev
+	@pipenv install --dev
 	@pipenv run mypy --ignore-missing-imports --follow-imports=skip basilisp
