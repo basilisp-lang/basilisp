@@ -13,6 +13,7 @@ jobs:
       - restore_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
       - run:
+          name: Install Pipenv
           command: |
             sudo pip install pipenv
             pipenv install
@@ -23,6 +24,7 @@ jobs:
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
       - run:
+          name: Run Tests
           command: |
             pipenv install --dev
             pipenv run python -m pytest
