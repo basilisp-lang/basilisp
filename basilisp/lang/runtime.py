@@ -1,7 +1,7 @@
 import threading
 from typing import Optional
 
-import pkg_resources
+from functional import seq
 from pyrsistent import pmap, PMap, PSet, pset
 
 import basilisp.lang.symbol as sym
@@ -9,7 +9,6 @@ from basilisp.lang import atom
 from basilisp.util import Maybe
 
 _CORE_NS = 'basilisp.core'
-_CORE_NS_FILE = 'core.lpy'
 _REPL_DEFAULT_NS = 'user'
 _NS_VAR_NAME = '*ns*'
 _NS_VAR_NS = _CORE_NS
@@ -157,15 +156,26 @@ class Namespace:
 
     - `imports` is a set of Python modules imported into the current
       namespace"""
+    DEFAULT_IMPORTS = seq(['builtins',
+                           'basilisp.core',
+                           'basilisp.lang.keyword',
+                           'basilisp.lang.list',
+                           'basilisp.lang.map',
+                           'basilisp.lang.set',
+                           'basilisp.lang.symbol',
+                           'basilisp.lang.vector',
+                           'basilisp.lang.util']) \
+        .map(sym.symbol) \
+        .to_list()
     _NAMESPACES = atom.Atom(pmap())
 
-    __slots__ = ('_name', '_mappings', '_refers', '_aliases', '_imports')
+    __slots__ = ('_name', '_module', '_mappings', '_refers', '_aliases', '_imports')
 
     def __init__(self, name: sym.Symbol) -> None:
         self._name = name
         self._mappings: atom.Atom = atom.Atom(pmap())
         self._aliases: atom.Atom = atom.Atom(pmap())
-        self._imports: atom.Atom = atom.Atom(pset([sym.symbol('builtins')]))
+        self._imports: atom.Atom = atom.Atom(pset(Namespace.DEFAULT_IMPORTS))
 
     @property
     def name(self) -> str:
@@ -309,7 +319,7 @@ def set_current_ns(ns_name: str,
 
 def get_current_ns(ns_var_name: str = _NS_VAR_NAME,
                    ns_var_ns: str = _NS_VAR_NS) -> Namespace:
-    """Set the value of the dynamic variable `*ns*` in the current thread."""
+    """Get the value of the dynamic variable `*ns*` in the current thread."""
     ns_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
     ns: Namespace = Var.find(ns_sym).value
     return ns
@@ -334,11 +344,6 @@ def print_generated_python(var_name: str = _PRINT_GENERATED_PY_VAR_NAME,
     """Return the value of the `*print-generated-python*` dynamic variable."""
     ns_sym = sym.Symbol(var_name, ns=core_ns_name)
     return Var.find(ns_sym).value
-
-
-def core_resource(package: str = _PYTHON_PACKAGE_NAME,
-                  resource: str = _CORE_NS_FILE) -> str:
-    return pkg_resources.resource_filename(package, resource)
 
 
 def bootstrap(ns_var_name: str = _NS_VAR_NAME,

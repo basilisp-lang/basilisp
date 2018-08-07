@@ -8,6 +8,20 @@ from functional.pipeline import Sequence
 
 from basilisp.lang.util import lrepr
 
+_MUNGE_REPLACEMENTS = {
+    '+': '__PLUS__',
+    '-': '_',
+    '*': '__STAR__',
+    '/': '__DIV__',
+    '>': '__GT__',
+    '<': '__LT__',
+    '!': '__BANG__',
+    '=': '__EQ__',
+    '?': '__Q__',
+    '\\': '__IDIV__',
+    '&': '__AMP__'
+}
+
 
 def trace(f):
     @functools.wraps(f)
@@ -87,3 +101,13 @@ class Maybe(Generic[T]):
     @property
     def is_present(self) -> bool:
         return self._inner is not None
+
+
+def munge(s: str) -> str:
+    """Replace characters which are not valid in Python symbols
+    with valid replacement strings."""
+    new_str = []
+    for c in s:
+        new_str.append(_MUNGE_REPLACEMENTS.get(c, c))
+
+    return ''.join(new_str)

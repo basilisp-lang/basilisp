@@ -24,10 +24,14 @@ jobs:
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
       - run:
-          name: Run Tests
+          name: Check for vulnerable packages...
           command: |
-            make test
+            make check-vulnerabilities
       - run:
           name: Run Type Checks
           command: |
             make typecheck
+      - run:
+          name: Run Tests
+          command: |
+            make test
