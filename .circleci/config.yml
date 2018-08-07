@@ -2,6 +2,10 @@ version: 2
 jobs:
   build:
     working_directory: ~/basilisp
+    docker:
+      - image: circleci/python:3.6.4
+        environment:
+          PIPENV_VENV_IN_PROJECT: true
     steps:
       - checkout
       - run: sudo chown -R circleci:circleci /usr/local/bin
