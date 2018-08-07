@@ -1,6 +1,6 @@
 .PHONY: check-vulnerabilities
 check-vulnerabilities:
-	@pipenv install-dev
+	@pipenv install -dev
 	@pipenv check
 
 
