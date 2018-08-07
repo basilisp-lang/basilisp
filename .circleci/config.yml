@@ -24,4 +24,5 @@ jobs:
             - "/usr/local/lib/python3.6/site-packages"
       - run:
           command: |
+            pipenv install --dev
             pipenv run python -m pytest
