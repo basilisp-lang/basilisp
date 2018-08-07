@@ -26,5 +26,8 @@ jobs:
       - run:
           name: Run Tests
           command: |
-            pipenv install --dev
-            pipenv run python -m pytest
+            make test
+      - run:
+          name: Run Type Checks
+          command: |
+            make typecheck
