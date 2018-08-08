@@ -398,7 +398,7 @@ def _meta_kwargs_ast(ctx: CompilerContext,
     if hasattr(form, 'meta') and form.meta is not None:
         meta_nodes, meta = _nodes_and_expr(_to_ast(ctx, form.meta))
         yield from meta_nodes
-        yield _node(ast.keyword(arg='meta', value=meta))
+        yield _node(ast.keyword(arg='meta', value=_unwrap_node(meta)))
     else:
         return []
 
@@ -443,7 +443,7 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     yield _node(ast.Call(
         func=_INTERN_VAR_FN_NAME,
         args=[ns_name, def_name, Maybe(def_value).map(_unwrap_node).value],
-        keywords=meta))
+        keywords=_unwrap_nodes(meta)))
 
 
 def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -811,7 +811,7 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         yield _node(ast.Call(
             func=_EMPTY_LIST_FN_NAME,
             args=[],
-            keywords=meta))
+            keywords=_unwrap_nodes(meta)))
         return
 
     # Special forms
@@ -853,7 +853,7 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         yield _node(ast.Call(
             func=_NEW_LIST_FN_NAME,
             args=[ast.List(elems, ast.Load())],
-            keywords=meta))
+            keywords=_unwrap_nodes(meta)))
         return
 
     yield from elems_nodes
@@ -874,7 +874,7 @@ def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ASTStream:
     yield _node(ast.Call(
         func=_NEW_MAP_FN_NAME,
         args=[ast.Dict(keys=keys, values=vals)],
-        keywords=meta))
+        keywords=_unwrap_nodes(meta)))
 
 
 def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
@@ -885,7 +885,7 @@ def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
     yield _node(ast.Call(
         func=_NEW_SET_FN_NAME,
         args=[ast.List(elems_ast, ast.Load())],
-        keywords=meta))
+        keywords=_unwrap_nodes(meta)))
 
 
 def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ASTStream:
@@ -896,7 +896,7 @@ def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ASTStream:
     yield _node(ast.Call(
         func=_NEW_VEC_FN_NAME,
         args=[ast.List(elems_ast, ast.Load())],
-        keywords=meta))
+        keywords=_unwrap_nodes(meta)))
 
 
 def _kw_ast(_: CompilerContext, form: kw.Keyword) -> ASTStream:
@@ -935,7 +935,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
     sym_kwargs = Maybe(ns).stream() \
         .map(lambda v: ast.keyword(arg='ns', value=ns)) \
         .to_list()
-    sym_kwargs.extend(meta)
+    sym_kwargs.extend(_unwrap_nodes(meta))
     base_sym = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Str(form.name)], keywords=sym_kwargs)
 
