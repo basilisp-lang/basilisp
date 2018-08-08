@@ -1230,7 +1230,7 @@ def __incremental_compile_module(tree: ASTStream,
     expr_body.extend(_module_imports(ctx))
     expr_body.append(_from_module_import())
     expr_body.append(_ns_var())
-    expr_body.extend(tree)
+    expr_body.extend(_unwrap_nodes(tree))
 
     body = _expressionize(expr_body, wrapped_fn_name)
 
