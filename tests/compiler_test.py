@@ -209,6 +209,17 @@ def test_interop_prop():
         lcompile("(.-fake 'some.ns/sym)")
 
 
+def test_let():
+    assert lcompile("(let* [a 1] a)") == 1
+    assert lcompile("(let* [a :keyword b \"string\"] a)") == kw.keyword('keyword')
+    # TODO: fix the case which causes this test to pass
+    # assert lcompile("(let* [a :value b a] b)") == kw.keyword('value')
+    assert lcompile("(let* [a \"lower\"] (.upper a))") == "LOWER"
+
+    with pytest.raises(AttributeError):
+        lcompile("(let* [a 'sym] c)")
+
+
 def test_quoted_list():
     assert lcompile("'()") == llist.l()
     assert lcompile("'(str)") == llist.l(sym.symbol('str'))

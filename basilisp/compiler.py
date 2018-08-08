@@ -3,6 +3,7 @@ import collections
 import contextlib
 import types
 import uuid
+from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
 from itertools import chain
@@ -44,11 +45,12 @@ _IF = sym.symbol("if")
 _IMPORT = sym.symbol("import*")
 _INTEROP_CALL = sym.symbol(".")
 _INTEROP_PROP = sym.symbol(".-")
+_LET = sym.symbol("let*")
 _QUOTE = sym.symbol("quote")
 _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
 _SPECIAL_FORMS = lset.s(_DEF, _DO, _FN, _IF, _IMPORT, _INTEROP_CALL,
-                        _INTEROP_PROP, _QUOTE, _TRY, _VAR)
+                        _INTEROP_PROP, _LET, _QUOTE, _TRY, _VAR)
 
 _UNQUOTE = sym.symbol("unquote", _CORE_NS)
 _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
@@ -605,6 +607,31 @@ def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         value=_unwrap_node(target), attr=munge(form[2].name), ctx=ast.Load()))
 
 
+def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+    """Generate a Python AST node for a let binding."""
+    assert form[0] == _LET
+    assert isinstance(form[1], vec.Vector)
+    assert len(form) >= 3
+
+    # Collect bindings and matching expressions together into a dictionary
+    # TODO: handle references between bindings
+    #   (let* [a "string" b a] b) ;=> "string"
+    bindings = seq(form[1]).grouped(2)
+    arg_map = OrderedDict()
+    for s, expr in bindings:
+        expr_deps, expr_node = _nodes_and_expr(_to_ast(ctx, expr))
+        yield from expr_deps
+        arg_map[s] = _unwrap_node(expr_node)
+
+    # Generate a function to hold the body of the let expression
+    letname = genname('let')
+    with ctx.new_symbol_table(letname):
+        args, body, vargs = _fn_args_body(ctx, vec.vector(arg_map.keys()), form[2:])
+        yield _dependency(_expressionize(body, letname, args=args, vargs=vargs))
+
+    yield _node(ast.Call(func=_load_attr(letname), args=list(arg_map.values()), keywords=[]))
+
+
 def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for quoted forms.
 
@@ -745,6 +772,9 @@ def _special_form_ast(ctx: CompilerContext,
         return
     elif which == _DO:
         yield from _do_ast(ctx, form)
+        return
+    elif which == _LET:
+        yield from _let_ast(ctx, form)
         return
     elif which == _QUOTE:
         yield from _quote_ast(ctx, form)
