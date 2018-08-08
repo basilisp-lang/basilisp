@@ -3,7 +3,6 @@ import collections
 import contextlib
 import types
 import uuid
-from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
 from itertools import chain
@@ -608,28 +607,97 @@ def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
 
 def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
-    """Generate a Python AST node for a let binding."""
+    """Generate a Python AST node for a let binding.
+
+    Python code for a `let*` binding like this:
+        (let* [a 1
+               b :length
+               c {b a}
+               a 4]
+          c)
+
+    Should look roughly like this:
+        def let_32(a_33, b_34, c_35):
+            return c_35
+
+        a_36 = 1
+        b_37 = keyword.keyword(\"length\")
+        c_38 = lmap.map({b_37: a_36})
+        a_36 = 4
+
+        let_32(a_36, b_37, c_38)  #=> {:length 1}
+    """
     assert form[0] == _LET
     assert isinstance(form[1], vec.Vector)
     assert len(form) >= 3
 
-    # Collect bindings and matching expressions together into a dictionary
-    # TODO: handle references between bindings
-    #   (let* [a "string" b a] b) ;=> "string"
+    # There is a lot going on in this section, so let me break it down.
+    # Python doesn't have any syntactic element which can act as a lexical
+    # block like `let*`, so we compile the body of a `let*` expression into
+    # a Python function.
+    #
+    # In order to allow `let*` features like re-binding a name, and referencing
+    # previously bound names in later expressions, we generate a series of
+    # local Python variable assignments with the computed expressions. The
+    # semantics of Python's local variables allows us to do this without needing
+    # to define special logic to handle that graph-like behavior.
+    #
+    # In the case above (in the doc-string), we re-bind `a` to 4 at the end of
+    # the bindings, but we don't want to assign that value to a NEW Python
+    # variable, we really want to mutate the generated `a`. Otherwise, we'll end
+    # up sending multiple `a` values into our `let*` closure, which is confusing
+    # and messy.
+    #
+    # Unfortunately, this means we have to keep track of a ton of very similar,
+    # but subtly different things as we're generating all of these values. In
+    # particular, we have to keep track of the Lisp symbols, which become function
+    # parameters; the variable names, which become Python locals in assignments;
+    # the variable names, which become Python locals in an expression context (which
+    # is a subtly different Python AST node); and the computed expressions.
+    st = ctx.symbol_table
     bindings = seq(form[1]).grouped(2)
-    arg_map: Dict[sym.Symbol, ast.AST] = OrderedDict()
+
+    if bindings.empty():
+        raise CompilerException("Expected at least one binding in 'let*'")
+
+    arg_syms = []  # Binding symbols are turned into function parameter names
+    var_names = []  # Names of local Python variables bound to computed expressions prior to the function call
+    arg_names = []  # Names of variables used to recall expressions in the call to the let function
+    arg_exprs = []  # Bound expressions are the expressions a name is bound to
     for s, expr in bindings:
+        # Check if we are redefining a previous let bound entry;
+        # if we are, we do not want to add a new symbol table entry.
+        # But we DO want to generate a new assignment!
+        try:
+            munged, sym_ctx, _ = st.find_symbol(s)
+            if sym_ctx == _SYM_CTX_LOCAL:
+                var_names.append(munged)
+            else:
+                raise ValueError("Symbol is not previously bound")
+        except (TypeError, ValueError):
+            arg_syms.append(s)
+            munged = genname(munge(s.name))
+            st.new_symbol(s, munged, _SYM_CTX_LOCAL)
+            var_names.append(munged)
+            arg_names.append(munged)
         expr_deps, expr_node = _nodes_and_expr(_to_ast(ctx, expr))
         yield from expr_deps
-        arg_map[s] = _unwrap_node(expr_node)
+        arg_exprs.append(_unwrap_node(expr_node))
 
     # Generate a function to hold the body of the let expression
     letname = genname('let')
     with ctx.new_symbol_table(letname):
-        args, body, vargs = _fn_args_body(ctx, vec.vector(arg_map.keys()), form[2:])
+        args, body, vargs = _fn_args_body(ctx, vec.vector(arg_syms), form[2:])
         yield _dependency(_expressionize(body, letname, args=args, vargs=vargs))
 
-    yield _node(ast.Call(func=_load_attr(letname), args=list(arg_map.values()), keywords=[]))
+    # Generate local variable assignments for processing let bindings
+    var_names = seq(var_names).map(lambda n: ast.Name(id=n, ctx=ast.Store()))
+    for name, expr in zip(var_names, arg_exprs):
+        yield _dependency(ast.Assign(targets=[name], value=expr))
+
+    yield _node(ast.Call(func=_load_attr(letname),
+                         args=seq(arg_names).map(lambda n: ast.Name(id=n, ctx=ast.Load())).to_list(),
+                         keywords=[]))
 
 
 def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
