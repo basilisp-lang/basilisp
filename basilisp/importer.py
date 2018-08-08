@@ -7,6 +7,7 @@ from importlib.abc import MetaPathFinder, SourceLoader
 from typing import Optional
 
 import basilisp.compiler as compiler
+import basilisp.lang.runtime as runtime
 import basilisp.reader as reader
 
 
@@ -35,7 +36,6 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             filenames = [f"{os.path.join(entry, *module_name, '__init__')}.lpy",
                          f"{os.path.join(entry, *module_name)}.lpy"]
             for filename in filenames:
-                print(f"Trying {filename}")
                 if os.path.exists(filename):
                     state = {'fullname': fullname, "filename": filename, 'path': entry, 'target': target}
                     return importlib.machinery.ModuleSpec(fullname, self, origin=filename, loader_state=state)
@@ -63,6 +63,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         return mod
 
     def get_code(self, fullname: str) -> types.CodeType:
+        runtime.set_current_ns(fullname)
         cached = self._cache[fullname]
         spec = cached["spec"]
         filename = spec.loader_state["filename"]
