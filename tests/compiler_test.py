@@ -212,12 +212,16 @@ def test_interop_prop():
 def test_let():
     assert lcompile("(let* [a 1] a)") == 1
     assert lcompile("(let* [a :keyword b \"string\"] a)") == kw.keyword('keyword')
-    # TODO: fix the case which causes this test to pass
-    # assert lcompile("(let* [a :value b a] b)") == kw.keyword('value')
+    assert lcompile("(let* [a :value b a] b)") == kw.keyword('value')
+    assert lcompile("(let* [a 1 b :length c {b a} a 4] c)") == lmap.map({kw.keyword('length'): 1})
+    assert lcompile("(let* [a 1 b :length c {b a} a 4] a)") == 4
     assert lcompile("(let* [a \"lower\"] (.upper a))") == "LOWER"
 
     with pytest.raises(AttributeError):
         lcompile("(let* [a 'sym] c)")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(let* [] \"string\")")
 
 
 def test_quoted_list():
