@@ -617,7 +617,7 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     # TODO: handle references between bindings
     #   (let* [a "string" b a] b) ;=> "string"
     bindings = seq(form[1]).grouped(2)
-    arg_map = OrderedDict()
+    arg_map: Dict[sym.Symbol, ast.AST] = OrderedDict()
     for s, expr in bindings:
         expr_deps, expr_node = _nodes_and_expr(_to_ast(ctx, expr))
         yield from expr_deps
