@@ -669,7 +669,7 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         # if we are, we do not want to add a new symbol table entry.
         # But we DO want to generate a new assignment!
         try:
-            munged, sym_ctx, _ = st.find_symbol(s)
+            munged, sym_ctx, _ = st.find_symbol(s)  # type: ignore
             if sym_ctx == _SYM_CTX_LOCAL:
                 var_names.append(munged)
             else:
