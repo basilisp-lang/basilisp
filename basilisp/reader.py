@@ -36,7 +36,7 @@ class StreamReader:
     """A simple stream reader with n-character lookahead."""
     DEFAULT_INDEX = -2
 
-    __slots__ = ('_stream', '_pushback_depth', '_idx', '_buffer')
+    __slots__ = ('_stream', '_pushback_depth', '_idx', '_buffer', '_line', '_col')
 
     def __init__(self, stream: io.TextIOBase, pushback_depth: int = 5) -> None:
         self._stream = stream
@@ -44,6 +44,36 @@ class StreamReader:
         self._idx = -2
         init_buffer = [self._stream.read(1), self._stream.read(1)]
         self._buffer = collections.deque(init_buffer, pushback_depth)
+        self._line = collections.deque([1], pushback_depth)
+        self._col = collections.deque([1], pushback_depth)
+
+        for c in init_buffer[1:]:
+            self._update_loc(c)
+
+    @property
+    def col(self):
+        return self._col[self._idx]
+
+    @property
+    def line(self):
+        return self._line[self._idx]
+
+    @property
+    def loc(self):
+        return self.line, self.col
+
+    def _update_loc(self, c):
+        """Update the internal line and column buffers after a new character
+        is added.
+
+        The column number is set to 0, so the first character on the next line
+        is column number 1."""
+        if newline_chars.match(c):
+            self._col.append(0)
+            self._line.append(self._line[-1] + 1)
+        else:
+            self._col.append(self._col[-1] + 1)
+            self._line.append(self._line[-1])
 
     def peek(self) -> str:
         """Peek at the next character in the stream."""
@@ -70,8 +100,8 @@ class StreamReader:
             self._idx += 1
         else:
             c = self._stream.read(1)
+            self._update_loc(c)
             self._buffer.append(c)
-
         return self.peek()
 
 
