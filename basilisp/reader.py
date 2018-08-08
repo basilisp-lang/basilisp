@@ -5,7 +5,8 @@ import io
 import re
 import uuid
 from datetime import datetime
-from typing import Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping, Pattern, Iterable
+from typing import (Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping, Pattern, Iterable,
+                    TypeVar, cast)
 
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
@@ -28,6 +29,7 @@ fn_macro_args = re.compile('(%)(&|[0-9])?')
 
 Resolver = Callable[[symbol.Symbol], symbol.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
+W = TypeVar('W', bound=LispReaderFn)
 
 _READER_LINE_KW = keyword.keyword('line', ns='basilisp.reader')
 _READER_COL_KW = keyword.keyword('col', ns='basilisp.reader')
@@ -162,20 +164,20 @@ class ReaderContext:
 __EOF = 'EOF'
 
 
-def _with_loc(f: LispReaderFn) -> LispReaderFn:
+def _with_loc(f: W) -> W:
     """Wrap a reader function in a decorator to supply line and column
     information along with relevant forms."""
 
     @functools.wraps(f)
-    def with_lineno_and_col(ctx: ReaderContext) -> LispForm:
+    def with_lineno_and_col(ctx):
         meta = lmap.map({_READER_LINE_KW: ctx.reader.line, _READER_COL_KW: ctx.reader.col})
         v = f(ctx)
         try:
-            return v.with_meta(meta)
+            return v.with_meta(meta)  # type: ignore
         except AttributeError:
             return v
 
-    return with_lineno_and_col
+    return cast(W, with_lineno_and_col)
 
 
 def _read_namespaced(ctx: ReaderContext) -> Tuple[Optional[str], str]:

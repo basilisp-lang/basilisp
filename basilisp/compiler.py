@@ -396,11 +396,14 @@ _INTERN_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.intern')
 _FIND_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.find')
 
 
-def _clean_meta(form: meta.Meta) -> Optional[meta.Meta]:
+def _clean_meta(form: meta.Meta) -> LispForm:
     """Remove reader metadata from the form's meta map."""
-    meta = form.meta \
-        .discard(reader._READER_LINE_KW) \
-        .discard(reader._READER_COL_KW)
+    try:
+        meta = form.meta \
+            .discard(reader._READER_LINE_KW) \
+            .discard(reader._READER_COL_KW)
+    except AttributeError:
+        return None
     if len(meta) == 0:
         return None
     return meta
@@ -1135,13 +1138,13 @@ def _with_loc(f: ASTProcessor) -> ASTProcessor:
     @functools.wraps(f)
     def with_lineno_and_col(ctx: CompilerContext, form: LispForm) -> ASTStream:
         try:
-            meta = form.meta
-            line = meta.get(reader._READER_LINE_KW)
-            col = meta.get(reader._READER_COL_KW)
+            meta = form.meta  # type: ignore
+            line = meta.get(reader._READER_LINE_KW)  # type: ignore
+            col = meta.get(reader._READER_COL_KW)  # type: ignore
 
             for astnode in f(ctx, form):
                 astnode.node.lineno = line
-                astnode.node.col = col
+                astnode.node.col_offset = col
                 yield astnode
         except AttributeError:
             yield from f(ctx, form)
