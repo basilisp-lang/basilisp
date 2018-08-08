@@ -64,6 +64,12 @@ class Map(ObjectProxy, Meta):
             meta)
         return map(self.__wrapped__, meta=new_meta)
 
+    def discard(self, *ks) -> "Map":
+        m: PMap = self.__wrapped__
+        for k in ks:
+            m = m.discard(k)
+        return map(m)
+
     def update(self, *maps) -> "Map":
         m: PMap = self.__wrapped__.update(*maps)
         return map(m)

@@ -356,44 +356,53 @@ def test_interop_prop():
 
 
 def test_meta():
+    def issubmap(m, sub):
+        for k, subv in sub.items():
+            try:
+                mv = m[k]
+                return subv == mv
+            except KeyError:
+                return False
+        return False
+
     s = read_str_first("^str s")
     assert s == sym.symbol('s')
-    assert s.meta == lmap.map({kw.keyword('tag'): sym.symbol('str')})
+    assert issubmap(s.meta, lmap.map({kw.keyword('tag'): sym.symbol('str')}))
 
     s = read_str_first("^:dynamic *ns*")
     assert s == sym.symbol('*ns*')
-    assert s.meta == lmap.map({kw.keyword('dynamic'): True})
+    assert issubmap(s.meta, lmap.map({kw.keyword('dynamic'): True}))
 
     s = read_str_first('^{:doc "If true, assert."} *assert*')
     assert s == sym.symbol('*assert*')
-    assert s.meta == lmap.map({kw.keyword('doc'): "If true, assert."})
+    assert issubmap(s.meta, lmap.map({kw.keyword('doc'): "If true, assert."}))
 
     v = read_str_first("^:has-meta [:a]")
     assert v == vec.v(kw.keyword('a'))
-    assert v.meta == lmap.map({kw.keyword('has-meta'): True})
+    assert issubmap(v.meta, lmap.map({kw.keyword('has-meta'): True}))
 
     l = read_str_first('^:has-meta (:a)')
     assert l == llist.l(kw.keyword('a'))
-    assert l.meta == lmap.map({kw.keyword('has-meta'): True})
+    assert issubmap(l.meta, lmap.map({kw.keyword('has-meta'): True}))
 
     m = read_str_first('^:has-meta {:key "val"}')
     assert m == lmap.map({kw.keyword('key'): "val"})
-    assert m.meta == lmap.map({kw.keyword('has-meta'): True})
+    assert issubmap(m.meta, lmap.map({kw.keyword('has-meta'): True}))
 
     t = read_str_first('^:has-meta #{:a}')
     assert t == lset.s(kw.keyword('a'))
-    assert t.meta == lmap.map({kw.keyword('has-meta'): True})
+    assert issubmap(t.meta, lmap.map({kw.keyword('has-meta'): True}))
 
     s = read_str_first('^:dynamic ^{:doc "If true, assert."} *assert*')
     assert s == sym.symbol('*assert*')
-    assert s.meta == lmap.map({
+    assert issubmap(s.meta, lmap.map({
         kw.keyword('dynamic'): True,
         kw.keyword('doc'): "If true, assert."
-    })
+    }))
 
     s = read_str_first('^{:always true} ^{:always false} *assert*')
     assert s == sym.symbol('*assert*')
-    assert s.meta == lmap.map({kw.keyword('always'): True})
+    assert issubmap(s.meta, lmap.map({kw.keyword('always'): True}))
 
 
 def test_invalid_meta_structure():

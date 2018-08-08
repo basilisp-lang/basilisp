@@ -1,5 +1,6 @@
 import collections
 import contextlib
+import functools
 import io
 import re
 import uuid
@@ -26,6 +27,10 @@ newline_chars = re.compile('(\r\n|\r|\n)')
 fn_macro_args = re.compile('(%)(&|[0-9])?')
 
 Resolver = Callable[[symbol.Symbol], symbol.Symbol]
+LispReaderFn = Callable[["ReaderContext"], LispForm]
+
+_READER_LINE_KW = keyword.keyword('line', ns='basilisp.reader')
+_READER_COL_KW = keyword.keyword('col', ns='basilisp.reader')
 
 
 class SyntaxError(Exception):
@@ -157,6 +162,22 @@ class ReaderContext:
 __EOF = 'EOF'
 
 
+def _with_loc(f: LispReaderFn) -> LispReaderFn:
+    """Wrap a reader function in a decorator to supply line and column
+    information along with relevant forms."""
+
+    @functools.wraps(f)
+    def with_lineno_and_col(ctx: ReaderContext) -> LispForm:
+        meta = lmap.map({_READER_LINE_KW: ctx.reader.line, _READER_COL_KW: ctx.reader.col})
+        v = f(ctx)
+        try:
+            return v.with_meta(meta)
+        except AttributeError:
+            return v
+
+    return with_lineno_and_col
+
+
 def _read_namespaced(ctx: ReaderContext) -> Tuple[Optional[str], str]:
     """Read a namespaced token from the input stream."""
     ns: List[str] = []
@@ -279,6 +300,7 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
         seq.append(elem)
 
 
+@_with_loc
 def _read_list(ctx: ReaderContext) -> llist.List:
     """Read a list element from the input stream."""
     start = ctx.reader.advance()
@@ -288,6 +310,7 @@ def _read_list(ctx: ReaderContext) -> llist.List:
     return _read_coll(ctx, llist.list, ')', 'list')
 
 
+@_with_loc
 def _read_vector(ctx: ReaderContext) -> vector.Vector:
     """Read a vector element from the input stream."""
     start = ctx.reader.advance()
@@ -295,6 +318,7 @@ def _read_vector(ctx: ReaderContext) -> vector.Vector:
     return _read_coll(ctx, vector.vector, ']', 'vector')
 
 
+@_with_loc
 def _read_set(ctx: ReaderContext) -> lset.Set:
     """Return a set from the input stream."""
     start = ctx.reader.advance()
@@ -308,6 +332,7 @@ def _read_set(ctx: ReaderContext) -> lset.Set:
     return _read_coll(ctx, set_if_valid, '}', 'set')
 
 
+@_with_loc
 def _read_map(ctx: ReaderContext) -> lmap.Map:
     """Return a map from the input stream."""
     reader = ctx.reader
@@ -389,6 +414,7 @@ def _read_str(ctx: ReaderContext) -> str:
         s.append(token)
 
 
+@_with_loc
 def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
     """Return a symbol from the input stream.
 

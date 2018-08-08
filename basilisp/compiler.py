@@ -1,6 +1,7 @@
 import ast
 import collections
 import contextlib
+import functools
 import types
 import uuid
 from datetime import datetime
@@ -21,6 +22,7 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util
 import basilisp.lang.vector as vec
+import basilisp.reader as reader
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
 from basilisp.util import Maybe, munge
@@ -394,10 +396,20 @@ _INTERN_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.intern')
 _FIND_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.find')
 
 
+def _clean_meta(form: meta.Meta) -> Optional[meta.Meta]:
+    """Remove reader metadata from the form's meta map."""
+    meta = form.meta \
+        .discard(reader._READER_LINE_KW) \
+        .discard(reader._READER_COL_KW)
+    if len(meta) == 0:
+        return None
+    return meta
+
+
 def _meta_kwargs_ast(ctx: CompilerContext,
                      form: meta.Meta) -> ASTStream:
     if hasattr(form, 'meta') and form.meta is not None:
-        meta_nodes, meta = _nodes_and_expr(_to_ast(ctx, form.meta))
+        meta_nodes, meta = _nodes_and_expr(_to_ast(ctx, _clean_meta(form)))
         yield from meta_nodes
         yield _node(ast.keyword(arg='meta', value=_unwrap_node(meta)))
     else:
@@ -1116,6 +1128,28 @@ def _collection_literal_ast(ctx: CompilerContext,
             orig.flat_map(lambda x: x[1]).map(_unwrap_node).to_list())
 
 
+def _with_loc(f: ASTProcessor) -> ASTProcessor:
+    """Wrap a reader function in a decorator to supply line and column
+    information along with relevant forms."""
+
+    @functools.wraps(f)
+    def with_lineno_and_col(ctx: CompilerContext, form: LispForm) -> ASTStream:
+        try:
+            meta = form.meta
+            line = meta.get(reader._READER_LINE_KW)
+            col = meta.get(reader._READER_COL_KW)
+
+            for astnode in f(ctx, form):
+                astnode.node.lineno = line
+                astnode.node.col = col
+                yield astnode
+        except AttributeError:
+            yield from f(ctx, form)
+
+    return with_lineno_and_col
+
+
+@_with_loc
 def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:
     """Take a Lisp form as an argument and produce zero or more Python
     AST nodes.

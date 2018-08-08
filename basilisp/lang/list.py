@@ -35,8 +35,8 @@ class List(ObjectProxy, Meta):
         return List(self.__wrapped__.cons(elem))
 
     @staticmethod
-    def empty() -> "List":
-        return l()
+    def empty(meta=None) -> "List":
+        return l(meta=meta)
 
 
 def list(members, meta=None) -> List:
