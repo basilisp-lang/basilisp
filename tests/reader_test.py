@@ -23,16 +23,83 @@ def read_str_first(s, resolver: reader.Resolver = None):
 
 def test_stream_reader():
     sreader = reader.StreamReader(io.StringIO("12345"))
-    assert sreader.peek() == "1"
-    assert sreader.next_token() == "2"
-    assert sreader.peek() == "2"
+
+    assert "1" == sreader.peek()
+    assert (1, 1) == sreader.loc
+
+    assert "2" == sreader.next_token()
+    assert (1, 2) == sreader.loc
+
+    assert "2" == sreader.peek()
+    assert (1, 2) == sreader.loc
+
     sreader.pushback()
-    assert sreader.peek() == "1"
-    assert sreader.next_token() == "2"
-    assert sreader.next_token() == "3"
-    assert sreader.next_token() == "4"
-    assert sreader.next_token() == "5"
-    assert sreader.next_token() == ""
+    assert "1" == sreader.peek()
+    assert (1, 1) == sreader.loc
+
+    assert "2" == sreader.next_token()
+    assert (1, 2) == sreader.loc
+
+    assert "3" == sreader.next_token()
+    assert (1, 3) == sreader.loc
+
+    assert "4" == sreader.next_token()
+    assert (1, 4) == sreader.loc
+
+    assert "5" == sreader.next_token()
+    assert (1, 5) == sreader.loc
+
+    assert "" == sreader.next_token()
+    assert (1, 6) == sreader.loc
+
+
+def test_stream_reader_loc():
+    s = str(
+        "i=1\n"
+        "b=2\n"
+        "i"
+    )
+    sreader = reader.StreamReader(io.StringIO(s))
+
+    assert "i" == sreader.peek()
+    assert (1, 1) == sreader.loc
+
+    assert "=" == sreader.next_token()
+    assert (1, 2) == sreader.loc
+
+    assert "=" == sreader.peek()
+    assert (1, 2) == sreader.loc
+
+    sreader.pushback()
+    assert "i" == sreader.peek()
+    assert (1, 1) == sreader.loc
+
+    assert "=" == sreader.next_token()
+    assert (1, 2) == sreader.loc
+
+    assert "1" == sreader.next_token()
+    assert (1, 3) == sreader.loc
+
+    assert "\n" == sreader.next_token()
+    assert (2, 0) == sreader.loc
+
+    assert "b" == sreader.next_token()
+    assert (2, 1) == sreader.loc
+
+    assert "=" == sreader.next_token()
+    assert (2, 2) == sreader.loc
+
+    assert "2" == sreader.next_token()
+    assert (2, 3) == sreader.loc
+
+    assert "\n" == sreader.next_token()
+    assert (3, 0) == sreader.loc
+
+    assert "i" == sreader.next_token()
+    assert (3, 1) == sreader.loc
+
+    assert "" == sreader.next_token()
+    assert (3, 2) == sreader.loc
 
 
 def test_int():
@@ -289,44 +356,53 @@ def test_interop_prop():
 
 
 def test_meta():
+    def issubmap(m, sub):
+        for k, subv in sub.items():
+            try:
+                mv = m[k]
+                return subv == mv
+            except KeyError:
+                return False
+        return False
+
     s = read_str_first("^str s")
     assert s == sym.symbol('s')
-    assert s.meta == lmap.map({kw.keyword('tag'): sym.symbol('str')})
+    assert issubmap(s.meta, lmap.map({kw.keyword('tag'): sym.symbol('str')}))
 
     s = read_str_first("^:dynamic *ns*")
     assert s == sym.symbol('*ns*')
-    assert s.meta == lmap.map({kw.keyword('dynamic'): True})
+    assert issubmap(s.meta, lmap.map({kw.keyword('dynamic'): True}))
 
     s = read_str_first('^{:doc "If true, assert."} *assert*')
     assert s == sym.symbol('*assert*')
-    assert s.meta == lmap.map({kw.keyword('doc'): "If true, assert."})
+    assert issubmap(s.meta, lmap.map({kw.keyword('doc'): "If true, assert."}))
 
     v = read_str_first("^:has-meta [:a]")
     assert v == vec.v(kw.keyword('a'))
-    assert v.meta == lmap.map({kw.keyword('has-meta'): True})
+    assert issubmap(v.meta, lmap.map({kw.keyword('has-meta'): True}))
 
     l = read_str_first('^:has-meta (:a)')
     assert l == llist.l(kw.keyword('a'))
-    assert l.meta == lmap.map({kw.keyword('has-meta'): True})
+    assert issubmap(l.meta, lmap.map({kw.keyword('has-meta'): True}))
 
     m = read_str_first('^:has-meta {:key "val"}')
     assert m == lmap.map({kw.keyword('key'): "val"})
-    assert m.meta == lmap.map({kw.keyword('has-meta'): True})
+    assert issubmap(m.meta, lmap.map({kw.keyword('has-meta'): True}))
 
     t = read_str_first('^:has-meta #{:a}')
     assert t == lset.s(kw.keyword('a'))
-    assert t.meta == lmap.map({kw.keyword('has-meta'): True})
+    assert issubmap(t.meta, lmap.map({kw.keyword('has-meta'): True}))
 
     s = read_str_first('^:dynamic ^{:doc "If true, assert."} *assert*')
     assert s == sym.symbol('*assert*')
-    assert s.meta == lmap.map({
+    assert issubmap(s.meta, lmap.map({
         kw.keyword('dynamic'): True,
         kw.keyword('doc'): "If true, assert."
-    })
+    }))
 
     s = read_str_first('^{:always true} ^{:always false} *assert*')
     assert s == sym.symbol('*assert*')
-    assert s.meta == lmap.map({kw.keyword('always'): True})
+    assert issubmap(s.meta, lmap.map({kw.keyword('always'): True}))
 
 
 def test_invalid_meta_structure():

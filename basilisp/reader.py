@@ -1,10 +1,12 @@
 import collections
 import contextlib
+import functools
 import io
 import re
 import uuid
 from datetime import datetime
-from typing import Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping, Pattern, Iterable
+from typing import (Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping, Pattern, Iterable,
+                    TypeVar, cast)
 
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
@@ -26,6 +28,11 @@ newline_chars = re.compile('(\r\n|\r|\n)')
 fn_macro_args = re.compile('(%)(&|[0-9])?')
 
 Resolver = Callable[[symbol.Symbol], symbol.Symbol]
+LispReaderFn = Callable[["ReaderContext"], LispForm]
+W = TypeVar('W', bound=LispReaderFn)
+
+_READER_LINE_KW = keyword.keyword('line', ns='basilisp.reader')
+_READER_COL_KW = keyword.keyword('col', ns='basilisp.reader')
 
 
 class SyntaxError(Exception):
@@ -36,7 +43,7 @@ class StreamReader:
     """A simple stream reader with n-character lookahead."""
     DEFAULT_INDEX = -2
 
-    __slots__ = ('_stream', '_pushback_depth', '_idx', '_buffer')
+    __slots__ = ('_stream', '_pushback_depth', '_idx', '_buffer', '_line', '_col')
 
     def __init__(self, stream: io.TextIOBase, pushback_depth: int = 5) -> None:
         self._stream = stream
@@ -44,6 +51,36 @@ class StreamReader:
         self._idx = -2
         init_buffer = [self._stream.read(1), self._stream.read(1)]
         self._buffer = collections.deque(init_buffer, pushback_depth)
+        self._line = collections.deque([1], pushback_depth)
+        self._col = collections.deque([1], pushback_depth)
+
+        for c in init_buffer[1:]:
+            self._update_loc(c)
+
+    @property
+    def col(self):
+        return self._col[self._idx]
+
+    @property
+    def line(self):
+        return self._line[self._idx]
+
+    @property
+    def loc(self):
+        return self.line, self.col
+
+    def _update_loc(self, c):
+        """Update the internal line and column buffers after a new character
+        is added.
+
+        The column number is set to 0, so the first character on the next line
+        is column number 1."""
+        if newline_chars.match(c):
+            self._col.append(0)
+            self._line.append(self._line[-1] + 1)
+        else:
+            self._col.append(self._col[-1] + 1)
+            self._line.append(self._line[-1])
 
     def peek(self) -> str:
         """Peek at the next character in the stream."""
@@ -70,8 +107,8 @@ class StreamReader:
             self._idx += 1
         else:
             c = self._stream.read(1)
+            self._update_loc(c)
             self._buffer.append(c)
-
         return self.peek()
 
 
@@ -125,6 +162,22 @@ class ReaderContext:
 
 
 __EOF = 'EOF'
+
+
+def _with_loc(f: W) -> W:
+    """Wrap a reader function in a decorator to supply line and column
+    information along with relevant forms."""
+
+    @functools.wraps(f)
+    def with_lineno_and_col(ctx):
+        meta = lmap.map({_READER_LINE_KW: ctx.reader.line, _READER_COL_KW: ctx.reader.col})
+        v = f(ctx)
+        try:
+            return v.with_meta(meta)  # type: ignore
+        except AttributeError:
+            return v
+
+    return cast(W, with_lineno_and_col)
 
 
 def _read_namespaced(ctx: ReaderContext) -> Tuple[Optional[str], str]:
@@ -249,6 +302,7 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
         seq.append(elem)
 
 
+@_with_loc
 def _read_list(ctx: ReaderContext) -> llist.List:
     """Read a list element from the input stream."""
     start = ctx.reader.advance()
@@ -258,6 +312,7 @@ def _read_list(ctx: ReaderContext) -> llist.List:
     return _read_coll(ctx, llist.list, ')', 'list')
 
 
+@_with_loc
 def _read_vector(ctx: ReaderContext) -> vector.Vector:
     """Read a vector element from the input stream."""
     start = ctx.reader.advance()
@@ -265,6 +320,7 @@ def _read_vector(ctx: ReaderContext) -> vector.Vector:
     return _read_coll(ctx, vector.vector, ']', 'vector')
 
 
+@_with_loc
 def _read_set(ctx: ReaderContext) -> lset.Set:
     """Return a set from the input stream."""
     start = ctx.reader.advance()
@@ -278,6 +334,7 @@ def _read_set(ctx: ReaderContext) -> lset.Set:
     return _read_coll(ctx, set_if_valid, '}', 'set')
 
 
+@_with_loc
 def _read_map(ctx: ReaderContext) -> lmap.Map:
     """Return a map from the input stream."""
     reader = ctx.reader
@@ -359,6 +416,7 @@ def _read_str(ctx: ReaderContext) -> str:
         s.append(token)
 
 
+@_with_loc
 def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
     """Return a symbol from the input stream.
 
