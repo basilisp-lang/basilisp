@@ -4,26 +4,55 @@
   (fn* list [& args]
        (basilisp.lang.list/l args)))
 
-(def first
+(def ^{:doc "Return the first element in a sequence."}
+  first
   (fn* first [seq] (.-first seq)))
 
 (def rest
   (fn* rest [seq] (.-rest seq)))
 
+(def second
+  (fn* second [seq] (.-first (.-rest seq))))
+
 (def cons
   (fn* cons [v seq] (.cons seq v)))
 
-(def identity
-  (fn* identity [v] v))
-
-(def print
-     (fn* print [& args]
-         (builtins/print args)))
-
 (def meta
-     (fn* meta [o]
-         (.-meta o)))
+  (fn* meta [o]
+       (.-meta o)))
 
 (def with-meta
-     (fn* with-meta [o meta]
-         (.with-meta o meta)))
+  (fn* with-meta [o meta]
+       (.with-meta o meta)))
+
+(def ^:macro let
+  (fn* let [&form & decl]
+       (cons 'let* decl)))
+
+(def ^:macro fn
+  (fn* fn [&form & decl]
+       (with-meta
+         (cons 'fn* decl)
+         (meta decl))))
+
+(def identity
+  (fn identity [v] v))
+
+(def print
+  (fn print [& args]
+    (builtins/print args)))
+
+(def string builtins/str)
+
+(def
+  ^{:doc "Return true if obj is an instance of class."}
+  instance?
+  (fn instance? [class obj]
+    (builtins/isinstance obj class)))
+
+(def
+  ^{:doc "Return true if obj is a string."}
+  string?
+  (fn string? [o]
+    (instance? builtins/str o)))
+
