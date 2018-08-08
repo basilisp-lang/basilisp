@@ -865,13 +865,16 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     # Macros are immediately evaluated so the modified form can be compiled
     if isinstance(first, sym.Symbol):
-        sym_info = ctx.symbol_table.find_symbol(form.first)
+        sym_info = ctx.symbol_table.find_symbol(first)
         if sym_info is not None:
             _, sym_ctx, s = sym_info
             if _is_macro(s):
-                v = Var.find(s)
+                ns_sym = sym.symbol(s.name, ns=ctx.current_ns.name) if s.ns is None else s
+                v = Var.find(ns_sym)
                 if v is not None:
-                    yield from _to_ast(ctx, v.value(form.rest))
+                    # Call the macro as (f &form & rest)
+                    # In Clojure there is &env, which we don't have yet!
+                    yield from _to_ast(ctx, v.value(form, form.rest))
                     return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
@@ -1215,6 +1218,28 @@ def compile_and_exec_form(form: LispForm,
     return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name)
 
 
+def __incremental_compile_module(tree: ASTStream,
+                                 ctx: CompilerContext,
+                                 wrapped_fn_name: str = _DEFAULT_FN) -> Any:
+    """Incrementally compile AST elements, so macro functions will be available
+    at compile time."""
+    if tree is None:
+        return None
+
+    expr_body: List[ast.AST] = []
+    expr_body.extend(_module_imports(ctx))
+    expr_body.append(_from_module_import())
+    expr_body.append(_ns_var())
+    expr_body.extend(_unwrap_nodes(tree))
+
+    body = _expressionize(expr_body, wrapped_fn_name)
+
+    module = ast.Module(body=[body])
+    ast.fix_missing_locations(module)
+
+    return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name)
+
+
 def compile_module_bytecode(forms: Iterable[LispForm],
                             ctx: CompilerContext,
                             source_filename: str) -> types.CodeType:
@@ -1230,10 +1255,14 @@ def compile_module_bytecode(forms: Iterable[LispForm],
     module_body.append(_ns_var())
 
     for form in forms:
-        form_ast = seq(_to_ast(ctx, form)).map(_unwrap_node).map(_statementize).to_list()
-        if form_ast is None:
-            continue
-        module_body.extend(form_ast)
+        nodes = [node for node in _to_ast(ctx, form)]
+
+        # This is pretty hacky. We basically have to build up the runtime
+        # environment in parallel with constructing the overall module AST,
+        # so we can use macros in the compilation process.
+        __incremental_compile_module(nodes, ctx)
+
+        module_body.extend(seq(nodes).map(_unwrap_node).map(_statementize).to_list())
 
     module = ast.Module(body=module_body)
     ast.fix_missing_locations(module)
