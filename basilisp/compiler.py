@@ -399,9 +399,7 @@ _FIND_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.find')
 def _clean_meta(form: meta.Meta) -> LispForm:
     """Remove reader metadata from the form's meta map."""
     try:
-        meta = form.meta \
-            .discard(reader._READER_LINE_KW) \
-            .discard(reader._READER_COL_KW)
+        meta = form.meta.discard(reader._READER_LINE_KW, reader._READER_COL_KW)
     except AttributeError:
         return None
     if len(meta) == 0:
