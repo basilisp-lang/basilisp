@@ -34,6 +34,11 @@ W = TypeVar('W', bound=LispReaderFn)
 _READER_LINE_KW = keyword.keyword('line', ns='basilisp.reader')
 _READER_COL_KW = keyword.keyword('col', ns='basilisp.reader')
 
+_CONCAT = symbol.symbol('concat', 'basilisp.core')
+_SEQ = symbol.symbol('seq', 'basilisp.core')
+_UNQUOTE = symbol.symbol('unquote', 'basilisp.core')
+_UNQUOTE_SPLICING = symbol.symbol('unquote-splicing', 'basilisp.core')
+
 
 class SyntaxError(Exception):
     pass
@@ -147,12 +152,6 @@ class ReaderContext:
         yield
         self._syntax_quoted.pop()
 
-    @contextlib.contextmanager
-    def unquoted(self):
-        self._syntax_quoted.append(False)
-        yield
-        self._syntax_quoted.pop()
-
     @property
     def is_syntax_quoted(self) -> bool:
         try:
@@ -219,10 +218,28 @@ def _read_coll(ctx: ReaderContext, f: Callable[[Collection[Any]], Union[
         token = reader.peek()
         if token == '':
             raise SyntaxError(f"Unexpected EOF in {coll_name}")
+        if whitespace_chars.match(token):
+            reader.advance()
+            continue
         if token == end_token:
             reader.next_token()
             return f(coll)
         elem = _read_next(ctx)
+
+        if ctx.is_syntax_quoted:
+            try:
+                if isinstance(elem, llist.List) and elem[0] == _UNQUOTE_SPLICING:
+                    try:
+                        # For collection literals: `(sym ~@[elem1 elem2])
+                        for child in elem[1]:
+                            coll.append(child)
+                        continue
+                    except TypeError:
+                        coll.append(elem)  # For non-literals: `(sym ~@coll)
+                        continue
+            except IndexError:
+                pass
+
         coll.append(elem)
 
 
@@ -359,7 +376,7 @@ def _read_map(ctx: ReaderContext) -> lmap.Map:
 # Due to some ambiguities that arise in parsing symbols, numbers, and the
 # special keywords `true`, `false`, and `nil`, we have to have a looser
 # type defined for the return from these reader functions.
-MaybeSymbol = Union[bool, None, symbol.Symbol]
+MaybeSymbol = Union[bool, None, symbol.Symbol, llist.List]
 MaybeNumber = Union[float, int, MaybeSymbol]
 
 
@@ -433,7 +450,7 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
         elif name == 'false':
             return False
     if ctx.is_syntax_quoted:
-        return ctx.resolve(symbol.symbol(name, ns))
+        return llist.l(symbol.symbol('quote'), ctx.resolve(symbol.symbol(name, ns)))
     return symbol.symbol(name, ns=ns)
 
 
@@ -533,7 +550,7 @@ def _read_syntax_quoted(ctx: ReaderContext) -> llist.List:
     assert start == "`"
 
     with ctx.syntax_quoted():
-        return llist.l(symbol.symbol('quote'), _read_next(ctx))
+        return _read_next(ctx)
 
 
 def _read_unquote(ctx: ReaderContext) -> llist.List:
@@ -552,15 +569,17 @@ def _read_unquote(ctx: ReaderContext) -> llist.List:
     start = ctx.reader.advance()
     assert start == "~"
 
-    with ctx.unquoted():
-        next_char = ctx.reader.peek()
-        if next_char == '@':
-            ctx.reader.advance()
-            next_form = _read_next(ctx)
-            return llist.l(symbol.symbol('unquote-splicing', 'basilisp.core'), next_form)
-
+    next_char = ctx.reader.peek()
+    if next_char == '@':
+        ctx.reader.advance()
         next_form = _read_next(ctx)
-        return llist.l(symbol.symbol('unquote', 'basilisp.core'), next_form)
+        return llist.l(_UNQUOTE_SPLICING, next_form)
+    else:
+        next_form = _read_next(ctx)
+        if ctx.is_syntax_quoted:
+            return next_form
+        else:
+            return llist.l(_UNQUOTE, next_form)
 
 
 def _read_regex(ctx: ReaderContext) -> Pattern:

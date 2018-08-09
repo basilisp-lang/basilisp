@@ -374,6 +374,7 @@ def _expressionize(body: MixedNodeStream,
 _KW_ALIAS = 'kw'
 _LIST_ALIAS = 'llist'
 _MAP_ALIAS = 'lmap'
+_RUNTIME_ALIAS = 'runtime'
 _SET_ALIAS = 'lset'
 _SYM_ALIAS = 'sym'
 _VEC_ALIAS = 'vec'
@@ -925,6 +926,14 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
             keywords=_unwrap_nodes(meta)))
         return
 
+    # Syntax quoted list
+    if isinstance(first, llist.List) and first.first == _QUOTE and isinstance(first[1], sym.Symbol):
+        elems_nodes, elems = _collection_literal_ast(ctx, form)
+        yield from elems_nodes
+        yield _node(ast.Call(
+            func=_NEW_LIST_FN_NAME, args=[ast.List(elts=list(elems), ctx=ast.Load())], keywords=[]))
+        return
+
     # Special forms
     if first in _SPECIAL_FORMS and not ctx.is_quoted:
         yield from _special_form_ast(ctx, form)
@@ -932,17 +941,11 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     # Unquote and unquote splicing handling
     if first == _UNQUOTE:
-        if ctx.is_quoted:
-            yield from _unquote_ast(ctx, form)
-            return
-        else:
-            raise CompilerException("Must be inside a quote to unquote")
+        yield from _unquote_ast(ctx, form)
+        return
     elif first == _UNQUOTE_SPLICING:
-        if ctx.is_quoted:
-            yield from _unquote_splicing_ast(ctx, form)
-            return
-        else:
-            raise CompilerException("Must be inside a quote to unquote-splice")
+        yield from _unquote_splicing_ast(ctx, form)
+        return
 
     # Macros are immediately evaluated so the modified form can be compiled
     if isinstance(first, sym.Symbol):
@@ -1216,6 +1219,7 @@ def _module_imports(ctx: CompilerContext) -> Iterable[ast.Import]:
                'basilisp.lang.keyword': _KW_ALIAS,
                'basilisp.lang.list': _LIST_ALIAS,
                'basilisp.lang.map': _MAP_ALIAS,
+               'basilisp.lang.runtime': _RUNTIME_ALIAS,
                'basilisp.lang.set': _SET_ALIAS,
                'basilisp.lang.symbol': _SYM_ALIAS,
                'basilisp.lang.vector': _VEC_ALIAS,
@@ -1276,13 +1280,18 @@ def print_py_str(t: ast.AST) -> None:
     print("")
 
 
+# Cache global scope between runs
+_GLOBAL_SCOPE: Dict[str, Any] = {}
+
+
 def _compile_and_exec_ast(tree: ast.Module,
                           module_name: str = 'REPL',
                           expr_fn: str = _DEFAULT_FN,
+                          global_scope: Dict[str, Any] = None,
                           source_filename: str = '<REPL Input>'):
     """Compile and execute a Python AST node generated from one of the compile
     functions provided in this module. Return the result of the executed module code."""
-    global_scope: Dict[str, Any] = {}
+    global_scope = global_scope if global_scope is not None else _GLOBAL_SCOPE
     mod = types.ModuleType(module_name)
     bytecode = compile(tree, source_filename, 'exec')
     exec(bytecode, global_scope, mod.__dict__)
@@ -1323,6 +1332,7 @@ def compile_and_exec_form(form: LispForm,
 
 def __incremental_compile_module(tree: ASTStream,
                                  ctx: CompilerContext,
+                                 source_filename: str,
                                  wrapped_fn_name: str = _DEFAULT_FN) -> Any:
     """Incrementally compile AST elements, so macro functions will be available
     at compile time."""
@@ -1340,7 +1350,7 @@ def __incremental_compile_module(tree: ASTStream,
     module = ast.Module(body=[body])
     ast.fix_missing_locations(module)
 
-    return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name)
+    return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name, source_filename=source_filename)
 
 
 def compile_module_bytecode(forms: Iterable[LispForm],
@@ -1363,7 +1373,7 @@ def compile_module_bytecode(forms: Iterable[LispForm],
         # This is pretty hacky. We basically have to build up the runtime
         # environment in parallel with constructing the overall module AST,
         # so we can use macros in the compilation process.
-        __incremental_compile_module(nodes, ctx)
+        __incremental_compile_module(nodes, ctx, source_filename)
 
         module_body.extend(seq(nodes).map(_unwrap_node).map(_statementize).to_list())
 
