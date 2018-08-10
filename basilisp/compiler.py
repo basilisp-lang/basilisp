@@ -601,7 +601,6 @@ def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     if len(form) > 3:
         nodes, args = _collection_literal_ast(ctx, form[3:])
         yield from nodes
-        yield from map(_dependency, args)
 
     yield _node(ast.Call(func=call_target, args=list(args), keywords=[]))
 
