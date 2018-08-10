@@ -296,30 +296,62 @@ def test_quoted():
 
 def test_syntax_quoted():
     resolver = lambda s: sym.symbol(s.name, ns='test-ns')
-    assert read_str_first('`(my-symbol)', resolver=resolver) == llist.l(
-        sym.symbol('quote'), llist.l(sym.symbol('my-symbol', ns='test-ns')))
-    assert read_str_first('`(my-symbol)') == llist.l(
-        sym.symbol('quote'), llist.l(sym.symbol('my-symbol')))
+    assert llist.l(llist.l(sym.symbol('quote'), sym.symbol('my-symbol', ns='test-ns'))
+                   ) == read_str_first('`(my-symbol)', resolver=resolver
+                                       ), "Resolve fully qualified symbol in syntax quote"
+
+    # TODO: assert `(my-symbol) == (current-ns/my-symbol)
+    # https://github.com/chrisrink10/basilisp/issues/48
+    assert llist.l(llist.l(sym.symbol('quote'), sym.symbol('my-symbol'))
+                   ) == read_str_first('`(my-symbol)'), "Resolve a symbol in the current namespace"
 
     def complex_resolver(s: sym.Symbol) -> sym.Symbol:
         if s.name == 'other-symbol':
             return s
         return sym.symbol(s.name, ns='test-ns')
 
-    assert read_str_first('`(my-symbol other-symbol)', resolver=complex_resolver) == llist.l(
-        sym.symbol('quote'), llist.l(sym.symbol('my-symbol', ns='test-ns'), sym.symbol('other-symbol')))
+    assert llist.l(llist.l(sym.symbol('quote'), sym.symbol('my-symbol', ns='test-ns')),
+                   llist.l(sym.symbol('quote'), sym.symbol('other-symbol'))) == read_str_first(
+        '`(my-symbol other-symbol)', resolver=complex_resolver), "Resolve multiple symbols together"
 
 
 def test_unquote():
-    assert read_str_first("'(print ~val)") == llist.l(
-        sym.symbol('quote'), llist.l(sym.symbol('print'), llist.l(
-            sym.symbol('unquote', ns='basilisp.core'), sym.symbol('val'))))
+    assert llist.l(reader._UNQUOTE, sym.symbol('my-symbol')) == read_str_first('~my-symbol')
+
+    assert llist.l(sym.symbol('quote'), llist.l(sym.symbol('print'), llist.l(
+        sym.symbol('unquote', ns='basilisp.core'), sym.symbol('val')))
+                   ) == read_str_first("'(print ~val)"), "Unquote a symbol in a quote"
+
+    resolver = lambda s: sym.symbol(s.name, ns='test-ns')
+    assert llist.l(llist.l(sym.symbol('quote'), sym.symbol(
+        'my-symbol', ns='test-ns')), sym.symbol('other-symbol')) == read_str_first(
+        '`(my-symbol ~other-symbol)', resolver=resolver), "Unquote a symbol in a syntax quote"
 
 
 def test_unquote_splicing():
-    assert read_str_first("'(print ~@[1 2 3])") == llist.l(
-        sym.symbol('quote'), llist.l(sym.symbol('print'), llist.l(
-            sym.symbol('unquote-splicing', ns='basilisp.core'), vec.v(1, 2, 3))))
+    assert llist.l(reader._UNQUOTE_SPLICING, sym.symbol('my-symbol')) == read_str_first('~@my-symbol')
+    assert llist.l(reader._UNQUOTE_SPLICING, vec.v(1, 2, 3)) == read_str_first('~@[1 2 3]')
+    assert llist.l(reader._UNQUOTE_SPLICING, vec.v(1, 2, 3)) == read_str_first('`~@[1 2 3]')
+    assert llist.l(reader._UNQUOTE_SPLICING, llist.l(1, 2, 3)) == read_str_first('~@(1 2 3)')
+    assert llist.l(reader._UNQUOTE_SPLICING, llist.l(1, 2, 3)) == read_str_first('`~@(1 2 3)')
+
+    assert llist.l(sym.symbol('quote'), llist.l(sym.symbol('print'), llist.l(
+        sym.symbol('unquote-splicing', ns='basilisp.core'), vec.v(1, 2, 3)))
+                   ) == read_str_first("'(print ~@[1 2 3])"), "Unquote splice a collection in a quote"
+
+    assert llist.l(sym.symbol('quote'), llist.l(sym.symbol('print'), llist.l(
+        sym.symbol('unquote-splicing', ns='basilisp.core'), sym.symbol('c')))
+                   ) == read_str_first("'(print ~@c)"), "Unquote-splice a symbol in a quote"
+
+    resolver = lambda s: sym.symbol(s.name, ns='test-ns')
+    assert llist.l(llist.l(sym.symbol('quote'), sym.symbol(
+        'my-symbol', ns='test-ns')), 1, 2, 3) == read_str_first(
+        '`(my-symbol ~@[1 2 3])', resolver=resolver), "Unquote-splice a collection in a syntax quote"
+
+    assert llist.l(llist.l(sym.symbol('quote'), sym.symbol(
+        'my-symbol', ns='test-ns')), llist.l(
+        reader._UNQUOTE_SPLICING, sym.symbol('a'))) == read_str_first(
+        '`(my-symbol ~@a)', resolver=resolver), "Unquote-splice a collection in a syntax quote"
 
 
 def test_var():

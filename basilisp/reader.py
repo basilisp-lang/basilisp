@@ -152,6 +152,12 @@ class ReaderContext:
         yield
         self._syntax_quoted.pop()
 
+    @contextlib.contextmanager
+    def unquoted(self):
+        self._syntax_quoted.append(False)
+        yield
+        self._syntax_quoted.pop()
+
     @property
     def is_syntax_quoted(self) -> bool:
         try:
@@ -572,10 +578,12 @@ def _read_unquote(ctx: ReaderContext) -> LispForm:
     next_char = ctx.reader.peek()
     if next_char == '@':
         ctx.reader.advance()
-        next_form = _read_next(ctx)
+        with ctx.unquoted():
+            next_form = _read_next(ctx)
         return llist.l(_UNQUOTE_SPLICING, next_form)
     else:
-        next_form = _read_next(ctx)
+        with ctx.unquoted():
+            next_form = _read_next(ctx)
         if ctx.is_syntax_quoted:
             return next_form
         else:
