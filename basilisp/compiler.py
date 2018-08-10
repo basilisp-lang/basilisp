@@ -4,6 +4,7 @@ import contextlib
 import functools
 import types
 import uuid
+from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
 from itertools import chain
@@ -673,43 +674,39 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     if bindings.empty():
         raise CompilerException("Expected at least one binding in 'let*'") from None
 
-    arg_syms = []  # Binding symbols are turned into function parameter names
+    arg_syms: Dict[sym.Symbol, str] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name
     var_names = []  # Names of local Python variables bound to computed expressions prior to the function call
-    arg_names = []  # Names of variables used to recall expressions in the call to the let function
+    arg_deps = []  # Argument expression dependency nodes
     arg_exprs = []  # Bound expressions are the expressions a name is bound to
     for s, expr in bindings:
-        # Check if we are redefining a previous let bound entry;
-        # if we are, we do not want to add a new symbol table entry.
-        # But we DO want to generate a new assignment!
-        try:
-            munged, sym_ctx, _ = st.find_symbol(s)  # type: ignore
-            if sym_ctx == _SYM_CTX_LOCAL:
-                var_names.append(munged)
-            else:
-                raise ValueError("Symbol is not previously bound")
-        except (TypeError, ValueError):
-            arg_syms.append(s)
-            munged = genname(munge(s.name))
-            st.new_symbol(s, munged, _SYM_CTX_LOCAL)
-            var_names.append(munged)
-            arg_names.append(munged)
+        # Keep track of only the newest symbol and munged name in arg_syms, that way
+        # we are only calling the let binding below with the most recent entry.
+        munged = genname(munge(s.name))
+        arg_syms[s] = munged
+        var_names.append(munged)
+
         expr_deps, expr_node = _nodes_and_expr(_to_ast(ctx, expr))
-        yield from expr_deps
+
+        # Don't add the new symbol until after we've processed the expression
+        st.new_symbol(s, munged, _SYM_CTX_LOCAL)
+
+        arg_deps.append(expr_deps)
         arg_exprs.append(_unwrap_node(expr_node))
 
     # Generate a function to hold the body of the let expression
     letname = genname('let')
     with ctx.new_symbol_table(letname):
-        args, body, vargs = _fn_args_body(ctx, vec.vector(arg_syms), form[2:])
+        args, body, vargs = _fn_args_body(ctx, vec.vector(arg_syms.keys()), form[2:])
         yield _dependency(_expressionize(body, letname, args=args, vargs=vargs))
 
     # Generate local variable assignments for processing let bindings
     var_names = seq(var_names).map(lambda n: ast.Name(id=n, ctx=ast.Store()))
-    for name, expr in zip(var_names, arg_exprs):
+    for name, deps, expr in zip(var_names, arg_deps, arg_exprs):
+        yield from deps
         yield _dependency(ast.Assign(targets=[name], value=expr))
 
     yield _node(ast.Call(func=_load_attr(letname),
-                         args=seq(arg_names).map(lambda n: ast.Name(id=n, ctx=ast.Load())).to_list(),
+                         args=seq(arg_syms.values()).map(lambda n: ast.Name(id=n, ctx=ast.Load())).to_list(),
                          keywords=[]))
 
 
