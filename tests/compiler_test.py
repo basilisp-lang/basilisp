@@ -297,10 +297,17 @@ def test_unquote(ns_var: Var):
     with pytest.raises(compiler.CompilerException):
         lcompile("~s")
 
+    assert llist.l(sym.symbol('s')) == lcompile('`(s)')
+
+    with pytest.raises(AttributeError):
+        lcompile("`(~s)")
+
 
 def test_unquote_splicing(ns_var: Var):
     with pytest.raises(compiler.CompilerException):
         lcompile("~@[1 2 3]")
+
+    assert llist.l(1, 2, 3) == lcompile("`(~@[1 2 3])")
 
     with pytest.raises(compiler.CompilerException):
         lcompile("'(~@53233)")

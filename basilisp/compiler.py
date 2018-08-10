@@ -132,12 +132,13 @@ class SymbolTable:
 
 
 class CompilerContext:
-    __slots__ = ('_st', '_imports', '_is_quoted')
+    __slots__ = ('_st', '_imports', '_is_quoted', '_current_form')
 
     def __init__(self):
         self._st = collections.deque([SymbolTable('<Top>')])
         self._imports = set(runtime.Namespace.DEFAULT_IMPORTS)
         self._is_quoted = collections.deque([])
+        self._current_form = collections.deque([])
 
     @property
     def current_ns(self) -> runtime.Namespace:
@@ -161,6 +162,20 @@ class CompilerContext:
         self._is_quoted.append(False)
         yield
         self._is_quoted.pop()
+
+    @contextlib.contextmanager
+    def current_form(self, me: LispForm):
+        self._current_form.append(me)
+        yield
+        self._current_form.pop()
+
+    @property
+    def parent(self):
+        return self._current_form[-2]
+
+    @property
+    def lineage(self):
+        return self._current_form
 
     def add_import(self, imp: sym.Symbol):
         self._imports.add(imp)
@@ -244,6 +259,17 @@ SimpleASTProcessor = Callable[[CompilerContext, LispForm], ast.AST]
 ASTProcessor = Callable[[CompilerContext, LispForm], ASTStream]
 
 
+def _with_lineage(f: ASTProcessor) -> ASTProcessor:
+    """Decorator to track the lineage of a form as we traverse the AST."""
+
+    @functools.wraps(f)
+    def add_parent_to_ctx(ctx: CompilerContext, form: LispForm) -> ASTStream:
+        with ctx.current_form(form):
+            yield from f(ctx, form)
+
+    return add_parent_to_ctx
+
+
 def _node(node: ast.AST) -> ASTNode:
     """Wrap a Python AST node in a 'node' type Basilisp ASTNode.
 
@@ -271,7 +297,7 @@ def _unwrap_node(n: Optional[MixedNode]) -> ast.AST:
     elif isinstance(n, ast.AST):
         return n
     else:
-        raise CompilerException(f"Cannot unwrap object of type {type(n)}: {n}")
+        raise CompilerException(f"Cannot unwrap object of type {type(n)}: {n}") from None
 
 
 def _unwrap_nodes(s: MixedNodeStream) -> List[ast.AST]:
@@ -408,6 +434,7 @@ def _clean_meta(form: meta.Meta) -> LispForm:
     return meta
 
 
+@_with_lineage
 def _meta_kwargs_ast(ctx: CompilerContext,
                      form: meta.Meta) -> ASTStream:
     if hasattr(form, 'meta') and form.meta is not None:
@@ -499,7 +526,7 @@ def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,
             vargs = ast.arg(arg=safe, annotation=None)
         except IndexError:
             raise CompilerException(
-                f"Expected variadic argument name after '&'")
+                f"Expected variadic argument name after '&'") from None
 
     args = [ast.arg(arg=a, annotation=None) for a in munged]
     body = _collection_ast(ctx, body_exprs)
@@ -672,7 +699,7 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     bindings = seq(form[1]).grouped(2)
 
     if bindings.empty():
-        raise CompilerException("Expected at least one binding in 'let*'")
+        raise CompilerException("Expected at least one binding in 'let*'") from None
 
     arg_syms = []  # Binding symbols are turned into function parameter names
     var_names = []  # Names of local Python variables bound to computed expressions prior to the function call
@@ -738,6 +765,7 @@ def _catch_expr_body(body) -> PyASTStream:
         yield ast.Return(value=body)
 
 
+@_with_lineage
 def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
     """Generate Python AST nodes for `catch` forms."""
     assert form[0] == _CATCH
@@ -752,6 +780,7 @@ def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
         body=list(_catch_expr_body(body)))
 
 
+@_with_lineage
 def _finally_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate Python AST nodes for `finally` forms."""
     assert isinstance(form, llist.List)
@@ -779,7 +808,7 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     finallys = clauses.get("finally", [])
     if len(finallys) not in [0, 1]:
-        raise CompilerException("Only one finally clause may be provided in a try/catch block")
+        raise CompilerException("Only one finally clause may be provided in a try/catch block") from None
 
     catch_exprs: List[ast.AST] = seq(clauses.get("catch", [])).map(lambda f: _catch_ast(ctx, f)).to_list()
     final_exprs: List[ast.AST] = seq(finallys).flat_map(lambda f: _finally_ast(ctx, f)).to_list()
@@ -867,7 +896,7 @@ def _special_form_ast(ctx: CompilerContext,
     elif which == _VAR:
         yield from _var_ast(ctx, form)
         return
-    raise CompilerException("Special form identified, but not handled")
+    raise CompilerException("Special form identified, but not handled") from None
 
 
 def _unquote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -875,6 +904,9 @@ def _unquote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     assert form[0] == _UNQUOTE
     assert isinstance(form[1], sym.Symbol)
     assert len(form) == 2
+
+    if not ctx.is_quoted:
+        raise CompilerException("Cannot unquote outside of quote") from None
 
     with ctx.unquoted():
         yield from _to_ast(ctx, compile_and_exec_form(form[1], ctx))
@@ -885,6 +917,12 @@ def _unquote_splicing_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     assert form.first == _UNQUOTE_SPLICING
     assert len(form) == 2
 
+    try:
+        if not isinstance(ctx.parent, (llist.List, vec.Vector, lmap.Map, lset.Set)):
+            raise CompilerException("Cannot unquote splice outside collection") from None
+    except IndexError:
+        raise CompilerException("Cannot unquote splice outside collection") from None
+
     with ctx.unquoted():
         try:
             for compiled in compile_and_exec_form(form[1], ctx):
@@ -892,9 +930,10 @@ def _unquote_splicing_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
                 yield from deps
                 yield from nodes
         except TypeError:
-            raise CompilerException("Cannot unquote splice a non-iterable value")
+            raise CompilerException("Cannot unquote splice a non-iterable value") from None
 
 
+@_with_lineage
 def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a stream of Python AST nodes for a source code list.
 
@@ -981,6 +1020,7 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         func=elems_ast.first(), args=elems_ast.drop(1).to_list(), keywords=[]))
 
 
+@_with_lineage
 def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ASTStream:
     key_nodes, keys = _collection_literal_ast(ctx, form.keys())
     val_nodes, vals = _collection_literal_ast(ctx, form.values())
@@ -994,6 +1034,7 @@ def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ASTStream:
         keywords=_unwrap_nodes(meta)))
 
 
+@_with_lineage
 def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
     elem_nodes, elems_ast = _collection_literal_ast(ctx, form)
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
@@ -1005,6 +1046,7 @@ def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
         keywords=_unwrap_nodes(meta)))
 
 
+@_with_lineage
 def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ASTStream:
     elem_nodes, elems_ast = _collection_literal_ast(ctx, form)
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
@@ -1025,6 +1067,7 @@ def _kw_ast(_: CompilerContext, form: kw.Keyword) -> ASTStream:
         func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg))
 
 
+@_with_lineage
 def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
     """Return a Python AST node for a Lisp symbol.
 
