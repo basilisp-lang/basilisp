@@ -1,6 +1,7 @@
 from collections import Sequence
 from typing import Any, Optional
 
+from functional import seq
 from pyrsistent import pmap, PMap
 from wrapt import ObjectProxy
 
@@ -110,4 +111,9 @@ def from_entries(entries):
     m = pmap().evolver()
     for entry in entries:
         m.set(entry.key, entry.value)
-    return m.persistent()
+    return Map(m.persistent())
+
+
+def hash_map(*pairs) -> Map:
+    entries = seq(pairs).grouped(2).map(lambda v: MapEntry.of(v[0], v[1])).to_list()
+    return from_entries(entries)

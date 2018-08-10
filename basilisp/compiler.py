@@ -271,7 +271,7 @@ def _unwrap_node(n: Optional[MixedNode]) -> ast.AST:
     elif isinstance(n, ast.AST):
         return n
     else:
-        raise CompilerException(f"Cannot unwrap object of type {type(n)}: {n}")
+        raise CompilerException(f"Cannot unwrap object of type {type(n)}: {n}") from None
 
 
 def _unwrap_nodes(s: MixedNodeStream) -> List[ast.AST]:
@@ -374,6 +374,7 @@ def _expressionize(body: MixedNodeStream,
 _KW_ALIAS = 'kw'
 _LIST_ALIAS = 'llist'
 _MAP_ALIAS = 'lmap'
+_RUNTIME_ALIAS = 'runtime'
 _SET_ALIAS = 'lset'
 _SYM_ALIAS = 'sym'
 _VEC_ALIAS = 'vec'
@@ -498,7 +499,7 @@ def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,
             vargs = ast.arg(arg=safe, annotation=None)
         except IndexError:
             raise CompilerException(
-                f"Expected variadic argument name after '&'")
+                f"Expected variadic argument name after '&'") from None
 
     args = [ast.arg(arg=a, annotation=None) for a in munged]
     body = _collection_ast(ctx, body_exprs)
@@ -671,7 +672,7 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     bindings = seq(form[1]).grouped(2)
 
     if bindings.empty():
-        raise CompilerException("Expected at least one binding in 'let*'")
+        raise CompilerException("Expected at least one binding in 'let*'") from None
 
     arg_syms = []  # Binding symbols are turned into function parameter names
     var_names = []  # Names of local Python variables bound to computed expressions prior to the function call
@@ -778,7 +779,7 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     finallys = clauses.get("finally", [])
     if len(finallys) not in [0, 1]:
-        raise CompilerException("Only one finally clause may be provided in a try/catch block")
+        raise CompilerException("Only one finally clause may be provided in a try/catch block") from None
 
     catch_exprs: List[ast.AST] = seq(clauses.get("catch", [])).map(lambda f: _catch_ast(ctx, f)).to_list()
     final_exprs: List[ast.AST] = seq(finallys).flat_map(lambda f: _finally_ast(ctx, f)).to_list()
@@ -866,32 +867,7 @@ def _special_form_ast(ctx: CompilerContext,
     elif which == _VAR:
         yield from _var_ast(ctx, form)
         return
-    raise CompilerException("Special form identified, but not handled")
-
-
-def _unquote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
-    """Generate a Python AST Node for the `unquote` special form."""
-    assert form[0] == _UNQUOTE
-    assert isinstance(form[1], sym.Symbol)
-    assert len(form) == 2
-
-    with ctx.unquoted():
-        yield from _to_ast(ctx, compile_and_exec_form(form[1], ctx))
-
-
-def _unquote_splicing_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
-    """Generate a Python AST Node for the `unquote` special form."""
-    assert form.first == _UNQUOTE_SPLICING
-    assert len(form) == 2
-
-    with ctx.unquoted():
-        try:
-            for compiled in compile_and_exec_form(form[1], ctx):
-                deps, nodes = _nodes_and_exprl(_to_ast(ctx, compiled))
-                yield from deps
-                yield from nodes
-        except TypeError:
-            raise CompilerException("Cannot unquote splice a non-iterable value")
+    raise CompilerException("Special form identified, but not handled") from None
 
 
 def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -929,20 +905,6 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     if first in _SPECIAL_FORMS and not ctx.is_quoted:
         yield from _special_form_ast(ctx, form)
         return
-
-    # Unquote and unquote splicing handling
-    if first == _UNQUOTE:
-        if ctx.is_quoted:
-            yield from _unquote_ast(ctx, form)
-            return
-        else:
-            raise CompilerException("Must be inside a quote to unquote")
-    elif first == _UNQUOTE_SPLICING:
-        if ctx.is_quoted:
-            yield from _unquote_splicing_ast(ctx, form)
-            return
-        else:
-            raise CompilerException("Must be inside a quote to unquote-splice")
 
     # Macros are immediately evaluated so the modified form can be compiled
     if isinstance(first, sym.Symbol):
@@ -1216,6 +1178,7 @@ def _module_imports(ctx: CompilerContext) -> Iterable[ast.Import]:
                'basilisp.lang.keyword': _KW_ALIAS,
                'basilisp.lang.list': _LIST_ALIAS,
                'basilisp.lang.map': _MAP_ALIAS,
+               'basilisp.lang.runtime': _RUNTIME_ALIAS,
                'basilisp.lang.set': _SET_ALIAS,
                'basilisp.lang.symbol': _SYM_ALIAS,
                'basilisp.lang.vector': _VEC_ALIAS,
@@ -1276,13 +1239,18 @@ def print_py_str(t: ast.AST) -> None:
     print("")
 
 
+# Cache global scope between runs
+_GLOBAL_SCOPE: Dict[str, Any] = {}
+
+
 def _compile_and_exec_ast(tree: ast.Module,
                           module_name: str = 'REPL',
                           expr_fn: str = _DEFAULT_FN,
+                          global_scope: Dict[str, Any] = None,
                           source_filename: str = '<REPL Input>'):
     """Compile and execute a Python AST node generated from one of the compile
     functions provided in this module. Return the result of the executed module code."""
-    global_scope: Dict[str, Any] = {}
+    global_scope = global_scope if global_scope is not None else _GLOBAL_SCOPE
     mod = types.ModuleType(module_name)
     bytecode = compile(tree, source_filename, 'exec')
     exec(bytecode, global_scope, mod.__dict__)
@@ -1323,6 +1291,7 @@ def compile_and_exec_form(form: LispForm,
 
 def __incremental_compile_module(tree: ASTStream,
                                  ctx: CompilerContext,
+                                 source_filename: str,
                                  wrapped_fn_name: str = _DEFAULT_FN) -> Any:
     """Incrementally compile AST elements, so macro functions will be available
     at compile time."""
@@ -1340,7 +1309,7 @@ def __incremental_compile_module(tree: ASTStream,
     module = ast.Module(body=[body])
     ast.fix_missing_locations(module)
 
-    return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name)
+    return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name, source_filename=source_filename)
 
 
 def compile_module_bytecode(forms: Iterable[LispForm],
@@ -1363,7 +1332,7 @@ def compile_module_bytecode(forms: Iterable[LispForm],
         # This is pretty hacky. We basically have to build up the runtime
         # environment in parallel with constructing the overall module AST,
         # so we can use macros in the compilation process.
-        __incremental_compile_module(nodes, ctx)
+        __incremental_compile_module(nodes, ctx, source_filename)
 
         module_body.extend(seq(nodes).map(_unwrap_node).map(_statementize).to_list())
 

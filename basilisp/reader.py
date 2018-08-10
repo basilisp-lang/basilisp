@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import (Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping, Pattern, Iterable,
                     TypeVar, cast)
 
+from functional import seq
+
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
@@ -17,7 +19,7 @@ import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vector
 import basilisp.walker as walk
-from basilisp.lang.typing import LispForm
+from basilisp.lang.typing import LispForm, IterableLispForm
 from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%')
@@ -33,6 +35,23 @@ W = TypeVar('W', bound=LispReaderFn)
 
 _READER_LINE_KW = keyword.keyword('line', ns='basilisp.reader')
 _READER_COL_KW = keyword.keyword('col', ns='basilisp.reader')
+
+_AMPERSAND = symbol.symbol("&")
+_FN = symbol.symbol("fn*")
+_INTEROP_CALL = symbol.symbol(".")
+_INTEROP_PROP = symbol.symbol(".-")
+_QUOTE = symbol.symbol("quote")
+_VAR = symbol.symbol("var")
+
+_APPLY = symbol.symbol('apply', ns='basilisp.core')
+_CONCAT = symbol.symbol('concat', ns='basilisp.core')
+_HASH_MAP = symbol.symbol('hash-map', ns='basilisp.core')
+_HASH_SET = symbol.symbol('hash-set', ns='basilisp.core')
+_LIST = symbol.symbol('list', ns='basilisp.core')
+_SEQ = symbol.symbol('seq', ns='basilisp.core')
+_UNQUOTE = symbol.symbol('unquote', ns='basilisp.core')
+_UNQUOTE_SPLICING = symbol.symbol('unquote-splicing', ns='basilisp.core')
+_VECTOR = symbol.symbol('vector', ns='basilisp.core')
 
 
 class SyntaxError(Exception):
@@ -219,6 +238,9 @@ def _read_coll(ctx: ReaderContext, f: Callable[[Collection[Any]], Union[
         token = reader.peek()
         if token == '':
             raise SyntaxError(f"Unexpected EOF in {coll_name}")
+        if whitespace_chars.match(token):
+            reader.advance()
+            continue
         if token == end_token:
             reader.next_token()
             return f(coll)
@@ -264,15 +286,15 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
             raise SyntaxError(f"Expected Symbol; found {type(member)}")
         is_property = member.name.startswith('-')
         if is_property:
-            seq.append(symbol.symbol('.-'))
+            seq.append(_INTEROP_PROP)
             member = symbol.symbol(member.name[1:])
         else:
-            seq.append(symbol.symbol('.'))
+            seq.append(_INTEROP_CALL)
         seq.append(instance)
         seq.append(member)
     elif token == '-':
         reader.advance()
-        seq.append(symbol.symbol('.-'))
+        seq.append(_INTEROP_PROP)
         if whitespace_chars.match(reader.peek()):
             raise SyntaxError(f"Expected Symbol; found whitespace")
         member = _read_next(ctx)
@@ -283,7 +305,7 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
         seq.append(member)
     else:
         assert not whitespace_chars.match(token)
-        seq.append(symbol.symbol('.'))
+        seq.append(_INTEROP_CALL)
         member = _read_next(ctx)
         instance = _read_next(ctx)
         if not isinstance(member, symbol.Symbol):
@@ -513,10 +535,10 @@ def _read_function(ctx: ReaderContext) -> llist.List:
         max_arg = max(numbered_args)
         arg_list = [sym_replacement(str(i)) for i in range(1, max_arg + 1)]
         if 'rest' in arg_set:
-            arg_list.append(symbol.symbol('&'))
+            arg_list.append(_AMPERSAND)
             arg_list.append(sym_replacement('rest'))
 
-    return llist.l(symbol.symbol('fn*'), vector.vector(arg_list), body)
+    return llist.l(_FN, vector.vector(arg_list), body)
 
 
 def _read_quoted(ctx: ReaderContext) -> llist.List:
@@ -524,19 +546,106 @@ def _read_quoted(ctx: ReaderContext) -> llist.List:
     start = ctx.reader.advance()
     assert start == "'"
     next_form = _read_next(ctx)
-    return llist.l(symbol.symbol('quote'), next_form)
+    return llist.l(_QUOTE, next_form)
 
 
-def _read_syntax_quoted(ctx: ReaderContext) -> llist.List:
+def _is_unquote(form: LispForm) -> bool:
+    """Return True if this form is unquote."""
+    try:
+        return form.first == _UNQUOTE  # type: ignore
+    except AttributeError:
+        return False
+
+
+def _is_unquote_splicing(form: LispForm) -> bool:
+    """Return True if this form is unquote-splicing."""
+    try:
+        return form.first == _UNQUOTE_SPLICING  # type: ignore
+    except AttributeError:
+        return False
+
+
+def _expand_syntax_quote(form: IterableLispForm) -> Iterable[LispForm]:
+    """Expand syntax quoted forms to handle unquoting and unquote-splicing.
+
+    The unquoted form (unquote x) becomes:
+        (list x)
+
+    The unquote-spliced form (unquote-splicing x) becomes
+        x
+
+    All other forms are recursively processed as by _process_syntax_quoted_form
+    and are returned as:
+        (list form)"""
+    expanded = []
+
+    for elem in form:
+        if _is_unquote(elem):
+            expanded.append(llist.l(_LIST, elem[1]))
+        elif _is_unquote_splicing(elem):
+            expanded.append(elem[1])
+        else:
+            expanded.append(llist.l(_LIST, _process_syntax_quoted_form(elem)))
+
+    return expanded
+
+
+def _process_syntax_quoted_form(form: LispForm) -> LispForm:
+    """Post-process syntax quoted forms to generate forms that can be assembled
+    into the correct types at runtime.
+
+    Lists are turned into:
+        (basilisp.core/seq
+         (basilisp.core/concat [& rest]))
+
+    Vectors are turned into:
+        (basilisp.core/apply
+         basilisp.core/vector
+         (basilisp.core.concat/ [& rest]))
+
+    Sets are turned into:
+        (basilisp.core/apply
+         basilisp.core/hash-set
+         (basilisp.core.concat/ [& rest]))
+
+    Maps are turned into:
+        (basilisp.core/apply
+         basilisp.core/hash-map
+         (basilisp.core.concat/ [& rest]))
+
+    The child forms (called rest above) are processed by _expand_syntax_quote.
+
+    All other forms are passed through without modification."""
+    lconcat = lambda v: llist.list(v).cons(_CONCAT)
+    if _is_unquote(form):
+        return form[1]  # type: ignore
+    elif _is_unquote_splicing(form):
+        raise SyntaxError("Cannot splice outside collection")
+    elif isinstance(form, llist.List):
+        return llist.l(_SEQ, lconcat(_expand_syntax_quote(form)))
+    elif isinstance(form, vector.Vector):
+        return llist.l(_APPLY, _VECTOR, lconcat(_expand_syntax_quote(form)))
+    elif isinstance(form, lset.Set):
+        return llist.l(_APPLY, _HASH_SET, lconcat(_expand_syntax_quote(form)))
+    elif isinstance(form, lmap.Map):
+        flat_kvs = seq(form.items()).flatten().to_list()
+        return llist.l(_APPLY, _HASH_MAP, lconcat(_expand_syntax_quote(flat_kvs)))
+    elif isinstance(form, symbol.Symbol):
+        return llist.l(_QUOTE, form)
+    else:
+        return form
+
+
+def _read_syntax_quoted(ctx: ReaderContext) -> LispForm:
     """Read a syntax-quote and set the syntax-quoting state in the reader."""
     start = ctx.reader.advance()
     assert start == "`"
 
     with ctx.syntax_quoted():
-        return llist.l(symbol.symbol('quote'), _read_next(ctx))
+        return _process_syntax_quoted_form(_read_next(ctx))
 
 
-def _read_unquote(ctx: ReaderContext) -> llist.List:
+def _read_unquote(ctx: ReaderContext) -> LispForm:
     """Read an unquoted form and handle any special logic of unquoting.
 
     Unquoted forms can take two, well... forms:
@@ -544,7 +653,7 @@ def _read_unquote(ctx: ReaderContext) -> llist.List:
       `~form` is read as `(unquote form)` and any nested forms are read
       literally and passed along to the compiler untouched.
 
-      `~@form` is read as `(unquote-splicing form` which tells the compiler
+      `~@form` is read as `(unquote-splicing form)` which tells the compiler
       to splice in the contents of a sequential form such as a list or
       vector into the final compiled form. This helps macro writers create
       longer forms such as function calls, function bodies, or data structures
@@ -557,10 +666,10 @@ def _read_unquote(ctx: ReaderContext) -> llist.List:
         if next_char == '@':
             ctx.reader.advance()
             next_form = _read_next(ctx)
-            return llist.l(symbol.symbol('unquote-splicing', 'basilisp.core'), next_form)
-
-        next_form = _read_next(ctx)
-        return llist.l(symbol.symbol('unquote', 'basilisp.core'), next_form)
+            return llist.l(_UNQUOTE_SPLICING, next_form)
+        else:
+            next_form = _read_next(ctx)
+            return llist.l(_UNQUOTE, next_form)
 
 
 def _read_regex(ctx: ReaderContext) -> Pattern:
@@ -605,7 +714,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispForm:
     elif token == "'":
         ctx.reader.advance()
         s = _read_sym(ctx)
-        return llist.l(symbol.symbol('var'), s)
+        return llist.l(_VAR, s)
     elif token == '"':
         return _read_regex(ctx)
     elif token == "_":

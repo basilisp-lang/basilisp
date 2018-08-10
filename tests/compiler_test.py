@@ -15,6 +15,7 @@ import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 import basilisp.reader as reader
 from basilisp.lang.runtime import Namespace, Var
+from basilisp.main import init
 from basilisp.util import Maybe
 
 # Cache the initial state of the `print_generated_python` flag.
@@ -25,6 +26,7 @@ def setup_module(module):
     """Disable the `print_generated_python` flag so we can safely capture
     stderr and stdout for tests which require those facilities."""
     runtime.print_generated_python = Mock(return_value=False)
+    init()
 
 
 def teardown_module(module):
@@ -42,6 +44,11 @@ def ns_var(test_ns: str):
     runtime.init_ns_var(which_ns=runtime._CORE_NS)
     yield runtime.set_current_ns(test_ns)
     Namespace.remove(sym.symbol(runtime._CORE_NS))
+
+
+@pytest.fixture
+def resolver() -> reader.Resolver:
+    return runtime.resolve_alias
 
 
 def lcompile(s: str, resolver: reader.Resolver = None, ctx: compiler.CompilerContext = None):
@@ -232,9 +239,7 @@ def test_quoted_list():
         sym.symbol('str'), 3, kw.keyword("feet-deep"))
 
 
-def test_syntax_quoting(test_ns: str, ns_var: Var):
-    resolver = lambda s: sym.symbol(s.name, ns=test_ns)
-
+def test_syntax_quoting(test_ns: str, ns_var: Var, resolver: reader.Resolver):
     code = """
     (def some-val \"some value!\")
 
@@ -261,6 +266,8 @@ def test_syntax_quoting(test_ns: str, ns_var: Var):
     `(whatever ~@[ssss 45])"""
     assert llist.l(sym.symbol('whatever', ns=test_ns), "a snake", 45) == lcompile(code, resolver=resolver)
 
+    assert llist.l(sym.symbol('my-symbol')) == lcompile("`(my-symbol)", resolver)
+
 
 def test_try_catch(capsys, ns_var):
     code = """
@@ -268,7 +275,7 @@ def test_try_catch(capsys, ns_var):
         (.fake-lower "UPPER")
         (catch AttributeError _ "lower"))
     """
-    assert lcompile(code) == "lower"
+    assert "lower" == lcompile(code)
 
     code = """
       (try
@@ -276,7 +283,7 @@ def test_try_catch(capsys, ns_var):
         (catch TypeError _ "lower")
         (catch AttributeError _ "mIxEd"))
     """
-    assert lcompile(code) == "mIxEd"
+    assert "mIxEd" == lcompile(code)
 
     # If you hit an error here, do yourself a favor
     # and look in the import code first.
@@ -288,22 +295,31 @@ def test_try_catch(capsys, ns_var):
         (catch AttributeError _ "mIxEd")
         (finally (builtins/print "neither")))
     """
-    assert lcompile(code) == "mIxEd"
+    assert "mIxEd" == lcompile(code)
     captured = capsys.readouterr()
-    assert captured.out == "neither\n"
+    assert "neither\n" == captured.out
 
 
 def test_unquote(ns_var: Var):
-    with pytest.raises(compiler.CompilerException):
+    with pytest.raises(AttributeError):
         lcompile("~s")
 
+    assert llist.l(sym.symbol('s')) == lcompile('`(s)')
 
-def test_unquote_splicing(ns_var: Var):
-    with pytest.raises(compiler.CompilerException):
+    with pytest.raises(AttributeError):
+        lcompile("`(~s)")
+
+
+def test_unquote_splicing(ns_var: Var, resolver: reader.Resolver):
+    with pytest.raises(AttributeError):
         lcompile("~@[1 2 3]")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile("'(~@53233)")
+    assert llist.l(1, 2, 3) == lcompile("`(~@[1 2 3])")
+
+    assert llist.l(sym.symbol('print', ns='basilisp.core'), 1, 2, 3) == lcompile(
+        "`(print ~@[1 2 3])", resolver=resolver)
+
+    assert llist.l(llist.l(reader._UNQUOTE_SPLICING, 53233)) == lcompile("'(~@53233)")
 
 
 def test_var(ns_var: Var):

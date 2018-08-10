@@ -66,3 +66,12 @@ def test_map_repr():
 
     m = lmap.map({keyword("key1"): "val1", keyword("key2"): 3})
     assert repr(m) in ['{:key2 3 :key1 "val1"}', '{:key1 "val1" :key2 3}']
+
+
+def test_hash_map_creator():
+    assert lmap.m() == lmap.hash_map()
+    assert lmap.map({1: 2}) == lmap.hash_map(1, 2)
+    assert lmap.map({1: 2, 3: 4}) == lmap.hash_map(1, 2, 3, 4)
+
+    with pytest.raises(IndexError):
+        lmap.hash_map(1, 2, 3)
