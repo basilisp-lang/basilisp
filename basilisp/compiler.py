@@ -926,8 +926,7 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
                 if v is not None:
                     # Call the macro as (f &form & rest)
                     # In Clojure there is &env, which we don't have yet!
-                    result = v.value(form, *form.rest)
-                    yield from _to_ast(ctx, result)
+                    yield from _to_ast(ctx, v.value(form, *form.rest))
                     return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
