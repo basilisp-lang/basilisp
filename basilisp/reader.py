@@ -19,7 +19,7 @@ import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vector
 import basilisp.walker as walk
-from basilisp.lang.typing import LispForm
+from basilisp.lang.typing import LispForm, IterableLispForm
 from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%')
@@ -552,7 +552,7 @@ def _read_quoted(ctx: ReaderContext) -> llist.List:
 def _is_unquote(form: LispForm) -> bool:
     """Return True if this form is unquote."""
     try:
-        return form.first == _UNQUOTE
+        return form.first == _UNQUOTE  # type: ignore
     except AttributeError:
         return False
 
@@ -560,12 +560,12 @@ def _is_unquote(form: LispForm) -> bool:
 def _is_unquote_splicing(form: LispForm) -> bool:
     """Return True if this form is unquote-splicing."""
     try:
-        return form.first == _UNQUOTE_SPLICING
+        return form.first == _UNQUOTE_SPLICING  # type: ignore
     except AttributeError:
         return False
 
 
-def _expand_syntax_quote(form: LispForm) -> Iterable[LispForm]:
+def _expand_syntax_quote(form: IterableLispForm) -> Iterable[LispForm]:
     """Expand syntax quoted forms to handle unquoting and unquote-splicing.
 
     The unquoted form (unquote x) becomes:
@@ -618,7 +618,7 @@ def _process_syntax_quoted_form(form: LispForm) -> LispForm:
     All other forms are passed through without modification."""
     lconcat = lambda v: llist.list(v).cons(_CONCAT)
     if _is_unquote(form):
-        return form[1]
+        return form[1]  # type: ignore
     elif _is_unquote_splicing(form):
         raise SyntaxError("Cannot splice outside collection")
     elif isinstance(form, llist.List):

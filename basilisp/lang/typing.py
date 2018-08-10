@@ -12,3 +12,4 @@ import basilisp.lang.vector as vec
 LispForm = Union[bool, datetime, int, float, kw.Keyword, llist.List,
                  lmap.Map, None, Pattern, lset.Set, str, sym.Symbol,
                  vec.Vector, uuid.UUID]
+IterableLispForm = Union[llist.List, lmap.Map, lset.Set, vec.Vector]
