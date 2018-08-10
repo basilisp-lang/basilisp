@@ -25,6 +25,13 @@ class List(ObjectProxy, Meta):
         return list(self.__wrapped__, meta=new_meta)
 
     @property
+    def first(self):
+        try:
+            return self.__wrapped__.first
+        except AttributeError:
+            return None
+
+    @property
     def rest(self) -> "List":
         return List(self.__wrapped__.rest)
 

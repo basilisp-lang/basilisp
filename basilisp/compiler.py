@@ -132,13 +132,12 @@ class SymbolTable:
 
 
 class CompilerContext:
-    __slots__ = ('_st', '_imports', '_is_quoted', '_current_form')
+    __slots__ = ('_st', '_imports', '_is_quoted')
 
     def __init__(self):
         self._st = collections.deque([SymbolTable('<Top>')])
         self._imports = set(runtime.Namespace.DEFAULT_IMPORTS)
         self._is_quoted = collections.deque([])
-        self._current_form = collections.deque([])
 
     @property
     def current_ns(self) -> runtime.Namespace:
@@ -162,20 +161,6 @@ class CompilerContext:
         self._is_quoted.append(False)
         yield
         self._is_quoted.pop()
-
-    @contextlib.contextmanager
-    def current_form(self, me: LispForm):
-        self._current_form.append(me)
-        yield
-        self._current_form.pop()
-
-    @property
-    def parent(self):
-        return self._current_form[-2]
-
-    @property
-    def lineage(self):
-        return self._current_form
 
     def add_import(self, imp: sym.Symbol):
         self._imports.add(imp)
@@ -257,17 +242,6 @@ ASTStream = Iterable[ASTNode]
 PyASTStream = Iterable[ast.AST]
 SimpleASTProcessor = Callable[[CompilerContext, LispForm], ast.AST]
 ASTProcessor = Callable[[CompilerContext, LispForm], ASTStream]
-
-
-def _with_lineage(f: ASTProcessor) -> ASTProcessor:
-    """Decorator to track the lineage of a form as we traverse the AST."""
-
-    @functools.wraps(f)
-    def add_parent_to_ctx(ctx: CompilerContext, form: LispForm) -> ASTStream:
-        with ctx.current_form(form):
-            yield from f(ctx, form)
-
-    return add_parent_to_ctx
 
 
 def _node(node: ast.AST) -> ASTNode:
@@ -434,7 +408,6 @@ def _clean_meta(form: meta.Meta) -> LispForm:
     return meta
 
 
-@_with_lineage
 def _meta_kwargs_ast(ctx: CompilerContext,
                      form: meta.Meta) -> ASTStream:
     if hasattr(form, 'meta') and form.meta is not None:
@@ -754,6 +727,57 @@ def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         yield from _to_ast(ctx, form[1])
 
 
+def _syntax_quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+    """Generate Python AST nodes for syntax quoted forms."""
+    # This implementation differs substantially from Clojure's implementation.
+    # In particular, Clojure handles syntax quoting entirely at the reader level.
+    #
+    # In Basilisp, the reader resolves symbols (like in Clojure), but unlike
+    # Clojure, the reader automatically splices collection literals
+    #
+    # For an expression like `(print ~@[1 2 3]), Clojure emits:
+    #     (clojure.core/seq
+    #      (clojure.core/concat
+    #       (clojure.core/list (quote clojure.core/print)) [1 2 3]))
+    #
+    # Whereas, Basilisp emits:
+    #     (syntax-quote
+    #      (basilisp.core/print 1 2 3))
+    #
+    # For an expression like `(print ~@a) where a = [1 2 3], Clojure emits:
+    #     (clojure.core/seq
+    #      (clojure.core/concat
+    #       (clojure.core/list (quote clojure.core/print)) a))
+    #
+    # Whereas, Basilisp emits:
+    #     (syntax-quote
+    #      (basilisp.core/print
+    #       (basilisp.core/unquote-splicing a))
+    #
+    # Syntax quoting of
+    #
+    # At the time I created this, I could not concretely identify why Clojure
+    # performed syntax quoting at the reader level, rather than within the compiler
+    # like most of its other syntactic features (e.g. quote, unquote, etc.).
+    # I also felt that there was a circular dependency between the runtime
+    # (seq, concat) that I wanted to avoid if possible. I'm not sure this tradeoff
+    # will payoff right now, since the reader already technically relies on the
+    # runtime to resolve symbols and aliases.
+    #
+    # In a future rewrite, I might choose to match the Clojure behavior more
+    # closely, since I am more familiar with the nuances of its behavior now.
+    # assert form[0] == _SYNTAX_QUOTE
+    # assert len(form) == 2
+    #
+    # with ctx.quoted():
+    #     yield from _to_ast(ctx, form[1])
+    #    elems_nodes, elems = _collection_literal_ast(ctx, form[1])
+    # yield from elems_nodes
+    # yield _node(ast.Call(
+    #    func=_NEW_LIST_FN_NAME, args=[ast.List(elts=list(elems), ctx=ast.Load())], keywords=[]))
+    # return
+
+
 def _catch_expr_body(body) -> PyASTStream:
     """Given a series of expression AST nodes, create a body of expression
     nodes with a final return node at the end of the list."""
@@ -765,7 +789,6 @@ def _catch_expr_body(body) -> PyASTStream:
         yield ast.Return(value=body)
 
 
-@_with_lineage
 def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
     """Generate Python AST nodes for `catch` forms."""
     assert form[0] == _CATCH
@@ -780,7 +803,6 @@ def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
         body=list(_catch_expr_body(body)))
 
 
-@_with_lineage
 def _finally_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate Python AST nodes for `finally` forms."""
     assert isinstance(form, llist.List)
@@ -899,41 +921,6 @@ def _special_form_ast(ctx: CompilerContext,
     raise CompilerException("Special form identified, but not handled") from None
 
 
-def _unquote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
-    """Generate a Python AST Node for the `unquote` special form."""
-    assert form[0] == _UNQUOTE
-    assert isinstance(form[1], sym.Symbol)
-    assert len(form) == 2
-
-    if not ctx.is_quoted:
-        raise CompilerException("Cannot unquote outside of quote") from None
-
-    with ctx.unquoted():
-        yield from _to_ast(ctx, compile_and_exec_form(form[1], ctx))
-
-
-def _unquote_splicing_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
-    """Generate a Python AST Node for the `unquote` special form."""
-    assert form.first == _UNQUOTE_SPLICING
-    assert len(form) == 2
-
-    try:
-        if not isinstance(ctx.parent, (llist.List, vec.Vector, lmap.Map, lset.Set)):
-            raise CompilerException("Cannot unquote splice outside collection") from None
-    except IndexError:
-        raise CompilerException("Cannot unquote splice outside collection") from None
-
-    with ctx.unquoted():
-        try:
-            for compiled in compile_and_exec_form(form[1], ctx):
-                deps, nodes = _nodes_and_exprl(_to_ast(ctx, compiled))
-                yield from deps
-                yield from nodes
-        except TypeError:
-            raise CompilerException("Cannot unquote splice a non-iterable value") from None
-
-
-@_with_lineage
 def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a stream of Python AST nodes for a source code list.
 
@@ -965,25 +952,9 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
             keywords=_unwrap_nodes(meta)))
         return
 
-    # Syntax quoted list
-    if isinstance(first, llist.List) and first.first == _QUOTE and isinstance(first[1], sym.Symbol):
-        elems_nodes, elems = _collection_literal_ast(ctx, form)
-        yield from elems_nodes
-        yield _node(ast.Call(
-            func=_NEW_LIST_FN_NAME, args=[ast.List(elts=list(elems), ctx=ast.Load())], keywords=[]))
-        return
-
     # Special forms
     if first in _SPECIAL_FORMS and not ctx.is_quoted:
         yield from _special_form_ast(ctx, form)
-        return
-
-    # Unquote and unquote splicing handling
-    if first == _UNQUOTE:
-        yield from _unquote_ast(ctx, form)
-        return
-    elif first == _UNQUOTE_SPLICING:
-        yield from _unquote_splicing_ast(ctx, form)
         return
 
     # Macros are immediately evaluated so the modified form can be compiled
@@ -1020,7 +991,6 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         func=elems_ast.first(), args=elems_ast.drop(1).to_list(), keywords=[]))
 
 
-@_with_lineage
 def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ASTStream:
     key_nodes, keys = _collection_literal_ast(ctx, form.keys())
     val_nodes, vals = _collection_literal_ast(ctx, form.values())
@@ -1034,7 +1004,6 @@ def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ASTStream:
         keywords=_unwrap_nodes(meta)))
 
 
-@_with_lineage
 def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
     elem_nodes, elems_ast = _collection_literal_ast(ctx, form)
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
@@ -1046,7 +1015,6 @@ def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
         keywords=_unwrap_nodes(meta)))
 
 
-@_with_lineage
 def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ASTStream:
     elem_nodes, elems_ast = _collection_literal_ast(ctx, form)
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
@@ -1067,7 +1035,6 @@ def _kw_ast(_: CompilerContext, form: kw.Keyword) -> ASTStream:
         func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg))
 
 
-@_with_lineage
 def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
     """Return a Python AST node for a Lisp symbol.
 

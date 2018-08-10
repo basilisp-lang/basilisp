@@ -1,9 +1,11 @@
+import itertools
 import threading
 from typing import Optional
 
 from functional import seq
 from pyrsistent import pmap, PMap, PSet, pset
 
+import basilisp.lang.seq as lseq
 import basilisp.lang.symbol as sym
 from basilisp.lang import atom
 from basilisp.util import Maybe
@@ -161,6 +163,7 @@ class Namespace:
                            'basilisp.lang.keyword',
                            'basilisp.lang.list',
                            'basilisp.lang.map',
+                           'basilisp.lang.runtime',
                            'basilisp.lang.set',
                            'basilisp.lang.symbol',
                            'basilisp.lang.vector',
@@ -295,6 +298,41 @@ class Namespace:
             if cls._NAMESPACES.compare_and_set(oldval, newval):
                 return ns
 
+
+###################
+# Runtime Support #
+###################
+
+
+def to_seq(o) -> lseq.Seq:
+    """Coerce the argument o to a Seq."""
+    if isinstance(o, lseq.Seq):
+        return o
+    return lseq.sequence(o)
+
+
+def concat(*seqs) -> lseq.Seq:
+    """Concatenate the sequences given by seqs into a single Seq."""
+    return lseq.sequence(itertools.chain(*map(to_seq, seqs)))
+
+
+def apply(f, *args):
+    """Apply function f to the arguments provided.
+
+    The last argument must always be coercible to a Seq. Intermediate
+    arguments are not modified.
+
+    For example:
+        (apply max [1 2 3])   ;=> 3
+        (apply max 4 [1 2 3]) ;=> 4"""
+    final = list(args[:-1])
+    final.extend(to_seq(args[-1]))
+    return f(*final)
+
+
+#########################
+# Bootstrap the Runtime #
+#########################
 
 def init_ns_var(which_ns: str = _CORE_NS,
                 ns_var_name: str = _NS_VAR_NAME) -> Var:
