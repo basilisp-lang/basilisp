@@ -544,7 +544,7 @@ def _read_quoted(ctx: ReaderContext) -> llist.List:
     return llist.l(symbol.symbol('quote'), next_form)
 
 
-def _read_syntax_quoted(ctx: ReaderContext) -> llist.List:
+def _read_syntax_quoted(ctx: ReaderContext) -> LispForm:
     """Read a syntax-quote and set the syntax-quoting state in the reader."""
     start = ctx.reader.advance()
     assert start == "`"
@@ -553,7 +553,7 @@ def _read_syntax_quoted(ctx: ReaderContext) -> llist.List:
         return _read_next(ctx)
 
 
-def _read_unquote(ctx: ReaderContext) -> llist.List:
+def _read_unquote(ctx: ReaderContext) -> LispForm:
     """Read an unquoted form and handle any special logic of unquoting.
 
     Unquoted forms can take two, well... forms:
@@ -561,7 +561,7 @@ def _read_unquote(ctx: ReaderContext) -> llist.List:
       `~form` is read as `(unquote form)` and any nested forms are read
       literally and passed along to the compiler untouched.
 
-      `~@form` is read as `(unquote-splicing form` which tells the compiler
+      `~@form` is read as `(unquote-splicing form)` which tells the compiler
       to splice in the contents of a sequential form such as a list or
       vector into the final compiled form. This helps macro writers create
       longer forms such as function calls, function bodies, or data structures
