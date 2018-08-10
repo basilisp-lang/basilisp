@@ -674,7 +674,7 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     if bindings.empty():
         raise CompilerException("Expected at least one binding in 'let*'") from None
 
-    arg_syms = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name
+    arg_syms: Dict[sym.Symbol, str] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name
     var_names = []  # Names of local Python variables bound to computed expressions prior to the function call
     arg_deps = []  # Argument expression dependency nodes
     arg_exprs = []  # Bound expressions are the expressions a name is bound to
