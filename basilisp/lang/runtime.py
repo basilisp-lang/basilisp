@@ -5,6 +5,7 @@ from typing import Optional
 from functional import seq
 from pyrsistent import pmap, PMap, PSet, pset
 
+import basilisp.lang.list as llist
 import basilisp.lang.seq as lseq
 import basilisp.lang.symbol as sym
 from basilisp.lang import atom
@@ -328,6 +329,13 @@ def apply(f, *args):
     final = list(args[:-1])
     final.extend(to_seq(args[-1]))
     return f(*final)
+
+
+def _collect_args(args) -> lseq.Seq:
+    """Collect Python starred arguments into a Basilisp list."""
+    if isinstance(args, tuple):
+        return llist.list(args)
+    raise TypeError("Python variadic arguments should always be a tuple")
 
 
 #########################
