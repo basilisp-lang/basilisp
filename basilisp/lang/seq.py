@@ -69,7 +69,7 @@ class _Sequence(Seq[T]):
     below."""
     __slots__ = ('_first', '_seq')
 
-    def __init__(self, s: Iterator, first: T):
+    def __init__(self, s: Iterator, first: T) -> None:
         self._seq = s
         self._first = first
 
