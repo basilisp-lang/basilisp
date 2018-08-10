@@ -42,6 +42,13 @@ def test_list_with_meta():
     assert l4.meta == lmap.m(type=symbol("str"), tag=keyword("macro"))
 
 
+def test_list_first():
+    assert None is llist.List.empty().first
+    assert None is llist.l().first
+    assert 1 == llist.l(1).first
+    assert 1 == llist.l(1, 2).first
+
+
 def test_list_rest():
     assert llist.l().rest == llist.l()
     assert llist.l(keyword("kw1")).rest == llist.l()
