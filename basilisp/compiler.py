@@ -727,57 +727,6 @@ def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         yield from _to_ast(ctx, form[1])
 
 
-def _syntax_quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
-    """Generate Python AST nodes for syntax quoted forms."""
-    # This implementation differs substantially from Clojure's implementation.
-    # In particular, Clojure handles syntax quoting entirely at the reader level.
-    #
-    # In Basilisp, the reader resolves symbols (like in Clojure), but unlike
-    # Clojure, the reader automatically splices collection literals
-    #
-    # For an expression like `(print ~@[1 2 3]), Clojure emits:
-    #     (clojure.core/seq
-    #      (clojure.core/concat
-    #       (clojure.core/list (quote clojure.core/print)) [1 2 3]))
-    #
-    # Whereas, Basilisp emits:
-    #     (syntax-quote
-    #      (basilisp.core/print 1 2 3))
-    #
-    # For an expression like `(print ~@a) where a = [1 2 3], Clojure emits:
-    #     (clojure.core/seq
-    #      (clojure.core/concat
-    #       (clojure.core/list (quote clojure.core/print)) a))
-    #
-    # Whereas, Basilisp emits:
-    #     (syntax-quote
-    #      (basilisp.core/print
-    #       (basilisp.core/unquote-splicing a))
-    #
-    # Syntax quoting of
-    #
-    # At the time I created this, I could not concretely identify why Clojure
-    # performed syntax quoting at the reader level, rather than within the compiler
-    # like most of its other syntactic features (e.g. quote, unquote, etc.).
-    # I also felt that there was a circular dependency between the runtime
-    # (seq, concat) that I wanted to avoid if possible. I'm not sure this tradeoff
-    # will payoff right now, since the reader already technically relies on the
-    # runtime to resolve symbols and aliases.
-    #
-    # In a future rewrite, I might choose to match the Clojure behavior more
-    # closely, since I am more familiar with the nuances of its behavior now.
-    # assert form[0] == _SYNTAX_QUOTE
-    # assert len(form) == 2
-    #
-    # with ctx.quoted():
-    #     yield from _to_ast(ctx, form[1])
-    #    elems_nodes, elems = _collection_literal_ast(ctx, form[1])
-    # yield from elems_nodes
-    # yield _node(ast.Call(
-    #    func=_NEW_LIST_FN_NAME, args=[ast.List(elts=list(elems), ctx=ast.Load())], keywords=[]))
-    # return
-
-
 def _catch_expr_body(body) -> PyASTStream:
     """Given a series of expression AST nodes, create a body of expression
     nodes with a final return node at the end of the list."""
