@@ -317,7 +317,7 @@ def concat(*seqs) -> lseq.Seq:
     return lseq.sequence(itertools.chain(*map(to_seq, seqs)))
 
 
-def apply(f, *args):
+def apply(f, args):
     """Apply function f to the arguments provided.
 
     The last argument must always be coercible to a Seq. Intermediate

@@ -1,8 +1,7 @@
 (in-ns 'basilisp.core)
 
 (def list
-  (fn* list [& args]
-       (basilisp.lang.list/l args)))
+  (fn* list [& args] args))
 
 (def ^{:doc "Return the first element in a sequence."}
   first
@@ -38,10 +37,6 @@
 (def identity
   (fn identity [v] v))
 
-(def print
-  (fn print [& args]
-    (builtins/print args)))
-
 (def
   ^{:doc "Return true if obj is an instance of class."}
   instance?
@@ -58,25 +53,29 @@
   (fn seq [o]
     (basilisp.lang.runtime/to-seq o)))
 
-(def concat
-  (fn concat [& seqs]
-    (basilisp.lang.runtime/concat seqs)))
-
 (def apply
   (fn apply [f & args]
     (basilisp.lang.runtime/apply f args)))
 
+(def concat
+  (fn concat [& seqs]
+    (apply basilisp.lang.runtime/concat seqs)))
+
 (def hash-map
   (fn hash-map [& kvs]
-    (basilisp.lang.map/hash-map kvs)))
+    (apply basilisp.lang.map/hash-map kvs)))
 
 (def hash-set
   (fn hash-set [& members]
-    (basilisp.lang.set/s members)))
+    (apply basilisp.lang.set/s members)))
 
 (def vector
   (fn vector [& elems]
-    (basilisp.lang.vector/v elems)))
+    (apply basilisp.lang.vector/v elems)))
+
+(def print
+  (fn print [& args]
+    (apply builtins/print args)))
 
 (def
   ^{:macro true
