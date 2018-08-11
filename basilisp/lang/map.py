@@ -6,6 +6,7 @@ from pyrsistent import pmap, PMap
 
 import basilisp.lang.vector as vec
 from basilisp.lang.meta import Meta
+from basilisp.lang.seq import Seqable, sequence, Seq
 from basilisp.lang.util import lrepr
 
 
@@ -56,7 +57,7 @@ class MapEntry:
         return MapEntry(vec.vector(v))
 
 
-class Map(Meta):
+class Map(Meta, Seqable):
     __slots__ = ('_inner', '_meta',)
 
     def __init__(self, wrapped: PMap, meta=None) -> None:
@@ -139,6 +140,9 @@ class Map(Meta):
     @staticmethod
     def empty() -> "Map":
         return m()
+
+    def seq(self) -> Seq:
+        return sequence(self)
 
 
 def map(kvs, meta=None) -> Map:

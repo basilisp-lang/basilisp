@@ -1,10 +1,11 @@
 from pyrsistent import PVector, pvector
 
 from basilisp.lang.meta import Meta
+from basilisp.lang.seq import Seqable, Seq, sequence
 from basilisp.lang.util import lrepr
 
 
-class Vector(Meta):
+class Vector(Meta, Seqable):
     __slots__ = ('_inner', '_meta',)
 
     def __init__(self, wrapped: PVector, meta=None) -> None:
@@ -44,6 +45,9 @@ class Vector(Meta):
     @staticmethod
     def empty() -> "Vector":
         return v()
+
+    def seq(self) -> Seq:
+        return sequence(self)
 
 
 def vector(members, meta=None) -> Vector:

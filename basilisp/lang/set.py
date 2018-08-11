@@ -4,10 +4,11 @@ from pyrsistent import PSet, pset
 
 from basilisp.lang.map import Map
 from basilisp.lang.meta import Meta
+from basilisp.lang.seq import Seqable, Seq, sequence
 from basilisp.lang.util import lrepr
 
 
-class Set(Meta):
+class Set(Meta, Seqable):
     __slots__ = ('_inner', '_meta',)
 
     def __init__(self, wrapped: PSet, meta=None) -> None:
@@ -52,6 +53,9 @@ class Set(Meta):
     @staticmethod
     def empty() -> "Set":
         return s()
+
+    def seq(self) -> Seq:
+        return sequence(self)
 
 
 def set(members, meta=None) -> Set:

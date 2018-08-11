@@ -310,6 +310,8 @@ def to_seq(o) -> lseq.Seq:
     """Coerce the argument o to a Seq."""
     if isinstance(o, lseq.Seq):
         return o
+    if isinstance(o, lseq.Seqable):
+        return o.seq()
     return lseq.sequence(o)
 
 
