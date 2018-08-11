@@ -165,6 +165,7 @@ class Namespace:
                            'basilisp.lang.list',
                            'basilisp.lang.map',
                            'basilisp.lang.runtime',
+                           'basilisp.lang.seq',
                            'basilisp.lang.set',
                            'basilisp.lang.symbol',
                            'basilisp.lang.vector',

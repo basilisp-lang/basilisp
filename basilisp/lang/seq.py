@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional, TypeVar, Iterable
+from typing import Iterator, Optional, TypeVar, Iterable, Any, cast
 
 import basilisp.lang.list as llist
+from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 
 T = TypeVar('T')
@@ -40,23 +41,33 @@ class Seq(ABC, Iterable[T]):
             o = o.rest
 
 
-class Cons(Seq):
-    __slots__ = ('_first', '_rest')
+class Cons(Seq, Meta):
+    __slots__ = ('_first', '_rest', '_meta')
 
-    def __init__(self, first=None, seq: Seq = None) -> None:
+    def __init__(self, first=None, seq: Optional[Seq[Any]] = None, meta=None) -> None:
         self._first = first
-        self._rest = seq if seq is not None else llist.List.empty()
+        self._rest = cast(Seq[Any], seq if seq is not None else llist.List.empty())
+        self._meta = meta
 
     @property
     def first(self):
         return self._first
 
     @property
-    def rest(self):
+    def rest(self) -> Seq[Any]:
         return self._rest
 
-    def cons(self, elem):
+    def cons(self, elem) -> "Cons":
         return Cons(elem, self)
+
+    @property
+    def meta(self):
+        return self._meta
+
+    def with_meta(self, meta) -> "Cons":
+        new_meta = meta if self._meta is None else self._meta.update(
+            meta)
+        return Cons(first=self._first, seq=self._rest, meta=new_meta)
 
 
 class _Sequence(Seq[T]):
