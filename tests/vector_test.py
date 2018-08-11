@@ -1,7 +1,19 @@
 import basilisp.lang.map as lmap
+import basilisp.lang.meta as meta
+import basilisp.lang.seq as lseq
 import basilisp.lang.vector as vector
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
+
+
+def test_vector_meta_interface():
+    assert isinstance(vector.v(), meta.Meta)
+    assert issubclass(vector.Vector, meta.Meta)
+
+
+def test_vector_seqable_interface():
+    assert isinstance(vector.v(), lseq.Seqable)
+    assert issubclass(vector.Vector, lseq.Seqable)
 
 
 def test_vector_conj():
