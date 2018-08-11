@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional, TypeVar, Iterable
+from typing import Iterator, Optional, TypeVar, Iterable, Any, cast
 
 import basilisp.lang.list as llist
 from basilisp.lang.meta import Meta
@@ -44,9 +44,9 @@ class Seq(ABC, Iterable[T]):
 class Cons(Seq, Meta):
     __slots__ = ('_first', '_rest', '_meta')
 
-    def __init__(self, first=None, seq: Seq = None, meta=None) -> None:
+    def __init__(self, first=None, seq: Optional[Seq[Any]] = None, meta=None) -> None:
         self._first = first
-        self._rest = seq if seq is not None else llist.List.empty()
+        self._rest = cast(Seq[Any], seq if seq is not None else llist.List.empty())
         self._meta = meta
 
     @property
@@ -54,10 +54,10 @@ class Cons(Seq, Meta):
         return self._first
 
     @property
-    def rest(self):
+    def rest(self) -> Seq[Any]:
         return self._rest
 
-    def cons(self, elem):
+    def cons(self, elem) -> "Cons":
         return Cons(elem, self)
 
     @property
