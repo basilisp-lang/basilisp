@@ -13,11 +13,10 @@ pytest-cov = "*"
 
 [packages]
 astor = "*"
-pyrsistent = "*"
-wrapt = "*"
 atomos = "*"
-python-dateutil = "*"
 pyfunctional = "*"
+pyrsistent = "*"
+python-dateutil = "*"
 
 [requires]
 python_version = "3.6"

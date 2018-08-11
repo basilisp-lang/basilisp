@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional, TypeVar, Iterable, Any, cast
+from typing import Iterator, Optional, TypeVar, Iterable, Any
 
-import basilisp.lang.list as llist
 from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 
@@ -41,12 +40,19 @@ class Seq(ABC, Iterable[T]):
             o = o.rest
 
 
+class Seqable(ABC, Iterable[T]):
+    __slots__ = ()
+
+    def seq(self) -> Seq[T]:
+        raise NotImplemented()
+
+
 class Cons(Seq, Meta):
     __slots__ = ('_first', '_rest', '_meta')
 
     def __init__(self, first=None, seq: Optional[Seq[Any]] = None, meta=None) -> None:
         self._first = first
-        self._rest = cast(Seq[Any], seq if seq is not None else llist.List.empty())
+        self._rest = seq
         self._meta = meta
 
     @property
@@ -54,7 +60,7 @@ class Cons(Seq, Meta):
         return self._first
 
     @property
-    def rest(self) -> Seq[Any]:
+    def rest(self) -> Optional[Seq[Any]]:
         return self._rest
 
     def cons(self, elem) -> "Cons":
@@ -94,20 +100,32 @@ class _Sequence(Seq[T]):
             n = next(self._seq)
             return _Sequence(self._seq, n)
         except StopIteration:
-            return llist.List.empty()
+            return None
 
     def cons(self, elem):
         return Cons(elem, self)
 
 
-def sequence(s: Iterable):
+class _EmptySequence(Seq[T]):
+    def __repr__(self):
+        return '()'
+
+    @property
+    def first(self):
+        return None
+
+    @property
+    def rest(self):
+        return _EmptySequence()
+
+    def cons(self, elem):
+        return Cons(elem, self)
+
+
+def sequence(s: Iterable) -> Seq[Any]:
     """Create a Sequence from Iterable s."""
     try:
         i = iter(s)
         return _Sequence(i, next(i))
     except StopIteration:
-        return llist.List.empty()
-
-
-Seq.register(_Sequence)
-Seq.register(llist.List)
+        return _EmptySequence()

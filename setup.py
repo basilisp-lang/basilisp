@@ -25,8 +25,7 @@ REQUIRED = [
     'atomos',
     'pyfunctional',
     'pyrsistent',
-    'pytest',
-    'wrapt'
+    'pytest'
 ]
 
 EXTRAS = {}

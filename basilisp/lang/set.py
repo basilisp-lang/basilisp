@@ -1,34 +1,53 @@
 from typing import Optional
 
 from pyrsistent import PSet, pset
-from wrapt import ObjectProxy
 
 from basilisp.lang.map import Map
 from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 
 
-class Set(ObjectProxy, Meta):
-    __slots__ = ('_self_meta', )
+class Set(Meta):
+    __slots__ = ('_inner', '_meta',)
 
     def __init__(self, wrapped: PSet, meta=None) -> None:
-        super(Set, self).__init__(wrapped)
-        self._self_meta = meta
+        self._inner = wrapped
+        self._meta = meta
 
     def __repr__(self):
-        return "#{{{set}}}".format(set=" ".join(map(lrepr, self)))
+        return "#{{{set}}}".format(set=" ".join(map(lrepr, self._inner)))
+
+    def __call__(self, key, default=None):
+        if key in self:
+            return key
+        return None
+
+    def __contains__(self, item):
+        return item in self._inner
+
+    def __eq__(self, other):
+        return self._inner == other
+
+    def __hash__(self):
+        return hash(self._inner)
+
+    def __iter__(self):
+        yield from self._inner
+
+    def __len__(self):
+        return len(self._inner)
 
     @property
     def meta(self) -> Optional[Map]:
-        return self._self_meta
+        return self._meta
 
     def with_meta(self, meta: Map) -> "Set":
-        new_meta = meta if self._self_meta is None else self._self_meta.update(
+        new_meta = meta if self._meta is None else self._meta.update(
             meta)
-        return set(self.__wrapped__, meta=new_meta)
+        return set(self._inner, meta=new_meta)
 
     def conj(self, elem) -> "Set":
-        return Set(self.add(elem), meta=self.meta)
+        return Set(self._inner.add(elem), meta=self.meta)
 
     @staticmethod
     def empty() -> "Set":
