@@ -20,6 +20,7 @@ import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as meta
 import basilisp.lang.runtime as runtime
+import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util
@@ -138,7 +139,7 @@ class CompilerContext:
 
     def __init__(self):
         self._st = collections.deque([SymbolTable('<Top>')])
-        self._imports = set(runtime.Namespace.DEFAULT_IMPORTS)
+        self._imports = atom.Atom(runtime.Namespace.DEFAULT_IMPORTS.deref())
         self._is_quoted = collections.deque([])
 
     @property
@@ -165,11 +166,11 @@ class CompilerContext:
         self._is_quoted.pop()
 
     def add_import(self, imp: sym.Symbol):
-        self._imports.add(imp)
+        self._imports.swap(lambda s: s.add(imp))
 
     @property
     def imports(self):
-        return self._imports
+        return self._imports.deref()
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -899,9 +900,8 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     Finally, function and macro calls are also written as lists, so both
     cases must be handled herein."""
     # Empty list
-    try:
-        first = form.first
-    except AttributeError:
+    first = form.first
+    if len(form) == 0:
         meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
         yield from meta_nodes
         yield _node(ast.Call(
@@ -924,9 +924,13 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
                 ns_sym = sym.symbol(s.name, ns=ctx.current_ns.name) if s.ns is None else s
                 v = Var.find(ns_sym)
                 if v is not None:
-                    # Call the macro as (f &form & rest)
-                    # In Clojure there is &env, which we don't have yet!
-                    yield from _to_ast(ctx, v.value(form, *form.rest))
+                    try:
+                        # Call the macro as (f &form & rest)
+                        # In Clojure there is &env, which we don't have yet!
+                        expanded = v.value(form, *form.rest)
+                        yield from _to_ast(ctx, expanded)
+                    except Exception as e:
+                        raise CompilerException(f"Error occurred during macroexpansion of {first}") from e
                     return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
@@ -1135,6 +1139,9 @@ def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:
     if isinstance(form, llist.List):
         yield from _list_ast(ctx, form)
         return
+    elif isinstance(form, lseq.Seq):
+        yield from _list_ast(ctx, llist.list(form))
+        return
     elif isinstance(form, vec.Vector):
         yield from _vec_ast(ctx, form)
         return
@@ -1175,7 +1182,7 @@ def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:
         yield from _regex_ast(ctx, form)
         return
     else:
-        raise TypeError(f"Unexpected form type {type(form)}")
+        raise TypeError(f"Unexpected form type {type(form)}: {form}")
 
 
 def _module_imports(ctx: CompilerContext) -> Iterable[ast.Import]:

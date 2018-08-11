@@ -159,19 +159,18 @@ class Namespace:
 
     - `imports` is a set of Python modules imported into the current
       namespace"""
-    DEFAULT_IMPORTS = seq(['builtins',
-                           'basilisp.core',
-                           'basilisp.lang.keyword',
-                           'basilisp.lang.list',
-                           'basilisp.lang.map',
-                           'basilisp.lang.runtime',
-                           'basilisp.lang.seq',
-                           'basilisp.lang.set',
-                           'basilisp.lang.symbol',
-                           'basilisp.lang.vector',
-                           'basilisp.lang.util']) \
-        .map(sym.symbol) \
-        .to_list()
+    DEFAULT_IMPORTS = atom.Atom(pset(seq(['builtins',
+                                          'basilisp.lang.keyword',
+                                          'basilisp.lang.list',
+                                          'basilisp.lang.map',
+                                          'basilisp.lang.runtime',
+                                          'basilisp.lang.seq',
+                                          'basilisp.lang.set',
+                                          'basilisp.lang.symbol',
+                                          'basilisp.lang.vector',
+                                          'basilisp.lang.util'])
+                                     .map(sym.symbol)))
+    GATED_IMPORTS = pset(['basilisp.core'])
     _NAMESPACES = atom.Atom(pmap())
 
     __slots__ = ('_name', '_module', '_mappings', '_refers', '_aliases', '_imports')
@@ -180,7 +179,16 @@ class Namespace:
         self._name = name
         self._mappings: atom.Atom = atom.Atom(pmap())
         self._aliases: atom.Atom = atom.Atom(pmap())
-        self._imports: atom.Atom = atom.Atom(pset(Namespace.DEFAULT_IMPORTS))
+        self._imports: atom.Atom = atom.Atom(pset(Namespace.DEFAULT_IMPORTS.deref()))
+
+    @classmethod
+    def add_default_import(cls, module: str):
+        """Add a gated default import to the default imports.
+
+        In particular, we need to avoid importing 'basilisp.core' before we have
+        finished macro-expanding."""
+        if module in cls.GATED_IMPORTS:
+            cls.DEFAULT_IMPORTS.swap(lambda s: s.add(sym.symbol(module)))
 
     @property
     def name(self) -> str:
@@ -306,8 +314,56 @@ class Namespace:
 ###################
 
 
-def to_seq(o) -> lseq.Seq:
-    """Coerce the argument o to a Seq."""
+def first(o):
+    """If o is a Seq, return the first element from o. If o is None, return
+    None. Otherwise, coerces o to a Seq and returns the first."""
+    if o is None:
+        return None
+    if isinstance(o, lseq.Seq):
+        return o.first
+    return to_seq(o).first
+
+
+def rest(o):
+    """If o is a Seq, return the elements after the first in o. If o is None,
+    returns an empty seq. Otherwise, coerces o to a seq and returns the rest."""
+    if o is None:
+        return None
+    if isinstance(o, lseq.Seq):
+        s = o.rest
+        if s is None:
+            return llist.List.empty()
+        return s
+    s = to_seq(o).rest
+    if s is None:
+        return llist.List.empty()
+    return s
+
+
+def next(o):
+    """Calls rest on o. If o returns an empty sequence or None, returns None.
+    Otherwise, returns the elements after the first in o."""
+    s = rest(o)
+    if not s:
+        return None
+    return s
+
+
+def cons(o, seq) -> lseq.Seq:
+    """Creates a new sequence where o is the first element and seq is the rest.
+    If seq is None, return a list containing o. If seq is not a Seq, attempt
+    to coerce it to a Seq and then cons o onto the resulting sequence."""
+    if seq is None:
+        return llist.l(o)
+    if isinstance(seq, lseq.Seq):
+        return seq.cons(o)
+    return to_seq(seq).cons(o)  # type: ignore
+
+
+def to_seq(o) -> Optional[lseq.Seq]:
+    """Coerce the argument o to a Seq. If o is None, return None."""
+    if o is None:
+        return None
     if isinstance(o, lseq.Seq):
         return o
     if isinstance(o, lseq.Seqable):
@@ -317,7 +373,7 @@ def to_seq(o) -> lseq.Seq:
 
 def concat(*seqs) -> lseq.Seq:
     """Concatenate the sequences given by seqs into a single Seq."""
-    return lseq.sequence(itertools.chain(*map(to_seq, seqs)))
+    return lseq.sequence(itertools.chain(*filter(None, map(to_seq, seqs))))
 
 
 def apply(f, args):
