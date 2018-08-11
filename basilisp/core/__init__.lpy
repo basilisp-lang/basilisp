@@ -3,18 +3,35 @@
 (def list
   (fn* list [& args] args))
 
-(def ^{:doc "Return the first element in a sequence."}
+(def
+  ^{:doc "If o is a Seq, return the first element from o. If o is nil, return
+          nil. Otherwise, coerces o to a Seq and returns the first."}
   first
-  (fn* first [seq] (.-first seq)))
+  (fn* first [seq] (basilisp.lang.runtime/first seq)))
 
-(def rest
-  (fn* rest [seq] (.-rest seq)))
+(def
+  ^{:doc "If o is a Seq, return the elements after the first in o. If o is nil,
+          returns an empty seq. Otherwise, coerces o to a seq and returns the rest."}
+  rest
+  (fn* rest [seq] (basilisp.lang.runtime/rest seq)))
 
-(def second
-  (fn* second [seq] (.-first (.-rest seq))))
+(def
+  ^{:doc "Calls rest on o. If o returns an empty sequence or nil, returns nil.
+          Otherwise, returns the elements after the first in o."}
+  next
+  (fn* next [seq] (basilisp.lang.runtime/next seq)))
 
-(def cons
-  (fn* cons [v seq] (.cons seq v)))
+(def
+  ^{:doc "Returns the second element in a Seq."}
+  second
+  (fn* second [seq] (first (rest seq))))
+
+(def
+  ^{:doc "Creates a new sequence where o is the first element and seq is the rest.
+    If seq is nil, return a list containing o. If seq is not a Seq, attempt
+    to coerce it to a Seq and then cons o onto the resulting sequence."}
+  cons
+  (fn* cons [v seq] (basilisp.lang.runtime/cons v seq)))
 
 (def meta
   (fn* meta [o]

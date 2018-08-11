@@ -306,8 +306,56 @@ class Namespace:
 ###################
 
 
-def to_seq(o) -> lseq.Seq:
-    """Coerce the argument o to a Seq."""
+def first(o):
+    """If o is a Seq, return the first element from o. If o is None, return
+    None. Otherwise, coerces o to a Seq and returns the first."""
+    if o is None:
+        return None
+    if isinstance(o, lseq.Seq):
+        return o.first
+    return to_seq(o).first
+
+
+def rest(o):
+    """If o is a Seq, return the elements after the first in o. If o is None,
+    returns an empty seq. Otherwise, coerces o to a seq and returns the rest."""
+    if o is None:
+        return None
+    if isinstance(o, lseq.Seq):
+        s = o.rest
+        if s is None:
+            return llist.List.empty()
+        return s
+    s = to_seq(o).rest
+    if s is None:
+        return llist.List.empty()
+    return s
+
+
+def next(o):
+    """Calls rest on o. If o returns an empty sequence or None, returns None.
+    Otherwise, returns the elements after the first in o."""
+    s = rest(o)
+    if not s:
+        return None
+    return s
+
+
+def cons(o, seq) -> lseq.Seq:
+    """Creates a new sequence where o is the first element and seq is the rest.
+    If seq is None, return a list containing o. If seq is not a Seq, attempt
+    to coerce it to a Seq and then cons o onto the resulting sequence."""
+    if seq is None:
+        return llist.l(o)
+    if isinstance(seq, lseq.Seq):
+        return seq.cons(o)
+    return to_seq(seq).cons(o)  # type: ignore
+
+
+def to_seq(o) -> Optional[lseq.Seq]:
+    """Coerce the argument o to a Seq. If o is None, return None."""
+    if o is None:
+        return None
     if isinstance(o, lseq.Seq):
         return o
     if isinstance(o, lseq.Seqable):

@@ -899,9 +899,8 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     Finally, function and macro calls are also written as lists, so both
     cases must be handled herein."""
     # Empty list
-    try:
-        first = form.first
-    except AttributeError:
+    first = form.first
+    if len(form) == 0:
         meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
         yield from meta_nodes
         yield _node(ast.Call(
