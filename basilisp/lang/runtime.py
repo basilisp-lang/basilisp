@@ -373,7 +373,7 @@ def to_seq(o) -> Optional[lseq.Seq]:
 
 def concat(*seqs) -> lseq.Seq:
     """Concatenate the sequences given by seqs into a single Seq."""
-    return lseq.sequence(itertools.chain(*map(to_seq, seqs)))
+    return lseq.sequence(itertools.chain(*filter(None, map(to_seq, seqs))))
 
 
 def apply(f, args):
