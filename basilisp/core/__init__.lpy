@@ -32,7 +32,7 @@
   (fn* fn [&form & decl]
        (with-meta
          (cons 'fn* decl)
-         (meta decl))))
+         (meta &form))))
 
 (def identity
   (fn identity [v] v))
@@ -48,6 +48,12 @@
   string?
   (fn string? [o]
     (instance? builtins/str o)))
+
+(def
+  ^{:doc "Return true if o is a vector."}
+  vector?
+  (fn vector? [o]
+    (instance? basilisp.lang.vector/Vector o)))
 
 (def seq
   (fn seq [o]
