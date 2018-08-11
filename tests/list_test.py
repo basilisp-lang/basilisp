@@ -1,7 +1,19 @@
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.meta as meta
+import basilisp.lang.seq as lseq
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
+
+
+def test_list_meta_interface():
+    assert isinstance(llist.l(), meta.Meta)
+    assert issubclass(llist.List, meta.Meta)
+
+
+def test_list_seq_interface():
+    assert isinstance(llist.l(), lseq.Seq)
+    assert issubclass(llist.List, lseq.Seq)
 
 
 def test_list_conj():

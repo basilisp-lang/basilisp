@@ -1,9 +1,21 @@
 import pytest
 
 import basilisp.lang.map as lmap
+import basilisp.lang.meta as meta
+import basilisp.lang.seq as lseq
 from basilisp.lang.keyword import keyword
 from basilisp.lang.map import MapEntry
 from basilisp.lang.symbol import symbol
+
+
+def test_map_meta_interface():
+    assert isinstance(lmap.m(), meta.Meta)
+    assert issubclass(lmap.Map, meta.Meta)
+
+
+def test_map_seqable_interface():
+    assert isinstance(lmap.m(), lseq.Seqable)
+    assert issubclass(lmap.Map, lseq.Seqable)
 
 
 def test_map_conj():
