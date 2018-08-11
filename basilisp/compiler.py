@@ -2,13 +2,14 @@ import ast
 import collections
 import contextlib
 import functools
+import itertools
 import types
 import uuid
 from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
 from itertools import chain
-from typing import Dict, Iterable, Pattern, Tuple, Optional, List, Union, Any, Callable, NamedTuple
+from typing import Dict, Iterable, Pattern, Tuple, Optional, List, Union, Any, Callable, NamedTuple, cast
 
 import astor.code_gen as codegen
 from functional import seq
@@ -396,6 +397,8 @@ _NEW_UUID_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.uuid_from_str')
 _NEW_VEC_FN_NAME = _load_attr(f'{_VEC_ALIAS}.vector')
 _INTERN_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.intern')
 _FIND_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.find')
+_COLLECT_ARGS_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}._collect_args')
+_COERCE_SEQ_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}.to_seq')
 
 
 def _clean_meta(form: meta.Meta) -> LispForm:
@@ -492,19 +495,29 @@ def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,
         st.new_symbol(s, safe, _SYM_CTX_LOCAL)
         munged.append(safe)
 
+    vargs_body: List[ASTNode] = []
     if has_vargs:
         try:
             vargs_sym = arg_vec[vargs_idx + 1]
             safe = genname(munge(vargs_sym.name))
-            st.new_symbol(vargs_sym, safe, _SYM_CTX_LOCAL_STARRED)
+            safe_local = genname(munge(vargs_sym.name))
+
+            # Collect all variadic arguments together into a seq and
+            # reassign them to a different local
+            vargs_body.append(_dependency(ast.Assign(targets=[ast.Name(id=safe_local, ctx=ast.Store())],
+                                                     value=ast.Call(func=_COLLECT_ARGS_FN_NAME,
+                                                                    args=[ast.Name(id=safe, ctx=ast.Load())],
+                                                                    keywords=[]))))
+
+            st.new_symbol(vargs_sym, safe_local, _SYM_CTX_LOCAL)
             vargs = ast.arg(arg=safe, annotation=None)
         except IndexError:
             raise CompilerException(
                 f"Expected variadic argument name after '&'") from None
 
     args = [ast.arg(arg=a, annotation=None) for a in munged]
-    body = _collection_ast(ctx, body_exprs)
-    return args, body, vargs
+    body = itertools.chain(vargs_body, _collection_ast(ctx, body_exprs))
+    return args, cast(ASTStream, body), vargs
 
 
 def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -913,7 +926,7 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
                 if v is not None:
                     # Call the macro as (f &form & rest)
                     # In Clojure there is &env, which we don't have yet!
-                    yield from _to_ast(ctx, v.value(form, form.rest))
+                    yield from _to_ast(ctx, v.value(form, *form.rest))
                     return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
@@ -1027,9 +1040,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
             yield _node(ast.Name(id=munged, ctx=ast.Load()))
             return
         elif sym_ctx == _SYM_CTX_LOCAL_STARRED:
-            yield _node(ast.Starred(
-                value=ast.Name(id=munged, ctx=ast.Load()), ctx=ast.Load()))
-            return
+            raise CompilerException("Direct access to varargs forbidden")
 
     if form.ns is not None:
         ns_sym = sym.symbol(form.ns)
