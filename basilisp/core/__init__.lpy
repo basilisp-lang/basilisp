@@ -100,9 +100,35 @@
   (fn print [& args]
     (apply builtins/print args)))
 
+(def count
+  (fn count [coll]
+    (try
+      (builtins/len coll)
+      (catch TypeError _
+        (count (apply vector coll))))))
+
 (def
   ^{:macro true
     :doc   ""}
   defn
   (fn defn [&form name & body]
-    `(fn* ~name )))
+    (let [body (concat body)
+          doc  (if (string? (first body))
+                 (first body)
+                 nil)
+          fname (if doc
+                  (with-meta name {:doc doc})
+                  name)
+          body (rest body)
+          args (if (vector? (first body))
+                 (first body)
+                 nil)  ;; Should throw here!
+          body (rest body)]
+      `(def ~fname
+         (fn* ~fname ~args
+              ~@body)))))
+
+(defn print-string
+  "Print a string!"
+  [s]
+  (print s))

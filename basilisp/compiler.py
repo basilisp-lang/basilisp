@@ -923,9 +923,13 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
                 ns_sym = sym.symbol(s.name, ns=ctx.current_ns.name) if s.ns is None else s
                 v = Var.find(ns_sym)
                 if v is not None:
-                    # Call the macro as (f &form & rest)
-                    # In Clojure there is &env, which we don't have yet!
-                    yield from _to_ast(ctx, v.value(form, *form.rest))
+                    try:
+                        # Call the macro as (f &form & rest)
+                        # In Clojure there is &env, which we don't have yet!
+                        expanded = v.value(form, *form.rest)
+                        yield from _to_ast(ctx, expanded)
+                    except Exception as e:
+                        raise CompilerException(f"Error occurred during macroexpansion of {first}") from e
                     return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
