@@ -9,6 +9,10 @@ from basilisp.lang.util import lrepr
 
 
 class Set(Meta, Seqable):
+    """Basilisp Set. Delegates internally to a pyrsistent.PSet object.
+
+    Do not instantiate directly. Instead use the s() and set() factory
+    methods below."""
     __slots__ = ('_inner', '_meta',)
 
     def __init__(self, wrapped: PSet, meta=None) -> None:

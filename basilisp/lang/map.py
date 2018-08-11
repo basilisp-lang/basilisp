@@ -58,6 +58,10 @@ class MapEntry:
 
 
 class Map(Meta, Seqable):
+    """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
+
+    Do not instantiate directly. Instead use the m() and map() factory
+    methods below."""
     __slots__ = ('_inner', '_meta',)
 
     def __init__(self, wrapped: PMap, meta=None) -> None:

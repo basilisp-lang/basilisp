@@ -6,6 +6,10 @@ from basilisp.lang.util import lrepr
 
 
 class Vector(Meta, Seqable):
+    """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
+
+    Do not instantiate directly. Instead use the v() and vec() factory
+    methods below."""
     __slots__ = ('_inner', '_meta',)
 
     def __init__(self, wrapped: PVector, meta=None) -> None:
