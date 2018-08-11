@@ -159,19 +159,18 @@ class Namespace:
 
     - `imports` is a set of Python modules imported into the current
       namespace"""
-    DEFAULT_IMPORTS = seq(['builtins',
-                           'basilisp.core',
-                           'basilisp.lang.keyword',
-                           'basilisp.lang.list',
-                           'basilisp.lang.map',
-                           'basilisp.lang.runtime',
-                           'basilisp.lang.seq',
-                           'basilisp.lang.set',
-                           'basilisp.lang.symbol',
-                           'basilisp.lang.vector',
-                           'basilisp.lang.util']) \
-        .map(sym.symbol) \
-        .to_list()
+    DEFAULT_IMPORTS = atom.Atom(pset(seq(['builtins',
+                                          'basilisp.lang.keyword',
+                                          'basilisp.lang.list',
+                                          'basilisp.lang.map',
+                                          'basilisp.lang.runtime',
+                                          'basilisp.lang.seq',
+                                          'basilisp.lang.set',
+                                          'basilisp.lang.symbol',
+                                          'basilisp.lang.vector',
+                                          'basilisp.lang.util'])
+                                     .map(sym.symbol)))
+    GATED_IMPORTS = pset(['basilisp.core'])
     _NAMESPACES = atom.Atom(pmap())
 
     __slots__ = ('_name', '_module', '_mappings', '_refers', '_aliases', '_imports')
@@ -180,7 +179,16 @@ class Namespace:
         self._name = name
         self._mappings: atom.Atom = atom.Atom(pmap())
         self._aliases: atom.Atom = atom.Atom(pmap())
-        self._imports: atom.Atom = atom.Atom(pset(Namespace.DEFAULT_IMPORTS))
+        self._imports: atom.Atom = atom.Atom(pset(Namespace.DEFAULT_IMPORTS.deref()))
+
+    @classmethod
+    def add_default_import(cls, module: str):
+        """Add a gated default import to the default imports.
+
+        In particular, we need to avoid importing 'basilisp.core' before we have
+        finished macro-expanding."""
+        if module in cls.GATED_IMPORTS:
+            cls.DEFAULT_IMPORTS.swap(lambda s: s.add(sym.symbol(module)))
 
     @property
     def name(self) -> str:

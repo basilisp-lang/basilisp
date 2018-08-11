@@ -67,6 +67,24 @@
     (instance? builtins/str o)))
 
 (def
+  ^{:doc "Return true if o is a list."}
+  list?
+  (fn list? [o]
+    (instance? basilisp.lang.list/List o)))
+
+(def
+  ^{:doc "Return true if o is a map."}
+  map?
+  (fn map? [o]
+    (instance? basilisp.lang.map/Map o)))
+
+(def
+  ^{:doc "Return true if o is a set."}
+  set?
+  (fn set? [o]
+    (instance? basilisp.lang.set/Set o)))
+
+(def
   ^{:doc "Return true if o is a vector."}
   vector?
   (fn vector? [o]
@@ -131,4 +149,5 @@
 (defn print-string
   "Print a string!"
   [s]
-  (print s))
+  (print s)
+  (print (string? s)))

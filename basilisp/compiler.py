@@ -20,6 +20,7 @@ import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as meta
 import basilisp.lang.runtime as runtime
+import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util
@@ -138,7 +139,7 @@ class CompilerContext:
 
     def __init__(self):
         self._st = collections.deque([SymbolTable('<Top>')])
-        self._imports = set(runtime.Namespace.DEFAULT_IMPORTS)
+        self._imports = atom.Atom(runtime.Namespace.DEFAULT_IMPORTS.deref())
         self._is_quoted = collections.deque([])
 
     @property
@@ -165,11 +166,11 @@ class CompilerContext:
         self._is_quoted.pop()
 
     def add_import(self, imp: sym.Symbol):
-        self._imports.add(imp)
+        self._imports.swap(lambda s: s.add(imp))
 
     @property
     def imports(self):
-        return self._imports
+        return self._imports.deref()
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -1138,6 +1139,9 @@ def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:
     if isinstance(form, llist.List):
         yield from _list_ast(ctx, form)
         return
+    elif isinstance(form, lseq.Seq):
+        yield from _list_ast(ctx, llist.list(form))
+        return
     elif isinstance(form, vec.Vector):
         yield from _vec_ast(ctx, form)
         return
@@ -1178,7 +1182,7 @@ def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:
         yield from _regex_ast(ctx, form)
         return
     else:
-        raise TypeError(f"Unexpected form type {type(form)}")
+        raise TypeError(f"Unexpected form type {type(form)}: {form}")
 
 
 def _module_imports(ctx: CompilerContext) -> Iterable[ast.Import]:

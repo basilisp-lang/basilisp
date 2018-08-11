@@ -68,7 +68,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         spec = cached["spec"]
         filename = spec.loader_state["filename"]
         forms = reader.read_file(filename)
-        return compiler.compile_module_bytecode(forms, compiler.CompilerContext(), filename)
+        bytecode = compiler.compile_module_bytecode(forms, compiler.CompilerContext(), filename)
+        runtime.Namespace.add_default_import(fullname)
+        return bytecode
 
 
 def hook_imports():
