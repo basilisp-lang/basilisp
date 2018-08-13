@@ -441,7 +441,7 @@ def resolve_alias(s: sym.Symbol) -> sym.Symbol:
         which_var = ns.find(sym.symbol(s.name))
         if which_var is not None:
             return sym.symbol(which_var.name.name, which_var.ns.name)
-    return s
+        return sym.symbol(s.name, ns=ns.name)
 
 
 def print_generated_python(var_name: str = _PRINT_GENERATED_PY_VAR_NAME,
