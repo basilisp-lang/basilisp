@@ -28,6 +28,7 @@ import basilisp.lang.vector as vec
 import basilisp.reader as reader
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
+from basilisp.lang.util import genname
 from basilisp.util import Maybe, munge
 
 _CORE_NS = 'basilisp.core'
@@ -60,11 +61,6 @@ _SPECIAL_FORMS = lset.s(_DEF, _DO, _FN, _IF, _IMPORT, _INTEROP_CALL,
 
 _UNQUOTE = sym.symbol("unquote", _CORE_NS)
 _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
-
-# Use an atomically incremented integer as a suffix for all
-# user-defined function and variable names compiled into Python
-# code so no conflicts occur
-_NAME_COUNTER = atom.Atom(1)
 
 _SYM_CTX_LOCAL_STARRED = kw.keyword(
     'local-starred', ns='basilisp.compiler.var-context')
@@ -209,12 +205,6 @@ def _load_attr(name: str) -> ast.Attribute:
             idx + 1)
 
     return attr_node(ast.Name(id=attrs[0], ctx=ast.Load()), 1)
-
-
-def genname(prefix: str) -> str:
-    """Generate a unique function name with the given prefix."""
-    i = _NAME_COUNTER.swap(lambda x: x + 1)
-    return f"{prefix}_{i}"
 
 
 def _is_py_module(name: str) -> bool:

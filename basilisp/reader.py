@@ -6,7 +6,7 @@ import re
 import uuid
 from datetime import datetime
 from typing import (Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping, Pattern, Iterable,
-                    TypeVar, cast)
+                    TypeVar, cast, Dict)
 
 from functional import seq
 
@@ -29,6 +29,7 @@ whitespace_chars = re.compile('[\s,]')
 newline_chars = re.compile('(\r\n|\r|\n)')
 fn_macro_args = re.compile('(%)(&|[0-9])?')
 
+GenSymEnvironment = Dict[str, symbol.Symbol]
 Resolver = Callable[[symbol.Symbol], symbol.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
 W = TypeVar('W', bound=LispReaderFn)
@@ -132,13 +133,14 @@ class StreamReader:
 
 
 class ReaderContext:
-    __slots__ = ('_reader', '_resolve', '_in_anon_fn', '_syntax_quoted')
+    __slots__ = ('_reader', '_resolve', '_in_anon_fn', '_syntax_quoted', '_gensym_env')
 
     def __init__(self, reader: StreamReader, resolver: Resolver = None) -> None:
         self._reader = reader
         self._resolve = Maybe(resolver).or_else_get(lambda x: x)
         self._in_anon_fn: Deque[bool] = collections.deque([])
         self._syntax_quoted: Deque[bool] = collections.deque([])
+        self._gensym_env: Deque[GenSymEnvironment] = collections.deque([])
 
     @property
     def reader(self) -> StreamReader:
@@ -160,10 +162,16 @@ class ReaderContext:
         except IndexError:
             return False
 
+    @property
+    def gensym_env(self) -> GenSymEnvironment:
+        return self._gensym_env[-1]
+
     @contextlib.contextmanager
     def syntax_quoted(self):
         self._syntax_quoted.append(True)
+        self._gensym_env.append({})
         yield
+        self._gensym_env.pop()
         self._syntax_quoted.pop()
 
     @contextlib.contextmanager
@@ -199,7 +207,7 @@ def _with_loc(f: W) -> W:
     return cast(W, with_lineno_and_col)
 
 
-def _read_namespaced(ctx: ReaderContext) -> Tuple[Optional[str], str]:
+def _read_namespaced(ctx: ReaderContext, allowed_suffix: Optional[str] = None) -> Tuple[Optional[str], str]:
     """Read a namespaced token from the input stream."""
     ns: List[str] = []
     name: List[str] = []
@@ -217,6 +225,9 @@ def _read_namespaced(ctx: ReaderContext) -> Tuple[Optional[str], str]:
             if len(ns) == 0:
                 raise SyntaxError("Found ''; expected namespace")
         elif ns_name_chars.match(token):
+            reader.next_token()
+            name.append(token)
+        elif allowed_suffix is not None and token == allowed_suffix:
             reader.next_token()
             name.append(token)
         elif not has_ns and token == '.':
@@ -446,7 +457,9 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
     to resolve the symbol using the resolver in the ReaderContext `ctx`.
     The resolver will look into the current namespace for an alias or
     namespace matching the symbol's namespace."""
-    ns, name = _read_namespaced(ctx)
+    ns, name = _read_namespaced(ctx, allowed_suffix='#')
+    if not ctx.is_syntax_quoted and name.endswith('#'):
+        raise SyntaxError("Gensym may not appear outside syntax quote")
     if ns is None:
         if name == 'nil':
             return None
@@ -565,7 +578,7 @@ def _is_unquote_splicing(form: LispForm) -> bool:
         return False
 
 
-def _expand_syntax_quote(form: IterableLispForm) -> Iterable[LispForm]:
+def _expand_syntax_quote(ctx: ReaderContext, form: IterableLispForm) -> Iterable[LispForm]:
     """Expand syntax quoted forms to handle unquoting and unquote-splicing.
 
     The unquoted form (unquote x) becomes:
@@ -585,12 +598,12 @@ def _expand_syntax_quote(form: IterableLispForm) -> Iterable[LispForm]:
         elif _is_unquote_splicing(elem):
             expanded.append(elem[1])
         else:
-            expanded.append(llist.l(_LIST, _process_syntax_quoted_form(elem)))
+            expanded.append(llist.l(_LIST, _process_syntax_quoted_form(ctx, elem)))
 
     return expanded
 
 
-def _process_syntax_quoted_form(form: LispForm) -> LispForm:
+def _process_syntax_quoted_form(ctx: ReaderContext, form: LispForm) -> LispForm:
     """Post-process syntax quoted forms to generate forms that can be assembled
     into the correct types at runtime.
 
@@ -622,15 +635,22 @@ def _process_syntax_quoted_form(form: LispForm) -> LispForm:
     elif _is_unquote_splicing(form):
         raise SyntaxError("Cannot splice outside collection")
     elif isinstance(form, llist.List):
-        return llist.l(_SEQ, lconcat(_expand_syntax_quote(form)))
+        return llist.l(_SEQ, lconcat(_expand_syntax_quote(ctx, form)))
     elif isinstance(form, vector.Vector):
-        return llist.l(_APPLY, _VECTOR, lconcat(_expand_syntax_quote(form)))
+        return llist.l(_APPLY, _VECTOR, lconcat(_expand_syntax_quote(ctx, form)))
     elif isinstance(form, lset.Set):
-        return llist.l(_APPLY, _HASH_SET, lconcat(_expand_syntax_quote(form)))
+        return llist.l(_APPLY, _HASH_SET, lconcat(_expand_syntax_quote(ctx, form)))
     elif isinstance(form, lmap.Map):
         flat_kvs = seq(form.items()).flatten().to_list()
-        return llist.l(_APPLY, _HASH_MAP, lconcat(_expand_syntax_quote(flat_kvs)))
+        return llist.l(_APPLY, _HASH_MAP, lconcat(_expand_syntax_quote(ctx, flat_kvs)))
     elif isinstance(form, symbol.Symbol):
+        if form.ns is None and form.name.endswith("#"):
+            try:
+                return llist.l(_QUOTE, ctx.gensym_env[form.name])
+            except KeyError:
+                genned = symbol.symbol(langutil.genname(form.name[:-1]))
+                ctx.gensym_env[form.name] = genned
+                return llist.l(_QUOTE, genned)
         return llist.l(_QUOTE, form)
     else:
         return form
@@ -642,7 +662,7 @@ def _read_syntax_quoted(ctx: ReaderContext) -> LispForm:
     assert start == "`"
 
     with ctx.syntax_quoted():
-        return _process_syntax_quoted_form(_read_next(ctx))
+        return _process_syntax_quoted_form(ctx, _read_next(ctx))
 
 
 def _read_unquote(ctx: ReaderContext) -> LispForm:
