@@ -69,22 +69,12 @@ _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
 _SYM_CTX_LOCAL_STARRED = kw.keyword(
     'local-starred', ns='basilisp.compiler.var-context')
 _SYM_CTX_LOCAL = kw.keyword('local', ns='basilisp.compiler.var-context')
-_SYM_CTX_NS_DEF = kw.keyword(
-    'namespace-defined', ns='basilisp.compiler.var-context')
-_SYM_CTX_NS_REQ = kw.keyword(
-    'namespace-required', ns='basilisp.compiler.var-context')
-_SYM_CTX_NS_REFER = kw.keyword(
-    'namespace-referred', ns='basilisp.compiler.var-context')
-_SYM_CTX_IMPORT = kw.keyword('import', ns='basilisp.compiler.var-context')
 
 SymbolTableEntry = Tuple[str, kw.Keyword, sym.Symbol]
 
 
 class SymbolTable:
-    CONTEXTS = frozenset([
-        _SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED, _SYM_CTX_NS_DEF,
-        _SYM_CTX_NS_REQ, _SYM_CTX_NS_REFER, _SYM_CTX_IMPORT
-    ])
+    CONTEXTS = frozenset([_SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED])
 
     __slots__ = ('_name', '_parent', '_table', '_children')
 
@@ -445,10 +435,7 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     ns_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[_NS_VAR_NAME], keywords=[])
     def_name = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Str(form[1].name)], keywords=[])
-
-    # Put this def'ed name into the symbol table as a namespace var
     safe_name = munge(form[1].name)
-    ctx.symbol_table.new_symbol(form[1], safe_name, _SYM_CTX_NS_DEF)
 
     try:
         def_nodes, def_value = _nodes_and_expr(_to_ast(ctx, form[2]))
@@ -587,7 +574,6 @@ def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     for s in form.rest:
         if not _is_py_module(s.name):
             raise ImportError(f"Module '{s.name}' not found")
-        ctx.symbol_table.new_symbol(s, munge(s.name), _SYM_CTX_IMPORT)
         ctx.add_import(s)
         with ctx.quoted():
             yield _dependency(ast.Call(
