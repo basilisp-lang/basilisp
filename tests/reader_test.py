@@ -5,11 +5,25 @@ import pytest
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vec
 import basilisp.reader as reader
+from basilisp.lang.runtime import Namespace, Var
+
+
+@pytest.fixture
+def test_ns() -> str:
+    return "test"
+
+
+@pytest.fixture
+def ns_var(test_ns: str):
+    runtime.init_ns_var(which_ns=runtime._CORE_NS)
+    yield runtime.set_current_ns(test_ns)
+    Namespace.remove(sym.symbol(runtime._CORE_NS))
 
 
 def read_str_first(s, resolver: reader.Resolver = None):
@@ -294,7 +308,7 @@ def test_quoted():
         sym.symbol('quote'), llist.l(sym.symbol('def'), sym.symbol('a'), 3))
 
 
-def test_syntax_quoted():
+def test_syntax_quoted(test_ns: str, ns_var: Var):
     resolver = lambda s: sym.symbol(s.name, ns='test-ns')
     assert llist.l(reader._SEQ,
                    llist.l(reader._CONCAT,
@@ -303,13 +317,12 @@ def test_syntax_quoted():
                    ) == read_str_first('`(my-symbol)', resolver=resolver
                                        ), "Resolve fully qualified symbol in syntax quote"
 
-    # TODO: assert `(my-symbol) == (current-ns/my-symbol)
-    # https://github.com/chrisrink10/basilisp/issues/48
     assert llist.l(reader._SEQ,
                    llist.l(reader._CONCAT,
                            llist.l(reader._LIST,
-                                   llist.l(sym.symbol('quote'), sym.symbol('my-symbol'))))
-                   ) == read_str_first('`(my-symbol)'), "Resolve a symbol in the current namespace"
+                                   llist.l(sym.symbol('quote'), sym.symbol('my-symbol', ns=test_ns))))
+                   ) == read_str_first('`(my-symbol)',
+                                       resolver=runtime.resolve_alias), "Resolve a symbol in the current namespace"
 
     def complex_resolver(s: sym.Symbol) -> sym.Symbol:
         if s.name == 'other-symbol':

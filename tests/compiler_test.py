@@ -266,7 +266,7 @@ def test_syntax_quoting(test_ns: str, ns_var: Var, resolver: reader.Resolver):
     `(whatever ~@[ssss 45])"""
     assert llist.l(sym.symbol('whatever', ns=test_ns), "a snake", 45) == lcompile(code, resolver=resolver)
 
-    assert llist.l(sym.symbol('my-symbol')) == lcompile("`(my-symbol)", resolver)
+    assert llist.l(sym.symbol('my-symbol', ns=test_ns)) == lcompile("`(my-symbol)", resolver)
 
 
 def test_throw():
