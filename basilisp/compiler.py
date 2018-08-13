@@ -9,7 +9,7 @@ from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
 from itertools import chain
-from typing import Dict, Iterable, Pattern, Tuple, Optional, List, Union, Any, Callable, NamedTuple, cast
+from typing import Dict, Iterable, Pattern, Tuple, Optional, List, Union, Callable, NamedTuple, cast
 
 import astor.code_gen as codegen
 from functional import seq
@@ -133,11 +133,10 @@ class SymbolTable:
 
 
 class CompilerContext:
-    __slots__ = ('_st', '_imports', '_is_quoted')
+    __slots__ = ('_st', '_is_quoted')
 
     def __init__(self):
         self._st = collections.deque([SymbolTable('<Top>')])
-        self._imports = atom.Atom(runtime.Namespace.DEFAULT_IMPORTS.deref())
         self._is_quoted = collections.deque([])
 
     @property
@@ -164,11 +163,11 @@ class CompilerContext:
         self._is_quoted.pop()
 
     def add_import(self, imp: sym.Symbol):
-        self._imports.swap(lambda s: s.add(imp))
+        self.current_ns.add_import(imp)
 
     @property
     def imports(self):
-        return self._imports.deref()
+        return self.current_ns.imports
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -440,8 +439,8 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         func=_NEW_SYM_FN_NAME, args=[ast.Str(form[1].name)], keywords=[])
 
     # Put this def'ed name into the symbol table as a namespace var
-    ctx.symbol_table.new_symbol(form[1], genname(munge(form[1].name)),
-                                _SYM_CTX_NS_DEF)
+    safe_name = munge(form[1].name)
+    ctx.symbol_table.new_symbol(form[1], safe_name, _SYM_CTX_NS_DEF)
 
     try:
         def_nodes, def_value = _nodes_and_expr(_to_ast(ctx, form[2]))
@@ -452,9 +451,11 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     yield from meta_nodes
     yield from def_nodes
+    yield _dependency(ast.Assign(targets=[ast.Name(id=safe_name, ctx=ast.Store())],
+                                 value=Maybe(def_value).map(_unwrap_node).or_else_get(ast.NameConstant(None))))
     yield _node(ast.Call(
         func=_INTERN_VAR_FN_NAME,
-        args=[ns_name, def_name, Maybe(def_value).map(_unwrap_node).value],
+        args=[ns_name, def_name, ast.Name(id=safe_name, ctx=ast.Load())],
         keywords=_unwrap_nodes(meta)))
 
 
@@ -517,7 +518,7 @@ def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for an anonymous function."""
     assert form.first == _FN
     has_name = isinstance(form[1], sym.Symbol)
-    name = munge(form[1].name) if has_name else genname(_FN_PREFIX)
+    name = genname("__" + (munge(form[1].name) if has_name else _FN_PREFIX))
 
     arg_idx = 1 + int(has_name)
     body_idx = 2 + int(has_name)
@@ -1062,7 +1063,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         if munged is None:
             raise ValueError(f"Lisp symbol '{form}' not found in {repr(st)}")
 
-        if sym_ctx == _SYM_CTX_LOCAL:
+        if sym_ctx in [_SYM_CTX_LOCAL, _SYM_CTX_NS_DEF]:
             yield _node(ast.Name(id=munged, ctx=ast.Load()))
             return
         elif sym_ctx == _SYM_CTX_LOCAL_STARRED:
@@ -1275,27 +1276,22 @@ def print_py_str(t: ast.AST) -> None:
     print("")
 
 
-# Cache global scope between runs
-_GLOBAL_SCOPE: Dict[str, Any] = {}
-
-
 def _compile_and_exec_ast(tree: ast.Module,
-                          module_name: str = 'REPL',
-                          expr_fn: str = _DEFAULT_FN,
-                          global_scope: Dict[str, Any] = None,
-                          source_filename: str = '<REPL Input>'):
+                          mod: types.ModuleType,
+                          source_filename: str = '<REPL Input>',
+                          expr_fn: str = _DEFAULT_FN):
     """Compile and execute a Python AST node generated from one of the compile
     functions provided in this module. Return the result of the executed module code."""
-    global_scope = global_scope if global_scope is not None else _GLOBAL_SCOPE
-    mod = types.ModuleType(module_name)
     bytecode = compile(tree, source_filename, 'exec')
-    exec(bytecode, global_scope, mod.__dict__)
+    exec(bytecode, mod.__dict__)
     return getattr(mod, expr_fn)()
 
 
 def compile_and_exec_form(form: LispForm,
                           ctx: CompilerContext,
-                          wrapped_fn_name: str = _DEFAULT_FN) -> Any:
+                          module: types.ModuleType,
+                          source_filename: str,
+                          wrapped_fn_name: str = _DEFAULT_FN):
     """Compile and execute the given form. This function will be most useful
     for the REPL and testing purposes. Returns the result of the executed expression.
 
@@ -1304,81 +1300,73 @@ def compile_and_exec_form(form: LispForm,
     if form is None:
         return None
 
-    expr_body: List[ast.AST] = []
-    expr_body.extend(_module_imports(ctx))
-    expr_body.append(_from_module_import())
-    expr_body.append(_ns_var())
+    if not module.__basilisp_bootstrapped__:
+        _bootstrap_module(ctx, module, source_filename)
 
     form_ast = seq(_to_ast(ctx, form)).map(_unwrap_node).to_list()
     if form_ast is None:
         return None
-    expr_body.extend(form_ast)
 
-    body = _expressionize(expr_body, wrapped_fn_name)
+    final_wrapped_name = genname(wrapped_fn_name)
+    body = _expressionize(form_ast, final_wrapped_name)
 
-    module = ast.Module(body=[body])
+    ast_module = ast.Module(body=[body])
+    ast.fix_missing_locations(ast_module)
+
+    if runtime.print_generated_python():
+        print_py_str(ast_module)
+
+    return _compile_and_exec_ast(ast_module, module, source_filename, expr_fn=final_wrapped_name)
+
+
+def _incremental_compile_module(nodes: MixedNodeStream,
+                                mod: types.ModuleType,
+                                source_filename: str) -> None:
+    """Incrementally compile a stream of AST nodes in module mod.
+
+    The source_filename will be passed to Python's native compile.
+
+    Incremental compilation is an integral part of generating a Python module
+    during the same process as macro-expansion."""
+    module_body = map(_statementize, _unwrap_nodes(nodes))
+
+    module = ast.Module(body=list(module_body))
     ast.fix_missing_locations(module)
 
     if runtime.print_generated_python():
-        print_py_str(module)
+        print(to_py_str(module))
 
-    return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name)
-
-
-def __incremental_compile_module(tree: ASTStream,
-                                 ctx: CompilerContext,
-                                 source_filename: str,
-                                 wrapped_fn_name: str = _DEFAULT_FN) -> Any:
-    """Incrementally compile AST elements, so macro functions will be available
-    at compile time."""
-    if tree is None:
-        return None
-
-    expr_body: List[ast.AST] = []
-    expr_body.extend(_module_imports(ctx))
-    expr_body.append(_from_module_import())
-    expr_body.append(_ns_var())
-    expr_body.extend(_unwrap_nodes(tree))
-
-    body = _expressionize(expr_body, wrapped_fn_name)
-
-    module = ast.Module(body=[body])
-    ast.fix_missing_locations(module)
-
-    return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name, source_filename=source_filename)
+    bytecode = compile(module, source_filename, 'exec')
+    exec(bytecode, mod.__dict__)
 
 
-def compile_module_bytecode(forms: Iterable[LispForm],
-                            ctx: CompilerContext,
-                            source_filename: str) -> types.CodeType:
-    """Compile an entire Basilisp into Python bytecode which can be executed as
-    a Python module.
+def _bootstrap_module(ctx: CompilerContext, mod: types.ModuleType, source_filename: str) -> types.ModuleType:
+    """Bootstrap a new module with imports and other boilerplate."""
+    preamble: List[ast.AST] = []
+    preamble.extend(_module_imports(ctx))
+    preamble.append(_from_module_import())
+    preamble.append(_ns_var())
+
+    _incremental_compile_module(preamble, mod, source_filename=source_filename)
+    mod.__basilisp_bootstrapped__ = True
+
+
+def compile_module(forms: Iterable[LispForm],
+                   ctx: CompilerContext,
+                   module: types.ModuleType,
+                   source_filename: str) -> None:
+    """Compile an entire Basilisp module into Python bytecode which can be
+    executed as a Python module.
 
     This function is designed to generate bytecode which can be used for the
     Basilisp import machinery, to allow callers to import Basilisp modules from
-    Python code."""
-    module_body: List[ast.AST] = []
-    module_body.extend(_module_imports(ctx))
-    module_body.append(_from_module_import())
-    module_body.append(_ns_var())
+    Python code.
+    """
+    _bootstrap_module(ctx, module, source_filename)
 
     for form in forms:
         nodes = [node for node in _to_ast(ctx, form)]
-
-        # This is pretty hacky. We basically have to build up the runtime
-        # environment in parallel with constructing the overall module AST,
-        # so we can use macros in the compilation process.
-        __incremental_compile_module(nodes, ctx, source_filename)
-
-        module_body.extend(seq(nodes).map(_unwrap_node).map(_statementize).to_list())
-
-    module = ast.Module(body=module_body)
-    ast.fix_missing_locations(module)
-
-    if runtime.print_generated_python():
-        print_py_str(module)
-
-    return compile(module, source_filename, 'exec')
+        _incremental_compile_module(nodes, module, source_filename=source_filename)
 
 
 lrepr = basilisp.lang.util.lrepr

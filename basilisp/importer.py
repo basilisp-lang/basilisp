@@ -58,19 +58,27 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         return spec.loader_state.filename
 
     def create_module(self, spec: importlib.machinery.ModuleSpec):
-        mod = super().create_module(spec)
+        mod = types.ModuleType(spec.name)
+        mod.__loader__ = spec.loader
+        mod.__package__ = spec.parent
+        mod.__spec__ = spec
         self._cache[spec.name] = {"module": mod, "spec": spec}
         return mod
 
-    def get_code(self, fullname: str) -> types.CodeType:
-        runtime.set_current_ns(fullname)
+    def get_code(self, fullname: str) -> None:
         cached = self._cache[fullname]
+        mod = cached["module"]
         spec = cached["spec"]
+        runtime.set_current_ns(fullname, module=mod)
         filename = spec.loader_state["filename"]
         forms = reader.read_file(filename)
-        bytecode = compiler.compile_module_bytecode(forms, compiler.CompilerContext(), filename)
+
+        compiler.compile_module(forms, compiler.CompilerContext(), mod, filename)
+
         runtime.Namespace.add_default_import(fullname)
-        return bytecode
+
+    def exec_module(self, module):
+        self.get_code(module.__name__)
 
 
 def hook_imports():

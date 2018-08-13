@@ -18,6 +18,8 @@ from basilisp.lang.runtime import Namespace, Var
 from basilisp.main import init
 from basilisp.util import Maybe
 
+init()
+
 # Cache the initial state of the `print_generated_python` flag.
 __PRINT_GENERATED_PYTHON_FN = runtime.print_generated_python
 
@@ -25,8 +27,7 @@ __PRINT_GENERATED_PYTHON_FN = runtime.print_generated_python
 def setup_module(module):
     """Disable the `print_generated_python` flag so we can safely capture
     stderr and stdout for tests which require those facilities."""
-    runtime.print_generated_python = Mock(return_value=False)
-    init()
+    runtime.print_generated_python = Mock(return_value=True)
 
 
 def teardown_module(module):
@@ -193,20 +194,20 @@ def test_fn_call(ns_var: Var):
     assert fvar == "bleep"
 
 
-def test_if():
+def test_if(ns_var: Var):
     assert lcompile("(if true :a :b)") == kw.keyword("a")
     assert lcompile("(if false :a :b)") == kw.keyword("b")
     assert lcompile("(if nil :a :b)") == kw.keyword("b")
     assert lcompile("(if true (if false :a :c) :b)") == kw.keyword("c")
 
 
-def test_interop_call():
+def test_interop_call(ns_var: Var):
     assert lcompile('(. "ALL-UPPER" lower)') == "all-upper"
     assert lcompile('(.upper "lower-string")') == "LOWER-STRING"
     assert lcompile('(.strip "www.example.com" "cmowz.")') == "example"
 
 
-def test_interop_prop():
+def test_interop_prop(ns_var: Var):
     assert lcompile("(.-ns 'some.ns/sym)") == "some.ns"
     assert lcompile("(. 'some.ns/sym -ns)") == "some.ns"
     assert lcompile("(.-name 'some.ns/sym)") == "sym"
@@ -216,7 +217,7 @@ def test_interop_prop():
         lcompile("(.-fake 'some.ns/sym)")
 
 
-def test_let():
+def test_let(ns_var: Var):
     assert lcompile("(let* [a 1] a)") == 1
     assert lcompile("(let* [a :keyword b \"string\"] a)") == kw.keyword('keyword')
     assert lcompile("(let* [a :value b a] b)") == kw.keyword('value')
@@ -231,7 +232,7 @@ def test_let():
         lcompile("(let* [] \"string\")")
 
 
-def test_quoted_list():
+def test_quoted_list(ns_var: Var):
     assert lcompile("'()") == llist.l()
     assert lcompile("'(str)") == llist.l(sym.symbol('str'))
     assert lcompile("'(str 3)") == llist.l(sym.symbol('str'), 3)
@@ -355,15 +356,15 @@ def test_var(ns_var: Var):
     assert v.value == "a value"
 
 
-def test_inst():
+def test_inst(ns_var: Var):
     assert lcompile('#inst "2018-01-18T03:26:57.296-00:00"'
                     ) == dateparser.parse('2018-01-18T03:26:57.296-00:00')
 
 
-def test_regex():
+def test_regex(ns_var: Var):
     assert lcompile('#"\s"') == re.compile('\s')
 
 
-def test_uuid():
+def test_uuid(ns_var: Var):
     assert lcompile('#uuid "0366f074-a8c5-4764-b340-6a5576afd2e8"'
                     ) == uuid.UUID('{0366f074-a8c5-4764-b340-6a5576afd2e8}')

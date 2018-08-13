@@ -1,5 +1,6 @@
 import itertools
 import threading
+import types
 from typing import Optional
 
 from functional import seq
@@ -17,6 +18,18 @@ _NS_VAR_NAME = '*ns*'
 _NS_VAR_NS = _CORE_NS
 _PYTHON_PACKAGE_NAME = 'basilisp'
 _PRINT_GENERATED_PY_VAR_NAME = '*print-generated-python*'
+
+
+def _new_module(name: str, doc=None) -> types.ModuleType:
+    """Create a new empty Basilisp Python module.
+
+    Modules are created for each Namespace when it is created."""
+    mod = types.ModuleType(name, doc=doc)
+    mod.__loader__ = None
+    mod.__package__ = None
+    mod.__spec__ = None
+    mod.__basilisp_bootstrapped__ = False
+    return mod
 
 
 class Var:
@@ -175,8 +188,9 @@ class Namespace:
 
     __slots__ = ('_name', '_module', '_mappings', '_refers', '_aliases', '_imports')
 
-    def __init__(self, name: sym.Symbol) -> None:
+    def __init__(self, name: sym.Symbol, module: types.ModuleType = None) -> None:
         self._name = name
+        self._module = Maybe(module).or_else(lambda: _new_module(name._as_python_sym))
         self._mappings: atom.Atom = atom.Atom(pmap())
         self._aliases: atom.Atom = atom.Atom(pmap())
         self._imports: atom.Atom = atom.Atom(pset(Namespace.DEFAULT_IMPORTS.deref()))
@@ -193,6 +207,10 @@ class Namespace:
     @property
     def name(self) -> str:
         return self._name.name
+
+    @property
+    def module(self):
+        return self._module
 
     @property
     def aliases(self) -> PMap:
@@ -273,25 +291,26 @@ class Namespace:
     @staticmethod
     def __get_or_create(ns_cache: PMap,
                         name: sym.Symbol,
+                        module: types.ModuleType = None,
                         core_ns_name=_CORE_NS) -> PMap:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
         ns = ns_cache.get(name, None)
         if ns is not None:
             return ns_cache
-        new_ns = Namespace(name)
+        new_ns = Namespace(name, module=module)
         if name.name != core_ns_name:
             Namespace.__import_core_mappings(
                 ns_cache, new_ns, core_ns_name=core_ns_name)
         return ns_cache.set(name, new_ns)
 
     @classmethod
-    def get_or_create(cls, name: sym.Symbol) -> "Namespace":
+    def get_or_create(cls, name: sym.Symbol, module: types.ModuleType = None) -> "Namespace":
         """Get the namespace bound to the symbol `name` in the global namespace
         cache, creating it if it does not exist.
 
         Return the namespace."""
-        return cls._NAMESPACES.swap(Namespace.__get_or_create, name)[name]
+        return cls._NAMESPACES.swap(Namespace.__get_or_create, name, module=module)[name]
 
     @classmethod
     def remove(cls, name: sym.Symbol) -> Optional["Namespace"]:
@@ -412,11 +431,12 @@ def init_ns_var(which_ns: str = _CORE_NS,
 
 
 def set_current_ns(ns_name: str,
+                   module: types.ModuleType = None,
                    ns_var_name: str = _NS_VAR_NAME,
                    ns_var_ns: str = _NS_VAR_NS) -> Var:
     """Set the value of the dynamic variable `*ns*` in the current thread."""
     symbol = sym.Symbol(ns_name)
-    ns = Namespace.get_or_create(symbol)
+    ns = Namespace.get_or_create(symbol, module=module)
     ns_var = Var.find(sym.Symbol(ns_var_name, ns=ns_var_ns))
     ns_var.push_bindings(ns)
     return ns_var
