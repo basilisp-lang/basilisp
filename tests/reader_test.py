@@ -303,15 +303,6 @@ def test_syntax_quoted():
                    ) == read_str_first('`(my-symbol)', resolver=resolver
                                        ), "Resolve fully qualified symbol in syntax quote"
 
-    gensym = read_str_first("`s#")
-    assert isinstance(gensym, llist.List)
-    assert gensym.first == reader._QUOTE
-    genned_sym: sym.Symbol = gensym[1]
-    assert genned_sym.name.startswith("s_")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("s#")
-
     # TODO: assert `(my-symbol) == (current-ns/my-symbol)
     # https://github.com/chrisrink10/basilisp/issues/48
     assert llist.l(reader._SEQ,
@@ -352,6 +343,41 @@ def test_syntax_quoted():
                            llist.l(reader._LIST,
                                    llist.l(sym.symbol('quote'), sym.symbol('my-symbol'))))
                    ) == read_str_first("`(~'my-symbol)"), "Do not resolve unquoted quoted syms"
+
+
+def test_syntax_quote_gensym():
+    gensym = read_str_first("`s#")
+    assert isinstance(gensym, llist.List)
+    assert gensym.first == reader._QUOTE
+    genned_sym: sym.Symbol = gensym[1]
+    assert genned_sym.name.startswith("s_")
+
+    # Verify that identical gensym forms resolve to the same
+    # symbol inside the same syntax quote expansion
+    multisym = read_str_first("`(s1# s2# s1#)")[1].rest
+
+    multisym1 = multisym[0][1]
+    assert reader._QUOTE == multisym1[0]
+    genned_sym1: sym.Symbol = multisym1[1]
+    assert genned_sym1.name.startswith("s1_")
+
+    multisym2 = multisym[1][1]
+    assert reader._QUOTE == multisym2[0]
+    genned_sym2: sym.Symbol = multisym2[1]
+    assert genned_sym2.name.startswith("s2_")
+
+    multisym3 = multisym[2][1]
+    assert reader._QUOTE == multisym3[0]
+    genned_sym3: sym.Symbol = multisym3[1]
+    assert genned_sym3.name.startswith("s1_")
+
+    assert genned_sym1 == genned_sym3
+    assert genned_sym1 != genned_sym2
+
+    # Gensym literals must appear inside of syntax quote
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("s#")
+
 
 
 def test_unquote():
