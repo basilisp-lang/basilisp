@@ -1,5 +1,6 @@
 import functools
 import inspect
+import keyword
 import os.path
 from typing import Optional, Callable, TypeVar, Generic
 
@@ -110,4 +111,8 @@ def munge(s: str) -> str:
     for c in s:
         new_str.append(_MUNGE_REPLACEMENTS.get(c, c))
 
-    return ''.join(new_str)
+    new_s = ''.join(new_str)
+
+    if keyword.iskeyword(new_s):
+        return f"{new_s}_"
+    return new_s
