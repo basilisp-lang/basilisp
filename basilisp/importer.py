@@ -62,23 +62,37 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         mod.__loader__ = spec.loader
         mod.__package__ = spec.parent
         mod.__spec__ = spec
-        self._cache[spec.name] = {"module": mod, "spec": spec}
+        self._cache[spec.name] = {"spec": spec}
         return mod
 
-    def get_code(self, fullname: str) -> None:
-        cached = self._cache[fullname]
-        mod = cached["module"]
-        spec = cached["spec"]
-        runtime.set_current_ns(fullname, module=mod)
-        filename = spec.loader_state["filename"]
-        forms = reader.read_file(filename)
+    # def get_code(self, fullname: str) -> None:
+    #     pass
 
-        compiler.compile_module(forms, compiler.CompilerContext(), mod, filename)
-
-        runtime.Namespace.add_default_import(fullname)
+    # cached = self._cache[fullname]
+    # mod = cached["module"]
+    # spec = cached["spec"]
+    # runtime.set_current_ns(fullname, module=mod)
+    # filename = spec.loader_state["filename"]
+    # forms = reader.read_file(filename)
+    #
+    # compiler.compile_module(forms, compiler.CompilerContext(), mod, filename)
+    #
+    # runtime.Namespace.add_default_import(fullname)
 
     def exec_module(self, module):
-        self.get_code(module.__name__)
+        fullname = module.__name__
+        cached = self._cache[fullname]
+        cached["module"] = module
+        spec = cached["spec"]
+        filename = spec.loader_state["filename"]
+
+        ns: runtime.Namespace = runtime.set_current_ns(fullname).value
+        ns.module = module
+
+        forms = reader.read_file(filename)
+        compiler.compile_module(forms, compiler.CompilerContext(), module, filename)
+
+        runtime.Namespace.add_default_import(fullname)
 
 
 def hook_imports():

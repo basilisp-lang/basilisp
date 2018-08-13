@@ -9,7 +9,7 @@ from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
 from itertools import chain
-from typing import Dict, Iterable, Pattern, Tuple, Optional, List, Union, Callable, NamedTuple, cast
+from typing import (Dict, Iterable, Pattern, Tuple, Optional, List, Union, Callable, Mapping, NamedTuple, cast)
 
 import astor.code_gen as codegen
 from functional import seq
@@ -31,6 +31,9 @@ from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
 from basilisp.util import Maybe
 
+USE_VAR_INDIRECTION = 'use_var_indirection'
+
+_BUILTINS_NS = 'builtins'
 _CORE_NS = 'basilisp.core'
 _DEFAULT_FN = '__lisp_expr__'
 _DO_PREFIX = 'lisp_do'
@@ -133,15 +136,20 @@ class SymbolTable:
 
 
 class CompilerContext:
-    __slots__ = ('_st', '_is_quoted')
+    __slots__ = ('_st', '_is_quoted', '_opts')
 
-    def __init__(self):
+    def __init__(self, opts: Dict[str, bool] = None):
         self._st = collections.deque([SymbolTable('<Top>')])
         self._is_quoted = collections.deque([])
+        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
 
     @property
     def current_ns(self) -> runtime.Namespace:
         return runtime.get_current_ns()
+
+    @property
+    def opts(self) -> Mapping[str, bool]:
+        return self._opts
 
     @property
     def is_quoted(self) -> bool:
@@ -940,21 +948,21 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     # Macros are immediately evaluated so the modified form can be compiled
     if isinstance(first, sym.Symbol):
-        sym_info = ctx.symbol_table.find_symbol(first)
-        if sym_info is not None:
-            _, sym_ctx, s = sym_info
-            if _is_macro(s):
-                ns_sym = sym.symbol(s.name, ns=ctx.current_ns.name) if s.ns is None else s
-                v = Var.find(ns_sym)
-                if v is not None:
-                    try:
-                        # Call the macro as (f &form & rest)
-                        # In Clojure there is &env, which we don't have yet!
-                        expanded = v.value(form, *form.rest)
-                        yield from _to_ast(ctx, expanded)
-                    except Exception as e:
-                        raise CompilerException(f"Error occurred during macroexpansion of {first}") from e
-                    return
+        if first.ns is not None:
+            v = Var.find(first)
+        else:
+            ns_sym = sym.symbol(first.name, ns=ctx.current_ns.name)
+            v = Var.find(ns_sym)
+
+        if v is not None and _is_macro(v):
+            try:
+                # Call the macro as (f &form & rest)
+                # In Clojure there is &env, which we don't have yet!
+                expanded = v.value(form, *form.rest)
+                yield from _to_ast(ctx, expanded)
+            except Exception as e:
+                raise CompilerException(f"Error occurred during macroexpansion of {first}") from e
+            return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
 
@@ -1055,6 +1063,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         yield _node(base_sym)
         return
 
+    # Look up local symbols (function parameters, let bindings, etc.)
     st = ctx.symbol_table
     st_sym = st.find_symbol(form)
 
@@ -1063,26 +1072,49 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         if munged is None:
             raise ValueError(f"Lisp symbol '{form}' not found in {repr(st)}")
 
-        if sym_ctx in [_SYM_CTX_LOCAL, _SYM_CTX_NS_DEF]:
+        if sym_ctx == _SYM_CTX_LOCAL:
             yield _node(ast.Name(id=munged, ctx=ast.Load()))
             return
         elif sym_ctx == _SYM_CTX_LOCAL_STARRED:
             raise CompilerException("Direct access to varargs forbidden")
 
+    # Attempt to resolve any symbol with a namespace to a direct Python call
     if form.ns is not None:
+        if form.ns == _BUILTINS_NS:
+            yield _node(_load_attr(f"{munge(form.name)}"))
+            return
         ns_sym = sym.symbol(form.ns)
-        ns_sym_info = st.find_symbol(ns_sym)
-        if ns_sym_info is not None:
-            _, sym_ctx, _ = ns_sym_info
-            if sym_ctx == _SYM_CTX_IMPORT:
-                yield _node(_load_attr(f"{form.ns}.{form.name}"))
-                return
-        if ns_sym in ctx.imports:
+        if ns_sym in ctx.current_ns.imports:
             safe_ns = munge(form.ns)
             safe_name = munge(form.name)
             yield _node(_load_attr(f"{safe_ns}.{safe_name}"))
             return
+        elif ns_sym in ctx.current_ns.aliases:
+            aliased_ns = ctx.current_ns.aliases[ns_sym]
+            safe_ns = munge(aliased_ns)
+            safe_name = munge(form.name)
+            yield _node(_load_attr(f"{safe_ns}.{safe_name}"))
+            return
+    else:
+        if not USE_VAR_INDIRECTION in ctx.opts:
+            # Look up the symbol in the namespace mapping of the current namespace.
+            # If we do find that mapping, then we can use a Python variable so long
+            # as the module defined for this namespace has a Python function backing
+            # it. We may have to use a direct namespace reference for imported functions.
+            v = ctx.current_ns.find(form)
+            if v is not None:
+                safe_name = munge(form.name)
+                defined_in_py = safe_name in v.ns.module.__dict__
+                if defined_in_py:
+                    if ctx.current_ns is v.ns:
+                        yield _node(_load_attr(f"{safe_name}"))
+                        return
+                    else:
+                        safe_ns = munge(v.ns.name)
+                        yield _node(_load_attr(f"{safe_ns}.{safe_name}"))
+                        return
 
+    # If we couldn't find the symbol anywhere else, generate a Var.find call
     yield _node(ast.Attribute(
         value=ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]),
         attr='value',
@@ -1268,29 +1300,10 @@ def to_py_str(t: ast.AST) -> str:
     return codegen.to_source(t)
 
 
-def print_py_str(t: ast.AST) -> None:
-    print("")
-    print("Generated Python:")
-    for line in to_py_str(t).splitlines():
-        print(' ' * 4, line)
-    print("")
-
-
-def _compile_and_exec_ast(tree: ast.Module,
-                          mod: types.ModuleType,
-                          source_filename: str = '<REPL Input>',
-                          expr_fn: str = _DEFAULT_FN):
-    """Compile and execute a Python AST node generated from one of the compile
-    functions provided in this module. Return the result of the executed module code."""
-    bytecode = compile(tree, source_filename, 'exec')
-    exec(bytecode, mod.__dict__)
-    return getattr(mod, expr_fn)()
-
-
 def compile_and_exec_form(form: LispForm,
                           ctx: CompilerContext,
                           module: types.ModuleType,
-                          source_filename: str,
+                          source_filename: str = '<REPL Input>',
                           wrapped_fn_name: str = _DEFAULT_FN):
     """Compile and execute the given form. This function will be most useful
     for the REPL and testing purposes. Returns the result of the executed expression.
@@ -1307,16 +1320,23 @@ def compile_and_exec_form(form: LispForm,
     if form_ast is None:
         return None
 
+    # Split AST nodes into into inits, last group. Only expressionize the last
+    # component, and inject the rest of the nodes directly into the module.
+    # This will alow the REPL to take advantage of direct Python variable access
+    # rather than using Var.find indrection.
     final_wrapped_name = genname(wrapped_fn_name)
-    body = _expressionize(form_ast, final_wrapped_name)
+    body = _expressionize([form_ast[-1]], final_wrapped_name)
+    form_ast = list(itertools.chain(map(_statementize, form_ast[:-1]), [body]))
 
-    ast_module = ast.Module(body=[body])
+    ast_module = ast.Module(body=form_ast)
     ast.fix_missing_locations(ast_module)
 
     if runtime.print_generated_python():
-        print_py_str(ast_module)
+        print(to_py_str(ast_module))
 
-    return _compile_and_exec_ast(ast_module, module, source_filename, expr_fn=final_wrapped_name)
+    bytecode = compile(ast_module, source_filename, 'exec')
+    exec(bytecode, module.__dict__)
+    return getattr(module, final_wrapped_name)()
 
 
 def _incremental_compile_module(nodes: MixedNodeStream,

@@ -20,5 +20,8 @@ def teardown_module(module):
     runtime.print_generated_python = __PRINT_GENERATED_PYTHON_FN
 
 
+import basilisp.core
+
+
 def test_first():
     assert None is basilisp.core.first(None)

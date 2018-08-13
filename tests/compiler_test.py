@@ -1,5 +1,7 @@
 import re
+import types
 import uuid
+from typing import Optional
 from unittest.mock import Mock
 
 import dateutil.parser as dateparser
@@ -27,7 +29,7 @@ __PRINT_GENERATED_PYTHON_FN = runtime.print_generated_python
 def setup_module(module):
     """Disable the `print_generated_python` flag so we can safely capture
     stderr and stdout for tests which require those facilities."""
-    runtime.print_generated_python = Mock(return_value=True)
+    runtime.print_generated_python = Mock(return_value=False)
 
 
 def teardown_module(module):
@@ -52,15 +54,19 @@ def resolver() -> reader.Resolver:
     return runtime.resolve_alias
 
 
-def lcompile(s: str, resolver: reader.Resolver = None, ctx: compiler.CompilerContext = None):
+def lcompile(s: str,
+             resolver: Optional[reader.Resolver] = None,
+             ctx: Optional[compiler.CompilerContext] = None,
+             mod: Optional[types.ModuleType] = None):
     """Compile and execute the code in the input string.
 
     Return the resulting expression."""
     ctx = Maybe(ctx).or_else(lambda: compiler.CompilerContext())
+    mod = Maybe(mod).or_else(lambda: runtime._new_module('compiler_test'))
 
     last = None
     for form in reader.read_str(s, resolver=resolver):
-        last = compiler.compile_and_exec_form(form, ctx)
+        last = compiler.compile_and_exec_form(form, ctx, mod)
 
     return last
 
@@ -270,7 +276,7 @@ def test_syntax_quoting(test_ns: str, ns_var: Var, resolver: reader.Resolver):
     assert llist.l(sym.symbol('my-symbol', ns=test_ns)) == lcompile("`(my-symbol)", resolver)
 
 
-def test_throw():
+def test_throw(ns_var):
     with pytest.raises(AttributeError):
         lcompile("(throw (builtins/AttributeError))")
 

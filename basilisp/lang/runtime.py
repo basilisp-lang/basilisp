@@ -212,6 +212,14 @@ class Namespace:
     def module(self):
         return self._module
 
+    @module.setter
+    def module(self, m: types.ModuleType):
+        """Override the Python module for this Namespace.
+
+        This should only be done by basilisp.importer code to make sure the
+        correct module is generated for `basilisp.core`."""
+        self._module = m
+
     @property
     def aliases(self) -> PMap:
         return self._aliases.deref()
