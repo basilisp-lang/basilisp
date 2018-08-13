@@ -379,7 +379,6 @@ def test_syntax_quote_gensym():
         read_str_first("s#")
 
 
-
 def test_unquote():
     assert llist.l(reader._UNQUOTE, sym.symbol('my-symbol')) == read_str_first('~my-symbol')
 
