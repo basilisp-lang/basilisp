@@ -65,33 +65,35 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         self._cache[spec.name] = {"spec": spec}
         return mod
 
-    # def get_code(self, fullname: str) -> None:
-    #     pass
-
-    # cached = self._cache[fullname]
-    # mod = cached["module"]
-    # spec = cached["spec"]
-    # runtime.set_current_ns(fullname, module=mod)
-    # filename = spec.loader_state["filename"]
-    # forms = reader.read_file(filename)
-    #
-    # compiler.compile_module(forms, compiler.CompilerContext(), mod, filename)
-    #
-    # runtime.Namespace.add_default_import(fullname)
-
     def exec_module(self, module):
+        """Compile the Basilisp module into Python code.
+
+        Basilisp is fundamentally a form-at-a-time compilation, meaning that
+        each form in a module may require code compiled from an earlier form, so
+        we incrementally compile a Python module by evaluating a single top-level
+        form at a time and inserting the resulting AST nodes into the Pyton module."""
         fullname = module.__name__
         cached = self._cache[fullname]
         cached["module"] = module
         spec = cached["spec"]
         filename = spec.loader_state["filename"]
 
+        # During the bootstrapping process, the 'basilisp.core namespace is created with
+        # a blank module. If we do not replace the module here with the module we are
+        # generating, then we will not be able to use advanced compilation features such
+        # as direct Python variable access to functions and other def'ed values.
         ns: runtime.Namespace = runtime.set_current_ns(fullname).value
         ns.module = module
 
         forms = reader.read_file(filename)
         compiler.compile_module(forms, compiler.CompilerContext(), module, filename)
 
+        # Because we want to (by default) add 'basilisp.core into every namespace by default,
+        # we want to make sure we don't try to add 'basilisp.core into itself, causing a
+        # circular import error.
+        #
+        # Later on, we can probably remove this and just use the 'ns macro to auto-refer
+        # all 'basilisp.core values into the current namespace.
         runtime.Namespace.add_default_import(fullname)
 
 
