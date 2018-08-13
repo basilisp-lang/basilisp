@@ -35,6 +35,7 @@ _DEFAULT_FN = '__lisp_expr__'
 _DO_PREFIX = 'lisp_do'
 _FN_PREFIX = 'lisp_fn'
 _IF_PREFIX = 'lisp_if'
+_THROW_PREFIX = 'lisp_throw'
 _TRY_PREFIX = 'lisp_try'
 _NS_VAR = '__NS'
 _LISP_NS_VAR = '*ns*'
@@ -51,10 +52,11 @@ _INTEROP_CALL = sym.symbol(".")
 _INTEROP_PROP = sym.symbol(".-")
 _LET = sym.symbol("let*")
 _QUOTE = sym.symbol("quote")
+_THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
 _SPECIAL_FORMS = lset.s(_DEF, _DO, _FN, _IF, _IMPORT, _INTEROP_CALL,
-                        _INTEROP_PROP, _LET, _QUOTE, _TRY, _VAR)
+                        _INTEROP_PROP, _LET, _QUOTE, _THROW, _TRY, _VAR)
 
 _UNQUOTE = sym.symbol("unquote", _CORE_NS)
 _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
@@ -731,7 +733,7 @@ def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     since only a small number of forms are quoted. This function merely
     marks the `quoted` flag in the compiler context to let any functions
     downstream know that they must quote the form they are compiling."""
-    assert form[0] == _QUOTE
+    assert form.first == _QUOTE
     assert len(form) == 2
     with ctx.quoted():
         yield from _to_ast(ctx, form[1])
@@ -750,7 +752,7 @@ def _catch_expr_body(body) -> PyASTStream:
 
 def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
     """Generate Python AST nodes for `catch` forms."""
-    assert form[0] == _CATCH
+    assert form.first == _CATCH
     assert len(form) >= 4
     assert isinstance(form[1], sym.Symbol)
     assert isinstance(form[2], sym.Symbol)
@@ -774,9 +776,36 @@ def _finally_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         .map(lambda node: _statementize(node))
 
 
+def _throw_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+    """Generate a Python AST Node for the `throw` special form."""
+    assert form.first == _THROW
+    assert len(form) == 2
+
+    deps, expr = _nodes_and_expr(_to_ast(ctx, form[1]))
+    yield from deps
+
+    throw_fn = genname(_THROW_PREFIX)
+    raise_body = ast.Raise(exc=_unwrap_node(expr), cause=None)
+
+    yield _dependency(ast.FunctionDef(
+        name=throw_fn,
+        args=ast.arguments(
+            args=[],
+            kwarg=None,
+            vararg=None,
+            kwonlyargs=[],
+            defaults=[],
+            kw_defaults=[]),
+        body=[raise_body],
+        decorator_list=[],
+        returns=None))
+
+    yield _node(ast.Call(func=ast.Name(id=throw_fn, ctx=ast.Load()), args=[], keywords=[]))
+
+
 def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST nodes for `try` forms."""
-    assert form[0] == _TRY
+    assert form.first == _TRY
     assert len(form) >= 3
 
     expr_nodes, expr_v = _nodes_and_expr(_to_ast(ctx, form[1]))
@@ -870,6 +899,9 @@ def _special_form_ast(ctx: CompilerContext,
         return
     elif which == _QUOTE:
         yield from _quote_ast(ctx, form)
+        return
+    elif which == _THROW:
+        yield from _throw_ast(ctx, form)
         return
     elif which == _TRY:
         yield from _try_ast(ctx, form)

@@ -269,6 +269,17 @@ def test_syntax_quoting(test_ns: str, ns_var: Var, resolver: reader.Resolver):
     assert llist.l(sym.symbol('my-symbol')) == lcompile("`(my-symbol)", resolver)
 
 
+def test_throw():
+    with pytest.raises(AttributeError):
+        lcompile("(throw (builtins/AttributeError))")
+
+    with pytest.raises(TypeError):
+        lcompile("(throw (builtins/TypeError))")
+
+    with pytest.raises(ValueError):
+        lcompile("(throw (builtins/ValueError))")
+
+
 def test_try_catch(capsys, ns_var):
     code = """
       (try
