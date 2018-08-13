@@ -303,6 +303,15 @@ def test_syntax_quoted():
                    ) == read_str_first('`(my-symbol)', resolver=resolver
                                        ), "Resolve fully qualified symbol in syntax quote"
 
+    gensym = read_str_first("`s#")
+    assert isinstance(gensym, llist.List)
+    assert gensym.first == reader._QUOTE
+    genned_sym: sym.Symbol = gensym[1]
+    assert genned_sym.name.startswith("s_")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("s#")
+
     # TODO: assert `(my-symbol) == (current-ns/my-symbol)
     # https://github.com/chrisrink10/basilisp/issues/48
     assert llist.l(reader._SEQ,

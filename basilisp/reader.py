@@ -199,7 +199,7 @@ def _with_loc(f: W) -> W:
     return cast(W, with_lineno_and_col)
 
 
-def _read_namespaced(ctx: ReaderContext) -> Tuple[Optional[str], str]:
+def _read_namespaced(ctx: ReaderContext, allowed_suffix: str = '') -> Tuple[Optional[str], str]:
     """Read a namespaced token from the input stream."""
     ns: List[str] = []
     name: List[str] = []
@@ -216,7 +216,7 @@ def _read_namespaced(ctx: ReaderContext) -> Tuple[Optional[str], str]:
             name = []
             if len(ns) == 0:
                 raise SyntaxError("Found ''; expected namespace")
-        elif ns_name_chars.match(token):
+        elif ns_name_chars.match(token) or token == allowed_suffix:
             reader.next_token()
             name.append(token)
         elif not has_ns and token == '.':
@@ -446,7 +446,9 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
     to resolve the symbol using the resolver in the ReaderContext `ctx`.
     The resolver will look into the current namespace for an alias or
     namespace matching the symbol's namespace."""
-    ns, name = _read_namespaced(ctx)
+    ns, name = _read_namespaced(ctx, allowed_suffix='#')
+    if not ctx.is_syntax_quoted and name.endswith('#'):
+        raise SyntaxError("Gensym may not appear outside syntax quote")
     if ns is None:
         if name == 'nil':
             return None
@@ -631,6 +633,8 @@ def _process_syntax_quoted_form(form: LispForm) -> LispForm:
         flat_kvs = seq(form.items()).flatten().to_list()
         return llist.l(_APPLY, _HASH_MAP, lconcat(_expand_syntax_quote(flat_kvs)))
     elif isinstance(form, symbol.Symbol):
+        if form.ns is None and form.name.endswith("#"):
+            return llist.l(_QUOTE, symbol.symbol(langutil.genname(form.name[:-1])))
         return llist.l(_QUOTE, form)
     else:
         return form

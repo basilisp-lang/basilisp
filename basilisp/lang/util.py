@@ -5,6 +5,8 @@ from typing import Pattern
 
 import dateutil.parser as dateparser
 
+import basilisp.lang.atom as atom
+
 
 def lrepr(f) -> str:
     """Return the canonical Lisp representation of an object."""
@@ -26,6 +28,23 @@ def lrepr(f) -> str:
         return f'#"{f.pattern}"'
     else:
         return repr(f)
+
+
+# Use an atomically incremented integer as a suffix for all
+# user-defined function and variable names compiled into Python
+# code so no conflicts occur
+_NAME_COUNTER = atom.Atom(1)
+
+
+def next_name_id() -> int:
+    """Increment the name counter and return the next value."""
+    return _NAME_COUNTER.swap(lambda x: x + 1)
+
+
+def genname(prefix: str) -> str:
+    """Generate a unique function name with the given prefix."""
+    i = next_name_id()
+    return f"{prefix}_{i}"
 
 
 def inst_from_str(inst_str: str) -> datetime.datetime:
