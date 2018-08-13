@@ -9,7 +9,8 @@ from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
 from itertools import chain
-from typing import (Dict, Iterable, Pattern, Tuple, Optional, List, Union, Callable, Mapping, NamedTuple, cast)
+from typing import (Dict, Iterable, Pattern, Tuple, Optional, List, Union, Callable, Mapping, NamedTuple, cast, Deque,
+                    Any)
 
 import astor.code_gen as codegen
 from functional import seq
@@ -138,9 +139,9 @@ class SymbolTable:
 class CompilerContext:
     __slots__ = ('_st', '_is_quoted', '_opts')
 
-    def __init__(self, opts: Dict[str, bool] = None):
+    def __init__(self, opts: Dict[str, bool] = None) -> None:
         self._st = collections.deque([SymbolTable('<Top>')])
-        self._is_quoted = collections.deque([])
+        self._is_quoted: Deque[bool] = collections.deque([])
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
 
     @property
@@ -149,7 +150,7 @@ class CompilerContext:
 
     @property
     def opts(self) -> Mapping[str, bool]:
-        return self._opts
+        return self._opts  # type: ignore
 
     @property
     def is_quoted(self) -> bool:
@@ -425,11 +426,10 @@ def _meta_kwargs_ast(ctx: CompilerContext,
 _SYM_MACRO_META_KEY = kw.keyword("macro")
 
 
-def _is_macro(s: sym.Symbol) -> bool:
-    """Return True if the Var pointed to by this Symbol holds a macro
-    function."""
+def _is_macro(v: Var) -> bool:
+    """Return True if the Var holds a macro function."""
     try:
-        return Maybe(s.meta).map(
+        return Maybe(v.meta).map(
             lambda m: m.get(_SYM_MACRO_META_KEY, None)  # type: ignore
         ).or_else_get(
             False)
@@ -1304,7 +1304,7 @@ def compile_and_exec_form(form: LispForm,
                           ctx: CompilerContext,
                           module: types.ModuleType,
                           source_filename: str = '<REPL Input>',
-                          wrapped_fn_name: str = _DEFAULT_FN):
+                          wrapped_fn_name: str = _DEFAULT_FN) -> Any:
     """Compile and execute the given form. This function will be most useful
     for the REPL and testing purposes. Returns the result of the executed expression.
 
@@ -1313,7 +1313,7 @@ def compile_and_exec_form(form: LispForm,
     if form is None:
         return None
 
-    if not module.__basilisp_bootstrapped__:
+    if not module.__basilisp_bootstrapped__:  # type: ignore
         _bootstrap_module(ctx, module, source_filename)
 
     form_ast = seq(_to_ast(ctx, form)).map(_unwrap_node).to_list()
@@ -1360,7 +1360,7 @@ def _incremental_compile_module(nodes: MixedNodeStream,
     exec(bytecode, mod.__dict__)
 
 
-def _bootstrap_module(ctx: CompilerContext, mod: types.ModuleType, source_filename: str) -> types.ModuleType:
+def _bootstrap_module(ctx: CompilerContext, mod: types.ModuleType, source_filename: str) -> None:
     """Bootstrap a new module with imports and other boilerplate."""
     preamble: List[ast.AST] = []
     preamble.extend(_module_imports(ctx))
@@ -1368,7 +1368,7 @@ def _bootstrap_module(ctx: CompilerContext, mod: types.ModuleType, source_filena
     preamble.append(_ns_var())
 
     _incremental_compile_module(preamble, mod, source_filename=source_filename)
-    mod.__basilisp_bootstrapped__ = True
+    mod.__basilisp_bootstrapped__ = True  # type: ignore
 
 
 def compile_module(forms: Iterable[LispForm],

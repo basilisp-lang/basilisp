@@ -28,7 +28,7 @@ def _new_module(name: str, doc=None) -> types.ModuleType:
     mod.__loader__ = None
     mod.__package__ = None
     mod.__spec__ = None
-    mod.__basilisp_bootstrapped__ = False
+    mod.__basilisp_bootstrapped__ = False  # type: ignore
     return mod
 
 
