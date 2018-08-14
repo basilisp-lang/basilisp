@@ -9,7 +9,8 @@ from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
 from itertools import chain
-from typing import Dict, Iterable, Pattern, Tuple, Optional, List, Union, Any, Callable, NamedTuple, cast
+from typing import (Dict, Iterable, Pattern, Tuple, Optional, List, Union, Callable, Mapping, NamedTuple, cast, Deque,
+                    Any)
 
 import astor.code_gen as codegen
 from functional import seq
@@ -31,6 +32,9 @@ from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
 from basilisp.util import Maybe
 
+USE_VAR_INDIRECTION = 'use_var_indirection'
+
+_BUILTINS_NS = 'builtins'
 _CORE_NS = 'basilisp.core'
 _DEFAULT_FN = '__lisp_expr__'
 _DO_PREFIX = 'lisp_do'
@@ -65,22 +69,12 @@ _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
 _SYM_CTX_LOCAL_STARRED = kw.keyword(
     'local-starred', ns='basilisp.compiler.var-context')
 _SYM_CTX_LOCAL = kw.keyword('local', ns='basilisp.compiler.var-context')
-_SYM_CTX_NS_DEF = kw.keyword(
-    'namespace-defined', ns='basilisp.compiler.var-context')
-_SYM_CTX_NS_REQ = kw.keyword(
-    'namespace-required', ns='basilisp.compiler.var-context')
-_SYM_CTX_NS_REFER = kw.keyword(
-    'namespace-referred', ns='basilisp.compiler.var-context')
-_SYM_CTX_IMPORT = kw.keyword('import', ns='basilisp.compiler.var-context')
 
 SymbolTableEntry = Tuple[str, kw.Keyword, sym.Symbol]
 
 
 class SymbolTable:
-    CONTEXTS = frozenset([
-        _SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED, _SYM_CTX_NS_DEF,
-        _SYM_CTX_NS_REQ, _SYM_CTX_NS_REFER, _SYM_CTX_IMPORT
-    ])
+    CONTEXTS = frozenset([_SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED])
 
     __slots__ = ('_name', '_parent', '_table', '_children')
 
@@ -133,16 +127,20 @@ class SymbolTable:
 
 
 class CompilerContext:
-    __slots__ = ('_st', '_imports', '_is_quoted')
+    __slots__ = ('_st', '_is_quoted', '_opts')
 
-    def __init__(self):
+    def __init__(self, opts: Dict[str, bool] = None) -> None:
         self._st = collections.deque([SymbolTable('<Top>')])
-        self._imports = atom.Atom(runtime.Namespace.DEFAULT_IMPORTS.deref())
-        self._is_quoted = collections.deque([])
+        self._is_quoted: Deque[bool] = collections.deque([])
+        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
 
     @property
     def current_ns(self) -> runtime.Namespace:
         return runtime.get_current_ns()
+
+    @property
+    def opts(self) -> Mapping[str, bool]:
+        return self._opts  # type: ignore
 
     @property
     def is_quoted(self) -> bool:
@@ -164,11 +162,11 @@ class CompilerContext:
         self._is_quoted.pop()
 
     def add_import(self, imp: sym.Symbol):
-        self._imports.swap(lambda s: s.add(imp))
+        self.current_ns.add_import(imp)
 
     @property
     def imports(self):
-        return self._imports.deref()
+        return self.current_ns.imports
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -415,14 +413,26 @@ def _meta_kwargs_ast(ctx: CompilerContext,
         return []
 
 
+_SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
 _SYM_MACRO_META_KEY = kw.keyword("macro")
 
 
-def _is_macro(s: sym.Symbol) -> bool:
-    """Return True if the Var pointed to by this Symbol holds a macro
-    function."""
+def _is_dynamic(v: Var) -> bool:
+    """Return True if the Var holds a value which should be compiled to a dynamic
+    Var access."""
     try:
-        return Maybe(s.meta).map(
+        return Maybe(v.meta).map(
+            lambda m: m.get(_SYM_DYNAMIC_META_KEY, None)  # type: ignore
+        ).or_else_get(
+            False)
+    except (KeyError, AttributeError):
+        return False
+
+
+def _is_macro(v: Var) -> bool:
+    """Return True if the Var holds a macro function."""
+    try:
+        return Maybe(v.meta).map(
             lambda m: m.get(_SYM_MACRO_META_KEY, None)  # type: ignore
         ).or_else_get(
             False)
@@ -438,10 +448,7 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     ns_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[_NS_VAR_NAME], keywords=[])
     def_name = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Str(form[1].name)], keywords=[])
-
-    # Put this def'ed name into the symbol table as a namespace var
-    ctx.symbol_table.new_symbol(form[1], genname(munge(form[1].name)),
-                                _SYM_CTX_NS_DEF)
+    safe_name = munge(form[1].name)
 
     try:
         def_nodes, def_value = _nodes_and_expr(_to_ast(ctx, form[2]))
@@ -452,9 +459,11 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     yield from meta_nodes
     yield from def_nodes
+    yield _dependency(ast.Assign(targets=[ast.Name(id=safe_name, ctx=ast.Store())],
+                                 value=Maybe(def_value).map(_unwrap_node).or_else_get(ast.NameConstant(None))))
     yield _node(ast.Call(
         func=_INTERN_VAR_FN_NAME,
-        args=[ns_name, def_name, Maybe(def_value).map(_unwrap_node).value],
+        args=[ns_name, def_name, ast.Name(id=safe_name, ctx=ast.Load())],
         keywords=_unwrap_nodes(meta)))
 
 
@@ -517,7 +526,7 @@ def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for an anonymous function."""
     assert form.first == _FN
     has_name = isinstance(form[1], sym.Symbol)
-    name = munge(form[1].name) if has_name else genname(_FN_PREFIX)
+    name = genname("__" + (munge(form[1].name) if has_name else _FN_PREFIX))
 
     arg_idx = 1 + int(has_name)
     body_idx = 2 + int(has_name)
@@ -578,7 +587,6 @@ def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     for s in form.rest:
         if not _is_py_module(s.name):
             raise ImportError(f"Module '{s.name}' not found")
-        ctx.symbol_table.new_symbol(s, munge(s.name), _SYM_CTX_IMPORT)
         ctx.add_import(s)
         with ctx.quoted():
             yield _dependency(ast.Call(
@@ -939,21 +947,21 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     # Macros are immediately evaluated so the modified form can be compiled
     if isinstance(first, sym.Symbol):
-        sym_info = ctx.symbol_table.find_symbol(first)
-        if sym_info is not None:
-            _, sym_ctx, s = sym_info
-            if _is_macro(s):
-                ns_sym = sym.symbol(s.name, ns=ctx.current_ns.name) if s.ns is None else s
-                v = Var.find(ns_sym)
-                if v is not None:
-                    try:
-                        # Call the macro as (f &form & rest)
-                        # In Clojure there is &env, which we don't have yet!
-                        expanded = v.value(form, *form.rest)
-                        yield from _to_ast(ctx, expanded)
-                    except Exception as e:
-                        raise CompilerException(f"Error occurred during macroexpansion of {first}") from e
-                    return
+        if first.ns is not None:
+            v = Var.find(first)
+        else:
+            ns_sym = sym.symbol(first.name, ns=ctx.current_ns.name)
+            v = Var.find(ns_sym)
+
+        if v is not None and _is_macro(v):
+            try:
+                # Call the macro as (f &form & rest)
+                # In Clojure there is &env, which we don't have yet!
+                expanded = v.value(form, *form.rest)
+                yield from _to_ast(ctx, expanded)
+            except Exception as e:
+                raise CompilerException(f"Error occurred during macroexpansion of {first}") from e
+            return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
 
@@ -1019,6 +1027,65 @@ def _kw_ast(_: CompilerContext, form: kw.Keyword) -> ASTStream:
         func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg))
 
 
+def _resolve_sym_var(ctx: CompilerContext, v: Var) -> Optional[str]:
+    """Resolve a Basilisp var down to a Python Name (or Attribute).
+
+    If the Var is marked as :dynamic, do not compile to a direct access.
+    If the corresponding function name is not defined in a Python module,
+    no direct variable access is possible and Var.find indirection must
+    be used."""
+    if _is_dynamic(v):
+        return None
+
+    safe_name = munge(v.name.name)
+    defined_in_py = safe_name in v.ns.module.__dict__
+    if defined_in_py:
+        if ctx.current_ns is v.ns:
+            return f"{safe_name}"
+        else:
+            safe_ns = munge(v.ns.name)
+            return f"{safe_ns}.{safe_name}"
+
+    return None
+
+
+def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:
+    """Resolve a Basilisp symbol down to a Python Name (or Attribute).
+
+    If the symbol cannot be resolved or is specifically marked to prefer Var
+    indirection, then this function will return None. _sym_ast will generate a
+    Var.find call for runtime resolution."""
+    # Attempt to resolve any symbol with a namespace to a direct Python call
+    if form.ns is not None:
+        if form.ns == _BUILTINS_NS:
+            return f"{munge(form.name, allow_builtins=True)}"
+        elif form.ns == ctx.current_ns.name:
+            v = ctx.current_ns.find(sym.symbol(form.name))
+            if v is not None:
+                return _resolve_sym_var(ctx, v)
+        ns_sym = sym.symbol(form.ns)
+        if ns_sym in ctx.current_ns.imports:
+            safe_ns = munge(form.ns)
+            safe_name = munge(form.name)
+            return f"{safe_ns}.{safe_name}"
+        elif ns_sym in ctx.current_ns.aliases:
+            aliased_ns = ctx.current_ns.aliases[ns_sym]
+            v = Var.find(sym.symbol(form.name, ns=aliased_ns))
+            if v is not None:
+                return _resolve_sym_var(ctx, v)
+            return None
+
+    # Look up the symbol in the namespace mapping of the current namespace.
+    # If we do find that mapping, then we can use a Python variable so long
+    # as the module defined for this namespace has a Python function backing
+    # it. We may have to use a direct namespace reference for imported functions.
+    v = ctx.current_ns.find(form)
+    if v is not None:
+        return _resolve_sym_var(ctx, v)
+
+    return None
+
+
 def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
     """Return a Python AST node for a Lisp symbol.
 
@@ -1054,6 +1121,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         yield _node(base_sym)
         return
 
+    # Look up local symbols (function parameters, let bindings, etc.)
     st = ctx.symbol_table
     st_sym = st.find_symbol(form)
 
@@ -1068,20 +1136,14 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         elif sym_ctx == _SYM_CTX_LOCAL_STARRED:
             raise CompilerException("Direct access to varargs forbidden")
 
-    if form.ns is not None:
-        ns_sym = sym.symbol(form.ns)
-        ns_sym_info = st.find_symbol(ns_sym)
-        if ns_sym_info is not None:
-            _, sym_ctx, _ = ns_sym_info
-            if sym_ctx == _SYM_CTX_IMPORT:
-                yield _node(_load_attr(f"{form.ns}.{form.name}"))
-                return
-        if ns_sym in ctx.imports:
-            safe_ns = munge(form.ns)
-            safe_name = munge(form.name)
-            yield _node(_load_attr(f"{safe_ns}.{safe_name}"))
+    # Resolve def'ed symbols, namespace aliases, imports, etc.
+    if USE_VAR_INDIRECTION not in ctx.opts:
+        resolved = _resolve_sym(ctx, form)
+        if resolved is not None:
+            yield _node(_load_attr(resolved))
             return
 
+    # If we couldn't find the symbol anywhere else, generate a Var.find call
     yield _node(ast.Attribute(
         value=ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]),
         attr='value',
@@ -1267,34 +1329,10 @@ def to_py_str(t: ast.AST) -> str:
     return codegen.to_source(t)
 
 
-def print_py_str(t: ast.AST) -> None:
-    print("")
-    print("Generated Python:")
-    for line in to_py_str(t).splitlines():
-        print(' ' * 4, line)
-    print("")
-
-
-# Cache global scope between runs
-_GLOBAL_SCOPE: Dict[str, Any] = {}
-
-
-def _compile_and_exec_ast(tree: ast.Module,
-                          module_name: str = 'REPL',
-                          expr_fn: str = _DEFAULT_FN,
-                          global_scope: Dict[str, Any] = None,
-                          source_filename: str = '<REPL Input>'):
-    """Compile and execute a Python AST node generated from one of the compile
-    functions provided in this module. Return the result of the executed module code."""
-    global_scope = global_scope if global_scope is not None else _GLOBAL_SCOPE
-    mod = types.ModuleType(module_name)
-    bytecode = compile(tree, source_filename, 'exec')
-    exec(bytecode, global_scope, mod.__dict__)
-    return getattr(mod, expr_fn)()
-
-
 def compile_and_exec_form(form: LispForm,
                           ctx: CompilerContext,
+                          module: types.ModuleType,
+                          source_filename: str = '<REPL Input>',
                           wrapped_fn_name: str = _DEFAULT_FN) -> Any:
     """Compile and execute the given form. This function will be most useful
     for the REPL and testing purposes. Returns the result of the executed expression.
@@ -1304,81 +1342,80 @@ def compile_and_exec_form(form: LispForm,
     if form is None:
         return None
 
-    expr_body: List[ast.AST] = []
-    expr_body.extend(_module_imports(ctx))
-    expr_body.append(_from_module_import())
-    expr_body.append(_ns_var())
+    if not module.__basilisp_bootstrapped__:  # type: ignore
+        _bootstrap_module(ctx, module, source_filename)
 
     form_ast = seq(_to_ast(ctx, form)).map(_unwrap_node).to_list()
     if form_ast is None:
         return None
-    expr_body.extend(form_ast)
 
-    body = _expressionize(expr_body, wrapped_fn_name)
+    # Split AST nodes into into inits, last group. Only expressionize the last
+    # component, and inject the rest of the nodes directly into the module.
+    # This will alow the REPL to take advantage of direct Python variable access
+    # rather than using Var.find indrection.
+    final_wrapped_name = genname(wrapped_fn_name)
+    body = _expressionize([form_ast[-1]], final_wrapped_name)
+    form_ast = list(itertools.chain(map(_statementize, form_ast[:-1]), [body]))
 
-    module = ast.Module(body=[body])
+    ast_module = ast.Module(body=form_ast)
+    ast.fix_missing_locations(ast_module)
+
+    if runtime.print_generated_python():
+        print(to_py_str(ast_module))
+
+    bytecode = compile(ast_module, source_filename, 'exec')
+    exec(bytecode, module.__dict__)
+    return getattr(module, final_wrapped_name)()
+
+
+def _incremental_compile_module(nodes: MixedNodeStream,
+                                mod: types.ModuleType,
+                                source_filename: str) -> None:
+    """Incrementally compile a stream of AST nodes in module mod.
+
+    The source_filename will be passed to Python's native compile.
+
+    Incremental compilation is an integral part of generating a Python module
+    during the same process as macro-expansion."""
+    module_body = map(_statementize, _unwrap_nodes(nodes))
+
+    module = ast.Module(body=list(module_body))
     ast.fix_missing_locations(module)
 
     if runtime.print_generated_python():
-        print_py_str(module)
+        print(to_py_str(module))
 
-    return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name)
-
-
-def __incremental_compile_module(tree: ASTStream,
-                                 ctx: CompilerContext,
-                                 source_filename: str,
-                                 wrapped_fn_name: str = _DEFAULT_FN) -> Any:
-    """Incrementally compile AST elements, so macro functions will be available
-    at compile time."""
-    if tree is None:
-        return None
-
-    expr_body: List[ast.AST] = []
-    expr_body.extend(_module_imports(ctx))
-    expr_body.append(_from_module_import())
-    expr_body.append(_ns_var())
-    expr_body.extend(_unwrap_nodes(tree))
-
-    body = _expressionize(expr_body, wrapped_fn_name)
-
-    module = ast.Module(body=[body])
-    ast.fix_missing_locations(module)
-
-    return _compile_and_exec_ast(module, expr_fn=wrapped_fn_name, source_filename=source_filename)
+    bytecode = compile(module, source_filename, 'exec')
+    exec(bytecode, mod.__dict__)
 
 
-def compile_module_bytecode(forms: Iterable[LispForm],
-                            ctx: CompilerContext,
-                            source_filename: str) -> types.CodeType:
-    """Compile an entire Basilisp into Python bytecode which can be executed as
-    a Python module.
+def _bootstrap_module(ctx: CompilerContext, mod: types.ModuleType, source_filename: str) -> None:
+    """Bootstrap a new module with imports and other boilerplate."""
+    preamble: List[ast.AST] = []
+    preamble.extend(_module_imports(ctx))
+    preamble.append(_from_module_import())
+    preamble.append(_ns_var())
+
+    _incremental_compile_module(preamble, mod, source_filename=source_filename)
+    mod.__basilisp_bootstrapped__ = True  # type: ignore
+
+
+def compile_module(forms: Iterable[LispForm],
+                   ctx: CompilerContext,
+                   module: types.ModuleType,
+                   source_filename: str) -> None:
+    """Compile an entire Basilisp module into Python bytecode which can be
+    executed as a Python module.
 
     This function is designed to generate bytecode which can be used for the
     Basilisp import machinery, to allow callers to import Basilisp modules from
-    Python code."""
-    module_body: List[ast.AST] = []
-    module_body.extend(_module_imports(ctx))
-    module_body.append(_from_module_import())
-    module_body.append(_ns_var())
+    Python code.
+    """
+    _bootstrap_module(ctx, module, source_filename)
 
     for form in forms:
         nodes = [node for node in _to_ast(ctx, form)]
-
-        # This is pretty hacky. We basically have to build up the runtime
-        # environment in parallel with constructing the overall module AST,
-        # so we can use macros in the compilation process.
-        __incremental_compile_module(nodes, ctx, source_filename)
-
-        module_body.extend(seq(nodes).map(_unwrap_node).map(_statementize).to_list())
-
-    module = ast.Module(body=module_body)
-    ast.fix_missing_locations(module)
-
-    if runtime.print_generated_python():
-        print_py_str(module)
-
-    return compile(module, source_filename, 'exec')
+        _incremental_compile_module(nodes, module, source_filename=source_filename)
 
 
 lrepr = basilisp.lang.util.lrepr

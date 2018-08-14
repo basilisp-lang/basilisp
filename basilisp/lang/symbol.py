@@ -1,6 +1,7 @@
 from typing import Optional
 
 from basilisp.lang.meta import Meta
+from basilisp.lang.util import munge
 
 
 class Symbol(Meta):
@@ -26,6 +27,12 @@ class Symbol(Meta):
     def with_meta(self, meta) -> "Symbol":
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return Symbol(self._name, self._ns, meta=new_meta)
+
+    @property
+    def _as_python_sym(self) -> str:
+        if self.ns is not None:
+            return f"{munge(self.ns)}.{munge(self.name)}"
+        return f"{munge(self.name)}"
 
     def __str__(self):
         if self._ns is not None:
