@@ -1,4 +1,6 @@
+import builtins
 import datetime
+import keyword
 import re
 import uuid
 from typing import Pattern
@@ -28,6 +30,39 @@ def lrepr(f) -> str:
         return f'#"{f.pattern}"'
     else:
         return repr(f)
+
+
+_MUNGE_REPLACEMENTS = {
+    '+': '__PLUS__',
+    '-': '_',
+    '*': '__STAR__',
+    '/': '__DIV__',
+    '>': '__GT__',
+    '<': '__LT__',
+    '!': '__BANG__',
+    '=': '__EQ__',
+    '?': '__Q__',
+    '\\': '__IDIV__',
+    '&': '__AMP__'
+}
+
+
+def munge(s: str, allow_builtins: bool = True) -> str:
+    """Replace characters which are not valid in Python symbols
+    with valid replacement strings."""
+    new_str = []
+    for c in s:
+        new_str.append(_MUNGE_REPLACEMENTS.get(c, c))
+
+    new_s = ''.join(new_str)
+
+    if keyword.iskeyword(new_s):
+        return f"{new_s}_"
+
+    if not allow_builtins and new_s in builtins.__dict__:
+        return f"{new_s}_"
+
+    return new_s
 
 
 # Use an atomically incremented integer as a suffix for all
