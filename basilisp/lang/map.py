@@ -116,17 +116,26 @@ class Map(Meta, Seqable):
     def with_meta(self, meta: "Map") -> "Map":
         new_meta = meta if self._meta is None else self._meta.update(
             meta)
-        return map(self._inner, meta=new_meta)
+        return Map(self._inner, meta=new_meta)
+
+    def assoc(self, *kvs) -> "Map":
+        m = self._inner
+        for k, v in seq(kvs).grouped(2):
+            m = m.set(k, v)
+        return Map(m)
+
+    def dissoc(self, *ks) -> "Map":
+        return self.discard(*ks)
 
     def discard(self, *ks) -> "Map":
         m: PMap = self._inner
         for k in ks:
             m = m.discard(k)
-        return map(m)
+        return Map(m)
 
     def update(self, *maps) -> "Map":
         m: PMap = self._inner.update(*maps)
-        return map(m)
+        return Map(m)
 
     def _conj(self, entry: MapEntry) -> "Map":
         try:
