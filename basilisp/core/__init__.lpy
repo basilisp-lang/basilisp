@@ -125,6 +125,14 @@
       (catch TypeError _
         (count (apply vector coll))))))
 
+(def dumb
+  (fn dumb
+    ([] (print "NOTHING"))
+    ([s]
+     (print s))
+    ([s & rest]
+     (print (concat [s] rest)))))
+
 (def
   ^{:macro true
     :doc   ""}

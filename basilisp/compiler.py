@@ -479,9 +479,11 @@ def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         func=ast.Name(id=do_fn_name, ctx=ast.Load()), args=[], keywords=[]))
 
 
+FunctionDefDetails = Tuple[List[ast.arg], ASTStream, Optional[ast.arg]]
+
+
 def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,
-                  body_exprs: llist.List
-                  ) -> Tuple[List[ast.arg], ASTStream, Optional[ast.arg]]:
+                  body_exprs: llist.List) -> FunctionDefDetails:
     """Generate the Python AST Nodes for a Lisp function argument vector
     and body expressions. Return a tuple of arg nodes and body AST nodes."""
     st = ctx.symbol_table
@@ -522,21 +524,131 @@ def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,
     return args, cast(ASTStream, body), vargs
 
 
+def _fn_arities(form: llist.List) -> Iterable[Tuple[int, bool, llist.List]]:
+    """Return the arities of a function definition. Verify that all arities
+    are compatible.
+
+    Given a function such as this:
+
+        (fn a
+          ([] :a)
+          ([a] a))
+
+    Returns a generator yielding: '(([] :a) ([a] a))
+
+    Single arity functions yield the rest:
+
+        (fn a [] :a) ;=> '(([] :a))"""
+    if not all(map(lambda f: isinstance(f, llist.List) and isinstance(f.first, vec.Vector), form)):
+        assert isinstance(form.first, vec.Vector)
+        yield len(form.first), False, form
+        return
+
+    arg_counts = {}
+    has_vargs = False
+    vargs_len = None
+    for arity in form:
+        # Verify each arity is unique
+        arg_count = len(arity.first)
+        if arg_count in arg_counts:
+            raise CompilerException("Each arity in multi-arity fn must be unique",
+                                    [arity, arg_counts[arg_count]])
+
+        # Verify that only one arity contains a rest-param
+        is_rest = False
+        for arg in arity.first:
+            if arg == _AMPERSAND:
+                if has_vargs:
+                    raise CompilerException("Only one arity in multi-arity fn may have rest param")
+                is_rest = True
+                has_vargs = True
+                arg_count -= 1
+                vargs_len = arg_count
+
+        # Verify that arities do not exceed rest-param arity
+        if vargs_len is not None and any([c >= vargs_len for c in arg_counts.keys()]):
+            raise CompilerException("No arity in multi-arity fn may exceed the rest param arity")
+
+        # Put this in last so it does not conflict with the above checks
+        arg_counts[arg_count] = arity
+
+        yield arg_count, is_rest, arity
+
+
+def _compose_ifs(if_stmts: List[Dict[str, ast.AST]], orelse: ast.AST = None) -> ast.If:
+    """Compose a series of If statements into nested elifs, with
+    an optional terminating else."""
+    first = if_stmts[0]
+    try:
+        rest = if_stmts[1:]
+        return ast.If(test=first["test"], body=[first["body"]], orelse=[_compose_ifs(rest, orelse=orelse)])
+    except IndexError:
+        return ast.If(test=first["test"], body=[first["body"]], orelse=Maybe(orelse).or_else_get([]))
+
+
 def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for an anonymous function."""
     assert form.first == _FN
     has_name = isinstance(form[1], sym.Symbol)
     name = genname("__" + (munge(form[1].name) if has_name else _FN_PREFIX))
 
-    arg_idx = 1 + int(has_name)
-    body_idx = 2 + int(has_name)
+    rest_idx = 1 + int(has_name)
+    arities = list(_fn_arities(form[rest_idx:]))
+    if len(arities) == 0:
+        raise CompilerException("Function def must have argument vector")
+    elif len(arities) == 1:
+        _, _, fndef = arities[0]
+        with ctx.new_symbol_table(name):
+            args, body, vargs = _fn_args_body(ctx, fndef.first, fndef.rest)
 
-    assert isinstance(form[arg_idx], vec.Vector)
+            yield _dependency(_expressionize(body, name, args=args, vargs=vargs))
+            yield _node(ast.Name(id=name, ctx=ast.Load()))
+            return
+    else:
+        if_stmts: List[Dict[str, ast.AST]] = []
+        multi_arity_args_arg = _load_attr('multi_arity_args')
+        has_rest = False
 
-    with ctx.new_symbol_table(name):
-        args, body, vargs = _fn_args_body(ctx, form[arg_idx], form[body_idx:])
+        for arg_count, is_rest, arity in arities:
+            has_rest = any([has_rest, is_rest])
+            arity_name = f"{name}__arity{arg_count}"
 
-        yield _dependency(_expressionize(body, name, args=args, vargs=vargs))
+            with ctx.new_symbol_table(arity_name):
+                args, body, vargs = _fn_args_body(ctx, arity.first, arity.rest)
+
+                yield _dependency(_expressionize(body, arity_name, args=args, vargs=vargs))
+                compare_op = ast.GtE() if is_rest else ast.Eq()
+                if_stmts.append(
+                    {"test": ast.Compare(left=ast.Call(func=_load_attr('len'),
+                                                       args=[multi_arity_args_arg],
+                                                       keywords=[]),
+                                         ops=[compare_op],
+                                         comparators=[ast.Num(arg_count)]),
+                     "body": ast.Return(value=ast.Call(func=_load_attr(arity_name),
+                                                       args=[ast.Starred(value=multi_arity_args_arg, ctx=ast.Load())],
+                                                       keywords=[]))})
+
+        assert len(if_stmts) == len(arities)
+
+        raise_stmt = None
+        if not has_rest:
+            raise_stmt = ast.Raise(exc=ast.Call(func=_load_attr('basilisp.lang.runtime.RuntimeException'),
+                                                args=[ast.Str("")],
+                                                keywords=[]),
+                                   cause=None)
+
+        yield _dependency(ast.FunctionDef(
+            name=name,
+            args=ast.arguments(
+                args=[],
+                kwarg=None,
+                vararg=ast.arg(arg='multi_arity_args', annotation=None),
+                kwonlyargs=[],
+                defaults=[],
+                kw_defaults=[]),
+            body=[_compose_ifs(if_stmts, orelse=raise_stmt)],
+            decorator_list=[],
+            returns=None))
         yield _node(ast.Name(id=name, ctx=ast.Load()))
 
 
