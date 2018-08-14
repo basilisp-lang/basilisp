@@ -32,6 +32,10 @@ def _new_module(name: str, doc=None) -> types.ModuleType:
     return mod
 
 
+class RuntimeException(Exception):
+    pass
+
+
 class Var:
     __slots__ = ('_name', '_ns', '_root', '_dynamic', '_is_bound', '_tl', '_meta')
 
@@ -131,14 +135,14 @@ class Var:
         return var
 
     @staticmethod
-    def find_in_ns(ns_sym: sym.Symbol, name_sym: sym.Symbol) -> "Var":
+    def find_in_ns(ns_sym: sym.Symbol, name_sym: sym.Symbol) -> "Optional[Var]":
         """Return the value current bound to the name `name_sym` in the namespace
         specified by `ns_sym`."""
         ns = Namespace.get_or_create(ns_sym)
         return ns.find(name_sym)
 
     @staticmethod
-    def find(ns_qualified_sym: sym.Symbol) -> "Var":
+    def find(ns_qualified_sym: sym.Symbol) -> "Optional[Var]":
         """Return the value currently bound to the name in the namespace specified
         by `ns_qualified_sym`."""
         ns = Maybe(ns_qualified_sym.ns).or_else_raise(
@@ -265,7 +269,7 @@ class Namespace:
             return m.set(sym, new_var)
         return m
 
-    def find(self, sym: sym.Symbol) -> Var:
+    def find(self, sym: sym.Symbol) -> Optional[Var]:
         """Find Vars mapped by the given Symbol input or None if no Vars are
         mapped by that Symbol."""
         return self.mappings.get(sym, None)
@@ -445,7 +449,8 @@ def set_current_ns(ns_name: str,
     """Set the value of the dynamic variable `*ns*` in the current thread."""
     symbol = sym.Symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
-    ns_var = Var.find(sym.Symbol(ns_var_name, ns=ns_var_ns))
+    ns_var = Maybe(Var.find(sym.Symbol(ns_var_name, ns=ns_var_ns))) \
+        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"))
     ns_var.push_bindings(ns)
     return ns_var
 
@@ -454,7 +459,9 @@ def get_current_ns(ns_var_name: str = _NS_VAR_NAME,
                    ns_var_ns: str = _NS_VAR_NS) -> Namespace:
     """Get the value of the dynamic variable `*ns*` in the current thread."""
     ns_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns: Namespace = Var.find(ns_sym).value
+    ns: Namespace = Maybe(Var.find(ns_sym)) \
+        .map(lambda v: v.value) \
+        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {ns_sym} not bound!"))
     return ns
 
 
@@ -479,7 +486,9 @@ def print_generated_python(var_name: str = _PRINT_GENERATED_PY_VAR_NAME,
                            core_ns_name: str = _CORE_NS) -> bool:
     """Return the value of the `*print-generated-python*` dynamic variable."""
     ns_sym = sym.Symbol(var_name, ns=core_ns_name)
-    return Var.find(ns_sym).value
+    return Maybe(Var.find(ns_sym)) \
+        .map(lambda v: v.value) \
+        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {ns_sym} not bound!"))
 
 
 def bootstrap(ns_var_name: str = _NS_VAR_NAME,
@@ -488,13 +497,15 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME,
     express with the very minimal lisp environment."""
     core_ns_sym = sym.symbol(core_ns_name)
     ns_var_sym = sym.symbol(ns_var_name, ns=core_ns_name)
-    __NS = Var.find(ns_var_sym)
+    __NS = Maybe(Var.find(ns_var_sym)) \
+        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {ns_var_sym} not bound!"))
 
     def set_BANG_(var_sym: sym.Symbol, expr):
         ns = Maybe(var_sym.ns).or_else(lambda: __NS.value.name)
         name = var_sym.name
 
-        v = Var.find(sym.symbol(name, ns=ns))
+        v = Maybe(Var.find(sym.symbol(name, ns=ns))) \
+            .or_else_raise(lambda: RuntimeException(f"Var {ns_var_sym} not bound!"))
         v.value = expr
         return expr
 

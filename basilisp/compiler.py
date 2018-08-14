@@ -413,7 +413,20 @@ def _meta_kwargs_ast(ctx: CompilerContext,
         return []
 
 
+_SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
 _SYM_MACRO_META_KEY = kw.keyword("macro")
+
+
+def _is_dynamic(v: Var) -> bool:
+    """Return True if the Var holds a value which should be compiled to a dynamic
+    Var access."""
+    try:
+        return Maybe(v.meta).map(
+            lambda m: m.get(_SYM_DYNAMIC_META_KEY, None)  # type: ignore
+        ).or_else_get(
+            False)
+    except (KeyError, AttributeError):
+        return False
 
 
 def _is_macro(v: Var) -> bool:
@@ -1014,6 +1027,65 @@ def _kw_ast(_: CompilerContext, form: kw.Keyword) -> ASTStream:
         func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg))
 
 
+def _resolve_sym_var(ctx: CompilerContext, v: Var) -> Optional[str]:
+    """Resolve a Basilisp var down to a Python Name (or Attribute).
+
+    If the Var is marked as :dynamic, do not compile to a direct access.
+    If the corresponding function name is not defined in a Python module,
+    no direct variable access is possible and Var.find indirection must
+    be used."""
+    if _is_dynamic(v):
+        return None
+
+    safe_name = munge(v.name.name)
+    defined_in_py = safe_name in v.ns.module.__dict__
+    if defined_in_py:
+        if ctx.current_ns is v.ns:
+            return f"{safe_name}"
+        else:
+            safe_ns = munge(v.ns.name)
+            return f"{safe_ns}.{safe_name}"
+
+    return None
+
+
+def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:
+    """Resolve a Basilisp symbol down to a Python Name (or Attribute).
+
+    If the symbol cannot be resolved or is specifically marked to prefer Var
+    indirection, then this function will return None. _sym_ast will generate a
+    Var.find call for runtime resolution."""
+    # Attempt to resolve any symbol with a namespace to a direct Python call
+    if form.ns is not None:
+        if form.ns == _BUILTINS_NS:
+            return f"{munge(form.name, allow_builtins=True)}"
+        elif form.ns == ctx.current_ns.name:
+            v = ctx.current_ns.find(sym.symbol(form.name))
+            if v is not None:
+                return _resolve_sym_var(ctx, v)
+        ns_sym = sym.symbol(form.ns)
+        if ns_sym in ctx.current_ns.imports:
+            safe_ns = munge(form.ns)
+            safe_name = munge(form.name)
+            return f"{safe_ns}.{safe_name}"
+        elif ns_sym in ctx.current_ns.aliases:
+            aliased_ns = ctx.current_ns.aliases[ns_sym]
+            v = Var.find(sym.symbol(form.name, ns=aliased_ns))
+            if v is not None:
+                return _resolve_sym_var(ctx, v)
+            return None
+
+    # Look up the symbol in the namespace mapping of the current namespace.
+    # If we do find that mapping, then we can use a Python variable so long
+    # as the module defined for this namespace has a Python function backing
+    # it. We may have to use a direct namespace reference for imported functions.
+    v = ctx.current_ns.find(form)
+    if v is not None:
+        return _resolve_sym_var(ctx, v)
+
+    return None
+
+
 def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
     """Return a Python AST node for a Lisp symbol.
 
@@ -1064,41 +1136,12 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         elif sym_ctx == _SYM_CTX_LOCAL_STARRED:
             raise CompilerException("Direct access to varargs forbidden")
 
-    # Attempt to resolve any symbol with a namespace to a direct Python call
-    if form.ns is not None:
-        if form.ns == _BUILTINS_NS:
-            yield _node(_load_attr(f"{munge(form.name)}"))
+    # Resolve def'ed symbols, namespace aliases, imports, etc.
+    if USE_VAR_INDIRECTION not in ctx.opts:
+        resolved = _resolve_sym(ctx, form)
+        if resolved is not None:
+            yield _node(_load_attr(resolved))
             return
-        ns_sym = sym.symbol(form.ns)
-        if ns_sym in ctx.current_ns.imports:
-            safe_ns = munge(form.ns)
-            safe_name = munge(form.name)
-            yield _node(_load_attr(f"{safe_ns}.{safe_name}"))
-            return
-        elif ns_sym in ctx.current_ns.aliases:
-            aliased_ns = ctx.current_ns.aliases[ns_sym]
-            safe_ns = munge(aliased_ns)
-            safe_name = munge(form.name)
-            yield _node(_load_attr(f"{safe_ns}.{safe_name}"))
-            return
-    else:
-        if not USE_VAR_INDIRECTION in ctx.opts:
-            # Look up the symbol in the namespace mapping of the current namespace.
-            # If we do find that mapping, then we can use a Python variable so long
-            # as the module defined for this namespace has a Python function backing
-            # it. We may have to use a direct namespace reference for imported functions.
-            v = ctx.current_ns.find(form)
-            if v is not None:
-                safe_name = munge(form.name)
-                defined_in_py = safe_name in v.ns.module.__dict__
-                if defined_in_py:
-                    if ctx.current_ns is v.ns:
-                        yield _node(_load_attr(f"{safe_name}"))
-                        return
-                    else:
-                        safe_ns = munge(v.ns.name)
-                        yield _node(_load_attr(f"{safe_ns}.{safe_name}"))
-                        return
 
     # If we couldn't find the symbol anywhere else, generate a Var.find call
     yield _node(ast.Attribute(
