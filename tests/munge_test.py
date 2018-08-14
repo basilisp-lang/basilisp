@@ -20,7 +20,7 @@ def test_munge_disallows_syms():
 
 def test_munge_disallows_python_builtins():
     for name in builtins.__dict__.keys():
-        assert f"{name}_" == munge(name, allow_builtins=False)
+        assert f"{name}_" == munge(name)
 
 
 def test_munge_disallows_python_kws():

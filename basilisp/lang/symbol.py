@@ -1,7 +1,7 @@
 from typing import Optional
 
 from basilisp.lang.meta import Meta
-from basilisp.util import munge
+from basilisp.lang.util import munge
 
 
 class Symbol(Meta):

@@ -47,7 +47,7 @@ _MUNGE_REPLACEMENTS = {
 }
 
 
-def munge(s: str, allow_builtins: bool = True) -> str:
+def munge(s: str, allow_builtins: bool = False) -> str:
     """Replace characters which are not valid in Python symbols
     with valid replacement strings."""
     new_str = []
