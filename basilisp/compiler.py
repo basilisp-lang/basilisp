@@ -28,8 +28,8 @@ import basilisp.lang.vector as vec
 import basilisp.reader as reader
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
-from basilisp.lang.util import genname
-from basilisp.util import Maybe, munge
+from basilisp.lang.util import genname, munge
+from basilisp.util import Maybe
 
 _CORE_NS = 'basilisp.core'
 _DEFAULT_FN = '__lisp_expr__'
