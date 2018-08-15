@@ -1347,12 +1347,13 @@ def _collection_literal_ast(ctx: CompilerContext,
                             form: Iterable[LispForm]) -> Tuple[ASTStream, PyASTStream]:
     """Turn a collection literal of Lisp forms into Python AST nodes, filtering
     out empty nodes."""
-    orig = seq(form) \
-        .map(lambda x: _to_ast(ctx, x)) \
-        .map(_nodes_and_exprl)
+    deps, nodes = [], []
+    for f in form:
+        depnodes, exprl = _nodes_and_exprl(_to_ast(ctx, f))
+        deps.extend(depnodes)
+        nodes.extend(_unwrap_nodes(exprl))
 
-    return (orig.flat_map(lambda x: x[0]).to_list(),
-            orig.flat_map(lambda x: x[1]).map(_unwrap_node).to_list())
+    return deps, nodes
 
 
 def _with_loc(f: ASTProcessor) -> ASTProcessor:
