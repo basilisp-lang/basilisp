@@ -6,8 +6,12 @@ workflows:
     - test-3.7
     - test-3.6
 jobs:
-  test-template: &test-template
+  test-3.6: &test-template
     working_directory: ~/basilisp
+    docker:
+    - image: circleci/python:3.6
+      environment:
+        PIPENV_VENV_IN_PROJECT: true
     steps:
       - checkout
       - run: sudo chown -R circleci:circleci /usr/local/bin
@@ -33,12 +37,6 @@ jobs:
           name: Run Tests
           command: |
             make test-with-coverage
-  test-3.6:
-    <<: *test-template
-    docker:
-    - image: circleci/python:3.6
-      environment:
-        PIPENV_VENV_IN_PROJECT: true
   test-3.7:
     <<: *test-template
     docker:
