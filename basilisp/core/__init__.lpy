@@ -126,8 +126,15 @@
         (count (apply vector coll))))))
 
 (def
+  ^{:doc "Returns a basilisp.lang.exception/ExceptionInfo instance with
+          the given message and data."}
+  ex-info
+  (fn ex-info [msg data]
+    (basilisp.lang.exception/ExceptionInfo msg data)))
+
+(def
   ^{:macro true
-    :doc   ""}
+    :doc   "Define a new function."}
   defn
   (fn defn [&form name & body]
     (let [body (concat body)

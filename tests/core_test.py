@@ -1,6 +1,10 @@
 from unittest.mock import Mock
 
+import pytest
+
+import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
+from basilisp.lang.exception import ExceptionInfo
 from basilisp.main import init
 
 init()
@@ -25,3 +29,8 @@ import basilisp.core
 
 def test_first():
     assert None is basilisp.core.first(None)
+
+
+def test_ex_info():
+    with pytest.raises(ExceptionInfo):
+        raise basilisp.core.ex_info("This is just an exception", lmap.m())
