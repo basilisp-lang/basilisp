@@ -23,7 +23,7 @@ coverage:
 
 
 .PHONY: test-with-coverage
-coveralls: coverage
+test-with-coverage: coverage
 	@pipenv run coveralls
 
 
