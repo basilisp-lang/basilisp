@@ -160,9 +160,19 @@ def test_do(ns_var: Var):
     assert lcompile("last-name") == "Vader"
 
 
-def test_fn(ns_var: Var):
+def test_single_arity_fn(ns_var: Var):
     code = """
     (def string-upper (fn* string-upper [s] (.upper s)))
+    """
+    ns_name = ns_var.value.name
+    fvar = lcompile(code)
+    assert fvar == Var.find_in_ns(
+        sym.symbol(ns_name), sym.symbol('string-upper'))
+    assert callable(fvar.value)
+    assert fvar.value("lower") == "LOWER"
+
+    code = """
+    (def string-upper (fn* string-upper ([s] (.upper s))))
     """
     ns_name = ns_var.value.name
     fvar = lcompile(code)
@@ -180,6 +190,63 @@ def test_fn(ns_var: Var):
         sym.symbol(ns_name), sym.symbol('string-lower'))
     assert callable(fvar.value)
     assert fvar.value("UPPER") == "upper"
+
+
+def test_multi_arity_fn(ns_var: Var):
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(fn f)')
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("""
+            (def f 
+              (fn* f
+                ([] :no-args)
+                ([] :also-no-args)))
+            """)
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("""
+            (def f 
+              (fn* f
+                ([& args] (concat [:no-starter] args))
+                ([s & args] (concat [s] args))))
+            """)
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("""
+            (def f 
+              (fn* f
+                ([s] (concat [s] :one-arg))
+                ([& args] (concat [:rest-params] args))))
+            """)
+
+    code = """
+    (def multi-fn
+      (fn* multi-fn
+        ([] :no-args)
+        ([s] s)
+        ([s & args] (concat [s] args))))
+    """
+    ns_name = ns_var.value.name
+    fvar = lcompile(code)
+    assert fvar == Var.find_in_ns(
+        sym.symbol(ns_name), sym.symbol('multi-fn'))
+    assert callable(fvar.value)
+    assert fvar.value() == kw.keyword('no-args')
+    assert fvar.value('STRING') == 'STRING'
+    assert fvar.value(kw.keyword('first-arg'), 'second-arg', 3) == llist.l(kw.keyword('first-arg'), 'second-arg', 3)
+
+    with pytest.raises(runtime.RuntimeException):
+        code = """
+            (def angry-multi-fn
+              (fn* angry-multi-fn
+                ([] :send-me-an-arg!)
+                ([i] i)
+                ([i j] (concat [i] [j]))))
+            """
+        ns_name = ns_var.value.name
+        fvar = lcompile(code)
+        fvar.value(1, 2, 3)
 
 
 def test_fn_call(ns_var: Var):
