@@ -31,3 +31,7 @@ jobs:
           name: Run Tests
           command: |
             make test
+      - run:
+          name: Measure Test Coverage
+          command: |
+            make coveralls

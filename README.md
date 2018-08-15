@@ -2,6 +2,8 @@
 
 A Lisp dialect inspired by Clojure targeting Python.
 
+[![CircleCI](https://circleci.com/gh/chrisrink10/basilisp.svg?style=svg)](https://circleci.com/gh/chrisrink10/basilisp)
+
 ## Requirements
 
 This project uses [`pipenv`](https://github.com/kennethreitz/pipenv) to
