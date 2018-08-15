@@ -1,0 +1,22 @@
+output-format: text
+
+strictness: medium
+test-warnings: true
+doc-warnings: false
+
+ignore-paths:
+  - tests
+
+pep8:
+  disable:
+    - E741
+  options:
+    max-line-length: 120
+
+pylint:
+  disable:
+    - len-as-condition
+    - no-else-return
+    - protected-access
+    - unsubscriptable-object
+    - useless-import-alias

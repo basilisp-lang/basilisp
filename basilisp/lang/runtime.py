@@ -194,7 +194,7 @@ class Namespace:
 
     def __init__(self, name: sym.Symbol, module: types.ModuleType = None) -> None:
         self._name = name
-        self._module = Maybe(module).or_else(lambda: _new_module(name._as_python_sym))
+        self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
         self._mappings: atom.Atom = atom.Atom(pmap())
         self._aliases: atom.Atom = atom.Atom(pmap())
         self._imports: atom.Atom = atom.Atom(pset(Namespace.DEFAULT_IMPORTS.deref()))
@@ -371,7 +371,7 @@ def rest(o):
     return s
 
 
-def next(o):
+def next(o):  # pylint:disable=redefined-builtin
     """Calls rest on o. If o returns an empty sequence or None, returns None.
     Otherwise, returns the elements after the first in o."""
     s = rest(o)

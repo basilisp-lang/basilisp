@@ -16,16 +16,16 @@ class Seq(ABC, Iterable[T]):
     @property
     @abstractmethod
     def first(self) -> T:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @property
     @abstractmethod
     def rest(self) -> Optional["Seq[T]"]:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @abstractmethod
     def cons(self, elem):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def __eq__(self, other):
         for e1, e2 in zip(self, other):
@@ -44,7 +44,7 @@ class Seqable(ABC, Iterable[T]):
     __slots__ = ()
 
     def seq(self) -> Seq[T]:
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 class Cons(Seq, Meta):
@@ -87,8 +87,8 @@ class _Sequence(Seq[T]):
     __slots__ = ('_first', '_seq')
 
     def __init__(self, s: Iterator, first: T) -> None:
-        self._seq = s
-        self._first = first
+        self._seq = s  # pylint:disable=assigning-non-slot
+        self._first = first  # pylint:disable=assigning-non-slot
 
     @property
     def first(self) -> T:

@@ -62,7 +62,7 @@ class List(Meta, Seq):
         return l(meta=meta)
 
 
-def list(members, meta=None) -> List:
+def list(members, meta=None) -> List:  # pylint:disable=redefined-builtin
     """Creates a new list."""
     return List(plist(iterable=members), meta=meta)
 

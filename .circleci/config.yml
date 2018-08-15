@@ -28,6 +28,10 @@ jobs:
           command: |
             make typecheck
       - run:
+          name: Run Linter
+          command: |
+            make lint
+      - run:
           name: Run Tests with Coverage
           command: |
             make test-with-coverage
