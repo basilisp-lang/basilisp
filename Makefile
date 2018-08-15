@@ -22,10 +22,8 @@ coverage:
 	@pipenv run python -m pytest --cov=basilisp --cov-report html
 
 
-.PHONY: coveralls
-coveralls:
-	@pipenv install --dev
-	@pipenv run coverage run --source=basilisp setup.py test
+.PHONY: test-with-coverage
+coveralls: coverage
 	@pipenv run coveralls
 
 
