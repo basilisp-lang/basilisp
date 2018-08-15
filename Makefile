@@ -23,7 +23,7 @@ coverage:
 
 
 .PHONY: coveralls
-coveralls
+coveralls:
 	@pipenv install --dev
 	@pipenv run coverage run --source=basilisp setup.py test
 	@pipenv run coveralls
