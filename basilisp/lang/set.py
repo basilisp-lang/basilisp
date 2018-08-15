@@ -62,7 +62,7 @@ class Set(Meta, Seqable):
         return sequence(self)
 
 
-def set(members, meta=None) -> Set:
+def set(members, meta=None) -> Set:  # pylint:disable=redefined-builtin
     """Creates a new set."""
     return Set(pset(members), meta=meta)
 

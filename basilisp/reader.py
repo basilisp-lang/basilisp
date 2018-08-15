@@ -13,7 +13,7 @@ from functional import seq
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as meta
+import basilisp.lang.meta as lmeta
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
@@ -34,8 +34,8 @@ Resolver = Callable[[symbol.Symbol], symbol.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
 W = TypeVar('W', bound=LispReaderFn)
 
-_READER_LINE_KW = keyword.keyword('line', ns='basilisp.reader')
-_READER_COL_KW = keyword.keyword('col', ns='basilisp.reader')
+READER_LINE_KW = keyword.keyword('line', ns='basilisp.reader')
+READER_COL_KW = keyword.keyword('col', ns='basilisp.reader')
 
 _AMPERSAND = symbol.symbol("&")
 _FN = symbol.symbol("fn*")
@@ -55,7 +55,7 @@ _UNQUOTE_SPLICING = symbol.symbol('unquote-splicing', ns='basilisp.core')
 _VECTOR = symbol.symbol('vector', ns='basilisp.core')
 
 
-class SyntaxError(Exception):
+class SyntaxError(Exception):  # pylint:disable=redefined-builtin
     pass
 
 
@@ -197,7 +197,7 @@ def _with_loc(f: W) -> W:
 
     @functools.wraps(f)
     def with_lineno_and_col(ctx):
-        meta = lmap.map({_READER_LINE_KW: ctx.reader.line, _READER_COL_KW: ctx.reader.col})
+        meta = lmap.map({READER_LINE_KW: ctx.reader.line, READER_COL_KW: ctx.reader.col})
         v = f(ctx)
         try:
             return v.with_meta(meta)  # type: ignore
@@ -482,7 +482,7 @@ def _read_kw(ctx: ReaderContext) -> keyword.Keyword:
     return keyword.keyword(name, ns=ns)
 
 
-def _read_meta(ctx: ReaderContext) -> meta.Meta:
+def _read_meta(ctx: ReaderContext) -> lmeta.Meta:
     """Read metadata and apply that to the next object in the
     input stream."""
     start = ctx.reader.advance()
@@ -503,7 +503,7 @@ def _read_meta(ctx: ReaderContext) -> meta.Meta:
     obj_with_meta = _read_next(ctx)
     try:
         return obj_with_meta.with_meta(meta_map)  # type: ignore
-    except AttributeError as e:
+    except AttributeError:
         raise SyntaxError(
             f"Can not attach metadata to object of type {type(obj_with_meta)}")
 
@@ -775,7 +775,7 @@ def _read_comment(ctx: ReaderContext) -> LispForm:
         reader.advance()
 
 
-def _read_next(ctx: ReaderContext) -> LispForm:
+def _read_next(ctx: ReaderContext) -> LispForm:  # noqa: C901
     """Read the next full token from the input stream."""
     reader = ctx.reader
     token = reader.peek()

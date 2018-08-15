@@ -15,11 +15,10 @@ from typing import (Dict, Iterable, Pattern, Tuple, Optional, List, Union, Calla
 import astor.code_gen as codegen
 from functional import seq
 
-import basilisp.lang.atom as atom
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as meta
+import basilisp.lang.meta as lmeta
 import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
@@ -299,32 +298,31 @@ def _statementize(e: ast.AST) -> ast.AST:
     # noinspection PyPep8
     if isinstance(
             e,
-        (
-            ast.Assign,
-            ast.AnnAssign,  # type: ignore
-            ast.AugAssign,
-            ast.Raise,
-            ast.Assert,
-            ast.Pass,
-            ast.Import,
-            ast.ImportFrom,
-            ast.If,
-            ast.For,
-            ast.While,
-            ast.Continue,
-            ast.Break,
-            ast.Try,
-            ast.ExceptHandler,
-            ast.With,
-            ast.FunctionDef,
-            ast.Return,
-            ast.Yield,
-            ast.YieldFrom,
-            ast.Global,
-            ast.ClassDef,
-            ast.AsyncFunctionDef,
-            ast.AsyncFor,
-            ast.AsyncWith)):
+            (ast.Assign,
+             ast.AnnAssign,  # type: ignore
+             ast.AugAssign,
+             ast.Raise,
+             ast.Assert,
+             ast.Pass,
+             ast.Import,
+             ast.ImportFrom,
+             ast.If,
+             ast.For,
+             ast.While,
+             ast.Continue,
+             ast.Break,
+             ast.Try,
+             ast.ExceptHandler,
+             ast.With,
+             ast.FunctionDef,
+             ast.Return,
+             ast.Yield,
+             ast.YieldFrom,
+             ast.Global,
+             ast.ClassDef,
+             ast.AsyncFunctionDef,
+             ast.AsyncFor,
+             ast.AsyncWith)):
         return e
     return ast.Expr(value=e)
 
@@ -393,10 +391,10 @@ _COLLECT_ARGS_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}._collect_args')
 _COERCE_SEQ_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}.to_seq')
 
 
-def _clean_meta(form: meta.Meta) -> LispForm:
+def _clean_meta(form: lmeta.Meta) -> LispForm:
     """Remove reader metadata from the form's meta map."""
     try:
-        meta = form.meta.discard(reader._READER_LINE_KW, reader._READER_COL_KW)
+        meta = form.meta.discard(reader.READER_LINE_KW, reader.READER_COL_KW)
     except AttributeError:
         return None
     if len(meta) == 0:
@@ -404,8 +402,8 @@ def _clean_meta(form: meta.Meta) -> LispForm:
     return meta
 
 
-def _meta_kwargs_ast(ctx: CompilerContext,
-                     form: meta.Meta) -> ASTStream:
+def _meta_kwargs_ast(ctx: CompilerContext,  # pylint:disable=inconsistent-return-statements
+                     form: lmeta.Meta) -> ASTStream:
     if hasattr(form, 'meta') and form.meta is not None:
         meta_nodes, meta = _nodes_and_expr(_to_ast(ctx, _clean_meta(form)))
         yield from meta_nodes
@@ -483,7 +481,7 @@ def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 FunctionDefDetails = Tuple[List[ast.arg], ASTStream, Optional[ast.arg]]
 
 
-def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,
+def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,  # pylint:disable=too-many-locals
                   body_exprs: llist.List) -> FunctionDefDetails:
     """Generate the Python AST Nodes for a Lisp function argument vector
     and body expressions. Return a tuple of arg nodes and body AST nodes."""
@@ -575,7 +573,7 @@ def _fn_arities(form: llist.List) -> Iterable[FunctionArityDetails]:
                 vargs_len = arg_count
 
         # Verify that arities do not exceed rest-param arity
-        if vargs_len is not None and any([c >= vargs_len for c in arg_counts.keys()]):
+        if vargs_len is not None and any([c >= vargs_len for c in arg_counts]):
             raise CompilerException("No arity in multi-arity fn may exceed the rest param arity")
 
         # Put this in last so it does not conflict with the above checks
@@ -804,7 +802,7 @@ def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         value=_unwrap_node(target), attr=munge(form[2].name), ctx=ast.Load()))
 
 
-def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:  # pylint:disable=too-many-locals
     """Generate a Python AST node for a let binding.
 
     Python code for a `let*` binding like this:
@@ -858,7 +856,8 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     if bindings.empty():
         raise CompilerException("Expected at least one binding in 'let*'") from None
 
-    arg_syms: Dict[sym.Symbol, str] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name
+    arg_syms: Dict[
+        sym.Symbol, str] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name  # noqa: E501
     var_names = []  # Names of local Python variables bound to computed expressions prior to the function call
     arg_deps = []  # Argument expression dependency nodes
     arg_exprs = []  # Bound expressions are the expressions a name is bound to
@@ -941,7 +940,7 @@ def _finally_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     yield from seq(form.rest) \
         .flat_map(lambda clause: _to_ast(ctx, clause)) \
         .map(_unwrap_node) \
-        .map(lambda node: _statementize(node))
+        .map(_statementize)
 
 
 def _throw_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -1350,7 +1349,7 @@ def _collection_literal_ast(ctx: CompilerContext,
     out empty nodes."""
     orig = seq(form) \
         .map(lambda x: _to_ast(ctx, x)) \
-        .map(lambda x: _nodes_and_exprl(x))
+        .map(_nodes_and_exprl)
 
     return (orig.flat_map(lambda x: x[0]).to_list(),
             orig.flat_map(lambda x: x[1]).map(_unwrap_node).to_list())
@@ -1364,8 +1363,8 @@ def _with_loc(f: ASTProcessor) -> ASTProcessor:
     def with_lineno_and_col(ctx: CompilerContext, form: LispForm) -> ASTStream:
         try:
             meta = form.meta  # type: ignore
-            line = meta.get(reader._READER_LINE_KW)  # type: ignore
-            col = meta.get(reader._READER_COL_KW)  # type: ignore
+            line = meta.get(reader.READER_LINE_KW)  # type: ignore
+            col = meta.get(reader.READER_COL_KW)  # type: ignore
 
             for astnode in f(ctx, form):
                 astnode.node.lineno = line
@@ -1377,8 +1376,8 @@ def _with_loc(f: ASTProcessor) -> ASTProcessor:
     return with_lineno_and_col
 
 
-@_with_loc
-def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:
+@_with_loc  # noqa: C901
+def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:  # pylint: disable=too-many-branches
     """Take a Lisp form as an argument and produce zero or more Python
     AST nodes.
 

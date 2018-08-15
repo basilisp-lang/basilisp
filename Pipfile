@@ -5,12 +5,11 @@ name = "pypi"
 
 [dev-packages]
 coveralls = "*"
-pyflakes = "*"
-pytest = "*"
-yapf = "*"
 mypy = "*"
-autoflake = "*"
+prospector = "*"
+pytest = "*"
 pytest-cov = "*"
+yapf = "*"
 
 [packages]
 astor = "*"

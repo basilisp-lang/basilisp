@@ -103,4 +103,4 @@ def hook_imports():
 
     Once this is called, Basilisp code may be called from within Python code
     using standard `import module.submodule` syntax."""
-    sys.meta_path.insert(0, BasilispImporter())
+    sys.meta_path.insert(0, BasilispImporter())  # pylint:disable=abstract-class-instantiated

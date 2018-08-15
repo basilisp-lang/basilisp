@@ -42,7 +42,7 @@ class Maybe(Generic[T]):
     __slots__ = ('_inner', )
 
     def __init__(self, inner: Optional[T]) -> None:
-        self._inner = inner
+        self._inner = inner  # pylint:disable=assigning-non-slot
 
     def __eq__(self, other):
         if isinstance(other, Maybe):

@@ -7,7 +7,7 @@ format:
 .PHONY: lint
 lint:
 	@pipenv install --dev
-	@pipenv run python -m pyflakes .
+	@pipenv run python -m prospector > lintout.txt
 
 
 .PHONY: repl

@@ -7,8 +7,8 @@ class Meta(ABC):
     @property
     @abstractmethod
     def meta(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @abstractmethod
     def with_meta(self, meta) -> "Meta":
-        raise NotImplemented()
+        raise NotImplementedError()

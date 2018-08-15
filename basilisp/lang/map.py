@@ -1,5 +1,5 @@
 from collections import Sequence
-from typing import Any, Optional
+from typing import Any, Optional  # noqa: F401
 
 from functional import seq
 from pyrsistent import pmap, PMap
@@ -158,7 +158,7 @@ class Map(Meta, Seqable):
         return sequence(self)
 
 
-def map(kvs, meta=None) -> Map:
+def map(kvs, meta=None) -> Map:  # pylint:disable=redefined-builtin
     """Creates a new map."""
     return Map(pmap(initial=kvs), meta=meta)
 
