@@ -110,6 +110,9 @@ class _EmptySequence(Seq[T]):
     def __repr__(self):
         return '()'
 
+    def __bool__(self):
+        return False
+
     @property
     def first(self):
         return None
