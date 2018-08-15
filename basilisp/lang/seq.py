@@ -100,7 +100,7 @@ class _Sequence(Seq[T]):
             n = next(self._seq)
             return _Sequence(self._seq, n)
         except StopIteration:
-            return None
+            return _EmptySequence()
 
     def cons(self, elem):
         return Cons(elem, self)
@@ -132,3 +132,7 @@ def sequence(s: Iterable) -> Seq[Any]:
         return _Sequence(i, next(i))
     except StopIteration:
         return _EmptySequence()
+
+
+def empty() -> Seq[Any]:
+    return _EmptySequence()
