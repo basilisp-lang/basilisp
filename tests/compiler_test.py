@@ -198,7 +198,7 @@ def test_multi_arity_fn(ns_var: Var):
 
     with pytest.raises(compiler.CompilerException):
         lcompile("""
-            (def f 
+            (def f
               (fn* f
                 ([] :no-args)
                 ([] :also-no-args)))
@@ -206,7 +206,7 @@ def test_multi_arity_fn(ns_var: Var):
 
     with pytest.raises(compiler.CompilerException):
         lcompile("""
-            (def f 
+            (def f
               (fn* f
                 ([& args] (concat [:no-starter] args))
                 ([s & args] (concat [s] args))))
@@ -214,7 +214,7 @@ def test_multi_arity_fn(ns_var: Var):
 
     with pytest.raises(compiler.CompilerException):
         lcompile("""
-            (def f 
+            (def f
               (fn* f
                 ([s] (concat [s] :one-arg))
                 ([& args] (concat [:rest-params] args))))
