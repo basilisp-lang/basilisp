@@ -177,6 +177,7 @@ class Namespace:
     - `imports` is a set of Python modules imported into the current
       namespace"""
     DEFAULT_IMPORTS = atom.Atom(pset(seq(['builtins',
+                                          'basilisp.lang.exception',
                                           'basilisp.lang.keyword',
                                           'basilisp.lang.list',
                                           'basilisp.lang.map',
