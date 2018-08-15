@@ -4,6 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
+coveralls = "*"
 pyflakes = "*"
 pytest = "*"
 yapf = "*"

@@ -1,33 +1,57 @@
 version: 2
+workflows:
+  version: 2
+  test:
+    jobs:
+    - test-3.7
+    - test-3.6
+
+test-template: &test-template
+  working_directory: ~/basilisp
+  docker:
+  - image: circleci/python:3.6
+    environment:
+      PIPENV_VENV_IN_PROJECT: true
+  steps:
+  - checkout
+  - run: sudo chown -R circleci:circleci /usr/local/bin
+  - run: "sudo chown -R circleci:circleci /usr/local/lib/${PYTHON_SITE_PACKAGES_DIR}/site-packages"
+  - restore_cache:
+      key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+  - run:
+      name: Install Pipenv
+      command: |
+        sudo pip install pipenv
+        pipenv install
+  - save_cache:
+      key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+      paths:
+      - ".venv"
+      - "/usr/local/bin"
+      - "/usr/local/lib/${PYTHON_SITE_PACKAGES_DIR}/site-packages"
+  - run:
+      name: Run Type Checks
+      command: |
+        make typecheck
+  - run:
+      name: Run Tests
+      command: |
+        make test-with-coverage
+
 jobs:
-  build:
-    working_directory: ~/basilisp
+  test-3.6:
+    <<: *test-template
     docker:
-      - image: circleci/python:3.6.4
-        environment:
-          PIPENV_VENV_IN_PROJECT: true
-    steps:
-      - checkout
-      - run: sudo chown -R circleci:circleci /usr/local/bin
-      - run: sudo chown -R circleci:circleci /usr/local/lib/python3.6/site-packages
-      - restore_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
-      - run:
-          name: Install Pipenv
-          command: |
-            sudo pip install pipenv
-            pipenv install
-      - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
-          paths:
-            - ".venv"
-            - "/usr/local/bin"
-            - "/usr/local/lib/python3.6/site-packages"
-      - run:
-          name: Run Type Checks
-          command: |
-            make typecheck
-      - run:
-          name: Run Tests
-          command: |
-            make test
+    - image: circleci/python:3.6
+      environment:
+        PIPENV_VENV_IN_PROJECT: true
+    environment:
+      PYTHON_SITE_PACKAGES_DIR: python3.6
+  test-3.7:
+    <<: *test-template
+    docker:
+    - image: circleci/python:3.7
+      environment:
+        PIPENV_VENV_IN_PROJECT: true
+    environment:
+      PYTHON_SITE_PACKAGES_DIR: python3.7
