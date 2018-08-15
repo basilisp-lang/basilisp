@@ -273,6 +273,13 @@ def test_if(ns_var: Var):
     assert lcompile("(if nil :a :b)") == kw.keyword("b")
     assert lcompile("(if true (if false :a :c) :b)") == kw.keyword("c")
 
+    code = """
+    (def f (fn* [s] s))
+
+    (f (if true \"YELLING\" \"whispering\"))
+    """
+    assert "YELLING" == lcompile(code)
+
 
 def test_interop_call(ns_var: Var):
     assert lcompile('(. "ALL-UPPER" lower)') == "all-upper"
