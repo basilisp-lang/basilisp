@@ -281,6 +281,51 @@ def test_if(ns_var: Var):
     assert "YELLING" == lcompile(code)
 
 
+def test_truthiness(ns_var: Var):
+    # Valid false values
+    assert kw.keyword("b") == lcompile("(if false :a :b)")
+    assert kw.keyword("b") == lcompile("(if nil :a :b)")
+
+    # Everything else is true
+    assert kw.keyword("a") == lcompile("(if true :a :b)")
+
+    assert kw.keyword("a") == lcompile("(if 's :a :b)")
+    assert kw.keyword("a") == lcompile("(if 'ns/s :a :b)")
+
+    assert kw.keyword("a") == lcompile("(if :kw :a :b)")
+    assert kw.keyword("a") == lcompile("(if :ns/kw :a :b)")
+
+    assert kw.keyword("a") == lcompile("(if \"\" :a :b)")
+    assert kw.keyword("a") == lcompile("(if \"not empty\" :a :b)")
+
+    assert kw.keyword("a") == lcompile("(if 0 :a :b)")
+    assert kw.keyword("a") == lcompile("(if 1 :a :b)")
+    assert kw.keyword("a") == lcompile("(if -1 :a :b)")
+    assert kw.keyword("a") == lcompile("(if 1.0 :a :b)")
+    assert kw.keyword("a") == lcompile("(if 0.0 :a :b)")
+    assert kw.keyword("a") == lcompile("(if -1.0 :a :b)")
+
+    assert kw.keyword("a") == lcompile("(if () :a :b)")
+    assert kw.keyword("a") == lcompile("(if '(0) :a :b)")
+    assert kw.keyword("a") == lcompile("(if '(false) :a :b)")
+    assert kw.keyword("a") == lcompile("(if '(true) :a :b)")
+
+    assert kw.keyword("a") == lcompile("(if [] :a :b)")
+    assert kw.keyword("a") == lcompile("(if [0] :a :b)")
+    assert kw.keyword("a") == lcompile("(if '(false) :a :b)")
+    assert kw.keyword("a") == lcompile("(if '(true) :a :b)")
+
+    assert kw.keyword("a") == lcompile("(if {} :a :b)")
+    assert kw.keyword("a") == lcompile("(if {0 0} :a :b)")
+    assert kw.keyword("a") == lcompile("(if {false false} :a :b)")
+    assert kw.keyword("a") == lcompile("(if {true true} :a :b)")
+
+    assert kw.keyword("a") == lcompile("(if #{} :a :b)")
+    assert kw.keyword("a") == lcompile("(if #{0} :a :b)")
+    assert kw.keyword("a") == lcompile("(if #{false} :a :b)")
+    assert kw.keyword("a") == lcompile("(if #{true} :a :b)")
+
+
 def test_interop_call(ns_var: Var):
     assert lcompile('(. "ALL-UPPER" lower)') == "all-upper"
     assert lcompile('(.upper "lower-string")') == "LOWER-STRING"

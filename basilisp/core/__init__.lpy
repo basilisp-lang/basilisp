@@ -144,7 +144,9 @@
           fname (if doc
                   (with-meta name {:doc doc})
                   name)
-          body (rest body)
+          body (if doc
+                 (rest body)
+                 body)
           args (if (vector? (first body))
                  (first body)
                  nil)  ;; Should throw here!
