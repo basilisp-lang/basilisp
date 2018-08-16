@@ -23,6 +23,8 @@ class List(Meta, Seq):
         return self._inner == other
 
     def __getitem__(self, item):
+        if isinstance(item, slice):
+            return List(self._inner[item])
         return self._inner[item]
 
     def __hash__(self):

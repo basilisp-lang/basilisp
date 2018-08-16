@@ -16,6 +16,10 @@ def test_vector_seqable_interface():
     assert issubclass(vector.Vector, lseq.Seqable)
 
 
+def test_vector_slice():
+    assert isinstance(vector.v(1, 2, 3)[1:], vector.Vector)
+
+
 def test_vector_conj():
     meta = lmap.m(tag="async")
     v1 = vector.v(keyword("kw1"), meta=meta)

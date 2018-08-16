@@ -23,6 +23,8 @@ class Vector(Meta, Seqable):
         return self._inner == other
 
     def __getitem__(self, item):
+        if isinstance(item, slice):
+            return Vector(self._inner[item])
         return self._inner[item]
 
     def __hash__(self):
