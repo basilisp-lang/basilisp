@@ -16,6 +16,10 @@ def test_list_seq_interface():
     assert issubclass(llist.List, lseq.Seq)
 
 
+def test_list_slice():
+    assert isinstance(llist.l(1, 2, 3)[1:], llist.List)
+
+
 def test_list_conj():
     meta = lmap.m(tag="async")
     l1 = llist.l(keyword("kw1"), meta=meta)
