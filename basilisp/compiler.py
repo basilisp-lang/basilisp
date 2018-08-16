@@ -563,7 +563,6 @@ def _assert_no_recur(form: lseq.Seq) -> None:
 
 def _assert_recur_is_tail(form: llist.List) -> None:
     """Assert that recur special forms only appear in tail position in a function."""
-    print(f"Checking {lrepr(form)} for recur")
     listlen = len(form)
     first_recur_index = None
     for i, child in enumerate(form):
