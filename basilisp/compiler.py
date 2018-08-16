@@ -39,6 +39,7 @@ _DEFAULT_FN = '__lisp_expr__'
 _DO_PREFIX = 'lisp_do'
 _FN_PREFIX = 'lisp_fn'
 _IF_PREFIX = 'lisp_if'
+_IF_TEST_PREFIX = 'if_test'
 _MULTI_ARITY_ARG_NAME = 'multi_arity_args'
 _THROW_PREFIX = 'lisp_throw'
 _TRY_PREFIX = 'lisp_try'
@@ -710,7 +711,15 @@ def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
 def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a function call to a utility function which acts as
-    an if expression and works around Python's if statement."""
+    an if expression and works around Python's if statement.
+
+    Every expression in Basilisp is true if it is not the literal values nil
+    or false. This function compiles direct checks for the test value against
+    the Python values None and False to accommodate this behavior.
+
+    Note that the if and else bodies are switched in compilation so that we
+    can perform a short-circuit or comparison, rather than exhaustively checking
+    for both false and nil each time."""
     assert form.first == _IF
     assert len(form) in range(3, 5)
 
@@ -723,10 +732,22 @@ def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         else_nodes = []  # type: ignore
         lelse = ast.NameConstant(None)  # type: ignore
 
+    test_name = genname(_IF_TEST_PREFIX)
+    test_assign = ast.Assign(targets=[ast.Name(id=test_name, ctx=ast.Store())],
+                             value=_unwrap_node(test))
+
     ifstmt = ast.If(
-        test=_unwrap_node(test),
-        body=[ast.Return(value=_unwrap_node(body))],
-        orelse=[ast.Return(value=_unwrap_node(lelse))])
+        test=ast.BoolOp(op=ast.Or(),
+                        values=[ast.Compare(left=ast.NameConstant(None),
+                                            ops=[ast.Is()],
+                                            comparators=[ast.Name(id=test_name, ctx=ast.Load())]),
+                                ast.Compare(left=ast.NameConstant(False),
+                                            ops=[ast.Is()],
+                                            comparators=[ast.Name(id=test_name, ctx=ast.Load())])
+                                ]),
+        values=[],
+        body=[ast.Return(value=_unwrap_node(lelse))],
+        orelse=[ast.Return(value=_unwrap_node(body))])
 
     ifname = genname(_IF_PREFIX)
 
@@ -739,7 +760,7 @@ def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
             kwonlyargs=[],
             defaults=[],
             kw_defaults=[]),
-        body=_unwrap_nodes(chain(test_nodes, body_nodes, else_nodes, [ifstmt])),
+        body=_unwrap_nodes(chain(test_nodes, body_nodes, else_nodes, [test_assign, ifstmt])),
         decorator_list=[],
         returns=None))
     yield _node(ast.Call(
