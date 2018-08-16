@@ -392,20 +392,30 @@ def cons(o, seq) -> lseq.Seq:
     return to_seq(seq).cons(o)  # type: ignore
 
 
+def _seq_or_nil(s: lseq.Seq) -> Optional[lseq.Seq]:
+    """Return None if a Seq is empty, the Seq otherwise."""
+    if s.first is None and s.rest == lseq.empty():
+        return None
+    return s
+
+
 def to_seq(o) -> Optional[lseq.Seq]:
     """Coerce the argument o to a Seq. If o is None, return None."""
     if o is None:
         return None
     if isinstance(o, lseq.Seq):
-        return o
+        return _seq_or_nil(o)
     if isinstance(o, lseq.Seqable):
-        return o.seq()
-    return lseq.sequence(o)
+        return _seq_or_nil(o.seq())
+    return _seq_or_nil(lseq.sequence(o))
 
 
 def concat(*seqs) -> lseq.Seq:
     """Concatenate the sequences given by seqs into a single Seq."""
-    return lseq.sequence(itertools.chain(*filter(None, map(to_seq, seqs))))
+    allseqs = lseq.sequence(itertools.chain(*filter(None, map(to_seq, seqs))))
+    if allseqs is None:
+        return lseq.empty()
+    return allseqs
 
 
 def apply(f, args):
@@ -418,7 +428,10 @@ def apply(f, args):
         (apply max [1 2 3])   ;=> 3
         (apply max 4 [1 2 3]) ;=> 4"""
     final = list(args[:-1])
-    final.extend(to_seq(args[-1]))
+    try:
+        final.extend(to_seq(args[-1]))
+    except TypeError:
+        pass
     return f(*final)
 
 
