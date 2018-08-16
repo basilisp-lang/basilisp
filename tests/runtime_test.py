@@ -1,7 +1,9 @@
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
+import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
+import basilisp.lang.set as lset
 import basilisp.lang.vector as vec
 
 
@@ -46,9 +48,17 @@ def test_cons():
 
 def test_to_seq():
     assert None is runtime.to_seq(None)
+    assert None is runtime.to_seq(llist.List.empty())
+    assert None is runtime.to_seq(vec.Vector.empty())
+    assert None is runtime.to_seq(lmap.Map.empty())
+    assert None is runtime.to_seq(lset.Set.empty())
+    assert None is runtime.to_seq("")
 
-    empty_list = llist.List.empty()
-    assert empty_list == runtime.to_seq(empty_list)
+    assert None is not runtime.to_seq(llist.l(1))
+    assert None is not runtime.to_seq(vec.v(1))
+    assert None is not runtime.to_seq(lmap.map({"a": 1}))
+    assert None is not runtime.to_seq(lset.s(1))
+    assert None is not runtime.to_seq("string")
 
     one_elem = llist.l(keyword.keyword('kw'))
     assert one_elem == runtime.to_seq(one_elem)
