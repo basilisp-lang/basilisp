@@ -155,8 +155,9 @@
          (fn* ~fname ~args
               ~@body)))))
 
-(defn print-string
-  "Print a string!"
+(defn last
+  "Return the last item in a seq, or nil if the seq is empty."
   [s]
-  (print s)
-  (print (string? s)))
+  (if (seq (rest s))
+    (recur (rest s))
+    (first s)))

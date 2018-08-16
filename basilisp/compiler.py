@@ -58,11 +58,13 @@ _INTEROP_CALL = sym.symbol(".")
 _INTEROP_PROP = sym.symbol(".-")
 _LET = sym.symbol("let*")
 _QUOTE = sym.symbol("quote")
+_RECUR = sym.symbol("recur")
 _THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
 _SPECIAL_FORMS = lset.s(_DEF, _DO, _FN, _IF, _IMPORT, _INTEROP_CALL,
-                        _INTEROP_PROP, _LET, _QUOTE, _THROW, _TRY, _VAR)
+                        _INTEROP_PROP, _LET, _QUOTE, _RECUR, _THROW,
+                        _TRY, _VAR)
 
 _UNQUOTE = sym.symbol("unquote", _CORE_NS)
 _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
@@ -127,13 +129,22 @@ class SymbolTable:
         self.pop_frame(name)
 
 
+class RecurPoint:
+    __slots__ = ('name', 'has_recur')
+
+    def __init__(self, name: str):
+        self.name = name
+        self.has_recur = False
+
+
 class CompilerContext:
-    __slots__ = ('_st', '_is_quoted', '_opts')
+    __slots__ = ('_st', '_is_quoted', '_opts', '_recur_points')
 
     def __init__(self, opts: Dict[str, bool] = None) -> None:
         self._st = collections.deque([SymbolTable('<Top>')])
         self._is_quoted: Deque[bool] = collections.deque([])
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
+        self._recur_points: Deque[RecurPoint] = collections.deque([])
 
     @property
     def current_ns(self) -> runtime.Namespace:
@@ -142,6 +153,16 @@ class CompilerContext:
     @property
     def opts(self) -> Mapping[str, bool]:
         return self._opts  # type: ignore
+
+    @property
+    def recur_point(self):
+        return self._recur_points[-1]
+
+    @contextlib.contextmanager
+    def new_recur_point(self, name: str):
+        self._recur_points.append(RecurPoint(name))
+        yield
+        self._recur_points.pop()
 
     @property
     def is_quoted(self) -> bool:
@@ -390,6 +411,8 @@ _INTERN_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.intern')
 _FIND_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.find')
 _COLLECT_ARGS_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}._collect_args')
 _COERCE_SEQ_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}.to_seq')
+_TRAMPOLINE_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}._trampoline')
+_TRAMPOLINE_ARGS_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}._TrampolineArgs')
 
 
 def _clean_meta(form: lmeta.Meta) -> LispForm:
@@ -527,6 +550,65 @@ def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,  # pylint:disable=t
 FunctionArityDetails = Tuple[int, bool, llist.List]
 
 
+def _assert_no_recur(form: lseq.Seq) -> None:
+    """Assert that the iterable contains no recur special form."""
+    for child in form:
+        if isinstance(child, lseq.Seqable):
+            _assert_no_recur(child.seq())
+        elif isinstance(child, (llist.List, lseq.Seq)):
+            if child.first == _RECUR:
+                raise CompilerException("Recur appears outside tail position")
+            _assert_no_recur(child)
+
+
+def _assert_recur_is_tail(form: llist.List) -> None:
+    """Assert that recur special forms only appear in tail position in a function."""
+    print(f"Checking {lrepr(form)} for recur")
+    listlen = len(form)
+    first_recur_index = None
+    for i, child in enumerate(form):
+        if isinstance(child, (llist.List, lseq.Seq)):
+            if child.first == _RECUR:
+                if first_recur_index is None:
+                    first_recur_index = i
+            elif child.first == _DEF:
+                try:
+                    _assert_recur_is_tail(form[2])
+                except IndexError:
+                    pass
+            elif child.first == _DO:
+                _assert_recur_is_tail(child)
+            elif child.first == _IF:
+                _assert_recur_is_tail(child[2])
+                try:
+                    _assert_recur_is_tail(child[3])
+                except IndexError:
+                    pass
+            elif child.first == _LET:
+                _assert_no_recur(child[1].seq())
+                _assert_recur_is_tail(child[2:])
+            elif child.first == _TRY:
+                if isinstance(child[1], llist.List):
+                    _assert_recur_is_tail(llist.l(child[1]))
+                for clause in child[2:]:
+                    if isinstance(clause, llist.List):
+                        if clause.first == _CATCH:
+                            _assert_recur_is_tail(llist.l(clause[2:]))
+                        elif clause.first == _FINALLY:
+                            _assert_recur_is_tail(llist.l(clause.rest))
+            elif child.first in {_IMPORT, _INTEROP_CALL, _INTEROP_PROP, _THROW, _VAR}:
+                _assert_no_recur(child)
+            else:
+                _assert_recur_is_tail(child)
+        else:
+            if isinstance(child, lseq.Seqable):
+                _assert_no_recur(child.seq())
+
+    if first_recur_index is not None:
+        if first_recur_index != listlen - 1:
+            raise CompilerException("Recur appears outside tail position")
+
+
 def _fn_arities(form: llist.List) -> Iterable[FunctionArityDetails]:
     """Return the arities of a function definition and some additional details about
     the argument vector. Verify that all arities are compatible. In particular, this
@@ -549,6 +631,7 @@ def _fn_arities(form: llist.List) -> Iterable[FunctionArityDetails]:
         (fn a [] :a) ;=> '(([] :a))"""
     if not all(map(lambda f: isinstance(f, llist.List) and isinstance(f.first, vec.Vector), form)):
         assert isinstance(form.first, vec.Vector)
+        _assert_recur_is_tail(form)
         yield len(form.first), False, form
         return
 
@@ -556,6 +639,8 @@ def _fn_arities(form: llist.List) -> Iterable[FunctionArityDetails]:
     has_vargs = False
     vargs_len = None
     for arity in form:
+        _assert_recur_is_tail(arity)
+
         # Verify each arity is unique
         arg_count = len(arity.first)
         if arg_count in arg_counts:
@@ -604,7 +689,12 @@ def _single_arity_fn_ast(ctx: CompilerContext, name: str, fndef: llist.List) -> 
         args, body, vargs = _fn_args_body(ctx, fndef.first, fndef.rest)
 
         yield _dependency(_expressionize(body, name, args=args, vargs=vargs))
-        yield _node(ast.Name(id=name, ctx=ast.Load()))
+        if ctx.recur_point.has_recur:
+            yield _node(ast.Call(func=_TRAMPOLINE_FN_NAME,
+                                 args=[ast.Name(id=ctx.recur_point.name, ctx=ast.Load())],
+                                 keywords=[]))
+        else:
+            yield _node(ast.Name(id=name, ctx=ast.Load()))
         return
 
 
@@ -687,7 +777,17 @@ def _multi_arity_fn_ast(ctx: CompilerContext, name: str, arities: List[FunctionA
                         cause=None)],
         decorator_list=[],
         returns=None))
-    yield _node(ast.Name(id=name, ctx=ast.Load()))
+
+    # If a recur point was established, we generate a trampoline version of the
+    # generated function to allow repeated recursive calls without blowing up the
+    # stack size.
+    if ctx.recur_point.has_recur:
+        yield _node(ast.Call(func=_TRAMPOLINE_FN_NAME,
+                             args=[ast.Name(id=ctx.recur_point.name, ctx=ast.Load())],
+                             keywords=[]))
+    else:
+        yield _node(ast.Name(id=name, ctx=ast.Load()))
+    return
 
 
 def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -696,17 +796,18 @@ def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     has_name = isinstance(form[1], sym.Symbol)
     name = genname("__" + (munge(form[1].name) if has_name else _FN_PREFIX))
 
-    rest_idx = 1 + int(has_name)
-    arities = list(_fn_arities(form[rest_idx:]))
-    if len(arities) == 0:
-        raise CompilerException("Function def must have argument vector")
-    elif len(arities) == 1:
-        _, _, fndef = arities[0]
-        yield from _single_arity_fn_ast(ctx, name, fndef)
-        return
-    else:
-        yield from _multi_arity_fn_ast(ctx, name, arities)
-        return
+    with ctx.new_recur_point(name):
+        rest_idx = 1 + int(has_name)
+        arities = list(_fn_arities(form[rest_idx:]))
+        if len(arities) == 0:
+            raise CompilerException("Function def must have argument vector")
+        elif len(arities) == 1:
+            _, _, fndef = arities[0]
+            yield from _single_arity_fn_ast(ctx, name, fndef)
+            return
+        else:
+            yield from _multi_arity_fn_ast(ctx, name, arities)
+            return
 
 
 def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -927,6 +1028,23 @@ def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         yield from _to_ast(ctx, form[1])
 
 
+def _recur_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+    """Generate a Python AST Node for recur forms."""
+    assert form.first == _RECUR
+    assert len(form) >= 1
+    try:
+        ctx.recur_point.has_recur = True
+
+        expr_deps, exprs = _collection_literal_ast(ctx, form.rest)
+        yield from expr_deps
+
+        yield _node(ast.Call(func=_TRAMPOLINE_ARGS_FN_NAME,
+                             args=list(_unwrap_nodes(exprs)),
+                             keywords=[]))
+    except IndexError:
+        raise CompilerException("Attempting to recur without recur point") from None
+
+
 def _catch_expr_body(body) -> PyASTStream:
     """Given a series of expression AST nodes, create a body of expression
     nodes with a final return node at the end of the list."""
@@ -1087,6 +1205,9 @@ def _special_form_ast(ctx: CompilerContext,
         return
     elif which == _QUOTE:
         yield from _quote_ast(ctx, form)
+        return
+    elif which == _RECUR:
+        yield from _recur_ast(ctx, form)
         return
     elif which == _THROW:
         yield from _throw_ast(ctx, form)

@@ -1,7 +1,8 @@
+import functools
 import itertools
 import threading
 import types
-from typing import Optional
+from typing import Optional, List, Dict
 
 from functional import seq
 from pyrsistent import pmap, PMap, PSet, pset
@@ -443,6 +444,40 @@ def _collect_args(args) -> lseq.Seq:
     if isinstance(args, tuple):
         return llist.list(args)
     raise TypeError("Python variadic arguments should always be a tuple")
+
+
+class _TrampolineArgs:
+    __slots__ = ('_args', '_kwargs')
+
+    def __init__(self, *args: Optional[List], **kwargs: Optional[Dict]):
+        self._args = Maybe(args).or_else_get([])
+        self._kwargs = Maybe(kwargs).or_else_get({})
+
+    @property
+    def args(self) -> List:
+        return self._args
+
+    @property
+    def kwargs(self) -> Dict:
+        return self._kwargs
+
+
+def _trampoline(f):
+    """Trampoline a function repeatedly until it is finished recurring to help
+    avoid stack growth."""
+
+    @functools.wraps(f)
+    def trampoline(*args, **kwargs):
+        while True:
+            ret = f(*args, **kwargs)
+            if isinstance(ret, _TrampolineArgs):
+                args = ret.args
+                kwargs = ret.kwargs
+                continue
+            return ret
+
+    return trampoline
+
 
 
 #########################
