@@ -61,8 +61,8 @@ class List(Collection, Meta, Seq):
         return List(l)
 
     @staticmethod
-    def empty(meta=None) -> "List":
-        return l(meta=meta)
+    def empty() -> "List":
+        return l()
 
 
 def list(members, meta=None) -> List:  # pylint:disable=redefined-builtin
