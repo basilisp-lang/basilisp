@@ -7,7 +7,9 @@ from typing import Optional, List, Dict
 from functional import seq
 from pyrsistent import pmap, PMap, PSet, pset
 
+import basilisp.lang.associative as lassoc
 import basilisp.lang.list as llist
+import basilisp.lang.map as lmap
 import basilisp.lang.seq as lseq
 import basilisp.lang.symbol as sym
 from basilisp.lang import atom
@@ -23,7 +25,6 @@ _PRINT_GENERATED_PY_VAR_NAME = '*print-generated-python*'
 
 def _new_module(name: str, doc=None) -> types.ModuleType:
     """Create a new empty Basilisp Python module.
-
     Modules are created for each Namespace when it is created."""
     mod = types.ModuleType(name, doc=doc)
     mod.__loader__ = None
@@ -158,26 +159,21 @@ class Namespace:
     """Namespaces serve as organizational units in Basilisp code, just as
     they do in Clojure code. Vars are mutable containers for functions and
     data which may be interned in a namespace and referred to by a Symbol.
-
     Namespaces additionally may have aliases to other namespaces, so code
     organized in one namespace may conveniently refer to code or data in
     other namespaces using that alias as the Symbol's namespace.
-
     Namespaces are constructed def-by-def as Basilisp reads in each form
     in a file (which will typically declare a namespace at the top).
-
     Namespaces have the following fields of interest:
-
     - `mappings` is a mapping between a symbolic name and a Var. The
       Var may point to code, data, or nothing, if it is unbound.
-
     - `aliases` is a mapping between a symbolic alias and another
       Namespace. The fully qualified name of a namespace is also
       an alias for itself.
-
     - `imports` is a set of Python modules imported into the current
       namespace"""
     DEFAULT_IMPORTS = atom.Atom(pset(seq(['builtins',
+                                          'operator',
                                           'basilisp.lang.exception',
                                           'basilisp.lang.keyword',
                                           'basilisp.lang.list',
@@ -204,7 +200,6 @@ class Namespace:
     @classmethod
     def add_default_import(cls, module: str):
         """Add a gated default import to the default imports.
-
         In particular, we need to avoid importing 'basilisp.core' before we have
         finished macro-expanding."""
         if module in cls.GATED_IMPORTS:
@@ -221,7 +216,6 @@ class Namespace:
     @module.setter
     def module(self, m: types.ModuleType):
         """Override the Python module for this Namespace.
-
         This should only be done by basilisp.importer code to make sure the
         correct module is generated for `basilisp.core`."""
         self._module = m
@@ -254,7 +248,6 @@ class Namespace:
 
     def intern(self, sym: sym.Symbol, var: Var, force: bool = False) -> Var:
         """Intern the Var given in this namespace mapped by the given Symbol.
-
         If the Symbol already maps to a Var, this method _will not overwrite_
         the existing Var mapping unless the force keyword argument is given
         and is True."""
@@ -322,7 +315,6 @@ class Namespace:
     def get_or_create(cls, name: sym.Symbol, module: types.ModuleType = None) -> "Namespace":
         """Get the namespace bound to the symbol `name` in the global namespace
         cache, creating it if it does not exist.
-
         Return the namespace."""
         return cls._NAMESPACES.swap(Namespace.__get_or_create, name, module=module)[name]
 
@@ -330,7 +322,6 @@ class Namespace:
     def remove(cls, name: sym.Symbol) -> Optional["Namespace"]:
         """Remove the namespace bound to the symbol `name` in the global
         namespace cache and return that namespace.
-
         Return None if the namespace did not exist in the cache."""
         while True:
             oldval: PMap = cls._NAMESPACES.deref()
@@ -446,10 +437,8 @@ def concat(*seqs) -> lseq.Seq:
 
 def apply(f, args):
     """Apply function f to the arguments provided.
-
     The last argument must always be coercible to a Seq. Intermediate
     arguments are not modified.
-
     For example:
         (apply max [1 2 3])   ;=> 3
         (apply max 4 [1 2 3]) ;=> 4"""
@@ -481,6 +470,16 @@ def nth(coll, i):
         pass
 
     raise TypeError(f"nth not supported on object of type {type(coll)}")
+
+
+def assoc(m, *kvs):
+    """Associate keys to values in associative data structure m. If m is None,
+    returns a new Map with key-values kvs."""
+    if m is None:
+        return lmap.Map.empty().assoc(*kvs)
+    if isinstance(m, lassoc.Associative):
+        return m.assoc(*kvs)
+    raise TypeError(f"Object of type {type(m)} does not implement Associative interface")
 
 
 def _collect_args(args) -> lseq.Seq:
