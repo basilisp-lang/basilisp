@@ -544,65 +544,102 @@ def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,  # pylint:disable=t
 FunctionArityDetails = Tuple[int, bool, llist.List]
 
 
-def _assert_no_recur(form: lseq.Seq) -> None:
+def _is_sym_macro(ctx: CompilerContext, form: sym.Symbol) -> bool:
+    """Determine if the symbol in the current context points to a macro.
+
+    This function is used in asserting that recur only appears in a tail position.
+    Since macros expand at compile time, we can skip asserting in the un-expanded
+    macro call, since macros are checked after macroexpansion."""
+    if form.ns is not None:
+        if form.ns == ctx.current_ns.name:
+            v = ctx.current_ns.find(sym.symbol(form.name))
+            if v is not None:
+                return _is_macro(v)
+        ns_sym = sym.symbol(form.ns)
+        if ns_sym in ctx.current_ns.aliases:
+            aliased_ns = ctx.current_ns.aliases[ns_sym]
+            v = Var.find(sym.symbol(form.name, ns=aliased_ns))
+            if v is not None:
+                return _is_macro(v)
+
+    v = ctx.current_ns.find(form)
+    if v is not None:
+        return _is_macro(v)
+
+    return False
+
+
+def _assert_no_recur(ctx: CompilerContext, form: lseq.Seq) -> None:
     """Assert that the iterable contains no recur special form."""
     for child in form:
         if isinstance(child, lseq.Seqable):
-            _assert_no_recur(child.seq())
+            _assert_no_recur(ctx, child.seq())
         elif isinstance(child, (llist.List, lseq.Seq)):
-            if child.first == _RECUR:
-                raise CompilerException("Recur appears outside tail position")
-            _assert_no_recur(child)
+            if isinstance(child.first, sym.Symbol):
+                if _is_sym_macro(ctx, child.first):
+                    continue
+                elif child.first == _RECUR:
+                    raise CompilerException(f"Recur appears outside tail position in {form}")
+                elif child.first == _FN:
+                    continue
+            _assert_no_recur(ctx, child)
 
 
-def _assert_recur_is_tail(form: lseq.Seq) -> None:  # noqa: C901
+def _assert_recur_is_tail(ctx: CompilerContext, form: lseq.Seq) -> None:  # noqa: C901
     """Assert that recur special forms only appear in tail position in a function."""
     listlen = 0
     first_recur_index = None
     for i, child in enumerate(form):  # pylint:disable=too-many-nested-blocks
         listlen += 1
         if isinstance(child, (llist.List, lseq.Seq)):
-            if child.first == _RECUR:
+            if _is_sym_macro(ctx, child.first):
+                continue
+            elif child.first == _RECUR:
                 if first_recur_index is None:
                     first_recur_index = i
             elif child.first == _DO:
-                _assert_recur_is_tail(child)
+                _assert_recur_is_tail(ctx, child)
+            elif child.first == _FN:
+                continue
             elif child.first == _IF:
-                _assert_recur_is_tail(runtime.nth(child, 2))
+                _assert_no_recur(ctx, lseq.sequence([runtime.nth(child, 1)]))
+                _assert_recur_is_tail(ctx, lseq.sequence([runtime.nth(child, 2)]))
                 try:
-                    _assert_recur_is_tail(runtime.nth(child, 3))
+                    _assert_recur_is_tail(ctx, lseq.sequence([runtime.nth(child, 3)]))
                 except IndexError:
                     pass
             elif child.first == _LET:
-                _assert_no_recur(runtime.nth(child, 1).seq())
+                for binding, val in seq(runtime.nth(child, 1)).grouped(2):
+                    _assert_no_recur(ctx, lseq.sequence([binding]))
+                    _assert_no_recur(ctx, lseq.sequence([val]))
                 let_body = runtime.nthnext(child, 2)
                 if let_body:
-                    _assert_recur_is_tail(let_body)
+                    _assert_recur_is_tail(ctx, let_body)
             elif child.first == _TRY:
                 if isinstance(runtime.nth(child, 1), llist.List):
-                    _assert_recur_is_tail(llist.l(runtime.nth(child, 1)))
+                    _assert_recur_is_tail(ctx, lseq.sequence([runtime.nth(child, 1)]))
                 catch_finally = runtime.nthnext(child, 2)
                 if catch_finally:
                     for clause in catch_finally:
                         if isinstance(clause, llist.List):
                             if clause.first == _CATCH:
-                                _assert_recur_is_tail(llist.l(runtime.nthnext(clause, 2)))
+                                _assert_recur_is_tail(ctx, lseq.sequence([runtime.nthnext(clause, 2)]))
                             elif clause.first == _FINALLY:
-                                _assert_no_recur(llist.l(clause.rest))
+                                _assert_no_recur(ctx, clause.rest)
             elif child.first in {_DEF, _IMPORT, _INTEROP_CALL, _INTEROP_PROP, _THROW, _VAR}:
-                _assert_no_recur(child)
+                _assert_no_recur(ctx, child)
             else:
-                _assert_recur_is_tail(child)
+                _assert_recur_is_tail(ctx, child)
         else:
             if isinstance(child, lseq.Seqable):
-                _assert_no_recur(child.seq())
+                _assert_no_recur(ctx, child.seq())
 
     if first_recur_index is not None:
         if first_recur_index != listlen - 1:
             raise CompilerException("Recur appears outside tail position")
 
 
-def _fn_arities(form: llist.List) -> Iterable[FunctionArityDetails]:
+def _fn_arities(ctx: CompilerContext, form: llist.List) -> Iterable[FunctionArityDetails]:
     """Return the arities of a function definition and some additional details about
     the argument vector. Verify that all arities are compatible. In particular, this
     function will throw a CompilerException if any of the following are true:
@@ -624,7 +661,7 @@ def _fn_arities(form: llist.List) -> Iterable[FunctionArityDetails]:
         (fn a [] :a) ;=> '(([] :a))"""
     if not all(map(lambda f: isinstance(f, llist.List) and isinstance(f.first, vec.Vector), form)):
         assert isinstance(form.first, vec.Vector)
-        _assert_recur_is_tail(form)
+        _assert_recur_is_tail(ctx, form)
         yield len(form.first), False, form
         return
 
@@ -632,7 +669,7 @@ def _fn_arities(form: llist.List) -> Iterable[FunctionArityDetails]:
     has_vargs = False
     vargs_len = None
     for arity in form:
-        _assert_recur_is_tail(arity)
+        _assert_recur_is_tail(ctx, arity)
 
         # Verify each arity is unique
         arg_count = len(arity.first)
@@ -790,7 +827,7 @@ def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     with ctx.new_recur_point(name):
         rest_idx = 1 + int(has_name)
-        arities = list(_fn_arities(form[rest_idx:]))
+        arities = list(_fn_arities(ctx, form[rest_idx:]))
         if len(arities) == 0:
             raise CompilerException("Function def must have argument vector")
         elif len(arities) == 1:
@@ -1279,7 +1316,7 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
                 # non-tail recur forms
                 try:
                     if ctx.recur_point.name:
-                        _assert_recur_is_tail(lseq.sequence([expanded]))
+                        _assert_recur_is_tail(ctx, lseq.sequence([expanded]))
                 except IndexError:
                     pass
 

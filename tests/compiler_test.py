@@ -397,6 +397,22 @@ def test_recur(ns_var: Var):
     assert 2 == lcompile("(last '(1 2))")
     assert 3 == lcompile("(last '(1 2 3))")
 
+    code = """
+    (def rev-str
+      (fn rev-str [s & args]
+        (let [coerce (fn [in out]
+                       (if (seq (rest in))
+                         (recur (rest in) (cons (builtins/str (first in)) out))
+                         (cons (builtins/str (first in)) out)))]
+         (.join \"\" (coerce (cons s args) '())))))
+     """
+
+    lcompile(code)
+
+    assert "a" == lcompile("(rev-str \"a\")")
+    assert "ba" == lcompile("(rev-str \"a\" :b)")
+    assert "3ba" == lcompile("(rev-str \"a\" :b 3)")
+
 
 def test_disallow_recur_in_special_forms(ns_var: Var):
     with pytest.raises(compiler.CompilerException):
@@ -439,6 +455,15 @@ def test_disallow_recur_outside_tail(ns_var: Var):
 
     with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (let [a (recur \"a\")] a))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (let [a (do (recur \"a\"))] a))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (let [a (do :b (recur \"a\"))] a))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (let [a (do (recur \"a\") :c)] a))")
 
     with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (let [a \"a\"] (recur a) a))")
