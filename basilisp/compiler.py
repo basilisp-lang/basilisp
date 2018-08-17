@@ -132,7 +132,7 @@ class SymbolTable:
 class RecurPoint:
     __slots__ = ('name', 'has_recur')
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self.name = name
         self.has_recur = False
 
@@ -561,11 +561,12 @@ def _assert_no_recur(form: lseq.Seq) -> None:
             _assert_no_recur(child)
 
 
-def _assert_recur_is_tail(form: llist.List) -> None:
+def _assert_recur_is_tail(form: lseq.Seq) -> None:  # noqa: C901
     """Assert that recur special forms only appear in tail position in a function."""
-    listlen = len(form)
+    listlen = 0
     first_recur_index = None
-    for i, child in enumerate(form):
+    for i, child in enumerate(form):  # pylint:disable=too-many-nested-blocks
+        listlen += 1
         if isinstance(child, (llist.List, lseq.Seq)):
             if child.first == _RECUR:
                 if first_recur_index is None:
@@ -573,23 +574,27 @@ def _assert_recur_is_tail(form: llist.List) -> None:
             elif child.first == _DO:
                 _assert_recur_is_tail(child)
             elif child.first == _IF:
-                _assert_recur_is_tail(child[2])
+                _assert_recur_is_tail(runtime.nth(child, 2))
                 try:
-                    _assert_recur_is_tail(child[3])
+                    _assert_recur_is_tail(runtime.nth(child, 3))
                 except IndexError:
                     pass
             elif child.first == _LET:
-                _assert_no_recur(child[1].seq())
-                _assert_recur_is_tail(child[2:])
+                _assert_no_recur(runtime.nth(child, 1).seq())
+                let_body = runtime.nthnext(child, 2)
+                if let_body:
+                    _assert_recur_is_tail(let_body)
             elif child.first == _TRY:
-                if isinstance(child[1], llist.List):
-                    _assert_recur_is_tail(llist.l(child[1]))
-                for clause in child[2:]:
-                    if isinstance(clause, llist.List):
-                        if clause.first == _CATCH:
-                            _assert_recur_is_tail(llist.l(clause[2:]))
-                        elif clause.first == _FINALLY:
-                            _assert_no_recur(llist.l(clause.rest))
+                if isinstance(runtime.nth(child, 1), llist.List):
+                    _assert_recur_is_tail(llist.l(runtime.nth(child, 1)))
+                catch_finally = runtime.nthnext(child, 2)
+                if catch_finally:
+                    for clause in catch_finally:
+                        if isinstance(clause, llist.List):
+                            if clause.first == _CATCH:
+                                _assert_recur_is_tail(llist.l(runtime.nthnext(clause, 2)))
+                            elif clause.first == _FINALLY:
+                                _assert_no_recur(llist.l(clause.rest))
             elif child.first in {_DEF, _IMPORT, _INTEROP_CALL, _INTEROP_PROP, _THROW, _VAR}:
                 _assert_no_recur(child)
             else:
@@ -781,7 +786,6 @@ def _multi_arity_fn_ast(ctx: CompilerContext, name: str, arities: List[FunctionA
                              keywords=[]))
     else:
         yield _node(ast.Name(id=name, ctx=ast.Load()))
-    return
 
 
 def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -1278,7 +1282,7 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
                 expanded = v.value(form, *form.rest)
                 yield from _to_ast(ctx, expanded)
             except Exception as e:
-                raise CompilerException(f"Error occurred during macroexpansion of {first}") from e
+                raise CompilerException(f"Error occurred during macroexpansion of {form}") from e
             return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
