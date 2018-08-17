@@ -449,9 +449,9 @@ def _collect_args(args) -> lseq.Seq:
 class _TrampolineArgs:
     __slots__ = ('_args', '_kwargs')
 
-    def __init__(self, *args: Optional[List], **kwargs: Optional[Dict]):
-        self._args = Maybe(args).or_else_get([])
-        self._kwargs = Maybe(kwargs).or_else_get({})
+    def __init__(self, *args, **kwargs):
+        self._args = args
+        self._kwargs = kwargs
 
     @property
     def args(self) -> List:
@@ -479,10 +479,10 @@ def _trampoline(f):
     return trampoline
 
 
-
 #########################
 # Bootstrap the Runtime #
 #########################
+
 
 def init_ns_var(which_ns: str = _CORE_NS,
                 ns_var_name: str = _NS_VAR_NAME) -> Var:
