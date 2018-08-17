@@ -155,8 +155,33 @@
          (fn* ~fname ~args
               ~@body)))))
 
-(defn print-string
-  "Print a string!"
+(defn nth
+  "Returns the ith element of coll (0-indexed), if it exists.
+  nil otherwise."
+  [coll i]
+  (basilisp.lang.runtime/nth coll i))
+
+(defn nthnext
+  "Returns the nth next sequence of coll.
+
+  (nthnext nil 1)           ;=> nil
+  (nthnext [] 1)            ;=> nil
+  (nthnext [1 2 3 4 5 6] 4) ;=> (5 6)"
+  [coll i]
+  (basilisp.lang.runtime/nthnext coll i))
+
+(defn nthrest
+  "Returns the nth rest sequence of coll, or coll if i is 0.
+
+  (nthrest nil 1)           ;=> nil
+  (nthrest [] 1)            ;=> []
+  (nthrest [1 2 3 4 5 6] 4) ;=> (5 6)"
+  [coll i]
+  (basilisp.lang.runtime/nthrest coll i))
+
+(defn last
+  "Return the last item in a seq, or nil if the seq is empty."
   [s]
-  (print s)
-  (print (string? s)))
+  (if (seq (rest s))
+    (recur (rest s))
+    (first s)))

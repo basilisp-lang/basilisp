@@ -365,6 +365,94 @@ def test_quoted_list(ns_var: Var):
         sym.symbol('str'), 3, kw.keyword("feet-deep"))
 
 
+def test_recur(ns_var: Var):
+    code = """
+    (def last
+      (fn [s]
+        (if (seq (rest s))
+          (recur (rest s))
+          (first s))))
+    """
+
+    lcompile(code)
+
+    assert None is lcompile("(last '())")
+    assert 1 == lcompile("(last '(1))")
+    assert 2 == lcompile("(last '(1 2))")
+    assert 3 == lcompile("(last '(1 2 3))")
+
+    code = """
+    (def last
+      (fn [s]
+        (let [r (rest s)]
+          (if (seq r)
+            (recur r)
+            (first s)))))
+    """
+
+    lcompile(code)
+
+    assert None is lcompile("(last '())")
+    assert 1 == lcompile("(last '(1))")
+    assert 2 == lcompile("(last '(1 2))")
+    assert 3 == lcompile("(last '(1 2 3))")
+
+
+def test_disallow_recur_in_special_forms(ns_var: Var):
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (def b (recur \"a\")))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (import* (recur \"a\")))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (.join \"\" (recur \"a\")))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (.-p (recur \"a\")))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (throw (recur \"a\"))))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (var (recur \"a\"))))")
+
+
+def test_disallow_recur_outside_tail(ns_var: Var):
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(recur)")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(do (recur))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(if true (recur) :b)")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (do (recur \"a\") :b))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (if (recur \"a\") :a :b))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (if (recur \"a\") :a))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (let [a (recur \"a\")] a))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (let [a \"a\"] (recur a) a))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (try (do (recur a) :b) (catch AttributeError _ nil)))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (try :b (catch AttributeError _ (do (recur :a) :c))))")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (try :b (finally (do (recur :a) :c))))")
+
+
 def test_syntax_quoting(test_ns: str, ns_var: Var, resolver: reader.Resolver):
     code = """
     (def some-val \"some value!\")

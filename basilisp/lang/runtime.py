@@ -1,7 +1,8 @@
+import functools
 import itertools
 import threading
 import types
-from typing import Optional
+from typing import Optional, List, Dict
 
 from functional import seq
 from pyrsistent import pmap, PMap, PSet, pset
@@ -359,7 +360,7 @@ def first(o):
     return s.first
 
 
-def rest(o):
+def rest(o) -> Optional[lseq.Seq]:
     """If o is a Seq, return the elements after the first in o. If o is None,
     returns an empty seq. Otherwise, coerces o to a seq and returns the rest."""
     if o is None:
@@ -375,13 +376,35 @@ def rest(o):
     return s.rest
 
 
-def next(o):  # pylint:disable=redefined-builtin
+def nthrest(coll, i: int):
+    """Returns the nth rest sequence of coll, or coll if i is 0."""
+    while True:
+        if coll is None:
+            return None
+        if i == 0:
+            return coll
+        i -= 1
+        coll = rest(coll)
+
+
+def next(o) -> Optional[lseq.Seq]:  # pylint:disable=redefined-builtin
     """Calls rest on o. If o returns an empty sequence or None, returns None.
     Otherwise, returns the elements after the first in o."""
     s = rest(o)
     if not s:
         return None
     return s
+
+
+def nthnext(coll, i: int) -> Optional[lseq.Seq]:
+    """Returns the nth next sequence of coll."""
+    while True:
+        if coll is None:
+            return None
+        if i == 0:
+            return to_seq(coll)
+        i -= 1
+        coll = next(coll)
 
 
 def cons(o, seq) -> lseq.Seq:
@@ -438,6 +461,28 @@ def apply(f, args):
     return f(*final)
 
 
+def nth(coll, i):
+    """Returns the ith element of coll (0-indexed), if it exists.
+    None otherwise."""
+    if coll is None:
+        return None
+
+    try:
+        return coll[i]
+    except TypeError:
+        pass
+
+    try:
+        for j, e in enumerate(coll):
+            if i == j:
+                return e
+        raise IndexError(f"Index {i} out of bounds")
+    except TypeError:
+        pass
+
+    raise TypeError(f"nth not supported on object of type {type(coll)}")
+
+
 def _collect_args(args) -> lseq.Seq:
     """Collect Python starred arguments into a Basilisp list."""
     if isinstance(args, tuple):
@@ -445,9 +490,43 @@ def _collect_args(args) -> lseq.Seq:
     raise TypeError("Python variadic arguments should always be a tuple")
 
 
+class _TrampolineArgs:
+    __slots__ = ('_args', '_kwargs')
+
+    def __init__(self, *args, **kwargs):
+        self._args = args
+        self._kwargs = kwargs
+
+    @property
+    def args(self) -> List:
+        return self._args
+
+    @property
+    def kwargs(self) -> Dict:
+        return self._kwargs
+
+
+def _trampoline(f):
+    """Trampoline a function repeatedly until it is finished recurring to help
+    avoid stack growth."""
+
+    @functools.wraps(f)
+    def trampoline(*args, **kwargs):
+        while True:
+            ret = f(*args, **kwargs)
+            if isinstance(ret, _TrampolineArgs):
+                args = ret.args
+                kwargs = ret.kwargs
+                continue
+            return ret
+
+    return trampoline
+
+
 #########################
 # Bootstrap the Runtime #
 #########################
+
 
 def init_ns_var(which_ns: str = _CORE_NS,
                 ns_var_name: str = _NS_VAR_NAME) -> Var:
