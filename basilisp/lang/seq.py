@@ -89,7 +89,7 @@ class _Sequence(Seq[T]):
     def __init__(self, s: Iterator, first: T) -> None:
         self._seq = s  # pylint:disable=assigning-non-slot
         self._first = first  # pylint:disable=assigning-non-slot
-        self._rest: Optional[Seq] = None
+        self._rest: Optional[Seq] = None  # pylint:disable=assigning-non-slot
 
     @property
     def first(self) -> T:
@@ -102,9 +102,9 @@ class _Sequence(Seq[T]):
 
         try:
             n = next(self._seq)
-            self._rest = _Sequence(self._seq, n)
+            self._rest = _Sequence(self._seq, n)  # pylint:disable=assigning-non-slot
         except StopIteration:
-            self._rest = _EmptySequence()
+            self._rest = _EmptySequence()  # pylint:disable=assigning-non-slot
 
         return self._rest
 
