@@ -1,4 +1,5 @@
 import basilisp.lang.associative as lassoc
+import basilisp.lang.collection as lcoll
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as meta
 import basilisp.lang.seq as lseq
@@ -7,9 +8,14 @@ from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
 
 
-def test_map_associative_interface():
-    assert isinstance(lmap.m(), lassoc.Associative)
-    assert issubclass(lmap.Map, lassoc.Associative)
+def test_vector_associative_interface():
+    assert isinstance(vector.v(), lassoc.Associative)
+    assert issubclass(vector.Vector, lassoc.Associative)
+
+
+def test_list_collection_interface():
+    assert isinstance(vector.v(), lcoll.Collection)
+    assert issubclass(vector.Vector, lcoll.Collection)
 
 
 def test_vector_meta_interface():
@@ -47,10 +53,10 @@ def test_contains():
     assert False is vector.Vector.empty().contains(-1)
 
 
-def test_vector_conj():
+def test_vector_cons():
     meta = lmap.m(tag="async")
     v1 = vector.v(keyword("kw1"), meta=meta)
-    v2 = v1.conj(keyword("kw2"))
+    v2 = v1.cons(keyword("kw2"))
     assert v1 is not v2
     assert v1 != v2
     assert len(v2) == 2

@@ -1,11 +1,12 @@
 from pyrsistent import plist, PList
 
+from basilisp.lang.collection import Collection
 from basilisp.lang.meta import Meta
 from basilisp.lang.seq import Seq
 from basilisp.lang.util import lrepr
 
 
-class List(Meta, Seq):
+class List(Collection, Meta, Seq):
     """Basilisp List. Delegates internally to a pyrsistent.PList object.
 
     Do not instantiate directly. Instead use the l() and list() factory
@@ -53,14 +54,14 @@ class List(Meta, Seq):
     def rest(self) -> "List":
         return List(self._inner.rest)
 
-    def conj(self, elem) -> "List":
-        return List(self._inner.cons(elem))
-
-    def cons(self, elem) -> "List":
-        return List(self._inner.cons(elem))
+    def cons(self, *elems) -> "List":
+        l = self._inner
+        for elem in elems:
+            l = l.cons(elem)
+        return List(l)
 
     @staticmethod
-    def empty(meta=None) -> "List":
+    def empty(meta=None) -> "List":  # pylint:disable=arguments-differ
         return l(meta=meta)
 
 

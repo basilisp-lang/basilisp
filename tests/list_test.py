@@ -1,9 +1,15 @@
+import basilisp.lang.collection as lcoll
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as meta
 import basilisp.lang.seq as lseq
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
+
+
+def test_list_collection_interface():
+    assert isinstance(llist.l(), lcoll.Collection)
+    assert issubclass(llist.List, lcoll.Collection)
 
 
 def test_list_meta_interface():
@@ -20,10 +26,10 @@ def test_list_slice():
     assert isinstance(llist.l(1, 2, 3)[1:], llist.List)
 
 
-def test_list_conj():
+def test_list_cons():
     meta = lmap.m(tag="async")
     l1 = llist.l(keyword("kw1"), meta=meta)
-    l2 = l1.conj(keyword("kw2"))
+    l2 = l1.cons(keyword("kw2"))
     assert l1 is not l2
     assert l1 != l2
     assert len(l2) == 2

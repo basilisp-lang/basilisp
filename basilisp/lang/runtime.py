@@ -8,6 +8,7 @@ from functional import seq
 from pyrsistent import pmap, PMap, PSet, pset
 
 import basilisp.lang.associative as lassoc
+import basilisp.lang.collection as lcoll
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.seq as lseq
@@ -485,6 +486,16 @@ def assoc(m, *kvs):
     if isinstance(m, lassoc.Associative):
         return m.assoc(*kvs)
     raise TypeError(f"Object of type {type(m)} does not implement Associative interface")
+
+
+def conj(coll, *xs):
+    """Conjoin xs to collection. """
+    if coll is None:
+        l = llist.List.empty()
+        return l.cons(*xs)
+    if isinstance(coll, lcoll.Collection):
+        return coll.cons(*xs)
+    raise TypeError(f"Object of type {type(coll)} does not implement Collection interface")
 
 
 def _collect_args(args) -> lseq.Seq:

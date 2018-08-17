@@ -1,11 +1,12 @@
 from collections import Sequence
-from typing import Any, Optional  # noqa: F401
+from typing import Optional  # noqa: F401
 
 from functional import seq
 from pyrsistent import pmap, PMap
 
 import basilisp.lang.vector as vec
 from basilisp.lang.associative import Associative
+from basilisp.lang.collection import Collection
 from basilisp.lang.meta import Meta
 from basilisp.lang.seq import Seqable, sequence, Seq
 from basilisp.lang.util import lrepr
@@ -58,7 +59,7 @@ class MapEntry:
         return MapEntry(vec.vector(v))
 
 
-class Map(Associative, Meta, Seqable):
+class Map(Associative, Collection, Meta, Seqable):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""
@@ -148,18 +149,24 @@ class Map(Associative, Meta, Seqable):
         m: PMap = self._inner.update(*maps)
         return Map(m)
 
-    def _conj(self, entry: MapEntry) -> "Map":
+    def _cons(self, *entries) -> "Map":
         try:
-            return Map(self._inner.set(entry.key, entry.value), meta=self.meta)
+            e = self._inner.evolver()
+            for entry in entries:
+                e.set(entry.key, entry.value)
+            return Map(e.persistent(), meta=self.meta)
         except AttributeError:
             raise ValueError(
                 "Argument to map conj must be castable to MapEntry")
 
-    def conj(self, entry: Any) -> "Map":
+    def cons(self, *entries) -> "Map":
         try:
-            return Map(self._inner.set(entry.key, entry.value), meta=self.meta)
+            e = self._inner.evolver()
+            for entry in entries:
+                e.set(entry.key, entry.value)
+            return Map(e.persistent(), meta=self.meta)
         except AttributeError:
-            return self._conj(MapEntry.from_vec(entry))
+            return self._cons(*seq(entries).map(MapEntry.from_vec))
 
     @staticmethod
     def empty() -> "Map":
