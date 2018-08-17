@@ -177,12 +177,6 @@ class CompilerContext:
         yield
         self._is_quoted.pop()
 
-    @contextlib.contextmanager
-    def unquoted(self):
-        self._is_quoted.append(False)
-        yield
-        self._is_quoted.pop()
-
     def add_import(self, imp: sym.Symbol):
         self.current_ns.add_import(imp)
 
@@ -1280,6 +1274,15 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
                 # Call the macro as (f &form & rest)
                 # In Clojure there is &env, which we don't have yet!
                 expanded = v.value(form, *form.rest)
+
+                # Verify that macroexpanded code also does not have any
+                # non-tail recur forms
+                try:
+                    if ctx.recur_point.name:
+                        _assert_recur_is_tail(lseq.sequence([expanded]))
+                except IndexError:
+                    pass
+
                 yield from _to_ast(ctx, expanded)
             except Exception as e:
                 raise CompilerException(f"Error occurred during macroexpansion of {form}") from e

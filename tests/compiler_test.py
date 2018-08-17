@@ -435,6 +435,9 @@ def test_disallow_recur_outside_tail(ns_var: Var):
         lcompile("(fn [a] (if (recur \"a\") :a :b))")
 
     with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (if (recur \"a\") :a))")
+
+    with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (let [a (recur \"a\")] a))")
 
     with pytest.raises(compiler.CompilerException):
