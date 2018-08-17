@@ -351,8 +351,8 @@ def _statementize(e: ast.AST) -> ast.AST:
 
 def _expressionize(body: MixedNodeStream,
                    fn_name: str,
-                   args: Iterable[ast.arg] = None,
-                   vargs: ast.arg = None) -> ast.FunctionDef:
+                   args: Optional[Iterable[ast.arg]] = None,
+                   vargs: Optional[ast.arg] = None) -> ast.FunctionDef:
     """Given a series of expression AST nodes, create a function AST node
     with the given name that can be called and will return the result of
     the final expression in the input body nodes.
@@ -360,7 +360,7 @@ def _expressionize(body: MixedNodeStream,
     This helps to fix the impedance mismatch of Python, which includes
     statements and expressions, and Lisps, which have only expressions.
     """
-    args = [] if args is None else args
+    args = Maybe(args).or_else_get([])
     body_nodes: List[ast.AST] = []
     body_list = _unwrap_nodes(body)
     try:
@@ -1028,7 +1028,20 @@ def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
 
 def _recur_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
-    """Generate a Python AST Node for recur forms."""
+    """Generate a Python AST Node for recur forms.
+
+    Basilisp recur forms may only appear within function definitions and
+    only in tail position.
+
+    Every function definition in Basilisp code establishes a new recur
+    point. If a recur form appears, the Basilisp compiler emits a return
+    statement returning a basilisp.lang.runtime._TrampolineArgs object,
+    which wraps all of the function arguments. Once a recur form is emitted,
+    the Basilisp compiler also wraps the function definition in a trampoline,
+    which will iteratively (rather than recursively) call the wrapped
+    function so long as _TrampolineArgs objects are returned from it. Once
+    a non _TrampolineArgs object is returned, that is returned as the final
+    return from the function."""
     assert form.first == _RECUR
     assert len(form) >= 1
     try:
