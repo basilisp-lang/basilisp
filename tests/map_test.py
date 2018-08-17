@@ -1,6 +1,7 @@
 import pytest
 
 import basilisp.lang.associative as lassoc
+import basilisp.lang.collection as lcoll
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as meta
 import basilisp.lang.seq as lseq
@@ -12,6 +13,11 @@ from basilisp.lang.symbol import symbol
 def test_map_associative_interface():
     assert isinstance(lmap.m(), lassoc.Associative)
     assert issubclass(lmap.Map, lassoc.Associative)
+
+
+def test_map_collection_interface():
+    assert isinstance(lmap.m(), lcoll.Collection)
+    assert issubclass(lmap.Map, lcoll.Collection)
 
 
 def test_map_meta_interface():
@@ -61,28 +67,51 @@ def test_entry():
     assert None is lmap.Map.empty().entry("a")
 
 
-def test_map_conj():
+def test_map_cons():
     meta = lmap.m(tag="async")
     m1 = lmap.map({"first": "Chris"}, meta=meta)
-    m2 = m1.conj(MapEntry.of("last", "Cronk"))
+    m2 = m1.cons(MapEntry.of("last", "Cronk"))
     assert m1 is not m2
     assert m1 != m2
     assert len(m2) == 2
     assert meta == m1.meta
     assert meta == m2.meta
+    assert "Chris" == m1.get("first")
+    assert not m1.contains("last")
+    assert "Cronk" == m2.get("last")
+    assert "Chris" == m2.get("first")
 
     meta = lmap.m(tag="async")
     m1 = lmap.map({"first": "Chris"}, meta=meta)
-    m2 = m1.conj(["last", "Cronk"])
+    m2 = m1.cons(["last", "Cronk"])
     assert m1 is not m2
     assert m1 != m2
     assert len(m2) == 2
     assert meta == m1.meta
     assert meta == m2.meta
+    assert "Chris" == m1.get("first")
+    assert not m1.contains("last")
+    assert "Cronk" == m2.get("last")
+    assert "Chris" == m2.get("first")
+
+    meta = lmap.m(tag="async")
+    m1 = lmap.map({"first": "Chris"}, meta=meta)
+    m2 = m1.cons(["last", "Cronk"], ["middle", "L"])
+    assert m1 is not m2
+    assert m1 != m2
+    assert len(m2) == 3
+    assert meta == m1.meta
+    assert meta == m2.meta
+    assert "Chris" == m1.get("first")
+    assert not m1.contains("middle")
+    assert not m1.contains("last")
+    assert "Cronk" == m2.get("last")
+    assert "L" == m2.get("middle")
+    assert "Chris" == m2.get("first")
 
     with pytest.raises(ValueError):
         m1 = lmap.map({"first": "Chris"})
-        m1.conj(["last"])
+        m1.cons(["last"])
 
 
 def test_map_meta():

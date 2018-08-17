@@ -2,13 +2,14 @@ from typing import Optional
 
 from pyrsistent import PSet, pset
 
+from basilisp.lang.collection import Collection
 from basilisp.lang.map import Map
 from basilisp.lang.meta import Meta
 from basilisp.lang.seq import Seqable, Seq, sequence
 from basilisp.lang.util import lrepr
 
 
-class Set(Meta, Seqable):
+class Set(Collection, Meta, Seqable):
     """Basilisp Set. Delegates internally to a pyrsistent.PSet object.
 
     Do not instantiate directly. Instead use the s() and set() factory
@@ -51,8 +52,11 @@ class Set(Meta, Seqable):
             meta)
         return set(self._inner, meta=new_meta)
 
-    def conj(self, elem) -> "Set":
-        return Set(self._inner.add(elem), meta=self.meta)
+    def cons(self, *elems) -> "Set":
+        e = self._inner.evolver()
+        for elem in elems:
+            e.add(elem)
+        return Set(e.persistent(), meta=self.meta)
 
     @staticmethod
     def empty() -> "Set":

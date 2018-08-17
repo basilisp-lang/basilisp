@@ -167,3 +167,37 @@ def test_assoc():
 
     with pytest.raises(TypeError):
         runtime.assoc(llist.List.empty(), 1, "a")
+
+
+def test_conj():
+    assert llist.l(1) == runtime.conj(None, 1)
+    assert llist.l(3, 2, 1) == runtime.conj(None, 1, 2, 3)
+    assert llist.l(llist.l(1, 2, 3)) == runtime.conj(None, llist.l(1, 2, 3))
+
+    assert llist.l(1) == runtime.conj(llist.List.empty(), 1)
+    assert llist.l(3, 2, 1) == runtime.conj(llist.List.empty(), 1, 2, 3)
+    assert llist.l(3, 2, 1, 1) == runtime.conj(llist.l(1), 1, 2, 3)
+    assert llist.l(llist.l(1, 2, 3), 1) == runtime.conj(llist.l(1), llist.l(1, 2, 3))
+
+    assert lset.s(1) == runtime.conj(lset.Set.empty(), 1)
+    assert lset.s(1, 2, 3) == runtime.conj(lset.Set.empty(), 1, 2, 3)
+    assert lset.s(1, 2, 3) == runtime.conj(lset.s(1), 1, 2, 3)
+    assert lset.s(1, lset.s(1, 2, 3)) == runtime.conj(lset.s(1), lset.s(1, 2, 3))
+
+    assert vec.v(1) == runtime.conj(vec.Vector.empty(), 1)
+    assert vec.v(1, 2, 3) == runtime.conj(vec.Vector.empty(), 1, 2, 3)
+    assert vec.v(1, 1, 2, 3) == runtime.conj(vec.v(1), 1, 2, 3)
+    assert vec.v(1, vec.v(1, 2, 3)) == runtime.conj(vec.v(1), vec.v(1, 2, 3))
+
+    assert lmap.map({"a": 1}) == runtime.conj(lmap.Map.empty(), ["a", 1])
+    assert lmap.map({"a": 1, "b": 93}) == runtime.conj(lmap.Map.empty(), ["a", 1], ["b", 93])
+    assert lmap.map({"a": 1, "b": 93}) == runtime.conj(lmap.map({"a": 8}), ["a", 1], ["b", 93])
+
+    with pytest.raises(ValueError):
+        runtime.conj(lmap.map({"a": 8}), "a", 1, "b", 93)
+
+    with pytest.raises(TypeError):
+        runtime.conj(3, 1, "a")
+
+    with pytest.raises(TypeError):
+        runtime.conj("b", 1, "a")

@@ -1,12 +1,13 @@
 from pyrsistent import PVector, pvector
 
 from basilisp.lang.associative import Associative
+from basilisp.lang.collection import Collection
 from basilisp.lang.meta import Meta
 from basilisp.lang.seq import Seqable, Seq, sequence
 from basilisp.lang.util import lrepr
 
 
-class Vector(Associative, Meta, Seqable):
+class Vector(Associative, Collection, Meta, Seqable):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""
@@ -45,8 +46,11 @@ class Vector(Associative, Meta, Seqable):
             meta)
         return vector(self._inner, meta=new_meta)
 
-    def conj(self, elem) -> "Vector":
-        return Vector(self._inner.append(elem), meta=self.meta)
+    def cons(self, *elems) -> "Vector":
+        e = self._inner.evolver()
+        for elem in elems:
+            e.append(elem)
+        return Vector(e.persistent(), meta=self.meta)
 
     def assoc(self, *kvs):
         return Vector(self._inner.mset(*kvs))

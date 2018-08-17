@@ -1,9 +1,15 @@
+import basilisp.lang.collection as lcoll
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as meta
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
+
+
+def test_list_collection_interface():
+    assert isinstance(lset.s(), lcoll.Collection)
+    assert issubclass(lset.Set, lcoll.Collection)
 
 
 def test_list_meta_interface():
@@ -19,7 +25,7 @@ def test_set_seqable_interface():
 def test_set_conj():
     meta = lmap.m(tag="async")
     s1 = lset.s(keyword("kw1"), meta=meta)
-    s2 = s1.conj(keyword("kw2"))
+    s2 = s1.cons(keyword("kw2"))
     assert s1 is not s2
     assert s1 != s2
     assert len(s2) == 2
