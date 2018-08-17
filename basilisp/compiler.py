@@ -1390,6 +1390,13 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:
                 return _resolve_sym_var(ctx, v)
         ns_sym = sym.symbol(form.ns)
         if ns_sym in ctx.current_ns.imports:
+            # We still import Basilisp code, so we'll want to make sure
+            # that the symbol isn't referring to a Basilisp Var first
+            v = Var.find(form)
+            if v is not None:
+                return _resolve_sym_var(ctx, v)
+
+            # Otherwise, try to direct-link it like a Python variable
             safe_ns = munge(form.ns)
             safe_name = munge(form.name)
             return f"{safe_ns}.{safe_name}"
@@ -1689,6 +1696,8 @@ def compile_and_exec_form(form: LispForm,
 
     if runtime.print_generated_python():
         print(to_py_str(ast_module))
+    else:
+        runtime.add_generated_python(to_py_str(ast_module))
 
     bytecode = compile(ast_module, source_filename, 'exec')
     exec(bytecode, module.__dict__)
@@ -1711,6 +1720,8 @@ def _incremental_compile_module(nodes: MixedNodeStream,
 
     if runtime.print_generated_python():
         print(to_py_str(module))
+    else:
+        runtime.add_generated_python(to_py_str(module))
 
     bytecode = compile(module, source_filename, 'exec')
     exec(bytecode, mod.__dict__)
