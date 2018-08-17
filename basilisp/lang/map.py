@@ -5,6 +5,7 @@ from functional import seq
 from pyrsistent import pmap, PMap
 
 import basilisp.lang.vector as vec
+from basilisp.lang.associative import Associative
 from basilisp.lang.meta import Meta
 from basilisp.lang.seq import Seqable, sequence, Seq
 from basilisp.lang.util import lrepr
@@ -57,9 +58,8 @@ class MapEntry:
         return MapEntry(vec.vector(v))
 
 
-class Map(Meta, Seqable):
+class Map(Associative, Meta, Seqable):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
-
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""
     __slots__ = ('_inner', '_meta',)
@@ -119,19 +119,30 @@ class Map(Meta, Seqable):
         return Map(self._inner, meta=new_meta)
 
     def assoc(self, *kvs) -> "Map":
-        m = self._inner
+        m = self._inner.evolver()
         for k, v in seq(kvs).grouped(2):
-            m = m.set(k, v)
-        return Map(m)
+            m[k] = v
+        return Map(m.persistent())
+
+    def contains(self, k):
+        if k in self._inner:
+            return True
+        return False
 
     def dissoc(self, *ks) -> "Map":
         return self.discard(*ks)
 
     def discard(self, *ks) -> "Map":
-        m: PMap = self._inner
+        m = self._inner.evolver()
         for k in ks:
-            m = m.discard(k)
-        return Map(m)
+            try:
+                del m[k]
+            except KeyError:
+                pass
+        return Map(m.persistent())
+
+    def entry(self, k):
+        return self._inner.get(k, None)
 
     def update(self, *maps) -> "Map":
         m: PMap = self._inner.update(*maps)

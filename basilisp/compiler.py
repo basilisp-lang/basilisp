@@ -1525,8 +1525,8 @@ def _with_loc(f: ASTProcessor) -> ASTProcessor:
             col = meta.get(reader.READER_COL_KW)  # type: ignore
 
             for astnode in f(ctx, form):
-                astnode.node.lineno = line
-                astnode.node.col_offset = col
+                astnode.node.lineno = line  # type: ignore
+                astnode.node.col_offset = col  # type: ignore
                 yield astnode
         except AttributeError:
             yield from f(ctx, form)

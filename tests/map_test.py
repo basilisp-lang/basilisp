@@ -1,11 +1,17 @@
 import pytest
 
+import basilisp.lang.associative as lassoc
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as meta
 import basilisp.lang.seq as lseq
 from basilisp.lang.keyword import keyword
 from basilisp.lang.map import MapEntry
 from basilisp.lang.symbol import symbol
+
+
+def test_map_associative_interface():
+    assert isinstance(lmap.m(), lassoc.Associative)
+    assert issubclass(lmap.Map, lassoc.Associative)
 
 
 def test_map_meta_interface():
@@ -16,6 +22,43 @@ def test_map_meta_interface():
 def test_map_seqable_interface():
     assert isinstance(lmap.m(), lseq.Seqable)
     assert issubclass(lmap.Map, lseq.Seqable)
+
+
+def test_assoc():
+    m = lmap.m()
+    assert lmap.map({"k": 1}) == m.assoc("k", 1)
+    assert lmap.Map.empty() == m
+    assert lmap.map({"a": 1, "b": 2}) == m.assoc("a", 1, "b", 2)
+
+    m1 = lmap.map({"a": 3})
+    assert lmap.map({"a": 1, "b": 2}) == m1.assoc("a", 1, "b", 2)
+    assert lmap.map({"a": 3, "b": 2}) == m1.assoc("b", 2)
+
+
+def test_contains():
+    assert True is lmap.map({"a": 1}).contains("a")
+    assert False is lmap.map({"a": 1}).contains("b")
+    assert False is lmap.Map.empty().contains("a")
+
+
+def test_dissoc():
+    assert lmap.Map.empty() == lmap.Map.empty().dissoc("a")
+    assert lmap.Map.empty() == lmap.Map.empty().dissoc("a", "b", "c")
+
+    m1 = lmap.map({"a": 3})
+    assert m1 == m1.dissoc("b")
+    assert lmap.Map.empty() == m1.dissoc("a")
+
+    m2 = lmap.map({"a": 3, "b": 2})
+    assert lmap.map({"a": 3}) == m2.dissoc("b")
+    assert lmap.map({"b": 2}) == m2.dissoc("a")
+    assert lmap.Map.empty() == m2.dissoc("a", "b")
+
+
+def test_entry():
+    assert 1 == lmap.map({"a": 1}).entry("a")
+    assert None is lmap.map({"a": 1}).entry("b")
+    assert None is lmap.Map.empty().entry("a")
 
 
 def test_map_conj():

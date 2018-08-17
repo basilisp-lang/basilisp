@@ -150,3 +150,20 @@ def test_nth():
 
     with pytest.raises(TypeError):
         runtime.nth(3, 1)
+
+
+def test_assoc():
+    assert lmap.Map.empty() == runtime.assoc(None)
+    assert lmap.map({"a": 1}) == runtime.assoc(None, "a", 1)
+    assert lmap.map({"a": 8}) == runtime.assoc(lmap.map({"a": 1}), "a", 8)
+    assert lmap.map({"a": 1, "b": "string"}) == runtime.assoc(lmap.map({"a": 1}), "b", "string")
+
+    assert vec.v("a") == runtime.assoc(vec.Vector.empty(), 0, "a")
+    assert vec.v("c", "b") == runtime.assoc(vec.v("a", "b"), 0, "c")
+    assert vec.v("a", "c") == runtime.assoc(vec.v("a", "b"), 1, "c")
+
+    with pytest.raises(IndexError):
+        runtime.assoc(vec.Vector.empty(), 1, "a")
+
+    with pytest.raises(TypeError):
+        runtime.assoc(llist.List.empty(), 1, "a")
