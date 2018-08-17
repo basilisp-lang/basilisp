@@ -1,3 +1,5 @@
+import pytest
+
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
@@ -27,6 +29,24 @@ def test_rest():
     assert llist.l(2, 3) == runtime.rest(vec.v(1, 2, 3))
 
 
+def test_nthrest():
+    assert None is runtime.nthrest(None, 1)
+
+    assert llist.List.empty() == runtime.nthrest(llist.List.empty(), 0)
+    assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 1)
+    assert lseq.sequence([3, 4, 5, 6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 2)
+    assert lseq.sequence([4, 5, 6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 3)
+    assert lseq.sequence([5, 6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 4)
+    assert lseq.sequence([6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 5)
+
+    assert vec.Vector.empty() == runtime.nthrest(vec.Vector.empty(), 0)
+    assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthrest(vec.v(1, 2, 3, 4, 5, 6), 1)
+    assert lseq.sequence([3, 4, 5, 6]) == runtime.nthrest(vec.v(1, 2, 3, 4, 5, 6), 2)
+    assert lseq.sequence([4, 5, 6]) == runtime.nthrest(vec.v(1, 2, 3, 4, 5, 6), 3)
+    assert lseq.sequence([5, 6]) == runtime.nthrest(vec.v(1, 2, 3, 4, 5, 6), 4)
+    assert lseq.sequence([6]) == runtime.nthrest(vec.v(1, 2, 3, 4, 5, 6), 5)
+
+
 def test_next():
     assert None is runtime.next(None)
     assert None is runtime.next(llist.l())
@@ -35,6 +55,24 @@ def test_next():
     assert None is runtime.next(vec.v(1).seq())
     assert None is runtime.next(vec.v(1))
     assert llist.l(2, 3) == runtime.next(vec.v(1, 2, 3))
+
+
+def test_nthnext():
+    assert None is runtime.nthnext(None, 1)
+
+    assert None is runtime.nthnext(llist.List.empty(), 0)
+    assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 1)
+    assert lseq.sequence([3, 4, 5, 6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 2)
+    assert lseq.sequence([4, 5, 6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 3)
+    assert lseq.sequence([5, 6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 4)
+    assert lseq.sequence([6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 5)
+
+    assert None is runtime.nthnext(vec.Vector.empty(), 0)
+    assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthnext(vec.v(1, 2, 3, 4, 5, 6), 1)
+    assert lseq.sequence([3, 4, 5, 6]) == runtime.nthnext(vec.v(1, 2, 3, 4, 5, 6), 2)
+    assert lseq.sequence([4, 5, 6]) == runtime.nthnext(vec.v(1, 2, 3, 4, 5, 6), 3)
+    assert lseq.sequence([5, 6]) == runtime.nthnext(vec.v(1, 2, 3, 4, 5, 6), 4)
+    assert lseq.sequence([6]) == runtime.nthnext(vec.v(1, 2, 3, 4, 5, 6), 5)
 
 
 def test_cons():
@@ -94,3 +132,21 @@ def test_apply():
     assert vec.v() == runtime.apply(vec.v, [[]])
     assert vec.v(1, 2, 3) == runtime.apply(vec.v, [[1, 2, 3]])
     assert vec.v(vec.v(1, 2, 3), 4, 5, 6) == runtime.apply(vec.v, [vec.v(1, 2, 3), [4, 5, 6]])
+
+
+def test_nth():
+    assert None is runtime.nth(None, 1)
+    assert "l" == runtime.nth("hello world", 2)
+    assert "l" == runtime.nth(["h", "e", "l", "l", "o"], 2)
+    assert "l" == runtime.nth(llist.l("h", "e", "l", "l", "o"), 2)
+    assert "l" == runtime.nth(vec.v("h", "e", "l", "l", "o"), 2)
+    assert "l" == runtime.nth(lseq.sequence(["h", "e", "l", "l", "o"]), 2)
+
+    with pytest.raises(IndexError):
+        runtime.nth(llist.l("h", "e", "l", "l", "o"), 7)
+
+    with pytest.raises(IndexError):
+        runtime.nth(lseq.sequence(["h", "e", "l", "l", "o"]), 7)
+
+    with pytest.raises(TypeError):
+        runtime.nth(3, 1)

@@ -376,6 +376,17 @@ def rest(o) -> Optional[lseq.Seq]:
     return s.rest
 
 
+def nthrest(coll, i: int):
+    """Returns the nth rest sequence of coll, or coll if i is 0."""
+    while True:
+        if coll is None:
+            return None
+        if i == 0:
+            return coll
+        i -= 1
+        coll = rest(coll)
+
+
 def next(o) -> Optional[lseq.Seq]:  # pylint:disable=redefined-builtin
     """Calls rest on o. If o returns an empty sequence or None, returns None.
     Otherwise, returns the elements after the first in o."""
@@ -391,7 +402,7 @@ def nthnext(coll, i: int) -> Optional[lseq.Seq]:
         if coll is None:
             return None
         if i == 0:
-            return coll
+            return to_seq(coll)
         i -= 1
         coll = next(coll)
 
