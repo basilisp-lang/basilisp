@@ -570,11 +570,6 @@ def _assert_recur_is_tail(form: llist.List) -> None:
             if child.first == _RECUR:
                 if first_recur_index is None:
                     first_recur_index = i
-            elif child.first == _DEF:
-                try:
-                    _assert_recur_is_tail(form[2])
-                except IndexError:
-                    pass
             elif child.first == _DO:
                 _assert_recur_is_tail(child)
             elif child.first == _IF:
@@ -594,8 +589,8 @@ def _assert_recur_is_tail(form: llist.List) -> None:
                         if clause.first == _CATCH:
                             _assert_recur_is_tail(llist.l(clause[2:]))
                         elif clause.first == _FINALLY:
-                            _assert_recur_is_tail(llist.l(clause.rest))
-            elif child.first in {_IMPORT, _INTEROP_CALL, _INTEROP_PROP, _THROW, _VAR}:
+                            _assert_no_recur(llist.l(clause.rest))
+            elif child.first in {_DEF, _IMPORT, _INTEROP_CALL, _INTEROP_PROP, _THROW, _VAR}:
                 _assert_no_recur(child)
             else:
                 _assert_recur_is_tail(child)

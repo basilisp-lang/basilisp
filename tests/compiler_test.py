@@ -382,13 +382,13 @@ def test_recur(ns_var: Var):
     assert 3 == lcompile("(last '(1 2 3))")
 
     code = """
-        (def last
-          (fn [s]
-            (let [r (rest s)]
-              (if (seq r)
-                (recur r)
-                (first s)))))
-        """
+    (def last
+      (fn [s]
+        (let [r (rest s)]
+          (if (seq r)
+            (recur r)
+            (first s)))))
+    """
 
     lcompile(code)
 
@@ -400,6 +400,9 @@ def test_recur(ns_var: Var):
 
 def test_disallow_recur_in_special_forms(ns_var: Var):
     with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [a] (def b (recur \"a\")))")
+
+    with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (import* (recur \"a\")))")
 
     with pytest.raises(compiler.CompilerException):
@@ -407,9 +410,6 @@ def test_disallow_recur_in_special_forms(ns_var: Var):
 
     with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (.-p (recur \"a\")))")
-
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (recur \"a\")))")
 
     with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (throw (recur \"a\"))))")
