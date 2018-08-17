@@ -353,7 +353,10 @@ def first(o):
         return None
     if isinstance(o, lseq.Seq):
         return o.first
-    return to_seq(o).first
+    s = to_seq(o)
+    if s is None:
+        return None
+    return s.first
 
 
 def rest(o):
@@ -364,12 +367,12 @@ def rest(o):
     if isinstance(o, lseq.Seq):
         s = o.rest
         if s is None:
-            return llist.List.empty()
+            return lseq.empty()
         return s
-    s = to_seq(o).rest
+    s = to_seq(o)
     if s is None:
-        return llist.List.empty()
-    return s
+        return lseq.empty()
+    return s.rest
 
 
 def next(o):  # pylint:disable=redefined-builtin

@@ -84,11 +84,12 @@ class _Sequence(Seq[T]):
 
     Do not directly instantiate a Sequence. Instead use the `sequence` function
     below."""
-    __slots__ = ('_first', '_seq')
+    __slots__ = ('_first', '_seq', '_rest')
 
     def __init__(self, s: Iterator, first: T) -> None:
         self._seq = s  # pylint:disable=assigning-non-slot
         self._first = first  # pylint:disable=assigning-non-slot
+        self._rest: Optional[Seq] = None  # pylint:disable=assigning-non-slot
 
     @property
     def first(self) -> T:
@@ -96,11 +97,16 @@ class _Sequence(Seq[T]):
 
     @property
     def rest(self) -> Optional["Seq[T]"]:
+        if self._rest:
+            return self._rest
+
         try:
             n = next(self._seq)
-            return _Sequence(self._seq, n)
+            self._rest = _Sequence(self._seq, n)  # pylint:disable=assigning-non-slot
         except StopIteration:
-            return _EmptySequence()
+            self._rest = _EmptySequence()  # pylint:disable=assigning-non-slot
+
+        return self._rest
 
     def cons(self, elem):
         return Cons(elem, self)
