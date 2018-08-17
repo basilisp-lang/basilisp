@@ -25,3 +25,8 @@ def test_sequence():
     assert llist.l(1, 2, 3) == lseq.sequence([1, 2, 3])
     assert llist.l(1, 2, 3) == lseq.sequence(llist.l(1, 2, 3))
     assert llist.l(1, 2, 3) == llist.list(lseq.sequence([1, 2, 3]))
+
+    s = lseq.sequence([1, 2, 3])
+    assert 2 == s.rest.first
+    assert 3 == s.rest.rest.first
+    assert None is s.rest.rest.rest.first
