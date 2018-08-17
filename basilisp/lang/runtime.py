@@ -20,6 +20,7 @@ _REPL_DEFAULT_NS = 'user'
 _NS_VAR_NAME = '*ns*'
 _NS_VAR_NS = _CORE_NS
 _PYTHON_PACKAGE_NAME = 'basilisp'
+_GENERATED_PYTHON_VAR_NAME = '*generated-python*'
 _PRINT_GENERATED_PY_VAR_NAME = '*print-generated-python*'
 
 
@@ -186,6 +187,9 @@ class Namespace:
                                           'basilisp.lang.util'])
                                      .map(sym.symbol)))
     GATED_IMPORTS = pset(['basilisp.core'])
+
+    _IGNORED_CORE_MAPPINGS = pset([_GENERATED_PYTHON_VAR_NAME])
+
     _NAMESPACES = atom.Atom(pmap())
 
     __slots__ = ('_name', '_module', '_mappings', '_refers', '_aliases', '_imports')
@@ -293,7 +297,8 @@ class Namespace:
         if core_ns is None:
             raise KeyError(f"Namespace {core_ns_name} not found")
         for s, var in core_ns.mappings.items():
-            new_ns.intern(s, var)
+            if s.name not in Namespace._IGNORED_CORE_MAPPINGS:
+                new_ns.intern(s, var)
 
     @staticmethod
     def __get_or_create(ns_cache: PMap,
@@ -577,6 +582,21 @@ def resolve_alias(s: sym.Symbol) -> sym.Symbol:
             return sym.symbol(s.name, ns=ns.name)
 
 
+def add_generated_python(generated_python: str,
+                         var_name: str = _GENERATED_PYTHON_VAR_NAME,
+                         which_ns: Optional[str] = None) -> None:
+    """Add generated Python code to a dynamic variable in which_ns."""
+    if which_ns is None:
+        which_ns = get_current_ns().name
+    ns_sym = sym.Symbol(var_name, ns=which_ns)
+    v = Maybe(Var.find(ns_sym)) \
+        .or_else(lambda: Var.intern(sym.symbol(which_ns),  # type: ignore
+                                    sym.symbol(var_name),
+                                    "",
+                                    dynamic=True))
+    v.value = v.value + generated_python
+
+
 def print_generated_python(var_name: str = _PRINT_GENERATED_PY_VAR_NAME,
                            core_ns_name: str = _CORE_NS) -> bool:
     """Return the value of the `*print-generated-python*` dynamic variable."""
@@ -616,5 +636,10 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME,
     Var.intern(
         core_ns_sym,
         sym.symbol(_PRINT_GENERATED_PY_VAR_NAME),
-        True,
+        False,
+        dynamic=True)
+    Var.intern(
+        core_ns_sym,
+        sym.symbol(_GENERATED_PYTHON_VAR_NAME),
+        "",
         dynamic=True)
