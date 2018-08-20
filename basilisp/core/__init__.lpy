@@ -67,6 +67,18 @@
     (instance? builtins/str o)))
 
 (def
+  ^{:doc "Return true if obj is a symbol."}
+  symbol?
+  (fn symbol? [o]
+    (instance? basilisp.lang.symbol/Symbol o)))
+
+(def
+  ^{:doc "Return true if obj is a keyword."}
+  keyword?
+  (fn keyword? [o]
+    (instance? basilisp.lang.keyword/Keyword o)))
+
+(def
   ^{:doc "Return true if o is a list."}
   list?
   (fn list? [o]
@@ -134,25 +146,35 @@
 
 (def
   ^{:macro true
-    :doc   "Define a new function."}
+    :doc   "Define a new function with an optional docstring."}
   defn
   (fn defn [&form name & body]
-    (let [body (concat body)
-          doc  (if (string? (first body))
-                 (first body)
-                 nil)
-          fname (if doc
-                  (with-meta name {:doc doc})
-                  name)
-          body (if doc
-                 (rest body)
-                 body)
-          args (if (vector? (first body))
-                 (first body)
-                 nil)  ;; Should throw here!
-          body (rest body)]
+    (if (symbol? name)
+      nil  ;; Do nothing!
+      (throw (ex-info "First argument to defn must be a symbol"
+                      {:found name :type (builtins/type name)})))
+    (let [body   (concat body)
+          doc    (if (string? (first body))
+                   (first body)
+                   nil)
+          fname  (if doc
+                   (with-meta name {:doc doc})
+                   name)
+          body   (if doc
+                   (rest body)
+                   body)
+          multi? (list? (first body))
+          body   (if multi?
+                   body
+                   (cons
+                    (if (vector? (first body))
+                      (first body)
+                      (throw
+                       (ex-info "Expected an argument vector"
+                                {:found (first body)})))
+                    (rest body)))]
       `(def ~fname
-         (fn* ~fname ~args
+         (fn* ~fname
               ~@body)))))
 
 (defn nth
@@ -185,3 +207,12 @@
   (if (seq (rest s))
     (recur (rest s))
     (first s)))
+
+(defn +
+  "Sum the arguments together. If no arguments given, returns 0."
+  ([] 0)
+  ([x] x)
+  ([x & args]
+   (if (seq (rest args))
+     (recur (operator/add x (first args)) (rest args))
+     (operator/add x (first args)))))

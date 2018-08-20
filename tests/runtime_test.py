@@ -201,3 +201,23 @@ def test_conj():
 
     with pytest.raises(TypeError):
         runtime.conj("b", 1, "a")
+
+
+def test_trampoline_args():
+    args = runtime._TrampolineArgs(True)
+    assert () == args.args
+
+    args = runtime._TrampolineArgs(False, llist.l(2, 3, 4))
+    assert (llist.l(2, 3, 4),) == args.args
+
+    args = runtime._TrampolineArgs(True, llist.l(2, 3, 4))
+    assert (2, 3, 4) == args.args
+
+    args = runtime._TrampolineArgs(False, 1, 2, 3, llist.l(4, 5, 6))
+    assert (1, 2, 3, llist.l(4, 5, 6)) == args.args
+
+    args = runtime._TrampolineArgs(True, 1, 2, 3, llist.l(4, 5, 6))
+    assert (1, 2, 3, 4, 5, 6) == args.args
+
+    args = runtime._TrampolineArgs(True, 1, llist.l(2, 3, 4), 5, 6)
+    assert (1, llist.l(2, 3, 4), 5, 6) == args.args
