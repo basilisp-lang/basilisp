@@ -1085,12 +1085,7 @@ def _recur_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         expr_deps, exprs = _collection_literal_ast(ctx, form.rest)
         yield from expr_deps
 
-        has_vargs = False
-        for i, s in enumerate(ctx.recur_point.args):
-            if s == _AMPERSAND:
-                has_vargs = True
-                break
-
+        has_vargs = any([s == _AMPERSAND for s in ctx.recur_point.args])
         yield _node(ast.Call(func=_TRAMPOLINE_ARGS_FN_NAME,
                              args=list(itertools.chain([ast.NameConstant(has_vargs)],
                                                        _unwrap_nodes(exprs))),
