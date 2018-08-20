@@ -130,10 +130,11 @@ class SymbolTable:
 
 
 class RecurPoint:
-    __slots__ = ('name', 'has_recur')
+    __slots__ = ('name', 'args', 'has_recur')
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, args: vec.Vector) -> None:
         self.name = name
+        self.args = args
         self.has_recur = False
 
 
@@ -159,8 +160,8 @@ class CompilerContext:
         return self._recur_points[-1]
 
     @contextlib.contextmanager
-    def new_recur_point(self, name: str):
-        self._recur_points.append(RecurPoint(name))
+    def new_recur_point(self, name: str, args: vec.Vector):
+        self._recur_points.append(RecurPoint(name, args))
         yield
         self._recur_points.pop()
 
@@ -715,7 +716,7 @@ def _compose_ifs(if_stmts: List[Dict[str, ast.AST]], orelse: List[ast.AST] = Non
 
 def _single_arity_fn_ast(ctx: CompilerContext, name: str, fndef: llist.List) -> ASTStream:
     """Generate Python AST nodes for a single-arity function."""
-    with ctx.new_symbol_table(name):
+    with ctx.new_symbol_table(name), ctx.new_recur_point(name, fndef.first):
         args, body, vargs = _fn_args_body(ctx, fndef.first, fndef.rest)
 
         yield _dependency(_expressionize(body, name, args=args, vargs=vargs))
@@ -771,13 +772,26 @@ def _multi_arity_fn_ast(ctx: CompilerContext, name: str, arities: List[FunctionA
     has_rest = False
 
     for arg_count, is_rest, arity in arities:
-        has_rest = any([has_rest, is_rest])
-        arity_name = f"{name}__arity{'_rest' if is_rest else arg_count}"
+        with ctx.new_recur_point(name, arity.first):
+            has_rest = any([has_rest, is_rest])
+            arity_name = f"{name}__arity{'_rest' if is_rest else arg_count}"
 
-        with ctx.new_symbol_table(arity_name):
-            args, body, vargs = _fn_args_body(ctx, arity.first, arity.rest)
+            with ctx.new_symbol_table(arity_name):
+                # Generate the arity function
+                args, body, vargs = _fn_args_body(ctx, arity.first, arity.rest)
+                yield _dependency(_expressionize(body, arity_name, args=args, vargs=vargs))
 
-            yield _dependency(_expressionize(body, arity_name, args=args, vargs=vargs))
+            # If a recur point was established, we generate a trampoline version of the
+            # generated function to allow repeated recursive calls without blowing up the
+            # stack size.
+            if ctx.recur_point.has_recur:
+                yield _dependency(ast.Assign(targets=[ast.Name(id=arity_name, ctx=ast.Store())],
+                                             value=ast.Call(func=_TRAMPOLINE_FN_NAME,
+                                                            args=[
+                                                                ast.Name(id=arity_name, ctx=ast.Load())],
+                                                            keywords=[])))
+
+            # Generate an if-statement branch for the arity-dispatch function
             compare_op = ast.GtE() if is_rest else ast.Eq()
             if_stmts.append(
                 {"test": ast.Compare(left=ast.Call(func=_load_attr('len'),
@@ -808,15 +822,7 @@ def _multi_arity_fn_ast(ctx: CompilerContext, name: str, arities: List[FunctionA
         decorator_list=[],
         returns=None))
 
-    # If a recur point was established, we generate a trampoline version of the
-    # generated function to allow repeated recursive calls without blowing up the
-    # stack size.
-    if ctx.recur_point.has_recur:
-        yield _node(ast.Call(func=_TRAMPOLINE_FN_NAME,
-                             args=[ast.Name(id=ctx.recur_point.name, ctx=ast.Load())],
-                             keywords=[]))
-    else:
-        yield _node(ast.Name(id=name, ctx=ast.Load()))
+    yield _node(ast.Name(id=name, ctx=ast.Load()))
 
 
 def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -825,18 +831,17 @@ def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     has_name = isinstance(form[1], sym.Symbol)
     name = genname("__" + (munge(form[1].name) if has_name else _FN_PREFIX))
 
-    with ctx.new_recur_point(name):
-        rest_idx = 1 + int(has_name)
-        arities = list(_fn_arities(ctx, form[rest_idx:]))
-        if len(arities) == 0:
-            raise CompilerException("Function def must have argument vector")
-        elif len(arities) == 1:
-            _, _, fndef = arities[0]
-            yield from _single_arity_fn_ast(ctx, name, fndef)
-            return
-        else:
-            yield from _multi_arity_fn_ast(ctx, name, arities)
-            return
+    rest_idx = 1 + int(has_name)
+    arities = list(_fn_arities(ctx, form[rest_idx:]))
+    if len(arities) == 0:
+        raise CompilerException("Function def must have argument vector")
+    elif len(arities) == 1:
+        _, _, fndef = arities[0]
+        yield from _single_arity_fn_ast(ctx, name, fndef)
+        return
+    else:
+        yield from _multi_arity_fn_ast(ctx, name, arities)
+        return
 
 
 def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -1080,8 +1085,15 @@ def _recur_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         expr_deps, exprs = _collection_literal_ast(ctx, form.rest)
         yield from expr_deps
 
+        has_vargs = False
+        for i, s in enumerate(ctx.recur_point.args):
+            if s == _AMPERSAND:
+                has_vargs = True
+                break
+
         yield _node(ast.Call(func=_TRAMPOLINE_ARGS_FN_NAME,
-                             args=list(_unwrap_nodes(exprs)),
+                             args=list(itertools.chain([ast.NameConstant(has_vargs)],
+                                                       _unwrap_nodes(exprs))),
                              keywords=[]))
     except IndexError:
         raise CompilerException("Attempting to recur without recur point") from None

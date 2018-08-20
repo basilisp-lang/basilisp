@@ -2,7 +2,7 @@ import functools
 import itertools
 import threading
 import types
-from typing import Optional, List, Dict
+from typing import Optional, Dict, Tuple
 
 from functional import seq
 from pyrsistent import pmap, PMap, PSet, pset
@@ -506,15 +506,29 @@ def _collect_args(args) -> lseq.Seq:
 
 
 class _TrampolineArgs:
-    __slots__ = ('_args', '_kwargs')
+    __slots__ = ('_has_varargs', '_args', '_kwargs')
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, has_varargs: bool, *args, **kwargs) -> None:
+        self._has_varargs = has_varargs
         self._args = args
         self._kwargs = kwargs
 
     @property
-    def args(self) -> List:
-        return self._args
+    def args(self) -> Tuple:
+        """Return the arguments for a trampolined function. If the function
+        that is being trampolined has varargs, unroll the final argument if
+        it is a sequence."""
+        if not self._has_varargs:
+            return self._args
+
+        try:
+            final = self._args[-1]
+            if isinstance(final, lseq.Seq):
+                inits = self._args[:-1]
+                return tuple(itertools.chain(inits, final))
+            return self._args
+        except IndexError:
+            return ()
 
     @property
     def kwargs(self) -> Dict:
