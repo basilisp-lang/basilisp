@@ -414,6 +414,45 @@ def test_recur(ns_var: Var):
     assert "3ba" == lcompile("(rev-str \"a\" :b 3)")
 
 
+def test_recur_arity(ns_var: Var):
+    # Single arity function
+    code = """
+    (def ++
+      (fn ++ [x & args]
+        (if (seq (rest args))
+          (recur (operator/add x (first args)) (rest args))
+          (operator/add x (first args)))))
+    """
+
+    lcompile(code)
+
+    assert 3 == lcompile("(++ 1 2)")
+    assert 6 == lcompile("(++ 1 2 3)")
+    assert 10 == lcompile("(++ 1 2 3 4)")
+    assert 15 == lcompile("(++ 1 2 3 4 5)")
+
+    # Multi-arity function
+    code = """
+    (def +++
+      (fn +++ 
+        ([] 0)
+        ([x] x)
+        ([x & args]
+          (if (seq (rest args))
+            (recur (operator/add x (first args)) (rest args))
+            (operator/add x (first args))))))
+    """
+
+    lcompile(code)
+
+    assert 0 == lcompile("(+++)")
+    assert 1 == lcompile("(+++ 1)")
+    assert 3 == lcompile("(+++ 1 2)")
+    assert 6 == lcompile("(+++ 1 2 3)")
+    assert 10 == lcompile("(+++ 1 2 3 4)")
+    assert 15 == lcompile("(+++ 1 2 3 4 5)")
+
+
 def test_disallow_recur_in_special_forms(ns_var: Var):
     with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (def b (recur \"a\")))")
