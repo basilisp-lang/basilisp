@@ -142,27 +142,42 @@ def test_float():
 
 
 def test_kw():
-    assert read_str_first(":kw") == kw.keyword("kw")
-    assert read_str_first(":kebab-kw") == kw.keyword("kebab-kw")
-    assert read_str_first(":underscore_kw") == kw.keyword("underscore_kw")
-    assert read_str_first(":kw?") == kw.keyword("kw?")
-    assert read_str_first(":+") == kw.keyword("+")
-    assert read_str_first(":?") == kw.keyword("?")
-    assert read_str_first(":=") == kw.keyword("=")
-    assert read_str_first(":!") == kw.keyword("!")
-    assert read_str_first(":-") == kw.keyword("-")
-    assert read_str_first(":*") == kw.keyword("*")
-    assert read_str_first(":*muffs*") == kw.keyword("*muffs*")
-    assert read_str_first(":yay!") == kw.keyword("yay!")
+    assert kw.keyword("kw") == read_str_first(":kw")
+    assert kw.keyword("kebab-kw") == read_str_first(":kebab-kw")
+    assert kw.keyword("underscore_kw") == read_str_first(":underscore_kw")
+    assert kw.keyword("kw?") == read_str_first(":kw?")
+    assert kw.keyword("+") == read_str_first(":+")
+    assert kw.keyword("?") == read_str_first(":?")
+    assert kw.keyword("=") == read_str_first(":=")
+    assert kw.keyword("!") == read_str_first(":!")
+    assert kw.keyword("-") == read_str_first(":-")
+    assert kw.keyword("*") == read_str_first(":*")
+    assert kw.keyword(">") == read_str_first(":>")
+    assert kw.keyword("->") == read_str_first(":->")
+    assert kw.keyword("->>") == read_str_first(":->>")
+    assert kw.keyword("-->") == read_str_first(":-->")
+    assert kw.keyword("--------------->") == read_str_first(":--------------->")
+    assert kw.keyword("<") == read_str_first(":<")
+    assert kw.keyword("<-") == read_str_first(":<-")
+    assert kw.keyword("<--") == read_str_first(":<--")
+    assert kw.keyword("<body>") == read_str_first(":<body>")
+    assert kw.keyword("*muffs*") == read_str_first(":*muffs*")
+    assert kw.keyword("yay!") == read_str_first(":yay!")
 
-    assert read_str_first(":ns/kw") == kw.keyword("kw", ns="ns")
-    assert read_str_first(":qualified.ns/kw") == kw.keyword(
-        "kw", ns="qualified.ns")
-    assert read_str_first(":really.qualified.ns/kw") == kw.keyword(
-        "kw", ns="really.qualified.ns")
+    assert kw.keyword("kw", ns="ns") == read_str_first(":ns/kw")
+    assert kw.keyword("kw", ns="qualified.ns") == read_str_first(
+        ":qualified.ns/kw")
+    assert kw.keyword("kw", ns="really.qualified.ns") == read_str_first(
+        ":really.qualified.ns/kw")
 
     with pytest.raises(reader.SyntaxError):
         read_str_first(":ns//kw")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first(":some/ns/sym")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first(":ns/sym/")
 
     with pytest.raises(reader.SyntaxError):
         read_str_first(":/kw")
@@ -178,30 +193,52 @@ def test_literals():
 
 
 def test_symbol():
-    assert read_str_first("sym") == sym.symbol("sym")
-    assert read_str_first("kebab-sym") == sym.symbol("kebab-sym")
-    assert read_str_first("underscore_sym") == sym.symbol("underscore_sym")
-    assert read_str_first("sym?") == sym.symbol("sym?")
-    assert read_str_first("+") == sym.symbol("+")
-    assert read_str_first("?") == sym.symbol("?")
-    assert read_str_first("=") == sym.symbol("=")
-    assert read_str_first("!") == sym.symbol("!")
-    assert read_str_first("-") == sym.symbol("-")
-    assert read_str_first("*") == sym.symbol("*")
-    assert read_str_first("*muffs*") == sym.symbol("*muffs*")
-    assert read_str_first("yay!") == sym.symbol("yay!")
+    assert sym.symbol("sym") == read_str_first("sym")
+    assert sym.symbol("kebab-sym") == read_str_first("kebab-sym")
+    assert sym.symbol("underscore_sym") == read_str_first("underscore_sym")
+    assert sym.symbol("sym?") == read_str_first("sym?")
+    assert sym.symbol("+") == read_str_first("+")
+    assert sym.symbol("?") == read_str_first("?")
+    assert sym.symbol("=") == read_str_first("=")
+    assert sym.symbol("!") == read_str_first("!")
+    assert sym.symbol("-") == read_str_first("-")
+    assert sym.symbol("*") == read_str_first("*")
+    assert sym.symbol(">") == read_str_first(">")
+    assert sym.symbol("->") == read_str_first("->")
+    assert sym.symbol("->>") == read_str_first("->>")
+    assert sym.symbol("-->") == read_str_first("-->")
+    assert sym.symbol("<") == read_str_first("<")
+    assert sym.symbol("<-") == read_str_first("<-")
+    assert sym.symbol("<--") == read_str_first("<--")
+    assert sym.symbol("<body>") == read_str_first("<body>")
+    assert sym.symbol("*muffs*") == read_str_first("*muffs*")
+    assert sym.symbol("yay!") == read_str_first("yay!")
+    assert sym.symbol("/") == read_str_first("/")
 
-    assert read_str_first("ns/sym") == sym.symbol("sym", ns="ns")
-    assert read_str_first("qualified.ns/sym") == sym.symbol(
-        "sym", ns="qualified.ns")
-    assert read_str_first("really.qualified.ns/sym") == sym.symbol(
-        "sym", ns="really.qualified.ns")
+    assert sym.symbol("sym", ns="ns") == read_str_first("ns/sym")
+    assert sym.symbol(
+        "sym", ns="qualified.ns") == read_str_first("qualified.ns/sym")
+    assert sym.symbol(
+        "sym", ns="really.qualified.ns") == read_str_first("really.qualified.ns/sym")
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("ns//sym")
 
     with pytest.raises(reader.SyntaxError):
+        read_str_first("some/ns/sym")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("ns/sym/")
+
+    with pytest.raises(reader.SyntaxError):
         read_str_first("/sym")
+
+    with pytest.raises(reader.SyntaxError):
+        # This will raise because the default pushback depth of the
+        # reader.StreamReader instance used by the reader is 5, so
+        # we are unable to pushback more - characters consumed by
+        # reader._read_num trying to parse a number.
+        read_str_first("------->")
 
 
 def test_str():
