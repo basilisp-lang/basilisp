@@ -22,7 +22,7 @@ import basilisp.walker as walk
 from basilisp.lang.typing import LispForm, IterableLispForm
 from basilisp.util import Maybe
 
-ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%')
+ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<')
 begin_num_chars = re.compile('[0-9\-]')
 num_chars = re.compile('[0-9]')
 whitespace_chars = re.compile('[\s,]')
@@ -219,11 +219,14 @@ def _read_namespaced(ctx: ReaderContext, allowed_suffix: Optional[str] = None) -
             reader.next_token()
             if has_ns:
                 raise SyntaxError("Found '/'; expected word character")
-            has_ns = True
-            ns = name
-            name = []
-            if len(ns) == 0:
-                raise SyntaxError("Found ''; expected namespace")
+            elif len(name) == 0:
+                name.append('/')
+            else:
+                if '/' in name:
+                    raise SyntaxError("Found '/' after '/'")
+                has_ns = True
+                ns = name
+                name = []
         elif ns_name_chars.match(token):
             reader.next_token()
             name.append(token)
@@ -236,7 +239,17 @@ def _read_namespaced(ctx: ReaderContext, allowed_suffix: Optional[str] = None) -
         else:
             break
 
-    return None if not has_ns else ''.join(ns), ''.join(name)
+    ns_str = None if not has_ns else ''.join(ns)
+    name_str = ''.join(name)
+
+    # A small exception for the symbol '/ used for division
+    if ns_str is None:
+        if '/' in name_str and name_str != '/':
+            raise SyntaxError("'/' character disallowed in names")
+
+    assert ns_str is None or len(ns_str) > 0
+
+    return ns_str, name_str
 
 
 def _read_coll(ctx: ReaderContext, f: Callable[[Collection[Any]], Union[
@@ -398,7 +411,7 @@ MaybeNumber = Union[float, int, MaybeSymbol]
 
 def _read_num(ctx: ReaderContext) -> MaybeNumber:
     """Return a numeric (integer or float) from the input stream."""
-    chars = []
+    chars: List[str] = []
     reader = ctx.reader
     is_float = False
     while True:
@@ -407,6 +420,11 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:
             following_token = reader.next_token()
             if not begin_num_chars.match(following_token):
                 reader.pushback()
+                try:
+                    for _ in chars:
+                        reader.pushback()
+                except IndexError:
+                    raise SyntaxError("Requested to pushback too many characters onto StreamReader")
                 return _read_sym(ctx)
             chars.append(token)
             continue
