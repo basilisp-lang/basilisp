@@ -222,6 +222,8 @@ def _read_namespaced(ctx: ReaderContext, allowed_suffix: Optional[str] = None) -
             elif len(name) == 0:
                 name.append('/')
             else:
+                if '/' in name:
+                    raise SyntaxError("Found '/' after '/'")
                 has_ns = True
                 ns = name
                 name = []

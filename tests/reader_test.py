@@ -152,6 +152,7 @@ def test_kw():
     assert kw.keyword("!") == read_str_first(":!")
     assert kw.keyword("-") == read_str_first(":-")
     assert kw.keyword("*") == read_str_first(":*")
+    assert kw.keyword("/") == read_str_first(":/")
     assert kw.keyword(">") == read_str_first(":>")
     assert kw.keyword("->") == read_str_first(":->")
     assert kw.keyword("->>") == read_str_first(":->>")
@@ -169,6 +170,9 @@ def test_kw():
         ":qualified.ns/kw")
     assert kw.keyword("kw", ns="really.qualified.ns") == read_str_first(
         ":really.qualified.ns/kw")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("://")
 
     with pytest.raises(reader.SyntaxError):
         read_str_first(":ns//kw")
@@ -203,6 +207,7 @@ def test_symbol():
     assert sym.symbol("!") == read_str_first("!")
     assert sym.symbol("-") == read_str_first("-")
     assert sym.symbol("*") == read_str_first("*")
+    assert sym.symbol("/") == read_str_first("/")
     assert sym.symbol(">") == read_str_first(">")
     assert sym.symbol("->") == read_str_first("->")
     assert sym.symbol("->>") == read_str_first("->>")
@@ -213,13 +218,15 @@ def test_symbol():
     assert sym.symbol("<body>") == read_str_first("<body>")
     assert sym.symbol("*muffs*") == read_str_first("*muffs*")
     assert sym.symbol("yay!") == read_str_first("yay!")
-    assert sym.symbol("/") == read_str_first("/")
 
     assert sym.symbol("sym", ns="ns") == read_str_first("ns/sym")
     assert sym.symbol(
         "sym", ns="qualified.ns") == read_str_first("qualified.ns/sym")
     assert sym.symbol(
         "sym", ns="really.qualified.ns") == read_str_first("really.qualified.ns/sym")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("//")
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("ns//sym")
