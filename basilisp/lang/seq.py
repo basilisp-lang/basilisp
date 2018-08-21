@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional, TypeVar, Iterable, Any
+from typing import Iterator, Optional, TypeVar, Iterable, Any, Callable
 
 from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
@@ -110,6 +110,70 @@ class _Sequence(Seq[T]):
 
     def cons(self, elem):
         return Cons(elem, self)
+
+
+class LazySeq(Seq[T]):
+    """LazySeqs are wrappers for delaying sequence computation. Create a LazySeq
+    with a function that can either return None or a Seq. If a Seq is returned,
+    the LazySeq is a proxy to that Seq."""
+    __slots__ = ('_gen', '_realized', '_seq')
+
+    def __init__(self, gen: Callable[[], Optional[Seq]]) -> None:
+        self._gen = gen  # pylint:disable=assigning-non-slot
+        self._realized = False  # pylint:disable=assigning-non-slot
+        self._seq: Optional[Seq] = None  # pylint:disable=assigning-non-slot
+
+    def _realize(self):
+        if not self._realized:
+            self._seq = self._gen()  # pylint:disable=assigning-non-slot
+            self._realized = True  # pylint:disable=assigning-non-slot
+
+    @property
+    def is_empty(self) -> bool:
+        if not self._realized:
+            return False
+        if self._seq is None:
+            return True
+        if self._seq.first is None and self._seq.rest == empty():
+            return True
+        if isinstance(self._seq, LazySeq) and self._seq.is_empty:
+            return True
+        return False
+
+    @property
+    def first(self) -> T:
+        if not self._realized:
+            self._realize()
+        try:
+            return self._seq.first  # type: ignore
+        except AttributeError:
+            return None  # type: ignore
+
+    @property
+    def rest(self) -> Optional["Seq[T]"]:
+        if not self._realized:
+            self._realize()
+        try:
+            return self._seq.rest  # type: ignore
+        except AttributeError:
+            return empty()
+
+    def cons(self, elem):
+        return Cons(elem, self)
+
+    @property
+    def realized(self):
+        return self._realized
+
+    def __iter__(self):
+        o = self
+        while o:
+            first = o.first
+            if isinstance(o, LazySeq):
+                if o.is_empty:
+                    return
+            yield first
+            o = o.rest
 
 
 class _EmptySequence(Seq[T]):
