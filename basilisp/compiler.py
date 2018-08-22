@@ -3,6 +3,7 @@ import collections
 import contextlib
 import functools
 import itertools
+import sys
 import types
 import uuid
 from collections import OrderedDict
@@ -470,7 +471,7 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     try:
         def_nodes, def_value = _nodes_and_expr(_to_ast(ctx, form[2]))
-    except KeyError:
+    except IndexError:
         def_nodes, def_value = [], None
 
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form[1]))
@@ -1448,8 +1449,25 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:
 
             # Otherwise, try to direct-link it like a Python variable
             safe_ns = munge(form.ns)
+            try:
+                ns_module = sys.modules[safe_ns]
+            except KeyError:
+                # This should never happen. A module listed in the namespace
+                # imports should always be imported already.
+                raise CompilerException(f"Module '{safe_ns}' is not imported")
+
+            # Try without allowing builtins first
             safe_name = munge(form.name)
-            return f"{safe_ns}.{safe_name}"
+            if safe_name in ns_module.__dict__:
+                return f"{safe_ns}.{safe_name}"
+
+            # Then allow builtins
+            safe_name = munge(form.name, allow_builtins=True)
+            if safe_name in ns_module.__dict__:
+                return f"{safe_ns}.{safe_name}"
+
+            # If neither resolve, then defer to a Var.find
+            return None
         elif ns_sym in ctx.current_ns.aliases:
             aliased_ns = ctx.current_ns.aliases[ns_sym]
             v = Var.find(sym.symbol(form.name, ns=aliased_ns))
