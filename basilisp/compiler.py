@@ -380,15 +380,15 @@ def _expressionize(body: MixedNodeStream,
         returns=None)
 
 
-_KW_ALIAS = 'kw'
-_LIST_ALIAS = 'llist'
-_MAP_ALIAS = 'lmap'
-_RUNTIME_ALIAS = 'runtime'
-_SET_ALIAS = 'lset'
-_SYM_ALIAS = 'sym'
-_VEC_ALIAS = 'vec'
-_VAR_ALIAS = 'Var'
-_UTIL_ALIAS = 'langutil'
+_KW_ALIAS = genname('kw')
+_LIST_ALIAS = genname('llist')
+_MAP_ALIAS = genname('lmap')
+_RUNTIME_ALIAS = genname('runtime')
+_SET_ALIAS = genname('lset')
+_SYM_ALIAS = genname('sym')
+_VEC_ALIAS = genname('vec')
+_VAR_ALIAS = genname('Var')
+_UTIL_ALIAS = genname('langutil')
 _NS_VAR_VALUE = f'{_NS_VAR}.value'
 
 _NS_VAR_NAME = _load_attr(f'{_NS_VAR_VALUE}.name')
@@ -477,6 +477,12 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     yield from meta_nodes
     yield from def_nodes
+
+    # TODO: log this out, rather than emitting as a warning
+    # https://github.com/chrisrink10/basilisp/issues/121
+    if safe_name in ctx.current_ns.module.__dict__:
+        print(f"WARNING: redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'")
+
     yield _dependency(ast.Assign(targets=[ast.Name(id=safe_name, ctx=ast.Store())],
                                  value=Maybe(def_value).map(_unwrap_node).or_else_get(ast.NameConstant(None))))
     yield _node(ast.Call(
@@ -1671,7 +1677,7 @@ def _from_module_import() -> ast.ImportFrom:
     language support modules."""
     return ast.ImportFrom(
         module='basilisp.lang.runtime',
-        names=[ast.alias(name='Var', asname=None)],
+        names=[ast.alias(name='Var', asname=_VAR_ALIAS)],
         level=0)
 
 
