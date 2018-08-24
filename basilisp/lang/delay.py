@@ -11,7 +11,7 @@ class Delay(Deref[T]):
     __slots__ = ('_state',)
 
     def __init__(self, f: Callable[[], T]) -> None:
-        self._state = atom.Atom(lmap.m(f=f, value=None, computed=False))
+        self._state = atom.Atom(lmap.m(f=f, value=None, computed=False))  # pylint:disable=assigning-non-slot
 
     @staticmethod
     def __deref(m: lmap.Map):
