@@ -1,5 +1,6 @@
 import pytest
 
+import basilisp.lang.atom as atom
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
@@ -201,6 +202,25 @@ def test_conj():
 
     with pytest.raises(TypeError):
         runtime.conj("b", 1, "a")
+
+
+def test_deref():
+    assert 1 == runtime.deref(atom.Atom(1))
+    assert vec.Vector.empty() == runtime.deref(atom.Atom(vec.Vector.empty()))
+
+    with pytest.raises(TypeError):
+        runtime.deref(1)
+
+    with pytest.raises(TypeError):
+        runtime.deref(vec.Vector.empty())
+
+
+def test_swap():
+    assert 3 == runtime.swap(atom.Atom(1), lambda x, y: x + y, 2)
+    assert vec.v(1) == runtime.swap(atom.Atom(vec.Vector.empty()), lambda v, e: v.cons(e), 1)
+
+    with pytest.raises(AttributeError):
+        runtime.swap(1, lambda x, y: x + y, 2)
 
 
 def test_trampoline_args():
