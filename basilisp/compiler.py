@@ -600,7 +600,7 @@ def _assert_recur_is_tail(ctx: CompilerContext, form: lseq.Seq) -> None:  # noqa
     for i, child in enumerate(form):  # pylint:disable=too-many-nested-blocks
         listlen += 1
         if isinstance(child, (llist.List, lseq.Seq)):
-            if _is_sym_macro(ctx, child.first):
+            if isinstance(child.first, sym.Symbol) and _is_sym_macro(ctx, child.first):
                 continue
             elif child.first == _RECUR:
                 if first_recur_index is None:

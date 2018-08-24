@@ -267,6 +267,10 @@ def test_fn_call(ns_var: Var):
     assert fvar == "bleep"
 
 
+def test_macro_expansion(ns_var: Var):
+    assert llist.l(1, 2, 3) == lcompile("((fn [] '(1 2 3)))")
+
+
 def test_if(ns_var: Var):
     assert lcompile("(if true :a :b)") == kw.keyword("a")
     assert lcompile("(if false :a :b)") == kw.keyword("b")
