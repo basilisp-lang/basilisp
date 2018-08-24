@@ -9,6 +9,7 @@ from pyrsistent import pmap, PMap, PSet, pset
 
 import basilisp.lang.associative as lassoc
 import basilisp.lang.collection as lcoll
+import basilisp.lang.deref as lderef
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.seq as lseq
@@ -176,6 +177,8 @@ class Namespace:
       namespace"""
     DEFAULT_IMPORTS = atom.Atom(pset(seq(['builtins',
                                           'operator',
+                                          'basilisp.lang.atom',
+                                          'basilisp.lang.delay',
                                           'basilisp.lang.exception',
                                           'basilisp.lang.keyword',
                                           'basilisp.lang.list',
@@ -496,6 +499,20 @@ def conj(coll, *xs):
     if isinstance(coll, lcoll.Collection):
         return coll.cons(*xs)
     raise TypeError(f"Object of type {type(coll)} does not implement Collection interface")
+
+
+def deref(o):
+    """Dereference a Deref object and return its contents."""
+    if isinstance(o, lderef.Deref):
+        return o.deref()
+    raise TypeError(f"Object of type {type(o)} cannot be dereferenced")
+
+
+def swap(a: atom.Atom, f, *args):
+    """Atomically swap the value of an atom to the return value of (apply f
+    current-value args). The function f may be called multiple times while
+    swapping, so should be free of side effects. Return the new value."""
+    return a.swap(f, *args)
 
 
 def _collect_args(args) -> lseq.Seq:

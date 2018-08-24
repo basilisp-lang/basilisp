@@ -162,7 +162,7 @@ class LazySeq(Seq[T]):
         return Cons(elem, self)
 
     @property
-    def realized(self):
+    def is_realized(self):
         return self._realized
 
     def __iter__(self):

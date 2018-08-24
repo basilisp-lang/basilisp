@@ -13,21 +13,21 @@ def test_lazy_sequence():
     assert not s.is_empty, "LazySeq has not been realized yet"
     assert None is s.first
     assert lseq.empty() == s.rest
-    assert s.realized
+    assert s.is_realized
     assert s.is_empty, "LazySeq has been realized and is empty"
 
     s = lseq.LazySeq(lambda: lseq.empty())
     assert not s.is_empty, "LazySeq has not been realized yet"
     assert None is s.first
     assert lseq.empty() == s.rest
-    assert s.realized
+    assert s.is_realized
     assert s.is_empty, "LazySeq has been realized and is empty"
 
     s = lseq.LazySeq(lambda: lseq.sequence([1]))
     assert not s.is_empty, "LazySeq has not been realized yet"
     assert 1 == s.first
     assert lseq.empty() == s.rest
-    assert s.realized
+    assert s.is_realized
     assert not s.is_empty, "LazySeq has been realized and is not empty"
 
     def lazy_seq():
@@ -43,21 +43,21 @@ def test_lazy_sequence():
     assert not s.is_empty, "LazySeq has not been realized yet"
     assert 1 == s.first
     assert isinstance(s.rest, lseq.LazySeq)
-    assert s.realized
+    assert s.is_realized
     assert not s.is_empty, "LazySeq has been realized and is not empty"
 
     r = s.rest
     assert not r.is_empty, "LazySeq has not been realized yet"
     assert 2 == r.first
     assert isinstance(r.rest, lseq.LazySeq)
-    assert r.realized
+    assert r.is_realized
     assert not r.is_empty, "LazySeq has been realized and is not empty"
 
     t = r.rest
     assert not t.is_empty, "LazySeq has not been realized yet"
     assert 3 == t.first
     assert lseq.empty() == t.rest
-    assert t.realized
+    assert t.is_realized
     assert not t.is_empty, "LazySeq has been realized and is not empty"
 
     assert [1, 2, 3] == [e for e in s]

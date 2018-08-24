@@ -1,20 +1,28 @@
-from typing import Callable, Any
+from typing import Callable, TypeVar
 
 import basilisp.lang.atom as atom
 import basilisp.lang.map as lmap
+from basilisp.lang.deref import Deref
+
+T = TypeVar('T')
 
 
-class Delay:
+class Delay(Deref[T]):
     __slots__ = ('_state',)
 
-    def __init__(self, f: Callable[[], Any]) -> None:
-        self._state = atom.Atom(lmap.m(f=f, value=None, computed=False))
+    def __init__(self, f: Callable[[], T]) -> None:
+        self._state = atom.Atom(lmap.m(f=f, value=None, computed=False))  # pylint:disable=assigning-non-slot
 
-    def deref(self) -> Any:
-        def __deref(m: lmap.Map):
-            if m["computed"]:
-                return m
-            else:
-                return m.assoc("value", m["f"](), "computed", True)
+    @staticmethod
+    def __deref(m: lmap.Map):
+        if m["computed"]:
+            return m
+        else:
+            return m.assoc("value", m["f"](), "computed", True)
 
-        return self._state.swap(__deref).value
+    def deref(self) -> T:
+        return self._state.swap(Delay.__deref).value
+
+    @property
+    def is_realized(self) -> bool:
+        return self._state.deref()["computed"]

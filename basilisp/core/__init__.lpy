@@ -216,3 +216,33 @@
    (if (seq (rest args))
      (recur (operator/add x (first args)) (rest args))
      (operator/add x (first args)))))
+
+(defn deref
+  "Dereference an atom and returns its contents."
+  [o]
+  (basilisp.lang.runtime/deref o))
+
+(defn reset!
+  "Reset the value of an atom to v without regard to the previous value.
+  Return the new value."
+  [atom v]
+  (let [current (deref atom)]
+    (if (.compare-and-set atom current v)
+      v
+      (recur atom v))))
+
+(defn swap!
+  "Atomically swap the value of an atom to the return value of (apply f
+  current-value args). The function f may be called multiple times while
+  swapping, so should be free of side effects. Return the new value."
+  [atom f & args]
+  (apply basilisp.lang.runtime/swap atom f args))
+
+(defn atom
+  "Return an Atom containing v. The value of an Atom at any point in time
+  may be returned by deref'ing it. The value of an atom may be reset using
+  reset! and may be swapped using swap!. All operations on an atom occur
+  atomically."
+  [v]
+  (basilisp.lang.atom/Atom v))
+
