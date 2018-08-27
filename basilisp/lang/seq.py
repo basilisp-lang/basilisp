@@ -1,8 +1,10 @@
+import itertools
 from abc import ABC, abstractmethod
 from typing import Iterator, Optional, TypeVar, Iterable, Any, Callable
 
 from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
+from basilisp.util import Maybe
 
 T = TypeVar('T')
 
@@ -15,12 +17,12 @@ class Seq(ABC, Iterable[T]):
 
     @property
     @abstractmethod
-    def first(self) -> T:
+    def first(self) -> Optional[T]:
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def rest(self) -> Optional["Seq[T]"]:
+    def rest(self) -> "Seq[T]":
         raise NotImplementedError()
 
     @abstractmethod
@@ -28,7 +30,10 @@ class Seq(ABC, Iterable[T]):
         raise NotImplementedError()
 
     def __eq__(self, other):
-        for e1, e2 in zip(self, other):
+        sentinel = object()
+        for e1, e2 in itertools.zip_longest(self, other, fillvalue=sentinel):
+            if bool(e1 is sentinel) or bool(e2 is sentinel):
+                return False
             if e1 != e2:
                 return False
         return True
@@ -47,20 +52,42 @@ class Seqable(ABC, Iterable[T]):
         raise NotImplementedError()
 
 
+class _EmptySequence(Seq[T]):
+    def __repr__(self):
+        return '()'
+
+    def __bool__(self):
+        return False
+
+    @property
+    def first(self) -> Optional[T]:
+        return None
+
+    @property
+    def rest(self) -> Seq[T]:
+        return EMPTY
+
+    def cons(self, elem):
+        return Cons(elem, self)
+
+
+EMPTY: Seq = _EmptySequence()
+
+
 class Cons(Seq, Meta):
     __slots__ = ('_first', '_rest', '_meta')
 
     def __init__(self, first=None, seq: Optional[Seq[Any]] = None, meta=None) -> None:
         self._first = first
-        self._rest = seq
+        self._rest = Maybe(seq).or_else_get(EMPTY)
         self._meta = meta
 
     @property
-    def first(self):
+    def first(self) -> Optional[Any]:
         return self._first
 
     @property
-    def rest(self) -> Optional[Seq[Any]]:
+    def rest(self) -> Seq[Any]:
         return self._rest
 
     def cons(self, elem) -> "Cons":
@@ -92,11 +119,11 @@ class _Sequence(Seq[T]):
         self._rest: Optional[Seq] = None  # pylint:disable=assigning-non-slot
 
     @property
-    def first(self) -> T:
+    def first(self) -> Optional[T]:
         return self._first
 
     @property
-    def rest(self) -> Optional["Seq[T]"]:
+    def rest(self) -> "Seq[T]":
         if self._rest:
             return self._rest
 
@@ -104,7 +131,7 @@ class _Sequence(Seq[T]):
             n = next(self._seq)
             self._rest = _Sequence(self._seq, n)  # pylint:disable=assigning-non-slot
         except StopIteration:
-            self._rest = _EmptySequence()  # pylint:disable=assigning-non-slot
+            self._rest = EMPTY  # pylint:disable=assigning-non-slot
 
         return self._rest
 
@@ -134,29 +161,31 @@ class LazySeq(Seq[T]):
             return False
         if self._seq is None:
             return True
-        if self._seq.first is None and self._seq.rest == empty():
+        if self._seq is EMPTY:
+            return True
+        if self._seq.first is None and self._seq.rest is EMPTY:  # type: ignore
             return True
         if isinstance(self._seq, LazySeq) and self._seq.is_empty:
             return True
         return False
 
     @property
-    def first(self) -> T:
+    def first(self) -> Optional[T]:
         if not self._realized:
             self._realize()
         try:
             return self._seq.first  # type: ignore
         except AttributeError:
-            return None  # type: ignore
+            return None
 
     @property
-    def rest(self) -> Optional["Seq[T]"]:
+    def rest(self) -> "Seq[T]":
         if not self._realized:
             self._realize()
         try:
             return self._seq.rest  # type: ignore
         except AttributeError:
-            return empty()
+            return EMPTY
 
     def cons(self, elem):
         return Cons(elem, self)
@@ -176,33 +205,10 @@ class LazySeq(Seq[T]):
             o = o.rest
 
 
-class _EmptySequence(Seq[T]):
-    def __repr__(self):
-        return '()'
-
-    def __bool__(self):
-        return False
-
-    @property
-    def first(self):
-        return None
-
-    @property
-    def rest(self):
-        return _EmptySequence()
-
-    def cons(self, elem):
-        return Cons(elem, self)
-
-
 def sequence(s: Iterable) -> Seq[Any]:
     """Create a Sequence from Iterable s."""
     try:
         i = iter(s)
         return _Sequence(i, next(i))
     except StopIteration:
-        return _EmptySequence()
-
-
-def empty() -> Seq[Any]:
-    return _EmptySequence()
+        return EMPTY

@@ -3,7 +3,8 @@ import basilisp.lang.seq as lseq
 
 
 def test_to_sequence():
-    assert lseq.empty() == lseq.sequence([])
+    assert lseq.EMPTY is lseq.sequence([])
+    assert llist.l(None) == lseq.sequence([None])
     assert llist.l(1) == lseq.sequence([1])
     assert llist.l(1, 2, 3) == lseq.sequence([1, 2, 3])
 
@@ -12,21 +13,21 @@ def test_lazy_sequence():
     s = lseq.LazySeq(lambda: None)
     assert not s.is_empty, "LazySeq has not been realized yet"
     assert None is s.first
-    assert lseq.empty() == s.rest
+    assert lseq.EMPTY is s.rest
     assert s.is_realized
     assert s.is_empty, "LazySeq has been realized and is empty"
 
-    s = lseq.LazySeq(lambda: lseq.empty())
+    s = lseq.LazySeq(lambda: lseq.EMPTY)
     assert not s.is_empty, "LazySeq has not been realized yet"
     assert None is s.first
-    assert lseq.empty() == s.rest
+    assert lseq.EMPTY is s.rest
     assert s.is_realized
     assert s.is_empty, "LazySeq has been realized and is empty"
 
     s = lseq.LazySeq(lambda: lseq.sequence([1]))
     assert not s.is_empty, "LazySeq has not been realized yet"
     assert 1 == s.first
-    assert lseq.empty() == s.rest
+    assert lseq.EMPTY is s.rest
     assert s.is_realized
     assert not s.is_empty, "LazySeq has been realized and is not empty"
 
@@ -56,7 +57,7 @@ def test_lazy_sequence():
     t = r.rest
     assert not t.is_empty, "LazySeq has not been realized yet"
     assert 3 == t.first
-    assert lseq.empty() == t.rest
+    assert lseq.EMPTY is t.rest
     assert t.is_realized
     assert not t.is_empty, "LazySeq has been realized and is not empty"
 
@@ -68,13 +69,13 @@ def test_empty_sequence():
     assert None is empty.first
     assert empty.rest == empty
     assert llist.l(1) == empty.cons(1)
-    assert lseq.empty() == empty
+    assert lseq.EMPTY is empty
 
 
 def test_sequence():
     s = lseq.sequence([1])
     assert 1 == s.first
-    assert lseq.empty() == s.rest
+    assert lseq.EMPTY is s.rest
     assert llist.l(2, 1) == s.cons(2)
     assert [1, 2, 3] == [e for e in lseq.sequence([1, 2, 3])]
     assert llist.l(1, 2, 3) == lseq.sequence([1, 2, 3])

@@ -1,8 +1,9 @@
 from pyrsistent import plist, PList
+from pyrsistent._plist import _EMPTY_PLIST
 
 from basilisp.lang.collection import Collection
 from basilisp.lang.meta import Meta
-from basilisp.lang.seq import Seq
+from basilisp.lang.seq import Seq, EMPTY
 from basilisp.lang.util import lrepr
 
 
@@ -51,7 +52,9 @@ class List(Collection, Meta, Seq):
             return None
 
     @property
-    def rest(self) -> "List":
+    def rest(self) -> Seq:
+        if self._inner.rest is _EMPTY_PLIST:
+            return EMPTY
         return List(self._inner.rest)
 
     def cons(self, *elems) -> "List":
