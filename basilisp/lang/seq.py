@@ -74,7 +74,7 @@ class _EmptySequence(Seq[T]):
 
     @property
     def rest(self) -> Seq[T]:
-        return EMPTY
+        return self
 
     def cons(self, elem):
         return Cons(elem, self)
