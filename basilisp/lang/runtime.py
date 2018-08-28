@@ -420,7 +420,7 @@ def cons(o, seq) -> lseq.Seq:
 
 def _seq_or_nil(s: lseq.Seq) -> Optional[lseq.Seq]:
     """Return None if a Seq is empty, the Seq otherwise."""
-    if s == lseq.EMPTY:
+    if s.is_empty:
         return None
     return s
 

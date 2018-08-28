@@ -17,6 +17,11 @@ class Seq(ABC, Iterable[T]):
 
     @property
     @abstractmethod
+    def is_empty(self) -> bool:
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
     def first(self) -> Optional[T]:
         raise NotImplementedError()
 
@@ -60,6 +65,10 @@ class _EmptySequence(Seq[T]):
         return False
 
     @property
+    def is_empty(self) -> bool:
+        return True
+
+    @property
     def first(self) -> Optional[T]:
         return None
 
@@ -81,6 +90,10 @@ class Cons(Seq, Meta):
         self._first = first
         self._rest = Maybe(seq).or_else_get(EMPTY)
         self._meta = meta
+
+    @property
+    def is_empty(self) -> bool:
+        return False
 
     @property
     def first(self) -> Optional[Any]:
@@ -117,6 +130,10 @@ class _Sequence(Seq[T]):
         self._seq = s  # pylint:disable=assigning-non-slot
         self._first = first  # pylint:disable=assigning-non-slot
         self._rest: Optional[Seq] = None  # pylint:disable=assigning-non-slot
+
+    @property
+    def is_empty(self) -> bool:
+        return False
 
     @property
     def first(self) -> Optional[T]:

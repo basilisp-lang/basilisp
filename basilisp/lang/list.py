@@ -45,6 +45,10 @@ class List(Collection, Meta, Seq):
         return list(self._inner, meta=new_meta)
 
     @property
+    def is_empty(self):
+        return self._inner is _EMPTY_PLIST
+
+    @property
     def first(self):
         try:
             return self._inner.first
