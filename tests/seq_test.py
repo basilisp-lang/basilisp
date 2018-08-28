@@ -4,9 +4,13 @@ import basilisp.lang.seq as lseq
 
 def test_to_sequence():
     assert lseq.EMPTY is lseq.sequence([])
+    assert lseq.sequence([]).is_empty
     assert llist.l(None) == lseq.sequence([None])
+    assert not lseq.sequence([None]).is_empty
     assert llist.l(1) == lseq.sequence([1])
+    assert not lseq.sequence([1]).is_empty
     assert llist.l(1, 2, 3) == lseq.sequence([1, 2, 3])
+    assert not lseq.sequence([1, 2, 3]).is_empty
 
 
 def test_lazy_sequence():
@@ -66,6 +70,7 @@ def test_lazy_sequence():
 
 def test_empty_sequence():
     empty = lseq.sequence([])
+    assert empty.is_empty
     assert None is empty.first
     assert empty.rest == empty
     assert llist.l(1) == empty.cons(1)
@@ -74,6 +79,7 @@ def test_empty_sequence():
 
 def test_sequence():
     s = lseq.sequence([1])
+    assert not s.is_empty
     assert 1 == s.first
     assert lseq.EMPTY is s.rest
     assert llist.l(2, 1) == s.cons(2)
@@ -83,6 +89,7 @@ def test_sequence():
     assert llist.l(1, 2, 3) == llist.list(lseq.sequence([1, 2, 3]))
 
     s = lseq.sequence([1, 2, 3])
+    assert not s.is_empty
     assert 2 == s.rest.first
     assert 3 == s.rest.rest.first
     assert None is s.rest.rest.rest.first

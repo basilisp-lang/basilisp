@@ -176,13 +176,7 @@ class LazySeq(Seq[T]):
     def is_empty(self) -> bool:
         if not self._realized:
             return False
-        if self._seq is None:
-            return True
-        if self._seq is EMPTY:
-            return True
-        if self._seq.first is None and self._seq.rest is EMPTY:  # type: ignore
-            return True
-        if isinstance(self._seq, LazySeq) and self._seq.is_empty:
+        if self._seq is None or self._seq.is_empty:
             return True
         return False
 
