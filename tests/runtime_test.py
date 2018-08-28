@@ -22,11 +22,11 @@ def test_first():
 
 def test_rest():
     assert None is runtime.rest(None)
-    assert llist.l() == runtime.rest(llist.l())
-    assert llist.l() == runtime.rest(llist.l(1))
+    assert lseq.EMPTY is runtime.rest(llist.l())
+    assert lseq.EMPTY is runtime.rest(llist.l(1))
     assert llist.l(2, 3) == runtime.rest(llist.l(1, 2, 3))
-    assert llist.l() == runtime.rest(vec.v(1).seq())
-    assert llist.l() == runtime.rest(vec.v(1))
+    assert lseq.EMPTY is runtime.rest(vec.v(1).seq())
+    assert lseq.EMPTY is runtime.rest(vec.v(1))
     assert llist.l(2, 3) == runtime.rest(vec.v(1, 2, 3))
 
 
@@ -93,6 +93,8 @@ def test_to_seq():
     assert None is runtime.to_seq(lset.Set.empty())
     assert None is runtime.to_seq("")
 
+    assert None is not runtime.to_seq(llist.l(None))
+    assert None is not runtime.to_seq(llist.l(None, None, None))
     assert None is not runtime.to_seq(llist.l(1))
     assert None is not runtime.to_seq(vec.v(1))
     assert None is not runtime.to_seq(lmap.map({"a": 1}))
@@ -117,10 +119,10 @@ def test_to_seq():
 
 def test_concat():
     s1 = runtime.concat()
-    assert llist.l() == s1
+    assert lseq.EMPTY is s1
 
     s1 = runtime.concat(llist.List.empty(), llist.List.empty())
-    assert llist.l() == s1
+    assert lseq.EMPTY == s1
 
     s1 = runtime.concat(llist.List.empty(), llist.l(1, 2, 3))
     assert s1 == llist.l(1, 2, 3)
@@ -132,7 +134,9 @@ def test_concat():
 def test_apply():
     assert vec.v() == runtime.apply(vec.v, [[]])
     assert vec.v(1, 2, 3) == runtime.apply(vec.v, [[1, 2, 3]])
+    assert vec.v(None, None, None) == runtime.apply(vec.v, [[None, None, None]])
     assert vec.v(vec.v(1, 2, 3), 4, 5, 6) == runtime.apply(vec.v, [vec.v(1, 2, 3), [4, 5, 6]])
+    assert vec.v(vec.v(1, 2, 3), None, None, None) == runtime.apply(vec.v, [vec.v(1, 2, 3), [None, None, None]])
 
 
 def test_nth():

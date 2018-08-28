@@ -508,7 +508,7 @@ FunctionDefDetails = Tuple[List[ast.arg], ASTStream, Optional[ast.arg]]
 
 
 def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,  # pylint:disable=too-many-locals
-                  body_exprs: llist.List) -> FunctionDefDetails:
+                  body_exprs: lseq.Seq) -> FunctionDefDetails:
     """Generate the Python AST Nodes for a Lisp function argument vector
     and body expressions. Return a tuple of arg nodes and body AST nodes."""
     st = ctx.symbol_table
@@ -823,7 +823,10 @@ def _multi_arity_fn_ast(ctx: CompilerContext, name: str, arities: List[FunctionA
             kw_defaults=[]),
         body=[_compose_ifs(if_stmts),
               ast.Raise(exc=ast.Call(func=_load_attr('basilisp.lang.runtime.RuntimeException'),
-                                     args=[ast.Str(f"Wrong number of args passed to function: {name}")],
+                                     args=[ast.Str(f"Wrong number of args passed to function: {name}"),
+                                           ast.Call(func=ast.Name(id='len', ctx=ast.Load()),
+                                                    args=[ast.Name(id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load())],
+                                                    keywords=[])],
                                      keywords=[]),
                         cause=None)],
         decorator_list=[],
@@ -1042,7 +1045,7 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:  # pylint:dis
     # Generate a function to hold the body of the let expression
     letname = genname('let')
     with ctx.new_symbol_table(letname):
-        args, body, vargs = _fn_args_body(ctx, vec.vector(arg_syms.keys()), form[2:])
+        args, body, vargs = _fn_args_body(ctx, vec.vector(arg_syms.keys()), runtime.nthrest(form, 2))
         yield _dependency(_expressionize(body, letname, args=args, vargs=vargs))
 
     # Generate local variable assignments for processing let bindings

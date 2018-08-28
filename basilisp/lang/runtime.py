@@ -368,12 +368,12 @@ def rest(o) -> Optional[lseq.Seq]:
     if isinstance(o, lseq.Seq):
         s = o.rest
         if s is None:
-            return lseq.empty()
+            return lseq.EMPTY
         return s
-    s = to_seq(o)
-    if s is None:
-        return lseq.empty()
-    return s.rest
+    n = to_seq(o)
+    if n is None:
+        return lseq.EMPTY
+    return n.rest
 
 
 def nthrest(coll, i: int):
@@ -420,7 +420,7 @@ def cons(o, seq) -> lseq.Seq:
 
 def _seq_or_nil(s: lseq.Seq) -> Optional[lseq.Seq]:
     """Return None if a Seq is empty, the Seq otherwise."""
-    if s.first is None and s.rest == lseq.empty():
+    if s.is_empty:
         return None
     return s
 
@@ -440,7 +440,7 @@ def concat(*seqs) -> lseq.Seq:
     """Concatenate the sequences given by seqs into a single Seq."""
     allseqs = lseq.sequence(itertools.chain(*filter(None, map(to_seq, seqs))))
     if allseqs is None:
-        return lseq.empty()
+        return lseq.EMPTY
     return allseqs
 
 
