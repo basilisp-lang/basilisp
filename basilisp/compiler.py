@@ -721,22 +721,34 @@ def _compose_ifs(if_stmts: List[Dict[str, ast.AST]], orelse: List[ast.AST] = Non
                       orelse=Maybe(orelse).or_else_get([]))
 
 
-def _single_arity_fn_ast(ctx: CompilerContext, name: str, fndef: llist.List) -> ASTStream:
+def _fn_name(s: Optional[sym.Symbol]) -> str:
+    """Generate a safe Python function name from a function name symbol.
+    If no symbol is provided, generate a name with a default prefix."""
+    return genname("__" + munge(Maybe(s).map(lambda s: s.name).or_else_get(_FN_PREFIX)))
+
+
+def _single_arity_fn_ast(ctx: CompilerContext, name: Optional[sym.Symbol], fndef: llist.List) -> ASTStream:
     """Generate Python AST nodes for a single-arity function."""
-    with ctx.new_symbol_table(name), ctx.new_recur_point(name, fndef.first):
+    py_fn_name = _fn_name(name)
+    with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(py_fn_name, fndef.first):
+        # Allow named anonymous functions to recursively call themselves
+        if name is not None:
+            ctx.symbol_table.new_symbol(name, py_fn_name, _SYM_CTX_LOCAL)
+
         args, body, vargs = _fn_args_body(ctx, fndef.first, fndef.rest)
 
-        yield _dependency(_expressionize(body, name, args=args, vargs=vargs))
+        yield _dependency(_expressionize(body, py_fn_name, args=args, vargs=vargs))
         if ctx.recur_point.has_recur:
             yield _node(ast.Call(func=_TRAMPOLINE_FN_NAME,
                                  args=[ast.Name(id=ctx.recur_point.name, ctx=ast.Load())],
                                  keywords=[]))
         else:
-            yield _node(ast.Name(id=name, ctx=ast.Load()))
+            yield _node(ast.Name(id=py_fn_name, ctx=ast.Load()))
         return
 
 
-def _multi_arity_fn_ast(ctx: CompilerContext, name: str, arities: List[FunctionArityDetails]) -> ASTStream:
+def _multi_arity_fn_ast(ctx: CompilerContext, name: Optional[sym.Symbol],
+                        arities: List[FunctionArityDetails]) -> ASTStream:
     """Generate Python AST nodes for multi-arity Basilisp function definitions.
 
     For example, a multi-arity function like this:
@@ -774,14 +786,19 @@ def _multi_arity_fn_ast(ctx: CompilerContext, name: str, arities: List[FunctionA
 
 
         f = __f_68"""
+    py_fn_name = _fn_name(name)
     if_stmts: List[Dict[str, ast.AST]] = []
     multi_arity_args_arg = _load_attr(_MULTI_ARITY_ARG_NAME)
     has_rest = False
 
     for arg_count, is_rest, arity in arities:
-        with ctx.new_recur_point(name, arity.first):
+        with ctx.new_recur_point(py_fn_name, arity.first):
+            # Allow named anonymous functions to recursively call themselves
+            if name is not None:
+                ctx.symbol_table.new_symbol(name, py_fn_name, _SYM_CTX_LOCAL)
+
             has_rest = any([has_rest, is_rest])
-            arity_name = f"{name}__arity{'_rest' if is_rest else arg_count}"
+            arity_name = f"{py_fn_name}__arity{'_rest' if is_rest else arg_count}"
 
             with ctx.new_symbol_table(arity_name):
                 # Generate the arity function
@@ -813,7 +830,7 @@ def _multi_arity_fn_ast(ctx: CompilerContext, name: str, arities: List[FunctionA
     assert len(if_stmts) == len(arities)
 
     yield _dependency(ast.FunctionDef(
-        name=name,
+        name=py_fn_name,
         args=ast.arguments(
             args=[],
             kwarg=None,
@@ -832,14 +849,14 @@ def _multi_arity_fn_ast(ctx: CompilerContext, name: str, arities: List[FunctionA
         decorator_list=[],
         returns=None))
 
-    yield _node(ast.Name(id=name, ctx=ast.Load()))
+    yield _node(ast.Name(id=py_fn_name, ctx=ast.Load()))
 
 
 def _fn_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Nodes for function definitions."""
     assert form.first == _FN
     has_name = isinstance(form[1], sym.Symbol)
-    name = genname("__" + (munge(form[1].name) if has_name else _FN_PREFIX))
+    name = form[1] if has_name else None
 
     rest_idx = 1 + int(has_name)
     arities = list(_fn_arities(ctx, form[rest_idx:]))

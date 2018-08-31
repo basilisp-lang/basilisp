@@ -521,6 +521,28 @@ def test_disallow_recur_outside_tail(ns_var: Var):
         lcompile("(fn [a] (try :b (finally (do (recur :a) :c))))")
 
 
+def test_named_anonymous_fn_recursion(ns_var: Var):
+    code = """
+    (let [compute-sum (fn sum [n]
+                        (if (operator/eq 0 n)
+                          0
+                          (operator/add n (sum (operator/sub n 1)))))]
+      (compute-sum 5))
+    """
+    assert 15 == lcompile(code)
+
+    code = """
+    (let [compute-sum (fn sum
+                        ([] 0)
+                        ([n]
+                         (if (operator/eq 0 n)
+                           0
+                           (operator/add n (sum (operator/sub n 1))))))]
+      (compute-sum 5))
+    """
+    assert 15 == lcompile(code)
+
+
 def test_syntax_quoting(test_ns: str, ns_var: Var, resolver: reader.Resolver):
     code = """
     (def some-val \"some value!\")
