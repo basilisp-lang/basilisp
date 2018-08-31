@@ -9,6 +9,7 @@ mypy = "*"
 prospector = "*"
 pytest = "*"
 pytest-cov = "*"
+twine = "*"
 yapf = "*"
 
 [packages]

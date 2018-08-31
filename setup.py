@@ -25,7 +25,8 @@ REQUIRED = [
     'atomos',
     'pyfunctional',
     'pyrsistent',
-    'pytest'
+    'pytest',
+    'python-dateutil'
 ]
 
 EXTRAS = {}
@@ -110,12 +111,15 @@ setup(
     classifiers=[
         # Trove classifiers
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: Implementation :: CPython',
-        'Programming Language :: Python :: Implementation :: PyPy'
+        'Programming Language :: Python :: Implementation :: PyPy',
+        'Topic :: Software Development :: Compilers'
     ],
     # $ setup.py publish support.
     cmdclass={
