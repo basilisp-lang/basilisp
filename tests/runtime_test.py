@@ -49,13 +49,13 @@ def test_nthrest():
 
 
 def test_next():
-    assert None is runtime.next(None)
-    assert None is runtime.next(llist.l())
-    assert None is runtime.next(llist.l(1))
-    assert llist.l(2, 3) == runtime.next(llist.l(1, 2, 3))
-    assert None is runtime.next(vec.v(1).seq())
-    assert None is runtime.next(vec.v(1))
-    assert llist.l(2, 3) == runtime.next(vec.v(1, 2, 3))
+    assert None is runtime.next_(None)
+    assert None is runtime.next_(llist.l())
+    assert None is runtime.next_(llist.l(1))
+    assert llist.l(2, 3) == runtime.next_(llist.l(1, 2, 3))
+    assert None is runtime.next_(vec.v(1).seq())
+    assert None is runtime.next_(vec.v(1))
+    assert llist.l(2, 3) == runtime.next_(vec.v(1, 2, 3))
 
 
 def test_nthnext():

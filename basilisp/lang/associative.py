@@ -17,5 +17,5 @@ class Associative(ABC, Mapping[K, V]):
         raise NotImplementedError()
 
     @abstractmethod
-    def entry(self, k):
+    def entry(self, k, default=None):
         raise NotImplementedError()

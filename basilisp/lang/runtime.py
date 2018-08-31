@@ -1,7 +1,9 @@
 import functools
 import itertools
+import math
 import threading
 import types
+from fractions import Fraction
 from typing import Optional, Dict, Tuple
 
 from functional import seq
@@ -15,6 +17,7 @@ import basilisp.lang.map as lmap
 import basilisp.lang.seq as lseq
 import basilisp.lang.symbol as sym
 from basilisp.lang import atom
+from basilisp.lang.typing import LispNumber
 from basilisp.util import Maybe
 
 _CORE_NS = 'basilisp.core'
@@ -387,7 +390,7 @@ def nthrest(coll, i: int):
         coll = rest(coll)
 
 
-def next(o) -> Optional[lseq.Seq]:  # pylint:disable=redefined-builtin
+def next_(o) -> Optional[lseq.Seq]:
     """Calls rest on o. If o returns an empty sequence or None, returns None.
     Otherwise, returns the elements after the first in o."""
     s = rest(o)
@@ -404,7 +407,7 @@ def nthnext(coll, i: int) -> Optional[lseq.Seq]:
         if i == 0:
             return to_seq(coll)
         i -= 1
-        coll = next(coll)
+        coll = next_(coll)
 
 
 def cons(o, seq) -> lseq.Seq:
@@ -415,7 +418,7 @@ def cons(o, seq) -> lseq.Seq:
         return llist.l(o)
     if isinstance(seq, lseq.Seq):
         return seq.cons(o)
-    return to_seq(seq).cons(o)  # type: ignore
+    return Maybe(to_seq(seq)).map(lambda s: s.cons(o)).or_else(lambda: llist.l(o))
 
 
 def _seq_or_nil(s: lseq.Seq) -> Optional[lseq.Seq]:
@@ -492,13 +495,25 @@ def assoc(m, *kvs):
 
 
 def conj(coll, *xs):
-    """Conjoin xs to collection. """
+    """Conjoin xs to collection. New elements may be added in different positions
+    depending on the type of coll. conj returns the same type as coll. If coll
+    is None, return a list with xs conjoined."""
     if coll is None:
         l = llist.List.empty()
         return l.cons(*xs)
     if isinstance(coll, lcoll.Collection):
         return coll.cons(*xs)
     raise TypeError(f"Object of type {type(coll)} does not implement Collection interface")
+
+
+def partial(f, *args):
+    """Return a function which is the partial application of f with args."""
+
+    @functools.wraps(f)
+    def partial_f(*inner_args):
+        return f(*itertools.chain(args, inner_args))
+
+    return partial_f
 
 
 def deref(o):
@@ -513,6 +528,52 @@ def swap(a: atom.Atom, f, *args):
     current-value args). The function f may be called multiple times while
     swapping, so should be free of side effects. Return the new value."""
     return a.swap(f, *args)
+
+
+def equals(v1, v2) -> bool:
+    """Compare two objects by value. Unlike the standard Python equality operator,
+    this function does not consider 1 == True or 0 == False. All other equality
+    operations are the same and performed using Python's equality operator."""
+    if isinstance(v1, (bool, type(None))) or isinstance(v2, (bool, type(None))):
+        return v1 is v2
+    return v1 == v2
+
+
+def divide(x: LispNumber, y: LispNumber) -> LispNumber:
+    """Division reducer. If both arguments are integers, return a Fraction.
+    Otherwise, return the true division of x and y."""
+    if isinstance(x, int) and isinstance(y, int):
+        return Fraction(x, y)
+    return x / y  # type: ignore
+
+
+def quotient(num, div) -> LispNumber:
+    """Return the integral quotient resulting from the division of num by div."""
+    return math.trunc(num / div)
+
+
+def sort(coll, f=None) -> Optional[lseq.Seq]:
+    """Return a sorted sequence of the elements in coll. If a comparator
+    function f is provided, compare elements in coll using f."""
+    return to_seq(sorted(coll, key=Maybe(f).map(functools.cmp_to_key).value))
+
+
+def contains(coll, k):
+    """Return true if o contains the key k."""
+    if isinstance(coll, lassoc.Associative):
+        return coll.contains(k)
+    return k in coll
+
+
+def get(m, k, default=None):
+    """Return the value of k in m. Return default if k not found in m."""
+    if isinstance(m, lassoc.Associative):
+        return m.entry(k, default=default)
+
+    try:
+        return m[k]
+    except (KeyError, IndexError):
+        return default
 
 
 def _collect_args(args) -> lseq.Seq:

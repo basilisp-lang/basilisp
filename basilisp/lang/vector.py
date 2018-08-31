@@ -58,11 +58,11 @@ class Vector(Associative, Collection, Meta, Seqable):
     def contains(self, k):
         return 0 <= k < len(self._inner)
 
-    def entry(self, k):
+    def entry(self, k, default=None):
         try:
             return self._inner[k]
         except IndexError:
-            return None
+            return default
 
     @staticmethod
     def empty() -> "Vector":

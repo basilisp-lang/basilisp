@@ -3,6 +3,7 @@ import datetime
 import keyword
 import re
 import uuid
+from fractions import Fraction
 from typing import Pattern
 
 import dateutil.parser as dateparser
@@ -28,6 +29,8 @@ def lrepr(f) -> str:
         return f'#uuid "{uuid_str}"'
     elif isinstance(f, Pattern):
         return f'#"{f.pattern}"'
+    elif isinstance(f, Fraction):
+        return f"{f.numerator}/{f.denominator}"
     else:
         return repr(f)
 
