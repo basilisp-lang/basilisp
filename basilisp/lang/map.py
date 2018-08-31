@@ -142,8 +142,8 @@ class Map(Associative, Collection, Meta, Seqable):
                 pass
         return Map(m.persistent())
 
-    def entry(self, k):
-        return self._inner.get(k, None)
+    def entry(self, k, default=None):
+        return self._inner.get(k, default)
 
     def update(self, *maps) -> "Map":
         m: PMap = self._inner.update(*maps)

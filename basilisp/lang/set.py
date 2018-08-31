@@ -58,6 +58,15 @@ class Set(Collection, Meta, Seqable):
             e.add(elem)
         return Set(e.persistent(), meta=self.meta)
 
+    def disj(self, *elems) -> "Set":
+        e = self._inner.evolver()
+        for elem in elems:
+            try:
+                e.remove(elem)
+            except KeyError:
+                pass
+        return Set(e.persistent(), meta=self.meta)
+
     @staticmethod
     def empty() -> "Set":
         return s()

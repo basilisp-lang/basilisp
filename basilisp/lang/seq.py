@@ -2,18 +2,25 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import Iterator, Optional, TypeVar, Iterable, Any, Callable
 
+from functional import seq as fseq
+
 from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 from basilisp.util import Maybe
 
 T = TypeVar('T')
 
+_SEQ_MAX = 10
+
 
 class Seq(ABC, Iterable[T]):
     __slots__ = ()
 
     def __repr__(self):
-        return "({list})".format(list=" ".join(map(lrepr, self)))
+        items = fseq(self).take(_SEQ_MAX + 1).map(lrepr).to_list()
+        if len(items) == _SEQ_MAX + 1:
+            return "({list} ...)".format(list=" ".join(fseq(items).take(_SEQ_MAX)))
+        return "({list})".format(list=" ".join(fseq(items).take(_SEQ_MAX)))
 
     @property
     @abstractmethod

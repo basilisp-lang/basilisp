@@ -27,6 +27,11 @@
   (fn* second [seq] (first (rest seq))))
 
 (def
+  ^{:doc "Returns the first element in the first element of a Seq."}
+  ffirst
+  (fn* ffirst [seq] (first (first seq))))
+
+(def
   ^{:doc "Creates a new sequence where o is the first element and seq is the rest.
     If seq is nil, return a list containing o. If seq is not a Seq, attempt
     to coerce it to a Seq and then cons o onto the resulting sequence."}
@@ -59,6 +64,24 @@
   instance?
   (fn instance? [class obj]
     (builtins/isinstance obj class)))
+
+(def
+  ^{:doc "Return true if obj is a boolean."}
+  boolean?
+  (fn boolean? [o]
+    (instance? builtins/bool o)))
+
+(def
+  ^{:doc "Return true if obj is a float."}
+  float?
+  (fn float? [o]
+    (instance? builtins/float o)))
+
+(def
+  ^{:doc "Return true if obj is an integer."}
+  integer?
+  (fn integer? [o]
+    (instance? builtins/int o)))
 
 (def
   ^{:doc "Return true if obj is a string."}
@@ -114,17 +137,39 @@
   (fn concat [& seqs]
     (apply basilisp.lang.runtime/concat seqs)))
 
-(def hash-map
+(def
+  ^{:doc "Create a hash map from pairs of input arguments."}
+  hash-map
   (fn hash-map [& kvs]
     (apply basilisp.lang.map/hash-map kvs)))
 
-(def hash-set
+(def
+  ^{:doc "Create a set from the input arguments."}
+  hash-set
   (fn hash-set [& members]
     (apply basilisp.lang.set/s members)))
 
-(def vector
+(def
+  ^{:doc "Return a set with the contents of coll."}
+  set
+  (fn set
+    [coll]
+    (^:allow-builtins basilisp.lang.set/set coll)))
+
+(def
+  ^{:doc "Create a vector from the input arguments."}
+  vector
   (fn vector [& elems]
     (apply basilisp.lang.vector/v elems)))
+
+(def
+  ^{:doc "Return a vector with the contents of coll."}
+  vec
+  (fn vec
+    [coll]
+    (basilisp.lang.vector/vector coll)))
+
+;;;;;;;;;;;; full support for syntax quote begins here ;;;;;;;;;;;;
 
 (def print
   (fn print [& args]
@@ -143,6 +188,21 @@
   ex-info
   (fn ex-info [msg data]
     (basilisp.lang.exception/ExceptionInfo msg data)))
+
+(def
+  ^{:doc "Associate keys to values in associative data structure m. If m is nil,
+          returns a new map with key-values kvs."}
+  assoc
+  (fn assoc [m & kvs]
+    (apply basilisp.lang.runtime/assoc m kvs)))
+
+(def
+  ^{:doc "Conjoin xs to collection. New elements may be added in different positions
+          depending on the type of coll. conj returns the same type as coll. If coll
+          is nil, return a list with xs conjoined."}
+  conj
+  (fn conj [coll & xs]
+    (apply basilisp.lang.runtime/conj coll xs)))
 
 (def
   ^{:macro true
@@ -208,26 +268,249 @@
     (recur (rest s))
     (first s)))
 
-(defn +
-  "Sum the arguments together. If no arguments given, returns 0."
-  ([] 0)
-  ([x] x)
+(def
+  ^{:macro true
+    :doc   "Define a new macro like defn. Macro functions are available to the
+            compiler during macroexpansion."}
+  defmacro
+  (fn defmacro [&form name & body]
+    (let [body  (concat body)
+          doc   (if (string? (first body))
+                  (first body)
+                  nil)
+          fname (with-meta (if doc
+                             (with-meta name {:doc doc})
+                             name)
+                  {:macro true})
+          body  (if doc
+                  (rest body)
+                  body)
+
+          add-implicit-args (fn [body]
+                              (cons
+                               (if (vector? (first body))
+                                 (apply vector (cons '&form (first body)))
+                                 (throw
+                                  (ex-info "Expected an argument vector"
+                                           {:found (first body)})))
+                               (rest body)))
+
+          add-args-for-each (fn [in out]
+                              (if (seq (rest in))
+                                (recur (rest in)
+                                       (conj out (add-implicit-args (first in))))
+                                (conj out (add-implicit-args (first in)))))
+
+          multi? (list? (first body))
+          body   (if multi?
+                   (add-args-for-each body [])
+                   (add-implicit-args body))]
+      `(defn ~fname
+         ~@body))))
+
+(defmacro if-not
+  "Evaluate cond and if it is true, return false-cond. Otherwise return
+  true-cond."
+  [cond true-cond false-cond]
+  `(if ~cond
+     ~false-cond
+     ~true-cond))
+
+(defmacro when
+  "Evaluate cond and if it is true, execute body in an implicit do block."
+  [cond & body]
+  `(if ~cond
+     (do ~@body)
+     nil))
+
+(defmacro when-not
+  "Evaluate cond and if it is false, execute body in an implicit do block."
+  [cond & body]
+  `(if ~cond
+     nil
+     (do ~@body)))
+
+(defmacro and
+  "Evaluate the expressions from left to right. If all expressions are true,
+  return the result of the final expression. Otherwise, returns the first
+  false expression. Calling and with no arguments returns true."
+  ([] true)
+  ([& args]
+   (if (seq (rest args))
+     `(if ~(first args)
+        (and ~@(rest args))
+        ~(first args))
+     (first args))))
+
+(defmacro or
+  "Evaluate the expressions from left to right. Returns the first true
+  expression. Otherwise, returns the final falsy expression. Calling or
+  with no arguments returns nil."
+  ([] nil)
+  ([& args]
+   (if (seq (rest args))
+     `(if ~(first args)
+        ~(first args)
+        (or ~@(rest args)))
+     (first args))))
+
+(defn not
+  "Return the logical negation of expr."
+  [expr]
+  (if expr false true))
+
+(defn false?
+  "Return true if x is false, otherwise false."
+  [x]
+  (operator/is- x false))
+
+(defn true?
+  "Return true if x is true, otherwise false."
+  [x]
+  (operator/is- x true))
+
+(defn nil?
+  "Return true if x is nil, otherwise false."
+  [x]
+  (operator/is- x nil))
+
+(defn some?
+  "Return true if x is not nil, otherwise false."
+  [x]
+  (not (nil? x)))
+
+(defn any?
+  "Return true for any x."
+  [x]
+  true)
+
+(defn =
+  "Return true if x and y are equal, otherwise false."
+  ([x] true)
   ([x & args]
    (if (seq (rest args))
-     (recur (operator/add x (first args)) (rest args))
-     (operator/add x (first args)))))
+     (if (basilisp.lang.runtime/equals x (first args))
+       (recur (first args) (rest args))
+       false)
+     (basilisp.lang.runtime/equals x (first args)))))
+
+(defn not=
+  "Return true if x and y are not equal, otherwise false."
+  [& args]
+  (not (apply = args)))
+
+(defn >
+  "Return true if arguments are monotonically decreasing, otherwise false."
+  ([x] true)
+  ([x & args]
+   (if (seq (rest args))
+     (if (operator/gt x (first args))
+       (recur (first args) (rest args))
+       false)
+     (operator/gt x (first args)))))
+
+(defn >=
+  "Return true if arguments are decreasing, otherwise false."
+  ([x] true)
+  ([x & args]
+   (if (seq (rest args))
+     (if (operator/ge x (first args))
+       (recur (first args) (rest args))
+       false)
+     (operator/ge x (first args)))))
+
+(defn <
+  "Return true if arguments are monotonically increasing, otherwise false."
+  ([x] true)
+  ([x & args]
+   (if (seq (rest args))
+     (if (operator/lt x (first args))
+       (recur (first args) (rest args))
+       false)
+     (operator/lt x (first args)))))
+
+(defn <=
+  "Return true if arguments are increasing, otherwise false."
+  ([x] true)
+  ([x & args]
+   (if (seq (rest args))
+     (if (operator/le x (first args))
+       (recur (first args) (rest args))
+       false)
+     (operator/le x (first args)))))
+
+(defn str
+  "Create a string representation of o."
+  ([] "")
+  ([o] (builtins/str o))
+  ([o & args]
+   (let [coerce (fn [in out]
+                  (if (seq (rest in))
+                    (recur (rest in)
+                           (conj out (builtins/str (first in))))
+                    (conj out (builtins/str (first in)))))
+         strs   (coerce (conj args o) [])]
+     (.join "" strs))))
+
+(defmacro cond
+  "Given groups of test/expression pairs, evaluate each test and, if
+  true, return the expression. Otherwise, continue through until reaching
+  the final expression."
+  [& clauses]
+  (when (seq clauses)
+    (list 'if (first clauses)
+          (if (next clauses)
+            (second clauses)
+            (throw
+             (ex-info "cond requires an even number of forms"
+                      {:first (first clauses)})))
+          (cons 'basilisp.core/cond (nthrest clauses 2)))))
+
+(defn symbol
+  "Create a new symbol with name and optional namespace ns."
+  ([name]
+   (basilisp.lang.symbol/symbol name))
+  ([ns name]
+   (basilisp.lang.symbol/symbol name ns)))
+
+(defn keyword
+  "Create a new keyword with name and optional namespace ns. Keywords
+  will have the colon prefix added automatically, so it should not be
+  provided."
+  ([name]
+   (basilisp.lang.keyword/keyword name))
+  ([ns name]
+   (basilisp.lang.keyword/keyword name ns)))
+
+(defn name
+  "Return the name of a string, symbol, or keyword."
+  [v]
+  (if (string? v)
+    v
+    (.-name v)))
+
+(defn namespace
+  "Return the namespace of a symbol or keyword, or nil if no namespace."
+  [v]
+  (.-ns v))
 
 (defn deref
-  "Dereference an atom and returns its contents."
+  "Dereference a delay or atom and returns its contents."
   [o]
   (basilisp.lang.runtime/deref o))
+
+(defn compare-and-set!
+  "Atomically set the value of atom to new-val if and only if old-val
+  is the current value of the atom."
+  [atom old-val new-val]
+  (.compare-and-set atom old-val new-val))
 
 (defn reset!
   "Reset the value of an atom to v without regard to the previous value.
   Return the new value."
   [atom v]
   (let [current (deref atom)]
-    (if (.compare-and-set atom current v)
+    (if (compare-and-set! atom current v)
       v
       (recur atom v))))
 
@@ -246,3 +529,369 @@
   [v]
   (basilisp.lang.atom/Atom v))
 
+(defn realized?
+  "Return true if the delay or lazy sequence has been realized."
+  [o]
+  (.-is-realized o))
+
+(defmacro delay
+  "Takes a body of expressions producing any value. Will not produce a
+  value until deref'ed. The result is cached and returned in future
+  derefs."
+  [& body]
+  (list 'basilisp.lang.delay/Delay
+        (concat '(fn* []) body)))
+
+(defmacro lazy-seq
+  "Takes a body of expressions which will produce a seq or nil. When
+  seq is first called on the resulting lazy-seq, the sequence will be
+  realized."
+  [& body]
+  (list 'basilisp.lang.seq/LazySeq
+        (concat '(fn* []) body)))
+
+(defn pos?
+  "Return true if x is positive."
+  [x]
+  (if (operator/gt x 0) true false))
+
+(defn non-neg?
+  "Return true if x is not negative."
+  [x]
+  (if (operator/ge x 0) true false))
+
+(defn zero?
+  "Return true if x is 0."
+  [x]
+  (= 0 x))
+
+(defn neg?
+  "Return true if x is negative."
+  [x]
+  (if (operator/lt x 0) true false))
+
+(defn +
+  "Sum the arguments together. If no arguments given, returns 0."
+  ([] 0)
+  ([x] x)
+  ([x & args]
+   (if (seq (rest args))
+     (recur (operator/add x (first args)) (rest args))
+     (operator/add x (first args)))))
+
+(defn -
+  "Subtract the arguments. If one argument given, returns the negation
+  of that argument."
+  ([x] (operator/neg x))
+  ([x & args]
+   (if (seq (rest args))
+     (recur (operator/sub x (first args)) (rest args))
+     (operator/sub x (first args)))))
+
+(defn *
+  "Multiply the arguments. If no arguments given, returns 1."
+  ([] 1)
+  ([x] x)
+  ([x & args]
+   (if (seq (rest args))
+     (recur (operator/mul x (first args)) (rest args))
+     (operator/mul x (first args)))))
+
+(defn /
+  "Divide the arguments. If no arguments given, returns the inverse of
+  the argument."
+  ([x] (basilisp.lang.runtime/divide 1 x))
+  ([x & args]
+   (if (seq (rest args))
+     (recur (basilisp.lang.runtime/divide x (first args)) (rest args))
+     (basilisp.lang.runtime/divide x (first args)))))
+
+(defn mod
+  "Returns the modulo of num and div."
+  [num div]
+  (operator/mod num div))
+
+(defn quot
+  "Returns the quotient of num and div."
+  [num div]
+  (basilisp.lang.runtime/quotient num div))
+
+(defn rem
+  "Returns the remainder of num and div."
+  [num div]
+  (- num (* div (quot num div))))
+
+(defn inc
+  "Increment the argument by 1."
+  [x]
+  (+ x 1))
+
+(defn dec
+  "Decrement the argument by 1."
+  [x]
+  (- x 1))
+
+(defn even?
+  "Return true if x is even."
+  [x]
+  (if (= 0 (mod x 2)) true false))
+
+(defn odd?
+  "Return true if x is odd."
+  [x]
+  (if (= 1 (mod x 2)) true false))
+
+(defn min
+  "Return the minimum of the arguments."
+  [& args]
+  (builtins/min args))
+
+(defn max
+  "Return the maximum of the arguments."
+  [& args]
+  (builtins/max args))
+
+(defn sort
+  "Return a sorted sequence of the elements from coll."
+  ([coll]
+   (basilisp.lang.runtime/sort coll))
+  ([cmp coll]
+   (basilisp.lang.runtime/sort coll cmp)))
+
+(defn contains?
+  "Return true if coll contains k. For vectors, k is an index. For maps, k is
+  a key. For sets, k is a value in the set."
+  [coll k]
+  (basilisp.lang.runtime/contains coll k))
+
+(defn disj
+  "Return a new version of the set s without the given elements. If the elements
+  don't exist in s, they are ignored."
+  ([s] s)
+  ([s & elems]
+   (apply (.-disj s) elems)))
+
+(defn dissoc
+  "Return a new version of m without the given keys. If the keys
+  don't exist in m, they are ignored."
+  [m & ks]
+  (apply (.-dissoc m) ks))
+
+(defn get
+  "Return the entry of m corresponding to k if it exists or nil/default otherwise."
+  ([m k]
+   (basilisp.lang.runtime/get m k))
+  ([m k default]
+   (basilisp.lang.runtime/get m k default)))
+
+(defn range
+  "Return a range of integers from start. If end is specified, the
+  sequence will terminate at end."
+  ([] (range 0))
+  ([start]
+   (lazy-seq (cons start (range (inc start)))))
+  ([start end]
+   (lazy-seq (cons start (when (< start end)
+                           (range (inc start) end)))))
+  ([start end step]
+   (lazy-seq (let [next-int (+ start step)]
+               (cons start (when (< next-int end)
+                             (range next-int end step)))))))
+
+(defn complement
+  "Return a function which returns the logical complement of the return
+  value of (apply f args)."
+  [f]
+  (fn [& args]
+    (not (apply f args))))
+
+(defn constantly
+  "Returns a function that accepts any number of arguments and returns x."
+  [x]
+  (fn [& args] x))
+
+(defn reduce
+  "Reduce coll by f.
+
+  If val is not supplied and coll has no elements, f will be called
+  with no arguments and the result will be returned.
+
+  If val is not supplied and coll has one element, the result of
+  (f (first val)) is returned.
+
+  If val is not supplied and coll has elements, repeatedly reduce coll
+  by calling f on successive elements in coll.
+
+  If val is supplied and coll has no elements, the result of (f val)
+  is returned.
+
+  If val is supplied and coll has elements, repeatedly reduce coll
+  by calling f on successive elements in coll, starting with val."
+  ([f coll]
+   (if (seq coll)
+     (if (seq (rest coll))
+       (reduce f (first coll) (rest coll))
+       (first coll))
+     (f)))
+  ([f val coll]
+   (let [reduce-coll (fn [out in]
+                       (if (seq (rest in))
+                         (recur (f out (first in)) (rest in))
+                         (f out (first in))))]
+     (if (seq coll)
+       (reduce-coll val coll)
+       (f val)))))
+
+(defn comp
+  "Return a function which is the composition of all the functions
+  given as arguments. Note that, as in mathematical function composition,
+  the argument functions are called from right to left."
+  ([] identity)
+  ([f] f)
+  ([f & args]
+   (let [composed (reduce (fn [f g]
+                            (fn [& args]
+                              (f (apply g args))))
+                          f
+                          args)]
+     (fn [& inner-args]
+       (apply composed inner-args)))))
+
+(defn juxt
+  "Return a function which takes any number of arguments and applies each of
+  the argument functions to this function in order, returning a vector of the
+  return values from each function."
+  [& args]
+  (fn [& inner-args]
+    (reduce (fn [v f]
+              (conj v (apply f inner-args)))
+            []
+            args)))
+
+(defn partial
+  "Return a function which is the partial application of f with args."
+  [f & args]
+  (apply basilisp.lang.runtime/partial f args))
+
+(defn every?
+  "Return true if every element in coll satisfies pred."
+  [pred coll]
+  (cond
+    (nil? (seq coll))   true
+    (pred (first coll)) (recur pred (rest coll))
+    :else               false))
+
+(def
+  ^{:doc "Return true if not every element in coll satisfies pred."}
+  not-every?
+  (comp not every?))
+
+(defn some
+  "Return true if at least one element in coll satisfies pred."
+  [pred coll]
+  (when (seq coll)
+    (or (pred (first coll))
+        (recur pred (rest coll)))))
+
+(def
+  ^{:doc "Return true if no element in coll satisfies pred."}
+  not-any?
+  (comp not some))
+
+(defn map
+  "Return a lazy sequence of (f elem) for elements in coll."
+  [f coll]
+  (lazy-seq
+   (cons (f (first coll)) (when (seq (rest coll))
+                            (map f (rest coll))))))
+
+(defn filter
+  "Return elements from coll where (pred elem) returns true."
+  [pred coll]
+  (lazy-seq
+   (when (seq coll)
+     (if (pred (first coll))
+       (cons (first coll) (filter pred (rest coll)))
+       (filter pred (rest coll))))))
+
+(defn remove
+  "Return elements from coll where (pred elem) returns false."
+  [pred coll]
+  (lazy-seq
+   (when (seq coll)
+     (if (not (pred (first coll)))
+       (cons (first coll) (remove pred (rest coll)))
+       (remove pred (rest coll))))))
+
+(defn take
+  "Return the first n elements of coll."
+  [n coll]
+  (lazy-seq
+   (when (seq coll)
+     (when (> n 0)
+       (cons (first coll) (take (dec n) (rest coll)))))))
+
+(defn take-while
+  "Return elements of coll while (pred elem) is true."
+  [pred coll]
+  (lazy-seq
+   (when (seq coll)
+     (when (pred (first coll))
+       (cons (first coll) (take-while pred (rest coll)))))))
+
+(defn drop
+  "Drop the first n elements of coll."
+  [n coll]
+  (lazy-seq
+   (when (seq coll)
+     (if (> n 0)
+       (drop (dec n) (rest coll))
+       (seq coll)))))
+
+(defn drop-while
+  "Drop elements of coll while (pred elem) is true."
+  [pred coll]
+  (lazy-seq
+   (when (seq coll)
+     (if (pred (first coll))
+       (drop-while pred (rest coll))
+       (seq coll)))))
+
+(defn split-at
+  "Split a collection at the nth item. Returns a vector of
+  [(take n coll) (drop n coll)]."
+  [n coll]
+  [(take n coll) (drop n coll)])
+
+(defn split-with
+  "Split a collection at the inflection point of pred. Returns a
+  vector of [(take-while pred coll) (drop-while pred coll)]."
+  [pred coll]
+  [(take-while pred coll) (drop-while pred coll)])
+
+(defn cycle
+  "Cycle the items in coll infinitely."
+  [coll]
+  (let [coll-cycle (fn coll-cycle
+                     [curr]
+                     (lazy-seq
+                      (if (seq curr)
+                        (cons (first curr) (coll-cycle (rest curr)))
+                        (coll-cycle coll))))]
+    (coll-cycle coll)))
+
+(defn repeat
+  "Repeat x infinitely or n many times if n is specified. Returns a lazy
+  sequence of the x."
+  ([x]
+   (lazy-seq (cons x (repeat x))))
+  ([n x]
+   (lazy-seq (cons x (repeat (dec n) x)))))
+
+(defn repeatedly
+  "Call f infinitely or n many times if n is specified. Returns a lazy
+  sequence of the return values."
+  ([f]
+   (lazy-seq (cons (f) (repeatedly f))))
+  ([n f]
+   (lazy-seq (cons (f) (repeatedly (dec n) f)))))
