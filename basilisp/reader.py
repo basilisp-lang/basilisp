@@ -413,7 +413,7 @@ MaybeSymbol = Union[bool, None, symbol.Symbol]
 MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
 
 
-def _read_num(ctx: ReaderContext) -> MaybeNumber:
+def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disable=too-many-statements
     """Return a numeric (complex, Decimal, float, int, Fraction) from the input stream."""
     chars: List[str] = []
     reader = ctx.reader
