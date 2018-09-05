@@ -673,6 +673,26 @@ def test_deref():
     assert read_str_first("@(atom {})") == llist.l(reader._DEREF, llist.l(sym.symbol('atom'), lmap.Map.empty()))
 
 
+def test_character_literal():
+    assert "a" == read_str_first('\\a')
+    assert "Ω" == read_str_first('\\Ω')
+
+    assert "Ω" == read_str_first('\\u03A9')
+
+    assert " " == read_str_first('\\space')
+    assert "\n" == read_str_first('\\newline')
+    assert "\t" == read_str_first('\\tab')
+    assert "\b" == read_str_first('\\backspace')
+    assert "\f" == read_str_first('\\formfeed')
+    assert "\r" == read_str_first('\\return')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('\\u03A9zzz')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('\\blah')
+
+
 def test_regex_reader_literal():
     assert read_str_first('#"hi"') == langutil.regex_from_str("hi")
     assert read_str_first('#"\s"') == langutil.regex_from_str(r"\s")
