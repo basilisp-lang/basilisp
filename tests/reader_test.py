@@ -690,6 +690,9 @@ def test_character_literal():
         read_str_first('\\u03A9zzz')
 
     with pytest.raises(reader.SyntaxError):
+        read_str_first('\\uFFFFFFFF')
+
+    with pytest.raises(reader.SyntaxError):
         read_str_first('\\blah')
 
 

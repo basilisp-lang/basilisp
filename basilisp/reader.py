@@ -761,7 +761,7 @@ def _read_character(ctx: ReaderContext) -> str:
     if match is not None:
         try:
             return chr(int(f"0x{match.group(1)}", 16))
-        except ValueError:
+        except (ValueError, OverflowError):
             raise SyntaxError(f"Unsupported character \\u{char}") from None
 
     if len(char) > 1:
