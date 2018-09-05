@@ -3,6 +3,7 @@ import datetime
 import keyword
 import re
 import uuid
+from decimal import Decimal
 from fractions import Fraction
 from typing import Pattern
 
@@ -21,16 +22,20 @@ def lrepr(f) -> str:
         return "nil"
     elif isinstance(f, str):
         return f'"{f}"'
+    elif isinstance(f, complex):
+        return repr(f).upper()
     elif isinstance(f, datetime.datetime):
         inst_str = f.isoformat()
         return f'#inst "{inst_str}"'
+    elif isinstance(f, Decimal):
+        return str(f)
+    elif isinstance(f, Fraction):
+        return f"{f.numerator}/{f.denominator}"
+    elif isinstance(f, Pattern):
+        return f'#"{f.pattern}"'
     elif isinstance(f, uuid.UUID):
         uuid_str = str(f)
         return f'#uuid "{uuid_str}"'
-    elif isinstance(f, Pattern):
-        return f'#"{f.pattern}"'
-    elif isinstance(f, Fraction):
-        return f"{f.numerator}/{f.denominator}"
     else:
         return repr(f)
 
@@ -83,6 +88,16 @@ def genname(prefix: str) -> str:
     """Generate a unique function name with the given prefix."""
     i = next_name_id()
     return f"{prefix}_{i}"
+
+
+def decimal_from_str(decimal_str: str) -> Decimal:
+    """Create a Decimal from a numeric string."""
+    return Decimal(decimal_str)
+
+
+def fraction(numerator: int, denominator: int) -> Fraction:
+    """Create a Fraction from a numerator and denominator."""
+    return Fraction(numerator=numerator, denominator=denominator)
 
 
 def inst_from_str(inst_str: str) -> datetime.datetime:

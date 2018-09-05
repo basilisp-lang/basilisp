@@ -116,6 +116,38 @@ def test_stream_reader_loc():
     assert (3, 2) == sreader.loc
 
 
+def test_complex():
+    assert read_str_first("1J") == 1J
+    assert read_str_first("100J") == 100J
+    assert read_str_first("99927273J") == 99927273J
+    assert read_str_first("0J") == 0J
+    assert read_str_first("-1J") == -1J
+    assert read_str_first("-538282J") == -538282J
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("1JJ")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("1NJ")
+
+    assert read_str_first("0.0J") == 0.0J
+    assert read_str_first("0.09387372J") == 0.09387372J
+    assert read_str_first("1.0J") == 1.0J
+    assert read_str_first("1.332J") == 1.332J
+    assert read_str_first("-1.332J") == -1.332J
+    assert read_str_first("-1.0J") == -1.0J
+    assert read_str_first("-0.332J") == -0.332J
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("1.0MJ")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("22/7J")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("22J/7")
+
+
 def test_int():
     assert read_str_first("1") == 1
     assert read_str_first("100") == 100
@@ -123,6 +155,16 @@ def test_int():
     assert read_str_first("0") == 0
     assert read_str_first("-1") == -1
     assert read_str_first("-538282") == -538282
+
+    assert read_str_first("1N") == 1
+    assert read_str_first("100N") == 100
+    assert read_str_first("99927273N") == 99927273
+    assert read_str_first("0N") == 0
+    assert read_str_first("-1N") == -1
+    assert read_str_first("-538282N") == -538282
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("1NN")
 
 
 def test_float():
@@ -696,12 +738,38 @@ def test_character_literal():
         read_str_first('\\blah')
 
 
-def test_regex_reader_literal():
-    assert read_str_first('#"hi"') == langutil.regex_from_str("hi")
-    assert read_str_first('#"\s"') == langutil.regex_from_str(r"\s")
+def test_decimal_literal():
+    assert langutil.decimal_from_str('3.14') == read_str_first('3.14M')
+    assert 3.14 == read_str_first('3.14')
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('#"\y"')
+        read_str_first('3.14MM')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('3.1M4')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('3M.14')
+
+
+def test_fraction_literal():
+    assert langutil.fraction(1, 7) == read_str_first('1/7')
+    assert langutil.fraction(22, 7) == read_str_first('22/7')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('3/7N')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('3N/7')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('3.3/7')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('3/7.4')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('3/7/14')
 
 
 def test_inst_reader_literal():
@@ -711,6 +779,14 @@ def test_inst_reader_literal():
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('#inst "I am a little teapot short and stout"')
+
+
+def test_regex_reader_literal():
+    assert read_str_first('#"hi"') == langutil.regex_from_str("hi")
+    assert read_str_first('#"\s"') == langutil.regex_from_str(r"\s")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('#"\y"')
 
 
 def test_uuid_reader_literal():

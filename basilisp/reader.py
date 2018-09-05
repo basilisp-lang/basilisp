@@ -1,10 +1,12 @@
 import collections
 import contextlib
+import decimal
 import functools
 import io
 import re
 import uuid
 from datetime import datetime
+from fractions import Fraction
 from typing import (Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping, Pattern, Iterable,
                     TypeVar, cast, Dict)
 
@@ -408,14 +410,19 @@ def _read_map(ctx: ReaderContext) -> lmap.Map:
 # special keywords `true`, `false`, and `nil`, we have to have a looser
 # type defined for the return from these reader functions.
 MaybeSymbol = Union[bool, None, symbol.Symbol]
-MaybeNumber = Union[float, int, MaybeSymbol]
+MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
 
 
-def _read_num(ctx: ReaderContext) -> MaybeNumber:
-    """Return a numeric (integer or float) from the input stream."""
+def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disable=too-many-statements
+    """Return a numeric (complex, Decimal, float, int, Fraction) from the input stream."""
     chars: List[str] = []
     reader = ctx.reader
+
+    is_complex = False
+    is_decimal = False
     is_float = False
+    is_integer = False
+    is_ratio = False
     while True:
         token = reader.peek()
         if token == '-':
@@ -435,16 +442,55 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:
                 raise SyntaxError(
                     "Found extra '.' in float; expected decimal portion")
             is_float = True
+        elif token == 'J':
+            if is_complex:
+                raise SyntaxError("Found extra 'J' suffix in complex literal")
+            is_complex = True
+        elif token == 'M':
+            if is_decimal:
+                raise SyntaxError("Found extra 'M' suffix in decimal literal")
+            is_decimal = True
+        elif token == 'N':
+            if is_integer:
+                raise SyntaxError("Found extra 'N' suffix in integer literal")
+            is_integer = True
+        elif token == '/':
+            if is_ratio:
+                raise SyntaxError("Found extra '/' in ratio literal")
+            is_ratio = True
         elif not num_chars.match(token):
             break
         reader.next_token()
         chars.append(token)
 
-    if len(chars) == 0:
-        raise SyntaxError("Expected integer or float")
+    assert len(chars) > 0, "Must have at least one digit in integer or float"
 
     s = ''.join(chars)
-    return float(s) if is_float else int(s)
+    if sum([is_complex and is_decimal,
+            is_complex and is_integer,
+            is_complex and is_ratio,
+            is_decimal or is_float,
+            is_integer,
+            is_ratio]) > 1:
+        raise SyntaxError(f"Invalid number format: {s}")
+
+    if is_complex:
+        imaginary = float(s[:-1]) if is_float else int(s[:-1])
+        return complex(0, imaginary)
+    elif is_decimal:
+        try:
+            return decimal.Decimal(s[:-1])
+        except decimal.InvalidOperation:
+            raise SyntaxError(f"Invalid number format: {s}") from None
+    elif is_float:
+        return float(s)
+    elif is_ratio:
+        assert "/" in s, "Ratio must contain one '/' character"
+        num, denominator = s.split('/')
+        return Fraction(numerator=int(num), denominator=int(denominator))
+    elif is_integer:
+        return int(s[:-1])
+    return int(s)
 
 
 def _read_str(ctx: ReaderContext) -> str:
