@@ -8,7 +8,9 @@ import types
 import uuid
 from collections import OrderedDict
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
+from fractions import Fraction
 from itertools import chain
 from typing import (Dict, Iterable, Pattern, Tuple, Optional, List, Union, Callable, Mapping, NamedTuple, cast, Deque,
                     Any)
@@ -393,6 +395,8 @@ _UTIL_ALIAS = genname('langutil')
 _NS_VAR_VALUE = f'{_NS_VAR}.value'
 
 _NS_VAR_NAME = _load_attr(f'{_NS_VAR_VALUE}.name')
+_NEW_DECIMAL_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.decimal_from_str')
+_NEW_FRACTION_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.fraction')
 _NEW_INST_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.inst_from_str')
 _NEW_KW_FN_NAME = _load_attr(f'{_KW_ALIAS}.keyword')
 _NEW_LIST_FN_NAME = _load_attr(f'{_LIST_ALIAS}.list')
@@ -1570,14 +1574,27 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         ctx=ast.Load()))
 
 
-def _regex_ast(_: CompilerContext, form: Pattern) -> ASTStream:
+def _decimal_ast(_: CompilerContext, form: Decimal) -> ASTStream:
     yield _node(ast.Call(
-        func=_NEW_REGEX_FN_NAME, args=[ast.Str(form.pattern)], keywords=[]))
+        func=_NEW_DECIMAL_FN_NAME, args=[ast.Str(str(form))], keywords=[]))
+
+
+def _fraction_ast(_: CompilerContext, form: Fraction) -> ASTStream:
+    yield _node(ast.Call(
+        func=_NEW_FRACTION_FN_NAME,
+        args=[ast.Num(form.numerator),
+              ast.Num(form.denominator)],
+        keywords=[]))
 
 
 def _inst_ast(_: CompilerContext, form: datetime) -> ASTStream:
     yield _node(ast.Call(
         func=_NEW_INST_FN_NAME, args=[ast.Str(form.isoformat())], keywords=[]))
+
+
+def _regex_ast(_: CompilerContext, form: Pattern) -> ASTStream:
+    yield _node(ast.Call(
+        func=_NEW_REGEX_FN_NAME, args=[ast.Str(form.pattern)], keywords=[]))
 
 
 def _uuid_ast(_: CompilerContext, form: uuid.UUID) -> ASTStream:
@@ -1675,11 +1692,17 @@ def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:  # pylint: disab
     elif isinstance(form, float):
         yield _node(ast.Num(form))
         return
-    elif isinstance(form, int):
+    elif isinstance(form, (complex, int)):
         yield _node(ast.Num(form))
         return
     elif isinstance(form, datetime):
         yield from _inst_ast(ctx, form)
+        return
+    elif isinstance(form, Decimal):
+        yield from _decimal_ast(ctx, form)
+        return
+    elif isinstance(form, Fraction):
+        yield from _fraction_ast(ctx, form)
         return
     elif isinstance(form, uuid.UUID):
         yield from _uuid_ast(ctx, form)

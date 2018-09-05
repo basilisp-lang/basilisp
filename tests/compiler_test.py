@@ -1,6 +1,8 @@
+import decimal
 import re
 import types
 import uuid
+from fractions import Fraction
 from typing import Optional
 from unittest.mock import Mock
 
@@ -77,12 +79,30 @@ def test_string():
 
 
 def test_int():
-    assert lcompile('1') == 1
-    assert lcompile('100') == 100
-    assert lcompile('99927273') == 99927273
-    assert lcompile('0') == 0
-    assert lcompile('-1') == -1
-    assert lcompile('-538282') == -538282
+    assert 1 == lcompile('1')
+    assert 100 == lcompile('100')
+    assert 99927273 == lcompile('99927273')
+    assert 0 == lcompile('0')
+    assert -1 == lcompile('-1')
+    assert -538282 == lcompile('-538282')
+
+    assert 1 == lcompile('1N')
+    assert 100 == lcompile('100N')
+    assert 99927273 == lcompile('99927273N')
+    assert 0 == lcompile('0N')
+    assert -1 == lcompile('-1N')
+    assert -538282 == lcompile('-538282N')
+
+
+def test_decimal():
+    assert decimal.Decimal('0.0') == lcompile('0.0M')
+    assert decimal.Decimal('0.09387372') == lcompile('0.09387372M')
+    assert decimal.Decimal('1.0') == lcompile('1.0M')
+    assert decimal.Decimal('1.332') == lcompile('1.332M')
+    assert decimal.Decimal('-1.332') == lcompile('-1.332M')
+    assert decimal.Decimal('-1.0') == lcompile('-1.0M')
+    assert decimal.Decimal('-0.332') == lcompile('-0.332M')
+    assert decimal.Decimal('3.14') == lcompile('3.14M')
 
 
 def test_float():
@@ -659,9 +679,13 @@ def test_var(ns_var: Var):
     assert v.value == "a value"
 
 
+def test_fraction(ns_var: Var):
+    assert Fraction('22/7') == lcompile('22/7')
+
+
 def test_inst(ns_var: Var):
-    assert lcompile('#inst "2018-01-18T03:26:57.296-00:00"'
-                    ) == dateparser.parse('2018-01-18T03:26:57.296-00:00')
+    assert dateparser.parse('2018-01-18T03:26:57.296-00:00') == lcompile(
+        '#inst "2018-01-18T03:26:57.296-00:00"')
 
 
 def test_regex(ns_var: Var):
@@ -669,5 +693,5 @@ def test_regex(ns_var: Var):
 
 
 def test_uuid(ns_var: Var):
-    assert lcompile('#uuid "0366f074-a8c5-4764-b340-6a5576afd2e8"'
-                    ) == uuid.UUID('{0366f074-a8c5-4764-b340-6a5576afd2e8}')
+    assert uuid.UUID('{0366f074-a8c5-4764-b340-6a5576afd2e8}') == lcompile(
+        '#uuid "0366f074-a8c5-4764-b340-6a5576afd2e8"')
