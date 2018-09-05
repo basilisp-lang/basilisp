@@ -28,6 +28,7 @@ num_chars = re.compile('[0-9]')
 whitespace_chars = re.compile('[\s,]')
 newline_chars = re.compile('(\r\n|\r|\n)')
 fn_macro_args = re.compile('(%)(&|[0-9])?')
+unicode_char = re.compile('u(\w+)')
 
 GenSymEnvironment = Dict[str, symbol.Symbol]
 Resolver = Callable[[symbol.Symbol], symbol.Symbol]
@@ -719,6 +720,56 @@ def _read_deref(ctx: ReaderContext) -> LispForm:
     return llist.l(_DEREF, next_form)
 
 
+_SPECIAL_CHARS = {
+    'newline': '\n',
+    'space': ' ',
+    'tab': '\t',
+    'formfeed': '\f',
+    'backspace': '\b',
+    'return': '\r'
+}
+
+
+def _read_character(ctx: ReaderContext) -> str:
+    """Read a character literal from the input stream.
+
+    Character literals may appear as:
+      - \\a \\b \\c etc will yield 'a', 'b', and 'c' respectively
+
+      - \\newline, \\space, \\tab, \\formfeed, \\backspace, \\return yield
+        the named characters
+
+      - \\uXXXX yield the unicode digit corresponding to the code
+        point named by the hex digits XXXX"""
+    start = ctx.reader.advance()
+    assert start == "\\"
+
+    s: List[str] = []
+    reader = ctx.reader
+    while True:
+        token = reader.advance()
+        if token == '' or whitespace_chars.match(token):
+            break
+        s.append(token)
+
+    char = ''.join(s)
+    special = _SPECIAL_CHARS.get(char, None)
+    if special is not None:
+        return special
+
+    match = unicode_char.match(char)
+    if match is not None:
+        try:
+            return chr(int(f"0x{match.group(1)}", 16))
+        except (ValueError, OverflowError):
+            raise SyntaxError(f"Unsupported character \\u{char}") from None
+
+    if len(char) > 1:
+        raise SyntaxError(f"Unsupportred character \\{char}")
+
+    return char
+
+
 def _read_regex(ctx: ReaderContext) -> Pattern:
     """Read a regex reader macro from the input stream."""
     s = _read_str(ctx)
@@ -823,6 +874,8 @@ def _read_next(ctx: ReaderContext) -> LispForm:  # noqa: C901
         return _read_str(ctx)
     elif token == "'":
         return _read_quoted(ctx)
+    elif token == '\\':
+        return _read_character(ctx)
     elif ns_name_chars.match(token):
         return _read_sym(ctx)
     elif token == '#':
