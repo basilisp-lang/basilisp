@@ -125,6 +125,9 @@ def test_complex():
     assert read_str_first("-538282J") == -538282J
 
     with pytest.raises(reader.SyntaxError):
+        read_str_first("1JJ")
+
+    with pytest.raises(reader.SyntaxError):
         read_str_first("1NJ")
 
     assert read_str_first("0.0J") == 0.0J
@@ -159,6 +162,9 @@ def test_int():
     assert read_str_first("0N") == 0
     assert read_str_first("-1N") == -1
     assert read_str_first("-538282N") == -538282
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("1NN")
 
 
 def test_float():

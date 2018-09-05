@@ -463,8 +463,7 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disab
         reader.next_token()
         chars.append(token)
 
-    if len(chars) == 0:
-        raise SyntaxError("Expected integer or float")
+    assert len(chars) > 0, "Must have at least one digit in integer or float"
 
     s = ''.join(chars)
     if sum([is_complex and is_decimal,
@@ -486,11 +485,9 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disab
     elif is_float:
         return float(s)
     elif is_ratio:
-        try:
-            num, denominator = s.split('/')
-            return Fraction(numerator=int(num), denominator=int(denominator))
-        except ValueError:
-            raise SyntaxError(f"Invalid ratio format: {s}") from None
+        assert "/" in s, "Ratio must contain one '/' character"
+        num, denominator = s.split('/')
+        return Fraction(numerator=int(num), denominator=int(denominator))
     elif is_integer:
         return int(s[:-1])
     return int(s)
