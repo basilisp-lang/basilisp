@@ -667,6 +667,12 @@ def test_function_reader_macro():
         read_str_first("#app/ermagrd [1 2 3]")
 
 
+def test_deref():
+    assert read_str_first("@s") == llist.l(reader._DEREF, sym.symbol('s'))
+    assert read_str_first("@ns/s") == llist.l(reader._DEREF, sym.symbol('s', ns='ns'))
+    assert read_str_first("@(atom {})") == llist.l(reader._DEREF, llist.l(sym.symbol('atom'), lmap.Map.empty()))
+
+
 def test_regex_reader_literal():
     assert read_str_first('#"hi"') == langutil.regex_from_str("hi")
     assert read_str_first('#"\s"') == langutil.regex_from_str(r"\s")

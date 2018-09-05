@@ -46,6 +46,7 @@ _VAR = symbol.symbol("var")
 
 _APPLY = symbol.symbol('apply', ns='basilisp.core')
 _CONCAT = symbol.symbol('concat', ns='basilisp.core')
+_DEREF = symbol.symbol('deref', ns='basilisp.core')
 _HASH_MAP = symbol.symbol('hash-map', ns='basilisp.core')
 _HASH_SET = symbol.symbol('hash-set', ns='basilisp.core')
 _LIST = symbol.symbol('list', ns='basilisp.core')
@@ -710,6 +711,14 @@ def _read_unquote(ctx: ReaderContext) -> LispForm:
             return llist.l(_UNQUOTE, next_form)
 
 
+def _read_deref(ctx: ReaderContext) -> LispForm:
+    """Read a derefed form from the input stream."""
+    start = ctx.reader.advance()
+    assert start == "@"
+    next_form = _read_next(ctx)
+    return llist.l(_DEREF, next_form)
+
+
 def _read_regex(ctx: ReaderContext) -> Pattern:
     """Read a regex reader macro from the input stream."""
     s = _read_str(ctx)
@@ -826,6 +835,8 @@ def _read_next(ctx: ReaderContext) -> LispForm:  # noqa: C901
         return _read_syntax_quoted(ctx)
     elif token == '~':
         return _read_unquote(ctx)
+    elif token == '@':
+        return _read_deref(ctx)
     elif token == '':
         return __EOF
     else:
