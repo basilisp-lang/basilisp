@@ -1063,21 +1063,31 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:  # pylint:dis
         arg_deps.append(expr_deps)
         arg_exprs.append(_unwrap_node(expr_node))
 
+    # Generate an outer function to hold the entire let expression (including bindings).
+    # We need to do this to guarantee that no binding expressions are executed as part of
+    # an assignment as a dependency node. This eager evaluation could leak out as part of
+    # (at least) if statements dependency nodes.
+    outer_letname = genname('let')
+    let_fn_body: List[ast.AST] = []
+
     # Generate a function to hold the body of the let expression
     letname = genname('let')
     with ctx.new_symbol_table(letname):
         args, body, vargs = _fn_args_body(ctx, vec.vector(arg_syms.keys()), runtime.nthrest(form, 2))
-        yield _dependency(_expressionize(body, letname, args=args, vargs=vargs))
+        let_fn_body.append(_expressionize(body, letname, args=args, vargs=vargs))
 
     # Generate local variable assignments for processing let bindings
     var_names = seq(var_names).map(lambda n: ast.Name(id=n, ctx=ast.Store()))
     for name, deps, expr in zip(var_names, arg_deps, arg_exprs):
-        yield from deps
-        yield _dependency(ast.Assign(targets=[name], value=expr))
+        let_fn_body.extend(_unwrap_nodes(deps))
+        let_fn_body.append(ast.Assign(targets=[name], value=expr))
 
-    yield _node(ast.Call(func=_load_attr(letname),
-                         args=seq(arg_syms.values()).map(lambda n: ast.Name(id=n, ctx=ast.Load())).to_list(),
-                         keywords=[]))
+    let_fn_body.append(ast.Call(func=_load_attr(letname),
+                                args=seq(arg_syms.values()).map(lambda n: ast.Name(id=n, ctx=ast.Load())).to_list(),
+                                keywords=[]))
+
+    yield _dependency(_expressionize(let_fn_body, outer_letname))
+    yield _node(ast.Call(func=_load_attr(outer_letname), args=[], keywords=[]))
 
 
 def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:

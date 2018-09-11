@@ -381,6 +381,17 @@ def test_let(ns_var: Var):
         lcompile("(let* [] \"string\")")
 
 
+def test_let_lazy_evaluation(ns_var: Var):
+    code = """
+    (if false
+      (let [n  (.-name :value)
+            ns (.-ns "string")]  ;; this line would fail if we eagerly evaluated
+        :true)
+      :false)
+    """
+    assert kw.keyword("false") == lcompile(code)
+
+
 def test_quoted_list(ns_var: Var):
     assert lcompile("'()") == llist.l()
     assert lcompile("'(str)") == llist.l(sym.symbol('str'))
