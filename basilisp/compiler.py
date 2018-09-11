@@ -1459,7 +1459,7 @@ def _resolve_sym_var(ctx: CompilerContext, v: Var) -> Optional[str]:
     return None
 
 
-def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:
+def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # noqa: C901
     """Resolve a Basilisp symbol down to a Python Name (or Attribute).
 
     If the symbol cannot be resolved or is specifically marked to prefer Var
