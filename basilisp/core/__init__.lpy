@@ -684,6 +684,39 @@
   ([m k default]
    (basilisp.lang.runtime/get m k default)))
 
+(defmacro new
+  "Create a new instance of class with args.
+
+  New objects may be created as any of:
+    (new builtins/str *args)
+    (new builtins.str *args)
+    (new builtins.str. *args)
+
+  This is compatibility syntax for Clojure, since Python (and therefore
+  Basilisp) do not require the new keyword for object instantiation."
+  [class & args]
+  (cond
+    (not (symbol? class))
+    (throw
+     (ex-info "Expected a class name as a symbol"
+              {:class-name class}))
+
+    (namespace class)
+    (let [n  (name class)
+          ns (namespace class)
+          s  (symbol (str ns "."
+                          (if (.endswith n ".")
+                            n
+                            (str n "."))))]
+      `(~s ~@args))
+
+    :else
+    (let [n (name class)
+          s (symbol (if (.endswith n ".")
+                      n
+                      (str n ".")))]
+      `(~s ~@args))))
+
 (defn range
   "Return a range of integers from start. If end is specified, the
   sequence will terminate at end."

@@ -350,6 +350,14 @@ def test_truthiness(ns_var: Var):
     assert kw.keyword("a") == lcompile("(if #{true} :a :b)")
 
 
+def test_interop_new(ns_var: Var):
+    assert lcompile('(builtins.str. "hi")') == "hi"
+    assert lcompile('(builtins.str. 1)') == "1"
+
+    with pytest.raises(AttributeError):
+        lcompile('(builtins.str "hi")')
+
+
 def test_interop_call(ns_var: Var):
     assert lcompile('(. "ALL-UPPER" lower)') == "all-upper"
     assert lcompile('(.upper "lower-string")') == "LOWER-STRING"
