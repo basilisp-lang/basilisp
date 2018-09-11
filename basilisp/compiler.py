@@ -1459,12 +1459,23 @@ def _resolve_sym_var(ctx: CompilerContext, v: Var) -> Optional[str]:
     return None
 
 
-def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:
+def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # noqa: C901
     """Resolve a Basilisp symbol down to a Python Name (or Attribute).
 
     If the symbol cannot be resolved or is specifically marked to prefer Var
     indirection, then this function will return None. _sym_ast will generate a
     Var.find call for runtime resolution."""
+    # Support special class-name syntax to instantiate new classes
+    #   (Classname. *args)
+    #   (aliased.Classname. *args)
+    #   (fully.qualified.Classname. *args)
+    if form.ns is None and form.name.endswith('.'):
+        try:
+            ns, name = form.name[:-1].rsplit('.', maxsplit=1)
+            form = sym.symbol(name, ns=ns)
+        except ValueError:
+            form = sym.symbol(form.name[:-1])
+
     # Attempt to resolve any symbol with a namespace to a direct Python call
     if form.ns is not None:
         if form.ns == _BUILTINS_NS:
