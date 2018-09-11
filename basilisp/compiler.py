@@ -1470,8 +1470,11 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:
     #   (aliased.Classname. *args)
     #   (fully.qualified.Classname. *args)
     if form.ns is None and form.name.endswith('.'):
-        ns, name = form.name[:-1].rsplit('.', maxsplit=1)
-        form = sym.symbol(name, ns=ns)
+        try:
+            ns, name = form.name[:-1].rsplit('.', maxsplit=1)
+            form = sym.symbol(name, ns=ns)
+        except ValueError:
+            form = sym.symbol(form.name[:-1])
 
     # Attempt to resolve any symbol with a namespace to a direct Python call
     if form.ns is not None:

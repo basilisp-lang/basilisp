@@ -351,8 +351,9 @@ def test_truthiness(ns_var: Var):
 
 
 def test_interop_new(ns_var: Var):
-    assert lcompile('(builtins.str. "hi")') == "hi"
-    assert lcompile('(builtins.str. 1)') == "1"
+    assert "hi" == lcompile('(builtins.str. "hi")')
+    assert "1" == lcompile('(builtins.str. 1)')
+    assert sym.symbol('hi') == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
 
     with pytest.raises(AttributeError):
         lcompile('(builtins.str "hi")')
