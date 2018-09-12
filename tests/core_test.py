@@ -596,3 +596,12 @@ def test_not_any__Q__():
     assert False is core.not_any__Q__(core.odd__Q__, vec.v(2, 3, 5, 7, 9))
     assert False is core.not_any__Q__(core.odd__Q__, vec.v(3, 5, 2, 7, 9))
     assert True is core.not_any__Q__(core.odd__Q__, vec.v(2, 4, 6, 8, 10))
+
+
+def test_merge():
+    assert None is core.merge()
+    assert lmap.Map.empty() == core.merge(lmap.Map.empty())
+    assert lmap.map({kw.keyword("a"): 1}) == core.merge(lmap.map({kw.keyword("a"): 1}))
+    assert lmap.map({kw.keyword("a"): 53, kw.keyword("b"): "hi"}) == core.merge(
+        lmap.map({kw.keyword("a"): 1, kw.keyword("b"): "hi"}),
+        lmap.map({kw.keyword("a"): 53}))
