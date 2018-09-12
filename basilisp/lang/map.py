@@ -149,6 +149,10 @@ class Map(Associative, Collection, Meta, Seqable):
         m: PMap = self._inner.update(*maps)
         return Map(m)
 
+    def update_with(self, merge_fn, *maps) -> "Map":
+        m: PMap = self._inner.update_with(merge_fn, *maps)
+        return Map(m)
+
     def _cons(self, *entries) -> "Map":
         try:
             e = self._inner.evolver()
