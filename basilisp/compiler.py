@@ -1170,7 +1170,6 @@ def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
 
 def _finally_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate Python AST nodes for `finally` forms."""
-    assert isinstance(form, llist.List)
     assert form.first == _FINALLY
     assert len(form) >= 2
 
@@ -1224,8 +1223,12 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     if len(finallys) not in [0, 1]:
         raise CompilerException("Only one finally clause may be provided in a try/catch block") from None
 
-    catch_exprs: List[ast.AST] = seq(clauses.get("catch", [])).map(lambda f: _catch_ast(ctx, f)).to_list()
-    final_exprs: List[ast.AST] = seq(finallys).flat_map(lambda f: _finally_ast(ctx, f)).to_list()
+    catch_exprs: List[ast.AST] = seq(clauses.get("catch", [])) \
+        .map(lambda f: _catch_ast(ctx, llist.list(f))) \
+        .to_list()
+    final_exprs: List[ast.AST] = seq(finallys) \
+        .flat_map(lambda f: _finally_ast(ctx, llist.list(f))) \
+        .to_list()
 
     # Start building up the try/except block that will be inserted
     # into a function to expressionize it
