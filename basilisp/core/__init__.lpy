@@ -937,3 +937,94 @@
     (reduce #(conj %1 %2)
             {}
             maps)))
+
+(defmacro binding
+  "Establish thread-local bindings for the vars given. The bindings are guaranteed
+  to clear once execution passes outside the scope of this block."
+  [bindings & body]
+  (when-not (and (vector? bindings)
+                 (even? (count bindings))
+                 (pos? (count bindings)))
+    (throw
+     (ex-info "Expected an even number of bindings"
+              {:bindings bindings})))
+  (let [vvar (first bindings)
+        val  (second bindings)]
+    `(try
+       (do
+         (.push-bindings (var ~vvar) ~val)
+         ~@(if (nthnext bindings 2)
+             [(concat
+               (list 'binding (vec (nthrest bindings 2)))
+               body)]
+             body))
+       (finally
+         (.pop-bindings (var ~vvar))))))
+
+(def
+  ^{:doc "The default data readers used in reader macros. Overriding or
+          attempting to change the root binding of this var will not
+          change the default data readers."}
+  default-data-readers
+  (.--DATA-READERS basilisp.reader/ReaderContext))
+
+(def
+  ^{:doc     "Data readers map which will be merged in to the default data
+              reader map used by the reader. Mappings should be qualified
+              symbols to functions taking one argument. The function will
+              receive an unevaluated data structure and must return some
+              value to the reader."
+    :dynamic true}
+  *data-readers*
+  {})
+
+(def
+  ^{:doc     "Resolver used for resolving namespace aliases when reading
+              forms using read, read-string, etc."
+    :dynamic true}
+  *resolver*
+  basilisp.lang.runtime/resolve-alias)
+
+(def ^:dynamic *in* sys/stdin)
+(def ^:dynamic *out* sys/stdout)
+(def ^:dynamic *err* sys/stderr)
+
+(defn read-string
+  "Read a string of Basilisp code.
+
+  Callers may bind a map of readers to *data-readers* to customize the
+  data readers used reading this string.
+
+  Note that read-string should not be used to read string input from
+  untrusted sources."
+  ([s]
+   (read-string {} s))
+  ([opts s]
+   (first (basilisp.reader/read-str s *resolver* *data-readers*))))
+
+(defn read
+  "Read the next form from the stream. If no stream is specified, uses
+  the value currently bound to *in*.
+
+  Callers may bind a map of readers to *data-readers* to customize the
+  data readers used reading this string.
+
+  The stream must satisfy the interface of io.TextIOBase, but does not require
+  any pushback capabilities. The default basilisp.reader.StreamReader can wrap
+  any object implementing TextIOBase and provide pushback capabilities."
+  ([]
+   (read *in*))
+  ([stream]
+   (read {} stream))
+  ([opts stream]
+   (first (basilisp.reader/read stream *resolver* *data-readers*))))
+
+(defn eval
+  "Evaluate a form (not a string) and return its result."
+  [form]
+  (let [ctx    (basilisp.compiler.CompilerContext.)
+        module (.-module *ns*)]
+    (basilisp.compiler/compile-and-exec-form form
+                                             ctx
+                                             module
+                                             "<Eval Input>")))
