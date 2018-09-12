@@ -167,6 +167,22 @@ def test_def(ns_var: Var):
     assert lcompile("beep") == "a sound a robot makes"
 
 
+def test_def_dynamic(ns_var: Var):
+    v: Var = lcompile("(def ^:dynamic *a-dynamic-var* 1)")
+    assert v.dynamic is True
+    lcompile("(.push-bindings #'*a-dynamic-var* :hi)")
+    assert kw.keyword("hi") == lcompile("*a-dynamic-var*")
+    assert kw.keyword("hi") == lcompile("(.pop-bindings #'*a-dynamic-var*)")
+    assert 1 == lcompile("*a-dynamic-var*")
+
+    v: Var = lcompile("(def a-regular-var 1)")
+    assert v.dynamic is False
+    lcompile("(.push-bindings #'a-regular-var :hi)")
+    assert 1 == lcompile("a-regular-var")
+    assert kw.keyword("hi") == lcompile("(.pop-bindings #'a-regular-var)")
+    assert 1 == lcompile("a-regular-var")
+
+
 def test_do(ns_var: Var):
     code = """
     (do
