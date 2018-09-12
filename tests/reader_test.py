@@ -26,11 +26,11 @@ def ns_var(test_ns: str):
     Namespace.remove(sym.symbol(runtime._CORE_NS))
 
 
-def read_str_first(s, resolver: reader.Resolver = None):
+def read_str_first(s, resolver: reader.Resolver = None, data_readers=None):
     """Read the first form from the input string. If no form
     is found, return None."""
     try:
-        return next(reader.read_str(s, resolver=resolver))
+        return next(reader.read_str(s, resolver=resolver, data_readers=data_readers))
     except StopIteration:
         return None
 
@@ -799,5 +799,16 @@ def test_uuid_reader_literal():
 
 
 def test_non_namespaced_tags_reserved():
+    with pytest.raises(TypeError):
+        read_str_first("#boop :hi", data_readers=lmap.map({kw.keyword("boop"): lambda v: v}))
+
+    with pytest.raises(ValueError):
+        read_str_first("#boop :hi", data_readers=lmap.map({sym.symbol("boop"): lambda v: v}))
+
+
+def test_not_found_tag_error():
     with pytest.raises(reader.SyntaxError):
         read_str_first("#boop :hi")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("#ns/boop :hi")
