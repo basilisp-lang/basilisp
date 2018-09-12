@@ -32,6 +32,7 @@ newline_chars = re.compile('(\r\n|\r|\n)')
 fn_macro_args = re.compile('(%)(&|[0-9])?')
 unicode_char = re.compile('u(\w+)')
 
+DataReaders = Optional[lmap.Map]
 GenSymEnvironment = Dict[str, symbol.Symbol]
 Resolver = Callable[[symbol.Symbol], symbol.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
@@ -136,15 +137,55 @@ class StreamReader:
         return self.peek()
 
 
-class ReaderContext:
-    __slots__ = ('_reader', '_resolve', '_in_anon_fn', '_syntax_quoted', '_gensym_env')
+def _inst_from_str(inst_str: str) -> datetime:
+    try:
+        return langutil.inst_from_str(inst_str)
+    except (ValueError, OverflowError):
+        raise SyntaxError(f"Unrecognized date/time syntax: {inst_str}")
 
-    def __init__(self, reader: StreamReader, resolver: Resolver = None) -> None:
+
+def _uuid_from_str(uuid_str: str) -> uuid.UUID:
+    try:
+        return langutil.uuid_from_str(uuid_str)
+    except (ValueError, TypeError):
+        raise SyntaxError(f"Unrecognized UUID format: {uuid_str}")
+
+
+class ReaderContext:
+    _DATA_READERS = lmap.map({
+        symbol.symbol('inst'): _inst_from_str,
+        symbol.symbol('uuid'): _uuid_from_str
+    })
+
+    __slots__ = ('_data_readers',
+                 '_reader',
+                 '_resolve',
+                 '_in_anon_fn',
+                 '_syntax_quoted',
+                 '_gensym_env')
+
+    def __init__(self, reader: StreamReader,
+                 resolver: Resolver = None,
+                 data_readers: DataReaders = None) -> None:
+        data_readers = Maybe(data_readers).or_else_get(lmap.Map.empty())
+        for entry in data_readers:
+            if not isinstance(entry.key, symbol.Symbol):
+                raise TypeError("Expected symbol for data reader tag")
+            if not entry.key.ns:
+                raise ValueError(f"Non-namespaced tags are reserved by the reader")
+
+        self._data_readers = ReaderContext._DATA_READERS.update_with(
+            lambda l, r: l,  # Do not allow callers to overwrite existing builtin readers
+            data_readers)
         self._reader = reader
         self._resolve = Maybe(resolver).or_else_get(lambda x: x)
         self._in_anon_fn: Deque[bool] = collections.deque([])
         self._syntax_quoted: Deque[bool] = collections.deque([])
         self._gensym_env: Deque[GenSymEnvironment] = collections.deque([])
+
+    @property
+    def data_readers(self) -> lmap.Map:
+        return self._data_readers
 
     @property
     def reader(self) -> StreamReader:
@@ -825,26 +866,6 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
         raise SyntaxError(f"Unrecognized regex pattern syntax: {s}")
 
 
-def _inst_from_str(inst_str: str) -> datetime:
-    try:
-        return langutil.inst_from_str(inst_str)
-    except (ValueError, OverflowError):
-        raise SyntaxError(f"Unrecognized date/time syntax: {inst_str}")
-
-
-def _uuid_from_str(uuid_str: str) -> uuid.UUID:
-    try:
-        return langutil.uuid_from_str(uuid_str)
-    except (ValueError, TypeError):
-        raise SyntaxError(f"Unrecognized UUID format: {uuid_str}")
-
-
-_DATA_READERS = lmap.map({
-    symbol.symbol('inst'): _inst_from_str,
-    symbol.symbol('uuid'): _uuid_from_str
-})
-
-
 def _read_reader_macro(ctx: ReaderContext) -> LispForm:
     """Return a data structure evaluated as a reader
     macro from the input stream."""
@@ -868,14 +889,9 @@ def _read_reader_macro(ctx: ReaderContext) -> LispForm:
     elif ns_name_chars.match(token):
         s = _read_sym(ctx)
         assert isinstance(s, symbol.Symbol)
-        if s.ns is None and s not in _DATA_READERS:
-            raise SyntaxError(
-                f"Non-namespaced tags are reserved by the reader (#{s} not found)"
-            )
-
         v = _read_next(ctx)
-        if s in _DATA_READERS:
-            f = _DATA_READERS[s]
+        if s in ctx.data_readers:
+            f = ctx.data_readers[s]
             return f(v)
         else:
             raise SyntaxError(f"No data reader found for tag #{s}")
@@ -942,12 +958,22 @@ def _read_next(ctx: ReaderContext) -> LispForm:  # noqa: C901
         raise SyntaxError("Unexpected token '{token}'".format(token=token))
 
 
-def read(stream, resolver: Resolver = None) -> Iterable[LispForm]:
+def read(stream, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispForm]:
     """Read the contents of a stream as a Lisp expression.
+
+    Callers may optionally specify a namespace resolver, which will be used
+    to adjudicate the fully-qualified name of symbols appearing inside of
+    a syntax quote.
+
+    Callers may optionally specify a map of custom data readers that will
+    be used to resolve values in reader macros. Data reader tags specified
+    by callers must be namespaced symbols; non-namespaced symbols are
+    reserved by the reader. Data reader functions must be functions taking
+    one argument and returning a value.
 
     The caller is responsible for closing the input stream."""
     reader = StreamReader(stream)
-    ctx = ReaderContext(reader, resolver=resolver)
+    ctx = ReaderContext(reader, resolver=resolver, data_readers=data_readers)
     while True:
         expr = _read_next(ctx)
         if expr is __EOF:
@@ -955,13 +981,19 @@ def read(stream, resolver: Resolver = None) -> Iterable[LispForm]:
         yield expr
 
 
-def read_str(s: str, resolver: Resolver = None) -> Iterable[LispForm]:
-    """Read the contents of a string as a Lisp expression."""
+def read_str(s: str, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispForm]:
+    """Read the contents of a string as a Lisp expression.
+
+    Keyword arguments to this function have the same meanings as those of
+    basilisp.reader.read."""
     with io.StringIO(s) as buf:
-        yield from read(buf, resolver=resolver)
+        yield from read(buf, resolver=resolver, data_readers=data_readers)
 
 
-def read_file(filename: str, resolver: Resolver = None) -> Iterable[LispForm]:
-    """Read the contents of a file as a Lisp expression."""
+def read_file(filename: str, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispForm]:
+    """Read the contents of a file as a Lisp expression.
+
+    Keyword arguments to this function have the same meanings as those of
+    basilisp.reader.read."""
     with open(filename) as f:
-        yield from read(f, resolver=resolver)
+        yield from read(f, resolver=resolver, data_readers=data_readers)
