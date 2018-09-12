@@ -70,6 +70,19 @@ def test_entry():
 def test_map_cons():
     meta = lmap.m(tag="async")
     m1 = lmap.map({"first": "Chris"}, meta=meta)
+    m2 = m1.cons({"last", "Cronk"})
+    assert m1 is not m2
+    assert m1 != m2
+    assert len(m2) == 2
+    assert meta == m1.meta
+    assert meta == m2.meta
+    assert "Chris" == m1.get("first")
+    assert not m1.contains("last")
+    assert "Cronk" == m2.get("last")
+    assert "Chris" == m2.get("first")
+
+    meta = lmap.m(tag="async")
+    m1 = lmap.map({"first": "Chris"}, meta=meta)
     m2 = m1.cons(MapEntry.of("last", "Cronk"))
     assert m1 is not m2
     assert m1 != m2

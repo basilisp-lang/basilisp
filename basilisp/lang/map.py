@@ -153,24 +153,22 @@ class Map(Associative, Collection, Meta, Seqable):
         m: PMap = self._inner.update_with(merge_fn, *maps)
         return Map(m)
 
-    def _cons(self, *entries) -> "Map":
+    def cons(self, *elems) -> "Map":
+        e = self._inner.evolver()
         try:
-            e = self._inner.evolver()
-            for entry in entries:
-                e.set(entry.key, entry.value)
+            for elem in elems:
+                if isinstance(elem, Map):
+                    for entry in elem:
+                        e.set(entry.key, entry.value)
+                elif isinstance(elem, MapEntry):
+                    e.set(elem.key, elem.value)
+                else:
+                    entry = MapEntry.from_vec(elem)
+                    e.set(entry.key, entry.value)
             return Map(e.persistent(), meta=self.meta)
-        except AttributeError:
+        except (TypeError, ValueError):
             raise ValueError(
-                "Argument to map conj must be castable to MapEntry")
-
-    def cons(self, *entries) -> "Map":
-        try:
-            e = self._inner.evolver()
-            for entry in entries:
-                e.set(entry.key, entry.value)
-            return Map(e.persistent(), meta=self.meta)
-        except AttributeError:
-            return self._cons(*seq(entries).map(MapEntry.from_vec))
+                "Argument to map conj must be another Map or castable to MapEntry")
 
     @staticmethod
     def empty() -> "Map":
