@@ -480,6 +480,14 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form[1]))
 
+    # If the Var is marked as dynamic, we need to generate a keyword argument
+    # for the generated Python code to set the Var as dynamic
+    dynamic_kwarg = Maybe(form[1].meta) \
+        .map(lambda m: m.get(_SYM_DYNAMIC_META_KEY, None)  # type: ignore
+             ) \
+        .map(lambda v: [ast.keyword(arg='dynamic', value=ast.NameConstant(v))]) \
+        .or_else_get([])
+
     yield from meta_nodes
     yield from def_nodes
 
@@ -493,7 +501,7 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     yield _node(ast.Call(
         func=_INTERN_VAR_FN_NAME,
         args=[ns_name, def_name, ast.Name(id=safe_name, ctx=ast.Load())],
-        keywords=_unwrap_nodes(meta)))
+        keywords=list(chain(dynamic_kwarg, _unwrap_nodes(meta)))))
 
 
 def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
