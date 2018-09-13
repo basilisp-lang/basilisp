@@ -23,6 +23,7 @@ VERSION = None
 REQUIRED = [
     'astor',
     'atomos',
+    'click',
     'pyfunctional',
     'pyrsistent',
     'pytest',
@@ -101,9 +102,9 @@ setup(
     url=URL,
     packages=find_packages(exclude=('tests',)),
 
-    # entry_points={
-    #     'console_scripts': ['mycli=mymodule:cli'],
-    # },
+    entry_points={
+        'console_scripts': ['basilisp=basilisp.cli:cli'],
+    },
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,

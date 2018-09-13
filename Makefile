@@ -13,7 +13,7 @@ lint:
 .PHONY: repl
 repl:
 	@pipenv install
-	@pipenv run python -m basilisp.main
+	@pipenv run python -m basilisp.cli repl
 
 
 .PHONY: coverage
