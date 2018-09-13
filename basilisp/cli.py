@@ -1,5 +1,5 @@
 # noinspection PyUnresolvedReferences
-import readline
+import readline  # noqa: F401
 import traceback
 import types
 
