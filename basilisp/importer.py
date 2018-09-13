@@ -85,7 +85,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         ns: runtime.Namespace = runtime.set_current_ns(fullname).value
         ns.module = module
 
-        forms = reader.read_file(filename)
+        forms = reader.read_file(filename, resolver=runtime.resolve_alias)
         compiler.compile_module(forms, compiler.CompilerContext(), module, filename)
 
         # Because we want to (by default) add 'basilisp.core into every namespace by default,

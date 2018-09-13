@@ -783,10 +783,10 @@ def test_inst_reader_literal():
 
 def test_regex_reader_literal():
     assert read_str_first('#"hi"') == langutil.regex_from_str("hi")
-    assert read_str_first('#"\s"') == langutil.regex_from_str(r"\s")
+    assert read_str_first(r'#"\s"') == langutil.regex_from_str(r"\s")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('#"\y"')
+        read_str_first(r'#"\y"')
 
 
 def test_uuid_reader_literal():

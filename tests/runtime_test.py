@@ -7,6 +7,7 @@ import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
+import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 
 
@@ -245,3 +246,35 @@ def test_trampoline_args():
 
     args = runtime._TrampolineArgs(True, 1, llist.l(2, 3, 4), 5, 6)
     assert (1, llist.l(2, 3, 4), 5, 6) == args.args
+
+
+@pytest.fixture
+def core_ns():
+    ns_var = runtime.init_ns_var(which_ns=runtime._CORE_NS)
+    yield ns_var.value
+    runtime.Namespace.remove(sym.symbol(runtime._CORE_NS))
+
+
+def test_resolve_alias(core_ns):
+    for form in runtime._SPECIAL_FORMS:
+        assert form == runtime.resolve_alias(form)
+
+    ns_name = 'resolve-test'
+    ns_sym = sym.symbol(ns_name)
+    ns: runtime.Namespace = runtime.set_current_ns(ns_name).value
+
+    runtime.Var.intern(ns_sym, sym.symbol('existing-var'), None)
+    assert sym.symbol('existing-var', ns=ns_name) == runtime.resolve_alias(
+        sym.symbol('existing-var'), ns=ns)
+
+    assert sym.symbol('non-existent-var', ns=ns_name) == runtime.resolve_alias(
+        sym.symbol('non-existent-var'), ns=ns)
+
+    foo_ns_sym = sym.symbol('zux.bar.foo')
+    foo_ns = runtime.Namespace.get_or_create(foo_ns_sym)
+    ns.add_alias(sym.symbol('foo'), foo_ns)
+    assert sym.symbol('aliased-var', ns=foo_ns_sym.name) == runtime.resolve_alias(
+        sym.symbol('aliased-var', ns='foo'), ns=ns)
+
+    assert sym.symbol('non-existent-alias-var', ns='wee.woo') == runtime.resolve_alias(
+        sym.symbol('non-existent-alias-var', ns='wee.woo'), ns=ns)

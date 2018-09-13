@@ -25,12 +25,12 @@ from basilisp.lang.typing import LispForm, IterableLispForm
 from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<')
-begin_num_chars = re.compile('[0-9\-]')
+begin_num_chars = re.compile(r'[0-9\-]')
 num_chars = re.compile('[0-9]')
-whitespace_chars = re.compile('[\s,]')
+whitespace_chars = re.compile(r'[\s,]')
 newline_chars = re.compile('(\r\n|\r|\n)')
 fn_macro_args = re.compile('(%)(&|[0-9])?')
-unicode_char = re.compile('u(\w+)')
+unicode_char = re.compile(r'u(\w+)')
 
 DataReaders = Optional[lmap.Map]
 GenSymEnvironment = Dict[str, symbol.Symbol]
