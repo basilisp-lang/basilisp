@@ -180,6 +180,7 @@ class Namespace:
       namespace"""
     DEFAULT_IMPORTS = atom.Atom(pset(seq(['builtins',
                                           'operator',
+                                          'sys',
                                           'basilisp.lang.atom',
                                           'basilisp.lang.delay',
                                           'basilisp.lang.exception',
@@ -191,7 +192,9 @@ class Namespace:
                                           'basilisp.lang.set',
                                           'basilisp.lang.symbol',
                                           'basilisp.lang.vector',
-                                          'basilisp.lang.util'])
+                                          'basilisp.lang.util',
+                                          'basilisp.compiler',
+                                          'basilisp.reader'])
                                      .map(sym.symbol)))
     GATED_IMPORTS = pset(['basilisp.core'])
 
