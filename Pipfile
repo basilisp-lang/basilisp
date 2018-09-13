@@ -15,6 +15,7 @@ yapf = "*"
 [packages]
 astor = "*"
 atomos = "*"
+click = "*"
 pyfunctional = "*"
 pyrsistent = "*"
 python-dateutil = "*"

@@ -20,7 +20,7 @@ pip install basilisp
 Once Basilisp is installed, you can enter into the REPL using:
 
 ```bash
-python -m basilisp.main
+basilisp repl
 ```
 
 Basilisp features many of the same functions and idioms as [Clojure](https://clojure.org/)
