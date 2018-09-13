@@ -47,7 +47,8 @@ def bootstrap_repl(which_ns: str) -> types.ModuleType:
     for name in ['*1', '*2', '*3', '*e', 'doc', 'pydoc', 'source']:
         ns.intern(sym.symbol(name),
                   Maybe(runtime.Var.find(sym.symbol(name, ns='basilisp.repl'))).or_else_raise(
-                      lambda: runtime.RuntimeException(f"Var basilisp.repl/{name} not found!")))
+                      lambda: runtime.RuntimeException(
+                          f"Var basilisp.repl/{name} not found!")))  # pylint: disable=cell-var-from-loop
     return repl_module
 
 
