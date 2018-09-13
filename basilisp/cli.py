@@ -11,6 +11,7 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
 import basilisp.main as basilisp
 import basilisp.reader as reader
+from basilisp.util import Maybe
 
 
 @click.group()
@@ -44,7 +45,9 @@ def bootstrap_repl(which_ns: str) -> types.ModuleType:
     repl_module = importlib.import_module('basilisp.repl')
     ns.add_alias(sym.symbol('basilisp.repl'), repl_ns)
     for name in ['*1', '*2', '*3', '*e', 'doc', 'pydoc', 'source']:
-        ns.intern(sym.symbol(name), runtime.Var.find(sym.symbol(name, ns='basilisp.repl')))
+        ns.intern(sym.symbol(name),
+                  Maybe(runtime.Var.find(sym.symbol(name, ns='basilisp.repl'))).or_else_raise(
+                      lambda: runtime.RuntimeException(f"Var basilisp.repl/{name} not found!")))
     return repl_module
 
 
