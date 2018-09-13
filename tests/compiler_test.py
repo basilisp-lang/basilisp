@@ -725,7 +725,7 @@ def test_inst(ns_var: Var):
 
 
 def test_regex(ns_var: Var):
-    assert lcompile('#"\s"') == re.compile('\s')
+    assert lcompile(r'#"\s"') == re.compile(r'\s')
 
 
 def test_uuid(ns_var: Var):
