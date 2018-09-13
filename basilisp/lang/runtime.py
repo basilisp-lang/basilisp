@@ -691,12 +691,12 @@ def get_current_ns(ns_var_name: str = _NS_VAR_NAME,
     return ns
 
 
-def resolve_alias(s: sym.Symbol) -> sym.Symbol:
+def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
     """Resolve the aliased symbol in the current namespace."""
     if s in _SPECIAL_FORMS:
         return s
 
-    ns = get_current_ns()
+    ns = Maybe(ns).or_else(get_current_ns)
     if s.ns is not None:
         aliased_ns = ns.get_alias(sym.symbol(s.ns))
         if aliased_ns is not None:
