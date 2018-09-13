@@ -160,6 +160,9 @@ class Map(Associative, Collection, Meta, Seqable):
                 if isinstance(elem, Map):
                     for entry in elem:
                         e.set(entry.key, entry.value)
+                elif isinstance(elem, dict):
+                    for k, v in elem.items():
+                        e.set(k, v)
                 elif isinstance(elem, MapEntry):
                     e.set(elem.key, elem.value)
                 else:

@@ -70,7 +70,7 @@ def test_entry():
 def test_map_cons():
     meta = lmap.m(tag="async")
     m1 = lmap.map({"first": "Chris"}, meta=meta)
-    m2 = m1.cons({"last", "Cronk"})
+    m2 = m1.cons({"last": "Cronk"})
     assert m1 is not m2
     assert m1 != m2
     assert len(m2) == 2
