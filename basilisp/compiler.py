@@ -1525,8 +1525,8 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
             # If neither resolve, then defer to a Var.find
             return None
         elif ns_sym in ctx.current_ns.aliases:
-            aliased_ns = ctx.current_ns.aliases[ns_sym]
-            v = Var.find(sym.symbol(form.name, ns=aliased_ns))
+            aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
+            v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
             if v is not None:
                 return _resolve_sym_var(ctx, v)
             return None

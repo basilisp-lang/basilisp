@@ -15,6 +15,7 @@ import basilisp.lang.deref as lderef
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.seq as lseq
+import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 from basilisp.lang import atom
 from basilisp.lang.typing import LispNumber
@@ -27,6 +28,25 @@ _NS_VAR_NS = _CORE_NS
 _PYTHON_PACKAGE_NAME = 'basilisp'
 _GENERATED_PYTHON_VAR_NAME = '*generated-python*'
 _PRINT_GENERATED_PY_VAR_NAME = '*print-generated-python*'
+
+_CATCH = sym.symbol("catch")
+_DEF = sym.symbol("def")
+_DO = sym.symbol("do")
+_FINALLY = sym.symbol("finally")
+_FN = sym.symbol("fn*")
+_IF = sym.symbol("if")
+_IMPORT = sym.symbol("import*")
+_INTEROP_CALL = sym.symbol(".")
+_INTEROP_PROP = sym.symbol(".-")
+_LET = sym.symbol("let*")
+_QUOTE = sym.symbol("quote")
+_RECUR = sym.symbol("recur")
+_THROW = sym.symbol("throw")
+_TRY = sym.symbol("try")
+_VAR = sym.symbol("var")
+_SPECIAL_FORMS = lset.s(_CATCH, _DEF, _DO, _FINALLY, _FN, _IF, _IMPORT,
+                        _INTEROP_CALL, _INTEROP_PROP, _LET, _QUOTE, _RECUR,
+                        _THROW, _TRY, _VAR)
 
 
 def _new_module(name: str, doc=None) -> types.ModuleType:
@@ -673,6 +693,9 @@ def get_current_ns(ns_var_name: str = _NS_VAR_NAME,
 
 def resolve_alias(s: sym.Symbol) -> sym.Symbol:
     """Resolve the aliased symbol in the current namespace."""
+    if s in _SPECIAL_FORMS:
+        return s
+
     ns = get_current_ns()
     if s.ns is not None:
         aliased_ns = ns.get_alias(sym.symbol(s.ns))
