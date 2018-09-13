@@ -1,0 +1,49 @@
+(in-ns 'basilisp.repl)
+
+(import* inspect)
+
+(def ^:dynamic *1 nil)
+(def ^:dynamic *2 nil)
+(def ^:dynamic *3 nil)
+(def ^:dynamic *e nil)
+
+(defn mark-repl-result
+  "Mark the REPL result and move each result to the next slot
+  down."
+  [result]
+  (set! '*3 *2)
+  (set! '*2 *1)
+  (set! '*1 result))
+
+(defn mark-exception
+  "Set the variable *e to the last exception at the REPL."
+  [e]
+  (set! '*e e))
+
+(defn pydoc
+  "Print the Python docstring for a function."
+  [o]
+  (print (inspect/getdoc o)))
+
+(defn print-doc
+  "Print the docstring from an interned var."
+  [v]
+  (let [var-meta (meta v)]
+    (if var-meta
+      (print (:doc var-meta))
+      nil)))
+
+(defmacro doc
+  "Print the docstring from an interned Var if found."
+  [s]
+  `(print-doc (var ~s)))
+
+(defn print-source
+  "Print the source forms for a function."
+  [v]
+  (throw (builtins/NotImplementedError)))
+
+(defmacro source
+  "Print the source code for a form if found."
+  [s]
+  `(print-source (var ~s)))

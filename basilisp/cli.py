@@ -1,3 +1,4 @@
+import importlib
 # noinspection PyUnresolvedReferences
 import readline  # noqa: F401
 import traceback
@@ -7,8 +8,10 @@ import click
 
 import basilisp.compiler as compiler
 import basilisp.lang.runtime as runtime
+import basilisp.lang.symbol as sym
 import basilisp.main as basilisp
 import basilisp.reader as reader
+from basilisp.util import Maybe
 
 
 @click.group()
@@ -33,10 +36,27 @@ def eval_str(s: str, ctx: compiler.CompilerContext, module: types.ModuleType):
     return last
 
 
+def bootstrap_repl(which_ns: str) -> types.ModuleType:
+    """Bootstrap the REPL with a few useful vars and returned the
+    bootstrapped module so it's functions can be used by the REPL
+    command."""
+    repl_ns = runtime.Namespace.get_or_create(sym.symbol('basilisp.repl'))
+    ns = runtime.Namespace.get_or_create(sym.symbol(which_ns))
+    repl_module = importlib.import_module('basilisp.repl')
+    ns.add_alias(sym.symbol('basilisp.repl'), repl_ns)
+    for name in ['*1', '*2', '*3', '*e', 'doc', 'pydoc', 'source']:
+        ns.intern(sym.symbol(name),
+                  Maybe(runtime.Var.find(sym.symbol(name, ns='basilisp.repl'))).or_else_raise(
+                      lambda: runtime.RuntimeException(
+                          f"Var basilisp.repl/{name} not found!")))  # pylint: disable=cell-var-from-loop
+    return repl_module
+
+
 @cli.command(short_help='start the Basilisp REPL')
 @click.option('--default-ns', default=runtime._REPL_DEFAULT_NS, help='default namespace to use for the REPL')
 def repl(default_ns):
     basilisp.init()
+    repl_module = bootstrap_repl(default_ns)
     ctx = compiler.CompilerContext()
     ns_var = runtime.set_current_ns(default_ns)
     while True:
@@ -53,16 +73,21 @@ def repl(default_ns):
             continue
 
         try:
-            print(compiler.lrepr(eval_str(lsrc, ctx, ns.module)))
+            result = eval_str(lsrc, ctx, ns.module)
+            print(compiler.lrepr(result))
+            repl_module.mark_repl_result(result)
         except reader.SyntaxError as e:
             traceback.print_exception(reader.SyntaxError, e, e.__traceback__)
+            repl_module.mark_exception(e)
             continue
         except compiler.CompilerException as e:
             traceback.print_exception(compiler.CompilerException, e,
                                       e.__traceback__)
+            repl_module.mark_exception(e)
             continue
         except Exception as e:
             traceback.print_exception(Exception, e, e.__traceback__)
+            repl_module.mark_exception(e)
             continue
 
 
