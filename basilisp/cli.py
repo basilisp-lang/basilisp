@@ -1,5 +1,5 @@
 # noinspection PyUnresolvedReferences
-import functools
+import readline
 import traceback
 import types
 
