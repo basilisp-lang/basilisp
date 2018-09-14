@@ -12,13 +12,8 @@ Basilisp compiles down to raw Python 3 code and executes on the Python 3
 virtual machine, allowing natural interoperability between existing Python
 libraries and new Lisp code.
 
-Features
---------
-
-* Immutable data structures
-* Strong emphasis on functional programming concepts
-* Seamless interoperability between Python code and Basilisp code
-* Sophisticated REPL for REPL-based development
+Use the links below to learn more about Basilisp and to find help if you
+run into trouble using Basilisp.
 
 Contents
 --------
@@ -26,4 +21,6 @@ Contents
 .. toctree::
    :maxdepth: 2
 
+   features
+   gettingstarted
    reference
