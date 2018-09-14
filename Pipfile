@@ -6,6 +6,7 @@ name = "pypi"
 [dev-packages]
 pytest-pycharm = "*"
 sphinx = "*"
+sphinx-rtd-theme = "*"
 tox = "*"
 tox-pyenv = "*"
 twine = "*"
