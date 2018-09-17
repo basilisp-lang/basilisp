@@ -11,6 +11,7 @@ from functional import seq
 import basilisp.lang.associative as lassoc
 import basilisp.lang.collection as lcoll
 import basilisp.lang.deref as lderef
+import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.seq as lseq
@@ -105,6 +106,13 @@ class Var:
     @dynamic.setter
     def dynamic(self, is_dynamic: bool):
         self._dynamic = is_dynamic
+
+    @property
+    def is_private(self) -> Optional[bool]:
+        try:
+            return self.meta.entry(kw.keyword('private'))
+        except AttributeError:
+            return False
 
     @property
     def root(self):
@@ -206,22 +214,22 @@ class Namespace:
       to without an alias in this namespace.
     """
     DEFAULT_IMPORTS = atom.Atom(lset.set(seq(['builtins',
-                                          'operator',
-                                          'sys',
-                                          'basilisp.lang.atom',
-                                          'basilisp.lang.delay',
-                                          'basilisp.lang.exception',
-                                          'basilisp.lang.keyword',
-                                          'basilisp.lang.list',
-                                          'basilisp.lang.map',
-                                          'basilisp.lang.runtime',
-                                          'basilisp.lang.seq',
-                                          'basilisp.lang.set',
-                                          'basilisp.lang.symbol',
-                                          'basilisp.lang.vector',
-                                          'basilisp.lang.util',
-                                          'basilisp.compiler',
-                                          'basilisp.reader'])
+                                              'operator',
+                                              'sys',
+                                              'basilisp.lang.atom',
+                                              'basilisp.lang.delay',
+                                              'basilisp.lang.exception',
+                                              'basilisp.lang.keyword',
+                                              'basilisp.lang.list',
+                                              'basilisp.lang.map',
+                                              'basilisp.lang.runtime',
+                                              'basilisp.lang.seq',
+                                              'basilisp.lang.set',
+                                              'basilisp.lang.symbol',
+                                              'basilisp.lang.vector',
+                                              'basilisp.lang.util',
+                                              'basilisp.compiler',
+                                              'basilisp.reader'])
                                      .map(sym.symbol)))
     GATED_IMPORTS = lset.set(['basilisp.core'])
 
@@ -344,15 +352,27 @@ class Namespace:
 
     def add_refer(self, sym: sym.Symbol, var: Var) -> None:
         """Refer var in this namespace under the name sym."""
-        self._refers.swap(lambda s: s.assoc(sym, var))
+        if not var.is_private:
+            self._refers.swap(lambda s: s.assoc(sym, var))
 
     def get_refer(self, sym: sym.Symbol) -> Optional[Var]:
         """Get the Var referred by Symbol or None if it does not exist."""
         return self.refers.entry(sym, None)
 
+    @classmethod
+    def __refer_all(cls, refers: lmap.Map, other_ns_interns: lmap.Map) -> lmap.Map:
+        """Refer all _public_ interns from another namespace."""
+        final_refers = refers
+        for entry in other_ns_interns:
+            s: sym.Symbol = entry.key
+            var: Var = entry.value
+            if not var.is_private:
+                final_refers = final_refers.assoc(s, var)
+        return final_refers
+
     def refer_all(self, other_ns: "Namespace"):
         """Refer all the Vars in the other namespace."""
-        self._refers.swap(lambda s: s.update(other_ns.interns))
+        self._refers.swap(Namespace.__refer_all, other_ns.interns)
 
     @classmethod
     def ns_cache(cls) -> lmap.Map:
