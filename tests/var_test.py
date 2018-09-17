@@ -31,20 +31,109 @@ def ns_cache(ns_sym: sym.Symbol) -> patch:
                  atom.Atom(lmap.map({ns_sym: Namespace(ns_sym)})))
 
 
-def test_intern(ns_sym: sym.Symbol, var_name: sym.Symbol, intern_val,
+def test_public_var(ns_cache: patch, ns_sym: sym.Symbol, var_name: sym.Symbol, intern_val):
+    with ns_cache:
+        v = Var.intern(ns_sym, var_name, intern_val)
+        assert not v.is_private
+
+
+def test_private_var(ns_cache: patch, ns_sym: sym.Symbol, var_name: sym.Symbol, intern_val):
+    with ns_cache:
+        v = Var.intern(ns_sym, var_name, intern_val, meta=lmap.map({kw.keyword('private'): True}))
+        assert v.is_private
+
+
+def test_dynamic_var(ns_sym: sym.Symbol,
+                     var_name: sym.Symbol,
+                     intern_val,
+                     ns_cache: patch):
+    with ns_cache:
+        v = Var.intern(ns_sym, var_name, intern_val, dynamic=True)
+        assert v.dynamic
+        assert intern_val == v.root
+        assert intern_val == v.value
+
+        new_val = kw.keyword("new-val")
+        new_val2 = kw.keyword("other-new-val")
+        try:
+            v.push_bindings(new_val)
+            assert v.dynamic
+            assert intern_val == v.root
+            assert new_val == v.value
+
+            v.value = new_val2
+            assert v.dynamic
+            assert intern_val == v.root
+            assert new_val2 == v.value
+        finally:
+            v.pop_bindings()
+
+        assert v.dynamic
+        assert intern_val == v.root
+        assert intern_val == v.value
+
+
+def test_var_bindings_are_noop_for_non_dynamic_var(ns_sym: sym.Symbol,
+                                                   var_name: sym.Symbol,
+                                                   intern_val,
+                                                   ns_cache: patch):
+    with ns_cache:
+        v = Var.intern(ns_sym, var_name, intern_val)
+        assert not v.dynamic
+        assert intern_val == v.root
+        assert intern_val == v.value
+
+        new_val = kw.keyword("new-val")
+        new_val2 = kw.keyword("other-new-val")
+        try:
+            v.push_bindings(new_val)
+            assert not v.dynamic
+            assert intern_val == v.root
+            assert intern_val == v.value
+
+            v.value = new_val2
+            assert not v.dynamic
+            assert new_val2 == v.root
+            assert new_val2 == v.value
+        finally:
+            v.pop_bindings()
+
+        assert not v.dynamic
+        assert new_val2 == v.root
+        assert new_val2 == v.value
+
+
+def test_intern(ns_sym: sym.Symbol,
+                var_name: sym.Symbol,
+                intern_val,
                 ns_cache: patch):
     with ns_cache:
         v = Var.intern(ns_sym, var_name, intern_val)
         assert isinstance(v, Var)
-        assert v.ns.name == ns_sym.name
-        assert v.name == var_name
+        assert ns_sym.name == v.ns.name
+        assert var_name == v.name
         assert not v.dynamic
-        assert v.root == intern_val
-        assert v.value == intern_val
+        assert intern_val == v.root
+        assert intern_val == v.value
 
         ns = Namespace.get_or_create(ns_sym)
-        assert ns is not None
-        assert v == ns.find(var_name)
+        assert None is not ns
+        assert ns.find(var_name) == v
+
+
+def test_intern_unbound(ns_sym: sym.Symbol, var_name: sym.Symbol, ns_cache: patch):
+    with ns_cache:
+        v = Var.intern_unbound(ns_sym, var_name)
+        assert isinstance(v, Var)
+        assert ns_sym.name == v.ns.name
+        assert var_name == v.name
+        assert not v.dynamic
+        assert None is v.root
+        assert None is v.value
+
+        ns = Namespace.get_or_create(ns_sym)
+        assert None is not ns
+        assert ns.find(var_name) == v
 
 
 def test_find_in_ns(ns_sym: sym.Symbol, var_name: sym.Symbol, intern_val,

@@ -143,6 +143,7 @@ class Var:
         if self._dynamic and hasattr(
                 self._tl, 'bindings') and len(self._tl.bindings) > 0:
             self._tl.bindings[-1] = v
+            return
         self._root = v
 
     @staticmethod
