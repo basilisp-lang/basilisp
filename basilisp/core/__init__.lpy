@@ -778,9 +778,9 @@
      (f)))
   ([f val coll]
    (let [reduce-coll (fn [out in]
-                       (if (seq (rest in))
+                       (if (seq in)
                          (recur (f out (first in)) (rest in))
-                         (f out (first in))))]
+                         out))]
      (if (seq coll)
        (reduce-coll val coll)
        (f val)))))
