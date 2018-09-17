@@ -1155,3 +1155,58 @@
                            (.add-refer current-ns sym var)
                            (recur (rest refers)))))]
         (do-refer interns)))))
+
+(import* importlib)
+
+(defn require
+  "Load Basilisp libraries and make them accessible in the current namespace.
+
+  Arguments should be libspecs, which take the following forms:
+  - symbols, which name fully qualified namespaces
+  - vectors, which take the form [namespace-symbol & opts]
+
+  Vector libspec arguments must be one of:
+  - :as name, which will alias the imported namespace to the symbol name
+  - :refer [& syms], which will refer syms in the local namespace directly"
+  [& args]
+  (let [current-ns *ns*
+
+        add-refers (fn [which-ns syms]
+                     (when (seq syms)
+                       (let [var-sym (first syms)
+                             var     (get (ns-interns which-ns) var-sym)]
+                         (.add-refer current-ns var-sym var)
+                         (recur which-ns (rest syms)))))
+
+        require-vec (fn [v]
+                      (print v)
+                      (let [ns-sym (first v)
+                            opts   (apply hash-map (rest v))]
+                        (importlib/import-module (name ns-sym))
+                        (let [new-ns (get-namespace ns-sym)]
+                          ;; Add the namespace alias
+                          (.add-alias current-ns (or (:as opts) ns-sym) new-ns)
+
+                          ;; Add refers
+                          (cond
+                            (= :all (:refer opts))
+                            (.refer-all current-ns new-ns)
+
+                            (:refer opts)
+                            (add-refers new-ns (:refer opts))
+
+                            :else nil))))
+        require-sym  #(importlib/import-module (name %))
+
+        do-require (fn [requires]
+                     (when (seq requires)
+                       (let [current (first requires)]
+                         (cond
+                           (vector? current) (require-vec current)
+                           (symbol? current) (require-sym current)
+                           :else             (throw
+                                              (ex-info "Invalid libspec for require"
+                                                       {:value current}))))))]
+    (do-require args)
+    (set! '*ns* current-ns)
+    nil))
