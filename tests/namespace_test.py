@@ -1,9 +1,9 @@
 from unittest.mock import patch
 
-import pyrsistent
 import pytest
 
 import basilisp.lang.atom as atom
+import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
 from basilisp.lang.runtime import Namespace
@@ -25,7 +25,7 @@ def ns_cache(core_ns_sym: sym.Symbol,
              core_ns: Namespace) -> patch:
     """Patch the Namespace cache with a test fixture."""
     return patch('basilisp.lang.runtime.Namespace._NAMESPACES',
-                 new=atom.Atom(pyrsistent.pmap({core_ns_sym: core_ns})))
+                 new=atom.Atom(lmap.map({core_ns_sym: core_ns})))
 
 
 @pytest.fixture
@@ -48,10 +48,10 @@ def ns_cache_with_existing_ns(ns_sym: sym.Symbol, core_ns_sym: sym.Symbol,
     """Patch the Namespace cache with a test fixture with an existing namespace."""
     return patch('basilisp.lang.runtime.Namespace._NAMESPACES',
                  atom.Atom(
-        pyrsistent.pmap({
-            core_ns_sym: core_ns,
-            ns_sym: Namespace(ns_sym)
-        })))
+                     lmap.map({
+                         core_ns_sym: core_ns,
+                         ns_sym: Namespace(ns_sym)
+                     })))
 
 
 def test_get_existing_ns(ns_sym: sym.Symbol,

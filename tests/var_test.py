@@ -1,10 +1,10 @@
 from unittest.mock import patch
 
-import pyrsistent
 import pytest
 
 import basilisp.lang.atom as atom
 import basilisp.lang.keyword as kw
+import basilisp.lang.map as lmap
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.runtime import Namespace, Var
@@ -28,7 +28,7 @@ def intern_val():
 @pytest.fixture
 def ns_cache(ns_sym: sym.Symbol) -> patch:
     return patch('basilisp.lang.runtime.Namespace._NAMESPACES',
-                 atom.Atom(pyrsistent.pmap({ns_sym: Namespace(ns_sym)})))
+                 atom.Atom(lmap.map({ns_sym: Namespace(ns_sym)})))
 
 
 def test_intern(ns_sym: sym.Symbol, var_name: sym.Symbol, intern_val,

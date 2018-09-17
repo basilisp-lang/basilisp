@@ -684,6 +684,16 @@
   ([m k default]
    (basilisp.lang.runtime/get m k default)))
 
+(defn key
+  "Return the key from a map entry."
+  [entry]
+  (.-key entry))
+
+(defn val
+  "Return the val from a map entry."
+  [entry]
+  (.-value entry))
+
 (defmacro new
   "Create a new instance of class with args.
 
@@ -1028,3 +1038,72 @@
                                              ctx
                                              module
                                              "<Eval Input>")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Namespace Utilities ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn ns-aliases
+  "Return a map of Basilisp namespaces which are aliased in the current
+  namespace."
+  [ns]
+  (reduce (fn [m entry]
+            (let [alias     (key entry)
+                  namespace (symbol (name (val entry)))]
+              (if (= alias namespace)
+                m
+                (assoc m alias namespace))))
+          {}
+          (.-aliases ns)))
+
+(defn ns-imports
+  "Return a set of Python modules which are imported in the current
+  namespace."
+  [ns]
+  (.-imports ns))
+
+(defn ns-interns
+  "Return a map of symbols to Vars which are interned in the current
+  namespace."
+  [ns]
+  (.-mappings ns))
+
+(defn ns-publics
+  "Return a map of symbols to public Vars which are interned in the
+  current namespace.
+
+  Public vars are Vars which are declared without :private metadata."
+  [ns]
+  (reduce (fn [m entry]
+            (if (:private (meta (val entry)))
+              m
+              (assoc m (key entry) (val entry))))
+          {}
+          (ns-interns ns)))
+
+(defn ns-refers
+  "Return a map of symbols to Vars which are referred in the current
+  namespace."
+  [ns]
+  (.-refers ns))
+
+(defn ns-map
+  "Return a map of all the mapped symbols in the namespace.
+
+  Includes the return values of ns-interns and ns-refers in one map."
+  [ns]
+  (let [current-ns *ns*]
+    (merge
+     (ns-interns current-ns)
+     (ns-refers current-ns))))
+
+(defn ns-resolve
+  "Return the Var which will be resolved by the symbol in the given namespace."
+  [ns sym]
+  (.find ns sym))
+
+(defn resolve
+  "Return the Var which will be resolved by the symbol in the namespace currently
+  bound to *ns*."
+  [sym]
+  (ns-resolve *ns* sym))
