@@ -197,9 +197,9 @@ class Namespace:
     - `imports` is a set of Python modules imported into the current
       namespace.
 
-    - `mappings` is a mapping between a symbolic name and a Var. The
+    - `interns` is a mapping between a symbolic name and a Var. The
       Var may point to code, data, or nothing, if it is unbound. Vars
-      in `mappings` are interned in _this_ namespace.
+      in `interns` are interned in _this_ namespace.
 
     - `refers` is a mapping between a symbolic name and a Var. Vars in
       `refers` are interned in another namespace and are only referred
@@ -229,7 +229,7 @@ class Namespace:
 
     _NAMESPACES = atom.Atom(lmap.Map.empty())
 
-    __slots__ = ('_name', '_module', '_mappings', '_refers', '_aliases', '_imports')
+    __slots__ = ('_name', '_module', '_interns', '_refers', '_aliases', '_imports')
 
     def __init__(self, name: sym.Symbol, module: types.ModuleType = None) -> None:
         self._name = name
@@ -237,7 +237,7 @@ class Namespace:
 
         self._aliases: atom.Atom = atom.Atom(lmap.Map.empty())
         self._imports: atom.Atom = atom.Atom(lset.set(Namespace.DEFAULT_IMPORTS.deref()))
-        self._mappings: atom.Atom = atom.Atom(lmap.Map.empty())
+        self._interns: atom.Atom = atom.Atom(lmap.Map.empty())
         self._refers: atom.Atom = atom.Atom(lmap.Map.empty())
 
     @classmethod
@@ -277,11 +277,11 @@ class Namespace:
         return self._imports.deref()
 
     @property
-    def mappings(self) -> lmap.Map:
+    def interns(self) -> lmap.Map:
         """A mapping between a symbolic name and a Var. The Var may point to
-        code, data, or nothing, if it is unbound. Vars in `mappings` are
+        code, data, or nothing, if it is unbound. Vars in `interns` are
         interned in _this_ namespace."""
-        return self._mappings.deref()
+        return self._interns.deref()
 
     @property
     def refers(self) -> lmap.Map:
@@ -309,7 +309,7 @@ class Namespace:
         If the Symbol already maps to a Var, this method _will not overwrite_
         the existing Var mapping unless the force keyword argument is given
         and is True."""
-        m: lmap.Map = self._mappings.swap(Namespace._intern, sym, var, force=force)
+        m: lmap.Map = self._interns.swap(Namespace._intern, sym, var, force=force)
         return m.entry(sym)
 
     @staticmethod
@@ -327,7 +327,7 @@ class Namespace:
     def find(self, sym: sym.Symbol) -> Optional[Var]:
         """Find Vars mapped by the given Symbol input or None if no Vars are
         mapped by that Symbol."""
-        v = self.mappings.entry(sym, None)
+        v = self.interns.entry(sym, None)
         if v is None:
             return self.refers.entry(sym, None)
         return v
@@ -350,22 +350,14 @@ class Namespace:
         """Get the Var referred by Symbol or None if it does not exist."""
         return self.refers.entry(sym, None)
 
+    def refer_all(self, other_ns: "Namespace"):
+        """Refer all the Vars in the other namespace."""
+        self._refers.swap(lambda s: s.update(other_ns.interns))
+
     @classmethod
     def ns_cache(cls) -> lmap.Map:
         """Return a snapshot of the Namespace cache."""
         return cls._NAMESPACES.deref()
-
-    @staticmethod
-    def __import_core_mappings(ns_cache: lmap.Map,
-                               new_ns: "Namespace",
-                               core_ns_name=_CORE_NS) -> None:
-        """Import the Core namespace mappings into the Namespace `new_ns`."""
-        core_ns = ns_cache.entry(sym.symbol(core_ns_name), None)
-        if core_ns is None:
-            raise KeyError(f"Namespace {core_ns_name} not found")
-        for s, var in core_ns.mappings.items():
-            if s.name not in Namespace._IGNORED_CORE_MAPPINGS:
-                new_ns.add_refer(s, var)
 
     @staticmethod
     def __get_or_create(ns_cache: lmap.Map,
@@ -379,8 +371,9 @@ class Namespace:
             return ns_cache
         new_ns = Namespace(name, module=module)
         if name.name != core_ns_name:
-            Namespace.__import_core_mappings(
-                ns_cache, new_ns, core_ns_name=core_ns_name)
+            core_ns = ns_cache.entry(sym.symbol(core_ns_name), None)
+            assert core_ns is not None, "Core namespace not loaded yet!"
+            new_ns.refer_all(core_ns)
         return ns_cache.assoc(name, new_ns)
 
     @classmethod

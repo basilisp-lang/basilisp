@@ -1066,7 +1066,7 @@
   "Return a map of symbols to Vars which are interned in the current
   namespace."
   [ns]
-  (.-mappings ns))
+  (.-interns ns))
 
 (defn ns-publics
   "Return a map of symbols to public Vars which are interned in the
