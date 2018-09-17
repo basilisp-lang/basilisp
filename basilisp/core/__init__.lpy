@@ -1043,6 +1043,11 @@
 ;; Namespace Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn ^:private get-namespace
+  "Get the Namespace named by ns-sym."
+  [ns-sym]
+  (.get-or-create basilisp.lang.runtime/Namespace ns-sym))
+
 (defn ns-aliases
   "Return a map of Basilisp namespaces which are aliased in the current
   namespace."
@@ -1110,3 +1115,43 @@
   bound to *ns*."
   [sym]
   (ns-resolve *ns* sym))
+
+(defn refer
+  "Refer Vars from the namespace named by ns-sym, subject to the filters specified."
+  [ns-sym & filters]
+  (let [current-ns *ns*
+        ns         (get-namespace ns-sym)
+        filter-map (apply hash-map filters)]
+    (if-not (seq filters)
+      (.refer-all current-ns ns)
+      (let [only    (set (:only filter-map))
+            exclude (set (:exclude filter-map))
+            rename  (or (:rename filter-map) {})
+
+            interns (if (seq only)
+                      (filter (fn [entry]
+                                (contains? only (key entry)))
+                              (ns-interns ns))
+                      (ns-interns ns))
+            interns (if (seq exclude)
+                      (remove (fn [entry]
+                                (contains? exclude (key entry)))
+                              interns)
+                      interns)
+            interns (if (seq rename)
+                      (reduce (fn [m entry]
+                                (if (rename (key entry))
+                                  (assoc m (rename (key entry)) (val entry))
+                                  m))
+                              {}
+                              interns)
+                      interns)
+
+            do-refer (fn [refers]
+                       (when (seq refers)
+                         (let [entry (first (seq refers))
+                               sym   (key entry)
+                               var   (val entry)]
+                           (.add-refer current-ns sym var)
+                           (recur (rest refers)))))]
+        (do-refer interns)))))
