@@ -1074,12 +1074,15 @@
 
   Public vars are Vars which are declared without :private metadata."
   [ns]
-  (reduce (fn [m entry]
-            (if (:private (meta (val entry)))
-              m
-              (assoc m (key entry) (val entry))))
-          {}
-          (ns-interns ns)))
+  (let [interns (ns-interns ns)]
+    (if-not (seq interns)
+      {}
+      (reduce (fn [m entry]
+                (if (:private (meta (val entry)))
+                  m
+                  (assoc m (key entry) (val entry))))
+              {}
+              interns))))
 
 (defn ns-refers
   "Return a map of symbols to Vars which are referred in the current
