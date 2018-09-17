@@ -2,6 +2,7 @@ from typing import Optional
 
 from pyrsistent import pmap, PMap
 
+import basilisp.lang.associative as lassoc
 import basilisp.lang.atom as atom
 
 __INTERN = atom.Atom(pmap())
@@ -36,8 +37,11 @@ class Keyword:
     def __hash__(self):
         return hash(str(self))
 
-    def __call__(self, m, default=None):
-        return m.get(self, default)
+    def __call__(self, m: lassoc.Associative, default=None):
+        try:
+            return m.entry(self, default)
+        except AttributeError:
+            return None
 
 
 def __get_or_create(kw_cache: PMap, h: int, name: str,
