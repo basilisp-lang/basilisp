@@ -1322,6 +1322,32 @@ def _special_form_ast(ctx: CompilerContext,
     raise CompilerException("Special form identified, but not handled") from None
 
 
+def _resolve_macro_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[Var]:
+    """Determine if a Basilisp symbol refers to a macro and, if so, return the
+    Var it points to.
+
+    If the symbol cannot be resolved or does not refer to a macro, then this
+    function will return None. _sym_ast will generate the AST for a standard
+    function call."""
+    if form.ns is not None:
+        if form.ns == _BUILTINS_NS:
+            return None
+        elif form.ns == ctx.current_ns.name:
+            return ctx.current_ns.find(sym.symbol(form.name))
+        ns_sym = sym.symbol(form.ns)
+        if ns_sym in ctx.current_ns.imports:
+            # We still import Basilisp code, so we'll want to check if
+            # the symbol is referring to a Basilisp Var
+            return Var.find(form)
+        elif ns_sym in ctx.current_ns.aliases:
+            aliased_ns = ctx.current_ns.get_alias(ns_sym)
+            if aliased_ns:
+                return Var.find(sym.symbol(form.name, ns=aliased_ns.name))
+        return None
+
+    return ctx.current_ns.find(form)
+
+
 def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a stream of Python AST nodes for a source code list.
 
@@ -1359,12 +1385,7 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     # Macros are immediately evaluated so the modified form can be compiled
     if isinstance(first, sym.Symbol):
-        if first.ns is not None:
-            v = Var.find(first)
-        else:
-            ns_sym = sym.symbol(first.name, ns=ctx.current_ns.name)
-            v = Var.find(ns_sym)
-
+        v = _resolve_macro_sym(ctx, first)
         if v is not None and _is_macro(v):
             try:
                 # Call the macro as (f &form & rest)
