@@ -1120,6 +1120,11 @@
   [sym]
   (ns-resolve *ns* sym))
 
+(defmacro import
+  "Import a Python module by name."
+  [module]
+  `(import* ~module))
+
 (defn refer
   "Refer Vars from the namespace named by ns-sym, subject to the filters specified."
   [ns-sym & filters]
@@ -1160,7 +1165,7 @@
                            (recur (rest refers)))))]
         (do-refer interns)))))
 
-(import* importlib)
+(import importlib)
 
 (defn require
   "Load Basilisp libraries and make them accessible in the current namespace.
