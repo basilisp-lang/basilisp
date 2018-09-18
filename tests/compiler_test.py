@@ -698,26 +698,15 @@ def test_aliased_macro_symbol_resolution(ns_var: Var):
     other_ns_name = sym.symbol('other.ns')
     try:
         other_ns = runtime.Namespace.get_or_create(other_ns_name)
+        current_ns.add_alias(other_ns_name, other_ns)
         current_ns.add_alias(sym.symbol('other'), other_ns)
 
-        lcompile(f"""
-        (in-ns '{other_ns.name})
-        (def ^:macro m (fn* [&form v] v))
-        """)
+        runtime.set_current_ns(other_ns_name.name)
+        lcompile("(def ^:macro m (fn* [&form v] v))")
 
-        code = f"""
-        (in-ns '{current_ns.name})
-        (other.ns/m :z)
-        """
-
-        assert kw.keyword("z") == lcompile(code)
-
-        code = f"""
-        (in-ns '{current_ns.name})
-        (other/m :a)
-        """
-
-        assert kw.keyword("a") == lcompile(code)
+        runtime.set_current_ns(current_ns.name)
+        assert kw.keyword("z") == lcompile("(other.ns/m :z)")
+        assert kw.keyword("a") == lcompile("(other/m :a)")
     finally:
         runtime.Namespace.remove(other_ns_name)
 
