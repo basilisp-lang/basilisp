@@ -30,7 +30,7 @@ test-with-coverage: coverage
 .PHONY: test
 test:
 	@pipenv install --dev
-	@pipenv run python -m pytest
+	@pipenv run python -m pytest --disable-warnings
 
 
 .PHONY: typecheck
