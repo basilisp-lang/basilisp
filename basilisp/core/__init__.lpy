@@ -971,6 +971,14 @@
        (finally
          (.pop-bindings (var ~vvar))))))
 
+(def ^:dynamic *in* sys/stdin)
+(def ^:dynamic *out* sys/stdout)
+(def ^:dynamic *err* sys/stderr)
+
+;;;;;;;;;;;;;;;;;;;;
+;; REPL Utilities ;;
+;;;;;;;;;;;;;;;;;;;;
+
 (def
   ^{:doc "The default data readers used in reader macros. Overriding or
           attempting to change the root binding of this var will not
@@ -994,10 +1002,6 @@
     :dynamic true}
   *resolver*
   basilisp.lang.runtime/resolve-alias)
-
-(def ^:dynamic *in* sys/stdin)
-(def ^:dynamic *out* sys/stdout)
-(def ^:dynamic *err* sys/stderr)
 
 (defn read-string
   "Read a string of Basilisp code.
