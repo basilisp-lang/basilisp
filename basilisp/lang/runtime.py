@@ -204,8 +204,8 @@ class Namespace:
       Namespace. The fully qualified name of a namespace is also
       an alias for itself.
 
-    - `imports` is a set of Python modules imported into the current
-      namespace.
+    - `imports` is a mapping of names to Python modules imported
+      into the current namespace.
 
     - `interns` is a mapping between a symbolic name and a Var. The
       Var may point to code, data, or nothing, if it is unbound. Vars

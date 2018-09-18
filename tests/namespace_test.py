@@ -92,14 +92,16 @@ def test_remove_non_existent_ns(other_ns_sym: sym.Symbol,
 
 def test_gated_import():
     with patch('basilisp.lang.runtime.Namespace.DEFAULT_IMPORTS',
-               new=atom.Atom(lset.set([sym.symbol('default')]))) as defaults:
-        with patch('basilisp.lang.runtime.Namespace.GATED_IMPORTS',
-                   new=lset.set(['gated-default'])) as gated:
-            Namespace.add_default_import('non-gated-default')
-            assert sym.symbol('non-gated-default') not in Namespace.DEFAULT_IMPORTS.deref()
+               new=atom.Atom(lmap.map({sym.symbol('default'): None}))), \
+         patch('basilisp.lang.runtime.Namespace.GATED_IMPORTS',
+               new=lset.set(['gated-default'])), \
+         patch('importlib.import_module',
+               new=lambda v: v):
+        Namespace.add_default_import('non-gated-default')
+        assert sym.symbol('non-gated-default') not in Namespace.DEFAULT_IMPORTS.deref()
 
-            Namespace.add_default_import('gated-default')
-            assert sym.symbol('gated-default') in Namespace.DEFAULT_IMPORTS.deref()
+        Namespace.add_default_import('gated-default')
+        assert sym.symbol('gated-default') in Namespace.DEFAULT_IMPORTS.deref()
 
 
 def test_intern_does_not_overwrite(ns_cache: patch):
