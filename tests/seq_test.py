@@ -15,21 +15,21 @@ def test_to_sequence():
 
 def test_lazy_sequence():
     s = lseq.LazySeq(lambda: None)
-    assert not s.is_empty, "LazySeq has not been realized yet"
+    assert s.is_empty
     assert None is s.first
     assert lseq.EMPTY is s.rest
     assert s.is_realized
     assert s.is_empty, "LazySeq has been realized and is empty"
 
     s = lseq.LazySeq(lambda: lseq.EMPTY)
-    assert not s.is_empty, "LazySeq has not been realized yet"
+    assert s.is_empty
     assert None is s.first
     assert lseq.EMPTY is s.rest
     assert s.is_realized
     assert s.is_empty, "LazySeq has been realized and is empty"
 
     s = lseq.LazySeq(lambda: lseq.sequence([1]))
-    assert not s.is_empty, "LazySeq has not been realized yet"
+    assert not s.is_empty
     assert 1 == s.first
     assert lseq.EMPTY is s.rest
     assert s.is_realized
@@ -45,21 +45,21 @@ def test_lazy_sequence():
         return lseq.LazySeq(inner_seq).cons(1)
 
     s = lseq.LazySeq(lazy_seq)
-    assert not s.is_empty, "LazySeq has not been realized yet"
+    assert not s.is_empty
     assert 1 == s.first
     assert isinstance(s.rest, lseq.LazySeq)
     assert s.is_realized
     assert not s.is_empty, "LazySeq has been realized and is not empty"
 
     r = s.rest
-    assert not r.is_empty, "LazySeq has not been realized yet"
+    assert not r.is_empty
     assert 2 == r.first
     assert isinstance(r.rest, lseq.LazySeq)
     assert r.is_realized
     assert not r.is_empty, "LazySeq has been realized and is not empty"
 
     t = r.rest
-    assert not t.is_empty, "LazySeq has not been realized yet"
+    assert not t.is_empty
     assert 3 == t.first
     assert lseq.EMPTY is t.rest
     assert t.is_realized

@@ -537,6 +537,11 @@ def test_reduce():
     assert 46 == core.reduce(core.__PLUS__, 45, [1])
 
 
+def test_reduce_with_lazy_seq():
+    assert 25 == core.reduce(core.__PLUS__, core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4, 5, 6, 7, 8, 9)))
+    assert 25 == core.reduce(core.__PLUS__, 0, core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4, 5, 6, 7, 8, 9)))
+
+
 def test_comp():
     assert 1 == core.comp()(1)
     assert "hi" == core.comp()("hi")

@@ -182,7 +182,8 @@ class LazySeq(Seq[T]):
     @property
     def is_empty(self) -> bool:
         if not self._realized:
-            return False
+            self._realize()
+            return self.is_empty
         if self._seq is None or self._seq.is_empty:
             return True
         return False
