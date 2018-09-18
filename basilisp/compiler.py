@@ -2,6 +2,7 @@ import ast
 import collections
 import contextlib
 import functools
+import importlib
 import itertools
 import sys
 import types
@@ -181,8 +182,8 @@ class CompilerContext:
         yield
         self._is_quoted.pop()
 
-    def add_import(self, imp: sym.Symbol):
-        self.current_ns.add_import(imp)
+    def add_import(self, imp: sym.Symbol, mod: types.ModuleType):
+        self.current_ns.add_import(imp, mod)
 
     @property
     def imports(self):
@@ -223,15 +224,6 @@ def _load_attr(name: str) -> ast.Attribute:
             idx + 1)
 
     return attr_node(ast.Name(id=attrs[0], ctx=ast.Load()), 1)
-
-
-def _is_py_module(name: str) -> bool:
-    """Determine if a namespace is Python module."""
-    try:
-        __import__(name)
-        return True
-    except ModuleNotFoundError:
-        return False
 
 
 class ASTNodeType(Enum):
@@ -943,22 +935,32 @@ def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
 def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Append Import statements into the compiler context nodes."""
-    assert form[0] == _IMPORT
+    assert form.first == _IMPORT
     assert all([isinstance(f, sym.Symbol) for f in form.rest])
 
-    import_names = []
+    last = None
     for s in form.rest:
-        if not _is_py_module(s.name):
+        try:
+            module = importlib.import_module(s.name)
+            ctx.add_import(s, module)
+        except ModuleNotFoundError:
             raise ImportError(f"Module '{s.name}' not found")
-        ctx.add_import(s)
+
         with ctx.quoted():
+            module_name = s.name.split(".", maxsplit=1)[0]
+            yield _dependency(ast.Global(names=[module_name]))
+            yield _dependency(ast.Assign(targets=[ast.Name(id=module_name, ctx=ast.Store())],
+                                         value=ast.Call(func=_load_attr("builtins.__import__"),
+                                                        args=[ast.Str(s.name)],
+                                                        keywords=[])))
+            last = ast.Name(id=module_name, ctx=ast.Load())
             yield _dependency(ast.Call(
                 func=_load_attr(f'{_NS_VAR_VALUE}.add_import'),
-                args=_unwrap_nodes(_to_ast(ctx, s)),
+                args=list(chain(_unwrap_nodes(_to_ast(ctx, s)), [last])),
                 keywords=[]))
-        import_names.append(ast.alias(name=s.name, asname=None))
-    yield _dependency(ast.Import(names=import_names))
-    yield _node(ast.NameConstant(None))
+
+    assert last is not None
+    yield _node(last)
 
 
 def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -1780,7 +1782,7 @@ def _module_imports(ctx: CompilerContext) -> Iterable[ast.Import]:
                'basilisp.lang.vector': _VEC_ALIAS,
                'basilisp.lang.util': _UTIL_ALIAS}
     return seq(ctx.imports) \
-        .map(lambda s: s.name) \
+        .map(lambda entry: entry.key.name) \
         .map(lambda name: (name, aliases.get(name, None))) \
         .map(lambda t: ast.Import(names=[ast.alias(name=t[0], asname=t[1])])) \
         .to_list()

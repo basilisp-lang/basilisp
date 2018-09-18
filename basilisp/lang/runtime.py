@@ -1,4 +1,5 @@
 import functools
+import importlib
 import itertools
 import math
 import threading
@@ -214,7 +215,7 @@ class Namespace:
       `refers` are interned in another namespace and are only referred
       to without an alias in this namespace.
     """
-    DEFAULT_IMPORTS = atom.Atom(lset.set(seq(['builtins',
+    DEFAULT_IMPORTS = atom.Atom(lmap.map(seq(['builtins',
                                               'operator',
                                               'sys',
                                               'basilisp.lang.atom',
@@ -231,7 +232,8 @@ class Namespace:
                                               'basilisp.lang.util',
                                               'basilisp.compiler',
                                               'basilisp.reader'])
-                                     .map(sym.symbol)))
+                                         .map(lambda module: (sym.symbol(module), importlib.import_module(module)))
+                                         .to_dict()))
     GATED_IMPORTS = lset.set(['basilisp.core'])
 
     _NAMESPACES = atom.Atom(lmap.Map.empty())
@@ -243,7 +245,7 @@ class Namespace:
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
         self._aliases: atom.Atom = atom.Atom(lmap.Map.empty())
-        self._imports: atom.Atom = atom.Atom(lset.set(Namespace.DEFAULT_IMPORTS.deref()))
+        self._imports: atom.Atom = atom.Atom(Namespace.DEFAULT_IMPORTS.deref())
         self._interns: atom.Atom = atom.Atom(lmap.Map.empty())
         self._refers: atom.Atom = atom.Atom(lmap.Map.empty())
 
@@ -253,7 +255,7 @@ class Namespace:
         In particular, we need to avoid importing 'basilisp.core' before we have
         finished macro-expanding."""
         if module in cls.GATED_IMPORTS:
-            cls.DEFAULT_IMPORTS.swap(lambda s: s.cons(sym.symbol(module)))
+            cls.DEFAULT_IMPORTS.swap(lambda s: s.assoc(sym.symbol(module), importlib.import_module(module)))
 
     @property
     def name(self) -> str:
@@ -279,8 +281,9 @@ class Namespace:
         return self._aliases.deref()
 
     @property
-    def imports(self) -> lset.Set:
-        """A set of Python modules imported into the current namespace."""
+    def imports(self) -> lset.Map:
+        """A mapping of names to Python modules imported into the current
+        namespace."""
         return self._imports.deref()
 
     @property
@@ -339,15 +342,14 @@ class Namespace:
             return self.refers.entry(sym, None)
         return v
 
-    def add_import(self, sym: sym.Symbol) -> None:
+    def add_import(self, sym: sym.Symbol, module: types.ModuleType) -> None:
         """Add the Symbol as an imported Symbol in this Namespace."""
-        self._imports.swap(lambda s: s.cons(sym))
+        self._imports.swap(lambda m: m.assoc(sym, module))
 
-    def get_import(self, sym: sym.Symbol) -> Optional[sym.Symbol]:
-        """Return the Symbol if it is imported into this Namespace, None otherwise."""
-        if sym in self.imports:
-            return sym
-        return None
+    def get_import(self, sym: sym.Symbol) -> Optional[types.ModuleType]:
+        """Return the module if a moduled named by sym has been imported into
+        this Namespace, None otherwise."""
+        return self.imports.entry(sym, None)
 
     def add_refer(self, sym: sym.Symbol, var: Var) -> None:
         """Refer var in this namespace under the name sym."""
