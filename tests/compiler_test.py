@@ -693,6 +693,35 @@ def test_unquote_splicing(ns_var: Var, resolver: reader.Resolver):
     assert llist.l(llist.l(reader._UNQUOTE_SPLICING, 53233)) == lcompile("'(~@53233)")
 
 
+def test_aliased_macro_symbol_resolution(ns_var: Var):
+    current_ns: runtime.Namespace = ns_var.value
+    other_ns_name = sym.symbol('other.ns')
+    try:
+        other_ns = runtime.Namespace.get_or_create(other_ns_name)
+        current_ns.add_alias(sym.symbol('other'), other_ns)
+
+        lcompile(f"""
+        (in-ns '{other_ns.name})
+        (def ^:macro m (fn* [&form v] v))
+        """)
+
+        code = f"""
+        (in-ns '{current_ns.name})
+        (other.ns/m :z)
+        """
+
+        assert kw.keyword("z") == lcompile(code)
+
+        code = f"""
+        (in-ns '{current_ns.name})
+        (other/m :a)
+        """
+
+        assert kw.keyword("a") == lcompile(code)
+    finally:
+        runtime.Namespace.remove(other_ns_name)
+
+
 def test_var(ns_var: Var):
     code = """
     (def some-var "a value")
