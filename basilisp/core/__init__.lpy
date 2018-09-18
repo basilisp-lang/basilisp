@@ -1218,3 +1218,45 @@
     (do-require args)
     (set! '*ns* current-ns)
     nil))
+
+(defmacro ns
+  "Use this namespace pre-amble at the top of every namespace to declare
+  the namespace name and import necessary Python modules and require
+  Basilisp namespaces.
+
+  You may include an optional docstring for the namespace to describe its
+  purpose.
+
+  Example:
+    (ns my.namespace
+       \"My namespace with code\"
+       (:require
+         [basilisp.string :as str])
+       (:import inspect))"
+  [name & opts]
+  (when-not (and (symbol? name) (nil? (namespace name)))
+    (throw (ex-info "Namespace name must be a non-namespaced symbol"
+                    {:name name})))
+  (let [doc  (when (string? (first opts))
+               (first opts))
+        opts (if doc (rest opts) opts)
+        opts (reduce (fn [m opt]
+                       (let [opt-name (first opt)
+                             options  (rest opt)]
+                         (when-not (keyword? opt-name)
+                           (throw (ex-info "Namespace option must be a keyword"
+                                           {:option opt-name})))
+                         (assoc m opt-name (vec options))))
+                     {}
+                     opts)
+
+        requires (when (:require opts)
+                   `(require ~@(:require opts)))
+        imports  (when (:import opts)
+                   (map (fn [v]
+                          `(import ~v))
+                        (:import opts)))]
+    `(do
+       (in-ns (quote ~name))
+       ~requires
+       ~@imports)))

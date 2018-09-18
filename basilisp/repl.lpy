@@ -1,6 +1,5 @@
-(in-ns 'basilisp.repl)
-
-(import* inspect)
+(ns basilisp.repl
+  (:import inspect))
 
 (def ^:dynamic *1 nil)
 (def ^:dynamic *2 nil)
