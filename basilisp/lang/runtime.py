@@ -234,8 +234,6 @@ class Namespace:
                                      .map(sym.symbol)))
     GATED_IMPORTS = lset.set(['basilisp.core'])
 
-    _IGNORED_CORE_MAPPINGS = lset.set([_GENERATED_PYTHON_VAR_NAME])
-
     _NAMESPACES = atom.Atom(lmap.Map.empty())
 
     __slots__ = ('_name', '_module', '_interns', '_refers', '_aliases', '_imports')
@@ -773,7 +771,8 @@ def add_generated_python(generated_python: str,
         .or_else(lambda: Var.intern(sym.symbol(which_ns),  # type: ignore
                                     sym.symbol(var_name),
                                     "",
-                                    dynamic=True))
+                                    dynamic=True,
+                                    meta=lmap.map({kw.keyword('private'): True})))
     v.value = v.value + generated_python
 
 
@@ -817,9 +816,11 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME,
         core_ns_sym,
         sym.symbol(_PRINT_GENERATED_PY_VAR_NAME),
         False,
-        dynamic=True)
+        dynamic=True,
+        meta=lmap.map({kw.keyword('private'): True}))
     Var.intern(
         core_ns_sym,
         sym.symbol(_GENERATED_PYTHON_VAR_NAME),
         "",
-        dynamic=True)
+        dynamic=True,
+        meta=lmap.map({kw.keyword('private'): True}))
