@@ -1179,7 +1179,6 @@
                          (recur which-ns (rest syms)))))
 
         require-vec (fn [v]
-                      (print v)
                       (let [ns-sym (first v)
                             opts   (apply hash-map (rest v))]
                         (importlib/import-module (name ns-sym))
