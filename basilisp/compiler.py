@@ -186,7 +186,7 @@ class CompilerContext:
         self.current_ns.add_import(imp, mod)
 
     @property
-    def imports(self):
+    def imports(self) -> lmap.Map:
         return self.current_ns.imports
 
     @property

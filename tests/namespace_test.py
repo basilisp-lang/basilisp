@@ -92,11 +92,9 @@ def test_remove_non_existent_ns(other_ns_sym: sym.Symbol,
 
 def test_gated_import():
     with patch('basilisp.lang.runtime.Namespace.DEFAULT_IMPORTS',
-               new=atom.Atom(lmap.map({sym.symbol('default'): None}))), \
+               new=atom.Atom(lset.set([sym.symbol('default')]))), \
          patch('basilisp.lang.runtime.Namespace.GATED_IMPORTS',
-               new=lset.set(['gated-default'])), \
-         patch('importlib.import_module',
-               new=lambda v: v):
+               new=lset.set(['gated-default'])):
         Namespace.add_default_import('non-gated-default')
         assert sym.symbol('non-gated-default') not in Namespace.DEFAULT_IMPORTS.deref()
 
@@ -105,7 +103,7 @@ def test_gated_import():
 
 
 def test_intern_does_not_overwrite(ns_cache: patch):
-    with ns_cache as cache:
+    with ns_cache:
         ns = Namespace.get_or_create(sym.symbol('ns1'))
         var_sym = sym.symbol('useful-value')
 
@@ -190,7 +188,7 @@ def test_refer_core(core_ns_sym: sym.Symbol,
 
 
 def test_refer(ns_cache: patch):
-    with ns_cache as cache:
+    with ns_cache:
         ns1 = Namespace.get_or_create(sym.symbol('ns1'))
         var_sym, var_val = sym.symbol('useful-value'), "cool string"
         var = Var(ns1, var_sym)
@@ -205,7 +203,7 @@ def test_refer(ns_cache: patch):
 
 
 def test_cannot_refer_private(ns_cache: patch):
-    with ns_cache as cache:
+    with ns_cache:
         ns1 = Namespace.get_or_create(sym.symbol('ns1'))
         var_sym, var_val = sym.symbol('useful-value'), "cool string"
         var = Var(ns1, var_sym, meta=lmap.map({kw.keyword('private'): True}))
@@ -220,7 +218,7 @@ def test_cannot_refer_private(ns_cache: patch):
 
 
 def test_refer_all(ns_cache: patch):
-    with ns_cache as cache:
+    with ns_cache:
         ns1 = Namespace.get_or_create(sym.symbol('ns1'))
 
         var_sym1, var_val1 = sym.symbol('useful-value'), "cool string"
@@ -258,7 +256,7 @@ def test_refer_all(ns_cache: patch):
 
 
 def test_refer_does_not_shadow_intern(ns_cache: patch):
-    with ns_cache as cache:
+    with ns_cache:
         ns1 = Namespace.get_or_create(sym.symbol('ns1'))
         var_sym = sym.symbol('useful-value')
 

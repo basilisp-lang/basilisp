@@ -215,7 +215,7 @@ class Namespace:
       `refers` are interned in another namespace and are only referred
       to without an alias in this namespace.
     """
-    DEFAULT_IMPORTS = atom.Atom(lmap.map(seq(['builtins',
+    DEFAULT_IMPORTS = atom.Atom(lset.set(seq(['builtins',
                                               'operator',
                                               'sys',
                                               'basilisp.lang.atom',
@@ -232,8 +232,8 @@ class Namespace:
                                               'basilisp.lang.util',
                                               'basilisp.compiler',
                                               'basilisp.reader'])
-                                         .map(lambda module: (sym.symbol(module), importlib.import_module(module)))
-                                         .to_dict()))
+                                         .map(lambda s: sym.symbol(s))
+                                         .to_list()))
     GATED_IMPORTS = lset.set(['basilisp.core'])
 
     _NAMESPACES = atom.Atom(lmap.Map.empty())
@@ -245,17 +245,20 @@ class Namespace:
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
         self._aliases: atom.Atom = atom.Atom(lmap.Map.empty())
-        self._imports: atom.Atom = atom.Atom(Namespace.DEFAULT_IMPORTS.deref())
+        self._imports: atom.Atom = atom.Atom(lmap.map(seq(Namespace.DEFAULT_IMPORTS.deref())
+                                                      .map(lambda s: (s, importlib.import_module(s.name)))
+                                                      .to_dict()))
         self._interns: atom.Atom = atom.Atom(lmap.Map.empty())
         self._refers: atom.Atom = atom.Atom(lmap.Map.empty())
 
     @classmethod
     def add_default_import(cls, module: str):
         """Add a gated default import to the default imports.
+
         In particular, we need to avoid importing 'basilisp.core' before we have
         finished macro-expanding."""
         if module in cls.GATED_IMPORTS:
-            cls.DEFAULT_IMPORTS.swap(lambda s: s.assoc(sym.symbol(module), importlib.import_module(module)))
+            cls.DEFAULT_IMPORTS.swap(lambda s: s.cons(sym.symbol(module)))
 
     @property
     def name(self) -> str:
@@ -281,7 +284,7 @@ class Namespace:
         return self._aliases.deref()
 
     @property
-    def imports(self) -> lset.Map:
+    def imports(self) -> lmap.Map:
         """A mapping of names to Python modules imported into the current
         namespace."""
         return self._imports.deref()
