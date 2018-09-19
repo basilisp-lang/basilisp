@@ -291,12 +291,28 @@ def test_symbol():
 
 
 def test_str():
-    assert read_str_first('""') == ''
-    assert read_str_first('"Regular string"') == 'Regular string'
-    assert read_str_first(
-        '"String with \'inner string\'"') == "String with 'inner string'"
-    assert read_str_first(
-        r'"String with \"inner string\""') == 'String with "inner string"'
+    assert '' == read_str_first('""')
+
+    assert "\"" == read_str_first(r'"\""')
+    assert "\\" == read_str_first(r'"\\"')
+    assert "\a" == read_str_first(r'"\a"')
+    assert "\b" == read_str_first(r'"\b"')
+    assert "\f" == read_str_first(r'"\f"')
+    assert "\n" == read_str_first(r'"\n"')
+    assert "\r" == read_str_first(r'"\r"')
+    assert "\t" == read_str_first(r'"\t"')
+    assert "\v" == read_str_first(r'"\v"')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first(r'"\q"')
+
+    assert "Hello,\nmy name is\tChris." == read_str_first(r'"Hello,\nmy name is\tChris."')
+
+    assert 'Regular string' == read_str_first('"Regular string"')
+    assert "String with 'inner string'" == read_str_first(
+        '"String with \'inner string\'"')
+    assert 'String with "inner string"' == read_str_first(
+        r'"String with \"inner string\""')
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('"Start of a string')
@@ -727,6 +743,16 @@ def test_character_literal():
     assert "\b" == read_str_first('\\backspace')
     assert "\f" == read_str_first('\\formfeed')
     assert "\r" == read_str_first('\\return')
+
+    assert vec.v("a") == read_str_first('[\\a]')
+    assert vec.v("Ω") == read_str_first('[\\Ω]')
+
+    assert llist.l(sym.symbol("str"), "Ω") == read_str_first('(str \\u03A9)')
+
+    assert vec.v(" ") == read_str_first('[\\space]')
+    assert vec.v("\n") == read_str_first('[\\newline]')
+    assert vec.v("\t") == read_str_first('[\\tab]')
+    assert llist.l(sym.symbol("str"), "\b", "\f", "\r") == read_str_first('(str \\backspace \\formfeed \\return)')
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('\\u03A9zzz')

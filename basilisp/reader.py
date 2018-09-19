@@ -25,6 +25,7 @@ from basilisp.lang.typing import LispForm, IterableLispForm
 from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<')
+alphanumeric_chars = re.compile(r'\w')
 begin_num_chars = re.compile(r'[0-9\-]')
 num_chars = re.compile('[0-9]')
 whitespace_chars = re.compile(r'[\s,]')
@@ -534,23 +535,41 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disab
     return int(s)
 
 
-def _read_str(ctx: ReaderContext) -> str:
-    """Return a string from the input stream."""
+_STR_ESCAPE_CHARS = {
+    '"': '"',
+    '\\': '\\',
+    'a': '\a',
+    'b': '\b',
+    'f': '\f',
+    'n': '\n',
+    'r': '\r',
+    't': '\t',
+    'v': '\v'
+}
+
+
+def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
+    """Return a string from the input stream.
+
+    If allow_arbitrary_escapes is True, do not throw a SyntaxError if an
+    unknown escape sequence is encountered."""
     s: List[str] = []
     reader = ctx.reader
     while True:
-        prev = reader.peek()
         token = reader.next_token()
         if token == '':
             raise SyntaxError("Unexpected EOF in string")
         if token == "\\":
             token = reader.next_token()
-            if token == '"':
-                s.append('"')
+            escape_char = _STR_ESCAPE_CHARS.get(token, None)
+            if escape_char:
+                s.append(escape_char)
                 continue
-            else:
+            if allow_arbitrary_escapes:
                 s.append("\\")
-        if token == '"' and not prev == "\\":
+            else:
+                raise SyntaxError("Unknown escape sequence: \\{token}")
+        if token == '"':
             reader.next_token()
             return ''.join(s)
         s.append(token)
@@ -833,11 +852,14 @@ def _read_character(ctx: ReaderContext) -> str:
 
     s: List[str] = []
     reader = ctx.reader
+    token = reader.peek()
     while True:
-        token = reader.advance()
         if token == '' or whitespace_chars.match(token):
             break
+        if not alphanumeric_chars.match(token):
+            break
         s.append(token)
+        token = reader.next_token()
 
     char = ''.join(s)
     special = _SPECIAL_CHARS.get(char, None)
@@ -852,14 +874,14 @@ def _read_character(ctx: ReaderContext) -> str:
             raise SyntaxError(f"Unsupported character \\u{char}") from None
 
     if len(char) > 1:
-        raise SyntaxError(f"Unsupportred character \\{char}")
+        raise SyntaxError(f"Unsupported character \\{char}")
 
     return char
 
 
 def _read_regex(ctx: ReaderContext) -> Pattern:
     """Read a regex reader macro from the input stream."""
-    s = _read_str(ctx)
+    s = _read_str(ctx, allow_arbitrary_escapes=True)
     try:
         return langutil.regex_from_str(s)
     except re.error:
