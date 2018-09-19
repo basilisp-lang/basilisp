@@ -1274,3 +1274,61 @@
        (in-ns (quote ~name))
        ~requires
        ~@imports)))
+
+;;;;;;;;;;;;;;;;;;;;;
+;; Regex Functions ;;
+;;;;;;;;;;;;;;;;;;;;;
+
+(import re)
+
+(defn re-pattern
+  "Return a new re.Pattern instance."
+  [s]
+  (re/compile s))
+
+(defn re-find
+  "Returns the first match of a string to a pattern using re.search.
+
+  If the string matches the pattern exactly and there are no match
+  groups, return the string. Otherwise, return a vector with the string
+  in the first position and the match groups in the following positions."
+  [pattern s]
+  (let [match (re/search pattern s)]
+    (when match
+      (let [groups (.groups match)]
+        (if (zero? (count groups))
+          (.group match 0)
+          (vec (cons (.group match 0) groups)))))))
+
+(defn re-matches
+  "Returns a match of a string to a pattern using re.fullmatch.
+
+  If the string matches the pattern exactly and there are no match
+  groups, return the string. Otherwise, return a vector with the string
+  in the first position and the match groups in the following positions."
+  [pattern s]
+  (let [match (re/fullmatch pattern s)]
+    (when match
+      (let [groups (.groups match)]
+        (if (zero? (count groups))
+          (.group match 0)
+          (vec (cons (.group match 0) groups)))))))
+
+(defn ^:private lazy-re-seq
+  "Return a lazy sequence of the matches in a match iterator."
+  [iter]
+  (lazy-seq
+   (when (first iter)
+     (let [match (.group (first iter) 0)]
+       (cons match (when (seq (rest iter))
+                     (lazy-re-seq (rest iter))))))))
+
+(defn re-seq
+  "Returns a lazy sequence of matches of a string to a pattern using re.finditer.
+
+  If the string matches the pattern exactly and there are no match
+  groups, return the string. Otherwise, return a vector with the string
+  in the first position and the match groups in the following positions."
+  [pattern s]
+  (lazy-re-seq (seq (re/finditer pattern s))))
+

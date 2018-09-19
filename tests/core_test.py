@@ -1,4 +1,5 @@
 import itertools
+import re
 from fractions import Fraction
 from unittest.mock import Mock
 
@@ -610,3 +611,26 @@ def test_merge():
     assert lmap.map({kw.keyword("a"): 53, kw.keyword("b"): "hi"}) == core.merge(
         lmap.map({kw.keyword("a"): 1, kw.keyword("b"): "hi"}),
         lmap.map({kw.keyword("a"): 53}))
+
+
+def test_re_find():
+    assert None is core.re_find(re.compile(r"\d+"), "abcdef")
+    assert "12345" == core.re_find(re.compile(r"\d+"), "abc12345def")
+    assert vec.v("word then number ", "word then number ", None) == core.re_find(
+        re.compile(r"(\D+)|(\d+)"), "word then number 57")
+    assert vec.v("57", None, "57") == core.re_find(
+        re.compile(r"(\D+)|(\d+)"), "57 number then word")
+    assert vec.v("lots", "", "l") == core.re_find(re.compile(r"(\d*)(\S)\S+"), "lots o' digits 123456789")
+
+
+def test_re_matches():
+    assert None is core.re_matches(re.compile(r"hello"), "hello, world")
+    assert "hello, world" == core.re_matches(re.compile(r"hello.*"), "hello, world")
+    assert vec.v("hello, world", "world") == core.re_matches(re.compile(r"hello, (.*)"), "hello, world")
+
+
+def test_re_seq():
+    assert None is core.seq(core.re_seq(re.compile(r"[a-zA-Z]+"), "134325235234"))
+    assert llist.l("1", "1", "0") == core.re_seq(re.compile(r"\d+"), "Basilisp 1.1.0")
+    assert llist.l("the", "man", "who", "sold", "the", "world") == core.re_seq(
+        re.compile(r"\w+"), "the man who sold the world")
