@@ -1,0 +1,254 @@
+(ns basilisp.string
+  (:import
+   re
+   typing))
+
+(defn alpha?
+  "Return true if s is strictly alphabetic and there is at least one
+  character.
+
+  This function uses Python's underlying str.isalpha and, thus, it
+  respects unicode."
+  [s]
+  (.isalpha s))
+
+(defn alphanumeric?
+  "Return true if s is strictly alphanumeric and there is at least one
+  character.
+
+  This function uses Python's underlying str.isalnum and, thus, it
+  respects unicode."
+  [s]
+  (.isalnum s))
+
+(defn digits?
+  "Return true if s is strictly digit characters and there is at least
+  one character."
+  [s]
+  (.isdigit s))
+
+(defn blank?
+  "Returns true if s is nil, empty, or contains only whitespace."
+  [s]
+  (when s
+    (not (builtins/bool (.strip s)))))
+
+(defn capitalize
+  "Return a copy of the string with the first character capitalized
+  and the rest lower case."
+  [s]
+  (.capitalize s))
+
+(defn title-case
+  "Return a copy of the string where the first letter of each word is
+  capitalized and the rest of the characters in the word are lower
+  case."
+  [s]
+  (.title s))
+
+(defn lower-case
+  "Return a copy of the string with all characters converted to lower
+  case."
+  [s]
+  (.lower s))
+
+(defn upper-case
+  "Return a copy of the string with all characters converted to upper
+  case."
+  [s]
+  (.upper s))
+
+(defn ends-with?
+  "Return true if s ends with the substring substr."
+  [s suffix]
+  (.endswith s suffix))
+
+(defn starts-with?
+  "Return true if s starts with the substring substr."
+  [s suffix]
+  (.startswith s suffix))
+
+(defn includes?
+  "Returns true if substr is contained in s."
+  [s substr]
+  (operator/contains s substr))
+
+(defn index-of
+  "Return the first index of value in s, optionally starting from
+  from-index. Returns nil if value is not found in s."
+  ([s value]
+   (index-of s value 0))
+  ([s value from-index]
+   (let [idx (.find s value from-index)]
+     (if (= idx -1)
+       nil
+       idx))))
+
+(defn last-index-of
+  "Return the last index of value in s, optionally searching backwards
+  from from-index. Returns nil if value is not found in s."
+  ([s value]
+   (last-index-of s value (builtins/len s)))
+  ([s value from-index]
+   (let [idx (.rfind s value 0 from-index)]
+     (if (= idx -1)
+       nil
+       idx))))
+
+(defn join
+  "Return a string of the elements in coll joined together, optionally
+  by a separator."
+  ([coll]
+   (if (seq coll)
+     (.join "" (map str coll))
+     ""))
+  ([separator coll]
+   (if (seq coll)
+     (.join separator (seq (map str coll)))
+     "")))
+
+(defn reverse
+  "Returns a string which is the reverse of s."
+  [s]
+  (operator/getitem s (builtins/slice nil nil -1)))
+
+(defn split
+  "Split a string on a regular expression or another string. Caller may
+  optionally limit the maximum number of splits with limit. Returns a
+  vector of the splits."
+  ([s pattern]
+   (split s pattern nil))
+  ([s pattern limit]
+   (cond
+     (instance? typing/Pattern pattern)
+     (if (= "" (.-pattern pattern))
+       (split s "" limit)
+       (vec (re/split pattern s (or (when limit (dec limit)) 0))))
+
+     (string? pattern)
+     (vec
+      (if (= pattern "")
+        s
+        (.split s pattern (or (when limit (dec limit)) -1))))
+
+     :else
+     (throw
+      (ex-info "String split pattern must be a re.Pattern or str"
+               {:pattern pattern
+                :type    (builtins/type pattern)})))))
+
+(defn split-lines
+  "Split s on universal newlines as by Python's str.splitlines."
+  [s]
+  (vec (.splitlines s)))
+
+(defn lpad
+  "Pad s on the left such that the final string length is width.
+  If the initial string length is less than or equal to width,
+  return the original string. If a fillchar is specified, pad
+  with fillchar. Otherwise, use a space."
+  ([s width]
+   (.rjust s width))
+  ([s width fillchar]
+   (.rjust s width fillchar)))
+
+(defn rpad
+  "Pad s on the right such that the final string length is width.
+  If the initial string length is less than or equal to width,
+  return the original string. If a fillchar is specified, pad
+  with fillchar. Otherwise, use a space. "
+  ([s width]
+   (.ljust s width))
+  ([s width fillchar]
+   (.ljust s width fillchar)))
+
+(defn re-quote-replacement
+  "Escape special characters in a regex replacement pattern so they are
+  interpreted literally, rather than as special characters."
+  [replacement]
+  (re/escape replacement))
+
+(defn replace
+  "Replace all instances of match in s with replacement.
+
+  match and replacement can be either:
+  - string and string
+  - re.Pattern and (string or function)
+
+  If match is a regex pattern and replacement is a function, that function
+  will be called once for every non-overlapping occurrence of match. The
+  function should accept one string argument and return a replacement
+  string."
+  [s match replacement]
+  (cond
+    (and (instance? typing/Pattern match)
+         (or (string? replacement) (builtins/callable replacement)))
+    (re/sub match
+            (if (builtins/callable replacement)
+              #(replacement (.group % 0))
+              replacement)
+            s)
+
+    (and (string? match) (string? replacement))
+    (.replace s match replacement)
+
+    :else
+    (throw
+     (ex-info "String replace match/replacement must be: (str and str) or (re.Pattern and (str or function))"
+              {:match            match
+               :match-type       (builtins/type match)
+               :replacement      replacement
+               :replacement-type (builtins/type replacement)}))))
+
+(defn replace-first
+  "Replace the first instance of match in s with replacement.
+
+  match and replacement can be either:
+  - string and string
+  - re.Pattern and (string or function)
+
+  If match is a regex pattern and replacement is a function, that function
+  will be called once for every non-overlapping occurrence of match. The
+  function should accept one string argument and return a replacement
+  string."
+  [s match replacement]
+  (cond
+    (and (instance? typing/Pattern match)
+         (or (string? replacement) (builtins/callable replacement)))
+    (re/sub match
+            (if (builtins/callable replacement)
+              #(replacement (.group % 0))
+              replacement)
+            s
+            1)
+
+    (and (string? match) (string? replacement))
+    (.replace s match replacement 1)
+
+    :else
+    (throw
+     (ex-info "String replace match/replacement must be: (str and str) or (re.Pattern and (str or function))"
+              {:match            match
+               :match-type       (builtins/type match)
+               :replacement      replacement
+               :replacement-type (builtins/type replacement)}))))
+
+(defn trim
+  "Trim whitespace off the ends of s."
+  [s]
+  (.strip s))
+
+(defn rtrim
+  "Trim trailing whitespace from s."
+  [s]
+  (.rstrip s))
+
+(defn ltrim
+  "Trim leading whitespace from s."
+  [s]
+  (.lstrip s))
+
+(defn trim-newlines
+  "Trim trailing newline and return characters from s."
+  [s]
+  (.rstrip s "\r\n"))
