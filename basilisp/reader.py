@@ -25,6 +25,7 @@ from basilisp.lang.typing import LispForm, IterableLispForm
 from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<')
+alphanumeric_chars = re.compile(r'\w')
 begin_num_chars = re.compile(r'[0-9\-]')
 num_chars = re.compile('[0-9]')
 whitespace_chars = re.compile(r'[\s,]')
@@ -534,6 +535,19 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disab
     return int(s)
 
 
+_STR_ESCAPE_CHARS = {
+    '"': '"',
+    '\\': '\\',
+    'a': '\a',
+    'b': '\b',
+    'f': '\f',
+    'n': '\n',
+    'r': '\r',
+    't': '\t',
+    'v': '\v'
+}
+
+
 def _read_str(ctx: ReaderContext) -> str:
     """Return a string from the input stream."""
     s: List[str] = []
@@ -545,12 +559,12 @@ def _read_str(ctx: ReaderContext) -> str:
             raise SyntaxError("Unexpected EOF in string")
         if token == "\\":
             token = reader.next_token()
-            if token == '"':
-                s.append('"')
+            escape_char = _STR_ESCAPE_CHARS.get(token, None)
+            if escape_char:
+                s.append(escape_char)
                 continue
-            else:
-                s.append("\\")
-        if token == '"' and not prev == "\\":
+            raise SyntaxError("Unsupported escape sequence: \\{token}")
+        if token == '"':
             reader.next_token()
             return ''.join(s)
         s.append(token)
@@ -833,11 +847,14 @@ def _read_character(ctx: ReaderContext) -> str:
 
     s: List[str] = []
     reader = ctx.reader
+    token = reader.peek()
     while True:
-        token = reader.advance()
         if token == '' or whitespace_chars.match(token):
             break
+        if not alphanumeric_chars.match(token):
+            break
         s.append(token)
+        token = reader.next_token()
 
     char = ''.join(s)
     special = _SPECIAL_CHARS.get(char, None)
@@ -852,7 +869,7 @@ def _read_character(ctx: ReaderContext) -> str:
             raise SyntaxError(f"Unsupported character \\u{char}") from None
 
     if len(char) > 1:
-        raise SyntaxError(f"Unsupportred character \\{char}")
+        raise SyntaxError(f"Unsupported character \\{char}")
 
     return char
 
