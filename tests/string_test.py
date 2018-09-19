@@ -1,5 +1,6 @@
 import re
 
+import basilisp.lang.map as lmap
 import basilisp.lang.vector as vec
 from basilisp.main import init
 
@@ -127,9 +128,9 @@ def test_reverse():
 def test_split():
     assert vec.v("Basilisp", "is", "awesome!") == lstr.split("Basilisp is awesome!", re.compile(" "))
     assert vec.v("q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "") == lstr.split(
-        "q1w2e3r4t5y6u7i8o9p0", re.compile("\d+"))
+        "q1w2e3r4t5y6u7i8o9p0", re.compile(r"\d+"))
     assert vec.v("q", "w", "e", "r", "t5y6u7i8o9p0") == lstr.split(
-        "q1w2e3r4t5y6u7i8o9p0", re.compile("\d+"), 5)
+        "q1w2e3r4t5y6u7i8o9p0", re.compile(r"\d+"), 5)
 
     assert vec.v(" ", "q", "1", "w", "2", " ") == lstr.split(" q1w2 ", re.compile(""))
     assert vec.v(" ", "q", "1", "w", "2", " ") == lstr.split(" q1w2 ", "")
@@ -152,3 +153,64 @@ def test_split_lines():
     assert vec.v("Hello, my name is Chris.") == lstr.split_lines("Hello, my name is Chris.")
     assert vec.v("Hello,", " my name is Chris.") == lstr.split_lines("Hello,\n my name is Chris.")
     assert vec.v("Hello,", " my name ", " is Chris.") == lstr.split_lines("Hello,\n my name \r is Chris.")
+
+
+def test_lpad():
+    assert "     " == lstr.lpad("", 5)
+    assert "Chris" == lstr.lpad("Chris", 5)
+    assert "     Chris" == lstr.lpad("Chris", 10)
+    assert "Chris" == lstr.lpad("Chris", 3, "0")
+    assert "00000Chris" == lstr.lpad("Chris", 10, "0")
+
+
+def test_rpad():
+    assert "     " == lstr.rpad("", 5)
+    assert "Chris" == lstr.rpad("Chris", 5)
+    assert "Chris     " == lstr.rpad("Chris", 10)
+    assert "Chris" == lstr.rpad("Chris", 3, "0")
+    assert "Chris00000" == lstr.rpad("Chris", 10, "0")
+
+
+def test_replace():
+    assert "The color is red" == lstr.replace("The color is blue", "blue", "red")
+    assert "The color is red" == lstr.replace("The color is blue", re.compile("blue"), "red")
+
+    assert "Thee cooloor iis reed" == lstr.replace(
+        "The color is red", re.compile("[aeiou]"), lambda v: f"{v}{v}")
+
+    assert "1 2 1" == lstr.replace("a b a", re.compile("[ab]"), lmap.map({"a": "1", "b": "2"}))
+
+    assert "Unchanged" == lstr.replace("Unchanged", re.compile("Different"), "Not the same")
+
+
+def test_replace_first():
+    assert "The color is red blue" == lstr.replace_first("The color is blue blue", "blue", "red")
+    assert "The color is red blue" == lstr.replace_first("The color is blue blue", re.compile("blue"), "red")
+
+    assert "Thee color is red" == lstr.replace_first(
+        "The color is red", re.compile("[aeiou]"), lambda v: f"{v}{v}")
+
+    assert "1 b a" == lstr.replace_first("a b a", re.compile("[ab]"), lmap.map({"a": "1", "b": "2"}))
+
+    assert "Unchanged" == lstr.replace_first("Unchanged", re.compile("Different"), "Not the same")
+
+
+def test_trim():
+    assert "" == lstr.trim("")
+    assert "Chris" == lstr.trim("               Chris      ")
+
+
+def test_ltrim():
+    assert "" == lstr.ltrim("")
+    assert "Chris      " == lstr.ltrim("               Chris      ")
+
+
+def test_rtrim():
+    assert "" == lstr.rtrim("")
+    assert "               Chris" == lstr.rtrim("               Chris      ")
+
+
+def test_trim_newlines():
+    assert "" == lstr.trim_newlines("")
+    assert "Chris Crink\t " == lstr.trim_newlines("Chris Crink\t ")
+    assert "Chris Crink" == lstr.trim_newlines("Chris Crink\n\r")

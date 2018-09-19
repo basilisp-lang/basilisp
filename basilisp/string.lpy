@@ -143,20 +143,24 @@
   (vec (.splitlines s)))
 
 (defn lpad
-  "Pad s on the left by width characters. If a fillchar is specified,
-  pad with fillchar. Otherwise, use a space."
-  ([s width]
-   (.ljust s width))
-  ([s width fillchar]
-   (.ljust s width fillchar)))
-
-(defn rpad
-  "Pad s on the right by width characters. If a fillchar is specified,
-  pad with fillchar. Otherwise, use a space."
+  "Pad s on the left such that the final string length is width.
+  If the initial string length is less than or equal to width,
+  return the original string. If a fillchar is specified, pad
+  with fillchar. Otherwise, use a space."
   ([s width]
    (.rjust s width))
   ([s width fillchar]
    (.rjust s width fillchar)))
+
+(defn rpad
+  "Pad s on the right such that the final string length is width.
+  If the initial string length is less than or equal to width,
+  return the original string. If a fillchar is specified, pad
+  with fillchar. Otherwise, use a space. "
+  ([s width]
+   (.ljust s width))
+  ([s width fillchar]
+   (.ljust s width fillchar)))
 
 (defn re-quote-replacement
   "Escape special characters in a regex replacement pattern so they are
@@ -173,13 +177,17 @@
 
   If match is a regex pattern and replacement is a function, that function
   will be called once for every non-overlapping occurrence of match. The
-  function should accept one argument of type re.Match and return a replacement
+  function should accept one string argument and return a replacement
   string."
   [s match replacement]
   (cond
     (and (instance? typing/Pattern match)
          (or (string? replacement) (builtins/callable replacement)))
-    (re/sub match replacement s)
+    (re/sub match
+            (if (builtins/callable replacement)
+              #(replacement (.group % 0))
+              replacement)
+            s)
 
     (and (string? match) (string? replacement))
     (.replace s match replacement)
@@ -201,13 +209,18 @@
 
   If match is a regex pattern and replacement is a function, that function
   will be called once for every non-overlapping occurrence of match. The
-  function should accept one argument of type re.Match and return a replacement
+  function should accept one string argument and return a replacement
   string."
   [s match replacement]
   (cond
     (and (instance? typing/Pattern match)
          (or (string? replacement) (builtins/callable replacement)))
-    (re/sub match replacement s 1)
+    (re/sub match
+            (if (builtins/callable replacement)
+              #(replacement (.group % 0))
+              replacement)
+            s
+            1)
 
     (and (string? match) (string? replacement))
     (.replace s match replacement 1)
@@ -238,4 +251,4 @@
 (defn trim-newlines
   "Trim trailing newline and return characters from s."
   [s]
-  (.rstrip s "\n\r"))
+  (.rstrip s "\r\n"))
