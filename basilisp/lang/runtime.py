@@ -232,7 +232,7 @@ class Namespace:
                                               'basilisp.lang.util',
                                               'basilisp.compiler',
                                               'basilisp.reader'])
-                                         .map(lambda s: sym.symbol(s))
+                                         .map(sym.symbol)
                                          .to_list()))
     GATED_IMPORTS = lset.set(['basilisp.core'])
 
