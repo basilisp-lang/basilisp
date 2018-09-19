@@ -303,6 +303,9 @@ def test_str():
     assert "\t" == read_str_first(r'"\t"')
     assert "\v" == read_str_first(r'"\v"')
 
+    with pytest.raises(reader.SyntaxError):
+        read_str_first(r'"\q"')
+
     assert "Hello,\nmy name is\tChris." == read_str_first(r'"Hello,\nmy name is\tChris."')
 
     assert 'Regular string' == read_str_first('"Regular string"')

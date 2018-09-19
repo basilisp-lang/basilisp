@@ -548,12 +548,14 @@ _STR_ESCAPE_CHARS = {
 }
 
 
-def _read_str(ctx: ReaderContext) -> str:
-    """Return a string from the input stream."""
+def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
+    """Return a string from the input stream.
+
+    If allow_arbitrary_escapes is True, do not throw a SyntaxError if an
+    unknown escape sequence is encountered."""
     s: List[str] = []
     reader = ctx.reader
     while True:
-        prev = reader.peek()
         token = reader.next_token()
         if token == '':
             raise SyntaxError("Unexpected EOF in string")
@@ -563,7 +565,10 @@ def _read_str(ctx: ReaderContext) -> str:
             if escape_char:
                 s.append(escape_char)
                 continue
-            raise SyntaxError("Unsupported escape sequence: \\{token}")
+            if allow_arbitrary_escapes:
+                s.append("\\")
+            else:
+                raise SyntaxError("Unknown escape sequence: \\{token}")
         if token == '"':
             reader.next_token()
             return ''.join(s)
@@ -876,7 +881,7 @@ def _read_character(ctx: ReaderContext) -> str:
 
 def _read_regex(ctx: ReaderContext) -> Pattern:
     """Read a regex reader macro from the input stream."""
-    s = _read_str(ctx)
+    s = _read_str(ctx, allow_arbitrary_escapes=True)
     try:
         return langutil.regex_from_str(s)
     except re.error:
