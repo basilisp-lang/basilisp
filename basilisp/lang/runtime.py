@@ -1,4 +1,5 @@
 import functools
+import importlib
 import itertools
 import math
 import threading
@@ -7,11 +8,11 @@ from fractions import Fraction
 from typing import Optional, Dict, Tuple
 
 from functional import seq
-from pyrsistent import pmap, PMap, PSet, pset
 
 import basilisp.lang.associative as lassoc
 import basilisp.lang.collection as lcoll
 import basilisp.lang.deref as lderef
+import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.seq as lseq
@@ -108,6 +109,13 @@ class Var:
         self._dynamic = is_dynamic
 
     @property
+    def is_private(self) -> Optional[bool]:
+        try:
+            return self.meta.entry(kw.keyword('private'))
+        except AttributeError:
+            return False
+
+    @property
     def root(self):
         return self._root
 
@@ -136,6 +144,7 @@ class Var:
         if self._dynamic and hasattr(
                 self._tl, 'bindings') and len(self._tl.bindings) > 0:
             self._tl.bindings[-1] = v
+            return
         self._root = v
 
     @staticmethod
@@ -191,53 +200,65 @@ class Namespace:
     Namespaces are constructed def-by-def as Basilisp reads in each form
     in a file (which will typically declare a namespace at the top).
     Namespaces have the following fields of interest:
-    - `mappings` is a mapping between a symbolic name and a Var. The
-      Var may point to code, data, or nothing, if it is unbound.
     - `aliases` is a mapping between a symbolic alias and another
       Namespace. The fully qualified name of a namespace is also
       an alias for itself.
-    - `imports` is a set of Python modules imported into the current
-      namespace"""
-    DEFAULT_IMPORTS = atom.Atom(pset(seq(['builtins',
-                                          'operator',
-                                          'sys',
-                                          'basilisp.lang.atom',
-                                          'basilisp.lang.delay',
-                                          'basilisp.lang.exception',
-                                          'basilisp.lang.keyword',
-                                          'basilisp.lang.list',
-                                          'basilisp.lang.map',
-                                          'basilisp.lang.runtime',
-                                          'basilisp.lang.seq',
-                                          'basilisp.lang.set',
-                                          'basilisp.lang.symbol',
-                                          'basilisp.lang.vector',
-                                          'basilisp.lang.util',
-                                          'basilisp.compiler',
-                                          'basilisp.reader'])
-                                     .map(sym.symbol)))
-    GATED_IMPORTS = pset(['basilisp.core'])
 
-    _IGNORED_CORE_MAPPINGS = pset([_GENERATED_PYTHON_VAR_NAME])
+    - `imports` is a mapping of names to Python modules imported
+      into the current namespace.
 
-    _NAMESPACES = atom.Atom(pmap())
+    - `interns` is a mapping between a symbolic name and a Var. The
+      Var may point to code, data, or nothing, if it is unbound. Vars
+      in `interns` are interned in _this_ namespace.
 
-    __slots__ = ('_name', '_module', '_mappings', '_refers', '_aliases', '_imports')
+    - `refers` is a mapping between a symbolic name and a Var. Vars in
+      `refers` are interned in another namespace and are only referred
+      to without an alias in this namespace.
+    """
+    DEFAULT_IMPORTS = atom.Atom(lset.set(seq(['builtins',
+                                              'operator',
+                                              'sys',
+                                              'basilisp.lang.atom',
+                                              'basilisp.lang.delay',
+                                              'basilisp.lang.exception',
+                                              'basilisp.lang.keyword',
+                                              'basilisp.lang.list',
+                                              'basilisp.lang.map',
+                                              'basilisp.lang.runtime',
+                                              'basilisp.lang.seq',
+                                              'basilisp.lang.set',
+                                              'basilisp.lang.symbol',
+                                              'basilisp.lang.vector',
+                                              'basilisp.lang.util',
+                                              'basilisp.compiler',
+                                              'basilisp.reader'])
+                                         .map(sym.symbol)
+                                         .to_list()))
+    GATED_IMPORTS = lset.set(['basilisp.core'])
+
+    _NAMESPACES = atom.Atom(lmap.Map.empty())
+
+    __slots__ = ('_name', '_module', '_interns', '_refers', '_aliases', '_imports')
 
     def __init__(self, name: sym.Symbol, module: types.ModuleType = None) -> None:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
-        self._mappings: atom.Atom = atom.Atom(pmap())
-        self._aliases: atom.Atom = atom.Atom(pmap())
-        self._imports: atom.Atom = atom.Atom(pset(Namespace.DEFAULT_IMPORTS.deref()))
+
+        self._aliases: atom.Atom = atom.Atom(lmap.Map.empty())
+        self._imports: atom.Atom = atom.Atom(lmap.map(seq(Namespace.DEFAULT_IMPORTS.deref())
+                                                      .map(lambda s: (s, importlib.import_module(s.name)))
+                                                      .to_dict()))
+        self._interns: atom.Atom = atom.Atom(lmap.Map.empty())
+        self._refers: atom.Atom = atom.Atom(lmap.Map.empty())
 
     @classmethod
     def add_default_import(cls, module: str):
         """Add a gated default import to the default imports.
+
         In particular, we need to avoid importing 'basilisp.core' before we have
         finished macro-expanding."""
         if module in cls.GATED_IMPORTS:
-            cls.DEFAULT_IMPORTS.swap(lambda s: s.add(sym.symbol(module)))
+            cls.DEFAULT_IMPORTS.swap(lambda s: s.cons(sym.symbol(module)))
 
     @property
     def name(self) -> str:
@@ -250,21 +271,37 @@ class Namespace:
     @module.setter
     def module(self, m: types.ModuleType):
         """Override the Python module for this Namespace.
+
+        ***WARNING**
         This should only be done by basilisp.importer code to make sure the
         correct module is generated for `basilisp.core`."""
         self._module = m
 
     @property
-    def aliases(self) -> PMap:
+    def aliases(self) -> lmap.Map:
+        """A mapping between a symbolic alias and another Namespace. The
+        fully qualified name of a namespace is also an alias for itself."""
         return self._aliases.deref()
 
     @property
-    def mappings(self) -> PMap:
-        return self._mappings.deref()
+    def imports(self) -> lmap.Map:
+        """A mapping of names to Python modules imported into the current
+        namespace."""
+        return self._imports.deref()
 
     @property
-    def imports(self) -> PSet:
-        return self._imports.deref()
+    def interns(self) -> lmap.Map:
+        """A mapping between a symbolic name and a Var. The Var may point to
+        code, data, or nothing, if it is unbound. Vars in `interns` are
+        interned in _this_ namespace."""
+        return self._interns.deref()
+
+    @property
+    def refers(self) -> lmap.Map:
+        """A mapping between a symbolic name and a Var. Vars in refers are
+        interned in another namespace and are only referred to without an
+        alias in this namespace."""
+        return self._refers.deref()
 
     def __repr__(self):
         return f"{self._name}"
@@ -274,77 +311,94 @@ class Namespace:
 
     def add_alias(self, alias: sym.Symbol, namespace: "Namespace") -> None:
         """Add a Symbol alias for the given Namespace."""
-        self._aliases.swap(lambda m: m.set(alias, namespace))
+        self._aliases.swap(lambda m: m.assoc(alias, namespace))
 
     def get_alias(self, alias: sym.Symbol) -> "Optional[Namespace]":
         """Get the Namespace aliased by Symbol or None if it does not exist."""
-        return self.aliases.get(alias, None)
+        return self.aliases.entry(alias, None)
 
     def intern(self, sym: sym.Symbol, var: Var, force: bool = False) -> Var:
         """Intern the Var given in this namespace mapped by the given Symbol.
         If the Symbol already maps to a Var, this method _will not overwrite_
         the existing Var mapping unless the force keyword argument is given
         and is True."""
-        m: PMap = self._mappings.swap(Namespace._intern, sym, var, force=force)
-        return m.get(sym)
+        m: lmap.Map = self._interns.swap(Namespace._intern, sym, var, force=force)
+        return m.entry(sym)
 
     @staticmethod
-    def _intern(m: PMap, sym: sym.Symbol, new_var: Var,
-                force: bool = False) -> PMap:
+    def _intern(m: lmap.Map,
+                sym: sym.Symbol,
+                new_var: Var,
+                force: bool = False) -> lmap.Map:
         """Swap function used by intern to atomically intern a new variable in
         the symbol mapping for this Namespace."""
-        var = m.get(sym, None)
+        var = m.entry(sym, None)
         if var is None or force:
-            return m.set(sym, new_var)
+            return m.assoc(sym, new_var)
         return m
 
     def find(self, sym: sym.Symbol) -> Optional[Var]:
         """Find Vars mapped by the given Symbol input or None if no Vars are
         mapped by that Symbol."""
-        return self.mappings.get(sym, None)
+        v = self.interns.entry(sym, None)
+        if v is None:
+            return self.refers.entry(sym, None)
+        return v
 
-    def add_import(self, sym: sym.Symbol) -> None:
+    def add_import(self, sym: sym.Symbol, module: types.ModuleType) -> None:
         """Add the Symbol as an imported Symbol in this Namespace."""
-        self._imports.swap(lambda s: s.add(sym))
+        self._imports.swap(lambda m: m.assoc(sym, module))
 
-    def get_import(self, sym: sym.Symbol) -> Optional[sym.Symbol]:
-        """Return the Symbol if it is imported into this Namespace, None otherwise."""
-        if sym in self.imports:
-            return sym
-        return None
+    def get_import(self, sym: sym.Symbol) -> Optional[types.ModuleType]:
+        """Return the module if a moduled named by sym has been imported into
+        this Namespace, None otherwise."""
+        return self.imports.entry(sym, None)
+
+    def add_refer(self, sym: sym.Symbol, var: Var) -> None:
+        """Refer var in this namespace under the name sym."""
+        if not var.is_private:
+            self._refers.swap(lambda s: s.assoc(sym, var))
+
+    def get_refer(self, sym: sym.Symbol) -> Optional[Var]:
+        """Get the Var referred by Symbol or None if it does not exist."""
+        return self.refers.entry(sym, None)
 
     @classmethod
-    def ns_cache(cls) -> PMap:
+    def __refer_all(cls, refers: lmap.Map, other_ns_interns: lmap.Map) -> lmap.Map:
+        """Refer all _public_ interns from another namespace."""
+        final_refers = refers
+        for entry in other_ns_interns:
+            s: sym.Symbol = entry.key
+            var: Var = entry.value
+            if not var.is_private:
+                final_refers = final_refers.assoc(s, var)
+        return final_refers
+
+    def refer_all(self, other_ns: "Namespace"):
+        """Refer all the Vars in the other namespace."""
+        self._refers.swap(Namespace.__refer_all, other_ns.interns)
+
+    @classmethod
+    def ns_cache(cls) -> lmap.Map:
         """Return a snapshot of the Namespace cache."""
         return cls._NAMESPACES.deref()
 
     @staticmethod
-    def __import_core_mappings(ns_cache: PMap,
-                               new_ns: "Namespace",
-                               core_ns_name=_CORE_NS) -> None:
-        """Import the Core namespace mappings into the Namespace `new_ns`."""
-        core_ns = ns_cache.get(sym.symbol(core_ns_name), None)
-        if core_ns is None:
-            raise KeyError(f"Namespace {core_ns_name} not found")
-        for s, var in core_ns.mappings.items():
-            if s.name not in Namespace._IGNORED_CORE_MAPPINGS:
-                new_ns.intern(s, var)
-
-    @staticmethod
-    def __get_or_create(ns_cache: PMap,
+    def __get_or_create(ns_cache: lmap.Map,
                         name: sym.Symbol,
                         module: types.ModuleType = None,
-                        core_ns_name=_CORE_NS) -> PMap:
+                        core_ns_name=_CORE_NS) -> lmap.Map:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
-        ns = ns_cache.get(name, None)
+        ns = ns_cache.entry(name, None)
         if ns is not None:
             return ns_cache
         new_ns = Namespace(name, module=module)
         if name.name != core_ns_name:
-            Namespace.__import_core_mappings(
-                ns_cache, new_ns, core_ns_name=core_ns_name)
-        return ns_cache.set(name, new_ns)
+            core_ns = ns_cache.entry(sym.symbol(core_ns_name), None)
+            assert core_ns is not None, "Core namespace not loaded yet!"
+            new_ns.refer_all(core_ns)
+        return ns_cache.assoc(name, new_ns)
 
     @classmethod
     def get_or_create(cls, name: sym.Symbol, module: types.ModuleType = None) -> "Namespace":
@@ -359,8 +413,8 @@ class Namespace:
         namespace cache and return that namespace.
         Return None if the namespace did not exist in the cache."""
         while True:
-            oldval: PMap = cls._NAMESPACES.deref()
-            ns: Optional[Namespace] = oldval.get(name, None)
+            oldval: lmap.Map = cls._NAMESPACES.deref()
+            ns: Optional[Namespace] = oldval.entry(name, None)
             newval = oldval
             if ns is not None:
                 newval = oldval.discard(name)
@@ -722,7 +776,8 @@ def add_generated_python(generated_python: str,
         .or_else(lambda: Var.intern(sym.symbol(which_ns),  # type: ignore
                                     sym.symbol(var_name),
                                     "",
-                                    dynamic=True))
+                                    dynamic=True,
+                                    meta=lmap.map({kw.keyword('private'): True})))
     v.value = v.value + generated_python
 
 
@@ -766,9 +821,11 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME,
         core_ns_sym,
         sym.symbol(_PRINT_GENERATED_PY_VAR_NAME),
         False,
-        dynamic=True)
+        dynamic=True,
+        meta=lmap.map({kw.keyword('private'): True}))
     Var.intern(
         core_ns_sym,
         sym.symbol(_GENERATED_PYTHON_VAR_NAME),
         "",
-        dynamic=True)
+        dynamic=True,
+        meta=lmap.map({kw.keyword('private'): True}))
