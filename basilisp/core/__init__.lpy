@@ -1126,7 +1126,12 @@
   `(import* ~module))
 
 (defn refer
-  "Refer Vars from the namespace named by ns-sym, subject to the filters specified."
+  "Refer Vars from the namespace named by ns-sym, subject to the filters specified.
+
+  Supported filters:
+  - :only [sym1 sym2], to only refer the specified symbols
+  - :exclude [sym1, sym2], to refer all except the specified symbols
+  - :rename {sym1 new-sym1}, to rename all the specified symbols to the given new name"
   [ns-sym & filters]
   (let [current-ns *ns*
         ns         (get-namespace ns-sym)
@@ -1167,6 +1172,40 @@
 
 (import importlib)
 
+(defn ^:private add-refers
+  "Refer all of the Vars named in syms from from-ns to to-ns."
+  [to-ns from-ns syms]
+  (when (seq syms)
+    (let [var-sym (first syms)
+          var     (get (ns-interns from-ns) var-sym)]
+      (.add-refer to-ns var-sym var)
+      (recur to-ns from-ns (rest syms)))))
+
+(defn ^:private require-vec
+  "Process a vector libspec for require."
+  [current-ns v]
+  (let [ns-sym (first v)
+        opts   (apply hash-map (rest v))]
+    (importlib/import-module (name ns-sym))
+    (let [new-ns (get-namespace ns-sym)]
+      ;; Add the namespace alias
+      (.add-alias current-ns (or (:as opts) ns-sym) new-ns)
+
+      ;; Add refers
+      (cond
+        (= :all (:refer opts))
+        (.refer-all which-ns new-ns)
+
+        (:refer opts)
+        (add-refers new-ns (:refer opts))
+
+        :else nil))))
+
+(defn ^:private require-sym
+  "Process a symbol libspec for require."
+  [s]
+  (importlib/import-module (name s)))
+
 (defn require
   "Load Basilisp libraries and make them accessible in the current namespace.
 
@@ -1180,41 +1219,16 @@
   [& args]
   (let [current-ns *ns*
 
-        add-refers (fn [which-ns syms]
-                     (when (seq syms)
-                       (let [var-sym (first syms)
-                             var     (get (ns-interns which-ns) var-sym)]
-                         (.add-refer current-ns var-sym var)
-                         (recur which-ns (rest syms)))))
-
-        require-vec (fn [v]
-                      (let [ns-sym (first v)
-                            opts   (apply hash-map (rest v))]
-                        (importlib/import-module (name ns-sym))
-                        (let [new-ns (get-namespace ns-sym)]
-                          ;; Add the namespace alias
-                          (.add-alias current-ns (or (:as opts) ns-sym) new-ns)
-
-                          ;; Add refers
-                          (cond
-                            (= :all (:refer opts))
-                            (.refer-all current-ns new-ns)
-
-                            (:refer opts)
-                            (add-refers new-ns (:refer opts))
-
-                            :else nil))))
-        require-sym  #(importlib/import-module (name %))
-
         do-require (fn [requires]
                      (when (seq requires)
-                       (let [current (first requires)]
+                       (let [v (first requires)]
                          (cond
-                           (vector? current) (require-vec current)
-                           (symbol? current) (require-sym current)
+                           (vector? v) (require-vec current-ns v)
+                           (symbol? v) (require-sym v)
                            :else             (throw
                                               (ex-info "Invalid libspec for require"
-                                                       {:value current}))))))]
+                                                       {:value v}))))
+                       (recur (rest requires))))]
     (do-require args)
     (set! '*ns* current-ns)
     nil))
