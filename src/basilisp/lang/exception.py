@@ -17,9 +17,9 @@ class ExceptionInfo(Exception):
         return f"{self._msg} {lrepr(self._data)}"
 
     @property
-    def data(self):
+    def data(self) -> lmap.Map:
         return self._data
 
     @property
-    def message(self):
-        return self._data
+    def message(self) -> str:
+        return self._msg
