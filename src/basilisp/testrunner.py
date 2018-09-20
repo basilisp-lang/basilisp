@@ -90,11 +90,11 @@ class BasilispTestItem(pytest.Item):
     The BasilispTestItem collects all the failures and returns a report
     to PyTest to show to the end-user."""
 
-    def __init__(self, name: str,
+    def __init__(self, name: str,  # pylint: disable=too-many-arguments
                  parent: BasilispFile,
                  run_test: TestFunction,
                  namespace: str,
-                 filename: str) -> None:  # pylint: disable=too-many-arguments
+                 filename: str) -> None:
         super(BasilispTestItem, self).__init__(name, parent)
         self._run_test = run_test
         self._namespace = namespace
