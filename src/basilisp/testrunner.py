@@ -1,3 +1,4 @@
+import importlib
 from typing import Optional, Callable
 
 import pytest
@@ -13,6 +14,7 @@ from basilisp.lang.util import lrepr
 from basilisp.util import Maybe
 
 basilisp.init()
+importlib.import_module('basilisp.test')
 
 _COLLECTED_TESTS_SYM = sym.symbol('collected-tests', ns='basilisp.test')
 _CURRENT_NS_SYM = sym.symbol('current-ns', ns='basilisp.test')
@@ -63,6 +65,7 @@ class BasilispFile(pytest.File):
         by `deftest` forms in Basilisp) into an atom in `basilisp.test`.
         BasilispFile.collect fetches those test functions and generates
         BasilispTestItems for PyTest to run the tests."""
+        _reset_collected_tests()
         filename = self.fspath.basename
         self.fspath.pyimport()
         ns = _current_ns()
