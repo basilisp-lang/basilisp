@@ -371,7 +371,7 @@ def test_interop_new(ns_var: Var):
     assert "1" == lcompile('(builtins.str. 1)')
     assert sym.symbol('hi') == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(runtime.RuntimeException):
         lcompile('(builtins.str "hi")')
 
 
@@ -399,7 +399,7 @@ def test_let(ns_var: Var):
     assert lcompile("(let* [a 1 b :length c {b a} a 4] a)") == 4
     assert lcompile("(let* [a \"lower\"] (.upper a))") == "LOWER"
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(runtime.RuntimeException):
         lcompile("(let* [a 'sym] c)")
 
     with pytest.raises(compiler.CompilerException):
@@ -672,17 +672,17 @@ def test_try_catch(capsys, ns_var):
 
 
 def test_unquote(ns_var: Var):
-    with pytest.raises(AttributeError):
+    with pytest.raises(runtime.RuntimeException):
         lcompile("~s")
 
     assert llist.l(sym.symbol('s')) == lcompile('`(s)')
 
-    with pytest.raises(AttributeError):
+    with pytest.raises(runtime.RuntimeException):
         lcompile("`(~s)")
 
 
 def test_unquote_splicing(ns_var: Var, resolver: reader.Resolver):
-    with pytest.raises(AttributeError):
+    with pytest.raises(runtime.RuntimeException):
         lcompile("~@[1 2 3]")
 
     assert llist.l(1, 2, 3) == lcompile("`(~@[1 2 3])")

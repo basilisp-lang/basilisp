@@ -400,7 +400,7 @@ _NEW_SYM_FN_NAME = _load_attr(f'{_SYM_ALIAS}.symbol')
 _NEW_UUID_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.uuid_from_str')
 _NEW_VEC_FN_NAME = _load_attr(f'{_VEC_ALIAS}.vector')
 _INTERN_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.intern')
-_FIND_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.find')
+_FIND_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.find_safe')
 _COLLECT_ARGS_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}._collect_args')
 _COERCE_SEQ_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}.to_seq')
 _TRAMPOLINE_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}._trampoline')
@@ -570,7 +570,7 @@ def _is_sym_macro(ctx: CompilerContext, form: sym.Symbol) -> bool:
         ns_sym = sym.symbol(form.ns)
         if ns_sym in ctx.current_ns.aliases:
             aliased_ns = ctx.current_ns.aliases[ns_sym]
-            v = Var.find(sym.symbol(form.name, ns=aliased_ns))
+            v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
             if v is not None:
                 return _is_macro(v)
 
