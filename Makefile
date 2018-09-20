@@ -1,10 +1,13 @@
+.PHONY: setup-dev
+setup-dev:
+	@pipenv install --dev
+	@pipenv install -e .
+
 .PHONY: repl
 repl:
-	@pipenv install
-	@pipenv run python -m basilisp.cli repl
+	@pipenv run basilisp repl
 
 
 .PHONY: test
 test:
-	@pipenv install --dev
 	@pipenv run tox

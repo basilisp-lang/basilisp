@@ -4,13 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
-coveralls = "*"
-mypy = "*"
-prospector = "*"
-pytest = "*"
-pytest-cov = "*"
 twine = "*"
-yapf = "*"
 tox = "*"
 tox-pyenv = "*"
 
@@ -21,6 +15,7 @@ click = "*"
 pyfunctional = "*"
 pyrsistent = "*"
 python-dateutil = "*"
+basilisp = {editable = true, path = "."}
 
 [requires]
 python_version = "3.6"
