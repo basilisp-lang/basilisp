@@ -11,6 +11,8 @@ pytest = "*"
 pytest-cov = "*"
 twine = "*"
 yapf = "*"
+tox = "*"
+tox-pyenv = "*"
 
 [packages]
 astor = "*"

@@ -47,7 +47,7 @@ except FileNotFoundError:
 # Load the package's __version__.py module as a dictionary.
 about = {}
 if not VERSION:
-    with open(os.path.join(here, NAME, '__version__.py')) as f:
+    with open(os.path.join(here, 'src', NAME, '__version__.py')) as f:
         exec(f.read(), about)
 else:
     about['__version__'] = VERSION
@@ -100,7 +100,8 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=find_packages(exclude=('tests',)),
+    packages=find_packages(where='src'),
+    package_dir={'': 'src'},
 
     entry_points={
         'console_scripts': ['basilisp=basilisp.cli:cli'],
@@ -118,7 +119,6 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Software Development :: Compilers'

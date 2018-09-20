@@ -13,10 +13,9 @@ jobs:
       - restore_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
       - run:
-          name: Install Pipenv
+          name: Install Tox
           command: |
-            sudo pip install pipenv
-            pipenv install
+            sudo pip install tox
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
           paths:
@@ -24,14 +23,6 @@ jobs:
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
       - run:
-          name: Run Type Checks
+          name: Run Tox
           command: |
-            make typecheck
-      - run:
-          name: Run Linter
-          command: |
-            make lint
-      - run:
-          name: Run Tests with Coverage
-          command: |
-            make test-with-coverage
+            tox -v --recreate -e ALL
