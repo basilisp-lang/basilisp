@@ -1197,7 +1197,7 @@
         (.refer-all which-ns new-ns)
 
         (:refer opts)
-        (add-refers new-ns (:refer opts))
+        (add-refers current-ns new-ns (:refer opts))
 
         :else nil))))
 
@@ -1254,18 +1254,19 @@
   (let [doc  (when (string? (first opts))
                (first opts))
         opts (if doc (rest opts) opts)
-        opts (reduce (fn [m opt]
-                       (let [opt-name (first opt)
-                             options  (rest opt)]
-                         (when-not (keyword? opt-name)
-                           (throw (ex-info "Namespace option must be a keyword"
-                                           {:option opt-name})))
-                         (assoc m opt-name (vec options))))
-                     {}
-                     opts)
+        opts (when (seq opts)
+               (reduce (fn [m opt]
+                         (let [opt-name (first opt)
+                               options  (rest opt)]
+                           (when-not (keyword? opt-name)
+                             (throw (ex-info "Namespace option must be a keyword"
+                                             {:option opt-name})))
+                           (assoc m opt-name (vec options))))
+                       {}
+                       opts))
 
         requires (when (:require opts)
-                   `(require ~@(:require opts)))
+                   `(require ~@(map #(list 'quote %) (:require opts))))
         imports  (when (:import opts)
                    (map (fn [v]
                           `(import ~v))
