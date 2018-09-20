@@ -10,14 +10,14 @@
   "Mark the REPL result and move each result to the next slot
   down."
   [result]
-  (set! '*3 *2)
-  (set! '*2 *1)
-  (set! '*1 result))
+  (set! `*3 `*2)
+  (set! `*2 `*1)
+  (set! `*1 result))
 
 (defn mark-exception
   "Set the variable *e to the last exception at the REPL."
   [e]
-  (set! '*e e))
+  (set! `*e e))
 
 (defn pydoc
   "Print the Python docstring for a function."
