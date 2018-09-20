@@ -189,6 +189,18 @@ class Var:
         name_sym = sym.symbol(ns_qualified_sym.name)
         return Var.find_in_ns(ns_sym, name_sym)
 
+    @staticmethod
+    def find_safe(ns_qualified_sym: sym.Symbol) -> "Var":
+        """Return the Var currently bound to the name in the namespace specified
+        by `ns_qualified_sym`. If no Var is bound to that name, raise an exception.
+
+        This is a utility method to return useful debugging information when code
+        refers to an invalid symbol at runtime."""
+        v = Var.find(ns_qualified_sym)
+        if v is None:
+            raise RuntimeException(f"Unable to resolve symbol {ns_qualified_sym} in this context")
+        return v
+
 
 class Namespace:
     """Namespaces serve as organizational units in Basilisp code, just as
