@@ -48,29 +48,38 @@ manage versions of Python readily on your local development environment.
 Setup of `pyenv` is somewhat more specific to your environment, so see
 the documentation in the repository for more information.
 
-### Performing Type Checking and Linting
+### Getting Started
 
-Perform type checking with [MyPy](http://mypy-lang.org/) using:
-
-```bash
-make typecheck
-```
-
-Perform linting with [Prospector](https://prospector.landscape.io/en/master/):
+To prepare your `pipenv` environment, you need to install dependencies
+and install Basilisp as an editable dependency:
 
 ```bash
-make lint
+make setup-dev
 ```
 
-The linting artifact will be emitted at the project root as `lintout.txt`.
+Afterwards, you can start up the REPL for development with a simple:
 
-### Running Tests
+```bash
+make repl
+```
 
-Tests can be run using the following command:
+If dependencies are added or changed afterwards, you may need to
+`make setup-dev` again before attempting to start the REPL again or
+run tests.
+
+### Linting, Running Tests, and Type Checking
+
+Basilisp automates linting, running tests, and type checking using 
+[Tox](https://github.com/tox-dev/tox). All three steps can be performed
+using a simple `make` target:
 
 ```bash
 make test
 ```
+
+Testing is performed using [PyTest](https://github.com/pytest-dev/pytest/). 
+Type checking is performed by [MyPy](http://mypy-lang.org/). Linting is 
+performed using [Prospector](https://prospector.landscape.io/en/master/).
 
 ## License
 
