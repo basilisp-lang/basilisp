@@ -1,0 +1,34 @@
+(ns basilisp.test)
+
+(def ^:private collected-tests
+  (atom {}))
+
+(defn ^:private add-test!
+  "Add the test named by test-var to the test suite for ns."
+  [ns test-var]
+  (swap! collected-tests
+         (fn [state]
+           (let [ns-tests (get state ns)]
+             (assoc state ns (conj ns-tests test-var))))))
+
+(defmacro is
+  "Assert that expr is true.
+
+  If expr is not true, raise an AssertionError optionally with a given
+  message."
+  ([expr]
+   `(when-not expr
+      (throw (builtins/AssertionError (str "Test failure: " ~expr)))))
+  ([expr msg]
+   `(when-not expr
+      (throw (builtins/AssertionError ~msg)))))
+
+(defmacro deftest
+  "Define a new test."
+  [name & body]
+  (let [test-name (with-meta name {:test true})]
+    `(do
+       (defn ~test-name
+         []
+         ~@body)
+       (add-test! *ns* ~test-name))))

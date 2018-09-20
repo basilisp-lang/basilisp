@@ -1,0 +1,10 @@
+(ns basilisp.string-test
+  (:require
+   [basilisp.string :as str]
+   [basilisp.test :refer [deftest is]]))
+
+(deftest alpha?-test
+  (is (not (str/alpha? "")))
+  (is (not (str/alpha? "?")))
+  (is (not (str/alpha? "1")))
+  (is (str/alpha? "abcdef")))

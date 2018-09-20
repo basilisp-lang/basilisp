@@ -7,6 +7,7 @@ name = "pypi"
 twine = "*"
 tox = "*"
 tox-pyenv = "*"
+pytest-pycharm = "*"
 
 [packages]
 astor = "*"
@@ -16,6 +17,7 @@ pyfunctional = "*"
 pyrsistent = "*"
 python-dateutil = "*"
 basilisp = {editable = true, path = "."}
+pytest = "*"
 
 [requires]
 python_version = "3.6"

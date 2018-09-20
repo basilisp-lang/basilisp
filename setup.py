@@ -105,6 +105,7 @@ setup(
 
     entry_points={
         'console_scripts': ['basilisp=basilisp.cli:cli'],
+        'pytest11': ['basilisp_test_runner=basilisp.testrunner']
     },
     install_requires=REQUIRED,
     extras_require=EXTRAS,
