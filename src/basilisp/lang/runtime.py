@@ -175,8 +175,10 @@ class Var:
     def find_in_ns(ns_sym: sym.Symbol, name_sym: sym.Symbol) -> "Optional[Var]":
         """Return the value current bound to the name `name_sym` in the namespace
         specified by `ns_sym`."""
-        ns = Namespace.get_or_create(ns_sym)
-        return ns.find(name_sym)
+        ns = Namespace.get(ns_sym)
+        if ns:
+            return ns.find(name_sym)
+        return None
 
     @staticmethod
     def find(ns_qualified_sym: sym.Symbol) -> "Optional[Var]":
@@ -418,6 +420,12 @@ class Namespace:
         cache, creating it if it does not exist.
         Return the namespace."""
         return cls._NAMESPACES.swap(Namespace.__get_or_create, name, module=module)[name]
+
+    @classmethod
+    def get(cls, name: sym.Symbol) -> "Optional[Namespace]":
+        """Get the namespace bound to the symbol `name` in the global namespace
+        cache. Return the namespace if it exists or None otherwise.."""
+        return cls._NAMESPACES.deref().entry(name, None)
 
     @classmethod
     def remove(cls, name: sym.Symbol) -> Optional["Namespace"]:
