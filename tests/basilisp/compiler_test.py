@@ -18,7 +18,7 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 import basilisp.reader as reader
-from basilisp.lang.runtime import Namespace, Var
+from basilisp.lang.runtime import Var
 from basilisp.main import init
 from basilisp.util import Maybe
 
@@ -48,7 +48,6 @@ def test_ns() -> str:
 def ns_var(test_ns: str):
     runtime.init_ns_var(which_ns=runtime._CORE_NS)
     yield runtime.set_current_ns(test_ns)
-    Namespace.remove(sym.symbol(runtime._CORE_NS))
 
 
 @pytest.fixture
@@ -682,7 +681,7 @@ def test_unquote(ns_var: Var):
 
 
 def test_unquote_splicing(ns_var: Var, resolver: reader.Resolver):
-    with pytest.raises(runtime.RuntimeException):
+    with pytest.raises(TypeError):
         lcompile("~@[1 2 3]")
 
     assert llist.l(1, 2, 3) == lcompile("`(~@[1 2 3])")
