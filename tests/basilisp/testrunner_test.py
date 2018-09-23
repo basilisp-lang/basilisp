@@ -1,20 +1,11 @@
 import _pytest.pytester as pytester
-import pytest
-
-import basilisp.lang.symbol as sym
-import basilisp.main as basilisp
-from basilisp.lang.runtime import Namespace
 
 
-@pytest.fixture
-def core_ns() -> Namespace:
-    basilisp.init()
-    return Namespace.get(sym.symbol('basilisp.core'))
-
-
-def test_testrunner(core_ns: Namespace, testdir: pytester.Testdir):
+# TODO: fix namespace after importer namespace issue resolved
+# (https://github.com/chrisrink10/basilisp/issues/206)
+def test_testrunner(testdir: pytester.Testdir):
     code = """
-    (ns fixture
+    (ns test_fixture
       (:require
        [basilisp.test :refer [deftest is]]))
 
@@ -24,7 +15,7 @@ def test_testrunner(core_ns: Namespace, testdir: pytester.Testdir):
       (is true)
       (is (= "true" false)))
     """
-    testdir.makefile('.lpy', fixture=code)
+    testdir.makefile('.lpy', test_fixture=code)
 
-    result: pytester.RunResult = testdir.runpytest_inprocess()
+    result: pytester.RunResult = testdir.runpytest()
     result.assert_outcomes(failed=1)
