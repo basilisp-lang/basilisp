@@ -252,7 +252,6 @@ def test_trampoline_args():
 def core_ns():
     ns_var = runtime.init_ns_var(which_ns=runtime._CORE_NS)
     yield ns_var.value
-    runtime.Namespace.remove(sym.symbol(runtime._CORE_NS))
 
 
 def test_resolve_alias(core_ns):

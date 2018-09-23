@@ -46,8 +46,7 @@ def test_create_ns(ns_sym: sym.Symbol, ns_cache: patch):
 
 
 @pytest.fixture
-def ns_cache_with_existing_ns(ns_sym: sym.Symbol,
-                              core_ns_sym: sym.Symbol,
+def ns_cache_with_existing_ns(ns_sym: sym.Symbol, core_ns_sym: sym.Symbol,
                               core_ns: Namespace) -> patch:
     """Patch the Namespace cache with a test fixture with an existing namespace."""
     return patch('basilisp.lang.runtime.Namespace._NAMESPACES',
@@ -66,26 +65,6 @@ def test_get_existing_ns(ns_sym: sym.Symbol,
         assert isinstance(ns, Namespace)
         assert ns.name == ns_sym.name
         assert len(cache.deref().keys()) == 2
-
-
-def test_get_existing_ns_with_get(ns_sym: sym.Symbol,
-                                  ns_cache_with_existing_ns: patch):
-    with ns_cache_with_existing_ns as cache:
-        assert len(cache.deref().keys()) == 2
-        ns = Namespace.get(ns_sym)
-        assert isinstance(ns, Namespace)
-        assert ns.name == ns_sym.name
-        assert len(cache.deref().keys()) == 2
-
-
-def test_get_nil_for_non_existent_ns(ns_sym: sym.Symbol):
-    with patch('basilisp.lang.runtime.Namespace._NAMESPACES',
-               atom.Atom(
-                   lmap.map({}))) as cache:
-        assert len(cache.deref().keys()) == 0
-        ns = Namespace.get(ns_sym)
-        assert ns is None
-        assert len(cache.deref().keys()) == 0
 
 
 def test_remove_ns(ns_sym: sym.Symbol, ns_cache_with_existing_ns: patch):
@@ -192,8 +171,6 @@ def other_ns(core_map: sym.Symbol,
     core_ns.intern(core_private, private_var)
 
     yield runtime.set_current_ns(test_ns).value
-
-    Namespace.remove(sym.symbol(runtime._CORE_NS))
 
 
 def test_refer_core(core_ns_sym: sym.Symbol,
