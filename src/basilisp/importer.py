@@ -59,6 +59,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
 
     def create_module(self, spec: importlib.machinery.ModuleSpec):
         mod = types.ModuleType(spec.name)
+        mod.__file__ = spec.loader_state["filename"]
         mod.__loader__ = spec.loader
         mod.__package__ = spec.parent
         mod.__spec__ = spec
@@ -103,4 +104,6 @@ def hook_imports():
 
     Once this is called, Basilisp code may be called from within Python code
     using standard `import module.submodule` syntax."""
+    if any([isinstance(o, BasilispImporter) for o in sys.meta_path]):
+        return
     sys.meta_path.insert(0, BasilispImporter())  # pylint:disable=abstract-class-instantiated
