@@ -109,10 +109,10 @@ class BasilispTestItem(pytest.Item):
         If any tests fail, raise an ExceptionInfo exception with the
         test failures. PyTest will invoke self.repr_failure to display
         the failures to the user."""
-        results: vec.Vector = self._run_test()
-        if runtime.to_seq(results):
-            raise lexc.ExceptionInfo("Test failures",
-                                     lmap.map({_FAILURES_KW: results}))
+        results: lmap.Map = self._run_test()
+        failures: Optional[vec.Vector] = results.entry(_FAILURES_KW)
+        if runtime.to_seq(failures):
+            raise lexc.ExceptionInfo("Test failures", lmap.map(results))
 
     def repr_failure(self, excinfo):
         """Representation function called when self.runtest() raises an

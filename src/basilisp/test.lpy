@@ -70,7 +70,7 @@
                ~'test-section nil
                ~'failures     (atom [])]
            ~@body
-           (deref ~'failures)))
+           {:failures (deref ~'failures)}))
 
        (add-test! *ns* (var ~test-name-sym))
        (reset! current-ns *ns*))))
