@@ -1,0 +1,76 @@
+(ns basilisp.test)
+
+(def ^:private collected-tests
+  (atom []))
+
+(def ^:private current-ns
+  (atom nil))
+
+(defn ^:private add-test!
+  "Add the test named by test-var to the test suite for ns."
+  [ns test-var]
+  (swap! collected-tests conj test-var))
+
+(defmacro is
+  "Assert that expr is true. Must appear inside of a deftest form."
+  ([expr]
+   `(is ~expr (str "Test failure: " ~expr)))
+  ([expr msg]
+   (let [line-no (:basilisp.reader/line (meta &form))
+
+         eq-sym `=
+
+         deconstruct? (and (list? expr) (= eq-sym (first expr)))
+
+         expected (if deconstruct?
+                    (second expr)
+                    expr)
+         actual   (if deconstruct?
+                    (nth expr 2)
+                    expr)]
+     `(let [computed# ~expr
+            actual#   ~actual
+            expected# ~expected]
+        (when-not computed#
+          ;; Collect test failures in the `failures` atom created
+          ;; by `deftest`.
+          (swap! ~'failures
+                 conj
+                 [~msg
+                  {:test-name    ~'test-name
+                   :test-section ~'test-section
+                   :expr         (quote ~expr)
+                   :line         ~line-no
+                   :actual       actual#
+                   :expected     expected#}]))))))
+
+(defmacro testing
+  "Wrapper for test cases to provide additional messaging and context
+  around the test or group of tests contained inside. Must appear inside
+  of a deftest form."
+  [msg & body]
+  `(let [~'test-section (if ~'test-section
+                          (str ~'test-section " :: " ~msg)
+                          ~msg)]
+     ~@body))
+
+(defmacro deftest
+  "Define a new test function. Assertions can be made with the is macro.
+  Group tests with the testing macro.
+
+  Tests defined by deftest will be run by default by the PyTest test
+  runner using Basilisp's builtin PyTest hook."
+  [name-sym & body]
+  (let [test-name-sym (with-meta name-sym {:test true})
+        test-name-str (name test-name-sym)]
+    `(do
+       (defn ~test-name-sym
+         []
+         (let [~'test-name    ~test-name-str
+               ~'test-section nil
+               ~'failures     (atom [])]
+           ~@body
+           {:failures (deref ~'failures)}))
+
+       (add-test! *ns* (var ~test-name-sym))
+       (reset! current-ns *ns*))))

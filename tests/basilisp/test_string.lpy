@@ -1,0 +1,23 @@
+(ns basilisp.string-test
+  (:require
+   [basilisp.string :as str]
+   [basilisp.test :refer [deftest is]]))
+
+(deftest alpha?-test
+  (is (not (str/alpha? "")))
+  (is (not (str/alpha? "?")))
+  (is (not (str/alpha? "1")))
+  (is (str/alpha? "abcdef")))
+
+(deftest alphanumeric?-test
+  (is (not (str/alphanumeric? "")))
+  (is (not (str/alphanumeric? "?")))
+  (is (str/alphanumeric? "1"))
+  (is (str/alphanumeric? "abcdef")))
+
+(deftest digits?-test
+  (is (not (str/digits? "")))
+  (is (not (str/digits? "?")))
+  (is (not (str/digits? "abcdef")))
+  (is (str/digits? "1"))
+  (is (str/digits? "1375234723984")))

@@ -5,6 +5,7 @@ import traceback
 import types
 
 import click
+import pytest
 
 import basilisp.compiler as compiler
 import basilisp.lang.runtime as runtime
@@ -101,6 +102,13 @@ def run(file_or_code, code, in_ns):
         print(compiler.lrepr(eval_str(file_or_code, ctx, ns.module)))
     else:
         print(compiler.lrepr(eval_file(file_or_code, ctx, ns.module)))
+
+
+@cli.command(short_help='run tests in a Basilisp project')
+@click.argument('args', nargs=-1)
+def test(args):
+    """Run tests in a Basilisp project."""
+    pytest.main(args=list(args))
 
 
 if __name__ == "__main__":
