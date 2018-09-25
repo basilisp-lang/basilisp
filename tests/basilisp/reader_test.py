@@ -682,6 +682,11 @@ def test_comment_reader_macro():
     assert None is read_str_first('#_"string"')
     assert None is read_str_first('#_:keyword')
     assert None is read_str_first('#_symbol')
+    assert None is read_str_first('#_[]')
+    assert None is read_str_first('#_{}')
+    assert None is read_str_first('#_()')
+    assert None is read_str_first('#_#{}')
+
     assert kw.keyword('kw2') == read_str_first('#_:kw1 :kw2')
 
     assert llist.List.empty() == read_str_first('(#_sym)')
