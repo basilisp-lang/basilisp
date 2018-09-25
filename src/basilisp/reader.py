@@ -61,6 +61,15 @@ _UNQUOTE_SPLICING = symbol.symbol('unquote-splicing', ns='basilisp.core')
 _VECTOR = symbol.symbol('vector', ns='basilisp.core')
 
 
+class Comment:
+    pass
+
+
+COMMENT = Comment()
+
+LispReaderForm = Union[LispForm, Comment]
+
+
 class SyntaxError(Exception):  # pylint:disable=redefined-builtin
     pass
 
@@ -298,8 +307,10 @@ def _read_namespaced(ctx: ReaderContext, allowed_suffix: Optional[str] = None) -
     return ns_str, name_str
 
 
-def _read_coll(ctx: ReaderContext, f: Callable[[Collection[Any]], Union[
-        llist.List, lset.Set, vector.Vector]], end_token: str, coll_name: str):
+def _read_coll(ctx: ReaderContext,
+               f: Callable[[Collection[Any]], Union[llist.List, lset.Set, vector.Vector]],
+               end_token: str,
+               coll_name: str):
     """Read a collection from the input stream and create the
     collection using f."""
     coll: List = []
@@ -315,6 +326,8 @@ def _read_coll(ctx: ReaderContext, f: Callable[[Collection[Any]], Union[
             reader.next_token()
             return f(coll)
         elem = _read_next(ctx)
+        if elem is COMMENT:
+            continue
         coll.append(elem)
 
 
@@ -350,8 +363,8 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
 
     token = reader.peek()
     if whitespace_chars.match(token):
-        instance = _read_next(ctx)
-        member = _read_next(ctx)
+        instance = _read_next_consuming_comment(ctx)
+        member = _read_next_consuming_comment(ctx)
         if not isinstance(member, symbol.Symbol):
             raise SyntaxError(f"Expected Symbol; found {type(member)}")
         is_property = member.name.startswith('-')
@@ -367,17 +380,17 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
         seq.append(_INTEROP_PROP)
         if whitespace_chars.match(reader.peek()):
             raise SyntaxError(f"Expected Symbol; found whitespace")
-        member = _read_next(ctx)
+        member = _read_next_consuming_comment(ctx)
         if not isinstance(member, symbol.Symbol):
             raise SyntaxError(f"Expected Symbol; found {type(member)}")
-        instance = _read_next(ctx)
+        instance = _read_next_consuming_comment(ctx)
         seq.append(instance)
         seq.append(member)
     else:
         assert not whitespace_chars.match(token)
         seq.append(_INTEROP_CALL)
-        member = _read_next(ctx)
-        instance = _read_next(ctx)
+        member = _read_next_consuming_comment(ctx)
+        instance = _read_next_consuming_comment(ctx)
         if not isinstance(member, symbol.Symbol):
             raise SyntaxError(f"Expected Symbol; found {type(member)}")
         seq.append(instance)
@@ -391,6 +404,8 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
             reader.next_token()
             return llist.list(seq)
         elem = _read_next(ctx)
+        if elem is COMMENT or isinstance(elem, Comment):
+            continue
         seq.append(elem)
 
 
@@ -438,11 +453,17 @@ def _read_map(ctx: ReaderContext) -> lmap.Map:
             reader.next_token()
             break
         k = _read_next(ctx)
-        if reader.peek() == '}':
-            raise SyntaxError("Unexpected token '}'; expected map value")
-        v = _read_next(ctx)
-        if k in d:
-            raise SyntaxError("Duplicate key '{}' in map literal".format(k))
+        if k is COMMENT:
+            continue
+        while True:
+            if reader.peek() == '}':
+                raise SyntaxError("Unexpected token '}'; expected map value")
+            v = _read_next(ctx)
+            if v is COMMENT:
+                continue
+            if k in d:
+                raise SyntaxError(f"Duplicate key '{k}' in map literal")
+            break
         d[k] = v
 
     return lmap.map(d)
@@ -613,7 +634,7 @@ def _read_meta(ctx: ReaderContext) -> lmeta.Meta:
     input stream."""
     start = ctx.reader.advance()
     assert start == '^'
-    meta = _read_next(ctx)
+    meta = _read_next_consuming_comment(ctx)
 
     meta_map = None
     if isinstance(meta, symbol.Symbol):
@@ -626,7 +647,7 @@ def _read_meta(ctx: ReaderContext) -> lmeta.Meta:
         raise SyntaxError(
             f"Expected symbol, keyword, or map for metadata, not {type(meta)}")
 
-    obj_with_meta = _read_next(ctx)
+    obj_with_meta = _read_next_consuming_comment(ctx)
     try:
         return obj_with_meta.with_meta(meta_map)  # type: ignore
     except AttributeError:
@@ -684,7 +705,7 @@ def _read_quoted(ctx: ReaderContext) -> llist.List:
     """Read a quoted form from the input stream."""
     start = ctx.reader.advance()
     assert start == "'"
-    next_form = _read_next(ctx)
+    next_form = _read_next_consuming_comment(ctx)
     return llist.l(_QUOTE, next_form)
 
 
@@ -788,7 +809,7 @@ def _read_syntax_quoted(ctx: ReaderContext) -> LispForm:
     assert start == "`"
 
     with ctx.syntax_quoted():
-        return _process_syntax_quoted_form(ctx, _read_next(ctx))
+        return _process_syntax_quoted_form(ctx, _read_next_consuming_comment(ctx))
 
 
 def _read_unquote(ctx: ReaderContext) -> LispForm:
@@ -811,10 +832,10 @@ def _read_unquote(ctx: ReaderContext) -> LispForm:
         next_char = ctx.reader.peek()
         if next_char == '@':
             ctx.reader.advance()
-            next_form = _read_next(ctx)
+            next_form = _read_next_consuming_comment(ctx)
             return llist.l(_UNQUOTE_SPLICING, next_form)
         else:
-            next_form = _read_next(ctx)
+            next_form = _read_next_consuming_comment(ctx)
             return llist.l(_UNQUOTE, next_form)
 
 
@@ -822,7 +843,7 @@ def _read_deref(ctx: ReaderContext) -> LispForm:
     """Read a derefed form from the input stream."""
     start = ctx.reader.advance()
     assert start == "@"
-    next_form = _read_next(ctx)
+    next_form = _read_next_consuming_comment(ctx)
     return llist.l(_DEREF, next_form)
 
 
@@ -888,7 +909,7 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
         raise SyntaxError(f"Unrecognized regex pattern syntax: {s}")
 
 
-def _read_reader_macro(ctx: ReaderContext) -> LispForm:
+def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
     """Return a data structure evaluated as a reader
     macro from the input stream."""
     start = ctx.reader.advance()
@@ -907,11 +928,11 @@ def _read_reader_macro(ctx: ReaderContext) -> LispForm:
     elif token == "_":
         ctx.reader.advance()
         _read_next(ctx)  # Ignore the entire next form
-        return _read_next(ctx)
+        return COMMENT
     elif ns_name_chars.match(token):
         s = _read_sym(ctx)
         assert isinstance(s, symbol.Symbol)
-        v = _read_next(ctx)
+        v = _read_next_consuming_comment(ctx)
         if s in ctx.data_readers:
             f = ctx.data_readers[s]
             return f(v)
@@ -921,7 +942,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispForm:
     raise SyntaxError(f"Unexpected token '{token}' in reader macro")
 
 
-def _read_comment(ctx: ReaderContext) -> LispForm:
+def _read_comment(ctx: ReaderContext) -> LispReaderForm:
     """Read (and ignore) a single-line comment from the input stream.
     Return the next form after the next line break."""
     reader = ctx.reader
@@ -937,8 +958,20 @@ def _read_comment(ctx: ReaderContext) -> LispForm:
         reader.advance()
 
 
-def _read_next(ctx: ReaderContext) -> LispForm:  # noqa: C901
-    """Read the next full token from the input stream."""
+def _read_next_consuming_comment(ctx: ReaderContext) -> LispForm:
+    """Read the next full form from the input stream, consuming any
+    reader comments completely."""
+    while True:
+        v = _read_next(ctx)
+        if v is __EOF:
+            return __EOF
+        if v is COMMENT or isinstance(v, Comment):
+            continue
+        return v
+
+
+def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
+    """Read the next full form from the input stream."""
     reader = ctx.reader
     token = reader.peek()
     if token == '(':
@@ -1000,6 +1033,8 @@ def read(stream, resolver: Resolver = None, data_readers: DataReaders = None) ->
         expr = _read_next(ctx)
         if expr is __EOF:
             return
+        if expr is COMMENT or isinstance(expr, Comment):
+            continue
         yield expr
 
 

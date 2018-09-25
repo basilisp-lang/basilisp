@@ -677,9 +677,45 @@ def test_invalid_meta_attachment():
 
 
 def test_comment_reader_macro():
-    assert read_str_first('#_       (a list)') is None
-    assert read_str_first('#_:keyword') is None
-    assert read_str_first('#_:kw1 :kw2') == kw.keyword('kw2')
+    assert None is read_str_first('#_       (a list)')
+    assert None is read_str_first('#_1')
+    assert None is read_str_first('#_"string"')
+    assert None is read_str_first('#_:keyword')
+    assert None is read_str_first('#_symbol')
+    assert None is read_str_first('#_[]')
+    assert None is read_str_first('#_{}')
+    assert None is read_str_first('#_()')
+    assert None is read_str_first('#_#{}')
+
+    assert kw.keyword('kw2') == read_str_first('#_:kw1 :kw2')
+
+    assert llist.List.empty() == read_str_first('(#_sym)')
+    assert llist.l(sym.symbol('inc'), 5) == read_str_first('(inc #_counter 5)')
+    assert llist.l(sym.symbol('dec'), 8) == read_str_first('(#_inc dec #_counter 8)')
+
+    assert vec.Vector.empty() == read_str_first('[#_m]')
+    assert vec.v(1) == read_str_first('[#_m 1]')
+    assert vec.v(1) == read_str_first('[#_m 1 #_2]')
+    assert vec.v(1, 2) == read_str_first('[#_m 1 2]')
+    assert vec.v(1, 4) == read_str_first('[#_m 1 #_2 4]')
+    assert vec.v(1, 4) == read_str_first('[#_m 1 #_2 4 #_5]')
+
+    assert lset.Set.empty() == read_str_first('#{#_m}')
+    assert lset.s(1) == read_str_first('#{#_m 1}')
+    assert lset.s(1) == read_str_first('#{#_m 1 #_2}')
+    assert lset.s(1, 2) == read_str_first('#{#_m 1 2}')
+    assert lset.s(1, 4) == read_str_first('#{#_m 1 #_2 4}')
+    assert lset.s(1, 4) == read_str_first('#{#_m 1 #_2 4 #_5}')
+
+    assert lmap.Map.empty() == read_str_first('{#_:key}')
+    assert lmap.Map.empty() == read_str_first('{#_:key #_"value"}')
+    assert lmap.map({kw.keyword('key'): "value"}) == read_str_first(
+        '{:key #_"other" "value"}')
+    assert lmap.map({kw.keyword('key'): "value"}) == read_str_first(
+        '{:key "value" #_"other"}')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('{:key #_"value"}')
 
 
 def test_comment_line():
