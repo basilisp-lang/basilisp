@@ -325,7 +325,7 @@ def _read_coll(ctx: ReaderContext,
         if token == end_token:
             reader.next_token()
             return f(coll)
-        elem = _read_next(ctx, handle_reader_comments=False)
+        elem = _read_next(ctx)
         if elem is COMMENT:
             continue
         coll.append(elem)
@@ -363,8 +363,8 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
 
     token = reader.peek()
     if whitespace_chars.match(token):
-        instance = _read_next(ctx)
-        member = _read_next(ctx)
+        instance = _read_next_consuming_comment(ctx)
+        member = _read_next_consuming_comment(ctx)
         if not isinstance(member, symbol.Symbol):
             raise SyntaxError(f"Expected Symbol; found {type(member)}")
         is_property = member.name.startswith('-')
@@ -380,17 +380,17 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
         seq.append(_INTEROP_PROP)
         if whitespace_chars.match(reader.peek()):
             raise SyntaxError(f"Expected Symbol; found whitespace")
-        member = _read_next(ctx)
+        member = _read_next_consuming_comment(ctx)
         if not isinstance(member, symbol.Symbol):
             raise SyntaxError(f"Expected Symbol; found {type(member)}")
-        instance = _read_next(ctx)
+        instance = _read_next_consuming_comment(ctx)
         seq.append(instance)
         seq.append(member)
     else:
         assert not whitespace_chars.match(token)
         seq.append(_INTEROP_CALL)
-        member = _read_next(ctx)
-        instance = _read_next(ctx)
+        member = _read_next_consuming_comment(ctx)
+        instance = _read_next_consuming_comment(ctx)
         if not isinstance(member, symbol.Symbol):
             raise SyntaxError(f"Expected Symbol; found {type(member)}")
         seq.append(instance)
@@ -403,8 +403,8 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
         if token == end_token:
             reader.next_token()
             return llist.list(seq)
-        elem = _read_next(ctx, handle_reader_comments=False)
-        if elem is COMMENT:
+        elem = _read_next(ctx)
+        if elem is COMMENT or isinstance(elem, Comment):
             continue
         seq.append(elem)
 
@@ -452,13 +452,13 @@ def _read_map(ctx: ReaderContext) -> lmap.Map:
         if reader.peek() == '}':
             reader.next_token()
             break
-        k = _read_next(ctx, handle_reader_comments=False)
+        k = _read_next(ctx)
         if k is COMMENT:
             continue
         while True:
             if reader.peek() == '}':
                 raise SyntaxError("Unexpected token '}'; expected map value")
-            v = _read_next(ctx, handle_reader_comments=False)
+            v = _read_next(ctx)
             if v is COMMENT:
                 continue
             if k in d:
@@ -634,7 +634,7 @@ def _read_meta(ctx: ReaderContext) -> lmeta.Meta:
     input stream."""
     start = ctx.reader.advance()
     assert start == '^'
-    meta = _read_next(ctx)
+    meta = _read_next_consuming_comment(ctx)
 
     meta_map = None
     if isinstance(meta, symbol.Symbol):
@@ -647,7 +647,7 @@ def _read_meta(ctx: ReaderContext) -> lmeta.Meta:
         raise SyntaxError(
             f"Expected symbol, keyword, or map for metadata, not {type(meta)}")
 
-    obj_with_meta = _read_next(ctx)
+    obj_with_meta = _read_next_consuming_comment(ctx)
     try:
         return obj_with_meta.with_meta(meta_map)  # type: ignore
     except AttributeError:
@@ -705,7 +705,7 @@ def _read_quoted(ctx: ReaderContext) -> llist.List:
     """Read a quoted form from the input stream."""
     start = ctx.reader.advance()
     assert start == "'"
-    next_form = _read_next(ctx)
+    next_form = _read_next_consuming_comment(ctx)
     return llist.l(_QUOTE, next_form)
 
 
@@ -809,7 +809,7 @@ def _read_syntax_quoted(ctx: ReaderContext) -> LispForm:
     assert start == "`"
 
     with ctx.syntax_quoted():
-        return _process_syntax_quoted_form(ctx, _read_next(ctx))
+        return _process_syntax_quoted_form(ctx, _read_next_consuming_comment(ctx))
 
 
 def _read_unquote(ctx: ReaderContext) -> LispForm:
@@ -832,10 +832,10 @@ def _read_unquote(ctx: ReaderContext) -> LispForm:
         next_char = ctx.reader.peek()
         if next_char == '@':
             ctx.reader.advance()
-            next_form = _read_next(ctx)
+            next_form = _read_next_consuming_comment(ctx)
             return llist.l(_UNQUOTE_SPLICING, next_form)
         else:
-            next_form = _read_next(ctx)
+            next_form = _read_next_consuming_comment(ctx)
             return llist.l(_UNQUOTE, next_form)
 
 
@@ -843,7 +843,7 @@ def _read_deref(ctx: ReaderContext) -> LispForm:
     """Read a derefed form from the input stream."""
     start = ctx.reader.advance()
     assert start == "@"
-    next_form = _read_next(ctx)
+    next_form = _read_next_consuming_comment(ctx)
     return llist.l(_DEREF, next_form)
 
 
@@ -932,7 +932,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
     elif ns_name_chars.match(token):
         s = _read_sym(ctx)
         assert isinstance(s, symbol.Symbol)
-        v = _read_next(ctx)
+        v = _read_next_consuming_comment(ctx)
         if s in ctx.data_readers:
             f = ctx.data_readers[s]
             return f(v)
@@ -958,27 +958,20 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
         reader.advance()
 
 
-def _comment_handler(f: W) -> W:
-    """Automatically handle reader comments (forms prefixed with '#_')
-    unless callers specify `handle_reader_comments` kwarg is specified.
-
-    Reader comments are ignored and the reader function is called again
-    until it receives a value which is not a comment."""
-
-    @functools.wraps(f)
-    def handle_reader_comment(ctx, handle_reader_comments=True):
-        while True:
-            v = f(ctx)
-            if handle_reader_comments and v is COMMENT:
-                continue
-            return v
-
-    return cast(W, handle_reader_comment)
+def _read_next_consuming_comment(ctx: ReaderContext) -> LispForm:
+    """Read the next full form from the input stream, consuming any
+    reader comments completely."""
+    while True:
+        v = _read_next(ctx)
+        if v is __EOF:
+            return __EOF
+        if v is COMMENT or isinstance(v, Comment):
+            continue
+        return v
 
 
-@_comment_handler
 def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
-    """Read the next full token from the input stream."""
+    """Read the next full form from the input stream."""
     reader = ctx.reader
     token = reader.peek()
     if token == '(':
@@ -991,7 +984,7 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
         return _read_num(ctx)
     elif whitespace_chars.match(token):
         reader.next_token()
-        return _read_next(ctx, handle_reader_comments=False)
+        return _read_next(ctx)
     elif token == ':':
         return _read_kw(ctx)
     elif token == '"':
@@ -1020,7 +1013,7 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
         raise SyntaxError("Unexpected token '{token}'".format(token=token))
 
 
-def read(stream, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispReaderForm]:
+def read(stream, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispForm]:
     """Read the contents of a stream as a Lisp expression.
 
     Callers may optionally specify a namespace resolver, which will be used
@@ -1040,10 +1033,12 @@ def read(stream, resolver: Resolver = None, data_readers: DataReaders = None) ->
         expr = _read_next(ctx)
         if expr is __EOF:
             return
+        if expr is COMMENT or isinstance(expr, Comment):
+            continue
         yield expr
 
 
-def read_str(s: str, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispReaderForm]:
+def read_str(s: str, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispForm]:
     """Read the contents of a string as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
@@ -1052,7 +1047,7 @@ def read_str(s: str, resolver: Resolver = None, data_readers: DataReaders = None
         yield from read(buf, resolver=resolver, data_readers=data_readers)
 
 
-def read_file(filename: str, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispReaderForm]:
+def read_file(filename: str, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispForm]:
     """Read the contents of a file as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
