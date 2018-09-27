@@ -9,6 +9,7 @@ from typing import Optional
 import basilisp.compiler as compiler
 import basilisp.lang.runtime as runtime
 import basilisp.reader as reader
+from basilisp.lang.util import demunge
 
 
 class BasilispImporter(MetaPathFinder, SourceLoader):
@@ -83,7 +84,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         # a blank module. If we do not replace the module here with the module we are
         # generating, then we will not be able to use advanced compilation features such
         # as direct Python variable access to functions and other def'ed values.
-        ns: runtime.Namespace = runtime.set_current_ns(fullname).value
+        ns_name = demunge(fullname)
+        ns: runtime.Namespace = runtime.set_current_ns(ns_name).value
         ns.module = module
 
         forms = reader.read_file(filename, resolver=runtime.resolve_alias)
@@ -95,7 +97,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         #
         # Later on, we can probably remove this and just use the 'ns macro to auto-refer
         # all 'basilisp.core values into the current namespace.
-        runtime.Namespace.add_default_import(fullname)
+        runtime.Namespace.add_default_import(ns_name)
 
 
 def hook_imports():
