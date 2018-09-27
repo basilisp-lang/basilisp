@@ -97,7 +97,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         #
         # Later on, we can probably remove this and just use the 'ns macro to auto-refer
         # all 'basilisp.core values into the current namespace.
-        runtime.Namespace.add_default_import(fullname)
+        runtime.Namespace.add_default_import(ns_name)
 
 
 def hook_imports():
