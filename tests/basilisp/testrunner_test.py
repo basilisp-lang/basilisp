@@ -1,11 +1,9 @@
 import _pytest.pytester as pytester
 
 
-# TODO: fix namespace after importer namespace issue resolved
-# (https://github.com/chrisrink10/basilisp/issues/206)
 def test_testrunner(testdir: pytester.Testdir):
     code = """
-    (ns test_fixture
+    (ns test-fixture
       (:require
        [basilisp.test :refer [deftest is]]))
 

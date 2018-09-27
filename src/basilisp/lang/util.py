@@ -5,7 +5,7 @@ import re
 import uuid
 from decimal import Decimal
 from fractions import Fraction
-from typing import Pattern
+from typing import Pattern, Match
 
 import dateutil.parser as dateparser
 
@@ -71,6 +71,24 @@ def munge(s: str, allow_builtins: bool = False) -> str:
         return f"{new_s}_"
 
     return new_s
+
+
+_DEMUNGE_PATTERN = re.compile(r"(__[A-Z]+__)")
+_DEMUNGE_REPLACEMENTS = {v: k for k, v in _MUNGE_REPLACEMENTS.items()}
+
+
+def demunge(s: str) -> str:
+    """Replace munged string components with their original
+    representation."""
+
+    def demunge_replacer(match: Match) -> str:
+        full_match = match.group(0)
+        replacement = _DEMUNGE_REPLACEMENTS.get(full_match, None)
+        if replacement:
+            return replacement
+        return full_match
+
+    return re.sub(_DEMUNGE_PATTERN, demunge_replacer, s).replace('_', '-')
 
 
 # Use an atomically incremented integer as a suffix for all
