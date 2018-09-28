@@ -10,6 +10,7 @@ from basilisp.lang.collection import Collection
 from basilisp.lang.meta import Meta
 from basilisp.lang.seq import Seqable, sequence, Seq
 from basilisp.lang.util import lrepr
+from basilisp.util import partition
 
 
 class MapEntry:
@@ -121,7 +122,7 @@ class Map(Associative, Collection, Meta, Seqable):
 
     def assoc(self, *kvs) -> "Map":
         m = self._inner.evolver()
-        for k, v in seq(kvs).grouped(2):
+        for k, v in partition(kvs, 2):
             m[k] = v
         return Map(m.persistent())
 
@@ -199,5 +200,5 @@ def from_entries(entries):
 
 
 def hash_map(*pairs) -> Map:
-    entries = seq(pairs).grouped(2).map(lambda v: MapEntry.of(v[0], v[1])).to_list()
+    entries = seq(partition(pairs, 2)).map(lambda v: MapEntry.of(v[0], v[1])).to_list()
     return from_entries(entries)
