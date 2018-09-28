@@ -3,6 +3,7 @@ import importlib
 import readline  # noqa: F401
 import traceback
 import types
+from typing import Any
 
 import click
 import pytest
@@ -28,10 +29,10 @@ def eval_file(filename: str, ctx: compiler.CompilerContext, module: types.Module
     return last
 
 
-def eval_str(s: str, ctx: compiler.CompilerContext, module: types.ModuleType):
+def eval_str(s: str, ctx: compiler.CompilerContext, module: types.ModuleType, eof: Any):
     """Evaluate the forms in a string into a Python module AST node."""
-    last = None
-    for form in reader.read_str(s, resolver=runtime.resolve_alias):
+    last = eof
+    for form in reader.read_str(s, resolver=runtime.resolve_alias, eof=eof):
         last = compiler.compile_and_exec_form(form, ctx, module, source_filename='REPL Input')
     return last
 
@@ -55,6 +56,7 @@ def repl(default_ns):
     repl_module = bootstrap_repl(default_ns)
     ctx = compiler.CompilerContext()
     ns_var = runtime.set_current_ns(default_ns)
+    eof = object()
     while True:
         ns: runtime.Namespace = ns_var.value
         try:
@@ -69,7 +71,9 @@ def repl(default_ns):
             continue
 
         try:
-            result = eval_str(lsrc, ctx, ns.module)
+            result = eval_str(lsrc, ctx, ns.module, eof)
+            if result is eof:
+                continue
             print(compiler.lrepr(result))
             repl_module.mark_repl_result(result)
         except reader.SyntaxError as e:
@@ -97,9 +101,10 @@ def run(file_or_code, code, in_ns):
     ctx = compiler.CompilerContext()
     ns_var = runtime.set_current_ns(in_ns)
     ns: runtime.Namespace = ns_var.value
+    eof = object()
 
     if code:
-        print(compiler.lrepr(eval_str(file_or_code, ctx, ns.module)))
+        print(compiler.lrepr(eval_str(file_or_code, ctx, ns.module, eof)))
     else:
         print(compiler.lrepr(eval_file(file_or_code, ctx, ns.module)))
 

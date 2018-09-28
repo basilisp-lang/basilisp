@@ -172,11 +172,14 @@ class ReaderContext:
                  '_resolve',
                  '_in_anon_fn',
                  '_syntax_quoted',
-                 '_gensym_env')
+                 '_gensym_env',
+                 '_eof')
 
-    def __init__(self, reader: StreamReader,
+    def __init__(self,
+                 reader: StreamReader,
                  resolver: Resolver = None,
-                 data_readers: DataReaders = None) -> None:
+                 data_readers: DataReaders = None,
+                 eof: Any = None) -> None:
         data_readers = Maybe(data_readers).or_else_get(lmap.Map.empty())
         for entry in data_readers:
             if not isinstance(entry.key, symbol.Symbol):
@@ -192,10 +195,15 @@ class ReaderContext:
         self._in_anon_fn: Deque[bool] = collections.deque([])
         self._syntax_quoted: Deque[bool] = collections.deque([])
         self._gensym_env: Deque[GenSymEnvironment] = collections.deque([])
+        self._eof = eof
 
     @property
     def data_readers(self) -> lmap.Map:
         return self._data_readers
+
+    @property
+    def eof(self) -> Any:
+        return self._eof
 
     @property
     def reader(self) -> StreamReader:
@@ -243,7 +251,7 @@ class ReaderContext:
             return False
 
 
-__EOF = 'EOF'
+EOF = 'EOF'
 
 
 def _with_loc(f: W) -> W:
@@ -954,7 +962,7 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
             reader.advance()
             return _read_next(ctx)
         if token == '':
-            return __EOF
+            return ctx.eof
         reader.advance()
 
 
@@ -963,8 +971,8 @@ def _read_next_consuming_comment(ctx: ReaderContext) -> LispForm:
     reader comments completely."""
     while True:
         v = _read_next(ctx)
-        if v is __EOF:
-            return __EOF
+        if v is ctx.eof:
+            return ctx.eof
         if v is COMMENT or isinstance(v, Comment):
             continue
         return v
@@ -1008,12 +1016,16 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
     elif token == '@':
         return _read_deref(ctx)
     elif token == '':
-        return __EOF
+        return ctx.eof
     else:
         raise SyntaxError("Unexpected token '{token}'".format(token=token))
 
 
-def read(stream, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispForm]:
+def read(stream,
+         resolver: Resolver = None,
+         data_readers: DataReaders = None,
+         eof: Any = EOF,
+         is_eof_error: bool = False) -> Iterable[LispForm]:
     """Read the contents of a stream as a Lisp expression.
 
     Callers may optionally specify a namespace resolver, which will be used
@@ -1028,29 +1040,47 @@ def read(stream, resolver: Resolver = None, data_readers: DataReaders = None) ->
 
     The caller is responsible for closing the input stream."""
     reader = StreamReader(stream)
-    ctx = ReaderContext(reader, resolver=resolver, data_readers=data_readers)
+    ctx = ReaderContext(reader, resolver=resolver, data_readers=data_readers, eof=eof)
     while True:
         expr = _read_next(ctx)
-        if expr is __EOF:
+        if expr is ctx.eof:
+            if is_eof_error:
+                raise EOFError
             return
         if expr is COMMENT or isinstance(expr, Comment):
             continue
         yield expr
 
 
-def read_str(s: str, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispForm]:
+def read_str(s: str,
+             resolver: Resolver = None,
+             data_readers: DataReaders = None,
+             eof: Any = None,
+             is_eof_error: bool = False) -> Iterable[LispForm]:
     """Read the contents of a string as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
     basilisp.reader.read."""
     with io.StringIO(s) as buf:
-        yield from read(buf, resolver=resolver, data_readers=data_readers)
+        yield from read(buf,
+                        resolver=resolver,
+                        data_readers=data_readers,
+                        eof=eof,
+                        is_eof_error=is_eof_error)
 
 
-def read_file(filename: str, resolver: Resolver = None, data_readers: DataReaders = None) -> Iterable[LispForm]:
+def read_file(filename: str,
+              resolver: Resolver = None,
+              data_readers: DataReaders = None,
+              eof: Any = None,
+              is_eof_error: bool = False) -> Iterable[LispForm]:
     """Read the contents of a file as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
     basilisp.reader.read."""
     with open(filename) as f:
-        yield from read(f, resolver=resolver, data_readers=data_readers)
+        yield from read(f,
+                        resolver=resolver,
+                        data_readers=data_readers,
+                        eof=eof,
+                        is_eof_error=is_eof_error)

@@ -1012,9 +1012,15 @@
   Note that read-string should not be used to read string input from
   untrusted sources."
   ([s]
-   (read-string {} s))
+   (read-string {:eof :eofthrow} s))
   ([opts s]
-   (first (basilisp.reader/read-str s *resolver* *data-readers*))))
+   (first (basilisp.reader/read-str s
+                                    *resolver*
+                                    *data-readers*
+                                    (:eof opts)
+                                    (if (= (:eof opts) :eofthrow)
+                                      true
+                                      false)))))
 
 (defn read
   "Read the next form from the stream. If no stream is specified, uses
@@ -1029,9 +1035,21 @@
   ([]
    (read *in*))
   ([stream]
-   (read {} stream))
+   (read stream true nil))
   ([opts stream]
-   (first (basilisp.reader/read stream *resolver* *data-readers*))))
+   (first (basilisp.reader/read stream
+                                *resolver*
+                                *data-readers*
+                                (:eof opts)
+                                (if (= (:eof opts) :eofthrow)
+                                  true
+                                  false))))
+  ([stream eof-error? eof-value]
+   (first (basilisp.reader/read stream
+                                *resolver*
+                                *data-readers*
+                                eof-value
+                                eof-error?))))
 
 (defn eval
   "Evaluate a form (not a string) and return its result."

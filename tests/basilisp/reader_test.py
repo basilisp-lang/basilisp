@@ -25,11 +25,14 @@ def ns_var(test_ns: str):
     yield runtime.set_current_ns(test_ns)
 
 
-def read_str_first(s, resolver: reader.Resolver = None, data_readers=None):
+def read_str_first(s: str,
+                   resolver: reader.Resolver = None,
+                   data_readers=None,
+                   is_eof_error: bool = False):
     """Read the first form from the input string. If no form
     is found, return None."""
     try:
-        return next(reader.read_str(s, resolver=resolver, data_readers=data_readers))
+        return next(reader.read_str(s, resolver=resolver, data_readers=data_readers, is_eof_error=is_eof_error))
     except StopIteration:
         return None
 
@@ -677,15 +680,32 @@ def test_invalid_meta_attachment():
 
 
 def test_comment_reader_macro():
-    assert None is read_str_first('#_       (a list)')
-    assert None is read_str_first('#_1')
-    assert None is read_str_first('#_"string"')
-    assert None is read_str_first('#_:keyword')
-    assert None is read_str_first('#_symbol')
-    assert None is read_str_first('#_[]')
-    assert None is read_str_first('#_{}')
-    assert None is read_str_first('#_()')
-    assert None is read_str_first('#_#{}')
+    with pytest.raises(EOFError):
+        read_str_first('#_       (a list)', is_eof_error=True)
+
+    with pytest.raises(EOFError):
+        read_str_first('#_1', is_eof_error=True)
+
+    with pytest.raises(EOFError):
+        read_str_first('#_"string"', is_eof_error=True)
+
+    with pytest.raises(EOFError):
+        read_str_first('#_:keyword', is_eof_error=True)
+
+    with pytest.raises(EOFError):
+        read_str_first('#_symbol', is_eof_error=True)
+
+    with pytest.raises(EOFError):
+        read_str_first('#_[]', is_eof_error=True)
+
+    with pytest.raises(EOFError):
+        read_str_first('#_{}', is_eof_error=True)
+
+    with pytest.raises(EOFError):
+        read_str_first('#_()', is_eof_error=True)
+
+    with pytest.raises(EOFError):
+        read_str_first('#_#{}', is_eof_error=True)
 
     assert kw.keyword('kw2') == read_str_first('#_:kw1 :kw2')
 
@@ -719,11 +739,12 @@ def test_comment_reader_macro():
 
 
 def test_comment_line():
-    assert read_str_first("; I'm a little comment short and stout") is None
-    assert read_str_first(";; :kw1\n:kw2") == kw.keyword('kw2')
-    assert read_str_first(""";; Comment
+    assert None is read_str_first("; I'm a little comment short and stout")
+    assert kw.keyword('kw2') == read_str_first(";; :kw1\n:kw2")
+    assert llist.l(sym.symbol('form'), kw.keyword('keyword')) == read_str_first(
+        """;; Comment
         (form :keyword)
-        """) == llist.l(sym.symbol('form'), kw.keyword('keyword'))
+        """)
 
 
 def test_function_reader_macro():
