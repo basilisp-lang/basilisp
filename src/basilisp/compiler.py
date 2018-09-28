@@ -33,7 +33,7 @@ import basilisp.reader as reader
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
-from basilisp.util import Maybe
+from basilisp.util import Maybe, partition
 
 USE_VAR_INDIRECTION = 'use_var_indirection'
 
@@ -621,7 +621,7 @@ def _assert_recur_is_tail(ctx: CompilerContext, form: lseq.Seq) -> None:  # noqa
                 except IndexError:
                     pass
             elif child.first == _LET:
-                for binding, val in seq(runtime.nth(child, 1)).grouped(2):
+                for binding, val in partition(runtime.nth(child, 1), 2):
                     _assert_no_recur(ctx, lseq.sequence([binding]))
                     _assert_no_recur(ctx, lseq.sequence([val]))
                 let_body = runtime.nthnext(child, 2)
@@ -1048,9 +1048,9 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:  # pylint:dis
     # the variable names, which become Python locals in an expression context (which
     # is a subtly different Python AST node); and the computed expressions.
     st = ctx.symbol_table
-    bindings = seq(form[1]).grouped(2)
+    bindings = list(partition(form[1], 2))
 
-    if bindings.empty():
+    if not bindings:
         raise CompilerException("Expected at least one binding in 'let*'") from None
 
     arg_syms: Dict[
