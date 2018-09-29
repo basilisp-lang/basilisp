@@ -965,7 +965,7 @@ def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
 def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST node for Python interop method calls."""
-    assert form[0] == _INTEROP_CALL
+    assert form.first == _INTEROP_CALL
     assert form[1] is not None
     assert isinstance(form[2], sym.Symbol)
     assert form[2] is not None
@@ -987,7 +987,7 @@ def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
 def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST node for Python interop property access."""
-    assert form[0] == _INTEROP_PROP
+    assert form.first == _INTEROP_PROP
     assert form[1] is not None
     assert isinstance(form[2], sym.Symbol)
     assert form[2].ns is None
@@ -1020,7 +1020,7 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:  # pylint:dis
 
         let_32(a_36, b_37, c_38)  #=> {:length 1}
     """
-    assert form[0] == _LET
+    assert form.first == _LET
     assert isinstance(form[1], vec.Vector)
     assert len(form) >= 3
 

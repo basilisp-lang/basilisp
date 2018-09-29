@@ -1385,14 +1385,14 @@
                       body)
         dispatch-fn (first body)
         opts        (apply hash-map (rest body))]
-    `(def ~name (basilisp.lang.multifn/MultiFunction ~name
+    `(def ~name (basilisp.lang.multifn/MultiFunction ~(quote name)
                                                      ~dispatch-fn
-                                                     (or (:default opts) :default)))))
+                                                     ~(or (:default opts) :default)))))
 
 (defmacro defmethod
   "Add a new method to the multi-function which responds to dispatch-val."
   [multifn dispatch-val & fn-tail]
-  `(.add-method multi-fn dispatch-val (fn ~@fn-tail)))
+  `(. ~multifn ~'add-method ~dispatch-val (fn ~@fn-tail)))
 
 (defn methods
   "Return a map of dispatch values to methods for the given multi function."
@@ -1414,6 +1414,6 @@
 
 (defn remove-all-methods
   "Remove all method for this multi-function. Return the multi function."
-  [multifn dispatch-val]
+  [multifn]
   (.remove-all-methods multifn)
   multifn)
