@@ -45,9 +45,10 @@ def test_ns() -> str:
 
 
 @pytest.fixture
-def ns_var(test_ns: str):
+def ns(test_ns: str) -> runtime.Namespace:
     runtime.init_ns_var(which_ns=runtime._CORE_NS)
-    yield runtime.set_current_ns(test_ns)
+    with runtime.ns_bindings(test_ns) as ns:
+        yield ns
 
 
 @pytest.fixture
@@ -156,8 +157,8 @@ def test_vec():
     assert lcompile("[:a 1]") == vec.v(kw.keyword("a"), 1)
 
 
-def test_def(ns_var: Var):
-    ns_name = ns_var.value.name
+def test_def(ns: runtime.Namespace):
+    ns_name = ns.name
     assert lcompile("(def a :some-val)") == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('a'))
     assert lcompile('(def beep "a sound a robot makes")') == Var.find_in_ns(
@@ -166,7 +167,7 @@ def test_def(ns_var: Var):
     assert lcompile("beep") == "a sound a robot makes"
 
 
-def test_def_dynamic(ns_var: Var):
+def test_def_dynamic(ns: runtime.Namespace):
     v: Var = lcompile("(def ^:dynamic *a-dynamic-var* 1)")
     assert v.dynamic is True
     lcompile("(.push-bindings #'*a-dynamic-var* :hi)")
@@ -182,24 +183,24 @@ def test_def_dynamic(ns_var: Var):
     assert 1 == lcompile("a-regular-var")
 
 
-def test_do(ns_var: Var):
+def test_do(ns: runtime.Namespace):
     code = """
     (do
       (def first-name :Darth)
       (def last-name "Vader"))
     """
-    ns_name = ns_var.value.name
+    ns_name = ns.name
     assert lcompile(code) == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('last-name'))
     assert lcompile("first-name") == kw.keyword("Darth")
     assert lcompile("last-name") == "Vader"
 
 
-def test_single_arity_fn(ns_var: Var):
+def test_single_arity_fn(ns: runtime.Namespace):
     code = """
     (def string-upper (fn* string-upper [s] (.upper s)))
     """
-    ns_name = ns_var.value.name
+    ns_name = ns.name
     fvar = lcompile(code)
     assert fvar == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('string-upper'))
@@ -209,7 +210,7 @@ def test_single_arity_fn(ns_var: Var):
     code = """
     (def string-upper (fn* string-upper ([s] (.upper s))))
     """
-    ns_name = ns_var.value.name
+    ns_name = ns.name
     fvar = lcompile(code)
     assert fvar == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('string-upper'))
@@ -219,7 +220,7 @@ def test_single_arity_fn(ns_var: Var):
     code = """
     (def string-lower #(.lower %))
     """
-    ns_name = ns_var.value.name
+    ns_name = ns.name
     fvar = lcompile(code)
     assert fvar == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('string-lower'))
@@ -227,7 +228,7 @@ def test_single_arity_fn(ns_var: Var):
     assert fvar.value("UPPER") == "upper"
 
 
-def test_multi_arity_fn(ns_var: Var):
+def test_multi_arity_fn(ns: runtime.Namespace):
     with pytest.raises(compiler.CompilerException):
         lcompile('(fn f)')
 
@@ -262,7 +263,7 @@ def test_multi_arity_fn(ns_var: Var):
         ([s] s)
         ([s & args] (concat [s] args))))
     """
-    ns_name = ns_var.value.name
+    ns_name = ns.name
     fvar = lcompile(code)
     assert fvar == Var.find_in_ns(
         sym.symbol(ns_name), sym.symbol('multi-fn'))
@@ -279,12 +280,12 @@ def test_multi_arity_fn(ns_var: Var):
                 ([i] i)
                 ([i j] (concat [i] [j]))))
             """
-        ns_name = ns_var.value.name
+        ns_name = ns.name
         fvar = lcompile(code)
         fvar.value(1, 2, 3)
 
 
-def test_fn_call(ns_var: Var):
+def test_fn_call(ns: runtime.Namespace):
     code = """
     (def string-upper (fn* [s] (.upper s)))
 
@@ -302,11 +303,11 @@ def test_fn_call(ns_var: Var):
     assert fvar == "bleep"
 
 
-def test_macro_expansion(ns_var: Var):
+def test_macro_expansion(ns: runtime.Namespace):
     assert llist.l(1, 2, 3) == lcompile("((fn [] '(1 2 3)))")
 
 
-def test_if(ns_var: Var):
+def test_if(ns: runtime.Namespace):
     assert lcompile("(if true :a :b)") == kw.keyword("a")
     assert lcompile("(if false :a :b)") == kw.keyword("b")
     assert lcompile("(if nil :a :b)") == kw.keyword("b")
@@ -320,7 +321,7 @@ def test_if(ns_var: Var):
     assert "YELLING" == lcompile(code)
 
 
-def test_truthiness(ns_var: Var):
+def test_truthiness(ns: runtime.Namespace):
     # Valid false values
     assert kw.keyword("b") == lcompile("(if false :a :b)")
     assert kw.keyword("b") == lcompile("(if nil :a :b)")
@@ -365,7 +366,7 @@ def test_truthiness(ns_var: Var):
     assert kw.keyword("a") == lcompile("(if #{true} :a :b)")
 
 
-def test_interop_new(ns_var: Var):
+def test_interop_new(ns: runtime.Namespace):
     assert "hi" == lcompile('(builtins.str. "hi")')
     assert "1" == lcompile('(builtins.str. 1)')
     assert sym.symbol('hi') == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
@@ -374,13 +375,13 @@ def test_interop_new(ns_var: Var):
         lcompile('(builtins.str "hi")')
 
 
-def test_interop_call(ns_var: Var):
+def test_interop_call(ns: runtime.Namespace):
     assert lcompile('(. "ALL-UPPER" lower)') == "all-upper"
     assert lcompile('(.upper "lower-string")') == "LOWER-STRING"
     assert lcompile('(.strip "www.example.com" "cmowz.")') == "example"
 
 
-def test_interop_prop(ns_var: Var):
+def test_interop_prop(ns: runtime.Namespace):
     assert lcompile("(.-ns 'some.ns/sym)") == "some.ns"
     assert lcompile("(. 'some.ns/sym -ns)") == "some.ns"
     assert lcompile("(.-name 'some.ns/sym)") == "sym"
@@ -390,7 +391,7 @@ def test_interop_prop(ns_var: Var):
         lcompile("(.-fake 'some.ns/sym)")
 
 
-def test_let(ns_var: Var):
+def test_let(ns: runtime.Namespace):
     assert lcompile("(let* [a 1] a)") == 1
     assert lcompile("(let* [a :keyword b \"string\"] a)") == kw.keyword('keyword')
     assert lcompile("(let* [a :value b a] b)") == kw.keyword('value')
@@ -405,7 +406,7 @@ def test_let(ns_var: Var):
         lcompile("(let* [] \"string\")")
 
 
-def test_let_lazy_evaluation(ns_var: Var):
+def test_let_lazy_evaluation(ns: runtime.Namespace):
     code = """
     (if false
       (let [n  (.-name :value)
@@ -416,7 +417,7 @@ def test_let_lazy_evaluation(ns_var: Var):
     assert kw.keyword("false") == lcompile(code)
 
 
-def test_quoted_list(ns_var: Var):
+def test_quoted_list(ns: runtime.Namespace):
     assert lcompile("'()") == llist.l()
     assert lcompile("'(str)") == llist.l(sym.symbol('str'))
     assert lcompile("'(str 3)") == llist.l(sym.symbol('str'), 3)
@@ -424,7 +425,7 @@ def test_quoted_list(ns_var: Var):
         sym.symbol('str'), 3, kw.keyword("feet-deep"))
 
 
-def test_recur(ns_var: Var):
+def test_recur(ns: runtime.Namespace):
     code = """
     (def last
       (fn [s]
@@ -473,7 +474,7 @@ def test_recur(ns_var: Var):
     assert "3ba" == lcompile("(rev-str \"a\" :b 3)")
 
 
-def test_recur_arity(ns_var: Var):
+def test_recur_arity(ns: runtime.Namespace):
     # Single arity function
     code = """
     (def ++
@@ -512,7 +513,7 @@ def test_recur_arity(ns_var: Var):
     assert 15 == lcompile("(+++ 1 2 3 4 5)")
 
 
-def test_disallow_recur_in_special_forms(ns_var: Var):
+def test_disallow_recur_in_special_forms(ns: runtime.Namespace):
     with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (def b (recur \"a\")))")
 
@@ -532,7 +533,7 @@ def test_disallow_recur_in_special_forms(ns_var: Var):
         lcompile("(fn [a] (var (recur \"a\"))))")
 
 
-def test_disallow_recur_outside_tail(ns_var: Var):
+def test_disallow_recur_outside_tail(ns: runtime.Namespace):
     with pytest.raises(compiler.CompilerException):
         lcompile("(recur)")
 
@@ -576,7 +577,7 @@ def test_disallow_recur_outside_tail(ns_var: Var):
         lcompile("(fn [a] (try :b (finally (do (recur :a) :c))))")
 
 
-def test_named_anonymous_fn_recursion(ns_var: Var):
+def test_named_anonymous_fn_recursion(ns: runtime.Namespace):
     code = """
     (let [compute-sum (fn sum [n]
                         (if (operator/eq 0 n)
@@ -598,7 +599,7 @@ def test_named_anonymous_fn_recursion(ns_var: Var):
     assert 15 == lcompile(code)
 
 
-def test_syntax_quoting(test_ns: str, ns_var: Var, resolver: reader.Resolver):
+def test_syntax_quoting(test_ns: str, ns: runtime.Namespace, resolver: reader.Resolver):
     code = """
     (def some-val \"some value!\")
 
@@ -628,7 +629,7 @@ def test_syntax_quoting(test_ns: str, ns_var: Var, resolver: reader.Resolver):
     assert llist.l(sym.symbol('my-symbol', ns=test_ns)) == lcompile("`(my-symbol)", resolver)
 
 
-def test_throw(ns_var):
+def test_throw(ns: runtime.Namespace):
     with pytest.raises(AttributeError):
         lcompile("(throw (builtins/AttributeError))")
 
@@ -639,7 +640,7 @@ def test_throw(ns_var):
         lcompile("(throw (builtins/ValueError))")
 
 
-def test_try_catch(capsys, ns_var):
+def test_try_catch(capsys, ns: runtime.Namespace):
     code = """
       (try
         (.fake-lower "UPPER")
@@ -670,7 +671,7 @@ def test_try_catch(capsys, ns_var):
     assert "neither\n" == captured.out
 
 
-def test_unquote(ns_var: Var):
+def test_unquote(ns: runtime.Namespace):
     with pytest.raises(runtime.RuntimeException):
         lcompile("~s")
 
@@ -680,7 +681,7 @@ def test_unquote(ns_var: Var):
         lcompile("`(~s)")
 
 
-def test_unquote_splicing(ns_var: Var, resolver: reader.Resolver):
+def test_unquote_splicing(ns: runtime.Namespace, resolver: reader.Resolver):
     with pytest.raises(TypeError):
         lcompile("~@[1 2 3]")
 
@@ -692,31 +693,31 @@ def test_unquote_splicing(ns_var: Var, resolver: reader.Resolver):
     assert llist.l(llist.l(reader._UNQUOTE_SPLICING, 53233)) == lcompile("'(~@53233)")
 
 
-def test_aliased_macro_symbol_resolution(ns_var: Var):
-    current_ns: runtime.Namespace = ns_var.value
+def test_aliased_macro_symbol_resolution(ns: runtime.Namespace):
+    current_ns: runtime.Namespace = ns
     other_ns_name = sym.symbol('other.ns')
     try:
         other_ns = runtime.Namespace.get_or_create(other_ns_name)
         current_ns.add_alias(other_ns_name, other_ns)
         current_ns.add_alias(sym.symbol('other'), other_ns)
 
-        runtime.set_current_ns(other_ns_name.name)
-        lcompile("(def ^:macro m (fn* [&form v] v))")
+        with runtime.ns_bindings(other_ns_name.name):
+            lcompile("(def ^:macro m (fn* [&form v] v))")
 
-        runtime.set_current_ns(current_ns.name)
-        assert kw.keyword("z") == lcompile("(other.ns/m :z)")
-        assert kw.keyword("a") == lcompile("(other/m :a)")
+        with runtime.ns_bindings(current_ns.name):
+            assert kw.keyword("z") == lcompile("(other.ns/m :z)")
+            assert kw.keyword("a") == lcompile("(other/m :a)")
     finally:
         runtime.Namespace.remove(other_ns_name)
 
 
-def test_var(ns_var: Var):
+def test_var(ns: runtime.Namespace):
     code = """
     (def some-var "a value")
 
     (var test/some-var)"""
 
-    ns_name = ns_var.value.name
+    ns_name = ns.name
     v = lcompile(code)
     assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
     assert v.value == "a value"
@@ -726,25 +727,25 @@ def test_var(ns_var: Var):
 
     #'test/some-var"""
 
-    ns_name = ns_var.value.name
+    ns_name = ns.name
     v = lcompile(code)
     assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
     assert v.value == "a value"
 
 
-def test_fraction(ns_var: Var):
+def test_fraction(ns: runtime.Namespace):
     assert Fraction('22/7') == lcompile('22/7')
 
 
-def test_inst(ns_var: Var):
+def test_inst(ns: runtime.Namespace):
     assert dateparser.parse('2018-01-18T03:26:57.296-00:00') == lcompile(
         '#inst "2018-01-18T03:26:57.296-00:00"')
 
 
-def test_regex(ns_var: Var):
+def test_regex(ns: runtime.Namespace):
     assert lcompile(r'#"\s"') == re.compile(r'\s')
 
 
-def test_uuid(ns_var: Var):
+def test_uuid(ns: runtime.Namespace):
     assert uuid.UUID('{0366f074-a8c5-4764-b340-6a5576afd2e8}') == lcompile(
         '#uuid "0366f074-a8c5-4764-b340-6a5576afd2e8"')

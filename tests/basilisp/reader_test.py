@@ -11,7 +11,6 @@ import basilisp.lang.symbol as sym
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vec
 import basilisp.reader as reader
-from basilisp.lang.runtime import Var
 
 
 @pytest.fixture
@@ -20,9 +19,10 @@ def test_ns() -> str:
 
 
 @pytest.fixture
-def ns_var(test_ns: str):
+def ns(test_ns: str) -> runtime.Namespace:
     runtime.init_ns_var(which_ns=runtime._CORE_NS)
-    yield runtime.set_current_ns(test_ns)
+    with runtime.ns_bindings(test_ns) as ns:
+        yield ns
 
 
 def read_str_first(s: str,
@@ -412,7 +412,7 @@ def test_quoted():
         sym.symbol('quote'), llist.l(sym.symbol('def'), sym.symbol('a'), 3))
 
 
-def test_syntax_quoted(test_ns: str, ns_var: Var):
+def test_syntax_quoted(test_ns: str, ns: runtime.Namespace):
     resolver = lambda s: sym.symbol(s.name, ns='test-ns')
     assert llist.l(reader._SEQ,
                    llist.l(reader._CONCAT,

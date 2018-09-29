@@ -40,10 +40,11 @@ def test_demunged_import(testdir: pytester.Testdir):
             """
             module.write(code)
 
-        with patch('sys.path', new=[tmpdir]), \
-             patch('sys.meta_path', new=[importer.BasilispImporter()]):
-            importlib.import_module('long__AMP__namespace_name__PLUS__with___LT__punctuation__GT__')
+        with runtime.remove_ns_bindings():
+            with patch('sys.path', new=[tmpdir]), \
+                 patch('sys.meta_path', new=[importer.BasilispImporter()]):
+                importlib.import_module('long__AMP__namespace_name__PLUS__with___LT__punctuation__GT__')
 
-        assert runtime.Namespace.get(sym.symbol('long&namespace-name+with-<punctuation>')) is not None
-        assert runtime.Namespace.get(
-            sym.symbol('long__AMP__namespace_name__PLUS__with___LT__punctuation__GT__')) is None
+            assert runtime.Namespace.get(sym.symbol('long&namespace-name+with-<punctuation>')) is not None
+            assert runtime.Namespace.get(
+                sym.symbol('long__AMP__namespace_name__PLUS__with___LT__punctuation__GT__')) is None

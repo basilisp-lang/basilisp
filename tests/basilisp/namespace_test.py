@@ -170,7 +170,8 @@ def other_ns(core_map: sym.Symbol,
     private_var.value = core_private_val
     core_ns.intern(core_private, private_var)
 
-    yield runtime.set_current_ns(test_ns).value
+    with runtime.ns_bindings(test_ns) as ns:
+        yield ns
 
 
 def test_refer_core(core_ns_sym: sym.Symbol,
