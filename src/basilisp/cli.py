@@ -99,14 +99,13 @@ def run(file_or_code, code, in_ns):
     """Run a Basilisp script or a line of code, if it is provided."""
     basilisp.init()
     ctx = compiler.CompilerContext()
-    ns_var = runtime.set_current_ns(in_ns)
-    ns: runtime.Namespace = ns_var.value
     eof = object()
 
-    if code:
-        print(compiler.lrepr(eval_str(file_or_code, ctx, ns.module, eof)))
-    else:
-        print(compiler.lrepr(eval_file(file_or_code, ctx, ns.module)))
+    with runtime.ns_bindings(in_ns) as ns:
+        if code:
+            print(compiler.lrepr(eval_str(file_or_code, ctx, ns.module, eof)))
+        else:
+            print(compiler.lrepr(eval_file(file_or_code, ctx, ns.module)))
 
 
 @cli.command(short_help='run tests in a Basilisp project')

@@ -1,3 +1,4 @@
+import contextlib
 import functools
 import importlib
 import itertools
@@ -753,6 +754,37 @@ def set_current_ns(ns_name: str,
         .or_else_raise(lambda: RuntimeException(f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"))
     ns_var.push_bindings(ns)
     return ns_var
+
+
+@contextlib.contextmanager
+def ns_bindings(ns_name: str,
+                module: types.ModuleType = None,
+                ns_var_name: str = _NS_VAR_NAME,
+                ns_var_ns: str = _NS_VAR_NS):
+    """Context manager for temporarily changing the value of basilisp.core/*ns*."""
+    symbol = sym.Symbol(ns_name)
+    ns = Namespace.get_or_create(symbol, module=module)
+    ns_var = Maybe(Var.find(sym.Symbol(ns_var_name, ns=ns_var_ns))) \
+        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"))
+
+    try:
+        ns_var.push_bindings(ns)
+        yield ns_var.value
+    finally:
+        ns_var.pop_bindings()
+
+
+@contextlib.contextmanager
+def remove_ns_bindings(ns_var_name: str = _NS_VAR_NAME,
+                       ns_var_ns: str = _NS_VAR_NS):
+    """Context manager to pop the most recent bindings for basilisp.core/*ns* after
+    completion of the code under management."""
+    ns_var = Maybe(Var.find(sym.Symbol(ns_var_name, ns=ns_var_ns))) \
+        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"))
+    try:
+        yield
+    finally:
+        ns_var.pop_bindings()
 
 
 def get_current_ns(ns_var_name: str = _NS_VAR_NAME,

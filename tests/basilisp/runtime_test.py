@@ -260,20 +260,20 @@ def test_resolve_alias(core_ns):
 
     ns_name = 'resolve-test'
     ns_sym = sym.symbol(ns_name)
-    ns: runtime.Namespace = runtime.set_current_ns(ns_name).value
 
-    runtime.Var.intern(ns_sym, sym.symbol('existing-var'), None)
-    assert sym.symbol('existing-var', ns=ns_name) == runtime.resolve_alias(
-        sym.symbol('existing-var'), ns=ns)
+    with runtime.ns_bindings(ns_name) as ns:
+        runtime.Var.intern(ns_sym, sym.symbol('existing-var'), None)
+        assert sym.symbol('existing-var', ns=ns_name) == runtime.resolve_alias(
+            sym.symbol('existing-var'), ns=ns)
 
-    assert sym.symbol('non-existent-var', ns=ns_name) == runtime.resolve_alias(
-        sym.symbol('non-existent-var'), ns=ns)
+        assert sym.symbol('non-existent-var', ns=ns_name) == runtime.resolve_alias(
+            sym.symbol('non-existent-var'), ns=ns)
 
-    foo_ns_sym = sym.symbol('zux.bar.foo')
-    foo_ns = runtime.Namespace.get_or_create(foo_ns_sym)
-    ns.add_alias(sym.symbol('foo'), foo_ns)
-    assert sym.symbol('aliased-var', ns=foo_ns_sym.name) == runtime.resolve_alias(
-        sym.symbol('aliased-var', ns='foo'), ns=ns)
+        foo_ns_sym = sym.symbol('zux.bar.foo')
+        foo_ns = runtime.Namespace.get_or_create(foo_ns_sym)
+        ns.add_alias(sym.symbol('foo'), foo_ns)
+        assert sym.symbol('aliased-var', ns=foo_ns_sym.name) == runtime.resolve_alias(
+            sym.symbol('aliased-var', ns='foo'), ns=ns)
 
-    assert sym.symbol('non-existent-alias-var', ns='wee.woo') == runtime.resolve_alias(
-        sym.symbol('non-existent-alias-var', ns='wee.woo'), ns=ns)
+        assert sym.symbol('non-existent-alias-var', ns='wee.woo') == runtime.resolve_alias(
+            sym.symbol('non-existent-alias-var', ns='wee.woo'), ns=ns)
