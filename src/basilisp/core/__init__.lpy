@@ -1414,6 +1414,6 @@
 
 (defn remove-all-methods
   "Remove all method for this multi-function. Return the multi function."
-  [multifn dispatch-val]
+  [multifn]
   (.remove-all-methods multifn)
   multifn)

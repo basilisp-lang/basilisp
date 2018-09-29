@@ -22,7 +22,25 @@
   "BLAH")
 
 (deftest test-multi-functions
-  (is (= "1" (test-fn "i")))
-  (is (= "2" (test-fn "ii")))
-  (is (= "BLAH" (test-fn "iii")))
-  (is (= "BLAH" (test-fn "other"))))
+  (testing "multi method usage"
+    (is (= "1" (test-fn "i")))
+    (is (= "2" (test-fn "ii")))
+    (is (= "BLAH" (test-fn "iii")))
+    (is (= "BLAH" (test-fn "other"))))
+
+  (testing "multi-method generic assertions"
+    (is (map? (methods test-fn)))
+    (is (seq (methods test-fn))))
+
+  (testing "multi method usage after removal"
+    (remove-method test-fn :b)
+
+    (is (= "1" (test-fn "i")))
+    (is (= "BLAH" (test-fn "ii")))
+    (is (= "BLAH" (test-fn "iii")))
+    (is (= "BLAH" (test-fn "other"))))
+
+  (testing "removing all methods"
+    (remove-all-methods test-fn)
+
+    (is (not (seq (methods test-fn))))))
