@@ -962,14 +962,14 @@
         val  (second bindings)]
     `(try
        (do
-         (.push-bindings (var ~vvar) ~val)
+         (. (var ~vvar) ~'push-bindings ~val)
          ~@(if (nthnext bindings 2)
              [(concat
                (list 'binding (vec (nthrest bindings 2)))
                body)]
              body))
        (finally
-         (.pop-bindings (var ~vvar))))))
+         (. (var ~vvar) ~'pop-bindings)))))
 
 (def ^:dynamic *in* sys/stdin)
 (def ^:dynamic *out* sys/stdout)

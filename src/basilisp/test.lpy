@@ -8,7 +8,7 @@
 
 (defn ^:private add-test!
   "Add the test named by test-var to the test suite for ns."
-  [ns test-var]
+  [test-var]
   (swap! collected-tests conj test-var))
 
 (defmacro is
@@ -62,15 +62,17 @@
   runner using Basilisp's builtin PyTest hook."
   [name-sym & body]
   (let [test-name-sym (with-meta name-sym {:test true})
-        test-name-str (name test-name-sym)]
+        test-name-str (name test-name-sym)
+        test-ns-name  `(quote ~(symbol (name *ns*)))]
     `(do
        (defn ~test-name-sym
          []
-         (let [~'test-name    ~test-name-str
-               ~'test-section nil
-               ~'failures     (atom [])]
-           ~@body
-           {:failures (deref ~'failures)}))
+         (binding [*ns* (the-ns ~test-ns-name)]
+           (let [~'test-name    ~test-name-str
+                 ~'test-section nil
+                 ~'failures     (atom [])]
+             ~@body
+             {:failures (deref ~'failures)})))
 
-       (add-test! *ns* (var ~test-name-sym))
-       (reset! current-ns *ns*))))
+       (add-test! (var ~test-name-sym))
+       (reset! current-ns (the-ns ~test-ns-name)))))
