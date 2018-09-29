@@ -373,14 +373,17 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
     if whitespace_chars.match(token):
         instance = _read_next_consuming_comment(ctx)
         member = _read_next_consuming_comment(ctx)
-        if not isinstance(member, symbol.Symbol):
-            raise SyntaxError(f"Expected Symbol; found {type(member)}")
-        is_property = member.name.startswith('-')
-        if is_property:
+
+        # There are cases (particularly with macros) where we may
+        # not have a symbol in this spot. In those cases, we need
+        # to expect the author used the correct form in the first
+        # place.
+        if isinstance(member, symbol.Symbol) and member.name.startswith('-'):
             seq.append(_INTEROP_PROP)
             member = symbol.symbol(member.name[1:])
         else:
             seq.append(_INTEROP_CALL)
+
         seq.append(instance)
         seq.append(member)
     elif token == '-':
