@@ -21,10 +21,9 @@ class MultiFunction(Generic[T]):
 
     def __call__(self, *args, **kwargs):
         key = self._dispatch(*args, **kwargs)
-        method = self.methods.entry(key, None)
-        if method:
-            return method(*args, **kwargs)
-        method = self.methods.entry(self._default, None)
+        method_cache = self.methods
+        method = Maybe(method_cache.entry(key, None)).or_else(
+            lambda: method_cache.entry(self._default, None))
         if method:
             return method(*args, **kwargs)
         raise NotImplementedError
