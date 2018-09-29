@@ -560,14 +560,18 @@ def test_var():
 
 
 def test_interop_call():
-    assert read_str_first('(. "STRING" lower)') == llist.l(
-        sym.symbol('.'), "STRING", sym.symbol('lower'))
-    assert read_str_first('(.lower "STRING")') == llist.l(
-        sym.symbol('.'), "STRING", sym.symbol('lower'))
-    assert read_str_first('(.split "www.google.com" ".")') == llist.l(
-        sym.symbol('.'), "www.google.com", sym.symbol('split'), ".")
-    assert read_str_first('(. "www.google.com" split ".")') == llist.l(
-        sym.symbol('.'), "www.google.com", sym.symbol('split'), ".")
+    assert llist.l(sym.symbol('.'), "STRING", sym.symbol('lower')) == read_str_first(
+        '(. "STRING" lower)')
+    assert llist.l(sym.symbol('.'), "STRING", sym.symbol('lower')) == read_str_first(
+        '(.lower "STRING")')
+    assert llist.l(sym.symbol('.'), "www.google.com", sym.symbol('split'), ".") == read_str_first(
+        '(.split "www.google.com" ".")')
+    assert llist.l(sym.symbol('.'), "www.google.com", sym.symbol('split'), ".") == read_str_first(
+        '(. "www.google.com" split ".")')
+
+    assert llist.l(sym.symbol('.'), sym.symbol('obj'), llist.l(
+        sym.symbol('unquote'), llist.l(sym.symbol('quote'), sym.symbol('method')))) == read_str_first(
+        '(. obj (unquote (quote method)))')
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('(."non-symbol" symbol)')
