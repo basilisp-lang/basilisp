@@ -1066,7 +1066,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn the-ns
-  "Get the Namespace named by ns-sym."
+  "If v is a symbol, return the Namespace named by that symbol if it
+  exists. If v is a Namespace, return it. Otherwise, throw an exception."
   [v]
   (cond
     (symbol? v)
