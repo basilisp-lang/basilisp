@@ -1065,8 +1065,26 @@
 ;; Namespace Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn ^:private get-namespace
-  "Get the Namespace named by ns-sym."
+(defn the-ns
+  "If v is a symbol, return the Namespace named by that symbol if it
+  exists. If v is a Namespace, return it. Otherwise, throw an exception."
+  [v]
+  (cond
+    (symbol? v)
+    (.get basilisp.lang.runtime/Namespace v)
+
+    (instance? basilisp.lang.runtime/Namespace v)
+    v
+
+    :else
+    (throw
+     (ex-info "Expected a Symbol or a Namespace"
+              {:value v
+               :type  (builtins/type v)}))))
+
+(defn create-ns
+  "Create a Namespace with the name ns-sym or return the existing one
+  if it already exists."
   [ns-sym]
   (.get-or-create basilisp.lang.runtime/Namespace ns-sym))
 
@@ -1152,7 +1170,7 @@
   - :rename {sym1 new-sym1}, to rename all the specified symbols to the given new name"
   [ns-sym & filters]
   (let [current-ns *ns*
-        ns         (get-namespace ns-sym)
+        ns         (the-ns ns-sym)
         filter-map (apply hash-map filters)]
     (if-not (seq filters)
       (.refer-all current-ns ns)
@@ -1205,7 +1223,7 @@
   (let [ns-sym (first v)
         opts   (apply hash-map (rest v))]
     (importlib/import-module (name ns-sym))
-    (let [new-ns (get-namespace ns-sym)]
+    (let [new-ns (the-ns ns-sym)]
       ;; Add the namespace alias
       (.add-alias current-ns (or (:as opts) ns-sym) new-ns)
 
