@@ -11,6 +11,10 @@
   [test-var]
   (swap! collected-tests conj test-var))
 
+(def ^:dynamic *test-name* nil)
+(def ^:dynamic *test-section* nil)
+(def ^:dynamic *test-failures* nil)
+
 (defmacro is
   "Assert that expr is true. Must appear inside of a deftest form."
   ([expr]
@@ -32,13 +36,13 @@
             actual#   ~actual
             expected# ~expected]
         (when-not computed#
-          ;; Collect test failures in the `failures` atom created
-          ;; by `deftest`.
-          (swap! ~'failures
+          ;; Collect test failures in the atom bound to
+          ;; `*test-failures*` by `deftest`.
+          (swap! *test-failures*
                  conj
                  [~msg
-                  {:test-name    ~'test-name
-                   :test-section ~'test-section
+                  {:test-name    *test-name*
+                   :test-section *test-section*
                    :expr         (quote ~expr)
                    :line         ~line-no
                    :actual       actual#
@@ -49,9 +53,9 @@
   around the test or group of tests contained inside. Must appear inside
   of a deftest form."
   [msg & body]
-  `(let [~'test-section (if ~'test-section
-                          (str ~'test-section " :: " ~msg)
-                          ~msg)]
+  `(binding [*test-section* (if *test-section*
+                              (str *test-section* " :: " ~msg)
+                              ~msg)]
      ~@body))
 
 (defmacro deftest
@@ -67,12 +71,12 @@
     `(do
        (defn ~test-name-sym
          []
-         (binding [*ns* (the-ns ~test-ns-name)]
-           (let [~'test-name    ~test-name-str
-                 ~'test-section nil
-                 ~'failures     (atom [])]
-             ~@body
-             {:failures (deref ~'failures)})))
+         (binding [*ns*            (the-ns ~test-ns-name)
+                   *test-name*     ~test-name-str
+                   *test-section*  nil
+                   *test-failures* (atom [])]
+           ~@body
+           {:failures (deref *test-failures*)}))
 
        (add-test! (var ~test-name-sym))
        (reset! current-ns (the-ns ~test-ns-name)))))
