@@ -1,0 +1,28 @@
+(ns basilisp.multifn-test
+  (:require
+   [basilisp.test :refer [deftest is testing]]))
+
+(defmulti test-fn
+  (fn [v]
+    (cond
+      (= v "i")  :a
+      (= v "ii") :b
+      :else      :default)))
+
+(defmethod test-fn :a
+  [_]
+  "1")
+
+(defmethod test-fn :b
+  [_]
+  "2")
+
+(defmethod test-fn :default
+  [_]
+  "BLAH")
+
+(deftest test-multi-functions
+  (is (= "1" (test-fn "i")))
+  (is (= "2" (test-fn "ii")))
+  (is (= "BLAH" (test-fn "iii")))
+  (is (= "BLAH" (test-fn "other"))))

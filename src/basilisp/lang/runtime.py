@@ -239,6 +239,7 @@ class Namespace:
                                               'basilisp.lang.keyword',
                                               'basilisp.lang.list',
                                               'basilisp.lang.map',
+                                              'basilisp.lang.multifn',
                                               'basilisp.lang.runtime',
                                               'basilisp.lang.seq',
                                               'basilisp.lang.set',
