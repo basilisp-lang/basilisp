@@ -1351,3 +1351,51 @@
   [pattern s]
   (lazy-re-seq (seq (re/finditer pattern s))))
 
+;;;;;;;;;;;;;;;;;;
+;; Multimethods ;;
+;;;;;;;;;;;;;;;;;;
+
+(import basilisp.lang.multifn)
+
+(defmacro defmulti
+  "Define a new multimethod with the dispatch function."
+  [name & body]
+  (let [doc         (when (string? (first body))
+                      (first body))
+        body        (if doc
+                      (rest body)
+                      body)
+        dispatch-fn (first body)
+        opts        (apply hash-map (rest body))]
+    `(def ~name (basilisp.lang.multifn/MultiFunction ~name
+                                                     ~dispatch-fn
+                                                     (or (:default opts) :default)))))
+
+(defmacro defmethod
+  "Add a new method to the multi-function which responds to dispatch-val."
+  [multifn dispatch-val & fn-tail]
+  `(.add-method multi-fn dispatch-val (fn ~@fn-tail)))
+
+(defn methods
+  "Return a map of dispatch values to methods for the given multi function."
+  [multifn]
+  (.-methods multifn))
+
+(defn get-method
+  "Return the method which would respond to dispatch-val or nil if no method
+  exists for dispatch-val."
+  [multifn dispatch-val]
+  (.get-method multifn dispatch-val))
+
+(defn remove-method
+  "Remove the method which responds to dispatch-val, if it exists. Return the
+  multi function."
+  [multifn dispatch-val]
+  (.remove-method multifn dispatch-val)
+  multifn)
+
+(defn remove-all-methods
+  "Remove all method for this multi-function. Return the multi function."
+  [multifn dispatch-val]
+  (.remove-all-methods multifn)
+  multifn)
