@@ -1,9 +1,9 @@
 import importlib
+import traceback
 from typing import Optional, Callable
 
 import pytest
 
-import basilisp.lang.exception as lexc
 import basilisp.lang.keyword as kw
 import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
@@ -50,6 +50,29 @@ def _reset_collected_tests() -> None:
     var = Maybe(runtime.Var.find(_COLLECTED_TESTS_SYM)).or_else_raise(
         lambda: runtime.RuntimeException(f"Unable to find test Var {_COLLECTED_TESTS_SYM}."))
     return var.value.reset(vec.Vector.empty())
+
+
+class TestFailuresInfo(Exception):
+    __slots__ = ('_msg', '_data',)
+
+    def __init__(self, message: str, data: lmap.Map) -> None:
+        super().__init__()
+        self._msg = message
+        self._data = data
+
+    def __repr__(self):
+        return f"basilisp.testrunner.TestFailuresInfo({self._msg}, {lrepr(self._data)})"
+
+    def __str__(self):
+        return f"{self._msg} {lrepr(self._data)}"
+
+    @property
+    def data(self) -> lmap.Map:
+        return self._data
+
+    @property
+    def message(self) -> str:
+        return self._msg
 
 
 TestFunction = Callable[[], Optional[vec.Vector]]
@@ -112,12 +135,12 @@ class BasilispTestItem(pytest.Item):
         results: lmap.Map = self._run_test()
         failures: Optional[vec.Vector] = results.entry(_FAILURES_KW)
         if runtime.to_seq(failures):
-            raise lexc.ExceptionInfo("Test failures", lmap.map(results))
+            raise TestFailuresInfo("Test failures", lmap.map(results))
 
     def repr_failure(self, excinfo):
         """Representation function called when self.runtest() raises an
         exception."""
-        if isinstance(excinfo.value, lexc.ExceptionInfo):
+        if isinstance(excinfo.value, TestFailuresInfo):
             exc = excinfo.value
             failures = exc.data.entry(_FAILURES_KW)
             messages = []
@@ -142,7 +165,13 @@ class BasilispTestItem(pytest.Item):
                 ]))
 
             return "\n\n".join(messages)
-        return None
+        elif isinstance(excinfo.value, Exception):
+            exc = excinfo.value
+            messages = [f"ERROR in ({self.name}) ({self._filename})", "\n\n"]
+            messages.extend(traceback.format_exception(Exception, exc, exc.__traceback__))
+            return "".join(messages)
+        else:
+            return None
 
     def reportinfo(self):
         return self.fspath, 0, self.name
