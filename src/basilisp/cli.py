@@ -11,9 +11,10 @@ import pytest
 import basilisp.compiler as compiler
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
-import basilisp.logging
 import basilisp.main as basilisp
 import basilisp.reader as reader
+
+importlib.import_module('basilisp.logging')
 
 
 @click.group()
