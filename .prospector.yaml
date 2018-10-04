@@ -16,6 +16,7 @@ pep8:
 pylint:
   disable:
     - len-as-condition
+    - logging-fstring-interpolation
     - no-else-return
     - protected-access
     - unsubscriptable-object
