@@ -4,6 +4,7 @@ import contextlib
 import functools
 import importlib
 import itertools
+import logging
 import sys
 import types
 import uuid
@@ -34,6 +35,8 @@ from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
 from basilisp.util import Maybe, partition
+
+logger = logging.getLogger(__name__)
 
 USE_VAR_INDIRECTION = 'use_var_indirection'
 
@@ -483,10 +486,8 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     yield from meta_nodes
     yield from def_nodes
 
-    # TODO: log this out, rather than emitting as a warning
-    # https://github.com/chrisrink10/basilisp/issues/121
     if safe_name in ctx.current_ns.module.__dict__:
-        print(f"WARNING: redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'")
+        logger.warning(f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'")
 
     yield _dependency(ast.Assign(targets=[ast.Name(id=safe_name, ctx=ast.Store())],
                                  value=Maybe(def_value).map(_unwrap_node).or_else_get(ast.NameConstant(None))))

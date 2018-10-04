@@ -1,5 +1,6 @@
 import importlib.machinery
 import importlib.util
+import logging
 import os.path
 import sys
 import types
@@ -10,6 +11,8 @@ import basilisp.compiler as compiler
 import basilisp.lang.runtime as runtime
 import basilisp.reader as reader
 from basilisp.lang.util import demunge
+
+logger = logging.getLogger(__name__)
 
 
 class BasilispImporter(MetaPathFinder, SourceLoader):
@@ -39,6 +42,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             for filename in filenames:
                 if os.path.exists(filename):
                     state = {'fullname': fullname, "filename": filename, 'path': entry, 'target': target}
+                    logger.debug(f"Found potential Basilisp module '{fullname}' in file '{filename}'")
                     return importlib.machinery.ModuleSpec(fullname, self, origin=filename, loader_state=state)
         return None
 
@@ -59,6 +63,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         return spec.loader_state.filename
 
     def create_module(self, spec: importlib.machinery.ModuleSpec):
+        logger.debug(f"Creating Basilisp module '{spec.name}''")
         mod = types.ModuleType(spec.name)
         mod.__file__ = spec.loader_state["filename"]
         mod.__loader__ = spec.loader
@@ -88,8 +93,10 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         ns: runtime.Namespace = runtime.set_current_ns(ns_name).value
         ns.module = module
 
+        logger.debug(f"Reading and compiling Basilisp module '{fullname}''")
         forms = reader.read_file(filename, resolver=runtime.resolve_alias)
         compiler.compile_module(forms, compiler.CompilerContext(), module, filename)
+        logger.debug(f"Loaded Basilisp module '{fullname}''")
 
         # Because we want to (by default) add 'basilisp.core into every namespace by default,
         # we want to make sure we don't try to add 'basilisp.core into itself, causing a

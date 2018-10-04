@@ -2,6 +2,8 @@ import importlib
 
 import basilisp.importer as importer
 import basilisp.lang.runtime as runtime
+# noinspection PyUnresolvedReferences
+import basilisp.logging
 
 
 def init():
