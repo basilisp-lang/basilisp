@@ -1830,11 +1830,15 @@ def to_py_str(t: ast.AST) -> str:
     return codegen.to_source(t)
 
 
+BytecodeCollector = Optional[Callable[[types.CodeType], None]]
+
+
 def compile_and_exec_form(form: LispForm,
                           ctx: CompilerContext,
                           module: types.ModuleType,
                           source_filename: str = '<REPL Input>',
-                          wrapped_fn_name: str = _DEFAULT_FN) -> Any:
+                          wrapped_fn_name: str = _DEFAULT_FN,
+                          collect_bytecode: BytecodeCollector = None) -> Any:
     """Compile and execute the given form. This function will be most useful
     for the REPL and testing purposes. Returns the result of the executed expression.
 
@@ -1867,13 +1871,16 @@ def compile_and_exec_form(form: LispForm,
         runtime.add_generated_python(to_py_str(ast_module))
 
     bytecode = compile(ast_module, source_filename, 'exec')
+    if collect_bytecode:
+        collect_bytecode(bytecode)
     exec(bytecode, module.__dict__)
     return getattr(module, final_wrapped_name)()
 
 
 def _incremental_compile_module(nodes: MixedNodeStream,
                                 mod: types.ModuleType,
-                                source_filename: str) -> None:
+                                source_filename: str,
+                                collect_bytecode: BytecodeCollector = None) -> None:
     """Incrementally compile a stream of AST nodes in module mod.
 
     The source_filename will be passed to Python's native compile.
@@ -1891,24 +1898,31 @@ def _incremental_compile_module(nodes: MixedNodeStream,
         runtime.add_generated_python(to_py_str(module))
 
     bytecode = compile(module, source_filename, 'exec')
+    if collect_bytecode:
+        collect_bytecode(bytecode)
     exec(bytecode, mod.__dict__)
 
 
-def _bootstrap_module(ctx: CompilerContext, mod: types.ModuleType, source_filename: str) -> None:
+def _bootstrap_module(ctx: CompilerContext,
+                      mod: types.ModuleType,
+                      source_filename: str,
+                      collect_bytecode: BytecodeCollector = None) -> None:
     """Bootstrap a new module with imports and other boilerplate."""
     preamble: List[ast.AST] = []
     preamble.extend(_module_imports(ctx))
     preamble.append(_from_module_import())
     preamble.append(_ns_var())
 
-    _incremental_compile_module(preamble, mod, source_filename=source_filename)
+    _incremental_compile_module(
+        preamble, mod, source_filename=source_filename, collect_bytecode=collect_bytecode)
     mod.__basilisp_bootstrapped__ = True  # type: ignore
 
 
 def compile_module(forms: Iterable[LispForm],
                    ctx: CompilerContext,
                    module: types.ModuleType,
-                   source_filename: str) -> None:
+                   source_filename: str,
+                   collect_bytecode: BytecodeCollector = None) -> None:
     """Compile an entire Basilisp module into Python bytecode which can be
     executed as a Python module.
 
@@ -1920,7 +1934,8 @@ def compile_module(forms: Iterable[LispForm],
 
     for form in forms:
         nodes = [node for node in _to_ast(ctx, form)]
-        _incremental_compile_module(nodes, module, source_filename=source_filename)
+        _incremental_compile_module(
+            nodes, module, source_filename=source_filename, collect_bytecode=collect_bytecode)
 
 
 lrepr = basilisp.lang.util.lrepr

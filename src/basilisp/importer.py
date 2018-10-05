@@ -1,18 +1,92 @@
 import importlib.machinery
 import importlib.util
 import logging
+import marshal
+import os
 import os.path
 import sys
 import types
 from importlib.abc import MetaPathFinder, SourceLoader
-from typing import Optional
+from typing import Optional, List
 
 import basilisp.compiler as compiler
 import basilisp.lang.runtime as runtime
 import basilisp.reader as reader
 from basilisp.lang.util import demunge
 
+MAGIC_NUMBER = (1149).to_bytes(2, 'little') + b'\r\n'
+
 logger = logging.getLogger(__name__)
+
+
+def _r_long(int_bytes):
+    """Convert 4 bytes in little-endian to an integer."""
+    return int.from_bytes(int_bytes, 'little')
+
+
+def _w_long(x):
+    """Convert a 32-bit integer to little-endian."""
+    return (int(x) & 0xFFFFFFFF).to_bytes(4, 'little')
+
+
+def _basilisp_bytecode(mtime: int,
+                       source_size: int,
+                       code: List[types.CodeType]) -> bytes:
+    """Return the bytes for a Basilisp bytecode cache file."""
+    data = bytearray(MAGIC_NUMBER)
+    data.extend(_w_long(mtime))
+    data.extend(_w_long(source_size))
+    data.extend(marshal.dumps(code))
+    return data
+
+
+def _get_basilisp_bytecode(fullname: str,
+                           mtime: int,
+                           source_size: int,
+                           cache_data: bytes) -> List[types.CodeType]:
+    """Unmarshal the bytes from a Basilisp bytecode cache file, validating the
+    file header prior to returning. If the file header does not match, throw
+    an exception."""
+    exc_details = {'name': fullname}
+    magic = cache_data[:4]
+    raw_timestamp = cache_data[4:8]
+    raw_size = cache_data[8:12]
+    if magic != MAGIC_NUMBER:
+        message = f"Incorrect magic number ({magic}) in {fullname}; expected {MAGIC_NUMBER}"
+        logger.debug(message)
+        raise ImportError(message, **exc_details)
+    elif len(raw_timestamp) != 4:
+        message = f"Reached EOF while reading timestamp in {fullname}"
+        logger.debug(message)
+        raise EOFError(message)
+    elif _r_long(raw_timestamp) != mtime:
+        message = f"Non-matching timestamp ({_r_long(raw_timestamp)}) in {fullname} bytecode cache; expected {mtime}"
+        logger.debug(message)
+        raise ImportError(message)
+    elif len(raw_size) != 4:
+        message = f"Reached EOF while reading size of source in {fullname}"
+        logger.debug(message)
+        raise EOFError(message)
+    elif _r_long(raw_size) != source_size:
+        message = f"Non-matching filesize ({_r_long(raw_size)}) in {fullname} bytecode cache; expected {source_size}"
+        logger.debug(message)
+        raise ImportError(message)
+
+    return marshal.loads(cache_data[12:])
+
+
+def _compile_basilisp_bytecode(code: List[types.CodeType], module: types.ModuleType):
+    """"""
+    for bytecode in code:
+        exec(bytecode, module.__dict__)
+
+
+def _cache_from_source(path: str) -> str:
+    """Return the path to the cached file for the given path. The original path
+    does not have to exist."""
+    cache_path, cache_file = os.path.split(importlib.util.cache_from_source(path))
+    filename, _ = os.path.splitext(cache_file)
+    return os.path.join(cache_path, filename + '.lpyc')
 
 
 class BasilispImporter(MetaPathFinder, SourceLoader):
@@ -41,7 +115,13 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                          f"{os.path.join(entry, *module_name)}.lpy"]
             for filename in filenames:
                 if os.path.exists(filename):
-                    state = {'fullname': fullname, "filename": filename, 'path': entry, 'target': target}
+                    state = {
+                        'fullname': fullname,
+                        'filename': filename,
+                        'path': entry,
+                        'target': target,
+                        'cache_filename': _cache_from_source(filename)
+                    }
                     logger.debug(f"Found potential Basilisp module '{fullname}' in file '{filename}'")
                     return importlib.machinery.ModuleSpec(fullname, self, origin=filename, loader_state=state)
         return None
@@ -50,9 +130,21 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         super().invalidate_caches()
         self._cache = {}
 
-    def get_data(self, path) -> bytes:
+    def _cache_bytecode(self, source_path, cache_path, data):
+        self.set_data(cache_path, data)
+
+    def path_stats(self, path: str):
+        stat = os.stat(path)
+        return {'mtime': stat.st_mtime, 'size': stat.st_size}
+
+    def get_data(self, path: str) -> bytes:
         with open(path, mode='r+b') as f:
             return f.read()
+
+    def set_data(self, path: str, data: bytes) -> None:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, mode='w+b') as f:
+            f.write(data)
 
     def get_filename(self, fullname: str) -> str:
         try:
@@ -84,6 +176,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         cached["module"] = module
         spec = cached["spec"]
         filename = spec.loader_state["filename"]
+        cache_filename = spec.loader_state["cache_filename"]
+        path_stats = self.path_stats(filename)
 
         # During the bootstrapping process, the 'basilisp.core namespace is created with
         # a blank module. If we do not replace the module here with the module we are
@@ -93,10 +187,32 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         ns: runtime.Namespace = runtime.set_current_ns(ns_name).value
         ns.module = module
 
-        logger.debug(f"Reading and compiling Basilisp module '{fullname}''")
-        forms = reader.read_file(filename, resolver=runtime.resolve_alias)
-        compiler.compile_module(forms, compiler.CompilerContext(), module, filename)
-        logger.debug(f"Loaded Basilisp module '{fullname}''")
+        # Check if a valid, cached version of this Basilisp namespace exists and, if so,
+        # load it and bypass the expensive compilation process below.
+        try:
+            logger.debug(f"Checking for cached Basilisp module '{fullname}''")
+            cache_data = self.get_data(cache_filename)
+            cached_code = _get_basilisp_bytecode(fullname, path_stats['mtime'], path_stats['size'], cache_data)
+            _compile_basilisp_bytecode(cached_code, module)
+            logger.debug(f"Loaded cached Basilisp module '{fullname}''")
+        except (EOFError, ImportError, IOError, OSError):
+            # During compilation, bytecode objects are added to the list via the closure
+            # add_bytecode below, which is passed to the compiler. The collected bytecodes
+            # will be used to generate an .lpyc file for caching the compiled file.
+            all_bytecode = []
+
+            def add_bytecode(bytecode: types.CodeType):
+                all_bytecode.append(bytecode)
+
+            logger.debug(f"Reading and compiling Basilisp module '{fullname}''")
+            forms = reader.read_file(filename, resolver=runtime.resolve_alias)
+            compiler.compile_module(
+                forms, compiler.CompilerContext(), module, filename, collect_bytecode=add_bytecode)
+            logger.debug(f"Loaded Basilisp module '{fullname}''")
+
+            # Cache the bytecode that was collected through the compilation run.
+            cache_file_bytes = _basilisp_bytecode(path_stats['mtime'], path_stats['size'], all_bytecode)
+            self._cache_bytecode(filename, cache_filename, cache_file_bytes)
 
         # Because we want to (by default) add 'basilisp.core into every namespace by default,
         # we want to make sure we don't try to add 'basilisp.core into itself, causing a
