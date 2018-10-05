@@ -3,6 +3,8 @@ import importlib
 import basilisp.importer as importer
 import basilisp.lang.runtime as runtime
 
+importlib.import_module('basilisp.logging')
+
 
 def init():
     """Initialize the runtime environment for evaluation."""

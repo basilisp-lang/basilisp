@@ -13,6 +13,7 @@ release:
 
 .PHONY: repl
 repl:
+	@BASILISP_USE_DEV_LOGGER=true
 	@pipenv run basilisp repl
 
 

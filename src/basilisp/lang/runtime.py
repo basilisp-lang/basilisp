@@ -2,6 +2,7 @@ import contextlib
 import functools
 import importlib
 import itertools
+import logging
 import math
 import threading
 import types
@@ -22,6 +23,8 @@ import basilisp.lang.symbol as sym
 from basilisp.lang import atom
 from basilisp.lang.typing import LispNumber
 from basilisp.util import Maybe
+
+logger = logging.getLogger(__name__)
 
 _CORE_NS = 'basilisp.core'
 _REPL_DEFAULT_NS = 'user'
@@ -741,6 +744,7 @@ def init_ns_var(which_ns: str = _CORE_NS,
     core_ns = Namespace.get_or_create(core_sym)
     ns_var = Var.intern(
         core_sym, sym.Symbol(ns_var_name), core_ns, dynamic=True)
+    logger.debug(f'Created namespace variable {sym.symbol(ns_var_name, ns=which_ns)}')
     return ns_var
 
 
@@ -751,9 +755,11 @@ def set_current_ns(ns_name: str,
     """Set the value of the dynamic variable `*ns*` in the current thread."""
     symbol = sym.Symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
-    ns_var = Maybe(Var.find(sym.Symbol(ns_var_name, ns=ns_var_ns))) \
+    ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
+    ns_var = Maybe(Var.find(ns_var_sym)) \
         .or_else_raise(lambda: RuntimeException(f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"))
     ns_var.push_bindings(ns)
+    logger.debug(f'Setting {ns_var_sym} to {ns}')
     return ns_var
 
 
@@ -765,14 +771,17 @@ def ns_bindings(ns_name: str,
     """Context manager for temporarily changing the value of basilisp.core/*ns*."""
     symbol = sym.Symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
-    ns_var = Maybe(Var.find(sym.Symbol(ns_var_name, ns=ns_var_ns))) \
+    ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
+    ns_var = Maybe(Var.find(ns_var_sym)) \
         .or_else_raise(lambda: RuntimeException(f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"))
 
     try:
+        logger.debug(f'Binding {ns_var_sym} to {ns}')
         ns_var.push_bindings(ns)
         yield ns_var.value
     finally:
         ns_var.pop_bindings()
+        logger.debug(f'Reset bindings for {ns_var_sym} to {ns_var.value}')
 
 
 @contextlib.contextmanager
@@ -780,12 +789,14 @@ def remove_ns_bindings(ns_var_name: str = _NS_VAR_NAME,
                        ns_var_ns: str = _NS_VAR_NS):
     """Context manager to pop the most recent bindings for basilisp.core/*ns* after
     completion of the code under management."""
-    ns_var = Maybe(Var.find(sym.Symbol(ns_var_name, ns=ns_var_ns))) \
+    ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
+    ns_var = Maybe(Var.find(ns_var_sym)) \
         .or_else_raise(lambda: RuntimeException(f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"))
     try:
         yield
     finally:
         ns_var.pop_bindings()
+        logger.debug(f'Reset bindings for {ns_var_sym} to {ns_var.value}')
 
 
 def get_current_ns(ns_var_name: str = _NS_VAR_NAME,
