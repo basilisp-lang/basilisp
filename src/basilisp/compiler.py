@@ -1938,4 +1938,19 @@ def compile_module(forms: Iterable[LispForm],
             nodes, module, source_filename=source_filename, collect_bytecode=collect_bytecode)
 
 
+def compile_bytecode(code: List[types.CodeType],
+                     ctx: CompilerContext,
+                     module: types.ModuleType,
+                     source_filename: str) -> None:
+    """Compile cached bytecode into the given module.
+
+    The Basilisp import hook attempts to cache bytecode while compiling Basilisp
+    namespaces. When the cached bytecode is reloaded from disk, it needs to be
+    compiled within a bootstrapped module. This function bootstraps the module
+    and then proceeds to compile a collection of bytecodes into the module."""
+    _bootstrap_module(ctx, module, source_filename)
+    for bytecode in code:
+        exec(bytecode, module.__dict__)
+
+
 lrepr = basilisp.lang.util.lrepr

@@ -75,12 +75,6 @@ def _get_basilisp_bytecode(fullname: str,
     return marshal.loads(cache_data[12:])
 
 
-def _compile_basilisp_bytecode(code: List[types.CodeType], module: types.ModuleType):
-    """"""
-    for bytecode in code:
-        exec(bytecode, module.__dict__)
-
-
 def _cache_from_source(path: str) -> str:
     """Return the path to the cached file for the given path. The original path
     does not have to exist."""
@@ -135,7 +129,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
 
     def path_stats(self, path: str):
         stat = os.stat(path)
-        return {'mtime': stat.st_mtime, 'size': stat.st_size}
+        return {'mtime': int(stat.st_mtime), 'size': stat.st_size}
 
     def get_data(self, path: str) -> bytes:
         with open(path, mode='r+b') as f:
@@ -193,9 +187,11 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             logger.debug(f"Checking for cached Basilisp module '{fullname}''")
             cache_data = self.get_data(cache_filename)
             cached_code = _get_basilisp_bytecode(fullname, path_stats['mtime'], path_stats['size'], cache_data)
-            _compile_basilisp_bytecode(cached_code, module)
+            compiler.compile_bytecode(cached_code, compiler.CompilerContext(), module, filename)
             logger.debug(f"Loaded cached Basilisp module '{fullname}''")
-        except (EOFError, ImportError, IOError, OSError):
+        except (EOFError, ImportError, IOError, OSError) as e:
+            logger.debug(f"Failed to load cached Basilisp module: {e}")
+
             # During compilation, bytecode objects are added to the list via the closure
             # add_bytecode below, which is passed to the compiler. The collected bytecodes
             # will be used to generate an .lpyc file for caching the compiled file.
