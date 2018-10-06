@@ -3,7 +3,7 @@ import importlib
 import basilisp.importer as importer
 import basilisp.lang.runtime as runtime
 
-importlib.import_module('basilisp.logging')
+importlib.import_module('basilisp.logging_config')
 
 
 def init():
