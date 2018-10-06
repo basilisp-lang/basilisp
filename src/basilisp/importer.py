@@ -204,7 +204,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 def add_bytecode(bytecode: types.CodeType):
                     all_bytecode.append(bytecode)
 
-                logger.debug(f"Reading and compiling Basilisp module '{fullname}''")
+                logger.debug(f"Reading and compiling Basilisp module '{fullname}'")
                 forms = reader.read_file(filename, resolver=runtime.resolve_alias)
                 compiler.compile_module(
                     forms, compiler.CompilerContext(), module, filename, collect_bytecode=add_bytecode)
