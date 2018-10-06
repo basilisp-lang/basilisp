@@ -13,6 +13,7 @@ import basilisp.compiler as compiler
 import basilisp.lang.runtime as runtime
 import basilisp.reader as reader
 from basilisp.lang.util import demunge
+from basilisp.util import timed
 
 MAGIC_NUMBER = (1149).to_bytes(2, 'little') + b'\r\n'
 
@@ -184,27 +185,29 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         # Check if a valid, cached version of this Basilisp namespace exists and, if so,
         # load it and bypass the expensive compilation process below.
         try:
-            logger.debug(f"Checking for cached Basilisp module '{fullname}''")
-            cache_data = self.get_data(cache_filename)
-            cached_code = _get_basilisp_bytecode(fullname, path_stats['mtime'], path_stats['size'], cache_data)
-            compiler.compile_bytecode(cached_code, compiler.CompilerContext(), module, filename)
-            logger.debug(f"Loaded cached Basilisp module '{fullname}''")
+            with timed(lambda duration: logger.debug(
+                    f"Loaded cached Basilisp module '{fullname}' in {duration / 1000000}ms")):
+                logger.debug(f"Checking for cached Basilisp module '{fullname}''")
+                cache_data = self.get_data(cache_filename)
+                cached_code = _get_basilisp_bytecode(fullname, path_stats['mtime'], path_stats['size'], cache_data)
+                compiler.compile_bytecode(cached_code, compiler.CompilerContext(), module, filename)
         except (EOFError, ImportError, IOError, OSError) as e:
             logger.debug(f"Failed to load cached Basilisp module: {e}")
 
-            # During compilation, bytecode objects are added to the list via the closure
-            # add_bytecode below, which is passed to the compiler. The collected bytecodes
-            # will be used to generate an .lpyc file for caching the compiled file.
-            all_bytecode = []
+            with timed(lambda duration: logger.debug(
+                    f"Loaded Basilisp module '{fullname}' in {duration / 1000000}ms")):
+                # During compilation, bytecode objects are added to the list via the closure
+                # add_bytecode below, which is passed to the compiler. The collected bytecodes
+                # will be used to generate an .lpyc file for caching the compiled file.
+                all_bytecode = []
 
-            def add_bytecode(bytecode: types.CodeType):
-                all_bytecode.append(bytecode)
+                def add_bytecode(bytecode: types.CodeType):
+                    all_bytecode.append(bytecode)
 
-            logger.debug(f"Reading and compiling Basilisp module '{fullname}''")
-            forms = reader.read_file(filename, resolver=runtime.resolve_alias)
-            compiler.compile_module(
-                forms, compiler.CompilerContext(), module, filename, collect_bytecode=add_bytecode)
-            logger.debug(f"Loaded Basilisp module '{fullname}''")
+                logger.debug(f"Reading and compiling Basilisp module '{fullname}''")
+                forms = reader.read_file(filename, resolver=runtime.resolve_alias)
+                compiler.compile_module(
+                    forms, compiler.CompilerContext(), module, filename, collect_bytecode=add_bytecode)
 
             # Cache the bytecode that was collected through the compilation run.
             cache_file_bytes = _basilisp_bytecode(path_stats['mtime'], path_stats['size'], all_bytecode)

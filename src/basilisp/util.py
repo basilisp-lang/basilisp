@@ -1,6 +1,8 @@
+import contextlib
 import functools
 import inspect
 import os.path
+import time
 from typing import Optional, Callable, TypeVar, Generic
 
 from functional import seq
@@ -32,6 +34,18 @@ def trace(f):
             raise e
 
     return wrapper
+
+
+@contextlib.contextmanager
+def timed(f: Optional[Callable[[int], None]] = None):
+    """Time the execution of code in the with-block, calling the function
+    f (if it is given) with the resulting time in nanoseconds."""
+    start = time.perf_counter()
+    yield
+    end = time.perf_counter()
+    if f:
+        ns = int((end - start) * 1000000000)
+        f(ns)
 
 
 T = TypeVar('T')
