@@ -5,7 +5,7 @@ A Lisp dialect inspired by Clojure targeting Python 3.
 **Disclaimer:** _Basilisp is a project I created to learn about Python, Clojure,
 and hosted languages generally. It should not be used in a production setting._
 
-![PyPI](https://img.shields.io/pypi/v/basilisp.svg?style=flat-square) ![python](https://img.shields.io/pypi/pyversions/basilisp.svg?style=flat-square) ![CircleCI](https://img.shields.io/circleci/project/github/chrisrink10/basilisp.svg?style=flat-square) ![Coveralls github](https://img.shields.io/coveralls/github/chrisrink10/basilisp.svg?style=flat-square) ![license](https://img.shields.io/github/license/chrisrink10/basilisp.svg?style=flat-square)
+![PyPI](https://img.shields.io/pypi/v/basilisp.svg?style=flat-square) ![python](https://img.shields.io/pypi/pyversions/basilisp.svg?style=flat-square) ![CircleCI](https://img.shields.io/travis/chrisrink10/basilisp.svg?style=flat-square) ![Coveralls github](https://img.shields.io/coveralls/github/chrisrink10/basilisp.svg?style=flat-square) ![license](https://img.shields.io/github/license/chrisrink10/basilisp.svg?style=flat-square)
 
 ## Getting Started
 
