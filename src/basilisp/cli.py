@@ -14,8 +14,6 @@ import basilisp.lang.symbol as sym
 import basilisp.main as basilisp
 import basilisp.reader as reader
 
-importlib.import_module('basilisp.logging')
-
 
 @click.group()
 def cli():
