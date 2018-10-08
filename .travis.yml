@@ -1,0 +1,10 @@
+language: python
+sudo: required
+dist: xenial
+install:
+- pip install tox-travis
+python:
+- '3.6'
+- '3.7'
+script: "tox"
+cache: pip
