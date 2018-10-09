@@ -1833,12 +1833,12 @@ def to_py_str(t: ast.AST) -> str:
 BytecodeCollector = Optional[Callable[[types.CodeType], None]]
 
 
-def compile_and_exec_form(form: LispForm,
+def compile_and_exec_form(form: LispForm,  # pylint: disable= too-many-arguments
                           ctx: CompilerContext,
                           module: types.ModuleType,
                           source_filename: str = '<REPL Input>',
                           wrapped_fn_name: str = _DEFAULT_FN,
-                          collect_bytecode: BytecodeCollector = None) -> Any:
+                          collect_bytecode: Optional[BytecodeCollector] = None) -> Any:
     """Compile and execute the given form. This function will be most useful
     for the REPL and testing purposes. Returns the result of the executed expression.
 
@@ -1880,7 +1880,7 @@ def compile_and_exec_form(form: LispForm,
 def _incremental_compile_module(nodes: MixedNodeStream,
                                 mod: types.ModuleType,
                                 source_filename: str,
-                                collect_bytecode: BytecodeCollector = None) -> None:
+                                collect_bytecode: Optional[BytecodeCollector] = None) -> None:
     """Incrementally compile a stream of AST nodes in module mod.
 
     The source_filename will be passed to Python's native compile.
@@ -1906,7 +1906,7 @@ def _incremental_compile_module(nodes: MixedNodeStream,
 def _bootstrap_module(ctx: CompilerContext,
                       mod: types.ModuleType,
                       source_filename: str,
-                      collect_bytecode: BytecodeCollector = None) -> None:
+                      collect_bytecode: Optional[BytecodeCollector] = None) -> None:
     """Bootstrap a new module with imports and other boilerplate."""
     preamble: List[ast.AST] = []
     preamble.extend(_module_imports(ctx))
@@ -1922,7 +1922,7 @@ def compile_module(forms: Iterable[LispForm],
                    ctx: CompilerContext,
                    module: types.ModuleType,
                    source_filename: str,
-                   collect_bytecode: BytecodeCollector = None) -> None:
+                   collect_bytecode: Optional[BytecodeCollector] = None) -> None:
     """Compile an entire Basilisp module into Python bytecode which can be
     executed as a Python module.
 

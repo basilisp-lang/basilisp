@@ -20,12 +20,12 @@ MAGIC_NUMBER = (1149).to_bytes(2, 'little') + b'\r\n'
 logger = logging.getLogger(__name__)
 
 
-def _r_long(int_bytes):
+def _r_long(int_bytes: bytes) -> int:
     """Convert 4 bytes in little-endian to an integer."""
     return int.from_bytes(int_bytes, 'little')
 
 
-def _w_long(x):
+def _w_long(x: int) -> bytes:
     """Convert a 32-bit integer to little-endian."""
     return (int(x) & 0xFFFFFFFF).to_bytes(4, 'little')
 
@@ -37,7 +37,7 @@ def _basilisp_bytecode(mtime: int,
     data = bytearray(MAGIC_NUMBER)
     data.extend(_w_long(mtime))
     data.extend(_w_long(source_size))
-    data.extend(marshal.dumps(code))
+    data.extend(marshal.dumps(code))  # type: ignore
     return data
 
 
@@ -55,7 +55,7 @@ def _get_basilisp_bytecode(fullname: str,
     if magic != MAGIC_NUMBER:
         message = f"Incorrect magic number ({magic}) in {fullname}; expected {MAGIC_NUMBER}"
         logger.debug(message)
-        raise ImportError(message, **exc_details)
+        raise ImportError(message, **exc_details)  # type: ignore
     elif len(raw_timestamp) != 4:
         message = f"Reached EOF while reading timestamp in {fullname}"
         logger.debug(message)
@@ -63,7 +63,7 @@ def _get_basilisp_bytecode(fullname: str,
     elif _r_long(raw_timestamp) != mtime:
         message = f"Non-matching timestamp ({_r_long(raw_timestamp)}) in {fullname} bytecode cache; expected {mtime}"
         logger.debug(message)
-        raise ImportError(message)
+        raise ImportError(message, **exc_details)  # type: ignore
     elif len(raw_size) != 4:
         message = f"Reached EOF while reading size of source in {fullname}"
         logger.debug(message)
@@ -71,9 +71,9 @@ def _get_basilisp_bytecode(fullname: str,
     elif _r_long(raw_size) != source_size:
         message = f"Non-matching filesize ({_r_long(raw_size)}) in {fullname} bytecode cache; expected {source_size}"
         logger.debug(message)
-        raise ImportError(message)
+        raise ImportError(message, **exc_details)  # type: ignore
 
-    return marshal.loads(cache_data[12:])
+    return marshal.loads(cache_data[12:])  # type: ignore
 
 
 def _cache_from_source(path: str) -> str:
@@ -125,18 +125,18 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         super().invalidate_caches()
         self._cache = {}
 
-    def _cache_bytecode(self, source_path, cache_path, data):
+    def _cache_bytecode(self, source_path, cache_path, data):  # pylint: disable=unused-argument
         self.set_data(cache_path, data)
 
-    def path_stats(self, path: str):
+    def path_stats(self, path):
         stat = os.stat(path)
         return {'mtime': int(stat.st_mtime), 'size': stat.st_size}
 
-    def get_data(self, path: str) -> bytes:
+    def get_data(self, path):
         with open(path, mode='r+b') as f:
             return f.read()
 
-    def set_data(self, path: str, data: bytes) -> None:
+    def set_data(self, path, data):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, mode='w+b') as f:
             f.write(data)
@@ -159,7 +159,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         self._cache[spec.name] = {"spec": spec}
         return mod
 
-    def exec_module(self, module):
+    def exec_module(self, module):  # pylint: disable=too-many-locals
         """Compile the Basilisp module into Python code.
 
         Basilisp is fundamentally a form-at-a-time compilation, meaning that
@@ -206,7 +206,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
 
                 logger.debug(f"Reading and compiling Basilisp module '{fullname}'")
                 forms = reader.read_file(filename, resolver=runtime.resolve_alias)
-                compiler.compile_module(
+                compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
                     forms, compiler.CompilerContext(), module, filename, collect_bytecode=add_bytecode)
 
             # Cache the bytecode that was collected through the compilation run.
