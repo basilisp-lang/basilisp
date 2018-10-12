@@ -4,10 +4,12 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
-twine = "*"
+pytest-pycharm = "*"
+sphinx = "*"
+sphinx-rtd-theme = "*"
 tox = "*"
 tox-pyenv = "*"
-pytest-pycharm = "*"
+twine = "*"
 
 [packages]
 astor = "*"
