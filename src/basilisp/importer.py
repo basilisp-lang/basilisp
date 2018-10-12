@@ -7,7 +7,7 @@ import os.path
 import sys
 import types
 from importlib.abc import MetaPathFinder, SourceLoader
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 import basilisp.compiler as compiler
 import basilisp.lang.runtime as runtime
@@ -159,7 +159,51 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         self._cache[spec.name] = {"spec": spec}
         return mod
 
-    def exec_module(self, module):  # pylint: disable=too-many-locals
+    def _exec_cached_module(self,
+                            fullname: str,
+                            loader_state: Dict[str, str],
+                            path_stats: Dict[str, int],
+                            module: types.ModuleType):
+        """Load and execute a cached Basilisp module."""
+        filename = loader_state["filename"]
+        cache_filename = loader_state["cache_filename"]
+
+        with timed(lambda duration: logger.debug(
+                f"Loaded cached Basilisp module '{fullname}' in {duration / 1000000}ms")):
+            logger.debug(f"Checking for cached Basilisp module '{fullname}''")
+            cache_data = self.get_data(cache_filename)
+            cached_code = _get_basilisp_bytecode(fullname, path_stats['mtime'], path_stats['size'], cache_data)
+            compiler.compile_bytecode(cached_code, compiler.CompilerContext(), module, filename)
+
+    def _exec_module(self,
+                     fullname: str,
+                     loader_state: Dict[str, str],
+                     path_stats: Dict[str, int],
+                     module: types.ModuleType):
+        """Load and execute a non-cached Basilisp module."""
+        filename = loader_state["filename"]
+        cache_filename = loader_state["cache_filename"]
+
+        with timed(lambda duration: logger.debug(
+                f"Loaded Basilisp module '{fullname}' in {duration / 1000000}ms")):
+            # During compilation, bytecode objects are added to the list via the closure
+            # add_bytecode below, which is passed to the compiler. The collected bytecodes
+            # will be used to generate an .lpyc file for caching the compiled file.
+            all_bytecode = []
+
+            def add_bytecode(bytecode: types.CodeType):
+                all_bytecode.append(bytecode)
+
+            logger.debug(f"Reading and compiling Basilisp module '{fullname}'")
+            forms = reader.read_file(filename, resolver=runtime.resolve_alias)
+            compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
+                forms, compiler.CompilerContext(), module, filename, collect_bytecode=add_bytecode)
+
+        # Cache the bytecode that was collected through the compilation run.
+        cache_file_bytes = _basilisp_bytecode(path_stats['mtime'], path_stats['size'], all_bytecode)
+        self._cache_bytecode(filename, cache_filename, cache_file_bytes)
+
+    def exec_module(self, module):
         """Compile the Basilisp module into Python code.
 
         Basilisp is fundamentally a form-at-a-time compilation, meaning that
@@ -171,7 +215,6 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         cached["module"] = module
         spec = cached["spec"]
         filename = spec.loader_state["filename"]
-        cache_filename = spec.loader_state["cache_filename"]
         path_stats = self.path_stats(filename)
 
         # During the bootstrapping process, the 'basilisp.core namespace is created with
@@ -185,33 +228,10 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         # Check if a valid, cached version of this Basilisp namespace exists and, if so,
         # load it and bypass the expensive compilation process below.
         try:
-            with timed(lambda duration: logger.debug(
-                    f"Loaded cached Basilisp module '{fullname}' in {duration / 1000000}ms")):
-                logger.debug(f"Checking for cached Basilisp module '{fullname}''")
-                cache_data = self.get_data(cache_filename)
-                cached_code = _get_basilisp_bytecode(fullname, path_stats['mtime'], path_stats['size'], cache_data)
-                compiler.compile_bytecode(cached_code, compiler.CompilerContext(), module, filename)
+            self._exec_cached_module(fullname, spec.loader_state, path_stats, module)
         except (EOFError, ImportError, IOError, OSError) as e:
             logger.debug(f"Failed to load cached Basilisp module: {e}")
-
-            with timed(lambda duration: logger.debug(
-                    f"Loaded Basilisp module '{fullname}' in {duration / 1000000}ms")):
-                # During compilation, bytecode objects are added to the list via the closure
-                # add_bytecode below, which is passed to the compiler. The collected bytecodes
-                # will be used to generate an .lpyc file for caching the compiled file.
-                all_bytecode = []
-
-                def add_bytecode(bytecode: types.CodeType):
-                    all_bytecode.append(bytecode)
-
-                logger.debug(f"Reading and compiling Basilisp module '{fullname}'")
-                forms = reader.read_file(filename, resolver=runtime.resolve_alias)
-                compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
-                    forms, compiler.CompilerContext(), module, filename, collect_bytecode=add_bytecode)
-
-            # Cache the bytecode that was collected through the compilation run.
-            cache_file_bytes = _basilisp_bytecode(path_stats['mtime'], path_stats['size'], all_bytecode)
-            self._cache_bytecode(filename, cache_filename, cache_file_bytes)
+            self._exec_module(fullname, spec.loader_state, path_stats, module)
 
         # Because we want to (by default) add 'basilisp.core into every namespace by default,
         # we want to make sure we don't try to add 'basilisp.core into itself, causing a
