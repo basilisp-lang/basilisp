@@ -636,15 +636,15 @@ def test_prn_str():
 def test_print_str():
     assert '' == core.print_str()
     assert '' == core.print_str("")
-    assert 'kw' == core.print_str(kw.keyword('kw'))
-    assert 'hi there 3' == core.print_str(kw.keyword('hi'), "there", 3)
+    assert ':kw' == core.print_str(kw.keyword('kw'))
+    assert ':hi there 3' == core.print_str(kw.keyword('hi'), "there", 3)
 
 
 def test_println_str():
     assert '\n' == core.println_str()
     assert '\n' == core.println_str("")
-    assert 'kw\n' == core.println_str(kw.keyword('kw'))
-    assert 'hi there 3\n' == core.println_str(kw.keyword('hi'), "there", 3)
+    assert ':kw\n' == core.println_str(kw.keyword('kw'))
+    assert ':hi there 3\n' == core.println_str(kw.keyword('hi'), "there", 3)
 
 
 def test_re_find():

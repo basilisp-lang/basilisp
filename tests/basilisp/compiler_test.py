@@ -470,8 +470,8 @@ def test_recur(ns: runtime.Namespace):
     lcompile(code)
 
     assert "a" == lcompile("(rev-str \"a\")")
-    assert "ba" == lcompile("(rev-str \"a\" :b)")
-    assert "3ba" == lcompile("(rev-str \"a\" :b 3)")
+    assert ":ba" == lcompile("(rev-str \"a\" :b)")
+    assert "3:ba" == lcompile("(rev-str \"a\" :b 3)")
 
 
 def test_recur_arity(ns: runtime.Namespace):
