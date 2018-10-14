@@ -543,6 +543,12 @@ def test_reduce_with_lazy_seq():
     assert 25 == core.reduce(core.__PLUS__, 0, core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4, 5, 6, 7, 8, 9)))
 
 
+def test_interpose():
+    assert llist.List.empty() == core.interpose(",", vec.Vector.empty())
+    assert llist.l("hi") == core.interpose(",", vec.v("hi"))
+    assert llist.l("hi", ",", "there") == core.interpose(",", vec.v("hi", "there"))
+
+
 def test_comp():
     assert 1 == core.comp()(1)
     assert "hi" == core.comp()("hi")
@@ -611,6 +617,34 @@ def test_merge():
     assert lmap.map({kw.keyword("a"): 53, kw.keyword("b"): "hi"}) == core.merge(
         lmap.map({kw.keyword("a"): 1, kw.keyword("b"): "hi"}),
         lmap.map({kw.keyword("a"): 53}))
+
+
+def test_pr_str():
+    assert '' == core.pr_str()
+    assert '""' == core.pr_str("")
+    assert ':kw' == core.pr_str(kw.keyword('kw'))
+    assert ':hi "there" 3' == core.pr_str(kw.keyword('hi'), "there", 3)
+
+
+def test_prn_str():
+    assert '\n' == core.prn_str()
+    assert '""\n' == core.prn_str("")
+    assert ':kw\n' == core.prn_str(kw.keyword('kw'))
+    assert ':hi "there" 3\n' == core.prn_str(kw.keyword('hi'), "there", 3)
+
+
+def test_print_str():
+    assert '' == core.print_str()
+    assert '' == core.print_str("")
+    assert 'kw' == core.print_str(kw.keyword('kw'))
+    assert 'hi there 3' == core.print_str(kw.keyword('hi'), "there", 3)
+
+
+def test_println_str():
+    assert '\n' == core.println_str()
+    assert '\n' == core.println_str("")
+    assert 'kw\n' == core.println_str(kw.keyword('kw'))
+    assert 'hi there 3\n' == core.println_str(kw.keyword('hi'), "there", 3)
 
 
 def test_re_find():

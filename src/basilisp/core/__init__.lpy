@@ -171,10 +171,6 @@
 
 ;;;;;;;;;;;; full support for syntax quote begins here ;;;;;;;;;;;;
 
-(def print
-  (fn print [& args]
-    (apply builtins/print args)))
-
 (def count
   (fn count [coll]
     (try
@@ -912,6 +908,17 @@
   [pred coll]
   [(take-while pred coll) (drop-while pred coll)])
 
+(defn interpose
+  "Return a lazy sequence of elements of coll separated by sep. If
+  coll is empty, return an empty sequence."
+  [sep coll]
+  (lazy-seq
+   (when (seq coll)
+     (if (seq (rest coll))
+       (cons (first coll)
+             (cons sep (interpose sep (rest coll))))
+       (cons (first coll) nil)))))
+
 (defn cycle
   "Cycle the items in coll infinitely."
   [coll]
@@ -971,9 +978,134 @@
        (finally
          (. (var ~vvar) ~'pop-bindings)))))
 
+;;;;;;;;;;;;;;;;;;;;;;
+;; Output Utilities ;;
+;;;;;;;;;;;;;;;;;;;;;;
+
 (def ^:dynamic *in* sys/stdin)
 (def ^:dynamic *out* sys/stdout)
 (def ^:dynamic *err* sys/stderr)
+
+(def ^:dynamic *print-sep* " ")
+
+(defn repr
+  "Return the reader representation of an object."
+  [x]
+  (basilisp.lang.util/lrepr x))
+
+(defn flush
+  "Flush the buffer currently bound to *out*."
+  []
+  (.flush *out*))
+
+(defmacro with-out-str
+  "Capture the contents of text sent to *out* and return the contents as a
+  string."
+  [& body]
+  `(binding [*out* (io/StringIO)]
+     ~@body
+     (. *out* ~'getvalue)))
+
+(defn pr
+  "Print the arguments to the stream bound to *out* in a format which
+  is readable by the reader. Multiple arguments will be separated by
+  the string value bound to *print-sep* (default is an ASCII space).
+
+  Note that some dynamically created Basilisp forms (such keywords and
+  symbols) and Python objects may not be readable again."
+  ([] nil)
+  ([x]
+   (.write *out* (repr x))
+   nil)
+  ([x & args]
+   (let [stdout    *out*
+         sep       *print-sep*
+         repr-args (interpose sep (map repr args))]
+     (.write stdout (repr x))
+     (.write stdout sep)
+     (.write stdout (apply str repr-args))
+     nil)))
+
+(defn prn
+  "Same as pr, but appending a newline afterwards."
+  ([]
+   (.write *out* \newline)
+   nil)
+  ([x]
+   (let [stdout *out*]
+     (.write stdout (repr x))
+     (.write stdout \newline)
+     nil))
+  ([x & args]
+   (let [stdout    *out*
+         sep       *print-sep*
+         repr-args (interpose sep (map repr args))]
+     (.write stdout (repr x))
+     (.write stdout sep)
+     (.write stdout (apply str repr-args))
+     (.write stdout \newline)
+     nil)))
+
+(defn pr-str
+  "Return the contents of calling pr on the args as a string."
+  [& args]
+  (with-out-str
+    (apply pr args)))
+
+(defn prn-str
+  "Return the contents of calling prn on the args as a string."
+  [& args]
+  (with-out-str
+    (apply prn args)))
+
+(defn print
+  "Print the arguments to the stream bound to *out* in a format which
+  is readable by humans. Multiple arguments will be separated by
+  the string value bound to *print-sep* (default is an ASCII space)."
+  ([] (print ""))
+  ([x]
+   (.write *out* (str x))
+   nil)
+  ([x & args]
+   (let [stdout    *out*
+         sep       *print-sep*
+         repr-args (interpose sep (map str args))]
+     (.write stdout (str x))
+     (.write stdout sep)
+     (.write stdout (apply str repr-args))
+     nil)))
+
+(defn println
+  "Print the arguments to the stream bound to *out* in a format which
+  is readable by humans. Multiple arguments will be separated by
+  the string value bound to *print-sep* (default is an ASCII space)."
+  ([] (println ""))
+  ([x]
+   (let [stdout *out*]
+     (.write stdout (str x))
+     (.write stdout \newline)
+     nil))
+  ([x & args]
+   (let [stdout    *out*
+         sep       *print-sep*
+         repr-args (interpose sep (map str args))]
+     (.write stdout (str x))
+     (.write stdout sep)
+     (.write stdout (apply str repr-args))
+     (.write stdout \newline)
+     nil)))
+
+(defn print-str
+  "Return the contents of calling print on the args as a string."
+  [& args]
+  (with-out-str
+    (apply print args)))
+
+(defn println-str
+  "Return the contents of calling println on the args as a string."
+  [& args]
+  (with-out-str
+    (apply println args)))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; REPL Utilities ;;
