@@ -1013,7 +1013,7 @@
 
   Note that some dynamically created Basilisp forms (such keywords and
   symbols) and Python objects may not be readable again."
-  ([] (pr ""))
+  ([] nil)
   ([x]
    (.write *out* (repr x))
    nil)
@@ -1028,7 +1028,9 @@
 
 (defn prn
   "Same as pr, but appending a newline afterwards."
-  ([] (prn ""))
+  ([]
+   (.write *out* \newline)
+   nil)
   ([x]
    (let [stdout *out*]
      (.write stdout (repr x))
@@ -1077,7 +1079,7 @@
   "Print the arguments to the stream bound to *out* in a format which
   is readable by humans. Multiple arguments will be separated by
   the string value bound to *print-sep* (default is an ASCII space)."
-  ([] (print ""))
+  ([] (println ""))
   ([x]
    (let [stdout *out*]
      (.write stdout (str x))
