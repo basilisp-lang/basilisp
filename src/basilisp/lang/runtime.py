@@ -234,6 +234,7 @@ class Namespace:
       to without an alias in this namespace.
     """
     DEFAULT_IMPORTS = atom.Atom(lset.set(seq(['builtins',
+                                              'io',
                                               'operator',
                                               'sys',
                                               'basilisp.lang.atom',
