@@ -22,15 +22,15 @@ def test_keyword_name_and_ns():
 
 def test_keyword_str_and_repr():
     kw = keyword("kw", ns="ns")
-    assert str(kw) == "ns/kw"
+    assert str(kw) == ":ns/kw"
     assert repr(kw) == ":ns/kw"
 
     kw = keyword("kw", ns="some.ns")
-    assert str(kw) == "some.ns/kw"
+    assert str(kw) == ":some.ns/kw"
     assert repr(kw) == ":some.ns/kw"
 
     kw = keyword("kw")
-    assert str(kw) == "kw"
+    assert str(kw) == ":kw"
     assert repr(kw) == ":kw"
 
 

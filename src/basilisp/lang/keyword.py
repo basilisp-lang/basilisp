@@ -25,11 +25,11 @@ class Keyword:
 
     def __str__(self):
         if self._ns is not None:
-            return "{ns}/{name}".format(ns=self._ns, name=self._name)
-        return "{name}".format(name=self._name)
+            return ":{ns}/{name}".format(ns=self._ns, name=self._name)
+        return ":{name}".format(name=self._name)
 
     def __repr__(self):
-        return ":{me}".format(me=str(self))
+        return str(self)
 
     def __eq__(self, other):
         return self is other
