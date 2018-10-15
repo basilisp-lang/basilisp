@@ -238,20 +238,20 @@ class Namespace:
                                               'operator',
                                               'sys',
                                               'basilisp.lang.atom',
+                                              'basilisp.lang.compiler',
                                               'basilisp.lang.delay',
                                               'basilisp.lang.exception',
                                               'basilisp.lang.keyword',
                                               'basilisp.lang.list',
                                               'basilisp.lang.map',
                                               'basilisp.lang.multifn',
+                                              'basilisp.lang.reader',
                                               'basilisp.lang.runtime',
                                               'basilisp.lang.seq',
                                               'basilisp.lang.set',
                                               'basilisp.lang.symbol',
                                               'basilisp.lang.vector',
-                                              'basilisp.lang.util',
-                                              'basilisp.compiler',
-                                              'basilisp.reader'])
+                                              'basilisp.lang.util'])
                                          .map(sym.symbol)
                                          .to_list()))
     GATED_IMPORTS = lset.set(['basilisp.core'])

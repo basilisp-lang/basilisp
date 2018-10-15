@@ -39,8 +39,8 @@ Resolver = Callable[[symbol.Symbol], symbol.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
 W = TypeVar('W', bound=LispReaderFn)
 
-READER_LINE_KW = keyword.keyword('line', ns='basilisp.reader')
-READER_COL_KW = keyword.keyword('col', ns='basilisp.reader')
+READER_LINE_KW = keyword.keyword('line', ns='basilisp.lang.reader')
+READER_COL_KW = keyword.keyword('col', ns='basilisp.lang.reader')
 
 _AMPERSAND = symbol.symbol("&")
 _FN = symbol.symbol("fn*")
@@ -1063,7 +1063,7 @@ def read_str(s: str,
     """Read the contents of a string as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
-    basilisp.reader.read."""
+    basilisp.lang.reader.read."""
     with io.StringIO(s) as buf:
         yield from read(buf,
                         resolver=resolver,
@@ -1080,7 +1080,7 @@ def read_file(filename: str,
     """Read the contents of a file as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
-    basilisp.reader.read."""
+    basilisp.lang.reader.read."""
     with open(filename) as f:
         yield from read(f,
                         resolver=resolver,

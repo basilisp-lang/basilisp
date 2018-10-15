@@ -5,12 +5,12 @@ import pytest
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vec
-import basilisp.reader as reader
 
 
 @pytest.fixture

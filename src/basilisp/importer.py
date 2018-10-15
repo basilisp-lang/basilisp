@@ -9,9 +9,9 @@ import types
 from importlib.abc import MetaPathFinder, SourceLoader
 from typing import Optional, List, Dict
 
-import basilisp.compiler as compiler
+import basilisp.lang.compiler as compiler
+import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
-import basilisp.reader as reader
 from basilisp.lang.util import demunge
 from basilisp.util import timed
 
