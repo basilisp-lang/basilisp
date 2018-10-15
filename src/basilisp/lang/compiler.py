@@ -24,13 +24,13 @@ import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as lmeta
+import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util
 import basilisp.lang.vector as vec
-import basilisp.reader as reader
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -77,8 +77,8 @@ _UNQUOTE = sym.symbol("unquote", _CORE_NS)
 _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
 
 _SYM_CTX_LOCAL_STARRED = kw.keyword(
-    'local-starred', ns='basilisp.compiler.var-context')
-_SYM_CTX_LOCAL = kw.keyword('local', ns='basilisp.compiler.var-context')
+    'local-starred', ns='basilisp.lang.compiler.var-context')
+_SYM_CTX_LOCAL = kw.keyword('local', ns='basilisp.lang.compiler.var-context')
 
 SymbolTableEntry = Tuple[str, kw.Keyword, sym.Symbol]
 

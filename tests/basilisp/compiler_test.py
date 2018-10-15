@@ -9,15 +9,15 @@ from unittest.mock import Mock
 import dateutil.parser as dateparser
 import pytest
 
-import basilisp.compiler as compiler
+import basilisp.lang.compiler as compiler
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-import basilisp.reader as reader
 from basilisp.lang.runtime import Var
 from basilisp.main import init
 from basilisp.util import Maybe

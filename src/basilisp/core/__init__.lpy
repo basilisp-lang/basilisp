@@ -1116,7 +1116,7 @@
           attempting to change the root binding of this var will not
           change the default data readers."}
   default-data-readers
-  (.--DATA-READERS basilisp.reader/ReaderContext))
+  (.--DATA-READERS basilisp.lang.reader/ReaderContext))
 
 (def
   ^{:doc     "Data readers map which will be merged in to the default data
@@ -1146,13 +1146,13 @@
   ([s]
    (read-string {:eof :eofthrow} s))
   ([opts s]
-   (first (basilisp.reader/read-str s
-                                    *resolver*
-                                    *data-readers*
-                                    (:eof opts)
-                                    (if (= (:eof opts) :eofthrow)
-                                      true
-                                      false)))))
+   (first (basilisp.lang.reader/read-str s
+                                         *resolver*
+                                         *data-readers*
+                                         (:eof opts)
+                                         (if (= (:eof opts) :eofthrow)
+                                           true
+                                           false)))))
 
 (defn read
   "Read the next form from the stream. If no stream is specified, uses
@@ -1162,36 +1162,36 @@
   data readers used reading this string.
 
   The stream must satisfy the interface of io.TextIOBase, but does not require
-  any pushback capabilities. The default basilisp.reader.StreamReader can wrap
-  any object implementing TextIOBase and provide pushback capabilities."
+  any pushback capabilities. The default basilisp.lang.reader.StreamReader can
+  wrap any object implementing TextIOBase and provide pushback capabilities."
   ([]
    (read *in*))
   ([stream]
    (read stream true nil))
   ([opts stream]
-   (first (basilisp.reader/read stream
-                                *resolver*
-                                *data-readers*
-                                (:eof opts)
-                                (if (= (:eof opts) :eofthrow)
-                                  true
-                                  false))))
+   (first (basilisp.lang.reader/read stream
+                                     *resolver*
+                                     *data-readers*
+                                     (:eof opts)
+                                     (if (= (:eof opts) :eofthrow)
+                                       true
+                                       false))))
   ([stream eof-error? eof-value]
-   (first (basilisp.reader/read stream
-                                *resolver*
-                                *data-readers*
-                                eof-value
-                                eof-error?))))
+   (first (basilisp.lang.reader/read stream
+                                     *resolver*
+                                     *data-readers*
+                                     eof-value
+                                     eof-error?))))
 
 (defn eval
   "Evaluate a form (not a string) and return its result."
   [form]
-  (let [ctx    (basilisp.compiler.CompilerContext.)
+  (let [ctx    (basilisp.lang.compiler.CompilerContext.)
         module (.-module *ns*)]
-    (basilisp.compiler/compile-and-exec-form form
-                                             ctx
-                                             module
-                                             "<Eval Input>")))
+    (basilisp.lang.compiler/compile-and-exec-form form
+                                                  ctx
+                                                  module
+                                                  "<Eval Input>")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Namespace Utilities ;;

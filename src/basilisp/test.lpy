@@ -20,7 +20,7 @@
   ([expr]
    `(is ~expr (str "Test failure: " ~expr)))
   ([expr msg]
-   (let [line-no (:basilisp.reader/line (meta &form))
+   (let [line-no (:basilisp.lang.reader/line (meta &form))
 
          eq-sym `=
 
