@@ -494,7 +494,7 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     yield _node(ast.Call(
         func=_INTERN_VAR_FN_NAME,
         args=[ns_name, def_name, ast.Name(id=safe_name, ctx=ast.Load())],
-        keywords=list(chain(dynamic_kwarg, _unwrap_nodes(meta)))))
+        keywords=list(chain(dynamic_kwarg, _unwrap_nodes(meta)))))  # type: ignore
 
 
 def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -957,7 +957,7 @@ def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
             last = ast.Name(id=module_name, ctx=ast.Load())
             yield _dependency(ast.Call(
                 func=_load_attr(f'{_NS_VAR_VALUE}.add_import'),
-                args=list(chain(_unwrap_nodes(_to_ast(ctx, s)), [last])),
+                args=list(chain(_unwrap_nodes(_to_ast(ctx, s)), [last])),  # type: ignore
                 keywords=[]))
 
     assert last is not None
@@ -1139,7 +1139,7 @@ def _recur_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
         has_vargs = any([s == _AMPERSAND for s in ctx.recur_point.args])
         yield _node(ast.Call(func=_TRAMPOLINE_ARGS_FN_NAME,
-                             args=list(itertools.chain([ast.NameConstant(has_vargs)],
+                             args=list(itertools.chain([ast.NameConstant(has_vargs)],  # type: ignore
                                                        _unwrap_nodes(exprs))),
                              keywords=[]))
     except IndexError:
@@ -1860,7 +1860,7 @@ def compile_and_exec_form(form: LispForm,  # pylint: disable= too-many-arguments
     # rather than using Var.find indrection.
     final_wrapped_name = genname(wrapped_fn_name)
     body = _expressionize([form_ast[-1]], final_wrapped_name)
-    form_ast = list(itertools.chain(map(_statementize, form_ast[:-1]), [body]))
+    form_ast = list(itertools.chain(map(_statementize, form_ast[:-1]), [body]))  # type: ignore
 
     ast_module = ast.Module(body=form_ast)
     ast.fix_missing_locations(ast_module)
