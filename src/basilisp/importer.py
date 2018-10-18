@@ -15,6 +15,8 @@ import basilisp.lang.runtime as runtime
 from basilisp.lang.util import demunge
 from basilisp.util import timed
 
+_NO_CACHE_ENVVAR = 'BASILISP_DO_NOT_CACHE_NAMESPACES'
+
 MAGIC_NUMBER = (1149).to_bytes(2, 'little') + b'\r\n'
 
 logger = logging.getLogger(__name__)
@@ -227,11 +229,14 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
 
         # Check if a valid, cached version of this Basilisp namespace exists and, if so,
         # load it and bypass the expensive compilation process below.
-        try:
-            self._exec_cached_module(fullname, spec.loader_state, path_stats, module)
-        except (EOFError, ImportError, IOError, OSError) as e:
-            logger.debug(f"Failed to load cached Basilisp module: {e}")
+        if os.getenv(_NO_CACHE_ENVVAR, None) == 'True':
             self._exec_module(fullname, spec.loader_state, path_stats, module)
+        else:
+            try:
+                self._exec_cached_module(fullname, spec.loader_state, path_stats, module)
+            except (EOFError, ImportError, IOError, OSError) as e:
+                logger.debug(f"Failed to load cached Basilisp module: {e}")
+                self._exec_module(fullname, spec.loader_state, path_stats, module)
 
         # Because we want to (by default) add 'basilisp.core into every namespace by default,
         # we want to make sure we don't try to add 'basilisp.core into itself, causing a
