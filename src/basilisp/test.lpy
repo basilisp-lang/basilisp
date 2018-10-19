@@ -1,4 +1,6 @@
-(ns basilisp.test)
+(ns basilisp.test
+  (:import
+   inspect))
 
 (def ^:private collected-tests
   (atom []))
@@ -15,38 +17,98 @@
 (def ^:dynamic *test-section* nil)
 (def ^:dynamic *test-failures* nil)
 
+(defn line-no
+  "Get the line number from the current interpreter stack.
+
+  This is a horrible hack and it requires each particular assertion case
+  to define their frame offset from here, but it seems to be the most
+  accessible way of determining the line number without capturing it
+  for every test (including non-failing tests)."
+  [n]
+  (.-lineno (nth (inspect/stack) n)))
+
+(defmulti gen-assert
+  (fn [expr _]
+    (cond
+      (list? expr) (first expr)
+      :else        :default)))
+
+(defmethod gen-assert '=
+  [expr msg]
+  `(when-not ~expr
+    (swap! *test-failures*
+           conj
+           {:test-name    *test-name*
+            :test-section *test-section*
+            :message      ~msg
+            :expr         (quote ~expr)
+            :actual       ~(nth expr 2)
+            :expected     ~(second expr)
+            :line         (line-no 4)
+            :type         :failure})))
+
+(defmethod gen-assert 'thrown?
+  [expr msg]
+  (let [exc-type (second expr)
+        body     (nthnext expr 2)]
+    `(try
+       (let [result# (do ~@body)]
+         (swap! *test-failures*
+                conj
+                {:test-name    *test-name*
+                 :test-section *test-section*
+                 :message      ~msg
+                 :expr         (quote ~expr)
+                 :actual       result#
+                 :expected     (quote ~exc-type)
+                 :line         (line-no 3)
+                 :type         :failure}))
+       (catch ~exc-type _ nil)
+       (catch builtins/Exception e#
+         (swap! *test-failures*
+                conj
+                {:test-name    *test-name*
+                 :test-section *test-section*
+                 :message      (str "Expected " ~exc-type "; got " (builtins/type e#) " instead")
+                 :expr         (quote ~expr)
+                 :actual       e#
+                 :expected     ~exc-type
+                 :line         (line-no 3)
+                 :type         :failure})))))
+
+(defmethod gen-assert :default
+  [expr msg]
+  `(let [computed# ~expr]
+     (when-not computed#
+       (swap! *test-failures*
+              conj
+              {:test-name    *test-name*
+               :test-section *test-section*
+               :message      ~msg
+               :expr         (quote ~expr)
+               :actual       computed#
+               :expected     computed#
+               :line         (line-no 6)
+               :type         :failure}))))
+
 (defmacro is
   "Assert that expr is true. Must appear inside of a deftest form."
   ([expr]
-   `(is ~expr (str "Test failure: " ~expr)))
+   `(is ~expr (str "Test failure: " (pr-str (quote ~expr)))))
   ([expr msg]
-   (let [line-no (:basilisp.lang.reader/line (meta &form))
-
-         eq-sym `=
-
-         deconstruct? (and (list? expr) (= eq-sym (first expr)))
-
-         expected (if deconstruct?
-                    (second expr)
-                    expr)
-         actual   (if deconstruct?
-                    (nth expr 2)
-                    expr)]
-     `(let [computed# ~expr
-            actual#   ~actual
-            expected# ~expected]
-        (when-not computed#
-          ;; Collect test failures in the atom bound to
-          ;; `*test-failures*` by `deftest`.
-          (swap! *test-failures*
-                 conj
-                 [~msg
-                  {:test-name    *test-name*
-                   :test-section *test-section*
-                   :expr         (quote ~expr)
-                   :line         ~line-no
-                   :actual       actual#
-                   :expected     expected#}]))))))
+   `(try
+      ~(gen-assert expr msg)
+      (catch builtins/Exception e#
+        (swap! *test-failures*
+               conj
+               {:test-name    *test-name*
+                :test-section *test-section*
+                :message      (str "Unexpected exception thrown during test run: " (builtins/repr e#))
+                :expr         (quote ~expr)
+                :actual       e#
+                :expected     (quote ~expr)
+                :line         (line-no 2)
+                :type         :failure})))))
 
 (defmacro testing
   "Wrapper for test cases to provide additional messaging and context

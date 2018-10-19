@@ -101,6 +101,7 @@ class BasilispFile(pytest.File):
 _ACTUAL_KW = kw.keyword('actual')
 _EXPECTED_KW = kw.keyword('expected')
 _FAILURES_KW = kw.keyword('failures')
+_MESSAGE_KW = kw.keyword('message')
 _LINE_KW = kw.keyword('line')
 _EXPR_KW = kw.keyword('expr')
 _TEST_SECTION_KW = kw.keyword('test-section')
@@ -145,9 +146,8 @@ class BasilispTestItem(pytest.Item):
             failures = exc.data.entry(_FAILURES_KW)
             messages = []
 
-            for failure in failures:
-                msg: str = failure.entry(0)
-                details: lmap.Map = failure.entry(1)
+            for details in failures:
+                msg: str = details.entry(_MESSAGE_KW)
 
                 actual = details.entry(_ACTUAL_KW)
                 expected = details.entry(_EXPECTED_KW)
