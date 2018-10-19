@@ -463,7 +463,9 @@ def test_syntax_quoted(test_ns: str, ns: runtime.Namespace):
 
 
 def test_syntax_quote_gensym():
-    gensym = read_str_first("`s#")
+    resolver = lambda s: sym.symbol(s.name, ns='test-ns')
+
+    gensym = read_str_first("`s#", resolver=resolver)
     assert isinstance(gensym, llist.List)
     assert gensym.first == reader._QUOTE
     genned_sym: sym.Symbol = gensym[1]
@@ -471,22 +473,28 @@ def test_syntax_quote_gensym():
 
     # Verify that identical gensym forms resolve to the same
     # symbol inside the same syntax quote expansion
-    multisym = read_str_first("`(s1# s2# s1#)")[1].rest
+    multisym = read_str_first("`(s1# s2# s1#)", resolver=resolver)[1].rest
 
     multisym1 = multisym[0][1]
     assert reader._QUOTE == multisym1[0]
     genned_sym1: sym.Symbol = multisym1[1]
+    assert genned_sym1.ns is None
     assert genned_sym1.name.startswith("s1_")
+    assert "#" not in genned_sym1.name
 
     multisym2 = multisym[1][1]
     assert reader._QUOTE == multisym2[0]
     genned_sym2: sym.Symbol = multisym2[1]
+    assert genned_sym2.ns is None
     assert genned_sym2.name.startswith("s2_")
+    assert "#" not in genned_sym2.name
 
     multisym3 = multisym[2][1]
     assert reader._QUOTE == multisym3[0]
     genned_sym3: sym.Symbol = multisym3[1]
+    assert genned_sym3.ns is None
     assert genned_sym3.name.startswith("s1_")
+    assert "#" not in genned_sym3.name
 
     assert genned_sym1 == genned_sym3
     assert genned_sym1 != genned_sym2

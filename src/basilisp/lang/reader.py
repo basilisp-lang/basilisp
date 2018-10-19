@@ -625,7 +625,7 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
             return True
         elif name == 'false':
             return False
-    if ctx.is_syntax_quoted:
+    if ctx.is_syntax_quoted and not name.endswith('#'):
         return ctx.resolve(symbol.symbol(name, ns))
     return symbol.symbol(name, ns=ns)
 
