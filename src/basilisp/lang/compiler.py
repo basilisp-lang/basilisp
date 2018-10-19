@@ -1164,10 +1164,18 @@ def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
     assert isinstance(form[1], sym.Symbol)
     assert isinstance(form[2], sym.Symbol)
 
-    body = seq(form[3:]).flat_map(lambda f: _to_ast(ctx, f)).map(_unwrap_node).to_list()
+    type_name = form[1].name
+    if form[1].ns is not None:
+        type_name = f"{form[1].ns}.{type_name}"
+
+    exc_name = munge(form[2].name)
+    with ctx.new_symbol_table(genname('catch_block')):
+        ctx.symbol_table.new_symbol(form[2], exc_name, _SYM_CTX_LOCAL)
+        body = seq(form[3:]).flat_map(lambda f: _to_ast(ctx, f)).map(_unwrap_node).to_list()
+
     return ast.ExceptHandler(
-        type=ast.Name(id=form[1].name, ctx=ast.Load()),
-        name=munge(form[2].name),
+        type=_load_attr(type_name),
+        name=exc_name,
         body=list(_catch_expr_body(body)))
 
 

@@ -651,6 +651,13 @@ def test_try_catch(capsys, ns: runtime.Namespace):
     code = """
       (try
         (.fake-lower "UPPER")
+        (catch builtins/AttributeError e (.-args e)))
+    """
+    assert ("'str' object has no attribute 'fake_lower'",) == lcompile(code)
+
+    code = """
+      (try
+        (.fake-lower "UPPER")
         (catch TypeError _ "lower")
         (catch AttributeError _ "mIxEd"))
     """
