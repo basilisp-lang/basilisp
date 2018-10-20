@@ -389,12 +389,20 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
     elif token == '-':
         reader.advance()
         seq.append(_INTEROP_PROP)
+
+        # If whitespace immediately follows, this is the form
+        # (.- object member ...), otherwise it is (.-member object ...).
+        # We need to support both, as the former is more commonly
+        # the format which will appear in macros.
         if whitespace_chars.match(reader.peek()):
-            raise SyntaxError(f"Expected Symbol; found whitespace")
-        member = _read_next_consuming_comment(ctx)
-        if not isinstance(member, symbol.Symbol):
-            raise SyntaxError(f"Expected Symbol; found {type(member)}")
-        instance = _read_next_consuming_comment(ctx)
+            instance = _read_next_consuming_comment(ctx)
+            member = _read_next_consuming_comment(ctx)
+        else:
+            member = _read_next_consuming_comment(ctx)
+            if not isinstance(member, symbol.Symbol):
+                raise SyntaxError(f"Expected Symbol; found {type(member)}")
+            instance = _read_next_consuming_comment(ctx)
+
         seq.append(instance)
         seq.append(member)
     else:
