@@ -586,13 +586,14 @@ def test_interop_call():
 
 
 def test_interop_prop():
-    assert read_str_first("(. sym -name)") == llist.l(
-        sym.symbol('.-'), sym.symbol('sym'), sym.symbol('name'))
-    assert read_str_first('(.-algorithm encoder)') == llist.l(
-        sym.symbol('.-'), sym.symbol('encoder'), sym.symbol('algorithm'))
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('(.- name sym)')
+    assert llist.l(sym.symbol('.-'), sym.symbol('sym'), sym.symbol('name')
+                   ) == read_str_first("(. sym -name)")
+    assert llist.l(sym.symbol('.-'), sym.symbol('encoder'), sym.symbol('algorithm')
+                   ) == read_str_first('(.-algorithm encoder)')
+    assert llist.l(sym.symbol('.-'), sym.symbol('name'), sym.symbol('sym')
+                   ) == read_str_first('(.- name sym)')
+    assert llist.l(sym.symbol('.-'), sym.symbol('name'), "string"
+                   ) == read_str_first('(.- name "string")')
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('(.-"string" sym)')
