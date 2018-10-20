@@ -264,6 +264,47 @@
     (recur (rest s))
     (first s)))
 
+(defn str
+  "Create a string representation of o."
+  ([] "")
+  ([o] (builtins/str o))
+  ([o & args]
+   (let [coerce (fn [in out]
+                  (if (seq (rest in))
+                    (recur (rest in)
+                           (conj out (builtins/str (first in))))
+                    (conj out (builtins/str (first in)))))
+         strs   (coerce (conj args o) [])]
+     (.join "" strs))))
+
+(defn symbol
+  "Create a new symbol with name and optional namespace ns."
+  ([name]
+   (basilisp.lang.symbol/symbol name))
+  ([ns name]
+   (basilisp.lang.symbol/symbol name ns)))
+
+(defn keyword
+  "Create a new keyword with name and optional namespace ns. Keywords
+  will have the colon prefix added automatically, so it should not be
+  provided."
+  ([name]
+   (basilisp.lang.keyword/keyword name))
+  ([ns name]
+   (basilisp.lang.keyword/keyword name ns)))
+
+(defn name
+  "Return the name of a string, symbol, or keyword."
+  [v]
+  (if (string? v)
+    v
+    (.-name v)))
+
+(defn namespace
+  "Return the namespace of a symbol or keyword, or nil if no namespace."
+  [v]
+  (.-ns v))
+
 (def
   ^{:macro true
     :doc   "Define a new macro like defn. Macro functions are available to the
@@ -303,6 +344,10 @@
                    (add-implicit-args body))]
       `(defn ~fname
          ~@body))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Logical Comparisons & Macros ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmacro if-not
   "Evaluate cond and if it is true, return false-cond. Otherwise return
@@ -349,6 +394,20 @@
         ~(first args)
         (or ~@(rest args)))
      (first args))))
+
+(defmacro cond
+  "Given groups of test/expression pairs, evaluate each test and, if
+  true, return the expression. Otherwise, continue through until reaching
+  the final expression."
+  [& clauses]
+  (when (seq clauses)
+    (list 'if (first clauses)
+          (if (next clauses)
+            (second clauses)
+            (throw
+             (ex-info "cond requires an even number of forms"
+                      {:first (first clauses)})))
+          (cons 'basilisp.core/cond (nthrest clauses 2)))))
 
 (defn not
   "Return the logical negation of expr."
@@ -435,60 +494,9 @@
        false)
      (operator/le x (first args)))))
 
-(defn str
-  "Create a string representation of o."
-  ([] "")
-  ([o] (builtins/str o))
-  ([o & args]
-   (let [coerce (fn [in out]
-                  (if (seq (rest in))
-                    (recur (rest in)
-                           (conj out (builtins/str (first in))))
-                    (conj out (builtins/str (first in)))))
-         strs   (coerce (conj args o) [])]
-     (.join "" strs))))
-
-(defmacro cond
-  "Given groups of test/expression pairs, evaluate each test and, if
-  true, return the expression. Otherwise, continue through until reaching
-  the final expression."
-  [& clauses]
-  (when (seq clauses)
-    (list 'if (first clauses)
-          (if (next clauses)
-            (second clauses)
-            (throw
-             (ex-info "cond requires an even number of forms"
-                      {:first (first clauses)})))
-          (cons 'basilisp.core/cond (nthrest clauses 2)))))
-
-(defn symbol
-  "Create a new symbol with name and optional namespace ns."
-  ([name]
-   (basilisp.lang.symbol/symbol name))
-  ([ns name]
-   (basilisp.lang.symbol/symbol name ns)))
-
-(defn keyword
-  "Create a new keyword with name and optional namespace ns. Keywords
-  will have the colon prefix added automatically, so it should not be
-  provided."
-  ([name]
-   (basilisp.lang.keyword/keyword name))
-  ([ns name]
-   (basilisp.lang.keyword/keyword name ns)))
-
-(defn name
-  "Return the name of a string, symbol, or keyword."
-  [v]
-  (if (string? v)
-    v
-    (.-name v)))
-
-(defn namespace
-  "Return the namespace of a symbol or keyword, or nil if no namespace."
-  [v]
-  (.-ns v))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; State Management Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn deref
   "Dereference a delay or atom and returns its contents."
@@ -538,33 +546,9 @@
   (list 'basilisp.lang.delay/Delay
         (concat '(fn* []) body)))
 
-(defmacro lazy-seq
-  "Takes a body of expressions which will produce a seq or nil. When
-  seq is first called on the resulting lazy-seq, the sequence will be
-  realized."
-  [& body]
-  (list 'basilisp.lang.seq/LazySeq
-        (concat '(fn* []) body)))
-
-(defn pos?
-  "Return true if x is positive."
-  [x]
-  (if (operator/gt x 0) true false))
-
-(defn non-neg?
-  "Return true if x is not negative."
-  [x]
-  (if (operator/ge x 0) true false))
-
-(defn zero?
-  "Return true if x is 0."
-  [x]
-  (= 0 x))
-
-(defn neg?
-  "Return true if x is negative."
-  [x]
-  (if (operator/lt x 0) true false))
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Arithmetic Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn +
   "Sum the arguments together. If no arguments given, returns 0."
@@ -627,6 +611,26 @@
   [x]
   (- x 1))
 
+(defn pos?
+  "Return true if x is positive."
+  [x]
+  (if (operator/gt x 0) true false))
+
+(defn non-neg?
+  "Return true if x is not negative."
+  [x]
+  (if (operator/ge x 0) true false))
+
+(defn zero?
+  "Return true if x is 0."
+  [x]
+  (= 0 x))
+
+(defn neg?
+  "Return true if x is negative."
+  [x]
+  (if (operator/lt x 0) true false))
+
 (defn even?
   "Return true if x is even."
   [x]
@@ -653,6 +657,10 @@
    (basilisp.lang.runtime/sort coll))
   ([cmp coll]
    (basilisp.lang.runtime/sort coll cmp)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Associative Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn contains?
   "Return true if coll contains k. For vectors, k is an index. For maps, k is
@@ -690,38 +698,17 @@
   [entry]
   (.-value entry))
 
-(defmacro new
-  "Create a new instance of class with args.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Higher Order Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  New objects may be created as any of:
-    (new builtins/str *args)
-    (new builtins.str *args)
-    (new builtins.str. *args)
-
-  This is compatibility syntax for Clojure, since Python (and therefore
-  Basilisp) do not require the new keyword for object instantiation."
-  [class & args]
-  (cond
-    (not (symbol? class))
-    (throw
-     (ex-info "Expected a class name as a symbol"
-              {:class-name class}))
-
-    (namespace class)
-    (let [n  (name class)
-          ns (namespace class)
-          s  (symbol (str ns "."
-                          (if (.endswith n ".")
-                            n
-                            (str n "."))))]
-      `(~s ~@args))
-
-    :else
-    (let [n (name class)
-          s (symbol (if (.endswith n ".")
-                      n
-                      (str n ".")))]
-      `(~s ~@args))))
+(defmacro lazy-seq
+  "Takes a body of expressions which will produce a seq or nil. When
+  seq is first called on the resulting lazy-seq, the sequence will be
+  realized."
+  [& body]
+  (list 'basilisp.lang.seq/LazySeq
+        (concat '(fn* []) body)))
 
 (defn range
   "Return a range of integers from start. If end is specified, the
@@ -954,6 +941,48 @@
     (reduce #(conj %1 %2)
             {}
             maps)))
+
+;;;;;;;;;;;;;;;;;;;;
+;; Utility Macros ;;
+;;;;;;;;;;;;;;;;;;;;
+
+(defmacro apply-method
+  "Apply arguments to a method call. Equivalent to (apply (.-method o) args)."
+  [o method & args]
+  `(apply (.- ~o ~method) ~@args))
+
+(defmacro new
+  "Create a new instance of class with args.
+
+  New objects may be created as any of:
+    (new builtins/str *args)
+    (new builtins.str *args)
+    (new builtins.str. *args)
+
+  This is compatibility syntax for Clojure, since Python (and therefore
+  Basilisp) do not require the new keyword for object instantiation."
+  [class & args]
+  (cond
+    (not (symbol? class))
+    (throw
+     (ex-info "Expected a class name as a symbol"
+              {:class-name class}))
+
+    (namespace class)
+    (let [n  (name class)
+          ns (namespace class)
+          s  (symbol (str ns "."
+                          (if (.endswith n ".")
+                            n
+                            (str n "."))))]
+      `(~s ~@args))
+
+    :else
+    (let [n (name class)
+          s (symbol (if (.endswith n ".")
+                      n
+                      (str n ".")))]
+      `(~s ~@args))))
 
 (defmacro binding
   "Establish thread-local bindings for the vars given. The bindings are guaranteed
