@@ -543,12 +543,6 @@ def test_reduce_with_lazy_seq():
     assert 25 == core.reduce(core.__PLUS__, 0, core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4, 5, 6, 7, 8, 9)))
 
 
-def test_interpose():
-    assert llist.List.empty() == core.interpose(",", vec.Vector.empty())
-    assert llist.l("hi") == core.interpose(",", vec.v("hi"))
-    assert llist.l("hi", ",", "there") == core.interpose(",", vec.v("hi", "there"))
-
-
 def test_comp():
     assert 1 == core.comp()(1)
     assert "hi" == core.comp()("hi")
@@ -619,6 +613,99 @@ def test_merge():
         lmap.map({kw.keyword("a"): 53}))
 
 
+def test_map():
+    assert llist.List.empty() == core.map_(core.identity, vec.Vector.empty())
+    assert llist.l(1, 2, 3) == core.map_(core.identity, vec.v(1, 2, 3))
+    assert llist.l(2, 3, 4) == core.map_(core.inc, vec.v(1, 2, 3))
+
+
+def test_filter():
+    assert llist.List.empty() == core.filter_(core.identity, vec.Vector.empty())
+    assert llist.l(1, 3) == core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4))
+    assert llist.l(1, 2, 3, 4) == core.filter_(core.identity, vec.v(1, 2, 3, 4))
+
+
+def test_remove():
+    assert llist.List.empty() == core.remove(core.identity, vec.Vector.empty())
+    assert llist.l(2, 4) == core.remove(core.odd__Q__, vec.v(1, 2, 3, 4))
+    assert llist.List.empty() == core.remove(core.identity, vec.v(1, 2, 3, 4))
+
+
+def test_take():
+    assert llist.List.empty() == core.take(3, vec.Vector.empty())
+    assert llist.l(1, 2, 3) == core.take(3, vec.v(1, 2, 3))
+    assert llist.l(1, 2) == core.take(2, vec.v(1, 2, 3))
+    assert llist.l(1) == core.take(1, vec.v(1, 2, 3))
+    assert llist.List.empty() == core.take(0, vec.v(1, 2, 3))
+
+
+def test_take_while():
+    assert llist.List.empty() == core.take_while(core.odd__Q__, vec.Vector.empty())
+    assert llist.List.empty() == core.take_while(core.even__Q__, vec.v(1, 3, 5, 7))
+    assert llist.List.empty() == core.take_while(core.odd__Q__, vec.v(2, 3, 5, 7))
+    assert llist.l(1, 3, 5) == core.take_while(core.odd__Q__, vec.v(1, 3, 5, 2))
+    assert llist.l(1, 3, 5, 7) == core.take_while(core.odd__Q__, vec.v(1, 3, 5, 7))
+    assert llist.l(1) == core.take_while(core.odd__Q__, vec.v(1, 2, 3, 4))
+
+
+def test_drop():
+    assert llist.List.empty() == core.drop(3, vec.Vector.empty())
+    assert llist.List.empty() == core.drop(3, vec.v(1, 2, 3))
+    assert llist.l(1, 2, 3) == core.drop(0, vec.v(1, 2, 3))
+    assert llist.l(2, 3) == core.drop(1, vec.v(1, 2, 3))
+    assert llist.l(3) == core.drop(2, vec.v(1, 2, 3))
+    assert llist.l(4) == core.drop(3, vec.v(1, 2, 3, 4))
+
+
+def test_drop_while():
+    assert llist.List.empty() == core.drop_while(core.odd__Q__, vec.Vector.empty())
+    assert llist.List.empty() == core.drop_while(core.odd__Q__, vec.v(1, 3, 5, 7))
+    assert llist.l(2) == core.drop_while(core.odd__Q__, vec.v(1, 3, 5, 2))
+    assert llist.l(2, 3, 4) == core.drop_while(core.odd__Q__, vec.v(1, 2, 3, 4))
+    assert llist.l(2, 4, 6, 8) == core.drop_while(core.odd__Q__, vec.v(2, 4, 6, 8))
+
+
+def test_split_at():
+    assert vec.v(llist.List.empty(), llist.List.empty()) == core.split_at(3, vec.Vector.empty())
+    assert vec.v(llist.List.empty(), llist.l(1, 2, 3)) == core.split_at(0, vec.v(1, 2, 3))
+    assert vec.v(llist.l(1), llist.l(2, 3)) == core.split_at(1, vec.v(1, 2, 3))
+    assert vec.v(llist.l(1, 2), llist.l(3)) == core.split_at(2, vec.v(1, 2, 3))
+    assert vec.v(llist.l(1, 2, 3), llist.List.empty()) == core.split_at(3, vec.v(1, 2, 3))
+    assert vec.v(llist.l(1, 2, 3), llist.List.empty()) == core.split_at(4, vec.v(1, 2, 3))
+    assert vec.v(llist.l(1, 2, 3), llist.l(4)) == core.split_at(3, vec.v(1, 2, 3, 4))
+
+
+def test_split_with():
+    assert vec.v(llist.List.empty(), llist.List.empty()) == core.split_with(core.odd__Q__, vec.Vector.empty())
+    assert vec.v(llist.l(1), llist.l(2, 3)) == core.split_with(core.odd__Q__, vec.v(1, 2, 3))
+    assert vec.v(llist.l(1, 3, 5, 7), llist.List.empty()) == core.split_with(core.odd__Q__, vec.v(1, 3, 5, 7))
+    assert vec.v(llist.List.empty(), llist.l(2, 4, 6, 8)) == core.split_with(core.odd__Q__, vec.v(2, 4, 6, 8))
+
+
+def test_interpose():
+    assert llist.List.empty() == core.interpose(",", vec.Vector.empty())
+    assert llist.l("hi") == core.interpose(",", vec.v("hi"))
+    assert llist.l("hi", ",", "there") == core.interpose(",", vec.v("hi", "there"))
+
+
+def test_cycle():
+    assert llist.l(1, 1, 1) == core.take(3, core.cycle(vec.v(1)))
+    assert llist.l(1, 2, 1) == core.take(3, core.cycle(vec.v(1, 2)))
+    assert llist.l(1, 2, 3) == core.take(3, core.cycle(vec.v(1, 2, 3)))
+    assert llist.l(1, 2, 3, 1, 2, 3) == core.take(6, core.cycle(vec.v(1, 2, 3)))
+
+
+def test_repeat():
+    assert llist.l(1, 1, 1) == core.take(3, core.repeat(1))
+    assert llist.l(1, 1, 1, 1, 1, 1) == core.take(6, core.repeat(1))
+    assert llist.l(1, 1, 1) == core.repeat(3, 1)
+
+
+def test_repeatedly():
+    assert llist.l("yes", "yes", "yes") == core.take(3, core.repeatedly(lambda: "yes"))
+    assert llist.l("yes", "yes", "yes") == core.repeatedly(3, lambda: "yes")
+
+
 def test_pr_str():
     assert '' == core.pr_str()
     assert '""' == core.pr_str("")
@@ -668,3 +755,13 @@ def test_re_seq():
     assert llist.l("1", "1", "0") == core.re_seq(re.compile(r"\d+"), "Basilisp 1.1.0")
     assert llist.l("the", "man", "who", "sold", "the", "world") == core.re_seq(
         re.compile(r"\w+"), "the man who sold the world")
+
+
+def test_select_keys():
+    assert lmap.Map.empty() == core.select_keys(
+        lmap.Map.empty(), vec.v(vec.Vector.empty()))
+    assert lmap.Map.empty() == core.select_keys(
+        lmap.Map.empty(), vec.v(kw.keyword('a'), kw.keyword('b')))
+    assert lmap.map({kw.keyword('a'): "a", kw.keyword('b'): "b"}) == core.select_keys(
+        lmap.map({kw.keyword('a'): "a", kw.keyword('b'): "b", kw.keyword('c'): "c"}),
+        vec.v(kw.keyword('a'), kw.keyword('b')))

@@ -828,8 +828,8 @@
   "Return a lazy sequence of (f elem) for elements in coll."
   [f coll]
   (lazy-seq
-   (cons (f (first coll)) (when (seq (rest coll))
-                            (map f (rest coll))))))
+   (when (seq coll)
+     (cons (f (first coll)) (map f (rest coll))))))
 
 (defn filter
   "Return elements from coll where (pred elem) returns true."
@@ -923,7 +923,9 @@
   ([x]
    (lazy-seq (cons x (repeat x))))
   ([n x]
-   (lazy-seq (cons x (repeat (dec n) x)))))
+   (lazy-seq
+    (when (> n 0)
+      (cons x (repeat (dec n) x))))))
 
 (defn repeatedly
   "Call f infinitely or n many times if n is specified. Returns a lazy
@@ -931,7 +933,9 @@
   ([f]
    (lazy-seq (cons (f) (repeatedly f))))
   ([n f]
-   (lazy-seq (cons (f) (repeatedly (dec n) f)))))
+   (lazy-seq
+    (when (> n 0)
+      (cons (f) (repeatedly (dec n) f))))))
 
 (defn merge
   "Merge maps together from left to right as by conj. If a duplicate key
@@ -1578,3 +1582,17 @@
   [multifn]
   (.remove-all-methods multifn)
   multifn)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Associative Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn select-keys
+  "Return a map with only the keys of m which are in ks."
+  [m ks]
+  (reduce (fn [new-map k]
+            (if (contains? m k)
+              (assoc new-map k (get m k))
+              new-map))
+          {}
+          ks))
