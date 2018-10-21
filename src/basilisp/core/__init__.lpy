@@ -694,6 +694,13 @@
   ([m k default]
    (basilisp.lang.runtime/get m k default)))
 
+(defn update
+  "Updates the value for key k in associative data structure m with the return value
+  from calling (f old-v & args). If m is nil, use an empty map. If k is not in m,
+  old-v will be nil."
+  [m k f & args]
+  (apply basilisp.lang.runtime/update m k f args))
+
 (defn key
   "Return the key from a map entry."
   [entry]
@@ -912,6 +919,14 @@
   vector of [(take-while pred coll) (drop-while pred coll)]."
   [pred coll]
   [(take-while pred coll) (drop-while pred coll)])
+
+(defn group-by
+  ""
+  [f coll]
+  (reduce (fn [m v]
+            )
+          {}
+          coll))
 
 (defn interpose
   "Return a lazy sequence of elements of coll separated by sep. If

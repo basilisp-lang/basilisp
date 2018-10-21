@@ -12,6 +12,15 @@
   (is (not (set/disjoint? #{:a :b :c} #{:c :d :e})))
   (is (set/disjoint? #{:a :b :c} #{:d :e :f})))
 
+(deftest index-test
+  (is (= {{:weight 100} #{{:name "Gary" :weight 100}
+                          {:name "Darla" :weight 100}}
+          {:weight 50}  #{{:name "Karl" :weight 50}}}
+         (set/index #{{:name "Gary" :weight 100}
+                      {:name "Darla" :weight 100}
+                      {:name "Karl" :weight 50}}
+                    [:weight]))))
+
 (deftest intersection-test
   (is (= #{:a :b :c} (set/intersection #{:a :b :c})))
   (is (= #{:c} (set/intersection #{:a :b :c} #{:c :d :e})))

@@ -15,6 +15,16 @@
   [s1 s2]
   (.isdisjoint s1 s2))
 
+(defn index
+  [rel ks]
+  (reduce (fn [m v]
+            (let [index-val (select-keys m ks)]
+              (if (contains? m index-val)
+                (update m index-val conj v)
+                (assoc m index-val #{v}))))
+          {}
+          rel))
+
 (defn intersection
   "Return a new set with only elements in s1 that are in all
   the others. If no others are provided, return s."
