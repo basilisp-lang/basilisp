@@ -551,7 +551,7 @@ def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,  # pylint:disable=t
 
     fn_body = list(_collection_ast(ctx, body_exprs))
     if len(fn_body) == 0:
-        fn_body = [ast.NameConstant(None)]
+        fn_body = [_node(ast.NameConstant(None))]
 
     args = [ast.arg(arg=a, annotation=None) for a in munged]
     body = itertools.chain(vargs_body, fn_body)
