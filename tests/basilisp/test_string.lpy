@@ -1,4 +1,4 @@
-(ns basilisp.string-test
+(ns basilisp.test-string
   (:require
    [basilisp.string :as str]
    [basilisp.test :refer [deftest is]]))

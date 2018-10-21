@@ -1,4 +1,4 @@
-(ns basilisp.multifn-test
+(ns basilisp.test-multifn
   (:require
    [basilisp.test :refer [deftest is testing]]))
 

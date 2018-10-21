@@ -34,6 +34,18 @@ class Set(Collection, Meta, Seqable):
     def __eq__(self, other):
         return self._inner == other
 
+    def __ge__(self, other):
+        return self._inner >= other
+
+    def __gt__(self, other):
+        return self._inner > other
+
+    def __le__(self, other):
+        return self._inner <= other
+
+    def __lt__(self, other):
+        return self._inner < other
+
     def __hash__(self):
         return hash(self._inner)
 
@@ -42,6 +54,39 @@ class Set(Collection, Meta, Seqable):
 
     def __len__(self):
         return len(self._inner)
+
+    def difference(self, *others):
+        e = self._inner
+        for other in others:
+            e = e.difference(other)
+        return Set(e)
+
+    def intersection(self, *others):
+        e = self._inner
+        for other in others:
+            e = e.intersection(other)
+        return Set(e)
+
+    def symmetric_difference(self, *others):
+        e = self._inner
+        for other in others:
+            e = e.symmetric_difference(other)
+        return Set(e)
+
+    def union(self, *others):
+        e = self._inner
+        for other in others:
+            e = e.union(other)
+        return Set(e)
+
+    def isdisjoint(self, s):
+        return self._inner.isdisjoint(s)
+
+    def issuperset(self, other):
+        return self._inner >= other
+
+    def issubset(self, other):
+        return self._inner <= other
 
     @property
     def meta(self) -> Optional[Map]:
