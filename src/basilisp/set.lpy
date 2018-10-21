@@ -16,14 +16,18 @@
   (.isdisjoint s1 s2))
 
 (defn index
+  "Given a set of maps, return a mapping of unique selections of keys
+  from ks to the set of values which have those mappings."
   [rel ks]
-  (reduce (fn [m v]
-            (let [index-val (select-keys m ks)]
-              (if (contains? m index-val)
-                (update m index-val conj v)
-                (assoc m index-val #{v}))))
-          {}
-          rel))
+  (if-not (seq rel)
+    {}
+    (reduce (fn [m v]
+              (let [index-val (select-keys v ks)]
+                (if (contains? m index-val)
+                  (update m index-val conj v)
+                  (assoc m index-val #{v}))))
+            {}
+            rel)))
 
 (defn intersection
   "Return a new set with only elements in s1 that are in all

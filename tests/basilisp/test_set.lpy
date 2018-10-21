@@ -13,6 +13,7 @@
   (is (set/disjoint? #{:a :b :c} #{:d :e :f})))
 
 (deftest index-test
+  (is (= {} (set/index #{} [:weight])))
   (is (= {{:weight 100} #{{:name "Gary" :weight 100}
                           {:name "Darla" :weight 100}}
           {:weight 50}  #{{:name "Karl" :weight 50}}}

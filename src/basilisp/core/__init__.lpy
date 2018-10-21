@@ -921,10 +921,15 @@
   [(take-while pred coll) (drop-while pred coll)])
 
 (defn group-by
-  ""
+  "Return a map whose keys are the result of calling f on each element
+  in coll and whose values are vectors of the values which produced the
+  corresponding key, in the order they were added."
   [f coll]
   (reduce (fn [m v]
-            )
+            (let [group (f v)]
+              (if (contains? m group)
+                (update m group conj v)
+                (assoc m group [v]))))
           {}
           coll))
 
