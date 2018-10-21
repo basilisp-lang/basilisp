@@ -198,34 +198,40 @@ def test_do(ns: runtime.Namespace):
 
 def test_single_arity_fn(ns: runtime.Namespace):
     code = """
+    (def empty-single (fn* empty-single []))
+    """
+    ns_name = ns.name
+    fvar = lcompile(code)
+    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol('empty-single')) == fvar
+    assert callable(fvar.value)
+    assert None is fvar.value()
+
+    code = """
     (def string-upper (fn* string-upper [s] (.upper s)))
     """
     ns_name = ns.name
     fvar = lcompile(code)
-    assert fvar == Var.find_in_ns(
-        sym.symbol(ns_name), sym.symbol('string-upper'))
+    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol('string-upper')) == fvar
     assert callable(fvar.value)
-    assert fvar.value("lower") == "LOWER"
+    assert "LOWER" == fvar.value("lower")
 
     code = """
     (def string-upper (fn* string-upper ([s] (.upper s))))
     """
     ns_name = ns.name
     fvar = lcompile(code)
-    assert fvar == Var.find_in_ns(
-        sym.symbol(ns_name), sym.symbol('string-upper'))
+    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol('string-upper')) == fvar
     assert callable(fvar.value)
-    assert fvar.value("lower") == "LOWER"
+    assert "LOWER" == fvar.value("lower")
 
     code = """
     (def string-lower #(.lower %))
     """
     ns_name = ns.name
     fvar = lcompile(code)
-    assert fvar == Var.find_in_ns(
-        sym.symbol(ns_name), sym.symbol('string-lower'))
+    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol('string-lower')) == fvar
     assert callable(fvar.value)
-    assert fvar.value("UPPER") == "upper"
+    assert "upper" == fvar.value("UPPER")
 
 
 def test_multi_arity_fn(ns: runtime.Namespace):
@@ -255,6 +261,19 @@ def test_multi_arity_fn(ns: runtime.Namespace):
                 ([s] (concat [s] :one-arg))
                 ([& args] (concat [:rest-params] args))))
             """)
+
+    code = """
+    (def empty-multi-fn
+      (fn* empty-multi-fn
+        ([])
+        ([s])))
+    """
+    ns_name = ns.name
+    fvar = lcompile(code)
+    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol('empty-multi-fn')) == fvar
+    assert callable(fvar.value)
+    assert None is fvar.value()
+    assert None is fvar.value('STRING')
 
     code = """
     (def multi-fn
