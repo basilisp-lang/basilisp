@@ -105,3 +105,37 @@
   ([s] s)
   ([s1 & others]
    (apply-method s1 union others)))
+
+(defn ^:private product
+  "Generate the Cartesian product of sets l and r, calling (f left right)
+  on each relation. Returns a set of all returned elements."
+  [f l r]
+  (set
+   (map (fn [l-elem]
+          (map #(f l-elem %) r))
+        l)))
+
+(defn join
+  "Perform a natural join on the maps in lrel and rrel using keys shared
+  by elements of each relation. If ks is specified, join only on the given
+  keys."
+  ([lrel rrel]
+   (let [shared (vec
+                 (intersection
+                  (apply intersection (map (comp set keys) lrel))
+                  (apply intersection (map (comp set keys) rrel))))
+
+         lindex (index lrel shared)
+         rindex (index rrel shared)]
+     (if-not (seq lindex)
+       #{}
+       (reduce (fn [s entry]
+                 (let [k         (key entry)
+                       l-indexed (val entry)]
+                   (if (contains? rindex k)
+                     (apply conj s (product merge l-indexed (get rindex k)))
+                     s)))
+               #{}
+               lindex))))
+  ([lrel rrel keymap]
+   nil))

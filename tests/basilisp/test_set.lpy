@@ -1,7 +1,7 @@
 (ns basilisp.test-set
   (:require
    [basilisp.set :as set]
-   [basilisp.test :refer [deftest is]]))
+   [basilisp.test :refer [deftest is testing]]))
 
 (deftest difference-test
   (is (= #{:a :b :c} (set/difference #{:a :b :c})))
@@ -26,6 +26,34 @@
   (is (= #{:a :b :c} (set/intersection #{:a :b :c})))
   (is (= #{:c} (set/intersection #{:a :b :c} #{:c :d :e})))
   (is (= #{} (set/intersection #{:a :b :c} #{:c :d} #{:b "z" 3}))))
+
+(deftest join-test
+  (testing "natural join"
+    (is (= #{{:b 1 :a 2}
+             {:b 2 :a 1}
+             {:b 2 :a 2}
+             {:b 1 :a 1}}
+           (set/join #{{:a 1} {:a 2}}
+                     #{{:b 1} {:b 2}})))
+    (is (= #{{:owner "Jeff" :manufacturer "Apple" :kind "laptop" :use "travel"}
+             {:owner "Anna" :manufacturer "Dell", :kind "laptop" :use "travel"}
+             {:owner "Dinesh" :manufacturer "HP", :kind "desktop" :use "workstation"}}
+           (set/join #{{:manufacturer "Dell" :owner "Anna" :kind "laptop"}
+                       {:manufacturer "HP" :owner "Dinesh" :kind "desktop"}
+                       {:manufacturer "Apple" :owner "Jeff" :kind "laptop"}}
+                     #{{:kind "desktop" :use "workstation"}
+                       {:kind "laptop" :use "travel"}}))))
+
+  (testing "keymap join"
+    (is (= #{{:owner "Jeff" :manufacturer "Apple" :kind "laptop" :type "laptop" :use "travel"}
+             {:owner "Anna" :manufacturer "Dell", :kind "laptop" :type "laptop" :use "travel"}
+             {:owner "Dinesh" :manufacturer "HP", :kind "desktop" :type "laptop" :use "workstation"}}
+           (set/join #{{:manufacturer "Dell" :owner "Anna" :kind "laptop"}
+                       {:manufacturer "HP" :owner "Dinesh" :kind "desktop"}
+                       {:manufacturer "Apple" :owner "Jeff" :kind "laptop"}}
+                     #{{:type "desktop" :use "workstation"}
+                       {:type "laptop" :use "travel"}}
+                     {:kind :type})))))
 
 (deftest map-invert-test
   (is (= {} (set/map-invert {})))

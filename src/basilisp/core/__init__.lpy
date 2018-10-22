@@ -711,6 +711,16 @@
   [entry]
   (.-value entry))
 
+(defn keys
+  "Return a seq of keys from a map."
+  [m]
+  (seq (.keys m)))
+
+(defn vals
+  "Return a seq of vals from a map."
+  [m]
+  (seq (.vals m)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1720,9 +1730,11 @@
 (defn select-keys
   "Return a map with only the keys of m which are in ks."
   [m ks]
-  (reduce (fn [new-map k]
-            (if (contains? m k)
-              (assoc new-map k (get m k))
-              new-map))
-          {}
-          ks))
+  (if-not (seq ks)
+    {}
+    (reduce (fn [new-map k]
+              (if (contains? m k)
+                (assoc new-map k (get m k))
+                new-map))
+            {}
+            ks)))
