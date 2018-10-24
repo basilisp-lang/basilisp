@@ -125,6 +125,12 @@
   (fn vector? [o]
     (instance? basilisp.lang.vector/Vector o)))
 
+(def
+  ^{:doc "Return true if o implements Seq."}
+  seq?
+  (fn seq? [o]
+    (instance? basilisp.lang.seq/Seq o)))
+
 (def seq
   (fn seq [o]
     (basilisp.lang.runtime/to-seq o)))
@@ -826,10 +832,15 @@
 
 (defn map
   "Return a lazy sequence of (f elem) for elements in coll."
-  [f coll]
-  (lazy-seq
-   (when (seq coll)
-     (cons (f (first coll)) (map f (rest coll))))))
+  ([f coll]
+   (lazy-seq
+    (when (seq coll)
+      (cons (f (first coll)) (map f (rest coll))))))
+  ([f coll & colls]
+   (lazy-seq
+    (when (and (seq coll) (every? seq colls))
+      (cons (apply f (first coll) (map first colls))
+            (apply map f (rest coll) (map rest colls)))))))
 
 (defn filter
   "Return elements from coll where (pred elem) returns true."
@@ -882,6 +893,13 @@
      (if (pred (first coll))
        (drop-while pred (rest coll))
        (seq coll)))))
+
+(defn drop-last
+  "Drop all but the last n items of coll."
+  ([coll]
+   (drop-last 1 coll))
+  ([n coll]
+   (map (comp first vector) coll (drop n coll))))
 
 (defn split-at
   "Split a collection at the nth item. Returns a vector of
@@ -1010,6 +1028,64 @@
              body))
        (finally
          (. (var ~vvar) ~'pop-bindings)))))
+
+;;;;;;;;;;;;;;;;;;;;;;
+;; Threading Macros ;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+(defmacro ->
+  "Thread x through the forms. Places x in the second position of
+  the first form, and then the resulting expression into the second
+  position of the second form, etc. Forms which are not lists will
+  be made into lists."
+  [x & forms]
+  (if (seq forms)
+    (let [joining (first forms)]
+      `(->
+        ~(if (seq? joining)
+           (apply list (first joining) x (rest joining))
+           (list joining x))
+        ~@(rest forms)))
+    x))
+
+(defmacro ->>
+  "Thread x through the forms. Places x in the last position of
+  the first form, and then the resulting expression into the last
+  position of the second form, etc. Forms which are not lists will
+  be made into lists."
+  [x & forms]
+  (if (seq forms)
+    (let [joining (first forms)]
+      `(->>
+        ~(if (seq? joining)
+           (concat joining (list x))
+           (list joining x))
+        ~@(rest forms)))
+    x))
+
+(defmacro some->
+  "Thread x through the forms (as by ->) until the resulting expression
+  is nil or there are no more forms."
+  [x & forms]
+  (if (seq forms)
+    (let [joining (first forms)]
+      `(let [result# (-> ~x ~joining)]
+         (when-not (nil? result#)
+           (some-> result# ~@(when (seq (rest forms))
+                               (rest forms))))))
+    x))
+
+(defmacro some->>
+  "Thread x through the forms (as by ->>) until the resulting expression
+  is nil or there are no more forms."
+  [x & forms]
+  (if (seq forms)
+    (let [joining (first forms)]
+      `(let [result# (->> ~x ~joining)]
+         (when-not (nil? result#)
+           (some->> result# ~@(when (seq (rest forms))
+                                (rest forms))))))
+    x))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Output Utilities ;;
