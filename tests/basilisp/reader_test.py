@@ -259,6 +259,7 @@ def test_symbol():
     assert sym.symbol("<") == read_str_first("<")
     assert sym.symbol("<-") == read_str_first("<-")
     assert sym.symbol("<--") == read_str_first("<--")
+    assert sym.symbol("$") == read_str_first("$")
     assert sym.symbol("<body>") == read_str_first("<body>")
     assert sym.symbol("*muffs*") == read_str_first("*muffs*")
     assert sym.symbol("yay!") == read_str_first("yay!")
