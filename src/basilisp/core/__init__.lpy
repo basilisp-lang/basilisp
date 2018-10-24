@@ -1070,8 +1070,7 @@
   (if (seq forms)
     `(let [result# (-> ~x ~(first forms))]
        (when-not (nil? result#)
-         (some-> result# ~@(when (seq (rest forms))
-                             (rest forms)))))
+         (some-> result# ~@(next forms))))
     x))
 
 (defmacro some->>
@@ -1081,8 +1080,7 @@
   (if (seq forms)
     `(let [result# (->> ~x ~(first forms))]
        (when-not (nil? result#)
-         (some->> result# ~@(when (seq (rest forms))
-                              (rest forms)))))
+         (some->> result# ~@(next forms))))
     x))
 
 (defmacro cond->
@@ -1120,8 +1118,7 @@
          (let [~name ~x]
            ~(first forms))
          ~name
-       ~@(when (seq (rest forms))
-           (rest forms)))
+       ~@(next forms))
     x))
 
 ;;;;;;;;;;;;;;;;;;;;;;
