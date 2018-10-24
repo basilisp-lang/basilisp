@@ -1068,11 +1068,10 @@
   is nil or there are no more forms."
   [x & forms]
   (if (seq forms)
-    (let [joining (first forms)]
-      `(let [result# (-> ~x ~joining)]
-         (when-not (nil? result#)
-           (some-> result# ~@(when (seq (rest forms))
-                               (rest forms))))))
+    `(let [result# (-> ~x ~(first forms))]
+       (when-not (nil? result#)
+         (some-> result# ~@(when (seq (rest forms))
+                             (rest forms)))))
     x))
 
 (defmacro some->>
@@ -1080,11 +1079,10 @@
   is nil or there are no more forms."
   [x & forms]
   (if (seq forms)
-    (let [joining (first forms)]
-      `(let [result# (->> ~x ~joining)]
-         (when-not (nil? result#)
-           (some->> result# ~@(when (seq (rest forms))
-                                (rest forms))))))
+    `(let [result# (->> ~x ~(first forms))]
+       (when-not (nil? result#)
+         (some->> result# ~@(when (seq (rest forms))
+                              (rest forms)))))
     x))
 
 (defmacro cond->
@@ -1093,13 +1091,11 @@
   circuit evaluation in any case."
   [x & clauses]
   (if (seq clauses)
-    (let [test    (first clauses)
-          joining (second clauses)]
-      `(if ~test
-         (cond-> (-> ~x ~joining)
-           ~@(nthnext clauses 2))
-         (cond-> ~x
-           ~@(nthnext clauses 2))))
+    `(let [e# (if ~(first clauses)
+                (-> ~x ~(second clauses))
+                ~x)]
+       (cond-> e#
+           ~@(nthnext clauses 2)))
     x))
 
 (defmacro cond->>
@@ -1108,13 +1104,11 @@
   circuit evaluation in any case."
   [x & clauses]
   (if (seq clauses)
-    (let [test    (first clauses)
-          joining (second clauses)]
-      `(if ~test
-         (cond-> (->> ~x ~joining)
-           ~@(nthnext clauses 2))
-         (cond-> ~x
-           ~@(nthnext clauses 2))))
+    `(let [e# (if ~(first clauses)
+                (->> ~x ~(second clauses))
+                ~x)]
+       (cond->> e#
+         ~@(nthnext clauses 2)))
     x))
 
 (defmacro as->
@@ -1122,15 +1116,12 @@
   in forms with the threaded expression."
   [x name & forms]
   (if (seq forms)
-    (let [joining (first forms)]
-      `(as->
-           ~(let [tuple (split-with #(not= name %) joining)
-                  head  (first tuple)
-                  tail  (-> tuple (second) (rest))]
-              (concat head (list x) tail))
-           ~name
-         ~@(when (seq (rest forms))
-             (rest forms))))
+    `(as->
+         (let [~name ~x]
+           ~(first forms))
+         ~name
+       ~@(when (seq (rest forms))
+           (rest forms)))
     x))
 
 ;;;;;;;;;;;;;;;;;;;;;;
