@@ -1,0 +1,14 @@
+(ns basilisp.core-macros-test
+  (:require
+   [basilisp.test :refer [deftest is]]))
+
+(deftest thread-first-test
+  (is (= 2 (-> 1 inc)))
+  (is (= 1 (-> 1 inc dec))))
+
+(deftest conditional-thread-first-test
+  (is (= 1 (cond-> 1)))
+  (is (= 1 (cond-> 1 false inc)))
+  (is (= 0 (cond-> 1
+             false inc
+             true dec))))

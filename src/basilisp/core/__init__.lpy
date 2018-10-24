@@ -1087,6 +1087,52 @@
                                 (rest forms))))))
     x))
 
+(defmacro cond->
+  "Takes a test and form pair, threading x (as by ->) through each form for
+  which the corresponding test evaluates as true. cond-> does not short
+  circuit evaluation in any case."
+  [x & clauses]
+  (if (seq clauses)
+    (let [test    (first clauses)
+          joining (second clauses)]
+      `(if ~test
+         (cond-> (-> ~x ~joining)
+           ~@(nthnext clauses 2))
+         (cond-> ~x
+           ~@(nthnext clauses 2))))
+    x))
+
+(defmacro cond->>
+  "Takes a test and form pair, threading x (as by ->>) through each form for
+  which the corresponding test evaluates as true. cond->> does not short
+  circuit evaluation in any case."
+  [x & clauses]
+  (if (seq clauses)
+    (let [test    (first clauses)
+          joining (second clauses)]
+      `(if ~test
+         (cond-> (->> ~x ~joining)
+           ~@(nthnext clauses 2))
+         (cond-> ~x
+           ~@(nthnext clauses 2))))
+    x))
+
+(defmacro as->
+  "Bind x to name and thread it through the forms, replacing instances of name
+  in forms with the threaded expression."
+  [x name & forms]
+  (if (seq forms)
+    (let [joining (first forms)]
+      `(as->
+           ~(let [tuple (split-with #(not= name %) joining)
+                  head  (first tuple)
+                  tail  (-> tuple (second) (rest))]
+              (concat head (list x) tail))
+           ~name
+         ~@(when (seq (rest forms))
+             (rest forms))))
+    x))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Output Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;
