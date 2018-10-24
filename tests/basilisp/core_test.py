@@ -618,6 +618,9 @@ def test_map():
     assert llist.l(1, 2, 3) == core.map_(core.identity, vec.v(1, 2, 3))
     assert llist.l(2, 3, 4) == core.map_(core.inc, vec.v(1, 2, 3))
 
+    assert llist.l(5, 7, 9) == core.map_(core.__PLUS__, vec.v(1, 2, 3), vec.v(4, 5, 6))
+    assert llist.l(5, 7, 9) == core.map_(core.__PLUS__, vec.v(1, 2, 3), core.range_(4))
+
 
 def test_filter():
     assert llist.List.empty() == core.filter_(core.identity, vec.Vector.empty())
@@ -663,6 +666,17 @@ def test_drop_while():
     assert llist.l(2) == core.drop_while(core.odd__Q__, vec.v(1, 3, 5, 2))
     assert llist.l(2, 3, 4) == core.drop_while(core.odd__Q__, vec.v(1, 2, 3, 4))
     assert llist.l(2, 4, 6, 8) == core.drop_while(core.odd__Q__, vec.v(2, 4, 6, 8))
+
+
+def test_drop_last():
+    assert llist.l(1, 2, 3, 4) == core.drop_last(vec.v(1, 2, 3, 4, 5))
+    assert llist.l(1, 2, 3) == core.drop_last(2, vec.v(1, 2, 3, 4, 5))
+    assert llist.l(1, 2) == core.drop_last(3, vec.v(1, 2, 3, 4, 5))
+    assert llist.l(1) == core.drop_last(4, vec.v(1, 2, 3, 4, 5))
+    assert llist.List.empty() == core.drop_last(5, vec.v(1, 2, 3, 4, 5))
+    assert llist.List.empty() == core.drop_last(6, vec.v(1, 2, 3, 4, 5))
+    assert llist.l(1, 2, 3, 4, 5) == core.drop_last(0, vec.v(1, 2, 3, 4, 5))
+    assert llist.l(1, 2, 3, 4, 5) == core.drop_last(-1, vec.v(1, 2, 3, 4, 5))
 
 
 def test_split_at():

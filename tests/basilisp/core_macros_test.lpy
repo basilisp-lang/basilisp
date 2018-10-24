@@ -1,0 +1,65 @@
+(ns basilisp.core-macros-test
+  (:require
+   [basilisp.test :refer [deftest is]]))
+
+(deftest ->-test
+  (is (= :a (-> :a)))
+  (is (= 2 (-> 1 inc)))
+  (is (= 1 (-> 1 inc dec)))
+  (is (= 4 (-> 10 inc (- 7)))))
+
+(deftest ->>-test
+  (is (= :a (->> :a)))
+  (is (= 2 (->> 1 inc)))
+  (is (= 1 (->> 1 inc dec)))
+  (is (= 14 (->> [1 2 3 4]
+                 (map inc)
+                 (reduce +)))))
+
+(deftest some->-test
+  (is (= :a (some-> :a)))
+  (is (= 2 (some-> 1 inc)))
+  (is (= 1 (some-> 1 inc dec)))
+  (is (= 4 (some-> 10 inc (- 7))))
+
+  (is (= nil (some-> {:a 3} :b inc)))
+  (is (= 4 (some-> {:a 3} :a inc))))
+
+(deftest some->>-test
+  (is (= :a (some->> :a)))
+  (is (= 2 (some->> 1 inc)))
+  (is (= 1 (some->> 1 inc dec)))
+  (is (= -4 (some->> 10 inc (- 7))))
+
+  (is (= nil (some->> {:a 3} :b (- 7))))
+  (is (= 5 (some->> {:a 3} :a (- 8)))))
+
+(deftest cond->-test
+  (is (= 1 (cond-> 1)))
+  (is (= 1 (cond-> 1 false inc)))
+  (is (= 0 (cond-> 1
+             false inc
+             true dec)))
+  (is (= 4 (cond-> 10
+             (= :a :a) inc
+             (seq [])  (* 3)
+             true      (- 7)))))
+
+(deftest cond->>-test
+  (is (= 1 (cond->> 1)))
+  (is (= 1 (cond->> 1 false inc)))
+  (is (= 0 (cond->> 1
+             false inc
+             true dec)))
+  (is (= 9 (cond->> 10
+             (= :a :a) inc
+             (seq [])  (* 3)
+             true      (- 20)))))
+
+(deftest as->-test
+  (is (= 10 (as-> 10 a)))
+  (is (= 7 (as-> 18 x (- x 11))))
+  (is (= 9 (as-> 8 x
+             {:a x :c 0}
+             (:a x)
+             (inc x)))))
