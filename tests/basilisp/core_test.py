@@ -493,6 +493,18 @@ def test_get():
     assert None is core.get(vec.v(1, 2, 3), -4)
 
 
+def test_keys():
+    assert None is core.keys(lmap.map({}))
+    assert llist.l("a") == core.keys(lmap.map({"a": 1}))
+    assert lset.s("a", "b") == lset.set(core.keys(lmap.map({"a": 1, "b": 2})))
+
+
+def test_vals():
+    assert None is core.vals(lmap.map({}))
+    assert llist.l(1) == core.vals(lmap.map({"a": 1}))
+    assert lset.s(1, 2) == lset.set(core.vals(lmap.map({"a": 1, "b": 2})))
+
+
 def test_range():
     assert llist.l(1) == core.range_(1, 1)
     assert llist.l(1, 2, 3, 4, 5) == core.range_(1, 5)

@@ -418,17 +418,38 @@
                       {:first (first clauses)})))
           (cons 'basilisp.core/cond (nthrest clauses 2)))))
 
-#_(defmacro condp
+(defmacro condp
+  "Take a predicate and an expression and a series of clauses, call
+  (pred test expr) on the first expression for each clause. The result
+  expression from first the set of clauses for which this expression
+  returns a truthy value will be returned from the condp expression.
+
+  Clauses can take two forms:
+
+  - test-expr result-expr
+  - test-expr :>> result-fn, where :>> is a keyword literal
+
+  For the ternary expression clause, the unary result-fn will be called
+  with the result of the predicate."
   [pred expr & clauses]
   (when (seq clauses)
-    `(if ~(list pred (first clauses) expr)
-       ~(let [test   (next clauses)
-              result (nth clauses 2)]
+    (let [test-expr (first clauses)
+          remaining (rest clauses)]
+      (if (seq remaining)
+        (let [result    (first remaining)
+              remaining (rest remaining)]
           (cond
-            (= result :>>) (nth clauses 3)
-            result         result
-            :else          test))
-       (condp ~pred ~expr ~@(nthrest clauses 2)))))
+            (= result :>>) `(let [res# ~(list pred test-expr expr)]
+                              (if res#
+                                (~(first remaining) res#)
+                                (condp ~pred ~expr ~@(rest remaining))))
+            result         `(if ~(list pred test-expr expr)
+                              ~result
+                              (condp ~pred ~expr ~@remaining))
+            :else          (throw
+                            (ex-info "expected result expression"
+                                     {:test test-expr}))))
+        test-expr))))
 
 (defn not
   "Return the logical negation of expr."
@@ -727,7 +748,7 @@
 (defn vals
   "Return a seq of the values from a map."
   [m]
-  (seq (.value m)))
+  (seq (.values m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order Functions ;;

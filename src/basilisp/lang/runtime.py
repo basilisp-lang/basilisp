@@ -577,6 +577,10 @@ def nth(coll, i, notfound=__nth_sentinel):
 
     try:
         return coll[i]
+    except IndexError as ex:
+        if notfound is not __nth_sentinel:
+            return notfound
+        raise ex
     except TypeError:
         pass
 
