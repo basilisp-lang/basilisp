@@ -1,6 +1,6 @@
 (ns basilisp.core-macros-test
   (:require
-   [basilisp.test :refer [deftest is]]))
+   [basilisp.test :refer [deftest is testing]]))
 
 (deftest ->-test
   (is (= :a (-> :a)))
@@ -63,3 +63,46 @@
              {:a x :c 0}
              (:a x)
              (inc x)))))
+
+(deftest sequential-destructuring
+  (testing "destructuring first"
+    (let [f (fn [[f]]
+              {:first f})]
+      (is (= {:first :a}
+             (f [:a :b :c :d])))))
+
+  (testing "destructuring first with vector alias"
+    (let [f (fn [[f :as v]]
+              {:first f :as v})]
+      (is (= {:first :a :as [:a :b :c :d]}
+             (f [:a :b :c :d])))))
+
+  (testing "destructuring first and rest"
+    (let [f (fn [[f & r]]
+              {:first f :rest r})]
+      (is (= {:first :a :rest '(:b :c :d)}
+             (f [:a :b :c :d])))))
+
+  (testing "destructuring first, second, and rest"
+    (let [f (fn [[f s & r]]
+              {:first f :second s :rest r})]
+      (is (= {:first :a :second :b :rest '(:c :d)}
+             (f [:a :b :c :d])))))
+
+  (testing "destructuring first, second, and rest with vector alias"
+    (let [f (fn [[f s & r :as v]]
+              {:first f :second s :rest r :as v})]
+      (is (= {:first :a :second :b :rest '(:c :d) :as [:a :b :c :d]}
+             (f [:a :b :c :d])))))
+
+  (testing "destructuring first, second, third, and rest"
+    (let [f (fn [[f s t & r]]
+              {:first f :second s :third t :rest r})]
+      (is (= {:first :a :second :b :third :c :rest '(:d)}
+             (f [:a :b :c :d])))))
+
+  (testing "destructuring first, second, third, and rest with vector alias"
+    (let [f (fn [[f s t & r :as v]]
+              {:first f :second s :third t :rest r :as v})]
+      (is (= {:first :a :second :b :third :c :rest '(:d) :as [:a :b :c :d]}
+             (f [:a :b :c :d]))))))

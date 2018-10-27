@@ -241,9 +241,12 @@
 
 (defn nth
   "Returns the ith element of coll (0-indexed), if it exists.
-  nil otherwise."
-  [coll i]
-  (basilisp.lang.runtime/nth coll i))
+  nil otherwise. If i is out of bounds, throws an IndexError unless
+  notfound is specified."
+  ([coll i]
+   (basilisp.lang.runtime/nth coll i))
+  ([coll i notfound]
+   (basilisp.lang.runtime/nth coll i notfound)))
 
 (defn nthnext
   "Returns the nth next sequence of coll.
@@ -414,6 +417,18 @@
              (ex-info "cond requires an even number of forms"
                       {:first (first clauses)})))
           (cons 'basilisp.core/cond (nthrest clauses 2)))))
+
+#_(defmacro condp
+  [pred expr & clauses]
+  (when (seq clauses)
+    `(if ~(list pred (first clauses) expr)
+       ~(let [test   (next clauses)
+              result (nth clauses 2)]
+          (cond
+            (= result :>>) (nth clauses 3)
+            result         result
+            :else          test))
+       (condp ~pred ~expr ~@(nthrest clauses 2)))))
 
 (defn not
   "Return the logical negation of expr."
@@ -842,6 +857,18 @@
       (cons (apply f (first coll) (map first colls))
             (apply map f (rest coll) (map rest colls)))))))
 
+(defn map-indexed
+  "Return a lazy sequence of (f idx elem) for elements in coll. The
+  index starts at 0."
+  [f coll]
+  (map f (range) coll))
+
+(defn mapcat
+  "Return a lazy sequence of the concatenated results of mapping f over
+  colls."
+  [f & colls]
+  (apply concat (apply map f colls)))
+
 (defn filter
   "Return elements from coll where (pred elem) returns true."
   [pred coll]
@@ -972,6 +999,11 @@
   "Apply arguments to a method call. Equivalent to (apply (.-method o) args)."
   [o method & args]
   `(apply (.- ~o ~method) ~@args))
+
+(defmacro comment
+  "Ignore all the forms passed, returning nil."
+  [& forms]
+  nil)
 
 (defmacro new
   "Create a new instance of class with args.
@@ -1706,3 +1738,199 @@
               new-map))
           {}
           ks))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Destructuring Support ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn gensym
+  "Generate a unique symbol name of the form prefix_#. If no prefix is
+  given, then v_ will be used."
+  ([]
+   (gensym "v_"))
+  ([prefix]
+   (symbol (basilisp.lang.util/genname prefix))))
+
+(defmulti ^:private destructure-def
+  (fn [arg]
+    (cond
+      (symbol? arg) :symbol
+      (vector? arg) :vector
+      (map? arg)    :map
+      :else         :default)))
+
+(defmethod destructure-def :map
+  [arg]
+  (let [;; :or bindings allow users to specify default values for certain
+        ;; associative keys.
+        or-bindings (:or arg)
+
+        ;; Namespaced keywords can destructure into non-namespaced
+        ;; local names by specifying the namespace and with the name
+        ;; "keys", just as the non-namespaced name "keys" will access
+        ;; non-namespaced keywords.
+        ;;
+        ;; (let [{:movie/keys [title actors]} {:movie/title  "Die Hard"
+        ;;                                     :movie/actors ["Bruce Willis"]}]
+        ;;   ...)
+        ;;
+        destructure-keys (keys arg)
+        kw-keys          (->> destructure-keys
+                              (filter #(= "keys" (name %))))
+
+        ;; Keyword, string, and symbol keys may all be destructured from
+        ;; associative types.
+        keys (->> kw-keys
+                  (map #(get arg %))
+                  (apply concat (:keys arg)))
+        strs (:strs arg)
+        syms (:syms arg)
+
+        ;; Fetch all the remaining keys in the map which do not
+        ;; correspond to special functionality.
+        remaining (->> [:as :or :keys :strs :syms]
+                       (concat kw-keys)
+                       (apply dissoc arg)
+                       (keys))]
+    {:name (or (:as arg) (gensym "map_arg_"))
+     :type :map
+     :keys keys
+     :strs strs
+     :syms syms
+
+     :or-bindings or-bindings
+     :remaining   remaining}))
+
+(defmethod destructure-def :symbol
+  [arg]
+  {:name arg
+   :type :symbol})
+
+(defmethod destructure-def :vector
+  [arg]
+  (let [;; Fetch the name bound to this argument with any trailing
+        ;; :as key.
+        name-args (drop-while (partial not= :as) arg)
+        name      (->> name-args (apply hash-map) :as)
+
+        ;; Split the remaining arguments into sequential arguments
+        ;; and the rest arg (if one at all).
+        args (->> arg
+                  (drop-last (count name-args))
+                  (split-with (partial not= '&)))
+
+        sequential-args (first args)
+        rest-arg        (second args)]
+    {:name       (or name (gensym "vec_arg_"))
+     :type       :vector
+     :sequential sequential-args
+     :rest       (when (seq rest-arg)
+                   {:starts (count sequential-args)
+                    :name   (second rest-arg)})}))
+
+(defmethod destructure-def :default
+  [arg]
+  (throw
+   (ex-info "Invalid destructuring argument type"
+            {:type (builtins/type arg)})))
+
+(defmulti ^:private destructure-binding
+  (fn [d]
+    (:type d)))
+
+(defmethod destructure-binding :vector
+  [d]
+  (let [fn-arg          (:name d)
+        sequential-args (->> (:sequential d)
+                             (map-indexed (fn [idx arg]
+                                            [arg `(get ~fn-arg ~idx)]))
+                             (apply concat))
+        rest-def        (:rest d)
+        rest-arg        (when rest-def
+                          [(:name rest-def) `(nthnext ~fn-arg ~(:starts rest-def))])]
+    (concat
+     sequential-args
+     rest-arg)))
+
+(defmethod destructure-binding :map
+  [d]
+  (let [fn-arg (:name d)
+        ors    (:or-bindings d)
+
+        keys-args (->> (:keys d)
+                       (mapcat (fn [arg]
+                                 (let [k          (keyword (name arg))
+                                       or-binding (get ors arg)]
+                                   (if or-binding
+                                     [arg `(or (get ~fn-arg ~k) ~or-binding)]
+                                     [arg `(get ~fn-arg ~k)])))))
+        strs-args (->> (:strs d)
+                       (mapcat (fn [arg]
+                                 (let [or-binding (get ors arg)]
+                                   (if or-binding
+                                     [arg `(or (get ~fn-arg ~arg) ~or-binding)]
+                                     [arg `(get ~fn-arg ~arg)])))))
+        syms-args (->> (:keys d)
+                       (mapcat (fn [arg]
+                                 (let [k          (symbol (name arg))
+                                       or-binding (get ors arg)]
+                                   (if or-binding
+                                     [arg `(or (get ~fn-arg ~k) ~or-binding)]
+                                     [arg `(get ~fn-arg ~k)])))))
+        left-args (->> (:remaining d)
+                       (mapcat (fn [arg]
+                                 (let [or-binding (get ors arg)]
+                                   (if or-binding
+                                     [arg `(or (get ~fn-arg ~arg) ~or-binding)]
+                                     [arg `(get ~fn-arg ~arg)])))))]
+    (concat
+     keys-args
+     strs-args
+     syms-args
+     left-args)))
+
+(defmethod destructure-binding :default
+  [d]
+  (throw
+   (ex-info "Invalid destructuring argument type"
+            {:type (:type d)})))
+
+(defn ^:private with-destructuring
+  [body]
+  (let [args     (first body)
+        body     (rest body)
+        defs     (map destructure-def args)
+        arg-vec  (vec (map :name defs))
+        bindings (->> defs
+                      (filter #(not= :symbol (:type %)))
+                      (mapcat destructure-binding))
+        new-body (if (seq bindings)
+                   [`(let* [~@bindings]
+                       ~@body)]
+                   body)]
+    `(~arg-vec
+      ~@new-body)))
+
+(defmacro ^:no-warn-on-redef fn
+  "Return an anonymous (but possibly named) function.
+
+  Function argument vectors support sequential and associative destructuring."
+  [& body]
+  (let [name    (when (symbol? (first body))
+                  (first body))
+        body    (cond-> body name rest)
+        arities (cond
+                  (vector? (first body))
+                  (with-destructuring body)
+
+                  (seq? (first body))
+                  (map with-destructuring body)
+
+                  :else
+                  body)
+        f (if name
+            `(fn* ~name
+                  ~@arities)
+            `(fn* ~@arities))]
+    #_(println name f)
+    f))
