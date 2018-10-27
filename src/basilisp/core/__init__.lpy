@@ -419,6 +419,18 @@
           (cons 'basilisp.core/cond (nthrest clauses 2)))))
 
 (defmacro condp
+  "Take a predicate and an expression and a series of clauses, call
+  (pred test expr) on the first expression for each clause. The result
+  expression from first the set of clauses for which this expression
+  returns a truthy value will be returned from the condp expression.
+
+  Clauses can take two forms:
+
+  - test-expr result-expr
+  - test-expr :>> result-fn, where :>> is a keyword literal
+
+  For the ternary expression clause, the unary result-fn will be called
+  with the result of the predicate."
   [pred expr & clauses]
   (when (seq clauses)
     (let [test-expr (first clauses)
@@ -732,6 +744,7 @@
   "Return a seq of the keys from a map."
   [m]
   (seq (.keys m)))
+
 (defn vals
   "Return a seq of the values from a map."
   [m]
