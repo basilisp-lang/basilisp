@@ -565,14 +565,22 @@ def apply(f, args):
     return f(*final)
 
 
-def nth(coll, i):
+__nth_sentinel = object()
+
+
+def nth(coll, i, notfound=__nth_sentinel):
     """Returns the ith element of coll (0-indexed), if it exists.
-    None otherwise."""
+    None otherwise. If i is out of bounds, throws an IndexError unless
+    notfound is specified."""
     if coll is None:
         return None
 
     try:
         return coll[i]
+    except IndexError as ex:
+        if notfound is not __nth_sentinel:
+            return notfound
+        raise ex
     except TypeError:
         pass
 
@@ -580,6 +588,8 @@ def nth(coll, i):
         for j, e in enumerate(coll):
             if i == j:
                 return e
+        if notfound is not __nth_sentinel:
+            return notfound
         raise IndexError(f"Index {i} out of bounds")
     except TypeError:
         pass
