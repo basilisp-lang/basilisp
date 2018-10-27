@@ -4,6 +4,7 @@ import types
 import uuid
 from fractions import Fraction
 from typing import Optional
+from unittest import mock
 from unittest.mock import Mock
 
 import dateutil.parser as dateparser
@@ -165,6 +166,33 @@ def test_def(ns: runtime.Namespace):
         sym.symbol(ns_name), sym.symbol('beep'))
     assert lcompile("a") == kw.keyword("some-val")
     assert lcompile("beep") == "a sound a robot makes"
+
+
+def test_def_no_warn_on_redef(ns: runtime.Namespace):
+    with mock.patch('basilisp.lang.compiler.logger') as logger:
+        lcompile("""
+        (def unique-zhddkd :a)
+        (def ^:no-warn-on-redef unique-zhddkd :b)
+        """)
+
+        logger.warning.assert_not_called()
+
+    with mock.patch('basilisp.lang.compiler.logger') as logger:
+        lcompile("""
+        (def unique-djhvyz :a)
+        (def unique-djhvyz :b)
+        """)
+
+        logger.warning.assert_called_with(f"redefining local Python name 'unique_djhvyz' in module '{ns.name}'")
+
+
+def test_redef_vars(ns: runtime.Namespace):
+    assert kw.keyword('b') == lcompile("""
+    (def ^:redef orig :a)
+    (def redef-check (fn* [] orig))
+    (def orig :b)
+    (redef-check)
+    """)
 
 
 def test_def_dynamic(ns: runtime.Namespace):
