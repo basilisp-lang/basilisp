@@ -241,9 +241,12 @@
 
 (defn nth
   "Returns the ith element of coll (0-indexed), if it exists.
-  nil otherwise."
-  [coll i]
-  (basilisp.lang.runtime/nth coll i))
+  nil otherwise. If i is out of bounds, throws an IndexError unless
+  notfound is specified."
+  ([coll i]
+   (basilisp.lang.runtime/nth coll i))
+  ([coll i notfound]
+   (basilisp.lang.runtime/nth coll i notfound)))
 
 (defn nthnext
   "Returns the nth next sequence of coll.
@@ -414,6 +417,27 @@
              (ex-info "cond requires an even number of forms"
                       {:first (first clauses)})))
           (cons 'basilisp.core/cond (nthrest clauses 2)))))
+
+(defmacro condp
+  [pred expr & clauses]
+  (when (seq clauses)
+    (let [test-expr (first clauses)
+          remaining (rest clauses)]
+      (if (seq remaining)
+        (let [result    (first remaining)
+              remaining (rest remaining)]
+          (cond
+            (= result :>>) `(let [res# ~(list pred test-expr expr)]
+                              (if res#
+                                (~(first remaining) res#)
+                                (condp ~pred ~expr ~@(rest remaining))))
+            result         `(if ~(list pred test-expr expr)
+                              ~result
+                              (condp ~pred ~expr ~@remaining))
+            :else          (throw
+                            (ex-info "expected result expression"
+                                     {:test test-expr}))))
+        test-expr))))
 
 (defn not
   "Return the logical negation of expr."
@@ -704,6 +728,15 @@
   [entry]
   (.-value entry))
 
+(defn keys
+  "Return a seq of the keys from a map."
+  [m]
+  (seq (.keys m)))
+(defn vals
+  "Return a seq of the values from a map."
+  [m]
+  (seq (.values m)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -842,6 +875,18 @@
       (cons (apply f (first coll) (map first colls))
             (apply map f (rest coll) (map rest colls)))))))
 
+(defn map-indexed
+  "Return a lazy sequence of (f idx elem) for elements in coll. The
+  index starts at 0."
+  [f coll]
+  (map f (range) coll))
+
+(defn mapcat
+  "Return a lazy sequence of the concatenated results of mapping f over
+  colls."
+  [f & colls]
+  (apply concat (apply map f colls)))
+
 (defn filter
   "Return elements from coll where (pred elem) returns true."
   [pred coll]
@@ -972,6 +1017,11 @@
   "Apply arguments to a method call. Equivalent to (apply (.-method o) args)."
   [o method & args]
   `(apply (.- ~o ~method) ~@args))
+
+(defmacro comment
+  "Ignore all the forms passed, returning nil."
+  [& forms]
+  nil)
 
 (defmacro new
   "Create a new instance of class with args.

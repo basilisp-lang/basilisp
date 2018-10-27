@@ -1,6 +1,30 @@
 (ns basilisp.core-macros-test
   (:require
-   [basilisp.test :refer [deftest is]]))
+   [basilisp.test :refer [deftest is testing]]))
+
+(deftest condp-test
+  (testing "condp result value"
+    (is (= :a (condp = "a" :a)))
+    (is (= :a (condp = "a"
+                "b" :b
+                :a)))
+    (is (= :a (condp = "a"
+                "b" :b
+                "c" :c
+                :a))))
+
+  (testing "condp result function"
+    (is (= :a (condp some [1 8 10 12]
+                #{2 4 6} :>> inc
+                :a)))
+    (is (= 0 (condp some [1 8 10 12]
+               #{2 4 6} :>> inc
+               #{1 3 5} :>> dec
+               :a)))))
+
+(deftest comment-test
+  (is (= nil (comment 1)))
+  (is (= nil (comment [1 2 3]))))
 
 (deftest ->-test
   (is (= :a (-> :a)))
