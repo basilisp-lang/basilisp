@@ -500,8 +500,6 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     yield from def_nodes
 
     if safe_name in ctx.current_ns.module.__dict__ or form[1] in ctx.current_ns.interns:
-        if form[1].meta:
-            print(form[1].meta)
         no_warn_on_redef = (Maybe(form[1].meta)
             .map(lambda m: m.get(_SYM_NO_WARN_ON_REDEF_META_KEY, False))  # type: ignore
             .or_else_get(False))
