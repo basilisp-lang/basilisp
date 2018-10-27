@@ -46,11 +46,11 @@
   (fn* with-meta [o meta]
        (.with-meta o meta)))
 
-(def ^:macro let
+(def ^:macro ^:redef let
   (fn* let [&form & decl]
        (cons 'let* decl)))
 
-(def ^:macro fn
+(def ^:macro ^:redef fn
   (fn* fn [&form & decl]
        (with-meta
          (cons 'fn* decl)
@@ -236,7 +236,7 @@
                                 {:found (first body)})))
                     (rest body)))]
       `(def ~fname
-         (fn* ~fname
+         (fn ~fname
               ~@body)))))
 
 (defn nth

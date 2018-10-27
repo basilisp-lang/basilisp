@@ -433,6 +433,8 @@ def _meta_kwargs_ast(ctx: CompilerContext,  # pylint:disable=inconsistent-return
 
 _SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
 _SYM_MACRO_META_KEY = kw.keyword("macro")
+_SYM_NO_WARN_ON_REDEF_META_KEY = kw.keyword("no-warn-on-redef")
+_SYM_REDEF_META_KEY = kw.keyword("redef")
 
 
 def _is_dynamic(v: Var) -> bool:
@@ -452,6 +454,17 @@ def _is_macro(v: Var) -> bool:
     try:
         return Maybe(v.meta).map(
             lambda m: m.get(_SYM_MACRO_META_KEY, None)  # type: ignore
+        ).or_else_get(
+            False)
+    except (KeyError, AttributeError):
+        return False
+
+
+def _is_redefable(v: Var) -> bool:
+    """Return True if the Var can be redefined."""
+    try:
+        return Maybe(v.meta).map(
+            lambda m: m.get(_SYM_REDEF_META_KEY, None)  # type: ignore
         ).or_else_get(
             False)
     except (KeyError, AttributeError):
@@ -486,8 +499,14 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     yield from meta_nodes
     yield from def_nodes
 
-    if safe_name in ctx.current_ns.module.__dict__:
-        logger.warning(f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'")
+    if safe_name in ctx.current_ns.module.__dict__ or form[1] in ctx.current_ns.interns:
+        if form[1].meta:
+            print(form[1].meta)
+        no_warn_on_redef = (Maybe(form[1].meta)
+            .map(lambda m: m.get(_SYM_NO_WARN_ON_REDEF_META_KEY, False))  # type: ignore
+            .or_else_get(False))
+        if not no_warn_on_redef:
+            logger.warning(f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'")
 
     yield _dependency(ast.Assign(targets=[ast.Name(id=safe_name, ctx=ast.Store())],
                                  value=Maybe(def_value).map(_unwrap_node).or_else_get(ast.NameConstant(None))))
@@ -1487,11 +1506,11 @@ def _kw_ast(_: CompilerContext, form: kw.Keyword) -> ASTStream:
 def _resolve_sym_var(ctx: CompilerContext, v: Var) -> Optional[str]:
     """Resolve a Basilisp var down to a Python Name (or Attribute).
 
-    If the Var is marked as :dynamic, do not compile to a direct access.
-    If the corresponding function name is not defined in a Python module,
-    no direct variable access is possible and Var.find indirection must
-    be used."""
-    if _is_dynamic(v):
+    If the Var is marked as :dynamic or :redef, do not compile to a direct
+    access. If the corresponding function name is not defined in a Python
+    module, no direct variable access is possible and Var.find indirection
+    must be used."""
+    if _is_dynamic(v) or _is_redefable(v):
         return None
 
     safe_name = munge(v.name.name)
