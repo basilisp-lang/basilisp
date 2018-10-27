@@ -1786,11 +1786,12 @@
         ;;
         destructure-keys (keys arg)
         kw-keys          (->> destructure-keys
+                              (remove #(= :keys %))
                               (filter #(= "keys" (name %))))
 
         ;; Keyword, string, and symbol keys may all be destructured from
         ;; associative types.
-        keys (->> kw-keys
+        kws  (->> kw-keys
                   (map #(get arg %))
                   (apply concat (:keys arg)))
         strs (:strs arg)
@@ -1804,7 +1805,7 @@
                        (keys))]
     {:name (or (:as arg) (gensym "map_arg_"))
      :type :map
-     :keys keys
+     :keys (vec kws)
      :strs strs
      :syms syms
 
