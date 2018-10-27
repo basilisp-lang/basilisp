@@ -479,6 +479,7 @@ def test_dissoc():
 
 
 def test_get():
+    assert None is core.get(None, "a")
     assert 1 == core.get(lmap.map({"a": 1}), "a")
     assert None is core.get(lmap.map({"a": 1}), "b")
     assert 2 == core.get(lmap.map({"a": 1}), "b", 2)

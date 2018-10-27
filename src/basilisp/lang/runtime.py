@@ -685,7 +685,7 @@ def get(m, k, default=None):
 
     try:
         return m[k]
-    except (KeyError, IndexError):
+    except (KeyError, IndexError, TypeError):
         return default
 
 

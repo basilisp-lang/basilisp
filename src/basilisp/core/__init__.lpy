@@ -1826,7 +1826,7 @@
                        (keys))]
     {:name (or (:as arg) (gensym "map_arg_"))
      :type :map
-     :keys (vec kws)
+     :keys kws
      :strs strs
      :syms syms
 
@@ -1895,20 +1895,17 @@
                         (if or-binding
                           [arg `(or (get ~fn-arg ~k) ~or-binding)]
                           [arg `(get ~fn-arg ~k)])))
-
-        keys-args (->> (:keys d)
-                       (mapcat (partial map-binding #(keyword (name %)))))
-        strs-args (->> (:strs d)
-                       (mapcat (partial map-binding name)))
-        syms-args (->> (:syms d)
-                       (mapcat (partial map-binding #(symbol (name %)))))
-        left-args (->> (:remaining d)
-                       (mapcat (partial map-binding identity)))]
+        sym-binding (fn [arg]
+                      (let [k          (symbol (name arg))
+                            or-binding (get ors arg)]
+                        (if or-binding
+                          [arg `(or (get ~fn-arg (quote ~k)) ~or-binding)]
+                          [arg `(get ~fn-arg (quote ~k))])))]
     (concat
-     keys-args
-     strs-args
-     syms-args
-     left-args)))
+     (mapcat (partial map-binding #(keyword (name %))) (:keys d))
+     (mapcat (partial map-binding name) (:strs d))
+     (mapcat sym-binding (:syms d))
+     (mapcat (partial map-binding identity) (:remaining d)))))
 
 (defmethod destructure-binding :default
   [d]
@@ -1966,9 +1963,8 @@
                   (map fn-arity-with-destructuring body)
 
                   :else
-                  body)
-        f (if name
-            `(fn* ~name
-                  ~@arities)
-            `(fn* ~@arities))]
-    f))
+                  body)]
+    (if name
+      `(fn* ~name
+            ~@arities)
+      `(fn* ~@arities))))

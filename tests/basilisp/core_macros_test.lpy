@@ -133,7 +133,31 @@
 
 (deftest associative-destructuring
   (testing "destructuring simple keys"
-    (let [f (fn [{:keys [a]}]
-              [a])]
-      (is (= ["a"]
-             (f {:a "a" :b "b"}))))))
+    (let [m {:a "a" :b "b"}
+
+          f (fn [{:keys [a]}]
+              [a])
+          g (fn [{:keys [a] :as m}]
+              [a m])]
+      (is (= ["a"] (f m)))
+      (is (= ["a" m] (g m)))))
+
+  (testing "destructuring simple string keys"
+    (let [m {:a 1 "a" :a :b "b"}
+
+          f (fn [{:strs [a]}]
+              [a])
+          g (fn [{:strs [a] :as m}]
+              [a m])]
+      (is (= [:a] (f m)))
+      (is (= [:a m] (g m)))))
+
+  (testing "destructuring simple symbol keys"
+    (let [m {:a 1 'a :a :b "b"}
+
+          f (fn [{:syms [a]}]
+              [a])
+          g (fn [{:syms [a] :as m}]
+              [a m])]
+      (is (= [:a] (f m)))
+      (is (= [:a m] (g m))))))
