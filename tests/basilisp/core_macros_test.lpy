@@ -138,26 +138,48 @@
           f (fn [{:keys [a]}]
               [a])
           g (fn [{:keys [a] :as m}]
-              [a m])]
+              [a m])
+          h (fn [{:keys [a b] :as m}]
+              [a b m])]
       (is (= ["a"] (f m)))
-      (is (= ["a" m] (g m)))))
+      (is (= ["a" m] (g m)))
+      (is (= ["a" "b" m] (h m)))))
 
   (testing "destructuring simple string keys"
-    (let [m {:a 1 "a" :a :b "b"}
+    (let [m {:a 1 :b "b" "a" :a "b" :b}
 
           f (fn [{:strs [a]}]
               [a])
           g (fn [{:strs [a] :as m}]
-              [a m])]
+              [a m])
+          h (fn [{:strs [a b] :as m}]
+              [a b m])]
       (is (= [:a] (f m)))
-      (is (= [:a m] (g m)))))
+      (is (= [:a m] (g m)))
+      (is (= [:a :b m] (h m)))))
 
   (testing "destructuring simple symbol keys"
-    (let [m {:a 1 'a :a :b "b"}
+    (let [m {:a 1 :b "b" 'a :a 'b :b}
 
           f (fn [{:syms [a]}]
               [a])
           g (fn [{:syms [a] :as m}]
-              [a m])]
+              [a m])
+          h (fn [{:syms [a b] :as m}]
+              [a b m])]
       (is (= [:a] (f m)))
-      (is (= [:a m] (g m))))))
+      (is (= [:a m] (g m)))
+      (is (= [:a :b m] (h m)))))
+
+  (testing "destructuring individual keys"
+    (let [m {:a "a" :b "b"}
+
+          f (fn [{a :a}]
+              [a])
+          g (fn [{a :a :as m}]
+              [a m])
+          h (fn [{a :a b :b :as m}]
+              [a b m])]
+      (is (= ["a"] (f m)))
+      (is (= ["a" m] (g m)))
+      (is (= ["a" "b" m] (h m))))))

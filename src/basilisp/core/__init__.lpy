@@ -1822,8 +1822,7 @@
         ;; correspond to special functionality.
         remaining (->> [:as :or :keys :strs :syms]
                        (concat kw-keys)
-                       (apply dissoc arg)
-                       (keys))]
+                       (apply dissoc arg))]
     {:name (or (:as arg) (gensym "map_arg_"))
      :type :map
      :keys kws
@@ -1895,17 +1894,26 @@
                         (if or-binding
                           [arg `(or (get ~fn-arg ~k) ~or-binding)]
                           [arg `(get ~fn-arg ~k)])))
+
         sym-binding (fn [arg]
                       (let [k          (symbol (name arg))
                             or-binding (get ors arg)]
                         (if or-binding
                           [arg `(or (get ~fn-arg (quote ~k)) ~or-binding)]
-                          [arg `(get ~fn-arg (quote ~k))])))]
+                          [arg `(get ~fn-arg (quote ~k))])))
+
+        rem-binding (fn [arg]
+                      (let [binding    (key arg)
+                            key        (val arg)
+                            or-binding (get ors arg)]
+                        (if or-binding
+                          [binding `(or (get ~fn-arg (quote ~key)) ~or-binding)]
+                          [binding `(get ~fn-arg ~key)])))]
     (concat
      (mapcat (partial map-binding #(keyword (name %))) (:keys d))
      (mapcat (partial map-binding name) (:strs d))
      (mapcat sym-binding (:syms d))
-     (mapcat (partial map-binding identity) (:remaining d)))))
+     (mapcat rem-binding (:remaining d)))))
 
 (defmethod destructure-binding :default
   [d]
