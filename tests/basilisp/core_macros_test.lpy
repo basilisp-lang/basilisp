@@ -106,3 +106,10 @@
               {:first f :second s :third t :rest r :as v})]
       (is (= {:first :a :second :b :third :c :rest '(:d) :as [:a :b :c :d]}
              (f [:a :b :c :d]))))))
+
+(deftest associative-destructuring
+  (testing "destructuring simple keys"
+    (let [f (fn [{:keys [a]}]
+              [a])]
+      (is (= ["a"]
+             (f {:a "a" :b "b"}))))))

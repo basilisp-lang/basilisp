@@ -1868,32 +1868,21 @@
   (let [fn-arg (:name d)
         ors    (:or-bindings d)
 
+        map-binding (fn [f arg]
+                      (let [k          (f arg)
+                            or-binding (get ors arg)]
+                        (if or-binding
+                          [arg `(or (get ~fn-arg ~k) ~or-binding)]
+                          [arg `(get ~fn-arg ~k)])))
+
         keys-args (->> (:keys d)
-                       (mapcat (fn [arg]
-                                 (let [k          (keyword (name arg))
-                                       or-binding (get ors arg)]
-                                   (if or-binding
-                                     [arg `(or (get ~fn-arg ~k) ~or-binding)]
-                                     [arg `(get ~fn-arg ~k)])))))
+                       (mapcat (partial map-binding #(keyword (name %)))))
         strs-args (->> (:strs d)
-                       (mapcat (fn [arg]
-                                 (let [or-binding (get ors arg)]
-                                   (if or-binding
-                                     [arg `(or (get ~fn-arg ~arg) ~or-binding)]
-                                     [arg `(get ~fn-arg ~arg)])))))
-        syms-args (->> (:keys d)
-                       (mapcat (fn [arg]
-                                 (let [k          (symbol (name arg))
-                                       or-binding (get ors arg)]
-                                   (if or-binding
-                                     [arg `(or (get ~fn-arg ~k) ~or-binding)]
-                                     [arg `(get ~fn-arg ~k)])))))
+                       (mapcat (partial map-binding name)))
+        syms-args (->> (:syms d)
+                       (mapcat (partial map-binding #(symbol (name %)))))
         left-args (->> (:remaining d)
-                       (mapcat (fn [arg]
-                                 (let [or-binding (get ors arg)]
-                                   (if or-binding
-                                     [arg `(or (get ~fn-arg ~arg) ~or-binding)]
-                                     [arg `(get ~fn-arg ~arg)])))))]
+                       (mapcat (partial map-binding identity)))]
     (concat
      keys-args
      strs-args
@@ -1961,5 +1950,4 @@
             `(fn* ~name
                   ~@arities)
             `(fn* ~@arities))]
-    #_(println name f)
     f))
