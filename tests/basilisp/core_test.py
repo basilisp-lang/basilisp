@@ -743,6 +743,21 @@ def test_repeatedly():
     assert llist.l("yes", "yes", "yes") == core.repeatedly(3, lambda: "yes")
 
 
+def test_partition():
+    assert llist.l(llist.l(1, 2), llist.l(3, 4), llist.l(5, 6)) == core.partition(2, core.range_(1, 6))
+    assert llist.l(llist.l(1, 2), llist.l(3, 4), llist.l(5, 6)) == core.partition(2, core.range_(1, 6))
+
+    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
+                   llist.l(21, 22, 23)) == core.partition(5, 10, core.range_(1, 23))
+    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
+                   llist.l(21, 22, 23, 24, 25)) == core.partition(5, 10, core.range_(1, 25))
+
+    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
+                   llist.l(21, 22, 23, kw.keyword("a"), kw.keyword("a"))) == core.partition(5, 10, core.range_(1, 23),
+                                                                                            kw.keyword("a"))
+    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
+                   llist.l(21, 22, 23, 24, 25)) == core.partition(5, 10, core.range_(1, 25), kw.keyword("a"))
+
 def test_pr_str():
     assert '' == core.pr_str()
     assert '""' == core.pr_str("")
