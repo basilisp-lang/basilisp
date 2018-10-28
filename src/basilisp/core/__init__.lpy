@@ -1905,7 +1905,7 @@
   (let [fn-arg          (:name d)
         sequential-args (->> (:sequential d)
                              (map-indexed (fn [idx arg]
-                                            [arg `(get ~fn-arg ~idx)]))
+                                            [arg `(nth ~fn-arg ~idx nil)]))
                              (apply concat))
         rest-def        (:rest d)
         rest-arg        (when rest-def
@@ -2007,3 +2007,35 @@
       `(fn* ~name
             ~@arities)
       `(fn* ~@arities))))
+
+(defn ^:private let-bindings-with-destructuring
+  "Take a [binding expr] pair from a let block and produce a full complement
+  of a replacement bindings for the binding which perform destructuring on
+  the initial expression.
+
+  As an example, for sequential destructuring like:
+
+    [f & r :as v] [1 2 3 4]
+
+  This function would emit a list of bindings which can be inserted directly
+  into a let* binding to perform destructuring:
+
+     (v [1 2 3 4]
+      f (nth v 0)
+      r (nthnext v 1))"
+  [[binding expr]]
+  (let [ddef      (destructure-def binding)
+        orig-name (:name ddef)
+        bindings  (if (= :symbol (:type ddef))
+                    []
+                    (destructure-binding ddef))]
+    (apply list orig-name expr bindings)))
+
+(defmacro ^:no-warn-on-redef let
+  "Let bindings with destructuring support."
+  [bindings & body]
+  (let [bindings (->> (partition 2 bindings)
+                      (mapcat let-bindings-with-destructuring))]
+    `(let* [~@bindings]
+       ~@body)))
+

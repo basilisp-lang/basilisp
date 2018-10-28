@@ -88,7 +88,7 @@
              (:a x)
              (inc x)))))
 
-(deftest sequential-destructuring
+(deftest fn-sequential-destructuring
   (testing "destructuring first"
     (let [f (fn [[f]]
               {:first f})]
@@ -131,7 +131,7 @@
       (is (= {:first :a :second :b :third :c :rest '(:d) :as [:a :b :c :d]}
              (f [:a :b :c :d]))))))
 
-(deftest associative-destructuring
+(deftest fn-associative-destructuring
   (testing "destructuring simple keys"
     (let [m {:a "a" :b "b"}
 
@@ -183,3 +183,46 @@
       (is (= ["a"] (f m)))
       (is (= ["a" m] (g m)))
       (is (= ["a" "b" m] (h m))))))
+
+(deftest let-sequential-destructuring
+  (testing "destructuring first"
+    (let [[f] [:a :b :c :d]]
+      (is (= :a f))))
+
+  (testing "destructuring first with vector alias"
+    (let [[f :as v] [:a :b :c :d]]
+      (is (= :a f))
+      (is (= [:a :b :c :d] v))))
+
+  (testing "destructuring first and rest"
+    (let [[f & r] [:a :b :c :d]]
+      (is (= '(:b :c :d) r))
+      (is (= :a f))))
+
+  (testing "destructuring first, second, and rest"
+    (let [[f s & r] [:a :b :c :d]]
+      (is (= :a f))
+      (is (= :b s))
+      (is (= '(:c :d) r))))
+
+  (testing "destructuring first, second, and rest with vector alias"
+    (let [[f s & r :as v] [:a :b :c :d]]
+      (is (= :a f))
+      (is (= :b s))
+      (is (= '(:c :d) r))
+      (is (= [:a :b :c :d] v))))
+
+  (testing "destructuring first, second, third, and rest"
+    (let [[f s t & r] [:a :b :c :d]]
+      (is (= :a f))
+      (is (= :b s))
+      (is (= :c t))
+      (is (= '(:d) r))))
+
+  (testing "destructuring first, second, third, and rest with vector alias"
+    (let [[f s t & r :as v] [:a :b :c :d]]
+      (is (= :a f))
+      (is (= :b s))
+      (is (= :c t))
+      (is (= '(:d) r))
+      (is (= [:a :b :c :d] v)))))
