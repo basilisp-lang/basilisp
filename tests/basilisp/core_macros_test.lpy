@@ -226,3 +226,44 @@
       (is (= :c t))
       (is (= '(:d) r))
       (is (= [:a :b :c :d] v)))))
+
+(deftest let-associative-destructuring
+  (testing "destructuring simple keys"
+    (let [{:keys [a b]} {:a "a" :b "b"}]
+      (is (= "a" a))
+      (is (= "b" b)))
+
+    (let [{:keys [a b] :as m} {:a "a" :b "b"}]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= {:a "a" :b "b"} m))))
+
+  (testing "destructuring simple string keys"
+    (let [{:strs [a b]} {:a 1 :b 2 "a" :a "b" :b}]
+      (is (= :a a))
+      (is (= :b b)))
+
+    (let [{:strs [a b] :as m} {:a 1 :b 2 "a" :a "b" :b}]
+      (is (= :a a))
+      (is (= :b b))
+      (is (= {:a 1 :b 2 "a" :a "b" :b} m))))
+
+  (testing "destructuring simple symbol keys"
+    (let [{:syms [a b]} {:a 1 :b "b" 'a :a 'b :b}]
+      (is (= :a a))
+      (is (= :b b)))
+
+    (let [{:syms [a b] :as m} {:a 1 :b "b" 'a :a 'b :b}]
+      (is (= :a a))
+      (is (= :b b))
+      (is (= {:a 1 :b "b" 'a :a 'b :b} m))))
+
+  (testing "destructuring individual keys"
+    (let [{a :a b :b} {:a "a" :b "b"}]
+      (is (= "a" a))
+      (is (= "b" b)))
+
+    (let [{a :a b :b :as m} {:a "a" :b "b"}]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= {:a "a" :b "b"} m)))))
