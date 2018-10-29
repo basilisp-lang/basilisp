@@ -266,4 +266,11 @@
     (let [{a :a b :b :as m} {:a "a" :b "b"}]
       (is (= "a" a))
       (is (= "b" b))
-      (is (= {:a "a" :b "b"} m)))))
+      (is (= {:a "a" :b "b"} m))))
+
+  (testing "nested destructuring"
+    (let [{{:keys [a b] :as nested} :nested :as m} {:nested {:a "aa" :b "bb"} :a "a" :b "b"}]
+      (is (= "aa" a))
+      (is (= "bb" b))
+      (is (= {:a "aa" :b "bb"} nested))
+      (is (= {:nested {:a "aa" :b "bb"} :a "a" :b "b"} m)))))

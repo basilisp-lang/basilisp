@@ -1823,7 +1823,9 @@
 
 (defmethod destructure-def :map
   [arg]
-  (let [;; :or bindings allow users to specify default values for certain
+  (let [alias (or (:as arg) (gensym "map_arg_"))
+
+        ;; :or bindings allow users to specify default values for certain
         ;; associative keys.
         or-bindings (:or arg)
 
@@ -1836,32 +1838,38 @@
         ;;                                     :movie/actors ["Bruce Willis"]}]
         ;;   ...)
         ;;
-        destructure-keys (keys arg)
-        kw-keys          (->> destructure-keys
-                              (remove #(= :keys %))
-                              (filter #(= "keys" (name %))))
+        kw-keys (->> (keys arg)
+                     (filter keyword?)
+                     (filter #(= "keys" (name %))))
 
         ;; Keyword, string, and symbol keys may all be destructured from
         ;; associative types.
-        kws  (->> kw-keys
-                  (map #(get arg %))
-                  (apply concat (:keys arg)))
+        kws (mapcat #(get arg %) kw-keys)
         strs (:strs arg)
         syms (:syms arg)
 
         ;; Fetch all the remaining keys in the map which do not
         ;; correspond to special functionality.
-        remaining (->> [:as :or :keys :strs :syms]
+        remaining (->> [:as :or :strs :syms]
                        (concat kw-keys)
-                       (apply dissoc arg))]
-    {:name (or (:as arg) (gensym "map_arg_"))
+                       (apply dissoc arg))
+
+        ;; Destructuring forms may be nested arbitrarily, so generate the
+        ;; definitions for any nested destructured forms as well.
+        children (map #(vector % (destructure-def %)) (keys remaining))]
+    {:name alias
      :type :map
      :keys kws
      :strs strs
      :syms syms
 
      :or-bindings or-bindings
-     :remaining   remaining}))
+     :remaining   (->> children
+                       (filter #(not= :symbol (:type (second %))))
+                       (map first)
+                       (apply dissoc remaining))
+
+     :children (map second children)}))
 
 (defmethod destructure-def :symbol
   [arg]
@@ -1872,23 +1880,24 @@
   [arg]
   (let [;; Fetch the name bound to this argument with any trailing
         ;; :as key.
-        name-args (drop-while (partial not= :as) arg)
-        name      (->> name-args (apply hash-map) :as)
+        alias-args (drop-while (partial not= :as) arg)
+        alias      (->> alias-args (apply hash-map) :as)
 
         ;; Split the remaining arguments into sequential arguments
         ;; and the rest arg (if one at all).
         args (->> arg
-                  (drop-last (count name-args))
+                  (drop-last (count alias-args))
                   (split-with (partial not= '&)))
 
         sequential-args (first args)
         rest-arg        (second args)]
-    {:name       (or name (gensym "vec_arg_"))
+    {:name       (or alias (gensym "vec_arg_"))
      :type       :vector
      :sequential sequential-args
      :rest       (when (seq rest-arg)
                    {:starts (count sequential-args)
-                    :name   (second rest-arg)})}))
+                    :name   (second rest-arg)})
+     :children   (map destructure-def sequential-args)}))
 
 (defmethod destructure-def :default
   [arg]
@@ -1897,27 +1906,34 @@
             {:type (builtins/type arg)})))
 
 (defmulti ^:private destructure-binding
-  (fn [d]
-    (:type d)))
+  (fn [ddef]
+    (:type ddef)))
+
+(defmethod destructure-binding :symbol
+  [ddef]
+  (list (:name ddef) (:expr ddef)))
 
 (defmethod destructure-binding :vector
-  [d]
-  (let [fn-arg          (:name d)
-        sequential-args (->> (:sequential d)
+  [ddef]
+  (let [fn-arg          (:name ddef)
+        sequential-args (->> (:sequential ddef)
                              (map-indexed (fn [idx arg]
                                             [arg `(nth ~fn-arg ~idx nil)]))
                              (apply concat))
-        rest-def        (:rest d)
+        rest-def        (:rest ddef)
         rest-arg        (when rest-def
                           [(:name rest-def) `(nthnext ~fn-arg ~(:starts rest-def))])]
     (concat
      sequential-args
-     rest-arg)))
+     rest-arg
+     (->> (:children ddef)
+          (filter #(not= :symbol (:type %)))
+          (mapcat destructure-binding)))))
 
 (defmethod destructure-binding :map
-  [d]
-  (let [fn-arg (:name d)
-        ors    (:or-bindings d)
+  [ddef]
+  (let [fn-arg (:name ddef)
+        ors    (:or-bindings ddef)
 
         map-binding (fn [f arg]
                       (let [k          (f arg)
@@ -1939,18 +1955,28 @@
                             or-binding (get ors arg)]
                         (if or-binding
                           [binding `(or (get ~fn-arg (quote ~key)) ~or-binding)]
-                          [binding `(get ~fn-arg ~key)])))]
+                          [binding `(get ~fn-arg ~key)])))
+
+        child-binding (fn [child]
+                        (let [alias (name (:name child))
+                              arg   (symbol alias)
+                              k     (keyword alias)]
+                          [arg `(get ~fn-arg ~k)]))]
     (concat
-     (mapcat (partial map-binding #(keyword (name %))) (:keys d))
-     (mapcat (partial map-binding name) (:strs d))
-     (mapcat sym-binding (:syms d))
-     (mapcat rem-binding (:remaining d)))))
+     (mapcat (partial map-binding #(keyword (name %))) (:keys ddef))
+     (mapcat (partial map-binding name) (:strs ddef))
+     (mapcat sym-binding (:syms ddef))
+     (mapcat rem-binding (:remaining ddef))
+     (mapcat child-binding (:children ddef))
+     (->> (:children ddef)
+          (filter #(not= :symbol (:type %)))
+          (mapcat destructure-binding)))))
 
 (defmethod destructure-binding :default
-  [d]
+  [ddef]
   (throw
    (ex-info "Invalid destructuring argument type"
-            {:type (:type d)})))
+            {:type (:type ddef)})))
 
 (defn ^:private fn-arity-with-destructuring
   "Take a function arity definition (an argument vector and 0 or more body
@@ -2008,10 +2034,10 @@
             ~@arities)
       `(fn* ~@arities))))
 
-(defn ^:private let-bindings-with-destructuring
-  "Take a [binding expr] pair from a let block and produce a full complement
-  of a replacement bindings for the binding which perform destructuring on
-  the initial expression.
+(defn destructure
+  "Take a [binding expr] pair (as from a let block) and produce all of the
+  replacement bindings for the binding which perform destructuring on the
+  initial expression.
 
   As an example, for sequential destructuring like:
 
@@ -2035,7 +2061,7 @@
   "Let bindings with destructuring support."
   [bindings & body]
   (let [bindings (->> (partition 2 bindings)
-                      (mapcat let-bindings-with-destructuring))]
+                      (mapcat destructure))]
     `(let* [~@bindings]
        ~@body)))
 
