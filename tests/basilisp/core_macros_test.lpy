@@ -90,46 +90,69 @@
 
 (deftest fn-sequential-destructuring
   (testing "destructuring first"
-    (let [f (fn [[f]]
-              {:first f})]
-      (is (= {:first :a}
-             (f [:a :b :c :d])))))
+    (let [v [:a :b :c :d]
 
-  (testing "destructuring first with vector alias"
-    (let [f (fn [[f :as v]]
-              {:first f :as v})]
+          f (fn [[f]]
+              {:first f})
+          g (fn [[f :as all]]
+              {:first f :as all})]
+      (is (= {:first :a}
+             (f v)))
       (is (= {:first :a :as [:a :b :c :d]}
-             (f [:a :b :c :d])))))
+             (g v)))))
 
   (testing "destructuring first and rest"
-    (let [f (fn [[f & r]]
-              {:first f :rest r})]
+    (let [v [:a :b :c :d]
+
+          f (fn [[f & r]]
+              {:first f :rest r})
+          g (fn [[f & r :as all]]
+              {:first f :rest r :as all})]
       (is (= {:first :a :rest '(:b :c :d)}
-             (f [:a :b :c :d])))))
+             (f v)))
+      (is (= {:first :a :rest '(:b :c :d) :as [:a :b :c :d]}
+             (g v)))))
 
   (testing "destructuring first, second, and rest"
-    (let [f (fn [[f s & r]]
-              {:first f :second s :rest r})]
-      (is (= {:first :a :second :b :rest '(:c :d)}
-             (f [:a :b :c :d])))))
+    (let [v [:a :b :c :d]
 
-  (testing "destructuring first, second, and rest with vector alias"
-    (let [f (fn [[f s & r :as v]]
-              {:first f :second s :rest r :as v})]
+          f (fn [[f s & r]]
+              {:first f :second s :rest r})
+          g (fn [[f s & r :as all]]
+              {:first f :second s :rest r :as all})]
+      (is (= {:first :a :second :b :rest '(:c :d)}
+             (f v)))
       (is (= {:first :a :second :b :rest '(:c :d) :as [:a :b :c :d]}
-             (f [:a :b :c :d])))))
+             (g v)))))
 
   (testing "destructuring first, second, third, and rest"
-    (let [f (fn [[f s t & r]]
-              {:first f :second s :third t :rest r})]
-      (is (= {:first :a :second :b :third :c :rest '(:d)}
-             (f [:a :b :c :d])))))
+    (let [v [:a :b :c :d]
 
-  (testing "destructuring first, second, third, and rest with vector alias"
-    (let [f (fn [[f s t & r :as v]]
-              {:first f :second s :third t :rest r :as v})]
+          f (fn [[f s t & r]]
+              {:first f :second s :third t :rest r})
+          g (fn [[f s t & r :as all]]
+              {:first f :second s :third t :rest r :as all})]
+      (is (= {:first :a :second :b :third :c :rest '(:d)}
+             (f v)))
       (is (= {:first :a :second :b :third :c :rest '(:d) :as [:a :b :c :d]}
-             (f [:a :b :c :d]))))))
+             (g v)))))
+
+  (testing "nested destructuring"
+    (let [v [[:a :b] [:c :d]]
+
+          f (fn [[[k1 v1] [k2 v2]]]
+              [k1 v1 k2 v2])
+          g (fn [[[k1 v1 :as f] [k2 v2 :as s] :as orig]]
+              {:all    [k1 v1 k2 v2]
+               :first  f
+               :second s
+               :orig   orig})]
+      (is (= [:a :b :c :d] (f v)))
+      (is (= {:all    [:a :b :c :d]
+              :first  [:a :b]
+              :second [:c :d]
+              :orig   [[:a :b] [:c :d]]}
+             (g v))))))
 
 (deftest fn-associative-destructuring
   (testing "destructuring simple keys"
