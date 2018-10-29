@@ -1844,7 +1844,12 @@
 
         ;; Keyword, string, and symbol keys may all be destructured from
         ;; associative types.
-        kws (mapcat #(get arg %) kw-keys)
+        kws  (mapcat (fn [kw]
+                       (let [kw-ns (namespace kw)
+                             syms  (get arg kw)]
+                         (cond->> syms
+                           kw-ns (map #(symbol kw-ns (name %))))))
+                     kw-keys)
         strs (:strs arg)
         syms (:syms arg)
 
@@ -1934,6 +1939,18 @@
   (let [fn-arg (:name ddef)
         ors    (:or-bindings ddef)
 
+        kw-binding (fn [arg]
+                     (let [kw-ns      (namespace arg)
+                           kw-name    (name arg)
+                           sym        (symbol kw-name)
+                           kw         (if kw-ns
+                                        (keyword kw-ns kw-name)
+                                        (keyword kw-name))
+                           or-binding (get ors sym)]
+                       (if or-binding
+                         [sym `(or (get ~fn-arg ~kw) ~or-binding)]
+                         [sym `(get ~fn-arg ~kw)])))
+
         map-binding (fn [f arg]
                       (let [k          (f arg)
                             or-binding (get ors arg)]
@@ -1960,16 +1977,16 @@
                         (let [alias (name (:name child))
                               arg   (symbol alias)
                               k     (keyword alias)]
-                          [arg `(get ~fn-arg ~k)]))]
+                          [arg `(get ~fn-arg ~k)]))
+
+        non-sym-children (filter #(not= :symbol (:type %)) (:children ddef))]
     (concat
-     (mapcat (partial map-binding #(keyword (name %))) (:keys ddef))
+     (mapcat kw-binding (:keys ddef))
      (mapcat (partial map-binding name) (:strs ddef))
      (mapcat sym-binding (:syms ddef))
      (mapcat rem-binding (:remaining ddef))
-     (mapcat child-binding (:children ddef))
-     (->> (:children ddef)
-          (filter #(not= :symbol (:type %)))
-          (mapcat destructure-binding)))))
+     (mapcat child-binding non-sym-children)
+     (mapcat destructure-binding non-sym-children))))
 
 (defmethod destructure-binding :default
   [ddef]

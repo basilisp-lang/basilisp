@@ -194,6 +194,20 @@
       (is (= [:a m] (g m)))
       (is (= [:a :b m] (h m)))))
 
+  (testing "destructuring namespaced keys"
+    (let [m {:a "a"
+             :b "b"
+             :a/a "aa"
+             :a/b "bb"
+             :c/c "cc"
+             :c/d "dd"}
+
+          f (fn [{:a/keys [a b] old-a :a old-b :b}] [old-a old-b a b])
+          g (fn [{:keys [a b] :c/keys [c d]}]
+              [a b c d])]
+      (is (= ["a" "b" "aa" "bb"] (f m)))
+      (is (= ["a" "b" "cc" "dd"] (g m)))))
+
   (testing "destructuring individual keys"
     (let [m {:a "a" :b "b"}
 
