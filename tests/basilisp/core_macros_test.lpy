@@ -210,9 +210,8 @@
 (deftest let-sequential-destructuring
   (testing "destructuring first"
     (let [[f] [:a :b :c :d]]
-      (is (= :a f))))
+      (is (= :a f)))
 
-  (testing "destructuring first with vector alias"
     (let [[f :as v] [:a :b :c :d]]
       (is (= :a f))
       (is (= [:a :b :c :d] v))))
@@ -220,15 +219,19 @@
   (testing "destructuring first and rest"
     (let [[f & r] [:a :b :c :d]]
       (is (= '(:b :c :d) r))
-      (is (= :a f))))
+      (is (= :a f)))
+
+    (let [[f & r :as all] [:a :b :c :d]]
+      (is (= '(:b :c :d) r))
+      (is (= :a f))
+      (is (= [:a :b :c :d] all))))
 
   (testing "destructuring first, second, and rest"
     (let [[f s & r] [:a :b :c :d]]
       (is (= :a f))
       (is (= :b s))
-      (is (= '(:c :d) r))))
+      (is (= '(:c :d) r)))
 
-  (testing "destructuring first, second, and rest with vector alias"
     (let [[f s & r :as v] [:a :b :c :d]]
       (is (= :a f))
       (is (= :b s))
@@ -240,9 +243,8 @@
       (is (= :a f))
       (is (= :b s))
       (is (= :c t))
-      (is (= '(:d) r))))
+      (is (= '(:d) r)))
 
-  (testing "destructuring first, second, third, and rest with vector alias"
     (let [[f s t & r :as v] [:a :b :c :d]]
       (is (= :a f))
       (is (= :b s))
@@ -255,9 +257,8 @@
       (is (= :a k1))
       (is (= :b v1))
       (is (= :c k2))
-      (is (= :d v2))))
+      (is (= :d v2)))
 
-  (testing "nested destructuring with aliases"
     (let [[[k1 v1 :as f] [k2 v2 :as s] :as all] [[:a :b] [:c :d]]]
       (is (= :a k1))
       (is (= :b v1))
