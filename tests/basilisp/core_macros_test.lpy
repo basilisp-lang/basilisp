@@ -214,7 +214,14 @@
 
     (let [[f :as v] [:a :b :c :d]]
       (is (= :a f))
-      (is (= [:a :b :c :d] v))))
+      (is (= [:a :b :c :d] v)))
+
+    (let [[f] '()]
+      (is (= nil f)))
+
+    (let [[f :as v] '()]
+      (is (= nil f))
+      (is (= '() v))))
 
   (testing "destructuring first and rest"
     (let [[f & r] [:a :b :c :d]]
@@ -224,7 +231,16 @@
     (let [[f & r :as all] [:a :b :c :d]]
       (is (= '(:b :c :d) r))
       (is (= :a f))
-      (is (= [:a :b :c :d] all))))
+      (is (= [:a :b :c :d] all)))
+
+    (let [[f & r] '()]
+      (is (= nil f))
+      (is (= nil r)))
+
+    (let [[f & r :as v] '()]
+      (is (= nil f))
+      (is (= nil r))
+      (is (= '() v))))
 
   (testing "destructuring first, second, and rest"
     (let [[f s & r] [:a :b :c :d]]
@@ -236,7 +252,18 @@
       (is (= :a f))
       (is (= :b s))
       (is (= '(:c :d) r))
-      (is (= [:a :b :c :d] v))))
+      (is (= [:a :b :c :d] v)))
+
+    (let [[f s & r] '()]
+      (is (= nil f))
+      (is (= nil s))
+      (is (= nil r)))
+
+    (let [[f s & r :as v] '()]
+      (is (= nil f))
+      (is (= nil s))
+      (is (= nil r))
+      (is (= '() v))))
 
   (testing "destructuring first, second, third, and rest"
     (let [[f s t & r] [:a :b :c :d]]
@@ -250,7 +277,20 @@
       (is (= :b s))
       (is (= :c t))
       (is (= '(:d) r))
-      (is (= [:a :b :c :d] v))))
+      (is (= [:a :b :c :d] v)))
+
+    (let [[f s t & r] [:a]]
+      (is (= :a f))
+      (is (= nil s))
+      (is (= nil t))
+      (is (= nil r)))
+
+    (let [[f s t & r :as v] [:a]]
+      (is (= :a f))
+      (is (= nil s))
+      (is (= nil t))
+      (is (= nil r))
+      (is (= [:a] v))))
 
   (testing "nested destructuring"
     (let [[[k1 v1] [k2 v2]] [[:a :b] [:c :d]]]
@@ -266,7 +306,22 @@
       (is (= :c k2))
       (is (= :d v2))
       (is (= [:c :d] s))
-      (is (= [[:a :b] [:c :d]] all)))))
+      (is (= [[:a :b] [:c :d]] all)))
+
+    (let [[[k1 v1] [k2 v2]] [[:a :b] [:c]]]
+      (is (= :a k1))
+      (is (= :b v1))
+      (is (= :c k2))
+      (is (= nil v2)))
+
+    (let [[[k1 v1 :as f] [k2 v2 :as s] :as all] [[:a :b] [:c]]]
+      (is (= :a k1))
+      (is (= :b v1))
+      (is (= [:a :b] f))
+      (is (= :c k2))
+      (is (= nil v2))
+      (is (= [:c] s))
+      (is (= [[:a :b] [:c]] all)))))
 
 (deftest let-associative-destructuring
   (testing "destructuring simple keys"
