@@ -202,7 +202,8 @@
              :c/c "cc"
              :c/d "dd"}
 
-          f (fn [{:a/keys [a b] old-a :a old-b :b}] [old-a old-b a b])
+          f (fn [{:a/keys [a b] old-a :a old-b :b}]
+              [old-a old-b a b])
           g (fn [{:keys [a b] :c/keys [c d]}]
               [a b c d])]
       (is (= ["a" "b" "aa" "bb"] (f m)))
@@ -377,6 +378,29 @@
       (is (= "a" a))
       (is (= "b" b))
       (is (= {:a "a" :b "b"} m))))
+
+  (testing "destructuring namespaced keys"
+    (let [{:a/keys [a b] old-a :a old-b :b} {:a   "a"
+                                             :b   "b"
+                                             :a/a "aa"
+                                             :a/b "bb"
+                                             :c/c "cc"
+                                             :c/d "dd"}]
+      (is (= "aa" a))
+      (is (= "bb" b))
+      (is (= "a" old-a))
+      (is (= "b" old-b)))
+
+    (let [{:keys [a b] :c/keys [c d]} {:a   "a"
+                                       :b   "b"
+                                       :a/a "aa"
+                                       :a/b "bb"
+                                       :c/c "cc"
+                                       :c/d "dd"}]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= "cc" c))
+      (is (= "dd" d))))
 
   (testing "nested destructuring"
     (let [{{:keys [a b] :as nested} :nested :as m} {:nested {:a "aa" :b "bb"} :a "a" :b "b"}]
