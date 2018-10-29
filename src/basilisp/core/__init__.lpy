@@ -1893,7 +1893,6 @@
         rest-arg        (second args)]
     {:name       (or alias (gensym "vec_arg_"))
      :type       :vector
-     :sequential sequential-args
      :rest       (when (seq rest-arg)
                    {:starts (count sequential-args)
                     :name   (second rest-arg)})
@@ -1909,16 +1908,16 @@
   (fn [ddef]
     (:type ddef)))
 
-(defmethod destructure-binding :symbol
-  [ddef]
-  (list (:name ddef) (:expr ddef)))
-
 (defmethod destructure-binding :vector
   [ddef]
   (let [fn-arg          (:name ddef)
-        sequential-args (->> (:sequential ddef)
-                             (map-indexed (fn [idx arg]
-                                            [arg `(nth ~fn-arg ~idx nil)]))
+        sequential-args (->> (:children ddef)
+                             (map-indexed (fn [idx child]
+                                            (let [alias (:name child)]
+                                              (concat
+                                               [alias `(nth ~fn-arg ~idx nil)]
+                                               (when-not (= :symbol (:type child))
+                                                 (destructure-binding child))))))
                              (apply concat))
         rest-def        (:rest ddef)
         rest-arg        (when rest-def

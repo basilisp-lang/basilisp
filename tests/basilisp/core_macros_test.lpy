@@ -225,7 +225,24 @@
       (is (= :b s))
       (is (= :c t))
       (is (= '(:d) r))
-      (is (= [:a :b :c :d] v)))))
+      (is (= [:a :b :c :d] v))))
+
+  (testing "nested destructuring"
+    (let [[[k1 v1] [k2 v2]] [[:a :b] [:c :d]]]
+      (is (= :a k1))
+      (is (= :b v1))
+      (is (= :c k2))
+      (is (= :d v2))))
+
+  (testing "nested destructuring with aliases"
+    (let [[[k1 v1 :as f] [k2 v2 :as s] :as all] [[:a :b] [:c :d]]]
+      (is (= :a k1))
+      (is (= :b v1))
+      (is (= [:a :b] f))
+      (is (= :c k2))
+      (is (= :d v2))
+      (is (= [:c :d] s))
+      (is (= [[:a :b] [:c :d]] all)))))
 
 (deftest let-associative-destructuring
   (testing "destructuring simple keys"
@@ -273,4 +290,21 @@
       (is (= "aa" a))
       (is (= "bb" b))
       (is (= {:a "aa" :b "bb"} nested))
-      (is (= {:nested {:a "aa" :b "bb"} :a "a" :b "b"} m)))))
+      (is (= {:nested {:a "aa" :b "bb"} :a "a" :b "b"} m)))
+
+    (let [{{{:keys [a b] :as nested} :nested :as middle} :middle :as m}
+          {:middle {:nested {:a "aaa" :b "bbb"}
+                    :a      "aa"
+                    :b      "bb"}
+           :a      "a"
+           :b      "b"}]
+      (is (= "aaa" a))
+      (is (= "bbb" b))
+      (is (= {:a "aaa" :b "bbb"} nested))
+      (is (= {:nested {:a "aaa" :b "bbb"} :a "aa" :b "bb"} middle))
+      (is (= {:middle {:nested {:a "aaa" :b "bbb"}
+                       :a      "aa"
+                       :b      "bb"}
+              :a      "a"
+              :b      "b"}
+             m)))))
