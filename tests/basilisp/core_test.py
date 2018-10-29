@@ -479,6 +479,7 @@ def test_dissoc():
 
 
 def test_get():
+    assert None is core.get(None, "a")
     assert 1 == core.get(lmap.map({"a": 1}), "a")
     assert None is core.get(lmap.map({"a": 1}), "b")
     assert 2 == core.get(lmap.map({"a": 1}), "b", 2)
@@ -507,8 +508,8 @@ def test_vals():
 
 def test_range():
     assert llist.l(1) == core.range_(1, 1)
-    assert llist.l(1, 2, 3, 4, 5) == core.range_(1, 5)
-    assert llist.l(1, 3, 5, 7, 9) == core.range_(1, 10, 2)
+    assert llist.l(1, 2, 3, 4, 5) == core.range_(1, 6)
+    assert llist.l(1, 3, 5, 7, 9) == core.range_(1, 11, 2)
     # assert llist.l(1, -1, -3, -5, -7, -9) == core.range_(1, -10, -2)
 
 
@@ -631,7 +632,7 @@ def test_map():
     assert llist.l(2, 3, 4) == core.map_(core.inc, vec.v(1, 2, 3))
 
     assert llist.l(5, 7, 9) == core.map_(core.__PLUS__, vec.v(1, 2, 3), vec.v(4, 5, 6))
-    assert llist.l(5, 7, 9) == core.map_(core.__PLUS__, vec.v(1, 2, 3), core.range_(4))
+    assert llist.l(5, 7, 9) == core.map_(core.__PLUS__, vec.v(1, 2, 3), core.range_(4, 7))
 
 
 def test_map_indexed():
@@ -740,6 +741,23 @@ def test_repeat():
 def test_repeatedly():
     assert llist.l("yes", "yes", "yes") == core.take(3, core.repeatedly(lambda: "yes"))
     assert llist.l("yes", "yes", "yes") == core.repeatedly(3, lambda: "yes")
+
+
+def test_partition():
+    assert llist.l(llist.l(1, 2), llist.l(3, 4), llist.l(5, 6)) == core.partition(2, core.range_(1, 7))
+    assert llist.l(llist.l(1, 2, 3), llist.l(4, 5, 6)) == core.partition(3, core.range_(1, 7))
+
+    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
+                   llist.l(21, 22, 23)) == core.partition(5, 10, core.range_(1, 24))
+    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
+                   llist.l(21, 22, 23, 24, 25)) == core.partition(5, 10, core.range_(1, 26))
+
+    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
+                   llist.l(21, 22, 23, kw.keyword("a"), kw.keyword("a"))) == core.partition(
+        5, 10, core.repeat(kw.keyword("a")), core.range_(1, 24))
+    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
+                   llist.l(21, 22, 23, 24, 25)) == core.partition(
+        5, 10, core.repeat(kw.keyword("a")), core.range_(1, 26))
 
 
 def test_pr_str():
