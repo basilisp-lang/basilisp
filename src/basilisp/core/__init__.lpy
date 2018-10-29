@@ -762,18 +762,27 @@
   (list 'basilisp.lang.seq/LazySeq
         (concat '(fn* []) body)))
 
+(defn iterate
+  "Returns a lazy sequence of (f x), (f (f x)) and so on."
+  [f x]
+  (lazy-seq
+   (let [v (f x)]
+     (when v
+       (cons v (iterate f v))))))
+
 (defn range
   "Return a range of integers from start. If end is specified, the
   sequence will terminate at end."
-  ([] (range 0))
-  ([start]
-   (lazy-seq (cons start (range (inc start)))))
+  ([]
+   (iterate inc -1))
+  ([end]
+   (lazy-seq (cons 0 (range 1 end))))
   ([start end]
-   (lazy-seq (cons start (when (< start end)
+   (lazy-seq (cons start (when (< start (dec end))
                            (range (inc start) end)))))
   ([start end step]
    (lazy-seq (let [next-int (+ start step)]
-               (cons start (when (< next-int end)
+               (cons start (when (< next-int (dec end))
                              (range next-int end step)))))))
 
 (defn complement
@@ -1012,6 +1021,28 @@
    (lazy-seq
     (when (> n 0)
       (cons (f) (repeatedly (dec n) f))))))
+
+(defn partition
+  "Return a lazy sequence of partitions of coll of size n at offsets
+  of step elements. If step is not given, steps of size n will be used
+  and there will be no overlap between partitions. If pad is given,
+  partition will pull elements from pad until the final sequence is
+  equal to size n."
+  ([n coll]
+   (partition n n coll))
+  ([n step coll]
+   (lazy-seq
+    (when (seq coll)
+      (cons (take n coll) (partition n step (drop step coll))))))
+  ([n step pad coll]
+   (lazy-seq
+    (when (seq coll)
+      (let [s  (take n coll)
+            ns (count s)
+            s  (if (< ns n)
+                 (concat s (take (- n ns) pad))
+                 s)]
+        (cons s (partition n step pad (drop step coll))))))))
 
 (defn merge
   "Merge maps together from left to right as by conj. If a duplicate key
