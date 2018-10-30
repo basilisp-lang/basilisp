@@ -166,7 +166,15 @@
               [a b m])]
       (is (= ["a"] (f m)))
       (is (= ["a" m] (g m)))
-      (is (= ["a" "b" m] (h m)))))
+      (is (= ["a" "b" m] (h m))))
+
+    (let [m  {:a "a"}
+          m1 {:a "a" :c "d"}
+
+          f (fn [{:keys [a c] :as m :or {c "c"}}]
+              [a c m])]
+      (is (= ["a" "c" m] (f m)))
+      (is (= ["a" "d" m1] (f m1)))))
 
   (testing "destructuring simple string keys"
     (let [m {:a 1 :b "b" "a" :a "b" :b}
@@ -179,7 +187,15 @@
               [a b m])]
       (is (= [:a] (f m)))
       (is (= [:a m] (g m)))
-      (is (= [:a :b m] (h m)))))
+      (is (= [:a :b m] (h m))))
+
+    (let [m  {"a" :a}
+          m1 {"a" :a "c" :d}
+
+          f (fn [{:strs [a c] :as m :or {c :c}}]
+              [a c m])]
+      (is (= [:a :c m] (f m)))
+      (is (= [:a :d m1] (f m1)))))
 
   (testing "destructuring simple symbol keys"
     (let [m {:a 1 :b "b" 'a :a 'b :b}
@@ -192,11 +208,19 @@
               [a b m])]
       (is (= [:a] (f m)))
       (is (= [:a m] (g m)))
-      (is (= [:a :b m] (h m)))))
+      (is (= [:a :b m] (h m))))
+
+    (let [m  {'a :a}
+          m1 {'a :a 'c :d}
+
+          f (fn [{:syms [a c] :as m :or {c :c}}]
+              [a c m])]
+      (is (= [:a :c m] (f m)))
+      (is (= [:a :d m1] (f m1)))))
 
   (testing "destructuring namespaced keys"
-    (let [m {:a "a"
-             :b "b"
+    (let [m {:a   "a"
+             :b   "b"
              :a/a "aa"
              :a/b "bb"
              :c/c "cc"
@@ -207,7 +231,15 @@
           g (fn [{:keys [a b] :c/keys [c d]}]
               [a b c d])]
       (is (= ["a" "b" "aa" "bb"] (f m)))
-      (is (= ["a" "b" "cc" "dd"] (g m)))))
+      (is (= ["a" "b" "cc" "dd"] (g m))))
+
+    (let [m  {:a "a"}
+          m1 {:a/a "aa" :a "a"}
+
+          f (fn [{:a/keys [a] :as m :or {a :c}}]
+              [a m])]
+      (is (= [:c m] (f m)))
+      (is (= ["aa" m1] (f m1)))))
 
   (testing "destructuring individual keys"
     (let [m {:a "a" :b "b"}
@@ -220,7 +252,19 @@
               [a b m])]
       (is (= ["a"] (f m)))
       (is (= ["a" m] (g m)))
-      (is (= ["a" "b" m] (h m))))))
+      (is (= ["a" "b" m] (h m))))
+
+    (let [f (fn [{a :a/a}]
+              [a])]
+      (is (= ["aa"] (f {:a/a "aa" :a "a"}))))
+
+    (let [m  {:a "a"}
+          m1 {:a "a" :c "d"}
+
+          f (fn [{a :a c :c :as m :or {c :c}}]
+              [a c m])]
+      (is (= ["a" :c m] (f m)))
+      (is (= ["a" "d" m1] (f m1))))))
 
 (deftest let-sequential-destructuring
   (testing "destructuring first"
@@ -397,7 +441,10 @@
     (let [{a :a b :b :as m :or {b "c"}} {:a "a"}]
       (is (= "a" a))
       (is (= "c" b))
-      (is (= {:a "a"} m))))
+      (is (= {:a "a"} m)))
+
+    (let [{a :a/a} {:a/a "aa" :a "a"}]
+      (is (= "aa" a))))
 
   (testing "destructuring namespaced keys"
     (let [{:a/keys [a b] old-a :a old-b :b} {:a   "a"
