@@ -1,6 +1,30 @@
 (ns basilisp.core-macros-test
   (:require
-   [basilisp.test :refer [deftest is]]))
+   [basilisp.test :refer [deftest is testing]]))
+
+(deftest condp-test
+  (testing "condp result value"
+    (is (= :a (condp = "a" :a)))
+    (is (= :a (condp = "a"
+                "b" :b
+                :a)))
+    (is (= :a (condp = "a"
+                "b" :b
+                "c" :c
+                :a))))
+
+  (testing "condp result function"
+    (is (= :a (condp some [1 8 10 12]
+                #{2 4 6} :>> inc
+                :a)))
+    (is (= 0 (condp some [1 8 10 12]
+               #{2 4 6} :>> inc
+               #{1 3 5} :>> dec
+               :a)))))
+
+(deftest comment-test
+  (is (= nil (comment 1)))
+  (is (= nil (comment [1 2 3]))))
 
 (deftest ->-test
   (is (= :a (-> :a)))
@@ -63,3 +87,432 @@
              {:a x :c 0}
              (:a x)
              (inc x)))))
+
+(deftest fn-sequential-destructuring
+  (testing "destructuring first"
+    (let [v [:a :b :c :d]
+
+          f (fn [[f]]
+              {:first f})
+          g (fn [[f :as all]]
+              {:first f :as all})]
+      (is (= {:first :a}
+             (f v)))
+      (is (= {:first :a :as [:a :b :c :d]}
+             (g v)))))
+
+  (testing "destructuring first and rest"
+    (let [v [:a :b :c :d]
+
+          f (fn [[f & r]]
+              {:first f :rest r})
+          g (fn [[f & r :as all]]
+              {:first f :rest r :as all})]
+      (is (= {:first :a :rest '(:b :c :d)}
+             (f v)))
+      (is (= {:first :a :rest '(:b :c :d) :as [:a :b :c :d]}
+             (g v)))))
+
+  (testing "destructuring first, second, and rest"
+    (let [v [:a :b :c :d]
+
+          f (fn [[f s & r]]
+              {:first f :second s :rest r})
+          g (fn [[f s & r :as all]]
+              {:first f :second s :rest r :as all})]
+      (is (= {:first :a :second :b :rest '(:c :d)}
+             (f v)))
+      (is (= {:first :a :second :b :rest '(:c :d) :as [:a :b :c :d]}
+             (g v)))))
+
+  (testing "destructuring first, second, third, and rest"
+    (let [v [:a :b :c :d]
+
+          f (fn [[f s t & r]]
+              {:first f :second s :third t :rest r})
+          g (fn [[f s t & r :as all]]
+              {:first f :second s :third t :rest r :as all})]
+      (is (= {:first :a :second :b :third :c :rest '(:d)}
+             (f v)))
+      (is (= {:first :a :second :b :third :c :rest '(:d) :as [:a :b :c :d]}
+             (g v)))))
+
+  (testing "nested destructuring"
+    (let [v [[:a :b] [:c :d]]
+
+          f (fn [[[k1 v1] [k2 v2]]]
+              [k1 v1 k2 v2])
+          g (fn [[[k1 v1 :as f] [k2 v2 :as s] :as orig]]
+              {:all    [k1 v1 k2 v2]
+               :first  f
+               :second s
+               :orig   orig})]
+      (is (= [:a :b :c :d] (f v)))
+      (is (= {:all    [:a :b :c :d]
+              :first  [:a :b]
+              :second [:c :d]
+              :orig   [[:a :b] [:c :d]]}
+             (g v))))))
+
+(deftest fn-associative-destructuring
+  (testing "destructuring simple keys"
+    (let [m {:a "a" :b "b"}
+
+          f (fn [{:keys [a]}]
+              [a])
+          g (fn [{:keys [a] :as m}]
+              [a m])
+          h (fn [{:keys [a b] :as m}]
+              [a b m])]
+      (is (= ["a"] (f m)))
+      (is (= ["a" m] (g m)))
+      (is (= ["a" "b" m] (h m))))
+
+    (let [m  {:a "a"}
+          m1 {:a "a" :c "d"}
+
+          f (fn [{:keys [a c] :as m :or {c "c"}}]
+              [a c m])]
+      (is (= ["a" "c" m] (f m)))
+      (is (= ["a" "d" m1] (f m1)))))
+
+  (testing "destructuring simple string keys"
+    (let [m {:a 1 :b "b" "a" :a "b" :b}
+
+          f (fn [{:strs [a]}]
+              [a])
+          g (fn [{:strs [a] :as m}]
+              [a m])
+          h (fn [{:strs [a b] :as m}]
+              [a b m])]
+      (is (= [:a] (f m)))
+      (is (= [:a m] (g m)))
+      (is (= [:a :b m] (h m))))
+
+    (let [m  {"a" :a}
+          m1 {"a" :a "c" :d}
+
+          f (fn [{:strs [a c] :as m :or {c :c}}]
+              [a c m])]
+      (is (= [:a :c m] (f m)))
+      (is (= [:a :d m1] (f m1)))))
+
+  (testing "destructuring simple symbol keys"
+    (let [m {:a 1 :b "b" 'a :a 'b :b}
+
+          f (fn [{:syms [a]}]
+              [a])
+          g (fn [{:syms [a] :as m}]
+              [a m])
+          h (fn [{:syms [a b] :as m}]
+              [a b m])]
+      (is (= [:a] (f m)))
+      (is (= [:a m] (g m)))
+      (is (= [:a :b m] (h m))))
+
+    (let [m  {'a :a}
+          m1 {'a :a 'c :d}
+
+          f (fn [{:syms [a c] :as m :or {c :c}}]
+              [a c m])]
+      (is (= [:a :c m] (f m)))
+      (is (= [:a :d m1] (f m1)))))
+
+  (testing "destructuring namespaced keys"
+    (let [m {:a   "a"
+             :b   "b"
+             :a/a "aa"
+             :a/b "bb"
+             :c/c "cc"
+             :c/d "dd"}
+
+          f (fn [{:a/keys [a b] old-a :a old-b :b}]
+              [old-a old-b a b])
+          g (fn [{:keys [a b] :c/keys [c d]}]
+              [a b c d])]
+      (is (= ["a" "b" "aa" "bb"] (f m)))
+      (is (= ["a" "b" "cc" "dd"] (g m))))
+
+    (let [m  {:a "a"}
+          m1 {:a/a "aa" :a "a"}
+
+          f (fn [{:a/keys [a] :as m :or {a :c}}]
+              [a m])]
+      (is (= [:c m] (f m)))
+      (is (= ["aa" m1] (f m1)))))
+
+  (testing "destructuring individual keys"
+    (let [m {:a "a" :b "b"}
+
+          f (fn [{a :a}]
+              [a])
+          g (fn [{a :a :as m}]
+              [a m])
+          h (fn [{a :a b :b :as m}]
+              [a b m])]
+      (is (= ["a"] (f m)))
+      (is (= ["a" m] (g m)))
+      (is (= ["a" "b" m] (h m))))
+
+    (let [f (fn [{a :a/a}]
+              [a])]
+      (is (= ["aa"] (f {:a/a "aa" :a "a"}))))
+
+    (let [m  {:a "a"}
+          m1 {:a "a" :c "d"}
+
+          f (fn [{a :a c :c :as m :or {c :c}}]
+              [a c m])]
+      (is (= ["a" :c m] (f m)))
+      (is (= ["a" "d" m1] (f m1)))))
+
+  (testing "keyword rest arguments"
+    (let [f (fn [a b & {:keys [c]}] [a b c])]
+      (is (= [:a :b "rest arg"] (f :a :b :c "rest arg")))
+      (is (= [:a :b "rest arg"] (f :a :b :d "other" :c "rest arg"))))))
+
+(deftest let-sequential-destructuring
+  (testing "destructuring first"
+    (let [[f] [:a :b :c :d]]
+      (is (= :a f)))
+
+    (let [[f :as v] [:a :b :c :d]]
+      (is (= :a f))
+      (is (= [:a :b :c :d] v)))
+
+    (let [[f] '()]
+      (is (= nil f)))
+
+    (let [[f :as v] '()]
+      (is (= nil f))
+      (is (= '() v))))
+
+  (testing "destructuring first and rest"
+    (let [[f & r] [:a :b :c :d]]
+      (is (= '(:b :c :d) r))
+      (is (= :a f)))
+
+    (let [[f & r :as all] [:a :b :c :d]]
+      (is (= '(:b :c :d) r))
+      (is (= :a f))
+      (is (= [:a :b :c :d] all)))
+
+    (let [[f & r] '()]
+      (is (= nil f))
+      (is (= nil r)))
+
+    (let [[f & r :as v] '()]
+      (is (= nil f))
+      (is (= nil r))
+      (is (= '() v))))
+
+  (testing "destructuring first, second, and rest"
+    (let [[f s & r] [:a :b :c :d]]
+      (is (= :a f))
+      (is (= :b s))
+      (is (= '(:c :d) r)))
+
+    (let [[f s & r :as v] [:a :b :c :d]]
+      (is (= :a f))
+      (is (= :b s))
+      (is (= '(:c :d) r))
+      (is (= [:a :b :c :d] v)))
+
+    (let [[f s & r] '()]
+      (is (= nil f))
+      (is (= nil s))
+      (is (= nil r)))
+
+    (let [[f s & r :as v] '()]
+      (is (= nil f))
+      (is (= nil s))
+      (is (= nil r))
+      (is (= '() v))))
+
+  (testing "destructuring first, second, third, and rest"
+    (let [[f s t & r] [:a :b :c :d]]
+      (is (= :a f))
+      (is (= :b s))
+      (is (= :c t))
+      (is (= '(:d) r)))
+
+    (let [[f s t & r :as v] [:a :b :c :d]]
+      (is (= :a f))
+      (is (= :b s))
+      (is (= :c t))
+      (is (= '(:d) r))
+      (is (= [:a :b :c :d] v)))
+
+    (let [[f s t & r] [:a]]
+      (is (= :a f))
+      (is (= nil s))
+      (is (= nil t))
+      (is (= nil r)))
+
+    (let [[f s t & r :as v] [:a]]
+      (is (= :a f))
+      (is (= nil s))
+      (is (= nil t))
+      (is (= nil r))
+      (is (= [:a] v))))
+
+  (testing "nested destructuring"
+    (let [[[k1 v1] [k2 v2]] [[:a :b] [:c :d]]]
+      (is (= :a k1))
+      (is (= :b v1))
+      (is (= :c k2))
+      (is (= :d v2)))
+
+    (let [[[k1 v1 :as f] [k2 v2 :as s] :as all] [[:a :b] [:c :d]]]
+      (is (= :a k1))
+      (is (= :b v1))
+      (is (= [:a :b] f))
+      (is (= :c k2))
+      (is (= :d v2))
+      (is (= [:c :d] s))
+      (is (= [[:a :b] [:c :d]] all)))
+
+    (let [[[k1 v1] [k2 v2]] [[:a :b] [:c]]]
+      (is (= :a k1))
+      (is (= :b v1))
+      (is (= :c k2))
+      (is (= nil v2)))
+
+    (let [[[k1 v1 :as f] [k2 v2 :as s] :as all] [[:a :b] [:c]]]
+      (is (= :a k1))
+      (is (= :b v1))
+      (is (= [:a :b] f))
+      (is (= :c k2))
+      (is (= nil v2))
+      (is (= [:c] s))
+      (is (= [[:a :b] [:c]] all)))))
+
+(deftest let-associative-destructuring
+  (testing "destructuring simple keys"
+    (let [{:keys [a b]} {:a "a" :b "b"}]
+      (is (= "a" a))
+      (is (= "b" b)))
+
+    (let [{:keys [a b] :as m} {:a "a" :b "b"}]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= {:a "a" :b "b"} m)))
+
+    (let [{:keys [a b] :as m :or {b "c"}} {:a "a"}]
+      (is (= "a" a))
+      (is (= "c" b))
+      (is (= {:a "a"} m))))
+
+  (testing "destructuring simple string keys"
+    (let [{:strs [a b]} {:a 1 :b 2 "a" :a "b" :b}]
+      (is (= :a a))
+      (is (= :b b)))
+
+    (let [{:strs [a b] :as m} {:a 1 :b 2 "a" :a "b" :b}]
+      (is (= :a a))
+      (is (= :b b))
+      (is (= {:a 1 :b 2 "a" :a "b" :b} m)))
+
+    (let [{:strs [a b] :as m :or {b "c"}} {:a 1 :b 2 "a" :a}]
+      (is (= :a a))
+      (is (= "c" b))
+      (is (= {:a 1 :b 2 "a" :a} m))))
+
+  (testing "destructuring simple symbol keys"
+    (let [{:syms [a b]} {:a 1 :b "b" 'a :a 'b :b}]
+      (is (= :a a))
+      (is (= :b b)))
+
+    (let [{:syms [a b] :as m} {:a 1 :b "b" 'a :a 'b :b}]
+      (is (= :a a))
+      (is (= :b b))
+      (is (= {:a 1 :b "b" 'a :a 'b :b} m)))
+
+    (let [{:syms [a b] :as m :or {b "c"}} {:a 1 :b "b" 'a :a}]
+      (is (= :a a))
+      (is (= "c" b))
+      (is (= {:a 1 :b "b" 'a :a} m))))
+
+  (testing "destructuring individual keys"
+    (let [{a :a b :b} {:a "a" :b "b"}]
+      (is (= "a" a))
+      (is (= "b" b)))
+
+    (let [{a :a b :b :as m} {:a "a" :b "b"}]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= {:a "a" :b "b"} m)))
+
+    (let [{a :a b :b :as m :or {b "c"}} {:a "a"}]
+      (is (= "a" a))
+      (is (= "c" b))
+      (is (= {:a "a"} m)))
+
+    (let [{a :a/a} {:a/a "aa" :a "a"}]
+      (is (= "aa" a))))
+
+  (testing "destructuring namespaced keys"
+    (let [{:a/keys [a b] old-a :a old-b :b} {:a   "a"
+                                             :b   "b"
+                                             :a/a "aa"
+                                             :a/b "bb"
+                                             :c/c "cc"
+                                             :c/d "dd"}]
+      (is (= "aa" a))
+      (is (= "bb" b))
+      (is (= "a" old-a))
+      (is (= "b" old-b)))
+
+    (let [{:keys [a b] :c/keys [c d]} {:a   "a"
+                                       :b   "b"
+                                       :a/a "aa"
+                                       :a/b "bb"
+                                       :c/c "cc"
+                                       :c/d "dd"}]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= "cc" c))
+      (is (= "dd" d)))
+
+    (let [{:keys [a b] :c/keys [c d] :or {c "ee"}}
+          {:a "a" :b "b" :a/a "aa" :a/b "bb" :c/d "dd"}]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= "ee" c))
+      (is (= "dd" d))))
+
+  (testing "nested destructuring"
+    (let [{{:keys [a b] :as nested} :nested :as m} {:nested {:a "aa" :b "bb"} :a "a" :b "b"}]
+      (is (= "aa" a))
+      (is (= "bb" b))
+      (is (= {:a "aa" :b "bb"} nested))
+      (is (= {:nested {:a "aa" :b "bb"} :a "a" :b "b"} m)))
+
+    (let [{{:keys [a b] :as nested :or {b "ee"}} :nested :as m} {:nested {:a "aa"} :a "a" :b "b"}]
+      (is (= "aa" a))
+      (is (= "ee" b))
+      (is (= {:a "aa"} nested))
+      (is (= {:nested {:a "aa"} :a "a" :b "b"} m)))
+
+    (let [{{:keys [a b] :as nested} :nested :as m :or {b "ee"}} {:nested {:a "aa"} :a "a" :b "b"}]
+      (is (= "aa" a))
+      (is (= nil b))
+      (is (= {:a "aa"} nested))
+      (is (= {:nested {:a "aa"} :a "a" :b "b"} m)))
+
+    (let [{{{:keys [a b] :as nested} :nested :as middle} :middle :as m}
+          {:middle {:nested {:a "aaa" :b "bbb"}
+                    :a      "aa"
+                    :b      "bb"}
+           :a      "a"
+           :b      "b"}]
+      (is (= "aaa" a))
+      (is (= "bbb" b))
+      (is (= {:a "aaa" :b "bbb"} nested))
+      (is (= {:nested {:a "aaa" :b "bbb"} :a "aa" :b "bb"} middle))
+      (is (= {:middle {:nested {:a "aaa" :b "bbb"}
+                       :a      "aa"
+                       :b      "bb"}
+              :a      "a"
+              :b      "b"}
+             m)))))

@@ -46,11 +46,11 @@
   (fn* with-meta [o meta]
        (.with-meta o meta)))
 
-(def ^:macro let
+(def ^:macro ^:redef let
   (fn* let [&form & decl]
        (cons 'let* decl)))
 
-(def ^:macro fn
+(def ^:macro ^:redef fn
   (fn* fn [&form & decl]
        (with-meta
          (cons 'fn* decl)
@@ -236,14 +236,17 @@
                                 {:found (first body)})))
                     (rest body)))]
       `(def ~fname
-         (fn* ~fname
+         (fn ~fname
               ~@body)))))
 
 (defn nth
   "Returns the ith element of coll (0-indexed), if it exists.
-  nil otherwise."
-  [coll i]
-  (basilisp.lang.runtime/nth coll i))
+  nil otherwise. If i is out of bounds, throws an IndexError unless
+  notfound is specified."
+  ([coll i]
+   (basilisp.lang.runtime/nth coll i))
+  ([coll i notfound]
+   (basilisp.lang.runtime/nth coll i notfound)))
 
 (defn nthnext
   "Returns the nth next sequence of coll.
@@ -414,6 +417,39 @@
              (ex-info "cond requires an even number of forms"
                       {:first (first clauses)})))
           (cons 'basilisp.core/cond (nthrest clauses 2)))))
+
+(defmacro condp
+  "Take a predicate and an expression and a series of clauses, call
+  (pred test expr) on the first expression for each clause. The result
+  expression from first the set of clauses for which this expression
+  returns a truthy value will be returned from the condp expression.
+
+  Clauses can take two forms:
+
+  - test-expr result-expr
+  - test-expr :>> result-fn, where :>> is a keyword literal
+
+  For the ternary expression clause, the unary result-fn will be called
+  with the result of the predicate."
+  [pred expr & clauses]
+  (when (seq clauses)
+    (let [test-expr (first clauses)
+          remaining (rest clauses)]
+      (if (seq remaining)
+        (let [result    (first remaining)
+              remaining (rest remaining)]
+          (cond
+            (= result :>>) `(let [res# ~(list pred test-expr expr)]
+                              (if res#
+                                (~(first remaining) res#)
+                                (condp ~pred ~expr ~@(rest remaining))))
+            result         `(if ~(list pred test-expr expr)
+                              ~result
+                              (condp ~pred ~expr ~@remaining))
+            :else          (throw
+                            (ex-info "expected result expression"
+                                     {:test test-expr}))))
+        test-expr))))
 
 (defn not
   "Return the logical negation of expr."
@@ -712,14 +748,14 @@
   (.-value entry))
 
 (defn keys
-  "Return a seq of keys from a map."
+  "Return a seq of the keys from a map."
   [m]
   (seq (.keys m)))
 
 (defn vals
-  "Return a seq of vals from a map."
+  "Return a seq of the values from a map."
   [m]
-  (seq (.vals m)))
+  (seq (.values m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order Functions ;;
@@ -733,18 +769,27 @@
   (list 'basilisp.lang.seq/LazySeq
         (concat '(fn* []) body)))
 
+(defn iterate
+  "Returns a lazy sequence of (f x), (f (f x)) and so on."
+  [f x]
+  (lazy-seq
+   (let [v (f x)]
+     (when v
+       (cons v (iterate f v))))))
+
 (defn range
   "Return a range of integers from start. If end is specified, the
   sequence will terminate at end."
-  ([] (range 0))
-  ([start]
-   (lazy-seq (cons start (range (inc start)))))
+  ([]
+   (iterate inc -1))
+  ([end]
+   (lazy-seq (cons 0 (range 1 end))))
   ([start end]
-   (lazy-seq (cons start (when (< start end)
+   (lazy-seq (cons start (when (< start (dec end))
                            (range (inc start) end)))))
   ([start end step]
    (lazy-seq (let [next-int (+ start step)]
-               (cons start (when (< next-int end)
+               (cons start (when (< next-int (dec end))
                              (range next-int end step)))))))
 
 (defn complement
@@ -858,6 +903,18 @@
     (when (and (seq coll) (every? seq colls))
       (cons (apply f (first coll) (map first colls))
             (apply map f (rest coll) (map rest colls)))))))
+
+(defn map-indexed
+  "Return a lazy sequence of (f idx elem) for elements in coll. The
+  index starts at 0."
+  [f coll]
+  (map f (range) coll))
+
+(defn mapcat
+  "Return a lazy sequence of the concatenated results of mapping f over
+  colls."
+  [f & colls]
+  (apply concat (apply map f colls)))
 
 (defn filter
   "Return elements from coll where (pred elem) returns true."
@@ -985,6 +1042,28 @@
     (when (> n 0)
       (cons (f) (repeatedly (dec n) f))))))
 
+(defn partition
+  "Return a lazy sequence of partitions of coll of size n at offsets
+  of step elements. If step is not given, steps of size n will be used
+  and there will be no overlap between partitions. If pad is given,
+  partition will pull elements from pad until the final sequence is
+  equal to size n."
+  ([n coll]
+   (partition n n coll))
+  ([n step coll]
+   (lazy-seq
+    (when (seq coll)
+      (cons (take n coll) (partition n step (drop step coll))))))
+  ([n step pad coll]
+   (lazy-seq
+    (when (seq coll)
+      (let [s  (take n coll)
+            ns (count s)
+            s  (if (< ns n)
+                 (concat s (take (- n ns) pad))
+                 s)]
+        (cons s (partition n step pad (drop step coll))))))))
+
 (defn merge
   "Merge maps together from left to right as by conj. If a duplicate key
   appears in a map, the rightmost map's value for that key will be taken."
@@ -1002,6 +1081,11 @@
   "Apply arguments to a method call. Equivalent to (apply (.-method o) args)."
   [o method & args]
   `(apply (.- ~o ~method) ~@args))
+
+(defmacro comment
+  "Ignore all the forms passed, returning nil."
+  [& forms]
+  nil)
 
 (defmacro new
   "Create a new instance of class with args.
@@ -1738,3 +1822,300 @@
                 new-map))
             {}
             ks)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Destructuring Support ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn gensym
+  "Generate a unique symbol name of the form prefix_#. If no prefix is
+  given, then v_ will be used."
+  ([]
+   (gensym "v_"))
+  ([prefix]
+   (symbol (basilisp.lang.util/genname prefix))))
+
+(defmulti ^:private destructure-def
+  (fn [arg]
+    (cond
+      (symbol? arg) :symbol
+      (vector? arg) :vector
+      (map? arg)    :map
+      :else         :default)))
+
+(defmethod destructure-def :map
+  [arg]
+  (let [alias (or (:as arg) (gensym "map_arg_"))
+
+        ;; :or bindings allow users to specify default values for certain
+        ;; associative keys.
+        or-bindings (:or arg)
+
+        ;; Namespaced keywords can destructure into non-namespaced
+        ;; local names by specifying the namespace and with the name
+        ;; "keys", just as the non-namespaced name "keys" will access
+        ;; non-namespaced keywords.
+        ;;
+        ;; (let [{:movie/keys [title actors]} {:movie/title  "Die Hard"
+        ;;                                     :movie/actors ["Bruce Willis"]}]
+        ;;   ...)
+        ;;
+        kw-keys (->> (keys arg)
+                     (filter keyword?)
+                     (filter #(= "keys" (name %))))
+
+        ;; Keyword, string, and symbol keys may all be destructured from
+        ;; associative types.
+        kws  (mapcat (fn [kw]
+                       (let [kw-ns (namespace kw)
+                             syms  (get arg kw)]
+                         (cond->> syms
+                           kw-ns (map #(symbol kw-ns (name %))))))
+                     kw-keys)
+        strs (:strs arg)
+        syms (:syms arg)
+
+        ;; Fetch all the remaining keys in the map which do not
+        ;; correspond to special functionality.
+        remaining (->> [:as :or :strs :syms]
+                       (concat kw-keys)
+                       (apply dissoc arg))
+
+        ;; Destructuring forms may be nested arbitrarily, so generate the
+        ;; definitions for any nested destructured forms as well.
+        children (map #(vector % (destructure-def %)) (keys remaining))]
+    {:name alias
+     :type :map
+     :keys kws
+     :strs strs
+     :syms syms
+
+     :or-bindings or-bindings
+     :remaining   (->> children
+                       (filter #(not= :symbol (:type (second %))))
+                       (map first)
+                       (apply dissoc remaining))
+
+     :children (map second children)}))
+
+(defmethod destructure-def :symbol
+  [arg]
+  {:name arg
+   :type :symbol})
+
+(defmethod destructure-def :vector
+  [arg]
+  (let [;; Fetch the name bound to this argument with any trailing
+        ;; :as key.
+        alias-args (drop-while (partial not= :as) arg)
+        alias      (->> alias-args (apply hash-map) :as)
+
+        ;; Split the remaining arguments into sequential arguments
+        ;; and the rest arg (if one at all).
+        args (->> arg
+                  (drop-last (count alias-args))
+                  (split-with (partial not= '&)))
+
+        sequential-args (first args)
+        rest-arg        (second args)]
+    {:name       (or alias (gensym "vec_arg_"))
+     :type       :vector
+     :rest       (when (seq rest-arg)
+                   {:starts (count sequential-args)
+                    :name   (second rest-arg)})
+     :children   (map destructure-def sequential-args)}))
+
+(defmethod destructure-def :default
+  [arg]
+  (throw
+   (ex-info "Invalid destructuring argument type"
+            {:type (builtins/type arg)})))
+
+(defmulti ^:private destructure-binding
+  (fn [ddef]
+    (:type ddef)))
+
+(defmethod destructure-binding :vector
+  [ddef]
+  (let [fn-arg          (:name ddef)
+        sequential-args (->> (:children ddef)
+                             (map-indexed (fn [idx child]
+                                            (let [alias (:name child)]
+                                              (concat
+                                               [alias `(nth ~fn-arg ~idx nil)]
+                                               (when-not (= :symbol (:type child))
+                                                 (destructure-binding child))))))
+                             (apply concat))
+        rest-def        (:rest ddef)
+        rest-arg        (when rest-def
+                          [(:name rest-def) `(nthnext ~fn-arg ~(:starts rest-def))])]
+    (concat
+     sequential-args
+     rest-arg
+     (->> (:children ddef)
+          (filter #(not= :symbol (:type %)))
+          (mapcat destructure-binding)))))
+
+(defmethod destructure-binding :map
+  [ddef]
+  (let [fn-arg (:name ddef)
+        ors    (:or-bindings ddef)
+
+        kw-binding (fn [arg]
+                     (let [kw-ns      (namespace arg)
+                           kw-name    (name arg)
+                           sym        (symbol kw-name)
+                           kw         (if kw-ns
+                                        (keyword kw-ns kw-name)
+                                        (keyword kw-name))
+                           or-binding (get ors sym)]
+                       (if or-binding
+                         [sym `(or (get ~fn-arg ~kw) ~or-binding)]
+                         [sym `(get ~fn-arg ~kw)])))
+
+        map-binding (fn [f arg]
+                      (let [k          (f arg)
+                            or-binding (get ors arg)]
+                        (if or-binding
+                          [arg `(or (get ~fn-arg ~k) ~or-binding)]
+                          [arg `(get ~fn-arg ~k)])))
+
+        sym-binding (fn [arg]
+                      (let [k          (symbol (name arg))
+                            or-binding (get ors arg)]
+                        (if or-binding
+                          [arg `(or (get ~fn-arg (quote ~k)) ~or-binding)]
+                          [arg `(get ~fn-arg (quote ~k))])))
+
+        rem-binding (fn [arg]
+                      (let [binding    (key arg)
+                            key        (val arg)
+                            or-binding (get ors binding)]
+                        (if or-binding
+                          [binding `(or (get ~fn-arg (quote ~key)) ~or-binding)]
+                          [binding `(get ~fn-arg ~key)])))
+
+        child-binding (fn [child]
+                        (let [alias (name (:name child))
+                              arg   (symbol alias)
+                              k     (keyword alias)]
+                          [arg `(get ~fn-arg ~k)]))
+
+        non-sym-children (filter #(not= :symbol (:type %)) (:children ddef))]
+    (concat
+     (mapcat kw-binding (:keys ddef))
+     (mapcat (partial map-binding name) (:strs ddef))
+     (mapcat sym-binding (:syms ddef))
+     (mapcat rem-binding (:remaining ddef))
+     (mapcat child-binding non-sym-children)
+     (mapcat destructure-binding non-sym-children))))
+
+(defmethod destructure-binding :default
+  [ddef]
+  (throw
+   (ex-info "Invalid destructuring argument type"
+            {:type (:type ddef)})))
+
+(defn ^:private fn-arity-with-destructuring
+  "Take a function arity definition (an argument vector and 0 or more body
+  expressions) whose argument vector may or may not require destructuring
+  and return a function arity definition which uses only bare symbols and
+  wraps the original definition in a let binding which performs the
+  destructuring steps.
+
+  As an example, for sequential destructuring like:
+
+    (fn [[f & r]]
+      {:first f
+       :rest  r})
+
+  This function would emit a list of:
+
+    [vec_arg_3432]
+    (let* [f (get vec_arg_3432 0)
+           r (nthnext vec_arg_3432 1)]
+      {:first f
+       :rest  r})"
+  [body]
+  (let [args (first body)
+        body (rest body)
+
+        arg-groups (split-with (partial not= '&) args)
+        args       (first arg-groups)
+        rest-args  (second arg-groups)
+        rest-defs  (map destructure-def rest-args)
+
+        rest-binding (concat
+                      (let [rest-arg (second rest-defs)]
+                        (when (= :map (:type rest-arg))
+                          `[~(:name rest-arg) (apply hash-map ~(:name rest-arg))]))
+                      (->> rest-defs
+                           (filter #(not= :symbol (:type %)))
+                           (mapcat destructure-binding)))
+
+        defs     (map destructure-def args)
+        arg-vec  (vec (concat
+                       (map :name defs)
+                       (map :name rest-defs)))
+        bindings (->> defs
+                      (filter #(not= :symbol (:type %)))
+                      (mapcat destructure-binding)
+                      (concat rest-binding))
+        new-body (if (seq bindings)
+                   [`(let* [~@bindings]
+                       ~@body)]
+                   body)]
+    (apply list arg-vec new-body)))
+
+(defmacro ^:no-warn-on-redef fn
+  "Return an anonymous (but possibly named) function.
+
+  Function argument vectors support sequential and associative destructuring."
+  [& body]
+  (let [name    (when (symbol? (first body))
+                  (first body))
+        body    (cond-> body name rest)
+        arities (cond
+                  (vector? (first body))
+                  (fn-arity-with-destructuring body)
+
+                  (seq? (first body))
+                  (map fn-arity-with-destructuring body)
+
+                  :else
+                  body)]
+    (if name
+      `(fn* ~name
+            ~@arities)
+      `(fn* ~@arities))))
+
+(defn destructure
+  "Take a [binding expr] pair (as from a let block) and produce all of the
+  replacement bindings for the binding which perform destructuring on the
+  initial expression.
+
+  As an example, for sequential destructuring like:
+
+    [f & r :as v] [1 2 3 4]
+
+  This function would emit a list of bindings which can be inserted directly
+  into a let* binding to perform destructuring:
+
+     (v [1 2 3 4]
+      f (nth v 0)
+      r (nthnext v 1))"
+  [[binding expr]]
+  (let [ddef      (destructure-def binding)
+        orig-name (:name ddef)
+        bindings  (if (= :symbol (:type ddef))
+                    []
+                    (destructure-binding ddef))]
+    (apply list orig-name expr bindings)))
+
+(defmacro ^:no-warn-on-redef let
+  "Let bindings with destructuring support."
+  [bindings & body]
+  (let [bindings (->> (partition 2 bindings)
+                      (mapcat destructure))]
+    `(let* [~@bindings]
+       ~@body)))

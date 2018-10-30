@@ -148,6 +148,9 @@ def test_nth():
     assert "l" == runtime.nth(vec.v("h", "e", "l", "l", "o"), 2)
     assert "l" == runtime.nth(lseq.sequence(["h", "e", "l", "l", "o"]), 2)
 
+    assert "Z" == runtime.nth(llist.l("h", "e", "l", "l", "o"), 7, "Z")
+    assert "Z" == runtime.nth(lseq.sequence(["h", "e", "l", "l", "o"]), 7, "Z")
+
     with pytest.raises(IndexError):
         runtime.nth(llist.l("h", "e", "l", "l", "o"), 7)
 
@@ -156,6 +159,9 @@ def test_nth():
 
     with pytest.raises(TypeError):
         runtime.nth(3, 1)
+
+    with pytest.raises(TypeError):
+        runtime.nth(3, 1, "Z")
 
 
 def test_assoc():

@@ -558,28 +558,44 @@ def apply(f, args):
         (apply max [1 2 3])   ;=> 3
         (apply max 4 [1 2 3]) ;=> 4"""
     final = list(args[:-1])
+
     try:
-        final.extend(to_seq(args[-1]))
-    except TypeError:
-        pass
+        last = args[-1]
+    except TypeError as e:
+        logger.debug("Ignored %s: %s", type(e).__name__, e)
+
+    s = to_seq(last)
+    if s is not None:
+        final.extend(s)
+
     return f(*final)
 
 
-def nth(coll, i):
+__nth_sentinel = object()
+
+
+def nth(coll, i, notfound=__nth_sentinel):
     """Returns the ith element of coll (0-indexed), if it exists.
-    None otherwise."""
+    None otherwise. If i is out of bounds, throws an IndexError unless
+    notfound is specified."""
     if coll is None:
         return None
 
     try:
         return coll[i]
-    except TypeError:
-        pass
+    except IndexError as ex:
+        if notfound is not __nth_sentinel:
+            return notfound
+        raise ex
+    except TypeError as ex:
+        logger.debug("Ignored %s: %s", type(ex).__name__, ex)
 
     try:
         for j, e in enumerate(coll):
             if i == j:
                 return e
+        if notfound is not __nth_sentinel:
+            return notfound
         raise IndexError(f"Index {i} out of bounds")
     except TypeError:
         pass
@@ -688,7 +704,8 @@ def get(m, k, default=None):
 
     try:
         return m[k]
-    except (KeyError, IndexError):
+    except (KeyError, IndexError, TypeError) as e:
+        logger.debug("Ignored %s: %s", type(e).__name__, e)
         return default
 
 
