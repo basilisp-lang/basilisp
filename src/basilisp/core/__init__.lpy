@@ -2015,13 +2015,30 @@
       {:first f
        :rest  r})"
   [body]
-  (let [args     (first body)
-        body     (rest body)
+  (let [args (first body)
+        body (rest body)
+
+        arg-groups (split-with (partial not= '&) args)
+        args       (first arg-groups)
+        rest-args  (second arg-groups)
+        rest-defs  (map destructure-def rest-args)
+
+        rest-binding (concat
+                      (let [rest-arg (second rest-defs)]
+                        (when (= :map (:type rest-arg))
+                          `[~(:name rest-arg) (apply hash-map ~(:name rest-arg))]))
+                      (->> rest-defs
+                           (filter #(not= :symbol (:type %)))
+                           (mapcat destructure-binding)))
+
         defs     (map destructure-def args)
-        arg-vec  (vec (map :name defs))
+        arg-vec  (vec (concat
+                       (map :name defs)
+                       (map :name rest-defs)))
         bindings (->> defs
                       (filter #(not= :symbol (:type %)))
-                      (mapcat destructure-binding))
+                      (mapcat destructure-binding)
+                      (concat rest-binding))
         new-body (if (seq bindings)
                    [`(let* [~@bindings]
                        ~@body)]

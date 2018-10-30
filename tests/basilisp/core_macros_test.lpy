@@ -264,7 +264,12 @@
           f (fn [{a :a c :c :as m :or {c :c}}]
               [a c m])]
       (is (= ["a" :c m] (f m)))
-      (is (= ["a" "d" m1] (f m1))))))
+      (is (= ["a" "d" m1] (f m1)))))
+
+  (testing "keyword rest arguments"
+    (let [f (fn [a b & {:keys [c]}] [a b c])]
+      (is (= [:a :b "rest arg"] (f :a :b :c "rest arg")))
+      (is (= [:a :b "rest arg"] (f :a :b :d "other" :c "rest arg"))))))
 
 (deftest let-sequential-destructuring
   (testing "destructuring first"
