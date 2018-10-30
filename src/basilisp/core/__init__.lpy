@@ -1968,7 +1968,7 @@
         rem-binding (fn [arg]
                       (let [binding    (key arg)
                             key        (val arg)
-                            or-binding (get ors arg)]
+                            or-binding (get ors binding)]
                         (if or-binding
                           [binding `(or (get ~fn-arg (quote ~key)) ~or-binding)]
                           [binding `(get ~fn-arg ~key)])))

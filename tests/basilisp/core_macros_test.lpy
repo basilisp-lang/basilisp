@@ -347,7 +347,12 @@
     (let [{:keys [a b] :as m} {:a "a" :b "b"}]
       (is (= "a" a))
       (is (= "b" b))
-      (is (= {:a "a" :b "b"} m))))
+      (is (= {:a "a" :b "b"} m)))
+
+    (let [{:keys [a b] :as m :or {b "c"}} {:a "a"}]
+      (is (= "a" a))
+      (is (= "c" b))
+      (is (= {:a "a"} m))))
 
   (testing "destructuring simple string keys"
     (let [{:strs [a b]} {:a 1 :b 2 "a" :a "b" :b}]
@@ -357,7 +362,12 @@
     (let [{:strs [a b] :as m} {:a 1 :b 2 "a" :a "b" :b}]
       (is (= :a a))
       (is (= :b b))
-      (is (= {:a 1 :b 2 "a" :a "b" :b} m))))
+      (is (= {:a 1 :b 2 "a" :a "b" :b} m)))
+
+    (let [{:strs [a b] :as m :or {b "c"}} {:a 1 :b 2 "a" :a}]
+      (is (= :a a))
+      (is (= "c" b))
+      (is (= {:a 1 :b 2 "a" :a} m))))
 
   (testing "destructuring simple symbol keys"
     (let [{:syms [a b]} {:a 1 :b "b" 'a :a 'b :b}]
@@ -367,7 +377,12 @@
     (let [{:syms [a b] :as m} {:a 1 :b "b" 'a :a 'b :b}]
       (is (= :a a))
       (is (= :b b))
-      (is (= {:a 1 :b "b" 'a :a 'b :b} m))))
+      (is (= {:a 1 :b "b" 'a :a 'b :b} m)))
+
+    (let [{:syms [a b] :as m :or {b "c"}} {:a 1 :b "b" 'a :a}]
+      (is (= :a a))
+      (is (= "c" b))
+      (is (= {:a 1 :b "b" 'a :a} m))))
 
   (testing "destructuring individual keys"
     (let [{a :a b :b} {:a "a" :b "b"}]
@@ -377,7 +392,12 @@
     (let [{a :a b :b :as m} {:a "a" :b "b"}]
       (is (= "a" a))
       (is (= "b" b))
-      (is (= {:a "a" :b "b"} m))))
+      (is (= {:a "a" :b "b"} m)))
+
+    (let [{a :a b :b :as m :or {b "c"}} {:a "a"}]
+      (is (= "a" a))
+      (is (= "c" b))
+      (is (= {:a "a"} m))))
 
   (testing "destructuring namespaced keys"
     (let [{:a/keys [a b] old-a :a old-b :b} {:a   "a"
@@ -400,6 +420,13 @@
       (is (= "a" a))
       (is (= "b" b))
       (is (= "cc" c))
+      (is (= "dd" d)))
+
+    (let [{:keys [a b] :c/keys [c d] :or {c "ee"}}
+          {:a "a" :b "b" :a/a "aa" :a/b "bb" :c/d "dd"}]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= "ee" c))
       (is (= "dd" d))))
 
   (testing "nested destructuring"
@@ -408,6 +435,18 @@
       (is (= "bb" b))
       (is (= {:a "aa" :b "bb"} nested))
       (is (= {:nested {:a "aa" :b "bb"} :a "a" :b "b"} m)))
+
+    (let [{{:keys [a b] :as nested :or {b "ee"}} :nested :as m} {:nested {:a "aa"} :a "a" :b "b"}]
+      (is (= "aa" a))
+      (is (= "ee" b))
+      (is (= {:a "aa"} nested))
+      (is (= {:nested {:a "aa"} :a "a" :b "b"} m)))
+
+    (let [{{:keys [a b] :as nested} :nested :as m :or {b "ee"}} {:nested {:a "aa"} :a "a" :b "b"}]
+      (is (= "aa" a))
+      (is (= nil b))
+      (is (= {:a "aa"} nested))
+      (is (= {:nested {:a "aa"} :a "a" :b "b"} m)))
 
     (let [{{{:keys [a b] :as nested} :nested :as middle} :middle :as m}
           {:middle {:nested {:a "aaa" :b "bbb"}
