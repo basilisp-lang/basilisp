@@ -693,7 +693,7 @@ def _fn_arities(ctx: CompilerContext, form: llist.List) -> Iterable[FunctionArit
     Single arity functions yield the rest:
 
         (fn a [] :a) ;=> '(([] :a))"""
-    if not all(map(lambda f: isinstance(f, llist.List) and isinstance(f.first, vec.Vector), form)):
+    if not all(map(lambda f: isinstance(f, (llist.List, lseq.Seq)) and isinstance(f.first, vec.Vector), form)):
         assert isinstance(form.first, vec.Vector)
         _assert_recur_is_tail(ctx, form)
         yield len(form.first), False, form
