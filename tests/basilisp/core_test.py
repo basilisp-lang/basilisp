@@ -719,6 +719,11 @@ def test_split_with():
     assert vec.v(llist.List.empty(), llist.l(2, 4, 6, 8)) == core.split_with(core.odd__Q__, vec.v(2, 4, 6, 8))
 
 
+def test_group_by():
+    assert lmap.Map.empty() == core.group_by(core.inc, vec.Vector.empty())
+    assert lmap.map({True: vec.v(1, 3), False: vec.v(2, 4)}) == core.group_by(core.odd__Q__, vec.v(1, 2, 3, 4))
+
+
 def test_interpose():
     assert llist.List.empty() == core.interpose(",", vec.Vector.empty())
     assert llist.l("hi") == core.interpose(",", vec.v("hi"))
