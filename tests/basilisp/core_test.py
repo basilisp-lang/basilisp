@@ -818,7 +818,7 @@ def test_re_seq():
 
 def test_select_keys():
     assert lmap.Map.empty() == core.select_keys(
-        lmap.Map.empty(), vec.v(vec.Vector.empty()))
+        lmap.Map.empty(), vec.Vector.empty())
     assert lmap.Map.empty() == core.select_keys(
         lmap.Map.empty(), vec.v(kw.keyword('a'), kw.keyword('b')))
     assert lmap.map({kw.keyword('a'): "a", kw.keyword('b'): "b"}) == core.select_keys(
