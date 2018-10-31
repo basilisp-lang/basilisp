@@ -992,13 +992,15 @@
   in coll and whose values are vectors of the values which produced the
   corresponding key, in the order they were added."
   [f coll]
-  (reduce (fn [m v]
-            (let [group (f v)]
-              (if (contains? m group)
-                (update m group conj v)
-                (assoc m group [v]))))
-          {}
-          coll))
+  (if-not (seq coll)
+    {}
+    (reduce (fn [m v]
+              (let [group (f v)]
+                (if (contains? m group)
+                  (update m group conj v)
+                  (assoc m group [v]))))
+            {}
+            coll)))
 
 (defn interpose
   "Return a lazy sequence of elements of coll separated by sep. If
