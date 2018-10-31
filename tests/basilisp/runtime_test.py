@@ -181,6 +181,24 @@ def test_assoc():
         runtime.assoc(llist.List.empty(), 1, "a")
 
 
+def test_update():
+    assert lmap.map({"a": 1}) == runtime.update(None, "a", lambda _: 1)
+    assert lmap.map({"a": 50}) == runtime.update(None, "a", lambda _, x: x, 50)
+
+    assert lmap.map({"a": 2}) == runtime.update(lmap.map({"a": 1}), "a", lambda x: x + 1)
+    assert lmap.map({"a": 4}) == runtime.update(lmap.map({"a": 1}), "a", lambda x, y: x * y + 1, 3)
+
+    assert lmap.map({"a": 1, "b": "string"}) == runtime.update(lmap.map({"a": 1}), "b", lambda _: "string")
+    assert lmap.map({"a": 1, "b": "string"}) == runtime.update(lmap.map({"a": 1, "b": 583}), "b", lambda _: "string")
+
+    assert vec.v("a") == runtime.update(vec.Vector.empty(), 0, lambda _: "a")
+    assert vec.v("yay", "b") == runtime.update(vec.v("a", "b"), 0, lambda x: f"y{x}y")
+    assert vec.v("a", "boy") == runtime.update(vec.v("a", "b"), 1, lambda x, y: f"{x}{y}", "oy")
+
+    with pytest.raises(TypeError):
+        runtime.update(llist.List.empty(), 1, lambda _: "y")
+
+
 def test_conj():
     assert llist.l(1) == runtime.conj(None, 1)
     assert llist.l(3, 2, 1) == runtime.conj(None, 1, 2, 3)

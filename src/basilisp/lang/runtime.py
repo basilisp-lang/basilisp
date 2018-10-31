@@ -613,6 +613,19 @@ def assoc(m, *kvs):
     raise TypeError(f"Object of type {type(m)} does not implement Associative interface")
 
 
+def update(m, k, f, *args):
+    """Updates the value for key k in associative data structure m with the return value from
+    calling f(old_v, *args). If m is None, use an empty map. If k is not in m, old_v will be
+    None."""
+    if m is None:
+        return lmap.Map.empty().assoc(k, f(None, *args))
+    if isinstance(m, lassoc.Associative):
+        old_v = m.entry(k)
+        new_v = f(old_v, *args)
+        return m.assoc(k, new_v)
+    raise TypeError(f"Object of type {type(m)} does not implement Associative interface")
+
+
 def conj(coll, *xs):
     """Conjoin xs to collection. New elements may be added in different positions
     depending on the type of coll. conj returns the same type as coll. If coll

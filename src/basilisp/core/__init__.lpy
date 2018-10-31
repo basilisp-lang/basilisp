@@ -730,6 +730,13 @@
   ([m k default]
    (basilisp.lang.runtime/get m k default)))
 
+(defn update
+  "Updates the value for key k in associative data structure m with the return value
+  from calling (f old-v & args). If m is nil, use an empty map. If k is not in m,
+  old-v will be nil."
+  [m k f & args]
+  (apply basilisp.lang.runtime/update m k f args))
+
 (defn key
   "Return the key from a map entry."
   [entry]
@@ -979,6 +986,21 @@
   vector of [(take-while pred coll) (drop-while pred coll)]."
   [pred coll]
   [(take-while pred coll) (drop-while pred coll)])
+
+(defn group-by
+  "Return a map whose keys are the result of calling f on each element
+  in coll and whose values are vectors of the values which produced the
+  corresponding key, in the order they were added."
+  [f coll]
+  (if-not (seq coll)
+    {}
+    (reduce (fn [m v]
+              (let [group (f v)]
+                (if (contains? m group)
+                  (update m group conj v)
+                  (assoc m group [v]))))
+            {}
+            coll)))
 
 (defn interpose
   "Return a lazy sequence of elements of coll separated by sep. If
@@ -1794,12 +1816,14 @@
 (defn select-keys
   "Return a map with only the keys of m which are in ks."
   [m ks]
-  (reduce (fn [new-map k]
-            (if (contains? m k)
-              (assoc new-map k (get m k))
-              new-map))
-          {}
-          ks))
+  (if-not (seq ks)
+    {}
+    (reduce (fn [new-map k]
+              (if (contains? m k)
+                (assoc new-map k (get m k))
+                new-map))
+            {}
+            ks)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Destructuring Support ;;
@@ -2097,4 +2121,3 @@
                       (mapcat destructure))]
     `(let* [~@bindings]
        ~@body)))
-
