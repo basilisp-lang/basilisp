@@ -108,7 +108,7 @@
                 :actual       e#
                 :expected     (quote ~expr)
                 :line         (line-no 2)
-                :type         :failure})))))
+                :type         :error})))))
 
 (defmacro testing
   "Wrapper for test cases to provide additional messaging and context
