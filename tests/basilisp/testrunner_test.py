@@ -46,9 +46,5 @@ def test_testrunner(testdir: pytester.Testdir, capsys):
       actual: Exception()"""
     assert expected_out in captured.out
 
-    expected_out = """FAIL in (fixture-test) (test_fixture.lpy:14)
-    Unexpected exception thrown during test run: basilisp.lang.exception.ExceptionInfo(Uncaught exception, {})
-
-    expected: (throw (ex-info "Uncaught exception" {}))
-      actual: basilisp.lang.exception.ExceptionInfo(Uncaught exception, {})"""
+    expected_out = """ERROR in (fixture-test) (test_fixture.lpy:14)"""
     assert expected_out in captured.out

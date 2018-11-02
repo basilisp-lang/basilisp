@@ -111,7 +111,7 @@
   on each relation. Returns a set of all returned elements."
   [f l r]
   (set
-   (map (fn [l-elem]
+   (mapcat (fn [l-elem]
           (map #(f l-elem %) r))
         l)))
 
@@ -129,14 +129,28 @@
          rindex (index rrel shared)]
      (if-not (seq lindex)
        #{}
-       (reduce (fn [s entry]
-                 (let [k         (key entry)
-                       l-indexed (val entry)]
-                   (if (contains? rindex k)
-                     (apply conj s (product merge l-indexed (get rindex k)))
-                     s)))
+       (reduce (fn [s [k l-indexed]]
+                 (if (contains? rindex k)
+                   (apply conj s (product merge l-indexed (get rindex k)))
+                   s))
                #{}
                lindex))))
   ([lrel rrel keymap]
-   (throw
-    (builtins/NotImplementedError))))
+   (let [[f s ks] (if (<= (count lrel) (count rrel))
+                    [lrel rrel (map-invert keymap)]
+                    [rrel lrel keymap])
+         idx      (index f (vals ks))]
+     (println {:f f :s s :ks ks :idx idx})
+     (if-not (seq idx)
+       #{}
+       (reduce (fn [new-set x]
+                 (let [match (idx (rename-keys (select-keys x (keys ks)) ks))]
+                   (println {:new-set new-set :match match})
+                   (if match
+                     (reduce (fn [s v]
+                               (conj s (merge v match)))
+                             new-set
+                             match)
+                     new-set)))
+               #{}
+               s)))))
