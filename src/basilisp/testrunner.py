@@ -99,12 +99,15 @@ class BasilispFile(pytest.File):
 
 
 _ACTUAL_KW = kw.keyword('actual')
+_ERROR_KW = kw.keyword('error')
 _EXPECTED_KW = kw.keyword('expected')
+_FAILURE_KW = kw.keyword('failure')
 _FAILURES_KW = kw.keyword('failures')
 _MESSAGE_KW = kw.keyword('message')
 _LINE_KW = kw.keyword('line')
 _EXPR_KW = kw.keyword('expr')
 _TEST_SECTION_KW = kw.keyword('test-section')
+_TYPE_KW = kw.keyword('type')
 
 
 class BasilispTestItem(pytest.Item):
@@ -147,31 +150,47 @@ class BasilispTestItem(pytest.Item):
             messages = []
 
             for details in failures:
-                msg: str = details.entry(_MESSAGE_KW)
-
-                actual = details.entry(_ACTUAL_KW)
-                expected = details.entry(_EXPECTED_KW)
-
-                test_section = details.entry(_TEST_SECTION_KW)
-                line = details.entry(_LINE_KW)
-                section_msg = Maybe(test_section).map(lambda s: f" {s} :: ").or_else_get("")
-
-                messages.append("\n".join([
-                    f"FAIL in ({self.name}) ({self._filename}:{line})",
-                    f"    {section_msg}{msg}",
-                    "",
-                    f"    expected: {lrepr(expected)}",
-                    f"      actual: {lrepr(actual)}"
-                ]))
+                type_ = details.entry(_TYPE_KW)
+                if type_ == _FAILURE_KW:
+                    messages.append(self._failure_msg(details))
+                elif type_ == _ERROR_KW:
+                    exc = details.entry(_ACTUAL_KW)
+                    line = details.entry(_LINE_KW)
+                    messages.append(self._error_msg(exc, line=line))
+                else:
+                    assert False, "Test failure type must be in #{:error :failure}"
 
             return "\n\n".join(messages)
         elif isinstance(excinfo.value, Exception):
             exc = excinfo.value
-            messages = [f"ERROR in ({self.name}) ({self._filename})", "\n\n"]
-            messages.extend(traceback.format_exception(Exception, exc, exc.__traceback__))
-            return "".join(messages)
+            return self._error_msg(exc)
         else:
             return None
 
     def reportinfo(self):
         return self.fspath, 0, self.name
+
+    def _error_msg(self, exc: Exception, line: Optional[int] = None) -> str:
+        line_msg = Maybe(line).map(lambda l: f":{l}").or_else_get("")
+        messages = [f"ERROR in ({self.name}) ({self._filename}{line_msg})", "\n\n"]
+        messages.extend(traceback.format_exception(Exception, exc, exc.__traceback__))
+        return "".join(messages)
+
+    def _failure_msg(self, details: lmap.Map) -> str:
+        assert details.entry(_TYPE_KW) == _FAILURE_KW
+        msg: str = details.entry(_MESSAGE_KW)
+
+        actual = details.entry(_ACTUAL_KW)
+        expected = details.entry(_EXPECTED_KW)
+
+        test_section = details.entry(_TEST_SECTION_KW)
+        line = details.entry(_LINE_KW)
+        section_msg = Maybe(test_section).map(lambda s: f" {s} :: ").or_else_get("")
+
+        return "\n".join([
+            f"FAIL in ({self.name}) ({self._filename}:{line})",
+            f"    {section_msg}{msg}",
+            "",
+            f"    expected: {lrepr(expected)}",
+            f"      actual: {lrepr(actual)}"
+        ])
