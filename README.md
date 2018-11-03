@@ -84,4 +84,4 @@ performed using [Prospector](https://prospector.landscape.io/en/master/).
 
 ## License
 
-MIT License
+Eclipse Public License 1.0
