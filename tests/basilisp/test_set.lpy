@@ -1,0 +1,107 @@
+(ns basilisp.test-set
+  (:require
+   [basilisp.set :as set]
+   [basilisp.test :refer [deftest is testing]]))
+
+(deftest difference-test
+  (is (= #{:a :b :c} (set/difference #{:a :b :c})))
+  (is (= #{:a :b} (set/difference #{:a :b :c} #{:c :d :e})))
+  (is (= #{:a} (set/difference #{:a :b :c} #{:c :d} #{:b "z" 3}))))
+
+(deftest disjoint?-test
+  (is (not (set/disjoint? #{:a :b :c} #{:c :d :e})))
+  (is (set/disjoint? #{:a :b :c} #{:d :e :f})))
+
+(deftest index-test
+  (is (= {} (set/index #{} [:weight])))
+  (is (= {{:weight 100} #{{:name "Gary" :weight 100}
+                          {:name "Darla" :weight 100}}
+          {:weight 50}  #{{:name "Karl" :weight 50}}}
+         (set/index #{{:name "Gary" :weight 100}
+                      {:name "Darla" :weight 100}
+                      {:name "Karl" :weight 50}}
+                    [:weight]))))
+
+(deftest intersection-test
+  (is (= #{:a :b :c} (set/intersection #{:a :b :c})))
+  (is (= #{:c} (set/intersection #{:a :b :c} #{:c :d :e})))
+  (is (= #{} (set/intersection #{:a :b :c} #{:c :d} #{:b "z" 3}))))
+
+(deftest join-test
+  (testing "natural join"
+    (is (= #{{:b 1 :a 2}
+             {:b 2 :a 1}
+             {:b 2 :a 2}
+             {:b 1 :a 1}}
+           (set/join #{{:a 1} {:a 2}}
+                     #{{:b 1} {:b 2}})))
+    (is (= #{{:owner "Jeff" :manufacturer "Apple" :kind "laptop" :use "travel"}
+             {:owner "Anna" :manufacturer "Dell", :kind "laptop" :use "travel"}
+             {:owner "Dinesh" :manufacturer "HP", :kind "desktop" :use "workstation"}}
+           (set/join #{{:manufacturer "Dell" :owner "Anna" :kind "laptop"}
+                       {:manufacturer "HP" :owner "Dinesh" :kind "desktop"}
+                       {:manufacturer "Apple" :owner "Jeff" :kind "laptop"}}
+                     #{{:kind "desktop" :use "workstation"}
+                       {:kind "laptop" :use "travel"}}))))
+
+  (testing "keymap join"
+    (is (= #{{:owner "Jeff" :manufacturer "Apple" :kind "laptop" :type "laptop" :use "travel"}
+             {:owner "Anna" :manufacturer "Dell", :kind "laptop" :type "laptop" :use "travel"}
+             {:owner "Dinesh" :manufacturer "HP", :kind "desktop" :type "desktop" :use "workstation"}}
+           (set/join #{{:manufacturer "Dell" :owner "Anna" :kind "laptop"}
+                       {:manufacturer "HP" :owner "Dinesh" :kind "desktop"}
+                       {:manufacturer "Apple" :owner "Jeff" :kind "laptop"}}
+                     #{{:type "desktop" :use "workstation"}
+                       {:type "laptop" :use "travel"}}
+                     {:kind :type})))))
+
+(deftest map-invert-test
+  (is (= {} (set/map-invert {})))
+  (is (= {"a" :a} (set/map-invert {:a "a"})))
+  (is (= {3 :b 's :a} (set/map-invert {:a 's :b 3}))))
+
+(deftest project-test
+  (is (= #{} (set/project #{} [:a :b :c])))
+  (is (= #{{:a "a"} {:a "A"}}
+         (set/project #{{:a "a" :d "e"} {:a "A" :z "p"}}
+                      [:a :b :c]))))
+
+(deftest rename-keys-test
+  (is (= {} (set/rename-keys {} {:a :new-a})))
+  (is (= {:new-a "a"} (set/rename-keys {:a "a"} {:a :new-a})))
+  (is (= {:a "a"} (set/rename-keys {:a "a"} {:b :new-b})))
+  (is (= {:a "a" :new-b "b"} (set/rename-keys {:a "a" :b "b"} {:b :new-b}))))
+
+(deftest rename-test
+  (is (= #{} (set/rename #{} {:a :new-a})))
+  (is (= #{{:new-a "a"}} (set/rename #{{:a "a"}} {:a :new-a})))
+  (is (= #{{:a "a"}} (set/rename #{{:a "a"}} {:b :new-b})))
+  (is (= #{{:a "a" :new-b "b"}} (set/rename #{{:a "a" :b "b"}} {:b :new-b})))
+  (is (= #{{:a "a" :new-b "b"} {:a "A" :new-b "B"}}
+         (set/rename #{{:a "a" :b "b"} {:a "A" :b "B"}}
+                     {:b :new-b}))))
+
+(deftest select-test
+  (is (= #{} (set/select odd? #{})))
+  (is (= #{1 3} (set/select odd? #{1 2 3})))
+  (is (= #{2} (set/select even? #{1 2 3})))
+  (is (= #{1 2 3} (set/select identity #{1 2 3}))))
+
+(deftest symmetric-difference-test
+  (is (= #{:a :b :c} (set/symmetric-difference #{:a :b :c})))
+  (is (= #{:a :b :d :e} (set/symmetric-difference #{:a :b :c} #{:c :d :e})))
+  (is (= #{:a :d "z" 3} (set/symmetric-difference #{:a :b :c} #{:c :d} #{:b "z" 3}))))
+
+(deftest subset?-test
+  (is (not (set/subset? #{:a :b :c} #{:c :d :e})))
+  (is (set/subset? #{:a :b :c} #{:a :b :c :d :e :f})))
+
+(deftest superset?-test
+  (is (set/superset? #{:a :b :c :d :e :f} #{:a :d :f}))
+  (is (not (set/superset? #{:a :b :c} #{:c :d :e})))
+  (is (not (set/superset? #{:a :b :c} #{:a :b :c :d :e :f}))))
+
+(deftest union-test
+  (is (= #{:a :b :c} (set/union #{:a :b :c})))
+  (is (= #{:a :b :c :d :e} (set/union #{:a :b :c} #{:c :d :e})))
+  (is (= #{:a :b :c :d "z" 3} (set/union #{:a :b :c} #{:c :d} #{:b "z" 3}))))

@@ -1,0 +1,154 @@
+(ns basilisp.set)
+
+(defn difference
+  "Return a new set with elements from s1 not in the others.
+  If no others are provided, return s."
+  ([s] s)
+  ([s1 & others]
+   (apply-method s1 difference others)))
+
+(defn disjoint?
+  "Return true if s1 shares no common elements with s2.
+
+  Sets are considered disjoint if and only if their intersection
+  is the empty set."
+  [s1 s2]
+  (.isdisjoint s1 s2))
+
+(defn index
+  "Given a set of maps, return a mapping of unique selections of keys
+  from ks to the set of values which have those mappings."
+  [rel ks]
+  (if-not (seq rel)
+    {}
+    (reduce (fn [m v]
+              (let [index-val (select-keys v ks)]
+                (if (contains? m index-val)
+                  (update m index-val conj v)
+                  (assoc m index-val #{v}))))
+            {}
+            rel)))
+
+(defn intersection
+  "Return a new set with only elements in s1 that are in all
+  the others. If no others are provided, return s."
+  ([s] s)
+  ([s1 & others]
+   (apply-method s1 intersection others)))
+
+(defn map-invert
+  "Return a map whose vals and keys are swapped.
+
+  Duplicate values used as keys will overwrite each other as
+  iteration order is non-deterministic."
+  [m]
+  (if-not (seq m)
+    m
+    (reduce (fn [m entry]
+              (assoc m (val entry) (key entry)))
+            {}
+            m)))
+
+(defn project
+  "Given a set of maps, return a set of those maps with only the keys in ks."
+  [rel ks]
+  (set (map #(select-keys % ks) rel)))
+
+(defn rename-keys
+  "Return m with any keys appearing in kmap replaced with the value
+  in kmap."
+  [m kmap]
+  (if-not (seq m)
+    m
+    (reduce (fn [m entry]
+              (let [orig-k (key entry)
+                    new-k  (val entry)]
+                (if (contains? m orig-k)
+                  (let [v         (get m orig-k)
+                        clean-map (dissoc m orig-k)]
+                    (assoc clean-map new-k v))
+                  m)))
+            m
+            kmap)))
+
+(defn rename
+  "Given a set of maps, return a set whose maps have had any keys in kmap
+  renamed to the value in kmap."
+  [rel kmap]
+  (set (map #(rename-keys % kmap) rel)))
+
+(defn select
+  "Return a set of values for which pred is true."
+  [pred xset]
+  (set (filter pred xset)))
+
+(defn symmetric-difference
+  "Return a new set with elements which are not shared by any of
+  the s1 and others. If no others are provided, return s."
+  ([s] s)
+  ([s1 & others]
+   (apply-method s1 symmetric-difference others)))
+
+(defn subset?
+  "Return true if every element in s1 is also in s2."
+  [s1 s2]
+  (.issubset s1 s2))
+
+(defn superset?
+  "Return true if every element in s2 is also in s1."
+  [s1 s2]
+  (.issuperset s1 s2))
+
+(defn union
+  "Return a new set with elements in s1 that are in the others.
+  If no others are provided, return s."
+  ([s] s)
+  ([s1 & others]
+   (apply-method s1 union others)))
+
+(defn ^:private product
+  "Generate the Cartesian product of sets l and r, calling (f left right)
+  on each relation. Returns a set of all returned elements."
+  [f l r]
+  (set
+   (mapcat (fn [l-elem]
+          (map #(f l-elem %) r))
+        l)))
+
+(defn join
+  "Perform a natural join on the maps in lrel and rrel using keys shared
+  by elements of each relation. If ks is specified, join only on the given
+  keys."
+  ([lrel rrel]
+   (let [shared (vec
+                 (intersection
+                  (apply intersection (map (comp set keys) lrel))
+                  (apply intersection (map (comp set keys) rrel))))
+
+         lindex (index lrel shared)
+         rindex (index rrel shared)]
+     (if-not (seq lindex)
+       #{}
+       (reduce (fn [s [k l-indexed]]
+                 (if (contains? rindex k)
+                   (apply conj s (product merge l-indexed (get rindex k)))
+                   s))
+               #{}
+               lindex))))
+  ([lrel rrel keymap]
+   (let [[f s ks] (if (<= (count lrel) (count rrel))
+                    [lrel rrel (map-invert keymap)]
+                    [rrel lrel keymap])
+         idx      (index f (vals ks))]
+     (if-not (seq s)
+       #{}
+       (reduce (fn [ret x]
+                 (let [match (idx (rename-keys (select-keys x (keys ks)) ks))]
+                   (if match
+                     (reduce (fn [s v]
+                               (conj s (merge v x)))
+                             ret
+                             match)
+                     ret)))
+               #{}
+               s)))))
