@@ -140,17 +140,15 @@
                     [lrel rrel (map-invert keymap)]
                     [rrel lrel keymap])
          idx      (index f (vals ks))]
-     (println {:f f :s s :ks ks :idx idx})
-     (if-not (seq idx)
+     (if-not (seq s)
        #{}
-       (reduce (fn [new-set x]
+       (reduce (fn [ret x]
                  (let [match (idx (rename-keys (select-keys x (keys ks)) ks))]
-                   (println {:new-set new-set :match match})
                    (if match
                      (reduce (fn [s v]
-                               (conj s (merge v match)))
-                             new-set
+                               (conj s (merge v x)))
+                             ret
                              match)
-                     new-set)))
+                     ret)))
                #{}
                s)))))

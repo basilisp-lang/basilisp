@@ -47,7 +47,7 @@
   (testing "keymap join"
     (is (= #{{:owner "Jeff" :manufacturer "Apple" :kind "laptop" :type "laptop" :use "travel"}
              {:owner "Anna" :manufacturer "Dell", :kind "laptop" :type "laptop" :use "travel"}
-             {:owner "Dinesh" :manufacturer "HP", :kind "desktop" :type "laptop" :use "workstation"}}
+             {:owner "Dinesh" :manufacturer "HP", :kind "desktop" :type "desktop" :use "workstation"}}
            (set/join #{{:manufacturer "Dell" :owner "Anna" :kind "laptop"}
                        {:manufacturer "HP" :owner "Dinesh" :kind "desktop"}
                        {:manufacturer "Apple" :owner "Jeff" :kind "laptop"}}
