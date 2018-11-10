@@ -14,7 +14,7 @@ from decimal import Decimal
 from enum import Enum
 from fractions import Fraction
 from itertools import chain
-from typing import (Dict, Iterable, Pattern, Tuple, Optional, List, Union, Callable, Mapping, NamedTuple, cast, Deque,
+from typing import (Dict, Iterable, Pattern, Tuple, Optional, List, Union, Callable, NamedTuple, cast, Deque,
                     Any)
 
 import astor.code_gen as codegen
@@ -166,10 +166,6 @@ class CompilerContext:
         return runtime.get_current_ns()
 
     @property
-    def opts(self) -> Mapping[str, bool]:
-        return self._opts  # type: ignore
-
-    @property
     def use_var_indirection(self) -> bool:
         """If True, compile all variable references using Var.find indirection."""
         return self._opts.entry(USE_VAR_INDIRECTION, False)
@@ -234,11 +230,6 @@ class CompilerContext:
 
 class CompilerException(Exception):
     pass
-
-
-def _assertl(c: bool, msg=None):
-    if not c:
-        raise CompilerException(msg)
 
 
 def _load_attr(name: str) -> ast.Attribute:
@@ -467,35 +458,23 @@ _SYM_REDEF_META_KEY = kw.keyword("redef")
 def _is_dynamic(v: Var) -> bool:
     """Return True if the Var holds a value which should be compiled to a dynamic
     Var access."""
-    try:
-        return Maybe(v.meta).map(
-            lambda m: m.get(_SYM_DYNAMIC_META_KEY, None)  # type: ignore
-        ).or_else_get(
-            False)
-    except (KeyError, AttributeError):
-        return False
+    return Maybe(v.meta).map(
+        lambda m: m.get(_SYM_DYNAMIC_META_KEY, None)  # type: ignore
+    ).or_else_get(False)
 
 
 def _is_macro(v: Var) -> bool:
     """Return True if the Var holds a macro function."""
-    try:
-        return Maybe(v.meta).map(
-            lambda m: m.get(_SYM_MACRO_META_KEY, None)  # type: ignore
-        ).or_else_get(
-            False)
-    except (KeyError, AttributeError):
-        return False
+    return Maybe(v.meta).map(
+        lambda m: m.get(_SYM_MACRO_META_KEY, None)  # type: ignore
+    ).or_else_get(False)
 
 
 def _is_redefable(v: Var) -> bool:
     """Return True if the Var can be redefined."""
-    try:
-        return Maybe(v.meta).map(
-            lambda m: m.get(_SYM_REDEF_META_KEY, None)  # type: ignore
-        ).or_else_get(
-            False)
-    except (KeyError, AttributeError):
-        return False
+    return Maybe(v.meta).map(
+        lambda m: m.get(_SYM_REDEF_META_KEY, None)  # type: ignore
+    ).or_else_get(False)
 
 
 def _new_symbol(ctx: CompilerContext,  # pylint: disable=too-many-arguments
@@ -1705,8 +1684,7 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
 
     if st_sym is not None:
         munged, sym_ctx, _ = st_sym
-        if munged is None:
-            raise ValueError(f"Lisp symbol '{form}' not found in {repr(st)}")
+        assert munged is not None, f"Lisp symbol '{form}' not found in symbol table"
 
         if sym_ctx == _SYM_CTX_LOCAL:
             yield _node(ast.Name(id=munged, ctx=ast.Load()))
