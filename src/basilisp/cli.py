@@ -66,13 +66,23 @@ def bootstrap_repl(which_ns: str) -> types.ModuleType:
               is_flag=True,
               envvar='BASILISP_WARN_ON_SHADOWED_VAR',
               help='if provided, emit warnings if a Var name is shadowed by a local name')
-def repl(default_ns, use_var_indirection, warn_on_shadowed_name, warn_on_shadowed_var):
+@click.option('--warn-on-var-indirection',
+              default=True,
+              is_flag=True,
+              envvar='BASILISP_WARN_ON_VAR_INDIRECTION',
+              help='if provided, emit warnings if a Var reference cannot be direct linked')
+def repl(default_ns,
+         use_var_indirection,
+         warn_on_shadowed_name,
+         warn_on_shadowed_var,
+         warn_on_var_indirection):
     basilisp.init()
     repl_module = bootstrap_repl(default_ns)
     ctx = compiler.CompilerContext(
         {compiler.USE_VAR_INDIRECTION: use_var_indirection,
          compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
-         compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var})
+         compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
+         compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection})
     ns_var = runtime.set_current_ns(default_ns)
     eof = object()
     while True:
@@ -128,18 +138,25 @@ def repl(default_ns, use_var_indirection, warn_on_shadowed_name, warn_on_shadowe
               is_flag=True,
               envvar='BASILISP_WARN_ON_SHADOWED_VAR',
               help='if provided, emit warnings if a Var name is shadowed by a local name')
+@click.option('--warn-on-var-indirection',
+              default=True,
+              is_flag=True,
+              envvar='BASILISP_WARN_ON_VAR_INDIRECTION',
+              help='if provided, emit warnings if a Var reference cannot be direct linked')
 def run(file_or_code,  # pylint: disable=too-many-arguments
         code,
         in_ns,
         use_var_indirection,
         warn_on_shadowed_name,
-        warn_on_shadowed_var):
+        warn_on_shadowed_var,
+        warn_on_var_indirection):
     """Run a Basilisp script or a line of code, if it is provided."""
     basilisp.init()
     ctx = compiler.CompilerContext(
         {compiler.USE_VAR_INDIRECTION: use_var_indirection,
          compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
-         compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var})
+         compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
+         compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection})
     eof = object()
 
     with runtime.ns_bindings(in_ns) as ns:
