@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 USE_VAR_INDIRECTION = 'use_var_indirection'
 WARN_ON_SHADOWED_NAME = 'warn_on_shadowed_name'
 WARN_ON_SHADOWED_VAR = 'warn_on_shadowed_var'
+WARN_ON_VAR_INDIRECTION = 'warn_on_var_indirection'
 
 _BUILTINS_NS = 'builtins'
 _CORE_NS = 'basilisp.core'
@@ -184,6 +185,12 @@ class CompilerContext:
         Implied by warn_on_shadowed_name. The value of warn_on_shadowed_name
         supersedes the value of this flag."""
         return self.warn_on_shadowed_name or self._opts.entry(WARN_ON_SHADOWED_VAR, True)
+
+    @property
+    def warn_on_var_indirection(self) -> bool:
+        """If True, warn when a Var reference cannot be direct linked (iff
+        use_var_indirection is False).."""
+        return not self.use_var_indirection and self._opts.entry(WARN_ON_VAR_INDIRECTION, True)
 
     @property
     def recur_point(self):
@@ -1699,6 +1706,9 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         return
 
     # If we couldn't find the symbol anywhere else, generate a Var.find call
+    # and issue a warning if warn_on_var_indirection is active.
+    if ctx.warn_on_var_indirection:
+        logger.warning(f"could not resolve a direct link to Var '{form}'")
     yield _node(ast.Attribute(
         value=ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]),
         attr='value',

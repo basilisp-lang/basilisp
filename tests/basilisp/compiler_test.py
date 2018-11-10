@@ -868,6 +868,17 @@ def test_try_catch(capsys, ns: runtime.Namespace):
     assert "neither\n" == captured.out
 
 
+def test_warn_on_var_indirection(ns: runtime.Namespace):
+    with mock.patch('basilisp.lang.compiler.logger') as logger:
+        lcompile("(fn [] m)",
+                 ctx=compiler.CompilerContext({compiler.WARN_ON_VAR_INDIRECTION: False}))
+        logger.warning.assert_not_called()
+
+    with mock.patch('basilisp.lang.compiler.logger') as logger:
+        lcompile("(fn [] m)")
+        logger.warning.assert_called_once_with("could not resolve a direct link to Var 'm'")
+
+
 def test_unquote(ns: runtime.Namespace):
     with pytest.raises(runtime.RuntimeException):
         lcompile("~s")
