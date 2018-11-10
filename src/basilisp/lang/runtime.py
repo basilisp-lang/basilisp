@@ -26,13 +26,13 @@ from basilisp.util import Maybe
 
 logger = logging.getLogger(__name__)
 
-_CORE_NS = 'basilisp.core'
-_REPL_DEFAULT_NS = 'user'
-_NS_VAR_NAME = '*ns*'
+_CORE_NS = "basilisp.core"
+_REPL_DEFAULT_NS = "user"
+_NS_VAR_NAME = "*ns*"
 _NS_VAR_NS = _CORE_NS
-_PYTHON_PACKAGE_NAME = 'basilisp'
-_GENERATED_PYTHON_VAR_NAME = '*generated-python*'
-_PRINT_GENERATED_PY_VAR_NAME = '*print-generated-python*'
+_PYTHON_PACKAGE_NAME = "basilisp"
+_GENERATED_PYTHON_VAR_NAME = "*generated-python*"
+_PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
 
 _CATCH = sym.symbol("catch")
 _DEF = sym.symbol("def")
@@ -49,9 +49,23 @@ _RECUR = sym.symbol("recur")
 _THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
-_SPECIAL_FORMS = lset.s(_CATCH, _DEF, _DO, _FINALLY, _FN, _IF, _IMPORT,
-                        _INTEROP_CALL, _INTEROP_PROP, _LET, _QUOTE, _RECUR,
-                        _THROW, _TRY, _VAR)
+_SPECIAL_FORMS = lset.s(
+    _CATCH,
+    _DEF,
+    _DO,
+    _FINALLY,
+    _FN,
+    _IF,
+    _IMPORT,
+    _INTEROP_CALL,
+    _INTEROP_PROP,
+    _LET,
+    _QUOTE,
+    _RECUR,
+    _THROW,
+    _TRY,
+    _VAR,
+)
 
 
 def _new_module(name: str, doc=None) -> types.ModuleType:
@@ -70,13 +84,11 @@ class RuntimeException(Exception):
 
 
 class Var:
-    __slots__ = ('_name', '_ns', '_root', '_dynamic', '_is_bound', '_tl', '_meta')
+    __slots__ = ("_name", "_ns", "_root", "_dynamic", "_is_bound", "_tl", "_meta")
 
-    def __init__(self,
-                 ns: "Namespace",
-                 name: sym.Symbol,
-                 dynamic: bool = False,
-                 meta=None) -> None:
+    def __init__(
+        self, ns: "Namespace", name: sym.Symbol, dynamic: bool = False, meta=None
+    ) -> None:
         self._ns = ns
         self._name = name
         self._root = None
@@ -115,7 +127,7 @@ class Var:
     @property
     def is_private(self) -> Optional[bool]:
         try:
-            return self.meta.entry(kw.keyword('private'))
+            return self.meta.entry(kw.keyword("private"))
         except AttributeError:
             return False
 
@@ -129,7 +141,7 @@ class Var:
         self._root = val
 
     def push_bindings(self, val):
-        if not hasattr(self._tl, 'bindings'):
+        if not hasattr(self._tl, "bindings"):
             self._tl.bindings = []
         self._tl.bindings.append(val)
 
@@ -138,25 +150,29 @@ class Var:
 
     @property
     def value(self):
-        if self._dynamic and hasattr(
-                self._tl, 'bindings') and len(self._tl.bindings) > 0:
+        if (
+            self._dynamic
+            and hasattr(self._tl, "bindings")
+            and len(self._tl.bindings) > 0
+        ):
             return self._tl.bindings[-1]
         return self._root
 
     @value.setter
     def value(self, v):
-        if self._dynamic and hasattr(
-                self._tl, 'bindings') and len(self._tl.bindings) > 0:
+        if (
+            self._dynamic
+            and hasattr(self._tl, "bindings")
+            and len(self._tl.bindings) > 0
+        ):
             self._tl.bindings[-1] = v
             return
         self._root = v
 
     @staticmethod
-    def intern(ns: sym.Symbol,
-               name: sym.Symbol,
-               val,
-               dynamic: bool = False,
-               meta=None) -> "Var":
+    def intern(
+        ns: sym.Symbol, name: sym.Symbol, val, dynamic: bool = False, meta=None
+    ) -> "Var":
         """Intern the value bound to the symbol `name` in namespace `ns`."""
         var_ns = Namespace.get_or_create(ns)
         var = var_ns.intern(name, Var(var_ns, name, dynamic=dynamic))
@@ -165,10 +181,9 @@ class Var:
         return var
 
     @staticmethod
-    def intern_unbound(ns: sym.Symbol,
-                       name: sym.Symbol,
-                       dynamic: bool = False,
-                       meta=None) -> "Var":
+    def intern_unbound(
+        ns: sym.Symbol, name: sym.Symbol, dynamic: bool = False, meta=None
+    ) -> "Var":
         """Create a new unbound `Var` instance to the symbol `name` in namespace `ns`."""
         var_ns = Namespace.get_or_create(ns)
         var = var_ns.intern(name, Var(var_ns, name, dynamic=dynamic))
@@ -189,7 +204,9 @@ class Var:
         """Return the value currently bound to the name in the namespace specified
         by `ns_qualified_sym`."""
         ns = Maybe(ns_qualified_sym.ns).or_else_raise(
-            lambda: ValueError(f"Namespace must be specified in Symbol {ns_qualified_sym}")
+            lambda: ValueError(
+                f"Namespace must be specified in Symbol {ns_qualified_sym}"
+            )
         )
         ns_sym = sym.symbol(ns)
         name_sym = sym.symbol(ns_qualified_sym.name)
@@ -204,7 +221,9 @@ class Var:
         refers to an invalid symbol at runtime."""
         v = Var.find(ns_qualified_sym)
         if v is None:
-            raise RuntimeException(f"Unable to resolve symbol {ns_qualified_sym} in this context")
+            raise RuntimeException(
+                f"Unable to resolve symbol {ns_qualified_sym} in this context"
+            )
         return v
 
 
@@ -233,41 +252,54 @@ class Namespace:
       `refers` are interned in another namespace and are only referred
       to without an alias in this namespace.
     """
-    DEFAULT_IMPORTS = atom.Atom(lset.set(seq(['builtins',
-                                              'io',
-                                              'operator',
-                                              'sys',
-                                              'basilisp.lang.atom',
-                                              'basilisp.lang.compiler',
-                                              'basilisp.lang.delay',
-                                              'basilisp.lang.exception',
-                                              'basilisp.lang.keyword',
-                                              'basilisp.lang.list',
-                                              'basilisp.lang.map',
-                                              'basilisp.lang.multifn',
-                                              'basilisp.lang.reader',
-                                              'basilisp.lang.runtime',
-                                              'basilisp.lang.seq',
-                                              'basilisp.lang.set',
-                                              'basilisp.lang.symbol',
-                                              'basilisp.lang.vector',
-                                              'basilisp.lang.util'])
-                                         .map(sym.symbol)
-                                         .to_list()))
-    GATED_IMPORTS = lset.set(['basilisp.core'])
+
+    DEFAULT_IMPORTS = atom.Atom(
+        lset.set(
+            seq(
+                [
+                    "builtins",
+                    "io",
+                    "operator",
+                    "sys",
+                    "basilisp.lang.atom",
+                    "basilisp.lang.compiler",
+                    "basilisp.lang.delay",
+                    "basilisp.lang.exception",
+                    "basilisp.lang.keyword",
+                    "basilisp.lang.list",
+                    "basilisp.lang.map",
+                    "basilisp.lang.multifn",
+                    "basilisp.lang.reader",
+                    "basilisp.lang.runtime",
+                    "basilisp.lang.seq",
+                    "basilisp.lang.set",
+                    "basilisp.lang.symbol",
+                    "basilisp.lang.vector",
+                    "basilisp.lang.util",
+                ]
+            )
+            .map(sym.symbol)
+            .to_list()
+        )
+    )
+    GATED_IMPORTS = lset.set(["basilisp.core"])
 
     _NAMESPACES = atom.Atom(lmap.Map.empty())
 
-    __slots__ = ('_name', '_module', '_interns', '_refers', '_aliases', '_imports')
+    __slots__ = ("_name", "_module", "_interns", "_refers", "_aliases", "_imports")
 
     def __init__(self, name: sym.Symbol, module: types.ModuleType = None) -> None:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
         self._aliases: atom.Atom = atom.Atom(lmap.Map.empty())
-        self._imports: atom.Atom = atom.Atom(lmap.map(seq(Namespace.DEFAULT_IMPORTS.deref())
-                                                      .map(lambda s: (s, importlib.import_module(s.name)))
-                                                      .to_dict()))
+        self._imports: atom.Atom = atom.Atom(
+            lmap.map(
+                seq(Namespace.DEFAULT_IMPORTS.deref())
+                .map(lambda s: (s, importlib.import_module(s.name)))
+                .to_dict()
+            )
+        )
         self._interns: atom.Atom = atom.Atom(lmap.Map.empty())
         self._refers: atom.Atom = atom.Atom(lmap.Map.empty())
 
@@ -346,10 +378,9 @@ class Namespace:
         return m.entry(sym)
 
     @staticmethod
-    def _intern(m: lmap.Map,
-                sym: sym.Symbol,
-                new_var: Var,
-                force: bool = False) -> lmap.Map:
+    def _intern(
+        m: lmap.Map, sym: sym.Symbol, new_var: Var, force: bool = False
+    ) -> lmap.Map:
         """Swap function used by intern to atomically intern a new variable in
         the symbol mapping for this Namespace."""
         var = m.entry(sym, None)
@@ -404,10 +435,12 @@ class Namespace:
         return cls._NAMESPACES.deref()
 
     @staticmethod
-    def __get_or_create(ns_cache: lmap.Map,
-                        name: sym.Symbol,
-                        module: types.ModuleType = None,
-                        core_ns_name=_CORE_NS) -> lmap.Map:
+    def __get_or_create(
+        ns_cache: lmap.Map,
+        name: sym.Symbol,
+        module: types.ModuleType = None,
+        core_ns_name=_CORE_NS,
+    ) -> lmap.Map:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
         ns = ns_cache.entry(name, None)
@@ -421,11 +454,15 @@ class Namespace:
         return ns_cache.assoc(name, new_ns)
 
     @classmethod
-    def get_or_create(cls, name: sym.Symbol, module: types.ModuleType = None) -> "Namespace":
+    def get_or_create(
+        cls, name: sym.Symbol, module: types.ModuleType = None
+    ) -> "Namespace":
         """Get the namespace bound to the symbol `name` in the global namespace
         cache, creating it if it does not exist.
         Return the namespace."""
-        return cls._NAMESPACES.swap(Namespace.__get_or_create, name, module=module)[name]
+        return cls._NAMESPACES.swap(Namespace.__get_or_create, name, module=module)[
+            name
+        ]
 
     @classmethod
     def get(cls, name: sym.Symbol) -> "Optional[Namespace]":
@@ -610,7 +647,9 @@ def assoc(m, *kvs):
         return lmap.Map.empty().assoc(*kvs)
     if isinstance(m, lassoc.Associative):
         return m.assoc(*kvs)
-    raise TypeError(f"Object of type {type(m)} does not implement Associative interface")
+    raise TypeError(
+        f"Object of type {type(m)} does not implement Associative interface"
+    )
 
 
 def update(m, k, f, *args):
@@ -623,7 +662,9 @@ def update(m, k, f, *args):
         old_v = m.entry(k)
         new_v = f(old_v, *args)
         return m.assoc(k, new_v)
-    raise TypeError(f"Object of type {type(m)} does not implement Associative interface")
+    raise TypeError(
+        f"Object of type {type(m)} does not implement Associative interface"
+    )
 
 
 def conj(coll, *xs):
@@ -635,7 +676,9 @@ def conj(coll, *xs):
         return l.cons(*xs)
     if isinstance(coll, lcoll.Collection):
         return coll.cons(*xs)
-    raise TypeError(f"Object of type {type(coll)} does not implement Collection interface")
+    raise TypeError(
+        f"Object of type {type(coll)} does not implement Collection interface"
+    )
 
 
 def partial(f, *args):
@@ -717,7 +760,7 @@ def _collect_args(args) -> lseq.Seq:
 
 
 class _TrampolineArgs:
-    __slots__ = ('_has_varargs', '_args', '_kwargs')
+    __slots__ = ("_has_varargs", "_args", "_kwargs")
 
     def __init__(self, has_varargs: bool, *args, **kwargs) -> None:
         self._has_varargs = has_varargs
@@ -768,75 +811,86 @@ def _trampoline(f):
 #########################
 
 
-def init_ns_var(which_ns: str = _CORE_NS,
-                ns_var_name: str = _NS_VAR_NAME) -> Var:
+def init_ns_var(which_ns: str = _CORE_NS, ns_var_name: str = _NS_VAR_NAME) -> Var:
     """Initialize the dynamic `*ns*` variable in the Namespace `which_ns`."""
     core_sym = sym.Symbol(which_ns)
     core_ns = Namespace.get_or_create(core_sym)
-    ns_var = Var.intern(
-        core_sym, sym.Symbol(ns_var_name), core_ns, dynamic=True)
-    logger.debug(f'Created namespace variable {sym.symbol(ns_var_name, ns=which_ns)}')
+    ns_var = Var.intern(core_sym, sym.Symbol(ns_var_name), core_ns, dynamic=True)
+    logger.debug(f"Created namespace variable {sym.symbol(ns_var_name, ns=which_ns)}")
     return ns_var
 
 
-def set_current_ns(ns_name: str,
-                   module: types.ModuleType = None,
-                   ns_var_name: str = _NS_VAR_NAME,
-                   ns_var_ns: str = _NS_VAR_NS) -> Var:
+def set_current_ns(
+    ns_name: str,
+    module: types.ModuleType = None,
+    ns_var_name: str = _NS_VAR_NAME,
+    ns_var_ns: str = _NS_VAR_NS,
+) -> Var:
     """Set the value of the dynamic variable `*ns*` in the current thread."""
     symbol = sym.Symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
     ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns_var = Maybe(Var.find(ns_var_sym)) \
-        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"))
+    ns_var = Maybe(Var.find(ns_var_sym)).or_else_raise(
+        lambda: RuntimeException(
+            f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"
+        )
+    )
     ns_var.push_bindings(ns)
-    logger.debug(f'Setting {ns_var_sym} to {ns}')
+    logger.debug(f"Setting {ns_var_sym} to {ns}")
     return ns_var
 
 
 @contextlib.contextmanager
-def ns_bindings(ns_name: str,
-                module: types.ModuleType = None,
-                ns_var_name: str = _NS_VAR_NAME,
-                ns_var_ns: str = _NS_VAR_NS):
+def ns_bindings(
+    ns_name: str,
+    module: types.ModuleType = None,
+    ns_var_name: str = _NS_VAR_NAME,
+    ns_var_ns: str = _NS_VAR_NS,
+):
     """Context manager for temporarily changing the value of basilisp.core/*ns*."""
     symbol = sym.Symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
     ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns_var = Maybe(Var.find(ns_var_sym)) \
-        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"))
+    ns_var = Maybe(Var.find(ns_var_sym)).or_else_raise(
+        lambda: RuntimeException(
+            f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"
+        )
+    )
 
     try:
-        logger.debug(f'Binding {ns_var_sym} to {ns}')
+        logger.debug(f"Binding {ns_var_sym} to {ns}")
         ns_var.push_bindings(ns)
         yield ns_var.value
     finally:
         ns_var.pop_bindings()
-        logger.debug(f'Reset bindings for {ns_var_sym} to {ns_var.value}')
+        logger.debug(f"Reset bindings for {ns_var_sym} to {ns_var.value}")
 
 
 @contextlib.contextmanager
-def remove_ns_bindings(ns_var_name: str = _NS_VAR_NAME,
-                       ns_var_ns: str = _NS_VAR_NS):
+def remove_ns_bindings(ns_var_name: str = _NS_VAR_NAME, ns_var_ns: str = _NS_VAR_NS):
     """Context manager to pop the most recent bindings for basilisp.core/*ns* after
     completion of the code under management."""
     ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns_var = Maybe(Var.find(ns_var_sym)) \
-        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"))
+    ns_var = Maybe(Var.find(ns_var_sym)).or_else_raise(
+        lambda: RuntimeException(
+            f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"
+        )
+    )
     try:
         yield
     finally:
         ns_var.pop_bindings()
-        logger.debug(f'Reset bindings for {ns_var_sym} to {ns_var.value}')
+        logger.debug(f"Reset bindings for {ns_var_sym} to {ns_var.value}")
 
 
-def get_current_ns(ns_var_name: str = _NS_VAR_NAME,
-                   ns_var_ns: str = _NS_VAR_NS) -> Namespace:
+def get_current_ns(
+    ns_var_name: str = _NS_VAR_NAME, ns_var_ns: str = _NS_VAR_NS
+) -> Namespace:
     """Get the value of the dynamic variable `*ns*` in the current thread."""
     ns_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns: Namespace = Maybe(Var.find(ns_sym)) \
-        .map(lambda v: v.value) \
-        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {ns_sym} not bound!"))
+    ns: Namespace = Maybe(Var.find(ns_sym)).map(lambda v: v.value).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {ns_sym} not bound!")
+    )
     return ns
 
 
@@ -860,46 +914,55 @@ def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
             return sym.symbol(s.name, ns=ns.name)
 
 
-def add_generated_python(generated_python: str,
-                         var_name: str = _GENERATED_PYTHON_VAR_NAME,
-                         which_ns: Optional[str] = None) -> None:
+def add_generated_python(
+    generated_python: str,
+    var_name: str = _GENERATED_PYTHON_VAR_NAME,
+    which_ns: Optional[str] = None,
+) -> None:
     """Add generated Python code to a dynamic variable in which_ns."""
     if which_ns is None:
         which_ns = get_current_ns().name
     ns_sym = sym.Symbol(var_name, ns=which_ns)
-    v = Maybe(Var.find(ns_sym)) \
-        .or_else(lambda: Var.intern(sym.symbol(which_ns),  # type: ignore
-                                    sym.symbol(var_name),
-                                    "",
-                                    dynamic=True,
-                                    meta=lmap.map({kw.keyword('private'): True})))
+    v = Maybe(Var.find(ns_sym)).or_else(
+        lambda: Var.intern(
+            sym.symbol(which_ns),  # type: ignore
+            sym.symbol(var_name),
+            "",
+            dynamic=True,
+            meta=lmap.map({kw.keyword("private"): True}),
+        )
+    )
     v.value = v.value + generated_python
 
 
-def print_generated_python(var_name: str = _PRINT_GENERATED_PY_VAR_NAME,
-                           core_ns_name: str = _CORE_NS) -> bool:
+def print_generated_python(
+    var_name: str = _PRINT_GENERATED_PY_VAR_NAME, core_ns_name: str = _CORE_NS
+) -> bool:
     """Return the value of the `*print-generated-python*` dynamic variable."""
     ns_sym = sym.Symbol(var_name, ns=core_ns_name)
-    return Maybe(Var.find(ns_sym)) \
-        .map(lambda v: v.value) \
+    return (
+        Maybe(Var.find(ns_sym))
+        .map(lambda v: v.value)
         .or_else_raise(lambda: RuntimeException(f"Dynamic Var {ns_sym} not bound!"))
+    )
 
 
-def bootstrap(ns_var_name: str = _NS_VAR_NAME,
-              core_ns_name: str = _CORE_NS) -> None:
+def bootstrap(ns_var_name: str = _NS_VAR_NAME, core_ns_name: str = _CORE_NS) -> None:
     """Bootstrap the environment with functions that are are difficult to
     express with the very minimal lisp environment."""
     core_ns_sym = sym.symbol(core_ns_name)
     ns_var_sym = sym.symbol(ns_var_name, ns=core_ns_name)
-    __NS = Maybe(Var.find(ns_var_sym)) \
-        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {ns_var_sym} not bound!"))
+    __NS = Maybe(Var.find(ns_var_sym)).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {ns_var_sym} not bound!")
+    )
 
     def set_BANG_(var_sym: sym.Symbol, expr):
         ns = Maybe(var_sym.ns).or_else(lambda: __NS.value.name)
         name = var_sym.name
 
-        v = Maybe(Var.find(sym.symbol(name, ns=ns))) \
-            .or_else_raise(lambda: RuntimeException(f"Var {ns_var_sym} not bound!"))
+        v = Maybe(Var.find(sym.symbol(name, ns=ns))).or_else_raise(
+            lambda: RuntimeException(f"Var {ns_var_sym} not bound!")
+        )
         v.value = expr
         return expr
 
@@ -908,19 +971,21 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME,
         set_BANG_(ns_var_sym, ns)
         return ns
 
-    Var.intern_unbound(core_ns_sym, sym.symbol('unquote'))
-    Var.intern_unbound(core_ns_sym, sym.symbol('unquote-splicing'))
-    Var.intern(core_ns_sym, sym.symbol('set!'), set_BANG_)
-    Var.intern(core_ns_sym, sym.symbol('in-ns'), in_ns)
+    Var.intern_unbound(core_ns_sym, sym.symbol("unquote"))
+    Var.intern_unbound(core_ns_sym, sym.symbol("unquote-splicing"))
+    Var.intern(core_ns_sym, sym.symbol("set!"), set_BANG_)
+    Var.intern(core_ns_sym, sym.symbol("in-ns"), in_ns)
     Var.intern(
         core_ns_sym,
         sym.symbol(_PRINT_GENERATED_PY_VAR_NAME),
         False,
         dynamic=True,
-        meta=lmap.map({kw.keyword('private'): True}))
+        meta=lmap.map({kw.keyword("private"): True}),
+    )
     Var.intern(
         core_ns_sym,
         sym.symbol(_GENERATED_PYTHON_VAR_NAME),
         "",
         dynamic=True,
-        meta=lmap.map({kw.keyword('private'): True}))
+        meta=lmap.map({kw.keyword("private"): True}),
+    )

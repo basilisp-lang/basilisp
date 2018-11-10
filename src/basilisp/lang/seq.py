@@ -8,7 +8,7 @@ from basilisp.lang.meta import Meta
 from basilisp.lang.util import lrepr
 from basilisp.util import Maybe
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 _SEQ_MAX = 10
 
@@ -66,7 +66,7 @@ class Seqable(ABC, Iterable[T]):
 
 class _EmptySequence(Seq[T]):
     def __repr__(self):
-        return '()'
+        return "()"
 
     def __bool__(self):
         return False
@@ -91,7 +91,7 @@ EMPTY: Seq = _EmptySequence()
 
 
 class Cons(Seq, Meta):
-    __slots__ = ('_first', '_rest', '_meta')
+    __slots__ = ("_first", "_rest", "_meta")
 
     def __init__(self, first=None, seq: Optional[Seq[Any]] = None, meta=None) -> None:
         self._first = first
@@ -118,8 +118,7 @@ class Cons(Seq, Meta):
         return self._meta
 
     def with_meta(self, meta) -> "Cons":
-        new_meta = meta if self._meta is None else self._meta.update(
-            meta)
+        new_meta = meta if self._meta is None else self._meta.update(meta)
         return Cons(first=self._first, seq=self._rest, meta=new_meta)
 
 
@@ -131,7 +130,8 @@ class _Sequence(Seq[T]):
 
     Do not directly instantiate a Sequence. Instead use the `sequence` function
     below."""
-    __slots__ = ('_first', '_seq', '_rest')
+
+    __slots__ = ("_first", "_seq", "_rest")
 
     def __init__(self, s: Iterator, first: T) -> None:
         self._seq = s  # pylint:disable=assigning-non-slot
@@ -167,7 +167,8 @@ class LazySeq(Seq[T]):
     """LazySeqs are wrappers for delaying sequence computation. Create a LazySeq
     with a function that can either return None or a Seq. If a Seq is returned,
     the LazySeq is a proxy to that Seq."""
-    __slots__ = ('_gen', '_realized', '_seq')
+
+    __slots__ = ("_gen", "_realized", "_seq")
 
     def __init__(self, gen: Callable[[], Optional[Seq]]) -> None:
         self._gen = gen  # pylint:disable=assigning-non-slot

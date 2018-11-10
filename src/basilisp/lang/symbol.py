@@ -5,7 +5,7 @@ from basilisp.lang.util import munge
 
 
 class Symbol(Meta):
-    __slots__ = ('_name', '_ns', '_meta')
+    __slots__ = ("_name", "_ns", "_meta")
 
     def __init__(self, name: str, ns: Optional[str] = None, meta=None) -> None:
         self._name = name

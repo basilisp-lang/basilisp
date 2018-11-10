@@ -14,7 +14,7 @@ from basilisp.util import partition
 
 
 class MapEntry:
-    __slots__ = ('_inner',)
+    __slots__ = ("_inner",)
 
     def __init__(self, wrapped: vec.Vector) -> None:
         try:
@@ -64,7 +64,8 @@ class Map(Associative, Collection, Meta, Seqable):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""
-    __slots__ = ('_inner', '_meta',)
+
+    __slots__ = ("_inner", "_meta")
 
     def __init__(self, wrapped: PMap, meta=None) -> None:
         self._inner = wrapped
@@ -72,8 +73,7 @@ class Map(Associative, Collection, Meta, Seqable):
 
     def __repr__(self):
         kvs = [
-            "{k} {v}".format(k=lrepr(k), v=lrepr(v))
-            for k, v in self._inner.iteritems()
+            "{k} {v}".format(k=lrepr(k), v=lrepr(v)) for k, v in self._inner.iteritems()
         ]
         return "{{{kvs}}}".format(kvs=" ".join(kvs))
 
@@ -116,8 +116,7 @@ class Map(Associative, Collection, Meta, Seqable):
         return self._meta
 
     def with_meta(self, meta: "Map") -> "Map":
-        new_meta = meta if self._meta is None else self._meta.update(
-            meta)
+        new_meta = meta if self._meta is None else self._meta.update(meta)
         return Map(self._inner, meta=new_meta)
 
     def assoc(self, *kvs) -> "Map":
@@ -172,7 +171,8 @@ class Map(Associative, Collection, Meta, Seqable):
             return Map(e.persistent(), meta=self.meta)
         except (TypeError, ValueError):
             raise ValueError(
-                "Argument to map conj must be another Map or castable to MapEntry")
+                "Argument to map conj must be another Map or castable to MapEntry"
+            )
 
     @staticmethod
     def empty() -> "Map":

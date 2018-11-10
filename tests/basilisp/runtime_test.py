@@ -35,7 +35,9 @@ def test_nthrest():
     assert None is runtime.nthrest(None, 1)
 
     assert llist.List.empty() == runtime.nthrest(llist.List.empty(), 0)
-    assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 1)
+    assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthrest(
+        llist.l(1, 2, 3, 4, 5, 6), 1
+    )
     assert lseq.sequence([3, 4, 5, 6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 2)
     assert lseq.sequence([4, 5, 6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 3)
     assert lseq.sequence([5, 6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 4)
@@ -63,7 +65,9 @@ def test_nthnext():
     assert None is runtime.nthnext(None, 1)
 
     assert None is runtime.nthnext(llist.List.empty(), 0)
-    assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 1)
+    assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthnext(
+        llist.l(1, 2, 3, 4, 5, 6), 1
+    )
     assert lseq.sequence([3, 4, 5, 6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 2)
     assert lseq.sequence([4, 5, 6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 3)
     assert lseq.sequence([5, 6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 4)
@@ -102,13 +106,13 @@ def test_to_seq():
     assert None is not runtime.to_seq(lset.s(1))
     assert None is not runtime.to_seq("string")
 
-    one_elem = llist.l(keyword.keyword('kw'))
+    one_elem = llist.l(keyword.keyword("kw"))
     assert one_elem == runtime.to_seq(one_elem)
 
-    seqable = vec.v(keyword.keyword('kw'))
+    seqable = vec.v(keyword.keyword("kw"))
     assert seqable == runtime.to_seq(seqable)
 
-    v1 = vec.v(keyword.keyword('kw'), 1, llist.l("something"), 3)
+    v1 = vec.v(keyword.keyword("kw"), 1, llist.l("something"), 3)
     s1 = runtime.to_seq(v1)
     assert isinstance(s1, lseq.Seq)
     for v, s in zip(v1, s1):
@@ -136,8 +140,12 @@ def test_apply():
     assert vec.v() == runtime.apply(vec.v, [[]])
     assert vec.v(1, 2, 3) == runtime.apply(vec.v, [[1, 2, 3]])
     assert vec.v(None, None, None) == runtime.apply(vec.v, [[None, None, None]])
-    assert vec.v(vec.v(1, 2, 3), 4, 5, 6) == runtime.apply(vec.v, [vec.v(1, 2, 3), [4, 5, 6]])
-    assert vec.v(vec.v(1, 2, 3), None, None, None) == runtime.apply(vec.v, [vec.v(1, 2, 3), [None, None, None]])
+    assert vec.v(vec.v(1, 2, 3), 4, 5, 6) == runtime.apply(
+        vec.v, [vec.v(1, 2, 3), [4, 5, 6]]
+    )
+    assert vec.v(vec.v(1, 2, 3), None, None, None) == runtime.apply(
+        vec.v, [vec.v(1, 2, 3), [None, None, None]]
+    )
 
 
 def test_nth():
@@ -168,7 +176,9 @@ def test_assoc():
     assert lmap.Map.empty() == runtime.assoc(None)
     assert lmap.map({"a": 1}) == runtime.assoc(None, "a", 1)
     assert lmap.map({"a": 8}) == runtime.assoc(lmap.map({"a": 1}), "a", 8)
-    assert lmap.map({"a": 1, "b": "string"}) == runtime.assoc(lmap.map({"a": 1}), "b", "string")
+    assert lmap.map({"a": 1, "b": "string"}) == runtime.assoc(
+        lmap.map({"a": 1}), "b", "string"
+    )
 
     assert vec.v("a") == runtime.assoc(vec.Vector.empty(), 0, "a")
     assert vec.v("c", "b") == runtime.assoc(vec.v("a", "b"), 0, "c")
@@ -185,15 +195,25 @@ def test_update():
     assert lmap.map({"a": 1}) == runtime.update(None, "a", lambda _: 1)
     assert lmap.map({"a": 50}) == runtime.update(None, "a", lambda _, x: x, 50)
 
-    assert lmap.map({"a": 2}) == runtime.update(lmap.map({"a": 1}), "a", lambda x: x + 1)
-    assert lmap.map({"a": 4}) == runtime.update(lmap.map({"a": 1}), "a", lambda x, y: x * y + 1, 3)
+    assert lmap.map({"a": 2}) == runtime.update(
+        lmap.map({"a": 1}), "a", lambda x: x + 1
+    )
+    assert lmap.map({"a": 4}) == runtime.update(
+        lmap.map({"a": 1}), "a", lambda x, y: x * y + 1, 3
+    )
 
-    assert lmap.map({"a": 1, "b": "string"}) == runtime.update(lmap.map({"a": 1}), "b", lambda _: "string")
-    assert lmap.map({"a": 1, "b": "string"}) == runtime.update(lmap.map({"a": 1, "b": 583}), "b", lambda _: "string")
+    assert lmap.map({"a": 1, "b": "string"}) == runtime.update(
+        lmap.map({"a": 1}), "b", lambda _: "string"
+    )
+    assert lmap.map({"a": 1, "b": "string"}) == runtime.update(
+        lmap.map({"a": 1, "b": 583}), "b", lambda _: "string"
+    )
 
     assert vec.v("a") == runtime.update(vec.Vector.empty(), 0, lambda _: "a")
     assert vec.v("yay", "b") == runtime.update(vec.v("a", "b"), 0, lambda x: f"y{x}y")
-    assert vec.v("a", "boy") == runtime.update(vec.v("a", "b"), 1, lambda x, y: f"{x}{y}", "oy")
+    assert vec.v("a", "boy") == runtime.update(
+        vec.v("a", "b"), 1, lambda x, y: f"{x}{y}", "oy"
+    )
 
     with pytest.raises(TypeError):
         runtime.update(llist.List.empty(), 1, lambda _: "y")
@@ -220,8 +240,12 @@ def test_conj():
     assert vec.v(1, vec.v(1, 2, 3)) == runtime.conj(vec.v(1), vec.v(1, 2, 3))
 
     assert lmap.map({"a": 1}) == runtime.conj(lmap.Map.empty(), ["a", 1])
-    assert lmap.map({"a": 1, "b": 93}) == runtime.conj(lmap.Map.empty(), ["a", 1], ["b", 93])
-    assert lmap.map({"a": 1, "b": 93}) == runtime.conj(lmap.map({"a": 8}), ["a", 1], ["b", 93])
+    assert lmap.map({"a": 1, "b": 93}) == runtime.conj(
+        lmap.Map.empty(), ["a", 1], ["b", 93]
+    )
+    assert lmap.map({"a": 1, "b": 93}) == runtime.conj(
+        lmap.map({"a": 8}), ["a", 1], ["b", 93]
+    )
 
     with pytest.raises(ValueError):
         runtime.conj(lmap.map({"a": 8}), "a", 1, "b", 93)
@@ -246,7 +270,9 @@ def test_deref():
 
 def test_swap():
     assert 3 == runtime.swap(atom.Atom(1), lambda x, y: x + y, 2)
-    assert vec.v(1) == runtime.swap(atom.Atom(vec.Vector.empty()), lambda v, e: v.cons(e), 1)
+    assert vec.v(1) == runtime.swap(
+        atom.Atom(vec.Vector.empty()), lambda v, e: v.cons(e), 1
+    )
 
     with pytest.raises(AttributeError):
         runtime.swap(1, lambda x, y: x + y, 2)
@@ -282,22 +308,28 @@ def test_resolve_alias(core_ns):
     for form in runtime._SPECIAL_FORMS:
         assert form == runtime.resolve_alias(form)
 
-    ns_name = 'resolve-test'
+    ns_name = "resolve-test"
     ns_sym = sym.symbol(ns_name)
 
     with runtime.ns_bindings(ns_name) as ns:
-        runtime.Var.intern(ns_sym, sym.symbol('existing-var'), None)
-        assert sym.symbol('existing-var', ns=ns_name) == runtime.resolve_alias(
-            sym.symbol('existing-var'), ns=ns)
+        runtime.Var.intern(ns_sym, sym.symbol("existing-var"), None)
+        assert sym.symbol("existing-var", ns=ns_name) == runtime.resolve_alias(
+            sym.symbol("existing-var"), ns=ns
+        )
 
-        assert sym.symbol('non-existent-var', ns=ns_name) == runtime.resolve_alias(
-            sym.symbol('non-existent-var'), ns=ns)
+        assert sym.symbol("non-existent-var", ns=ns_name) == runtime.resolve_alias(
+            sym.symbol("non-existent-var"), ns=ns
+        )
 
-        foo_ns_sym = sym.symbol('zux.bar.foo')
+        foo_ns_sym = sym.symbol("zux.bar.foo")
         foo_ns = runtime.Namespace.get_or_create(foo_ns_sym)
-        ns.add_alias(sym.symbol('foo'), foo_ns)
-        assert sym.symbol('aliased-var', ns=foo_ns_sym.name) == runtime.resolve_alias(
-            sym.symbol('aliased-var', ns='foo'), ns=ns)
+        ns.add_alias(sym.symbol("foo"), foo_ns)
+        assert sym.symbol("aliased-var", ns=foo_ns_sym.name) == runtime.resolve_alias(
+            sym.symbol("aliased-var", ns="foo"), ns=ns
+        )
 
-        assert sym.symbol('non-existent-alias-var', ns='wee.woo') == runtime.resolve_alias(
-            sym.symbol('non-existent-alias-var', ns='wee.woo'), ns=ns)
+        assert sym.symbol(
+            "non-existent-alias-var", ns="wee.woo"
+        ) == runtime.resolve_alias(
+            sym.symbol("non-existent-alias-var", ns="wee.woo"), ns=ns
+        )

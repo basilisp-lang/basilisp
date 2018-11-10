@@ -34,28 +34,71 @@ def teardown_module(module):
 
 import basilisp.core as core
 
-TRUTHY_VALUES = [True,
-                 -1, 0, 1,
-                 -1.0, 0.0, 1.0,
-                 sym.symbol("name"), sym.symbol("name", ns="ns"),
-                 kw.keyword("name"), kw.keyword("name", ns="ns"),
-                 "", "not empty",
-                 llist.List.empty(), llist.l(0), llist.l(False), llist.l(True),
-                 lmap.Map.empty(), lmap.map({0: 0}), lmap.map({False: False}), lmap.map({True: True}),
-                 lset.Set.empty(), lset.s(0), lset.s(False), lset.s(True),
-                 vec.Vector.empty(), vec.v(0), vec.v(False), vec.v(True)]
+TRUTHY_VALUES = [
+    True,
+    -1,
+    0,
+    1,
+    -1.0,
+    0.0,
+    1.0,
+    sym.symbol("name"),
+    sym.symbol("name", ns="ns"),
+    kw.keyword("name"),
+    kw.keyword("name", ns="ns"),
+    "",
+    "not empty",
+    llist.List.empty(),
+    llist.l(0),
+    llist.l(False),
+    llist.l(True),
+    lmap.Map.empty(),
+    lmap.map({0: 0}),
+    lmap.map({False: False}),
+    lmap.map({True: True}),
+    lset.Set.empty(),
+    lset.s(0),
+    lset.s(False),
+    lset.s(True),
+    vec.Vector.empty(),
+    vec.v(0),
+    vec.v(False),
+    vec.v(True),
+]
 FALSEY_VALUES = [False, None]
 
-NON_NIL_VALUES = [False, True,
-                  -1, 0, 1,
-                  -1.0, 0.0, 1.0,
-                  sym.symbol("name"), sym.symbol("name", ns="ns"),
-                  kw.keyword("name"), kw.keyword("name", ns="ns"),
-                  "", "not empty",
-                  llist.List.empty(), llist.l(0), llist.l(False), llist.l(True),
-                  lmap.Map.empty(), lmap.map({0: 0}), lmap.map({False: False}), lmap.map({True: True}),
-                  lset.Set.empty(), lset.s(0), lset.s(False), lset.s(True),
-                  vec.Vector.empty(), vec.v(0), vec.v(False), vec.v(True)]
+NON_NIL_VALUES = [
+    False,
+    True,
+    -1,
+    0,
+    1,
+    -1.0,
+    0.0,
+    1.0,
+    sym.symbol("name"),
+    sym.symbol("name", ns="ns"),
+    kw.keyword("name"),
+    kw.keyword("name", ns="ns"),
+    "",
+    "not empty",
+    llist.List.empty(),
+    llist.l(0),
+    llist.l(False),
+    llist.l(True),
+    lmap.Map.empty(),
+    lmap.map({0: 0}),
+    lmap.map({False: False}),
+    lmap.map({True: True}),
+    lset.Set.empty(),
+    lset.s(0),
+    lset.s(False),
+    lset.s(True),
+    vec.Vector.empty(),
+    vec.v(0),
+    vec.v(False),
+    vec.v(True),
+]
 NIL_VALUES = [None]
 
 
@@ -238,48 +281,48 @@ def test_pos__Q__():
     assert True is core.pos__Q__(1)
     assert True is core.pos__Q__(100)
     assert True is core.pos__Q__(1.0)
-    assert True is core.pos__Q__(9999839.874394)
+    assert True is core.pos__Q__(9_999_839.874_394)
     assert False is core.pos__Q__(0)
     assert False is core.pos__Q__(-1)
     assert False is core.pos__Q__(-100)
     assert False is core.pos__Q__(-1.0)
-    assert False is core.pos__Q__(-9999839.874394)
+    assert False is core.pos__Q__(-9_999_839.874_394)
 
 
 def test_non_neg__Q__():
     assert True is core.non_neg__Q__(1)
     assert True is core.non_neg__Q__(100)
     assert True is core.non_neg__Q__(1.0)
-    assert True is core.non_neg__Q__(9999839.874394)
+    assert True is core.non_neg__Q__(9_999_839.874_394)
     assert True is core.non_neg__Q__(0)
     assert False is core.non_neg__Q__(-1)
     assert False is core.non_neg__Q__(-100)
     assert False is core.non_neg__Q__(-1.0)
-    assert False is core.non_neg__Q__(-9999839.874394)
+    assert False is core.non_neg__Q__(-9_999_839.874_394)
 
 
 def test_zero__Q__():
     assert False is core.zero__Q__(1)
     assert False is core.zero__Q__(100)
     assert False is core.zero__Q__(1.0)
-    assert False is core.zero__Q__(9999839.874394)
+    assert False is core.zero__Q__(9_999_839.874_394)
     assert True is core.zero__Q__(0)
     assert False is core.zero__Q__(-1)
     assert False is core.zero__Q__(-100)
     assert False is core.zero__Q__(-1.0)
-    assert False is core.zero__Q__(-9999839.874394)
+    assert False is core.zero__Q__(-9_999_839.874_394)
 
 
 def test_neg__Q__():
     assert False is core.neg__Q__(1)
     assert False is core.neg__Q__(100)
     assert False is core.neg__Q__(1.0)
-    assert False is core.neg__Q__(9999839.874394)
+    assert False is core.neg__Q__(9_999_839.874_394)
     assert False is core.neg__Q__(0)
     assert True is core.neg__Q__(-1)
     assert True is core.neg__Q__(-100)
     assert True is core.neg__Q__(-1.0)
-    assert True is core.neg__Q__(-9999839.874394)
+    assert True is core.neg__Q__(-9_999_839.874_394)
 
 
 def test___PLUS__():
@@ -332,9 +375,9 @@ def test___DIV__():
     assert 0.5 == core.__DIV__(1.0, 2)
     assert 0.125 == core.__DIV__(1, 2, 4.0)
     assert Fraction(-1, 120) == core.__DIV__(1, 2, 3, 4, -5)
-    assert 0.008333333333333333 == core.__DIV__(1, 2, 3, 4, 5.0)
+    assert 0.008_333_333_333_333_333 == core.__DIV__(1, 2, 3, 4, 5.0)
     assert Fraction(-1, 120) == core.__DIV__(-1, -2, -3, -4, -5)
-    assert -0.008333333333333333 == core.__DIV__(-1, -2, -3, -4, -5.0)
+    assert -0.008_333_333_333_333_333 == core.__DIV__(-1, -2, -3, -4, -5.0)
 
 
 def test_mod():
@@ -346,9 +389,9 @@ def test_mod():
     assert 3 == core.mod(-2, 5)
     assert 2 == core.mod(-10, 3)
     assert 0.5 == core.mod(1.5, 1)
-    assert 6.095000000000027 == core.mod(475.095, 7)
-    assert 0.840200000000074 == core.mod(1024.8402, 5.12)
-    assert 4.279799999999926 == core.mod(-1024.8402, 5.12)
+    assert 6.095_000_000_000_027 == core.mod(475.095, 7)
+    assert 0.840_200_000_000_074 == core.mod(1024.8402, 5.12)
+    assert 4.279_799_999_999_926 == core.mod(-1024.8402, 5.12)
 
 
 def test_quot():
@@ -552,8 +595,12 @@ def test_reduce():
 
 
 def test_reduce_with_lazy_seq():
-    assert 25 == core.reduce(core.__PLUS__, core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4, 5, 6, 7, 8, 9)))
-    assert 25 == core.reduce(core.__PLUS__, 0, core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4, 5, 6, 7, 8, 9)))
+    assert 25 == core.reduce(
+        core.__PLUS__, core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4, 5, 6, 7, 8, 9))
+    )
+    assert 25 == core.reduce(
+        core.__PLUS__, 0, core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4, 5, 6, 7, 8, 9))
+    )
 
 
 def test_comp():
@@ -561,12 +608,16 @@ def test_comp():
     assert "hi" == core.comp()("hi")
     assert True is core.comp(core.odd__Q__)(3)
     assert False is core.comp(core.odd__Q__)(2)
-    assert 7 == core.comp(core.inc, core.inc, core.dec, lambda v: core.__STAR__(2, v))(3)
+    assert 7 == core.comp(core.inc, core.inc, core.dec, lambda v: core.__STAR__(2, v))(
+        3
+    )
 
 
 def test_juxt():
     assert vec.v(True) == core.juxt(core.odd__Q__)(3)
-    assert vec.v(True, False, 4, 2) == core.juxt(core.odd__Q__, core.even__Q__, core.inc, core.dec)(3)
+    assert vec.v(True, False, 4, 2) == core.juxt(
+        core.odd__Q__, core.even__Q__, core.inc, core.dec
+    )(3)
 
 
 def test_partial():
@@ -623,7 +674,8 @@ def test_merge():
     assert lmap.map({kw.keyword("a"): 1}) == core.merge(lmap.map({kw.keyword("a"): 1}))
     assert lmap.map({kw.keyword("a"): 53, kw.keyword("b"): "hi"}) == core.merge(
         lmap.map({kw.keyword("a"): 1, kw.keyword("b"): "hi"}),
-        lmap.map({kw.keyword("a"): 53}))
+        lmap.map({kw.keyword("a"): 53}),
+    )
 
 
 def test_map():
@@ -632,17 +684,27 @@ def test_map():
     assert llist.l(2, 3, 4) == core.map_(core.inc, vec.v(1, 2, 3))
 
     assert llist.l(5, 7, 9) == core.map_(core.__PLUS__, vec.v(1, 2, 3), vec.v(4, 5, 6))
-    assert llist.l(5, 7, 9) == core.map_(core.__PLUS__, vec.v(1, 2, 3), core.range_(4, 7))
+    assert llist.l(5, 7, 9) == core.map_(
+        core.__PLUS__, vec.v(1, 2, 3), core.range_(4, 7)
+    )
 
 
 def test_map_indexed():
-    assert llist.l(vec.v(0, 1), vec.v(1, 2), vec.v(2, 3)) == core.map_indexed(core.vector, vec.v(1, 2, 3))
+    assert llist.l(vec.v(0, 1), vec.v(1, 2), vec.v(2, 3)) == core.map_indexed(
+        core.vector, vec.v(1, 2, 3)
+    )
 
 
 def test_mapcat():
-    assert llist.List.empty() == core.mapcat(lambda x: vec.v(x, x + 1), vec.Vector.empty())
-    assert llist.l(1, 2, 2, 3, 3, 4) == core.mapcat(lambda x: vec.v(x, x + 1), vec.v(1, 2, 3))
-    assert llist.l(1, 4, 2, 5, 3, 6) == core.mapcat(core.vector, vec.v(1, 2, 3), vec.v(4, 5, 6))
+    assert llist.List.empty() == core.mapcat(
+        lambda x: vec.v(x, x + 1), vec.Vector.empty()
+    )
+    assert llist.l(1, 2, 2, 3, 3, 4) == core.mapcat(
+        lambda x: vec.v(x, x + 1), vec.v(1, 2, 3)
+    )
+    assert llist.l(1, 4, 2, 5, 3, 6) == core.mapcat(
+        core.vector, vec.v(1, 2, 3), vec.v(4, 5, 6)
+    )
 
 
 def test_filter():
@@ -703,25 +765,43 @@ def test_drop_last():
 
 
 def test_split_at():
-    assert vec.v(llist.List.empty(), llist.List.empty()) == core.split_at(3, vec.Vector.empty())
-    assert vec.v(llist.List.empty(), llist.l(1, 2, 3)) == core.split_at(0, vec.v(1, 2, 3))
+    assert vec.v(llist.List.empty(), llist.List.empty()) == core.split_at(
+        3, vec.Vector.empty()
+    )
+    assert vec.v(llist.List.empty(), llist.l(1, 2, 3)) == core.split_at(
+        0, vec.v(1, 2, 3)
+    )
     assert vec.v(llist.l(1), llist.l(2, 3)) == core.split_at(1, vec.v(1, 2, 3))
     assert vec.v(llist.l(1, 2), llist.l(3)) == core.split_at(2, vec.v(1, 2, 3))
-    assert vec.v(llist.l(1, 2, 3), llist.List.empty()) == core.split_at(3, vec.v(1, 2, 3))
-    assert vec.v(llist.l(1, 2, 3), llist.List.empty()) == core.split_at(4, vec.v(1, 2, 3))
+    assert vec.v(llist.l(1, 2, 3), llist.List.empty()) == core.split_at(
+        3, vec.v(1, 2, 3)
+    )
+    assert vec.v(llist.l(1, 2, 3), llist.List.empty()) == core.split_at(
+        4, vec.v(1, 2, 3)
+    )
     assert vec.v(llist.l(1, 2, 3), llist.l(4)) == core.split_at(3, vec.v(1, 2, 3, 4))
 
 
 def test_split_with():
-    assert vec.v(llist.List.empty(), llist.List.empty()) == core.split_with(core.odd__Q__, vec.Vector.empty())
-    assert vec.v(llist.l(1), llist.l(2, 3)) == core.split_with(core.odd__Q__, vec.v(1, 2, 3))
-    assert vec.v(llist.l(1, 3, 5, 7), llist.List.empty()) == core.split_with(core.odd__Q__, vec.v(1, 3, 5, 7))
-    assert vec.v(llist.List.empty(), llist.l(2, 4, 6, 8)) == core.split_with(core.odd__Q__, vec.v(2, 4, 6, 8))
+    assert vec.v(llist.List.empty(), llist.List.empty()) == core.split_with(
+        core.odd__Q__, vec.Vector.empty()
+    )
+    assert vec.v(llist.l(1), llist.l(2, 3)) == core.split_with(
+        core.odd__Q__, vec.v(1, 2, 3)
+    )
+    assert vec.v(llist.l(1, 3, 5, 7), llist.List.empty()) == core.split_with(
+        core.odd__Q__, vec.v(1, 3, 5, 7)
+    )
+    assert vec.v(llist.List.empty(), llist.l(2, 4, 6, 8)) == core.split_with(
+        core.odd__Q__, vec.v(2, 4, 6, 8)
+    )
 
 
 def test_group_by():
     assert lmap.Map.empty() == core.group_by(core.inc, vec.Vector.empty())
-    assert lmap.map({True: vec.v(1, 3), False: vec.v(2, 4)}) == core.group_by(core.odd__Q__, vec.v(1, 2, 3, 4))
+    assert lmap.map({True: vec.v(1, 3), False: vec.v(2, 4)}) == core.group_by(
+        core.odd__Q__, vec.v(1, 2, 3, 4)
+    )
 
 
 def test_interpose():
@@ -749,78 +829,94 @@ def test_repeatedly():
 
 
 def test_partition():
-    assert llist.l(llist.l(1, 2), llist.l(3, 4), llist.l(5, 6)) == core.partition(2, core.range_(1, 7))
-    assert llist.l(llist.l(1, 2, 3), llist.l(4, 5, 6)) == core.partition(3, core.range_(1, 7))
+    assert llist.l(llist.l(1, 2), llist.l(3, 4), llist.l(5, 6)) == core.partition(
+        2, core.range_(1, 7)
+    )
+    assert llist.l(llist.l(1, 2, 3), llist.l(4, 5, 6)) == core.partition(
+        3, core.range_(1, 7)
+    )
 
-    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
-                   llist.l(21, 22, 23)) == core.partition(5, 10, core.range_(1, 24))
-    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
-                   llist.l(21, 22, 23, 24, 25)) == core.partition(5, 10, core.range_(1, 26))
+    assert llist.l(
+        llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23)
+    ) == core.partition(5, 10, core.range_(1, 24))
+    assert llist.l(
+        llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
+    ) == core.partition(5, 10, core.range_(1, 26))
 
-    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
-                   llist.l(21, 22, 23, kw.keyword("a"), kw.keyword("a"))) == core.partition(
-        5, 10, core.repeat(kw.keyword("a")), core.range_(1, 24))
-    assert llist.l(llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15),
-                   llist.l(21, 22, 23, 24, 25)) == core.partition(
-        5, 10, core.repeat(kw.keyword("a")), core.range_(1, 26))
+    assert llist.l(
+        llist.l(1, 2, 3, 4, 5),
+        llist.l(11, 12, 13, 14, 15),
+        llist.l(21, 22, 23, kw.keyword("a"), kw.keyword("a")),
+    ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 24))
+    assert llist.l(
+        llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
+    ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 26))
 
 
 def test_pr_str():
-    assert '' == core.pr_str()
+    assert "" == core.pr_str()
     assert '""' == core.pr_str("")
-    assert ':kw' == core.pr_str(kw.keyword('kw'))
-    assert ':hi "there" 3' == core.pr_str(kw.keyword('hi'), "there", 3)
+    assert ":kw" == core.pr_str(kw.keyword("kw"))
+    assert ':hi "there" 3' == core.pr_str(kw.keyword("hi"), "there", 3)
 
 
 def test_prn_str():
-    assert '\n' == core.prn_str()
+    assert "\n" == core.prn_str()
     assert '""\n' == core.prn_str("")
-    assert ':kw\n' == core.prn_str(kw.keyword('kw'))
-    assert ':hi "there" 3\n' == core.prn_str(kw.keyword('hi'), "there", 3)
+    assert ":kw\n" == core.prn_str(kw.keyword("kw"))
+    assert ':hi "there" 3\n' == core.prn_str(kw.keyword("hi"), "there", 3)
 
 
 def test_print_str():
-    assert '' == core.print_str()
-    assert '' == core.print_str("")
-    assert ':kw' == core.print_str(kw.keyword('kw'))
-    assert ':hi there 3' == core.print_str(kw.keyword('hi'), "there", 3)
+    assert "" == core.print_str()
+    assert "" == core.print_str("")
+    assert ":kw" == core.print_str(kw.keyword("kw"))
+    assert ":hi there 3" == core.print_str(kw.keyword("hi"), "there", 3)
 
 
 def test_println_str():
-    assert '\n' == core.println_str()
-    assert '\n' == core.println_str("")
-    assert ':kw\n' == core.println_str(kw.keyword('kw'))
-    assert ':hi there 3\n' == core.println_str(kw.keyword('hi'), "there", 3)
+    assert "\n" == core.println_str()
+    assert "\n" == core.println_str("")
+    assert ":kw\n" == core.println_str(kw.keyword("kw"))
+    assert ":hi there 3\n" == core.println_str(kw.keyword("hi"), "there", 3)
 
 
 def test_re_find():
     assert None is core.re_find(re.compile(r"\d+"), "abcdef")
     assert "12345" == core.re_find(re.compile(r"\d+"), "abc12345def")
     assert vec.v("word then number ", "word then number ", None) == core.re_find(
-        re.compile(r"(\D+)|(\d+)"), "word then number 57")
+        re.compile(r"(\D+)|(\d+)"), "word then number 57"
+    )
     assert vec.v("57", None, "57") == core.re_find(
-        re.compile(r"(\D+)|(\d+)"), "57 number then word")
-    assert vec.v("lots", "", "l") == core.re_find(re.compile(r"(\d*)(\S)\S+"), "lots o' digits 123456789")
+        re.compile(r"(\D+)|(\d+)"), "57 number then word"
+    )
+    assert vec.v("lots", "", "l") == core.re_find(
+        re.compile(r"(\d*)(\S)\S+"), "lots o' digits 123456789"
+    )
 
 
 def test_re_matches():
     assert None is core.re_matches(re.compile(r"hello"), "hello, world")
     assert "hello, world" == core.re_matches(re.compile(r"hello.*"), "hello, world")
-    assert vec.v("hello, world", "world") == core.re_matches(re.compile(r"hello, (.*)"), "hello, world")
+    assert vec.v("hello, world", "world") == core.re_matches(
+        re.compile(r"hello, (.*)"), "hello, world"
+    )
 
 
 def test_re_seq():
     assert None is core.seq(core.re_seq(re.compile(r"[a-zA-Z]+"), "134325235234"))
     assert llist.l("1", "1", "0") == core.re_seq(re.compile(r"\d+"), "Basilisp 1.1.0")
     assert llist.l("the", "man", "who", "sold", "the", "world") == core.re_seq(
-        re.compile(r"\w+"), "the man who sold the world")
+        re.compile(r"\w+"), "the man who sold the world"
+    )
 
 
 def test_select_keys():
+    assert lmap.Map.empty() == core.select_keys(lmap.Map.empty(), vec.Vector.empty())
     assert lmap.Map.empty() == core.select_keys(
-        lmap.Map.empty(), vec.Vector.empty())
-    assert lmap.Map.empty() == core.select_keys(
-        lmap.Map.empty(), vec.v(kw.keyword('a'), kw.keyword('b')))
-    assert lmap.map({kw.keyword('a'): "a", kw.keyword('b'): "b"}) == core.select_keys(
-        lmap.map({kw.keyword('a'): "a", kw.keyword('b'): "b", kw.keyword('c'): "c"}),
-        vec.v(kw.keyword('a'), kw.keyword('b')))
+        lmap.Map.empty(), vec.v(kw.keyword("a"), kw.keyword("b"))
+    )
+    assert lmap.map({kw.keyword("a"): "a", kw.keyword("b"): "b"}) == core.select_keys(
+        lmap.map({kw.keyword("a"): "a", kw.keyword("b"): "b", kw.keyword("c"): "c"}),
+        vec.v(kw.keyword("a"), kw.keyword("b")),
+    )

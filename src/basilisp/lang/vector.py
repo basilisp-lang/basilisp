@@ -11,7 +11,8 @@ class Vector(Associative, Collection, Meta, Seqable):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""
-    __slots__ = ('_inner', '_meta',)
+
+    __slots__ = ("_inner", "_meta")
 
     def __init__(self, wrapped: PVector, meta=None) -> None:
         self._inner = wrapped
@@ -42,8 +43,7 @@ class Vector(Associative, Collection, Meta, Seqable):
         return self._meta
 
     def with_meta(self, meta) -> "Vector":
-        new_meta = meta if self._meta is None else self._meta.update(
-            meta)
+        new_meta = meta if self._meta is None else self._meta.update(meta)
         return vector(self._inner, meta=new_meta)
 
     def cons(self, *elems) -> "Vector":

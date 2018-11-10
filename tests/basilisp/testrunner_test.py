@@ -18,7 +18,7 @@ def test_testrunner(testdir: pytester.Testdir, capsys):
       (is (= 4.6 4.6))
       (is (throw (ex-info "Uncaught exception" {}))))
     """
-    testdir.makefile('.lpy', test_fixture=code)
+    testdir.makefile(".lpy", test_fixture=code)
 
     result: pytester.RunResult = testdir.runpytest()
     result.assert_outcomes(failed=1)

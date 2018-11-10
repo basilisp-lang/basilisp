@@ -7,8 +7,22 @@ import re
 import uuid
 from datetime import datetime
 from fractions import Fraction
-from typing import (Deque, List, Tuple, Optional, Collection, Callable, Any, Union, MutableMapping, Pattern, Iterable,
-                    TypeVar, cast, Dict)
+from typing import (
+    Deque,
+    List,
+    Tuple,
+    Optional,
+    Collection,
+    Callable,
+    Any,
+    Union,
+    MutableMapping,
+    Pattern,
+    Iterable,
+    TypeVar,
+    cast,
+    Dict,
+)
 
 from functional import seq
 
@@ -24,23 +38,23 @@ import basilisp.walker as walk
 from basilisp.lang.typing import LispForm, IterableLispForm
 from basilisp.util import Maybe
 
-ns_name_chars = re.compile(r'\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$')
-alphanumeric_chars = re.compile(r'\w')
-begin_num_chars = re.compile(r'[0-9\-]')
-num_chars = re.compile('[0-9]')
-whitespace_chars = re.compile(r'[\s,]')
-newline_chars = re.compile('(\r\n|\r|\n)')
-fn_macro_args = re.compile('(%)(&|[0-9])?')
-unicode_char = re.compile(r'u(\w+)')
+ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$")
+alphanumeric_chars = re.compile(r"\w")
+begin_num_chars = re.compile(r"[0-9\-]")
+num_chars = re.compile("[0-9]")
+whitespace_chars = re.compile(r"[\s,]")
+newline_chars = re.compile("(\r\n|\r|\n)")
+fn_macro_args = re.compile("(%)(&|[0-9])?")
+unicode_char = re.compile(r"u(\w+)")
 
 DataReaders = Optional[lmap.Map]
 GenSymEnvironment = Dict[str, symbol.Symbol]
 Resolver = Callable[[symbol.Symbol], symbol.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
-W = TypeVar('W', bound=LispReaderFn)
+W = TypeVar("W", bound=LispReaderFn)
 
-READER_LINE_KW = keyword.keyword('line', ns='basilisp.lang.reader')
-READER_COL_KW = keyword.keyword('col', ns='basilisp.lang.reader')
+READER_LINE_KW = keyword.keyword("line", ns="basilisp.lang.reader")
+READER_COL_KW = keyword.keyword("col", ns="basilisp.lang.reader")
 
 _AMPERSAND = symbol.symbol("&")
 _FN = symbol.symbol("fn*")
@@ -49,16 +63,16 @@ _INTEROP_PROP = symbol.symbol(".-")
 _QUOTE = symbol.symbol("quote")
 _VAR = symbol.symbol("var")
 
-_APPLY = symbol.symbol('apply', ns='basilisp.core')
-_CONCAT = symbol.symbol('concat', ns='basilisp.core')
-_DEREF = symbol.symbol('deref', ns='basilisp.core')
-_HASH_MAP = symbol.symbol('hash-map', ns='basilisp.core')
-_HASH_SET = symbol.symbol('hash-set', ns='basilisp.core')
-_LIST = symbol.symbol('list', ns='basilisp.core')
-_SEQ = symbol.symbol('seq', ns='basilisp.core')
-_UNQUOTE = symbol.symbol('unquote', ns='basilisp.core')
-_UNQUOTE_SPLICING = symbol.symbol('unquote-splicing', ns='basilisp.core')
-_VECTOR = symbol.symbol('vector', ns='basilisp.core')
+_APPLY = symbol.symbol("apply", ns="basilisp.core")
+_CONCAT = symbol.symbol("concat", ns="basilisp.core")
+_DEREF = symbol.symbol("deref", ns="basilisp.core")
+_HASH_MAP = symbol.symbol("hash-map", ns="basilisp.core")
+_HASH_SET = symbol.symbol("hash-set", ns="basilisp.core")
+_LIST = symbol.symbol("list", ns="basilisp.core")
+_SEQ = symbol.symbol("seq", ns="basilisp.core")
+_UNQUOTE = symbol.symbol("unquote", ns="basilisp.core")
+_UNQUOTE_SPLICING = symbol.symbol("unquote-splicing", ns="basilisp.core")
+_VECTOR = symbol.symbol("vector", ns="basilisp.core")
 
 
 class Comment:
@@ -76,9 +90,10 @@ class SyntaxError(Exception):  # pylint:disable=redefined-builtin
 
 class StreamReader:
     """A simple stream reader with n-character lookahead."""
+
     DEFAULT_INDEX = -2
 
-    __slots__ = ('_stream', '_pushback_depth', '_idx', '_buffer', '_line', '_col')
+    __slots__ = ("_stream", "_pushback_depth", "_idx", "_buffer", "_line", "_col")
 
     def __init__(self, stream: io.TextIOBase, pushback_depth: int = 5) -> None:
         self._stream = stream
@@ -162,24 +177,27 @@ def _uuid_from_str(uuid_str: str) -> uuid.UUID:
 
 
 class ReaderContext:
-    _DATA_READERS = lmap.map({
-        symbol.symbol('inst'): _inst_from_str,
-        symbol.symbol('uuid'): _uuid_from_str
-    })
+    _DATA_READERS = lmap.map(
+        {symbol.symbol("inst"): _inst_from_str, symbol.symbol("uuid"): _uuid_from_str}
+    )
 
-    __slots__ = ('_data_readers',
-                 '_reader',
-                 '_resolve',
-                 '_in_anon_fn',
-                 '_syntax_quoted',
-                 '_gensym_env',
-                 '_eof')
+    __slots__ = (
+        "_data_readers",
+        "_reader",
+        "_resolve",
+        "_in_anon_fn",
+        "_syntax_quoted",
+        "_gensym_env",
+        "_eof",
+    )
 
-    def __init__(self,
-                 reader: StreamReader,
-                 resolver: Resolver = None,
-                 data_readers: DataReaders = None,
-                 eof: Any = None) -> None:
+    def __init__(
+        self,
+        reader: StreamReader,
+        resolver: Resolver = None,
+        data_readers: DataReaders = None,
+        eof: Any = None,
+    ) -> None:
         data_readers = Maybe(data_readers).or_else_get(lmap.Map.empty())
         for entry in data_readers:
             if not isinstance(entry.key, symbol.Symbol):
@@ -189,7 +207,8 @@ class ReaderContext:
 
         self._data_readers = ReaderContext._DATA_READERS.update_with(
             lambda l, r: l,  # Do not allow callers to overwrite existing builtin readers
-            data_readers)
+            data_readers,
+        )
         self._reader = reader
         self._resolve = Maybe(resolver).or_else_get(lambda x: x)
         self._in_anon_fn: Deque[bool] = collections.deque([])
@@ -251,7 +270,7 @@ class ReaderContext:
             return False
 
 
-EOF = 'EOF'
+EOF = "EOF"
 
 
 def _with_loc(f: W) -> W:
@@ -260,7 +279,9 @@ def _with_loc(f: W) -> W:
 
     @functools.wraps(f)
     def with_lineno_and_col(ctx):
-        meta = lmap.map({READER_LINE_KW: ctx.reader.line, READER_COL_KW: ctx.reader.col})
+        meta = lmap.map(
+            {READER_LINE_KW: ctx.reader.line, READER_COL_KW: ctx.reader.col}
+        )
         v = f(ctx)
         try:
             return v.with_meta(meta)  # type: ignore
@@ -270,7 +291,9 @@ def _with_loc(f: W) -> W:
     return cast(W, with_lineno_and_col)
 
 
-def _read_namespaced(ctx: ReaderContext, allowed_suffix: Optional[str] = None) -> Tuple[Optional[str], str]:
+def _read_namespaced(
+    ctx: ReaderContext, allowed_suffix: Optional[str] = None
+) -> Tuple[Optional[str], str]:
     """Read a namespaced token from the input stream."""
     ns: List[str] = []
     name: List[str] = []
@@ -278,14 +301,14 @@ def _read_namespaced(ctx: ReaderContext, allowed_suffix: Optional[str] = None) -
     has_ns = False
     while True:
         token = reader.peek()
-        if token == '/':
+        if token == "/":
             reader.next_token()
             if has_ns:
                 raise SyntaxError("Found '/'; expected word character")
             elif len(name) == 0:
-                name.append('/')
+                name.append("/")
             else:
-                if '/' in name:
+                if "/" in name:
                     raise SyntaxError("Found '/' after '/'")
                 has_ns = True
                 ns = name
@@ -296,18 +319,18 @@ def _read_namespaced(ctx: ReaderContext, allowed_suffix: Optional[str] = None) -
         elif allowed_suffix is not None and token == allowed_suffix:
             reader.next_token()
             name.append(token)
-        elif not has_ns and token == '.':
+        elif not has_ns and token == ".":
             reader.next_token()
             name.append(token)
         else:
             break
 
-    ns_str = None if not has_ns else ''.join(ns)
-    name_str = ''.join(name)
+    ns_str = None if not has_ns else "".join(ns)
+    name_str = "".join(name)
 
     # A small exception for the symbol '/ used for division
     if ns_str is None:
-        if '/' in name_str and name_str != '/':
+        if "/" in name_str and name_str != "/":
             raise SyntaxError("'/' character disallowed in names")
 
     assert ns_str is None or len(ns_str) > 0
@@ -315,17 +338,19 @@ def _read_namespaced(ctx: ReaderContext, allowed_suffix: Optional[str] = None) -
     return ns_str, name_str
 
 
-def _read_coll(ctx: ReaderContext,
-               f: Callable[[Collection[Any]], Union[llist.List, lset.Set, vector.Vector]],
-               end_token: str,
-               coll_name: str):
+def _read_coll(
+    ctx: ReaderContext,
+    f: Callable[[Collection[Any]], Union[llist.List, lset.Set, vector.Vector]],
+    end_token: str,
+    coll_name: str,
+):
     """Read a collection from the input stream and create the
     collection using f."""
     coll: List = []
     reader = ctx.reader
     while True:
         token = reader.peek()
-        if token == '':
+        if token == "":
             raise SyntaxError(f"Unexpected EOF in {coll_name}")
         if whitespace_chars.match(token):
             reader.advance()
@@ -366,7 +391,7 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
     and compile Python interop code."""
     reader = ctx.reader
     start = reader.advance()
-    assert start == '.'
+    assert start == "."
     seq: List[LispForm] = []
 
     token = reader.peek()
@@ -378,7 +403,7 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
         # not have a symbol in this spot. In those cases, we need
         # to expect the author used the correct form in the first
         # place.
-        if isinstance(member, symbol.Symbol) and member.name.startswith('-'):
+        if isinstance(member, symbol.Symbol) and member.name.startswith("-"):
             seq.append(_INTEROP_PROP)
             member = symbol.symbol(member.name[1:])
         else:
@@ -386,7 +411,7 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
 
         seq.append(instance)
         seq.append(member)
-    elif token == '-':
+    elif token == "-":
         reader.advance()
         seq.append(_INTEROP_PROP)
 
@@ -417,7 +442,7 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
 
     while True:
         token = reader.peek()
-        if token == '':
+        if token == "":
             raise SyntaxError(f"Unexpected EOF in list")
         if token == end_token:
             reader.next_token()
@@ -432,32 +457,32 @@ def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
 def _read_list(ctx: ReaderContext) -> llist.List:
     """Read a list element from the input stream."""
     start = ctx.reader.advance()
-    assert start == '('
-    if ctx.reader.peek() == '.':
-        return _read_interop(ctx, ')')
-    return _read_coll(ctx, llist.list, ')', 'list')
+    assert start == "("
+    if ctx.reader.peek() == ".":
+        return _read_interop(ctx, ")")
+    return _read_coll(ctx, llist.list, ")", "list")
 
 
 @_with_loc
 def _read_vector(ctx: ReaderContext) -> vector.Vector:
     """Read a vector element from the input stream."""
     start = ctx.reader.advance()
-    assert start == '['
-    return _read_coll(ctx, vector.vector, ']', 'vector')
+    assert start == "["
+    return _read_coll(ctx, vector.vector, "]", "vector")
 
 
 @_with_loc
 def _read_set(ctx: ReaderContext) -> lset.Set:
     """Return a set from the input stream."""
     start = ctx.reader.advance()
-    assert start == '{'
+    assert start == "{"
 
     def set_if_valid(s: Collection) -> lset.Set:
         if len(s) != len(set(s)):
             raise SyntaxError("Duplicated values in set")
         return lset.set(s)
 
-    return _read_coll(ctx, set_if_valid, '}', 'set')
+    return _read_coll(ctx, set_if_valid, "}", "set")
 
 
 @_with_loc
@@ -465,17 +490,17 @@ def _read_map(ctx: ReaderContext) -> lmap.Map:
     """Return a map from the input stream."""
     reader = ctx.reader
     start = reader.advance()
-    assert start == '{'
+    assert start == "{"
     d: MutableMapping[Any, Any] = {}
     while True:
-        if reader.peek() == '}':
+        if reader.peek() == "}":
             reader.next_token()
             break
         k = _read_next(ctx)
         if k is COMMENT:
             continue
         while True:
-            if reader.peek() == '}':
+            if reader.peek() == "}":
                 raise SyntaxError("Unexpected token '}'; expected map value")
             v = _read_next(ctx)
             if v is COMMENT:
@@ -495,7 +520,9 @@ MaybeSymbol = Union[bool, None, symbol.Symbol]
 MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
 
 
-def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disable=too-many-statements
+def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
+    ctx: ReaderContext
+) -> MaybeNumber:
     """Return a numeric (complex, Decimal, float, int, Fraction) from the input stream."""
     chars: List[str] = []
     reader = ctx.reader
@@ -507,7 +534,7 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disab
     is_ratio = False
     while True:
         token = reader.peek()
-        if token == '-':
+        if token == "-":
             following_token = reader.next_token()
             if not begin_num_chars.match(following_token):
                 reader.pushback()
@@ -515,28 +542,29 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disab
                     for _ in chars:
                         reader.pushback()
                 except IndexError:
-                    raise SyntaxError("Requested to pushback too many characters onto StreamReader")
+                    raise SyntaxError(
+                        "Requested to pushback too many characters onto StreamReader"
+                    )
                 return _read_sym(ctx)
             chars.append(token)
             continue
-        elif token == '.':
+        elif token == ".":
             if is_float:
-                raise SyntaxError(
-                    "Found extra '.' in float; expected decimal portion")
+                raise SyntaxError("Found extra '.' in float; expected decimal portion")
             is_float = True
-        elif token == 'J':
+        elif token == "J":
             if is_complex:
                 raise SyntaxError("Found extra 'J' suffix in complex literal")
             is_complex = True
-        elif token == 'M':
+        elif token == "M":
             if is_decimal:
                 raise SyntaxError("Found extra 'M' suffix in decimal literal")
             is_decimal = True
-        elif token == 'N':
+        elif token == "N":
             if is_integer:
                 raise SyntaxError("Found extra 'N' suffix in integer literal")
             is_integer = True
-        elif token == '/':
+        elif token == "/":
             if is_ratio:
                 raise SyntaxError("Found extra '/' in ratio literal")
             is_ratio = True
@@ -547,13 +575,20 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disab
 
     assert len(chars) > 0, "Must have at least one digit in integer or float"
 
-    s = ''.join(chars)
-    if sum([is_complex and is_decimal,
-            is_complex and is_integer,
-            is_complex and is_ratio,
-            is_decimal or is_float,
-            is_integer,
-            is_ratio]) > 1:
+    s = "".join(chars)
+    if (
+        sum(
+            [
+                is_complex and is_decimal,
+                is_complex and is_integer,
+                is_complex and is_ratio,
+                is_decimal or is_float,
+                is_integer,
+                is_ratio,
+            ]
+        )
+        > 1
+    ):
         raise SyntaxError(f"Invalid number format: {s}")
 
     if is_complex:
@@ -568,7 +603,7 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disab
         return float(s)
     elif is_ratio:
         assert "/" in s, "Ratio must contain one '/' character"
-        num, denominator = s.split('/')
+        num, denominator = s.split("/")
         return Fraction(numerator=int(num), denominator=int(denominator))
     elif is_integer:
         return int(s[:-1])
@@ -577,14 +612,14 @@ def _read_num(ctx: ReaderContext) -> MaybeNumber:  # noqa: C901  # pylint: disab
 
 _STR_ESCAPE_CHARS = {
     '"': '"',
-    '\\': '\\',
-    'a': '\a',
-    'b': '\b',
-    'f': '\f',
-    'n': '\n',
-    'r': '\r',
-    't': '\t',
-    'v': '\v'
+    "\\": "\\",
+    "a": "\a",
+    "b": "\b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "v": "\v",
 }
 
 
@@ -597,7 +632,7 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
     reader = ctx.reader
     while True:
         token = reader.next_token()
-        if token == '':
+        if token == "":
             raise SyntaxError("Unexpected EOF in string")
         if token == "\\":
             token = reader.next_token()
@@ -611,7 +646,7 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
                 raise SyntaxError("Unknown escape sequence: \\{token}")
         if token == '"':
             reader.next_token()
-            return ''.join(s)
+            return "".join(s)
         s.append(token)
 
 
@@ -623,17 +658,17 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
     to resolve the symbol using the resolver in the ReaderContext `ctx`.
     The resolver will look into the current namespace for an alias or
     namespace matching the symbol's namespace."""
-    ns, name = _read_namespaced(ctx, allowed_suffix='#')
-    if not ctx.is_syntax_quoted and name.endswith('#'):
+    ns, name = _read_namespaced(ctx, allowed_suffix="#")
+    if not ctx.is_syntax_quoted and name.endswith("#"):
         raise SyntaxError("Gensym may not appear outside syntax quote")
     if ns is None:
-        if name == 'nil':
+        if name == "nil":
             return None
-        elif name == 'true':
+        elif name == "true":
             return True
-        elif name == 'false':
+        elif name == "false":
             return False
-    if ctx.is_syntax_quoted and not name.endswith('#'):
+    if ctx.is_syntax_quoted and not name.endswith("#"):
         return ctx.resolve(symbol.symbol(name, ns))
     return symbol.symbol(name, ns=ns)
 
@@ -641,9 +676,9 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
 def _read_kw(ctx: ReaderContext) -> keyword.Keyword:
     """Return a keyword from the input stream."""
     start = ctx.reader.advance()
-    assert start == ':'
+    assert start == ":"
     ns, name = _read_namespaced(ctx)
-    if '.' in name:
+    if "." in name:
         raise SyntaxError("Found '.' in keyword name")
     return keyword.keyword(name, ns=ns)
 
@@ -652,26 +687,28 @@ def _read_meta(ctx: ReaderContext) -> lmeta.Meta:
     """Read metadata and apply that to the next object in the
     input stream."""
     start = ctx.reader.advance()
-    assert start == '^'
+    assert start == "^"
     meta = _read_next_consuming_comment(ctx)
 
     meta_map = None
     if isinstance(meta, symbol.Symbol):
-        meta_map = lmap.map({keyword.keyword('tag'): meta})
+        meta_map = lmap.map({keyword.keyword("tag"): meta})
     elif isinstance(meta, keyword.Keyword):
         meta_map = lmap.map({meta: True})
     elif isinstance(meta, lmap.Map):
         meta_map = meta
     else:
         raise SyntaxError(
-            f"Expected symbol, keyword, or map for metadata, not {type(meta)}")
+            f"Expected symbol, keyword, or map for metadata, not {type(meta)}"
+        )
 
     obj_with_meta = _read_next_consuming_comment(ctx)
     try:
         return obj_with_meta.with_meta(meta_map)  # type: ignore
     except AttributeError:
         raise SyntaxError(
-            f"Can not attach metadata to object of type {type(obj_with_meta)}")
+            f"Can not attach metadata to object of type {type(obj_with_meta)}"
+        )
 
 
 def _read_function(ctx: ReaderContext) -> llist.List:
@@ -685,15 +722,15 @@ def _read_function(ctx: ReaderContext) -> llist.List:
 
     def arg_suffix(arg_num):
         if arg_num is None:
-            return '1'
-        elif arg_num == '&':
-            return 'rest'
+            return "1"
+        elif arg_num == "&":
+            return "rest"
         else:
             return arg_num
 
     def sym_replacement(arg_num):
         suffix = arg_suffix(arg_num)
-        return symbol.symbol(f'arg-{suffix}')
+        return symbol.symbol(f"arg-{suffix}")
 
     def identify_and_replace(f):
         if isinstance(f, symbol.Symbol):
@@ -709,13 +746,13 @@ def _read_function(ctx: ReaderContext) -> llist.List:
     body = walk.postwalk(identify_and_replace, form) if len(form) > 0 else None
 
     arg_list: List[symbol.Symbol] = []
-    numbered_args = sorted(map(int, filter(lambda k: k != 'rest', arg_set)))
+    numbered_args = sorted(map(int, filter(lambda k: k != "rest", arg_set)))
     if len(numbered_args) > 0:
         max_arg = max(numbered_args)
         arg_list = [sym_replacement(str(i)) for i in range(1, max_arg + 1)]
-        if 'rest' in arg_set:
+        if "rest" in arg_set:
             arg_list.append(_AMPERSAND)
-            arg_list.append(sym_replacement('rest'))
+            arg_list.append(sym_replacement("rest"))
 
     return llist.l(_FN, vector.vector(arg_list), body)
 
@@ -744,7 +781,9 @@ def _is_unquote_splicing(form: LispForm) -> bool:
         return False
 
 
-def _expand_syntax_quote(ctx: ReaderContext, form: IterableLispForm) -> Iterable[LispForm]:
+def _expand_syntax_quote(
+    ctx: ReaderContext, form: IterableLispForm
+) -> Iterable[LispForm]:
     """Expand syntax quoted forms to handle unquoting and unquote-splicing.
 
     The unquoted form (unquote x) becomes:
@@ -849,7 +888,7 @@ def _read_unquote(ctx: ReaderContext) -> LispForm:
 
     with ctx.unquoted():
         next_char = ctx.reader.peek()
-        if next_char == '@':
+        if next_char == "@":
             ctx.reader.advance()
             next_form = _read_next_consuming_comment(ctx)
             return llist.l(_UNQUOTE_SPLICING, next_form)
@@ -867,12 +906,12 @@ def _read_deref(ctx: ReaderContext) -> LispForm:
 
 
 _SPECIAL_CHARS = {
-    'newline': '\n',
-    'space': ' ',
-    'tab': '\t',
-    'formfeed': '\f',
-    'backspace': '\b',
-    'return': '\r'
+    "newline": "\n",
+    "space": " ",
+    "tab": "\t",
+    "formfeed": "\f",
+    "backspace": "\b",
+    "return": "\r",
 }
 
 
@@ -894,14 +933,14 @@ def _read_character(ctx: ReaderContext) -> str:
     reader = ctx.reader
     token = reader.peek()
     while True:
-        if token == '' or whitespace_chars.match(token):
+        if token == "" or whitespace_chars.match(token):
             break
         if not alphanumeric_chars.match(token):
             break
         s.append(token)
         token = reader.next_token()
 
-    char = ''.join(s)
+    char = "".join(s)
     special = _SPECIAL_CHARS.get(char, None)
     if special is not None:
         return special
@@ -932,9 +971,9 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
     """Return a data structure evaluated as a reader
     macro from the input stream."""
     start = ctx.reader.advance()
-    assert start == '#'
+    assert start == "#"
     token = ctx.reader.peek()
-    if token == '{':
+    if token == "{":
         return _read_set(ctx)
     elif token == "(":
         return _read_function(ctx)
@@ -966,13 +1005,13 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
     Return the next form after the next line break."""
     reader = ctx.reader
     start = reader.advance()
-    assert start == ';'
+    assert start == ";"
     while True:
         token = reader.peek()
         if newline_chars.match(token):
             reader.advance()
             return _read_next(ctx)
-        if token == '':
+        if token == "":
             return ctx.eof
         reader.advance()
 
@@ -993,50 +1032,52 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
     """Read the next full form from the input stream."""
     reader = ctx.reader
     token = reader.peek()
-    if token == '(':
+    if token == "(":
         return _read_list(ctx)
-    elif token == '[':
+    elif token == "[":
         return _read_vector(ctx)
-    elif token == '{':
+    elif token == "{":
         return _read_map(ctx)
     elif begin_num_chars.match(token):
         return _read_num(ctx)
     elif whitespace_chars.match(token):
         reader.next_token()
         return _read_next(ctx)
-    elif token == ':':
+    elif token == ":":
         return _read_kw(ctx)
     elif token == '"':
         return _read_str(ctx)
     elif token == "'":
         return _read_quoted(ctx)
-    elif token == '\\':
+    elif token == "\\":
         return _read_character(ctx)
     elif ns_name_chars.match(token):
         return _read_sym(ctx)
-    elif token == '#':
+    elif token == "#":
         return _read_reader_macro(ctx)
-    elif token == '^':
+    elif token == "^":
         return _read_meta(ctx)  # type: ignore
-    elif token == ';':
+    elif token == ";":
         return _read_comment(ctx)
-    elif token == '`':
+    elif token == "`":
         return _read_syntax_quoted(ctx)
-    elif token == '~':
+    elif token == "~":
         return _read_unquote(ctx)
-    elif token == '@':
+    elif token == "@":
         return _read_deref(ctx)
-    elif token == '':
+    elif token == "":
         return ctx.eof
     else:
         raise SyntaxError("Unexpected token '{token}'".format(token=token))
 
 
-def read(stream,
-         resolver: Resolver = None,
-         data_readers: DataReaders = None,
-         eof: Any = EOF,
-         is_eof_error: bool = False) -> Iterable[LispForm]:
+def read(
+    stream,
+    resolver: Resolver = None,
+    data_readers: DataReaders = None,
+    eof: Any = EOF,
+    is_eof_error: bool = False,
+) -> Iterable[LispForm]:
     """Read the contents of a stream as a Lisp expression.
 
     Callers may optionally specify a namespace resolver, which will be used
@@ -1063,35 +1104,43 @@ def read(stream,
         yield expr
 
 
-def read_str(s: str,
-             resolver: Resolver = None,
-             data_readers: DataReaders = None,
-             eof: Any = None,
-             is_eof_error: bool = False) -> Iterable[LispForm]:
+def read_str(
+    s: str,
+    resolver: Resolver = None,
+    data_readers: DataReaders = None,
+    eof: Any = None,
+    is_eof_error: bool = False,
+) -> Iterable[LispForm]:
     """Read the contents of a string as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
     basilisp.lang.reader.read."""
     with io.StringIO(s) as buf:
-        yield from read(buf,
-                        resolver=resolver,
-                        data_readers=data_readers,
-                        eof=eof,
-                        is_eof_error=is_eof_error)
+        yield from read(
+            buf,
+            resolver=resolver,
+            data_readers=data_readers,
+            eof=eof,
+            is_eof_error=is_eof_error,
+        )
 
 
-def read_file(filename: str,
-              resolver: Resolver = None,
-              data_readers: DataReaders = None,
-              eof: Any = None,
-              is_eof_error: bool = False) -> Iterable[LispForm]:
+def read_file(
+    filename: str,
+    resolver: Resolver = None,
+    data_readers: DataReaders = None,
+    eof: Any = None,
+    is_eof_error: bool = False,
+) -> Iterable[LispForm]:
     """Read the contents of a file as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
     basilisp.lang.reader.read."""
     with open(filename) as f:
-        yield from read(f,
-                        resolver=resolver,
-                        data_readers=data_readers,
-                        eof=eof,
-                        is_eof_error=is_eof_error)
+        yield from read(
+            f,
+            resolver=resolver,
+            data_readers=data_readers,
+            eof=eof,
+            is_eof_error=is_eof_error,
+        )

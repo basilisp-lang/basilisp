@@ -17,9 +17,8 @@ def trace(f):
         calling_frame = inspect.getframeinfo(inspect.stack()[1][0])
         filename = os.path.relpath(calling_frame.filename)
         lineno = calling_frame.lineno
-        strargs = ', '.join(map(repr, args))
-        strkwargs = ', '.join(
-            [f'{lrepr(k)}={lrepr(v)}' for k, v in kwargs.items()])
+        strargs = ", ".join(map(repr, args))
+        strkwargs = ", ".join([f"{lrepr(k)}={lrepr(v)}" for k, v in kwargs.items()])
 
         try:
             ret = f(*args, **kwargs)
@@ -44,16 +43,16 @@ def timed(f: Optional[Callable[[int], None]] = None):
     yield
     end = time.perf_counter()
     if f:
-        ns = int((end - start) * 1000000000)
+        ns = int((end - start) * 1_000_000_000)
         f(ns)
 
 
-T = TypeVar('T')
-U = TypeVar('U')
+T = TypeVar("T")
+U = TypeVar("U")
 
 
 class Maybe(Generic[T]):
-    __slots__ = ('_inner', )
+    __slots__ = ("_inner",)
 
     def __init__(self, inner: Optional[T]) -> None:
         self._inner = inner  # pylint:disable=assigning-non-slot

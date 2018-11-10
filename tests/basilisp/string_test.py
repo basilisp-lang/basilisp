@@ -126,11 +126,15 @@ def test_reverse():
 
 
 def test_split():
-    assert vec.v("Basilisp", "is", "awesome!") == lstr.split("Basilisp is awesome!", re.compile(" "))
+    assert vec.v("Basilisp", "is", "awesome!") == lstr.split(
+        "Basilisp is awesome!", re.compile(" ")
+    )
     assert vec.v("q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "") == lstr.split(
-        "q1w2e3r4t5y6u7i8o9p0", re.compile(r"\d+"))
+        "q1w2e3r4t5y6u7i8o9p0", re.compile(r"\d+")
+    )
     assert vec.v("q", "w", "e", "r", "t5y6u7i8o9p0") == lstr.split(
-        "q1w2e3r4t5y6u7i8o9p0", re.compile(r"\d+"), 5)
+        "q1w2e3r4t5y6u7i8o9p0", re.compile(r"\d+"), 5
+    )
 
     assert vec.v(" ", "q", "1", "w", "2", " ") == lstr.split(" q1w2 ", re.compile(""))
     assert vec.v(" ", "q", "1", "w", "2", " ") == lstr.split(" q1w2 ", "")
@@ -150,9 +154,15 @@ def test_split():
 
 def test_split_lines():
     assert vec.Vector.empty() == lstr.split_lines("")
-    assert vec.v("Hello, my name is Chris.") == lstr.split_lines("Hello, my name is Chris.")
-    assert vec.v("Hello,", " my name is Chris.") == lstr.split_lines("Hello,\n my name is Chris.")
-    assert vec.v("Hello,", " my name ", " is Chris.") == lstr.split_lines("Hello,\n my name \r is Chris.")
+    assert vec.v("Hello, my name is Chris.") == lstr.split_lines(
+        "Hello, my name is Chris."
+    )
+    assert vec.v("Hello,", " my name is Chris.") == lstr.split_lines(
+        "Hello,\n my name is Chris."
+    )
+    assert vec.v("Hello,", " my name ", " is Chris.") == lstr.split_lines(
+        "Hello,\n my name \r is Chris."
+    )
 
 
 def test_lpad():
@@ -173,26 +183,42 @@ def test_rpad():
 
 def test_replace():
     assert "The color is red" == lstr.replace("The color is blue", "blue", "red")
-    assert "The color is red" == lstr.replace("The color is blue", re.compile("blue"), "red")
+    assert "The color is red" == lstr.replace(
+        "The color is blue", re.compile("blue"), "red"
+    )
 
     assert "Thee cooloor iis reed" == lstr.replace(
-        "The color is red", re.compile("[aeiou]"), lambda v: f"{v}{v}")
+        "The color is red", re.compile("[aeiou]"), lambda v: f"{v}{v}"
+    )
 
-    assert "1 2 1" == lstr.replace("a b a", re.compile("[ab]"), lmap.map({"a": "1", "b": "2"}))
+    assert "1 2 1" == lstr.replace(
+        "a b a", re.compile("[ab]"), lmap.map({"a": "1", "b": "2"})
+    )
 
-    assert "Unchanged" == lstr.replace("Unchanged", re.compile("Different"), "Not the same")
+    assert "Unchanged" == lstr.replace(
+        "Unchanged", re.compile("Different"), "Not the same"
+    )
 
 
 def test_replace_first():
-    assert "The color is red blue" == lstr.replace_first("The color is blue blue", "blue", "red")
-    assert "The color is red blue" == lstr.replace_first("The color is blue blue", re.compile("blue"), "red")
+    assert "The color is red blue" == lstr.replace_first(
+        "The color is blue blue", "blue", "red"
+    )
+    assert "The color is red blue" == lstr.replace_first(
+        "The color is blue blue", re.compile("blue"), "red"
+    )
 
     assert "Thee color is red" == lstr.replace_first(
-        "The color is red", re.compile("[aeiou]"), lambda v: f"{v}{v}")
+        "The color is red", re.compile("[aeiou]"), lambda v: f"{v}{v}"
+    )
 
-    assert "1 b a" == lstr.replace_first("a b a", re.compile("[ab]"), lmap.map({"a": "1", "b": "2"}))
+    assert "1 b a" == lstr.replace_first(
+        "a b a", re.compile("[ab]"), lmap.map({"a": "1", "b": "2"})
+    )
 
-    assert "Unchanged" == lstr.replace_first("Unchanged", re.compile("Different"), "Not the same")
+    assert "Unchanged" == lstr.replace_first(
+        "Unchanged", re.compile("Different"), "Not the same"
+    )
 
 
 def test_trim():

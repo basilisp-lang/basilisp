@@ -4,6 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [dev-packages]
+black = "*"
 pytest-pycharm = "*"
 sphinx = "*"
 sphinx-rtd-theme = "*"
@@ -14,12 +15,15 @@ twine = "*"
 [packages]
 astor = "*"
 atomos = "*"
+basilisp = {editable = true, path = "."}
 click = "*"
 pyfunctional = "*"
 pyrsistent = "*"
 python-dateutil = "*"
-basilisp = {editable = true, path = "."}
 pytest = "*"
 
 [requires]
 python_version = "3.6"
+
+[pipenv]
+allow_prereleases = true

@@ -14,8 +14,20 @@ from decimal import Decimal
 from enum import Enum
 from fractions import Fraction
 from itertools import chain
-from typing import (Dict, Iterable, Pattern, Tuple, Optional, List, Union, Callable, NamedTuple, cast, Deque,
-                    Any)
+from typing import (
+    Dict,
+    Iterable,
+    Pattern,
+    Tuple,
+    Optional,
+    List,
+    Union,
+    Callable,
+    NamedTuple,
+    cast,
+    Deque,
+    Any,
+)
 
 import astor.code_gen as codegen
 from functional import seq
@@ -39,23 +51,23 @@ from basilisp.util import Maybe, partition
 logger = logging.getLogger(__name__)
 
 # Compiler options
-USE_VAR_INDIRECTION = 'use_var_indirection'
-WARN_ON_SHADOWED_NAME = 'warn_on_shadowed_name'
-WARN_ON_SHADOWED_VAR = 'warn_on_shadowed_var'
-WARN_ON_VAR_INDIRECTION = 'warn_on_var_indirection'
+USE_VAR_INDIRECTION = "use_var_indirection"
+WARN_ON_SHADOWED_NAME = "warn_on_shadowed_name"
+WARN_ON_SHADOWED_VAR = "warn_on_shadowed_var"
+WARN_ON_VAR_INDIRECTION = "warn_on_var_indirection"
 
-_BUILTINS_NS = 'builtins'
-_CORE_NS = 'basilisp.core'
-_DEFAULT_FN = '__lisp_expr__'
-_DO_PREFIX = 'lisp_do'
-_FN_PREFIX = 'lisp_fn'
-_IF_PREFIX = 'lisp_if'
-_IF_TEST_PREFIX = 'if_test'
-_MULTI_ARITY_ARG_NAME = 'multi_arity_args'
-_THROW_PREFIX = 'lisp_throw'
-_TRY_PREFIX = 'lisp_try'
-_NS_VAR = '__NS'
-_LISP_NS_VAR = '*ns*'
+_BUILTINS_NS = "builtins"
+_CORE_NS = "basilisp.core"
+_DEFAULT_FN = "__lisp_expr__"
+_DO_PREFIX = "lisp_do"
+_FN_PREFIX = "lisp_fn"
+_IF_PREFIX = "lisp_if"
+_IF_TEST_PREFIX = "if_test"
+_MULTI_ARITY_ARG_NAME = "multi_arity_args"
+_THROW_PREFIX = "lisp_throw"
+_TRY_PREFIX = "lisp_try"
+_NS_VAR = "__NS"
+_LISP_NS_VAR = "*ns*"
 
 _AMPERSAND = sym.symbol("&")
 _CATCH = sym.symbol("catch")
@@ -73,16 +85,29 @@ _RECUR = sym.symbol("recur")
 _THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
-_SPECIAL_FORMS = lset.s(_DEF, _DO, _FN, _IF, _IMPORT, _INTEROP_CALL,
-                        _INTEROP_PROP, _LET, _QUOTE, _RECUR, _THROW,
-                        _TRY, _VAR)
+_SPECIAL_FORMS = lset.s(
+    _DEF,
+    _DO,
+    _FN,
+    _IF,
+    _IMPORT,
+    _INTEROP_CALL,
+    _INTEROP_PROP,
+    _LET,
+    _QUOTE,
+    _RECUR,
+    _THROW,
+    _TRY,
+    _VAR,
+)
 
 _UNQUOTE = sym.symbol("unquote", _CORE_NS)
 _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
 
 _SYM_CTX_LOCAL_STARRED = kw.keyword(
-    'local-starred', ns='basilisp.lang.compiler.var-context')
-_SYM_CTX_LOCAL = kw.keyword('local', ns='basilisp.lang.compiler.var-context')
+    "local-starred", ns="basilisp.lang.compiler.var-context"
+)
+_SYM_CTX_LOCAL = kw.keyword("local", ns="basilisp.lang.compiler.var-context")
 
 SymbolTableEntry = Tuple[str, kw.Keyword, sym.Symbol]
 
@@ -90,13 +115,15 @@ SymbolTableEntry = Tuple[str, kw.Keyword, sym.Symbol]
 class SymbolTable:
     CONTEXTS = frozenset([_SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED])
 
-    __slots__ = ('_name', '_parent', '_table', '_children')
+    __slots__ = ("_name", "_parent", "_table", "_children")
 
-    def __init__(self,
-                 name: str,
-                 parent: 'SymbolTable' = None,
-                 table: Dict[sym.Symbol, SymbolTableEntry] = None,
-                 children: Dict[str, 'SymbolTable'] = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        parent: "SymbolTable" = None,
+        table: Dict[sym.Symbol, SymbolTableEntry] = None,
+        children: Dict[str, "SymbolTable"] = None,
+    ) -> None:
         self._name = name
         self._parent = parent
         self._table = {} if table is None else table
@@ -107,11 +134,12 @@ class SymbolTable:
         return self._name
 
     def __repr__(self):
-        return (f"SymbolTable({self._name}, parent={repr(self._parent.name)}, "
-                f"table={repr(self._table)}, children={len(self._children)})")
+        return (
+            f"SymbolTable({self._name}, parent={repr(self._parent.name)}, "
+            f"table={repr(self._table)}, children={len(self._children)})"
+        )
 
-    def new_symbol(self, s: sym.Symbol, munged: str,
-                   ctx: kw.Keyword) -> 'SymbolTable':
+    def new_symbol(self, s: sym.Symbol, munged: str, ctx: kw.Keyword) -> "SymbolTable":
         if ctx not in SymbolTable.CONTEXTS:
             raise TypeError(f"Context {ctx} not a valid Symbol Context")
         self._table[s] = (munged, ctx, s)
@@ -124,8 +152,7 @@ class SymbolTable:
             return None
         return self._parent.find_symbol(s)
 
-    def append_frame(self, name: str,
-                     parent: 'SymbolTable' = None) -> 'SymbolTable':
+    def append_frame(self, name: str, parent: "SymbolTable" = None) -> "SymbolTable":
         new_frame = SymbolTable(name, parent=parent)
         self._children[name] = new_frame
         return new_frame
@@ -141,7 +168,7 @@ class SymbolTable:
 
 
 class RecurPoint:
-    __slots__ = ('name', 'args', 'has_recur')
+    __slots__ = ("name", "args", "has_recur")
 
     def __init__(self, name: str, args: vec.Vector) -> None:
         self.name = name
@@ -150,10 +177,10 @@ class RecurPoint:
 
 
 class CompilerContext:
-    __slots__ = ('_st', '_is_quoted', '_opts', '_recur_points')
+    __slots__ = ("_st", "_is_quoted", "_opts", "_recur_points")
 
     def __init__(self, opts: Dict[str, bool] = None) -> None:
-        self._st = collections.deque([SymbolTable('<Top>')])
+        self._st = collections.deque([SymbolTable("<Top>")])
         self._is_quoted: Deque[bool] = collections.deque([])
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
         self._recur_points: Deque[RecurPoint] = collections.deque([])
@@ -184,13 +211,17 @@ class CompilerContext:
 
         Implied by warn_on_shadowed_name. The value of warn_on_shadowed_name
         supersedes the value of this flag."""
-        return self.warn_on_shadowed_name or self._opts.entry(WARN_ON_SHADOWED_VAR, True)
+        return self.warn_on_shadowed_name or self._opts.entry(
+            WARN_ON_SHADOWED_VAR, True
+        )
 
     @property
     def warn_on_var_indirection(self) -> bool:
         """If True, warn when a Var reference cannot be direct linked (iff
         use_var_indirection is False).."""
-        return not self.use_var_indirection and self._opts.entry(WARN_ON_VAR_INDIRECTION, True)
+        return not self.use_var_indirection and self._opts.entry(
+            WARN_ON_VAR_INDIRECTION, True
+        )
 
     @property
     def recur_point(self):
@@ -242,14 +273,14 @@ class CompilerException(Exception):
 def _load_attr(name: str) -> ast.Attribute:
     """Generate recursive Python Attribute AST nodes for resolving nested
     names."""
-    attrs = name.split('.')
+    attrs = name.split(".")
 
     def attr_node(node, idx):
         if idx >= len(attrs):
             return node
         return attr_node(
-            ast.Attribute(value=node, attr=attrs[idx], ctx=ast.Load()),
-            idx + 1)
+            ast.Attribute(value=node, attr=attrs[idx], ctx=ast.Load()), idx + 1
+        )
 
     return attr_node(ast.Name(id=attrs[0], ctx=ast.Load()), 1)
 
@@ -265,6 +296,7 @@ class ASTNode(NamedTuple):
 
     Node types can be either 'dependent' or 'node'. 'dependent' type nodes
     are those which must appear _before_ the generated 'node'(s)."""
+
     type: ASTNodeType
     node: ast.AST
 
@@ -304,7 +336,9 @@ def _unwrap_node(n: Optional[MixedNode]) -> ast.AST:
     elif isinstance(n, ast.AST):
         return n
     else:
-        raise CompilerException(f"Cannot unwrap object of type {type(n)}: {n}") from None
+        raise CompilerException(
+            f"Cannot unwrap object of type {type(n)}: {n}"
+        ) from None
 
 
 def _unwrap_nodes(s: MixedNodeStream) -> List[ast.AST]:
@@ -326,7 +360,10 @@ def _nodes_and_expr(s: ASTStream) -> Tuple[ASTStream, Optional[ASTNode]]:
     final expression."""
     inits, tail = _nodes_and_exprl(s)
     try:
-        assert len(tail) in [0, 1], "Use of _nodes_and_expr function with greater than 1 expression"
+        assert len(tail) in [
+            0,
+            1,
+        ], "Use of _nodes_and_expr function with greater than 1 expression"
         return inits, tail[0]
     except IndexError:
         return inits, None
@@ -337,40 +374,45 @@ def _statementize(e: ast.AST) -> ast.AST:
     stand alone as statements."""
     # noinspection PyPep8
     if isinstance(
-            e,
-            (ast.Assign,
-             ast.AnnAssign,  # type: ignore
-             ast.AugAssign,
-             ast.Raise,
-             ast.Assert,
-             ast.Pass,
-             ast.Import,
-             ast.ImportFrom,
-             ast.If,
-             ast.For,
-             ast.While,
-             ast.Continue,
-             ast.Break,
-             ast.Try,
-             ast.ExceptHandler,
-             ast.With,
-             ast.FunctionDef,
-             ast.Return,
-             ast.Yield,
-             ast.YieldFrom,
-             ast.Global,
-             ast.ClassDef,
-             ast.AsyncFunctionDef,
-             ast.AsyncFor,
-             ast.AsyncWith)):
+        e,
+        (
+            ast.Assign,
+            ast.AnnAssign,  # type: ignore
+            ast.AugAssign,
+            ast.Raise,
+            ast.Assert,
+            ast.Pass,
+            ast.Import,
+            ast.ImportFrom,
+            ast.If,
+            ast.For,
+            ast.While,
+            ast.Continue,
+            ast.Break,
+            ast.Try,
+            ast.ExceptHandler,
+            ast.With,
+            ast.FunctionDef,
+            ast.Return,
+            ast.Yield,
+            ast.YieldFrom,
+            ast.Global,
+            ast.ClassDef,
+            ast.AsyncFunctionDef,
+            ast.AsyncFor,
+            ast.AsyncWith,
+        ),
+    ):
         return e
     return ast.Expr(value=e)
 
 
-def _expressionize(body: MixedNodeStream,
-                   fn_name: str,
-                   args: Optional[Iterable[ast.arg]] = None,
-                   vargs: Optional[ast.arg] = None) -> ast.FunctionDef:
+def _expressionize(
+    body: MixedNodeStream,
+    fn_name: str,
+    args: Optional[Iterable[ast.arg]] = None,
+    vargs: Optional[ast.arg] = None,
+) -> ast.FunctionDef:
     """Given a series of expression AST nodes, create a function AST node
     with the given name that can be called and will return the result of
     the final expression in the input body nodes.
@@ -383,8 +425,7 @@ def _expressionize(body: MixedNodeStream,
     body_list = _unwrap_nodes(body)
     try:
         if len(body_list) > 1:
-            body_nodes.extend(
-                seq(body_list).drop_right(1).map(_statementize).to_list())
+            body_nodes.extend(seq(body_list).drop_right(1).map(_statementize).to_list())
         body_nodes.append(ast.Return(value=seq(body_list).last()))
     except TypeError:
         body_nodes.append(ast.Return(value=body_list))
@@ -397,42 +438,44 @@ def _expressionize(body: MixedNodeStream,
             vararg=vargs,
             kwonlyargs=[],
             defaults=[],
-            kw_defaults=[]),
+            kw_defaults=[],
+        ),
         body=body_nodes,
         decorator_list=[],
-        returns=None)
+        returns=None,
+    )
 
 
-_KW_ALIAS = genname('kw')
-_LIST_ALIAS = genname('llist')
-_MAP_ALIAS = genname('lmap')
-_RUNTIME_ALIAS = genname('runtime')
-_SET_ALIAS = genname('lset')
-_SYM_ALIAS = genname('sym')
-_VEC_ALIAS = genname('vec')
-_VAR_ALIAS = genname('Var')
-_UTIL_ALIAS = genname('langutil')
-_NS_VAR_VALUE = f'{_NS_VAR}.value'
+_KW_ALIAS = genname("kw")
+_LIST_ALIAS = genname("llist")
+_MAP_ALIAS = genname("lmap")
+_RUNTIME_ALIAS = genname("runtime")
+_SET_ALIAS = genname("lset")
+_SYM_ALIAS = genname("sym")
+_VEC_ALIAS = genname("vec")
+_VAR_ALIAS = genname("Var")
+_UTIL_ALIAS = genname("langutil")
+_NS_VAR_VALUE = f"{_NS_VAR}.value"
 
-_NS_VAR_NAME = _load_attr(f'{_NS_VAR_VALUE}.name')
-_NEW_DECIMAL_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.decimal_from_str')
-_NEW_FRACTION_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.fraction')
-_NEW_INST_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.inst_from_str')
-_NEW_KW_FN_NAME = _load_attr(f'{_KW_ALIAS}.keyword')
-_NEW_LIST_FN_NAME = _load_attr(f'{_LIST_ALIAS}.list')
-_EMPTY_LIST_FN_NAME = _load_attr(f'{_LIST_ALIAS}.List.empty')
-_NEW_MAP_FN_NAME = _load_attr(f'{_MAP_ALIAS}.map')
-_NEW_REGEX_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.regex_from_str')
-_NEW_SET_FN_NAME = _load_attr(f'{_SET_ALIAS}.set')
-_NEW_SYM_FN_NAME = _load_attr(f'{_SYM_ALIAS}.symbol')
-_NEW_UUID_FN_NAME = _load_attr(f'{_UTIL_ALIAS}.uuid_from_str')
-_NEW_VEC_FN_NAME = _load_attr(f'{_VEC_ALIAS}.vector')
-_INTERN_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.intern')
-_FIND_VAR_FN_NAME = _load_attr(f'{_VAR_ALIAS}.find_safe')
-_COLLECT_ARGS_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}._collect_args')
-_COERCE_SEQ_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}.to_seq')
-_TRAMPOLINE_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}._trampoline')
-_TRAMPOLINE_ARGS_FN_NAME = _load_attr(f'{_RUNTIME_ALIAS}._TrampolineArgs')
+_NS_VAR_NAME = _load_attr(f"{_NS_VAR_VALUE}.name")
+_NEW_DECIMAL_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.decimal_from_str")
+_NEW_FRACTION_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.fraction")
+_NEW_INST_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.inst_from_str")
+_NEW_KW_FN_NAME = _load_attr(f"{_KW_ALIAS}.keyword")
+_NEW_LIST_FN_NAME = _load_attr(f"{_LIST_ALIAS}.list")
+_EMPTY_LIST_FN_NAME = _load_attr(f"{_LIST_ALIAS}.List.empty")
+_NEW_MAP_FN_NAME = _load_attr(f"{_MAP_ALIAS}.map")
+_NEW_REGEX_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.regex_from_str")
+_NEW_SET_FN_NAME = _load_attr(f"{_SET_ALIAS}.set")
+_NEW_SYM_FN_NAME = _load_attr(f"{_SYM_ALIAS}.symbol")
+_NEW_UUID_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.uuid_from_str")
+_NEW_VEC_FN_NAME = _load_attr(f"{_VEC_ALIAS}.vector")
+_INTERN_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern")
+_FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
+_COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
+_COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
+_TRAMPOLINE_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._trampoline")
+_TRAMPOLINE_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._TrampolineArgs")
 
 
 def _clean_meta(form: lmeta.Meta) -> LispForm:
@@ -446,12 +489,13 @@ def _clean_meta(form: lmeta.Meta) -> LispForm:
     return meta
 
 
-def _meta_kwargs_ast(ctx: CompilerContext,  # pylint:disable=inconsistent-return-statements
-                     form: lmeta.Meta) -> ASTStream:
-    if hasattr(form, 'meta') and form.meta is not None:
+def _meta_kwargs_ast(  # pylint:disable=inconsistent-return-statements
+    ctx: CompilerContext, form: lmeta.Meta
+) -> ASTStream:
+    if hasattr(form, "meta") and form.meta is not None:
         meta_nodes, meta = _nodes_and_expr(_to_ast(ctx, _clean_meta(form)))
         yield from meta_nodes
-        yield _node(ast.keyword(arg='meta', value=_unwrap_node(meta)))
+        yield _node(ast.keyword(arg="meta", value=_unwrap_node(meta)))
     else:
         return []
 
@@ -465,32 +509,40 @@ _SYM_REDEF_META_KEY = kw.keyword("redef")
 def _is_dynamic(v: Var) -> bool:
     """Return True if the Var holds a value which should be compiled to a dynamic
     Var access."""
-    return Maybe(v.meta).map(
-        lambda m: m.get(_SYM_DYNAMIC_META_KEY, None)  # type: ignore
-    ).or_else_get(False)
+    return (
+        Maybe(v.meta)
+        .map(lambda m: m.get(_SYM_DYNAMIC_META_KEY, None))  # type: ignore
+        .or_else_get(False)
+    )
 
 
 def _is_macro(v: Var) -> bool:
     """Return True if the Var holds a macro function."""
-    return Maybe(v.meta).map(
-        lambda m: m.get(_SYM_MACRO_META_KEY, None)  # type: ignore
-    ).or_else_get(False)
+    return (
+        Maybe(v.meta)
+        .map(lambda m: m.get(_SYM_MACRO_META_KEY, None))  # type: ignore
+        .or_else_get(False)
+    )
 
 
 def _is_redefable(v: Var) -> bool:
     """Return True if the Var can be redefined."""
-    return Maybe(v.meta).map(
-        lambda m: m.get(_SYM_REDEF_META_KEY, None)  # type: ignore
-    ).or_else_get(False)
+    return (
+        Maybe(v.meta)
+        .map(lambda m: m.get(_SYM_REDEF_META_KEY, None))  # type: ignore
+        .or_else_get(False)
+    )
 
 
-def _new_symbol(ctx: CompilerContext,  # pylint: disable=too-many-arguments
-                s: sym.Symbol,
-                munged: str,
-                sym_ctx: kw.Keyword,
-                st: Optional[SymbolTable] = None,
-                warn_on_shadowed_name: bool = True,
-                warn_on_shadowed_var: bool = True):
+def _new_symbol(  # pylint: disable=too-many-arguments
+    ctx: CompilerContext,
+    s: sym.Symbol,
+    munged: str,
+    sym_ctx: kw.Keyword,
+    st: Optional[SymbolTable] = None,
+    warn_on_shadowed_name: bool = True,
+    warn_on_shadowed_var: bool = True,
+):
     """Add a new symbol to the symbol table.
 
     This function allows individual warnings to be disabled for one run
@@ -524,7 +576,8 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     ns_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[_NS_VAR_NAME], keywords=[])
     def_name = ast.Call(
-        func=_NEW_SYM_FN_NAME, args=[ast.Str(form[1].name)], keywords=[])
+        func=_NEW_SYM_FN_NAME, args=[ast.Str(form[1].name)], keywords=[]
+    )
     safe_name = munge(form[1].name)
 
     try:
@@ -536,28 +589,42 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     # If the Var is marked as dynamic, we need to generate a keyword argument
     # for the generated Python code to set the Var as dynamic
-    dynamic_kwarg = Maybe(form[1].meta) \
-        .map(lambda m: m.get(_SYM_DYNAMIC_META_KEY, None)  # type: ignore
-             ) \
-        .map(lambda v: [ast.keyword(arg='dynamic', value=ast.NameConstant(v))]) \
+    dynamic_kwarg = (
+        Maybe(form[1].meta)
+        .map(lambda m: m.get(_SYM_DYNAMIC_META_KEY, None))  # type: ignore
+        .map(lambda v: [ast.keyword(arg="dynamic", value=ast.NameConstant(v))])
         .or_else_get([])
+    )
 
     yield from meta_nodes
     yield from def_nodes
 
     if safe_name in ctx.current_ns.module.__dict__ or form[1] in ctx.current_ns.interns:
-        no_warn_on_redef = (Maybe(form[1].meta)
+        no_warn_on_redef = (
+            Maybe(form[1].meta)
             .map(lambda m: m.get(_SYM_NO_WARN_ON_REDEF_META_KEY, False))  # type: ignore
-            .or_else_get(False))
+            .or_else_get(False)
+        )
         if not no_warn_on_redef:
-            logger.warning(f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'")
+            logger.warning(
+                f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'"
+            )
 
-    yield _dependency(ast.Assign(targets=[ast.Name(id=safe_name, ctx=ast.Store())],
-                                 value=Maybe(def_value).map(_unwrap_node).or_else_get(ast.NameConstant(None))))
-    yield _node(ast.Call(
-        func=_INTERN_VAR_FN_NAME,
-        args=[ns_name, def_name, ast.Name(id=safe_name, ctx=ast.Load())],
-        keywords=list(chain(dynamic_kwarg, _unwrap_nodes(meta)))))  # type: ignore
+    yield _dependency(
+        ast.Assign(
+            targets=[ast.Name(id=safe_name, ctx=ast.Store())],
+            value=Maybe(def_value)
+            .map(_unwrap_node)
+            .or_else_get(ast.NameConstant(None)),
+        )
+    )
+    yield _node(
+        ast.Call(
+            func=_INTERN_VAR_FN_NAME,
+            args=[ns_name, def_name, ast.Name(id=safe_name, ctx=ast.Load())],
+            keywords=list(chain(dynamic_kwarg, _unwrap_nodes(meta))),  # type: ignore
+        )
+    )
 
 
 def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -568,18 +635,21 @@ def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     do_fn_name = genname(_DO_PREFIX)
 
     yield _dependency(_expressionize(body, do_fn_name))
-    yield _node(ast.Call(
-        func=ast.Name(id=do_fn_name, ctx=ast.Load()), args=[], keywords=[]))
+    yield _node(
+        ast.Call(func=ast.Name(id=do_fn_name, ctx=ast.Load()), args=[], keywords=[])
+    )
 
 
 FunctionDefDetails = Tuple[List[ast.arg], ASTStream, Optional[ast.arg]]
 
 
-def _fn_args_body(ctx: CompilerContext,  # pylint:disable=too-many-locals
-                  arg_vec: vec.Vector,
-                  body_exprs: lseq.Seq,
-                  warn_on_shadowed_name: bool = True,
-                  warn_on_shadowed_var: bool = True) -> FunctionDefDetails:
+def _fn_args_body(  # pylint:disable=too-many-locals
+    ctx: CompilerContext,
+    arg_vec: vec.Vector,
+    body_exprs: lseq.Seq,
+    warn_on_shadowed_name: bool = True,
+    warn_on_shadowed_var: bool = True,
+) -> FunctionDefDetails:
     """Generate the Python AST Nodes for a Lisp function argument vector
     and body expressions. Return a tuple of arg nodes and body AST nodes."""
     st = ctx.symbol_table
@@ -592,9 +662,15 @@ def _fn_args_body(ctx: CompilerContext,  # pylint:disable=too-many-locals
             vargs_idx = i
             break
         safe = genname(munge(s.name))
-        _new_symbol(ctx, s, safe, _SYM_CTX_LOCAL, st=st,
-                    warn_on_shadowed_name=warn_on_shadowed_name,
-                    warn_on_shadowed_var=warn_on_shadowed_var)
+        _new_symbol(
+            ctx,
+            s,
+            safe,
+            _SYM_CTX_LOCAL,
+            st=st,
+            warn_on_shadowed_name=warn_on_shadowed_name,
+            warn_on_shadowed_var=warn_on_shadowed_var,
+        )
         munged.append(safe)
 
     vargs_body: List[ASTNode] = []
@@ -606,16 +682,25 @@ def _fn_args_body(ctx: CompilerContext,  # pylint:disable=too-many-locals
 
             # Collect all variadic arguments together into a seq and
             # reassign them to a different local
-            vargs_body.append(_dependency(ast.Assign(targets=[ast.Name(id=safe_local, ctx=ast.Store())],
-                                                     value=ast.Call(func=_COLLECT_ARGS_FN_NAME,
-                                                                    args=[ast.Name(id=safe, ctx=ast.Load())],
-                                                                    keywords=[]))))
+            vargs_body.append(
+                _dependency(
+                    ast.Assign(
+                        targets=[ast.Name(id=safe_local, ctx=ast.Store())],
+                        value=ast.Call(
+                            func=_COLLECT_ARGS_FN_NAME,
+                            args=[ast.Name(id=safe, ctx=ast.Load())],
+                            keywords=[],
+                        ),
+                    )
+                )
+            )
 
             _new_symbol(ctx, vargs_sym, safe_local, _SYM_CTX_LOCAL, st=st)
             vargs = ast.arg(arg=safe, annotation=None)
         except IndexError:
             raise CompilerException(
-                f"Expected variadic argument name after '&'") from None
+                f"Expected variadic argument name after '&'"
+            ) from None
 
     fn_body = list(_collection_ast(ctx, body_exprs))
     if len(fn_body) == 0:
@@ -664,7 +749,9 @@ def _assert_no_recur(ctx: CompilerContext, form: lseq.Seq) -> None:
                 if _is_sym_macro(ctx, child.first):
                     continue
                 elif child.first == _RECUR:
-                    raise CompilerException(f"Recur appears outside tail position in {form}")
+                    raise CompilerException(
+                        f"Recur appears outside tail position in {form}"
+                    )
                 elif child.first == _FN:
                     continue
             _assert_no_recur(ctx, child)
@@ -708,10 +795,19 @@ def _assert_recur_is_tail(ctx: CompilerContext, form: lseq.Seq) -> None:  # noqa
                     for clause in catch_finally:
                         if isinstance(clause, llist.List):
                             if clause.first == _CATCH:
-                                _assert_recur_is_tail(ctx, lseq.sequence([runtime.nthnext(clause, 2)]))
+                                _assert_recur_is_tail(
+                                    ctx, lseq.sequence([runtime.nthnext(clause, 2)])
+                                )
                             elif clause.first == _FINALLY:
                                 _assert_no_recur(ctx, clause.rest)
-            elif child.first in {_DEF, _IMPORT, _INTEROP_CALL, _INTEROP_PROP, _THROW, _VAR}:
+            elif child.first in {
+                _DEF,
+                _IMPORT,
+                _INTEROP_CALL,
+                _INTEROP_PROP,
+                _THROW,
+                _VAR,
+            }:
                 _assert_no_recur(ctx, child)
             else:
                 _assert_recur_is_tail(ctx, child)
@@ -724,7 +820,9 @@ def _assert_recur_is_tail(ctx: CompilerContext, form: lseq.Seq) -> None:  # noqa
             raise CompilerException("Recur appears outside tail position")
 
 
-def _fn_arities(ctx: CompilerContext, form: llist.List) -> Iterable[FunctionArityDetails]:
+def _fn_arities(
+    ctx: CompilerContext, form: llist.List
+) -> Iterable[FunctionArityDetails]:
     """Return the arities of a function definition and some additional details about
     the argument vector. Verify that all arities are compatible. In particular, this
     function will throw a CompilerException if any of the following are true:
@@ -744,7 +842,13 @@ def _fn_arities(ctx: CompilerContext, form: llist.List) -> Iterable[FunctionArit
     Single arity functions yield the rest:
 
         (fn a [] :a) ;=> '(([] :a))"""
-    if not all(map(lambda f: isinstance(f, (llist.List, lseq.Seq)) and isinstance(f.first, vec.Vector), form)):
+    if not all(
+        map(
+            lambda f: isinstance(f, (llist.List, lseq.Seq))
+            and isinstance(f.first, vec.Vector),
+            form,
+        )
+    ):
         assert isinstance(form.first, vec.Vector)
         _assert_recur_is_tail(ctx, form)
         yield len(form.first), False, form
@@ -759,15 +863,19 @@ def _fn_arities(ctx: CompilerContext, form: llist.List) -> Iterable[FunctionArit
         # Verify each arity is unique
         arg_count = len(arity.first)
         if arg_count in arg_counts:
-            raise CompilerException("Each arity in multi-arity fn must be unique",
-                                    [arity, arg_counts[arg_count]])
+            raise CompilerException(
+                "Each arity in multi-arity fn must be unique",
+                [arity, arg_counts[arg_count]],
+            )
 
         # Verify that only one arity contains a rest-param
         is_rest = False
         for arg in arity.first:
             if arg == _AMPERSAND:
                 if has_vargs:
-                    raise CompilerException("Only one arity in multi-arity fn may have rest param")
+                    raise CompilerException(
+                        "Only one arity in multi-arity fn may have rest param"
+                    )
                 is_rest = True
                 has_vargs = True
                 arg_count -= 1
@@ -775,7 +883,9 @@ def _fn_arities(ctx: CompilerContext, form: llist.List) -> Iterable[FunctionArit
 
         # Verify that arities do not exceed rest-param arity
         if vargs_len is not None and any([c >= vargs_len for c in arg_counts]):
-            raise CompilerException("No arity in multi-arity fn may exceed the rest param arity")
+            raise CompilerException(
+                "No arity in multi-arity fn may exceed the rest param arity"
+            )
 
         # Put this in last so it does not conflict with the above checks
         arg_counts[arg_count] = arity
@@ -783,19 +893,25 @@ def _fn_arities(ctx: CompilerContext, form: llist.List) -> Iterable[FunctionArit
         yield arg_count, is_rest, arity
 
 
-def _compose_ifs(if_stmts: List[Dict[str, ast.AST]], orelse: List[ast.AST] = None) -> ast.If:
+def _compose_ifs(
+    if_stmts: List[Dict[str, ast.AST]], orelse: List[ast.AST] = None
+) -> ast.If:
     """Compose a series of If statements into nested elifs, with
     an optional terminating else."""
     first = if_stmts[0]
     try:
         rest = if_stmts[1:]
-        return ast.If(test=first["test"],
-                      body=[first["body"]],
-                      orelse=[_compose_ifs(rest, orelse=orelse)])
+        return ast.If(
+            test=first["test"],
+            body=[first["body"]],
+            orelse=[_compose_ifs(rest, orelse=orelse)],
+        )
     except IndexError:
-        return ast.If(test=first["test"],
-                      body=[first["body"]],
-                      orelse=Maybe(orelse).or_else_get([]))
+        return ast.If(
+            test=first["test"],
+            body=[first["body"]],
+            orelse=Maybe(orelse).or_else_get([]),
+        )
 
 
 def _fn_name(s: Optional[sym.Symbol]) -> str:
@@ -804,7 +920,9 @@ def _fn_name(s: Optional[sym.Symbol]) -> str:
     return genname("__" + munge(Maybe(s).map(lambda s: s.name).or_else_get(_FN_PREFIX)))
 
 
-def _single_arity_fn_ast(ctx: CompilerContext, name: Optional[sym.Symbol], fndef: llist.List) -> ASTStream:
+def _single_arity_fn_ast(
+    ctx: CompilerContext, name: Optional[sym.Symbol], fndef: llist.List
+) -> ASTStream:
     """Generate Python AST nodes for a single-arity function."""
     py_fn_name = _fn_name(name)
     with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(py_fn_name, fndef.first):
@@ -816,16 +934,23 @@ def _single_arity_fn_ast(ctx: CompilerContext, name: Optional[sym.Symbol], fndef
 
         yield _dependency(_expressionize(body, py_fn_name, args=args, vargs=vargs))
         if ctx.recur_point.has_recur:
-            yield _node(ast.Call(func=_TRAMPOLINE_FN_NAME,
-                                 args=[ast.Name(id=ctx.recur_point.name, ctx=ast.Load())],
-                                 keywords=[]))
+            yield _node(
+                ast.Call(
+                    func=_TRAMPOLINE_FN_NAME,
+                    args=[ast.Name(id=ctx.recur_point.name, ctx=ast.Load())],
+                    keywords=[],
+                )
+            )
         else:
             yield _node(ast.Name(id=py_fn_name, ctx=ast.Load()))
         return
 
 
-def _multi_arity_fn_ast(ctx: CompilerContext, name: Optional[sym.Symbol],
-                        arities: List[FunctionArityDetails]) -> ASTStream:
+def _multi_arity_fn_ast(
+    ctx: CompilerContext,
+    name: Optional[sym.Symbol],
+    arities: List[FunctionArityDetails],
+) -> ASTStream:
     """Generate Python AST nodes for multi-arity Basilisp function definitions.
 
     For example, a multi-arity function like this:
@@ -880,51 +1005,87 @@ def _multi_arity_fn_ast(ctx: CompilerContext, name: Optional[sym.Symbol],
             with ctx.new_symbol_table(arity_name):
                 # Generate the arity function
                 args, body, vargs = _fn_args_body(ctx, arity.first, arity.rest)
-                yield _dependency(_expressionize(body, arity_name, args=args, vargs=vargs))
+                yield _dependency(
+                    _expressionize(body, arity_name, args=args, vargs=vargs)
+                )
 
             # If a recur point was established, we generate a trampoline version of the
             # generated function to allow repeated recursive calls without blowing up the
             # stack size.
             if ctx.recur_point.has_recur:
-                yield _dependency(ast.Assign(targets=[ast.Name(id=arity_name, ctx=ast.Store())],
-                                             value=ast.Call(func=_TRAMPOLINE_FN_NAME,
-                                                            args=[
-                                                                ast.Name(id=arity_name, ctx=ast.Load())],
-                                                            keywords=[])))
+                yield _dependency(
+                    ast.Assign(
+                        targets=[ast.Name(id=arity_name, ctx=ast.Store())],
+                        value=ast.Call(
+                            func=_TRAMPOLINE_FN_NAME,
+                            args=[ast.Name(id=arity_name, ctx=ast.Load())],
+                            keywords=[],
+                        ),
+                    )
+                )
 
             # Generate an if-statement branch for the arity-dispatch function
             compare_op = ast.GtE() if is_rest else ast.Eq()
             if_stmts.append(
-                {"test": ast.Compare(left=ast.Call(func=_load_attr('len'),
-                                                   args=[multi_arity_args_arg],
-                                                   keywords=[]),
-                                     ops=[compare_op],
-                                     comparators=[ast.Num(arg_count)]),
-                 "body": ast.Return(value=ast.Call(func=_load_attr(arity_name),
-                                                   args=[ast.Starred(value=multi_arity_args_arg, ctx=ast.Load())],
-                                                   keywords=[]))})
+                {
+                    "test": ast.Compare(
+                        left=ast.Call(
+                            func=_load_attr("len"),
+                            args=[multi_arity_args_arg],
+                            keywords=[],
+                        ),
+                        ops=[compare_op],
+                        comparators=[ast.Num(arg_count)],
+                    ),
+                    "body": ast.Return(
+                        value=ast.Call(
+                            func=_load_attr(arity_name),
+                            args=[
+                                ast.Starred(value=multi_arity_args_arg, ctx=ast.Load())
+                            ],
+                            keywords=[],
+                        )
+                    ),
+                }
+            )
 
     assert len(if_stmts) == len(arities)
 
-    yield _dependency(ast.FunctionDef(
-        name=py_fn_name,
-        args=ast.arguments(
-            args=[],
-            kwarg=None,
-            vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
-            kwonlyargs=[],
-            defaults=[],
-            kw_defaults=[]),
-        body=[_compose_ifs(if_stmts),
-              ast.Raise(exc=ast.Call(func=_load_attr('basilisp.lang.runtime.RuntimeException'),
-                                     args=[ast.Str(f"Wrong number of args passed to function: {name}"),
-                                           ast.Call(func=ast.Name(id='len', ctx=ast.Load()),
-                                                    args=[ast.Name(id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load())],
-                                                    keywords=[])],
-                                     keywords=[]),
-                        cause=None)],
-        decorator_list=[],
-        returns=None))
+    yield _dependency(
+        ast.FunctionDef(
+            name=py_fn_name,
+            args=ast.arguments(
+                args=[],
+                kwarg=None,
+                vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
+                kwonlyargs=[],
+                defaults=[],
+                kw_defaults=[],
+            ),
+            body=[
+                _compose_ifs(if_stmts),
+                ast.Raise(
+                    exc=ast.Call(
+                        func=_load_attr("basilisp.lang.runtime.RuntimeException"),
+                        args=[
+                            ast.Str(f"Wrong number of args passed to function: {name}"),
+                            ast.Call(
+                                func=ast.Name(id="len", ctx=ast.Load()),
+                                args=[
+                                    ast.Name(id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load())
+                                ],
+                                keywords=[],
+                            ),
+                        ],
+                        keywords=[],
+                    ),
+                    cause=None,
+                ),
+            ],
+            decorator_list=[],
+            returns=None,
+        )
+    )
 
     yield _node(ast.Name(id=py_fn_name, ctx=ast.Load()))
 
@@ -972,38 +1133,54 @@ def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         lelse = ast.NameConstant(None)  # type: ignore
 
     test_name = genname(_IF_TEST_PREFIX)
-    test_assign = ast.Assign(targets=[ast.Name(id=test_name, ctx=ast.Store())],
-                             value=_unwrap_node(test))
+    test_assign = ast.Assign(
+        targets=[ast.Name(id=test_name, ctx=ast.Store())], value=_unwrap_node(test)
+    )
 
     ifstmt = ast.If(
-        test=ast.BoolOp(op=ast.Or(),
-                        values=[ast.Compare(left=ast.NameConstant(None),
-                                            ops=[ast.Is()],
-                                            comparators=[ast.Name(id=test_name, ctx=ast.Load())]),
-                                ast.Compare(left=ast.NameConstant(False),
-                                            ops=[ast.Is()],
-                                            comparators=[ast.Name(id=test_name, ctx=ast.Load())])
-                                ]),
+        test=ast.BoolOp(
+            op=ast.Or(),
+            values=[
+                ast.Compare(
+                    left=ast.NameConstant(None),
+                    ops=[ast.Is()],
+                    comparators=[ast.Name(id=test_name, ctx=ast.Load())],
+                ),
+                ast.Compare(
+                    left=ast.NameConstant(False),
+                    ops=[ast.Is()],
+                    comparators=[ast.Name(id=test_name, ctx=ast.Load())],
+                ),
+            ],
+        ),
         values=[],
         body=[ast.Return(value=_unwrap_node(lelse))],
-        orelse=[ast.Return(value=_unwrap_node(body))])
+        orelse=[ast.Return(value=_unwrap_node(body))],
+    )
 
     ifname = genname(_IF_PREFIX)
 
-    yield _dependency(ast.FunctionDef(
-        name=ifname,
-        args=ast.arguments(
-            args=[],
-            kwarg=None,
-            vararg=None,
-            kwonlyargs=[],
-            defaults=[],
-            kw_defaults=[]),
-        body=_unwrap_nodes(chain(test_nodes, body_nodes, else_nodes, [test_assign, ifstmt])),
-        decorator_list=[],
-        returns=None))
-    yield _node(ast.Call(
-        func=ast.Name(id=ifname, ctx=ast.Load()), args=[], keywords=[]))
+    yield _dependency(
+        ast.FunctionDef(
+            name=ifname,
+            args=ast.arguments(
+                args=[],
+                kwarg=None,
+                vararg=None,
+                kwonlyargs=[],
+                defaults=[],
+                kw_defaults=[],
+            ),
+            body=_unwrap_nodes(
+                chain(test_nodes, body_nodes, else_nodes, [test_assign, ifstmt])
+            ),
+            decorator_list=[],
+            returns=None,
+        )
+    )
+    yield _node(
+        ast.Call(func=ast.Name(id=ifname, ctx=ast.Load()), args=[], keywords=[])
+    )
 
 
 def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -1022,15 +1199,26 @@ def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         with ctx.quoted():
             module_name = s.name.split(".", maxsplit=1)[0]
             yield _dependency(ast.Global(names=[module_name]))
-            yield _dependency(ast.Assign(targets=[ast.Name(id=module_name, ctx=ast.Store())],
-                                         value=ast.Call(func=_load_attr("builtins.__import__"),
-                                                        args=[ast.Str(s.name)],
-                                                        keywords=[])))
+            yield _dependency(
+                ast.Assign(
+                    targets=[ast.Name(id=module_name, ctx=ast.Store())],
+                    value=ast.Call(
+                        func=_load_attr("builtins.__import__"),
+                        args=[ast.Str(s.name)],
+                        keywords=[],
+                    ),
+                )
+            )
             last = ast.Name(id=module_name, ctx=ast.Load())
-            yield _dependency(ast.Call(
-                func=_load_attr(f'{_NS_VAR_VALUE}.add_import'),
-                args=list(chain(_unwrap_nodes(_to_ast(ctx, s)), [last])),  # type: ignore
-                keywords=[]))
+            yield _dependency(
+                ast.Call(
+                    func=_load_attr(f"{_NS_VAR_VALUE}.add_import"),
+                    args=list(
+                        chain(_unwrap_nodes(_to_ast(ctx, s)), [last])  # type: ignore
+                    ),
+                    keywords=[],
+                )
+            )
 
     assert last is not None
     yield _node(last)
@@ -1048,7 +1236,8 @@ def _interop_call_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     yield from target_nodes
 
     call_target = ast.Attribute(
-        value=_unwrap_node(target), attr=munge(form[2].name), ctx=ast.Load())
+        value=_unwrap_node(target), attr=munge(form[2].name), ctx=ast.Load()
+    )
 
     args: Iterable[ast.AST] = []
     if len(form) > 3:
@@ -1068,11 +1257,16 @@ def _interop_prop_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     target_nodes, target = _nodes_and_expr(_to_ast(ctx, form[1]))
     yield from target_nodes
-    yield _node(ast.Attribute(
-        value=_unwrap_node(target), attr=munge(form[2].name), ctx=ast.Load()))
+    yield _node(
+        ast.Attribute(
+            value=_unwrap_node(target), attr=munge(form[2].name), ctx=ast.Load()
+        )
+    )
 
 
-def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:  # pylint:disable=too-many-locals
+def _let_ast(  # pylint:disable=too-many-locals
+    ctx: CompilerContext, form: llist.List
+) -> ASTStream:
     """Generate a Python AST node for a let binding.
 
     Python code for a `let*` binding like this:
@@ -1120,15 +1314,18 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:  # pylint:dis
     # parameters; the variable names, which become Python locals in assignments;
     # the variable names, which become Python locals in an expression context (which
     # is a subtly different Python AST node); and the computed expressions.
-    with ctx.new_symbol_table(genname('let_st')) as st:
+    with ctx.new_symbol_table(genname("let_st")) as st:
         bindings = list(partition(form[1], 2))
 
         if not bindings:
             raise CompilerException("Expected at least one binding in 'let*'") from None
 
         arg_syms: Dict[
-            sym.Symbol, str] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name  # noqa: E501
-        var_names = []  # Names of local Python variables bound to computed expressions prior to the function call
+            sym.Symbol, str
+        ] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name  # noqa: E501
+        var_names = (
+            []
+        )  # Names of local Python variables bound to computed expressions prior to the function call
         arg_deps = []  # Argument expression dependency nodes
         arg_exprs = []  # Bound expressions are the expressions a name is bound to
         for s, expr in bindings:
@@ -1150,16 +1347,21 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:  # pylint:dis
         # We need to do this to guarantee that no binding expressions are executed as part of
         # an assignment as a dependency node. This eager evaluation could leak out as part of
         # (at least) if statements dependency nodes.
-        outer_letname = genname('let')
+        outer_letname = genname("let")
         let_fn_body: List[ast.AST] = []
 
         # Generate a function to hold the body of the let expression
-        letname = genname('let')
+        letname = genname("let")
         with ctx.new_symbol_table(letname):
             # Suppress shadowing warnings below since the shadow warnings will be
             # emitted by calling _new_symbol in the loop above
-            args, body, vargs = _fn_args_body(ctx, vec.vector(arg_syms.keys()), runtime.nthrest(form, 2),
-                                              warn_on_shadowed_var=False, warn_on_shadowed_name=False)
+            args, body, vargs = _fn_args_body(
+                ctx,
+                vec.vector(arg_syms.keys()),
+                runtime.nthrest(form, 2),
+                warn_on_shadowed_var=False,
+                warn_on_shadowed_name=False,
+            )
             let_fn_body.append(_expressionize(body, letname, args=args, vargs=vargs))
 
     # Generate local variable assignments for processing let bindings
@@ -1168,9 +1370,15 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:  # pylint:dis
         let_fn_body.extend(_unwrap_nodes(deps))
         let_fn_body.append(ast.Assign(targets=[name], value=expr))
 
-    let_fn_body.append(ast.Call(func=_load_attr(letname),
-                                args=seq(arg_syms.values()).map(lambda n: ast.Name(id=n, ctx=ast.Load())).to_list(),
-                                keywords=[]))
+    let_fn_body.append(
+        ast.Call(
+            func=_load_attr(letname),
+            args=seq(arg_syms.values())
+            .map(lambda n: ast.Name(id=n, ctx=ast.Load()))
+            .to_list(),
+            keywords=[],
+        )
+    )
 
     yield _dependency(_expressionize(let_fn_body, outer_letname))
     yield _node(ast.Call(func=_load_attr(outer_letname), args=[], keywords=[]))
@@ -1213,10 +1421,17 @@ def _recur_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         yield from expr_deps
 
         has_vargs = any([s == _AMPERSAND for s in ctx.recur_point.args])
-        yield _node(ast.Call(func=_TRAMPOLINE_ARGS_FN_NAME,
-                             args=list(itertools.chain([ast.NameConstant(has_vargs)],  # type: ignore
-                                                       _unwrap_nodes(exprs))),
-                             keywords=[]))
+        yield _node(
+            ast.Call(
+                func=_TRAMPOLINE_ARGS_FN_NAME,
+                args=list(
+                    itertools.chain(  # type: ignore
+                        [ast.NameConstant(has_vargs)], _unwrap_nodes(exprs)
+                    )
+                ),
+                keywords=[],
+            )
+        )
     except IndexError:
         raise CompilerException("Attempting to recur without recur point") from None
 
@@ -1244,14 +1459,18 @@ def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
         type_name = f"{form[1].ns}.{type_name}"
 
     exc_name = munge(form[2].name)
-    with ctx.new_symbol_table(genname('catch_block')):
+    with ctx.new_symbol_table(genname("catch_block")):
         _new_symbol(ctx, form[2], exc_name, _SYM_CTX_LOCAL)
-        body = seq(form[3:]).flat_map(lambda f: _to_ast(ctx, f)).map(_unwrap_node).to_list()
+        body = (
+            seq(form[3:])
+            .flat_map(lambda f: _to_ast(ctx, f))
+            .map(_unwrap_node)
+            .to_list()
+        )
 
     return ast.ExceptHandler(
-        type=_load_attr(type_name),
-        name=exc_name,
-        body=list(_catch_expr_body(body)))
+        type=_load_attr(type_name), name=exc_name, body=list(_catch_expr_body(body))
+    )
 
 
 def _finally_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -1259,10 +1478,9 @@ def _finally_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     assert form.first == _FINALLY
     assert len(form) >= 2
 
-    yield from seq(form.rest) \
-        .flat_map(lambda clause: _to_ast(ctx, clause)) \
-        .map(_unwrap_node) \
-        .map(_statementize)
+    yield from seq(form.rest).flat_map(lambda clause: _to_ast(ctx, clause)).map(
+        _unwrap_node
+    ).map(_statementize)
 
 
 def _throw_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -1276,20 +1494,26 @@ def _throw_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     throw_fn = genname(_THROW_PREFIX)
     raise_body = ast.Raise(exc=_unwrap_node(expr), cause=None)
 
-    yield _dependency(ast.FunctionDef(
-        name=throw_fn,
-        args=ast.arguments(
-            args=[],
-            kwarg=None,
-            vararg=None,
-            kwonlyargs=[],
-            defaults=[],
-            kw_defaults=[]),
-        body=[raise_body],
-        decorator_list=[],
-        returns=None))
+    yield _dependency(
+        ast.FunctionDef(
+            name=throw_fn,
+            args=ast.arguments(
+                args=[],
+                kwarg=None,
+                vararg=None,
+                kwonlyargs=[],
+                defaults=[],
+                kw_defaults=[],
+            ),
+            body=[raise_body],
+            decorator_list=[],
+            returns=None,
+        )
+    )
 
-    yield _node(ast.Call(func=ast.Name(id=throw_fn, ctx=ast.Load()), args=[], keywords=[]))
+    yield _node(
+        ast.Call(func=ast.Name(id=throw_fn, ctx=ast.Load()), args=[], keywords=[])
+    )
 
 
 def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -1307,14 +1531,16 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
     finallys = clauses.get("finally", [])
     if len(finallys) not in [0, 1]:
-        raise CompilerException("Only one finally clause may be provided in a try/catch block") from None
+        raise CompilerException(
+            "Only one finally clause may be provided in a try/catch block"
+        ) from None
 
-    catch_exprs: List[ast.AST] = seq(clauses.get("catch", [])) \
-        .map(lambda f: _catch_ast(ctx, llist.list(f))) \
-        .to_list()
-    final_exprs: List[ast.AST] = seq(finallys) \
-        .flat_map(lambda f: _finally_ast(ctx, llist.list(f))) \
-        .to_list()
+    catch_exprs: List[ast.AST] = seq(clauses.get("catch", [])).map(
+        lambda f: _catch_ast(ctx, llist.list(f))
+    ).to_list()
+    final_exprs: List[ast.AST] = seq(finallys).flat_map(
+        lambda f: _finally_ast(ctx, llist.list(f))
+    ).to_list()
 
     # Start building up the try/except block that will be inserted
     # into a function to expressionize it
@@ -1322,28 +1548,32 @@ def _try_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         body=_unwrap_nodes(chain(expr_nodes, [expr])),
         handlers=catch_exprs,
         orelse=[],
-        finalbody=final_exprs)
+        finalbody=final_exprs,
+    )
 
     # Insert the try/except function into the container
     # nodes vector so it will be available in the calling context
     try_fn_name = genname(_TRY_PREFIX)
-    yield _dependency(ast.FunctionDef(
-        name=try_fn_name,
-        args=ast.arguments(
-            args=[],
-            kwarg=None,
-            vararg=None,
-            kwonlyargs=[],
-            defaults=[],
-            kw_defaults=[]),
-        body=[try_body],
-        decorator_list=[],
-        returns=None))
+    yield _dependency(
+        ast.FunctionDef(
+            name=try_fn_name,
+            args=ast.arguments(
+                args=[],
+                kwarg=None,
+                vararg=None,
+                kwonlyargs=[],
+                defaults=[],
+                kw_defaults=[],
+            ),
+            body=[try_body],
+            decorator_list=[],
+            returns=None,
+        )
+    )
 
-    yield _node(ast.Call(
-        func=ast.Name(id=try_fn_name, ctx=ast.Load()),
-        args=[],
-        keywords=[]))
+    yield _node(
+        ast.Call(func=ast.Name(id=try_fn_name, ctx=ast.Load()), args=[], keywords=[])
+    )
 
 
 def _var_ast(_: CompilerContext, form: llist.List) -> ASTStream:
@@ -1356,13 +1586,13 @@ def _var_ast(_: CompilerContext, form: llist.List) -> ASTStream:
     base_sym = ast.Call(
         func=_NEW_SYM_FN_NAME,
         args=[ast.Str(form[1].name)],
-        keywords=[ast.keyword(arg='ns', value=ns)])
+        keywords=[ast.keyword(arg="ns", value=ns)],
+    )
 
     yield _node(ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]))
 
 
-def _special_form_ast(ctx: CompilerContext,
-                      form: llist.List) -> ASTStream:
+def _special_form_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for any Lisp special forms."""
     assert form.first in _SPECIAL_FORMS
     which = form.first
@@ -1458,10 +1688,9 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     if len(form) == 0:
         meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
         yield from meta_nodes
-        yield _node(ast.Call(
-            func=_EMPTY_LIST_FN_NAME,
-            args=[],
-            keywords=_unwrap_nodes(meta)))
+        yield _node(
+            ast.Call(func=_EMPTY_LIST_FN_NAME, args=[], keywords=_unwrap_nodes(meta))
+        )
         return
 
     # Special forms
@@ -1488,7 +1717,9 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 
                 yield from _to_ast(ctx, expanded)
             except Exception as e:
-                raise CompilerException(f"Error occurred during macroexpansion of {form}") from e
+                raise CompilerException(
+                    f"Error occurred during macroexpansion of {form}"
+                ) from e
             return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
@@ -1497,18 +1728,22 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     if ctx.is_quoted:
         meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
         yield from meta_nodes
-        yield _node(ast.Call(
-            func=_NEW_LIST_FN_NAME,
-            args=[ast.List(elems, ast.Load())],
-            keywords=_unwrap_nodes(meta)))
+        yield _node(
+            ast.Call(
+                func=_NEW_LIST_FN_NAME,
+                args=[ast.List(elems, ast.Load())],
+                keywords=_unwrap_nodes(meta),
+            )
+        )
         return
 
     yield from elems_nodes
     elems_ast = seq(elems)
 
     # Function call
-    yield _node(ast.Call(
-        func=elems_ast.first(), args=elems_ast.drop(1).to_list(), keywords=[]))
+    yield _node(
+        ast.Call(func=elems_ast.first(), args=elems_ast.drop(1).to_list(), keywords=[])
+    )
 
 
 def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ASTStream:
@@ -1518,10 +1753,13 @@ def _map_ast(ctx: CompilerContext, form: lmap.Map) -> ASTStream:
     yield from meta_nodes
     yield from key_nodes
     yield from val_nodes
-    yield _node(ast.Call(
-        func=_NEW_MAP_FN_NAME,
-        args=[ast.Dict(keys=keys, values=vals)],
-        keywords=_unwrap_nodes(meta)))
+    yield _node(
+        ast.Call(
+            func=_NEW_MAP_FN_NAME,
+            args=[ast.Dict(keys=keys, values=vals)],
+            keywords=_unwrap_nodes(meta),
+        )
+    )
 
 
 def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
@@ -1529,10 +1767,13 @@ def _set_ast(ctx: CompilerContext, form: lset.Set) -> ASTStream:
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
     yield from meta_nodes
     yield from elem_nodes
-    yield _node(ast.Call(
-        func=_NEW_SET_FN_NAME,
-        args=[ast.List(elems_ast, ast.Load())],
-        keywords=_unwrap_nodes(meta)))
+    yield _node(
+        ast.Call(
+            func=_NEW_SET_FN_NAME,
+            args=[ast.List(elems_ast, ast.Load())],
+            keywords=_unwrap_nodes(meta),
+        )
+    )
 
 
 def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ASTStream:
@@ -1540,19 +1781,25 @@ def _vec_ast(ctx: CompilerContext, form: vec.Vector) -> ASTStream:
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
     yield from meta_nodes
     yield from elem_nodes
-    yield _node(ast.Call(
-        func=_NEW_VEC_FN_NAME,
-        args=[ast.List(elems_ast, ast.Load())],
-        keywords=_unwrap_nodes(meta)))
+    yield _node(
+        ast.Call(
+            func=_NEW_VEC_FN_NAME,
+            args=[ast.List(elems_ast, ast.Load())],
+            keywords=_unwrap_nodes(meta),
+        )
+    )
 
 
 def _kw_ast(_: CompilerContext, form: kw.Keyword) -> ASTStream:
-    kwarg = Maybe(form.ns) \
-        .stream() \
-        .map(lambda ns: ast.keyword(arg='ns', value=ast.Str(form.ns))) \
+    kwarg = (
+        Maybe(form.ns)
+        .stream()
+        .map(lambda ns: ast.keyword(arg="ns", value=ast.Str(form.ns)))
         .to_list()
-    yield _node(ast.Call(
-        func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg))
+    )
+    yield _node(
+        ast.Call(func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg)
+    )
 
 
 def _resolve_sym_var(ctx: CompilerContext, v: Var) -> Optional[str]:
@@ -1588,9 +1835,9 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
     #   (Classname. *args)
     #   (aliased.Classname. *args)
     #   (fully.qualified.Classname. *args)
-    if form.ns is None and form.name.endswith('.'):
+    if form.ns is None and form.name.endswith("."):
         try:
-            ns, name = form.name[:-1].rsplit('.', maxsplit=1)
+            ns, name = form.name[:-1].rsplit(".", maxsplit=1)
             form = sym.symbol(name, ns=ns)
         except ValueError:
             form = sym.symbol(form.name[:-1])
@@ -1674,12 +1921,13 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
     meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form))
     yield from meta_nodes
 
-    sym_kwargs = Maybe(ns).stream() \
-        .map(lambda v: ast.keyword(arg='ns', value=ns)) \
-        .to_list()
+    sym_kwargs = (
+        Maybe(ns).stream().map(lambda v: ast.keyword(arg="ns", value=ns)).to_list()
+    )
     sym_kwargs.extend(_unwrap_nodes(meta))
     base_sym = ast.Call(
-        func=_NEW_SYM_FN_NAME, args=[ast.Str(form.name)], keywords=sym_kwargs)
+        func=_NEW_SYM_FN_NAME, args=[ast.Str(form.name)], keywords=sym_kwargs
+    )
 
     if ctx.is_quoted:
         yield _node(base_sym)
@@ -1709,51 +1957,60 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
     # and issue a warning if warn_on_var_indirection is active.
     if ctx.warn_on_var_indirection:
         logger.warning(f"could not resolve a direct link to Var '{form}'")
-    yield _node(ast.Attribute(
-        value=ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]),
-        attr='value',
-        ctx=ast.Load()))
+    yield _node(
+        ast.Attribute(
+            value=ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]),
+            attr="value",
+            ctx=ast.Load(),
+        )
+    )
 
 
 def _decimal_ast(_: CompilerContext, form: Decimal) -> ASTStream:
-    yield _node(ast.Call(
-        func=_NEW_DECIMAL_FN_NAME, args=[ast.Str(str(form))], keywords=[]))
+    yield _node(
+        ast.Call(func=_NEW_DECIMAL_FN_NAME, args=[ast.Str(str(form))], keywords=[])
+    )
 
 
 def _fraction_ast(_: CompilerContext, form: Fraction) -> ASTStream:
-    yield _node(ast.Call(
-        func=_NEW_FRACTION_FN_NAME,
-        args=[ast.Num(form.numerator),
-              ast.Num(form.denominator)],
-        keywords=[]))
+    yield _node(
+        ast.Call(
+            func=_NEW_FRACTION_FN_NAME,
+            args=[ast.Num(form.numerator), ast.Num(form.denominator)],
+            keywords=[],
+        )
+    )
 
 
 def _inst_ast(_: CompilerContext, form: datetime) -> ASTStream:
-    yield _node(ast.Call(
-        func=_NEW_INST_FN_NAME, args=[ast.Str(form.isoformat())], keywords=[]))
+    yield _node(
+        ast.Call(func=_NEW_INST_FN_NAME, args=[ast.Str(form.isoformat())], keywords=[])
+    )
 
 
 def _regex_ast(_: CompilerContext, form: Pattern) -> ASTStream:
-    yield _node(ast.Call(
-        func=_NEW_REGEX_FN_NAME, args=[ast.Str(form.pattern)], keywords=[]))
+    yield _node(
+        ast.Call(func=_NEW_REGEX_FN_NAME, args=[ast.Str(form.pattern)], keywords=[])
+    )
 
 
 def _uuid_ast(_: CompilerContext, form: uuid.UUID) -> ASTStream:
-    yield _node(ast.Call(
-        func=_NEW_UUID_FN_NAME, args=[ast.Str(str(form))], keywords=[]))
+    yield _node(
+        ast.Call(func=_NEW_UUID_FN_NAME, args=[ast.Str(str(form))], keywords=[])
+    )
 
 
-def _collection_ast(ctx: CompilerContext,
-                    form: Iterable[LispForm]) -> ASTStream:
+def _collection_ast(ctx: CompilerContext, form: Iterable[LispForm]) -> ASTStream:
     """Turn a collection of Lisp forms into Python AST nodes, filtering out
     empty nodes."""
-    yield from seq(form) \
-        .flat_map(lambda x: _to_ast(ctx, x)) \
-        .filter(lambda x: x is not None)
+    yield from seq(form).flat_map(lambda x: _to_ast(ctx, x)).filter(
+        lambda x: x is not None
+    )
 
 
-def _collection_literal_ast(ctx: CompilerContext,
-                            form: Iterable[LispForm]) -> Tuple[ASTStream, PyASTStream]:
+def _collection_literal_ast(
+    ctx: CompilerContext, form: Iterable[LispForm]
+) -> Tuple[ASTStream, PyASTStream]:
     """Turn a collection literal of Lisp forms into Python AST nodes, filtering
     out empty nodes."""
     deps: List[ASTNode] = []
@@ -1788,7 +2045,9 @@ def _with_loc(f: ASTProcessor) -> ASTProcessor:
 
 
 @_with_loc  # noqa: C901
-def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:  # pylint: disable=too-many-branches
+def _to_ast(  # pylint: disable=too-many-branches
+    ctx: CompilerContext, form: LispForm
+) -> ASTStream:
     """Take a Lisp form as an argument and produce zero or more Python
     AST nodes.
 
@@ -1858,34 +2117,41 @@ def _to_ast(ctx: CompilerContext, form: LispForm) -> ASTStream:  # pylint: disab
 def _module_imports(ctx: CompilerContext) -> Iterable[ast.Import]:
     """Generate the Python Import AST node for importing all required
     language support modules."""
-    aliases = {'builtins': None,
-               'basilisp.lang.keyword': _KW_ALIAS,
-               'basilisp.lang.list': _LIST_ALIAS,
-               'basilisp.lang.map': _MAP_ALIAS,
-               'basilisp.lang.runtime': _RUNTIME_ALIAS,
-               'basilisp.lang.set': _SET_ALIAS,
-               'basilisp.lang.symbol': _SYM_ALIAS,
-               'basilisp.lang.vector': _VEC_ALIAS,
-               'basilisp.lang.util': _UTIL_ALIAS}
-    return seq(ctx.imports) \
-        .map(lambda entry: entry.key.name) \
-        .map(lambda name: (name, aliases.get(name, None))) \
-        .map(lambda t: ast.Import(names=[ast.alias(name=t[0], asname=t[1])])) \
+    aliases = {
+        "builtins": None,
+        "basilisp.lang.keyword": _KW_ALIAS,
+        "basilisp.lang.list": _LIST_ALIAS,
+        "basilisp.lang.map": _MAP_ALIAS,
+        "basilisp.lang.runtime": _RUNTIME_ALIAS,
+        "basilisp.lang.set": _SET_ALIAS,
+        "basilisp.lang.symbol": _SYM_ALIAS,
+        "basilisp.lang.vector": _VEC_ALIAS,
+        "basilisp.lang.util": _UTIL_ALIAS,
+    }
+    return (
+        seq(ctx.imports)
+        .map(lambda entry: entry.key.name)
+        .map(lambda name: (name, aliases.get(name, None)))
+        .map(lambda t: ast.Import(names=[ast.alias(name=t[0], asname=t[1])]))
         .to_list()
+    )
 
 
 def _from_module_import() -> ast.ImportFrom:
     """Generate the Python From ... Import AST node for importing
     language support modules."""
     return ast.ImportFrom(
-        module='basilisp.lang.runtime',
-        names=[ast.alias(name='Var', asname=_VAR_ALIAS)],
-        level=0)
+        module="basilisp.lang.runtime",
+        names=[ast.alias(name="Var", asname=_VAR_ALIAS)],
+        level=0,
+    )
 
 
-def _ns_var(py_ns_var: str = _NS_VAR,
-            lisp_ns_var: str = _LISP_NS_VAR,
-            lisp_ns_ns: str = _CORE_NS) -> ast.Assign:
+def _ns_var(
+    py_ns_var: str = _NS_VAR,
+    lisp_ns_var: str = _LISP_NS_VAR,
+    lisp_ns_ns: str = _CORE_NS,
+) -> ast.Assign:
     """Assign a Python variable named `ns_var` to the value of the current
     namespace."""
     return ast.Assign(
@@ -1896,16 +2162,17 @@ def _ns_var(py_ns_var: str = _NS_VAR,
                 ast.Call(
                     func=_NEW_SYM_FN_NAME,
                     args=[ast.Str(lisp_ns_var)],
-                    keywords=[
-                        ast.keyword(arg='ns', value=ast.Str(lisp_ns_ns))
-                    ])
+                    keywords=[ast.keyword(arg="ns", value=ast.Str(lisp_ns_ns))],
+                )
             ],
-            keywords=[]))
+            keywords=[],
+        ),
+    )
 
 
 def to_py_source(t: ast.AST, outfile: str) -> None:
     source = codegen.to_source(t)
-    with open(outfile, mode='w') as f:
+    with open(outfile, mode="w") as f:
         f.writelines(source)
 
 
@@ -1918,12 +2185,14 @@ def to_py_str(t: ast.AST) -> str:
 BytecodeCollector = Optional[Callable[[types.CodeType], None]]
 
 
-def compile_and_exec_form(form: LispForm,  # pylint: disable= too-many-arguments
-                          ctx: CompilerContext,
-                          module: types.ModuleType,
-                          source_filename: str = '<REPL Input>',
-                          wrapped_fn_name: str = _DEFAULT_FN,
-                          collect_bytecode: Optional[BytecodeCollector] = None) -> Any:
+def compile_and_exec_form(  # pylint: disable= too-many-arguments
+    form: LispForm,
+    ctx: CompilerContext,
+    module: types.ModuleType,
+    source_filename: str = "<REPL Input>",
+    wrapped_fn_name: str = _DEFAULT_FN,
+    collect_bytecode: Optional[BytecodeCollector] = None,
+) -> Any:
     """Compile and execute the given form. This function will be most useful
     for the REPL and testing purposes. Returns the result of the executed expression.
 
@@ -1945,7 +2214,9 @@ def compile_and_exec_form(form: LispForm,  # pylint: disable= too-many-arguments
     # rather than using Var.find indrection.
     final_wrapped_name = genname(wrapped_fn_name)
     body = _expressionize([form_ast[-1]], final_wrapped_name)
-    form_ast = list(itertools.chain(map(_statementize, form_ast[:-1]), [body]))  # type: ignore
+    form_ast = list(
+        itertools.chain(map(_statementize, form_ast[:-1]), [body])  # type: ignore
+    )
 
     ast_module = ast.Module(body=form_ast)
     ast.fix_missing_locations(ast_module)
@@ -1955,17 +2226,19 @@ def compile_and_exec_form(form: LispForm,  # pylint: disable= too-many-arguments
     else:
         runtime.add_generated_python(to_py_str(ast_module))
 
-    bytecode = compile(ast_module, source_filename, 'exec')
+    bytecode = compile(ast_module, source_filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
     exec(bytecode, module.__dict__)
     return getattr(module, final_wrapped_name)()
 
 
-def _incremental_compile_module(nodes: MixedNodeStream,
-                                mod: types.ModuleType,
-                                source_filename: str,
-                                collect_bytecode: Optional[BytecodeCollector] = None) -> None:
+def _incremental_compile_module(
+    nodes: MixedNodeStream,
+    mod: types.ModuleType,
+    source_filename: str,
+    collect_bytecode: Optional[BytecodeCollector] = None,
+) -> None:
     """Incrementally compile a stream of AST nodes in module mod.
 
     The source_filename will be passed to Python's native compile.
@@ -1982,16 +2255,18 @@ def _incremental_compile_module(nodes: MixedNodeStream,
     else:
         runtime.add_generated_python(to_py_str(module))
 
-    bytecode = compile(module, source_filename, 'exec')
+    bytecode = compile(module, source_filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
     exec(bytecode, mod.__dict__)
 
 
-def _bootstrap_module(ctx: CompilerContext,
-                      mod: types.ModuleType,
-                      source_filename: str,
-                      collect_bytecode: Optional[BytecodeCollector] = None) -> None:
+def _bootstrap_module(
+    ctx: CompilerContext,
+    mod: types.ModuleType,
+    source_filename: str,
+    collect_bytecode: Optional[BytecodeCollector] = None,
+) -> None:
     """Bootstrap a new module with imports and other boilerplate."""
     preamble: List[ast.AST] = []
     preamble.extend(_module_imports(ctx))
@@ -1999,15 +2274,21 @@ def _bootstrap_module(ctx: CompilerContext,
     preamble.append(_ns_var())
 
     _incremental_compile_module(
-        preamble, mod, source_filename=source_filename, collect_bytecode=collect_bytecode)
+        preamble,
+        mod,
+        source_filename=source_filename,
+        collect_bytecode=collect_bytecode,
+    )
     mod.__basilisp_bootstrapped__ = True  # type: ignore
 
 
-def compile_module(forms: Iterable[LispForm],
-                   ctx: CompilerContext,
-                   module: types.ModuleType,
-                   source_filename: str,
-                   collect_bytecode: Optional[BytecodeCollector] = None) -> None:
+def compile_module(
+    forms: Iterable[LispForm],
+    ctx: CompilerContext,
+    module: types.ModuleType,
+    source_filename: str,
+    collect_bytecode: Optional[BytecodeCollector] = None,
+) -> None:
     """Compile an entire Basilisp module into Python bytecode which can be
     executed as a Python module.
 
@@ -2020,13 +2301,19 @@ def compile_module(forms: Iterable[LispForm],
     for form in forms:
         nodes = [node for node in _to_ast(ctx, form)]
         _incremental_compile_module(
-            nodes, module, source_filename=source_filename, collect_bytecode=collect_bytecode)
+            nodes,
+            module,
+            source_filename=source_filename,
+            collect_bytecode=collect_bytecode,
+        )
 
 
-def compile_bytecode(code: List[types.CodeType],
-                     ctx: CompilerContext,
-                     module: types.ModuleType,
-                     source_filename: str) -> None:
+def compile_bytecode(
+    code: List[types.CodeType],
+    ctx: CompilerContext,
+    module: types.ModuleType,
+    source_filename: str,
+) -> None:
     """Compile cached bytecode into the given module.
 
     The Basilisp import hook attempts to cache bytecode while compiling Basilisp

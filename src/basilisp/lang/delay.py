@@ -4,14 +4,16 @@ import basilisp.lang.atom as atom
 import basilisp.lang.map as lmap
 from basilisp.lang.deref import Deref
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class Delay(Deref[T]):
-    __slots__ = ('_state',)
+    __slots__ = ("_state",)
 
     def __init__(self, f: Callable[[], T]) -> None:
-        self._state = atom.Atom(lmap.m(f=f, value=None, computed=False))  # pylint:disable=assigning-non-slot
+        self._state = atom.Atom(  # pylint:disable=assigning-non-slot
+            lmap.m(f=f, value=None, computed=False)
+        )
 
     @staticmethod
     def __deref(m: lmap.Map):
