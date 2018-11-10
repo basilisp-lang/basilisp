@@ -5,25 +5,30 @@ import basilisp.lang.map as lmap
 import basilisp.lang.symbol as sym
 from basilisp.util import Maybe
 
-T = TypeVar('T')
+T = TypeVar("T")
 DispatchFunction = Callable[..., T]
 Method = Callable[..., Any]
 
 
 class MultiFunction(Generic[T]):
-    __slots__ = ('_name', '_default', '_dispatch', '_methods')
+    __slots__ = ("_name", "_default", "_dispatch", "_methods")
 
-    def __init__(self, name: sym.Symbol, dispatch: DispatchFunction, default: T) -> None:
+    def __init__(
+        self, name: sym.Symbol, dispatch: DispatchFunction, default: T
+    ) -> None:
         self._name = name  # pylint:disable=assigning-non-slot
         self._default = default  # pylint:disable=assigning-non-slot
         self._dispatch = dispatch  # pylint:disable=assigning-non-slot
-        self._methods: atom.Atom = atom.Atom(lmap.Map.empty())  # pylint:disable=assigning-non-slot
+        self._methods: atom.Atom = atom.Atom(  # pylint:disable=assigning-non-slot
+            lmap.Map.empty()
+        )
 
     def __call__(self, *args, **kwargs):
         key = self._dispatch(*args, **kwargs)
         method_cache = self.methods
         method = Maybe(method_cache.entry(key, None)).or_else(
-            lambda: method_cache.entry(self._default, None))
+            lambda: method_cache.entry(self._default, None)
+        )
         if method:
             return method(*args, **kwargs)
         raise NotImplementedError
@@ -45,7 +50,8 @@ class MultiFunction(Generic[T]):
         # The 'type: ignore' comment below silences a spurious MyPy error
         # about having a return statement in a method which does not return.
         return Maybe(method_cache.entry(key, None)).or_else(
-            lambda: method_cache.entry(self._default, None))  # type: ignore
+            lambda: method_cache.entry(self._default, None)  # type: ignore
+        )
 
     @staticmethod
     def __remove_method(m: lmap.Map, key: T) -> lmap.Map:

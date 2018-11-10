@@ -14,10 +14,10 @@ from basilisp.lang.util import lrepr
 from basilisp.util import Maybe
 
 basilisp.init()
-importlib.import_module('basilisp.test')
+importlib.import_module("basilisp.test")
 
-_COLLECTED_TESTS_SYM = sym.symbol('collected-tests', ns='basilisp.test')
-_CURRENT_NS_SYM = sym.symbol('current-ns', ns='basilisp.test')
+_COLLECTED_TESTS_SYM = sym.symbol("collected-tests", ns="basilisp.test")
+_CURRENT_NS_SYM = sym.symbol("current-ns", ns="basilisp.test")
 
 
 def pytest_collect_file(parent, path):
@@ -33,14 +33,18 @@ def _collected_tests() -> Optional[vec.Vector]:
     basilisp.test/collected-tests atom. If no tests are found, return
     None."""
     var = Maybe(runtime.Var.find(_COLLECTED_TESTS_SYM)).or_else_raise(
-        lambda: runtime.RuntimeException(f"Unable to find test Var {_COLLECTED_TESTS_SYM}."))
+        lambda: runtime.RuntimeException(
+            f"Unable to find test Var {_COLLECTED_TESTS_SYM}."
+        )
+    )
     return var.value.deref()
 
 
 def _current_ns() -> str:
     """Fetch the current namespace from basilisp.test/current-ns."""
     var = Maybe(runtime.Var.find(_CURRENT_NS_SYM)).or_else_raise(
-        lambda: runtime.RuntimeException(f"Unable to find test Var {_CURRENT_NS_SYM}."))
+        lambda: runtime.RuntimeException(f"Unable to find test Var {_CURRENT_NS_SYM}.")
+    )
     ns = var.value.deref()
     return ns.name
 
@@ -48,12 +52,15 @@ def _current_ns() -> str:
 def _reset_collected_tests() -> None:
     """Reset the collected tests."""
     var = Maybe(runtime.Var.find(_COLLECTED_TESTS_SYM)).or_else_raise(
-        lambda: runtime.RuntimeException(f"Unable to find test Var {_COLLECTED_TESTS_SYM}."))
+        lambda: runtime.RuntimeException(
+            f"Unable to find test Var {_COLLECTED_TESTS_SYM}."
+        )
+    )
     return var.value.reset(vec.Vector.empty())
 
 
 class TestFailuresInfo(Exception):
-    __slots__ = ('_msg', '_data',)
+    __slots__ = ("_msg", "_data")
 
     def __init__(self, message: str, data: lmap.Map) -> None:
         super().__init__()
@@ -80,6 +87,7 @@ TestFunction = Callable[[], Optional[vec.Vector]]
 
 class BasilispFile(pytest.File):
     """Files represent a test module in Python or a test namespace in Basilisp."""
+
     def collect(self):
         """Collect all of the tests in the namespace (module) given.
 
@@ -98,16 +106,16 @@ class BasilispFile(pytest.File):
             yield BasilispTestItem(test.name.name, self, f, ns, filename)
 
 
-_ACTUAL_KW = kw.keyword('actual')
-_ERROR_KW = kw.keyword('error')
-_EXPECTED_KW = kw.keyword('expected')
-_FAILURE_KW = kw.keyword('failure')
-_FAILURES_KW = kw.keyword('failures')
-_MESSAGE_KW = kw.keyword('message')
-_LINE_KW = kw.keyword('line')
-_EXPR_KW = kw.keyword('expr')
-_TEST_SECTION_KW = kw.keyword('test-section')
-_TYPE_KW = kw.keyword('type')
+_ACTUAL_KW = kw.keyword("actual")
+_ERROR_KW = kw.keyword("error")
+_EXPECTED_KW = kw.keyword("expected")
+_FAILURE_KW = kw.keyword("failure")
+_FAILURES_KW = kw.keyword("failures")
+_MESSAGE_KW = kw.keyword("message")
+_LINE_KW = kw.keyword("line")
+_EXPR_KW = kw.keyword("expr")
+_TEST_SECTION_KW = kw.keyword("test-section")
+_TYPE_KW = kw.keyword("type")
 
 
 class BasilispTestItem(pytest.Item):
@@ -120,11 +128,14 @@ class BasilispTestItem(pytest.Item):
     The BasilispTestItem collects all the failures and returns a report
     to PyTest to show to the end-user."""
 
-    def __init__(self, name: str,  # pylint: disable=too-many-arguments
-                 parent: BasilispFile,
-                 run_test: TestFunction,
-                 namespace: str,
-                 filename: str) -> None:
+    def __init__(
+        self,
+        name: str,  # pylint: disable=too-many-arguments
+        parent: BasilispFile,
+        run_test: TestFunction,
+        namespace: str,
+        filename: str,
+    ) -> None:
         super(BasilispTestItem, self).__init__(name, parent)
         self._run_test = run_test
         self._namespace = namespace
@@ -187,10 +198,12 @@ class BasilispTestItem(pytest.Item):
         line = details.entry(_LINE_KW)
         section_msg = Maybe(test_section).map(lambda s: f" {s} :: ").or_else_get("")
 
-        return "\n".join([
-            f"FAIL in ({self.name}) ({self._filename}:{line})",
-            f"    {section_msg}{msg}",
-            "",
-            f"    expected: {lrepr(expected)}",
-            f"      actual: {lrepr(actual)}"
-        ])
+        return "\n".join(
+            [
+                f"FAIL in ({self.name}) ({self._filename}:{line})",
+                f"    {section_msg}{msg}",
+                "",
+                f"    expected: {lrepr(expected)}",
+                f"      actual: {lrepr(actual)}",
+            ]
+        )

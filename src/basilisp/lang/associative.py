@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Mapping
 
-K = TypeVar('K')
-V = TypeVar('V')
+K = TypeVar("K")
+V = TypeVar("V")
 
 
 class Associative(ABC, Mapping[K, V]):

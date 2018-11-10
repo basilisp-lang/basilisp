@@ -57,15 +57,17 @@ def resolver() -> reader.Resolver:
     return runtime.resolve_alias
 
 
-def lcompile(s: str,
-             resolver: Optional[reader.Resolver] = None,
-             ctx: Optional[compiler.CompilerContext] = None,
-             mod: Optional[types.ModuleType] = None):
+def lcompile(
+    s: str,
+    resolver: Optional[reader.Resolver] = None,
+    ctx: Optional[compiler.CompilerContext] = None,
+    mod: Optional[types.ModuleType] = None,
+):
     """Compile and execute the code in the input string.
 
     Return the resulting expression."""
     ctx = Maybe(ctx).or_else(lambda: compiler.CompilerContext())
-    mod = Maybe(mod).or_else(lambda: runtime._new_module('compiler_test'))
+    mod = Maybe(mod).or_else(lambda: runtime._new_module("compiler_test"))
 
     last = None
     for form in reader.read_str(s, resolver=resolver):
@@ -80,40 +82,40 @@ def test_string():
 
 
 def test_int():
-    assert 1 == lcompile('1')
-    assert 100 == lcompile('100')
-    assert 99927273 == lcompile('99927273')
-    assert 0 == lcompile('0')
-    assert -1 == lcompile('-1')
-    assert -538282 == lcompile('-538282')
+    assert 1 == lcompile("1")
+    assert 100 == lcompile("100")
+    assert 99_927_273 == lcompile("99927273")
+    assert 0 == lcompile("0")
+    assert -1 == lcompile("-1")
+    assert -538_282 == lcompile("-538282")
 
-    assert 1 == lcompile('1N')
-    assert 100 == lcompile('100N')
-    assert 99927273 == lcompile('99927273N')
-    assert 0 == lcompile('0N')
-    assert -1 == lcompile('-1N')
-    assert -538282 == lcompile('-538282N')
+    assert 1 == lcompile("1N")
+    assert 100 == lcompile("100N")
+    assert 99_927_273 == lcompile("99927273N")
+    assert 0 == lcompile("0N")
+    assert -1 == lcompile("-1N")
+    assert -538_282 == lcompile("-538282N")
 
 
 def test_decimal():
-    assert decimal.Decimal('0.0') == lcompile('0.0M')
-    assert decimal.Decimal('0.09387372') == lcompile('0.09387372M')
-    assert decimal.Decimal('1.0') == lcompile('1.0M')
-    assert decimal.Decimal('1.332') == lcompile('1.332M')
-    assert decimal.Decimal('-1.332') == lcompile('-1.332M')
-    assert decimal.Decimal('-1.0') == lcompile('-1.0M')
-    assert decimal.Decimal('-0.332') == lcompile('-0.332M')
-    assert decimal.Decimal('3.14') == lcompile('3.14M')
+    assert decimal.Decimal("0.0") == lcompile("0.0M")
+    assert decimal.Decimal("0.09387372") == lcompile("0.09387372M")
+    assert decimal.Decimal("1.0") == lcompile("1.0M")
+    assert decimal.Decimal("1.332") == lcompile("1.332M")
+    assert decimal.Decimal("-1.332") == lcompile("-1.332M")
+    assert decimal.Decimal("-1.0") == lcompile("-1.0M")
+    assert decimal.Decimal("-0.332") == lcompile("-0.332M")
+    assert decimal.Decimal("3.14") == lcompile("3.14M")
 
 
 def test_float():
-    assert lcompile('0.0') == 0.0
-    assert lcompile('0.09387372') == 0.09387372
-    assert lcompile('1.0') == 1.0
-    assert lcompile('1.332') == 1.332
-    assert lcompile('-1.332') == -1.332
-    assert lcompile('-1.0') == -1.0
-    assert lcompile('-0.332') == -0.332
+    assert lcompile("0.0") == 0.0
+    assert lcompile("0.09387372") == 0.093_873_72
+    assert lcompile("1.0") == 1.0
+    assert lcompile("1.332") == 1.332
+    assert lcompile("-1.332") == -1.332
+    assert lcompile("-1.0") == -1.0
+    assert lcompile("-0.332") == -0.332
 
 
 def test_kw():
@@ -129,21 +131,17 @@ def test_literals():
 
 
 def test_quoted_symbol():
-    assert lcompile("'sym") == sym.symbol('sym')
-    assert lcompile("'ns/sym") == sym.symbol('sym', ns='ns')
-    assert lcompile("'qualified.ns/sym") == sym.symbol(
-        'sym', ns='qualified.ns')
+    assert lcompile("'sym") == sym.symbol("sym")
+    assert lcompile("'ns/sym") == sym.symbol("sym", ns="ns")
+    assert lcompile("'qualified.ns/sym") == sym.symbol("sym", ns="qualified.ns")
 
 
 def test_map():
     assert lcompile("{}") == lmap.m()
     assert lcompile('{:a "string"}') == lmap.map({kw.keyword("a"): "string"})
-    assert lcompile('{:a "string" 45 :my-age}') == lmap.map({
-        kw.keyword("a"):
-            "string",
-        45:
-            kw.keyword("my-age")
-    })
+    assert lcompile('{:a "string" 45 :my-age}') == lmap.map(
+        {kw.keyword("a"): "string", 45: kw.keyword("my-age")}
+    )
 
 
 def test_set():
@@ -161,38 +159,48 @@ def test_vec():
 def test_def(ns: runtime.Namespace):
     ns_name = ns.name
     assert lcompile("(def a :some-val)") == Var.find_in_ns(
-        sym.symbol(ns_name), sym.symbol('a'))
+        sym.symbol(ns_name), sym.symbol("a")
+    )
     assert lcompile('(def beep "a sound a robot makes")') == Var.find_in_ns(
-        sym.symbol(ns_name), sym.symbol('beep'))
+        sym.symbol(ns_name), sym.symbol("beep")
+    )
     assert lcompile("a") == kw.keyword("some-val")
     assert lcompile("beep") == "a sound a robot makes"
 
 
 def test_def_no_warn_on_redef(ns: runtime.Namespace):
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
-        lcompile("""
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            """
         (def unique-zhddkd :a)
         (def ^:no-warn-on-redef unique-zhddkd :b)
-        """)
+        """
+        )
 
         logger.warning.assert_not_called()
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
-        lcompile("""
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            """
         (def unique-djhvyz :a)
         (def unique-djhvyz :b)
-        """)
+        """
+        )
 
-        logger.warning.assert_called_with(f"redefining local Python name 'unique_djhvyz' in module '{ns.name}'")
+        logger.warning.assert_called_with(
+            f"redefining local Python name 'unique_djhvyz' in module '{ns.name}'"
+        )
 
 
 def test_redef_vars(ns: runtime.Namespace):
-    assert kw.keyword('b') == lcompile("""
+    assert kw.keyword("b") == lcompile(
+        """
     (def ^:redef orig :a)
     (def redef-check (fn* [] orig))
     (def orig :b)
     (redef-check)
-    """)
+    """
+    )
 
 
 def test_def_dynamic(ns: runtime.Namespace):
@@ -219,7 +227,8 @@ def test_do(ns: runtime.Namespace):
     """
     ns_name = ns.name
     assert lcompile(code) == Var.find_in_ns(
-        sym.symbol(ns_name), sym.symbol('last-name'))
+        sym.symbol(ns_name), sym.symbol("last-name")
+    )
     assert lcompile("first-name") == kw.keyword("Darth")
     assert lcompile("last-name") == "Vader"
 
@@ -230,94 +239,120 @@ def test_invalid_fn_def(ns: runtime.Namespace):
 
 
 def test_fn_warn_on_shadow_name(ns: runtime.Namespace):
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         lcompile("(fn [v] (fn [v] v))")
         logger.warning.assert_not_called()
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
-        lcompile("""
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            """
         (fn
           ([] :a)
           ([v] (fn [v] v)))
-        """)
+        """
+        )
 
         logger.warning.assert_not_called()
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
-        lcompile("(fn [v] (fn [v] v))",
-                 ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True}))
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            "(fn [v] (fn [v] v))",
+            ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True}),
+        )
 
         logger.warning.assert_called_once_with("name 'v' shadows name from outer scope")
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         code = """
         (fn
           ([] :a)
           ([v] (fn [v] v)))
         """
-        lcompile(code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True}))
+        lcompile(
+            code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True})
+        )
 
         logger.warning.assert_called_once_with("name 'v' shadows name from outer scope")
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         code = """
         (def unique-bljzndd :a)
         (fn [unique-bljzndd] unique-bljzndd)
         """
-        lcompile(code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True}))
+        lcompile(
+            code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True})
+        )
 
-        logger.warning.assert_called_once_with("name 'unique-bljzndd' shadows def'ed Var from outer scope")
+        logger.warning.assert_called_once_with(
+            "name 'unique-bljzndd' shadows def'ed Var from outer scope"
+        )
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         code = """
         (def unique-yezddid :a)
         (fn
           ([] :b)
           ([unique-yezddid] unique-yezddid))
         """
-        lcompile(code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True}))
+        lcompile(
+            code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True})
+        )
 
-        logger.warning.assert_called_once_with("name 'unique-yezddid' shadows def'ed Var from outer scope")
+        logger.warning.assert_called_once_with(
+            "name 'unique-yezddid' shadows def'ed Var from outer scope"
+        )
 
 
 def test_fn_warn_on_shadow_var(ns: runtime.Namespace):
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         code = """
         (def unique-vfsdhsk :a)
         (fn [unique-vfsdhsk] unique-vfsdhsk)
         """
-        lcompile(code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: False}))
+        lcompile(
+            code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: False})
+        )
 
         logger.warning.assert_not_called()
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         code = """
         (def unique-mmndheee :a)
         (fn
           ([] :b)
           ([unique-mmndheee] unique-mmndheee))
         """
-        lcompile(code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: False}))
+        lcompile(
+            code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: False})
+        )
 
         logger.warning.assert_not_called()
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
-        lcompile("""
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            """
         (def unique-kuieeid :a)
         (fn [unique-kuieeid] unique-kuieeid)
-        """)
+        """
+        )
 
-        logger.warning.assert_called_once_with("name 'unique-kuieeid' shadows def'ed Var from outer scope")
+        logger.warning.assert_called_once_with(
+            "name 'unique-kuieeid' shadows def'ed Var from outer scope"
+        )
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
-        lcompile("""
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            """
         (def unique-peuudcdf :a)
         (fn
           ([] :b)
           ([unique-peuudcdf] unique-peuudcdf))
-        """)
+        """
+        )
 
-        logger.warning.assert_called_once_with("name 'unique-peuudcdf' shadows def'ed Var from outer scope")
+        logger.warning.assert_called_once_with(
+            "name 'unique-peuudcdf' shadows def'ed Var from outer scope"
+        )
 
 
 def test_single_arity_fn(ns: runtime.Namespace):
@@ -326,7 +361,7 @@ def test_single_arity_fn(ns: runtime.Namespace):
     """
     ns_name = ns.name
     fvar = lcompile(code)
-    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol('empty-single')) == fvar
+    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("empty-single")) == fvar
     assert callable(fvar.value)
     assert None is fvar.value()
 
@@ -335,7 +370,7 @@ def test_single_arity_fn(ns: runtime.Namespace):
     """
     ns_name = ns.name
     fvar = lcompile(code)
-    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol('string-upper')) == fvar
+    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-upper")) == fvar
     assert callable(fvar.value)
     assert "LOWER" == fvar.value("lower")
 
@@ -344,7 +379,7 @@ def test_single_arity_fn(ns: runtime.Namespace):
     """
     ns_name = ns.name
     fvar = lcompile(code)
-    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol('string-upper')) == fvar
+    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-upper")) == fvar
     assert callable(fvar.value)
     assert "LOWER" == fvar.value("lower")
 
@@ -353,38 +388,44 @@ def test_single_arity_fn(ns: runtime.Namespace):
     """
     ns_name = ns.name
     fvar = lcompile(code)
-    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol('string-lower')) == fvar
+    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-lower")) == fvar
     assert callable(fvar.value)
     assert "upper" == fvar.value("UPPER")
 
 
 def test_multi_arity_fn(ns: runtime.Namespace):
     with pytest.raises(compiler.CompilerException):
-        lcompile('(fn f)')
+        lcompile("(fn f)")
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("""
+        lcompile(
+            """
             (def f
               (fn* f
                 ([] :no-args)
                 ([] :also-no-args)))
-            """)
+            """
+        )
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("""
+        lcompile(
+            """
             (def f
               (fn* f
                 ([& args] (concat [:no-starter] args))
                 ([s & args] (concat [s] args))))
-            """)
+            """
+        )
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("""
+        lcompile(
+            """
             (def f
               (fn* f
                 ([s] (concat [s] :one-arg))
                 ([& args] (concat [:rest-params] args))))
-            """)
+            """
+        )
 
     code = """
     (def empty-multi-fn
@@ -394,10 +435,10 @@ def test_multi_arity_fn(ns: runtime.Namespace):
     """
     ns_name = ns.name
     fvar = lcompile(code)
-    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol('empty-multi-fn')) == fvar
+    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("empty-multi-fn")) == fvar
     assert callable(fvar.value)
     assert None is fvar.value()
-    assert None is fvar.value('STRING')
+    assert None is fvar.value("STRING")
 
     code = """
     (def multi-fn
@@ -408,12 +449,13 @@ def test_multi_arity_fn(ns: runtime.Namespace):
     """
     ns_name = ns.name
     fvar = lcompile(code)
-    assert fvar == Var.find_in_ns(
-        sym.symbol(ns_name), sym.symbol('multi-fn'))
+    assert fvar == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("multi-fn"))
     assert callable(fvar.value)
-    assert fvar.value() == kw.keyword('no-args')
-    assert fvar.value('STRING') == 'STRING'
-    assert fvar.value(kw.keyword('first-arg'), 'second-arg', 3) == llist.l(kw.keyword('first-arg'), 'second-arg', 3)
+    assert fvar.value() == kw.keyword("no-args")
+    assert fvar.value("STRING") == "STRING"
+    assert fvar.value(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
+        kw.keyword("first-arg"), "second-arg", 3
+    )
 
     with pytest.raises(runtime.RuntimeException):
         code = """
@@ -478,8 +520,8 @@ def test_truthiness(ns: runtime.Namespace):
     assert kw.keyword("a") == lcompile("(if :kw :a :b)")
     assert kw.keyword("a") == lcompile("(if :ns/kw :a :b)")
 
-    assert kw.keyword("a") == lcompile("(if \"\" :a :b)")
-    assert kw.keyword("a") == lcompile("(if \"not empty\" :a :b)")
+    assert kw.keyword("a") == lcompile('(if "" :a :b)')
+    assert kw.keyword("a") == lcompile('(if "not empty" :a :b)')
 
     assert kw.keyword("a") == lcompile("(if 0 :a :b)")
     assert kw.keyword("a") == lcompile("(if 1 :a :b)")
@@ -511,8 +553,8 @@ def test_truthiness(ns: runtime.Namespace):
 
 def test_interop_new(ns: runtime.Namespace):
     assert "hi" == lcompile('(builtins.str. "hi")')
-    assert "1" == lcompile('(builtins.str. 1)')
-    assert sym.symbol('hi') == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
+    assert "1" == lcompile("(builtins.str. 1)")
+    assert sym.symbol("hi") == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
 
     with pytest.raises(runtime.RuntimeException):
         lcompile('(builtins.str "hi")')
@@ -536,17 +578,19 @@ def test_interop_prop(ns: runtime.Namespace):
 
 def test_let(ns: runtime.Namespace):
     assert lcompile("(let* [a 1] a)") == 1
-    assert lcompile("(let* [a :keyword b \"string\"] a)") == kw.keyword('keyword')
-    assert lcompile("(let* [a :value b a] b)") == kw.keyword('value')
-    assert lcompile("(let* [a 1 b :length c {b a} a 4] c)") == lmap.map({kw.keyword('length'): 1})
+    assert lcompile('(let* [a :keyword b "string"] a)') == kw.keyword("keyword")
+    assert lcompile("(let* [a :value b a] b)") == kw.keyword("value")
+    assert lcompile("(let* [a 1 b :length c {b a} a 4] c)") == lmap.map(
+        {kw.keyword("length"): 1}
+    )
     assert lcompile("(let* [a 1 b :length c {b a} a 4] a)") == 4
-    assert lcompile("(let* [a \"lower\"] (.upper a))") == "LOWER"
+    assert lcompile('(let* [a "lower"] (.upper a))') == "LOWER"
 
     with pytest.raises(runtime.RuntimeException):
         lcompile("(let* [a 'sym] c)")
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(let* [] \"string\")")
+        lcompile('(let* [] "string")')
 
 
 def test_let_lazy_evaluation(ns: runtime.Namespace):
@@ -561,58 +605,73 @@ def test_let_lazy_evaluation(ns: runtime.Namespace):
 
 
 def test_let_warn_on_shadow_name(ns: runtime.Namespace):
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         lcompile("(let [m 3] m)")
         logger.warning.assert_not_called()
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         lcompile("(let [m 3] (let [m 4] m))")
         logger.warning.assert_not_called()
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
-        lcompile("(let [m 3] m)",
-                 ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True}))
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            "(let [m 3] m)",
+            ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True}),
+        )
         logger.warning.assert_not_called()
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
-        lcompile("(let [m 3] (let [m 4] m))",
-                 ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True}))
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            "(let [m 3] (let [m 4] m))",
+            ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True}),
+        )
         logger.warning.assert_called_once_with("name 'm' shadows name from outer scope")
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         code = """
         (def unique-yyenfvhj :a)
         (let [unique-yyenfvhj 3] unique-yyenfvhj)
         """
 
-        lcompile(code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True}))
-        logger.warning.assert_called_once_with("name 'unique-yyenfvhj' shadows def'ed Var from outer scope")
+        lcompile(
+            code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_NAME: True})
+        )
+        logger.warning.assert_called_once_with(
+            "name 'unique-yyenfvhj' shadows def'ed Var from outer scope"
+        )
 
 
 def test_let_warn_on_shadow_var(ns: runtime.Namespace):
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         code = """
         (def unique-gghdjeeh :a)
         (let [unique-gghdjeeh 3] unique-gghdjeeh)
         """
 
-        lcompile(code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: False}))
+        lcompile(
+            code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: False})
+        )
         logger.warning.assert_not_called()
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
-        lcompile("""
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            """
         (def unique-uoieyqq :a)
         (let [unique-uoieyqq 3] unique-uoieyqq)
-        """)
-        logger.warning.assert_called_once_with("name 'unique-uoieyqq' shadows def'ed Var from outer scope")
+        """
+        )
+        logger.warning.assert_called_once_with(
+            "name 'unique-uoieyqq' shadows def'ed Var from outer scope"
+        )
 
 
 def test_quoted_list(ns: runtime.Namespace):
     assert lcompile("'()") == llist.l()
-    assert lcompile("'(str)") == llist.l(sym.symbol('str'))
-    assert lcompile("'(str 3)") == llist.l(sym.symbol('str'), 3)
+    assert lcompile("'(str)") == llist.l(sym.symbol("str"))
+    assert lcompile("'(str 3)") == llist.l(sym.symbol("str"), 3)
     assert lcompile("'(str 3 :feet-deep)") == llist.l(
-        sym.symbol('str'), 3, kw.keyword("feet-deep"))
+        sym.symbol("str"), 3, kw.keyword("feet-deep")
+    )
 
 
 def test_recur(ns: runtime.Namespace):
@@ -659,9 +718,9 @@ def test_recur(ns: runtime.Namespace):
 
     lcompile(code)
 
-    assert "a" == lcompile("(rev-str \"a\")")
-    assert ":ba" == lcompile("(rev-str \"a\" :b)")
-    assert "3:ba" == lcompile("(rev-str \"a\" :b 3)")
+    assert "a" == lcompile('(rev-str "a")')
+    assert ":ba" == lcompile('(rev-str "a" :b)')
+    assert "3:ba" == lcompile('(rev-str "a" :b 3)')
 
 
 def test_recur_arity(ns: runtime.Namespace):
@@ -705,22 +764,22 @@ def test_recur_arity(ns: runtime.Namespace):
 
 def test_disallow_recur_in_special_forms(ns: runtime.Namespace):
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (def b (recur \"a\")))")
+        lcompile('(fn [a] (def b (recur "a")))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (import* (recur \"a\")))")
+        lcompile('(fn [a] (import* (recur "a")))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (.join \"\" (recur \"a\")))")
+        lcompile('(fn [a] (.join "" (recur "a")))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (.-p (recur \"a\")))")
+        lcompile('(fn [a] (.-p (recur "a")))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (throw (recur \"a\"))))")
+        lcompile('(fn [a] (throw (recur "a"))))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (var (recur \"a\"))))")
+        lcompile('(fn [a] (var (recur "a"))))')
 
 
 def test_disallow_recur_outside_tail(ns: runtime.Namespace):
@@ -734,28 +793,28 @@ def test_disallow_recur_outside_tail(ns: runtime.Namespace):
         lcompile("(if true (recur) :b)")
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (do (recur \"a\") :b))")
+        lcompile('(fn [a] (do (recur "a") :b))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (if (recur \"a\") :a :b))")
+        lcompile('(fn [a] (if (recur "a") :a :b))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (if (recur \"a\") :a))")
+        lcompile('(fn [a] (if (recur "a") :a))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (let [a (recur \"a\")] a))")
+        lcompile('(fn [a] (let [a (recur "a")] a))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (let [a (do (recur \"a\"))] a))")
+        lcompile('(fn [a] (let [a (do (recur "a"))] a))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (let [a (do :b (recur \"a\"))] a))")
+        lcompile('(fn [a] (let [a (do :b (recur "a"))] a))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (let [a (do (recur \"a\") :c)] a))")
+        lcompile('(fn [a] (let [a (do (recur "a") :c)] a))')
 
     with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (let [a \"a\"] (recur a) a))")
+        lcompile('(fn [a] (let [a "a"] (recur a) a))')
 
     with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (try (do (recur a) :b) (catch AttributeError _ nil)))")
@@ -794,29 +853,37 @@ def test_syntax_quoting(test_ns: str, ns: runtime.Namespace, resolver: reader.Re
     (def some-val \"some value!\")
 
     `(some-val)"""
-    assert llist.l(sym.symbol('some-val', ns=test_ns)) == lcompile(code, resolver=resolver)
+    assert llist.l(sym.symbol("some-val", ns=test_ns)) == lcompile(
+        code, resolver=resolver
+    )
 
     code = """
     (def second-val \"some value!\")
 
     `(other-val)"""
-    assert llist.l(sym.symbol('other-val')) == lcompile(code)
+    assert llist.l(sym.symbol("other-val")) == lcompile(code)
 
     code = """
     (def a-str \"a definite string\")
     (def a-number 1583)
 
     `(a-str ~a-number)"""
-    assert llist.l(sym.symbol('a-str', ns=test_ns), 1583) == lcompile(code, resolver=resolver)
+    assert llist.l(sym.symbol("a-str", ns=test_ns), 1583) == lcompile(
+        code, resolver=resolver
+    )
 
     code = """
     (def whatever \"yes, whatever\")
     (def ssss \"a snake\")
 
     `(whatever ~@[ssss 45])"""
-    assert llist.l(sym.symbol('whatever', ns=test_ns), "a snake", 45) == lcompile(code, resolver=resolver)
+    assert llist.l(sym.symbol("whatever", ns=test_ns), "a snake", 45) == lcompile(
+        code, resolver=resolver
+    )
 
-    assert llist.l(sym.symbol('my-symbol', ns=test_ns)) == lcompile("`(my-symbol)", resolver)
+    assert llist.l(sym.symbol("my-symbol", ns=test_ns)) == lcompile(
+        "`(my-symbol)", resolver
+    )
 
 
 def test_throw(ns: runtime.Namespace):
@@ -869,21 +936,25 @@ def test_try_catch(capsys, ns: runtime.Namespace):
 
 
 def test_warn_on_var_indirection(ns: runtime.Namespace):
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
-        lcompile("(fn [] m)",
-                 ctx=compiler.CompilerContext({compiler.WARN_ON_VAR_INDIRECTION: False}))
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            "(fn [] m)",
+            ctx=compiler.CompilerContext({compiler.WARN_ON_VAR_INDIRECTION: False}),
+        )
         logger.warning.assert_not_called()
 
-    with mock.patch('basilisp.lang.compiler.logger') as logger:
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
         lcompile("(fn [] m)")
-        logger.warning.assert_called_once_with("could not resolve a direct link to Var 'm'")
+        logger.warning.assert_called_once_with(
+            "could not resolve a direct link to Var 'm'"
+        )
 
 
 def test_unquote(ns: runtime.Namespace):
     with pytest.raises(runtime.RuntimeException):
         lcompile("~s")
 
-    assert llist.l(sym.symbol('s')) == lcompile('`(s)')
+    assert llist.l(sym.symbol("s")) == lcompile("`(s)")
 
     with pytest.raises(runtime.RuntimeException):
         lcompile("`(~s)")
@@ -895,19 +966,20 @@ def test_unquote_splicing(ns: runtime.Namespace, resolver: reader.Resolver):
 
     assert llist.l(1, 2, 3) == lcompile("`(~@[1 2 3])")
 
-    assert llist.l(sym.symbol('print', ns='basilisp.core'), 1, 2, 3) == lcompile(
-        "`(print ~@[1 2 3])", resolver=resolver)
+    assert llist.l(sym.symbol("print", ns="basilisp.core"), 1, 2, 3) == lcompile(
+        "`(print ~@[1 2 3])", resolver=resolver
+    )
 
     assert llist.l(llist.l(reader._UNQUOTE_SPLICING, 53233)) == lcompile("'(~@53233)")
 
 
 def test_aliased_macro_symbol_resolution(ns: runtime.Namespace):
     current_ns: runtime.Namespace = ns
-    other_ns_name = sym.symbol('other.ns')
+    other_ns_name = sym.symbol("other.ns")
     try:
         other_ns = runtime.Namespace.get_or_create(other_ns_name)
         current_ns.add_alias(other_ns_name, other_ns)
-        current_ns.add_alias(sym.symbol('other'), other_ns)
+        current_ns.add_alias(sym.symbol("other"), other_ns)
 
         with runtime.ns_bindings(other_ns_name.name):
             lcompile("(def ^:macro m (fn* [&form v] v))")
@@ -927,7 +999,7 @@ def test_var(ns: runtime.Namespace):
 
     ns_name = ns.name
     v = lcompile(code)
-    assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
+    assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("some-var"))
     assert v.value == "a value"
 
     code = """
@@ -937,23 +1009,25 @@ def test_var(ns: runtime.Namespace):
 
     ns_name = ns.name
     v = lcompile(code)
-    assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol('some-var'))
+    assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("some-var"))
     assert v.value == "a value"
 
 
 def test_fraction(ns: runtime.Namespace):
-    assert Fraction('22/7') == lcompile('22/7')
+    assert Fraction("22/7") == lcompile("22/7")
 
 
 def test_inst(ns: runtime.Namespace):
-    assert dateparser.parse('2018-01-18T03:26:57.296-00:00') == lcompile(
-        '#inst "2018-01-18T03:26:57.296-00:00"')
+    assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
+        '#inst "2018-01-18T03:26:57.296-00:00"'
+    )
 
 
 def test_regex(ns: runtime.Namespace):
-    assert lcompile(r'#"\s"') == re.compile(r'\s')
+    assert lcompile(r'#"\s"') == re.compile(r"\s")
 
 
 def test_uuid(ns: runtime.Namespace):
-    assert uuid.UUID('{0366f074-a8c5-4764-b340-6a5576afd2e8}') == lcompile(
-        '#uuid "0366f074-a8c5-4764-b340-6a5576afd2e8"')
+    assert uuid.UUID("{0366f074-a8c5-4764-b340-6a5576afd2e8}") == lcompile(
+        '#uuid "0366f074-a8c5-4764-b340-6a5576afd2e8"'
+    )

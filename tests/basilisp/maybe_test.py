@@ -34,7 +34,9 @@ def test_maybe_or_else_raise():
     with pytest.raises(ValueError):
         assert Maybe(None).or_else_raise(lambda: ValueError("No value"))
 
-    assert Maybe("Something").or_else_raise(lambda: ValueError("No value")) == "Something"
+    assert (
+        Maybe("Something").or_else_raise(lambda: ValueError("No value")) == "Something"
+    )
 
 
 def test_maybe_map():

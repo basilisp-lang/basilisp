@@ -41,17 +41,17 @@ def lrepr(f) -> str:
 
 
 _MUNGE_REPLACEMENTS = {
-    '+': '__PLUS__',
-    '-': '_',
-    '*': '__STAR__',
-    '/': '__DIV__',
-    '>': '__GT__',
-    '<': '__LT__',
-    '!': '__BANG__',
-    '=': '__EQ__',
-    '?': '__Q__',
-    '\\': '__IDIV__',
-    '&': '__AMP__'
+    "+": "__PLUS__",
+    "-": "_",
+    "*": "__STAR__",
+    "/": "__DIV__",
+    ">": "__GT__",
+    "<": "__LT__",
+    "!": "__BANG__",
+    "=": "__EQ__",
+    "?": "__Q__",
+    "\\": "__IDIV__",
+    "&": "__AMP__",
 }
 
 
@@ -62,7 +62,7 @@ def munge(s: str, allow_builtins: bool = False) -> str:
     for c in s:
         new_str.append(_MUNGE_REPLACEMENTS.get(c, c))
 
-    new_s = ''.join(new_str)
+    new_s = "".join(new_str)
 
     if keyword.iskeyword(new_s):
         return f"{new_s}_"
@@ -88,7 +88,7 @@ def demunge(s: str) -> str:
             return replacement
         return full_match
 
-    return re.sub(_DEMUNGE_PATTERN, demunge_replacer, s).replace('_', '-')
+    return re.sub(_DEMUNGE_PATTERN, demunge_replacer, s).replace("_", "-")
 
 
 # Use an atomically incremented integer as a suffix for all
@@ -131,4 +131,4 @@ def regex_from_str(regex_str: str) -> Pattern:
 def uuid_from_str(uuid_str: str) -> uuid.UUID:
     """Create a new UUID instance from the canonical string representation
     of a UUID."""
-    return uuid.UUID(f'{{{uuid_str}}}')
+    return uuid.UUID(f"{{{uuid_str}}}")

@@ -12,7 +12,8 @@ class List(Collection, Meta, Seq):
 
     Do not instantiate directly. Instead use the l() and list() factory
     methods below."""
-    __slots__ = ('_inner', '_meta',)
+
+    __slots__ = ("_inner", "_meta")
 
     def __init__(self, wrapped: PList, meta=None) -> None:
         self._inner = wrapped
@@ -40,8 +41,7 @@ class List(Collection, Meta, Seq):
         return self._meta
 
     def with_meta(self, meta) -> "List":
-        new_meta = meta if self._meta is None else self._meta.update(
-            meta)
+        new_meta = meta if self._meta is None else self._meta.update(meta)
         return list(self._inner, meta=new_meta)
 
     @property

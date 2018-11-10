@@ -25,14 +25,23 @@ def ns(test_ns: str) -> runtime.Namespace:
         yield ns
 
 
-def read_str_first(s: str,
-                   resolver: reader.Resolver = None,
-                   data_readers=None,
-                   is_eof_error: bool = False):
+def read_str_first(
+    s: str,
+    resolver: reader.Resolver = None,
+    data_readers=None,
+    is_eof_error: bool = False,
+):
     """Read the first form from the input string. If no form
     is found, return None."""
     try:
-        return next(reader.read_str(s, resolver=resolver, data_readers=data_readers, is_eof_error=is_eof_error))
+        return next(
+            reader.read_str(
+                s,
+                resolver=resolver,
+                data_readers=data_readers,
+                is_eof_error=is_eof_error,
+            )
+        )
     except StopIteration:
         return None
 
@@ -70,11 +79,7 @@ def test_stream_reader():
 
 
 def test_stream_reader_loc():
-    s = str(
-        "i=1\n"
-        "b=2\n"
-        "i"
-    )
+    s = str("i=1\n" "b=2\n" "i")
     sreader = reader.StreamReader(io.StringIO(s))
 
     assert "i" == sreader.peek()
@@ -119,12 +124,12 @@ def test_stream_reader_loc():
 
 
 def test_complex():
-    assert read_str_first("1J") == 1J
-    assert read_str_first("100J") == 100J
-    assert read_str_first("99927273J") == 99927273J
-    assert read_str_first("0J") == 0J
-    assert read_str_first("-1J") == -1J
-    assert read_str_first("-538282J") == -538282J
+    assert read_str_first("1J") == 1j
+    assert read_str_first("100J") == 100j
+    assert read_str_first("99927273J") == 99_927_273j
+    assert read_str_first("0J") == 0j
+    assert read_str_first("-1J") == -1j
+    assert read_str_first("-538282J") == -538_282j
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("1JJ")
@@ -132,13 +137,13 @@ def test_complex():
     with pytest.raises(reader.SyntaxError):
         read_str_first("1NJ")
 
-    assert read_str_first("0.0J") == 0.0J
-    assert read_str_first("0.09387372J") == 0.09387372J
-    assert read_str_first("1.0J") == 1.0J
-    assert read_str_first("1.332J") == 1.332J
-    assert read_str_first("-1.332J") == -1.332J
-    assert read_str_first("-1.0J") == -1.0J
-    assert read_str_first("-0.332J") == -0.332J
+    assert read_str_first("0.0J") == 0.0j
+    assert read_str_first("0.09387372J") == 0.093_873_72j
+    assert read_str_first("1.0J") == 1.0j
+    assert read_str_first("1.332J") == 1.332j
+    assert read_str_first("-1.332J") == -1.332j
+    assert read_str_first("-1.0J") == -1.0j
+    assert read_str_first("-0.332J") == -0.332j
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("1.0MJ")
@@ -153,17 +158,17 @@ def test_complex():
 def test_int():
     assert read_str_first("1") == 1
     assert read_str_first("100") == 100
-    assert read_str_first("99927273") == 99927273
+    assert read_str_first("99927273") == 99_927_273
     assert read_str_first("0") == 0
     assert read_str_first("-1") == -1
-    assert read_str_first("-538282") == -538282
+    assert read_str_first("-538282") == -538_282
 
     assert read_str_first("1N") == 1
     assert read_str_first("100N") == 100
-    assert read_str_first("99927273N") == 99927273
+    assert read_str_first("99927273N") == 99_927_273
     assert read_str_first("0N") == 0
     assert read_str_first("-1N") == -1
-    assert read_str_first("-538282N") == -538282
+    assert read_str_first("-538282N") == -538_282
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("1NN")
@@ -171,7 +176,7 @@ def test_int():
 
 def test_float():
     assert read_str_first("0.0") == 0.0
-    assert read_str_first("0.09387372") == 0.09387372
+    assert read_str_first("0.09387372") == 0.093_873_72
     assert read_str_first("1.0") == 1.0
     assert read_str_first("1.332") == 1.332
     assert read_str_first("-1.332") == -1.332
@@ -210,10 +215,10 @@ def test_kw():
     assert kw.keyword("yay!") == read_str_first(":yay!")
 
     assert kw.keyword("kw", ns="ns") == read_str_first(":ns/kw")
-    assert kw.keyword("kw", ns="qualified.ns") == read_str_first(
-        ":qualified.ns/kw")
+    assert kw.keyword("kw", ns="qualified.ns") == read_str_first(":qualified.ns/kw")
     assert kw.keyword("kw", ns="really.qualified.ns") == read_str_first(
-        ":really.qualified.ns/kw")
+        ":really.qualified.ns/kw"
+    )
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("://")
@@ -265,10 +270,10 @@ def test_symbol():
     assert sym.symbol("yay!") == read_str_first("yay!")
 
     assert sym.symbol("sym", ns="ns") == read_str_first("ns/sym")
-    assert sym.symbol(
-        "sym", ns="qualified.ns") == read_str_first("qualified.ns/sym")
-    assert sym.symbol(
-        "sym", ns="really.qualified.ns") == read_str_first("really.qualified.ns/sym")
+    assert sym.symbol("sym", ns="qualified.ns") == read_str_first("qualified.ns/sym")
+    assert sym.symbol("sym", ns="really.qualified.ns") == read_str_first(
+        "really.qualified.ns/sym"
+    )
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("//")
@@ -294,9 +299,9 @@ def test_symbol():
 
 
 def test_str():
-    assert '' == read_str_first('""')
+    assert "" == read_str_first('""')
 
-    assert "\"" == read_str_first(r'"\""')
+    assert '"' == read_str_first(r'"\""')
     assert "\\" == read_str_first(r'"\\"')
     assert "\a" == read_str_first(r'"\a"')
     assert "\b" == read_str_first(r'"\b"')
@@ -309,162 +314,203 @@ def test_str():
     with pytest.raises(reader.SyntaxError):
         read_str_first(r'"\q"')
 
-    assert "Hello,\nmy name is\tChris." == read_str_first(r'"Hello,\nmy name is\tChris."')
+    assert "Hello,\nmy name is\tChris." == read_str_first(
+        r'"Hello,\nmy name is\tChris."'
+    )
 
-    assert 'Regular string' == read_str_first('"Regular string"')
+    assert "Regular string" == read_str_first('"Regular string"')
     assert "String with 'inner string'" == read_str_first(
-        '"String with \'inner string\'"')
+        "\"String with 'inner string'\""
+    )
     assert 'String with "inner string"' == read_str_first(
-        r'"String with \"inner string\""')
+        r'"String with \"inner string\""'
+    )
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('"Start of a string')
 
 
 def test_whitespace():
-    assert read_str_first('') is None
-    assert read_str_first(' ') is None
-    assert read_str_first('\t') is None
+    assert read_str_first("") is None
+    assert read_str_first(" ") is None
+    assert read_str_first("\t") is None
 
 
 def test_vector():
     with pytest.raises(reader.SyntaxError):
-        read_str_first('[')
+        read_str_first("[")
 
-    assert read_str_first('[]') == vec.vector([])
-    assert read_str_first('[:a]') == vec.v(kw.keyword("a"))
-    assert read_str_first('[:a :b]') == vec.v(kw.keyword("a"), kw.keyword("b"))
-    assert read_str_first('[:a :b :c]') == vec.v(
-        kw.keyword("a"), kw.keyword("b"), kw.keyword("c"))
-    assert read_str_first('[:a, :b]') == vec.v(
-        kw.keyword("a"), kw.keyword("b"))
-    assert read_str_first('[:a :b, :c]') == vec.v(
-        kw.keyword("a"), kw.keyword("b"), kw.keyword("c"))
-    assert read_str_first('[:a, :b, :c]') == vec.v(
-        kw.keyword("a"), kw.keyword("b"), kw.keyword("c"))
-    assert read_str_first('[1 :a "string"]') == vec.v(1, kw.keyword("a"),
-                                                      "string")
-    assert read_str_first('[1, :a, "string"]') == vec.v(
-        1, kw.keyword("a"), "string")
+    assert read_str_first("[]") == vec.vector([])
+    assert read_str_first("[:a]") == vec.v(kw.keyword("a"))
+    assert read_str_first("[:a :b]") == vec.v(kw.keyword("a"), kw.keyword("b"))
+    assert read_str_first("[:a :b :c]") == vec.v(
+        kw.keyword("a"), kw.keyword("b"), kw.keyword("c")
+    )
+    assert read_str_first("[:a, :b]") == vec.v(kw.keyword("a"), kw.keyword("b"))
+    assert read_str_first("[:a :b, :c]") == vec.v(
+        kw.keyword("a"), kw.keyword("b"), kw.keyword("c")
+    )
+    assert read_str_first("[:a, :b, :c]") == vec.v(
+        kw.keyword("a"), kw.keyword("b"), kw.keyword("c")
+    )
+    assert read_str_first('[1 :a "string"]') == vec.v(1, kw.keyword("a"), "string")
+    assert read_str_first('[1, :a, "string"]') == vec.v(1, kw.keyword("a"), "string")
     assert read_str_first('[1.4, :a, "string"]') == vec.v(
-        1.4, kw.keyword("a"), "string")
+        1.4, kw.keyword("a"), "string"
+    )
 
 
 def test_list():
     with pytest.raises(reader.SyntaxError):
-        read_str_first('(')
+        read_str_first("(")
 
-    assert read_str_first('()') == llist.list([])
-    assert read_str_first('(func-with-no-args)') == llist.l(
-        sym.symbol("func-with-no-args"))
+    assert read_str_first("()") == llist.list([])
+    assert read_str_first("(func-with-no-args)") == llist.l(
+        sym.symbol("func-with-no-args")
+    )
     assert read_str_first('(str/join "one string" " and another")') == llist.l(
-        sym.symbol("join", ns='str'), "one string", " and another")
-    assert read_str_first('(map inc [1 2 3])') == llist.l(
-        sym.symbol("map"), sym.symbol("inc"), vec.v(1, 2, 3))
-    assert read_str_first('(- -1 2)') == llist.l(sym.symbol("-"), -1, 2)
+        sym.symbol("join", ns="str"), "one string", " and another"
+    )
+    assert read_str_first("(map inc [1 2 3])") == llist.l(
+        sym.symbol("map"), sym.symbol("inc"), vec.v(1, 2, 3)
+    )
+    assert read_str_first("(- -1 2)") == llist.l(sym.symbol("-"), -1, 2)
 
 
 def test_set():
     with pytest.raises(reader.SyntaxError):
-        read_str_first('#{')
+        read_str_first("#{")
 
-    assert read_str_first('#{}') == lset.set([])
-    assert read_str_first('#{:a}') == lset.s(kw.keyword("a"))
-    assert read_str_first('#{:a :b}') == lset.s(
-        kw.keyword("a"), kw.keyword("b"))
-    assert read_str_first('#{:a :b :c}') == lset.s(
-        kw.keyword("a"), kw.keyword("b"), kw.keyword("c"))
+    assert read_str_first("#{}") == lset.set([])
+    assert read_str_first("#{:a}") == lset.s(kw.keyword("a"))
+    assert read_str_first("#{:a :b}") == lset.s(kw.keyword("a"), kw.keyword("b"))
+    assert read_str_first("#{:a :b :c}") == lset.s(
+        kw.keyword("a"), kw.keyword("b"), kw.keyword("c")
+    )
     assert read_str_first('#{:a 1 "some string"}') == lset.s(
-        kw.keyword("a"), 1, "some string")
+        kw.keyword("a"), 1, "some string"
+    )
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('#{:a :b :b}')
+        read_str_first("#{:a :b :b}")
 
 
 def test_map():
     with pytest.raises(reader.SyntaxError):
-        read_str_first('{')
+        read_str_first("{")
 
-    assert read_str_first('{}') == lmap.map({})
-    assert read_str_first('{:a 1}') == lmap.map({kw.keyword('a'): 1})
-    assert read_str_first('{:a 1 :b "string"}') == lmap.map({
-        kw.keyword('a'):
-            1,
-        kw.keyword('b'):
-            "string"
-    })
+    assert read_str_first("{}") == lmap.map({})
+    assert read_str_first("{:a 1}") == lmap.map({kw.keyword("a"): 1})
+    assert read_str_first('{:a 1 :b "string"}') == lmap.map(
+        {kw.keyword("a"): 1, kw.keyword("b"): "string"}
+    )
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('{:a 1 :b 2 :a 3}')
+        read_str_first("{:a 1 :b 2 :a 3}")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('{:a}')
+        read_str_first("{:a}")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('{:a 1 :b}')
+        read_str_first("{:a 1 :b}")
 
 
 def test_quoted():
-    assert read_str_first("'a") == llist.l(
-        sym.symbol('quote'), sym.symbol('a'))
+    assert read_str_first("'a") == llist.l(sym.symbol("quote"), sym.symbol("a"))
     assert read_str_first("'some.ns/sym") == llist.l(
-        sym.symbol('quote'), sym.symbol('sym', ns='some.ns'))
+        sym.symbol("quote"), sym.symbol("sym", ns="some.ns")
+    )
     assert read_str_first("'(def a 3)") == llist.l(
-        sym.symbol('quote'), llist.l(sym.symbol('def'), sym.symbol('a'), 3))
+        sym.symbol("quote"), llist.l(sym.symbol("def"), sym.symbol("a"), 3)
+    )
 
 
 def test_syntax_quoted(test_ns: str, ns: runtime.Namespace):
-    resolver = lambda s: sym.symbol(s.name, ns='test-ns')
-    assert llist.l(reader._SEQ,
-                   llist.l(reader._CONCAT,
-                           llist.l(reader._LIST,
-                                   llist.l(sym.symbol('quote'), sym.symbol('my-symbol', ns='test-ns'))))
-                   ) == read_str_first('`(my-symbol)', resolver=resolver
-                                       ), "Resolve fully qualified symbol in syntax quote"
+    resolver = lambda s: sym.symbol(s.name, ns="test-ns")
+    assert llist.l(
+        reader._SEQ,
+        llist.l(
+            reader._CONCAT,
+            llist.l(
+                reader._LIST,
+                llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns="test-ns")),
+            ),
+        ),
+    ) == read_str_first(
+        "`(my-symbol)", resolver=resolver
+    ), "Resolve fully qualified symbol in syntax quote"
 
-    assert llist.l(reader._SEQ,
-                   llist.l(reader._CONCAT,
-                           llist.l(reader._LIST,
-                                   llist.l(sym.symbol('quote'), sym.symbol('my-symbol', ns=test_ns))))
-                   ) == read_str_first('`(my-symbol)',
-                                       resolver=runtime.resolve_alias), "Resolve a symbol in the current namespace"
+    assert llist.l(
+        reader._SEQ,
+        llist.l(
+            reader._CONCAT,
+            llist.l(
+                reader._LIST,
+                llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns=test_ns)),
+            ),
+        ),
+    ) == read_str_first(
+        "`(my-symbol)", resolver=runtime.resolve_alias
+    ), "Resolve a symbol in the current namespace"
 
     def complex_resolver(s: sym.Symbol) -> sym.Symbol:
-        if s.name == 'other-symbol':
+        if s.name == "other-symbol":
             return s
-        return sym.symbol(s.name, ns='test-ns')
+        return sym.symbol(s.name, ns="test-ns")
 
-    assert llist.l(reader._SEQ,
-                   llist.l(reader._CONCAT,
-                           llist.l(reader._LIST,
-                                   llist.l(sym.symbol('quote'), sym.symbol('my-symbol', ns='test-ns'))),
-                           llist.l(reader._LIST,
-                                   llist.l(sym.symbol('quote'), sym.symbol('other-symbol'))))
-                   ) == read_str_first(
-        '`(my-symbol other-symbol)', resolver=complex_resolver), "Resolve multiple symbols together"
+    assert llist.l(
+        reader._SEQ,
+        llist.l(
+            reader._CONCAT,
+            llist.l(
+                reader._LIST,
+                llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns="test-ns")),
+            ),
+            llist.l(
+                reader._LIST, llist.l(sym.symbol("quote"), sym.symbol("other-symbol"))
+            ),
+        ),
+    ) == read_str_first(
+        "`(my-symbol other-symbol)", resolver=complex_resolver
+    ), "Resolve multiple symbols together"
 
-    assert llist.l(reader._SEQ,
-                   llist.l(reader._CONCAT,
-                           llist.l(reader._LIST,
-                                   llist.l(reader._SEQ,
-                                           llist.l(reader._CONCAT,
-                                                   llist.l(reader._LIST,
-                                                           llist.l(sym.symbol('quote'),
-                                                                   sym.symbol('quote'))),
-                                                   llist.l(reader._LIST,
-                                                           llist.l(sym.symbol('quote'), sym.symbol('my-symbol'))))
-                                           )
-                                   ))) == read_str_first("`('my-symbol)"), "Resolver inner forms, even in quote"
+    assert llist.l(
+        reader._SEQ,
+        llist.l(
+            reader._CONCAT,
+            llist.l(
+                reader._LIST,
+                llist.l(
+                    reader._SEQ,
+                    llist.l(
+                        reader._CONCAT,
+                        llist.l(
+                            reader._LIST,
+                            llist.l(sym.symbol("quote"), sym.symbol("quote")),
+                        ),
+                        llist.l(
+                            reader._LIST,
+                            llist.l(sym.symbol("quote"), sym.symbol("my-symbol")),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ) == read_str_first("`('my-symbol)"), "Resolver inner forms, even in quote"
 
-    assert llist.l(reader._SEQ,
-                   llist.l(reader._CONCAT,
-                           llist.l(reader._LIST,
-                                   llist.l(sym.symbol('quote'), sym.symbol('my-symbol'))))
-                   ) == read_str_first("`(~'my-symbol)"), "Do not resolve unquoted quoted syms"
+    assert llist.l(
+        reader._SEQ,
+        llist.l(
+            reader._CONCAT,
+            llist.l(
+                reader._LIST, llist.l(sym.symbol("quote"), sym.symbol("my-symbol"))
+            ),
+        ),
+    ) == read_str_first("`(~'my-symbol)"), "Do not resolve unquoted quoted syms"
 
 
 def test_syntax_quote_gensym():
-    resolver = lambda s: sym.symbol(s.name, ns='test-ns')
+    resolver = lambda s: sym.symbol(s.name, ns="test-ns")
 
     gensym = read_str_first("`s#", resolver=resolver)
     assert isinstance(gensym, llist.List)
@@ -506,95 +552,151 @@ def test_syntax_quote_gensym():
 
 
 def test_unquote():
-    assert llist.l(reader._UNQUOTE, sym.symbol('my-symbol')) == read_str_first('~my-symbol')
+    assert llist.l(reader._UNQUOTE, sym.symbol("my-symbol")) == read_str_first(
+        "~my-symbol"
+    )
 
-    assert llist.l(sym.symbol('quote'),
-                   llist.l(sym.symbol('print'),
-                           llist.l(sym.symbol('unquote', ns='basilisp.core'), sym.symbol('val')))
-                   ) == read_str_first("'(print ~val)"), "Unquote a symbol in a quote"
+    assert llist.l(
+        sym.symbol("quote"),
+        llist.l(
+            sym.symbol("print"),
+            llist.l(sym.symbol("unquote", ns="basilisp.core"), sym.symbol("val")),
+        ),
+    ) == read_str_first("'(print ~val)"), "Unquote a symbol in a quote"
 
-    resolver = lambda s: sym.symbol(s.name, ns='test-ns')
-    assert llist.l(reader._SEQ,
-                   llist.l(reader._CONCAT,
-                           llist.l(reader._LIST,
-                                   llist.l(sym.symbol('quote'), sym.symbol('my-symbol', ns='test-ns'))),
-                           llist.l(reader._LIST, sym.symbol('other-symbol')))
-                   ) == read_str_first(
-        '`(my-symbol ~other-symbol)', resolver=resolver), "Resolve multiple symbols together"
+    resolver = lambda s: sym.symbol(s.name, ns="test-ns")
+    assert llist.l(
+        reader._SEQ,
+        llist.l(
+            reader._CONCAT,
+            llist.l(
+                reader._LIST,
+                llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns="test-ns")),
+            ),
+            llist.l(reader._LIST, sym.symbol("other-symbol")),
+        ),
+    ) == read_str_first(
+        "`(my-symbol ~other-symbol)", resolver=resolver
+    ), "Resolve multiple symbols together"
 
 
 def test_unquote_splicing():
-    assert llist.l(reader._UNQUOTE_SPLICING, sym.symbol('my-symbol')) == read_str_first('~@my-symbol')
-    assert llist.l(reader._UNQUOTE_SPLICING, vec.v(1, 2, 3)) == read_str_first('~@[1 2 3]')
-    assert llist.l(reader._UNQUOTE_SPLICING, llist.l(1, 2, 3)) == read_str_first('~@(1 2 3)')
-    assert llist.l(reader._UNQUOTE_SPLICING, lset.s(1, 2, 3)) == read_str_first('~@#{1 2 3}')
-    assert llist.l(reader._UNQUOTE_SPLICING, lmap.map({1: 2, 3: 4})) == read_str_first('~@{1 2 3 4}')
+    assert llist.l(reader._UNQUOTE_SPLICING, sym.symbol("my-symbol")) == read_str_first(
+        "~@my-symbol"
+    )
+    assert llist.l(reader._UNQUOTE_SPLICING, vec.v(1, 2, 3)) == read_str_first(
+        "~@[1 2 3]"
+    )
+    assert llist.l(reader._UNQUOTE_SPLICING, llist.l(1, 2, 3)) == read_str_first(
+        "~@(1 2 3)"
+    )
+    assert llist.l(reader._UNQUOTE_SPLICING, lset.s(1, 2, 3)) == read_str_first(
+        "~@#{1 2 3}"
+    )
+    assert llist.l(reader._UNQUOTE_SPLICING, lmap.map({1: 2, 3: 4})) == read_str_first(
+        "~@{1 2 3 4}"
+    )
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('`~@[1 2 3]')
+        read_str_first("`~@[1 2 3]")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('`~@(1 2 3)')
+        read_str_first("`~@(1 2 3)")
 
-    assert llist.l(sym.symbol('quote'), llist.l(sym.symbol('print'), llist.l(
-        sym.symbol('unquote-splicing', ns='basilisp.core'), vec.v(1, 2, 3)))
-                   ) == read_str_first("'(print ~@[1 2 3])"), "Unquote splice a collection in a quote"
+    assert llist.l(
+        sym.symbol("quote"),
+        llist.l(
+            sym.symbol("print"),
+            llist.l(sym.symbol("unquote-splicing", ns="basilisp.core"), vec.v(1, 2, 3)),
+        ),
+    ) == read_str_first("'(print ~@[1 2 3])"), "Unquote splice a collection in a quote"
 
-    assert llist.l(sym.symbol('quote'), llist.l(sym.symbol('print'), llist.l(
-        sym.symbol('unquote-splicing', ns='basilisp.core'), sym.symbol('c')))
-                   ) == read_str_first("'(print ~@c)"), "Unquote-splice a symbol in a quote"
+    assert llist.l(
+        sym.symbol("quote"),
+        llist.l(
+            sym.symbol("print"),
+            llist.l(
+                sym.symbol("unquote-splicing", ns="basilisp.core"), sym.symbol("c")
+            ),
+        ),
+    ) == read_str_first("'(print ~@c)"), "Unquote-splice a symbol in a quote"
 
-    resolver = lambda s: sym.symbol(s.name, ns='test-ns')
-    assert llist.l(reader._SEQ,
-                   llist.l(reader._CONCAT,
-                           llist.l(reader._LIST,
-                                   llist.l(sym.symbol('quote'), sym.symbol('my-symbol', ns='test-ns'))),
-                           vec.v(1, 2, 3))
-                   ) == read_str_first(
-        '`(my-symbol ~@[1 2 3])', resolver=resolver), "Unquote-splice a collection in a syntax quote"
+    resolver = lambda s: sym.symbol(s.name, ns="test-ns")
+    assert llist.l(
+        reader._SEQ,
+        llist.l(
+            reader._CONCAT,
+            llist.l(
+                reader._LIST,
+                llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns="test-ns")),
+            ),
+            vec.v(1, 2, 3),
+        ),
+    ) == read_str_first(
+        "`(my-symbol ~@[1 2 3])", resolver=resolver
+    ), "Unquote-splice a collection in a syntax quote"
 
-    assert llist.l(reader._SEQ,
-                   llist.l(reader._CONCAT,
-                           llist.l(reader._LIST,
-                                   llist.l(sym.symbol('quote'), sym.symbol('my-symbol', ns='test-ns'))),
-                           sym.symbol('a'))
-                   ) == read_str_first(
-        '`(my-symbol ~@a)', resolver=resolver), "Unquote-splice a collection in a syntax quote"
+    assert llist.l(
+        reader._SEQ,
+        llist.l(
+            reader._CONCAT,
+            llist.l(
+                reader._LIST,
+                llist.l(sym.symbol("quote"), sym.symbol("my-symbol", ns="test-ns")),
+            ),
+            sym.symbol("a"),
+        ),
+    ) == read_str_first(
+        "`(my-symbol ~@a)", resolver=resolver
+    ), "Unquote-splice a collection in a syntax quote"
 
 
 def test_var():
-    assert read_str_first("#'a") == llist.l(sym.symbol('var'), sym.symbol('a'))
+    assert read_str_first("#'a") == llist.l(sym.symbol("var"), sym.symbol("a"))
     assert read_str_first("#'some.ns/a") == llist.l(
-        sym.symbol('var'), sym.symbol('a', ns='some.ns'))
+        sym.symbol("var"), sym.symbol("a", ns="some.ns")
+    )
 
 
 def test_interop_call():
-    assert llist.l(sym.symbol('.'), "STRING", sym.symbol('lower')) == read_str_first(
-        '(. "STRING" lower)')
-    assert llist.l(sym.symbol('.'), "STRING", sym.symbol('lower')) == read_str_first(
-        '(.lower "STRING")')
-    assert llist.l(sym.symbol('.'), "www.google.com", sym.symbol('split'), ".") == read_str_first(
-        '(.split "www.google.com" ".")')
-    assert llist.l(sym.symbol('.'), "www.google.com", sym.symbol('split'), ".") == read_str_first(
-        '(. "www.google.com" split ".")')
+    assert llist.l(sym.symbol("."), "STRING", sym.symbol("lower")) == read_str_first(
+        '(. "STRING" lower)'
+    )
+    assert llist.l(sym.symbol("."), "STRING", sym.symbol("lower")) == read_str_first(
+        '(.lower "STRING")'
+    )
+    assert llist.l(
+        sym.symbol("."), "www.google.com", sym.symbol("split"), "."
+    ) == read_str_first('(.split "www.google.com" ".")')
+    assert llist.l(
+        sym.symbol("."), "www.google.com", sym.symbol("split"), "."
+    ) == read_str_first('(. "www.google.com" split ".")')
 
-    assert llist.l(sym.symbol('.'), sym.symbol('obj'), llist.l(
-        sym.symbol('unquote'), llist.l(sym.symbol('quote'), sym.symbol('method')))) == read_str_first(
-        '(. obj (unquote (quote method)))')
+    assert llist.l(
+        sym.symbol("."),
+        sym.symbol("obj"),
+        llist.l(
+            sym.symbol("unquote"), llist.l(sym.symbol("quote"), sym.symbol("method"))
+        ),
+    ) == read_str_first("(. obj (unquote (quote method)))")
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('(."non-symbol" symbol)')
 
 
 def test_interop_prop():
-    assert llist.l(sym.symbol('.-'), sym.symbol('sym'), sym.symbol('name')
-                   ) == read_str_first("(. sym -name)")
-    assert llist.l(sym.symbol('.-'), sym.symbol('encoder'), sym.symbol('algorithm')
-                   ) == read_str_first('(.-algorithm encoder)')
-    assert llist.l(sym.symbol('.-'), sym.symbol('name'), sym.symbol('sym')
-                   ) == read_str_first('(.- name sym)')
-    assert llist.l(sym.symbol('.-'), sym.symbol('name'), "string"
-                   ) == read_str_first('(.- name "string")')
+    assert llist.l(
+        sym.symbol(".-"), sym.symbol("sym"), sym.symbol("name")
+    ) == read_str_first("(. sym -name)")
+    assert llist.l(
+        sym.symbol(".-"), sym.symbol("encoder"), sym.symbol("algorithm")
+    ) == read_str_first("(.-algorithm encoder)")
+    assert llist.l(
+        sym.symbol(".-"), sym.symbol("name"), sym.symbol("sym")
+    ) == read_str_first("(.- name sym)")
+    assert llist.l(sym.symbol(".-"), sym.symbol("name"), "string") == read_str_first(
+        '(.- name "string")'
+    )
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('(.-"string" sym)')
@@ -611,43 +713,43 @@ def test_meta():
         return False
 
     s = read_str_first("^str s")
-    assert s == sym.symbol('s')
-    assert issubmap(s.meta, lmap.map({kw.keyword('tag'): sym.symbol('str')}))
+    assert s == sym.symbol("s")
+    assert issubmap(s.meta, lmap.map({kw.keyword("tag"): sym.symbol("str")}))
 
     s = read_str_first("^:dynamic *ns*")
-    assert s == sym.symbol('*ns*')
-    assert issubmap(s.meta, lmap.map({kw.keyword('dynamic'): True}))
+    assert s == sym.symbol("*ns*")
+    assert issubmap(s.meta, lmap.map({kw.keyword("dynamic"): True}))
 
     s = read_str_first('^{:doc "If true, assert."} *assert*')
-    assert s == sym.symbol('*assert*')
-    assert issubmap(s.meta, lmap.map({kw.keyword('doc'): "If true, assert."}))
+    assert s == sym.symbol("*assert*")
+    assert issubmap(s.meta, lmap.map({kw.keyword("doc"): "If true, assert."}))
 
     v = read_str_first("^:has-meta [:a]")
-    assert v == vec.v(kw.keyword('a'))
-    assert issubmap(v.meta, lmap.map({kw.keyword('has-meta'): True}))
+    assert v == vec.v(kw.keyword("a"))
+    assert issubmap(v.meta, lmap.map({kw.keyword("has-meta"): True}))
 
-    l = read_str_first('^:has-meta (:a)')
-    assert l == llist.l(kw.keyword('a'))
-    assert issubmap(l.meta, lmap.map({kw.keyword('has-meta'): True}))
+    l = read_str_first("^:has-meta (:a)")
+    assert l == llist.l(kw.keyword("a"))
+    assert issubmap(l.meta, lmap.map({kw.keyword("has-meta"): True}))
 
     m = read_str_first('^:has-meta {:key "val"}')
-    assert m == lmap.map({kw.keyword('key'): "val"})
-    assert issubmap(m.meta, lmap.map({kw.keyword('has-meta'): True}))
+    assert m == lmap.map({kw.keyword("key"): "val"})
+    assert issubmap(m.meta, lmap.map({kw.keyword("has-meta"): True}))
 
-    t = read_str_first('^:has-meta #{:a}')
-    assert t == lset.s(kw.keyword('a'))
-    assert issubmap(t.meta, lmap.map({kw.keyword('has-meta'): True}))
+    t = read_str_first("^:has-meta #{:a}")
+    assert t == lset.s(kw.keyword("a"))
+    assert issubmap(t.meta, lmap.map({kw.keyword("has-meta"): True}))
 
     s = read_str_first('^:dynamic ^{:doc "If true, assert."} *assert*')
-    assert s == sym.symbol('*assert*')
-    assert issubmap(s.meta, lmap.map({
-        kw.keyword('dynamic'): True,
-        kw.keyword('doc'): "If true, assert."
-    }))
+    assert s == sym.symbol("*assert*")
+    assert issubmap(
+        s.meta,
+        lmap.map({kw.keyword("dynamic"): True, kw.keyword("doc"): "If true, assert."}),
+    )
 
-    s = read_str_first('^{:always true} ^{:always false} *assert*')
-    assert s == sym.symbol('*assert*')
-    assert issubmap(s.meta, lmap.map({kw.keyword('always'): True}))
+    s = read_str_first("^{:always true} ^{:always false} *assert*")
+    assert s == sym.symbol("*assert*")
+    assert issubmap(s.meta, lmap.map({kw.keyword("always"): True}))
 
 
 def test_invalid_meta_structure():
@@ -695,58 +797,60 @@ def test_invalid_meta_attachment():
 
 def test_comment_reader_macro():
     with pytest.raises(EOFError):
-        read_str_first('#_       (a list)', is_eof_error=True)
+        read_str_first("#_       (a list)", is_eof_error=True)
 
     with pytest.raises(EOFError):
-        read_str_first('#_1', is_eof_error=True)
+        read_str_first("#_1", is_eof_error=True)
 
     with pytest.raises(EOFError):
         read_str_first('#_"string"', is_eof_error=True)
 
     with pytest.raises(EOFError):
-        read_str_first('#_:keyword', is_eof_error=True)
+        read_str_first("#_:keyword", is_eof_error=True)
 
     with pytest.raises(EOFError):
-        read_str_first('#_symbol', is_eof_error=True)
+        read_str_first("#_symbol", is_eof_error=True)
 
     with pytest.raises(EOFError):
-        read_str_first('#_[]', is_eof_error=True)
+        read_str_first("#_[]", is_eof_error=True)
 
     with pytest.raises(EOFError):
-        read_str_first('#_{}', is_eof_error=True)
+        read_str_first("#_{}", is_eof_error=True)
 
     with pytest.raises(EOFError):
-        read_str_first('#_()', is_eof_error=True)
+        read_str_first("#_()", is_eof_error=True)
 
     with pytest.raises(EOFError):
-        read_str_first('#_#{}', is_eof_error=True)
+        read_str_first("#_#{}", is_eof_error=True)
 
-    assert kw.keyword('kw2') == read_str_first('#_:kw1 :kw2')
+    assert kw.keyword("kw2") == read_str_first("#_:kw1 :kw2")
 
-    assert llist.List.empty() == read_str_first('(#_sym)')
-    assert llist.l(sym.symbol('inc'), 5) == read_str_first('(inc #_counter 5)')
-    assert llist.l(sym.symbol('dec'), 8) == read_str_first('(#_inc dec #_counter 8)')
+    assert llist.List.empty() == read_str_first("(#_sym)")
+    assert llist.l(sym.symbol("inc"), 5) == read_str_first("(inc #_counter 5)")
+    assert llist.l(sym.symbol("dec"), 8) == read_str_first("(#_inc dec #_counter 8)")
 
-    assert vec.Vector.empty() == read_str_first('[#_m]')
-    assert vec.v(1) == read_str_first('[#_m 1]')
-    assert vec.v(1) == read_str_first('[#_m 1 #_2]')
-    assert vec.v(1, 2) == read_str_first('[#_m 1 2]')
-    assert vec.v(1, 4) == read_str_first('[#_m 1 #_2 4]')
-    assert vec.v(1, 4) == read_str_first('[#_m 1 #_2 4 #_5]')
+    assert vec.Vector.empty() == read_str_first("[#_m]")
+    assert vec.v(1) == read_str_first("[#_m 1]")
+    assert vec.v(1) == read_str_first("[#_m 1 #_2]")
+    assert vec.v(1, 2) == read_str_first("[#_m 1 2]")
+    assert vec.v(1, 4) == read_str_first("[#_m 1 #_2 4]")
+    assert vec.v(1, 4) == read_str_first("[#_m 1 #_2 4 #_5]")
 
-    assert lset.Set.empty() == read_str_first('#{#_m}')
-    assert lset.s(1) == read_str_first('#{#_m 1}')
-    assert lset.s(1) == read_str_first('#{#_m 1 #_2}')
-    assert lset.s(1, 2) == read_str_first('#{#_m 1 2}')
-    assert lset.s(1, 4) == read_str_first('#{#_m 1 #_2 4}')
-    assert lset.s(1, 4) == read_str_first('#{#_m 1 #_2 4 #_5}')
+    assert lset.Set.empty() == read_str_first("#{#_m}")
+    assert lset.s(1) == read_str_first("#{#_m 1}")
+    assert lset.s(1) == read_str_first("#{#_m 1 #_2}")
+    assert lset.s(1, 2) == read_str_first("#{#_m 1 2}")
+    assert lset.s(1, 4) == read_str_first("#{#_m 1 #_2 4}")
+    assert lset.s(1, 4) == read_str_first("#{#_m 1 #_2 4 #_5}")
 
-    assert lmap.Map.empty() == read_str_first('{#_:key}')
+    assert lmap.Map.empty() == read_str_first("{#_:key}")
     assert lmap.Map.empty() == read_str_first('{#_:key #_"value"}')
-    assert lmap.map({kw.keyword('key'): "value"}) == read_str_first(
-        '{:key #_"other" "value"}')
-    assert lmap.map({kw.keyword('key'): "value"}) == read_str_first(
-        '{:key "value" #_"other"}')
+    assert lmap.map({kw.keyword("key"): "value"}) == read_str_first(
+        '{:key #_"other" "value"}'
+    )
+    assert lmap.map({kw.keyword("key"): "value"}) == read_str_first(
+        '{:key "value" #_"other"}'
+    )
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('{:key #_"value"}')
@@ -754,39 +858,47 @@ def test_comment_reader_macro():
 
 def test_comment_line():
     assert None is read_str_first("; I'm a little comment short and stout")
-    assert kw.keyword('kw2') == read_str_first(";; :kw1\n:kw2")
-    assert llist.l(sym.symbol('form'), kw.keyword('keyword')) == read_str_first(
+    assert kw.keyword("kw2") == read_str_first(";; :kw1\n:kw2")
+    assert llist.l(sym.symbol("form"), kw.keyword("keyword")) == read_str_first(
         """;; Comment
         (form :keyword)
-        """)
+        """
+    )
 
 
 def test_function_reader_macro():
-    assert read_str_first("#()") == llist.l(sym.symbol('fn*'), vec.v(), None)
+    assert read_str_first("#()") == llist.l(sym.symbol("fn*"), vec.v(), None)
     assert read_str_first("#(identity %)") == llist.l(
-        sym.symbol('fn*'), vec.v(sym.symbol('arg-1')),
-        llist.l(sym.symbol('identity'), sym.symbol('arg-1')))
+        sym.symbol("fn*"),
+        vec.v(sym.symbol("arg-1")),
+        llist.l(sym.symbol("identity"), sym.symbol("arg-1")),
+    )
     assert read_str_first("#(identity %1)") == llist.l(
-        sym.symbol('fn*'), vec.v(sym.symbol('arg-1')),
-        llist.l(sym.symbol('identity'), sym.symbol('arg-1')))
+        sym.symbol("fn*"),
+        vec.v(sym.symbol("arg-1")),
+        llist.l(sym.symbol("identity"), sym.symbol("arg-1")),
+    )
     assert read_str_first("#(identity %& %1)") == llist.l(
-        sym.symbol('fn*'),
-        vec.v(sym.symbol('arg-1'), sym.symbol('&'), sym.symbol('arg-rest')),
-        llist.l(
-            sym.symbol('identity'), sym.symbol('arg-rest'),
-            sym.symbol('arg-1')))
+        sym.symbol("fn*"),
+        vec.v(sym.symbol("arg-1"), sym.symbol("&"), sym.symbol("arg-rest")),
+        llist.l(sym.symbol("identity"), sym.symbol("arg-rest"), sym.symbol("arg-1")),
+    )
     assert read_str_first("#(identity %3)") == llist.l(
-        sym.symbol('fn*'),
-        vec.v(sym.symbol('arg-1'), sym.symbol('arg-2'), sym.symbol('arg-3')),
-        llist.l(sym.symbol('identity'), sym.symbol('arg-3')))
+        sym.symbol("fn*"),
+        vec.v(sym.symbol("arg-1"), sym.symbol("arg-2"), sym.symbol("arg-3")),
+        llist.l(sym.symbol("identity"), sym.symbol("arg-3")),
+    )
     assert read_str_first("#(identity %3 %&)") == llist.l(
-        sym.symbol('fn*'),
+        sym.symbol("fn*"),
         vec.v(
-            sym.symbol('arg-1'), sym.symbol('arg-2'), sym.symbol('arg-3'),
-            sym.symbol('&'), sym.symbol('arg-rest')),
-        llist.l(
-            sym.symbol('identity'), sym.symbol('arg-3'),
-            sym.symbol('arg-rest')))
+            sym.symbol("arg-1"),
+            sym.symbol("arg-2"),
+            sym.symbol("arg-3"),
+            sym.symbol("&"),
+            sym.symbol("arg-rest"),
+        ),
+        llist.l(sym.symbol("identity"), sym.symbol("arg-3"), sym.symbol("arg-rest")),
+    )
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("#(identity #(%1 %2))")
@@ -796,82 +908,86 @@ def test_function_reader_macro():
 
 
 def test_deref():
-    assert read_str_first("@s") == llist.l(reader._DEREF, sym.symbol('s'))
-    assert read_str_first("@ns/s") == llist.l(reader._DEREF, sym.symbol('s', ns='ns'))
-    assert read_str_first("@(atom {})") == llist.l(reader._DEREF, llist.l(sym.symbol('atom'), lmap.Map.empty()))
+    assert read_str_first("@s") == llist.l(reader._DEREF, sym.symbol("s"))
+    assert read_str_first("@ns/s") == llist.l(reader._DEREF, sym.symbol("s", ns="ns"))
+    assert read_str_first("@(atom {})") == llist.l(
+        reader._DEREF, llist.l(sym.symbol("atom"), lmap.Map.empty())
+    )
 
 
 def test_character_literal():
-    assert "a" == read_str_first('\\a')
-    assert "Ω" == read_str_first('\\Ω')
+    assert "a" == read_str_first("\\a")
+    assert "Ω" == read_str_first("\\Ω")
 
-    assert "Ω" == read_str_first('\\u03A9')
+    assert "Ω" == read_str_first("\\u03A9")
 
-    assert " " == read_str_first('\\space')
-    assert "\n" == read_str_first('\\newline')
-    assert "\t" == read_str_first('\\tab')
-    assert "\b" == read_str_first('\\backspace')
-    assert "\f" == read_str_first('\\formfeed')
-    assert "\r" == read_str_first('\\return')
+    assert " " == read_str_first("\\space")
+    assert "\n" == read_str_first("\\newline")
+    assert "\t" == read_str_first("\\tab")
+    assert "\b" == read_str_first("\\backspace")
+    assert "\f" == read_str_first("\\formfeed")
+    assert "\r" == read_str_first("\\return")
 
-    assert vec.v("a") == read_str_first('[\\a]')
-    assert vec.v("Ω") == read_str_first('[\\Ω]')
+    assert vec.v("a") == read_str_first("[\\a]")
+    assert vec.v("Ω") == read_str_first("[\\Ω]")
 
-    assert llist.l(sym.symbol("str"), "Ω") == read_str_first('(str \\u03A9)')
+    assert llist.l(sym.symbol("str"), "Ω") == read_str_first("(str \\u03A9)")
 
-    assert vec.v(" ") == read_str_first('[\\space]')
-    assert vec.v("\n") == read_str_first('[\\newline]')
-    assert vec.v("\t") == read_str_first('[\\tab]')
-    assert llist.l(sym.symbol("str"), "\b", "\f", "\r") == read_str_first('(str \\backspace \\formfeed \\return)')
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('\\u03A9zzz')
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('\\uFFFFFFFF')
+    assert vec.v(" ") == read_str_first("[\\space]")
+    assert vec.v("\n") == read_str_first("[\\newline]")
+    assert vec.v("\t") == read_str_first("[\\tab]")
+    assert llist.l(sym.symbol("str"), "\b", "\f", "\r") == read_str_first(
+        "(str \\backspace \\formfeed \\return)"
+    )
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('\\blah')
+        read_str_first("\\u03A9zzz")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("\\uFFFFFFFF")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("\\blah")
 
 
 def test_decimal_literal():
-    assert langutil.decimal_from_str('3.14') == read_str_first('3.14M')
-    assert 3.14 == read_str_first('3.14')
+    assert langutil.decimal_from_str("3.14") == read_str_first("3.14M")
+    assert 3.14 == read_str_first("3.14")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('3.14MM')
+        read_str_first("3.14MM")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('3.1M4')
+        read_str_first("3.1M4")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('3M.14')
+        read_str_first("3M.14")
 
 
 def test_fraction_literal():
-    assert langutil.fraction(1, 7) == read_str_first('1/7')
-    assert langutil.fraction(22, 7) == read_str_first('22/7')
+    assert langutil.fraction(1, 7) == read_str_first("1/7")
+    assert langutil.fraction(22, 7) == read_str_first("22/7")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('3/7N')
+        read_str_first("3/7N")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('3N/7')
+        read_str_first("3N/7")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('3.3/7')
+        read_str_first("3.3/7")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('3/7.4')
+        read_str_first("3/7.4")
 
     with pytest.raises(reader.SyntaxError):
-        read_str_first('3/7/14')
+        read_str_first("3/7/14")
 
 
 def test_inst_reader_literal():
     assert read_str_first(
-        '#inst "2018-01-18T03:26:57.296-00:00"') == langutil.inst_from_str(
-        "2018-01-18T03:26:57.296-00:00")
+        '#inst "2018-01-18T03:26:57.296-00:00"'
+    ) == langutil.inst_from_str("2018-01-18T03:26:57.296-00:00")
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('#inst "I am a little teapot short and stout"')
@@ -886,9 +1002,9 @@ def test_regex_reader_literal():
 
 
 def test_uuid_reader_literal():
-    assert read_str_first('#uuid "4ba98ef0-0620-4966-af61-f0f6c2dbf230"'
-                          ) == langutil.uuid_from_str(
-        "4ba98ef0-0620-4966-af61-f0f6c2dbf230")
+    assert read_str_first(
+        '#uuid "4ba98ef0-0620-4966-af61-f0f6c2dbf230"'
+    ) == langutil.uuid_from_str("4ba98ef0-0620-4966-af61-f0f6c2dbf230")
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('#uuid "I am a little teapot short and stout"')
@@ -896,10 +1012,14 @@ def test_uuid_reader_literal():
 
 def test_non_namespaced_tags_reserved():
     with pytest.raises(TypeError):
-        read_str_first("#boop :hi", data_readers=lmap.map({kw.keyword("boop"): lambda v: v}))
+        read_str_first(
+            "#boop :hi", data_readers=lmap.map({kw.keyword("boop"): lambda v: v})
+        )
 
     with pytest.raises(ValueError):
-        read_str_first("#boop :hi", data_readers=lmap.map({sym.symbol("boop"): lambda v: v}))
+        read_str_first(
+            "#boop :hi", data_readers=lmap.map({sym.symbol("boop"): lambda v: v})
+        )
 
 
 def test_not_found_tag_error():

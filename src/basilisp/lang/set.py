@@ -14,7 +14,8 @@ class Set(Collection, Meta, Seqable):
 
     Do not instantiate directly. Instead use the s() and set() factory
     methods below."""
-    __slots__ = ('_inner', '_meta',)
+
+    __slots__ = ("_inner", "_meta")
 
     def __init__(self, wrapped: PSet, meta=None) -> None:
         self._inner = wrapped
@@ -93,8 +94,7 @@ class Set(Collection, Meta, Seqable):
         return self._meta
 
     def with_meta(self, meta: Map) -> "Set":
-        new_meta = meta if self._meta is None else self._meta.update(
-            meta)
+        new_meta = meta if self._meta is None else self._meta.update(meta)
         return set(self._inner, meta=new_meta)
 
     def cons(self, *elems) -> "Set":

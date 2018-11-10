@@ -4,11 +4,11 @@ import atomos.atom
 
 from basilisp.lang.deref import Deref
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class Atom(Deref, Generic[T]):
-    __slots__ = ('_atom',)
+    __slots__ = ("_atom",)
 
     def __init__(self, state: T) -> None:
         self._atom = atomos.atom.Atom(state)

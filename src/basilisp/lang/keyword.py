@@ -9,7 +9,7 @@ __INTERN = atom.Atom(pmap())
 
 
 class Keyword:
-    __slots__ = ('_name', '_ns')
+    __slots__ = ("_name", "_ns")
 
     def __init__(self, name: str, ns: Optional[str] = None) -> None:
         self._name = name
@@ -44,8 +44,7 @@ class Keyword:
             return None
 
 
-def __get_or_create(kw_cache: PMap, h: int, name: str,
-                    ns: Optional[str]) -> PMap:
+def __get_or_create(kw_cache: PMap, h: int, name: str, ns: Optional[str]) -> PMap:
     """Private swap function used to either get the interned keyword
     instance from the input string."""
     if h in kw_cache:
@@ -54,9 +53,9 @@ def __get_or_create(kw_cache: PMap, h: int, name: str,
     return kw_cache.set(h, kw)
 
 
-def keyword(name: str,
-            ns: Optional[str] = None,
-            kw_cache: atom.Atom = __INTERN) -> Keyword:
+def keyword(
+    name: str, ns: Optional[str] = None, kw_cache: atom.Atom = __INTERN
+) -> Keyword:
     """Create a new keyword."""
     h = hash((name, ns))
     return kw_cache.swap(__get_or_create, h, name, ns)[h]

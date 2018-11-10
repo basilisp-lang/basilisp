@@ -16,6 +16,11 @@ docs:
 	@pipenv run sphinx-build -M html "./docs" "./docs/_build"
 
 
+.PHONY: format
+format:
+	@pipenv run black .
+
+
 .PHONY: repl
 repl:
 	@BASILISP_USE_DEV_LOGGER=true pipenv run basilisp repl
