@@ -51,10 +51,28 @@ def bootstrap_repl(which_ns: str) -> types.ModuleType:
 
 @cli.command(short_help='start the Basilisp REPL')
 @click.option('--default-ns', default=runtime._REPL_DEFAULT_NS, help='default namespace to use for the REPL')
-def repl(default_ns):
+@click.option('--use-var-indirection',
+              default=False,
+              is_flag=True,
+              envvar='BASILISP_USE_VAR_INDIRECTION',
+              help='if provided, all Var accesses will be performed via Var indirection')
+@click.option('--warn-on-shadowed-name',
+              default=False,
+              is_flag=True,
+              envvar='BASILISP_WARN_ON_SHADOWED_NAME',
+              help='if provided, emit warnings if a local name is shadowed by another local name')
+@click.option('--warn-on-shadowed-var',
+              default=True,
+              is_flag=True,
+              envvar='BASILISP_WARN_ON_SHADOWED_VAR',
+              help='if provided, emit warnings if a Var name is shadowed by a local name')
+def repl(default_ns, use_var_indirection, warn_on_shadowed_name, warn_on_shadowed_var):
     basilisp.init()
     repl_module = bootstrap_repl(default_ns)
-    ctx = compiler.CompilerContext()
+    ctx = compiler.CompilerContext(
+        {compiler.USE_VAR_INDIRECTION: use_var_indirection,
+         compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
+         compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var})
     ns_var = runtime.set_current_ns(default_ns)
     eof = object()
     while True:
@@ -95,10 +113,33 @@ def repl(default_ns):
 @click.argument('file-or-code')
 @click.option('-c', '--code', is_flag=True, help='if provided, treat argument as a string of code')
 @click.option('--in-ns', default=runtime._REPL_DEFAULT_NS, help='namespace to use for the code')
-def run(file_or_code, code, in_ns):
+@click.option('--use-var-indirection',
+              default=False,
+              is_flag=True,
+              envvar='BASILISP_USE_VAR_INDIRECTION',
+              help='if provided, all Var accesses will be performed via Var indirection')
+@click.option('--warn-on-shadowed-name',
+              default=False,
+              is_flag=True,
+              envvar='BASILISP_WARN_ON_SHADOWED_NAME',
+              help='if provided, emit warnings if a local name is shadowed by another local name')
+@click.option('--warn-on-shadowed-var',
+              default=True,
+              is_flag=True,
+              envvar='BASILISP_WARN_ON_SHADOWED_VAR',
+              help='if provided, emit warnings if a Var name is shadowed by a local name')
+def run(file_or_code,  # pylint: disable=too-many-arguments
+        code,
+        in_ns,
+        use_var_indirection,
+        warn_on_shadowed_name,
+        warn_on_shadowed_var):
     """Run a Basilisp script or a line of code, if it is provided."""
     basilisp.init()
-    ctx = compiler.CompilerContext()
+    ctx = compiler.CompilerContext(
+        {compiler.USE_VAR_INDIRECTION: use_var_indirection,
+         compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
+         compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var})
     eof = object()
 
     with runtime.ns_bindings(in_ns) as ns:
