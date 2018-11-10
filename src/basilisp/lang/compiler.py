@@ -38,7 +38,10 @@ from basilisp.util import Maybe, partition
 
 logger = logging.getLogger(__name__)
 
+# Compiler options
 USE_VAR_INDIRECTION = 'use_var_indirection'
+WARN_ON_SHADOWED_NAME = 'warn_on_shadowed_name'
+WARN_ON_SHADOWED_VAR = 'warn_on_shadowed_var'
 
 _BUILTINS_NS = 'builtins'
 _CORE_NS = 'basilisp.core'
@@ -154,6 +157,10 @@ class CompilerContext:
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
         self._recur_points: Deque[RecurPoint] = collections.deque([])
 
+        if logger.isEnabledFor(logging.DEBUG):
+            for k, v in self._opts:
+                logger.debug("Compiler option %s=%s", k, v)
+
     @property
     def current_ns(self) -> runtime.Namespace:
         return runtime.get_current_ns()
@@ -161,6 +168,26 @@ class CompilerContext:
     @property
     def opts(self) -> Mapping[str, bool]:
         return self._opts  # type: ignore
+
+    @property
+    def use_var_indirection(self) -> bool:
+        """If True, compile all variable references using Var.find indirection."""
+        return self._opts.entry(USE_VAR_INDIRECTION, False)
+
+    @property
+    def warn_on_shadowed_name(self) -> bool:
+        """If True, warn when a name is shadowed in an inner scope.
+
+        Implies warn_on_shadowed_var."""
+        return self._opts.entry(WARN_ON_SHADOWED_NAME, False)
+
+    @property
+    def warn_on_shadowed_var(self) -> bool:
+        """If True, warn when a def'ed Var name is shadowed in an inner scope.
+
+        Implied by warn_on_shadowed_name. The value of warn_on_shadowed_name
+        supersedes the value of this flag."""
+        return self.warn_on_shadowed_name or self._opts.entry(WARN_ON_SHADOWED_VAR, True)
 
     @property
     def recur_point(self):
@@ -201,7 +228,7 @@ class CompilerContext:
         old_st = self.symbol_table
         with old_st.new_frame(name) as st:
             self._st.append(st)
-            yield
+            yield st
             self._st.pop()
 
 
@@ -471,6 +498,39 @@ def _is_redefable(v: Var) -> bool:
         return False
 
 
+def _new_symbol(ctx: CompilerContext,  # pylint: disable=too-many-arguments
+                s: sym.Symbol,
+                munged: str,
+                sym_ctx: kw.Keyword,
+                st: Optional[SymbolTable] = None,
+                warn_on_shadowed_name: bool = True,
+                warn_on_shadowed_var: bool = True):
+    """Add a new symbol to the symbol table.
+
+    This function allows individual warnings to be disabled for one run
+    by supplying keyword arguments temporarily disabling those warnings.
+    In certain cases, we do not want to issue warnings again for a
+    previously checked case, so this is a simple way of disabling these
+    warnings for those cases.
+
+    If WARN_ON_SHADOWED_NAME compiler option is active and the
+    warn_on_shadowed_name keyword argument is True, then a warning will be
+    emitted if a local name is shadowed by another local name. Note that
+    WARN_ON_SHADOWED_NAME implies WARN_ON_SHADOWED_VAR.
+
+    If WARN_ON_SHADOWED_VAR compiler option is active and the
+    warn_on_shadowed_var keyword argument is True, then a warning will be
+    emitted if a named var is shadowed by a local name."""
+    st = Maybe(st).or_else(lambda: ctx.symbol_table)
+    if warn_on_shadowed_name and ctx.warn_on_shadowed_name:
+        if st.find_symbol(s) is not None:
+            logger.warning(f"name '{s}' shadows name from outer scope")
+    if (warn_on_shadowed_name or warn_on_shadowed_var) and ctx.warn_on_shadowed_var:
+        if ctx.current_ns.find(s) is not None:
+            logger.warning(f"name '{s}' shadows def'ed Var from outer scope")
+    st.new_symbol(s, munged, sym_ctx)
+
+
 def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Return a Python AST Node for a `def` expression."""
     assert form.first == _DEF
@@ -529,8 +589,11 @@ def _do_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 FunctionDefDetails = Tuple[List[ast.arg], ASTStream, Optional[ast.arg]]
 
 
-def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,  # pylint:disable=too-many-locals
-                  body_exprs: lseq.Seq) -> FunctionDefDetails:
+def _fn_args_body(ctx: CompilerContext,  # pylint:disable=too-many-locals
+                  arg_vec: vec.Vector,
+                  body_exprs: lseq.Seq,
+                  warn_on_shadowed_name: bool = True,
+                  warn_on_shadowed_var: bool = True) -> FunctionDefDetails:
     """Generate the Python AST Nodes for a Lisp function argument vector
     and body expressions. Return a tuple of arg nodes and body AST nodes."""
     st = ctx.symbol_table
@@ -543,7 +606,9 @@ def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,  # pylint:disable=t
             vargs_idx = i
             break
         safe = genname(munge(s.name))
-        st.new_symbol(s, safe, _SYM_CTX_LOCAL)
+        _new_symbol(ctx, s, safe, _SYM_CTX_LOCAL, st=st,
+                    warn_on_shadowed_name=warn_on_shadowed_name,
+                    warn_on_shadowed_var=warn_on_shadowed_var)
         munged.append(safe)
 
     vargs_body: List[ASTNode] = []
@@ -560,7 +625,7 @@ def _fn_args_body(ctx: CompilerContext, arg_vec: vec.Vector,  # pylint:disable=t
                                                                     args=[ast.Name(id=safe, ctx=ast.Load())],
                                                                     keywords=[]))))
 
-            st.new_symbol(vargs_sym, safe_local, _SYM_CTX_LOCAL)
+            _new_symbol(ctx, vargs_sym, safe_local, _SYM_CTX_LOCAL, st=st)
             vargs = ast.arg(arg=safe, annotation=None)
         except IndexError:
             raise CompilerException(
@@ -759,7 +824,7 @@ def _single_arity_fn_ast(ctx: CompilerContext, name: Optional[sym.Symbol], fndef
     with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(py_fn_name, fndef.first):
         # Allow named anonymous functions to recursively call themselves
         if name is not None:
-            ctx.symbol_table.new_symbol(name, py_fn_name, _SYM_CTX_LOCAL)
+            _new_symbol(ctx, name, py_fn_name, _SYM_CTX_LOCAL)
 
         args, body, vargs = _fn_args_body(ctx, fndef.first, fndef.rest)
 
@@ -821,7 +886,7 @@ def _multi_arity_fn_ast(ctx: CompilerContext, name: Optional[sym.Symbol],
         with ctx.new_recur_point(py_fn_name, arity.first):
             # Allow named anonymous functions to recursively call themselves
             if name is not None:
-                ctx.symbol_table.new_symbol(name, py_fn_name, _SYM_CTX_LOCAL)
+                _new_symbol(ctx, name, py_fn_name, _SYM_CTX_LOCAL)
 
             has_rest = any([has_rest, is_rest])
             arity_name = f"{py_fn_name}__arity{'_rest' if is_rest else arg_count}"
@@ -1069,44 +1134,47 @@ def _let_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:  # pylint:dis
     # parameters; the variable names, which become Python locals in assignments;
     # the variable names, which become Python locals in an expression context (which
     # is a subtly different Python AST node); and the computed expressions.
-    st = ctx.symbol_table
-    bindings = list(partition(form[1], 2))
+    with ctx.new_symbol_table(genname('let_st')) as st:
+        bindings = list(partition(form[1], 2))
 
-    if not bindings:
-        raise CompilerException("Expected at least one binding in 'let*'") from None
+        if not bindings:
+            raise CompilerException("Expected at least one binding in 'let*'") from None
 
-    arg_syms: Dict[
-        sym.Symbol, str] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name  # noqa: E501
-    var_names = []  # Names of local Python variables bound to computed expressions prior to the function call
-    arg_deps = []  # Argument expression dependency nodes
-    arg_exprs = []  # Bound expressions are the expressions a name is bound to
-    for s, expr in bindings:
-        # Keep track of only the newest symbol and munged name in arg_syms, that way
-        # we are only calling the let binding below with the most recent entry.
-        munged = genname(munge(s.name))
-        arg_syms[s] = munged
-        var_names.append(munged)
+        arg_syms: Dict[
+            sym.Symbol, str] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name  # noqa: E501
+        var_names = []  # Names of local Python variables bound to computed expressions prior to the function call
+        arg_deps = []  # Argument expression dependency nodes
+        arg_exprs = []  # Bound expressions are the expressions a name is bound to
+        for s, expr in bindings:
+            # Keep track of only the newest symbol and munged name in arg_syms, that way
+            # we are only calling the let binding below with the most recent entry.
+            munged = genname(munge(s.name))
+            arg_syms[s] = munged
+            var_names.append(munged)
 
-        expr_deps, expr_node = _nodes_and_expr(_to_ast(ctx, expr))
+            expr_deps, expr_node = _nodes_and_expr(_to_ast(ctx, expr))
 
-        # Don't add the new symbol until after we've processed the expression
-        st.new_symbol(s, munged, _SYM_CTX_LOCAL)
+            # Don't add the new symbol until after we've processed the expression
+            _new_symbol(ctx, s, munged, _SYM_CTX_LOCAL, st=st)
 
-        arg_deps.append(expr_deps)
-        arg_exprs.append(_unwrap_node(expr_node))
+            arg_deps.append(expr_deps)
+            arg_exprs.append(_unwrap_node(expr_node))
 
-    # Generate an outer function to hold the entire let expression (including bindings).
-    # We need to do this to guarantee that no binding expressions are executed as part of
-    # an assignment as a dependency node. This eager evaluation could leak out as part of
-    # (at least) if statements dependency nodes.
-    outer_letname = genname('let')
-    let_fn_body: List[ast.AST] = []
+        # Generate an outer function to hold the entire let expression (including bindings).
+        # We need to do this to guarantee that no binding expressions are executed as part of
+        # an assignment as a dependency node. This eager evaluation could leak out as part of
+        # (at least) if statements dependency nodes.
+        outer_letname = genname('let')
+        let_fn_body: List[ast.AST] = []
 
-    # Generate a function to hold the body of the let expression
-    letname = genname('let')
-    with ctx.new_symbol_table(letname):
-        args, body, vargs = _fn_args_body(ctx, vec.vector(arg_syms.keys()), runtime.nthrest(form, 2))
-        let_fn_body.append(_expressionize(body, letname, args=args, vargs=vargs))
+        # Generate a function to hold the body of the let expression
+        letname = genname('let')
+        with ctx.new_symbol_table(letname):
+            # Suppress shadowing warnings below since the shadow warnings will be
+            # emitted by calling _new_symbol in the loop above
+            args, body, vargs = _fn_args_body(ctx, vec.vector(arg_syms.keys()), runtime.nthrest(form, 2),
+                                              warn_on_shadowed_var=False, warn_on_shadowed_name=False)
+            let_fn_body.append(_expressionize(body, letname, args=args, vargs=vargs))
 
     # Generate local variable assignments for processing let bindings
     var_names = seq(var_names).map(lambda n: ast.Name(id=n, ctx=ast.Store()))
@@ -1191,7 +1259,7 @@ def _catch_ast(ctx: CompilerContext, form: llist.List) -> ast.ExceptHandler:
 
     exc_name = munge(form[2].name)
     with ctx.new_symbol_table(genname('catch_block')):
-        ctx.symbol_table.new_symbol(form[2], exc_name, _SYM_CTX_LOCAL)
+        _new_symbol(ctx, form[2], exc_name, _SYM_CTX_LOCAL)
         body = seq(form[3:]).flat_map(lambda f: _to_ast(ctx, f)).map(_unwrap_node).to_list()
 
     return ast.ExceptHandler(
@@ -1504,11 +1572,12 @@ def _kw_ast(_: CompilerContext, form: kw.Keyword) -> ASTStream:
 def _resolve_sym_var(ctx: CompilerContext, v: Var) -> Optional[str]:
     """Resolve a Basilisp var down to a Python Name (or Attribute).
 
-    If the Var is marked as :dynamic or :redef, do not compile to a direct
-    access. If the corresponding function name is not defined in a Python
-    module, no direct variable access is possible and Var.find indirection
-    must be used."""
-    if _is_dynamic(v) or _is_redefable(v):
+    If the Var is marked as :dynamic or :redef or the compiler option
+    USE_VAR_INDIRECTION is active, do not compile to a direct access.
+    If the corresponding function name is not defined in a Python module,
+    no direct variable access is possible and Var.find indirection must be
+    used."""
+    if ctx.use_var_indirection or _is_dynamic(v) or _is_redefable(v):
         return None
 
     safe_name = munge(v.name.name)
@@ -1646,11 +1715,10 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
             raise CompilerException("Direct access to varargs forbidden")
 
     # Resolve def'ed symbols, namespace aliases, imports, etc.
-    if USE_VAR_INDIRECTION not in ctx.opts:
-        resolved = _resolve_sym(ctx, form)
-        if resolved is not None:
-            yield _node(_load_attr(resolved))
-            return
+    resolved = _resolve_sym(ctx, form)
+    if resolved is not None:
+        yield _node(_load_attr(resolved))
+        return
 
     # If we couldn't find the symbol anywhere else, generate a Var.find call
     yield _node(ast.Attribute(
