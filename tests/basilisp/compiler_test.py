@@ -568,9 +568,9 @@ def test_interop_call(ns: runtime.Namespace):
 
 def test_interop_prop(ns: runtime.Namespace):
     assert lcompile("(.-ns 'some.ns/sym)") == "some.ns"
-    assert lcompile("(. 'some.ns/sym -ns)") == "some.ns"
+    assert lcompile("(.- 'some.ns/sym ns)") == "some.ns"
     assert lcompile("(.-name 'some.ns/sym)") == "sym"
-    assert lcompile("(. 'some.ns/sym -name)") == "sym"
+    assert lcompile("(.- 'some.ns/sym name)") == "sym"
 
     with pytest.raises(AttributeError):
         lcompile("(.-fake 'some.ns/sym)")

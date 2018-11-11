@@ -268,6 +268,8 @@ def test_symbol():
     assert sym.symbol("<body>") == read_str_first("<body>")
     assert sym.symbol("*muffs*") == read_str_first("*muffs*")
     assert sym.symbol("yay!") == read_str_first("yay!")
+    assert sym.symbol(".interop") == read_str_first(".interop")
+    assert sym.symbol("ns.name") == read_str_first("ns.name")
 
     assert sym.symbol("sym", ns="ns") == read_str_first("ns/sym")
     assert sym.symbol("sym", ns="qualified.ns") == read_str_first("qualified.ns/sym")
@@ -289,6 +291,15 @@ def test_symbol():
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("/sym")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first(".second.ns/name")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("ns..third/name")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("ns.second/.interop")
 
     with pytest.raises(reader.SyntaxError):
         # This will raise because the default pushback depth of the
@@ -656,50 +667,6 @@ def test_var():
     assert read_str_first("#'some.ns/a") == llist.l(
         sym.symbol("var"), sym.symbol("a", ns="some.ns")
     )
-
-
-def test_interop_call():
-    assert llist.l(sym.symbol("."), "STRING", sym.symbol("lower")) == read_str_first(
-        '(. "STRING" lower)'
-    )
-    assert llist.l(sym.symbol("."), "STRING", sym.symbol("lower")) == read_str_first(
-        '(.lower "STRING")'
-    )
-    assert llist.l(
-        sym.symbol("."), "www.google.com", sym.symbol("split"), "."
-    ) == read_str_first('(.split "www.google.com" ".")')
-    assert llist.l(
-        sym.symbol("."), "www.google.com", sym.symbol("split"), "."
-    ) == read_str_first('(. "www.google.com" split ".")')
-
-    assert llist.l(
-        sym.symbol("."),
-        sym.symbol("obj"),
-        llist.l(
-            sym.symbol("unquote"), llist.l(sym.symbol("quote"), sym.symbol("method"))
-        ),
-    ) == read_str_first("(. obj (unquote (quote method)))")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('(."non-symbol" symbol)')
-
-
-def test_interop_prop():
-    assert llist.l(
-        sym.symbol(".-"), sym.symbol("sym"), sym.symbol("name")
-    ) == read_str_first("(. sym -name)")
-    assert llist.l(
-        sym.symbol(".-"), sym.symbol("encoder"), sym.symbol("algorithm")
-    ) == read_str_first("(.-algorithm encoder)")
-    assert llist.l(
-        sym.symbol(".-"), sym.symbol("name"), sym.symbol("sym")
-    ) == read_str_first("(.- name sym)")
-    assert llist.l(sym.symbol(".-"), sym.symbol("name"), "string") == read_str_first(
-        '(.- name "string")'
-    )
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('(.-"string" sym)')
 
 
 def test_meta():
