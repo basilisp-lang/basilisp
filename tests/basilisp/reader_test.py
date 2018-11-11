@@ -269,6 +269,7 @@ def test_symbol():
     assert sym.symbol("*muffs*") == read_str_first("*muffs*")
     assert sym.symbol("yay!") == read_str_first("yay!")
     assert sym.symbol(".interop") == read_str_first(".interop")
+    assert sym.symbol("ns.name") == read_str_first("ns.name")
 
     assert sym.symbol("sym", ns="ns") == read_str_first("ns/sym")
     assert sym.symbol("sym", ns="qualified.ns") == read_str_first("qualified.ns/sym")
