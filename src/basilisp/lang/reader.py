@@ -319,9 +319,6 @@ def _read_namespaced(
         elif allowed_suffix is not None and token == allowed_suffix:
             reader.next_token()
             name.append(token)
-        elif not has_ns and token == ".":
-            reader.next_token()
-            name.append(token)
         else:
             break
 
