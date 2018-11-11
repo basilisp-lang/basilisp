@@ -810,7 +810,7 @@ def _assert_recur_is_tail(ctx: CompilerContext, form: lseq.Seq) -> None:  # noqa
             }:
                 _assert_no_recur(ctx, child)
             else:
-                _assert_recur_is_tail(ctx, child)
+                _assert_no_recur(ctx, child)
         else:
             if isinstance(child, lseq.Seqable):
                 _assert_no_recur(ctx, child.seq())
@@ -1664,7 +1664,9 @@ def _resolve_macro_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[Var]:
     return ctx.current_ns.find(form)
 
 
-def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
+def _list_ast(  # pylint: disable=too-many-locals
+    ctx: CompilerContext, form: llist.List
+) -> ASTStream:
     """Generate a stream of Python AST nodes for a source code list.
 
     Being the basis of any Lisp language, Lists have a lot of special cases
@@ -1720,6 +1722,24 @@ def _list_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
                 raise CompilerException(
                     f"Error occurred during macroexpansion of {form}"
                 ) from e
+            return
+
+        # Handle interop calls and properties generated dynamically (e.g.
+        # by a macro)
+        if first.name.startswith(".-"):
+            assert first.ns is None, "Interop property symbols may not have a namespace"
+            prop_name = sym.symbol(first.name[2:])
+            target = runtime.nth(form, 1)
+            yield from _interop_prop_ast(ctx, llist.l(_INTEROP_PROP, target, prop_name))
+            return
+        elif first.name.startswith("."):
+            assert first.ns is None, "Interop call symbols may not have a namespace"
+            attr_name = sym.symbol(first.name[1:])
+            rest = form.rest
+            target = rest.first
+            args = rest.rest
+            interop_form = llist.l(_INTEROP_CALL, target, attr_name, *args)
+            yield from _interop_call_ast(ctx, interop_form)
             return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
@@ -2083,16 +2103,10 @@ def _to_ast(  # pylint: disable=too-many-branches
     elif isinstance(form, str):
         yield _node(ast.Str(form))
         return
-    elif isinstance(form, bool):
+    elif isinstance(form, (bool, type(None))):
         yield _node(ast.NameConstant(form))
         return
-    elif isinstance(form, type(None)):
-        yield _node(ast.NameConstant(None))
-        return
-    elif isinstance(form, float):
-        yield _node(ast.Num(form))
-        return
-    elif isinstance(form, (complex, int)):
+    elif isinstance(form, (complex, float, int)):
         yield _node(ast.Num(form))
         return
     elif isinstance(form, datetime):

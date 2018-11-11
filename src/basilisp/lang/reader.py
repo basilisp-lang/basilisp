@@ -38,7 +38,7 @@ import basilisp.walker as walk
 from basilisp.lang.typing import LispForm, IterableLispForm
 from basilisp.util import Maybe
 
-ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$")
+ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|\.")
 alphanumeric_chars = re.compile(r"\w")
 begin_num_chars = re.compile(r"[0-9\-]")
 num_chars = re.compile("[0-9]")
@@ -370,96 +370,11 @@ def _consume_whitespace(reader: StreamReader) -> None:
         token = reader.advance()
 
 
-def _read_interop(ctx: ReaderContext, end_token: str) -> llist.List:
-    """Read a Python interop call or property access.
-
-    The instance member access syntax permits the following iterations:
-
-      (. instance member & args)
-      (.member instance & args)
-
-      (. instance -property)
-      (.-property instance)
-
-    This function always dynamically rewrites everything into one of two
-    canonical formats:
-
-      (. instance member & args)
-      (.- instance property)
-
-    By using just two canonical forms, it will be much easier to parse
-    and compile Python interop code."""
-    reader = ctx.reader
-    start = reader.advance()
-    assert start == "."
-    seq: List[LispForm] = []
-
-    token = reader.peek()
-    if whitespace_chars.match(token):
-        instance = _read_next_consuming_comment(ctx)
-        member = _read_next_consuming_comment(ctx)
-
-        # There are cases (particularly with macros) where we may
-        # not have a symbol in this spot. In those cases, we need
-        # to expect the author used the correct form in the first
-        # place.
-        if isinstance(member, symbol.Symbol) and member.name.startswith("-"):
-            seq.append(_INTEROP_PROP)
-            member = symbol.symbol(member.name[1:])
-        else:
-            seq.append(_INTEROP_CALL)
-
-        seq.append(instance)
-        seq.append(member)
-    elif token == "-":
-        reader.advance()
-        seq.append(_INTEROP_PROP)
-
-        # If whitespace immediately follows, this is the form
-        # (.- object member ...), otherwise it is (.-member object ...).
-        # We need to support both, as the former is more commonly
-        # the format which will appear in macros.
-        if whitespace_chars.match(reader.peek()):
-            instance = _read_next_consuming_comment(ctx)
-            member = _read_next_consuming_comment(ctx)
-        else:
-            member = _read_next_consuming_comment(ctx)
-            if not isinstance(member, symbol.Symbol):
-                raise SyntaxError(f"Expected Symbol; found {type(member)}")
-            instance = _read_next_consuming_comment(ctx)
-
-        seq.append(instance)
-        seq.append(member)
-    else:
-        assert not whitespace_chars.match(token)
-        seq.append(_INTEROP_CALL)
-        member = _read_next_consuming_comment(ctx)
-        instance = _read_next_consuming_comment(ctx)
-        if not isinstance(member, symbol.Symbol):
-            raise SyntaxError(f"Expected Symbol; found {type(member)}")
-        seq.append(instance)
-        seq.append(member)
-
-    while True:
-        token = reader.peek()
-        if token == "":
-            raise SyntaxError(f"Unexpected EOF in list")
-        if token == end_token:
-            reader.next_token()
-            return llist.list(seq)
-        elem = _read_next(ctx)
-        if elem is COMMENT or isinstance(elem, Comment):
-            continue
-        seq.append(elem)
-
-
 @_with_loc
 def _read_list(ctx: ReaderContext) -> llist.List:
     """Read a list element from the input stream."""
     start = ctx.reader.advance()
     assert start == "("
-    if ctx.reader.peek() == ".":
-        return _read_interop(ctx, ")")
     return _read_coll(ctx, llist.list, ")", "list")
 
 
@@ -661,6 +576,14 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
     ns, name = _read_namespaced(ctx, allowed_suffix="#")
     if not ctx.is_syntax_quoted and name.endswith("#"):
         raise SyntaxError("Gensym may not appear outside syntax quote")
+    if ns is not None:
+        if any(map(lambda s: len(s) == 0, ns.split("."))):
+            raise SyntaxError(
+                "All '.' separated segments of a namespace "
+                "must contain at least one character."
+            )
+    if name.startswith(".") and ns is not None:
+        raise SyntaxError("Symbols starting with '.' may not have a namespace")
     if ns is None:
         if name == "nil":
             return None
