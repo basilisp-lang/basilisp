@@ -212,7 +212,7 @@ class CompilerContext:
         Implied by warn_on_shadowed_name. The value of warn_on_shadowed_name
         supersedes the value of this flag."""
         return self.warn_on_shadowed_name or self._opts.entry(
-            WARN_ON_SHADOWED_VAR, True
+            WARN_ON_SHADOWED_VAR, False
         )
 
     @property
@@ -1842,6 +1842,8 @@ def _resolve_sym_var(ctx: CompilerContext, v: Var) -> Optional[str]:
             safe_ns = munge(v.ns.name)
             return f"{safe_ns}.{safe_name}"
 
+    if ctx.warn_on_var_indirection:
+        logger.warning(f"could not resolve a direct link to Var '{v.name}'")
     return None
 
 
@@ -1898,12 +1900,16 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
                 return f"{safe_ns}.{safe_name}"
 
             # If neither resolve, then defer to a Var.find
+            if ctx.warn_on_var_indirection:
+                logger.warning(f"could not resolve a direct link to Var '{form}'")
             return None
         elif ns_sym in ctx.current_ns.aliases:
             aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
             v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
             if v is not None:
                 return _resolve_sym_var(ctx, v)
+            if ctx.warn_on_var_indirection:
+                logger.warning(f"could not resolve a direct link to Var '{form}'")
             return None
 
     # Look up the symbol in the namespace mapping of the current namespace.
@@ -1914,6 +1920,8 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
     if v is not None:
         return _resolve_sym_var(ctx, v)
 
+    if ctx.warn_on_var_indirection:
+        logger.warning(f"could not resolve a direct link to Var '{form}'")
     return None
 
 
@@ -1974,9 +1982,6 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         return
 
     # If we couldn't find the symbol anywhere else, generate a Var.find call
-    # and issue a warning if warn_on_var_indirection is active.
-    if ctx.warn_on_var_indirection:
-        logger.warning(f"could not resolve a direct link to Var '{form}'")
     yield _node(
         ast.Attribute(
             value=ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]),

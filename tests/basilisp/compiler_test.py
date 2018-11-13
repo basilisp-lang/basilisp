@@ -329,11 +329,12 @@ def test_fn_warn_on_shadow_var(ns: runtime.Namespace):
         logger.warning.assert_not_called()
 
     with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile(
-            """
+        code = """
         (def unique-kuieeid :a)
         (fn [unique-kuieeid] unique-kuieeid)
         """
+        lcompile(
+            code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: True})
         )
 
         logger.warning.assert_called_once_with(
@@ -341,13 +342,14 @@ def test_fn_warn_on_shadow_var(ns: runtime.Namespace):
         )
 
     with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile(
-            """
+        code = """
         (def unique-peuudcdf :a)
         (fn
           ([] :b)
           ([unique-peuudcdf] unique-peuudcdf))
         """
+        lcompile(
+            code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: True})
         )
 
         logger.warning.assert_called_once_with(
@@ -654,11 +656,12 @@ def test_let_warn_on_shadow_var(ns: runtime.Namespace):
         logger.warning.assert_not_called()
 
     with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile(
-            """
+        code = """
         (def unique-uoieyqq :a)
         (let [unique-uoieyqq 3] unique-uoieyqq)
         """
+        lcompile(
+            code, ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: True})
         )
         logger.warning.assert_called_once_with(
             "name 'unique-uoieyqq' shadows def'ed Var from outer scope"

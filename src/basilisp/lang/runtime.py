@@ -34,6 +34,10 @@ _PYTHON_PACKAGE_NAME = "basilisp"
 _GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 _PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
 
+_DYNAMIC_META_KEY = kw.keyword("dynamic")
+_PRIVATE_META_KEY = kw.keyword("private")
+_REDEF_META_KEY = kw.keyword("redef")
+
 _CATCH = sym.symbol("catch")
 _DEF = sym.symbol("def")
 _DO = sym.symbol("do")
@@ -97,6 +101,15 @@ class Var:
         self._tl = threading.local()
         self._meta = meta
 
+        if dynamic:
+            # If this var was created with the dynamic keyword argument, then the
+            # Var metadata should also specify that the Var is dynamic.
+            if isinstance(self._meta, lmap.Map):
+                if not self._meta.entry(_DYNAMIC_META_KEY):
+                    self._meta = self._meta.assoc(_DYNAMIC_META_KEY, True)
+            else:
+                self._meta = lmap.map({_DYNAMIC_META_KEY: True})
+
     def __repr__(self):
         return f"#'{self.ns.name}/{self.name}"
 
@@ -127,7 +140,7 @@ class Var:
     @property
     def is_private(self) -> Optional[bool]:
         try:
-            return self.meta.entry(kw.keyword("private"))
+            return self.meta.entry(_PRIVATE_META_KEY)
         except AttributeError:
             return False
 
@@ -175,9 +188,8 @@ class Var:
     ) -> "Var":
         """Intern the value bound to the symbol `name` in namespace `ns`."""
         var_ns = Namespace.get_or_create(ns)
-        var = var_ns.intern(name, Var(var_ns, name, dynamic=dynamic))
+        var = var_ns.intern(name, Var(var_ns, name, dynamic=dynamic, meta=meta))
         var.root = val
-        var.meta = meta
         return var
 
     @staticmethod
@@ -186,9 +198,7 @@ class Var:
     ) -> "Var":
         """Create a new unbound `Var` instance to the symbol `name` in namespace `ns`."""
         var_ns = Namespace.get_or_create(ns)
-        var = var_ns.intern(name, Var(var_ns, name, dynamic=dynamic))
-        var.meta = meta
-        return var
+        return var_ns.intern(name, Var(var_ns, name, dynamic=dynamic, meta=meta))
 
     @staticmethod
     def find_in_ns(ns_sym: sym.Symbol, name_sym: sym.Symbol) -> "Optional[Var]":
@@ -929,7 +939,7 @@ def add_generated_python(
             sym.symbol(var_name),
             "",
             dynamic=True,
-            meta=lmap.map({kw.keyword("private"): True}),
+            meta=lmap.map({_PRIVATE_META_KEY: True}),
         )
     )
     v.value = v.value + generated_python
@@ -973,19 +983,26 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME, core_ns_name: str = _CORE_NS) -> 
 
     Var.intern_unbound(core_ns_sym, sym.symbol("unquote"))
     Var.intern_unbound(core_ns_sym, sym.symbol("unquote-splicing"))
-    Var.intern(core_ns_sym, sym.symbol("set!"), set_BANG_)
-    Var.intern(core_ns_sym, sym.symbol("in-ns"), in_ns)
+    Var.intern(
+        core_ns_sym,
+        sym.symbol("set!"),
+        set_BANG_,
+        meta=lmap.map({_REDEF_META_KEY: True}),
+    )
+    Var.intern(
+        core_ns_sym, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
+    )
     Var.intern(
         core_ns_sym,
         sym.symbol(_PRINT_GENERATED_PY_VAR_NAME),
         False,
         dynamic=True,
-        meta=lmap.map({kw.keyword("private"): True}),
+        meta=lmap.map({_PRIVATE_META_KEY: True}),
     )
     Var.intern(
         core_ns_sym,
         sym.symbol(_GENERATED_PYTHON_VAR_NAME),
         "",
         dynamic=True,
-        meta=lmap.map({kw.keyword("private"): True}),
+        meta=lmap.map({_PRIVATE_META_KEY: True}),
     )
