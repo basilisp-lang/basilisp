@@ -74,7 +74,7 @@ def bootstrap_repl(which_ns: str) -> types.ModuleType:
 )
 @click.option(
     "--warn-on-shadowed-var",
-    default=True,
+    default=False,
     is_flag=True,
     envvar="BASILISP_WARN_ON_SHADOWED_VAR",
     help="if provided, emit warnings if a Var name is shadowed by a local name",
@@ -162,7 +162,7 @@ def repl(
 )
 @click.option(
     "--warn-on-shadowed-var",
-    default=True,
+    default=False,
     is_flag=True,
     envvar="BASILISP_WARN_ON_SHADOWED_VAR",
     help="if provided, emit warnings if a Var name is shadowed by a local name",
