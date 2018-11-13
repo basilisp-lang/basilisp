@@ -924,6 +924,12 @@ def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
             return sym.symbol(s.name, ns=ns.name)
 
 
+def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
+    """Resolve the aliased symbol to a Var from the specified
+    namespace, or the current namespace if none is specified."""
+    return Var.find(resolve_alias(s, ns))
+
+
 def add_generated_python(
     generated_python: str,
     var_name: str = _GENERATED_PYTHON_VAR_NAME,

@@ -1539,7 +1539,7 @@
 (defn ns-resolve
   "Return the Var which will be resolved by the symbol in the given namespace."
   [ns sym]
-  (.find ns sym))
+  (basilisp.lang.runtime/resolve-var sym ns))
 
 (defn resolve
   "Return the Var which will be resolved by the symbol in the namespace currently
