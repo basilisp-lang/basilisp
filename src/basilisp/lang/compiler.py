@@ -1882,12 +1882,8 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
 
             # Otherwise, try to direct-link it like a Python variable
             safe_ns = munge(form.ns)
-            try:
-                ns_module = sys.modules[safe_ns]
-            except KeyError:
-                # This should never happen. A module listed in the namespace
-                # imports should always be imported already.
-                raise CompilerException(f"Module '{safe_ns}' is not imported")
+            assert safe_ns in sys.modules, f"Module '{safe_ns}' is not imported"
+            ns_module = sys.modules[safe_ns]
 
             # Try without allowing builtins first
             safe_name = munge(form.name)
@@ -1901,7 +1897,9 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
 
             # If neither resolve, then defer to a Var.find
             if ctx.warn_on_var_indirection:
-                logger.warning(f"could not resolve a direct link to Var '{form}'")
+                logger.warning(
+                    f"could not resolve a direct link to Python variable '{form}'"
+                )
             return None
         elif ns_sym in ctx.current_ns.aliases:
             aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]

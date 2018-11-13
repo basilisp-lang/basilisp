@@ -994,6 +994,53 @@ def test_aliased_macro_symbol_resolution(ns: runtime.Namespace):
         runtime.Namespace.remove(other_ns_name)
 
 
+def test_warn_on_var_indirection_cross_ns(ns: runtime.Namespace):
+    current_ns: runtime.Namespace = ns
+    other_ns_name = sym.symbol("other.ns")
+    try:
+        other_ns = runtime.Namespace.get_or_create(other_ns_name)
+        current_ns.add_alias(other_ns_name, other_ns)
+        current_ns.add_alias(sym.symbol("other"), other_ns)
+
+        with runtime.ns_bindings(current_ns.name):
+            with mock.patch("basilisp.lang.compiler.logger") as logger:
+                lcompile(
+                    "(fn [] (other.ns/m :z))",
+                    ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: True}),
+                )
+
+                logger.warning.assert_called_once_with(
+                    "could not resolve a direct link to Var 'other.ns/m'"
+                )
+
+            with mock.patch("basilisp.lang.compiler.logger") as logger:
+                lcompile(
+                    "(fn [] (other/m :z))",
+                    ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: True}),
+                )
+
+                logger.warning.assert_called_once_with(
+                    "could not resolve a direct link to Var 'other/m'"
+                )
+    finally:
+        runtime.Namespace.remove(other_ns_name)
+
+
+def test_warn_on_var_indirection_on_import(ns: runtime.Namespace):
+    ns.add_import(sym.symbol("string"), __import__("string"))
+
+    with runtime.ns_bindings(ns.name):
+        with mock.patch("basilisp.lang.compiler.logger") as logger:
+            lcompile(
+                "(fn [] (string/m :z))",
+                ctx=compiler.CompilerContext({compiler.WARN_ON_SHADOWED_VAR: True}),
+            )
+
+            logger.warning.assert_called_once_with(
+                "could not resolve a direct link to Python variable 'string/m'"
+            )
+
+
 def test_var(ns: runtime.Namespace):
     code = """
     (def some-var "a value")
