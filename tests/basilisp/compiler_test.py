@@ -372,6 +372,31 @@ def test_fn_warn_on_shadow_var(ns: runtime.Namespace):
         )
 
 
+def test_fn_warn_on_unused_name(ns: runtime.Namespace):
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            "(fn [v] (fn [v] v))",
+            ctx=compiler.CompilerContext({compiler.WARN_ON_UNUSED_NAMES: True}),
+        )
+        logger.warning.assert_called_once_with(
+            f"symbol 'v' defined but not used ({ns}: 1)"
+        )
+
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            """
+        (fn
+          ([] :a)
+          ([v] (fn [v] v)))
+        """,
+            ctx=compiler.CompilerContext({compiler.WARN_ON_UNUSED_NAMES: True}),
+        )
+
+        logger.warning.assert_called_once_with(
+            f"symbol 'v' defined but not used ({ns}: 3)"
+        )
+
+
 def test_single_arity_fn(ns: runtime.Namespace):
     code = """
     (def empty-single (fn* empty-single []))
@@ -688,6 +713,31 @@ def test_let_warn_on_shadow_var(ns: runtime.Namespace):
         )
         logger.warning.assert_called_once_with(
             "name 'unique-uoieyqq' shadows def'ed Var from outer scope"
+        )
+
+
+def test_let_warn_on_unused_name(ns: runtime.Namespace):
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            "(let [v 4] :a)",
+            ctx=compiler.CompilerContext({compiler.WARN_ON_UNUSED_NAMES: True}),
+        )
+        logger.warning.assert_called_once_with(
+            f"symbol 'v' defined but not used ({ns}: 1)"
+        )
+
+    with mock.patch("basilisp.lang.compiler.logger") as logger:
+        lcompile(
+            """
+        (let [v 4]
+          (let [v 5]
+            v))
+        """,
+            ctx=compiler.CompilerContext({compiler.WARN_ON_UNUSED_NAMES: True}),
+        )
+
+        logger.warning.assert_called_once_with(
+            f"symbol 'v' defined but not used ({ns}: 1)"
         )
 
 

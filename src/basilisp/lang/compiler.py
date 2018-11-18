@@ -220,7 +220,7 @@ class SymbolTable:
                     .or_else_get("")
                 )
                 logger.warning(
-                    f"symbol {entry.symbol} defined but not used ({ns}{code_loc})"
+                    f"symbol '{entry.symbol}' defined but not used ({ns}{code_loc})"
                 )
 
     def append_frame(self, name: str, parent: "SymbolTable" = None) -> "SymbolTable":
