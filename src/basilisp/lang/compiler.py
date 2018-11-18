@@ -187,7 +187,6 @@ class SymbolTable:
                 return
             self._table[s] = old._replace(used=True)
         elif self._parent is not None:
-            logger.debug(f"could not find {s} in symbol table; checking parent")
             self._parent.mark_used(s)
         else:
             assert False, f"Symbol {s} not defined in any symbol table"
