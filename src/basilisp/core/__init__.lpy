@@ -445,12 +445,12 @@
 
 (defn any?
   "Return true for any x."
-  [x]
+  [_]
   true)
 
 (defn =
   "Return true if x and y are equal, otherwise false."
-  ([x] true)
+  ([_] true)
   ([x & args]
    (if (seq (rest args))
      (if (basilisp.lang.runtime/equals x (first args))
@@ -465,7 +465,7 @@
 
 (defn >
   "Return true if arguments are monotonically decreasing, otherwise false."
-  ([x] true)
+  ([_] true)
   ([x & args]
    (if (seq (rest args))
      (if (operator/gt x (first args))
@@ -475,7 +475,7 @@
 
 (defn >=
   "Return true if arguments are decreasing, otherwise false."
-  ([x] true)
+  ([_] true)
   ([x & args]
    (if (seq (rest args))
      (if (operator/ge x (first args))
@@ -485,7 +485,7 @@
 
 (defn <
   "Return true if arguments are monotonically increasing, otherwise false."
-  ([x] true)
+  ([_] true)
   ([x & args]
    (if (seq (rest args))
      (if (operator/lt x (first args))
@@ -495,7 +495,7 @@
 
 (defn <=
   "Return true if arguments are increasing, otherwise false."
-  ([x] true)
+  ([_] true)
   ([x & args]
    (if (seq (rest args))
      (if (operator/le x (first args))
@@ -769,7 +769,7 @@
 (defn constantly
   "Returns a function that accepts any number of arguments and returns x."
   [x]
-  (fn [& args] x))
+  (fn [& ^:no-warn-when-unused args] x))
 
 (defn reduce
   "Reduce coll by f.
@@ -1053,7 +1053,7 @@
 
 (defmacro comment
   "Ignore all the forms passed, returning nil."
-  [& forms]
+  [& ^:no-warn-when-unused forms]
   nil)
 
 (defmacro condp
@@ -1530,11 +1530,11 @@
   "Return a map of all the mapped symbols in the namespace.
 
   Includes the return values of ns-interns and ns-refers in one map."
-  [ns]
-  (let [current-ns *ns*]
-    (merge
-     (ns-interns current-ns)
-     (ns-refers current-ns))))
+  ([] (ns-map *ns*))
+  ([ns]
+   (merge
+    (ns-interns ns)
+    (ns-refers ns))))
 
 (defn ns-resolve
   "Return the Var which will be resolved by the symbol in the given namespace."
