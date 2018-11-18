@@ -48,14 +48,17 @@ from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
 from basilisp.util import Maybe, partition
 
+# Compiler logging
 logger = logging.getLogger(__name__)
 
 # Compiler options
 USE_VAR_INDIRECTION = "use_var_indirection"
 WARN_ON_SHADOWED_NAME = "warn_on_shadowed_name"
 WARN_ON_SHADOWED_VAR = "warn_on_shadowed_var"
+WARN_ON_UNUSED_NAMES = "warn_on_unused_names"
 WARN_ON_VAR_INDIRECTION = "warn_on_var_indirection"
 
+# String constants used in generating code
 _BUILTINS_NS = "builtins"
 _CORE_NS = "basilisp.core"
 _DEFAULT_FN = "__lisp_expr__"
@@ -69,6 +72,7 @@ _TRY_PREFIX = "lisp_try"
 _NS_VAR = "__NS"
 _LISP_NS_VAR = "*ns*"
 
+# Special form symbols
 _AMPERSAND = sym.symbol("&")
 _CATCH = sym.symbol("catch")
 _DEF = sym.symbol("def")
@@ -104,16 +108,30 @@ _SPECIAL_FORMS = lset.s(
 _UNQUOTE = sym.symbol("unquote", _CORE_NS)
 _UNQUOTE_SPLICING = sym.symbol("unquote-splicing", _CORE_NS)
 
+# Symbols to be ignored for unused symbol warnings
+_IGNORED_SYM = sym.symbol("_")
+_MACRO_ENV_SYM = sym.symbol("&env")
+_MACRO_FORM_SYM = sym.symbol("&form")
+_NO_WARN_UNUSED_SYMS = lset.s(_IGNORED_SYM, _MACRO_ENV_SYM, _MACRO_FORM_SYM)
+
+# Symbol table contexts
 _SYM_CTX_LOCAL_STARRED = kw.keyword(
     "local-starred", ns="basilisp.lang.compiler.var-context"
 )
 _SYM_CTX_LOCAL = kw.keyword("local", ns="basilisp.lang.compiler.var-context")
+_SYM_CTX_RECUR = kw.keyword("recur", ns="basilisp.lang.compiler.var-context")
 
-SymbolTableEntry = Tuple[str, kw.Keyword, sym.Symbol]
+
+class SymbolTableEntry(NamedTuple):
+    munged: str
+    context: kw.Keyword
+    symbol: sym.Symbol
+    used: bool = False
+    warn_if_unused: bool = True
 
 
 class SymbolTable:
-    CONTEXTS = frozenset([_SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED])
+    CONTEXTS = frozenset([_SYM_CTX_LOCAL, _SYM_CTX_LOCAL_STARRED, _SYM_CTX_RECUR])
 
     __slots__ = ("_name", "_parent", "_table", "_children")
 
@@ -139,10 +157,18 @@ class SymbolTable:
             f"table={repr(self._table)}, children={len(self._children)})"
         )
 
-    def new_symbol(self, s: sym.Symbol, munged: str, ctx: kw.Keyword) -> "SymbolTable":
-        if ctx not in SymbolTable.CONTEXTS:
-            raise TypeError(f"Context {ctx} not a valid Symbol Context")
-        self._table[s] = (munged, ctx, s)
+    def new_symbol(
+        self, s: sym.Symbol, munged: str, ctx: kw.Keyword, warn_if_unused: bool = True
+    ) -> "SymbolTable":
+        assert ctx in SymbolTable.CONTEXTS, f"Symbol context {ctx} must be in CONTEXTS"
+        if s in self._table:
+            self._table[s] = self._table[s]._replace(
+                munged=munged, context=ctx, symbol=s, warn_if_unused=warn_if_unused
+            )
+        else:
+            self._table[s] = SymbolTableEntry(
+                munged, ctx, s, warn_if_unused=warn_if_unused
+            )
         return self
 
     def find_symbol(self, s: sym.Symbol) -> Optional[SymbolTableEntry]:
@@ -151,6 +177,52 @@ class SymbolTable:
         if self._parent is None:
             return None
         return self._parent.find_symbol(s)
+
+    def mark_used(self, s: sym.Symbol) -> None:
+        """Mark the symbol s used in the current table or the first ancestor table
+        which contains the symbol."""
+        if s in self._table:
+            old: SymbolTableEntry = self._table[s]
+            if old.used:
+                return
+            self._table[s] = old._replace(used=True)
+        elif self._parent is not None:
+            logger.debug(f"could not find {s} in symbol table; checking parent")
+            self._parent.mark_used(s)
+        else:
+            assert False, f"Symbol {s} not defined in any symbol table"
+
+    def _warn_unused_names(self):
+        """Log a warning message for locally bound names whose values are not used
+        by the time the symbol table frame is being popped off the stack.
+
+        The symbol table contains locally-bound symbols, recur point symbols, and
+        symbols bound to var-args in generated Python functions. Only the locally-
+        bound symbols are eligible for an unused warning, since it is not common
+        that recur points will be used and user code is not permitted to directly
+        access the var-args symbol (the compiler inserts an intermediate symbol
+        which user code uses).
+
+        Warnings will not be issued for symbols named '_', '&form', and '&env'. The
+        latter symbols appear in macros and a great many macros will never use them."""
+        assert logger.isEnabledFor(
+            logging.WARNING
+        ), "Only warn when logger is configured for WARNING level"
+        ns = runtime.get_current_ns()
+        for _, entry in self._table.items():
+            if entry.context != _SYM_CTX_LOCAL:
+                continue
+            if entry.symbol in _NO_WARN_UNUSED_SYMS:
+                continue
+            if entry.warn_if_unused and not entry.used:
+                code_loc = (
+                    Maybe(entry.symbol.meta)
+                    .map(lambda m: f": {m.entry(reader.READER_LINE_KW)}")
+                    .or_else_get("")
+                )
+                logger.warning(
+                    f"symbol {entry.symbol} defined but not used ({ns}{code_loc})"
+                )
 
     def append_frame(self, name: str, parent: "SymbolTable" = None) -> "SymbolTable":
         new_frame = SymbolTable(name, parent=parent)
@@ -161,9 +233,14 @@ class SymbolTable:
         del self._children[name]
 
     @contextlib.contextmanager
-    def new_frame(self, name):
+    def new_frame(self, name, warn_on_unused_names):
+        """Context manager for creating a new stack frame. If warn_on_unused_names is
+        True and the logger is enabled for WARNING, call _warn_unused_names() on the
+        child SymbolTable before it is popped."""
         new_frame = self.append_frame(name, parent=self)
         yield new_frame
+        if warn_on_unused_names and logger.isEnabledFor(logging.WARNING):
+            new_frame._warn_unused_names()
         self.pop_frame(name)
 
 
@@ -216,6 +293,11 @@ class CompilerContext:
         )
 
     @property
+    def warn_on_unused_names(self) -> bool:
+        """If True, warn when local names are unused."""
+        return self._opts.entry(WARN_ON_UNUSED_NAMES, True)
+
+    @property
     def warn_on_var_indirection(self) -> bool:
         """If True, warn when a Var reference cannot be direct linked (iff
         use_var_indirection is False).."""
@@ -260,7 +342,7 @@ class CompilerContext:
     @contextlib.contextmanager
     def new_symbol_table(self, name):
         old_st = self.symbol_table
-        with old_st.new_frame(name) as st:
+        with old_st.new_frame(name, self.warn_on_unused_names) as st:
             self._st.append(st)
             yield st
             self._st.pop()
@@ -503,6 +585,7 @@ def _meta_kwargs_ast(  # pylint:disable=inconsistent-return-statements
 _SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
 _SYM_MACRO_META_KEY = kw.keyword("macro")
 _SYM_NO_WARN_ON_REDEF_META_KEY = kw.keyword("no-warn-on-redef")
+_SYM_NO_WARN_WHEN_UNUSED_META_KEY = kw.keyword("no-warn-when-unused")
 _SYM_REDEF_META_KEY = kw.keyword("redef")
 
 
@@ -542,6 +625,7 @@ def _new_symbol(  # pylint: disable=too-many-arguments
     st: Optional[SymbolTable] = None,
     warn_on_shadowed_name: bool = True,
     warn_on_shadowed_var: bool = True,
+    warn_if_unused: bool = True,
 ):
     """Add a new symbol to the symbol table.
 
@@ -566,7 +650,9 @@ def _new_symbol(  # pylint: disable=too-many-arguments
     if (warn_on_shadowed_name or warn_on_shadowed_var) and ctx.warn_on_shadowed_var:
         if ctx.current_ns.find(s) is not None:
             logger.warning(f"name '{s}' shadows def'ed Var from outer scope")
-    st.new_symbol(s, munged, sym_ctx)
+    if s.meta is not None and s.meta.entry(_SYM_NO_WARN_WHEN_UNUSED_META_KEY, None):
+        warn_if_unused = False
+    st.new_symbol(s, munged, sym_ctx, warn_if_unused=warn_if_unused)
 
 
 def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -928,7 +1014,7 @@ def _single_arity_fn_ast(
     with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(py_fn_name, fndef.first):
         # Allow named anonymous functions to recursively call themselves
         if name is not None:
-            _new_symbol(ctx, name, py_fn_name, _SYM_CTX_LOCAL)
+            _new_symbol(ctx, name, py_fn_name, _SYM_CTX_RECUR, warn_if_unused=False)
 
         args, body, vargs = _fn_args_body(ctx, fndef.first, fndef.rest)
 
@@ -997,7 +1083,7 @@ def _multi_arity_fn_ast(
         with ctx.new_recur_point(py_fn_name, arity.first):
             # Allow named anonymous functions to recursively call themselves
             if name is not None:
-                _new_symbol(ctx, name, py_fn_name, _SYM_CTX_LOCAL)
+                _new_symbol(ctx, name, py_fn_name, _SYM_CTX_RECUR, warn_if_unused=False)
 
             has_rest = any([has_rest, is_rest])
             arity_name = f"{py_fn_name}__arity{'_rest' if is_rest else arg_count}"
@@ -1352,17 +1438,17 @@ def _let_ast(  # pylint:disable=too-many-locals
 
         # Generate a function to hold the body of the let expression
         letname = genname("let")
-        with ctx.new_symbol_table(letname):
-            # Suppress shadowing warnings below since the shadow warnings will be
-            # emitted by calling _new_symbol in the loop above
-            args, body, vargs = _fn_args_body(
-                ctx,
-                vec.vector(arg_syms.keys()),
-                runtime.nthrest(form, 2),
-                warn_on_shadowed_var=False,
-                warn_on_shadowed_name=False,
-            )
-            let_fn_body.append(_expressionize(body, letname, args=args, vargs=vargs))
+
+        # Suppress shadowing warnings below since the shadow warnings will be
+        # emitted by calling _new_symbol in the loop above
+        args, body, vargs = _fn_args_body(
+            ctx,
+            vec.vector(arg_syms.keys()),
+            runtime.nthrest(form, 2),
+            warn_on_shadowed_var=False,
+            warn_on_shadowed_name=False,
+        )
+        let_fn_body.append(_expressionize(body, letname, args=args, vargs=vargs))
 
     # Generate local variable assignments for processing let bindings
     var_names = seq(var_names).map(lambda n: ast.Name(id=n, ctx=ast.Store()))
@@ -1960,18 +2046,19 @@ def _sym_ast(ctx: CompilerContext, form: sym.Symbol) -> ASTStream:
         return
 
     # Look up local symbols (function parameters, let bindings, etc.)
-    st = ctx.symbol_table
-    st_sym = st.find_symbol(form)
+    sym_entry = ctx.symbol_table.find_symbol(form)
+    if sym_entry is not None:
+        assert (
+            sym_entry.munged is not None
+        ), f"Lisp symbol '{form}' not found in symbol table"
+        assert (
+            sym_entry.context != _SYM_CTX_LOCAL_STARRED
+        ), "Direct access to varargs forbidden"
 
-    if st_sym is not None:
-        munged, sym_ctx, _ = st_sym
-        assert munged is not None, f"Lisp symbol '{form}' not found in symbol table"
-
-        if sym_ctx == _SYM_CTX_LOCAL:
-            yield _node(ast.Name(id=munged, ctx=ast.Load()))
+        if sym_entry.context in {_SYM_CTX_LOCAL, _SYM_CTX_RECUR}:
+            ctx.symbol_table.mark_used(form)
+            yield _node(ast.Name(id=sym_entry.munged, ctx=ast.Load()))
             return
-        elif sym_ctx == _SYM_CTX_LOCAL_STARRED:
-            raise CompilerException("Direct access to varargs forbidden")
 
     # Resolve def'ed symbols, namespace aliases, imports, etc.
     resolved = _resolve_sym(ctx, form)
