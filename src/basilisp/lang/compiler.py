@@ -43,13 +43,21 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util
 import basilisp.lang.vector as vec
+import basilisp.logconfig as logconfig
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
 from basilisp.util import Maybe, partition
 
 # Compiler logging
+DEFAULT_LOG_FORMAT = (
+    "%(asctime)s %(levelname)s [%(lisp_name)s:%(lisp_lineno)d] - %(message)s"
+)
+DEFAULT_LOG_HANDLER = logconfig.get_handler(logconfig.DEFAULT_LEVEL, DEFAULT_LOG_FORMAT)
 logger = logging.getLogger(__name__)
+logger.propagate = False
+logger.removeHandler(logconfig.DEFAULT_HANDLER)
+logger.addHandler(DEFAULT_LOG_HANDLER)
 
 # Compiler options
 USE_VAR_INDIRECTION = "use_var_indirection"
@@ -191,7 +199,7 @@ class SymbolTable:
         else:
             assert False, f"Symbol {s} not defined in any symbol table"
 
-    def _warn_unused_names(self):
+    def _warn_unused_names(self, get_log_context: Callable[..., lmap.Map]) -> None:
         """Log a warning message for locally bound names whose values are not used
         by the time the symbol table frame is being popped off the stack.
 
@@ -207,20 +215,15 @@ class SymbolTable:
         assert logger.isEnabledFor(
             logging.WARNING
         ), "Only warn when logger is configured for WARNING level"
-        ns = runtime.get_current_ns()
         for _, entry in self._table.items():
             if entry.context != _SYM_CTX_LOCAL:
                 continue
             if entry.symbol in _NO_WARN_UNUSED_SYMS:
                 continue
             if entry.warn_if_unused and not entry.used:
-                code_loc = (
-                    Maybe(entry.symbol.meta)
-                    .map(lambda m: f": {m.entry(reader.READER_LINE_KW)}")
-                    .or_else_get("")
-                )
                 logger.warning(
-                    f"symbol '{entry.symbol}' defined but not used ({ns}{code_loc})"
+                    f"symbol '{entry.symbol}' defined but not used",
+                    extra=get_log_context(meta=entry.symbol),
                 )
 
     def append_frame(self, name: str, parent: "SymbolTable" = None) -> "SymbolTable":
@@ -232,14 +235,19 @@ class SymbolTable:
         del self._children[name]
 
     @contextlib.contextmanager
-    def new_frame(self, name, warn_on_unused_names):
-        """Context manager for creating a new stack frame. If warn_on_unused_names is
-        True and the logger is enabled for WARNING, call _warn_unused_names() on the
-        child SymbolTable before it is popped."""
+    def new_frame(self, name, warn_on_unused_names, get_log_context):
+        """Context manager for creating a new stack frame.
+
+        If warn_on_unused_names is True and the logger is enabled for WARNING,
+        call _warn_unused_names() on the child SymbolTable before it is popped.
+
+        Callers must provide a callable `get_log_context` which can be passed
+        either a Meta (using kwarg `meta`) or a str (kwarg `name`) to produce
+        a log context dict."""
         new_frame = self.append_frame(name, parent=self)
         yield new_frame
         if warn_on_unused_names and logger.isEnabledFor(logging.WARNING):
-            new_frame._warn_unused_names()
+            new_frame._warn_unused_names(get_log_context)
         self.pop_frame(name)
 
 
@@ -263,7 +271,7 @@ class CompilerContext:
 
         if logger.isEnabledFor(logging.DEBUG):
             for k, v in self._opts:
-                logger.debug("Compiler option %s=%s", k, v)
+                logger.debug("Compiler option %s=%s", k, v, extra=self.log_context())
 
     @property
     def current_ns(self) -> runtime.Namespace:
@@ -304,6 +312,22 @@ class CompilerContext:
             WARN_ON_VAR_INDIRECTION, True
         )
 
+    def log_context(
+        self, name: Optional[str] = None, meta: Optional[lmeta.Meta] = None
+    ) -> dict:
+        """Return a map of log context information used to emit log messages from
+        within the compiler which point to Basilisp code, rather than compiler
+        code."""
+        return {
+            "lisp_name": Maybe(name).or_else(lambda: self.current_ns.name),
+            "lisp_lineno": (
+                Maybe(meta)
+                .map(lambda o: o.meta)
+                .map(lambda m: m.entry(reader.READER_LINE_KW, 1))
+                .or_else_get(1)
+            ),
+        }
+
     @property
     def recur_point(self):
         return self._recur_points[-1]
@@ -341,7 +365,7 @@ class CompilerContext:
     @contextlib.contextmanager
     def new_symbol_table(self, name):
         old_st = self.symbol_table
-        with old_st.new_frame(name, self.warn_on_unused_names) as st:
+        with old_st.new_frame(name, self.warn_on_unused_names, self.log_context) as st:
             self._st.append(st)
             yield st
             self._st.pop()
@@ -645,10 +669,15 @@ def _new_symbol(  # pylint: disable=too-many-arguments
     st = Maybe(st).or_else(lambda: ctx.symbol_table)
     if warn_on_shadowed_name and ctx.warn_on_shadowed_name:
         if st.find_symbol(s) is not None:
-            logger.warning(f"name '{s}' shadows name from outer scope")
+            logger.warning(
+                f"name '{s}' shadows name from outer scope", extra=ctx.log_context(s)
+            )
     if (warn_on_shadowed_name or warn_on_shadowed_var) and ctx.warn_on_shadowed_var:
         if ctx.current_ns.find(s) is not None:
-            logger.warning(f"name '{s}' shadows def'ed Var from outer scope")
+            logger.warning(
+                f"name '{s}' shadows def'ed Var from outer scope",
+                extra=ctx.log_context(s),
+            )
     if s.meta is not None and s.meta.entry(_SYM_NO_WARN_WHEN_UNUSED_META_KEY, None):
         warn_if_unused = False
     st.new_symbol(s, munged, sym_ctx, warn_if_unused=warn_if_unused)
@@ -692,7 +721,8 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         )
         if not no_warn_on_redef:
             logger.warning(
-                f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'"
+                f"redefining interned Var '{form[1]}' in module '{ctx.current_ns}'",
+                extra=ctx.log_context(form[1]),
             )
 
     yield _dependency(
@@ -1928,7 +1958,10 @@ def _resolve_sym_var(ctx: CompilerContext, v: Var) -> Optional[str]:
             return f"{safe_ns}.{safe_name}"
 
     if ctx.warn_on_var_indirection:
-        logger.warning(f"could not resolve a direct link to Var '{v.name}'")
+        logger.warning(
+            f"could not resolve a direct link to Var '{v.name}'",
+            extra=ctx.log_context(v),
+        )
     return None
 
 
@@ -1983,7 +2016,8 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
             # If neither resolve, then defer to a Var.find
             if ctx.warn_on_var_indirection:
                 logger.warning(
-                    f"could not resolve a direct link to Python variable '{form}'"
+                    f"could not resolve a direct link to Python variable '{form}'",
+                    extra=ctx.log_context(form),
                 )
             return None
         elif ns_sym in ctx.current_ns.aliases:
@@ -1992,7 +2026,10 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
             if v is not None:
                 return _resolve_sym_var(ctx, v)
             if ctx.warn_on_var_indirection:
-                logger.warning(f"could not resolve a direct link to Var '{form}'")
+                logger.warning(
+                    f"could not resolve a direct link to Var '{form}'",
+                    extra=ctx.log_context(form),
+                )
             return None
 
     # Look up the symbol in the namespace mapping of the current namespace.
@@ -2004,7 +2041,10 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
         return _resolve_sym_var(ctx, v)
 
     if ctx.warn_on_var_indirection:
-        logger.warning(f"could not resolve a direct link to Var '{form}'")
+        logger.warning(
+            f"could not resolve a direct link to Var '{form}'",
+            extra=ctx.log_context(form),
+        )
     return None
 
 
