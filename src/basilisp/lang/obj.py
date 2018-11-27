@@ -69,7 +69,7 @@ class LispObject(ABC):
 
         print_meta = kwargs["print_meta"]
         if print_meta and meta:
-            return f"^{LispObject.lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
+            return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
 
         return f"{start}{seq_lrepr}{end}"
 

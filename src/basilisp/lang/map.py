@@ -109,9 +109,7 @@ class Map(Associative, Collection, LispObject, Meta, Seqable):
 
         def entry_reprs():
             for k, v in self._inner.iteritems():
-                yield "{k} {v}".format(
-                    k=LispObject.lrepr(k, **kwargs), v=LispObject.lrepr(v, **kwargs)
-                )
+                yield "{k} {v}".format(k=lrepr(k, **kwargs), v=lrepr(v, **kwargs))
 
         print_length = kwargs["print_length"]
         if isinstance(print_length, int):
@@ -126,7 +124,7 @@ class Map(Associative, Collection, LispObject, Meta, Seqable):
 
         print_meta = kwargs["print_meta"]
         if print_meta and self._meta:
-            return f"^{LispObject.lrepr(self._meta, **kwargs)} {{{seq_lrepr}}}"
+            return f"^{lrepr(self._meta, **kwargs)} {{{seq_lrepr}}}"
 
         return f"{{{seq_lrepr}}}"
 

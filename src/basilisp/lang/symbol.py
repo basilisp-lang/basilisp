@@ -1,7 +1,7 @@
 from typing import Optional
 
 from basilisp.lang.meta import Meta
-from basilisp.lang.obj import LispObject
+from basilisp.lang.obj import LispObject, lrepr
 from basilisp.lang.util import munge
 
 
@@ -16,7 +16,7 @@ class Symbol(LispObject, Meta):
     def _lrepr(self, **kwargs) -> str:
         print_meta = kwargs["print_meta"]
         if print_meta and self._meta:
-            return f"^{LispObject.lrepr(self._meta, **kwargs)} {str(self)}"
+            return f"^{lrepr(self._meta, **kwargs)} {str(self)}"
         return str(self)
 
     @property
@@ -46,7 +46,7 @@ class Symbol(LispObject, Meta):
         return "{name}".format(name=self._name)
 
     def __repr__(self):
-        return str(self)
+        return self.lrepr()
 
     def __eq__(self, other):
         if not isinstance(other, Symbol):

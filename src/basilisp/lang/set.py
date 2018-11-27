@@ -22,7 +22,7 @@ class Set(Collection, LispObject, Meta, Seqable):
         self._meta = meta
 
     def __repr__(self):
-        return "#{{{set}}}".format(set=" ".join(map(LispObject.lrepr, self._inner)))
+        return self.lrepr()
 
     def __call__(self, key, default=None):
         if key in self:
