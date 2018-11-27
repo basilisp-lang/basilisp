@@ -9,7 +9,7 @@ import basilisp.lang.vector as vec
 from basilisp.lang.associative import Associative
 from basilisp.lang.collection import Collection
 from basilisp.lang.meta import Meta
-from basilisp.lang.obj import LispObject
+from basilisp.lang.obj import LispObject, lrepr
 from basilisp.lang.seq import Seqable, sequence, Seq
 from basilisp.util import partition
 
@@ -73,11 +73,7 @@ class Map(Associative, Collection, LispObject, Meta, Seqable):
         self._meta = meta
 
     def __repr__(self):
-        kvs = [
-            "{k} {v}".format(k=LispObject.lrepr(k), v=LispObject.lrepr(v))
-            for k, v in self._inner.iteritems()
-        ]
-        return "{{{kvs}}}".format(kvs=" ".join(kvs))
+        return self.lrepr()
 
     def __call__(self, key, default=None):
         return self._inner.get(key, default)

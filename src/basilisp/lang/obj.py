@@ -74,7 +74,7 @@ class LispObject(ABC):
         return f"{start}{seq_lrepr}{end}"
 
 
-def lrepr(
+def lrepr(  # pylint: disable=too-many-arguments
     o: Any,
     print_dup: bool = PRINT_DUP,
     print_length: PrintCountSetting = PRINT_LENGTH,

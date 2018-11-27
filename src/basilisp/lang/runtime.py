@@ -773,13 +773,20 @@ def lrepr(o) -> str:
     """Produce a string representation of an object. The string representation
     of Lisp objects is something that can be read back in as the same object."""
     core_ns = Namespace.get(sym.symbol(_CORE_NS))
+    assert core_ns is not None
     return lobj.lrepr(
         o,
-        print_dup=core_ns.find(sym.symbol(_PRINT_DUP_VAR_NAME)).value,
-        print_length=core_ns.find(sym.symbol(_PRINT_LENGTH_VAR_NAME)).value,
-        print_level=core_ns.find(sym.symbol(_PRINT_LEVEL_VAR_NAME)).value,
-        print_meta=core_ns.find(sym.symbol(_PRINT_META_VAR_NAME)).value,
-        print_readably=core_ns.find(sym.symbol(_PRINT_READABLY_VAR_NAME)).value,
+        print_dup=core_ns.find(sym.symbol(_PRINT_DUP_VAR_NAME)).value,  # type: ignore
+        print_length=core_ns.find(  # type: ignore
+            sym.symbol(_PRINT_LENGTH_VAR_NAME)
+        ).value,
+        print_level=core_ns.find(  # type: ignore
+            sym.symbol(_PRINT_LEVEL_VAR_NAME)
+        ).value,
+        print_meta=core_ns.find(sym.symbol(_PRINT_META_VAR_NAME)).value,  # type: ignore
+        print_readably=core_ns.find(  # type: ignore
+            sym.symbol(_PRINT_READABLY_VAR_NAME)
+        ).value,
     )
 
 
