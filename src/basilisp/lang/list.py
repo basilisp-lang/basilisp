@@ -3,8 +3,8 @@ from pyrsistent._plist import _EMPTY_PLIST
 
 from basilisp.lang.collection import Collection
 from basilisp.lang.meta import Meta
+from basilisp.lang.obj import LispObject
 from basilisp.lang.seq import Seq, EMPTY
-from basilisp.lang.util import lrepr
 
 
 class List(Collection, Meta, Seq):
@@ -20,7 +20,7 @@ class List(Collection, Meta, Seq):
         self._meta = meta
 
     def __repr__(self):
-        return "({list})".format(list=" ".join(map(lrepr, self._inner)))
+        return self.lrepr()
 
     def __eq__(self, other):
         return self._inner == other
@@ -35,6 +35,9 @@ class List(Collection, Meta, Seq):
 
     def __len__(self):
         return len(self._inner)
+
+    def _lrepr(self, **kwargs) -> str:
+        return LispObject.seq_lrepr(self._inner, "(", ")", meta=self._meta, **kwargs)
 
     @property
     def meta(self):

@@ -1250,7 +1250,7 @@
 (defn repr
   "Return the reader representation of an object."
   [x]
-  (basilisp.lang.util/lrepr x))
+  (basilisp.lang.runtime/lrepr x))
 
 (defn flush
   "Flush the buffer currently bound to *out*."

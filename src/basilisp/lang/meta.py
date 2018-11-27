@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 
 class Meta(ABC):
-    slots = ()
+    __slots__ = ()
 
     @property
     @abstractmethod

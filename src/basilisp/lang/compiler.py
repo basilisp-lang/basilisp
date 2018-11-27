@@ -41,7 +41,6 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
-import basilisp.lang.util
 import basilisp.lang.vector as vec
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
@@ -2428,4 +2427,4 @@ def compile_bytecode(
         exec(bytecode, module.__dict__)
 
 
-lrepr = basilisp.lang.util.lrepr
+lrepr = runtime.lrepr

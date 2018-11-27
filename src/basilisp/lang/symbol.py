@@ -1,16 +1,23 @@
 from typing import Optional
 
 from basilisp.lang.meta import Meta
+from basilisp.lang.obj import LispObject
 from basilisp.lang.util import munge
 
 
-class Symbol(Meta):
+class Symbol(LispObject, Meta):
     __slots__ = ("_name", "_ns", "_meta")
 
     def __init__(self, name: str, ns: Optional[str] = None, meta=None) -> None:
         self._name = name
         self._ns = ns
         self._meta = meta
+
+    def _lrepr(self, **kwargs) -> str:
+        print_meta = kwargs["print_meta"]
+        if print_meta and self._meta:
+            return f"^{LispObject.lrepr(self._meta, **kwargs)} {str(self)}"
+        return str(self)
 
     @property
     def name(self) -> str:

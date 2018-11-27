@@ -4,11 +4,12 @@ from pyrsistent import pmap, PMap
 
 import basilisp.lang.associative as lassoc
 import basilisp.lang.atom as atom
+from basilisp.lang.obj import LispObject
 
 __INTERN = atom.Atom(pmap())
 
 
-class Keyword:
+class Keyword(LispObject):
     __slots__ = ("_name", "_ns")
 
     def __init__(self, name: str, ns: Optional[str] = None) -> None:
@@ -23,13 +24,16 @@ class Keyword:
     def ns(self) -> Optional[str]:
         return self._ns
 
+    def _lrepr(self, **kwargs) -> str:
+        return str(self)
+
     def __str__(self):
         if self._ns is not None:
             return ":{ns}/{name}".format(ns=self._ns, name=self._name)
         return ":{name}".format(name=self._name)
 
     def __repr__(self):
-        return str(self)
+        return self.lrepr()
 
     def __eq__(self, other):
         return self is other

@@ -3,11 +3,11 @@ from pyrsistent import PVector, pvector
 from basilisp.lang.associative import Associative
 from basilisp.lang.collection import Collection
 from basilisp.lang.meta import Meta
+from basilisp.lang.obj import LispObject, lrepr
 from basilisp.lang.seq import Seqable, Seq, sequence
-from basilisp.lang.util import lrepr
 
 
-class Vector(Associative, Collection, Meta, Seqable):
+class Vector(Associative, Collection, LispObject, Meta, Seqable):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""
@@ -37,6 +37,9 @@ class Vector(Associative, Collection, Meta, Seqable):
 
     def __len__(self):
         return len(self._inner)
+
+    def _lrepr(self, **kwargs) -> str:
+        return LispObject.seq_lrepr(self._inner, "[", "]", meta=self._meta, **kwargs)
 
     @property
     def meta(self):

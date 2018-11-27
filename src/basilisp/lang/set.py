@@ -5,11 +5,11 @@ from pyrsistent import PSet, pset
 from basilisp.lang.collection import Collection
 from basilisp.lang.map import Map
 from basilisp.lang.meta import Meta
+from basilisp.lang.obj import LispObject
 from basilisp.lang.seq import Seqable, Seq, sequence
-from basilisp.lang.util import lrepr
 
 
-class Set(Collection, Meta, Seqable):
+class Set(Collection, LispObject, Meta, Seqable):
     """Basilisp Set. Delegates internally to a pyrsistent.PSet object.
 
     Do not instantiate directly. Instead use the s() and set() factory
@@ -22,7 +22,7 @@ class Set(Collection, Meta, Seqable):
         self._meta = meta
 
     def __repr__(self):
-        return "#{{{set}}}".format(set=" ".join(map(lrepr, self._inner)))
+        return "#{{{set}}}".format(set=" ".join(map(LispObject.lrepr, self._inner)))
 
     def __call__(self, key, default=None):
         if key in self:
@@ -55,6 +55,9 @@ class Set(Collection, Meta, Seqable):
 
     def __len__(self):
         return len(self._inner)
+
+    def _lrepr(self, **kwargs):
+        return LispObject.seq_lrepr(self._inner, "#{", "}", meta=self._meta, **kwargs)
 
     def difference(self, *others):
         e = self._inner
