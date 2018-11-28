@@ -21,7 +21,7 @@ PRINT_READABLY = True
 PRINT_SEPARATOR = " "
 
 
-def _dec_print_level(lvl: PrintCountSetting):
+def dec_print_level(lvl: PrintCountSetting):
     """Decrement the print level if it is numeric."""
     if isinstance(lvl, int):
         return lvl - 1
@@ -50,22 +50,24 @@ class LispObject(ABC):
         with the start and end string supplied. The keyword arguments will be
         passed along to lrepr for the sequence elements."""
         print_level = kwargs["print_level"]
-        if isinstance(print_level, int) and print_level < 0:
+        if isinstance(print_level, int) and print_level < 1:
             return SURPASSED_PRINT_LEVEL
 
-        kwargs = pmap(initial=kwargs).transform(["print_level"], _dec_print_level)
+        kwargs = pmap(initial=kwargs).transform(["print_level"], dec_print_level)
 
+        trailer = []
+        print_dup = kwargs["print_dup"]
         print_length = kwargs["print_length"]
-        if isinstance(print_length, int):
+        if not print_dup and isinstance(print_length, int):
             items = seq(iterable).take(print_length + 1).to_list()
             if len(items) > print_length:
                 items.pop()
-                items.append(SURPASSED_PRINT_LENGTH)
+                trailer.append(SURPASSED_PRINT_LENGTH)
         else:
             items = iterable
 
         items = seq(items).map(lambda o: lrepr(o, **kwargs)).to_list()
-        seq_lrepr = PRINT_SEPARATOR.join(items)
+        seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
 
         print_meta = kwargs["print_meta"]
         if print_meta and meta:

@@ -102,25 +102,27 @@ class Map(Associative, Collection, LispObject, Meta, Seqable):
 
     def _lrepr(self, **kwargs):
         print_level = kwargs["print_level"]
-        if print_level < 0:
+        if isinstance(print_level, int) and print_level < 1:
             return lobj.SURPASSED_PRINT_LEVEL
 
-        kwargs = pmap(initial=kwargs).transform(["print_level"], lambda l: l - 1)
+        kwargs = pmap(initial=kwargs).transform(["print_level"], lobj.dec_print_level)
 
         def entry_reprs():
             for k, v in self._inner.iteritems():
                 yield "{k} {v}".format(k=lrepr(k, **kwargs), v=lrepr(v, **kwargs))
 
+        trailer = []
+        print_dup = kwargs["print_dup"]
         print_length = kwargs["print_length"]
-        if isinstance(print_length, int):
+        if not print_dup and isinstance(print_length, int):
             items = seq(entry_reprs()).take(print_length + 1).to_list()
             if len(items) > print_length:
                 items.pop()
-                items.append(lobj.SURPASSED_PRINT_LENGTH)
+                trailer.append(lobj.SURPASSED_PRINT_LENGTH)
         else:
-            items = entry_reprs()
+            items = list(entry_reprs())
 
-        seq_lrepr = lobj.PRINT_SEPARATOR.join(items.to_list())
+        seq_lrepr = lobj.PRINT_SEPARATOR.join(items + trailer)
 
         print_meta = kwargs["print_meta"]
         if print_meta and self._meta:
