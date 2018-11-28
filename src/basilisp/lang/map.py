@@ -1,5 +1,4 @@
 from collections import Sequence
-from typing import Optional  # noqa: F401
 
 from functional import seq
 from pyrsistent import pmap, PMap
@@ -105,7 +104,7 @@ class Map(Associative, Collection, LispObject, Meta, Seqable):
         if isinstance(print_level, int) and print_level < 1:
             return lobj.SURPASSED_PRINT_LEVEL
 
-        kwargs = pmap(initial=kwargs).transform(["print_level"], lobj.dec_print_level)
+        kwargs = LispObject._process_kwargs(**kwargs)
 
         def entry_reprs():
             for k, v in self._inner.iteritems():

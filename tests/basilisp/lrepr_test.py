@@ -62,3 +62,70 @@ def test_print_level():
     assert "{:a {:b {:c :d}}}" == lcompile(
         "(binding [*print-level* nil] (pr-str {:a {:b {:c :d}}}))"
     )
+
+
+def test_print_meta():
+    assert "s" == lcompile("(binding [*print-meta* true] (pr-str 's))")
+    assert "ns/s" == lcompile("(binding [*print-meta* true] (pr-str 'ns/s))")
+    assert "[]" == lcompile("(binding [*print-meta* true] (pr-str []))")
+    assert "[:a :b :c]" == lcompile("(binding [*print-meta* true] (pr-str [:a :b :c]))")
+    assert "()" == lcompile("(binding [*print-meta* true] (pr-str '()))")
+    assert "(:a :b :c)" == lcompile(
+        "(binding [*print-meta* true] (pr-str '(:a :b :c)))"
+    )
+    assert "#{}" == lcompile("(binding [*print-meta* true] (pr-str #{}))")
+    assert "#{:a}" == lcompile("(binding [*print-meta* true] (pr-str #{:a}))")
+    assert "{}" == lcompile("(binding [*print-meta* true] (pr-str {}))")
+    assert "{:a 1}" == lcompile("(binding [*print-meta* true] (pr-str {:a 1}))")
+
+    assert "^{:redef true} s" == lcompile(
+        "(binding [*print-meta* true] (pr-str '^:redef s))"
+    )
+    assert "^{:redef true} ns/s" == lcompile(
+        "(binding [*print-meta* true] (pr-str '^:redef ns/s))"
+    )
+    assert "^{:empty true} []" == lcompile(
+        "(binding [*print-meta* true] (pr-str ^:empty []))"
+    )
+    assert "^{:empty false} [:a :b :c]" == lcompile(
+        "(binding [*print-meta* true] (pr-str ^{:empty false} [:a :b :c]))"
+    )
+    assert "^{:empty true} ()" == lcompile(
+        "(binding [*print-meta* true] (pr-str '^:empty ()))"
+    )
+    assert "^{:empty false} (:a :b :c)" == lcompile(
+        "(binding [*print-meta* true] (pr-str '^{:empty false}(:a :b :c)))"
+    )
+    assert "^{:empty true} #{}" == lcompile(
+        "(binding [*print-meta* true] (pr-str ^:empty #{}))"
+    )
+    assert "^{:empty false} #{:a}" == lcompile(
+        "(binding [*print-meta* true] (pr-str ^{:empty false} #{:a}))"
+    )
+    assert "^{:empty true} {}" == lcompile(
+        "(binding [*print-meta* true] (pr-str ^:empty {}))"
+    )
+    assert "^{:empty false} {:a 1}" == lcompile(
+        "(binding [*print-meta* true] (pr-str ^{:empty false} {:a 1}))"
+    )
+
+
+def test_lrepr():
+    assert "true" == lcompile("(pr-str true)")
+    assert "false" == lcompile("(pr-str false)")
+    assert "nil" == lcompile("(pr-str nil)")
+    assert "4J" == lcompile("(pr-str 4J)")
+    assert "37.8J" == lcompile("(pr-str 37.8J)")
+    assert "37.8J" == lcompile("(pr-str 37.8J)")
+    assert "8837" == lcompile("(pr-str 8837)")
+    assert "0.64" == lcompile("(pr-str 0.64)")
+    assert "3.14" == lcompile("(pr-str 3.14M)")
+    assert "22/7" == lcompile("(pr-str 22/7)")
+    assert '"hi"' == lcompile('(pr-str "hi")')
+    assert '#uuid "81f35603-0408-4b3d-bbc0-462e3702747f"' == lcompile(
+        '(pr-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")'
+    )
+    assert '#"\\s"' == lcompile('(pr-str #"\\s")')
+    assert '#inst "2018-11-28T12:43:25.477000+00:00"' == lcompile(
+        '(pr-str #inst "2018-11-28T12:43:25.477-00:00")'
+    )

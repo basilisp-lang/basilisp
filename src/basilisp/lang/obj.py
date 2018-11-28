@@ -21,7 +21,7 @@ PRINT_READABLY = True
 PRINT_SEPARATOR = " "
 
 
-def dec_print_level(lvl: PrintCountSetting):
+def _dec_print_level(lvl: PrintCountSetting):
     """Decrement the print level if it is numeric."""
     if isinstance(lvl, int):
         return lvl - 1
@@ -53,7 +53,7 @@ class LispObject(ABC):
         if isinstance(print_level, int) and print_level < 1:
             return SURPASSED_PRINT_LEVEL
 
-        kwargs = pmap(initial=kwargs).transform(["print_level"], dec_print_level)
+        kwargs = LispObject._process_kwargs(**kwargs)
 
         trailer = []
         print_dup = kwargs["print_dup"]
@@ -74,6 +74,12 @@ class LispObject(ABC):
             return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
 
         return f"{start}{seq_lrepr}{end}"
+
+    @staticmethod
+    def _process_kwargs(**kwargs):
+        """Process keyword arguments, decreasing the print-level. Should be called
+        after examining the print level for the current level."""
+        return pmap(initial=kwargs).transform(["print_level"], _dec_print_level)
 
 
 def lrepr(  # pylint: disable=too-many-arguments
@@ -130,6 +136,8 @@ def lrepr(  # pylint: disable=too-many-arguments
         inst_str = o.isoformat()
         return f'#inst "{inst_str}"'
     elif isinstance(o, Decimal):
+        if print_dup:
+            return f"{str(o)}M"
         return str(o)
     elif isinstance(o, Fraction):
         return f"{o.numerator}/{o.denominator}"
