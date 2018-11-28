@@ -1,4 +1,5 @@
 from collections import Sequence
+from typing import Optional
 
 from functional import seq
 from pyrsistent import pmap, PMap
