@@ -121,7 +121,9 @@ def test_print_meta():
 
 
 def test_print_readably():
-    assert '"Hello\nworld!"' == lcompile('(binding [*print-readably* false] (pr-str "Hello\\nworld!"))')
+    assert '"Hello\nworld!"' == lcompile(
+        '(binding [*print-readably* false] (pr-str "Hello\\nworld!"))'
+    )
 
 
 def test_lrepr():
