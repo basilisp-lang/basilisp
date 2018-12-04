@@ -23,6 +23,10 @@ def lcompile(s: str):
     return last
 
 
+def test_print_dup():
+    assert "1.6M" == lcompile("(binding [*print-dup* true] (pr-str 1.6M))")
+
+
 def test_print_length():
     assert "[]" == lcompile("(binding [*print-length* 0] (pr-str []))")
     assert "[]" == lcompile("(binding [*print-length* nil] (pr-str []))")
@@ -114,6 +118,10 @@ def test_print_meta():
     assert "^{:empty false} {:a 1}" == lcompile(
         "(binding [*print-meta* true] (pr-str ^{:empty false} {:a 1}))"
     )
+
+
+def test_print_readably():
+    assert '"Hello\nworld!"' == lcompile('(binding [*print-readably* false] (pr-str "Hello\\nworld!"))')
 
 
 def test_lrepr():

@@ -49,11 +49,6 @@ class LispObject(ABC):
         read by the reader."""
         return lrepr(self, **kwargs)
 
-    def lstr(self, **kwargs) -> str:
-        """Return a string representation of this Lisp object which is intended
-        for human consumption."""
-        return lrepr(self, human_readable=True, **kwargs)
-
     @staticmethod
     def seq_lrepr(
         iterable: Iterable[Any], start: str, end: str, meta=None, **kwargs
