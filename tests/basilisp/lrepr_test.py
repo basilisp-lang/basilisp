@@ -122,6 +122,7 @@ def test_lrepr():
     assert "3.14" == lcompile("(pr-str 3.14M)")
     assert "22/7" == lcompile("(pr-str 22/7)")
     assert '"hi"' == lcompile('(pr-str "hi")')
+    assert '"Hello\\nworld!"' == lcompile('(pr-str "Hello\nworld!")')
     assert '#uuid "81f35603-0408-4b3d-bbc0-462e3702747f"' == lcompile(
         '(pr-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")'
     )
@@ -143,6 +144,7 @@ def test_lstr():
     assert "3.14" == lcompile("(print-str 3.14M)")
     assert "22/7" == lcompile("(print-str 22/7)")
     assert "hi" == lcompile('(print-str "hi")')
+    assert "Hello\nworld!" == lcompile('(print-str "Hello\nworld!")')
     assert '#uuid "81f35603-0408-4b3d-bbc0-462e3702747f"' == lcompile(
         '(print-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")'
     )

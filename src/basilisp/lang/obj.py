@@ -96,7 +96,7 @@ class LispObject(ABC):
 
 def lrepr(  # pylint: disable=too-many-arguments
     o: Any,
-        human_readable: bool = False,
+    human_readable: bool = False,
     print_dup: bool = PRINT_DUP,
     print_length: PrintCountSetting = PRINT_LENGTH,
     print_level: PrintCountSetting = PRINT_LEVEL,
@@ -145,8 +145,8 @@ def lrepr(  # pylint: disable=too-many-arguments
         if human_readable:
             return o
         if print_readably is None or print_readably is False:
-            return f'\"{o}\"'
-        return f'\"{o}\"'
+            return f'"{o}"'
+        return f'"{o.encode("unicode_escape").decode("utf-8")}"'
     elif isinstance(o, complex):
         return repr(o).upper()
     elif isinstance(o, datetime.datetime):

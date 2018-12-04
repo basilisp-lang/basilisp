@@ -1,5 +1,5 @@
 from collections import Sequence
-from typing import Optional  # pylint: disable=unused-import
+from typing import Optional  # noqa # pylint: disable=unused-import
 
 from functional import seq
 from pyrsistent import pmap, PMap
