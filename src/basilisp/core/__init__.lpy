@@ -276,13 +276,13 @@
 (defn str
   "Create a string representation of o."
   ([] "")
-  ([o] (builtins/str o))
+  ([o] (basilisp.lang.runtime/lstr o))
   ([o & args]
    (let [coerce (fn [in out]
                   (if (seq (rest in))
                     (recur (rest in)
-                           (conj out (builtins/str (first in))))
-                    (conj out (builtins/str (first in)))))
+                           (conj out (basilisp.lang.runtime/lstr (first in))))
+                    (conj out (basilisp.lang.runtime/lstr (first in)))))
          strs   (coerce (conj args o) [])]
      (.join "" strs))))
 
@@ -1250,7 +1250,7 @@
 (defn repr
   "Return the reader representation of an object."
   [x]
-  (basilisp.lang.util/lrepr x))
+  (basilisp.lang.runtime/lrepr x))
 
 (defn flush
   "Flush the buffer currently bound to *out*."

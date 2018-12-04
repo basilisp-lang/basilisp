@@ -11,35 +11,6 @@ import dateutil.parser as dateparser
 
 import basilisp.lang.atom as atom
 
-
-def lrepr(f) -> str:
-    """Return the canonical Lisp representation of an object."""
-    if f is True:
-        return "true"
-    elif f is False:
-        return "false"
-    elif f is None:
-        return "nil"
-    elif isinstance(f, str):
-        return f'"{f}"'
-    elif isinstance(f, complex):
-        return repr(f).upper()
-    elif isinstance(f, datetime.datetime):
-        inst_str = f.isoformat()
-        return f'#inst "{inst_str}"'
-    elif isinstance(f, Decimal):
-        return str(f)
-    elif isinstance(f, Fraction):
-        return f"{f.numerator}/{f.denominator}"
-    elif isinstance(f, Pattern):
-        return f'#"{f.pattern}"'
-    elif isinstance(f, uuid.UUID):
-        uuid_str = str(f)
-        return f'#uuid "{uuid_str}"'
-    else:
-        return repr(f)
-
-
 _MUNGE_REPLACEMENTS = {
     "+": "__PLUS__",
     "-": "_",

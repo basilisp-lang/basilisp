@@ -1,5 +1,5 @@
 import basilisp.lang.map as lmap
-from basilisp.lang.util import lrepr
+from basilisp.lang.obj import lrepr
 
 
 class ExceptionInfo(Exception):

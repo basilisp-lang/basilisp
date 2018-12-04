@@ -17,6 +17,7 @@ import basilisp.lang.deref as lderef
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.obj as lobj
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
@@ -33,6 +34,12 @@ _NS_VAR_NS = _CORE_NS
 _PYTHON_PACKAGE_NAME = "basilisp"
 _GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 _PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
+_PRINT_DUP_VAR_NAME = "*print-dup*"
+_PRINT_LENGTH_VAR_NAME = "*print-length*"
+_PRINT_LEVEL_VAR_NAME = "*print-level*"
+_PRINT_META_VAR_NAME = "*print-meta*"
+_PRINT_READABLY_VAR_NAME = "*print-readably*"
+
 
 _DYNAMIC_META_KEY = kw.keyword("dynamic")
 _PRIVATE_META_KEY = kw.keyword("private")
@@ -762,6 +769,34 @@ def get(m, k, default=None):
         return default
 
 
+def lrepr(o, human_readable: bool = False) -> str:
+    """Produce a string representation of an object. If human_readable is False,
+    the string representation of Lisp objects is something that can be read back
+    in by the reader as the same object."""
+    core_ns = Namespace.get(sym.symbol(_CORE_NS))
+    assert core_ns is not None
+    return lobj.lrepr(
+        o,
+        human_readable=human_readable,
+        print_dup=core_ns.find(sym.symbol(_PRINT_DUP_VAR_NAME)).value,  # type: ignore
+        print_length=core_ns.find(  # type: ignore
+            sym.symbol(_PRINT_LENGTH_VAR_NAME)
+        ).value,
+        print_level=core_ns.find(  # type: ignore
+            sym.symbol(_PRINT_LEVEL_VAR_NAME)
+        ).value,
+        print_meta=core_ns.find(sym.symbol(_PRINT_META_VAR_NAME)).value,  # type: ignore
+        print_readably=core_ns.find(  # type: ignore
+            sym.symbol(_PRINT_READABLY_VAR_NAME)
+        ).value,
+    )
+
+
+def lstr(o) -> str:
+    """Produce a human readable string representation of an object."""
+    return lrepr(o, human_readable=True)
+
+
 def _collect_args(args) -> lseq.Seq:
     """Collect Python starred arguments into a Basilisp list."""
     if isinstance(args, tuple):
@@ -1011,4 +1046,24 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME, core_ns_name: str = _CORE_NS) -> 
         "",
         dynamic=True,
         meta=lmap.map({_PRIVATE_META_KEY: True}),
+    )
+
+    # Dynamic Vars for controlling printing
+    Var.intern(
+        core_ns_sym, sym.symbol(_PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
+    )
+    Var.intern(
+        core_ns_sym, sym.symbol(_PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
+    )
+    Var.intern(
+        core_ns_sym, sym.symbol(_PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
+    )
+    Var.intern(
+        core_ns_sym, sym.symbol(_PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
+    )
+    Var.intern(
+        core_ns_sym,
+        sym.symbol(_PRINT_READABLY_VAR_NAME),
+        lobj.PRINT_READABLY,
+        dynamic=True,
     )
