@@ -103,10 +103,11 @@ def lrepr(  # pylint: disable=too-many-arguments
     print_meta: bool = PRINT_META,
     print_readably: bool = PRINT_READABLY,
 ) -> str:
-    """Return a string representation of a Lisp object which can be read by
-    the reader.
+    """Return a string representation of a Lisp object.
 
     Permissible keyword arguments are:
+    - human_readable: if logical True, print strings without quotations or
+                      escape sequences (default: false)
     - print_dup: if logical true, print objects in a way that preserves their
                  types (default: false)
     - print_length: the number of items in a collection which will be printed,

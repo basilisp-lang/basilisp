@@ -770,8 +770,9 @@ def get(m, k, default=None):
 
 
 def lrepr(o, human_readable: bool = False) -> str:
-    """Produce a string representation of an object. The string representation
-    of Lisp objects is something that can be read back in as the same object."""
+    """Produce a string representation of an object. If human_readable is False,
+    the string representation of Lisp objects is something that can be read back
+    in by the reader as the same object."""
     core_ns = Namespace.get(sym.symbol(_CORE_NS))
     assert core_ns is not None
     return lobj.lrepr(
@@ -789,6 +790,11 @@ def lrepr(o, human_readable: bool = False) -> str:
             sym.symbol(_PRINT_READABLY_VAR_NAME)
         ).value,
     )
+
+
+def lstr(o) -> str:
+    """Produce a human readable string representation of an object."""
+    return lrepr(o, human_readable=True)
 
 
 def _collect_args(args) -> lseq.Seq:

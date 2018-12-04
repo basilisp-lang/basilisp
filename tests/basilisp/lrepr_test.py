@@ -1,3 +1,9 @@
+import re
+import uuid
+from fractions import Fraction
+
+import dateutil.parser as dateparser
+
 import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
@@ -116,7 +122,6 @@ def test_lrepr():
     assert "nil" == lcompile("(pr-str nil)")
     assert "4J" == lcompile("(pr-str 4J)")
     assert "37.8J" == lcompile("(pr-str 37.8J)")
-    assert "37.8J" == lcompile("(pr-str 37.8J)")
     assert "8837" == lcompile("(pr-str 8837)")
     assert "0.64" == lcompile("(pr-str 0.64)")
     assert "3.14" == lcompile("(pr-str 3.14M)")
@@ -129,6 +134,27 @@ def test_lrepr():
     assert '#"\\s"' == lcompile('(pr-str #"\\s")')
     assert '#inst "2018-11-28T12:43:25.477000+00:00"' == lcompile(
         '(pr-str #inst "2018-11-28T12:43:25.477-00:00")'
+    )
+
+
+def test_lrepr_round_trip():
+    assert True is lcompile("(read-string (pr-str true))")
+    assert False is lcompile("(read-string (pr-str false))")
+    assert None is lcompile("(read-string (pr-str nil))")
+    assert 4j == lcompile("(read-string (pr-str 4J))")
+    assert 37.8j == lcompile("(read-string (pr-str 37.8J))")
+    assert 8837 == lcompile("(read-string (pr-str 8837))")
+    assert 0.64 == lcompile("(read-string (pr-str 0.64))")
+    assert 3.14 == lcompile("(read-string (pr-str 3.14M))")
+    assert Fraction(22, 7) == lcompile("(read-string (pr-str 22/7))")
+    assert "hi" == lcompile('(read-string (pr-str "hi"))')
+    assert "Hello\nworld!" == lcompile('(read-string (pr-str "Hello\nworld!"))')
+    assert uuid.UUID("81f35603-0408-4b3d-bbc0-462e3702747f") == lcompile(
+        '(read-string (pr-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f"))'
+    )
+    assert re.compile(r"\s") == lcompile('(read-string (pr-str #"\\s"))')
+    assert dateparser.parse("2018-11-28T12:43:25.477000+00:00") == lcompile(
+        '(read-string (pr-str #inst "2018-11-28T12:43:25.477-00:00"))'
     )
 
 

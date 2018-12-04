@@ -12,12 +12,6 @@ T = TypeVar("T")
 class Seq(LispObject, Iterable[T]):
     __slots__ = ()
 
-    def __repr__(self):
-        return self.lrepr()
-
-    def __str__(self):
-        return self.lrepr()
-
     def _lrepr(self, **kwargs):
         return LispObject.seq_lrepr(iter(self), "(", ")", **kwargs)
 
