@@ -129,3 +129,24 @@ def test_lrepr():
     assert '#inst "2018-11-28T12:43:25.477000+00:00"' == lcompile(
         '(pr-str #inst "2018-11-28T12:43:25.477-00:00")'
     )
+
+
+def test_lstr():
+    assert "true" == lcompile("(print-str true)")
+    assert "false" == lcompile("(print-str false)")
+    assert "nil" == lcompile("(print-str nil)")
+    assert "4J" == lcompile("(print-str 4J)")
+    assert "37.8J" == lcompile("(print-str 37.8J)")
+    assert "37.8J" == lcompile("(print-str 37.8J)")
+    assert "8837" == lcompile("(print-str 8837)")
+    assert "0.64" == lcompile("(print-str 0.64)")
+    assert "3.14" == lcompile("(print-str 3.14M)")
+    assert "22/7" == lcompile("(print-str 22/7)")
+    assert "hi" == lcompile('(print-str "hi")')
+    assert '#uuid "81f35603-0408-4b3d-bbc0-462e3702747f"' == lcompile(
+        '(print-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")'
+    )
+    assert '#"\\s"' == lcompile('(print-str #"\\s")')
+    assert '#inst "2018-11-28T12:43:25.477000+00:00"' == lcompile(
+        '(print-str #inst "2018-11-28T12:43:25.477-00:00")'
+    )

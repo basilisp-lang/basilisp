@@ -1,5 +1,5 @@
 from collections import Sequence
-from typing import Optional
+from typing import Optional  # pylint: disable=unused-import
 
 from functional import seq
 from pyrsistent import pmap, PMap
@@ -71,9 +71,6 @@ class Map(Associative, Collection, LispObject, Meta, Seqable):
     def __init__(self, wrapped: PMap, meta=None) -> None:
         self._inner = wrapped
         self._meta = meta
-
-    def __repr__(self):
-        return self.lrepr()
 
     def __call__(self, key, default=None):
         return self._inner.get(key, default)

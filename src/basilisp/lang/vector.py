@@ -3,7 +3,7 @@ from pyrsistent import PVector, pvector
 from basilisp.lang.associative import Associative
 from basilisp.lang.collection import Collection
 from basilisp.lang.meta import Meta
-from basilisp.lang.obj import LispObject, lrepr
+from basilisp.lang.obj import LispObject
 from basilisp.lang.seq import Seqable, Seq, sequence
 
 
@@ -17,9 +17,6 @@ class Vector(Associative, Collection, LispObject, Meta, Seqable):
     def __init__(self, wrapped: PVector, meta=None) -> None:
         self._inner = wrapped
         self._meta = meta
-
-    def __repr__(self):
-        return "[{vec}]".format(vec=" ".join(map(lrepr, self._inner)))
 
     def __eq__(self, other):
         return self._inner == other

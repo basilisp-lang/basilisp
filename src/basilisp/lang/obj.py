@@ -31,16 +31,28 @@ def _dec_print_level(lvl: PrintCountSetting):
 class LispObject(ABC):
     __slots__ = ()
 
+    def __repr__(self):
+        return self.lrepr()
+
+    def __str__(self):
+        return self.lrepr(human_readable=True)
+
     @abstractmethod
     def _lrepr(self, **kwargs) -> str:
-        """Private Lisp representation method. Callers should not call
-        Object._lrepr directly, but instead should use the module function
-        lrepr(obj) directly."""
+        """Private Lisp representation method. Callers (including object
+        internal callers) should not call this method directly, but instead
+        should use the module function .lrepr()."""
         raise NotImplementedError()
 
     def lrepr(self, **kwargs) -> str:
-        """Return a string representation of this Lisp object."""
+        """Return a string representation of this Lisp object which can be
+        read by the reader."""
         return lrepr(self, **kwargs)
+
+    def lstr(self, **kwargs) -> str:
+        """Return a string representation of this Lisp object which is intended
+        for human consumption."""
+        return lrepr(self, human_readable=True, **kwargs)
 
     @staticmethod
     def seq_lrepr(
@@ -84,13 +96,15 @@ class LispObject(ABC):
 
 def lrepr(  # pylint: disable=too-many-arguments
     o: Any,
+        human_readable: bool = False,
     print_dup: bool = PRINT_DUP,
     print_length: PrintCountSetting = PRINT_LENGTH,
     print_level: PrintCountSetting = PRINT_LEVEL,
     print_meta: bool = PRINT_META,
     print_readably: bool = PRINT_READABLY,
 ) -> str:
-    """Return a string representation of a Lisp object.
+    """Return a string representation of a Lisp object which can be read by
+    the reader.
 
     Permissible keyword arguments are:
     - print_dup: if logical true, print objects in a way that preserves their
@@ -111,6 +125,7 @@ def lrepr(  # pylint: disable=too-many-arguments
     which does capture those values, call basilisp.lang.runtime.lrepr directly."""
     kwargs = pmap(
         {
+            "human_readable": human_readable,
             "print_dup": print_dup,
             "print_length": print_length,
             "print_level": print_level,
@@ -127,9 +142,11 @@ def lrepr(  # pylint: disable=too-many-arguments
     elif o is None:
         return "nil"
     elif isinstance(o, str):
+        if human_readable:
+            return o
         if print_readably is None or print_readably is False:
-            return f'"{o}"'
-        return f'"{o}"'
+            return f'\"{o}\"'
+        return f'\"{o}\"'
     elif isinstance(o, complex):
         return repr(o).upper()
     elif isinstance(o, datetime.datetime):

@@ -276,13 +276,13 @@
 (defn str
   "Create a string representation of o."
   ([] "")
-  ([o] (builtins/str o))
+  ([o] (basilisp.lang.runtime/lrepr o true))
   ([o & args]
    (let [coerce (fn [in out]
                   (if (seq (rest in))
                     (recur (rest in)
-                           (conj out (builtins/str (first in))))
-                    (conj out (builtins/str (first in)))))
+                           (conj out (basilisp.lang.runtime/lrepr (first in) true)))
+                    (conj out (basilisp.lang.runtime/lrepr (first in) true))))
          strs   (coerce (conj args o) [])]
      (.join "" strs))))
 

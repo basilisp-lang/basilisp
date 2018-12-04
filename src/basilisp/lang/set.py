@@ -21,9 +21,6 @@ class Set(Collection, LispObject, Meta, Seqable):
         self._inner = wrapped
         self._meta = meta
 
-    def __repr__(self):
-        return self.lrepr()
-
     def __call__(self, key, default=None):
         if key in self:
             return key

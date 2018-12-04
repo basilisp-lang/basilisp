@@ -25,15 +25,9 @@ class Keyword(LispObject):
         return self._ns
 
     def _lrepr(self, **kwargs) -> str:
-        return str(self)
-
-    def __str__(self):
         if self._ns is not None:
             return ":{ns}/{name}".format(ns=self._ns, name=self._name)
         return ":{name}".format(name=self._name)
-
-    def __repr__(self):
-        return self.lrepr()
 
     def __eq__(self, other):
         return self is other

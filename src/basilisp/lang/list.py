@@ -19,9 +19,6 @@ class List(Collection, Meta, Seq):
         self._inner = wrapped
         self._meta = meta
 
-    def __repr__(self):
-        return self.lrepr()
-
     def __eq__(self, other):
         return self._inner == other
 

@@ -769,13 +769,14 @@ def get(m, k, default=None):
         return default
 
 
-def lrepr(o) -> str:
+def lrepr(o, human_readable: bool = False) -> str:
     """Produce a string representation of an object. The string representation
     of Lisp objects is something that can be read back in as the same object."""
     core_ns = Namespace.get(sym.symbol(_CORE_NS))
     assert core_ns is not None
     return lobj.lrepr(
         o,
+        human_readable=human_readable,
         print_dup=core_ns.find(sym.symbol(_PRINT_DUP_VAR_NAME)).value,  # type: ignore
         print_length=core_ns.find(  # type: ignore
             sym.symbol(_PRINT_LENGTH_VAR_NAME)
