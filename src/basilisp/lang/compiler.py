@@ -1471,7 +1471,7 @@ def _let_ast(  # pylint:disable=too-many-locals
 
 
 def _loop_ast(  # pylint:disable=too-many-locals
-        ctx: CompilerContext, form: llist.List
+    ctx: CompilerContext, form: llist.List
 ) -> ASTStream:
     """Generate a Python AST node for a loop special form.
 
@@ -1508,7 +1508,9 @@ def _loop_ast(  # pylint:disable=too-many-locals
         bindings = list(partition(form[1], 2))
 
         if not bindings:
-            raise CompilerException("Expected at least one binding in 'loop*'") from None
+            raise CompilerException(
+                "Expected at least one binding in 'loop*'"
+            ) from None
 
         arg_syms: Dict[
             sym.Symbol, str
@@ -1563,12 +1565,12 @@ def _loop_ast(  # pylint:disable=too-many-locals
 
     loop_fn_body.append(
         ast.Call(
-            func=ast.Call(func=_TRAMPOLINE_FN_NAME,
-                          args=[_load_attr(loopname)],
-                          keywords=[]),
+            func=ast.Call(
+                func=_TRAMPOLINE_FN_NAME, args=[_load_attr(loopname)], keywords=[]
+            ),
             args=seq(arg_syms.values())
-                .map(lambda n: ast.Name(id=n, ctx=ast.Load()))
-                .to_list(),
+            .map(lambda n: ast.Name(id=n, ctx=ast.Load()))
+            .to_list(),
             keywords=[],
         )
     )
