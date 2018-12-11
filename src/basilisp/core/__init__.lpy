@@ -50,6 +50,10 @@
   (fn* let [&form & decl]
        (cons 'let* decl)))
 
+(def ^:macro ^:redef loop
+  (fn* loop [&form & decl]
+       (cons 'loop* decl)))
+
 (def ^:macro ^:redef fn
   (fn* fn [&form & decl]
        (with-meta
@@ -1010,6 +1014,16 @@
    (lazy-seq
     (when (> n 0)
       (cons (f) (repeatedly (dec n) f))))))
+
+(defn take-nth
+  "Return a lazy sequence of every nth element of coll."
+  [n coll]
+  (if (<= n 0)
+    (repeat (first coll))
+    (lazy-seq
+     (when (seq coll)
+       (cons (first coll)
+             (take-nth n (drop (dec n) (rest coll))))))))
 
 (defn partition
   "Return a lazy sequence of partitions of coll of size n at offsets
@@ -2121,3 +2135,30 @@
                       (mapcat destructure))]
     `(let* [~@bindings]
        ~@body)))
+
+(defn ^:private loop-with-destructuring
+  "Take a loop definition (an binding vector and 0 or more body
+  expressions) whose binding vector may or may not require destructuring
+  and return a loop binding vector and loop body."
+  [bindings body]
+  (let [defs           (->> (take-nth 2 bindings)
+                            (map destructure-def))
+        binding-vec    (vec (mapcat (fn [ddef binding]
+                                      [(:name ddef) binding])
+                                    defs
+                                    (take-nth 2 (drop 1 bindings))))
+        inner-bindings (->> defs
+                            (filter #(not= :symbol (:type %)))
+                            (mapcat destructure-binding))
+        new-body       (if (seq inner-bindings)
+                         [`(let* [~@inner-bindings]
+                             ~@body)]
+                         body)]
+    [binding-vec new-body]))
+
+(defmacro ^:no-warn-on-redef loop
+  "Loop bindings with destructuring support."
+  [bindings & body]
+  (let [[bindings body] (loop-with-destructuring bindings body)]
+    `(loop* ~bindings
+        ~@body)))

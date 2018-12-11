@@ -83,6 +83,7 @@ _IMPORT = sym.symbol("import*")
 _INTEROP_CALL = sym.symbol(".")
 _INTEROP_PROP = sym.symbol(".-")
 _LET = sym.symbol("let*")
+_LOOP = sym.symbol("loop*")
 _QUOTE = sym.symbol("quote")
 _RECUR = sym.symbol("recur")
 _THROW = sym.symbol("throw")
@@ -97,6 +98,7 @@ _SPECIAL_FORMS = lset.s(
     _INTEROP_CALL,
     _INTEROP_PROP,
     _LET,
+    _LOOP,
     _QUOTE,
     _RECUR,
     _THROW,
@@ -864,7 +866,7 @@ def _assert_recur_is_tail(ctx: CompilerContext, form: lseq.Seq) -> None:  # noqa
                     _assert_recur_is_tail(ctx, lseq.sequence([runtime.nth(child, 3)]))
                 except IndexError:
                     pass
-            elif child.first == _LET:
+            elif child.first in {_LET, _LOOP}:
                 for binding, val in partition(runtime.nth(child, 1), 2):
                     _assert_no_recur(ctx, lseq.sequence([binding]))
                     _assert_no_recur(ctx, lseq.sequence([val]))
@@ -1468,6 +1470,113 @@ def _let_ast(  # pylint:disable=too-many-locals
     yield _node(ast.Call(func=_load_attr(outer_letname), args=[], keywords=[]))
 
 
+def _loop_ast(  # pylint:disable=too-many-locals
+        ctx: CompilerContext, form: llist.List
+) -> ASTStream:
+    """Generate a Python AST node for a loop special form.
+
+    Python code for a `loop*` binding like this:
+        (loop [s   "abc"
+               len 0]
+          (if (seq s)
+            (recur (rest s)
+                   (inc len))
+            len))
+
+    Should look roughly like this:
+        def loop_14():
+
+            def loop_15(s_16, len__17):
+
+                def lisp_if_19():
+                    if_test_18 = basilisp.core.seq(s_16)
+                    if None is if_test_18 or False is if_test_18:
+                        return len__17
+                    else:
+                        return runtime_5._TrampolineArgs(False, basilisp.core.rest(
+                            s_16), basilisp.core.inc(len__17))
+                return lisp_if_19()
+            s_12 = 'abc'
+            len__13 = 0
+            return runtime_5._trampoline(loop_15)(s_12, len__13)"""
+    assert form.first == _LOOP
+    assert isinstance(form[1], vec.Vector)
+    assert len(form) >= 3
+
+    # For a better description of what's going on below, peek up at _let_ast.
+    with ctx.new_symbol_table(genname("loop_st")) as st:
+        bindings = list(partition(form[1], 2))
+
+        if not bindings:
+            raise CompilerException("Expected at least one binding in 'loop*'") from None
+
+        arg_syms: Dict[
+            sym.Symbol, str
+        ] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name  # noqa: E501
+        var_names = (
+            []
+        )  # Names of local Python variables bound to computed expressions prior to the function call
+        arg_deps = []  # Argument expression dependency nodes
+        arg_exprs = []  # Bound expressions are the expressions a name is bound to
+        for s, expr in bindings:
+            # Keep track of only the newest symbol and munged name in arg_syms, that way
+            # we are only calling the loop binding below with the most recent entry.
+            munged = genname(munge(s.name))
+            arg_syms[s] = munged
+            var_names.append(munged)
+
+            expr_deps, expr_node = _nodes_and_expr(_to_ast(ctx, expr))
+
+            # Don't add the new symbol until after we've processed the expression
+            _new_symbol(ctx, s, munged, _SYM_CTX_LOCAL, st=st)
+
+            arg_deps.append(expr_deps)
+            arg_exprs.append(_unwrap_node(expr_node))
+
+        # Generate an outer function to hold the entire loop expression (including bindings).
+        # We need to do this to guarantee that no binding expressions are executed as part of
+        # an assignment as a dependency node. This eager evaluation could leak out as part of
+        # (at least) if statements dependency nodes.
+        outer_loopname = genname("loop")
+        loop_fn_body: List[ast.AST] = []
+
+        # Generate a function to hold the body of the loop expression
+        loopname = genname("loop")
+
+        with ctx.new_recur_point("loop", vec.vector(arg_syms.keys())):
+            # Suppress shadowing warnings below since the shadow warnings will be
+            # emitted by calling _new_symbol in the loop above
+            args, body, vargs = _fn_args_body(
+                ctx,
+                vec.vector(arg_syms.keys()),
+                runtime.nthrest(form, 2),
+                warn_on_shadowed_var=False,
+                warn_on_shadowed_name=False,
+            )
+            loop_fn_body.append(_expressionize(body, loopname, args=args, vargs=vargs))
+
+    # Generate local variable assignments for processing loop bindings
+    var_names = seq(var_names).map(lambda n: ast.Name(id=n, ctx=ast.Store()))
+    for name, deps, expr in zip(var_names, arg_deps, arg_exprs):
+        loop_fn_body.extend(_unwrap_nodes(deps))
+        loop_fn_body.append(ast.Assign(targets=[name], value=expr))
+
+    loop_fn_body.append(
+        ast.Call(
+            func=ast.Call(func=_TRAMPOLINE_FN_NAME,
+                          args=[_load_attr(loopname)],
+                          keywords=[]),
+            args=seq(arg_syms.values())
+                .map(lambda n: ast.Name(id=n, ctx=ast.Load()))
+                .to_list(),
+            keywords=[],
+        )
+    )
+
+    yield _dependency(_expressionize(loop_fn_body, outer_loopname))
+    yield _node(ast.Call(func=_load_attr(outer_loopname), args=[], keywords=[]))
+
+
 def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for quoted forms.
 
@@ -1703,6 +1812,9 @@ def _special_form_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
         return
     elif which == _LET:
         yield from _let_ast(ctx, form)
+        return
+    elif which == _LOOP:
+        yield from _loop_ast(ctx, form)
         return
     elif which == _QUOTE:
         yield from _quote_ast(ctx, form)
