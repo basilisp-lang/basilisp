@@ -1018,10 +1018,10 @@
 (defn take-nth
   "Return a lazy sequence of every nth element of coll."
   [n coll]
-  (if (<= n 0)
-    (repeat (first coll))
-    (lazy-seq
-     (when (seq coll)
+  (lazy-seq
+   (when (seq coll)
+     (if (<= n 0)
+       (repeat (first coll))
        (cons (first coll)
              (take-nth n (drop (dec n) (rest coll))))))))
 
