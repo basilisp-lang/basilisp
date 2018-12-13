@@ -1,6 +1,7 @@
 import pytest
 
 import basilisp.lang.atom as atom
+import basilisp.lang.compiler as compiler
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
@@ -305,6 +306,10 @@ def core_ns():
 
 
 def test_resolve_alias(core_ns):
+    assert (
+        compiler._SPECIAL_FORMS == runtime._SPECIAL_FORMS
+    ), "Special form definitions in runtime must match compiler"
+
     for form in runtime._SPECIAL_FORMS:
         assert form == runtime.resolve_alias(form)
 
