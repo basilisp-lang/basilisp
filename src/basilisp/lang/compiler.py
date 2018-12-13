@@ -1507,11 +1507,6 @@ def _loop_ast(  # pylint:disable=too-many-locals
     with ctx.new_symbol_table(genname("loop_st")) as st:
         bindings = list(partition(form[1], 2))
 
-        if not bindings:
-            raise CompilerException(
-                "Expected at least one binding in 'loop*'"
-            ) from None
-
         arg_syms: Dict[
             sym.Symbol, str
         ] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name  # noqa: E501

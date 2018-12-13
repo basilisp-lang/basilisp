@@ -741,6 +741,42 @@ def test_let_warn_on_unused_name(ns: runtime.Namespace):
         )
 
 
+def test_loop(ns: runtime.Namespace):
+    assert 1 == lcompile("(loop* [a 1] a)")
+    assert kw.keyword("keyword") == lcompile('(loop* [a :keyword b "string"] a)')
+    assert kw.keyword("value") == lcompile("(loop* [a :value b a] b)")
+    assert lmap.map({kw.keyword("length"): 1}) == lcompile(
+        "(loop* [a 1 b :length c {b a} a 4] c)"
+    )
+    assert 4 == lcompile("(loop* [a 1 b :length c {b a} a 4] a)")
+    assert "LOWER" == lcompile('(loop* [a "lower"] (.upper a))')
+    assert "string" == lcompile('(loop* [] "string")')
+
+    with pytest.raises(runtime.RuntimeException):
+        lcompile("(loop* [a 'sym] c)")
+
+    code = """
+    (import* io)
+    (let* [reader (io/StringIO "string")
+           writer (io/StringIO)]
+      (loop* []
+        (let* [c (.read reader 1)]
+          (if (not= c "")
+            (do
+              (.write writer c)
+              (recur))
+            (.getvalue writer)))))"""
+    assert "string" == lcompile(code)
+
+    code = """
+    (loop* [s     "tester"
+            accum []]
+      (if (seq s)
+        (recur (rest s) (conj accum (first s)))
+        (apply str accum)))"""
+    assert "tester" == lcompile(code)
+
+
 def test_quoted_list(ns: runtime.Namespace):
     assert lcompile("'()") == llist.l()
     assert lcompile("'(str)") == llist.l(sym.symbol("str"))
