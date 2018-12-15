@@ -518,3 +518,110 @@
               :a      "a"
               :b      "b"}
              m)))))
+
+(deftest loop-sequential-destructuring
+  (testing "destructuring first"
+    (is (= :a (loop [[f] [:a :b :c :d]] f)))
+
+    (is (= nil (loop [[f] '()] f)))
+
+    (is (= [[:a :b :c :d] "abcd"]
+           (loop [[f :as v] [:a :b :c :d]
+                  orig-all  v
+                  accum     []]
+             (if f
+               (recur (rest v) orig-all (conj accum f))
+               [orig-all (apply str (map name accum))]))))
+
+    (is (= [nil '()]
+           (loop [[f :as v] '()]
+             [f v]))))
+
+  (testing "destructuring first and rest"
+    (is (= "abcd"
+           (loop [[f & r] [:a :b :c :d]
+                  accum   []]
+             (if f
+               (recur r (conj accum f))
+               (apply str (map name accum))))))
+
+    (is (= [[:a :b :c :d] "abcd"]
+           (loop [[f & r :as all] [:a :b :c :d]
+                  orig-all        all
+                  accum           []]
+             (if f
+               (recur r orig-all (conj accum f))
+               [orig-all (apply str (map name accum))]))))
+
+    (is (= [nil nil]
+           (loop [[f & r] '()]
+             [f r])))
+
+    (is (= [nil nil '()]
+           (loop [[f & r :as v] '()]
+             [f r v]))))
+
+  (testing "destructuring first, second, and rest"
+    (is (= "abcd"
+           (loop [[f s & r] [:a :b :c :d]
+                  accum     []]
+             (if f
+               (recur r (conj accum f s))
+               (apply str (map name accum))))))
+
+    (is (= [[:a :b :c :d] "abcd"]
+           (loop [[f s & r :as all] [:a :b :c :d]
+                  orig-all          all
+                  accum             []]
+             (if f
+               (recur r orig-all (conj accum f s))
+               [orig-all (apply str (map name accum))]))))
+
+    (is (= [nil nil nil]
+           (loop [[f s & r] '()]
+             [f s r])))
+
+    (is (= [nil nil nil '()]
+           (loop [[f s & r :as v] '()]
+             [f s r v]))))
+
+  (testing "destructuring first, second, third, and rest"
+    (is (= "abcdef"
+           (loop [[f s t & r] [:a :b :c :d :e :f]
+                  accum       []]
+             (if f
+               (recur r (conj accum f s t))
+               (apply str (map name accum))))))
+
+    (is (= [[:a :b :c :d :e :f] "abcdef"]
+           (loop [[f s t & r :as all] [:a :b :c :d :e :f]
+                  orig-all            all
+                  accum               []]
+             (if f
+               (recur r orig-all (conj accum f s t))
+               [orig-all (apply str (map name accum))]))))
+
+    (is (= [nil nil nil nil]
+           (loop [[f s t & r] '()]
+             [f s t r])))
+
+    (is (= [nil nil nil nil '()]
+           (loop [[f s t & r :as v] '()]
+             [f s t r v]))))
+
+  (testing "nested destructuring"
+    (is (= 10
+           (loop [[[v1 v2] & r] [[1 2] [3 4] [5 6]]
+                  accum         0]
+             (if (>= accum 10)
+               accum
+               (recur r (+ accum v1 v2))))))
+
+    (is (= [10 [[1 2] [3 4]] [[1 2] [3 4] [5 6]]]
+           (loop [[[v1 v2 :as pair] & r :as all] [[1 2] [3 4] [5 6]]
+                  orig-all              all
+                  pairs                 []
+                  accum                 0]
+             (if (>= accum 10)
+               [accum pairs orig-all]
+               (recur r orig-all (conj pairs pair) (+ accum v1 v2))))))))
