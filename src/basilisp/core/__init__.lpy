@@ -1166,7 +1166,8 @@
   (py-time/perf-counter))
 
 (defmacro time
-  ""
+  "Time the execution of expr. Return the result of expr and print the
+  time execution took in milliseconds."
   [expr]
   `(let [start (perf-counter)]
      (try
