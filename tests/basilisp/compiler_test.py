@@ -593,6 +593,24 @@ def test_truthiness(ns: runtime.Namespace):
     assert kw.keyword("a") == lcompile("(if #{true} :a :b)")
 
 
+def test_import(ns: runtime.Namespace):
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(import* :time)")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(import* "time")')
+
+    with pytest.raises(ImportError):
+        lcompile("(import* real.fake.module)")
+
+    import time
+
+    assert time.perf_counter == lcompile("(import* time) time/perf-counter")
+    assert time.perf_counter == lcompile(
+        "(import* [time :as py-time]) py-time/perf-counter"
+    )
+
+
 def test_interop_new(ns: runtime.Namespace):
     assert "hi" == lcompile('(builtins.str. "hi")')
     assert "1" == lcompile("(builtins.str. 1)")
