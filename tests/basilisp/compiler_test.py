@@ -929,6 +929,21 @@ def test_disallow_recur_outside_tail(ns: runtime.Namespace):
         lcompile('(fn [a] (let [a "a"] (recur a) a))')
 
     with pytest.raises(compiler.CompilerException):
+        lcompile('(fn [a] (loop* [a (recur "a")] a))')
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(fn [a] (loop* [a (do (recur "a"))] a))')
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(fn [a] (loop* [a (do :b (recur "a"))] a))')
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(fn [a] (loop* [a (do (recur "a") :c)] a))')
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(fn [a] (loop* [a "a"] (recur a) a))')
+
+    with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (try (do (recur a) :b) (catch AttributeError _ nil)))")
 
     with pytest.raises(compiler.CompilerException):

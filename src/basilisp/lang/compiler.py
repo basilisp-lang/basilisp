@@ -1782,52 +1782,30 @@ def _var_ast(_: CompilerContext, form: llist.List) -> ASTStream:
     yield _node(ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]))
 
 
+_SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, Callable[[CompilerContext, llist.List], ASTStream]] = {
+    _DEF: _def_ast,
+    _FN: _fn_ast,
+    _IF: _if_ast,
+    _IMPORT: _import_ast,
+    _INTEROP_CALL: _interop_call_ast,
+    _INTEROP_PROP: _interop_prop_ast,
+    _DO: _do_ast,
+    _LET: _let_ast,
+    _LOOP: _loop_ast,
+    _QUOTE: _quote_ast,
+    _RECUR: _recur_ast,
+    _THROW: _throw_ast,
+    _TRY: _try_ast,
+    _VAR: _var_ast
+}
+
+
 def _special_form_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for any Lisp special forms."""
     assert form.first in _SPECIAL_FORMS
-    which = form.first
-    if which == _DEF:
-        yield from _def_ast(ctx, form)
-        return
-    elif which == _FN:
-        yield from _fn_ast(ctx, form)
-        return
-    elif which == _IF:
-        yield from _if_ast(ctx, form)
-        return
-    elif which == _IMPORT:
-        yield from _import_ast(ctx, form)  # type: ignore
-        return
-    elif which == _INTEROP_CALL:
-        yield from _interop_call_ast(ctx, form)
-        return
-    elif which == _INTEROP_PROP:
-        yield from _interop_prop_ast(ctx, form)
-        return
-    elif which == _DO:
-        yield from _do_ast(ctx, form)
-        return
-    elif which == _LET:
-        yield from _let_ast(ctx, form)
-        return
-    elif which == _LOOP:
-        yield from _loop_ast(ctx, form)
-        return
-    elif which == _QUOTE:
-        yield from _quote_ast(ctx, form)
-        return
-    elif which == _RECUR:
-        yield from _recur_ast(ctx, form)
-        return
-    elif which == _THROW:
-        yield from _throw_ast(ctx, form)
-        return
-    elif which == _TRY:
-        yield from _try_ast(ctx, form)
-        return
-    elif which == _VAR:
-        yield from _var_ast(ctx, form)
-        return
+    handle_special_form = _SPECIAL_FORM_HANDLERS.get(form.first, None)
+    if handle_special_form:
+        return handle_special_form(ctx, form)
     raise CompilerException("Special form identified, but not handled") from None
 
 
