@@ -625,3 +625,110 @@
              (if (>= accum 10)
                [accum pairs orig-all]
                (recur r orig-all (conj pairs pair) (+ accum v1 v2))))))))
+
+(deftest loop-associative-destructuring
+  (testing "destructuring simple keys"
+    (is (= [[{:a "a" :b "b"} {:a "c" :b "d"} {:a "e"}] "abcdee"]
+           (loop [items                           [{:a "a" :b "b"} {:a "c" :b "d"} {:a "e"}]
+                  {:keys [a b] :as m :or {b "e"}} (first items)
+                  coll                            []
+                  accum                           []]
+             (if m
+               (recur (rest items)
+                      (first (rest items))
+                      (conj coll m)
+                      (conj accum a b))
+               [coll (apply str accum)])))))
+
+  (testing "destructuring simple string keys"
+    (is (= [[{:a "a" :b "b" "a" "1" "b" "2"}
+             {:a "c" :b "d" "a" "3" "b" "4"}
+             {"a" "5"}]
+            "123455"]
+           (loop [items                           [{:a "a" :b "b" "a" "1" "b" "2"}
+                                                   {:a "c" :b "d" "a" "3" "b" "4"}
+                                                   {"a" "5"}]
+                  {:strs [a b] :as m :or {b "5"}} (first items)
+                  coll                            []
+                  accum                           []]
+             (if m
+               (recur (rest items)
+                      (first (rest items))
+                      (conj coll m)
+                      (conj accum a b))
+               [coll (apply str accum)])))))
+
+  (testing "destructuring simple symbol keys"
+    (is (= [[{:a "a" :b "b" 'a "1" 'b "2"}
+             {:a "c" :b "d" 'a "3" 'b "4"}
+             {'a "5"}]
+            "123455"]
+           (loop [items                           [{:a "a" :b "b" 'a "1" 'b "2"}
+                                                   {:a "c" :b "d" 'a "3" 'b "4"}
+                                                   {'a "5"}]
+                  {:syms [a b] :as m :or {b "5"}} (first items)
+                  coll                            []
+                  accum                           []]
+             (if m
+               (recur (rest items)
+                      (first (rest items))
+                      (conj coll m)
+                      (conj accum a b))
+               [coll (apply str accum)])))))
+
+  (testing "destructuring individual keys"
+    (is (= [[{:a/a "A" :a "a" :b "b"}
+             {:a/a "C" :a "c" :b "d"}
+             {:a/a "E"}]
+            "AbCdEe"]
+           (loop [items                           [{:a/a "A" :a "a" :b "b"}
+                                                   {:a/a "C" :a "c" :b "d"}
+                                                   {:a/a "E"}]
+                  {a :a/a b :b :as m :or {b "e"}} (first items)
+                  coll                            []
+                  accum                           []]
+             (if m
+               (recur (rest items)
+                      (first (rest items))
+                      (conj coll m)
+                      (conj accum a b))
+               [coll (apply str accum)])))))
+
+  (testing "destructuring namespaced keys"
+    (is (= [[{:a/a "A" :a "a" :b "b"}
+             {:a/a "C" :a "c" :b "d"}
+             {:a "e" :b "e"}]
+            "AbCdZe"]
+           (loop [items                                [{:a/a "A" :a "a" :b "b"}
+                                                        {:a/a "C" :a "c" :b "d"}
+                                                        {:a "e" :b "e"}]
+                  {:a/keys [a] b :b :as m :or {a "Z"}} (first items)
+                  coll                                 []
+                  accum                                []]
+             (if m
+               (recur (rest items)
+                      (first (rest items))
+                      (conj coll m)
+                      (conj accum a b))
+               [coll (apply str accum)])))))
+
+  (testing "nested destructuring"
+    (is (= [[{:nested {:a "A"} :a "a" :b "b"}
+             {:nested {:a "C"} :a "c" :b "d"}
+             {:a "e" :b "e"}]
+            "AbCdnile"]
+           (loop [items [{:nested {:a "A"} :a "a" :b "b"}
+                         {:nested {:a "C"} :a "c" :b "d"}
+                         {:a "e" :b "e"}]
+
+                  {{:keys [a] :as nested} :nested b :b :as m :or {a "Z"}}
+                  (first items)
+
+                  coll  []
+                  accum []]
+             (if m
+               (recur (rest items)
+                      (first (rest items))
+                      (conj coll m)
+                      (conj accum a b))
+               [coll (apply str accum)]))))))
