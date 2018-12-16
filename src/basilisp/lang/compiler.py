@@ -1782,7 +1782,9 @@ def _var_ast(_: CompilerContext, form: llist.List) -> ASTStream:
     yield _node(ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]))
 
 
-_SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, Callable[[CompilerContext, llist.List], ASTStream]] = {
+_SPECIAL_FORM_HANDLERS: Dict[
+    sym.Symbol, Callable[[CompilerContext, llist.List], ASTStream]
+] = {
     _DEF: _def_ast,
     _FN: _fn_ast,
     _IF: _if_ast,
@@ -1796,7 +1798,7 @@ _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, Callable[[CompilerContext, llist.List],
     _RECUR: _recur_ast,
     _THROW: _throw_ast,
     _TRY: _try_ast,
-    _VAR: _var_ast
+    _VAR: _var_ast,
 }
 
 
