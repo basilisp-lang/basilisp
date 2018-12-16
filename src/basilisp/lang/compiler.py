@@ -328,8 +328,8 @@ class CompilerContext:
         yield
         self._is_quoted.pop()
 
-    def add_import(self, imp: sym.Symbol, mod: types.ModuleType):
-        self.current_ns.add_import(imp, mod)
+    def add_import(self, imp: sym.Symbol, mod: types.ModuleType, *aliases: sym.Symbol):
+        self.current_ns.add_import(imp, mod, *aliases)
 
     @property
     def imports(self) -> lmap.Map:
@@ -1272,35 +1272,52 @@ def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Append Import statements into the compiler context nodes."""
     assert form.first == _IMPORT
-    assert all([isinstance(f, sym.Symbol) for f in form.rest])
 
     last = None
-    for s in form.rest:
+    for f in form.rest:
+        if isinstance(f, sym.Symbol):
+            module_name = f
+            module_alias = module_name.name.split(".", maxsplit=1)[0]
+        elif isinstance(f, vec.Vector):
+            module_name = f.entry(0)
+            assert isinstance(
+                module_name, sym.Symbol
+            ), "Python module name must be a symbol"
+            assert kw.keyword("as") == f.entry(1)
+            module_alias = f.entry(2).name
+        else:
+            raise CompilerException("Symbol or vector expected for import*")
+
         try:
-            module = importlib.import_module(s.name)
-            ctx.add_import(s, module)
+            module = importlib.import_module(module_name.name)
+            if module_name.name != module_alias:
+                ctx.add_import(module_name, module, sym.symbol(module_alias))
+            else:
+                ctx.add_import(module_name, module)
         except ModuleNotFoundError:
-            raise ImportError(f"Module '{s.name}' not found")
+            raise ImportError(f"Module '{module_name.name}' not found")
 
         with ctx.quoted():
-            module_name = s.name.split(".", maxsplit=1)[0]
-            yield _dependency(ast.Global(names=[module_name]))
+            module_alias = munge(module_alias)
+            yield _dependency(ast.Global(names=[module_alias]))
             yield _dependency(
                 ast.Assign(
-                    targets=[ast.Name(id=module_name, ctx=ast.Store())],
+                    targets=[ast.Name(id=module_alias, ctx=ast.Store())],
                     value=ast.Call(
                         func=_load_attr("builtins.__import__"),
-                        args=[ast.Str(s.name)],
+                        args=[ast.Str(module_name.name)],
                         keywords=[],
                     ),
                 )
             )
-            last = ast.Name(id=module_name, ctx=ast.Load())
+            last = ast.Name(id=module_alias, ctx=ast.Load())
             yield _dependency(
                 ast.Call(
                     func=_load_attr(f"{_NS_VAR_VALUE}.add_import"),
                     args=list(
-                        chain(_unwrap_nodes(_to_ast(ctx, s)), [last])  # type: ignore
+                        chain(  # type: ignore
+                            _unwrap_nodes(_to_ast(ctx, module_name)), [last]
+                        )
                     ),
                     keywords=[],
                 )
@@ -2046,17 +2063,29 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
             if v is not None:
                 return _resolve_sym_var(ctx, v)
         ns_sym = sym.symbol(form.ns)
-        if ns_sym in ctx.current_ns.imports:
+        if ns_sym in ctx.current_ns.imports or ns_sym in ctx.current_ns.import_aliases:
             # We still import Basilisp code, so we'll want to make sure
             # that the symbol isn't referring to a Basilisp Var first
             v = Var.find(form)
             if v is not None:
                 return _resolve_sym_var(ctx, v)
 
+            # Python modules imported using `import*` may be imported
+            # with an alias, which sets the local name of the alias to the
+            # alias value (much like Python's `from module import member`
+            # statement). In this case, we'll want to check for the module
+            # using its non-aliased name, but then generate code to access
+            # the member using the alias.
+            if ns_sym in ctx.current_ns.import_aliases:
+                module_name: sym.Symbol = ctx.current_ns.import_aliases[ns_sym]
+            else:
+                module_name = ns_sym
+
             # Otherwise, try to direct-link it like a Python variable
+            safe_module_name = munge(module_name.name)
+            assert safe_module_name in sys.modules, f"Module '{safe_module_name}' is not imported"
+            ns_module = sys.modules[safe_module_name]
             safe_ns = munge(form.ns)
-            assert safe_ns in sys.modules, f"Module '{safe_ns}' is not imported"
-            ns_module = sys.modules[safe_ns]
 
             # Try without allowing builtins first
             safe_name = munge(form.name)

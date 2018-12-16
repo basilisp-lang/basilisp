@@ -1159,6 +1159,21 @@
        (finally
          (. (var ~vvar) ~'pop-bindings)))))
 
+(import* [time :as py-time])
+
+(defn ^:private perf-counter
+  []
+  (py-time/perf-counter))
+
+(defmacro time
+  ""
+  [expr]
+  `(let [start (perf-counter)]
+     (try
+       ~expr
+       (finally
+         (println (* 1000 (- (perf-counter) start)) "msecs")))))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Threading Macros ;;
 ;;;;;;;;;;;;;;;;;;;;;;
