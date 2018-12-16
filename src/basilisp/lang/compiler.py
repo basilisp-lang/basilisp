@@ -2083,7 +2083,9 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
 
             # Otherwise, try to direct-link it like a Python variable
             safe_module_name = munge(module_name.name)
-            assert safe_module_name in sys.modules, f"Module '{safe_module_name}' is not imported"
+            assert (
+                safe_module_name in sys.modules
+            ), f"Module '{safe_module_name}' is not imported"
             ns_module = sys.modules[safe_module_name]
             safe_ns = munge(form.ns)
 
