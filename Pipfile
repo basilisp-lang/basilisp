@@ -11,11 +11,12 @@ sphinx-rtd-theme = "*"
 tox = "*"
 tox-pyenv = "*"
 twine = "*"
+coverage = "*"
 
 [packages]
 astor = "*"
 atomos = "*"
-basilisp = {editable = true, path = "."}
+basilisp = {editable = true,path = "."}
 click = "*"
 pyfunctional = "*"
 pyrsistent = "*"
