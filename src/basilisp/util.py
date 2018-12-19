@@ -8,7 +8,7 @@ from typing import Optional, Callable, TypeVar, Generic
 from functional import seq
 from functional.pipeline import Sequence
 
-from basilisp.lang.util import lrepr
+from basilisp.lang.obj import lrepr
 
 
 def trace(f):

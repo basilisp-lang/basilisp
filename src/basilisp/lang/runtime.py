@@ -17,6 +17,7 @@ import basilisp.lang.deref as lderef
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.obj as lobj
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
@@ -33,6 +34,12 @@ _NS_VAR_NS = _CORE_NS
 _PYTHON_PACKAGE_NAME = "basilisp"
 _GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 _PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
+_PRINT_DUP_VAR_NAME = "*print-dup*"
+_PRINT_LENGTH_VAR_NAME = "*print-length*"
+_PRINT_LEVEL_VAR_NAME = "*print-level*"
+_PRINT_META_VAR_NAME = "*print-meta*"
+_PRINT_READABLY_VAR_NAME = "*print-readably*"
+
 
 _DYNAMIC_META_KEY = kw.keyword("dynamic")
 _PRIVATE_META_KEY = kw.keyword("private")
@@ -48,6 +55,7 @@ _IMPORT = sym.symbol("import*")
 _INTEROP_CALL = sym.symbol(".")
 _INTEROP_PROP = sym.symbol(".-")
 _LET = sym.symbol("let*")
+_LOOP = sym.symbol("loop*")
 _QUOTE = sym.symbol("quote")
 _RECUR = sym.symbol("recur")
 _THROW = sym.symbol("throw")
@@ -64,6 +72,7 @@ _SPECIAL_FORMS = lset.s(
     _INTEROP_CALL,
     _INTEROP_PROP,
     _LET,
+    _LOOP,
     _QUOTE,
     _RECUR,
     _THROW,
@@ -296,7 +305,15 @@ class Namespace:
 
     _NAMESPACES = atom.Atom(lmap.Map.empty())
 
-    __slots__ = ("_name", "_module", "_interns", "_refers", "_aliases", "_imports")
+    __slots__ = (
+        "_name",
+        "_module",
+        "_interns",
+        "_refers",
+        "_aliases",
+        "_imports",
+        "_import_aliases",
+    )
 
     def __init__(self, name: sym.Symbol, module: types.ModuleType = None) -> None:
         self._name = name
@@ -310,6 +327,7 @@ class Namespace:
                 .to_dict()
             )
         )
+        self._import_aliases: atom.Atom = atom.Atom(lmap.Map.empty())
         self._interns: atom.Atom = atom.Atom(lmap.Map.empty())
         self._refers: atom.Atom = atom.Atom(lmap.Map.empty())
 
@@ -350,6 +368,11 @@ class Namespace:
         """A mapping of names to Python modules imported into the current
         namespace."""
         return self._imports.deref()
+
+    @property
+    def import_aliases(self) -> lmap.Map:
+        """A mapping of a symbolic alias and a Python module name."""
+        return self._import_aliases.deref()
 
     @property
     def interns(self) -> lmap.Map:
@@ -406,14 +429,32 @@ class Namespace:
             return self.refers.entry(sym, None)
         return v
 
-    def add_import(self, sym: sym.Symbol, module: types.ModuleType) -> None:
-        """Add the Symbol as an imported Symbol in this Namespace."""
+    def add_import(
+        self, sym: sym.Symbol, module: types.ModuleType, *aliases: sym.Symbol
+    ) -> None:
+        """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
+        the aliases will be applied to the """
         self._imports.swap(lambda m: m.assoc(sym, module))
+        if aliases:
+            self._import_aliases.swap(
+                lambda m: m.assoc(
+                    *itertools.chain.from_iterable([(alias, sym) for alias in aliases])
+                )
+            )
 
     def get_import(self, sym: sym.Symbol) -> Optional[types.ModuleType]:
         """Return the module if a moduled named by sym has been imported into
-        this Namespace, None otherwise."""
-        return self.imports.entry(sym, None)
+        this Namespace, None otherwise.
+
+        First try to resolve a module directly with the given name. If no module
+        can be resolved, attempt to resolve the module using import aliases."""
+        mod = self.imports.entry(sym, None)
+        if mod is None:
+            alias = self.import_aliases.get(sym, None)
+            if alias is None:
+                return None
+            return self.imports.entry(alias, None)
+        return mod
 
     def add_refer(self, sym: sym.Symbol, var: Var) -> None:
         """Refer var in this namespace under the name sym."""
@@ -762,6 +803,34 @@ def get(m, k, default=None):
         return default
 
 
+def lrepr(o, human_readable: bool = False) -> str:
+    """Produce a string representation of an object. If human_readable is False,
+    the string representation of Lisp objects is something that can be read back
+    in by the reader as the same object."""
+    core_ns = Namespace.get(sym.symbol(_CORE_NS))
+    assert core_ns is not None
+    return lobj.lrepr(
+        o,
+        human_readable=human_readable,
+        print_dup=core_ns.find(sym.symbol(_PRINT_DUP_VAR_NAME)).value,  # type: ignore
+        print_length=core_ns.find(  # type: ignore
+            sym.symbol(_PRINT_LENGTH_VAR_NAME)
+        ).value,
+        print_level=core_ns.find(  # type: ignore
+            sym.symbol(_PRINT_LEVEL_VAR_NAME)
+        ).value,
+        print_meta=core_ns.find(sym.symbol(_PRINT_META_VAR_NAME)).value,  # type: ignore
+        print_readably=core_ns.find(  # type: ignore
+            sym.symbol(_PRINT_READABLY_VAR_NAME)
+        ).value,
+    )
+
+
+def lstr(o) -> str:
+    """Produce a human readable string representation of an object."""
+    return lrepr(o, human_readable=True)
+
+
 def _collect_args(args) -> lseq.Seq:
     """Collect Python starred arguments into a Basilisp list."""
     if isinstance(args, tuple):
@@ -1011,4 +1080,24 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME, core_ns_name: str = _CORE_NS) -> 
         "",
         dynamic=True,
         meta=lmap.map({_PRIVATE_META_KEY: True}),
+    )
+
+    # Dynamic Vars for controlling printing
+    Var.intern(
+        core_ns_sym, sym.symbol(_PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
+    )
+    Var.intern(
+        core_ns_sym, sym.symbol(_PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
+    )
+    Var.intern(
+        core_ns_sym, sym.symbol(_PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
+    )
+    Var.intern(
+        core_ns_sym, sym.symbol(_PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
+    )
+    Var.intern(
+        core_ns_sym,
+        sym.symbol(_PRINT_READABLY_VAR_NAME),
+        lobj.PRINT_READABLY,
+        dynamic=True,
     )

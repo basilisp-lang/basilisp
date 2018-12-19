@@ -50,6 +50,10 @@
   (fn* let [&form & decl]
        (cons 'let* decl)))
 
+(def ^:macro ^:redef loop
+  (fn* loop [&form & decl]
+       (cons 'loop* decl)))
+
 (def ^:macro ^:redef fn
   (fn* fn [&form & decl]
        (with-meta
@@ -276,13 +280,13 @@
 (defn str
   "Create a string representation of o."
   ([] "")
-  ([o] (builtins/str o))
+  ([o] (basilisp.lang.runtime/lstr o))
   ([o & args]
    (let [coerce (fn [in out]
                   (if (seq (rest in))
                     (recur (rest in)
-                           (conj out (builtins/str (first in))))
-                    (conj out (builtins/str (first in)))))
+                           (conj out (basilisp.lang.runtime/lstr (first in))))
+                    (conj out (basilisp.lang.runtime/lstr (first in)))))
          strs   (coerce (conj args o) [])]
      (.join "" strs))))
 
@@ -1011,6 +1015,16 @@
     (when (> n 0)
       (cons (f) (repeatedly (dec n) f))))))
 
+(defn take-nth
+  "Return a lazy sequence of every nth element of coll."
+  [n coll]
+  (lazy-seq
+   (when (seq coll)
+     (if (<= n 0)
+       (repeat (first coll))
+       (cons (first coll)
+             (take-nth n (drop (dec n) (rest coll))))))))
+
 (defn partition
   "Return a lazy sequence of partitions of coll of size n at offsets
   of step elements. If step is not given, steps of size n will be used
@@ -1145,6 +1159,22 @@
        (finally
          (. (var ~vvar) ~'pop-bindings)))))
 
+(import* [time :as py-time])
+
+(defn ^:private perf-counter
+  []
+  (py-time/perf-counter))
+
+(defmacro time
+  "Time the execution of expr. Return the result of expr and print the
+  time execution took in milliseconds."
+  [expr]
+  `(let [start (perf-counter)]
+     (try
+       ~expr
+       (finally
+         (println (* 1000 (- (perf-counter) start)) "msecs")))))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Threading Macros ;;
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -1250,7 +1280,7 @@
 (defn repr
   "Return the reader representation of an object."
   [x]
-  (basilisp.lang.util/lrepr x))
+  (basilisp.lang.runtime/lrepr x))
 
 (defn flush
   "Flush the buffer currently bound to *out*."
@@ -2121,3 +2151,30 @@
                       (mapcat destructure))]
     `(let* [~@bindings]
        ~@body)))
+
+(defn ^:private loop-with-destructuring
+  "Take a loop definition (an binding vector and 0 or more body
+  expressions) whose binding vector may or may not require destructuring
+  and return a loop binding vector and loop body."
+  [bindings body]
+  (let [defs           (->> (take-nth 2 bindings)
+                            (map destructure-def))
+        binding-vec    (vec (mapcat (fn [ddef binding]
+                                      [(:name ddef) binding])
+                                    defs
+                                    (take-nth 2 (drop 1 bindings))))
+        inner-bindings (->> defs
+                            (filter #(not= :symbol (:type %)))
+                            (mapcat destructure-binding))
+        new-body       (if (seq inner-bindings)
+                         [`(let* [~@inner-bindings]
+                             ~@body)]
+                         body)]
+    [binding-vec new-body]))
+
+(defmacro ^:no-warn-on-redef loop
+  "Loop bindings with destructuring support."
+  [bindings & body]
+  (let [[bindings body] (loop-with-destructuring bindings body)]
+    `(loop* ~bindings
+        ~@body)))

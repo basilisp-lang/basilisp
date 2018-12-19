@@ -10,7 +10,7 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 import basilisp.main as basilisp
-from basilisp.lang.util import lrepr
+from basilisp.lang.obj import lrepr
 from basilisp.util import Maybe
 
 basilisp.init()

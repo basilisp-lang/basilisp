@@ -41,7 +41,6 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
-import basilisp.lang.util
 import basilisp.lang.vector as vec
 import basilisp.logconfig as logconfig
 from basilisp.lang.runtime import Var
@@ -92,6 +91,7 @@ _IMPORT = sym.symbol("import*")
 _INTEROP_CALL = sym.symbol(".")
 _INTEROP_PROP = sym.symbol(".-")
 _LET = sym.symbol("let*")
+_LOOP = sym.symbol("loop*")
 _QUOTE = sym.symbol("quote")
 _RECUR = sym.symbol("recur")
 _THROW = sym.symbol("throw")
@@ -106,6 +106,7 @@ _SPECIAL_FORMS = lset.s(
     _INTEROP_CALL,
     _INTEROP_PROP,
     _LET,
+    _LOOP,
     _QUOTE,
     _RECUR,
     _THROW,
@@ -351,8 +352,8 @@ class CompilerContext:
         yield
         self._is_quoted.pop()
 
-    def add_import(self, imp: sym.Symbol, mod: types.ModuleType):
-        self.current_ns.add_import(imp, mod)
+    def add_import(self, imp: sym.Symbol, mod: types.ModuleType, *aliases: sym.Symbol):
+        self.current_ns.add_import(imp, mod, *aliases)
 
     @property
     def imports(self) -> lmap.Map:
@@ -895,7 +896,7 @@ def _assert_recur_is_tail(ctx: CompilerContext, form: lseq.Seq) -> None:  # noqa
                     _assert_recur_is_tail(ctx, lseq.sequence([runtime.nth(child, 3)]))
                 except IndexError:
                     pass
-            elif child.first == _LET:
+            elif child.first in {_LET, _LOOP}:
                 for binding, val in partition(runtime.nth(child, 1), 2):
                     _assert_no_recur(ctx, lseq.sequence([binding]))
                     _assert_no_recur(ctx, lseq.sequence([val]))
@@ -1301,35 +1302,52 @@ def _if_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
 def _import_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Append Import statements into the compiler context nodes."""
     assert form.first == _IMPORT
-    assert all([isinstance(f, sym.Symbol) for f in form.rest])
 
     last = None
-    for s in form.rest:
+    for f in form.rest:
+        if isinstance(f, sym.Symbol):
+            module_name = f
+            module_alias = module_name.name.split(".", maxsplit=1)[0]
+        elif isinstance(f, vec.Vector):
+            module_name = f.entry(0)
+            assert isinstance(
+                module_name, sym.Symbol
+            ), "Python module name must be a symbol"
+            assert kw.keyword("as") == f.entry(1)
+            module_alias = f.entry(2).name
+        else:
+            raise CompilerException("Symbol or vector expected for import*")
+
         try:
-            module = importlib.import_module(s.name)
-            ctx.add_import(s, module)
+            module = importlib.import_module(module_name.name)
+            if module_name.name != module_alias:
+                ctx.add_import(module_name, module, sym.symbol(module_alias))
+            else:
+                ctx.add_import(module_name, module)
         except ModuleNotFoundError:
-            raise ImportError(f"Module '{s.name}' not found")
+            raise ImportError(f"Module '{module_name.name}' not found")
 
         with ctx.quoted():
-            module_name = s.name.split(".", maxsplit=1)[0]
-            yield _dependency(ast.Global(names=[module_name]))
+            module_alias = munge(module_alias)
+            yield _dependency(ast.Global(names=[module_alias]))
             yield _dependency(
                 ast.Assign(
-                    targets=[ast.Name(id=module_name, ctx=ast.Store())],
+                    targets=[ast.Name(id=module_alias, ctx=ast.Store())],
                     value=ast.Call(
                         func=_load_attr("builtins.__import__"),
-                        args=[ast.Str(s.name)],
+                        args=[ast.Str(module_name.name)],
                         keywords=[],
                     ),
                 )
             )
-            last = ast.Name(id=module_name, ctx=ast.Load())
+            last = ast.Name(id=module_alias, ctx=ast.Load())
             yield _dependency(
                 ast.Call(
                     func=_load_attr(f"{_NS_VAR_VALUE}.add_import"),
                     args=list(
-                        chain(_unwrap_nodes(_to_ast(ctx, s)), [last])  # type: ignore
+                        chain(  # type: ignore
+                            _unwrap_nodes(_to_ast(ctx, module_name)), [last]
+                        )
                     ),
                     keywords=[],
                 )
@@ -1497,6 +1515,110 @@ def _let_ast(  # pylint:disable=too-many-locals
 
     yield _dependency(_expressionize(let_fn_body, outer_letname))
     yield _node(ast.Call(func=_load_attr(outer_letname), args=[], keywords=[]))
+
+
+def _loop_ast(  # pylint:disable=too-many-locals
+    ctx: CompilerContext, form: llist.List
+) -> ASTStream:
+    """Generate a Python AST node for a loop special form.
+
+    Python code for a `loop*` binding like this:
+        (loop [s   "abc"
+               len 0]
+          (if (seq s)
+            (recur (rest s)
+                   (inc len))
+            len))
+
+    Should look roughly like this:
+        def loop_14():
+
+            def loop_15(s_16, len__17):
+
+                def lisp_if_19():
+                    if_test_18 = basilisp.core.seq(s_16)
+                    if None is if_test_18 or False is if_test_18:
+                        return len__17
+                    else:
+                        return runtime_5._TrampolineArgs(False, basilisp.core.rest(
+                            s_16), basilisp.core.inc(len__17))
+                return lisp_if_19()
+            s_12 = 'abc'
+            len__13 = 0
+            return runtime_5._trampoline(loop_15)(s_12, len__13)"""
+    assert form.first == _LOOP
+    assert isinstance(form[1], vec.Vector)
+    assert len(form) >= 3
+
+    # For a better description of what's going on below, peek up at _let_ast.
+    with ctx.new_symbol_table(genname("loop_st")) as st:
+        bindings = list(partition(form[1], 2))
+
+        arg_syms: Dict[
+            sym.Symbol, str
+        ] = OrderedDict()  # Mapping of binding symbols (turned into function parameter names) to munged name  # noqa: E501
+        var_names = (
+            []
+        )  # Names of local Python variables bound to computed expressions prior to the function call
+        arg_deps = []  # Argument expression dependency nodes
+        arg_exprs = []  # Bound expressions are the expressions a name is bound to
+        for s, expr in bindings:
+            # Keep track of only the newest symbol and munged name in arg_syms, that way
+            # we are only calling the loop binding below with the most recent entry.
+            munged = genname(munge(s.name))
+            arg_syms[s] = munged
+            var_names.append(munged)
+
+            expr_deps, expr_node = _nodes_and_expr(_to_ast(ctx, expr))
+
+            # Don't add the new symbol until after we've processed the expression
+            _new_symbol(ctx, s, munged, _SYM_CTX_LOCAL, st=st)
+
+            arg_deps.append(expr_deps)
+            arg_exprs.append(_unwrap_node(expr_node))
+
+        # Generate an outer function to hold the entire loop expression (including bindings).
+        # We need to do this to guarantee that no binding expressions are executed as part of
+        # an assignment as a dependency node. This eager evaluation could leak out as part of
+        # (at least) if statements dependency nodes.
+        outer_loopname = genname("loop")
+        loop_fn_body: List[ast.AST] = []
+
+        # Generate a function to hold the body of the loop expression
+        loopname = genname("loop")
+
+        with ctx.new_recur_point("loop", vec.vector(arg_syms.keys())):
+            # Suppress shadowing warnings below since the shadow warnings will be
+            # emitted by calling _new_symbol in the loop above
+            args, body, vargs = _fn_args_body(
+                ctx,
+                vec.vector(arg_syms.keys()),
+                runtime.nthrest(form, 2),
+                warn_on_shadowed_var=False,
+                warn_on_shadowed_name=False,
+            )
+            loop_fn_body.append(_expressionize(body, loopname, args=args, vargs=vargs))
+
+    # Generate local variable assignments for processing loop bindings
+    var_names = seq(var_names).map(lambda n: ast.Name(id=n, ctx=ast.Store()))
+    for name, deps, expr in zip(var_names, arg_deps, arg_exprs):
+        loop_fn_body.extend(_unwrap_nodes(deps))
+        loop_fn_body.append(ast.Assign(targets=[name], value=expr))
+
+    loop_fn_body.append(
+        ast.Call(
+            func=ast.Call(
+                func=_TRAMPOLINE_FN_NAME, args=[_load_attr(loopname)], keywords=[]
+            ),
+            args=seq(arg_syms.values())
+            .map(lambda n: ast.Name(id=n, ctx=ast.Load()))
+            .to_list(),
+            keywords=[],
+        )
+    )
+
+    yield _dependency(_expressionize(loop_fn_body, outer_loopname))
+    yield _node(ast.Call(func=_load_attr(outer_loopname), args=[], keywords=[]))
 
 
 def _quote_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
@@ -1707,49 +1829,32 @@ def _var_ast(_: CompilerContext, form: llist.List) -> ASTStream:
     yield _node(ast.Call(func=_FIND_VAR_FN_NAME, args=[base_sym], keywords=[]))
 
 
+_SPECIAL_FORM_HANDLERS: Dict[
+    sym.Symbol, Callable[[CompilerContext, llist.List], ASTStream]
+] = {
+    _DEF: _def_ast,
+    _FN: _fn_ast,
+    _IF: _if_ast,
+    _IMPORT: _import_ast,
+    _INTEROP_CALL: _interop_call_ast,
+    _INTEROP_PROP: _interop_prop_ast,
+    _DO: _do_ast,
+    _LET: _let_ast,
+    _LOOP: _loop_ast,
+    _QUOTE: _quote_ast,
+    _RECUR: _recur_ast,
+    _THROW: _throw_ast,
+    _TRY: _try_ast,
+    _VAR: _var_ast,
+}
+
+
 def _special_form_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     """Generate a Python AST Node for any Lisp special forms."""
     assert form.first in _SPECIAL_FORMS
-    which = form.first
-    if which == _DEF:
-        yield from _def_ast(ctx, form)
-        return
-    elif which == _FN:
-        yield from _fn_ast(ctx, form)
-        return
-    elif which == _IF:
-        yield from _if_ast(ctx, form)
-        return
-    elif which == _IMPORT:
-        yield from _import_ast(ctx, form)  # type: ignore
-        return
-    elif which == _INTEROP_CALL:
-        yield from _interop_call_ast(ctx, form)
-        return
-    elif which == _INTEROP_PROP:
-        yield from _interop_prop_ast(ctx, form)
-        return
-    elif which == _DO:
-        yield from _do_ast(ctx, form)
-        return
-    elif which == _LET:
-        yield from _let_ast(ctx, form)
-        return
-    elif which == _QUOTE:
-        yield from _quote_ast(ctx, form)
-        return
-    elif which == _RECUR:
-        yield from _recur_ast(ctx, form)
-        return
-    elif which == _THROW:
-        yield from _throw_ast(ctx, form)
-        return
-    elif which == _TRY:
-        yield from _try_ast(ctx, form)
-        return
-    elif which == _VAR:
-        yield from _var_ast(ctx, form)
-        return
+    handle_special_form = _SPECIAL_FORM_HANDLERS.get(form.first, None)
+    if handle_special_form:
+        return handle_special_form(ctx, form)
     raise CompilerException("Special form identified, but not handled") from None
 
 
@@ -1991,17 +2096,31 @@ def _resolve_sym(ctx: CompilerContext, form: sym.Symbol) -> Optional[str]:  # no
             if v is not None:
                 return _resolve_sym_var(ctx, v)
         ns_sym = sym.symbol(form.ns)
-        if ns_sym in ctx.current_ns.imports:
+        if ns_sym in ctx.current_ns.imports or ns_sym in ctx.current_ns.import_aliases:
             # We still import Basilisp code, so we'll want to make sure
             # that the symbol isn't referring to a Basilisp Var first
             v = Var.find(form)
             if v is not None:
                 return _resolve_sym_var(ctx, v)
 
+            # Python modules imported using `import*` may be imported
+            # with an alias, which sets the local name of the alias to the
+            # alias value (much like Python's `from module import member`
+            # statement). In this case, we'll want to check for the module
+            # using its non-aliased name, but then generate code to access
+            # the member using the alias.
+            if ns_sym in ctx.current_ns.import_aliases:
+                module_name: sym.Symbol = ctx.current_ns.import_aliases[ns_sym]
+            else:
+                module_name = ns_sym
+
             # Otherwise, try to direct-link it like a Python variable
+            safe_module_name = munge(module_name.name)
+            assert (
+                safe_module_name in sys.modules
+            ), f"Module '{safe_module_name}' is not imported"
+            ns_module = sys.modules[safe_module_name]
             safe_ns = munge(form.ns)
-            assert safe_ns in sys.modules, f"Module '{safe_ns}' is not imported"
-            ns_module = sys.modules[safe_ns]
 
             # Try without allowing builtins first
             safe_name = munge(form.name)
@@ -2468,4 +2587,4 @@ def compile_bytecode(
         exec(bytecode, module.__dict__)
 
 
-lrepr = basilisp.lang.util.lrepr
+lrepr = runtime.lrepr

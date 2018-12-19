@@ -593,6 +593,24 @@ def test_truthiness(ns: runtime.Namespace):
     assert kw.keyword("a") == lcompile("(if #{true} :a :b)")
 
 
+def test_import(ns: runtime.Namespace):
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(import* :time)")
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(import* "time")')
+
+    with pytest.raises(ImportError):
+        lcompile("(import* real.fake.module)")
+
+    import time
+
+    assert time.perf_counter == lcompile("(import* time) time/perf-counter")
+    assert time.perf_counter == lcompile(
+        "(import* [time :as py-time]) py-time/perf-counter"
+    )
+
+
 def test_interop_new(ns: runtime.Namespace):
     assert "hi" == lcompile('(builtins.str. "hi")')
     assert "1" == lcompile("(builtins.str. 1)")
@@ -739,6 +757,42 @@ def test_let_warn_on_unused_name(ns: runtime.Namespace):
         logger.warning.assert_called_once_with(
             f"symbol 'v' defined but not used ({ns}: 1)"
         )
+
+
+def test_loop(ns: runtime.Namespace):
+    assert 1 == lcompile("(loop* [a 1] a)")
+    assert kw.keyword("keyword") == lcompile('(loop* [a :keyword b "string"] a)')
+    assert kw.keyword("value") == lcompile("(loop* [a :value b a] b)")
+    assert lmap.map({kw.keyword("length"): 1}) == lcompile(
+        "(loop* [a 1 b :length c {b a} a 4] c)"
+    )
+    assert 4 == lcompile("(loop* [a 1 b :length c {b a} a 4] a)")
+    assert "LOWER" == lcompile('(loop* [a "lower"] (.upper a))')
+    assert "string" == lcompile('(loop* [] "string")')
+
+    with pytest.raises(runtime.RuntimeException):
+        lcompile("(loop* [a 'sym] c)")
+
+    code = """
+    (import* io)
+    (let* [reader (io/StringIO "string")
+           writer (io/StringIO)]
+      (loop* []
+        (let* [c (.read reader 1)]
+          (if (not= c "")
+            (do
+              (.write writer c)
+              (recur))
+            (.getvalue writer)))))"""
+    assert "string" == lcompile(code)
+
+    code = """
+    (loop* [s     "tester"
+            accum []]
+      (if (seq s)
+        (recur (rest s) (conj accum (first s)))
+        (apply str accum)))"""
+    assert "tester" == lcompile(code)
 
 
 def test_quoted_list(ns: runtime.Namespace):
@@ -891,6 +945,21 @@ def test_disallow_recur_outside_tail(ns: runtime.Namespace):
 
     with pytest.raises(compiler.CompilerException):
         lcompile('(fn [a] (let [a "a"] (recur a) a))')
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(fn [a] (loop* [a (recur "a")] a))')
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(fn [a] (loop* [a (do (recur "a"))] a))')
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(fn [a] (loop* [a (do :b (recur "a"))] a))')
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(fn [a] (loop* [a (do (recur "a") :c)] a))')
+
+    with pytest.raises(compiler.CompilerException):
+        lcompile('(fn [a] (loop* [a "a"] (recur a) a))')
 
     with pytest.raises(compiler.CompilerException):
         lcompile("(fn [a] (try (do (recur a) :b) (catch AttributeError _ nil)))")

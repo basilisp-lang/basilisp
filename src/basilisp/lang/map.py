@@ -1,15 +1,16 @@
 from collections import Sequence
-from typing import Optional  # noqa: F401
+from typing import Optional  # noqa # pylint: disable=unused-import
 
 from functional import seq
 from pyrsistent import pmap, PMap
 
+import basilisp.lang.obj as lobj
 import basilisp.lang.vector as vec
 from basilisp.lang.associative import Associative
 from basilisp.lang.collection import Collection
 from basilisp.lang.meta import Meta
+from basilisp.lang.obj import LispObject, lrepr
 from basilisp.lang.seq import Seqable, sequence, Seq
-from basilisp.lang.util import lrepr
 from basilisp.util import partition
 
 
@@ -60,7 +61,7 @@ class MapEntry:
         return MapEntry(vec.vector(v))
 
 
-class Map(Associative, Collection, Meta, Seqable):
+class Map(Associative, Collection, LispObject, Meta, Seqable):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""
@@ -70,12 +71,6 @@ class Map(Associative, Collection, Meta, Seqable):
     def __init__(self, wrapped: PMap, meta=None) -> None:
         self._inner = wrapped
         self._meta = meta
-
-    def __repr__(self):
-        kvs = [
-            "{k} {v}".format(k=lrepr(k), v=lrepr(v)) for k, v in self._inner.iteritems()
-        ]
-        return "{{{kvs}}}".format(kvs=" ".join(kvs))
 
     def __call__(self, key, default=None):
         return self._inner.get(key, default)
@@ -101,6 +96,36 @@ class Map(Associative, Collection, Meta, Seqable):
 
     def __len__(self):
         return len(self._inner)
+
+    def _lrepr(self, **kwargs):
+        print_level = kwargs["print_level"]
+        if isinstance(print_level, int) and print_level < 1:
+            return lobj.SURPASSED_PRINT_LEVEL
+
+        kwargs = LispObject._process_kwargs(**kwargs)
+
+        def entry_reprs():
+            for k, v in self._inner.iteritems():
+                yield "{k} {v}".format(k=lrepr(k, **kwargs), v=lrepr(v, **kwargs))
+
+        trailer = []
+        print_dup = kwargs["print_dup"]
+        print_length = kwargs["print_length"]
+        if not print_dup and isinstance(print_length, int):
+            items = seq(entry_reprs()).take(print_length + 1).to_list()
+            if len(items) > print_length:
+                items.pop()
+                trailer.append(lobj.SURPASSED_PRINT_LENGTH)
+        else:
+            items = list(entry_reprs())
+
+        seq_lrepr = lobj.PRINT_SEPARATOR.join(items + trailer)
+
+        print_meta = kwargs["print_meta"]
+        if print_meta and self._meta:
+            return f"^{lrepr(self._meta, **kwargs)} {{{seq_lrepr}}}"
+
+        return f"{{{seq_lrepr}}}"
 
     def items(self):
         return self._inner.items()
