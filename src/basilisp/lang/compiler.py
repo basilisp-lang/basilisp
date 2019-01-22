@@ -71,6 +71,9 @@ _TRY_PREFIX = "lisp_try"
 _NS_VAR = "__NS"
 _LISP_NS_VAR = "*ns*"
 
+# Meta constants
+_META_ARGLISTS = kw.keyword("arglists")
+
 # Special form symbols
 _AMPERSAND = sym.symbol("&")
 _CATCH = sym.symbol("catch")
@@ -254,10 +257,11 @@ class RecurPoint:
 
 
 class CompilerContext:
-    __slots__ = ("_st", "_is_quoted", "_opts", "_recur_points")
+    __slots__ = ("_st", "_is_quoted", "_def_meta", "_opts", "_recur_points")
 
     def __init__(self, opts: Dict[str, bool] = None) -> None:
         self._st = collections.deque([SymbolTable("<Top>")])
+        self._def_meta: Deque[Dict] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
         self._recur_points: Deque[RecurPoint] = collections.deque([])
@@ -334,6 +338,17 @@ class CompilerContext:
     @property
     def imports(self) -> lmap.Map:
         return self.current_ns.imports
+
+    @property
+    def def_meta(self) -> Dict:
+        return self._def_meta[-1]
+
+    @contextlib.contextmanager
+    def new_def_meta(self):
+        meta = {}
+        self._def_meta.append(meta)
+        yield meta
+        self._def_meta.pop()
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -666,12 +681,15 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     )
     safe_name = munge(form[1].name)
 
+    compiler_meta = lmap.Map.empty()
     try:
-        def_nodes, def_value = _nodes_and_expr(_to_ast(ctx, form[2]))
+        with ctx.new_def_meta() as def_meta:
+            def_nodes, def_value = _nodes_and_expr(_to_ast(ctx, form[2]))
+            compiler_meta = lmap.map(def_meta)
     except IndexError:
         def_nodes, def_value = [], None
 
-    meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form[1]))
+    meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form[1].with_meta(compiler_meta)))
 
     # If the Var is marked as dynamic, we need to generate a keyword argument
     # for the generated Python code to set the Var as dynamic
@@ -940,6 +958,7 @@ def _fn_arities(
         yield len(form.first), False, form
         return
 
+    arg_lists: List[llist.List] = []
     arg_counts: Dict[int, llist.List] = {}
     has_vargs = False
     vargs_len = None
@@ -975,8 +994,12 @@ def _fn_arities(
 
         # Put this in last so it does not conflict with the above checks
         arg_counts[arg_count] = arity
+        arg_lists.append(arity.first)
 
         yield arg_count, is_rest, arity
+
+    # Keep track of the argument lists
+    ctx.def_meta[_META_ARGLISTS] = llist.l(_QUOTE, llist.list(arg_lists))
 
 
 def _compose_ifs(
