@@ -115,6 +115,13 @@ _MACRO_ENV_SYM = sym.symbol("&env")
 _MACRO_FORM_SYM = sym.symbol("&form")
 _NO_WARN_UNUSED_SYMS = lset.s(_IGNORED_SYM, _MACRO_ENV_SYM, _MACRO_FORM_SYM)
 
+# Keywords used for meta
+_COL_KW = kw.keyword("col")
+_FILE_KW = kw.keyword("file")
+_LINE_KW = kw.keyword("line")
+_NAME_KW = kw.keyword("name")
+_NS_KW = kw.keyword("ns")
+
 # Symbol table contexts
 _SYM_CTX_LOCAL_STARRED = kw.keyword(
     "local-starred", ns="basilisp.lang.compiler.var-context"
@@ -671,7 +678,24 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     except IndexError:
         def_nodes, def_value = [], None
 
-    meta_nodes, meta = _nodes_and_exprl(_meta_kwargs_ast(ctx, form[1]))
+    compiler_meta = lmap.map(
+        {
+            _COL_KW: form[1].meta.entry(reader.READER_COL_KW),
+            _LINE_KW: form[1].meta.entry(reader.READER_LINE_KW),
+            _NAME_KW: llist.l(_QUOTE, form[1]),
+            _NS_KW: llist.l(
+                llist.l(
+                    _INTEROP_PROP,
+                    sym.symbol("Namespace", "basilisp.lang.runtime"),
+                    sym.symbol("get"),
+                ),
+                llist.l(_QUOTE, sym.symbol(ctx.current_ns.name)),
+            ),
+        }
+    )
+    meta_nodes, meta = _nodes_and_exprl(
+        _meta_kwargs_ast(ctx, form[1].with_meta(compiler_meta))
+    )
 
     # If the Var is marked as dynamic, we need to generate a keyword argument
     # for the generated Python code to set the Var as dynamic
