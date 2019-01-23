@@ -1,40 +1,48 @@
 (in-ns 'basilisp.core)
 
-(def list
+(def ^{:doc      "Create a list from the arguments."
+       :arglists '([& args])}
+  list
   (fn* list [& args] args))
 
 (def
-  ^{:doc "If o is a Seq, return the first element from o. If o is nil, return
-          nil. Otherwise, coerces o to a Seq and returns the first."}
+  ^{:doc      "If o is a Seq, return the first element from o. If o is nil, return
+               nil. Otherwise, coerces o to a Seq and returns the first."
+    :arglists '([seq])}
   first
   (fn* first [seq] (basilisp.lang.runtime/first seq)))
 
 (def
-  ^{:doc "If o is a Seq, return the elements after the first in o. If o is nil,
-          returns an empty seq. Otherwise, coerces o to a seq and returns the rest."}
+  ^{:doc      "If o is a Seq, return the elements after the first in o. If o is nil,
+               returns an empty seq. Otherwise, coerces o to a seq and returns the rest."
+    :arglists '([seq])}
   rest
   (fn* rest [seq] (basilisp.lang.runtime/rest seq)))
 
 (def
-  ^{:doc "Calls rest on o. If o returns an empty sequence or nil, returns nil.
-          Otherwise, returns the elements after the first in o."}
+  ^{:doc      "Calls rest on o. If o returns an empty sequence or nil, returns nil.
+               Otherwise, returns the elements after the first in o."
+    :arglists '([seq])}
   next
   (fn* next [seq] (basilisp.lang.runtime/next seq)))
 
 (def
-  ^{:doc "Returns the second element in a Seq."}
+  ^{:doc      "Returns the second element in a Seq."
+    :arglists '([seq])}
   second
   (fn* second [seq] (first (rest seq))))
 
 (def
-  ^{:doc "Returns the first element in the first element of a Seq."}
+  ^{:doc      "Returns the first element in the first element of a Seq."
+    :arglists '([seq])}
   ffirst
   (fn* ffirst [seq] (first (first seq))))
 
 (def
-  ^{:doc "Creates a new sequence where o is the first element and seq is the rest.
-    If seq is nil, return a list containing o. If seq is not a Seq, attempt
-    to coerce it to a Seq and then cons o onto the resulting sequence."}
+  ^{:doc      "Creates a new sequence where o is the first element and seq is the rest.
+               If seq is nil, return a list containing o. If seq is not a Seq, attempt
+               to coerce it to a Seq and then cons o onto the resulting sequence."
+    :arglists '([v seq])}
   cons
   (fn* cons [v seq] (basilisp.lang.runtime/cons v seq)))
 
@@ -64,73 +72,85 @@
   (fn identity [v] v))
 
 (def
-  ^{:doc "Return true if obj is an instance of class."}
+  ^{:doc      "Return true if obj is an instance of class."
+    :arglists '([class obj])}
   instance?
   (fn instance? [class obj]
     (builtins/isinstance obj class)))
 
 (def
-  ^{:doc "Return true if obj is a boolean."}
+  ^{:doc      "Return true if obj is a boolean."
+    :arglists '([o])}
   boolean?
   (fn boolean? [o]
     (instance? builtins/bool o)))
 
 (def
-  ^{:doc "Return true if obj is a float."}
+  ^{:doc      "Return true if obj is a float."
+    :arglists '([o])}
   float?
   (fn float? [o]
     (instance? builtins/float o)))
 
 (def
-  ^{:doc "Return true if obj is an integer."}
+  ^{:doc      "Return true if obj is an integer."
+    :arglists '([o])}
   integer?
   (fn integer? [o]
     (instance? builtins/int o)))
 
 (def
-  ^{:doc "Return true if obj is a string."}
+  ^{:doc      "Return true if obj is a string."
+    :arglists '([o])}
   string?
   (fn string? [o]
     (instance? builtins/str o)))
 
 (def
-  ^{:doc "Return true if obj is a symbol."}
+  ^{:doc      "Return true if obj is a symbol."
+    :arglists '([o])}
   symbol?
   (fn symbol? [o]
     (instance? basilisp.lang.symbol/Symbol o)))
 
 (def
-  ^{:doc "Return true if obj is a keyword."}
+  ^{:doc      "Return true if obj is a keyword."
+    :arglists '([o])}
   keyword?
   (fn keyword? [o]
     (instance? basilisp.lang.keyword/Keyword o)))
 
 (def
-  ^{:doc "Return true if o is a list."}
+  ^{:doc      "Return true if o is a list."
+    :arglists '([o])}
   list?
   (fn list? [o]
     (instance? basilisp.lang.list/List o)))
 
 (def
-  ^{:doc "Return true if o is a map."}
+  ^{:doc      "Return true if o is a map."
+    :arglists '([o])}
   map?
   (fn map? [o]
     (instance? basilisp.lang.map/Map o)))
 
 (def
-  ^{:doc "Return true if o is a set."}
+  ^{:doc      "Return true if o is a set."
+    :arglists '([o])}
   set?
   (fn set? [o]
     (instance? basilisp.lang.set/Set o)))
 
 (def
-  ^{:doc "Return true if o is a vector."}
+  ^{:doc      "Return true if o is a vector."
+    :arglists '([o])}
   vector?
   (fn vector? [o]
     (instance? basilisp.lang.vector/Vector o)))
 
 (def
-  ^{:doc "Return true if o implements Seq."}
+  ^{:doc      "Return true if o implements Seq."
+    :arglists '([o])}
   seq?
   (fn seq? [o]
     (instance? basilisp.lang.seq/Seq o)))
@@ -148,32 +168,37 @@
     (apply basilisp.lang.runtime/concat seqs)))
 
 (def
-  ^{:doc "Create a hash map from pairs of input arguments."}
+  ^{:doc      "Create a hash map from pairs of input arguments."
+    :arglists '([& kvs])}
   hash-map
   (fn hash-map [& kvs]
     (apply basilisp.lang.map/hash-map kvs)))
 
 (def
-  ^{:doc "Create a set from the input arguments."}
+  ^{:doc      "Create a set from the input arguments."
+    :arglists '([& members])}
   hash-set
   (fn hash-set [& members]
     (apply basilisp.lang.set/s members)))
 
 (def
-  ^{:doc "Return a set with the contents of coll."}
+  ^{:doc      "Return a set with the contents of coll."
+    :arglists '([coll])}
   set
   (fn set
     [coll]
     (^:allow-builtins basilisp.lang.set/set coll)))
 
 (def
-  ^{:doc "Create a vector from the input arguments."}
+  ^{:doc      "Create a vector from the input arguments."
+    :arglists '([& elems])}
   vector
   (fn vector [& elems]
     (apply basilisp.lang.vector/v elems)))
 
 (def
-  ^{:doc "Return a vector with the contents of coll."}
+  ^{:doc      "Return a vector with the contents of coll."
+    :arglists '([coll])}
   vec
   (fn vec
     [coll]
