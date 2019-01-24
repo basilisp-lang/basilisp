@@ -46,11 +46,17 @@
   cons
   (fn* cons [v seq] (basilisp.lang.runtime/cons v seq)))
 
-(def meta
+(def ^{:doc      "Return the metadata from o, or nil if there is no metadata."
+       :arglists '([o])}
+  meta
   (fn* meta [o]
-       (.-meta o)))
+       (if (builtins/hasattr o "meta")
+         (.-meta o)
+         nil)))
 
-(def with-meta
+(def ^{:doc      "Return o with the supplied metadata map assoc'ed into its existing metadata."
+       :arglists '([o meta])}
+  with-meta
   (fn* with-meta [o meta]
        (.with-meta o meta)))
 
@@ -68,7 +74,9 @@
          (cons 'fn* decl)
          (meta &form))))
 
-(def identity
+(def ^{:doc      "Returns its argument unmodified."
+       :arglists '([v])}
+  identity
   (fn identity [v] v))
 
 (def
@@ -155,15 +163,24 @@
   (fn seq? [o]
     (instance? basilisp.lang.seq/Seq o)))
 
-(def seq
+(def ^{:doc      "Coerce the argument o to a Seq. If o is nil, return nil."
+       :arglists '([o])}
+  seq
   (fn seq [o]
     (basilisp.lang.runtime/to-seq o)))
 
-(def apply
+(def ^{:doc      "Apply function f to the arguments provided.
+
+                  The last argument must always be coercible to a Seq. Intermediate
+                  arguments are not modified."
+       :arglists '([f & args])}
+  apply
   (fn apply [f & args]
     (basilisp.lang.runtime/apply f args)))
 
-(def concat
+(def ^{:doc      "Concatenate the sequences given by seqs into a single Seq."
+       :arglists '([& seqs])}
+  concat
   (fn concat [& seqs]
     (apply basilisp.lang.runtime/concat seqs)))
 
@@ -206,7 +223,11 @@
 
 ;;;;;;;;;;;; full support for syntax quote begins here ;;;;;;;;;;;;
 
-(def count
+(def
+  ^{:doc      "Return the length of coll as by Python's len builtin. If the collection
+               does not respond to __len__, then count it manually."
+    :arglists '([coll])}
+  count
   (fn count [coll]
     (try
       (builtins/len coll)
@@ -214,30 +235,34 @@
         (count (apply vector coll))))))
 
 (def
-  ^{:doc "Returns a basilisp.lang.exception/ExceptionInfo instance with
-          the given message and data."}
+  ^{:doc      "Returns a basilisp.lang.exception/ExceptionInfo instance with
+               the given message and data."
+    :arglists '([msg data])}
   ex-info
   (fn ex-info [msg data]
     (basilisp.lang.exception/ExceptionInfo msg data)))
 
 (def
-  ^{:doc "Associate keys to values in associative data structure m. If m is nil,
-          returns a new map with key-values kvs."}
+  ^{:doc      "Associate keys to values in associative data structure m. If m is nil,
+               returns a new map with key-values kvs."
+    :arglists '([m & kvs])}
   assoc
   (fn assoc [m & kvs]
     (apply basilisp.lang.runtime/assoc m kvs)))
 
 (def
-  ^{:doc "Conjoin xs to collection. New elements may be added in different positions
-          depending on the type of coll. conj returns the same type as coll. If coll
-          is nil, return a list with xs conjoined."}
+  ^{:doc      "Conjoin xs to collection. New elements may be added in different positions
+               depending on the type of coll. conj returns the same type as coll. If coll
+               is nil, return a list with xs conjoined."
+    :arglists '([coll & xs])}
   conj
   (fn conj [coll & xs]
     (apply basilisp.lang.runtime/conj coll xs)))
 
 (def
-  ^{:macro true
-    :doc   "Define a new function with an optional docstring."}
+  ^{:macro    true
+    :doc      "Define a new function with an optional docstring."
+    :arglists '([name & body] [name doc & body])}
   defn
   (fn defn [&form name & body]
     (if (symbol? name)
@@ -255,6 +280,15 @@
                    (rest body)
                    body)
           multi? (list? (first body))
+          fsigs  (if multi?
+                   (loop [arities body
+                          sigs    []]
+                     (if (seq arities)
+                       (recur (rest arities)
+                              (conj sigs (ffirst arities)))
+                       `(quote ~(apply list sigs))))
+                   `(quote ~(list (first body))))
+          fname  (with-meta fname {:arglists fsigs})
           body   (if multi?
                    body
                    (cons
@@ -349,17 +383,27 @@
             compiler during macroexpansion."}
   defmacro
   (fn defmacro [&form name & body]
-    (let [body  (concat body)
-          doc   (if (string? (first body))
-                  (first body)
-                  nil)
-          fname (with-meta (if doc
-                             (with-meta name {:doc doc})
-                             name)
-                  {:macro true})
-          body  (if doc
-                  (rest body)
-                  body)
+    (let [body   (concat body)
+          doc    (if (string? (first body))
+                   (first body)
+                   nil)
+          fname  (with-meta (if doc
+                              (with-meta name {:doc doc})
+                              name)
+                   {:macro true})
+          body   (if doc
+                   (rest body)
+                   body)
+          multi? (list? (first body))
+          fsigs  (if multi?
+                   (loop [arities body
+                          sigs    []]
+                     (if (seq arities)
+                       (recur (rest arities)
+                              (conj sigs (ffirst arities)))
+                       `(quote ~(apply list sigs))))
+                   `(quote ~(list (first body))))
+          fname  (with-meta fname {:arglists fsigs})
 
           add-implicit-args (fn [body]
                               (cons
@@ -376,10 +420,9 @@
                                        (conj out (add-implicit-args (first in))))
                                 (conj out (add-implicit-args (first in)))))
 
-          multi? (list? (first body))
-          body   (if multi?
-                   (add-args-for-each body [])
-                   (add-implicit-args body))]
+          body (if multi?
+                 (add-args-for-each body [])
+                 (add-implicit-args body))]
       `(defn ~fname
          ~@body))))
 
