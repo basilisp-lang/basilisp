@@ -168,6 +168,20 @@ def test_def(ns: runtime.Namespace):
     assert lcompile("beep") == "a sound a robot makes"
 
 
+def test_def_metadata(ns: runtime.Namespace):
+    lcompile('(def ^{:doc "Super cool docstring"} unique-oeuene :a)')
+
+    var = ns.find(sym.symbol("unique-oeuene"))
+    meta = var.meta
+
+    assert 1 == meta.entry(kw.keyword("line"))
+    assert compiler.DEFAULT_COMPILER_FILE_PATH == meta.entry(kw.keyword("file"))
+    assert 1 == meta.entry(kw.keyword("col"))
+    assert sym.symbol("unique-oeuene") == meta.entry(kw.keyword("name"))
+    assert ns == meta.entry(kw.keyword("ns"))
+    assert "Super cool docstring" == meta.entry(kw.keyword("doc"))
+
+
 def test_def_no_warn_on_redef(ns: runtime.Namespace):
     with mock.patch("basilisp.lang.compiler.logger") as logger:
         lcompile(
