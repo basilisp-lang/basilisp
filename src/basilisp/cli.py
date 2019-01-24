@@ -15,6 +15,8 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
 import basilisp.main as basilisp
 
+REPL_INPUT_FILE_PATH = "<REPL Input>"
+
 
 @click.group()
 def cli():
@@ -34,9 +36,7 @@ def eval_str(s: str, ctx: compiler.CompilerContext, module: types.ModuleType, eo
     """Evaluate the forms in a string into a Python module AST node."""
     last = eof
     for form in reader.read_str(s, resolver=runtime.resolve_alias, eof=eof):
-        last = compiler.compile_and_exec_form(
-            form, ctx, module, source_filename="REPL Input"
-        )
+        last = compiler.compile_and_exec_form(form, ctx, module)
     return last
 
 
@@ -96,12 +96,13 @@ def repl(
     basilisp.init()
     repl_module = bootstrap_repl(default_ns)
     ctx = compiler.CompilerContext(
-        {
+        filename=REPL_INPUT_FILE_PATH,
+        opts={
             compiler.USE_VAR_INDIRECTION: use_var_indirection,
             compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
             compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
             compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
-        }
+        },
     )
     ns_var = runtime.set_current_ns(default_ns)
     eof = object()
@@ -186,12 +187,13 @@ def run(  # pylint: disable=too-many-arguments
     """Run a Basilisp script or a line of code, if it is provided."""
     basilisp.init()
     ctx = compiler.CompilerContext(
-        {
+        filename=None if code else file_or_code,
+        opts={
             compiler.USE_VAR_INDIRECTION: use_var_indirection,
             compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
             compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
             compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
-        }
+        },
     )
     eof = object()
 

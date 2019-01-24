@@ -50,6 +50,8 @@ from basilisp.util import Maybe, partition
 # Compiler logging
 logger = logging.getLogger(__name__)
 
+DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
+
 # Compiler options
 USE_VAR_INDIRECTION = "use_var_indirection"
 WARN_ON_SHADOWED_NAME = "warn_on_shadowed_name"
@@ -261,13 +263,16 @@ class RecurPoint:
 
 
 class CompilerContext:
-    __slots__ = ("_st", "_is_quoted", "_opts", "_recur_points")
+    __slots__ = ("_filename", "_is_quoted", "_opts", "_recur_points", "_st")
 
-    def __init__(self, opts: Dict[str, bool] = None) -> None:
-        self._st = collections.deque([SymbolTable("<Top>")])
+    def __init__(
+        self, filename: Optional[str] = None, opts: Optional[Dict[str, bool]] = None
+    ) -> None:
+        self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._is_quoted: Deque[bool] = collections.deque([])
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
         self._recur_points: Deque[RecurPoint] = collections.deque([])
+        self._st = collections.deque([SymbolTable("<Top>")])
 
         if logger.isEnabledFor(logging.DEBUG):
             for k, v in self._opts:
@@ -276,6 +281,10 @@ class CompilerContext:
     @property
     def current_ns(self) -> runtime.Namespace:
         return runtime.get_current_ns()
+
+    @property
+    def filename(self) -> str:
+        return self._filename
 
     @property
     def use_var_indirection(self) -> bool:
@@ -678,9 +687,23 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     except IndexError:
         def_nodes, def_value = [], None
 
+    # We still have to compile the meta here down to Python source code, so
+    # anything which is not constant below needs to be valid Basilisp code
+    # at the site it is called.
+    #
+    # We are roughly generating code like this:
+    #
+    # (def ^{:col  1
+    #        :file "<REPL Input>"
+    #        :line 1
+    #        :name 'some-name
+    #        :ns   ((.- basilisp.lang.runtime/Namespace get) 'user)}
+    #       some-name
+    #       "some value")
     compiler_meta = lmap.map(
         {
             _COL_KW: form[1].meta.entry(reader.READER_COL_KW),
+            _FILE_KW: ctx.filename,
             _LINE_KW: form[1].meta.entry(reader.READER_LINE_KW),
             _NAME_KW: llist.l(_QUOTE, form[1]),
             _NS_KW: llist.l(
@@ -2435,7 +2458,6 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     form: LispForm,
     ctx: CompilerContext,
     module: types.ModuleType,
-    source_filename: str = "<REPL Input>",
     wrapped_fn_name: str = _DEFAULT_FN,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> Any:
@@ -2448,7 +2470,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
         return None
 
     if not module.__basilisp_bootstrapped__:  # type: ignore
-        _bootstrap_module(ctx, module, source_filename)
+        _bootstrap_module(ctx, module)
 
     form_ast = seq(_to_ast(ctx, form)).map(_unwrap_node).to_list()
     if form_ast is None:
@@ -2472,7 +2494,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     else:
         runtime.add_generated_python(to_py_str(ast_module))
 
-    bytecode = compile(ast_module, source_filename, "exec")
+    bytecode = compile(ast_module, ctx.filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
     exec(bytecode, module.__dict__)
@@ -2510,7 +2532,6 @@ def _incremental_compile_module(
 def _bootstrap_module(
     ctx: CompilerContext,
     mod: types.ModuleType,
-    source_filename: str,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
     """Bootstrap a new module with imports and other boilerplate."""
@@ -2520,10 +2541,7 @@ def _bootstrap_module(
     preamble.append(_ns_var())
 
     _incremental_compile_module(
-        preamble,
-        mod,
-        source_filename=source_filename,
-        collect_bytecode=collect_bytecode,
+        preamble, mod, source_filename=ctx.filename, collect_bytecode=collect_bytecode
     )
     mod.__basilisp_bootstrapped__ = True  # type: ignore
 
@@ -2532,7 +2550,6 @@ def compile_module(
     forms: Iterable[LispForm],
     ctx: CompilerContext,
     module: types.ModuleType,
-    source_filename: str,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
     """Compile an entire Basilisp module into Python bytecode which can be
@@ -2542,23 +2559,20 @@ def compile_module(
     Basilisp import machinery, to allow callers to import Basilisp modules from
     Python code.
     """
-    _bootstrap_module(ctx, module, source_filename)
+    _bootstrap_module(ctx, module)
 
     for form in forms:
         nodes = [node for node in _to_ast(ctx, form)]
         _incremental_compile_module(
             nodes,
             module,
-            source_filename=source_filename,
+            source_filename=ctx.filename,
             collect_bytecode=collect_bytecode,
         )
 
 
 def compile_bytecode(
-    code: List[types.CodeType],
-    ctx: CompilerContext,
-    module: types.ModuleType,
-    source_filename: str,
+    code: List[types.CodeType], ctx: CompilerContext, module: types.ModuleType
 ) -> None:
     """Compile cached bytecode into the given module.
 
@@ -2566,7 +2580,7 @@ def compile_bytecode(
     namespaces. When the cached bytecode is reloaded from disk, it needs to be
     compiled within a bootstrapped module. This function bootstraps the module
     and then proceeds to compile a collection of bytecodes into the module."""
-    _bootstrap_module(ctx, module, source_filename)
+    _bootstrap_module(ctx, module)
     for bytecode in code:
         exec(bytecode, module.__dict__)
 
