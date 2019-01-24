@@ -700,12 +700,18 @@ def _def_ast(ctx: CompilerContext, form: llist.List) -> ASTStream:
     #        :ns   ((.- basilisp.lang.runtime/Namespace get) 'user)}
     #       some-name
     #       "some value")
-    compiler_meta_source = Maybe(form.meta).or_else_get(form[1].meta)
+    compiler_meta_source: Optional[lmap.Map] = Maybe(form.meta).or_else_get(
+        form[1].meta
+    )
     compiler_meta = lmap.map(
         {
-            _COL_KW: compiler_meta_source.entry(reader.READER_COL_KW),
+            _COL_KW: Maybe(compiler_meta_source)
+            .map(lambda m: m.entry(reader.READER_COL_KW))
+            .or_else_get(None),
             _FILE_KW: ctx.filename,
-            _LINE_KW: compiler_meta_source.entry(reader.READER_LINE_KW),
+            _LINE_KW: Maybe(compiler_meta_source)
+            .map(lambda m: m.entry(reader.READER_LINE_KW))
+            .or_else_get(None),
             _NAME_KW: llist.l(_QUOTE, form[1]),
             _NS_KW: llist.l(
                 llist.l(
