@@ -194,7 +194,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 fullname, path_stats["mtime"], path_stats["size"], cache_data
             )
             compiler.compile_bytecode(
-                cached_code, compiler.CompilerContext(), module, filename
+                cached_code, compiler.CompilerContext(filename=filename), module
             )
 
     def _exec_module(
@@ -225,9 +225,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             forms = reader.read_file(filename, resolver=runtime.resolve_alias)
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
                 forms,
-                compiler.CompilerContext(),
+                compiler.CompilerContext(filename=filename),
                 module,
-                filename,
                 collect_bytecode=add_bytecode,
             )
 
