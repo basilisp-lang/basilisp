@@ -120,8 +120,8 @@ def _vector_node(form: vec.Vector) -> lmap.Map:
     )
 
 
-def _const_node(form: LispForm) -> lmap.Map:
-    node_type = {
+_CONST_NODE_TYPES = lmap.map(
+    {
         bool: BOOL,
         complex: NUMBER,
         datetime: INST,
@@ -135,14 +135,17 @@ def _const_node(form: LispForm) -> lmap.Map:
         str: STRING,
         type(None): NIL,
         uuid.UUID: UUID,
-    }.get(type(form), UNKNOWN)
+    }
+)
 
+
+def _const_node(form: LispForm) -> lmap.Map:
     descriptor = lmap.map(
         {
             OP: CONST,
             FORM: form,
             LITERAL_Q: True,
-            TYPE: node_type,
+            TYPE: _CONST_NODE_TYPES.entry(type(form), UNKNOWN),
             VAL: form,
             CHILDREN: vec.Vector.empty(),
         }
