@@ -7,6 +7,7 @@ from typing import Pattern
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
@@ -27,6 +28,9 @@ META = kw.keyword("meta")
 ITEMS = kw.keyword("items")
 KEYS = kw.keyword("keys")
 VALS = kw.keyword("vals")
+NAME = kw.keyword("name")
+INIT = kw.keyword("init")
+DOC = kw.keyword("doc")
 
 # Node types
 BINDING = kw.keyword("binding")
@@ -75,10 +79,96 @@ INST = kw.keyword("inst")
 UUID = kw.keyword("uuid")
 UNKNOWN = kw.keyword("unknown")
 
+# Special form symbols
+_AMPERSAND = sym.symbol("&")
+_CATCH = sym.symbol("catch")
+_DEF = sym.symbol("def")
+_DO = sym.symbol("do")
+_FINALLY = sym.symbol("finally")
+_FN = sym.symbol("fn*")
+_IF = sym.symbol("if")
+_IMPORT = sym.symbol("import*")
+_INTEROP_CALL = sym.symbol(".")
+_INTEROP_PROP = sym.symbol(".-")
+_LET = sym.symbol("let*")
+_LOOP = sym.symbol("loop*")
+_QUOTE = sym.symbol("quote")
+_RECUR = sym.symbol("recur")
+_THROW = sym.symbol("throw")
+_TRY = sym.symbol("try")
+_VAR = sym.symbol("var")
+
 
 class ParserException(Exception):
     def __init__(self, msg):
         self.msg = msg
+
+
+def _def_node(form: lseq.Seq) -> lmap.Map:
+    assert form.first == _DEF
+
+    nelems = sum([1 for _ in form])
+    if nelems not in (2, 3, 4):
+        raise ParserException(
+            f"def forms must have between 2 and 4 elements, as in: (def name docstring? init?)"
+        )
+
+    name = runtime.nth(form, 1)
+    if not isinstance(name, sym.Symbol):
+        raise ParserException(f"def names must be symbols, not {type(name)}")
+
+    if nelems == 2:
+        init = None
+        doc = None
+        children = vec.Vector.empty()
+    elif nelems == 3:
+        init = runtime.nth(form, 2)
+        doc = None
+        children = vec.v(INIT)
+    else:
+        init = runtime.nth(form, 3)
+        doc = runtime.nth(form, 2)
+        children = vec.v(INIT)
+
+    descriptor = lmap.map(
+        {
+            OP: DEF,
+            FORM: form,
+            NAME: name,
+            VAR: None,  # TODO: identify the var
+            INIT: init,
+            DOC: doc,
+            CHILDREN: children,
+        }
+    )
+
+    if name.meta is not None:
+        meta_ast = parse_ast(name.meta)
+
+        meta_op = meta_ast.entry(OP)
+        if meta_op == MAP or (meta_op == CONST and meta_ast.entry(TYPE) == MAP):
+            existing_children: vec.Vector = descriptor.entry(CHILDREN)
+            return descriptor.assoc(
+                META,
+                meta_ast,
+                CHILDREN,
+                vec.vector(runtime.cons(META, existing_children)),
+            )
+
+        raise ParserException(f"Meta applied to constant must be a map")
+
+    return descriptor
+
+
+_SPECIAL_FORM_HANDLERS = lmap.map({_DEF: _def_node})
+
+
+def _list_node(form: lseq.Seq) -> lmap.Map:
+    handle_special_form = _SPECIAL_FORM_HANDLERS.entry(form.first)
+    if handle_special_form is not None:
+        return handle_special_form(form)
+
+    pass
 
 
 def _map_node(form: lmap.Map) -> lmap.Map:
@@ -164,19 +254,10 @@ def _const_node(form: LispForm) -> lmap.Map:
 
 
 def parse_ast(form: LispForm) -> lmap.Map:  # pylint: disable=too-many-branches
-    """Take a Lisp form as an argument and produce zero or more Python
-    AST nodes.
-
-    This is the primary entrypoint for generating AST nodes from Lisp
-    syntax. It may be called recursively to compile child forms.
-
-    All of the various types of elements which are compiled by this
-    function delegate to external functions, which are functions of
-    two arguments (a `CompilerContext` object, and the form to compile).
-    Each function returns a generator, which may contain 0 or more AST
-    nodes."""
+    """Take a Lisp form as an argument and produce a Basilisp syntax
+    tree matching the clojure.tools.analyzer AST spec."""
     if isinstance(form, (llist.List, lseq.Seq)):
-        return lmap.Map.empty()
+        return _list_node(form)
     elif isinstance(form, vec.Vector):
         return _vector_node(form)
     elif isinstance(form, lmap.Map):
