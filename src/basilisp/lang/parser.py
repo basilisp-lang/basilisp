@@ -18,6 +18,7 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.typing import LispForm
+from basilisp.lang.util import genname
 from basilisp.util import Maybe, partition
 
 # Parser logging
@@ -28,13 +29,14 @@ DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
 # Parser options
 WARN_ON_UNUSED_NAMES = "warn_on_unused_names"
 
-# Node descriptors
+# Common node descriptors
 OP = kw.keyword("op")
 FORM = kw.keyword("form")
 ENV = kw.keyword("env")
 CHILDREN = kw.keyword("children")
 RAW_FORMS = kw.keyword("raw-forms")
 TOP_LEVEL = kw.keyword("top-level")
+
 LITERAL_Q = kw.keyword("literal?")
 TYPE = kw.keyword("type")
 VAL = kw.keyword("val")
@@ -64,6 +66,16 @@ M_OR_F = kw.keyword("m-or-f")
 ASSIGNABLE_Q = kw.keyword("assignable?")
 METHOD = kw.keyword("method")
 BINDINGS = kw.keyword("bindings")
+LOOP_ID = kw.keyword("loop-id")
+
+# :fn and :fn-method node specific
+VARIADIC_Q = kw.keyword("variadic?")
+MAX_FIXED_ARITY = kw.keyword("max-fixed-arity")
+METHODS = kw.keyword("methods")
+ONCE = kw.keyword("once")
+FIXED_ARITY = kw.keyword("fixed-arity")
+PARAMS = kw.keyword("params")
+ARG_ID = kw.keyword("arg-id")
 
 # Node types
 BINDING = kw.keyword("binding")
@@ -446,6 +458,137 @@ def _do_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     )
 
 
+def _fn_method_ast(
+    ctx: ParserContext, form: lseq.Seq, fnname: Optional[sym.Symbol] = None
+) -> lmap.Map:
+    with ctx.new_symbol_table("fn-method"):
+        params = form.first
+        if not isinstance(params, vec.Vector):
+            raise ParserException("function arity arguments must be a vector")
+
+        vargs, has_vargs, vargs_idx = None, False, 0
+        param_nodes = []
+        for i, s in enumerate(params):
+            if not isinstance(s, sym.Symbol):
+                raise ParserException("function arity parameter name must be a symbol")
+
+            if s == _AMPERSAND:
+                has_vargs = True
+                vargs_idx = i
+                break
+
+            param_nodes.append(
+                lmap.map(
+                    {
+                        OP: LOCAL,
+                        FORM: s,
+                        NAME: s,
+                        LOCAL: SYM_CTX_LOCAL_ARG,
+                        ARG_ID: i,
+                        ASSIGNABLE_Q: False,
+                        VARIADIC_Q: False,
+                    }
+                )
+            )
+
+            ctx.symbol_table.new_symbol(s, SYM_CTX_LOCAL_ARG)
+
+        if has_vargs:
+            try:
+                vargs_sym = params[vargs_idx + 1]
+
+                param_nodes.append(
+                    lmap.map(
+                        {
+                            OP: LOCAL,
+                            FORM: vargs_sym,
+                            NAME: vargs_sym,
+                            LOCAL: SYM_CTX_LOCAL_ARG,
+                            ARG_ID: i,
+                            ASSIGNABLE_Q: False,
+                            VARIADIC_Q: True,
+                        }
+                    )
+                )
+
+                ctx.symbol_table.new_symbol(vargs_sym, SYM_CTX_LOCAL_ARG)
+            except IndexError:
+                raise ParserException(
+                    "Expected variadic argument name after '&'"
+                ) from None
+
+        return lmap.map(
+            {
+                OP: FN_METHOD,
+                FORM: form,
+                LOOP_ID: genname("fn_arity" if fnname is None else fnname.name),
+                PARAMS: vec.vector(param_nodes),
+                VARIADIC_Q: has_vargs,
+                FIXED_ARITY: len(param_nodes) - int(has_vargs),
+                BODY: vec.vector(map(partial(parse_ast, ctx), form.rest)),
+                CHILDREN: vec.v(PARAMS, BODY),
+            }
+        )
+
+
+def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    assert form.first == _FN
+
+    idx = 1
+
+    with ctx.new_symbol_table("fn"):
+        name = runtime.nth(form, idx)
+        if isinstance(name, sym.Symbol):
+            ctx.symbol_table.new_symbol(name, SYM_CTX_LOCAL_FN, warn_if_unused=False)
+            name_node: Optional[lmap.Map] = lmap.map(
+                {
+                    OP: BINDING,
+                    FORM: name,
+                    NAME: name,
+                    LOCAL: SYM_CTX_LOCAL_FN,
+                    CHILDREN: vec.Vector.empty(),
+                }
+            )
+        elif isinstance(name, (llist.List, vec.Vector)):
+            name = None
+            name_node = None
+            idx += 1
+        else:
+            raise ParserException(
+                "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)"
+            )
+
+        arity_or_args = runtime.nth(form, idx)
+        if isinstance(arity_or_args, llist.List):
+            methods = vec.vector(
+                map(
+                    partial(_fn_method_ast, ctx, fnname=name),
+                    runtime.nthrest(form, idx),
+                )
+            )
+        elif isinstance(arity_or_args, vec.Vector):
+            methods = vec.v(
+                _fn_method_ast(ctx, runtime.nthrest(form, idx), fnname=name)
+            )
+        else:
+            raise ParserException(
+                "fn form expects either multiple arities or a vector of arguments"
+            )
+
+        return lmap.map(
+            {
+                OP: FN,
+                FORM: form,
+                VARIADIC_Q: False,
+                MAX_FIXED_ARITY: max([node.entry(FIXED_ARITY) for node in methods]),
+                METHODS: methods,
+                LOCAL: name_node,
+                ONCE: False,  # TODO: probably won't support this
+                CHILDREN: vec.v(LOCAL, METHODS) if name is not None else vec.v(METHODS),
+            }
+        )
+
+
 def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     assert isinstance(form.first, sym.Symbol)
 
@@ -815,6 +958,7 @@ _SPECIAL_FORM_HANDLERS = lmap.map(
     {
         _DEF: _def_node,
         _DO: _do_ast,
+        _FN: _fn_ast,
         _IF: _if_ast,
         _INTEROP_CALL: _host_interop_ast,
         _LET: _let_ast,
