@@ -1970,21 +1970,22 @@ def _list_ast(  # pylint: disable=too-many-locals
 
         # Handle interop calls and properties generated dynamically (e.g.
         # by a macro)
-        if first.name.startswith(".-"):
-            assert first.ns is None, "Interop property symbols may not have a namespace"
-            prop_name = sym.symbol(first.name[2:])
-            target = runtime.nth(form, 1)
-            yield from _interop_prop_ast(ctx, llist.l(_INTEROP_PROP, target, prop_name))
-            return
-        elif first.name.startswith("."):
-            assert first.ns is None, "Interop call symbols may not have a namespace"
-            attr_name = sym.symbol(first.name[1:])
-            rest = form.rest
-            target = rest.first
-            args = rest.rest
-            interop_form = llist.l(_INTEROP_CALL, target, attr_name, *args)
-            yield from _interop_call_ast(ctx, interop_form)
-            return
+        if not ctx.is_quoted:
+            if first.name.startswith(".-"):
+                assert first.ns is None, "Interop property symbols may not have a namespace"
+                prop_name = sym.symbol(first.name[2:])
+                target = runtime.nth(form, 1)
+                yield from _interop_prop_ast(ctx, llist.l(_INTEROP_PROP, target, prop_name))
+                return
+            elif first.name.startswith("."):
+                assert first.ns is None, "Interop call symbols may not have a namespace"
+                attr_name = sym.symbol(first.name[1:])
+                rest = form.rest
+                target = rest.first
+                args = rest.rest
+                interop_form = llist.l(_INTEROP_CALL, target, attr_name, *args)
+                yield from _interop_call_ast(ctx, interop_form)
+                return
 
     elems_nodes, elems = _collection_literal_ast(ctx, form)
 

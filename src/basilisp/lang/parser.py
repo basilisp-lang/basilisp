@@ -207,9 +207,9 @@ def _do_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
 
 def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     assert isinstance(form.first, sym.Symbol)
-    assert form.first.name.starts_with(".")
+    assert form.first.name.startswith(".")
 
-    if not sum([1 for _ in form]) > 2:
+    if not sum([1 for _ in form]) >= 2:
         raise ParserException("host interop calls must be 2 or more elements long")
 
     return lmap.map(
@@ -218,7 +218,7 @@ def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
             FORM: form,
             METHOD: None,  # TODO: method
             TARGET: parse_ast(ctx, runtime.nth(form, 1)),
-            ARGS: vec.vector(map(partial(parse_ast, ctx), runtime.nthrest(2))),
+            ARGS: vec.vector(map(partial(parse_ast, ctx), runtime.nthrest(form, 2))),
             CHILDREN: vec.v(TARGET, ARGS),
         }
     )
@@ -226,7 +226,7 @@ def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
 
 def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     assert isinstance(form.first, sym.Symbol)
-    assert form.first.name.starts_with(".-")
+    assert form.first.name.startswith(".-")
 
     if not sum([1 for _ in form]) == 2:
         raise ParserException("host interop prop must be exactly 2 elements long")
@@ -436,6 +436,13 @@ def _list_node(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     handle_special_form = _SPECIAL_FORM_HANDLERS.entry(form.first)
     if handle_special_form is not None:
         return handle_special_form(ctx, form)
+
+    s = form.first
+    if isinstance(s, sym.Symbol):
+        if s.name.startswith(".-"):
+            return _host_prop_ast(ctx, form)
+        elif s.name.startswith("."):
+            return _host_call_ast(ctx, form)
 
     return _invoke_ast(ctx, form)
 
