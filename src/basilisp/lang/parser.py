@@ -216,7 +216,7 @@ def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
         {
             OP: HOST_CALL,
             FORM: form,
-            METHOD: None,  # TODO: method
+            METHOD: parse_ast(ctx, form.first[1:]),
             TARGET: parse_ast(ctx, runtime.nth(form, 1)),
             ARGS: vec.vector(map(partial(parse_ast, ctx), runtime.nthrest(form, 2))),
             CHILDREN: vec.v(TARGET, ARGS),
@@ -235,7 +235,7 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
         {
             OP: HOST_FIELD,
             FORM: form,
-            FIELD: None,  # TODO: field
+            FIELD: parse_ast(ctx, sym.symbol(form.first.name[2:])),
             TARGET: parse_ast(ctx, runtime.nth(form, 1)),
             ASSIGNABLE_Q: True,
             CHILDREN: vec.v(TARGET),
@@ -245,8 +245,57 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
 
 def _host_interop_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     assert form.first == _INTEROP_CALL
+    nelems = sum([1 for _ in form])
+    assert nelems >= 3
 
-    if not sum([1 for _ in form]) > 3:
+    maybe_m_or_f = runtime.nth(form, 2)
+    if isinstance(maybe_m_or_f, sym.Symbol):
+        # The clojure.tools.analyzer spec is unclear about whether or not a form
+        # like (. target -field) should be emitted as a :host-field or as a
+        # :host-interop node. I have elected to emit :host-field, since it is
+        # more specific.
+        if maybe_m_or_f.name.startswith("-"):
+            if nelems != 3:
+                raise ParserException(
+                    "host field accesses must be exactly 3 elements long"
+                )
+
+            return lmap.map(
+                {
+                    OP: HOST_FIELD,
+                    FORM: form,
+                    FIELD: parse_ast(ctx, sym.symbol(maybe_m_or_f.name[1:])),
+                    TARGET: parse_ast(ctx, runtime.nth(form, 1)),
+                    ASSIGNABLE_Q: True,
+                    CHILDREN: vec.v(TARGET),
+                }
+            )
+
+        # Other symbolic members or fields can call through and will be handled
+        # below
+    elif isinstance(maybe_m_or_f, (llist.List, lseq.Seq)):
+        # Likewise, I emit :host-call for forms like (. target (method arg1 ...)).
+        method = maybe_m_or_f.first
+        if not isinstance(method, sym.Symbol):
+            raise ParserException("host call method must be a symbol")
+
+        return lmap.map(
+            {
+                OP: HOST_CALL,
+                FORM: form,
+                METHOD: parse_ast(
+                    ctx,
+                    sym.symbol(method.name[1:])
+                    if method.name.startswith("-")
+                    else method,
+                ),
+                TARGET: parse_ast(ctx, runtime.nth(form, 1)),
+                ARGS: vec.vector(map(partial(parse_ast, ctx), maybe_m_or_f.rest)),
+                CHILDREN: vec.v(TARGET, ARGS),
+            }
+        )
+
+    if nelems != 3:
         raise ParserException("host interop forms must be 3 or more elements long")
 
     m_or_f = _const_node(ctx, runtime.nth(form, 2))
@@ -425,6 +474,7 @@ _SPECIAL_FORM_HANDLERS = lmap.map(
         _DEF: _def_node,
         _DO: _do_ast,
         _IF: _if_ast,
+        _INTEROP_CALL: _host_interop_ast,
         _QUOTE: _quote_ast,
         _THROW: _throw_ast,
         _TRY: _try_ast,

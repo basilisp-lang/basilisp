@@ -1972,10 +1972,14 @@ def _list_ast(  # pylint: disable=too-many-locals
         # by a macro)
         if not ctx.is_quoted:
             if first.name.startswith(".-"):
-                assert first.ns is None, "Interop property symbols may not have a namespace"
+                assert (
+                    first.ns is None
+                ), "Interop property symbols may not have a namespace"
                 prop_name = sym.symbol(first.name[2:])
                 target = runtime.nth(form, 1)
-                yield from _interop_prop_ast(ctx, llist.l(_INTEROP_PROP, target, prop_name))
+                yield from _interop_prop_ast(
+                    ctx, llist.l(_INTEROP_PROP, target, prop_name)
+                )
                 return
             elif first.name.startswith("."):
                 assert first.ns is None, "Interop call symbols may not have a namespace"
