@@ -1,20 +1,32 @@
+import collections
+import contextlib
+import logging
 import uuid
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
-from functools import partial
-from typing import Pattern, Union, List
+from functools import partial, wraps
+from typing import Pattern, Union, List, Deque, Optional, NamedTuple, Dict, Callable
 
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.typing import LispForm
-from basilisp.util import partition
+from basilisp.util import Maybe, partition
+
+# Parser logging
+logger = logging.getLogger(__name__)
+
+DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
+
+# Parser options
+WARN_ON_UNUSED_NAMES = "warn_on_unused_names"
 
 # Node descriptors
 OP = kw.keyword("op")
@@ -84,6 +96,15 @@ VAR = kw.keyword("var")
 VECTOR = kw.keyword("vector")
 WITH_META = kw.keyword("with-meta")
 
+# Local symbols context
+SYM_CTX_LOCAL_ARG = kw.keyword("arg")
+SYM_CTX_LOCAL_CATCH = kw.keyword("catch")
+SYM_CTX_LOCAL_FN = kw.keyword("fn")
+SYM_CTX_LOCAL_LET = kw.keyword("let")
+SYM_CTX_LOCAL_LETFN = kw.keyword("letfn")
+SYM_CTX_LOCAL_LOOP = kw.keyword("loop")
+SYM_CTX_VAR = kw.keyword("var")
+
 # Constant node types (not already covered by the above)
 NIL = kw.keyword("nil")
 BOOL = kw.keyword("bool")
@@ -120,6 +141,9 @@ _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
 
 
+_BUILTINS_NS = "builtins"
+
+
 def count(seq: lseq.Seq) -> int:
     return sum([1 for _ in seq])
 
@@ -129,15 +153,226 @@ class ParserException(Exception):
         self.msg = msg
 
 
-class ParserContext:
-    __slots__ = ()
+# Symbols to be ignored for unused symbol warnings
+_IGNORED_SYM = sym.symbol("_")
+_MACRO_ENV_SYM = sym.symbol("&env")
+_MACRO_FORM_SYM = sym.symbol("&form")
+_NO_WARN_UNUSED_SYMS = lset.s(_IGNORED_SYM, _MACRO_ENV_SYM, _MACRO_FORM_SYM)
 
-    def __init__(self) -> None:
-        pass
+
+class SymbolTableEntry(NamedTuple):
+    context: kw.Keyword
+    symbol: sym.Symbol
+    used: bool = False
+    warn_if_unused: bool = True
+
+
+class SymbolTable:
+    LOCAL_CONTEXTS = lset.set(
+        [
+            SYM_CTX_LOCAL_ARG,
+            SYM_CTX_LOCAL_CATCH,
+            SYM_CTX_LOCAL_FN,
+            SYM_CTX_LOCAL_LET,
+            SYM_CTX_LOCAL_LETFN,
+            SYM_CTX_LOCAL_LOOP,
+        ]
+    )
+
+    __slots__ = ("_name", "_parent", "_table", "_children")
+
+    def __init__(
+        self,
+        name: str,
+        parent: "SymbolTable" = None,
+        table: Dict[sym.Symbol, SymbolTableEntry] = None,
+        children: Dict[str, "SymbolTable"] = None,
+    ) -> None:
+        self._name = name
+        self._parent = parent
+        self._table = {} if table is None else table
+        self._children = {} if children is None else children
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def __repr__(self):
+        return (
+            f"SymbolTable({self._name}, parent={repr(self._parent.name)}, "
+            f"table={repr(self._table)}, children={len(self._children)})"
+        )
+
+    def new_symbol(
+        self, s: sym.Symbol, ctx: kw.Keyword, warn_if_unused: bool = True
+    ) -> "SymbolTable":
+        assert ctx in SymbolTable.LOCAL_CONTEXTS
+        if s in self._table:
+            self._table[s] = self._table[s]._replace(
+                context=ctx, symbol=s, warn_if_unused=warn_if_unused
+            )
+        else:
+            self._table[s] = SymbolTableEntry(ctx, s, warn_if_unused=warn_if_unused)
+        return self
+
+    def find_symbol(self, s: sym.Symbol) -> Optional[SymbolTableEntry]:
+        if s in self._table:
+            return self._table[s]
+        if self._parent is None:
+            return None
+        return self._parent.find_symbol(s)
+
+    def mark_used(self, s: sym.Symbol) -> None:
+        """Mark the symbol s used in the current table or the first ancestor table
+        which contains the symbol."""
+        if s in self._table:
+            old: SymbolTableEntry = self._table[s]
+            if old.used:
+                return
+            self._table[s] = old._replace(used=True)
+        elif self._parent is not None:
+            self._parent.mark_used(s)
+        else:
+            assert False, f"Symbol {s} not defined in any symbol table"
+
+    def _warn_unused_names(self):
+        """Log a warning message for locally bound names whose values are not used
+        by the time the symbol table frame is being popped off the stack.
+
+        The symbol table contains locally-bound symbols, recur point symbols, and
+        symbols bound to var-args in generated Python functions. Only the locally-
+        bound symbols are eligible for an unused warning, since it is not common
+        that recur points will be used and user code is not permitted to directly
+        access the var-args symbol (the compiler inserts an intermediate symbol
+        which user code uses).
+
+        Warnings will not be issued for symbols named '_', '&form', and '&env'. The
+        latter symbols appear in macros and a great many macros will never use them."""
+        assert logger.isEnabledFor(
+            logging.WARNING
+        ), "Only warn when logger is configured for WARNING level"
+        ns = runtime.get_current_ns()
+        for _, entry in self._table.items():
+            if entry.context not in SymbolTable.LOCAL_CONTEXTS:
+                continue
+            if entry.symbol in _NO_WARN_UNUSED_SYMS:
+                continue
+            if entry.warn_if_unused and not entry.used:
+                code_loc = (
+                    Maybe(entry.symbol.meta)
+                    .map(lambda m: f": {m.entry(reader.READER_LINE_KW)}")
+                    .or_else_get("")
+                )
+                logger.warning(
+                    f"symbol '{entry.symbol}' defined but not used ({ns}{code_loc})"
+                )
+
+    def append_frame(self, name: str, parent: "SymbolTable" = None) -> "SymbolTable":
+        new_frame = SymbolTable(name, parent=parent)
+        self._children[name] = new_frame
+        return new_frame
+
+    def pop_frame(self, name: str) -> None:
+        del self._children[name]
+
+    @contextlib.contextmanager
+    def new_frame(self, name, warn_on_unused_names):
+        """Context manager for creating a new stack frame. If warn_on_unused_names is
+        True and the logger is enabled for WARNING, call _warn_unused_names() on the
+        child SymbolTable before it is popped."""
+        new_frame = self.append_frame(name, parent=self)
+        yield new_frame
+        if warn_on_unused_names and logger.isEnabledFor(logging.WARNING):
+            new_frame._warn_unused_names()
+        self.pop_frame(name)
+
+
+class ParserContext:
+    __slots__ = ("_filename", "_is_quoted", "_opts", "_st")
+
+    def __init__(
+        self, filename: Optional[str] = None, opts: Optional[Dict[str, bool]] = None
+    ) -> None:
+        self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
+        self._is_quoted: Deque[bool] = collections.deque([])
+        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.Map.empty())
+        self._st = collections.deque([SymbolTable("<Top>")])
 
     @property
     def current_ns(self) -> runtime.Namespace:
         return runtime.get_current_ns()
+
+    @property
+    def filename(self) -> str:
+        return self._filename
+
+    @property
+    def warn_on_unused_names(self) -> bool:
+        """If True, warn when local names are unused."""
+        return self._opts.entry(WARN_ON_UNUSED_NAMES, True)
+
+    @property
+    def is_quoted(self) -> bool:
+        try:
+            return self._is_quoted[-1] is True
+        except IndexError:
+            return False
+
+    @contextlib.contextmanager
+    def quoted(self):
+        self._is_quoted.append(True)
+        yield
+        self._is_quoted.pop()
+
+    @property
+    def symbol_table(self) -> SymbolTable:
+        return self._st[-1]
+
+    @contextlib.contextmanager
+    def new_symbol_table(self, name):
+        old_st = self.symbol_table
+        with old_st.new_frame(name, self.warn_on_unused_names) as st:
+            self._st.append(st)
+            yield st
+            self._st.pop()
+
+
+ParseFunction = Callable[[ParserContext, LispForm], lmap.Map]
+
+
+def _with_meta(gen_node):
+    """Wraps the node generated by gen_node in a :with-meta AST node if the
+    original form has .
+
+    :with-meta AST nodes are used for non-quoted collection literals and for
+    function expressions."""
+
+    @wraps(gen_node)
+    def with_meta(ctx: ParserContext, form: lmap.Map) -> lmap.Map:
+        assert not ctx.is_quoted, "with-meta nodes are not used in quoted expressions"
+
+        descriptor = gen_node(ctx, form)
+
+        if hasattr(form, "meta") and form.meta is not None:  # type: ignore
+            meta_ast = parse_ast(ctx, form.meta)  # type: ignore
+
+            meta_op = meta_ast.entry(OP)
+            if meta_op == MAP or (meta_op == CONST and meta_ast.entry(TYPE) == MAP):
+                return lmap.map(
+                    {
+                        OP: WITH_META,
+                        FORM: form,
+                        META: meta_ast,
+                        EXPR: descriptor,
+                        CHILDREN: vec.v(META, EXPR),
+                    }
+                )
+
+            raise ParserException(f"meta must be a map")
+
+        return descriptor
+
+    return with_meta
 
 
 def _def_node(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
@@ -158,11 +393,11 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
         doc = None
         children = vec.Vector.empty()
     elif nelems == 3:
-        init = runtime.nth(form, 2)
+        init = parse_ast(ctx, runtime.nth(form, 2))
         doc = None
         children = vec.v(INIT)
     else:
-        init = runtime.nth(form, 3)
+        init = parse_ast(ctx, runtime.nth(form, 3))
         doc = runtime.nth(form, 2)
         children = vec.v(INIT)
 
@@ -389,57 +624,61 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     elif len(bindings) % 2 != 0:
         raise ParserException("let bindings must appear in name-value pairs")
 
-    binding_nodes = []
-    for name, value in partition(bindings, 2):
-        if not isinstance(name, sym.Symbol):
-            raise ParserException("let binding name must be a symbol")
+    with ctx.new_symbol_table("let"):
+        binding_nodes = []
+        for name, value in partition(bindings, 2):
+            if not isinstance(name, sym.Symbol):
+                raise ParserException("let binding name must be a symbol")
 
-        binding_nodes.append(
-            lmap.map(
-                {
-                    OP: BINDING,
-                    FORM: name,
-                    NAME: name,
-                    LOCAL: LET,
-                    INIT: parse_ast(ctx, value),
-                    CHILDREN: vec.v(INIT),
-                }
+            binding_nodes.append(
+                lmap.map(
+                    {
+                        OP: BINDING,
+                        FORM: name,
+                        NAME: name,
+                        LOCAL: SYM_CTX_LOCAL_LET,
+                        INIT: parse_ast(ctx, value),
+                        CHILDREN: vec.v(INIT),
+                    }
+                )
             )
-        )
 
-    *statements, ret = map(partial(parse_ast, ctx), runtime.nthrest(form, 2))
-    return lmap.map(
-        {
-            OP: LET,
-            FORM: form,
-            BINDINGS: vec.vector(binding_nodes),
-            BODY: lmap.map(
-                {
-                    OP: DO,
-                    FORM: form,
-                    STATEMENTS: vec.vector(statements),
-                    RET: ret,
-                    BODY_Q: True,
-                    CHILDREN: vec.v(STATEMENTS, RET),
-                }
-            ),
-            CHILDREN: vec.v(BINDINGS, BODY),
-        }
-    )
+            ctx.symbol_table.new_symbol(name, SYM_CTX_LOCAL_LET)
+
+        *statements, ret = map(partial(parse_ast, ctx), runtime.nthrest(form, 2))
+        return lmap.map(
+            {
+                OP: LET,
+                FORM: form,
+                BINDINGS: vec.vector(binding_nodes),
+                BODY: lmap.map(
+                    {
+                        OP: DO,
+                        FORM: form,
+                        STATEMENTS: vec.vector(statements),
+                        RET: ret,
+                        BODY_Q: True,
+                        CHILDREN: vec.v(STATEMENTS, RET),
+                    }
+                ),
+                CHILDREN: vec.v(BINDINGS, BODY),
+            }
+        )
 
 
 def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     assert form.first == _QUOTE
 
-    return lmap.map(
-        {
-            OP: QUOTE,
-            FORM: form,
-            EXPR: parse_ast(ctx, runtime.nth(form, 1)),
-            LITERAL_Q: True,
-            CHILDREN: vec.v(EXPR),
-        }
-    )
+    with ctx.quoted():
+        return lmap.map(
+            {
+                OP: QUOTE,
+                FORM: form,
+                EXPR: parse_ast(ctx, runtime.nth(form, 1)),
+                LITERAL_Q: True,
+                CHILDREN: vec.v(EXPR),
+            }
+        )
 
 
 def _throw_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
@@ -457,15 +696,54 @@ def _throw_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
 
 def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     assert form.first == _CATCH
+    nelems = count(form)
 
-    return lmap.map(
-        {
-            OP: THROW,
-            FORM: form,
-            EXCEPTION: parse_ast(ctx, runtime.nth(form, 1)),
-            CHILDREN: vec.v(EXCEPTION),
-        }
-    )
+    if nelems < 4:
+        raise ParserException(
+            "catch forms must contain at least 4 elements: (catch class local body*)"
+        )
+
+    catch_cls = parse_ast(ctx, runtime.nth(form, 1))
+    if catch_cls.entry(OP) != MAYBE_CLASS:
+        raise ParserException("catch forms must name a class type to catch")
+
+    local_name = runtime.nth(form, 2)
+    if not isinstance(local_name, sym.Symbol):
+        raise ParserException("catch local must be a symbol")
+
+    with ctx.new_symbol_table("catch"):
+        ctx.symbol_table.new_symbol(local_name, SYM_CTX_LOCAL_CATCH)
+
+        *catch_statements, catch_ret = map(
+            partial(parse_ast, ctx), runtime.nthrest(form, 3)
+        )
+        return lmap.map(
+            {
+                OP: CATCH,
+                FORM: form,
+                CLASS: catch_cls,
+                LOCAL: lmap.map(
+                    {
+                        OP: BINDING,
+                        FORM: local_name,
+                        NAME: local_name,
+                        LOCAL: SYM_CTX_LOCAL_CATCH,
+                        CHILDREN: vec.v(INIT),
+                    }
+                ),
+                BODY: lmap.map(
+                    {
+                        OP: DO,
+                        FORM: form,
+                        STATEMENTS: vec.vector(catch_statements),
+                        RET: catch_ret,
+                        BODY_Q: False,
+                        CHILDREN: vec.v(STATEMENTS, RET),
+                    }
+                ),
+                CHILDREN: vec.v(EXCEPTION),
+            }
+        )
 
 
 def _try_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
@@ -562,6 +840,68 @@ def _list_node(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     return _invoke_ast(ctx, form)
 
 
+def _resolve_sym(ctx: ParserContext, form: sym.Symbol) -> lmap.Map:
+    """Resolve a Basilisp symbol as a Var or Python name."""
+    # Support special class-name syntax to instantiate new classes
+    #   (Classname. *args)
+    #   (aliased.Classname. *args)
+    #   (fully.qualified.Classname. *args)
+    if form.ns is None and form.name.endswith("."):
+        try:
+            ns, name = form.name[:-1].rsplit(".", maxsplit=1)
+            form = sym.symbol(name, ns=ns)
+        except ValueError:
+            form = sym.symbol(form.name[:-1])
+
+    if form.ns is not None:
+        if form.ns == ctx.current_ns.name:
+            v = ctx.current_ns.find(sym.symbol(form.name))
+            if v is not None:
+                return lmap.map({OP: VAR, FORM: form, VAR: v, ASSIGNABLE_Q: v.dynamic})
+
+        ns_sym = sym.symbol(form.ns)
+        if ns_sym in ctx.current_ns.imports or ns_sym in ctx.current_ns.import_aliases:
+            v = runtime.Var.find(form)
+            if v is not None:
+                return lmap.map({OP: VAR, FORM: form, VAR: v, ASSIGNABLE_Q: v.dynamic})
+        elif ns_sym in ctx.current_ns.aliases:
+            aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
+            v = runtime.Var.find(sym.symbol(form.name, ns=aliased_ns.name))
+            if v is not None:
+                return lmap.map({OP: VAR, FORM: form, VAR: v, ASSIGNABLE_Q: v.dynamic})
+
+        return lmap.map(
+            {OP: MAYBE_HOST_FORM, FORM: form, CLASS: form.ns, FIELD: form.name}
+        )
+    else:
+        # Look up the symbol in the namespace mapping of the current namespace.
+        v = ctx.current_ns.find(form)
+        if v is not None:
+            return lmap.map({OP: VAR, FORM: form, VAR: v, ASSIGNABLE_Q: v.dynamic})
+
+        return lmap.map({OP: MAYBE_CLASS, FORM: form, CLASS: form})
+
+
+def _symbol_node(ctx: ParserContext, form: sym.Symbol) -> lmap.Map:
+    if ctx.is_quoted:
+        return _const_node(ctx, form)
+
+    sym_entry = ctx.symbol_table.find_symbol(form)
+    if sym_entry is not None:
+        return lmap.map(
+            {
+                OP: LOCAL,
+                FORM: form,
+                NAME: form,
+                LOCAL: sym_entry.context,
+                ASSIGNABLE_Q: False,
+            }
+        )
+
+    return _resolve_sym(ctx, form)
+
+
+@_with_meta
 def _map_node(ctx: ParserContext, form: lmap.Map) -> lmap.Map:
     keys, vals = [], []
     for k, v in form.items():
@@ -579,6 +919,7 @@ def _map_node(ctx: ParserContext, form: lmap.Map) -> lmap.Map:
     )
 
 
+@_with_meta
 def _set_node(ctx: ParserContext, form: lset.Set) -> lmap.Map:
     return lmap.map(
         {
@@ -590,6 +931,7 @@ def _set_node(ctx: ParserContext, form: lset.Set) -> lmap.Map:
     )
 
 
+@_with_meta
 def _vector_node(ctx: ParserContext, form: vec.Vector) -> lmap.Map:
     return lmap.map(
         {
@@ -611,16 +953,23 @@ _CONST_NODE_TYPES = lmap.map(
         Fraction: NUMBER,
         int: NUMBER,
         kw.Keyword: KEYWORD,
+        lmap.Map: MAP,
+        lset.Set: SET,
         Pattern: REGEX,
         sym.Symbol: SYMBOL,
         str: STRING,
         type(None): NIL,
         uuid.UUID: UUID,
+        vec.Vector: VECTOR,
     }
 )
 
 
 def _const_node(ctx: ParserContext, form: LispForm) -> lmap.Map:
+    assert not ctx.is_quoted and isinstance(
+        form, (sym.Symbol, vec.Vector, lmap.Map, lset.Set)
+    )
+
     descriptor = lmap.map(
         {
             OP: CONST,
@@ -650,11 +999,19 @@ def parse_ast(ctx: ParserContext, form: LispForm) -> lmap.Map:
     if isinstance(form, (llist.List, lseq.Seq)):
         return _list_node(ctx, form)
     elif isinstance(form, vec.Vector):
+        if ctx.is_quoted:
+            return _const_node(ctx, form)
         return _vector_node(ctx, form)
     elif isinstance(form, lmap.Map):
+        if ctx.is_quoted:
+            return _const_node(ctx, form)
         return _map_node(ctx, form)
     elif isinstance(form, lset.Set):
+        if ctx.is_quoted:
+            return _const_node(ctx, form)
         return _set_node(ctx, form)
+    elif isinstance(form, sym.Symbol):
+        return _symbol_node(ctx, form)
     elif isinstance(
         form,
         (
