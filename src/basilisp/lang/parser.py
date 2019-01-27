@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
+from functools import partial
 from typing import Pattern
 
 import basilisp.lang.keyword as kw
@@ -31,6 +32,24 @@ VALS = kw.keyword("vals")
 NAME = kw.keyword("name")
 INIT = kw.keyword("init")
 DOC = kw.keyword("doc")
+BODY_Q = kw.keyword("body?")
+STATEMENTS = kw.keyword("statements")
+RET = kw.keyword("ret")
+TEST = kw.keyword("test")
+THEN = kw.keyword("then")
+ELSE = kw.keyword("else")
+ARGS = kw.keyword("args")
+EXPR = kw.keyword("expr")
+EXPRS = kw.keyword("exprs")
+EXCEPTION = kw.keyword("exception")
+BODY = kw.keyword("body")
+CATCHES = kw.keyword("catches")
+FINALLY = kw.keyword("finally")
+FIELD = kw.keyword("field")
+TARGET = kw.keyword("target")
+M_OR_F = kw.keyword("m-or-f")
+ASSIGNABLE_Q = kw.keyword("assignable?")
+METHOD = kw.keyword("method")
 
 # Node types
 BINDING = kw.keyword("binding")
@@ -104,7 +123,18 @@ class ParserException(Exception):
         self.msg = msg
 
 
-def _def_node(form: lseq.Seq) -> lmap.Map:
+class ParserContext:
+    __slots__ = ()
+
+    def __init__(self) -> None:
+        pass
+
+    @property
+    def current_ns(self) -> runtime.Namespace:
+        return runtime.get_current_ns()
+
+
+def _def_node(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     assert form.first == _DEF
 
     nelems = sum([1 for _ in form])
@@ -143,7 +173,7 @@ def _def_node(form: lseq.Seq) -> lmap.Map:
     )
 
     if name.meta is not None:
-        meta_ast = parse_ast(name.meta)
+        meta_ast = parse_ast(ctx, name.meta)
 
         meta_op = meta_ast.entry(OP)
         if meta_op == MAP or (meta_op == CONST and meta_ast.entry(TYPE) == MAP):
@@ -160,22 +190,261 @@ def _def_node(form: lseq.Seq) -> lmap.Map:
     return descriptor
 
 
-_SPECIAL_FORM_HANDLERS = lmap.map({_DEF: _def_node})
+def _do_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    assert form.first == _DO
+    *statements, ret = map(partial(parse_ast, ctx), form.rest)
+    return lmap.map(
+        {
+            OP: DO,
+            FORM: form,
+            STATEMENTS: vec.vector(statements),
+            RET: ret,
+            BODY_Q: False,
+            CHILDREN: vec.v(STATEMENTS, RET),
+        }
+    )
 
 
-def _list_node(form: lseq.Seq) -> lmap.Map:
+def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    assert isinstance(form.first, sym.Symbol)
+    assert form.first.name.starts_with(".")
+
+    if not sum([1 for _ in form]) > 2:
+        raise ParserException("host interop calls must be 2 or more elements long")
+
+    return lmap.map(
+        {
+            OP: HOST_CALL,
+            FORM: form,
+            METHOD: None,  # TODO: method
+            TARGET: parse_ast(ctx, runtime.nth(form, 1)),
+            ARGS: vec.vector(map(partial(parse_ast, ctx), runtime.nthrest(2))),
+            CHILDREN: vec.v(TARGET, ARGS),
+        }
+    )
+
+
+def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    assert isinstance(form.first, sym.Symbol)
+    assert form.first.name.starts_with(".-")
+
+    if not sum([1 for _ in form]) == 2:
+        raise ParserException("host interop prop must be exactly 2 elements long")
+
+    return lmap.map(
+        {
+            OP: HOST_FIELD,
+            FORM: form,
+            FIELD: None,  # TODO: field
+            TARGET: parse_ast(ctx, runtime.nth(form, 1)),
+            ASSIGNABLE_Q: True,
+            CHILDREN: vec.v(TARGET),
+        }
+    )
+
+
+def _host_interop_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    assert form.first == _INTEROP_CALL
+
+    if not sum([1 for _ in form]) > 3:
+        raise ParserException("host interop forms must be 3 or more elements long")
+
+    m_or_f = _const_node(ctx, runtime.nth(form, 2))
+    if m_or_f.entry(TYPE) != SYMBOL:
+        raise ParserException("host interop member or field must be a symbol")
+
+    return lmap.map(
+        {
+            OP: HOST_INTEROP,
+            FORM: form,
+            TARGET: parse_ast(ctx, runtime.nth(form, 1)),
+            M_OR_F: m_or_f,
+            ASSIGNABLE_Q: True,
+            CHILDREN: vec.v(TARGET),
+        }
+    )
+
+
+def _if_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    assert form.first == _IF
+
+    nelems = sum([1 for _ in form])
+    if nelems not in (3, 4):
+        raise ParserException(
+            "if forms must have either 3 or 4 elements, as in: (if test then else?)"
+        )
+
+    if nelems == 3:
+        else_node = parse_ast(ctx, runtime.nth(form, 3))
+    else:
+        else_node = _const_node(ctx, None)
+
+    return lmap.map(
+        {
+            OP: IF,
+            FORM: form,
+            TEST: parse_ast(ctx, runtime.nth(form, 1)),
+            THEN: parse_ast(ctx, runtime.nth(form, 2)),
+            ELSE: else_node,
+            CHILDREN: vec.v(TEST, THEN, ELSE),
+        }
+    )
+
+
+def _invoke_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    descriptor = lmap.map(
+        {
+            OP: INVOKE,
+            FORM: form,
+            FN: None,  # TODO: get the actual function reference
+            ARGS: vec.vector(map(partial(parse_ast, ctx), form.rest)),
+            META: [],
+            CHILDREN: vec.v(FN, ARGS),
+        }
+    )
+
+    if hasattr(form, "meta") and form.meta is not None:
+        meta_ast = parse_ast(ctx, form.meta)
+
+        meta_op = meta_ast.entry(OP)
+        if meta_op == MAP or (meta_op == CONST and meta_ast.entry(TYPE) == MAP):
+            return descriptor.assoc(META, meta_ast)
+
+        raise ParserException(f"Meta  must be a map")
+
+    return descriptor
+
+
+def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    assert form.first == _QUOTE
+
+    return lmap.map(
+        {
+            OP: QUOTE,
+            FORM: form,
+            EXPR: parse_ast(ctx, runtime.nth(form, 1)),
+            LITERAL_Q: True,
+            CHILDREN: vec.v(EXPR),
+        }
+    )
+
+
+def _throw_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    assert form.first == _THROW
+
+    return lmap.map(
+        {
+            OP: THROW,
+            FORM: form,
+            EXCEPTION: parse_ast(ctx, runtime.nth(form, 1)),
+            CHILDREN: vec.v(EXCEPTION),
+        }
+    )
+
+
+def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    assert form.first == _CATCH
+
+    return lmap.map(
+        {
+            OP: THROW,
+            FORM: form,
+            EXCEPTION: parse_ast(ctx, runtime.nth(form, 1)),
+            CHILDREN: vec.v(EXCEPTION),
+        }
+    )
+
+
+def _try_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
+    assert form.first == _TRY
+
+    try_exprs = []
+    catches = []
+    finallys = []
+    for expr in form.rest:
+        if isinstance(expr, (llist.List, lseq.Seq)):
+            if expr.first == _CATCH:
+                if finallys:
+                    raise ParserException(
+                        "catch forms may not appear after finally forms in a try"
+                    )
+                catches.append(_catch_ast(ctx, expr))
+                continue
+            elif expr.first == _FINALLY:
+                if finallys:
+                    raise ParserException(
+                        "try forms may not contain multiple finally forms"
+                    )
+                finallys.extend(map(parse_ast, expr.rest))
+                continue
+
+        parsed = parse_ast(ctx, expr)
+
+        if catches:
+            raise ParserException(
+                "try body expressions may not appear after catch forms"
+            )
+        if finallys:
+            raise ParserException(
+                "try body expressions may not appear after finally forms"
+            )
+
+        try_exprs.append(parsed)
+
+    assert all(
+        [node.entry(OP) == CATCH for node in catches]
+    ), "All catch statements must be catch ops"
+
+    if len(finallys) > 1:
+        raise ParserException("try forms may have only 0 or 1 finally forms")
+
+    *try_statements, try_ret = try_exprs
+    return lmap.map(
+        {
+            OP: TRY,
+            FORM: form,
+            BODY: lmap.map(
+                {
+                    OP: DO,
+                    FORM: form,
+                    STATEMENTS: vec.vector(try_statements),
+                    RET: try_ret,
+                    BODY_Q: False,
+                    CHILDREN: vec.v(STATEMENTS, RET),
+                }
+            ),
+            CATCHES: vec.vector(catches),
+            FINALLY: finallys,
+            CHILDREN: vec.v(EXCEPTION),
+        }
+    )
+
+
+_SPECIAL_FORM_HANDLERS = lmap.map(
+    {
+        _DEF: _def_node,
+        _DO: _do_ast,
+        _IF: _if_ast,
+        _QUOTE: _quote_ast,
+        _THROW: _throw_ast,
+        _TRY: _try_ast,
+    }
+)
+
+
+def _list_node(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     handle_special_form = _SPECIAL_FORM_HANDLERS.entry(form.first)
     if handle_special_form is not None:
-        return handle_special_form(form)
+        return handle_special_form(ctx, form)
 
-    pass
+    return _invoke_ast(ctx, form)
 
 
-def _map_node(form: lmap.Map) -> lmap.Map:
+def _map_node(ctx: ParserContext, form: lmap.Map) -> lmap.Map:
     keys, vals = [], []
     for k, v in form.items():
-        keys.append(parse_ast(k))
-        vals.append(parse_ast(v))
+        keys.append(parse_ast(ctx, k))
+        vals.append(parse_ast(ctx, v))
 
     return lmap.map(
         {
@@ -188,23 +457,23 @@ def _map_node(form: lmap.Map) -> lmap.Map:
     )
 
 
-def _set_node(form: lset.Set) -> lmap.Map:
+def _set_node(ctx: ParserContext, form: lset.Set) -> lmap.Map:
     return lmap.map(
         {
             OP: SET,
             FORM: form,
-            ITEMS: vec.vector(map(parse_ast, form)),
+            ITEMS: vec.vector(map(partial(parse_ast, ctx), form)),
             CHILDREN: vec.v(ITEMS),
         }
     )
 
 
-def _vector_node(form: vec.Vector) -> lmap.Map:
+def _vector_node(ctx: ParserContext, form: vec.Vector) -> lmap.Map:
     return lmap.map(
         {
             OP: VECTOR,
             FORM: form,
-            ITEMS: vec.vector(map(parse_ast, form)),
+            ITEMS: vec.vector(map(partial(parse_ast, ctx), form)),
             CHILDREN: vec.v(ITEMS),
         }
     )
@@ -229,7 +498,7 @@ _CONST_NODE_TYPES = lmap.map(
 )
 
 
-def _const_node(form: LispForm) -> lmap.Map:
+def _const_node(ctx: ParserContext, form: LispForm) -> lmap.Map:
     descriptor = lmap.map(
         {
             OP: CONST,
@@ -242,7 +511,7 @@ def _const_node(form: LispForm) -> lmap.Map:
     )
 
     if hasattr(form, "meta") and form.meta is not None:
-        meta_ast = parse_ast(form.meta)
+        meta_ast = parse_ast(ctx, form.meta)
 
         meta_op = meta_ast.entry(OP)
         if meta_op == MAP or (meta_op == CONST and meta_ast.entry(TYPE) == MAP):
@@ -253,17 +522,17 @@ def _const_node(form: LispForm) -> lmap.Map:
     return descriptor
 
 
-def parse_ast(form: LispForm) -> lmap.Map:  # pylint: disable=too-many-branches
+def parse_ast(ctx: ParserContext, form: LispForm) -> lmap.Map:
     """Take a Lisp form as an argument and produce a Basilisp syntax
     tree matching the clojure.tools.analyzer AST spec."""
     if isinstance(form, (llist.List, lseq.Seq)):
-        return _list_node(form)
+        return _list_node(ctx, form)
     elif isinstance(form, vec.Vector):
-        return _vector_node(form)
+        return _vector_node(ctx, form)
     elif isinstance(form, lmap.Map):
-        return _map_node(form)
+        return _map_node(ctx, form)
     elif isinstance(form, lset.Set):
-        return _set_node(form)
+        return _set_node(ctx, form)
     elif isinstance(
         form,
         (
@@ -282,6 +551,6 @@ def parse_ast(form: LispForm) -> lmap.Map:  # pylint: disable=too-many-branches
             uuid.UUID,
         ),
     ):
-        return _const_node(form)
+        return _const_node(ctx, form)
     else:
         raise TypeError(f"Unexpected form type {type(form)}: {form}")
