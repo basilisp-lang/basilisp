@@ -656,6 +656,15 @@ def test_interop_prop(ns: runtime.Namespace):
         lcompile("(.-fake 'some.ns/sym)")
 
 
+def test_interop_quoted(ns: runtime.Namespace):
+    assert lcompile("'(.match pattern)") == llist.l(
+        sym.symbol(".match"), sym.symbol("pattern")
+    )
+    assert lcompile("'(.-pattern regex)") == llist.l(
+        sym.symbol(".-pattern"), sym.symbol("regex")
+    )
+
+
 def test_let(ns: runtime.Namespace):
     assert lcompile("(let* [a 1] a)") == 1
     assert lcompile('(let* [a :keyword b "string"] a)') == kw.keyword("keyword")
