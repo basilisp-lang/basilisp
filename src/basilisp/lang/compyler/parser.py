@@ -124,6 +124,8 @@ KEYWORD = kw.keyword("keyword")
 SYMBOL = kw.keyword("symbol")
 STRING = kw.keyword("string")
 NUMBER = kw.keyword("number")
+DECIMAL = kw.keyword("decimal")
+FRACTION = kw.keyword("fraction")
 RECORD = kw.keyword("record")
 SEQ = kw.keyword("seq")
 CHAR = kw.keyword("char")
@@ -1092,9 +1094,9 @@ _CONST_NODE_TYPES = lmap.map(
         bool: BOOL,
         complex: NUMBER,
         datetime: INST,
-        Decimal: NUMBER,
+        Decimal: DECIMAL,
         float: NUMBER,
-        Fraction: NUMBER,
+        Fraction: FRACTION,
         int: NUMBER,
         kw.Keyword: KEYWORD,
         lmap.Map: MAP,
@@ -1110,8 +1112,24 @@ _CONST_NODE_TYPES = lmap.map(
 
 
 def _const_node(ctx: ParserContext, form: LispForm) -> lmap.Map:
-    assert not ctx.is_quoted and isinstance(
-        form, (sym.Symbol, vec.Vector, lmap.Map, lset.Set)
+    assert (
+        ctx.is_quoted and isinstance(form, (sym.Symbol, vec.Vector, lmap.Map, lset.Set))
+    ) or isinstance(
+        form,
+        (
+            bool,
+            complex,
+            datetime,
+            Decimal,
+            float,
+            Fraction,
+            int,
+            kw.Keyword,
+            Pattern,
+            str,
+            type(None),
+            uuid.UUID,
+        ),
     )
 
     descriptor = lmap.map(
@@ -1126,13 +1144,13 @@ def _const_node(ctx: ParserContext, form: LispForm) -> lmap.Map:
     )
 
     if hasattr(form, "meta") and form.meta is not None:  # type: ignore
-        meta_ast = parse_ast(ctx, form.meta)  # type: ignore
+        meta_ast = _const_node(ctx, form.meta)  # type: ignore
 
         meta_op = meta_ast.entry(OP)
-        if meta_op == MAP or (meta_op == CONST and meta_ast.entry(TYPE) == MAP):
-            return descriptor.assoc(META, meta_ast, CHILDREN, vec.v(META))
+        if meta_op != CONST or meta_ast.entry(TYPE) != MAP:
+            raise ParserException(f"Meta applied to constant must be a map")
 
-        raise ParserException(f"Meta applied to constant must be a map")
+        return descriptor.assoc(META, meta_ast, CHILDREN, vec.v(META))
 
     return descriptor
 
