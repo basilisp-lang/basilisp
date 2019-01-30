@@ -497,7 +497,7 @@ def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
         {
             OP: HOST_CALL,
             FORM: form,
-            METHOD: parse_ast(ctx, method.name[1:]),
+            METHOD: sym.symbol(method.name[1:]),
             TARGET: parse_ast(ctx, runtime.nth(form, 1)),
             ARGS: vec.vector(map(partial(parse_ast, ctx), runtime.nthrest(form, 2))),
             CHILDREN: vec.v(TARGET, ARGS),
@@ -518,7 +518,7 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
         {
             OP: HOST_FIELD,
             FORM: form,
-            FIELD: parse_ast(ctx, sym.symbol(field.name[2:])),
+            FIELD: sym.symbol(field.name[2:]),
             TARGET: parse_ast(ctx, runtime.nth(form, 1)),
             ASSIGNABLE_Q: True,
             CHILDREN: vec.v(TARGET),
@@ -547,7 +547,7 @@ def _host_interop_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
                 {
                     OP: HOST_FIELD,
                     FORM: form,
-                    FIELD: parse_ast(ctx, sym.symbol(maybe_m_or_f.name[1:])),
+                    FIELD: sym.symbol(maybe_m_or_f.name[1:]),
                     TARGET: parse_ast(ctx, runtime.nth(form, 1)),
                     ASSIGNABLE_Q: True,
                     CHILDREN: vec.v(TARGET),
@@ -566,12 +566,9 @@ def _host_interop_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
             {
                 OP: HOST_CALL,
                 FORM: form,
-                METHOD: parse_ast(
-                    ctx,
-                    sym.symbol(method.name[1:])
-                    if method.name.startswith("-")
-                    else method,
-                ),
+                METHOD: sym.symbol(method.name[1:])
+                if method.name.startswith("-")
+                else method,
                 TARGET: parse_ast(ctx, runtime.nth(form, 1)),
                 ARGS: vec.vector(map(partial(parse_ast, ctx), maybe_m_or_f.rest)),
                 CHILDREN: vec.v(TARGET, ARGS),
@@ -581,8 +578,8 @@ def _host_interop_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
     if nelems != 3:
         raise ParserException("host interop forms must be 3 or more elements long")
 
-    m_or_f = _const_node(ctx, runtime.nth(form, 2))
-    if m_or_f.entry(TYPE) != SYMBOL:
+    m_or_f = runtime.nth(form, 2)
+    if not isinstance(m_or_f, sym.Symbol):
         raise ParserException("host interop member or field must be a symbol")
 
     return lmap.map(

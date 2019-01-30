@@ -34,7 +34,7 @@ import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.compyler.constants import *
 from basilisp.lang.typing import LispForm
-from basilisp.lang.util import genname
+from basilisp.lang.util import genname, munge
 from basilisp.util import Maybe
 
 # Compiler logging
@@ -109,11 +109,6 @@ class GeneratorContext:
 class GeneratedPyAST(NamedTuple):
     node: ast.AST
     dependencies: Iterable[ast.AST] = ()
-
-    def as_dep(self, node: ast.AST) -> "GeneratedPyAST":
-        return GeneratedPyAST(
-            node=node, dependencies=itertools.chain(self.dependencies, (self.node,))
-        )
 
     @staticmethod
     def reduce(*genned: "GeneratedPyAST") -> "GeneratedPyAST":
@@ -289,14 +284,14 @@ def _clean_meta(form: lmeta.Meta) -> LispForm:
 #################
 
 
-def _do_to_py_ast(ctx: GeneratorContext, form: lmap.Map) -> GeneratedPyAST:
+def _do_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     """Return a Python AST Node for a `do` expression."""
-    assert form.entry(OP) == DO
-    assert not form.entry(BODY_Q)
+    assert node.entry(OP) == DO
+    assert not node.entry(BODY_Q)
 
     do_fn_name = genname(_DO_PREFIX)
-    body = form.entry(STATEMENTS)
-    ret = form.entry(RET)
+    body = node.entry(STATEMENTS)
+    ret = node.entry(RET)
 
     return GeneratedPyAST(
         node=ast.Call(
@@ -313,6 +308,73 @@ def _do_to_py_ast(ctx: GeneratorContext, form: lmap.Map) -> GeneratedPyAST:
             )
         ],
     )
+
+
+#################
+# Python Interop
+#################
+
+
+def _interop_call_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+    """Generate a Python AST node for Python interop method calls."""
+    assert node.entry(OP) == HOST_CALL
+
+    target: LispAST = node.entry(TARGET)
+    method: sym.Symbol = node.entry(METHOD)
+    args: vec.Vector = node.entry(ARGS)
+
+    target_ast = gen_py_ast(ctx, target)
+    args_deps, args_nodes = _collection_ast(ctx, args)
+
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=ast.Attribute(
+                value=target_ast.node,
+                attr=munge(method.name, allow_builtins=True),
+                ctx=ast.Load(),
+            ),
+            args=list(args_nodes),
+            keywords=[],
+        ),
+        dependencies=list(itertools.chain(target_ast.dependencies, args_deps)),
+    )
+
+
+def _interop_prop_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+    """Generate a Python AST node for Python interop property access."""
+    assert node.entry(OP) == HOST_FIELD
+
+    target: LispAST = node.entry(TARGET)
+    field: sym.Symbol = node.entry(FIELD)
+
+    target_ast = gen_py_ast(ctx, target)
+
+    return GeneratedPyAST(
+        node=ast.Attribute(
+            value=target_ast.node, attr=munge(field.name), ctx=ast.Load()
+        ),
+        dependencies=target_ast.dependencies,
+    )
+
+
+def _maybe_class_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+    """Generate a Python AST node for Python interop property access."""
+    assert node.entry(OP) == MAYBE_CLASS
+
+    class_: sym.Symbol = node.entry(CLASS)
+    assert class_.ns is None
+
+    return GeneratedPyAST(node=ast.Name(id=munge(class_.name), ctx=ast.Load()))
+
+
+def _maybe_host_form_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+    """Generate a Python AST node for Python interop property access."""
+    assert node.entry(OP) == MAYBE_CLASS
+
+    ns: sym.Symbol = node.entry(CLASS)
+    field: sym.Symbol = node.entry(FIELD)
+
+    return GeneratedPyAST(node=_load_attr(f"{ns}.{field}"))
 
 
 #################
@@ -535,8 +597,8 @@ _NODE_HANDLERS: Dict[kw.Keyword, PyASTGenerator] = {  # type: ignore
     DEF: None,
     DO: _do_to_py_ast,
     FN: None,
-    HOST_CALL: None,
-    HOST_FIELD: None,
+    HOST_CALL: _interop_call_ast,
+    HOST_FIELD: _interop_prop_ast,
     HOST_INTEROP: None,
     IF: None,
     INVOKE: None,
@@ -544,8 +606,8 @@ _NODE_HANDLERS: Dict[kw.Keyword, PyASTGenerator] = {  # type: ignore
     LETFN: None,
     LOOP: None,
     MAP: None,
-    MAYBE_CLASS: None,
-    MAYBE_HOST_FORM: None,
+    MAYBE_CLASS: _maybe_class_ast,
+    MAYBE_HOST_FORM: _maybe_host_form_ast,
     NEW: None,
     QUOTE: None,
     RECUR: None,
