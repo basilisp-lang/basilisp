@@ -8,7 +8,6 @@ from fractions import Fraction
 from functools import partial, wraps
 from typing import Pattern, Union, List, Deque, Optional, NamedTuple, Dict, Callable
 
-import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.reader as reader
@@ -17,6 +16,7 @@ import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+from basilisp.lang.compyler.constants import *
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname
 from basilisp.util import Maybe, partition
@@ -28,112 +28,6 @@ DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
 
 # Parser options
 WARN_ON_UNUSED_NAMES = "warn_on_unused_names"
-
-# Common node descriptors
-OP = kw.keyword("op")
-FORM = kw.keyword("form")
-ENV = kw.keyword("env")
-CHILDREN = kw.keyword("children")
-RAW_FORMS = kw.keyword("raw-forms")
-TOP_LEVEL = kw.keyword("top-level")
-
-LITERAL_Q = kw.keyword("literal?")
-TYPE = kw.keyword("type")
-VAL = kw.keyword("val")
-META = kw.keyword("meta")
-ITEMS = kw.keyword("items")
-KEYS = kw.keyword("keys")
-VALS = kw.keyword("vals")
-NAME = kw.keyword("name")
-INIT = kw.keyword("init")
-DOC = kw.keyword("doc")
-BODY_Q = kw.keyword("body?")
-STATEMENTS = kw.keyword("statements")
-RET = kw.keyword("ret")
-TEST = kw.keyword("test")
-THEN = kw.keyword("then")
-ELSE = kw.keyword("else")
-ARGS = kw.keyword("args")
-EXPR = kw.keyword("expr")
-EXPRS = kw.keyword("exprs")
-EXCEPTION = kw.keyword("exception")
-BODY = kw.keyword("body")
-CATCHES = kw.keyword("catches")
-FINALLY = kw.keyword("finally")
-FIELD = kw.keyword("field")
-TARGET = kw.keyword("target")
-M_OR_F = kw.keyword("m-or-f")
-ASSIGNABLE_Q = kw.keyword("assignable?")
-METHOD = kw.keyword("method")
-BINDINGS = kw.keyword("bindings")
-LOOP_ID = kw.keyword("loop-id")
-
-# :fn and :fn-method node specific
-VARIADIC_Q = kw.keyword("variadic?")
-MAX_FIXED_ARITY = kw.keyword("max-fixed-arity")
-METHODS = kw.keyword("methods")
-ONCE = kw.keyword("once")
-FIXED_ARITY = kw.keyword("fixed-arity")
-PARAMS = kw.keyword("params")
-ARG_ID = kw.keyword("arg-id")
-
-# Node types
-BINDING = kw.keyword("binding")
-CATCH = kw.keyword("catch")
-CONST = kw.keyword("const")
-DEF = kw.keyword("def")
-DO = kw.keyword("do")
-FN = kw.keyword("fn")
-FN_METHOD = kw.keyword("fn-method")
-HOST_CALL = kw.keyword("host-call")
-HOST_FIELD = kw.keyword("host-field")
-HOST_INTEROP = kw.keyword("host-interop")
-IF = kw.keyword("if")
-INVOKE = kw.keyword("invoke")
-LET = kw.keyword("let")
-LETFN = kw.keyword("letfn")
-LOCAL = kw.keyword("local")
-LOOP = kw.keyword("loop")
-MAP = kw.keyword("map")
-MAYBE_CLASS = kw.keyword("maybe-class")
-MAYBE_HOST_FORM = kw.keyword("maybe-host-form")
-NEW = kw.keyword("new")
-QUOTE = kw.keyword("quote")
-RECUR = kw.keyword("recur")
-SET = kw.keyword("set")
-SET_BANG = kw.keyword("set!")
-THROW = kw.keyword("throw")
-TRY = kw.keyword("try")
-VAR = kw.keyword("var")
-VECTOR = kw.keyword("vector")
-WITH_META = kw.keyword("with-meta")
-
-# Local symbols context
-SYM_CTX_LOCAL_ARG = kw.keyword("arg")
-SYM_CTX_LOCAL_CATCH = kw.keyword("catch")
-SYM_CTX_LOCAL_FN = kw.keyword("fn")
-SYM_CTX_LOCAL_LET = kw.keyword("let")
-SYM_CTX_LOCAL_LETFN = kw.keyword("letfn")
-SYM_CTX_LOCAL_LOOP = kw.keyword("loop")
-SYM_CTX_VAR = kw.keyword("var")
-
-# Constant node types (not already covered by the above)
-NIL = kw.keyword("nil")
-BOOL = kw.keyword("bool")
-KEYWORD = kw.keyword("keyword")
-SYMBOL = kw.keyword("symbol")
-STRING = kw.keyword("string")
-NUMBER = kw.keyword("number")
-DECIMAL = kw.keyword("decimal")
-FRACTION = kw.keyword("fraction")
-RECORD = kw.keyword("record")
-SEQ = kw.keyword("seq")
-CHAR = kw.keyword("char")
-REGEX = kw.keyword("regex")
-CLASS = kw.keyword("class")
-INST = kw.keyword("inst")
-UUID = kw.keyword("uuid")
-UNKNOWN = kw.keyword("unknown")
 
 # Special form symbols
 _AMPERSAND = sym.symbol("&")
@@ -153,7 +47,6 @@ _RECUR = sym.symbol("recur")
 _THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
-
 
 _BUILTINS_NS = "builtins"
 

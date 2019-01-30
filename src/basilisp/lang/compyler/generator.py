@@ -23,8 +23,8 @@ from typing import (
     Type,
 )
 
-import basilisp.lang.compyler.parser as parser
-import basilisp.lang.keyword as kw
+from functional import seq
+
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as lmeta
 import basilisp.lang.reader as reader
@@ -32,6 +32,7 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+from basilisp.lang.compyler.constants import *
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname
 from basilisp.util import Maybe
@@ -130,9 +131,7 @@ SimplePyASTGenerator = Callable[[GeneratorContext, LispForm], GeneratedPyAST]
 PyASTGenerator = Callable[[GeneratorContext, lmap.Map], GeneratedPyAST]
 
 
-def _chain_py_ast(
-    *genned: GeneratedPyAST,
-) -> Tuple[PyASTStream, PyASTStream]:
+def _chain_py_ast(*genned: GeneratedPyAST,) -> Tuple[PyASTStream, PyASTStream]:
     """Chain a sequence of generated Python ASTs into a tuple of dependency nodes"""
     deps = itertools.chain.from_iterable(map(lambda n: n.dependencies, genned))
     nodes = map(lambda n: n.node, genned)
@@ -157,7 +156,7 @@ def _load_attr(name: str) -> ast.Attribute:
 def _simple_ast_generator(gen_ast):
     """Wrap simpler AST generators to return a GeneratedPyAST."""
 
-    @wraps
+    @wraps(gen_ast)
     def wrapped_ast_generator(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAST:
         return GeneratedPyAST(node=gen_ast(ctx, form))
 
@@ -203,7 +202,45 @@ def _collection_ast(
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
 
 
-def _expressionize(
+def statementize(e: ast.AST) -> ast.AST:
+    """Transform non-statements into ast.Expr nodes so they can
+    stand alone as statements."""
+    # noinspection PyPep8
+    if isinstance(
+        e,
+        (
+            ast.Assign,
+            ast.AnnAssign,  # type: ignore
+            ast.AugAssign,
+            ast.Raise,
+            ast.Assert,
+            ast.Pass,
+            ast.Import,
+            ast.ImportFrom,
+            ast.If,
+            ast.For,
+            ast.While,
+            ast.Continue,
+            ast.Break,
+            ast.Try,
+            ast.ExceptHandler,
+            ast.With,
+            ast.FunctionDef,
+            ast.Return,
+            ast.Yield,
+            ast.YieldFrom,
+            ast.Global,
+            ast.ClassDef,
+            ast.AsyncFunctionDef,
+            ast.AsyncFor,
+            ast.AsyncWith,
+        ),
+    ):
+        return e
+    return ast.Expr(value=e)
+
+
+def expressionize(
     body: GeneratedPyAST,
     fn_name: str,
     args: Optional[Iterable[ast.arg]] = None,
@@ -254,19 +291,19 @@ def _clean_meta(form: lmeta.Meta) -> LispForm:
 
 def _do_to_py_ast(ctx: GeneratorContext, form: lmap.Map) -> GeneratedPyAST:
     """Return a Python AST Node for a `do` expression."""
-    assert form.entry(parser.OP) == parser.DO
-    assert not form.entry(parser.BODY_Q)
+    assert form.entry(OP) == DO
+    assert not form.entry(BODY_Q)
 
     do_fn_name = genname(_DO_PREFIX)
-    body = form.entry(parser.STATEMENTS)
-    ret = form.entry(parser.RET)
+    body = form.entry(STATEMENTS)
+    ret = form.entry(RET)
 
     return GeneratedPyAST(
         node=ast.Call(
             func=ast.Name(id=do_fn_name, ctx=ast.Load()), args=[], keywords=[]
         ),
         dependencies=[
-            _expressionize(
+            expressionize(
                 GeneratedPyAST.reduce(
                     *itertools.chain(
                         map(partial(gen_py_ast, ctx), body), [gen_py_ast(ctx, ret)]
@@ -462,20 +499,20 @@ def _collection_literal_to_py_ast(
 
 
 _CONSTANT_HANDLER: Dict[kw.Keyword, SimplePyASTGenerator] = {  # type: ignore
-    parser.BOOL: _name_const_to_py_ast,
-    parser.INST: _inst_to_py_ast,
-    parser.NUMBER: _num_to_py_ast,
-    parser.DECIMAL: _decimal_to_py_ast,
-    parser.FRACTION: _fraction_to_py_ast,
-    parser.KEYWORD: _kw_to_py_ast,
-    parser.MAP: _const_map_to_py_ast,
-    parser.SET: _const_set_to_py_ast,
-    parser.REGEX: _regex_to_py_ast,
-    parser.SYMBOL: None,
-    parser.STRING: _str_to_py_ast,
-    parser.NIL: _name_const_to_py_ast,
-    parser.UUID: _uuid_to_py_ast,
-    parser.VECTOR: _const_vec_to_py_ast,
+    BOOL: _name_const_to_py_ast,
+    INST: _inst_to_py_ast,
+    NUMBER: _num_to_py_ast,
+    DECIMAL: _decimal_to_py_ast,
+    FRACTION: _fraction_to_py_ast,
+    KEYWORD: _kw_to_py_ast,
+    MAP: _const_map_to_py_ast,
+    SET: _const_set_to_py_ast,
+    REGEX: _regex_to_py_ast,
+    SYMBOL: None,
+    STRING: _str_to_py_ast,
+    NIL: _name_const_to_py_ast,
+    UUID: _uuid_to_py_ast,
+    VECTOR: _const_vec_to_py_ast,
 }
 
 
@@ -485,40 +522,40 @@ def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: lmap.Map) -> Generate
     Nested values in collections for :const nodes are not parsed. Consequently,
     this function cannot be called recursively for those nested values. Instead,
     call `_const_val_to_py_ast` on nested values."""
-    assert lisp_ast.entry(parser.OP) == parser.CONST
-    node_type: kw.Keyword = lisp_ast.entry(parser.TYPE)
+    assert lisp_ast.entry(OP) == CONST
+    node_type: kw.Keyword = lisp_ast.entry(TYPE)
     handle_node = _CONSTANT_HANDLER.get(node_type)
     assert handle_node is not None
-    node_val: LispForm = lisp_ast.entry(parser.VAL)
+    node_val: LispForm = lisp_ast.entry(VAL)
     return handle_node(ctx, node_val)
 
 
 _NODE_HANDLERS: Dict[kw.Keyword, PyASTGenerator] = {  # type: ignore
-    parser.CONST: _const_node_to_py_ast,
-    parser.DEF: None,
-    parser.DO: _do_to_py_ast,
-    parser.FN: None,
-    parser.HOST_CALL: None,
-    parser.HOST_FIELD: None,
-    parser.HOST_INTEROP: None,
-    parser.IF: None,
-    parser.INVOKE: None,
-    parser.LET: None,
-    parser.LETFN: None,
-    parser.LOOP: None,
-    parser.MAP: None,
-    parser.MAYBE_CLASS: None,
-    parser.MAYBE_HOST_FORM: None,
-    parser.NEW: None,
-    parser.QUOTE: None,
-    parser.RECUR: None,
-    parser.SET: None,
-    parser.SET_BANG: None,
-    parser.THROW: None,
-    parser.TRY: None,
-    parser.VAR: None,
-    parser.VECTOR: None,
-    parser.WITH_META: None,
+    CONST: _const_node_to_py_ast,
+    DEF: None,
+    DO: _do_to_py_ast,
+    FN: None,
+    HOST_CALL: None,
+    HOST_FIELD: None,
+    HOST_INTEROP: None,
+    IF: None,
+    INVOKE: None,
+    LET: None,
+    LETFN: None,
+    LOOP: None,
+    MAP: None,
+    MAYBE_CLASS: None,
+    MAYBE_HOST_FORM: None,
+    NEW: None,
+    QUOTE: None,
+    RECUR: None,
+    SET: None,
+    SET_BANG: None,
+    THROW: None,
+    TRY: None,
+    VAR: None,
+    VECTOR: None,
+    WITH_META: None,
 }
 
 
@@ -533,8 +570,78 @@ def gen_py_ast(ctx: GeneratorContext, lisp_ast: lmap.Map) -> GeneratedPyAST:
 
     This is the primary entrypoint for generating AST nodes from Lisp
     syntax. It may be called recursively to compile child forms."""
-    op: kw.Keyword = lisp_ast.entry(parser.OP)
+    op: kw.Keyword = lisp_ast.entry(OP)
     assert op is not None, "Lisp AST nodes must have an :op key"
     handle_node = _NODE_HANDLERS.get(op)
     assert handle_node is not None, "Lisp AST nodes :op has no handler defined"
     return handle_node(ctx, lisp_ast)
+
+
+#############################
+# Bootstrap Basilisp Modules
+#############################
+
+
+def _module_imports(ctx: GeneratorContext) -> Iterable[ast.Import]:
+    """Generate the Python Import AST node for importing all required
+    language support modules."""
+    aliases = {
+        "builtins": None,
+        "basilisp.lang.keyword": _KW_ALIAS,
+        "basilisp.lang.list": _LIST_ALIAS,
+        "basilisp.lang.map": _MAP_ALIAS,
+        "basilisp.lang.runtime": _RUNTIME_ALIAS,
+        "basilisp.lang.set": _SET_ALIAS,
+        "basilisp.lang.symbol": _SYM_ALIAS,
+        "basilisp.lang.vector": _VEC_ALIAS,
+        "basilisp.lang.util": _UTIL_ALIAS,
+    }
+    return (
+        seq(ctx.imports)
+        .map(lambda entry: entry.key.name)
+        .map(lambda name: (name, aliases.get(name, None)))
+        .map(lambda t: ast.Import(names=[ast.alias(name=t[0], asname=t[1])]))
+        .to_list()
+    )
+
+
+def _from_module_import() -> ast.ImportFrom:
+    """Generate the Python From ... Import AST node for importing
+    language support modules."""
+    return ast.ImportFrom(
+        module="basilisp.lang.runtime",
+        names=[ast.alias(name="Var", asname=_VAR_ALIAS)],
+        level=0,
+    )
+
+
+def _ns_var(
+    py_ns_var: str = _NS_VAR,
+    lisp_ns_var: str = _LISP_NS_VAR,
+    lisp_ns_ns: str = _CORE_NS,
+) -> ast.Assign:
+    """Assign a Python variable named `ns_var` to the value of the current
+    namespace."""
+    return ast.Assign(
+        targets=[ast.Name(id=py_ns_var, ctx=ast.Store())],
+        value=ast.Call(
+            func=_FIND_VAR_FN_NAME,
+            args=[
+                ast.Call(
+                    func=_NEW_SYM_FN_NAME,
+                    args=[ast.Str(lisp_ns_var)],
+                    keywords=[ast.keyword(arg="ns", value=ast.Str(lisp_ns_ns))],
+                )
+            ],
+            keywords=[],
+        ),
+    )
+
+
+def py_module_preamble(ctx: GeneratorContext,) -> GeneratedPyAST:
+    """Bootstrap a new module with imports and other boilerplate."""
+    preamble: List[ast.AST] = []
+    preamble.extend(_module_imports(ctx))
+    preamble.append(_from_module_import())
+    preamble.append(_ns_var())
+    return GeneratedPyAST(node=ast.NameConstant(None), dependencies=preamble)
