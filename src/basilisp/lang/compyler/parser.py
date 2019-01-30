@@ -603,7 +603,7 @@ def _if_ast(ctx: ParserContext, form: lseq.Seq) -> lmap.Map:
             "if forms must have either 3 or 4 elements, as in: (if test then else?)"
         )
 
-    if nelems == 3:
+    if nelems == 4:
         else_node = parse_ast(ctx, runtime.nth(form, 3))
     else:
         else_node = _const_node(ctx, None)

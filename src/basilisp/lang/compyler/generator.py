@@ -49,6 +49,7 @@ _DEFAULT_FN = "__lisp_expr__"
 _DO_PREFIX = "lisp_do"
 _FN_PREFIX = "lisp_fn"
 _IF_PREFIX = "lisp_if"
+_IF_RESULT_PREFIX = "if_result"
 _IF_TEST_PREFIX = "if_test"
 _MULTI_ARITY_ARG_NAME = "multi_arity_args"
 _THROW_PREFIX = "lisp_throw"
@@ -310,12 +311,86 @@ def _do_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     )
 
 
+def _if_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+    """Generate a function call to a utility function which acts as
+    an if expression and works around Python's if statement.
+
+    Every expression in Basilisp is true if it is not the literal values nil
+    or false. This function compiles direct checks for the test value against
+    the Python values None and False to accommodate this behavior.
+
+    Note that the if and else bodies are switched in compilation so that we
+    can perform a short-circuit or comparison, rather than exhaustively checking
+    for both false and nil each time."""
+    assert node.entry(OP) == IF
+
+    test = node.entry(TEST)
+    then = node.entry(THEN)
+    else_ = node.entry(ELSE)
+
+    test_ast = gen_py_ast(ctx, test)
+    then_ast = gen_py_ast(ctx, then)
+    else_ast = gen_py_ast(ctx, else_)
+
+    test_name = genname(_IF_TEST_PREFIX)
+    result_name = genname(_IF_RESULT_PREFIX)
+    test_assign = ast.Assign(
+        targets=[ast.Name(id=test_name, ctx=ast.Store())], value=test_ast.node
+    )
+
+    ifstmt = ast.If(
+        test=ast.BoolOp(
+            op=ast.Or(),
+            values=[
+                ast.Compare(
+                    left=ast.NameConstant(None),
+                    ops=[ast.Is()],
+                    comparators=[ast.Name(id=test_name, ctx=ast.Load())],
+                ),
+                ast.Compare(
+                    left=ast.NameConstant(False),
+                    ops=[ast.Is()],
+                    comparators=[ast.Name(id=test_name, ctx=ast.Load())],
+                ),
+            ],
+        ),
+        values=[],
+        body=list(
+            itertools.chain(
+                else_ast.dependencies,
+                [
+                    ast.Assign(
+                        targets=[ast.Name(id=result_name, ctx=ast.Store())],
+                        value=else_ast.node,
+                    )
+                ],
+            )
+        ),
+        orelse=list(
+            itertools.chain(
+                then_ast.dependencies,
+                [
+                    ast.Assign(
+                        targets=[ast.Name(id=result_name, ctx=ast.Store())],
+                        value=then_ast.node,
+                    )
+                ],
+            )
+        ),
+    )
+
+    return GeneratedPyAST(
+        node=ast.Name(id=result_name, ctx=ast.Load()),
+        dependencies=[test_assign, ifstmt],
+    )
+
+
 #################
 # Python Interop
 #################
 
 
-def _interop_call_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _interop_call_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop method calls."""
     assert node.entry(OP) == HOST_CALL
 
@@ -340,7 +415,7 @@ def _interop_call_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     )
 
 
-def _interop_prop_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _interop_prop_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
     assert node.entry(OP) == HOST_FIELD
 
@@ -357,7 +432,7 @@ def _interop_prop_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     )
 
 
-def _maybe_class_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _maybe_class_to_py_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
     assert node.entry(OP) == MAYBE_CLASS
 
@@ -367,7 +442,7 @@ def _maybe_class_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     return GeneratedPyAST(node=ast.Name(id=munge(class_.name), ctx=ast.Load()))
 
 
-def _maybe_host_form_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _maybe_host_form_to_py_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
     assert node.entry(OP) == MAYBE_CLASS
 
@@ -597,17 +672,17 @@ _NODE_HANDLERS: Dict[kw.Keyword, PyASTGenerator] = {  # type: ignore
     DEF: None,
     DO: _do_to_py_ast,
     FN: None,
-    HOST_CALL: _interop_call_ast,
-    HOST_FIELD: _interop_prop_ast,
+    HOST_CALL: _interop_call_to_py_ast,
+    HOST_FIELD: _interop_prop_to_py_ast,
     HOST_INTEROP: None,
-    IF: None,
+    IF: _if_to_py_ast,
     INVOKE: None,
     LET: None,
     LETFN: None,
     LOOP: None,
     MAP: None,
-    MAYBE_CLASS: _maybe_class_ast,
-    MAYBE_HOST_FORM: _maybe_host_form_ast,
+    MAYBE_CLASS: _maybe_class_to_py_ast,
+    MAYBE_HOST_FORM: _maybe_host_form_to_py_ast,
     NEW: None,
     QUOTE: None,
     RECUR: None,
