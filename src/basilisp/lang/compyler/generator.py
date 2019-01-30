@@ -249,7 +249,7 @@ def expressionize(
     statements and expressions, and Lisps, which have only expressions.
     """
     args = Maybe(args).or_else_get([])
-    body_nodes: List[ast.AST] = list(body.dependencies)
+    body_nodes: List[ast.AST] = list(map(statementize, body.dependencies))
     body_nodes.append(ast.Return(value=body.node))
 
     return ast.FunctionDef(
@@ -570,7 +570,7 @@ _CONSTANT_HANDLER: Dict[kw.Keyword, SimplePyASTGenerator] = {  # type: ignore
     MAP: _const_map_to_py_ast,
     SET: _const_set_to_py_ast,
     REGEX: _regex_to_py_ast,
-    SYMBOL: None,
+    SYMBOL: _const_sym_to_py_ast,
     STRING: _str_to_py_ast,
     NIL: _name_const_to_py_ast,
     UUID: _uuid_to_py_ast,
