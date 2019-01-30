@@ -1,7 +1,6 @@
 import ast
 import collections
 import contextlib
-import itertools
 import logging
 import types
 import uuid
@@ -9,6 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from functools import wraps, partial
+from itertools import chain
 from typing import (
     Iterable,
     Pattern,
@@ -285,6 +285,64 @@ def _clean_meta(form: lmeta.Meta) -> LispForm:
 #################
 
 
+def _def_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+    assert node.entry(OP) == DEF
+
+    defsym = node.entry(NAME)
+    init = node.entry(INIT)
+    children: vec.Vector = node.entry(CHILDREN)
+
+    if INIT in children:
+        def_ast = gen_py_ast(ctx, init)
+    else:
+        def_ast = GeneratedPyAST(node=ast.NameConstant(None))
+
+    ns_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[_NS_VAR_NAME], keywords=[])
+    def_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[ast.Str(defsym.name)], keywords=[])
+    safe_name = munge(defsym.name)
+
+    # TODO: compiler meta
+
+    # If the Var is marked as dynamic, we need to generate a keyword argument
+    # for the generated Python code to set the Var as dynamic
+    dynamic_kwarg = (
+        Maybe(defsym.meta)
+        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))  # type: ignore
+        .map(lambda v: [ast.keyword(arg="dynamic", value=ast.NameConstant(v))])
+        .or_else_get([])
+    )
+
+    # Warn if this symbol is potentially being redefined
+    if safe_name in ctx.current_ns.module.__dict__ or defsym in ctx.current_ns.interns:
+        no_warn_on_redef = (
+            Maybe(defsym.meta)
+            .map(lambda m: m.get(SYM_NO_WARN_ON_REDEF_META_KEY, False))  # type: ignore
+            .or_else_get(False)
+        )
+        if not no_warn_on_redef:
+            logger.warning(
+                f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'"
+            )
+
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_INTERN_VAR_FN_NAME,
+            args=[ns_name, def_name, ast.Name(id=safe_name, ctx=ast.Load())],
+            keywords=list(chain(dynamic_kwarg)),  # type: ignore
+        ),
+        dependencies=chain(
+            def_ast.dependencies,
+            [
+                ast.Global(names=[safe_name]),
+                ast.Assign(
+                    targets=[ast.Name(id=safe_name, ctx=ast.Store())],
+                    value=def_ast.node,
+                ),
+            ],
+        ),
+    )
+
+
 def _do_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     """Return a Python AST Node for a `do` expression."""
     assert node.entry(OP) == DO
@@ -301,9 +359,7 @@ def _do_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
         dependencies=[
             expressionize(
                 GeneratedPyAST.reduce(
-                    *itertools.chain(
-                        map(partial(gen_py_ast, ctx), body), [gen_py_ast(ctx, ret)]
-                    )
+                    *chain(map(partial(gen_py_ast, ctx), body), [gen_py_ast(ctx, ret)])
                 ),
                 do_fn_name,
             )
@@ -356,7 +412,7 @@ def _if_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
         ),
         values=[],
         body=list(
-            itertools.chain(
+            chain(
                 else_ast.dependencies,
                 [
                     ast.Assign(
@@ -367,7 +423,7 @@ def _if_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
             )
         ),
         orelse=list(
-            itertools.chain(
+            chain(
                 then_ast.dependencies,
                 [
                     ast.Assign(
@@ -382,6 +438,38 @@ def _if_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     return GeneratedPyAST(
         node=ast.Name(id=result_name, ctx=ast.Load()),
         dependencies=[test_assign, ifstmt],
+    )
+
+
+#################
+# Var Symbol
+#################
+
+
+def _var_sym_to_py_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+    """Generate a Python AST node for Python interop property access."""
+    assert node.entry(OP) == VAR
+
+    # TODO: direct link to Python variable, if possible
+
+    var: runtime.Var = node.entry(VAR)
+
+    return GeneratedPyAST(
+        node=ast.Attribute(
+            value=ast.Call(
+                func=_FIND_VAR_FN_NAME,
+                args=[
+                    ast.Call(
+                        func=_NEW_SYM_FN_NAME,
+                        args=[ast.Str(var.name.name)],
+                        keywords=[ast.keyword(arg="ns", value=ast.Str(var.ns.name))],
+                    )
+                ],
+                keywords=[],
+            ),
+            attr="value",
+            ctx=ast.Load(),
+        )
     )
 
 
@@ -411,7 +499,7 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPy
             args=list(args_nodes),
             keywords=[],
         ),
-        dependencies=list(itertools.chain(target_ast.dependencies, args_deps)),
+        dependencies=list(chain(target_ast.dependencies, args_deps)),
     )
 
 
@@ -449,7 +537,12 @@ def _maybe_host_form_to_py_ast(_: GeneratorContext, node: LispAST) -> GeneratedP
     ns: sym.Symbol = node.entry(CLASS)
     field: sym.Symbol = node.entry(FIELD)
 
-    return GeneratedPyAST(node=_load_attr(f"{ns}.{field}"))
+    if ns.name == _BUILTINS_NS:
+        return GeneratedPyAST(
+            node=ast.Name(f"{munge(field.name, allow_builtins=True)}")
+        )
+
+    return GeneratedPyAST(node=_load_attr(f"{munge(ns.name)}.{munge(field.name)}"))
 
 
 #################
@@ -561,9 +654,7 @@ def _const_map_to_py_ast(ctx: GeneratorContext, form: lmap.Map) -> GeneratedPyAS
             keywords=Maybe(meta).map(lambda p: [p.node]).or_else_get([]),
         ),
         dependencies=list(
-            itertools.chain(
-                keys, vals, Maybe(meta).map(lambda p: p.dependencies).or_else_get([])
-            )
+            chain(keys, vals, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
         ),
     )
 
@@ -578,9 +669,7 @@ def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAS
             keywords=Maybe(meta).map(lambda p: [p.node]).or_else_get([]),
         ),
         dependencies=list(
-            itertools.chain(
-                elems, Maybe(meta).map(lambda p: p.dependencies).or_else_get([])
-            )
+            chain(elems, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
         ),
     )
 
@@ -669,7 +758,7 @@ def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: lmap.Map) -> Generate
 
 _NODE_HANDLERS: Dict[kw.Keyword, PyASTGenerator] = {  # type: ignore
     CONST: _const_node_to_py_ast,
-    DEF: None,
+    DEF: _def_to_py_ast,
     DO: _do_to_py_ast,
     FN: None,
     HOST_CALL: _interop_call_to_py_ast,
@@ -690,7 +779,7 @@ _NODE_HANDLERS: Dict[kw.Keyword, PyASTGenerator] = {  # type: ignore
     SET_BANG: None,
     THROW: None,
     TRY: None,
-    VAR: None,
+    VAR: _var_sym_to_py_ast,
     VECTOR: None,
     WITH_META: None,
 }

@@ -17,6 +17,7 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.compyler.constants import *
+from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname
 from basilisp.util import Maybe, partition
@@ -897,17 +898,19 @@ def _resolve_sym(ctx: ParserContext, form: sym.Symbol) -> lmap.Map:
 
         ns_sym = sym.symbol(form.ns)
         if ns_sym in ctx.current_ns.imports or ns_sym in ctx.current_ns.import_aliases:
-            v = runtime.Var.find(form)
+            v = Var.find(form)
             if v is not None:
                 return lmap.map({OP: VAR, FORM: form, VAR: v, ASSIGNABLE_Q: v.dynamic})
+            if ns_sym in ctx.current_ns.import_aliases:
+                ns_sym: sym.Symbol = ctx.current_ns.import_aliases[ns_sym]
         elif ns_sym in ctx.current_ns.aliases:
             aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
-            v = runtime.Var.find(sym.symbol(form.name, ns=aliased_ns.name))
+            v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
             if v is not None:
                 return lmap.map({OP: VAR, FORM: form, VAR: v, ASSIGNABLE_Q: v.dynamic})
 
         return lmap.map(
-            {OP: MAYBE_HOST_FORM, FORM: form, CLASS: form.ns, FIELD: form.name}
+            {OP: MAYBE_HOST_FORM, FORM: form, CLASS: ns_sym, FIELD: form.name}
         )
     else:
         # Look up the symbol in the namespace mapping of the current namespace.

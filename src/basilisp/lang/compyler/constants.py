@@ -105,3 +105,10 @@ CLASS = kw.keyword("class")
 INST = kw.keyword("inst")
 UUID = kw.keyword("uuid")
 UNKNOWN = kw.keyword("unknown")
+
+# Common symbol keys
+SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
+SYM_MACRO_META_KEY = kw.keyword("macro")
+SYM_NO_WARN_ON_REDEF_META_KEY = kw.keyword("no-warn-on-redef")
+SYM_NO_WARN_WHEN_UNUSED_META_KEY = kw.keyword("no-warn-when-unused")
+SYM_REDEF_META_KEY = kw.keyword("redef")
