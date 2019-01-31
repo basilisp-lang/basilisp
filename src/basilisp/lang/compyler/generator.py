@@ -556,7 +556,7 @@ def _map_to_py_ast(
     assert node.entry(OP) == MAP
 
     if meta_node is not None:
-        meta_ast = gen_py_ast(ctx, meta_node)
+        meta_ast: Optional[GeneratedPyAST] = gen_py_ast(ctx, meta_node)
     else:
         meta_ast = None
 
@@ -589,7 +589,7 @@ def _set_to_py_ast(
     assert node.entry(OP) == SET
 
     if meta_node is not None:
-        meta_ast = gen_py_ast(ctx, meta_node)
+        meta_ast: Optional[GeneratedPyAST] = gen_py_ast(ctx, meta_node)
     else:
         meta_ast = None
 
@@ -616,7 +616,7 @@ def _vec_to_py_ast(
     assert node.entry(OP) == VECTOR
 
     if meta_node is not None:
-        meta_ast = gen_py_ast(ctx, meta_node)
+        meta_ast: Optional[GeneratedPyAST] = gen_py_ast(ctx, meta_node)
     else:
         meta_ast = None
 
@@ -642,7 +642,7 @@ def _vec_to_py_ast(
 ############
 
 
-_WITH_META_EXPR_HANDLER = {
+_WITH_META_EXPR_HANDLER: Dict[kw.Keyword, PyASTGenerator] = {
     MAP: _map_to_py_ast,
     SET: _set_to_py_ast,
     VECTOR: _vec_to_py_ast,
@@ -661,7 +661,7 @@ def _with_meta_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST
     assert (
         handle_expr is not None
     ), "No expression handler for with-meta child node type"
-    return handle_expr(ctx, expr, meta_node=meta)
+    return handle_expr(ctx, expr, meta_node=meta)  # type: ignore
 
 
 #################

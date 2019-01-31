@@ -902,7 +902,9 @@ def _resolve_sym(ctx: ParserContext, form: sym.Symbol) -> lmap.Map:
             if v is not None:
                 return lmap.map({OP: VAR, FORM: form, VAR: v, ASSIGNABLE_Q: v.dynamic})
             if ns_sym in ctx.current_ns.import_aliases:
-                ns_sym: sym.Symbol = ctx.current_ns.import_aliases[ns_sym]
+                ns_sym: sym.Symbol = ctx.current_ns.import_aliases[  # type: ignore
+                    ns_sym
+                ]
         elif ns_sym in ctx.current_ns.aliases:
             aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
             v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
