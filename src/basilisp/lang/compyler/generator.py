@@ -129,7 +129,7 @@ PyASTGenerator = Callable[[GeneratorContext, lmap.Map], GeneratedPyAST]
 
 def _chain_py_ast(*genned: GeneratedPyAST,) -> Tuple[PyASTStream, PyASTStream]:
     """Chain a sequence of generated Python ASTs into a tuple of dependency nodes"""
-    deps = itertools.chain.from_iterable(map(lambda n: n.dependencies, genned))
+    deps = chain.from_iterable(map(lambda n: n.dependencies, genned))
     nodes = map(lambda n: n.node, genned)
     return deps, nodes
 
@@ -545,6 +545,125 @@ def _maybe_host_form_to_py_ast(_: GeneratorContext, node: LispAST) -> GeneratedP
     return GeneratedPyAST(node=_load_attr(f"{munge(ns.name)}.{munge(field.name)}"))
 
 
+#########################
+# Non-Quoted Collections
+#########################
+
+
+def _map_to_py_ast(
+    ctx: GeneratorContext, node: LispAST, meta_node: Optional[LispAST] = None
+) -> GeneratedPyAST:
+    assert node.entry(OP) == MAP
+
+    if meta_node is not None:
+        meta_ast = gen_py_ast(ctx, meta_node)
+    else:
+        meta_ast = None
+
+    keys_ast = node.entry(KEYS)
+    vals_ast = node.entry(VALS)
+
+    key_deps, keys = _chain_py_ast(*map(partial(gen_py_ast, ctx), keys_ast))
+    val_deps, vals = _chain_py_ast(*map(partial(gen_py_ast, ctx), vals_ast))
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_NEW_MAP_FN_NAME,
+            args=[ast.Dict(keys=list(keys), values=list(vals))],
+            keywords=Maybe(meta_ast)
+            .map(lambda p: [ast.keyword(arg="meta", value=p.node)])
+            .or_else_get([]),
+        ),
+        dependencies=list(
+            chain(
+                keys,
+                vals,
+                Maybe(meta_ast).map(lambda p: p.dependencies).or_else_get([]),
+            )
+        ),
+    )
+
+
+def _set_to_py_ast(
+    ctx: GeneratorContext, node: LispAST, meta_node: Optional[LispAST] = None
+) -> GeneratedPyAST:
+    assert node.entry(OP) == SET
+
+    if meta_node is not None:
+        meta_ast = gen_py_ast(ctx, meta_node)
+    else:
+        meta_ast = None
+
+    items = node.entry(ITEMS)
+
+    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), items))
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_NEW_SET_FN_NAME,
+            args=[ast.List(list(elems), ast.Load())],
+            keywords=Maybe(meta_ast)
+            .map(lambda p: [ast.keyword(arg="meta", value=p.node)])
+            .or_else_get([]),
+        ),
+        dependencies=list(
+            chain(elems, Maybe(meta_ast).map(lambda p: p.dependencies).or_else_get([]))
+        ),
+    )
+
+
+def _vec_to_py_ast(
+    ctx: GeneratorContext, node: LispAST, meta_node: Optional[LispAST] = None
+) -> GeneratedPyAST:
+    assert node.entry(OP) == VECTOR
+
+    if meta_node is not None:
+        meta_ast = gen_py_ast(ctx, meta_node)
+    else:
+        meta_ast = None
+
+    items = node.entry(ITEMS)
+
+    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), items))
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_NEW_VEC_FN_NAME,
+            args=[ast.List(list(elems), ast.Load())],
+            keywords=Maybe(meta_ast)
+            .map(lambda p: [ast.keyword(arg="meta", value=p.node)])
+            .or_else_get([]),
+        ),
+        dependencies=Maybe(meta_ast)
+        .map(lambda p: list(p.dependencies))
+        .or_else_get([]),
+    )
+
+
+############
+# With Meta
+############
+
+
+_WITH_META_EXPR_HANDLER = {
+    MAP: _map_to_py_ast,
+    SET: _set_to_py_ast,
+    VECTOR: _vec_to_py_ast,
+}
+
+
+def _with_meta_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+    """Generate a Python AST node for Python interop method calls."""
+    assert node.entry(OP) == WITH_META
+
+    meta: LispAST = node.entry(META)
+    expr: LispAST = node.entry(EXPR)
+
+    expr_type = expr.entry(OP)
+    handle_expr = _WITH_META_EXPR_HANDLER.get(expr_type)
+    assert (
+        handle_expr is not None
+    ), "No expression handler for with-meta child node type"
+    return handle_expr(ctx, expr, meta_node=meta)
+
+
 #################
 # Constant Nodes
 #################
@@ -769,19 +888,19 @@ _NODE_HANDLERS: Dict[kw.Keyword, PyASTGenerator] = {  # type: ignore
     LET: None,
     LETFN: None,
     LOOP: None,
-    MAP: None,
+    MAP: _map_to_py_ast,
     MAYBE_CLASS: _maybe_class_to_py_ast,
     MAYBE_HOST_FORM: _maybe_host_form_to_py_ast,
     NEW: None,
     QUOTE: None,
     RECUR: None,
-    SET: None,
+    SET: _set_to_py_ast,
     SET_BANG: None,
     THROW: None,
     TRY: None,
     VAR: _var_sym_to_py_ast,
-    VECTOR: None,
-    WITH_META: None,
+    VECTOR: _vec_to_py_ast,
+    WITH_META: _with_meta_to_py_ast,
 }
 
 
