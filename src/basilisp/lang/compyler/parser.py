@@ -8,6 +8,7 @@ from fractions import Fraction
 from functools import partial, wraps
 from typing import Pattern, Union, Deque, Optional, NamedTuple, Dict, Callable, cast
 
+import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.reader as reader
@@ -16,7 +17,7 @@ import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.compyler.constants import *
+from basilisp.lang.compyler.constants import SpecialForm, AMPERSAND
 from basilisp.lang.compyler.nodes import (
     Const,
     Node,
@@ -55,30 +56,18 @@ from basilisp.util import Maybe, partition
 logger = logging.getLogger(__name__)
 
 DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
+_BUILTINS_NS = "builtins"
+
+# Lisp AST node keywords
+INIT = kw.keyword("init")
+META = kw.keyword("meta")
+FIXED_ARITY = kw.keyword("fixed-arity")
+BODY = kw.keyword("body")
+CATCHES = kw.keyword("catches")
+FINALLY = kw.keyword("finally")
 
 # Parser options
 WARN_ON_UNUSED_NAMES = "warn_on_unused_names"
-
-# Special form symbols
-_AMPERSAND = sym.symbol("&")
-_CATCH = sym.symbol("catch")
-_DEF = sym.symbol("def")
-_DO = sym.symbol("do")
-_FINALLY = sym.symbol("finally")
-_FN = sym.symbol("fn*")
-_IF = sym.symbol("if")
-_IMPORT = sym.symbol("import*")
-_INTEROP_CALL = sym.symbol(".")
-_INTEROP_PROP = sym.symbol(".-")
-_LET = sym.symbol("let*")
-_LOOP = sym.symbol("loop*")
-_QUOTE = sym.symbol("quote")
-_RECUR = sym.symbol("recur")
-_THROW = sym.symbol("throw")
-_TRY = sym.symbol("try")
-_VAR = sym.symbol("var")
-
-_BUILTINS_NS = "builtins"
 
 
 def count(seq: lseq.Seq) -> int:
@@ -105,17 +94,6 @@ class SymbolTableEntry(NamedTuple):
 
 
 class SymbolTable:
-    LOCAL_CONTEXTS = lset.set(
-        [
-            SYM_CTX_LOCAL_ARG,
-            SYM_CTX_LOCAL_CATCH,
-            SYM_CTX_LOCAL_FN,
-            SYM_CTX_LOCAL_LET,
-            SYM_CTX_LOCAL_LETFN,
-            SYM_CTX_LOCAL_LOOP,
-        ]
-    )
-
     __slots__ = ("_name", "_parent", "_table", "_children")
 
     def __init__(
@@ -143,7 +121,6 @@ class SymbolTable:
     def new_symbol(
         self, s: sym.Symbol, ctx: LocalType, warn_if_unused: bool = True
     ) -> "SymbolTable":
-        assert ctx in SymbolTable.LOCAL_CONTEXTS
         if s in self._table:
             self._table[s] = self._table[s]._replace(
                 context=ctx, symbol=s, warn_if_unused=warn_if_unused
@@ -306,7 +283,7 @@ def _with_meta(gen_node):
 
 
 def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
-    assert form.first == _DEF
+    assert form.first == SpecialForm.DEF
 
     nelems = count(form)
     if nelems not in (2, 3, 4):
@@ -349,7 +326,7 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
 
 
 def _do_ast(ctx: ParserContext, form: lseq.Seq) -> Do:
-    assert form.first == _DO
+    assert form.first == SpecialForm.DO
     *statements, ret = map(partial(parse_ast, ctx), form.rest)
     return Do(form=form, statements=vec.vector(statements), ret=ret)
 
@@ -368,7 +345,7 @@ def _fn_method_ast(
             if not isinstance(s, sym.Symbol):
                 raise ParserException("function arity parameter name must be a symbol")
 
-            if s == _AMPERSAND:
+            if s == AMPERSAND:
                 has_vargs = True
                 vargs_idx = i
                 break
@@ -421,7 +398,7 @@ def _fn_method_ast(
 
 
 def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
-    assert form.first == _FN
+    assert form.first == SpecialForm.FN
 
     idx = 1
 
@@ -504,7 +481,7 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
 def _host_interop_ast(
     ctx: ParserContext, form: lseq.Seq
 ) -> Union[HostCall, HostField, HostInterop]:
-    assert form.first == _INTEROP_CALL
+    assert form.first == SpecialForm.INTEROP_CALL
     nelems = count(form)
     assert nelems >= 3
 
@@ -560,7 +537,7 @@ def _host_interop_ast(
 
 
 def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:
-    assert form.first == _IF
+    assert form.first == SpecialForm.IF
 
     nelems = count(form)
     if nelems not in (3, 4):
@@ -600,7 +577,7 @@ def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Invoke
 
 
 def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
-    assert form.first == _LET
+    assert form.first == SpecialForm.LET
     nelems = count(form)
 
     if nelems < 3:
@@ -645,7 +622,7 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
 
 
 def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
-    assert form.first == _QUOTE
+    assert form.first == SpecialForm.QUOTE
 
     with ctx.quoted():
         expr = parse_ast(ctx, runtime.nth(form, 1))
@@ -654,12 +631,12 @@ def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
 
 
 def _throw_ast(ctx: ParserContext, form: lseq.Seq) -> Throw:
-    assert form.first == _THROW
+    assert form.first == SpecialForm.THROW
     return Throw(form=form, exception=parse_ast(ctx, runtime.nth(form, 1)))
 
 
 def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
-    assert form.first == _CATCH
+    assert form.first == SpecialForm.CATCH
     nelems = count(form)
 
     if nelems < 4:
@@ -695,21 +672,21 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
 
 
 def _try_ast(ctx: ParserContext, form: lseq.Seq) -> Try:
-    assert form.first == _TRY
+    assert form.first == SpecialForm.TRY
 
     try_exprs = []
     catches = []
     finally_: Optional[Do] = None
     for expr in form.rest:
         if isinstance(expr, (llist.List, lseq.Seq)):
-            if expr.first == _CATCH:
+            if expr.first == SpecialForm.CATCH:
                 if finally_:
                     raise ParserException(
                         "catch forms may not appear after finally forms in a try"
                     )
                 catches.append(_catch_ast(ctx, expr))
                 continue
-            elif expr.first == _FINALLY:
+            elif expr.first == SpecialForm.FINALLY:
                 if finally_ is not None:
                     raise ParserException(
                         "try forms may not contain multiple finally forms"
@@ -759,15 +736,15 @@ SpecialFormNode = Union[
 ]
 SpecialFormHandler = Callable[[ParserContext, lseq.Seq], SpecialFormNode]
 _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
-    _DEF: _def_node,
-    _DO: _do_ast,
-    _FN: _fn_ast,
-    _IF: _if_ast,
-    _INTEROP_CALL: _host_interop_ast,
-    _LET: _let_ast,
-    _QUOTE: _quote_ast,
-    _THROW: _throw_ast,
-    _TRY: _try_ast,
+    SpecialForm.DEF.value: _def_node,
+    SpecialForm.DO.value: _do_ast,
+    SpecialForm.FN.value: _fn_ast,
+    SpecialForm.IF.value: _if_ast,
+    SpecialForm.INTEROP_CALL.value: _host_interop_ast,
+    SpecialForm.LET.value: _let_ast,
+    SpecialForm.QUOTE.value: _quote_ast,
+    SpecialForm.THROW.value: _throw_ast,
+    SpecialForm.TRY.value: _try_ast,
 }
 
 
@@ -876,7 +853,7 @@ _CONST_NODE_TYPES = {  # type: ignore
     float: ConstType.NUMBER,
     Fraction: ConstType.FRACTION,
     int: ConstType.NUMBER,
-    kw.Keyword: KEYWORD,
+    kw.Keyword: ConstType.KEYWORD,
     lmap.Map: ConstType.MAP,
     lset.Set: ConstType.SET,
     Pattern: ConstType.REGEX,

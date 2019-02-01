@@ -25,6 +25,7 @@ from typing import (
 
 from functional import seq
 
+import basilisp.lang.keyword as kw
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as lmeta
 import basilisp.lang.reader as reader
@@ -32,7 +33,6 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.compyler.constants import *
 from basilisp.lang.compyler.nodes import (
     Node,
     NodeOp,
@@ -59,6 +59,13 @@ from basilisp.util import Maybe
 logger = logging.getLogger(__name__)
 
 DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
+
+# Lisp AST node keywords
+INIT = kw.keyword("init")
+
+# Symbol meta keys
+SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
+SYM_NO_WARN_ON_REDEF_META_KEY = kw.keyword("no-warn-on-redef")
 
 # String constants used in generating code
 _BUILTINS_NS = "builtins"
