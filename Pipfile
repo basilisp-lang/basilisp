@@ -15,12 +15,13 @@ twine = "*"
 [packages]
 astor = "*"
 atomos = "*"
-basilisp = {editable = true, path = "."}
+basilisp = {editable = true,path = "."}
 click = "*"
 pyfunctional = "*"
 pyrsistent = "*"
 python-dateutil = "*"
 pytest = "*"
+attrs = "*"
 
 [requires]
 python_version = "3.6"
