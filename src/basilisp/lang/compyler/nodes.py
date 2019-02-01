@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Collection, Union, Optional, Iterable, Generic, TypeVar
+from typing import Collection, Union, Optional, Iterable, Generic, TypeVar, Callable
 
 import attr
 
@@ -13,6 +13,7 @@ import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
+from basilisp.lang.util import munge
 
 BODY = kw.keyword("body")
 CLASS = kw.keyword("class")
@@ -94,6 +95,24 @@ class Node(ABC, Generic[T]):
 
     def assoc(self, **kwargs):
         return attr.evolve(self, **kwargs)
+
+    def visit(self, f: Callable[..., None], *args, **kwargs):
+        """Visit all descendents of this node, calling f(node, *args, **kwargs)
+        on each before visiting its descendents recursively."""
+        for child_kw in self.children:
+            child_attr = munge(child_kw.name)
+
+            if child_attr.endswith("s"):
+                iter_child: Iterable[Node] = getattr(self, child_attr)
+                assert iter_child is not None, "Listed child must not be none"
+                for item in iter_child:
+                    f(item, *args, **kwargs)
+                    item.visit(f, *args, **kwargs)
+            else:
+                child: Node = getattr(self, child_attr)
+                assert child is not None, "Listed child must not be none"
+                f(child, *args, **kwargs)
+                child.visit(f, *args, **kwargs)
 
 
 class Assignable(ABC):
