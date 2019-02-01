@@ -868,26 +868,24 @@ def _vector_node(ctx: ParserContext, form: vec.Vector) -> VectorNode:
     return VectorNode(form=form, items=vec.vector(map(partial(parse_ast, ctx), form)))
 
 
-_CONST_NODE_TYPES = lmap.map(
-    {
-        bool: BOOL,
-        complex: NUMBER,
-        datetime: INST,
-        Decimal: DECIMAL,
-        float: NUMBER,
-        Fraction: FRACTION,
-        int: NUMBER,
-        kw.Keyword: KEYWORD,
-        lmap.Map: MAP,
-        lset.Set: SET,
-        Pattern: REGEX,
-        sym.Symbol: SYMBOL,
-        str: STRING,
-        type(None): NIL,
-        uuid.UUID: UUID,
-        vec.Vector: VECTOR,
-    }
-)
+_CONST_NODE_TYPES = {  # type: ignore
+    bool: ConstType.BOOL,
+    complex: ConstType.NUMBER,
+    datetime: ConstType.INST,
+    Decimal: ConstType.DECIMAL,
+    float: ConstType.NUMBER,
+    Fraction: ConstType.FRACTION,
+    int: ConstType.NUMBER,
+    kw.Keyword: KEYWORD,
+    lmap.Map: ConstType.MAP,
+    lset.Set: ConstType.SET,
+    Pattern: ConstType.REGEX,
+    sym.Symbol: ConstType.SYMBOL,
+    str: ConstType.STRING,
+    type(None): ConstType.NIL,
+    uuid.UUID: ConstType.UUID,
+    vec.Vector: ConstType.VECTOR,
+}
 
 
 def _const_node(ctx: ParserContext, form: LispForm) -> Const:
@@ -914,7 +912,7 @@ def _const_node(ctx: ParserContext, form: LispForm) -> Const:
     descriptor = Const(
         form=form,
         is_literal=True,
-        type=_CONST_NODE_TYPES.entry(type(form), UNKNOWN),
+        type=cast(ConstType, _CONST_NODE_TYPES.get(type(form), ConstType.UNKNOWN)),
         val=form,
     )
 

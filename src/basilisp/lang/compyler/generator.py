@@ -33,6 +33,24 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.compyler.constants import *
+from basilisp.lang.compyler.nodes import (
+    Node,
+    NodeOp,
+    ConstType,
+    Const,
+    WithMeta,
+    Def,
+    Do,
+    If,
+    VarRef,
+    HostCall,
+    HostField,
+    MaybeClass,
+    MaybeHostForm,
+    Map as MapNode,
+    Set as SetNode,
+    Vector as VectorNode,
+)
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
 from basilisp.util import Maybe
@@ -121,10 +139,9 @@ class GeneratedPyAST(NamedTuple):
         return GeneratedPyAST(node=deps[-1], dependencies=deps[:-1])
 
 
-LispAST = lmap.Map
 PyASTStream = Iterable[ast.AST]
 SimplePyASTGenerator = Callable[[GeneratorContext, LispForm], GeneratedPyAST]
-PyASTGenerator = Callable[[GeneratorContext, lmap.Map], GeneratedPyAST]
+PyASTGenerator = Callable[[GeneratorContext, Node], GeneratedPyAST]
 
 
 def _chain_py_ast(*genned: GeneratedPyAST,) -> Tuple[PyASTStream, PyASTStream]:
@@ -192,7 +209,7 @@ _TRAMPOLINE_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._TrampolineArgs")
 
 
 def _collection_ast(
-    ctx: GeneratorContext, form: Iterable[LispForm]
+    ctx: GeneratorContext, form: Iterable[Node]
 ) -> Tuple[PyASTStream, PyASTStream]:
     """Turn a collection of Lisp forms into Python AST nodes."""
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
@@ -285,15 +302,14 @@ def _clean_meta(form: lmeta.Meta) -> LispForm:
 #################
 
 
-def _def_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
-    assert node.entry(OP) == DEF
+def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
+    assert node.op == NodeOp.DEF
 
-    defsym = node.entry(NAME)
-    init = node.entry(INIT)
-    children: vec.Vector = node.entry(CHILDREN)
+    defsym = node.name
 
-    if INIT in children:
-        def_ast = gen_py_ast(ctx, init)
+    if INIT in node.children:
+        assert node.init is not None, "Def init must be defined"
+        def_ast = gen_py_ast(ctx, node.init)
     else:
         def_ast = GeneratedPyAST(node=ast.NameConstant(None))
 
@@ -343,14 +359,12 @@ def _def_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     )
 
 
-def _do_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     """Return a Python AST Node for a `do` expression."""
-    assert node.entry(OP) == DO
-    assert not node.entry(BODY_Q)
+    assert node.op == NodeOp.DO
+    assert not node.is_body
 
     do_fn_name = genname(_DO_PREFIX)
-    body = node.entry(STATEMENTS)
-    ret = node.entry(RET)
 
     return GeneratedPyAST(
         node=ast.Call(
@@ -359,7 +373,10 @@ def _do_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
         dependencies=[
             expressionize(
                 GeneratedPyAST.reduce(
-                    *chain(map(partial(gen_py_ast, ctx), body), [gen_py_ast(ctx, ret)])
+                    *chain(
+                        map(partial(gen_py_ast, ctx), node.statements),
+                        [gen_py_ast(ctx, node.ret)],
+                    )
                 ),
                 do_fn_name,
             )
@@ -367,7 +384,7 @@ def _do_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     )
 
 
-def _if_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     """Generate a function call to a utility function which acts as
     an if expression and works around Python's if statement.
 
@@ -378,11 +395,11 @@ def _if_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
     Note that the if and else bodies are switched in compilation so that we
     can perform a short-circuit or comparison, rather than exhaustively checking
     for both false and nil each time."""
-    assert node.entry(OP) == IF
+    assert node.op == NodeOp.IF
 
-    test = node.entry(TEST)
-    then = node.entry(THEN)
-    else_ = node.entry(ELSE)
+    test = node.test
+    then = node.then
+    else_ = node.else_
 
     test_ast = gen_py_ast(ctx, test)
     then_ast = gen_py_ast(ctx, then)
@@ -446,13 +463,13 @@ def _if_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
 #################
 
 
-def _var_sym_to_py_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _var_sym_to_py_ast(_: GeneratorContext, node: VarRef) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
-    assert node.entry(OP) == VAR
+    assert node.op == NodeOp.VAR
 
     # TODO: direct link to Python variable, if possible
 
-    var: runtime.Var = node.entry(VAR)
+    var: runtime.Var = node.var
 
     return GeneratedPyAST(
         node=ast.Attribute(
@@ -478,13 +495,13 @@ def _var_sym_to_py_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
 #################
 
 
-def _interop_call_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _interop_call_to_py_ast(ctx: GeneratorContext, node: HostCall) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop method calls."""
-    assert node.entry(OP) == HOST_CALL
+    assert node.op == NodeOp.HOST_CALL
 
-    target: LispAST = node.entry(TARGET)
-    method: sym.Symbol = node.entry(METHOD)
-    args: vec.Vector = node.entry(ARGS)
+    target = node.target
+    method = node.method
+    args = node.args
 
     target_ast = gen_py_ast(ctx, target)
     args_deps, args_nodes = _collection_ast(ctx, args)
@@ -503,12 +520,12 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPy
     )
 
 
-def _interop_prop_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _interop_prop_to_py_ast(ctx: GeneratorContext, node: HostField) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
-    assert node.entry(OP) == HOST_FIELD
+    assert node.op == NodeOp.HOST_FIELD
 
-    target: LispAST = node.entry(TARGET)
-    field: sym.Symbol = node.entry(FIELD)
+    target = node.target
+    field = node.field
 
     target_ast = gen_py_ast(ctx, target)
 
@@ -520,22 +537,24 @@ def _interop_prop_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPy
     )
 
 
-def _maybe_class_to_py_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _maybe_class_to_py_ast(_: GeneratorContext, node: MaybeClass) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
-    assert node.entry(OP) == MAYBE_CLASS
+    assert node.op == NodeOp.MAYBE_CLASS
 
-    class_: sym.Symbol = node.entry(CLASS)
+    class_ = node.class_
     assert class_.ns is None
 
     return GeneratedPyAST(node=ast.Name(id=munge(class_.name), ctx=ast.Load()))
 
 
-def _maybe_host_form_to_py_ast(_: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _maybe_host_form_to_py_ast(
+    _: GeneratorContext, node: MaybeHostForm
+) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
-    assert node.entry(OP) == MAYBE_CLASS
+    assert node.op == NodeOp.MAYBE_HOST_FORM
 
-    ns: sym.Symbol = node.entry(CLASS)
-    field: sym.Symbol = node.entry(FIELD)
+    ns = node.class_
+    field = node.field
 
     if ns.name == _BUILTINS_NS:
         return GeneratedPyAST(
@@ -550,21 +569,21 @@ def _maybe_host_form_to_py_ast(_: GeneratorContext, node: LispAST) -> GeneratedP
 #########################
 
 
+MetaNode = Union[Const, MapNode]
+
+
 def _map_to_py_ast(
-    ctx: GeneratorContext, node: LispAST, meta_node: Optional[LispAST] = None
+    ctx: GeneratorContext, node: MapNode, meta_node: Optional[MetaNode] = None
 ) -> GeneratedPyAST:
-    assert node.entry(OP) == MAP
+    assert node.op == NodeOp.MAP
 
     if meta_node is not None:
         meta_ast: Optional[GeneratedPyAST] = gen_py_ast(ctx, meta_node)
     else:
         meta_ast = None
 
-    keys_ast = node.entry(KEYS)
-    vals_ast = node.entry(VALS)
-
-    key_deps, keys = _chain_py_ast(*map(partial(gen_py_ast, ctx), keys_ast))
-    val_deps, vals = _chain_py_ast(*map(partial(gen_py_ast, ctx), vals_ast))
+    key_deps, keys = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.keys))
+    val_deps, vals = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.vals))
     return GeneratedPyAST(
         node=ast.Call(
             func=_NEW_MAP_FN_NAME,
@@ -584,18 +603,16 @@ def _map_to_py_ast(
 
 
 def _set_to_py_ast(
-    ctx: GeneratorContext, node: LispAST, meta_node: Optional[LispAST] = None
+    ctx: GeneratorContext, node: SetNode, meta_node: Optional[MetaNode] = None
 ) -> GeneratedPyAST:
-    assert node.entry(OP) == SET
+    assert node.op == NodeOp.SET
 
     if meta_node is not None:
         meta_ast: Optional[GeneratedPyAST] = gen_py_ast(ctx, meta_node)
     else:
         meta_ast = None
 
-    items = node.entry(ITEMS)
-
-    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), items))
+    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.items))
     return GeneratedPyAST(
         node=ast.Call(
             func=_NEW_SET_FN_NAME,
@@ -611,18 +628,16 @@ def _set_to_py_ast(
 
 
 def _vec_to_py_ast(
-    ctx: GeneratorContext, node: LispAST, meta_node: Optional[LispAST] = None
+    ctx: GeneratorContext, node: VectorNode, meta_node: Optional[MetaNode] = None
 ) -> GeneratedPyAST:
-    assert node.entry(OP) == VECTOR
+    assert node.op == NodeOp.VECTOR
 
     if meta_node is not None:
         meta_ast: Optional[GeneratedPyAST] = gen_py_ast(ctx, meta_node)
     else:
         meta_ast = None
 
-    items = node.entry(ITEMS)
-
-    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), items))
+    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.items))
     return GeneratedPyAST(
         node=ast.Call(
             func=_NEW_VEC_FN_NAME,
@@ -642,26 +657,24 @@ def _vec_to_py_ast(
 ############
 
 
-_WITH_META_EXPR_HANDLER: Dict[kw.Keyword, PyASTGenerator] = {
-    MAP: _map_to_py_ast,
-    SET: _set_to_py_ast,
-    VECTOR: _vec_to_py_ast,
+_WITH_META_EXPR_HANDLER = {  # type: ignore
+    # NodeOp.Fn: _fn_to_py_ast,
+    NodeOp.MAP: _map_to_py_ast,
+    NodeOp.SET: _set_to_py_ast,
+    NodeOp.VECTOR: _vec_to_py_ast,
 }
 
 
-def _with_meta_to_py_ast(ctx: GeneratorContext, node: LispAST) -> GeneratedPyAST:
+def _with_meta_to_py_ast(ctx: GeneratorContext, node: WithMeta) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop method calls."""
-    assert node.entry(OP) == WITH_META
+    assert node.op == NodeOp.WITH_META
 
-    meta: LispAST = node.entry(META)
-    expr: LispAST = node.entry(EXPR)
-
-    expr_type = expr.entry(OP)
+    expr_type = node.expr.op
     handle_expr = _WITH_META_EXPR_HANDLER.get(expr_type)
     assert (
         handle_expr is not None
     ), "No expression handler for with-meta child node type"
-    return handle_expr(ctx, expr, meta_node=meta)  # type: ignore
+    return handle_expr(ctx, node.expr, meta_node=node.meta)  # type: ignore
 
 
 #################
@@ -843,64 +856,64 @@ def _collection_literal_to_py_ast(
     yield from map(partial(_const_val_to_py_ast, ctx), form)
 
 
-_CONSTANT_HANDLER: Dict[kw.Keyword, SimplePyASTGenerator] = {  # type: ignore
-    BOOL: _name_const_to_py_ast,
-    INST: _inst_to_py_ast,
-    NUMBER: _num_to_py_ast,
-    DECIMAL: _decimal_to_py_ast,
-    FRACTION: _fraction_to_py_ast,
-    KEYWORD: _kw_to_py_ast,
-    MAP: _const_map_to_py_ast,
-    SET: _const_set_to_py_ast,
-    REGEX: _regex_to_py_ast,
-    SYMBOL: _const_sym_to_py_ast,
-    STRING: _str_to_py_ast,
-    NIL: _name_const_to_py_ast,
-    UUID: _uuid_to_py_ast,
-    VECTOR: _const_vec_to_py_ast,
+_CONSTANT_HANDLER: Dict[ConstType, SimplePyASTGenerator] = {  # type: ignore
+    ConstType.BOOL: _name_const_to_py_ast,
+    ConstType.INST: _inst_to_py_ast,
+    ConstType.NUMBER: _num_to_py_ast,
+    ConstType.DECIMAL: _decimal_to_py_ast,
+    ConstType.FRACTION: _fraction_to_py_ast,
+    ConstType.KEYWORD: _kw_to_py_ast,
+    ConstType.MAP: _const_map_to_py_ast,
+    ConstType.SET: _const_set_to_py_ast,
+    ConstType.REGEX: _regex_to_py_ast,
+    ConstType.SYMBOL: _const_sym_to_py_ast,
+    ConstType.STRING: _str_to_py_ast,
+    ConstType.NIL: _name_const_to_py_ast,
+    ConstType.UUID: _uuid_to_py_ast,
+    ConstType.VECTOR: _const_vec_to_py_ast,
 }
 
 
-def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: lmap.Map) -> GeneratedPyAST:
+def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: Const) -> GeneratedPyAST:
     """Generate Python AST nodes for a :const Lisp AST node.
 
     Nested values in collections for :const nodes are not parsed. Consequently,
     this function cannot be called recursively for those nested values. Instead,
     call `_const_val_to_py_ast` on nested values."""
-    assert lisp_ast.entry(OP) == CONST
-    node_type: kw.Keyword = lisp_ast.entry(TYPE)
+    assert lisp_ast.op == NodeOp.CONST
+    node_type = lisp_ast.type
     handle_node = _CONSTANT_HANDLER.get(node_type)
     assert handle_node is not None
-    node_val: LispForm = lisp_ast.entry(VAL)
+    node_val = lisp_ast.val
     return handle_node(ctx, node_val)
 
 
-_NODE_HANDLERS: Dict[kw.Keyword, PyASTGenerator] = {  # type: ignore
-    CONST: _const_node_to_py_ast,
-    DEF: _def_to_py_ast,
-    DO: _do_to_py_ast,
-    FN: None,
-    HOST_CALL: _interop_call_to_py_ast,
-    HOST_FIELD: _interop_prop_to_py_ast,
-    HOST_INTEROP: None,
-    IF: _if_to_py_ast,
-    INVOKE: None,
-    LET: None,
-    LETFN: None,
-    LOOP: None,
-    MAP: _map_to_py_ast,
-    MAYBE_CLASS: _maybe_class_to_py_ast,
-    MAYBE_HOST_FORM: _maybe_host_form_to_py_ast,
-    NEW: None,
-    QUOTE: None,
-    RECUR: None,
-    SET: _set_to_py_ast,
-    SET_BANG: None,
-    THROW: None,
-    TRY: None,
-    VAR: _var_sym_to_py_ast,
-    VECTOR: _vec_to_py_ast,
-    WITH_META: _with_meta_to_py_ast,
+_NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
+    NodeOp.CONST: _const_node_to_py_ast,
+    NodeOp.DEF: _def_to_py_ast,
+    NodeOp.DO: _do_to_py_ast,
+    NodeOp.FN: None,
+    NodeOp.HOST_CALL: _interop_call_to_py_ast,
+    NodeOp.HOST_FIELD: _interop_prop_to_py_ast,
+    NodeOp.HOST_INTEROP: None,
+    NodeOp.IF: _if_to_py_ast,
+    NodeOp.INVOKE: None,
+    NodeOp.LET: None,
+    NodeOp.LETFN: None,
+    NodeOp.LOOP: None,
+    NodeOp.MAP: _map_to_py_ast,
+    NodeOp.MAYBE_CLASS: _maybe_class_to_py_ast,
+    NodeOp.MAYBE_HOST_FORM: _maybe_host_form_to_py_ast,
+    NodeOp.NEW: None,
+    NodeOp.QUOTE: None,
+    NodeOp.RECUR: None,
+    NodeOp.SET: _set_to_py_ast,
+    NodeOp.SET_BANG: None,
+    NodeOp.THROW: None,
+    NodeOp.TRY: None,
+    NodeOp.VAR: _var_sym_to_py_ast,
+    NodeOp.VECTOR: _vec_to_py_ast,
+    NodeOp.WITH_META: _with_meta_to_py_ast,
 }
 
 
@@ -909,13 +922,13 @@ _NODE_HANDLERS: Dict[kw.Keyword, PyASTGenerator] = {  # type: ignore
 ###################
 
 
-def gen_py_ast(ctx: GeneratorContext, lisp_ast: lmap.Map) -> GeneratedPyAST:
+def gen_py_ast(ctx: GeneratorContext, lisp_ast: Node) -> GeneratedPyAST:
     """Take a Lisp AST node as an argument and produce zero or more Python
     AST nodes.
 
     This is the primary entrypoint for generating AST nodes from Lisp
     syntax. It may be called recursively to compile child forms."""
-    op: kw.Keyword = lisp_ast.entry(OP)
+    op: NodeOp = lisp_ast.op
     assert op is not None, "Lisp AST nodes must have an :op key"
     handle_node = _NODE_HANDLERS.get(op)
     assert handle_node is not None, "Lisp AST nodes :op has no handler defined"
