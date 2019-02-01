@@ -1,10 +1,7 @@
-from enum import Enum
-
 import basilisp.lang.symbol as sym
 
 
-class SpecialForm(Enum):
-    AMPERSAND = sym.symbol("&")
+class SpecialForm:
     CATCH = sym.symbol("catch")
     DEF = sym.symbol("def")
     DO = sym.symbol("do")

@@ -355,12 +355,12 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
         ),
         dependencies=chain(
             def_ast.dependencies,
+            [] if node.top_level else [ast.Global(names=[safe_name])],
             [
-                ast.Global(names=[safe_name]),
                 ast.Assign(
                     targets=[ast.Name(id=safe_name, ctx=ast.Store())],
                     value=def_ast.node,
-                ),
+                )
             ],
         ),
     )

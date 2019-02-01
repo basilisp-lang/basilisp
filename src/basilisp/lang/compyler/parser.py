@@ -268,7 +268,7 @@ def _with_meta(gen_node):
         descriptor = gen_node(ctx, form)
 
         if hasattr(form, "meta") and form.meta is not None:  # type: ignore
-            meta_ast = parse_ast(ctx, form.meta)  # type: ignore
+            meta_ast = _parse_ast(ctx, form.meta)  # type: ignore
 
             if isinstance(meta_ast, MapNode) or (
                 isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP
@@ -300,18 +300,18 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
         doc = None
         children = vec.Vector.empty()
     elif nelems == 3:
-        init = parse_ast(ctx, runtime.nth(form, 2))
+        init = _parse_ast(ctx, runtime.nth(form, 2))
         doc = None
         children = vec.v(INIT)
     else:
-        init = parse_ast(ctx, runtime.nth(form, 3))
+        init = _parse_ast(ctx, runtime.nth(form, 3))
         doc = runtime.nth(form, 2)
         children = vec.v(INIT)
 
     descriptor = Def(form=form, name=name, init=init, doc=doc, children=children)
 
     if name.meta is not None:
-        meta_ast = parse_ast(ctx, name.meta)
+        meta_ast = _parse_ast(ctx, name.meta)
 
         if not isinstance(meta_ast, Const) or meta_ast.type != ConstType.MAP:
             existing_children = cast(vec.Vector, descriptor.children)
@@ -327,7 +327,7 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
 
 def _do_ast(ctx: ParserContext, form: lseq.Seq) -> Do:
     assert form.first == SpecialForm.DO
-    *statements, ret = map(partial(parse_ast, ctx), form.rest)
+    *statements, ret = map(partial(_parse_ast, ctx), form.rest)
     return Do(form=form, statements=vec.vector(statements), ret=ret)
 
 
@@ -384,7 +384,7 @@ def _fn_method_ast(
                     "Expected variadic argument name after '&'"
                 ) from None
 
-        *stmts, ret = map(partial(parse_ast, ctx), form.rest)
+        *stmts, ret = map(partial(_parse_ast, ctx), form.rest)
         return FnMethod(
             form=form,
             loop_id=sym.symbol(genname("fn_arity" if fnname is None else fnname.name)),
@@ -456,8 +456,8 @@ def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> HostCall:
     return HostCall(
         form=form,
         method=sym.symbol(method.name[1:]),
-        target=parse_ast(ctx, runtime.nth(form, 1)),
-        args=vec.vector(map(partial(parse_ast, ctx), runtime.nthrest(form, 2))),
+        target=_parse_ast(ctx, runtime.nth(form, 1)),
+        args=vec.vector(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))),
     )
 
 
@@ -473,7 +473,7 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
     return HostField(
         form=form,
         field=sym.symbol(field.name[2:]),
-        target=parse_ast(ctx, runtime.nth(form, 1)),
+        target=_parse_ast(ctx, runtime.nth(form, 1)),
         is_assignable=True,
     )
 
@@ -500,7 +500,7 @@ def _host_interop_ast(
             return HostField(
                 form=form,
                 field=sym.symbol(maybe_m_or_f.name[1:]),
-                target=parse_ast(ctx, runtime.nth(form, 1)),
+                target=_parse_ast(ctx, runtime.nth(form, 1)),
                 is_assignable=True,
             )
 
@@ -517,8 +517,8 @@ def _host_interop_ast(
             method=sym.symbol(method.name[1:])
             if method.name.startswith("-")
             else method,
-            target=parse_ast(ctx, runtime.nth(form, 1)),
-            args=vec.vector(map(partial(parse_ast, ctx), maybe_m_or_f.rest)),
+            target=_parse_ast(ctx, runtime.nth(form, 1)),
+            args=vec.vector(map(partial(_parse_ast, ctx), maybe_m_or_f.rest)),
         )
 
     if nelems != 3:
@@ -530,7 +530,7 @@ def _host_interop_ast(
 
     return HostInterop(
         form=form,
-        target=parse_ast(ctx, runtime.nth(form, 1)),
+        target=_parse_ast(ctx, runtime.nth(form, 1)),
         m_or_f=m_or_f,
         is_assignable=True,
     )
@@ -546,14 +546,14 @@ def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:
         )
 
     if nelems == 4:
-        else_node = parse_ast(ctx, runtime.nth(form, 3))
+        else_node = _parse_ast(ctx, runtime.nth(form, 3))
     else:
         else_node = _const_node(ctx, None)
 
     return If(
         form=form,
-        test=parse_ast(ctx, runtime.nth(form, 1)),
-        then=parse_ast(ctx, runtime.nth(form, 2)),
+        test=_parse_ast(ctx, runtime.nth(form, 1)),
+        then=_parse_ast(ctx, runtime.nth(form, 2)),
         else_=else_node,
     )
 
@@ -561,12 +561,12 @@ def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:
 def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Invoke:
     descriptor = Invoke(
         form=form,
-        fn=parse_ast(ctx, form.first),
-        args=vec.vector(map(partial(parse_ast, ctx), form.rest)),
+        fn=_parse_ast(ctx, form.first),
+        args=vec.vector(map(partial(_parse_ast, ctx), form.rest)),
     )
 
     if hasattr(form, "meta") and form.meta is not None:  # type: ignore
-        meta_ast = parse_ast(ctx, form.meta)  # type: ignore
+        meta_ast = _parse_ast(ctx, form.meta)  # type: ignore
 
         if not isinstance(meta_ast, Const) or meta_ast.type != ConstType.MAP:
             return descriptor.assoc(meta=meta_ast)
@@ -602,13 +602,13 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
                     form=name,
                     name=name,
                     local=LocalType.LET,
-                    init=parse_ast(ctx, value),
+                    init=_parse_ast(ctx, value),
                 )
             )
 
             ctx.symbol_table.new_symbol(name, LocalType.LET)
 
-        *statements, ret = map(partial(parse_ast, ctx), runtime.nthrest(form, 2))
+        *statements, ret = map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))
         return Let(
             form=form,
             bindings=vec.vector(binding_nodes),
@@ -625,14 +625,14 @@ def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
     assert form.first == SpecialForm.QUOTE
 
     with ctx.quoted():
-        expr = parse_ast(ctx, runtime.nth(form, 1))
+        expr = _parse_ast(ctx, runtime.nth(form, 1))
         assert isinstance(expr, Const), "Quoted expressions must yield :const nodes"
         return Quote(form=form, expr=expr, is_literal=True)
 
 
 def _throw_ast(ctx: ParserContext, form: lseq.Seq) -> Throw:
     assert form.first == SpecialForm.THROW
-    return Throw(form=form, exception=parse_ast(ctx, runtime.nth(form, 1)))
+    return Throw(form=form, exception=_parse_ast(ctx, runtime.nth(form, 1)))
 
 
 def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
@@ -644,7 +644,7 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
             "catch forms must contain at least 4 elements: (catch class local body*)"
         )
 
-    catch_cls = parse_ast(ctx, runtime.nth(form, 1))
+    catch_cls = _parse_ast(ctx, runtime.nth(form, 1))
     if not isinstance(catch_cls, MaybeClass):
         raise ParserException("catch forms must name a class type to catch")
 
@@ -656,7 +656,7 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
         ctx.symbol_table.new_symbol(local_name, LocalType.CATCH)
 
         *catch_statements, catch_ret = map(
-            partial(parse_ast, ctx), runtime.nthrest(form, 3)
+            partial(_parse_ast, ctx), runtime.nthrest(form, 3)
         )
         return Catch(
             form=form,
@@ -691,7 +691,7 @@ def _try_ast(ctx: ParserContext, form: lseq.Seq) -> Try:
                     raise ParserException(
                         "try forms may not contain multiple finally forms"
                     )
-                *finally_stmts, finally_ret = map(partial(parse_ast, ctx), expr.rest)
+                *finally_stmts, finally_ret = map(partial(_parse_ast, ctx), expr.rest)
                 finally_ = Do(
                     form=expr.rest,
                     statements=vec.vector(finally_stmts),
@@ -700,7 +700,7 @@ def _try_ast(ctx: ParserContext, form: lseq.Seq) -> Try:
                 )
                 continue
 
-        parsed = parse_ast(ctx, expr)
+        parsed = _parse_ast(ctx, expr)
 
         if catches:
             raise ParserException(
@@ -736,15 +736,15 @@ SpecialFormNode = Union[
 ]
 SpecialFormHandler = Callable[[ParserContext, lseq.Seq], SpecialFormNode]
 _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
-    SpecialForm.DEF.value: _def_node,
-    SpecialForm.DO.value: _do_ast,
-    SpecialForm.FN.value: _fn_ast,
-    SpecialForm.IF.value: _if_ast,
-    SpecialForm.INTEROP_CALL.value: _host_interop_ast,
-    SpecialForm.LET.value: _let_ast,
-    SpecialForm.QUOTE.value: _quote_ast,
-    SpecialForm.THROW.value: _throw_ast,
-    SpecialForm.TRY.value: _try_ast,
+    SpecialForm.DEF: _def_node,
+    SpecialForm.DO: _do_ast,
+    SpecialForm.FN: _fn_ast,
+    SpecialForm.IF: _if_ast,
+    SpecialForm.INTEROP_CALL: _host_interop_ast,
+    SpecialForm.LET: _let_ast,
+    SpecialForm.QUOTE: _quote_ast,
+    SpecialForm.THROW: _throw_ast,
+    SpecialForm.TRY: _try_ast,
 }
 
 
@@ -829,20 +829,20 @@ def _symbol_node(
 def _map_node(ctx: ParserContext, form: lmap.Map) -> MapNode:
     keys, vals = [], []
     for k, v in form.items():
-        keys.append(parse_ast(ctx, k))
-        vals.append(parse_ast(ctx, v))
+        keys.append(_parse_ast(ctx, k))
+        vals.append(_parse_ast(ctx, v))
 
     return MapNode(form=form, keys=vec.vector(keys), vals=vec.vector(vals))
 
 
 @_with_meta
 def _set_node(ctx: ParserContext, form: lset.Set) -> SetNode:
-    return SetNode(form=form, items=vec.vector(map(partial(parse_ast, ctx), form)))
+    return SetNode(form=form, items=vec.vector(map(partial(_parse_ast, ctx), form)))
 
 
 @_with_meta
 def _vector_node(ctx: ParserContext, form: vec.Vector) -> VectorNode:
-    return VectorNode(form=form, items=vec.vector(map(partial(parse_ast, ctx), form)))
+    return VectorNode(form=form, items=vec.vector(map(partial(_parse_ast, ctx), form)))
 
 
 _CONST_NODE_TYPES = {  # type: ignore
@@ -904,9 +904,7 @@ def _const_node(ctx: ParserContext, form: LispForm) -> Const:
     return descriptor
 
 
-def parse_ast(ctx: ParserContext, form: LispForm) -> Node:
-    """Take a Lisp form as an argument and produce a Basilisp syntax
-    tree matching the clojure.tools.analyzer AST spec."""
+def _parse_ast(ctx: ParserContext, form: LispForm) -> Node:
     if isinstance(form, (llist.List, lseq.Seq)):
         return _list_node(ctx, form)
     elif isinstance(form, vec.Vector):
@@ -944,3 +942,19 @@ def parse_ast(ctx: ParserContext, form: LispForm) -> Node:
         return _const_node(ctx, form)
     else:
         raise TypeError(f"Unexpected form type {type(form)}: {form}")
+
+
+def parse_ast(ctx: ParserContext, form: LispForm, is_top_level: bool = True) -> Node:
+    """Take a Lisp form as an argument and produce a Basilisp syntax
+    tree matching the clojure.tools.analyzer AST spec.
+
+    If this function is called internally (such as by the generator
+    during macroexpansion), the `is_top_level` keyword argument should
+    be specified correctly for that situation. It is defaulted to True,
+    which is correct for the majority of use cases."""
+    node = _parse_ast(ctx, form)
+
+    if is_top_level:
+        return node.assoc(top_level=True)
+
+    return node
