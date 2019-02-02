@@ -55,7 +55,9 @@ from basilisp.lang.compyler.nodes import (
     Quote,
     ReaderLispForm,
     Invoke,
-    Throw)
+    Throw,
+    HostInterop,
+)
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
 from basilisp.util import Maybe
@@ -586,6 +588,20 @@ def _interop_prop_to_py_ast(ctx: GeneratorContext, node: HostField) -> Generated
     )
 
 
+def _interop_to_py_ast(ctx: GeneratorContext, node: HostInterop) -> GeneratedPyAST:
+    """Generate a Python AST node for Python interop property access."""
+    assert node.op == NodeOp.HOST_INTEROP
+
+    target_ast = gen_py_ast(ctx, node.target)
+
+    return GeneratedPyAST(
+        node=ast.Attribute(
+            value=target_ast.node, attr=munge(node.m_or_f.name), ctx=ast.Load()
+        ),
+        dependencies=target_ast.dependencies,
+    )
+
+
 def _maybe_class_to_py_ast(_: GeneratorContext, node: MaybeClass) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
     assert node.op == NodeOp.MAYBE_CLASS
@@ -606,7 +622,9 @@ def _maybe_host_form_to_py_ast(
 
     if ns.name == _BUILTINS_NS:
         return GeneratedPyAST(
-            node=ast.Name(id=f"{munge(node.field.name, allow_builtins=True)}", ctx=ast.Load())
+            node=ast.Name(
+                id=f"{munge(node.field.name, allow_builtins=True)}", ctx=ast.Load()
+            )
         )
 
     return GeneratedPyAST(node=_load_attr(f"{munge(ns.name)}.{munge(node.field.name)}"))
@@ -964,7 +982,7 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.FN: None,
     NodeOp.HOST_CALL: _interop_call_to_py_ast,
     NodeOp.HOST_FIELD: _interop_prop_to_py_ast,
-    NodeOp.HOST_INTEROP: None,
+    NodeOp.HOST_INTEROP: _interop_to_py_ast,
     NodeOp.IF: _if_to_py_ast,
     NodeOp.INVOKE: _invoke_to_py_ast,
     NodeOp.LET: None,
