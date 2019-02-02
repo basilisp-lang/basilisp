@@ -15,6 +15,7 @@ class SpecialForm:
     LOOP = sym.symbol("loop*")
     QUOTE = sym.symbol("quote")
     RECUR = sym.symbol("recur")
+    SET_BANG = sym.symbol("set!")
     THROW = sym.symbol("throw")
     TRY = sym.symbol("try")
     VAR = sym.symbol("var")

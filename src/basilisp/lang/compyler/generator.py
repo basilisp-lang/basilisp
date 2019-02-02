@@ -59,6 +59,8 @@ from basilisp.lang.compyler.nodes import (
     HostInterop,
     Try,
     LocalType,
+    SetBang,
+    Local,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -507,6 +509,41 @@ def _quote_to_py_ast(ctx: GeneratorContext, node: Quote) -> GeneratedPyAST:
     return _const_node_to_py_ast(ctx, node.expr)
 
 
+def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
+    """Return a Python AST Node for a `quote` expression."""
+    assert node.op == NodeOp.SET_BANG
+
+    target = node.target
+    if isinstance(target, Local):
+        safe_name = munge(target.name.name)
+        target_ast = GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Store()))
+        result_ast = GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Load()))
+    elif isinstance(target, HostField):
+        target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
+        result_ast = _interop_prop_to_py_ast(ctx, target)
+    elif isinstance(target, HostInterop):
+        target_ast = _interop_to_py_ast(ctx, target, is_assigning=True)
+        result_ast = _interop_to_py_ast(ctx, target)
+    elif isinstance(target, VarRef):
+        target_ast = _var_sym_to_py_ast(ctx, target, is_assigning=True)
+        result_ast = _var_sym_to_py_ast(ctx, target)
+    else:
+        raise TypeError
+
+    val_ast = gen_py_ast(ctx, node.val)
+    return GeneratedPyAST(
+        node=result_ast.node,
+        dependencies=list(
+            chain(
+                target_ast.dependencies,
+                val_ast.dependencies,
+                [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
+                result_ast.dependencies,
+            )
+        ),
+    )
+
+
 def _throw_to_py_ast(ctx: GeneratorContext, node: Throw) -> GeneratedPyAST:
     """Return a Python AST Node for a `throw` expression."""
     assert node.op == NodeOp.THROW
@@ -611,7 +648,9 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
 #################
 
 
-def _var_sym_to_py_ast(_: GeneratorContext, node: VarRef) -> GeneratedPyAST:
+def _var_sym_to_py_ast(
+    _: GeneratorContext, node: VarRef, is_assigning: bool = False
+) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
     assert node.op == NodeOp.VAR
 
@@ -633,7 +672,7 @@ def _var_sym_to_py_ast(_: GeneratorContext, node: VarRef) -> GeneratedPyAST:
                 keywords=[],
             ),
             attr="value",
-            ctx=ast.Load(),
+            ctx=ast.Store() if is_assigning else ast.Load(),
         )
     )
 
@@ -664,7 +703,9 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: HostCall) -> GeneratedP
     )
 
 
-def _interop_prop_to_py_ast(ctx: GeneratorContext, node: HostField) -> GeneratedPyAST:
+def _interop_prop_to_py_ast(
+    ctx: GeneratorContext, node: HostField, is_assigning: bool = False
+) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
     assert node.op == NodeOp.HOST_FIELD
 
@@ -672,13 +713,17 @@ def _interop_prop_to_py_ast(ctx: GeneratorContext, node: HostField) -> Generated
 
     return GeneratedPyAST(
         node=ast.Attribute(
-            value=target_ast.node, attr=munge(node.field.name), ctx=ast.Load()
+            value=target_ast.node,
+            attr=munge(node.field.name),
+            ctx=ast.Store() if is_assigning else ast.Load(),
         ),
         dependencies=target_ast.dependencies,
     )
 
 
-def _interop_to_py_ast(ctx: GeneratorContext, node: HostInterop) -> GeneratedPyAST:
+def _interop_to_py_ast(
+    ctx: GeneratorContext, node: HostInterop, is_assigning: bool = False
+) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop property access."""
     assert node.op == NodeOp.HOST_INTEROP
 
@@ -686,7 +731,9 @@ def _interop_to_py_ast(ctx: GeneratorContext, node: HostInterop) -> GeneratedPyA
 
     return GeneratedPyAST(
         node=ast.Attribute(
-            value=target_ast.node, attr=munge(node.m_or_f.name), ctx=ast.Load()
+            value=target_ast.node,
+            attr=munge(node.m_or_f.name),
+            ctx=ast.Store() if is_assigning else ast.Load(),
         ),
         dependencies=target_ast.dependencies,
     )
@@ -1090,7 +1137,7 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.QUOTE: _quote_to_py_ast,
     NodeOp.RECUR: None,
     NodeOp.SET: _set_to_py_ast,
-    NodeOp.SET_BANG: None,
+    NodeOp.SET_BANG: _set_bang_to_py_ast,
     NodeOp.THROW: _throw_to_py_ast,
     NodeOp.TRY: _try_to_py_ast,
     NodeOp.VAR: _var_sym_to_py_ast,

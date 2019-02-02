@@ -1041,29 +1041,18 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME, core_ns_name: str = _CORE_NS) -> 
         lambda: RuntimeException(f"Dynamic Var {ns_var_sym} not bound!")
     )
 
-    def set_BANG_(var_sym: sym.Symbol, expr):
-        ns = Maybe(var_sym.ns).or_else(lambda: __NS.value.name)
-        name = var_sym.name
-
-        v = Maybe(Var.find(sym.symbol(name, ns=ns))).or_else_raise(
-            lambda: RuntimeException(f"Var {ns_var_sym} not bound!")
-        )
-        v.value = expr
-        return expr
-
     def in_ns(s: sym.Symbol):
         ns = Namespace.get_or_create(s)
-        set_BANG_(ns_var_sym, ns)
+
+        v = Maybe(Var.find(ns_var_sym)).or_else_raise(
+            lambda: RuntimeException(f"Var {ns_var_sym} not bound!")
+        )
+        v.value = ns
+
         return ns
 
     Var.intern_unbound(core_ns_sym, sym.symbol("unquote"))
     Var.intern_unbound(core_ns_sym, sym.symbol("unquote-splicing"))
-    Var.intern(
-        core_ns_sym,
-        sym.symbol("set!"),
-        set_BANG_,
-        meta=lmap.map({_REDEF_META_KEY: True}),
-    )
     Var.intern(
         core_ns_sym, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
     )

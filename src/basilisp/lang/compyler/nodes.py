@@ -23,6 +23,7 @@ RET = kw.keyword("ret")
 METHODS = kw.keyword("methods")
 PARAMS = kw.keyword("params")
 TARGET = kw.keyword("target")
+VAL = kw.keyword("val")
 ARGS = kw.keyword("args")
 FN = kw.keyword("fn")
 BINDINGS = kw.keyword("bindings")
@@ -179,7 +180,7 @@ class Binding(Node[sym.Symbol]):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class Catch(Node[SpecialForm]):
     form: SpecialForm
-    class_: "MaybeClass"
+    class_: Union["MaybeClass", "MaybeHostForm"]
     local: Binding
     body: "Do"
     children: Collection[kw.Keyword] = vec.v(CLASS, LOCAL, BODY)
@@ -408,9 +409,9 @@ class Set(Node[lset.Set]):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class SetBang(Node[SpecialForm]):
     form: SpecialForm
-    target: Node
-    val: Union[HostField, HostInterop, Local, "VarRef"]
-    children: Collection[kw.Keyword] = vec.v(ITEMS)
+    target: Union[Assignable, Node]
+    val: Node
+    children: Collection[kw.Keyword] = vec.v(TARGET, VAL)
     op: NodeOp = NodeOp.SET_BANG
     top_level: bool = False
 

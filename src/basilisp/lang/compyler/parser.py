@@ -47,6 +47,8 @@ from basilisp.lang.compyler.nodes import (
     MaybeHostForm,
     VarRef,
     ReaderLispForm,
+    SetBang,
+    Assignable,
 )
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
@@ -631,6 +633,19 @@ def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
         return Quote(form=form, expr=expr, is_literal=True)
 
 
+def _set_bang_ast(ctx: ParserContext, form: lseq.Seq) -> SetBang:
+    assert form.first == SpecialForm.SET_BANG
+
+    target = _parse_ast(ctx, runtime.nth(form, 1))
+    if not isinstance(target, Assignable):
+        raise ParserException(f"cannot set! targets of type {type(target)}")
+
+    if not target.is_assignable:
+        raise ParserException(f"cannot set! target which is not assignable")
+
+    return SetBang(form=form, target=target, val=_parse_ast(ctx, runtime.nth(form, 2)))
+
+
 def _throw_ast(ctx: ParserContext, form: lseq.Seq) -> Throw:
     assert form.first == SpecialForm.THROW
     return Throw(form=form, exception=_parse_ast(ctx, runtime.nth(form, 1)))
@@ -733,7 +748,19 @@ def _try_ast(ctx: ParserContext, form: lseq.Seq) -> Try:
 
 
 SpecialFormNode = Union[
-    Def, Do, Fn, If, HostCall, HostField, HostInterop, Invoke, Let, Quote, Throw, Try
+    Def,
+    Do,
+    Fn,
+    If,
+    HostCall,
+    HostField,
+    HostInterop,
+    Invoke,
+    Let,
+    Quote,
+    SetBang,
+    Throw,
+    Try,
 ]
 SpecialFormHandler = Callable[[ParserContext, lseq.Seq], SpecialFormNode]
 _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
@@ -744,6 +771,7 @@ _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.INTEROP_CALL: _host_interop_ast,
     SpecialForm.LET: _let_ast,
     SpecialForm.QUOTE: _quote_ast,
+    SpecialForm.SET_BANG: _set_bang_ast,
     SpecialForm.THROW: _throw_ast,
     SpecialForm.TRY: _try_ast,
 }
@@ -763,6 +791,7 @@ def _list_node(
     Invoke,
     Let,
     Quote,
+    SetBang,
     Throw,
     Try,
 ]:
