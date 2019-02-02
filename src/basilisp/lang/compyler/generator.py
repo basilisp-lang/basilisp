@@ -859,7 +859,7 @@ def _vec_to_py_ast(
 
 
 _WITH_META_EXPR_HANDLER = {  # type: ignore
-    # NodeOp.Fn: _fn_to_py_ast,
+    NodeOp.FN: None,  # TODO: function with meta
     NodeOp.MAP: _map_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
