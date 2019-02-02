@@ -51,6 +51,7 @@ from basilisp.lang.compyler.nodes import (
     ReaderLispForm,
     SetBang,
     Assignable,
+    Loop,
 )
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
@@ -625,6 +626,52 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
         )
 
 
+def _loop_ast(ctx: ParserContext, form: lseq.Seq) -> Loop:
+    assert form.first == SpecialForm.LOOP
+    nelems = count(form)
+
+    if nelems < 3:
+        raise ParserException(
+            "loop forms must have bindings and at least one body form"
+        )
+
+    bindings = runtime.nth(form, 1)
+    if not isinstance(bindings, vec.Vector):
+        raise ParserException("loop bindings must be a vector")
+    elif len(bindings) % 2 != 0:
+        raise ParserException("loop bindings must appear in name-value pairs")
+
+    with ctx.new_symbol_table("loop"):
+        binding_nodes = []
+        for name, value in partition(bindings, 2):
+            if not isinstance(name, sym.Symbol):
+                raise ParserException("loop binding name must be a symbol")
+
+            binding_nodes.append(
+                Binding(
+                    form=name,
+                    name=name,
+                    local=LocalType.LOOP,
+                    init=_parse_ast(ctx, value),
+                )
+            )
+
+            ctx.symbol_table.new_symbol(name, LocalType.LOOP)
+
+        *statements, ret = map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))
+        return Loop(
+            form=form,
+            bindings=vec.vector(binding_nodes),
+            body=Do(
+                form=runtime.nthrest(form, 2),
+                statements=vec.vector(statements),
+                ret=ret,
+                is_body=True,
+            ),
+            loop_id=sym.symbol(genname("loop")),
+        )
+
+
 def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
     assert form.first == SpecialForm.QUOTE
 
@@ -758,6 +805,7 @@ SpecialFormNode = Union[
     HostInterop,
     Invoke,
     Let,
+    Loop,
     Quote,
     SetBang,
     Throw,
@@ -771,6 +819,7 @@ _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.IF: _if_ast,
     SpecialForm.INTEROP_CALL: _host_interop_ast,
     SpecialForm.LET: _let_ast,
+    SpecialForm.LOOP: _loop_ast,
     SpecialForm.QUOTE: _quote_ast,
     SpecialForm.SET_BANG: _set_bang_ast,
     SpecialForm.THROW: _throw_ast,
@@ -791,6 +840,7 @@ def _list_node(
     HostInterop,
     Invoke,
     Let,
+    Loop,
     Quote,
     SetBang,
     Throw,

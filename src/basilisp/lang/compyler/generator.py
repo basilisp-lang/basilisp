@@ -21,6 +21,7 @@ from typing import (
     NamedTuple,
     Tuple,
     Type,
+    Any,
 )
 
 import attr
@@ -100,12 +101,9 @@ def count(seq: Iterable) -> int:
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class RecurPoint:
-    __slots__ = ("name", "args", "has_recur")
-
-    def __init__(self, name: str, args: vec.Vector) -> None:
-        self.name = name
-        self.args = args
-        self.has_recur = False
+    name: str
+    args: Iterable[Any]
+    has_recur: bool = False
 
 
 class GeneratorContext:
