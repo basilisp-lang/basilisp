@@ -46,6 +46,7 @@ from basilisp.lang.compyler.nodes import (
     Try,
     MaybeHostForm,
     VarRef,
+    ReaderLispForm,
 )
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
@@ -751,8 +752,23 @@ _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
 def _list_node(
     ctx: ParserContext, form: lseq.Seq
 ) -> Union[
-    Def, Do, Fn, If, HostCall, HostField, HostInterop, Invoke, Let, Quote, Throw, Try
+    Const,
+    Def,
+    Do,
+    Fn,
+    If,
+    HostCall,
+    HostField,
+    HostInterop,
+    Invoke,
+    Let,
+    Quote,
+    Throw,
+    Try,
 ]:
+    if ctx.is_quoted:
+        return _const_node(ctx, form)
+
     s = form.first
     if isinstance(s, sym.Symbol):
         handle_special_form = _SPECIAL_FORM_HANDLERS.get(s)
@@ -854,8 +870,10 @@ _CONST_NODE_TYPES = {  # type: ignore
     Fraction: ConstType.FRACTION,
     int: ConstType.NUMBER,
     kw.Keyword: ConstType.KEYWORD,
+    llist.List: ConstType.SEQ,
     lmap.Map: ConstType.MAP,
     lset.Set: ConstType.SET,
+    lseq.Seq: ConstType.SEQ,
     Pattern: ConstType.REGEX,
     sym.Symbol: ConstType.SYMBOL,
     str: ConstType.STRING,
@@ -865,9 +883,12 @@ _CONST_NODE_TYPES = {  # type: ignore
 }
 
 
-def _const_node(ctx: ParserContext, form: LispForm) -> Const:
+def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
     assert (
-        ctx.is_quoted and isinstance(form, (sym.Symbol, vec.Vector, lmap.Map, lset.Set))
+        ctx.is_quoted
+        and isinstance(
+            form, (sym.Symbol, vec.Vector, llist.List, lmap.Map, lset.Set, lseq.Seq)
+        )
     ) or isinstance(
         form,
         (

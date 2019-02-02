@@ -147,6 +147,7 @@ class ConstType(Enum):
 
 
 NodeMeta = Union[None, "Const", "Map"]
+ReaderLispForm = Union[LispForm, lseq.Seq]
 SpecialForm = Union[llist.List, lseq.Seq]
 LoopID = sym.Symbol
 
@@ -186,10 +187,10 @@ class Catch(Node[SpecialForm]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class Const(Node[LispForm]):
-    form: LispForm
+class Const(Node[ReaderLispForm]):
+    form: ReaderLispForm
     type: ConstType
-    val: LispForm
+    val: ReaderLispForm
     is_literal: bool
     meta: NodeMeta = None
     children: Collection[kw.Keyword] = vec.Vector.empty()

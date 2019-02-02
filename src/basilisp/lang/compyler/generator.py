@@ -26,10 +26,12 @@ from typing import (
 from functional import seq
 
 import basilisp.lang.keyword as kw
+import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.meta as lmeta
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
+import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
@@ -50,6 +52,8 @@ from basilisp.lang.compyler.nodes import (
     Map as MapNode,
     Set as SetNode,
     Vector as VectorNode,
+    Quote,
+    ReaderLispForm,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -147,7 +151,7 @@ class GeneratedPyAST(NamedTuple):
 
 
 PyASTStream = Iterable[ast.AST]
-SimplePyASTGenerator = Callable[[GeneratorContext, LispForm], GeneratedPyAST]
+SimplePyASTGenerator = Callable[[GeneratorContext, ReaderLispForm], GeneratedPyAST]
 PyASTGenerator = Callable[[GeneratorContext, Node], GeneratedPyAST]
 
 
@@ -461,6 +465,12 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     )
 
 
+def _quote_to_py_ast(ctx: GeneratorContext, node: Quote) -> GeneratedPyAST:
+    """Return a Python AST Node for a `quote` expression."""
+    assert node.op == NodeOp.QUOTE
+    return _const_node_to_py_ast(ctx, node.expr)
+
+
 #################
 # Var Symbol
 #################
@@ -705,16 +715,13 @@ def _str_to_py_ast(_: GeneratorContext, form: str) -> ast.AST:
 
 
 def _const_sym_to_py_ast(ctx: GeneratorContext, form: sym.Symbol) -> GeneratedPyAST:
-    ns: Optional[ast.expr] = None
-    if form.ns is None:
-        ns = _NS_VAR_NAME
-    else:
-        ns = ast.Str(form.ns)
-
     meta = _const_meta_kwargs_ast(ctx, form)
 
     sym_kwargs = (
-        Maybe(ns).stream().map(lambda v: ast.keyword(arg="ns", value=ns)).to_list()
+        Maybe(form.ns)
+        .stream()
+        .map(lambda v: ast.keyword(arg="ns", value=ast.Str(v)))
+        .to_list()
     )
     sym_kwargs.extend(Maybe(meta).map(lambda p: [p.node]).or_else_get([]))
     base_sym = ast.Call(
@@ -800,6 +807,28 @@ def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAS
     )
 
 
+def _const_seq_to_py_ast(
+    ctx: GeneratorContext, form: Union[llist.List, lseq.Seq]
+) -> GeneratedPyAST:
+    elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
+
+    if isinstance(form, llist.List):
+        meta = _const_meta_kwargs_ast(ctx, form)
+    else:
+        meta = None
+
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_NEW_LIST_FN_NAME,
+            args=[ast.List(list(elems), ast.Load())],
+            keywords=Maybe(meta).map(lambda p: [p.node]).or_else_get([]),
+        ),
+        dependencies=list(
+            chain(elems, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
+        ),
+    )
+
+
 def _const_vec_to_py_ast(ctx: GeneratorContext, form: vec.Vector) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
     meta = _const_meta_kwargs_ast(ctx, form)
@@ -822,8 +851,10 @@ _CONST_VALUE_HANDLERS: Dict[Type, SimplePyASTGenerator] = {  # type: ignore
     Fraction: _fraction_to_py_ast,
     int: _num_to_py_ast,
     kw.Keyword: _kw_to_py_ast,
+    llist.List: _const_seq_to_py_ast,
     lmap.Map: _const_map_to_py_ast,
     lset.Set: _const_set_to_py_ast,
+    lseq.Seq: _const_seq_to_py_ast,
     Pattern: _regex_to_py_ast,
     sym.Symbol: _const_sym_to_py_ast,
     str: _str_to_py_ast,
@@ -859,6 +890,7 @@ _CONSTANT_HANDLER: Dict[ConstType, SimplePyASTGenerator] = {  # type: ignore
     ConstType.KEYWORD: _kw_to_py_ast,
     ConstType.MAP: _const_map_to_py_ast,
     ConstType.SET: _const_set_to_py_ast,
+    ConstType.SEQ: _const_seq_to_py_ast,
     ConstType.REGEX: _regex_to_py_ast,
     ConstType.SYMBOL: _const_sym_to_py_ast,
     ConstType.STRING: _str_to_py_ast,
@@ -876,10 +908,10 @@ def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: Const) -> GeneratedPy
     call `_const_val_to_py_ast` on nested values."""
     assert lisp_ast.op == NodeOp.CONST
     node_type = lisp_ast.type
-    handle_node = _CONSTANT_HANDLER.get(node_type)
-    assert handle_node is not None
+    handle_const_node = _CONSTANT_HANDLER.get(node_type)
+    assert handle_const_node is not None, f"No :const AST type handler for {node_type}"
     node_val = lisp_ast.val
-    return handle_node(ctx, node_val)
+    return handle_const_node(ctx, node_val)
 
 
 _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
@@ -899,7 +931,7 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.MAYBE_CLASS: _maybe_class_to_py_ast,
     NodeOp.MAYBE_HOST_FORM: _maybe_host_form_to_py_ast,
     NodeOp.NEW: None,
-    NodeOp.QUOTE: None,
+    NodeOp.QUOTE: _quote_to_py_ast,
     NodeOp.RECUR: None,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.SET_BANG: None,
@@ -925,7 +957,9 @@ def gen_py_ast(ctx: GeneratorContext, lisp_ast: Node) -> GeneratedPyAST:
     op: NodeOp = lisp_ast.op
     assert op is not None, "Lisp AST nodes must have an :op key"
     handle_node = _NODE_HANDLERS.get(op)
-    assert handle_node is not None, "Lisp AST nodes :op has no handler defined"
+    assert (
+        handle_node is not None
+    ), f"Lisp AST nodes :op has no handler defined for op {op}"
     return handle_node(ctx, lisp_ast)
 
 
