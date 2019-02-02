@@ -6,7 +6,9 @@ from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from functools import partial, wraps
-from typing import Pattern, Union, Deque, Optional, NamedTuple, Dict, Callable, cast
+from typing import Pattern, Union, Deque, Optional, Dict, Callable, cast
+
+import attr
 
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
@@ -89,7 +91,8 @@ _MACRO_FORM_SYM = sym.symbol("&form")
 _NO_WARN_UNUSED_SYMS = lset.s(_IGNORED_SYM, _MACRO_ENV_SYM, _MACRO_FORM_SYM)
 
 
-class SymbolTableEntry(NamedTuple):
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class SymbolTableEntry:
     context: LocalType
     symbol: sym.Symbol
     used: bool = False
@@ -125,8 +128,8 @@ class SymbolTable:
         self, s: sym.Symbol, ctx: LocalType, warn_if_unused: bool = True
     ) -> "SymbolTable":
         if s in self._table:
-            self._table[s] = self._table[s]._replace(
-                context=ctx, symbol=s, warn_if_unused=warn_if_unused
+            self._table[s] = attr.evolve(
+                self._table[s], context=ctx, symbol=s, warn_if_unused=warn_if_unused
             )
         else:
             self._table[s] = SymbolTableEntry(ctx, s, warn_if_unused=warn_if_unused)
@@ -146,7 +149,7 @@ class SymbolTable:
             old: SymbolTableEntry = self._table[s]
             if old.used:
                 return
-            self._table[s] = old._replace(used=True)
+            self._table[s] = attr.evolve(old, used=True)
         elif self._parent is not None:
             self._parent.mark_used(s)
         else:
@@ -170,8 +173,6 @@ class SymbolTable:
         ), "Only warn when logger is configured for WARNING level"
         ns = runtime.get_current_ns()
         for _, entry in self._table.items():
-            # if entry.context not in SymbolTable.LOCAL_CONTEXTS:
-            #    continue
             if entry.symbol in _NO_WARN_UNUSED_SYMS:
                 continue
             if entry.warn_if_unused and not entry.used:

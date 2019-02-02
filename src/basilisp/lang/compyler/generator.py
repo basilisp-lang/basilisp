@@ -534,7 +534,12 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
         dependencies=list(
             chain(
                 val_ast.dependencies,
-                [ast.Assign(targets=[ast.Name(id=val_temp_name, ctx=ast.Store())], value=val_ast.node)],
+                [
+                    ast.Assign(
+                        targets=[ast.Name(id=val_temp_name, ctx=ast.Store())],
+                        value=val_ast.node,
+                    )
+                ],
                 target_ast.dependencies,
                 [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
             )
