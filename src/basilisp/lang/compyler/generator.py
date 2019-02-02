@@ -23,7 +23,7 @@ from typing import (
     Type,
 )
 
-from functional import seq
+import attr
 
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
@@ -98,6 +98,7 @@ def count(seq: Iterable) -> int:
     return sum([1 for _ in seq])
 
 
+@attr.s(auto_attribs=True, frozen=True, slots=True)
 class RecurPoint:
     __slots__ = ("name", "args", "has_recur")
 
@@ -1174,27 +1175,26 @@ def gen_py_ast(ctx: GeneratorContext, lisp_ast: Node) -> GeneratedPyAST:
 #############################
 
 
+_MODULE_ALIASES = {
+    "builtins": None,
+    "basilisp.lang.keyword": _KW_ALIAS,
+    "basilisp.lang.list": _LIST_ALIAS,
+    "basilisp.lang.map": _MAP_ALIAS,
+    "basilisp.lang.runtime": _RUNTIME_ALIAS,
+    "basilisp.lang.set": _SET_ALIAS,
+    "basilisp.lang.symbol": _SYM_ALIAS,
+    "basilisp.lang.vector": _VEC_ALIAS,
+    "basilisp.lang.util": _UTIL_ALIAS,
+}
+
+
 def _module_imports(ctx: GeneratorContext) -> Iterable[ast.Import]:
     """Generate the Python Import AST node for importing all required
     language support modules."""
-    aliases = {
-        "builtins": None,
-        "basilisp.lang.keyword": _KW_ALIAS,
-        "basilisp.lang.list": _LIST_ALIAS,
-        "basilisp.lang.map": _MAP_ALIAS,
-        "basilisp.lang.runtime": _RUNTIME_ALIAS,
-        "basilisp.lang.set": _SET_ALIAS,
-        "basilisp.lang.symbol": _SYM_ALIAS,
-        "basilisp.lang.vector": _VEC_ALIAS,
-        "basilisp.lang.util": _UTIL_ALIAS,
-    }
-    return (
-        seq(ctx.imports)
-        .map(lambda entry: entry.key.name)
-        .map(lambda name: (name, aliases.get(name, None)))
-        .map(lambda t: ast.Import(names=[ast.alias(name=t[0], asname=t[1])]))
-        .to_list()
-    )
+    for imp in ctx.imports:
+        name = imp.key.name
+        alias = _MODULE_ALIASES.get(name, None)
+        yield ast.Import(names=[ast.alias(name=name, asname=alias)])
 
 
 def _from_module_import() -> ast.ImportFrom:
