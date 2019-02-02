@@ -57,6 +57,8 @@ from basilisp.lang.compyler.nodes import (
     Invoke,
     Throw,
     HostInterop,
+    Try,
+    LocalType,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -88,6 +90,10 @@ _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
 _NS_VAR = "__NS"
 _LISP_NS_VAR = "*ns*"
+
+
+def count(seq: Iterable) -> int:
+    return sum([1 for _ in seq])
 
 
 class RecurPoint:
@@ -398,6 +404,20 @@ def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     )
 
 
+def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
+    """Return AST elements generated from reducing a
+    synthetic (e.g. a :do node which acts as a body for another node) Lisp :do
+    node."""
+    assert node.op == NodeOp.DO
+    assert node.is_body
+
+    return GeneratedPyAST.reduce(
+        *chain(
+            map(partial(gen_py_ast, ctx), node.statements), [gen_py_ast(ctx, node.ret)]
+        )
+    )
+
+
 def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     """Generate a function call to a utility function which acts as
     an if expression and works around Python's if statement.
@@ -511,6 +531,76 @@ def _throw_to_py_ast(ctx: GeneratorContext, node: Throw) -> GeneratedPyAST:
                 body=list(chain(exc_ast.dependencies, [raise_body])),
                 decorator_list=[],
                 returns=None,
+            )
+        ],
+    )
+
+
+def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
+    """Return a Python AST Node for a `try` expression."""
+    assert node.op == NodeOp.TRY
+
+    try_expr_name = genname("try_expr")
+
+    body_ast = _synthetic_do_to_py_ast(ctx, node.body)
+
+    catch_handlers = []
+    for catch in node.catches:
+        assert catch.class_.op in {NodeOp.MAYBE_CLASS, NodeOp.MAYBE_HOST_FORM}
+
+        exc_type = gen_py_ast(ctx, catch.class_)
+        assert (
+            count(exc_type.dependencies) == 0
+        ), ":maybe-class and :maybe-host-form node cannot have dependency nodes"
+
+        exc_binding = catch.local
+        assert (
+            exc_binding.local == LocalType.CATCH
+        ), ":local of :binding node must be :catch for Catch node"
+
+        catch_ast = _synthetic_do_to_py_ast(ctx, catch.body)
+        catch_handlers.append(
+            ast.ExceptHandler(
+                type=exc_type.node,
+                name=munge(exc_binding.name.name),
+                body=list(
+                    chain(
+                        catch_ast.dependencies,
+                        [
+                            ast.Assign(
+                                targets=[ast.Name(id=try_expr_name, ctx=ast.Store())],
+                                value=catch_ast.node,
+                            )
+                        ],
+                    )
+                ),
+            )
+        )
+
+    finallys: List[ast.AST] = []
+    if node.finally_ is not None:
+        finally_ast = _synthetic_do_to_py_ast(ctx, node.finally_)
+        finallys.extend(finally_ast.dependencies)
+        finallys.append(finally_ast.node)
+
+    return GeneratedPyAST(
+        node=ast.Name(id=try_expr_name, ctx=ast.Load()),
+        dependencies=[
+            ast.Try(
+                body=list(
+                    chain(
+                        body_ast.dependencies,
+                        [
+                            ast.Assign(
+                                targets=[ast.Name(id=try_expr_name, ctx=ast.Store())],
+                                value=body_ast.node,
+                            )
+                        ],
+                    )
+                ),
+                handlers=catch_handlers,
+                orelse=[],
+                finalbody=finallys,
             )
         ],
     )
@@ -926,6 +1016,12 @@ _CONST_VALUE_HANDLERS: Dict[Type, SimplePyASTGenerator] = {  # type: ignore
 
 
 def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAST:
+    """Generate Python AST nodes for constant Lisp forms.
+
+    Nested values in collections for :const nodes are not parsed, so recursive
+    structures need to call into this function to generate Python AST nodes for
+    nested elements. For top-level :const Lisp AST nodes, see
+    `_const_node_to_py_ast`."""
     handle_value = _CONST_VALUE_HANDLERS.get(type(form))
     assert handle_value is not None, "A type handler must be defined for constants"
     return handle_value(ctx, form)
@@ -996,7 +1092,7 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.SET: _set_to_py_ast,
     NodeOp.SET_BANG: None,
     NodeOp.THROW: _throw_to_py_ast,
-    NodeOp.TRY: None,
+    NodeOp.TRY: _try_to_py_ast,
     NodeOp.VAR: _var_sym_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
     NodeOp.WITH_META: _with_meta_to_py_ast,

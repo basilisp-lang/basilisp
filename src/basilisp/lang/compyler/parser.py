@@ -168,8 +168,8 @@ class SymbolTable:
         ), "Only warn when logger is configured for WARNING level"
         ns = runtime.get_current_ns()
         for _, entry in self._table.items():
-            if entry.context not in SymbolTable.LOCAL_CONTEXTS:
-                continue
+            # if entry.context not in SymbolTable.LOCAL_CONTEXTS:
+            #    continue
             if entry.symbol in _NO_WARN_UNUSED_SYMS:
                 continue
             if entry.warn_if_unused and not entry.used:
@@ -646,7 +646,7 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
         )
 
     catch_cls = _parse_ast(ctx, runtime.nth(form, 1))
-    if not isinstance(catch_cls, MaybeClass):
+    if not isinstance(catch_cls, (MaybeClass, MaybeHostForm)):
         raise ParserException("catch forms must name a class type to catch")
 
     local_name = runtime.nth(form, 2)
