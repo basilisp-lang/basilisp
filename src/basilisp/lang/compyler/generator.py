@@ -404,13 +404,9 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     for both false and nil each time."""
     assert node.op == NodeOp.IF
 
-    test = node.test
-    then = node.then
-    else_ = node.else_
-
-    test_ast = gen_py_ast(ctx, test)
-    then_ast = gen_py_ast(ctx, then)
-    else_ast = gen_py_ast(ctx, else_)
+    test_ast = gen_py_ast(ctx, node.test)
+    then_ast = gen_py_ast(ctx, node.then)
+    else_ast = gen_py_ast(ctx, node.else_)
 
     test_name = genname(_IF_TEST_PREFIX)
     result_name = genname(_IF_RESULT_PREFIX)
@@ -506,18 +502,14 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: HostCall) -> GeneratedP
     """Generate a Python AST node for Python interop method calls."""
     assert node.op == NodeOp.HOST_CALL
 
-    target = node.target
-    method = node.method
-    args = node.args
-
-    target_ast = gen_py_ast(ctx, target)
-    args_deps, args_nodes = _collection_ast(ctx, args)
+    target_ast = gen_py_ast(ctx, node.target)
+    args_deps, args_nodes = _collection_ast(ctx, node.args)
 
     return GeneratedPyAST(
         node=ast.Call(
             func=ast.Attribute(
                 value=target_ast.node,
-                attr=munge(method.name, allow_builtins=True),
+                attr=munge(node.method.name, allow_builtins=True),
                 ctx=ast.Load(),
             ),
             args=list(args_nodes),
@@ -531,14 +523,11 @@ def _interop_prop_to_py_ast(ctx: GeneratorContext, node: HostField) -> Generated
     """Generate a Python AST node for Python interop property access."""
     assert node.op == NodeOp.HOST_FIELD
 
-    target = node.target
-    field = node.field
-
-    target_ast = gen_py_ast(ctx, target)
+    target_ast = gen_py_ast(ctx, node.target)
 
     return GeneratedPyAST(
         node=ast.Attribute(
-            value=target_ast.node, attr=munge(field.name), ctx=ast.Load()
+            value=target_ast.node, attr=munge(node.field.name), ctx=ast.Load()
         ),
         dependencies=target_ast.dependencies,
     )
@@ -561,14 +550,13 @@ def _maybe_host_form_to_py_ast(
     assert node.op == NodeOp.MAYBE_HOST_FORM
 
     ns = node.class_
-    field = node.field
 
     if ns.name == _BUILTINS_NS:
         return GeneratedPyAST(
-            node=ast.Name(f"{munge(field.name, allow_builtins=True)}")
+            node=ast.Name(f"{munge(node.field.name, allow_builtins=True)}")
         )
 
-    return GeneratedPyAST(node=_load_attr(f"{munge(ns.name)}.{munge(field.name)}"))
+    return GeneratedPyAST(node=_load_attr(f"{munge(ns.name)}.{munge(node.field.name)}"))
 
 
 #########################
@@ -676,8 +664,7 @@ def _with_meta_to_py_ast(ctx: GeneratorContext, node: WithMeta) -> GeneratedPyAS
     """Generate a Python AST node for Python interop method calls."""
     assert node.op == NodeOp.WITH_META
 
-    expr_type = node.expr.op
-    handle_expr = _WITH_META_EXPR_HANDLER.get(expr_type)
+    handle_expr = _WITH_META_EXPR_HANDLER.get(node.expr.op)
     assert (
         handle_expr is not None
     ), "No expression handler for with-meta child node type"

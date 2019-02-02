@@ -97,8 +97,8 @@ class Node(ABC, Generic[T]):
         return attr.evolve(self, **kwargs)
 
     def visit(self, f: Callable[..., None], *args, **kwargs):
-        """Visit all descendents of this node, calling f(node, *args, **kwargs)
-        on each before visiting its descendents recursively."""
+        """Visit all descendants of this node, calling f(node, *args, **kwargs)
+        on each before visiting its descendants recursively."""
         for child_kw in self.children:
             child_attr = munge(child_kw.name)
 
