@@ -54,6 +54,7 @@ from basilisp.lang.compyler.nodes import (
     Vector as VectorNode,
     Quote,
     ReaderLispForm,
+    Invoke,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -462,6 +463,18 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     return GeneratedPyAST(
         node=ast.Name(id=result_name, ctx=ast.Load()),
         dependencies=[test_assign, ifstmt],
+    )
+
+
+def _invoke_to_py_ast(ctx: GeneratorContext, node: Invoke) -> GeneratedPyAST:
+    assert node.op == NodeOp.INVOKE
+
+    fn_ast = gen_py_ast(ctx, node.fn)
+    args_deps, args_nodes = _collection_ast(ctx, node.args)
+
+    return GeneratedPyAST(
+        node=ast.Call(func=fn_ast.node, args=list(args_nodes), keywords=[]),
+        dependencies=chain(fn_ast.dependencies, args_deps),
     )
 
 
@@ -923,14 +936,13 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.HOST_FIELD: _interop_prop_to_py_ast,
     NodeOp.HOST_INTEROP: None,
     NodeOp.IF: _if_to_py_ast,
-    NodeOp.INVOKE: None,
+    NodeOp.INVOKE: _invoke_to_py_ast,
     NodeOp.LET: None,
     NodeOp.LETFN: None,
     NodeOp.LOOP: None,
     NodeOp.MAP: _map_to_py_ast,
     NodeOp.MAYBE_CLASS: _maybe_class_to_py_ast,
     NodeOp.MAYBE_HOST_FORM: _maybe_host_form_to_py_ast,
-    NodeOp.NEW: None,
     NodeOp.QUOTE: _quote_to_py_ast,
     NodeOp.RECUR: None,
     NodeOp.SET: _set_to_py_ast,

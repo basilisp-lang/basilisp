@@ -55,7 +55,6 @@ class NodeOp(Enum):
     MAP = kw.keyword("map")
     MAYBE_CLASS = kw.keyword("maybe-class")
     MAYBE_HOST_FORM = kw.keyword("maybe-host-form")
-    NEW = kw.keyword("new")
     QUOTE = kw.keyword("quote")
     RECUR = kw.keyword("recur")
     SET = kw.keyword("set")
