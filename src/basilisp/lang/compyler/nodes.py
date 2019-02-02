@@ -98,6 +98,8 @@ class Node(ABC, Generic[T]):
     def visit(self, f: Callable[..., None], *args, **kwargs):
         """Visit all descendants of this node, calling f(node, *args, **kwargs)
         on each before visiting its descendants recursively."""
+        f(self, *args, **kwargs)
+
         for child_kw in self.children:
             child_attr = munge(child_kw.name)
 

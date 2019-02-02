@@ -55,7 +55,7 @@ from basilisp.lang.compyler.nodes import (
     Quote,
     ReaderLispForm,
     Invoke,
-)
+    Throw)
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
 from basilisp.util import Maybe
@@ -467,6 +467,7 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
 
 
 def _invoke_to_py_ast(ctx: GeneratorContext, node: Invoke) -> GeneratedPyAST:
+    """Return a Python AST Node for a Basilisp function invocation."""
     assert node.op == NodeOp.INVOKE
 
     fn_ast = gen_py_ast(ctx, node.fn)
@@ -482,6 +483,35 @@ def _quote_to_py_ast(ctx: GeneratorContext, node: Quote) -> GeneratedPyAST:
     """Return a Python AST Node for a `quote` expression."""
     assert node.op == NodeOp.QUOTE
     return _const_node_to_py_ast(ctx, node.expr)
+
+
+def _throw_to_py_ast(ctx: GeneratorContext, node: Throw) -> GeneratedPyAST:
+    """Return a Python AST Node for a `throw` expression."""
+    assert node.op == NodeOp.THROW
+
+    throw_fn = genname(_THROW_PREFIX)
+    exc_ast = gen_py_ast(ctx, node.exception)
+    raise_body = ast.Raise(exc=exc_ast.node, cause=None)
+
+    return GeneratedPyAST(
+        node=ast.Call(func=ast.Name(id=throw_fn, ctx=ast.Load()), args=[], keywords=[]),
+        dependencies=[
+            ast.FunctionDef(
+                name=throw_fn,
+                args=ast.arguments(
+                    args=[],
+                    kwarg=None,
+                    vararg=None,
+                    kwonlyargs=[],
+                    defaults=[],
+                    kw_defaults=[],
+                ),
+                body=list(chain(exc_ast.dependencies, [raise_body])),
+                decorator_list=[],
+                returns=None,
+            )
+        ],
+    )
 
 
 #################
@@ -576,7 +606,7 @@ def _maybe_host_form_to_py_ast(
 
     if ns.name == _BUILTINS_NS:
         return GeneratedPyAST(
-            node=ast.Name(f"{munge(node.field.name, allow_builtins=True)}")
+            node=ast.Name(id=f"{munge(node.field.name, allow_builtins=True)}", ctx=ast.Load())
         )
 
     return GeneratedPyAST(node=_load_attr(f"{munge(ns.name)}.{munge(node.field.name)}"))
@@ -947,7 +977,7 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.RECUR: None,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.SET_BANG: None,
-    NodeOp.THROW: None,
+    NodeOp.THROW: _throw_to_py_ast,
     NodeOp.TRY: None,
     NodeOp.VAR: _var_sym_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
