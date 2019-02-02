@@ -513,32 +513,30 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
     """Return a Python AST Node for a `quote` expression."""
     assert node.op == NodeOp.SET_BANG
 
+    val_temp_name = genname("set_bang_val")
+    val_ast = gen_py_ast(ctx, node.val)
+
     target = node.target
     if isinstance(target, Local):
         safe_name = munge(target.name.name)
         target_ast = GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Store()))
-        result_ast = GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Load()))
     elif isinstance(target, HostField):
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
-        result_ast = _interop_prop_to_py_ast(ctx, target)
     elif isinstance(target, HostInterop):
         target_ast = _interop_to_py_ast(ctx, target, is_assigning=True)
-        result_ast = _interop_to_py_ast(ctx, target)
     elif isinstance(target, VarRef):
         target_ast = _var_sym_to_py_ast(ctx, target, is_assigning=True)
-        result_ast = _var_sym_to_py_ast(ctx, target)
     else:
         raise TypeError
 
-    val_ast = gen_py_ast(ctx, node.val)
     return GeneratedPyAST(
-        node=result_ast.node,
+        node=ast.Name(id=val_temp_name, ctx=ast.Load()),
         dependencies=list(
             chain(
-                target_ast.dependencies,
                 val_ast.dependencies,
+                [ast.Assign(targets=[ast.Name(id=val_temp_name, ctx=ast.Store())], value=val_ast.node)],
+                target_ast.dependencies,
                 [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
-                result_ast.dependencies,
             )
         ),
     )
