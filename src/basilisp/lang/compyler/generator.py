@@ -18,7 +18,6 @@ from typing import (
     Deque,
     Dict,
     Callable,
-    NamedTuple,
     Tuple,
     Type,
     Any,
@@ -147,7 +146,8 @@ class GeneratorContext:
         return self.current_ns.imports
 
 
-class GeneratedPyAST(NamedTuple):
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class GeneratedPyAST:
     node: ast.AST
     dependencies: Iterable[ast.AST] = ()
 
