@@ -256,6 +256,34 @@ class ParserContext:
             self._st.pop()
 
 
+def _is_dynamic(v: Var) -> bool:
+    """Return True if the Var holds a value which should be compiled to a dynamic
+    Var access."""
+    return (
+        Maybe(v.meta)
+        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))  # type: ignore
+        .or_else_get(False)
+    )
+
+
+def _is_macro(v: Var) -> bool:
+    """Return True if the Var holds a macro function."""
+    return (
+        Maybe(v.meta)
+        .map(lambda m: m.get(SYM_MACRO_META_KEY, None))  # type: ignore
+        .or_else_get(False)
+    )
+
+
+def _is_redefable(v: Var) -> bool:
+    """Return True if the Var can be redefined."""
+    return (
+        Maybe(v.meta)
+        .map(lambda m: m.get(SYM_REDEF_META_KEY, None))  # type: ignore
+        .or_else_get(False)
+    )
+
+
 ParseFunction = Callable[[ParserContext, LispForm], lmap.Map]
 
 
@@ -563,11 +591,17 @@ def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:
     )
 
 
-def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Invoke:
+def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
+    fn = _parse_ast(ctx, form.first)
+
+    if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
+        if _is_macro(fn.var):
+            expanded = fn.var.value(form, *form.rest)
+            expanded_ast = _parse_ast(ctx, expanded)
+            return expanded_ast.assoc(raw_forms=vec.v(form))
+
     descriptor = Invoke(
-        form=form,
-        fn=_parse_ast(ctx, form.first),
-        args=vec.vector(map(partial(_parse_ast, ctx), form.rest)),
+        form=form, fn=fn, args=vec.vector(map(partial(_parse_ast, ctx), form.rest))
     )
 
     if hasattr(form, "meta") and form.meta is not None:  # type: ignore
@@ -828,25 +862,7 @@ _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
 }
 
 
-def _list_node(
-    ctx: ParserContext, form: lseq.Seq
-) -> Union[
-    Const,
-    Def,
-    Do,
-    Fn,
-    If,
-    HostCall,
-    HostField,
-    HostInterop,
-    Invoke,
-    Let,
-    Loop,
-    Quote,
-    SetBang,
-    Throw,
-    Try,
-]:
+def _list_node(ctx: ParserContext, form: lseq.Seq) -> Node:
     if ctx.is_quoted:
         return _const_node(ctx, form)
 

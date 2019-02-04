@@ -1,3 +1,4 @@
+import basilisp.lang.keyword as kw
 import basilisp.lang.symbol as sym
 
 
@@ -22,3 +23,9 @@ class SpecialForm:
 
 
 AMPERSAND = sym.symbol("&")
+
+SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
+SYM_MACRO_META_KEY = kw.keyword("macro")
+SYM_NO_WARN_ON_REDEF_META_KEY = kw.keyword("no-warn-on-redef")
+SYM_NO_WARN_WHEN_UNUSED_META_KEY = kw.keyword("no-warn-when-unused")
+SYM_REDEF_META_KEY = kw.keyword("redef")
