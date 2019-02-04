@@ -569,12 +569,12 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
     loop_body_ast.extend(body_ast.dependencies)
     loop_body_ast.append(ast.Return(value=body_ast.node))
 
-    let_fn_name = genname("loop")
+    loop_fn_name = genname("loop")
     return GeneratedPyAST(
-        node=ast.Call(func=_load_attr(let_fn_name), args=[], keywords=[]),
+        node=ast.Call(func=_load_attr(loop_fn_name), args=[], keywords=[]),
         dependencies=[
             ast.FunctionDef(
-                name=let_fn_name,
+                name=loop_fn_name,
                 args=ast.arguments(
                     args=[],
                     kwarg=None,
