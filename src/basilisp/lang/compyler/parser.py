@@ -608,6 +608,7 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
                     name=name,
                     local=LocalType.LET,
                     init=_parse_ast(ctx, value),
+                    children=vec.v(INIT),
                 )
             )
 
@@ -916,6 +917,7 @@ def _symbol_node(
 
     sym_entry = ctx.symbol_table.find_symbol(form)
     if sym_entry is not None:
+        ctx.symbol_table.mark_used(form)
         return Local(form=form, name=form, local=sym_entry.context, is_assignable=False)
 
     return _resolve_sym(ctx, form)

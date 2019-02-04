@@ -332,8 +332,8 @@ class Local(Node[sym.Symbol], Assignable):
     is_assignable: bool = False
     arg_id: Optional[int] = None
     is_variadic: bool = False
-    children: Collection[kw.Keyword] = vec.v(BINDINGS, BODY)
-    op: NodeOp = NodeOp.LETFN
+    children: Collection[kw.Keyword] = vec.Vector.empty()
+    op: NodeOp = NodeOp.LOCAL
     top_level: bool = False
 
 

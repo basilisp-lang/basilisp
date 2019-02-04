@@ -62,6 +62,7 @@ from basilisp.lang.compyler.nodes import (
     LocalType,
     SetBang,
     Local,
+    Let,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -502,6 +503,49 @@ def _invoke_to_py_ast(ctx: GeneratorContext, node: Invoke) -> GeneratedPyAST:
     )
 
 
+def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
+    """Return a Python AST Node for a `quote` expression."""
+    assert node.op == NodeOp.LET
+
+    fn_body_ast: List[ast.AST] = []
+    for binding in node.bindings:
+        init_node = binding.init
+        assert init_node is not None
+        init_ast = gen_py_ast(ctx, init_node)
+        fn_body_ast.extend(init_ast.dependencies)
+        fn_body_ast.append(
+            ast.Assign(
+                targets=[ast.Name(id=munge(binding.name.name), ctx=ast.Store())],
+                value=init_ast.node,
+            )
+        )
+
+    body_ast = _synthetic_do_to_py_ast(ctx, node.body)
+    fn_body_ast.extend(body_ast.dependencies)
+    fn_body_ast.append(ast.Return(value=body_ast.node))
+
+    let_fn_name = genname("let")
+    return GeneratedPyAST(
+        node=ast.Call(func=_load_attr(let_fn_name), args=[], keywords=[]),
+        dependencies=[
+            ast.FunctionDef(
+                name=let_fn_name,
+                args=ast.arguments(
+                    args=[],
+                    kwarg=None,
+                    vararg=None,
+                    kwonlyargs=[],
+                    defaults=[],
+                    kw_defaults=[],
+                ),
+                body=fn_body_ast,
+                decorator_list=[],
+                returns=None,
+            )
+        ],
+    )
+
+
 def _quote_to_py_ast(ctx: GeneratorContext, node: Quote) -> GeneratedPyAST:
     """Return a Python AST Node for a `quote` expression."""
     assert node.op == NodeOp.QUOTE
@@ -645,15 +689,28 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
     )
 
 
-#################
-# Var Symbol
-#################
+##########
+# Symbols
+##########
+
+
+def _local_sym_to_py_ast(
+    _: GeneratorContext, node: Local, is_assigning: bool = False
+) -> GeneratedPyAST:
+    """Generate a Python AST node for accessing a locally defined Python variable."""
+    assert node.op == NodeOp.LOCAL
+
+    return GeneratedPyAST(
+        node=ast.Name(
+            id=munge(node.name.name), ctx=ast.Store() if is_assigning else ast.Load()
+        )
+    )
 
 
 def _var_sym_to_py_ast(
     _: GeneratorContext, node: VarRef, is_assigning: bool = False
 ) -> GeneratedPyAST:
-    """Generate a Python AST node for Python interop property access."""
+    """Generate a Python AST node for accessing a Var."""
     assert node.op == NodeOp.VAR
 
     # TODO: direct link to Python variable, if possible
@@ -726,7 +783,7 @@ def _interop_prop_to_py_ast(
 def _interop_to_py_ast(
     ctx: GeneratorContext, node: HostInterop, is_assigning: bool = False
 ) -> GeneratedPyAST:
-    """Generate a Python AST node for Python interop property access."""
+    """Generate a Python AST node for Python property or field access."""
     assert node.op == NodeOp.HOST_INTEROP
 
     target_ast = gen_py_ast(ctx, node.target)
@@ -742,7 +799,8 @@ def _interop_to_py_ast(
 
 
 def _maybe_class_to_py_ast(_: GeneratorContext, node: MaybeClass) -> GeneratedPyAST:
-    """Generate a Python AST node for Python interop property access."""
+    """Generate a Python AST node for accessing a potential Python module
+    variable name."""
     assert node.op == NodeOp.MAYBE_CLASS
 
     class_ = node.class_
@@ -754,7 +812,8 @@ def _maybe_class_to_py_ast(_: GeneratorContext, node: MaybeClass) -> GeneratedPy
 def _maybe_host_form_to_py_ast(
     _: GeneratorContext, node: MaybeHostForm
 ) -> GeneratedPyAST:
-    """Generate a Python AST node for Python interop property access."""
+    """Generate a Python AST node for accessing a potential Python module
+    variable name with a namespace."""
     assert node.op == NodeOp.MAYBE_HOST_FORM
 
     ns = node.class_
@@ -1130,8 +1189,9 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.HOST_INTEROP: _interop_to_py_ast,
     NodeOp.IF: _if_to_py_ast,
     NodeOp.INVOKE: _invoke_to_py_ast,
-    NodeOp.LET: None,
+    NodeOp.LET: _let_to_py_ast,
     NodeOp.LETFN: None,
+    NodeOp.LOCAL: _local_sym_to_py_ast,
     NodeOp.LOOP: None,
     NodeOp.MAP: _map_to_py_ast,
     NodeOp.MAYBE_CLASS: _maybe_class_to_py_ast,
