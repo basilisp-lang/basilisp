@@ -62,6 +62,7 @@ from basilisp.lang.compyler.nodes import (
     SetBang,
     Local,
     Let,
+    Loop,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -504,7 +505,7 @@ def _invoke_to_py_ast(ctx: GeneratorContext, node: Invoke) -> GeneratedPyAST:
 
 
 def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
-    """Return a Python AST Node for a `quote` expression."""
+    """Return a Python AST Node for a `let*` expression."""
     assert node.op == NodeOp.LET
 
     fn_body_ast: List[ast.AST] = []
@@ -539,6 +540,61 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
                     kw_defaults=[],
                 ),
                 body=fn_body_ast,
+                decorator_list=[],
+                returns=None,
+            )
+        ],
+    )
+
+
+def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
+    """Return a Python AST Node for a `loop*` expression."""
+    assert node.op == NodeOp.LOOP
+
+    init_bindings: List[ast.AST] = []
+    for binding in node.bindings:
+        init_node = binding.init
+        assert init_node is not None
+        init_ast = gen_py_ast(ctx, init_node)
+        init_bindings.extend(init_ast.dependencies)
+        init_bindings.append(
+            ast.Assign(
+                targets=[ast.Name(id=munge(binding.name.name), ctx=ast.Store())],
+                value=init_ast.node,
+            )
+        )
+
+    loop_body_ast: List[ast.AST] = []
+    body_ast = _synthetic_do_to_py_ast(ctx, node.body)
+    loop_body_ast.extend(body_ast.dependencies)
+    loop_body_ast.append(ast.Return(value=body_ast.node))
+
+    let_fn_name = genname("loop")
+    return GeneratedPyAST(
+        node=ast.Call(func=_load_attr(let_fn_name), args=[], keywords=[]),
+        dependencies=[
+            ast.FunctionDef(
+                name=let_fn_name,
+                args=ast.arguments(
+                    args=[],
+                    kwarg=None,
+                    vararg=None,
+                    kwonlyargs=[],
+                    defaults=[],
+                    kw_defaults=[],
+                ),
+                body=list(
+                    chain(
+                        init_bindings,
+                        [
+                            ast.While(
+                                test=ast.NameConstant(True),
+                                body=loop_body_ast,
+                                orelse=[],
+                            )
+                        ],
+                    )
+                ),
                 decorator_list=[],
                 returns=None,
             )
@@ -1192,7 +1248,7 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.LET: _let_to_py_ast,
     NodeOp.LETFN: None,
     NodeOp.LOCAL: _local_sym_to_py_ast,
-    NodeOp.LOOP: None,
+    NodeOp.LOOP: _loop_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
     NodeOp.MAYBE_CLASS: _maybe_class_to_py_ast,
     NodeOp.MAYBE_HOST_FORM: _maybe_host_form_to_py_ast,

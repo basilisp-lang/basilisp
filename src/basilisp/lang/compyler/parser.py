@@ -576,7 +576,7 @@ def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Invoke
         if not isinstance(meta_ast, Const) or meta_ast.type != ConstType.MAP:
             return descriptor.assoc(meta=meta_ast)
 
-        raise ParserException(f"Meta  must be a map")
+        raise ParserException(f"Meta must be a map")
 
     return descriptor
 
