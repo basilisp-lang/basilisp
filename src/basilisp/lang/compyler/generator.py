@@ -35,6 +35,7 @@ import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compyler.nodes import (
     Node,
     NodeOp,
@@ -100,11 +101,19 @@ def count(seq: Iterable) -> int:
     return sum([1 for _ in seq])
 
 
+GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERATION)
+
+
+class RecurType(Enum):
+    FN = kw.keyword("fn")
+    LOOP = kw.keyword("loop")
+
+
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class RecurPoint:
-    name: str
-    args: Iterable[Any]
-    has_recur: bool = False
+    loop_id: str
+    binding_names: Collection[str]
+    type: RecurType
 
 
 class GeneratorContext:
@@ -626,7 +635,9 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
     elif isinstance(target, VarRef):
         target_ast = _var_sym_to_py_ast(ctx, target, is_assigning=True)
     else:
-        raise TypeError
+        raise GeneratorException(
+            f"invalid set! target type {type(target)}", lisp_ast=node
+        )
 
     return GeneratedPyAST(
         node=ast.Name(id=val_temp_name, ctx=ast.Load()),

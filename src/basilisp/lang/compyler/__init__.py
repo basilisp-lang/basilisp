@@ -6,6 +6,7 @@ from typing import Optional, Callable, Any, Iterable, List
 from astor import code_gen as codegen
 
 import basilisp.lang.runtime as runtime
+from basilisp.lang.compyler.exception import CompilerException
 from basilisp.lang.compyler.generator import (
     GeneratorContext,
     GeneratedPyAST,
@@ -19,10 +20,6 @@ from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname
 
 _DEFAULT_FN = "__lisp_expr__"
-
-
-class CompilerException(Exception):
-    pass
 
 
 def to_py_source(t: ast.AST, outfile: str) -> None:

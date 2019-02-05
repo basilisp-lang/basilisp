@@ -303,7 +303,7 @@ class If(Node[SpecialForm]):
     test: Node
     then: Node
     else_: Node = Const(form=None, type=ConstType.NIL, val=None, is_literal=True)
-    children: Collection[kw.Keyword] = vec.v(TARGET)
+    children: Collection[kw.Keyword] = vec.v(TEST, THEN, ELSE)
     op: NodeOp = NodeOp.IF
     top_level: bool = False
     raw_forms: Optional[LispForm] = None

@@ -19,7 +19,14 @@ import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.compyler.constants import SpecialForm, AMPERSAND
+from basilisp.lang.compyler.constants import (
+    SpecialForm,
+    AMPERSAND,
+    SYM_DYNAMIC_META_KEY,
+    SYM_MACRO_META_KEY,
+    SYM_REDEF_META_KEY,
+)
+from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compyler.nodes import (
     Const,
     Node,
@@ -80,9 +87,7 @@ def count(seq: lseq.Seq) -> int:
     return sum([1 for _ in seq])
 
 
-class ParserException(Exception):
-    def __init__(self, msg):
-        self.msg = msg
+ParserException = partial(CompilerException, phase=CompilerPhase.PARSING)
 
 
 # Symbols to be ignored for unused symbol warnings
@@ -321,12 +326,13 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
     nelems = count(form)
     if nelems not in (2, 3, 4):
         raise ParserException(
-            f"def forms must have between 2 and 4 elements, as in: (def name docstring? init?)"
+            f"def forms must have between 2 and 4 elements, as in: (def name docstring? init?)",
+            form=form,
         )
 
     name = runtime.nth(form, 1)
     if not isinstance(name, sym.Symbol):
-        raise ParserException(f"def names must be symbols, not {type(name)}")
+        raise ParserException(f"def names must be symbols, not {type(name)}", form=name)
 
     if nelems == 2:
         init = None
@@ -353,7 +359,7 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
                 children=vec.vector(runtime.cons(META, existing_children)),
             )
 
-        raise ParserException(f"Meta applied to constant must be a map")
+        raise ParserException(f"Meta applied to def name must be a map")
 
     return descriptor
 
@@ -370,13 +376,17 @@ def _fn_method_ast(
     with ctx.new_symbol_table("fn-method"):
         params = form.first
         if not isinstance(params, vec.Vector):
-            raise ParserException("function arity arguments must be a vector")
+            raise ParserException(
+                "function arity arguments must be a vector", form=params
+            )
 
         vargs, has_vargs, vargs_idx = None, False, 0
         param_nodes = []
         for i, s in enumerate(params):
             if not isinstance(s, sym.Symbol):
-                raise ParserException("function arity parameter name must be a symbol")
+                raise ParserException(
+                    "function arity parameter name must be a symbol", form=s
+                )
 
             if s == AMPERSAND:
                 has_vargs = True
@@ -384,13 +394,8 @@ def _fn_method_ast(
                 break
 
             param_nodes.append(
-                Local(
-                    form=s,
-                    name=s,
-                    local=LocalType.ARG,
-                    arg_id=i,
-                    is_assignable=False,
-                    is_variadic=False,
+                Binding(
+                    form=s, name=s, local=LocalType.ARG, arg_id=i, is_variadic=False
                 )
             )
 
@@ -401,12 +406,11 @@ def _fn_method_ast(
                 vargs_sym = params[vargs_idx + 1]
 
                 param_nodes.append(
-                    Local(
+                    Binding(
                         form=vargs_sym,
                         name=vargs_sym,
                         local=LocalType.ARG,
                         arg_id=i,
-                        is_assignable=False,
                         is_variadic=True,
                     )
                 )
@@ -414,20 +418,22 @@ def _fn_method_ast(
                 ctx.symbol_table.new_symbol(vargs_sym, LocalType.ARG)
             except IndexError:
                 raise ParserException(
-                    "Expected variadic argument name after '&'"
+                    "Expected variadic argument name after '&'", form=params
                 ) from None
 
-        *stmts, ret = map(partial(_parse_ast, ctx), form.rest)
-        return FnMethod(
-            form=form,
-            loop_id=sym.symbol(genname("fn_arity" if fnname is None else fnname.name)),
-            params=vec.vector(param_nodes),
-            is_variadic=has_vargs,
-            fixed_arity=len(param_nodes) - int(has_vargs),
-            body=Do(
-                form=form.rest, statements=vec.vector(stmts), ret=ret, is_body=True
-            ),
-        )
+        fn_loop_id = genname("fn_arity" if fnname is None else fnname.name)
+        with ctx.new_recur_point(fn_loop_id, param_nodes):
+            *stmts, ret = map(partial(_parse_ast, ctx), form.rest)
+            return FnMethod(
+                form=form,
+                loop_id=fn_loop_id,
+                params=vec.vector(param_nodes),
+                is_variadic=has_vargs,
+                fixed_arity=len(param_nodes) - int(has_vargs),
+                body=Do(
+                    form=form.rest, statements=vec.vector(stmts), ret=ret, is_body=True
+                ),
+            )
 
 
 def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
@@ -448,7 +454,8 @@ def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
             idx += 1
         else:
             raise ParserException(
-                "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)"
+                "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
+                form=form,
             )
 
         arity_or_args = runtime.nth(form, idx)
@@ -465,7 +472,8 @@ def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
             )
         else:
             raise ParserException(
-                "fn form expects either multiple arities or a vector of arguments"
+                "fn form expects either multiple arities or a vector of arguments",
+                form=arity_or_args,
             )
 
         return Fn(
@@ -484,7 +492,9 @@ def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> HostCall:
     assert method.name.startswith(".")
 
     if not count(form) >= 2:
-        raise ParserException("host interop calls must be 2 or more elements long")
+        raise ParserException(
+            "host interop calls must be 2 or more elements long", form=form
+        )
 
     return HostCall(
         form=form,
@@ -501,7 +511,9 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
     assert field.name.startswith(".-")
 
     if not count(form) == 2:
-        raise ParserException("host interop prop must be exactly 2 elements long")
+        raise ParserException(
+            "host interop prop must be exactly 2 elements long", form=form
+        )
 
     return HostField(
         form=form,
@@ -527,7 +539,7 @@ def _host_interop_ast(
         if maybe_m_or_f.name.startswith("-"):
             if nelems != 3:
                 raise ParserException(
-                    "host field accesses must be exactly 3 elements long"
+                    "host field accesses must be exactly 3 elements long", form=form
                 )
 
             return HostField(
@@ -543,7 +555,7 @@ def _host_interop_ast(
         # Likewise, I emit :host-call for forms like (. target (method arg1 ...)).
         method = maybe_m_or_f.first
         if not isinstance(method, sym.Symbol):
-            raise ParserException("host call method must be a symbol")
+            raise ParserException("host call method must be a symbol", form=method)
 
         return HostCall(
             form=form,
@@ -555,11 +567,15 @@ def _host_interop_ast(
         )
 
     if nelems != 3:
-        raise ParserException("host interop forms must be 3 or more elements long")
+        raise ParserException(
+            "host interop forms must be 3 or more elements long", form=form
+        )
 
     m_or_f = runtime.nth(form, 2)
     if not isinstance(m_or_f, sym.Symbol):
-        raise ParserException("host interop member or field must be a symbol")
+        raise ParserException(
+            "host interop member or field must be a symbol", form=m_or_f
+        )
 
     return HostInterop(
         form=form,
@@ -575,7 +591,8 @@ def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:
     nelems = count(form)
     if nelems not in (3, 4):
         raise ParserException(
-            "if forms must have either 3 or 4 elements, as in: (if test then else?)"
+            "if forms must have either 3 or 4 elements, as in: (if test then else?)",
+            form=form,
         )
 
     if nelems == 4:
@@ -620,21 +637,27 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
     nelems = count(form)
 
     if nelems < 3:
-        raise ParserException("let forms must have bindings and at least one body form")
+        raise ParserException(
+            "let forms must have bindings and at least one body form", form=form
+        )
 
     bindings = runtime.nth(form, 1)
     if not isinstance(bindings, vec.Vector):
-        raise ParserException("let bindings must be a vector")
+        raise ParserException("let bindings must be a vector", form=bindings)
     elif len(bindings) == 0:
-        raise ParserException("let form must have at least one pair of bindings")
+        raise ParserException(
+            "let form must have at least one pair of bindings", form=bindings
+        )
     elif len(bindings) % 2 != 0:
-        raise ParserException("let bindings must appear in name-value pairs")
+        raise ParserException(
+            "let bindings must appear in name-value pairs", form=bindings
+        )
 
     with ctx.new_symbol_table("let"):
         binding_nodes = []
         for name, value in partition(bindings, 2):
             if not isinstance(name, sym.Symbol):
-                raise ParserException("let binding name must be a symbol")
+                raise ParserException("let binding name must be a symbol", form=name)
 
             binding_nodes.append(
                 Binding(
@@ -667,20 +690,23 @@ def _loop_ast(ctx: ParserContext, form: lseq.Seq) -> Loop:
 
     if nelems < 3:
         raise ParserException(
-            "loop forms must have bindings and at least one body form"
+            "loop forms must have bindings and at least one body form", form=form
         )
 
     bindings = runtime.nth(form, 1)
     if not isinstance(bindings, vec.Vector):
-        raise ParserException("loop bindings must be a vector")
+        raise ParserException("loop bindings must be a vector", form=bindings)
     elif len(bindings) % 2 != 0:
-        raise ParserException("loop bindings must appear in name-value pairs")
+        raise ParserException(
+            "loop bindings must appear in name-value pairs", form=bindings
+        )
 
-    with ctx.new_symbol_table("loop"):
+    loop_id = genname("loop")
+    with ctx.new_symbol_table(loop_id):
         binding_nodes = []
         for name, value in partition(bindings, 2):
             if not isinstance(name, sym.Symbol):
-                raise ParserException("loop binding name must be a symbol")
+                raise ParserException("loop binding name must be a symbol", form=name)
 
             binding_nodes.append(
                 Binding(
@@ -716,15 +742,34 @@ def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
         return Quote(form=form, expr=expr, is_literal=True)
 
 
+def _recur_ast(ctx: ParserContext, form: lseq.Seq) -> Recur:
+    assert form.first == SpecialForm.RECUR
+
+    if ctx.recur_point is None:
+        raise ParserException("no recur point defined for recur", form=form)
+
+    if len(ctx.recur_point.args) != count(form.rest):
+        raise ParserException(
+            "recur arity does not match last recur point arity", form=form
+        )
+
+    exprs = map(partial(_parse_ast, ctx), form.rest)
+    return Recur(form=form, exprs=exprs, loop_id=ctx.recur_point.loop_id)
+
+
 def _set_bang_ast(ctx: ParserContext, form: lseq.Seq) -> SetBang:
     assert form.first == SpecialForm.SET_BANG
 
     target = _parse_ast(ctx, runtime.nth(form, 1))
     if not isinstance(target, Assignable):
-        raise ParserException(f"cannot set! targets of type {type(target)}")
+        raise ParserException(
+            f"cannot set! targets of type {type(target)}", form=target
+        )
 
     if not target.is_assignable:
-        raise ParserException(f"cannot set! target which is not assignable")
+        raise ParserException(
+            f"cannot set! target which is not assignable", form=target
+        )
 
     return SetBang(form=form, target=target, val=_parse_ast(ctx, runtime.nth(form, 2)))
 
@@ -740,16 +785,19 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
 
     if nelems < 4:
         raise ParserException(
-            "catch forms must contain at least 4 elements: (catch class local body*)"
+            "catch forms must contain at least 4 elements: (catch class local body*)",
+            form=form,
         )
 
     catch_cls = _parse_ast(ctx, runtime.nth(form, 1))
     if not isinstance(catch_cls, (MaybeClass, MaybeHostForm)):
-        raise ParserException("catch forms must name a class type to catch")
+        raise ParserException(
+            "catch forms must name a class type to catch", form=catch_cls
+        )
 
     local_name = runtime.nth(form, 2)
     if not isinstance(local_name, sym.Symbol):
-        raise ParserException("catch local must be a symbol")
+        raise ParserException("catch local must be a symbol", form=local_name)
 
     with ctx.new_symbol_table("catch"):
         ctx.symbol_table.new_symbol(local_name, LocalType.CATCH)
@@ -781,14 +829,15 @@ def _try_ast(ctx: ParserContext, form: lseq.Seq) -> Try:
             if expr.first == SpecialForm.CATCH:
                 if finally_:
                     raise ParserException(
-                        "catch forms may not appear after finally forms in a try"
+                        "catch forms may not appear after finally forms in a try",
+                        form=expr,
                     )
                 catches.append(_catch_ast(ctx, expr))
                 continue
             elif expr.first == SpecialForm.FINALLY:
                 if finally_ is not None:
                     raise ParserException(
-                        "try forms may not contain multiple finally forms"
+                        "try forms may not contain multiple finally forms", form=expr
                     )
                 *finally_stmts, finally_ret = map(partial(_parse_ast, ctx), expr.rest)
                 finally_ = Do(
@@ -803,11 +852,11 @@ def _try_ast(ctx: ParserContext, form: lseq.Seq) -> Try:
 
         if catches:
             raise ParserException(
-                "try body expressions may not appear after catch forms"
+                "try body expressions may not appear after catch forms", form=expr
             )
         if finally_:
             raise ParserException(
-                "try body expressions may not appear after finally forms"
+                "try body expressions may not appear after finally forms", form=expr
             )
 
         try_exprs.append(parsed)
@@ -1060,7 +1109,7 @@ def _parse_ast(ctx: ParserContext, form: LispForm) -> Node:
     ):
         return _const_node(ctx, form)
     else:
-        raise TypeError(f"Unexpected form type {type(form)}: {form}")
+        raise ParserException(f"Unexpected form type {type(form)}", form=form)
 
 
 def parse_ast(ctx: ParserContext, form: LispForm, is_top_level: bool = True) -> Node:
