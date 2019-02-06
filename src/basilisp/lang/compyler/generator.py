@@ -339,6 +339,7 @@ def _clean_meta(form: lmeta.Meta) -> LispForm:
 
 
 def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
+    """Return a Python AST Node for a `def` expression."""
     assert node.op == NodeOp.DEF
 
     defsym = node.name
@@ -421,9 +422,8 @@ def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
 
 
 def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
-    """Return AST elements generated from reducing a
-    synthetic (e.g. a :do node which acts as a body for another node) Lisp :do
-    node."""
+    """Return AST elements generated from reducing a synthetic Lisp :do node
+    (e.g. a :do node which acts as a body for another node)."""
     assert node.op == NodeOp.DO
     assert node.is_body
 
@@ -435,8 +435,9 @@ def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
 
 
 def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
-    """Generate a function call to a utility function which acts as
-    an if expression and works around Python's if statement.
+    """Generate an intermediate if statement which assigns to a temporary
+    variable, which is returned as the expression value at the end of
+    evaluation.
 
     Every expression in Basilisp is true if it is not the literal values nil
     or false. This function compiles direct checks for the test value against
