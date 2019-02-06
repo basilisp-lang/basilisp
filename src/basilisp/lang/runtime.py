@@ -9,8 +9,6 @@ import types
 from fractions import Fraction
 from typing import Optional, Dict, Tuple
 
-from functional import seq
-
 import basilisp.lang.associative as lassoc
 import basilisp.lang.collection as lcoll
 import basilisp.lang.deref as lderef
@@ -274,7 +272,8 @@ class Namespace:
 
     DEFAULT_IMPORTS = atom.Atom(
         lset.set(
-            seq(
+            map(
+                sym.symbol,
                 [
                     "builtins",
                     "io",
@@ -295,10 +294,8 @@ class Namespace:
                     "basilisp.lang.symbol",
                     "basilisp.lang.vector",
                     "basilisp.lang.util",
-                ]
+                ],
             )
-            .map(sym.symbol)
-            .to_list()
         )
     )
     GATED_IMPORTS = lset.set(["basilisp.core"])
@@ -322,9 +319,12 @@ class Namespace:
         self._aliases: atom.Atom = atom.Atom(lmap.Map.empty())
         self._imports: atom.Atom = atom.Atom(
             lmap.map(
-                seq(Namespace.DEFAULT_IMPORTS.deref())
-                .map(lambda s: (s, importlib.import_module(s.name)))
-                .to_dict()
+                dict(
+                    map(
+                        lambda s: (s, importlib.import_module(s.name)),
+                        Namespace.DEFAULT_IMPORTS.deref(),
+                    )
+                )
             )
         )
         self._import_aliases: atom.Atom = atom.Atom(lmap.Map.empty())

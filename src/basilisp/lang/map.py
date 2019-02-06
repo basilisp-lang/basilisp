@@ -1,3 +1,4 @@
+from builtins import map as pymap
 from collections import Sequence
 from typing import Optional  # noqa # pylint: disable=unused-import
 
@@ -225,5 +226,5 @@ def from_entries(entries):
 
 
 def hash_map(*pairs) -> Map:
-    entries = seq(partition(pairs, 2)).map(lambda v: MapEntry.of(v[0], v[1])).to_list()
+    entries = pymap(lambda v: MapEntry.of(v[0], v[1]), partition(pairs, 2))
     return from_entries(entries)
