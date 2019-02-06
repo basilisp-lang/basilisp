@@ -6,7 +6,17 @@ from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from functools import partial, wraps
-from typing import Pattern, Union, Deque, Optional, Dict, Callable, cast
+from typing import (
+    Pattern,
+    Union,
+    Deque,
+    Optional,
+    Dict,
+    Callable,
+    cast,
+    Any,
+    Collection,
+)
 
 import attr
 
@@ -59,6 +69,8 @@ from basilisp.lang.compyler.nodes import (
     SetBang,
     Assignable,
     Loop,
+    NodeOp,
+    Recur,
 )
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
@@ -95,6 +107,12 @@ _IGNORED_SYM = sym.symbol("_")
 _MACRO_ENV_SYM = sym.symbol("&env")
 _MACRO_FORM_SYM = sym.symbol("&form")
 _NO_WARN_UNUSED_SYMS = lset.s(_IGNORED_SYM, _MACRO_ENV_SYM, _MACRO_FORM_SYM)
+
+
+@attr.s(auto_attribs=True, slots=True)
+class RecurPoint:
+    loop_id: str
+    args: Collection[Binding] = ()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -212,7 +230,7 @@ class SymbolTable:
 
 
 class ParserContext:
-    __slots__ = ("_filename", "_is_quoted", "_opts", "_st")
+    __slots__ = ("_filename", "_is_quoted", "_opts", "_recur_points", "_st")
 
     def __init__(
         self, filename: Optional[str] = None, opts: Optional[Dict[str, bool]] = None
@@ -220,6 +238,7 @@ class ParserContext:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._is_quoted: Deque[bool] = collections.deque([])
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.Map.empty())
+        self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>")])
 
     @property
@@ -247,6 +266,19 @@ class ParserContext:
         self._is_quoted.append(True)
         yield
         self._is_quoted.pop()
+
+    @property
+    def recur_point(self) -> Optional[RecurPoint]:
+        try:
+            return self._recur_points[-1]
+        except IndexError:
+            return None
+
+    @contextlib.contextmanager
+    def new_recur_point(self, loop_id: str, args: Collection[Any] = ()):
+        self._recur_points.append(RecurPoint(loop_id, args=args))
+        yield
+        self._recur_points.pop()
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -719,18 +751,21 @@ def _loop_ast(ctx: ParserContext, form: lseq.Seq) -> Loop:
 
             ctx.symbol_table.new_symbol(name, LocalType.LOOP)
 
-        *statements, ret = map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))
-        return Loop(
-            form=form,
-            bindings=vec.vector(binding_nodes),
-            body=Do(
-                form=runtime.nthrest(form, 2),
-                statements=vec.vector(statements),
-                ret=ret,
-                is_body=True,
-            ),
-            loop_id=sym.symbol(genname("loop")),
-        )
+        with ctx.new_recur_point(loop_id, binding_nodes):
+            *statements, ret = map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))
+            loop_node = Loop(
+                form=form,
+                bindings=vec.vector(binding_nodes),
+                body=Do(
+                    form=runtime.nthrest(form, 2),
+                    statements=vec.vector(statements),
+                    ret=ret,
+                    is_body=True,
+                ),
+                loop_id=loop_id,
+            )
+            loop_node.visit(_assert_recur_is_tail)
+            return loop_node
 
 
 def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
@@ -740,6 +775,38 @@ def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
         expr = _parse_ast(ctx, runtime.nth(form, 1))
         assert isinstance(expr, Const), "Quoted expressions must yield :const nodes"
         return Quote(form=form, expr=expr, is_literal=True)
+
+
+def _assert_no_recur(node: Node) -> None:
+    """Assert that `recur` forms do not appear in any position of this or
+    child AST nodes."""
+    node.visit(_assert_no_recur)
+    if node.op == NodeOp.RECUR:
+        raise ParserException(
+            "recur must appear in tail position", form=node.form, lisp_ast=node
+        )
+
+
+def _assert_recur_is_tail(node: Node) -> None:
+    """Assert that `recur` forms only appear in the tail position of this
+    or child AST nodes.
+
+    `recur` forms may only appear in `do` nodes (both literal and synthetic
+    `do` nodes) and in either the :then or :else expression of an `if` node."""
+    if node.op == NodeOp.DO:
+        assert isinstance(node, Do)
+        for child in node.statements:
+            _assert_no_recur(child)
+        _assert_recur_is_tail(node.ret)
+    elif node.op == NodeOp.IF:
+        assert isinstance(node, If)
+        _assert_no_recur(node.test)
+        _assert_recur_is_tail(node.then)
+        _assert_recur_is_tail(node.else_)
+    elif node.op == NodeOp.RECUR:
+        pass
+    else:
+        node.visit(_assert_no_recur)
 
 
 def _recur_ast(ctx: ParserContext, form: lseq.Seq) -> Recur:
@@ -891,6 +958,7 @@ SpecialFormNode = Union[
     Let,
     Loop,
     Quote,
+    Recur,
     SetBang,
     Throw,
     Try,
@@ -905,6 +973,7 @@ _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.LET: _let_ast,
     SpecialForm.LOOP: _loop_ast,
     SpecialForm.QUOTE: _quote_ast,
+    SpecialForm.RECUR: _recur_ast,
     SpecialForm.SET_BANG: _set_bang_ast,
     SpecialForm.THROW: _throw_ast,
     SpecialForm.TRY: _try_ast,

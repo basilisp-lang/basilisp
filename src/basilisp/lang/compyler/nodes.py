@@ -34,6 +34,9 @@ EXPRS = kw.keyword("exprs")
 ITEMS = kw.keyword("items")
 EXCEPTION = kw.keyword("exception")
 META = kw.keyword("meta")
+TEST = kw.keyword("test")
+THEN = kw.keyword("then")
+ELSE = kw.keyword("else")
 
 
 class NodeOp(Enum):
@@ -102,10 +105,8 @@ class Node(ABC, Generic[T]):
         return attr.evolve(self, **kwargs)
 
     def visit(self, f: Callable[..., None], *args, **kwargs):
-        """Visit all descendants of this node, calling f(node, *args, **kwargs)
-        on each before visiting its descendants recursively."""
-        f(self, *args, **kwargs)
-
+        """Visit all immediate children of this node, calling
+        f(child, *args, **kwargs) on each child."""
         for child_kw in self.children:
             child_attr = munge(child_kw.name)
 
@@ -114,12 +115,10 @@ class Node(ABC, Generic[T]):
                 assert iter_child is not None, "Listed child must not be none"
                 for item in iter_child:
                     f(item, *args, **kwargs)
-                    item.visit(f, *args, **kwargs)
             else:
                 child: Node = getattr(self, child_attr)
                 assert child is not None, "Listed child must not be none"
                 f(child, *args, **kwargs)
-                child.visit(f, *args, **kwargs)
 
 
 class Assignable(ABC):
@@ -156,7 +155,7 @@ class ConstType(Enum):
 NodeMeta = Union[None, "Const", "Map"]
 ReaderLispForm = Union[LispForm, lseq.Seq]
 SpecialForm = Union[llist.List, lseq.Seq]
-LoopID = sym.Symbol
+LoopID = str
 
 
 class LocalType(Enum):

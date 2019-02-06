@@ -6,6 +6,7 @@ import types
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 from fractions import Fraction
 from functools import wraps, partial
 from itertools import chain
@@ -20,7 +21,7 @@ from typing import (
     Callable,
     Tuple,
     Type,
-    Any,
+    Collection,
 )
 
 import attr
@@ -64,6 +65,7 @@ from basilisp.lang.compyler.nodes import (
     Local,
     Let,
     Loop,
+    Recur,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -143,8 +145,10 @@ class GeneratorContext:
         return self._recur_points[-1]
 
     @contextlib.contextmanager
-    def new_recur_point(self, name: str, args: vec.Vector):
-        self._recur_points.append(RecurPoint(name, args))
+    def new_recur_point(
+        self, loop_id: str, binding_names: Collection[str], type_: RecurType
+    ):
+        self._recur_points.append(RecurPoint(loop_id, binding_names, type_))
         yield
         self._recur_points.pop()
 
@@ -444,11 +448,39 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     assert node.op == NodeOp.IF
 
     test_ast = gen_py_ast(ctx, node.test)
-    then_ast = gen_py_ast(ctx, node.then)
-    else_ast = gen_py_ast(ctx, node.else_)
+    result_name = genname(_IF_RESULT_PREFIX)
+
+    # Recur nodes can appear in the then and else expressions of `if` forms.
+    # Recur nodes generate Python `continue` statements, which we would otherwise
+    # attempt to insert directly into an expression. Python will complain if
+    # it finds a statement in an expression AST slot, so we special case the
+    # recur handling here.
+
+    if node.then.op == NodeOp.RECUR:
+        assert isinstance(node.then, Recur)
+        then_ast = _recur_to_py_ast(ctx, node.then)
+        then_expr = [then_ast.node]
+    else:
+        then_ast = gen_py_ast(ctx, node.then)
+        then_expr = [
+            ast.Assign(
+                targets=[ast.Name(id=result_name, ctx=ast.Store())], value=then_ast.node
+            )
+        ]
+
+    if node.else_.op == NodeOp.RECUR:
+        assert isinstance(node.else_, Recur)
+        else_ast = _recur_to_py_ast(ctx, node.else_)
+        else_expr = [else_ast.node]
+    else:
+        else_ast = gen_py_ast(ctx, node.else_)
+        else_expr = [
+            ast.Assign(
+                targets=[ast.Name(id=result_name, ctx=ast.Store())], value=else_ast.node
+            )
+        ]
 
     test_name = genname(_IF_TEST_PREFIX)
-    result_name = genname(_IF_RESULT_PREFIX)
     test_assign = ast.Assign(
         targets=[ast.Name(id=test_name, ctx=ast.Store())], value=test_ast.node
     )
@@ -470,28 +502,8 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
             ],
         ),
         values=[],
-        body=list(
-            chain(
-                else_ast.dependencies,
-                [
-                    ast.Assign(
-                        targets=[ast.Name(id=result_name, ctx=ast.Store())],
-                        value=else_ast.node,
-                    )
-                ],
-            )
-        ),
-        orelse=list(
-            chain(
-                then_ast.dependencies,
-                [
-                    ast.Assign(
-                        targets=[ast.Name(id=result_name, ctx=ast.Store())],
-                        value=then_ast.node,
-                    )
-                ],
-            )
-        ),
+        body=list(chain(else_ast.dependencies, else_expr)),
+        orelse=list(chain(then_ast.dependencies, then_expr)),
     )
 
     return GeneratedPyAST(
@@ -560,55 +572,59 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
     """Return a Python AST Node for a `loop*` expression."""
     assert node.op == NodeOp.LOOP
 
+    binding_names = []
     init_bindings: List[ast.AST] = []
     for binding in node.bindings:
         init_node = binding.init
         assert init_node is not None
         init_ast = gen_py_ast(ctx, init_node)
         init_bindings.extend(init_ast.dependencies)
+        binding_name = genname(munge(binding.name.name))
+        binding_names.append(binding_name)
         init_bindings.append(
             ast.Assign(
-                targets=[ast.Name(id=munge(binding.name.name), ctx=ast.Store())],
+                targets=[ast.Name(id=binding_name, ctx=ast.Store())],
                 value=init_ast.node,
             )
         )
 
-    loop_body_ast: List[ast.AST] = []
-    body_ast = _synthetic_do_to_py_ast(ctx, node.body)
-    loop_body_ast.extend(body_ast.dependencies)
-    loop_body_ast.append(ast.Return(value=body_ast.node))
-
     loop_fn_name = genname("loop")
-    return GeneratedPyAST(
-        node=ast.Call(func=_load_attr(loop_fn_name), args=[], keywords=[]),
-        dependencies=[
-            ast.FunctionDef(
-                name=loop_fn_name,
-                args=ast.arguments(
-                    args=[],
-                    kwarg=None,
-                    vararg=None,
-                    kwonlyargs=[],
-                    defaults=[],
-                    kw_defaults=[],
-                ),
-                body=list(
-                    chain(
-                        init_bindings,
-                        [
-                            ast.While(
-                                test=ast.NameConstant(True),
-                                body=loop_body_ast,
-                                orelse=[],
-                            )
-                        ],
-                    )
-                ),
-                decorator_list=[],
-                returns=None,
-            )
-        ],
-    )
+    with ctx.new_recur_point(node.loop_id, binding_names, RecurType.LOOP):
+        loop_body_ast: List[ast.AST] = []
+        body_ast = _synthetic_do_to_py_ast(ctx, node.body)
+        loop_body_ast.extend(body_ast.dependencies)
+        loop_body_ast.append(ast.Return(value=body_ast.node))
+
+        return GeneratedPyAST(
+            node=ast.Call(func=_load_attr(loop_fn_name), args=[], keywords=[]),
+            dependencies=[
+                ast.FunctionDef(
+                    name=loop_fn_name,
+                    args=ast.arguments(
+                        args=[],
+                        kwarg=None,
+                        vararg=None,
+                        kwonlyargs=[],
+                        defaults=[],
+                        kw_defaults=[],
+                    ),
+                    body=list(
+                        chain(
+                            init_bindings,
+                            [
+                                ast.While(
+                                    test=ast.NameConstant(True),
+                                    body=loop_body_ast,
+                                    orelse=[],
+                                )
+                            ],
+                        )
+                    ),
+                    decorator_list=[],
+                    returns=None,
+                )
+            ],
+        )
 
 
 def _quote_to_py_ast(ctx: GeneratorContext, node: Quote) -> GeneratedPyAST:
@@ -617,8 +633,49 @@ def _quote_to_py_ast(ctx: GeneratorContext, node: Quote) -> GeneratedPyAST:
     return _const_node_to_py_ast(ctx, node.expr)
 
 
+def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
+    """Return a Python AST node for `recur` occurring inside a `loop`."""
+    assert node.op == NodeOp.RECUR
+    recur_deps: List[ast.AST] = []
+    for name, expr in zip(ctx.recur_point.binding_names, node.exprs):
+        expr_ast = gen_py_ast(ctx, expr)
+        recur_deps.extend(expr_ast.dependencies)
+        recur_deps.append(
+            ast.Assign(
+                targets=[ast.Name(id=name, ctx=ast.Store())], value=expr_ast.node
+            )
+        )
+
+    return GeneratedPyAST(node=ast.Continue(), dependencies=recur_deps)
+
+
+_RECUR_TYPE_HANDLER = {
+    RecurType.FN: None,  # TODO: function recur
+    RecurType.LOOP: __loop_recur_to_py_ast,
+}
+
+
+def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
+    """Return a Python AST Node for a `recur` expression.
+
+    Note that `recur` nodes can only legally appear in two AST locations:
+      (1) in :then or :else expressions in :if nodes, and
+      (2) in :ret expressions in :do nodes
+
+    As such, both of these handlers special case the recur construct, as it
+    is the only case in which the code generator emits a statement rather than
+    an expression."""
+    assert node.op == NodeOp.RECUR
+    assert ctx.recur_point is not None, "Must have set a recur point to recur"
+    handle_recur = _RECUR_TYPE_HANDLER.get(ctx.recur_point.type)
+    assert (
+        handle_recur is not None
+    ), f"No recur point handler defined for {ctx.recur_point.type}"
+    return handle_recur(ctx, node)
+
+
 def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
-    """Return a Python AST Node for a `quote` expression."""
+    """Return a Python AST Node for a `set!` expression."""
     assert node.op == NodeOp.SET_BANG
 
     val_temp_name = genname("set_bang_val")
@@ -1264,7 +1321,6 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.MAYBE_CLASS: _maybe_class_to_py_ast,
     NodeOp.MAYBE_HOST_FORM: _maybe_host_form_to_py_ast,
     NodeOp.QUOTE: _quote_to_py_ast,
-    NodeOp.RECUR: None,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.SET_BANG: _set_bang_to_py_ast,
     NodeOp.THROW: _throw_to_py_ast,
