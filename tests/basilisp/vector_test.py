@@ -53,6 +53,15 @@ def test_contains():
     assert False is vector.Vector.empty().contains(-1)
 
 
+def test_py_contains():
+    assert "a" in vector.v("a")
+    assert "a" in vector.v("a", "b")
+    assert "b" in vector.v("a", "b")
+    assert "c" not in vector.Vector.empty()
+    assert "c" not in vector.v("a")
+    assert "c" not in vector.v("a", "b")
+
+
 def test_vector_cons():
     meta = lmap.m(tag="async")
     v1 = vector.v(keyword("kw1"), meta=meta)

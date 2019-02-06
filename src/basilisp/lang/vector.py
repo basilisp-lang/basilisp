@@ -18,6 +18,9 @@ class Vector(Associative, Collection, LispObject, Meta, Seqable):
         self._inner = wrapped
         self._meta = meta
 
+    def __contains__(self, item):
+        return item in self._inner
+
     def __eq__(self, other):
         return self._inner == other
 

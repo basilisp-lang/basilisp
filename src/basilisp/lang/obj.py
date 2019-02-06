@@ -73,7 +73,7 @@ class LispObject(ABC):
         else:
             items = iterable
 
-        items = seq(items).map(lambda o: lrepr(o, **kwargs)).to_list()
+        items = list(map(lambda o: lrepr(o, **kwargs), items))
         seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
 
         print_meta = kwargs["print_meta"]
