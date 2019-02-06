@@ -70,6 +70,9 @@ from basilisp.lang.compyler.nodes import (
     Loop,
     NodeOp,
     Recur,
+    SpecialFormNode,
+    Import,
+    ImportAlias,
 )
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
@@ -92,6 +95,7 @@ FINALLY = kw.keyword("finally")
 
 # Constants used in parsing
 _BUILTINS_NS = "builtins"
+AS = kw.keyword("as")
 
 # Symbols to be ignored for unused symbol warnings
 _IGNORED_SYM = sym.symbol("_")
@@ -388,7 +392,11 @@ def _fn_method_ast(
 
             param_nodes.append(
                 Binding(
-                    form=s, name=s, local=LocalType.ARG, arg_id=i, is_variadic=False
+                    form=s,
+                    name=s.name,
+                    local=LocalType.ARG,
+                    arg_id=i,
+                    is_variadic=False,
                 )
             )
 
@@ -398,10 +406,15 @@ def _fn_method_ast(
             try:
                 vargs_sym = params[vargs_idx + 1]
 
+                if not isinstance(vargs_sym, sym.Symbol):
+                    raise ParserException(
+                        "function rest parameter name must be a symbol", form=vargs_sym
+                    )
+
                 param_nodes.append(
                     Binding(
                         form=vargs_sym,
-                        name=vargs_sym,
+                        name=vargs_sym.name,
                         local=LocalType.ARG,
                         arg_id=i,
                         is_variadic=True,
@@ -439,7 +452,7 @@ def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
         if isinstance(name, sym.Symbol):
             ctx.symbol_table.new_symbol(name, LocalType.FN, warn_if_unused=False)
             name_node: Optional[Binding] = Binding(
-                form=name, name=name, local=LocalType.FN
+                form=name, name=name.name, local=LocalType.FN
             )
         elif isinstance(name, (llist.List, vec.Vector)):
             name = None
@@ -491,7 +504,7 @@ def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> HostCall:
 
     return HostCall(
         form=form,
-        method=sym.symbol(method.name[1:]),
+        method=method.name[1:],
         target=_parse_ast(ctx, runtime.nth(form, 1)),
         args=vec.vector(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))),
     )
@@ -510,7 +523,7 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
 
     return HostField(
         form=form,
-        field=sym.symbol(field.name[2:]),
+        field=field.name[2:],
         target=_parse_ast(ctx, runtime.nth(form, 1)),
         is_assignable=True,
     )
@@ -537,7 +550,7 @@ def _host_interop_ast(
 
             return HostField(
                 form=form,
-                field=sym.symbol(maybe_m_or_f.name[1:]),
+                field=maybe_m_or_f.name[1:],
                 target=_parse_ast(ctx, runtime.nth(form, 1)),
                 is_assignable=True,
             )
@@ -552,9 +565,7 @@ def _host_interop_ast(
 
         return HostCall(
             form=form,
-            method=sym.symbol(method.name[1:])
-            if method.name.startswith("-")
-            else method,
+            method=method.name[1:] if method.name.startswith("-") else method.name,
             target=_parse_ast(ctx, runtime.nth(form, 1)),
             args=vec.vector(map(partial(_parse_ast, ctx), maybe_m_or_f.rest)),
         )
@@ -573,7 +584,7 @@ def _host_interop_ast(
     return HostInterop(
         form=form,
         target=_parse_ast(ctx, runtime.nth(form, 1)),
-        m_or_f=m_or_f,
+        m_or_f=m_or_f.name,
         is_assignable=True,
     )
 
@@ -599,6 +610,29 @@ def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:
         then=_parse_ast(ctx, runtime.nth(form, 2)),
         else_=else_node,
     )
+
+
+def _import_ast(_: ParserContext, form: lseq.Seq) -> Import:
+    assert form.first == SpecialForm.IMPORT
+
+    aliases = []
+    for f in form.rest:
+        if isinstance(f, sym.Symbol):
+            module_name = f
+            module_alias = module_name.name.split(".", maxsplit=1)[0]
+        elif isinstance(f, vec.Vector):
+            module_name = f.entry(0)
+            if not isinstance(module_name, sym.Symbol):
+                raise ParserException("Python module name must be a symbol", form=f)
+            if not AS == f.entry(1):
+                raise ParserException("expected :as alias for Python import", form=f)
+            module_alias = f.entry(2).name
+        else:
+            raise ParserException("symbol or vector expected for import*", form=f)
+
+        aliases.append(ImportAlias(form=f, name=module_name.name, alias=module_alias))
+
+    return Import(form=form, aliases=aliases)
 
 
 def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
@@ -664,7 +698,7 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
             binding_nodes.append(
                 Binding(
                     form=name,
-                    name=name,
+                    name=name.name,
                     local=LocalType.LET,
                     init=_parse_ast(ctx, value),
                     children=vec.v(INIT),
@@ -713,7 +747,7 @@ def _loop_ast(ctx: ParserContext, form: lseq.Seq) -> Loop:
             binding_nodes.append(
                 Binding(
                     form=name,
-                    name=name,
+                    name=name.name,
                     local=LocalType.LOOP,
                     init=_parse_ast(ctx, value),
                 )
@@ -845,7 +879,7 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
         return Catch(
             form=form,
             class_=catch_cls,
-            local=Binding(form=local_name, name=local_name, local=LocalType.CATCH),
+            local=Binding(form=local_name, name=local_name.name, local=LocalType.CATCH),
             body=Do(
                 form=runtime.nthrest(form, 3),
                 statements=vec.vector(catch_statements),
@@ -916,29 +950,13 @@ def _try_ast(ctx: ParserContext, form: lseq.Seq) -> Try:
     )
 
 
-SpecialFormNode = Union[
-    Def,
-    Do,
-    Fn,
-    If,
-    HostCall,
-    HostField,
-    HostInterop,
-    Invoke,
-    Let,
-    Loop,
-    Quote,
-    Recur,
-    SetBang,
-    Throw,
-    Try,
-]
 SpecialFormHandler = Callable[[ParserContext, lseq.Seq], SpecialFormNode]
 _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.DEF: _def_node,
     SpecialForm.DO: _do_ast,
     SpecialForm.FN: _fn_ast,
     SpecialForm.IF: _if_ast,
+    SpecialForm.IMPORT: _import_ast,
     SpecialForm.INTEROP_CALL: _host_interop_ast,
     SpecialForm.LET: _let_ast,
     SpecialForm.LOOP: _loop_ast,
@@ -1003,14 +1021,14 @@ def _resolve_sym(
             if v is not None:
                 return VarRef(form=form, var=v, is_assignable=v.dynamic)
 
-        return MaybeHostForm(form=form, class_=ns_sym, field=sym.symbol(form.name))
+        return MaybeHostForm(form=form, class_=ns_sym.name, field=form.name)
     else:
         # Look up the symbol in the namespace mapping of the current namespace.
         v = ctx.current_ns.find(form)
         if v is not None:
             return VarRef(form=form, var=v, is_assignable=v.dynamic)
 
-        return MaybeClass(form=form, class_=form)
+        return MaybeClass(form=form, class_=form.name)
 
 
 def _symbol_node(
@@ -1022,7 +1040,9 @@ def _symbol_node(
     sym_entry = ctx.symbol_table.find_symbol(form)
     if sym_entry is not None:
         ctx.symbol_table.mark_used(form)
-        return Local(form=form, name=form, local=sym_entry.context, is_assignable=False)
+        return Local(
+            form=form, name=form.name, local=sym_entry.context, is_assignable=False
+        )
 
     return _resolve_sym(ctx, form)
 

@@ -51,6 +51,8 @@ class NodeOp(Enum):
     HOST_FIELD = kw.keyword("host-field")
     HOST_INTEROP = kw.keyword("host-interop")
     IF = kw.keyword("if")
+    IMPORT = kw.keyword("import")
+    IMPORT_ALIAS = kw.keyword("import-alias")
     INVOKE = kw.keyword("invoke")
     LET = kw.keyword("let")
     LETFN = kw.keyword("letfn")
@@ -170,7 +172,7 @@ class LocalType(Enum):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class Binding(Node[sym.Symbol]):
     form: sym.Symbol
-    name: sym.Symbol
+    name: str
     local: LocalType
     arg_id: Optional[int] = None
     is_variadic: bool = False
@@ -262,7 +264,7 @@ class FnMethod(Node[SpecialForm]):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class HostCall(Node[SpecialForm]):
     form: SpecialForm
-    method: sym.Symbol
+    method: str
     target: Node
     args: Iterable[Node]
     children: Collection[kw.Keyword] = vec.v(TARGET, ARGS)
@@ -274,7 +276,7 @@ class HostCall(Node[SpecialForm]):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class HostField(Node[SpecialForm], Assignable):
     form: SpecialForm
-    field: sym.Symbol
+    field: str
     target: Node
     is_assignable: bool = True
     children: Collection[kw.Keyword] = vec.v(TARGET)
@@ -286,7 +288,7 @@ class HostField(Node[SpecialForm], Assignable):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class HostInterop(Node[SpecialForm], Assignable):
     form: SpecialForm
-    m_or_f: sym.Symbol
+    m_or_f: str
     target: Node
     args: Iterable[Node] = ()
     is_assignable: bool = True
@@ -304,6 +306,27 @@ class If(Node[SpecialForm]):
     else_: Node = Const(form=None, type=ConstType.NIL, val=None, is_literal=True)
     children: Collection[kw.Keyword] = vec.v(TEST, THEN, ELSE)
     op: NodeOp = NodeOp.IF
+    top_level: bool = False
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class Import(Node[SpecialForm]):
+    form: SpecialForm
+    aliases: Iterable["ImportAlias"]
+    children: Collection[kw.Keyword] = vec.Vector.empty()
+    op: NodeOp = NodeOp.IMPORT
+    top_level: bool = False
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class ImportAlias(Node[Union[sym.Symbol, vec.Vector]]):
+    form: Union[sym.Symbol, vec.Vector]
+    name: str
+    alias: str
+    children: Collection[kw.Keyword] = vec.Vector.empty()
+    op: NodeOp = NodeOp.IMPORT_ALIAS
     top_level: bool = False
     raw_forms: Collection[LispForm] = vec.Vector.empty()
 
@@ -345,7 +368,7 @@ class LetFn(Node[SpecialForm]):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class Local(Node[sym.Symbol], Assignable):
     form: sym.Symbol
-    name: sym.Symbol
+    name: str
     local: LocalType
     is_assignable: bool = False
     arg_id: Optional[int] = None
@@ -382,7 +405,7 @@ class Map(Node[lmap.Map]):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class MaybeClass(Node[sym.Symbol]):
     form: sym.Symbol
-    class_: sym.Symbol
+    class_: str
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_CLASS
     top_level: bool = False
@@ -392,8 +415,8 @@ class MaybeClass(Node[sym.Symbol]):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class MaybeHostForm(Node[sym.Symbol]):
     form: sym.Symbol
-    class_: sym.Symbol
-    field: sym.Symbol
+    class_: str
+    field: str
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_HOST_FORM
     top_level: bool = False
@@ -506,6 +529,7 @@ ParentNode = Union[
     HostField,
     HostInterop,
     If,
+    Import,
     Invoke,
     Let,
     LetFn,
@@ -522,5 +546,23 @@ ParentNode = Union[
     Vector,
     WithMeta,
 ]
-ChildOnlyNode = Union[Binding, Catch, FnMethod, Local, Recur]
+ChildOnlyNode = Union[Binding, Catch, FnMethod, ImportAlias, Local, Recur]
 AnyNode = Union[ParentNode, ChildOnlyNode]
+SpecialFormNode = Union[
+    Def,
+    Do,
+    Fn,
+    If,
+    HostCall,
+    HostField,
+    HostInterop,
+    Import,
+    Invoke,
+    Let,
+    Loop,
+    Quote,
+    Recur,
+    SetBang,
+    Throw,
+    Try,
+]

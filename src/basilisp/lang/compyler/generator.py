@@ -1,6 +1,7 @@
 import ast
 import collections
 import contextlib
+import importlib
 import logging
 import types
 import uuid
@@ -72,6 +73,7 @@ from basilisp.lang.compyler.nodes import (
     Loop,
     Recur,
     Fn,
+    Import,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -574,6 +576,61 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     )
 
 
+def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
+    """Return a Python AST node for a Basilisp `import*` expression."""
+    assert node.op == NodeOp.IMPORT
+
+    last = None
+    deps: List[ast.AST] = []
+    for alias in node.aliases:
+        try:
+            module = importlib.import_module(alias.name)
+            if alias.name != alias.alias:
+                ctx.add_import(sym.symbol(alias.name), module, sym.symbol(alias.alias))
+            else:
+                ctx.add_import(sym.symbol(alias.name), module)
+        except ModuleNotFoundError as e:
+            raise GeneratorException(
+                f"Python module '{alias.name}' not found", form=node.form, lisp_ast=node
+            ) from e
+
+        if not node.top_level:
+            deps.append(ast.Global(names=[alias.alias]))
+
+        deps.append(
+            ast.Assign(
+                targets=[ast.Name(id=alias.alias, ctx=ast.Store())],
+                value=ast.Call(
+                    func=_load_attr("builtins.__import__"),
+                    args=[ast.Str(alias.name)],
+                    keywords=[],
+                ),
+            )
+        )
+        last = ast.Name(id=alias.alias, ctx=ast.Load())
+
+        # Note that we add this import to the live running system in the above
+        # calls to `ctx.add_import`, however, since we compile and cache Python
+        # bytecode, we need to generate calls to `add_import` for the running
+        # namespace so when this code is reloaded from the cache, the runtime
+        # is correctly configured.
+        deps.append(
+            ast.Call(
+                func=_load_attr(f"{_NS_VAR_VALUE}.add_import"),
+                args=[
+                    ast.Call(
+                        func=_NEW_SYM_FN_NAME, args=[ast.Str(alias.name)], keywords=[]
+                    ),
+                    last,
+                ],
+                keywords=[],
+            )
+        )
+
+    assert last is not None, "import* node must have at least one import"
+    return GeneratedPyAST(node=last, dependencies=deps)
+
+
 def _invoke_to_py_ast(ctx: GeneratorContext, node: Invoke) -> GeneratedPyAST:
     """Return a Python AST Node for a Basilisp function invocation."""
     assert node.op == NodeOp.INVOKE
@@ -599,7 +656,7 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
         fn_body_ast.extend(init_ast.dependencies)
         fn_body_ast.append(
             ast.Assign(
-                targets=[ast.Name(id=munge(binding.name.name), ctx=ast.Store())],
+                targets=[ast.Name(id=munge(binding.name), ctx=ast.Store())],
                 value=init_ast.node,
             )
         )
@@ -641,7 +698,7 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
         assert init_node is not None
         init_ast = gen_py_ast(ctx, init_node)
         init_bindings.extend(init_ast.dependencies)
-        binding_name = genname(munge(binding.name.name))
+        binding_name = genname(munge(binding.name))
         binding_names.append(binding_name)
         init_bindings.append(
             ast.Assign(
@@ -745,7 +802,7 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
 
     target = node.target
     if isinstance(target, Local):
-        safe_name = munge(target.name.name)
+        safe_name = munge(target.name)
         target_ast = GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Store()))
     elif isinstance(target, HostField):
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
@@ -831,7 +888,7 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
         catch_handlers.append(
             ast.ExceptHandler(
                 type=exc_type.node,
-                name=munge(exc_binding.name.name),
+                name=munge(exc_binding.name),
                 body=list(
                     chain(
                         catch_ast.dependencies,
@@ -888,7 +945,7 @@ def _local_sym_to_py_ast(
 
     return GeneratedPyAST(
         node=ast.Name(
-            id=munge(node.name.name), ctx=ast.Store() if is_assigning else ast.Load()
+            id=munge(node.name), ctx=ast.Store() if is_assigning else ast.Load()
         )
     )
 
@@ -938,7 +995,7 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: HostCall) -> GeneratedP
         node=ast.Call(
             func=ast.Attribute(
                 value=target_ast.node,
-                attr=munge(node.method.name, allow_builtins=True),
+                attr=munge(node.method, allow_builtins=True),
                 ctx=ast.Load(),
             ),
             args=list(args_nodes),
@@ -959,7 +1016,7 @@ def _interop_prop_to_py_ast(
     return GeneratedPyAST(
         node=ast.Attribute(
             value=target_ast.node,
-            attr=munge(node.field.name),
+            attr=munge(node.field),
             ctx=ast.Store() if is_assigning else ast.Load(),
         ),
         dependencies=target_ast.dependencies,
@@ -977,7 +1034,7 @@ def _interop_to_py_ast(
     return GeneratedPyAST(
         node=ast.Attribute(
             value=target_ast.node,
-            attr=munge(node.m_or_f.name),
+            attr=munge(node.m_or_f),
             ctx=ast.Store() if is_assigning else ast.Load(),
         ),
         dependencies=target_ast.dependencies,
@@ -988,11 +1045,7 @@ def _maybe_class_to_py_ast(_: GeneratorContext, node: MaybeClass) -> GeneratedPy
     """Generate a Python AST node for accessing a potential Python module
     variable name."""
     assert node.op == NodeOp.MAYBE_CLASS
-
-    class_ = node.class_
-    assert class_.ns is None
-
-    return GeneratedPyAST(node=ast.Name(id=munge(class_.name), ctx=ast.Load()))
+    return GeneratedPyAST(node=ast.Name(id=munge(node.class_), ctx=ast.Load()))
 
 
 def _maybe_host_form_to_py_ast(
@@ -1002,16 +1055,14 @@ def _maybe_host_form_to_py_ast(
     variable name with a namespace."""
     assert node.op == NodeOp.MAYBE_HOST_FORM
 
-    ns = node.class_
-
-    if ns.name == _BUILTINS_NS:
+    if node.class_ == _BUILTINS_NS:
         return GeneratedPyAST(
             node=ast.Name(
-                id=f"{munge(node.field.name, allow_builtins=True)}", ctx=ast.Load()
+                id=f"{munge(node.field, allow_builtins=True)}", ctx=ast.Load()
             )
         )
 
-    return GeneratedPyAST(node=_load_attr(f"{munge(ns.name)}.{munge(node.field.name)}"))
+    return GeneratedPyAST(node=_load_attr(f"{munge(node.class_)}.{munge(node.field)}"))
 
 
 #########################
@@ -1374,6 +1425,7 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.HOST_FIELD: _interop_prop_to_py_ast,
     NodeOp.HOST_INTEROP: _interop_to_py_ast,
     NodeOp.IF: _if_to_py_ast,
+    NodeOp.IMPORT: _import_to_py_ast,
     NodeOp.INVOKE: _invoke_to_py_ast,
     NodeOp.LET: _let_to_py_ast,
     NodeOp.LETFN: None,
