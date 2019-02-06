@@ -24,6 +24,8 @@ class SpecialForm:
 
 AMPERSAND = sym.symbol("&")
 
+DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
+
 SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
 SYM_MACRO_META_KEY = kw.keyword("macro")
 SYM_NO_WARN_ON_REDEF_META_KEY = kw.keyword("no-warn-on-redef")

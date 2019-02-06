@@ -32,9 +32,8 @@ import basilisp.lang.vector as vec
 from basilisp.lang.compyler.constants import (
     SpecialForm,
     AMPERSAND,
-    SYM_DYNAMIC_META_KEY,
     SYM_MACRO_META_KEY,
-    SYM_REDEF_META_KEY,
+    DEFAULT_COMPILER_FILE_PATH,
 )
 from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compyler.nodes import (
@@ -80,8 +79,8 @@ from basilisp.util import Maybe, partition
 # Parser logging
 logger = logging.getLogger(__name__)
 
-DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
-_BUILTINS_NS = "builtins"
+# Parser options
+WARN_ON_UNUSED_NAMES = "warn_on_unused_names"
 
 # Lisp AST node keywords
 INIT = kw.keyword("init")
@@ -91,22 +90,17 @@ BODY = kw.keyword("body")
 CATCHES = kw.keyword("catches")
 FINALLY = kw.keyword("finally")
 
-# Parser options
-WARN_ON_UNUSED_NAMES = "warn_on_unused_names"
-
-
-def count(seq: lseq.Seq) -> int:
-    return sum([1 for _ in seq])
-
-
-ParserException = partial(CompilerException, phase=CompilerPhase.PARSING)
-
+# Constants used in parsing
+_BUILTINS_NS = "builtins"
 
 # Symbols to be ignored for unused symbol warnings
 _IGNORED_SYM = sym.symbol("_")
 _MACRO_ENV_SYM = sym.symbol("&env")
 _MACRO_FORM_SYM = sym.symbol("&form")
 _NO_WARN_UNUSED_SYMS = lset.s(_IGNORED_SYM, _MACRO_ENV_SYM, _MACRO_FORM_SYM)
+
+
+ParserException = partial(CompilerException, phase=CompilerPhase.PARSING)
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -275,14 +269,8 @@ class ParserContext:
             self._st.pop()
 
 
-def _is_dynamic(v: Var) -> bool:
-    """Return True if the Var holds a value which should be compiled to a dynamic
-    Var access."""
-    return (
-        Maybe(v.meta)
-        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))  # type: ignore
-        .or_else_get(False)
-    )
+def count(seq: lseq.Seq) -> int:
+    return sum([1 for _ in seq])
 
 
 def _is_macro(v: Var) -> bool:
@@ -290,15 +278,6 @@ def _is_macro(v: Var) -> bool:
     return (
         Maybe(v.meta)
         .map(lambda m: m.get(SYM_MACRO_META_KEY, None))  # type: ignore
-        .or_else_get(False)
-    )
-
-
-def _is_redefable(v: Var) -> bool:
-    """Return True if the Var can be redefined."""
-    return (
-        Maybe(v.meta)
-        .map(lambda m: m.get(SYM_REDEF_META_KEY, None))  # type: ignore
         .or_else_get(False)
     )
 

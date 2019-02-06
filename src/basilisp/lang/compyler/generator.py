@@ -36,6 +36,11 @@ import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+from basilisp.lang.compyler.constants import (
+    DEFAULT_COMPILER_FILE_PATH,
+    SYM_DYNAMIC_META_KEY,
+    SYM_NO_WARN_ON_REDEF_META_KEY,
+)
 from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compyler.nodes import (
     Node,
@@ -66,22 +71,17 @@ from basilisp.lang.compyler.nodes import (
     Let,
     Loop,
     Recur,
+    Fn,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
 from basilisp.util import Maybe
 
-# Compiler logging
+# Generator logging
 logger = logging.getLogger(__name__)
-
-DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
 
 # Lisp AST node keywords
 INIT = kw.keyword("init")
-
-# Symbol meta keys
-SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
-SYM_NO_WARN_ON_REDEF_META_KEY = kw.keyword("no-warn-on-redef")
 
 # String constants used in generating code
 _BUILTINS_NS = "builtins"
@@ -97,10 +97,6 @@ _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
 _NS_VAR = "__NS"
 _LISP_NS_VAR = "*ns*"
-
-
-def count(seq: Iterable) -> int:
-    return sum([1 for _ in seq])
 
 
 GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERATION)
@@ -234,6 +230,10 @@ class GeneratedPyAST:
 PyASTStream = Iterable[ast.AST]
 SimplePyASTGenerator = Callable[[GeneratorContext, ReaderLispForm], GeneratedPyAST]
 PyASTGenerator = Callable[[GeneratorContext, Node], GeneratedPyAST]
+
+
+def count(seq: Iterable) -> int:
+    return sum([1 for _ in seq])
 
 
 def _chain_py_ast(*genned: GeneratedPyAST,) -> Tuple[PyASTStream, PyASTStream]:
@@ -475,6 +475,11 @@ def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
             )
         ],
     )
+
+
+def _fn_to_py_ast(ctx: GeneratorContext, node: Fn) -> GeneratedPyAST:
+    """Return a Python AST Node for a `fn` expression."""
+    pass
 
 
 def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
