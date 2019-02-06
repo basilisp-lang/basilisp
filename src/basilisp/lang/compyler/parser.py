@@ -645,9 +645,18 @@ def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
 
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
         if _is_macro(fn.var):
-            expanded = fn.var.value(form, *form.rest)
-            expanded_ast = _parse_ast(ctx, expanded)
-            return expanded_ast.assoc(raw_forms=vec.v(form))
+            try:
+                expanded = fn.var.value(form, *form.rest)
+                expanded_ast = _parse_ast(ctx, expanded)
+                return expanded_ast.assoc(
+                    raw_forms=cast(vec.Vector, expanded_ast.raw_forms).cons(form)
+                )
+            except Exception as e:
+                raise CompilerException(
+                    "error occurred during macroexpansion",
+                    form=form,
+                    phase=CompilerPhase.MACROEXPANSION,
+                ) from e
 
     descriptor = Invoke(
         form=form, fn=fn, args=vec.vector(map(partial(_parse_ast, ctx), form.rest))

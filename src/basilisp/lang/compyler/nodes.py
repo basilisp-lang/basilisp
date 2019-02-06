@@ -93,7 +93,7 @@ class Node(ABC, Generic[T]):
 
     @property
     @abstractmethod
-    def raw_forms(self) -> Optional[LispForm]:
+    def raw_forms(self) -> Collection[LispForm]:
         pass
 
     @property
@@ -179,7 +179,7 @@ class Binding(Node[sym.Symbol]):
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.BINDING
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -191,7 +191,7 @@ class Catch(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(CLASS, LOCAL, BODY)
     op: NodeOp = NodeOp.CATCH
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -204,7 +204,7 @@ class Const(Node[ReaderLispForm]):
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.CONST
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -217,7 +217,7 @@ class Def(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.DEF
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -229,7 +229,7 @@ class Do(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(STATEMENTS, RET)
     op: NodeOp = NodeOp.DO
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -242,7 +242,7 @@ class Fn(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(METHODS)
     op: NodeOp = NodeOp.FN
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -256,7 +256,7 @@ class FnMethod(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(PARAMS, BODY)
     op: NodeOp = NodeOp.FN_METHOD
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -268,7 +268,7 @@ class HostCall(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(TARGET, ARGS)
     op: NodeOp = NodeOp.HOST_CALL
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -280,7 +280,7 @@ class HostField(Node[SpecialForm], Assignable):
     children: Collection[kw.Keyword] = vec.v(TARGET)
     op: NodeOp = NodeOp.HOST_FIELD
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -293,7 +293,7 @@ class HostInterop(Node[SpecialForm], Assignable):
     children: Collection[kw.Keyword] = vec.v(TARGET)
     op: NodeOp = NodeOp.HOST_INTEROP
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -305,7 +305,7 @@ class If(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(TEST, THEN, ELSE)
     op: NodeOp = NodeOp.IF
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -317,7 +317,7 @@ class Invoke(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(FN, ARGS)
     op: NodeOp = NodeOp.INVOKE
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -328,7 +328,7 @@ class Let(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LET
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -339,7 +339,7 @@ class LetFn(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LETFN
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -353,7 +353,7 @@ class Local(Node[sym.Symbol], Assignable):
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.LOCAL
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -365,7 +365,7 @@ class Loop(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LOOP
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -376,7 +376,7 @@ class Map(Node[lmap.Map]):
     children: Collection[kw.Keyword] = vec.v(KEYS, VALS)
     op: NodeOp = NodeOp.MAP
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -386,7 +386,7 @@ class MaybeClass(Node[sym.Symbol]):
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_CLASS
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -397,7 +397,7 @@ class MaybeHostForm(Node[sym.Symbol]):
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_HOST_FORM
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -408,7 +408,7 @@ class Quote(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(EXPR)
     op: NodeOp = NodeOp.QUOTE
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -419,7 +419,7 @@ class Recur(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(EXPRS)
     op: NodeOp = NodeOp.RECUR
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -429,7 +429,7 @@ class Set(Node[lset.Set]):
     children: Collection[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.SET
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -440,7 +440,7 @@ class SetBang(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(TARGET, VAL)
     op: NodeOp = NodeOp.SET_BANG
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -450,7 +450,7 @@ class Throw(Node[SpecialForm]):
     children: Collection[kw.Keyword] = vec.v(EXCEPTION)
     op: NodeOp = NodeOp.THROW
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -462,7 +462,7 @@ class Try(Node[SpecialForm]):
     finally_: Optional[Do] = None
     op: NodeOp = NodeOp.TRY
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -473,7 +473,7 @@ class VarRef(Node[sym.Symbol], Assignable):
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.VAR
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -483,7 +483,7 @@ class Vector(Node[vec.Vector]):
     children: Collection[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.VECTOR
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -494,7 +494,7 @@ class WithMeta(Node[LispForm]):
     children: Collection[kw.Keyword] = vec.v(META, EXPR)
     op: NodeOp = NodeOp.WITH_META
     top_level: bool = False
-    raw_forms: Optional[LispForm] = None
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 ParentNode = Union[
