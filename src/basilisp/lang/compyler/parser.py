@@ -123,30 +123,12 @@ class SymbolTableEntry:
     warn_if_unused: bool = True
 
 
+@attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
-    __slots__ = ("_name", "_parent", "_table", "_children")
-
-    def __init__(
-        self,
-        name: str,
-        parent: "SymbolTable" = None,
-        table: Dict[sym.Symbol, SymbolTableEntry] = None,
-        children: Dict[str, "SymbolTable"] = None,
-    ) -> None:
-        self._name = name
-        self._parent = parent
-        self._table = {} if table is None else table
-        self._children = {} if children is None else children
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    def __repr__(self):
-        return (
-            f"SymbolTable({self._name}, parent={repr(self._parent.name)}, "
-            f"table={repr(self._table)}, children={len(self._children)})"
-        )
+    name: str
+    _parent: Optional["SymbolTable"] = None
+    _table: Dict[sym.Symbol, SymbolTableEntry] = {}
+    _children: Dict[str, "SymbolTable"] = {}
 
     def new_symbol(
         self, s: sym.Symbol, ctx: LocalType, warn_if_unused: bool = True

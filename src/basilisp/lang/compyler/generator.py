@@ -106,6 +106,49 @@ def count(seq: Iterable) -> int:
 GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERATION)
 
 
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class SymbolTableEntry:
+    context: LocalType
+    symbol: sym.Symbol
+
+
+@attr.s(auto_attribs=True, slots=True)
+class SymbolTable:
+    name: str
+    _parent: Optional["SymbolTable"] = None
+    _table: Dict[sym.Symbol, SymbolTableEntry] = {}
+    _children: Dict[str, "SymbolTable"] = {}
+
+    def new_symbol(self, s: sym.Symbol, ctx: LocalType) -> "SymbolTable":
+        if s in self._table:
+            self._table[s] = attr.evolve(self._table[s], context=ctx, symbol=s)
+        else:
+            self._table[s] = SymbolTableEntry(ctx, s)
+        return self
+
+    def find_symbol(self, s: sym.Symbol) -> Optional[SymbolTableEntry]:
+        if s in self._table:
+            return self._table[s]
+        if self._parent is None:
+            return None
+        return self._parent.find_symbol(s)
+
+    def append_frame(self, name: str, parent: "SymbolTable" = None) -> "SymbolTable":
+        new_frame = SymbolTable(name, parent=parent)
+        self._children[name] = new_frame
+        return new_frame
+
+    def pop_frame(self, name: str) -> None:
+        del self._children[name]
+
+    @contextlib.contextmanager
+    def new_frame(self, name):
+        """Context manager for creating a new stack frame."""
+        new_frame = self.append_frame(name, parent=self)
+        yield new_frame
+        self.pop_frame(name)
+
+
 class RecurType(Enum):
     FN = kw.keyword("fn")
     LOOP = kw.keyword("loop")
@@ -119,7 +162,7 @@ class RecurPoint:
 
 
 class GeneratorContext:
-    __slots__ = ("_filename", "_opts", "_recur_points")
+    __slots__ = ("_filename", "_opts", "_recur_points", "_st")
 
     def __init__(
         self, filename: Optional[str] = None, opts: Optional[Dict[str, bool]] = None
@@ -127,6 +170,7 @@ class GeneratorContext:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
         self._recur_points: Deque[RecurPoint] = collections.deque([])
+        self._st = collections.deque([SymbolTable("<Top>")])
 
         if logger.isEnabledFor(logging.DEBUG):
             for k, v in self._opts:
@@ -151,6 +195,18 @@ class GeneratorContext:
         self._recur_points.append(RecurPoint(loop_id, binding_names, type_))
         yield
         self._recur_points.pop()
+
+    @property
+    def symbol_table(self) -> SymbolTable:
+        return self._st[-1]
+
+    @contextlib.contextmanager
+    def new_symbol_table(self, name):
+        old_st = self.symbol_table
+        with old_st.new_frame(name) as st:
+            self._st.append(st)
+            yield st
+            self._st.pop()
 
     def add_import(self, imp: sym.Symbol, mod: types.ModuleType, *aliases: sym.Symbol):
         self.current_ns.add_import(imp, mod, *aliases)

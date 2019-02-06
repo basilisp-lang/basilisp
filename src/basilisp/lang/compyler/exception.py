@@ -1,11 +1,12 @@
 import ast
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 import attr
 
 import basilisp.lang.keyword as kw
 from basilisp.lang.compyler.nodes import Node
+from basilisp.lang.seq import Seq
 from basilisp.lang.typing import LispForm
 
 
@@ -19,6 +20,6 @@ class CompilerPhase(Enum):
 class CompilerException(Exception):
     msg: str
     phase: CompilerPhase
-    form: Optional[LispForm] = None
+    form: Union[LispForm, None, Seq] = None
     lisp_ast: Optional[Node] = None
     py_ast: Optional[ast.AST] = None
