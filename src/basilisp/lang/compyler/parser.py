@@ -127,8 +127,8 @@ class SymbolTableEntry:
 class SymbolTable:
     name: str
     _parent: Optional["SymbolTable"] = None
-    _table: Dict[sym.Symbol, SymbolTableEntry] = {}
-    _children: Dict[str, "SymbolTable"] = {}
+    _table: Dict[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
+    _children: Dict[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(
         self, s: sym.Symbol, ctx: LocalType, warn_if_unused: bool = True

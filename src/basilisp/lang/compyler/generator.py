@@ -116,8 +116,8 @@ class SymbolTableEntry:
 class SymbolTable:
     name: str
     _parent: Optional["SymbolTable"] = None
-    _table: Dict[sym.Symbol, SymbolTableEntry] = {}
-    _children: Dict[str, "SymbolTable"] = {}
+    _table: Dict[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
+    _children: Dict[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(self, s: sym.Symbol, munged: str, ctx: LocalType) -> "SymbolTable":
         assert s not in self._table
@@ -509,6 +509,7 @@ def _fn_name(s: Optional[str]) -> str:
 def _single_arity_fn_to_py_ast(
     ctx: GeneratorContext, node: Fn, method: FnMethod
 ) -> GeneratedPyAST:
+    """Return a Python AST node for a function with a single arity."""
     assert node.op == NodeOp.FN
     assert method.op == NodeOp.FN_METHOD
 
@@ -561,6 +562,7 @@ def _single_arity_fn_to_py_ast(
 def _multi_arity_fn_to_py_ast(
     ctx: GeneratorContext, node: Fn, methods: Collection[FnMethod]
 ) -> GeneratedPyAST:
+    """Return a Python AST node for a function with multiple arities."""
     assert node.op == NodeOp.FN
     assert all([method.op == NodeOp.FN_METHOD for method in methods])
     return GeneratedPyAST(node=ast.NameConstant(None))
@@ -736,7 +738,7 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
             fn_body_ast.extend(init_ast.dependencies)
             fn_body_ast.append(
                 ast.Assign(
-                    targets=[ast.Name(id=munge(binding.name), ctx=ast.Store())],
+                    targets=[ast.Name(id=binding_name, ctx=ast.Store())],
                     value=init_ast.node,
                 )
             )
