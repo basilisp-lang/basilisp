@@ -238,7 +238,7 @@ class Do(Node[SpecialForm]):
 class Fn(Node[SpecialForm]):
     form: SpecialForm
     max_fixed_arity: int
-    methods: Iterable["FnMethod"]
+    methods: Collection["FnMethod"]
     local: Optional[Binding] = None
     is_variadic: bool = False
     children: Collection[kw.Keyword] = vec.v(METHODS)

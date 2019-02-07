@@ -16,6 +16,8 @@ from typing import (
     cast,
     Any,
     Collection,
+    Iterable,
+    Set,
 )
 
 import attr
@@ -273,7 +275,7 @@ class ParserContext:
             self._st.pop()
 
 
-def count(seq: lseq.Seq) -> int:
+def count(seq: Iterable) -> int:
     return sum([1 for _ in seq])
 
 
@@ -454,10 +456,10 @@ def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
             name_node: Optional[Binding] = Binding(
                 form=name, name=name.name, local=LocalType.FN
             )
+            idx += 1
         elif isinstance(name, (llist.List, vec.Vector)):
             name = None
             name_node = None
-            idx += 1
         else:
             raise ParserException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
@@ -482,10 +484,38 @@ def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
                 form=arity_or_args,
             )
 
+        if count(methods) == 0:
+            raise ParserException("fn must have at least one arity", form=form)
+
+        fixed_arities: Set[int] = set()
+        fixed_arity_for_variadic: Optional[int] = None
+        num_variadic = 0
+        for method in methods:
+            if method.fixed_arity in fixed_arities:
+                raise ParserException(
+                    "fn may not have multiple methods with the same fixed arity",
+                    form=method.form,
+                )
+            if fixed_arity_for_variadic is not None:
+                if method.fixed_arity >= fixed_arity_for_variadic:
+                    raise ParserException(
+                        "fn may not have a method with fixed arity greater than "
+                        "fixed arity of variadic function",
+                        form=method.form,
+                    )
+            fixed_arities.add(method.fixed_arity)
+            if method.is_variadic:
+                if num_variadic > 0:
+                    raise ParserException(
+                        "fn may have at most 1 variadic arity", form=method.form
+                    )
+                fixed_arity_for_variadic = method.fixed_arity
+                num_variadic += 1
+
         return Fn(
             form=form,
-            is_variadic=any([method.is_variadic for method in methods]),
-            max_fixed_arity=max([node.entry(FIXED_ARITY) for node in methods]),
+            is_variadic=num_variadic == 1,
+            max_fixed_arity=max([node.fixed_arity for node in methods]),
             methods=methods,
             local=name_node,
         )

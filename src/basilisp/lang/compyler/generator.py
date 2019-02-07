@@ -74,6 +74,7 @@ from basilisp.lang.compyler.nodes import (
     Recur,
     Fn,
     Import,
+    FnMethod,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -107,6 +108,7 @@ GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERAT
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class SymbolTableEntry:
     context: LocalType
+    munged: str
     symbol: sym.Symbol
 
 
@@ -117,11 +119,9 @@ class SymbolTable:
     _table: Dict[sym.Symbol, SymbolTableEntry] = {}
     _children: Dict[str, "SymbolTable"] = {}
 
-    def new_symbol(self, s: sym.Symbol, ctx: LocalType) -> "SymbolTable":
-        if s in self._table:
-            self._table[s] = attr.evolve(self._table[s], context=ctx, symbol=s)
-        else:
-            self._table[s] = SymbolTableEntry(ctx, s)
+    def new_symbol(self, s: sym.Symbol, munged: str, ctx: LocalType) -> "SymbolTable":
+        assert s not in self._table
+        self._table[s] = SymbolTableEntry(ctx, munged, s)
         return self
 
     def find_symbol(self, s: sym.Symbol) -> Optional[SymbolTableEntry]:
@@ -152,11 +152,12 @@ class RecurType(Enum):
     LOOP = kw.keyword("loop")
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.s(auto_attribs=True, slots=True)
 class RecurPoint:
     loop_id: str
-    binding_names: Collection[str]
     type: RecurType
+    binding_names: Optional[Collection[str]] = None
+    has_recur: bool = False
 
 
 class GeneratorContext:
@@ -188,9 +189,14 @@ class GeneratorContext:
 
     @contextlib.contextmanager
     def new_recur_point(
-        self, loop_id: str, binding_names: Collection[str], type_: RecurType
+        self,
+        loop_id: str,
+        type_: RecurType,
+        binding_names: Optional[Collection[str]] = None,
     ):
-        self._recur_points.append(RecurPoint(loop_id, binding_names, type_))
+        self._recur_points.append(
+            RecurPoint(loop_id, type_, binding_names=binding_names)
+        )
         yield
         self._recur_points.pop()
 
@@ -479,22 +485,94 @@ def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     )
 
 
-def _fn_to_py_ast(ctx: GeneratorContext, node: Fn) -> GeneratedPyAST:
-    """Return a Python AST Node for a `fn` expression."""
-    pass
-
-
 def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     """Return AST elements generated from reducing a synthetic Lisp :do node
     (e.g. a :do node which acts as a body for another node)."""
     assert node.op == NodeOp.DO
     assert node.is_body
 
+    # TODO: investigate how to handle recur in node.ret
+
     return GeneratedPyAST.reduce(
         *chain(
             map(partial(gen_py_ast, ctx), node.statements), [gen_py_ast(ctx, node.ret)]
         )
     )
+
+
+def _fn_name(s: Optional[str]) -> str:
+    """Generate a safe Python function name from a function name symbol.
+    If no symbol is provided, generate a name with a default prefix."""
+    return genname("__" + munge(Maybe(s).or_else_get(_FN_PREFIX)))
+
+
+def _single_arity_fn_to_py_ast(
+    ctx: GeneratorContext, node: Fn, method: FnMethod
+) -> GeneratedPyAST:
+    assert node.op == NodeOp.FN
+    assert method.op == NodeOp.FN_METHOD
+
+    name = node.local.name if node.local is not None else None
+    py_fn_name = _fn_name(name)
+    with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(
+        method.loop_id, RecurType.FN
+    ):
+        # Allow named anonymous functions to recursively call themselves
+        if name is not None:
+            ctx.symbol_table.new_symbol(sym.symbol(name), munge(name), LocalType.FN)
+
+        fn_args = []
+        for binding in method.params:
+            assert binding.init is None
+            arg_name = genname(munge(binding.name))
+            fn_args.append(ast.arg(arg=arg_name, annotation=None))
+            ctx.symbol_table.new_symbol(
+                sym.symbol(binding.name), arg_name, LocalType.ARG
+            )
+
+        body_ast = _synthetic_do_to_py_ast(ctx, method.body)
+        fn_body_ast: List[ast.AST] = []
+        fn_body_ast.extend(body_ast.dependencies)
+        fn_body_ast.append(ast.Return(value=body_ast.node))
+
+        return GeneratedPyAST(
+            node=ast.Name(id=py_fn_name, ctx=ast.Load()),
+            dependencies=[
+                ast.FunctionDef(
+                    name=py_fn_name,
+                    args=ast.arguments(
+                        args=fn_args,
+                        kwarg=None,
+                        vararg=None,
+                        kwonlyargs=[],
+                        defaults=[],
+                        kw_defaults=[],
+                    ),
+                    body=fn_body_ast,
+                    decorator_list=[_TRAMPOLINE_FN_NAME]
+                    if ctx.recur_point.has_recur
+                    else [],
+                    returns=None,
+                )
+            ],
+        )
+
+
+def _multi_arity_fn_to_py_ast(
+    ctx: GeneratorContext, node: Fn, methods: Collection[FnMethod]
+) -> GeneratedPyAST:
+    assert node.op == NodeOp.FN
+    assert all([method.op == NodeOp.FN_METHOD for method in methods])
+    return GeneratedPyAST(node=ast.NameConstant(None))
+
+
+def _fn_to_py_ast(ctx: GeneratorContext, node: Fn) -> GeneratedPyAST:
+    """Return a Python AST Node for a `fn` expression."""
+    assert node.op == NodeOp.FN
+    if len(node.methods) == 1:
+        return _single_arity_fn_to_py_ast(ctx, node, next(iter(node.methods)))
+    else:
+        return _multi_arity_fn_to_py_ast(ctx, node, node.methods)
 
 
 def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
@@ -648,77 +726,34 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
     """Return a Python AST Node for a `let*` expression."""
     assert node.op == NodeOp.LET
 
-    fn_body_ast: List[ast.AST] = []
-    for binding in node.bindings:
-        init_node = binding.init
-        assert init_node is not None
-        init_ast = gen_py_ast(ctx, init_node)
-        fn_body_ast.extend(init_ast.dependencies)
-        fn_body_ast.append(
-            ast.Assign(
-                targets=[ast.Name(id=munge(binding.name), ctx=ast.Store())],
-                value=init_ast.node,
+    with ctx.new_symbol_table("let"):
+        fn_body_ast: List[ast.AST] = []
+        for binding in node.bindings:
+            init_node = binding.init
+            assert init_node is not None
+            init_ast = gen_py_ast(ctx, init_node)
+            binding_name = genname(munge(binding.name))
+            fn_body_ast.extend(init_ast.dependencies)
+            fn_body_ast.append(
+                ast.Assign(
+                    targets=[ast.Name(id=munge(binding.name), ctx=ast.Store())],
+                    value=init_ast.node,
+                )
             )
-        )
-
-    body_ast = _synthetic_do_to_py_ast(ctx, node.body)
-    fn_body_ast.extend(body_ast.dependencies)
-    fn_body_ast.append(ast.Return(value=body_ast.node))
-
-    let_fn_name = genname("let")
-    return GeneratedPyAST(
-        node=ast.Call(func=_load_attr(let_fn_name), args=[], keywords=[]),
-        dependencies=[
-            ast.FunctionDef(
-                name=let_fn_name,
-                args=ast.arguments(
-                    args=[],
-                    kwarg=None,
-                    vararg=None,
-                    kwonlyargs=[],
-                    defaults=[],
-                    kw_defaults=[],
-                ),
-                body=fn_body_ast,
-                decorator_list=[],
-                returns=None,
+            ctx.symbol_table.new_symbol(
+                sym.symbol(binding.name), binding_name, LocalType.LET
             )
-        ],
-    )
 
-
-def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
-    """Return a Python AST Node for a `loop*` expression."""
-    assert node.op == NodeOp.LOOP
-
-    binding_names = []
-    init_bindings: List[ast.AST] = []
-    for binding in node.bindings:
-        init_node = binding.init
-        assert init_node is not None
-        init_ast = gen_py_ast(ctx, init_node)
-        init_bindings.extend(init_ast.dependencies)
-        binding_name = genname(munge(binding.name))
-        binding_names.append(binding_name)
-        init_bindings.append(
-            ast.Assign(
-                targets=[ast.Name(id=binding_name, ctx=ast.Store())],
-                value=init_ast.node,
-            )
-        )
-
-    loop_fn_name = genname("loop")
-    with ctx.new_recur_point(node.loop_id, binding_names, RecurType.LOOP):
-        loop_body_ast: List[ast.AST] = []
         body_ast = _synthetic_do_to_py_ast(ctx, node.body)
-        loop_body_ast.extend(body_ast.dependencies)
-        loop_body_ast.append(ast.Return(value=body_ast.node))
+        fn_body_ast.extend(body_ast.dependencies)
+        fn_body_ast.append(ast.Return(value=body_ast.node))
 
+        let_fn_name = genname("let")
         return GeneratedPyAST(
-            node=ast.Call(func=_load_attr(loop_fn_name), args=[], keywords=[]),
+            node=ast.Call(func=_load_attr(let_fn_name), args=[], keywords=[]),
             dependencies=[
                 ast.FunctionDef(
-                    name=loop_fn_name,
+                    name=let_fn_name,
                     args=ast.arguments(
                         args=[],
                         kwarg=None,
@@ -727,23 +762,77 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
                         defaults=[],
                         kw_defaults=[],
                     ),
-                    body=list(
-                        chain(
-                            init_bindings,
-                            [
-                                ast.While(
-                                    test=ast.NameConstant(True),
-                                    body=loop_body_ast,
-                                    orelse=[],
-                                )
-                            ],
-                        )
-                    ),
+                    body=fn_body_ast,
                     decorator_list=[],
                     returns=None,
                 )
             ],
         )
+
+
+def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
+    """Return a Python AST Node for a `loop*` expression."""
+    assert node.op == NodeOp.LOOP
+
+    with ctx.new_symbol_table("loop"):
+        binding_names = []
+        init_bindings: List[ast.AST] = []
+        for binding in node.bindings:
+            init_node = binding.init
+            assert init_node is not None
+            init_ast = gen_py_ast(ctx, init_node)
+            init_bindings.extend(init_ast.dependencies)
+            binding_name = genname(munge(binding.name))
+            binding_names.append(binding_name)
+            init_bindings.append(
+                ast.Assign(
+                    targets=[ast.Name(id=binding_name, ctx=ast.Store())],
+                    value=init_ast.node,
+                )
+            )
+            ctx.symbol_table.new_symbol(
+                sym.symbol(binding.name), binding_name, LocalType.LOOP
+            )
+
+        loop_fn_name = genname("loop")
+        with ctx.new_recur_point(
+            node.loop_id, RecurType.LOOP, binding_names=binding_names
+        ):
+            loop_body_ast: List[ast.AST] = []
+            body_ast = _synthetic_do_to_py_ast(ctx, node.body)
+            loop_body_ast.extend(body_ast.dependencies)
+            loop_body_ast.append(ast.Return(value=body_ast.node))
+
+            return GeneratedPyAST(
+                node=ast.Call(func=_load_attr(loop_fn_name), args=[], keywords=[]),
+                dependencies=[
+                    ast.FunctionDef(
+                        name=loop_fn_name,
+                        args=ast.arguments(
+                            args=[],
+                            kwarg=None,
+                            vararg=None,
+                            kwonlyargs=[],
+                            defaults=[],
+                            kw_defaults=[],
+                        ),
+                        body=list(
+                            chain(
+                                init_bindings,
+                                [
+                                    ast.While(
+                                        test=ast.NameConstant(True),
+                                        body=loop_body_ast,
+                                        orelse=[],
+                                    )
+                                ],
+                            )
+                        ),
+                        decorator_list=[],
+                        returns=None,
+                    )
+                ],
+            )
 
 
 def _quote_to_py_ast(ctx: GeneratorContext, node: Quote) -> GeneratedPyAST:
@@ -790,6 +879,7 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     assert (
         handle_recur is not None
     ), f"No recur point handler defined for {ctx.recur_point.type}"
+    ctx.recur_point.has_recur = True
     return handle_recur(ctx, node)
 
 
@@ -884,24 +974,31 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
             exc_binding.local == LocalType.CATCH
         ), ":local of :binding node must be :catch for Catch node"
 
-        catch_ast = _synthetic_do_to_py_ast(ctx, catch.body)
-        catch_handlers.append(
-            ast.ExceptHandler(
-                type=exc_type.node,
-                name=munge(exc_binding.name),
-                body=list(
-                    chain(
-                        catch_ast.dependencies,
-                        [
-                            ast.Assign(
-                                targets=[ast.Name(id=try_expr_name, ctx=ast.Store())],
-                                value=catch_ast.node,
-                            )
-                        ],
-                    )
-                ),
+        with ctx.new_symbol_table("catch"):
+            catch_exc_name = genname(munge(exc_binding.name))
+            ctx.symbol_table.new_symbol(
+                sym.symbol(exc_binding.name), catch_exc_name, LocalType.CATCH
             )
-        )
+            catch_ast = _synthetic_do_to_py_ast(ctx, catch.body)
+            catch_handlers.append(
+                ast.ExceptHandler(
+                    type=exc_type.node,
+                    name=munge(exc_binding.name),
+                    body=list(
+                        chain(
+                            catch_ast.dependencies,
+                            [
+                                ast.Assign(
+                                    targets=[
+                                        ast.Name(id=try_expr_name, ctx=ast.Store())
+                                    ],
+                                    value=catch_ast.node,
+                                )
+                            ],
+                        )
+                    ),
+                )
+            )
 
     finallys: List[ast.AST] = []
     if node.finally_ is not None:
@@ -938,14 +1035,17 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
 
 
 def _local_sym_to_py_ast(
-    _: GeneratorContext, node: Local, is_assigning: bool = False
+    ctx: GeneratorContext, node: Local, is_assigning: bool = False
 ) -> GeneratedPyAST:
     """Generate a Python AST node for accessing a locally defined Python variable."""
     assert node.op == NodeOp.LOCAL
 
+    sym_entry = ctx.symbol_table.find_symbol(sym.symbol(node.name))
+    assert sym_entry is not None
+
     return GeneratedPyAST(
         node=ast.Name(
-            id=munge(node.name), ctx=ast.Store() if is_assigning else ast.Load()
+            id=sym_entry.munged, ctx=ast.Store() if is_assigning else ast.Load()
         )
     )
 
@@ -1420,7 +1520,7 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,
     NodeOp.DO: _do_to_py_ast,
-    NodeOp.FN: None,
+    NodeOp.FN: _fn_to_py_ast,
     NodeOp.HOST_CALL: _interop_call_to_py_ast,
     NodeOp.HOST_FIELD: _interop_prop_to_py_ast,
     NodeOp.HOST_INTEROP: _interop_to_py_ast,
