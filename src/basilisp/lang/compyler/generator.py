@@ -75,6 +75,7 @@ from basilisp.lang.compyler.nodes import (
     Fn,
     Import,
     FnMethod,
+    Binding,
 )
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname, munge
@@ -506,6 +507,19 @@ def _fn_name(s: Optional[str]) -> str:
     return genname("__" + munge(Maybe(s).or_else_get(_FN_PREFIX)))
 
 
+def _fn_args_to_py_ast(
+    ctx: GeneratorContext, params: Iterable[Binding]
+) -> List[ast.arg]:
+    """Generate a list of Python AST nodes from function method parameters."""
+    fn_args = []
+    for binding in params:
+        assert binding.init is None
+        arg_name = genname(munge(binding.name))
+        fn_args.append(ast.arg(arg=arg_name, annotation=None))
+        ctx.symbol_table.new_symbol(sym.symbol(binding.name), arg_name, LocalType.ARG)
+    return fn_args
+
+
 def _single_arity_fn_to_py_ast(
     ctx: GeneratorContext, node: Fn, method: FnMethod
 ) -> GeneratedPyAST:
@@ -513,24 +527,18 @@ def _single_arity_fn_to_py_ast(
     assert node.op == NodeOp.FN
     assert method.op == NodeOp.FN_METHOD
 
-    name = node.local.name if node.local is not None else None
-    py_fn_name = _fn_name(name)
+    lisp_fn_name = node.local.name if node.local is not None else None
+    py_fn_name = _fn_name(lisp_fn_name)
     with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(
         method.loop_id, RecurType.FN
     ):
         # Allow named anonymous functions to recursively call themselves
-        if name is not None:
-            ctx.symbol_table.new_symbol(sym.symbol(name), munge(name), LocalType.FN)
-
-        fn_args = []
-        for binding in method.params:
-            assert binding.init is None
-            arg_name = genname(munge(binding.name))
-            fn_args.append(ast.arg(arg=arg_name, annotation=None))
+        if lisp_fn_name is not None:
             ctx.symbol_table.new_symbol(
-                sym.symbol(binding.name), arg_name, LocalType.ARG
+                sym.symbol(lisp_fn_name), munge(lisp_fn_name), LocalType.FN
             )
 
+        fn_args = _fn_args_to_py_ast(ctx, method.params)
         body_ast = _synthetic_do_to_py_ast(ctx, method.body)
         fn_body_ast: List[ast.AST] = []
         fn_body_ast.extend(body_ast.dependencies)
@@ -559,13 +567,208 @@ def _single_arity_fn_to_py_ast(
         )
 
 
+def _multi_arity_dispatch_fn(
+    name: str,
+    arity_map: Dict[int, str],
+    default_name: Optional[str] = None,
+    max_fixed_arity: Optional[int] = None,
+) -> GeneratedPyAST:
+    """Return the Python AST nodes for a argument-length dispatch function
+    for multi-arity functions.
+
+    def fn(*args):
+        nargs = len(args)
+        method = __fn_dispatch_map.get(nargs)
+        if method:
+            return method(*args)
+        # Only if default
+        if nargs > max_fixed_arity:
+            return default(*args)
+        raise RuntimeError
+    """
+    dispatch_map_name = f"{name}_dispatch_map"
+
+    dispatch_keys, dispatch_vals = [], []
+    for k, v in arity_map.items():
+        dispatch_keys.append(ast.Num(k))
+        dispatch_vals.append(ast.Name(id=v, ctx=ast.Load()))
+
+    nargs_name = genname("nargs")
+    method_name = genname("method")
+    body = [
+        ast.Assign(
+            targets=[ast.Name(id=nargs_name, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Name(id="len", ctx=ast.Load()),
+                args=[ast.Name(id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load())],
+                keywords=[],
+            ),
+        ),
+        ast.Assign(
+            targets=[ast.Name(id=method_name, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Name(id=dispatch_map_name, ctx=ast.Load()),
+                    attr="get",
+                    ctx=ast.Load(),
+                ),
+                args=[ast.Name(id=nargs_name, ctx=ast.Load())],
+                keywords=[],
+            ),
+        ),
+        ast.If(
+            test=ast.Compare(
+                left=ast.NameConstant(None),
+                ops=[ast.IsNot()],
+                comparators=[ast.Name(id=method_name, ctx=ast.Load())],
+            ),
+            body=[
+                ast.Return(
+                    value=ast.Call(
+                        func=ast.Name(id=method_name, ctx=ast.Load()),
+                        args=[
+                            ast.Starred(
+                                value=ast.Name(
+                                    id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
+                                ),
+                                ctx=ast.Load(),
+                            )
+                        ],
+                        keywords=[],
+                    )
+                )
+            ],
+            orelse=[]
+            if default_name is None
+            else [
+                ast.If(
+                    test=ast.Compare(
+                        left=ast.Name(id=nargs_name, ctx=ast.Load()),
+                        ops=[ast.GtE()],
+                        comparators=[ast.Num(max_fixed_arity)],
+                    ),
+                    body=[
+                        ast.Return(
+                            value=ast.Call(
+                                func=ast.Name(id=default_name, ctx=ast.Load()),
+                                args=[
+                                    ast.Starred(
+                                        value=ast.Name(
+                                            id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
+                                        ),
+                                        ctx=ast.Load(),
+                                    )
+                                ],
+                                keywords=[],
+                            )
+                        )
+                    ],
+                    orelse=[],
+                )
+            ],
+        ),
+        ast.Raise(
+            exc=ast.Call(
+                func=_load_attr("basilisp.lang.runtime.RuntimeException"),
+                args=[
+                    ast.Str(f"Wrong number of args passed to function: {name}"),
+                    ast.Name(id=nargs_name, ctx=ast.Load()),
+                ],
+                keywords=[],
+            ),
+            cause=None,
+        ),
+    ]
+
+    return GeneratedPyAST(
+        node=ast.Name(id=name, ctx=ast.Load()),
+        dependencies=[
+            ast.Assign(
+                targets=[ast.Name(id=dispatch_map_name, ctx=ast.Store())],
+                value=ast.Dict(keys=dispatch_keys, values=dispatch_vals),
+            ),
+            ast.FunctionDef(
+                name=name,
+                args=ast.arguments(
+                    args=[],
+                    kwarg=None,
+                    vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
+                    kwonlyargs=[],
+                    defaults=[],
+                    kw_defaults=[],
+                ),
+                body=body,
+                decorator_list=[],
+                returns=None,
+            ),
+        ],
+    )
+
+
 def _multi_arity_fn_to_py_ast(
     ctx: GeneratorContext, node: Fn, methods: Collection[FnMethod]
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with multiple arities."""
     assert node.op == NodeOp.FN
     assert all([method.op == NodeOp.FN_METHOD for method in methods])
-    return GeneratedPyAST(node=ast.NameConstant(None))
+
+    lisp_fn_name = node.local.name if node.local is not None else None
+    py_fn_name = _fn_name(lisp_fn_name)
+
+    arity_to_name = {}
+    rest_arity_name: Optional[str] = None
+    fn_defs = []
+    for method in methods:
+        arity_name = f"{py_fn_name}__arity{'_rest' if method.is_variadic else method.fixed_arity}"
+        arity_to_name[method.fixed_arity] = arity_name
+        if method.is_variadic:
+            rest_arity_name = arity_name
+
+        with ctx.new_symbol_table(arity_name), ctx.new_recur_point(
+            method.loop_id, RecurType.FN
+        ):
+            # Allow named anonymous functions to recursively call themselves
+            if lisp_fn_name is not None:
+                ctx.symbol_table.new_symbol(
+                    sym.symbol(lisp_fn_name), munge(lisp_fn_name), LocalType.FN
+                )
+
+            fn_args = _fn_args_to_py_ast(ctx, method.params)
+            body_ast = _synthetic_do_to_py_ast(ctx, method.body)
+            fn_body_ast: List[ast.AST] = []
+            fn_body_ast.extend(body_ast.dependencies)
+            fn_body_ast.append(ast.Return(value=body_ast.node))
+
+            fn_defs.append(
+                ast.FunctionDef(
+                    name=arity_name,
+                    args=ast.arguments(
+                        args=fn_args,
+                        kwarg=None,
+                        vararg=None,
+                        kwonlyargs=[],
+                        defaults=[],
+                        kw_defaults=[],
+                    ),
+                    body=fn_body_ast,
+                    decorator_list=[_TRAMPOLINE_FN_NAME]
+                    if ctx.recur_point.has_recur
+                    else [],
+                    returns=None,
+                )
+            )
+
+    dispatch_fn_ast = _multi_arity_dispatch_fn(
+        py_fn_name,
+        arity_to_name,
+        default_name=rest_arity_name,
+        max_fixed_arity=node.max_fixed_arity,
+    )
+
+    return GeneratedPyAST(
+        node=dispatch_fn_ast.node,
+        dependencies=list(chain(fn_defs, dispatch_fn_ast.dependencies)),
+    )
 
 
 def _fn_to_py_ast(ctx: GeneratorContext, node: Fn) -> GeneratedPyAST:
