@@ -432,16 +432,18 @@ def _fn_method_ast(
         fn_loop_id = genname("fn_arity" if fnname is None else fnname.name)
         with ctx.new_recur_point(fn_loop_id, param_nodes):
             *stmts, ret = map(partial(_parse_ast, ctx), form.rest)
-            return FnMethod(
+            method = FnMethod(
                 form=form,
                 loop_id=fn_loop_id,
                 params=vec.vector(param_nodes),
                 is_variadic=has_vargs,
                 fixed_arity=len(param_nodes) - int(has_vargs),
                 body=Do(
-                    form=form.rest, statements=vec.vector(stmts), ret=ret, is_body=True
+                form=form.rest, statements=vec.vector(stmts), ret=ret, is_body=True
                 ),
             )
+            method.visit(_assert_recur_is_tail)
+            return method
 
 
 def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
