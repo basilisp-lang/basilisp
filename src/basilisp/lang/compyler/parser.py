@@ -439,7 +439,7 @@ def _fn_method_ast(
                 is_variadic=has_vargs,
                 fixed_arity=len(param_nodes) - int(has_vargs),
                 body=Do(
-                form=form.rest, statements=vec.vector(stmts), ret=ret, is_body=True
+                    form=form.rest, statements=vec.vector(stmts), ret=ret, is_body=True
                 ),
             )
             method.visit(_assert_recur_is_tail)
