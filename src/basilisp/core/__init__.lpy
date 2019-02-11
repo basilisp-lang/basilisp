@@ -1881,7 +1881,7 @@
 (defmacro defmethod
   "Add a new method to the multi-function which responds to dispatch-val."
   [multifn dispatch-val & fn-tail]
-  `(. ~multifn ~'add-method ~dispatch-val (fn ~@fn-tail)))
+  `(. ~multifn (~'add-method ~dispatch-val (fn ~@fn-tail))))
 
 (defn methods
   "Return a map of dispatch values to methods for the given multi function."
