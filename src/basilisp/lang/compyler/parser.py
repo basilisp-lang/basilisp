@@ -75,7 +75,8 @@ from basilisp.lang.compyler.nodes import (
     SpecialFormNode,
     Import,
     ImportAlias,
-    LetFn)
+    LetFn,
+)
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname
@@ -592,7 +593,9 @@ def _host_interop_ast(
                 form=form,
                 method=maybe_m_or_f.name,
                 target=_parse_ast(ctx, runtime.nth(form, 1)),
-                args=vec.vector(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))),
+                args=vec.vector(
+                    map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))
+                ),
             )
 
         # Other symbolic members or fields can call through and will be handled
