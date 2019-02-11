@@ -1755,7 +1755,7 @@
                                                        {:value v}))))
                        (recur (rest requires))))]
     (do-require args)
-    (set! '*ns* current-ns)
+    (set! *ns* current-ns)
     nil))
 
 (defmacro ns

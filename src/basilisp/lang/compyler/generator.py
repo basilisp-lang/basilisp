@@ -121,8 +121,12 @@ class SymbolTable:
     _children: Dict[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(self, s: sym.Symbol, munged: str, ctx: LocalType) -> "SymbolTable":
-        assert s not in self._table
-        self._table[s] = SymbolTableEntry(ctx, munged, s)
+        if s in self._table:
+            self._table[s] = attr.evolve(
+                self._table[s], context=ctx, munged=munged, symbol=s
+            )
+        else:
+            self._table[s] = SymbolTableEntry(ctx, munged, s)
         return self
 
     def find_symbol(self, s: sym.Symbol) -> Optional[SymbolTableEntry]:
@@ -158,6 +162,7 @@ class RecurPoint:
     loop_id: str
     type: RecurType
     binding_names: Optional[Collection[str]] = None
+    is_variadic: Optional[bool] = None
     has_recur: bool = False
 
 
@@ -194,9 +199,12 @@ class GeneratorContext:
         loop_id: str,
         type_: RecurType,
         binding_names: Optional[Collection[str]] = None,
+        is_variadic: Optional[bool] = None,
     ):
         self._recur_points.append(
-            RecurPoint(loop_id, type_, binding_names=binding_names)
+            RecurPoint(
+                loop_id, type_, binding_names=binding_names, is_variadic=is_variadic
+            )
         )
         yield
         self._recur_points.pop()
@@ -430,6 +438,8 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
         .or_else_get([])
     )
 
+    meta_ast = gen_py_ast(ctx, node.meta) if node.meta is not None else None
+
     # Warn if this symbol is potentially being redefined
     if safe_name in ctx.current_ns.module.__dict__ or defsym in ctx.current_ns.interns:
         no_warn_on_redef = (
@@ -446,7 +456,14 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
         node=ast.Call(
             func=_INTERN_VAR_FN_NAME,
             args=[ns_name, def_name, ast.Name(id=safe_name, ctx=ast.Load())],
-            keywords=list(chain(dynamic_kwarg)),  # type: ignore
+            keywords=list(
+                chain(
+                    dynamic_kwarg,
+                    []
+                    if meta_ast is None
+                    else [ast.keyword(arg="meta", value=meta_ast.node)],
+                )
+            ),  # type: ignore
         ),
         dependencies=chain(
             def_ast.dependencies,
@@ -457,6 +474,7 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
                     value=def_ast.node,
                 )
             ],
+            [] if meta_ast is None else meta_ast.dependencies,
         ),
     )
 
@@ -501,26 +519,53 @@ def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     )
 
 
-def _fn_name(s: Optional[str]) -> str:
+def __fn_name(s: Optional[str]) -> str:
     """Generate a safe Python function name from a function name symbol.
     If no symbol is provided, generate a name with a default prefix."""
     return genname("__" + munge(Maybe(s).or_else_get(_FN_PREFIX)))
 
 
-def _fn_args_to_py_ast(
-    ctx: GeneratorContext, params: Iterable[Binding]
-) -> List[ast.arg]:
+def __fn_args_to_py_ast(
+    ctx: GeneratorContext, params: Iterable[Binding], body: Do
+) -> Tuple[List[ast.arg], Optional[ast.arg], List[ast.AST]]:
     """Generate a list of Python AST nodes from function method parameters."""
-    fn_args = []
+    fn_args, varg = [], None
+    fn_body_ast: List[ast.AST] = []
     for binding in params:
-        assert binding.init is None
+        assert binding.init is None, ":fn nodes cannot have bindint :inits"
+        assert varg is None, "Must have at most one variadic arg"
         arg_name = genname(munge(binding.name))
-        fn_args.append(ast.arg(arg=arg_name, annotation=None))
-        ctx.symbol_table.new_symbol(sym.symbol(binding.name), arg_name, LocalType.ARG)
-    return fn_args
+
+        if not binding.is_variadic:
+            fn_args.append(ast.arg(arg=arg_name, annotation=None))
+            ctx.symbol_table.new_symbol(
+                sym.symbol(binding.name), arg_name, LocalType.ARG
+            )
+        else:
+            varg = ast.arg(arg=arg_name, annotation=None)
+            safe_local = genname(munge(binding.name))
+            fn_body_ast.append(
+                ast.Assign(
+                    targets=[ast.Name(id=safe_local, ctx=ast.Store())],
+                    value=ast.Call(
+                        func=_COLLECT_ARGS_FN_NAME,
+                        args=[ast.Name(id=arg_name, ctx=ast.Load())],
+                        keywords=[],
+                    ),
+                )
+            )
+            ctx.symbol_table.new_symbol(
+                sym.symbol(binding.name), safe_local, LocalType.ARG
+            )
+
+    body_ast = _synthetic_do_to_py_ast(ctx, body)
+    fn_body_ast.extend(map(statementize, body_ast.dependencies))
+    fn_body_ast.append(ast.Return(value=body_ast.node))
+
+    return fn_args, varg, fn_body_ast
 
 
-def _single_arity_fn_to_py_ast(
+def __single_arity_fn_to_py_ast(
     ctx: GeneratorContext, node: Fn, method: FnMethod
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with a single arity."""
@@ -528,9 +573,9 @@ def _single_arity_fn_to_py_ast(
     assert method.op == NodeOp.FN_METHOD
 
     lisp_fn_name = node.local.name if node.local is not None else None
-    py_fn_name = _fn_name(lisp_fn_name)
+    py_fn_name = __fn_name(lisp_fn_name)
     with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(
-        method.loop_id, RecurType.FN
+        method.loop_id, RecurType.FN, is_variadic=node.is_variadic
     ):
         # Allow named anonymous functions to recursively call themselves
         if lisp_fn_name is not None:
@@ -538,12 +583,9 @@ def _single_arity_fn_to_py_ast(
                 sym.symbol(lisp_fn_name), munge(lisp_fn_name), LocalType.FN
             )
 
-        fn_args = _fn_args_to_py_ast(ctx, method.params)
-        body_ast = _synthetic_do_to_py_ast(ctx, method.body)
-        fn_body_ast: List[ast.AST] = []
-        fn_body_ast.extend(body_ast.dependencies)
-        fn_body_ast.append(ast.Return(value=body_ast.node))
-
+        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+            ctx, method.params, method.body
+        )
         return GeneratedPyAST(
             node=ast.Name(id=py_fn_name, ctx=ast.Load()),
             dependencies=[
@@ -552,7 +594,7 @@ def _single_arity_fn_to_py_ast(
                     args=ast.arguments(
                         args=fn_args,
                         kwarg=None,
-                        vararg=None,
+                        vararg=varg,
                         kwonlyargs=[],
                         defaults=[],
                         kw_defaults=[],
@@ -567,7 +609,7 @@ def _single_arity_fn_to_py_ast(
         )
 
 
-def _multi_arity_dispatch_fn(
+def __multi_arity_dispatch_fn(
     name: str,
     arity_map: Dict[int, str],
     default_name: Optional[str] = None,
@@ -705,7 +747,7 @@ def _multi_arity_dispatch_fn(
     )
 
 
-def _multi_arity_fn_to_py_ast(
+def __multi_arity_fn_to_py_ast(
     ctx: GeneratorContext, node: Fn, methods: Collection[FnMethod]
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with multiple arities."""
@@ -713,7 +755,7 @@ def _multi_arity_fn_to_py_ast(
     assert all([method.op == NodeOp.FN_METHOD for method in methods])
 
     lisp_fn_name = node.local.name if node.local is not None else None
-    py_fn_name = _fn_name(lisp_fn_name)
+    py_fn_name = __fn_name(lisp_fn_name)
 
     arity_to_name = {}
     rest_arity_name: Optional[str] = None
@@ -725,7 +767,7 @@ def _multi_arity_fn_to_py_ast(
             rest_arity_name = arity_name
 
         with ctx.new_symbol_table(arity_name), ctx.new_recur_point(
-            method.loop_id, RecurType.FN
+            method.loop_id, RecurType.FN, is_variadic=node.is_variadic
         ):
             # Allow named anonymous functions to recursively call themselves
             if lisp_fn_name is not None:
@@ -733,19 +775,16 @@ def _multi_arity_fn_to_py_ast(
                     sym.symbol(lisp_fn_name), munge(lisp_fn_name), LocalType.FN
                 )
 
-            fn_args = _fn_args_to_py_ast(ctx, method.params)
-            body_ast = _synthetic_do_to_py_ast(ctx, method.body)
-            fn_body_ast: List[ast.AST] = []
-            fn_body_ast.extend(body_ast.dependencies)
-            fn_body_ast.append(ast.Return(value=body_ast.node))
-
+            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+                ctx, method.params, method.body
+            )
             fn_defs.append(
                 ast.FunctionDef(
                     name=arity_name,
                     args=ast.arguments(
                         args=fn_args,
                         kwarg=None,
-                        vararg=None,
+                        vararg=varg,
                         kwonlyargs=[],
                         defaults=[],
                         kw_defaults=[],
@@ -758,7 +797,7 @@ def _multi_arity_fn_to_py_ast(
                 )
             )
 
-    dispatch_fn_ast = _multi_arity_dispatch_fn(
+    dispatch_fn_ast = __multi_arity_dispatch_fn(
         py_fn_name,
         arity_to_name,
         default_name=rest_arity_name,
@@ -775,9 +814,32 @@ def _fn_to_py_ast(ctx: GeneratorContext, node: Fn) -> GeneratedPyAST:
     """Return a Python AST Node for a `fn` expression."""
     assert node.op == NodeOp.FN
     if len(node.methods) == 1:
-        return _single_arity_fn_to_py_ast(ctx, node, next(iter(node.methods)))
+        return __single_arity_fn_to_py_ast(ctx, node, next(iter(node.methods)))
     else:
-        return _multi_arity_fn_to_py_ast(ctx, node, node.methods)
+        return __multi_arity_fn_to_py_ast(ctx, node, node.methods)
+
+
+def __if_body_to_py_ast(
+    ctx: GeneratorContext, node: Node, result_name: str
+) -> GeneratedPyAST:
+    """Generate custom `if` nodes to handle `recur` bodies.
+
+    Recur nodes can appear in the then and else expressions of `if` forms.
+    Recur nodes generate Python `continue` statements, which we would otherwise
+    attempt to insert directly into an expression. Python will complain if
+    it finds a statement in an expression AST slot, so we special case the
+    recur handling here."""
+    if node.op == NodeOp.RECUR and ctx.recur_point.type == RecurType.LOOP:
+        assert isinstance(node, Recur)
+        return _recur_to_py_ast(ctx, node)
+    else:
+        then_ast = gen_py_ast(ctx, node)
+        return GeneratedPyAST(
+            node=ast.Assign(
+                targets=[ast.Name(id=result_name, ctx=ast.Store())], value=then_ast.node
+            ),
+            dependencies=then_ast.dependencies,
+        )
 
 
 def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
@@ -797,35 +859,8 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     test_ast = gen_py_ast(ctx, node.test)
     result_name = genname(_IF_RESULT_PREFIX)
 
-    # Recur nodes can appear in the then and else expressions of `if` forms.
-    # Recur nodes generate Python `continue` statements, which we would otherwise
-    # attempt to insert directly into an expression. Python will complain if
-    # it finds a statement in an expression AST slot, so we special case the
-    # recur handling here.
-
-    if node.then.op == NodeOp.RECUR:
-        assert isinstance(node.then, Recur)
-        then_ast = _recur_to_py_ast(ctx, node.then)
-        then_expr = [then_ast.node]
-    else:
-        then_ast = gen_py_ast(ctx, node.then)
-        then_expr = [
-            ast.Assign(
-                targets=[ast.Name(id=result_name, ctx=ast.Store())], value=then_ast.node
-            )
-        ]
-
-    if node.else_.op == NodeOp.RECUR:
-        assert isinstance(node.else_, Recur)
-        else_ast = _recur_to_py_ast(ctx, node.else_)
-        else_expr = [else_ast.node]
-    else:
-        else_ast = gen_py_ast(ctx, node.else_)
-        else_expr = [
-            ast.Assign(
-                targets=[ast.Name(id=result_name, ctx=ast.Store())], value=else_ast.node
-            )
-        ]
+    then_ast = __if_body_to_py_ast(ctx, node.then, result_name)
+    else_ast = __if_body_to_py_ast(ctx, node.else_, result_name)
 
     test_name = genname(_IF_TEST_PREFIX)
     test_assign = ast.Assign(
@@ -849,13 +884,13 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
             ],
         ),
         values=[],
-        body=list(chain(else_ast.dependencies, else_expr)),
-        orelse=list(chain(then_ast.dependencies, then_expr)),
+        body=list(chain(else_ast.dependencies, [else_ast.node])),
+        orelse=list(chain(then_ast.dependencies, [then_ast.node])),
     )
 
     return GeneratedPyAST(
         node=ast.Name(id=result_name, ctx=ast.Load()),
-        dependencies=[test_assign, ifstmt],
+        dependencies=list(chain(test_ast.dependencies, [test_assign, ifstmt])),
     )
 
 
@@ -950,7 +985,7 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
             )
 
         body_ast = _synthetic_do_to_py_ast(ctx, node.body)
-        fn_body_ast.extend(body_ast.dependencies)
+        fn_body_ast.extend(map(statementize, body_ast.dependencies))
         fn_body_ast.append(ast.Return(value=body_ast.node))
 
         let_fn_name = genname("let")
@@ -1046,6 +1081,31 @@ def _quote_to_py_ast(ctx: GeneratorContext, node: Quote) -> GeneratedPyAST:
     return _const_node_to_py_ast(ctx, node.expr)
 
 
+def __fn_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
+    """Return a Python AST node for `recur` occurring inside a `fn*`."""
+    assert node.op == NodeOp.RECUR
+    assert ctx.recur_point.is_variadic is not None
+    recur_nodes: List[ast.AST] = []
+    recur_deps: List[ast.AST] = []
+    for expr in node.exprs:
+        expr_ast = gen_py_ast(ctx, expr)
+        recur_nodes.append(expr_ast.node)
+        recur_deps.extend(expr_ast.dependencies)
+
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_TRAMPOLINE_ARGS_FN_NAME,
+            args=list(
+                chain(
+                    [ast.NameConstant(ctx.recur_point.is_variadic)], recur_nodes
+                )  # type: ignore
+            ),
+            keywords=[],
+        ),
+        dependencies=recur_deps,
+    )
+
+
 def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     """Return a Python AST node for `recur` occurring inside a `loop`."""
     assert node.op == NodeOp.RECUR
@@ -1063,7 +1123,7 @@ def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST
 
 
 _RECUR_TYPE_HANDLER = {
-    RecurType.FN: None,  # TODO: function recur
+    RecurType.FN: __fn_recur_to_py_ast,
     RecurType.LOOP: __loop_recur_to_py_ast,
 }
 
@@ -1191,7 +1251,7 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
                     name=munge(exc_binding.name),
                     body=list(
                         chain(
-                            catch_ast.dependencies,
+                            map(statementize, catch_ast.dependencies),
                             [
                                 ast.Assign(
                                     targets=[
@@ -1208,8 +1268,8 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
     finallys: List[ast.AST] = []
     if node.finally_ is not None:
         finally_ast = _synthetic_do_to_py_ast(ctx, node.finally_)
-        finallys.extend(finally_ast.dependencies)
-        finallys.append(finally_ast.node)
+        finallys.extend(map(statementize, finally_ast.dependencies))
+        finallys.append(statementize(finally_ast.node))
 
     return GeneratedPyAST(
         node=ast.Name(id=try_expr_name, ctx=ast.Load()),
@@ -1256,14 +1316,31 @@ def _local_sym_to_py_ast(
 
 
 def _var_sym_to_py_ast(
-    _: GeneratorContext, node: VarRef, is_assigning: bool = False
+    ctx: GeneratorContext, node: VarRef, is_assigning: bool = False
 ) -> GeneratedPyAST:
     """Generate a Python AST node for accessing a Var."""
     assert node.op == NodeOp.VAR
 
-    # TODO: direct link to Python variable, if possible
+    # Otherwise, try to direct-link it like a Python variable
+    var = node.var
+    ns = var.ns
+    ns_name = ns.name
+    ns_module = ns.module
+    safe_ns = munge(ns_name)
+    var_name = var.name.name
 
-    var: runtime.Var = node.var
+    # Try without allowing builtins first
+    safe_name = munge(var_name)
+    if safe_name not in ns_module.__dict__:
+        # Try allowing builtins
+        safe_name = munge(var_name, allow_builtins=True)
+
+    if safe_name in ns_module.__dict__:
+        if ns is ctx.current_ns:
+            return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Load()))
+        return GeneratedPyAST(
+            node=ast.Name(id=f"{safe_ns}.{safe_name}", ctx=ast.Load())
+        )
 
     return GeneratedPyAST(
         node=ast.Attribute(
@@ -1740,6 +1817,7 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.MAYBE_CLASS: _maybe_class_to_py_ast,
     NodeOp.MAYBE_HOST_FORM: _maybe_host_form_to_py_ast,
     NodeOp.QUOTE: _quote_to_py_ast,
+    NodeOp.RECUR: _recur_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.SET_BANG: _set_bang_to_py_ast,
     NodeOp.THROW: _throw_to_py_ast,

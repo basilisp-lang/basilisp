@@ -75,7 +75,7 @@ from basilisp.lang.compyler.nodes import (
     SpecialFormNode,
     Import,
     ImportAlias,
-)
+    LetFn)
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname
@@ -493,11 +493,6 @@ def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
         fixed_arity_for_variadic: Optional[int] = None
         num_variadic = 0
         for method in methods:
-            if method.fixed_arity in fixed_arities:
-                raise ParserException(
-                    "fn may not have multiple methods with the same fixed arity",
-                    form=method.form,
-                )
             if fixed_arity_for_variadic is not None:
                 if method.fixed_arity >= fixed_arity_for_variadic:
                     raise ParserException(
@@ -505,7 +500,6 @@ def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
                         "fixed arity of variadic function",
                         form=method.form,
                     )
-            fixed_arities.add(method.fixed_arity)
             if method.is_variadic:
                 if num_variadic > 0:
                     raise ParserException(
@@ -513,6 +507,13 @@ def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
                     )
                 fixed_arity_for_variadic = method.fixed_arity
                 num_variadic += 1
+            else:
+                if method.fixed_arity in fixed_arities:
+                    raise ParserException(
+                        "fn may not have multiple methods with the same fixed arity",
+                        form=method.form,
+                    )
+                fixed_arities.add(method.fixed_arity)
 
         return Fn(
             form=form,
@@ -585,6 +586,13 @@ def _host_interop_ast(
                 field=maybe_m_or_f.name[1:],
                 target=_parse_ast(ctx, runtime.nth(form, 1)),
                 is_assignable=True,
+            )
+        else:
+            return HostCall(
+                form=form,
+                method=maybe_m_or_f.name,
+                target=_parse_ast(ctx, runtime.nth(form, 1)),
+                args=vec.vector(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))),
             )
 
         # Other symbolic members or fields can call through and will be handled
@@ -816,11 +824,14 @@ def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
 def _assert_no_recur(node: Node) -> None:
     """Assert that `recur` forms do not appear in any position of this or
     child AST nodes."""
-    node.visit(_assert_no_recur)
     if node.op == NodeOp.RECUR:
         raise ParserException(
             "recur must appear in tail position", form=node.form, lisp_ast=node
         )
+    elif node.op in {NodeOp.FN, NodeOp.LOOP}:
+        pass
+    else:
+        node.visit(_assert_no_recur)
 
 
 def _assert_recur_is_tail(node: Node) -> None:
@@ -839,8 +850,18 @@ def _assert_recur_is_tail(node: Node) -> None:
         _assert_no_recur(node.test)
         _assert_recur_is_tail(node.then)
         _assert_recur_is_tail(node.else_)
+    elif node.op in {NodeOp.LET, NodeOp.LETFN}:
+        assert isinstance(node, (Let, LetFn))
+        _assert_recur_is_tail(node.body)
     elif node.op == NodeOp.RECUR:
         pass
+    elif node.op == NodeOp.TRY:
+        assert isinstance(node, Try)
+        _assert_recur_is_tail(node.body)
+        for catch in node.catches:
+            _assert_recur_is_tail(catch)
+        if node.finally_:
+            _assert_no_recur(node.finally_)
     else:
         node.visit(_assert_no_recur)
 
@@ -856,7 +877,7 @@ def _recur_ast(ctx: ParserContext, form: lseq.Seq) -> Recur:
             "recur arity does not match last recur point arity", form=form
         )
 
-    exprs = map(partial(_parse_ast, ctx), form.rest)
+    exprs = vec.vector(map(partial(_parse_ast, ctx), form.rest))
     return Recur(form=form, exprs=exprs, loop_id=ctx.recur_point.loop_id)
 
 

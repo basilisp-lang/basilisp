@@ -9,7 +9,7 @@ import types
 from importlib.abc import MetaPathFinder, SourceLoader
 from typing import Optional, List, Dict
 
-import basilisp.lang.compiler as compiler
+import basilisp.lang.compyler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 from basilisp.lang.util import demunge
@@ -194,7 +194,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 fullname, path_stats["mtime"], path_stats["size"], cache_data
             )
             compiler.compile_bytecode(
-                cached_code, compiler.CompilerContext(filename=filename), module
+                cached_code, compiler.GeneratorContext(filename=filename), module
             )
 
     def _exec_module(
@@ -225,7 +225,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             forms = reader.read_file(filename, resolver=runtime.resolve_alias)
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
                 forms,
-                compiler.CompilerContext(filename=filename),
+                compiler.ParserContext(filename=filename),
+                compiler.GeneratorContext(filename=filename),
                 module,
                 collect_bytecode=add_bytecode,
             )
