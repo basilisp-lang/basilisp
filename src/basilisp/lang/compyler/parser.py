@@ -597,9 +597,6 @@ def _host_interop_ast(
                     map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))
                 ),
             )
-
-        # Other symbolic members or fields can call through and will be handled
-        # below
     elif isinstance(maybe_m_or_f, (llist.List, lseq.Seq)):
         # Likewise, I emit :host-call for forms like (. target (method arg1 ...)).
         method = maybe_m_or_f.first
