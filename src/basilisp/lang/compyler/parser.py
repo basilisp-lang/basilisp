@@ -97,7 +97,6 @@ CATCHES = kw.keyword("catches")
 FINALLY = kw.keyword("finally")
 
 # Constants used in parsing
-_BUILTINS_NS = "builtins"
 AS = kw.keyword("as")
 
 # Symbols to be ignored for unused symbol warnings

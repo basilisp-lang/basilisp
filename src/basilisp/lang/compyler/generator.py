@@ -1477,9 +1477,9 @@ def _map_to_py_ast(
         ),
         dependencies=list(
             chain(
-                keys,
-                vals,
                 Maybe(meta_ast).map(lambda p: p.dependencies).or_else_get([]),
+                key_deps,
+                val_deps,
             )
         ),
     )
@@ -1505,7 +1505,9 @@ def _set_to_py_ast(
             .or_else_get([]),
         ),
         dependencies=list(
-            chain(elems, Maybe(meta_ast).map(lambda p: p.dependencies).or_else_get([]))
+            chain(
+                Maybe(meta_ast).map(lambda p: p.dependencies).or_else_get([]), elem_deps
+            )
         ),
     )
 
@@ -1529,9 +1531,12 @@ def _vec_to_py_ast(
             .map(lambda p: [ast.keyword(arg="meta", value=p.node)])
             .or_else_get([]),
         ),
-        dependencies=Maybe(meta_ast)
-        .map(lambda p: list(p.dependencies))
-        .or_else_get([]),
+        dependencies=list(
+            chain(
+                Maybe(meta_ast).map(lambda p: list(p.dependencies)).or_else_get([]),
+                elem_deps,
+            )
+        ),
     )
 
 

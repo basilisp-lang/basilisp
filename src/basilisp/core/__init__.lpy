@@ -231,7 +231,7 @@
   (fn count [coll]
     (try
       (builtins/len coll)
-      (catch TypeError _
+      (catch builtins/TypeError _
         (count (apply vector coll))))))
 
 (def
