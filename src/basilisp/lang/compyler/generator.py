@@ -280,7 +280,7 @@ def _chain_py_ast(*genned: GeneratedPyAST,) -> Tuple[PyASTStream, PyASTStream]:
     return deps, nodes
 
 
-def _load_attr(name: str) -> ast.Attribute:
+def _load_attr(name: str, ctx: ast.AST = ast.Load()) -> ast.Attribute:
     """Generate recursive Python Attribute AST nodes for resolving nested
     names."""
     attrs = name.split(".")
@@ -289,10 +289,10 @@ def _load_attr(name: str) -> ast.Attribute:
         if idx >= len(attrs):
             return node
         return attr_node(
-            ast.Attribute(value=node, attr=attrs[idx], ctx=ast.Load()), idx + 1
+            ast.Attribute(value=node, attr=attrs[idx], ctx=ctx), idx + 1
         )
 
-    return attr_node(ast.Name(id=attrs[0], ctx=ast.Load()), 1)
+    return attr_node(ast.Name(id=attrs[0], ctx=ctx), 1)
 
 
 def _simple_ast_generator(gen_ast):
@@ -1422,7 +1422,7 @@ def _var_sym_to_py_ast(
         if ns is ctx.current_ns:
             return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
         return GeneratedPyAST(
-            node=ast.Name(id=f"{safe_ns}.{safe_name}", ctx=py_var_ctx)
+            node=_load_attr(f"{safe_ns}.{safe_name}", ctx=py_var_ctx)
         )
 
     return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
