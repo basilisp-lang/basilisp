@@ -1365,7 +1365,7 @@ def _local_sym_to_py_ast(
 
 
 def __var_find_to_py_ast(
-    var_name: str, ns_name: str, py_var_ctx: Union[ast.Load, ast.Store]
+    var_name: str, ns_name: str, py_var_ctx: ast.AST
 ) -> GeneratedPyAST:
     """Generate Var.find calls for the named symbol."""
     return GeneratedPyAST(
