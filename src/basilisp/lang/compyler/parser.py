@@ -16,7 +16,6 @@ from typing import (
     cast,
     Any,
     Collection,
-    Iterable,
     Set,
 )
 
@@ -79,13 +78,15 @@ from basilisp.lang.compyler.nodes import (
 )
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
-from basilisp.lang.util import genname
+from basilisp.lang.util import count, genname
 from basilisp.util import Maybe, partition
 
 # Parser logging
 logger = logging.getLogger(__name__)
 
 # Parser options
+WARN_ON_SHADOWED_NAME = "warn_on_shadowed_name"
+WARN_ON_SHADOWED_VAR = "warn_on_shadowed_var"
 WARN_ON_UNUSED_NAMES = "warn_on_unused_names"
 
 # Lisp AST node keywords
@@ -237,6 +238,23 @@ class ParserContext:
         return self._opts.entry(WARN_ON_UNUSED_NAMES, True)
 
     @property
+    def warn_on_shadowed_name(self) -> bool:
+        """If True, warn when a name is shadowed in an inner scope.
+
+        Implies warn_on_shadowed_var."""
+        return self._opts.entry(WARN_ON_SHADOWED_NAME, False)
+
+    @property
+    def warn_on_shadowed_var(self) -> bool:
+        """If True, warn when a def'ed Var name is shadowed in an inner scope.
+
+        Implied by warn_on_shadowed_name. The value of warn_on_shadowed_name
+        supersedes the value of this flag."""
+        return self.warn_on_shadowed_name or self._opts.entry(
+            WARN_ON_SHADOWED_VAR, False
+        )
+
+    @property
     def is_quoted(self) -> bool:
         try:
             return self._is_quoted[-1] is True
@@ -273,10 +291,6 @@ class ParserContext:
             self._st.append(st)
             yield st
             self._st.pop()
-
-
-def count(seq: Iterable) -> int:
-    return sum([1 for _ in seq])
 
 
 def _is_macro(v: Var) -> bool:

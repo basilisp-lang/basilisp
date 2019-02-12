@@ -41,6 +41,7 @@ from basilisp.lang.compyler.constants import (
     DEFAULT_COMPILER_FILE_PATH,
     SYM_DYNAMIC_META_KEY,
     SYM_NO_WARN_ON_REDEF_META_KEY,
+    SYM_REDEF_META_KEY,
 )
 from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compyler.nodes import (
@@ -77,12 +78,17 @@ from basilisp.lang.compyler.nodes import (
     FnMethod,
     Binding,
 )
+from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
-from basilisp.lang.util import genname, munge
+from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
 
 # Generator logging
 logger = logging.getLogger(__name__)
+
+# Generator options
+USE_VAR_INDIRECTION = "use_var_indirection"
+WARN_ON_VAR_INDIRECTION = "warn_on_var_indirection"
 
 # Lisp AST node keywords
 INIT = kw.keyword("init")
@@ -190,6 +196,19 @@ class GeneratorContext:
         return self._filename
 
     @property
+    def use_var_indirection(self) -> bool:
+        """If True, compile all variable references using Var.find indirection."""
+        return self._opts.entry(USE_VAR_INDIRECTION, False)
+
+    @property
+    def warn_on_var_indirection(self) -> bool:
+        """If True, warn when a Var reference cannot be direct linked (iff
+        use_var_indirection is False).."""
+        return not self.use_var_indirection and self._opts.entry(
+            WARN_ON_VAR_INDIRECTION, True
+        )
+
+    @property
     def recur_point(self):
         return self._recur_points[-1]
 
@@ -249,8 +268,9 @@ SimplePyASTGenerator = Callable[[GeneratorContext, ReaderLispForm], GeneratedPyA
 PyASTGenerator = Callable[[GeneratorContext, Node], GeneratedPyAST]
 
 
-def count(seq: Iterable) -> int:
-    return sum([1 for _ in seq])
+####################
+# Private Utilities
+####################
 
 
 def _chain_py_ast(*genned: GeneratedPyAST,) -> Tuple[PyASTStream, PyASTStream]:
@@ -285,6 +305,48 @@ def _simple_ast_generator(gen_ast):
     return wrapped_ast_generator
 
 
+def _collection_ast(
+    ctx: GeneratorContext, form: Iterable[Node]
+) -> Tuple[PyASTStream, PyASTStream]:
+    """Turn a collection of Lisp forms into Python AST nodes."""
+    return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
+
+
+def _clean_meta(form: lmeta.Meta) -> LispForm:
+    """Remove reader metadata from the form's meta map."""
+    try:
+        meta = form.meta.discard(reader.READER_LINE_KW, reader.READER_COL_KW)
+    except AttributeError:
+        return None
+    if len(meta) == 0:
+        return None
+    return meta
+
+
+def _is_dynamic(v: Var) -> bool:
+    """Return True if the Var holds a value which should be compiled to a dynamic
+    Var access."""
+    return (
+        Maybe(v.meta)
+        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))  # type: ignore
+        .or_else_get(False)
+    )
+
+
+def _is_redefable(v: Var) -> bool:
+    """Return True if the Var can be redefined."""
+    return (
+        Maybe(v.meta)
+        .map(lambda m: m.get(SYM_REDEF_META_KEY, None))  # type: ignore
+        .or_else_get(False)
+    )
+
+
+#######################
+# Aliases & Attributes
+#######################
+
+
 _KW_ALIAS = genname("kw")
 _LIST_ALIAS = genname("llist")
 _MAP_ALIAS = genname("lmap")
@@ -317,11 +379,9 @@ _TRAMPOLINE_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._trampoline")
 _TRAMPOLINE_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._TrampolineArgs")
 
 
-def _collection_ast(
-    ctx: GeneratorContext, form: Iterable[Node]
-) -> Tuple[PyASTStream, PyASTStream]:
-    """Turn a collection of Lisp forms into Python AST nodes."""
-    return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
+###################
+# Public Utilities
+###################
 
 
 def statementize(e: ast.AST) -> ast.AST:
@@ -393,17 +453,6 @@ def expressionize(
         decorator_list=[],
         returns=None,
     )
-
-
-def _clean_meta(form: lmeta.Meta) -> LispForm:
-    """Remove reader metadata from the form's meta map."""
-    try:
-        meta = form.meta.discard(reader.READER_LINE_KW, reader.READER_COL_KW)
-    except AttributeError:
-        return None
-    if len(meta) == 0:
-        return None
-    return meta
 
 
 #################
@@ -1315,20 +1364,54 @@ def _local_sym_to_py_ast(
     )
 
 
+def __var_find_to_py_ast(
+    var_name: str, ns_name: str, py_var_ctx: Union[ast.Load, ast.Store]
+) -> GeneratedPyAST:
+    """Generate Var.find calls for the named symbol."""
+    return GeneratedPyAST(
+        node=ast.Attribute(
+            value=ast.Call(
+                func=_FIND_VAR_FN_NAME,
+                args=[
+                    ast.Call(
+                        func=_NEW_SYM_FN_NAME,
+                        args=[ast.Str(var_name)],
+                        keywords=[ast.keyword(arg="ns", value=ast.Str(ns_name))],
+                    )
+                ],
+                keywords=[],
+            ),
+            attr="value",
+            ctx=py_var_ctx,
+        )
+    )
+
+
 def _var_sym_to_py_ast(
     ctx: GeneratorContext, node: VarRef, is_assigning: bool = False
 ) -> GeneratedPyAST:
-    """Generate a Python AST node for accessing a Var."""
+    """Generate a Python AST node for accessing a Var.
+
+    If the Var is marked as :dynamic or :redef or the compiler option
+    USE_VAR_INDIRECTION is active, do not compile to a direct access.
+    If the corresponding function name is not defined in a Python module,
+    no direct variable access is possible and Var.find indirection must be
+    used."""
     assert node.op == NodeOp.VAR
 
-    # Otherwise, try to direct-link it like a Python variable
     var = node.var
     ns = var.ns
     ns_name = ns.name
     ns_module = ns.module
     safe_ns = munge(ns_name)
     var_name = var.name.name
+    py_var_ctx = ast.Store() if is_assigning else ast.Load()
 
+    # Check if we should use Var indirection
+    if ctx.use_var_indirection or _is_dynamic(var) or _is_redefable(var):
+        return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
+
+    # Otherwise, try to direct-link it like a Python variable
     # Try without allowing builtins first
     safe_name = munge(var_name)
     if safe_name not in ns_module.__dict__:
@@ -1337,28 +1420,12 @@ def _var_sym_to_py_ast(
 
     if safe_name in ns_module.__dict__:
         if ns is ctx.current_ns:
-            return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Load()))
+            return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
         return GeneratedPyAST(
-            node=ast.Name(id=f"{safe_ns}.{safe_name}", ctx=ast.Load())
+            node=ast.Name(id=f"{safe_ns}.{safe_name}", ctx=py_var_ctx)
         )
 
-    return GeneratedPyAST(
-        node=ast.Attribute(
-            value=ast.Call(
-                func=_FIND_VAR_FN_NAME,
-                args=[
-                    ast.Call(
-                        func=_NEW_SYM_FN_NAME,
-                        args=[ast.Str(var.name.name)],
-                        keywords=[ast.keyword(arg="ns", value=ast.Str(var.ns.name))],
-                    )
-                ],
-                keywords=[],
-            ),
-            attr="value",
-            ctx=ast.Store() if is_assigning else ast.Load(),
-        )
-    )
+    return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
 
 
 #################

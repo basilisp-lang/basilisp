@@ -14,8 +14,16 @@ from basilisp.lang.compyler.generator import (
     gen_py_ast,
     py_module_preamble,
     statementize as _statementize,
+    USE_VAR_INDIRECTION,
+    WARN_ON_VAR_INDIRECTION,
 )
-from basilisp.lang.compyler.parser import ParserContext, parse_ast
+from basilisp.lang.compyler.parser import (
+    ParserContext,
+    parse_ast,
+    WARN_ON_SHADOWED_NAME,
+    WARN_ON_SHADOWED_VAR,
+    WARN_ON_UNUSED_NAMES,
+)
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import genname
 

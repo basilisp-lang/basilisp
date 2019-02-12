@@ -5,7 +5,7 @@ import re
 import uuid
 from decimal import Decimal
 from fractions import Fraction
-from typing import Pattern, Match
+from typing import Pattern, Match, Iterable
 
 import dateutil.parser as dateparser
 
@@ -24,6 +24,10 @@ _MUNGE_REPLACEMENTS = {
     "\\": "__IDIV__",
     "&": "__AMP__",
 }
+
+
+def count(seq: Iterable) -> int:
+    return sum([1 for _ in seq])
 
 
 def munge(s: str, allow_builtins: bool = False) -> str:

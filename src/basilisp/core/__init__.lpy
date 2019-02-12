@@ -2215,10 +2215,9 @@
 (defmacro ^:no-warn-on-redef let
   "Let bindings with destructuring support."
   [bindings & body]
-  (let [bindings (->> (partition 2 bindings)
-                      (mapcat destructure))]
-    `(let* [~@bindings]
-       ~@body)))
+  `(let* [~@(->> (partition 2 bindings)
+                 (mapcat destructure))]
+     ~@body))
 
 (defn ^:private loop-with-destructuring
   "Take a loop definition (an binding vector and 0 or more body
