@@ -67,7 +67,6 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     final_wrapped_name = genname(wrapped_fn_name)
 
     lisp_ast = parse_ast(pctx, form)
-    print(lisp_ast)
     py_ast = gen_py_ast(gctx, lisp_ast)
     form_ast = list(
         map(
