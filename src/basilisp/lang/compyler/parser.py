@@ -35,6 +35,7 @@ from basilisp.lang.compyler.constants import (
     AMPERSAND,
     SYM_MACRO_META_KEY,
     DEFAULT_COMPILER_FILE_PATH,
+    SYM_DYNAMIC_META_KEY,
 )
 from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compyler.nodes import (
@@ -360,7 +361,18 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
         doc = runtime.nth(form, 2)
         children = vec.v(INIT)
 
-    descriptor = Def(form=form, name=name, init=init, doc=doc, children=children)
+    ns_sym = sym.symbol(ctx.current_ns.name)
+    var = Var.intern_unbound(
+        ns_sym,
+        name,
+        dynamic=Maybe(name.meta)
+        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))
+        .or_else_get(False),
+        meta=name.meta,
+    )
+    descriptor = Def(
+        form=form, name=name, var=var, init=init, doc=doc, children=children
+    )
 
     if name.meta is not None:
         meta_ast = _parse_ast(ctx, name.meta)
@@ -1016,6 +1028,30 @@ def _try_ast(ctx: ParserContext, form: lseq.Seq) -> Try:
     )
 
 
+def _var_ast(ctx: ParserContext, form: lseq.Seq) -> VarRef:
+    assert form.first == SpecialForm.VAR
+
+    nelems = count(form)
+    if nelems != 2:
+        raise ParserException(
+            "var special forms must contain 2 elements: (var sym)", form=form
+        )
+
+    var_sym = runtime.nth(form, 1)
+    if not isinstance(var_sym, sym.Symbol):
+        raise ParserException("vars may only be resolved for symbols", form=form)
+
+    if var_sym.ns is None:
+        var = runtime.resolve_var(sym.symbol(var_sym.name, ctx.current_ns.name))
+    else:
+        var = runtime.resolve_var(var_sym)
+
+    if var is None:
+        raise ParserException(f"cannot resolve var {var_sym}", form=form)
+
+    return VarRef(form=var_sym, var=var, return_var=True)
+
+
 SpecialFormHandler = Callable[[ParserContext, lseq.Seq], SpecialFormNode]
 _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.DEF: _def_node,
@@ -1031,6 +1067,7 @@ _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.SET_BANG: _set_bang_ast,
     SpecialForm.THROW: _throw_ast,
     SpecialForm.TRY: _try_ast,
+    SpecialForm.VAR: _var_ast,
 }
 
 
@@ -1070,13 +1107,13 @@ def _resolve_sym(
         if form.ns == ctx.current_ns.name:
             v = ctx.current_ns.find(sym.symbol(form.name))
             if v is not None:
-                return VarRef(form=form, var=v, is_assignable=v.dynamic)
+                return VarRef(form=form, var=v)
 
         ns_sym = sym.symbol(form.ns)
         if ns_sym in ctx.current_ns.imports or ns_sym in ctx.current_ns.import_aliases:
             v = Var.find(form)
             if v is not None:
-                return VarRef(form=form, var=v, is_assignable=v.dynamic)
+                return VarRef(form=form, var=v)
             if ns_sym in ctx.current_ns.import_aliases:
                 ns_sym: sym.Symbol = ctx.current_ns.import_aliases[  # type: ignore
                     ns_sym
@@ -1085,14 +1122,14 @@ def _resolve_sym(
             aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
             v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
             if v is not None:
-                return VarRef(form=form, var=v, is_assignable=v.dynamic)
+                return VarRef(form=form, var=v)
 
         return MaybeHostForm(form=form, class_=ns_sym.name, field=form.name)
     else:
         # Look up the symbol in the namespace mapping of the current namespace.
         v = ctx.current_ns.find(form)
         if v is not None:
-            return VarRef(form=form, var=v, is_assignable=v.dynamic)
+            return VarRef(form=form, var=v)
 
         return MaybeClass(form=form, class_=form.name)
 

@@ -213,6 +213,7 @@ class Const(Node[ReaderLispForm]):
 class Def(Node[SpecialForm]):
     form: SpecialForm
     name: sym.Symbol
+    var: Var
     init: Optional[Node]
     doc: Optional[str]
     meta: NodeMeta = None
@@ -492,11 +493,15 @@ class Try(Node[SpecialForm]):
 class VarRef(Node[sym.Symbol], Assignable):
     form: sym.Symbol
     var: Var
-    is_assignable: bool
+    return_var: bool = False
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.VAR
     top_level: bool = False
     raw_forms: Collection[LispForm] = vec.Vector.empty()
+
+    @property
+    def is_assignable(self) -> bool:
+        return self.var.dynamic
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)

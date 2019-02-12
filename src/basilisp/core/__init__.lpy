@@ -1131,7 +1131,7 @@
 (defmacro apply-method
   "Apply arguments to a method call. Equivalent to (apply (.-method o) args)."
   [o method & args]
-  `(apply (.- ~o ~method) ~@args))
+  `(apply (. ~o ~(symbol (str "-" method))) ~@args))
 
 (defmacro comment
   "Ignore all the forms passed, returning nil."

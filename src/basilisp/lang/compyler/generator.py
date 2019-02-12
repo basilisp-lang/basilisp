@@ -288,9 +288,7 @@ def _load_attr(name: str, ctx: ast.AST = ast.Load()) -> ast.Attribute:
     def attr_node(node, idx):
         if idx >= len(attrs):
             return node
-        return attr_node(
-            ast.Attribute(value=node, attr=attrs[idx], ctx=ctx), idx + 1
-        )
+        return attr_node(ast.Attribute(value=node, attr=attrs[idx], ctx=ctx), idx + 1)
 
     return attr_node(ast.Name(id=attrs[0], ctx=ctx), 1)
 
@@ -1407,6 +1405,20 @@ def _var_sym_to_py_ast(
     var_name = var.name.name
     py_var_ctx = ast.Store() if is_assigning else ast.Load()
 
+    # Return the actual var, rather than its value if requested
+    if node.return_var:
+        return GeneratedPyAST(node=ast.Call(
+                func=_FIND_VAR_FN_NAME,
+                args=[
+                    ast.Call(
+                        func=_NEW_SYM_FN_NAME,
+                        args=[ast.Str(var_name)],
+                        keywords=[ast.keyword(arg="ns", value=ast.Str(ns_name))],
+                    )
+                ],
+                keywords=[],
+            ))
+
     # Check if we should use Var indirection
     if ctx.use_var_indirection or _is_dynamic(var) or _is_redefable(var):
         return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
@@ -1421,9 +1433,7 @@ def _var_sym_to_py_ast(
     if safe_name in ns_module.__dict__:
         if ns is ctx.current_ns:
             return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
-        return GeneratedPyAST(
-            node=_load_attr(f"{safe_ns}.{safe_name}", ctx=py_var_ctx)
-        )
+        return GeneratedPyAST(node=_load_attr(f"{safe_ns}.{safe_name}", ctx=py_var_ctx))
 
     return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
 
