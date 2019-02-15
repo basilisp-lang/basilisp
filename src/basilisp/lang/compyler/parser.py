@@ -1,6 +1,7 @@
 import collections
 import contextlib
 import logging
+import re
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -1209,7 +1210,7 @@ _CONST_NODE_TYPES = {  # type: ignore
     lmap.Map: ConstType.MAP,
     lset.Set: ConstType.SET,
     lseq.Seq: ConstType.SEQ,
-    Pattern: ConstType.REGEX,
+    type(re.compile('')): ConstType.REGEX,
     sym.Symbol: ConstType.SYMBOL,
     str: ConstType.STRING,
     type(None): ConstType.NIL,
@@ -1242,10 +1243,12 @@ def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
         ),
     )
 
+    node_type = _CONST_NODE_TYPES.get(type(form), ConstType.UNKNOWN)
+    assert node_type != ConstType.UNKNOWN, "Only allow known constant types"
     descriptor = Const(
         form=form,
         is_literal=True,
-        type=cast(ConstType, _CONST_NODE_TYPES.get(type(form), ConstType.UNKNOWN)),
+        type=cast(ConstType, node_type),
         val=form,
     )
 
