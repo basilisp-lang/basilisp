@@ -632,7 +632,7 @@ def _host_interop_ast(
                 method=maybe_m_or_f.name,
                 target=_parse_ast(ctx, runtime.nth(form, 1)),
                 args=vec.vector(
-                    map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))
+                    map(partial(_parse_ast, ctx), runtime.nthrest(form, 3))
                 ),
             )
     elif isinstance(maybe_m_or_f, (llist.List, lseq.Seq)):
