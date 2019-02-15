@@ -1,4 +1,5 @@
 import ast
+import builtins
 import collections
 import contextlib
 import importlib
@@ -1504,7 +1505,12 @@ def _maybe_class_to_py_ast(_: GeneratorContext, node: MaybeClass) -> GeneratedPy
     """Generate a Python AST node for accessing a potential Python module
     variable name."""
     assert node.op == NodeOp.MAYBE_CLASS
-    return GeneratedPyAST(node=ast.Name(id=munge(node.class_), ctx=ast.Load()))
+    return GeneratedPyAST(
+        node=ast.Name(
+            id=munge(node.class_, allow_builtins=node.class_ in builtins.__dict__),
+            ctx=ast.Load(),
+        )
+    )
 
 
 def _maybe_host_form_to_py_ast(
