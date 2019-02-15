@@ -1,4 +1,5 @@
 import importlib
+
 # noinspection PyUnresolvedReferences
 import readline  # noqa: F401
 import traceback
@@ -23,11 +24,7 @@ def cli():
     pass
 
 
-def eval_file(
-    filename: str,
-    ctx: compiler.CompilerContext,
-    module: types.ModuleType,
-):
+def eval_file(filename: str, ctx: compiler.CompilerContext, module: types.ModuleType):
     """Evaluate a file with the given name into a Python module AST node."""
     last = None
     for form in reader.read_file(filename, resolver=runtime.resolve_alias):
@@ -35,12 +32,7 @@ def eval_file(
     return last
 
 
-def eval_str(
-    s: str,
-    ctx: compiler.CompilerContext,
-    module: types.ModuleType,
-    eof: Any,
-):
+def eval_str(s: str, ctx: compiler.CompilerContext, module: types.ModuleType, eof: Any):
     """Evaluate the forms in a string into a Python module AST node."""
     last = eof
     for form in reader.read_str(s, resolver=runtime.resolve_alias, eof=eof):
@@ -103,12 +95,15 @@ def repl(
 ):
     basilisp.init()
     repl_module = bootstrap_repl(default_ns)
-    ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts={
-        compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
-        compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
-        compiler.USE_VAR_INDIRECTION: use_var_indirection,
-        compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
-    })
+    ctx = compiler.CompilerContext(
+        filename=REPL_INPUT_FILE_PATH,
+        opts={
+            compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
+            compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
+            compiler.USE_VAR_INDIRECTION: use_var_indirection,
+            compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
+        },
+    )
     runtime.init_ns_var()
     runtime.bootstrap()
     ns_var = runtime.set_current_ns(default_ns)
@@ -193,12 +188,15 @@ def run(  # pylint: disable=too-many-arguments
 ):
     """Run a Basilisp script or a line of code, if it is provided."""
     basilisp.init()
-    ctx = compiler.CompilerContext(filename=None if code else file_or_code, opts={
-        compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
-        compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
-        compiler.USE_VAR_INDIRECTION: use_var_indirection,
-        compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
-    })
+    ctx = compiler.CompilerContext(
+        filename=None if code else file_or_code,
+        opts={
+            compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
+            compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
+            compiler.USE_VAR_INDIRECTION: use_var_indirection,
+            compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
+        },
+    )
     eof = object()
 
     with runtime.ns_bindings(in_ns) as ns:

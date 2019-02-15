@@ -254,10 +254,7 @@ def test_invalid_fn_def(ns: runtime.Namespace):
 
 def test_fn_warn_on_shadow_name(ns: runtime.Namespace):
     with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile(
-            "(fn [v] (fn [v] v))",
-            opts={compiler.WARN_ON_UNUSED_NAMES: False},
-        )
+        lcompile("(fn [v] (fn [v] v))", opts={compiler.WARN_ON_UNUSED_NAMES: False})
         logger.warning.assert_not_called()
 
     with mock.patch("basilisp.lang.compiler.logger") as logger:
@@ -275,10 +272,10 @@ def test_fn_warn_on_shadow_name(ns: runtime.Namespace):
     with mock.patch("basilisp.lang.compiler.logger") as logger:
         lcompile(
             "(fn [v] (fn [v] v))",
-                opts={
-                    compiler.WARN_ON_SHADOWED_NAME: True,
-                    compiler.WARN_ON_UNUSED_NAMES: False,
-                }
+            opts={
+                compiler.WARN_ON_SHADOWED_NAME: True,
+                compiler.WARN_ON_UNUSED_NAMES: False,
+            },
         )
 
         logger.warning.assert_called_once_with("name 'v' shadows name from outer scope")
@@ -291,10 +288,10 @@ def test_fn_warn_on_shadow_name(ns: runtime.Namespace):
         """
         lcompile(
             code,
-                opts={
-                    compiler.WARN_ON_SHADOWED_NAME: True,
-                    compiler.WARN_ON_UNUSED_NAMES: False,
-                }
+            opts={
+                compiler.WARN_ON_SHADOWED_NAME: True,
+                compiler.WARN_ON_UNUSED_NAMES: False,
+            },
         )
 
         logger.warning.assert_called_once_with("name 'v' shadows name from outer scope")
@@ -304,10 +301,7 @@ def test_fn_warn_on_shadow_name(ns: runtime.Namespace):
         (def unique-bljzndd :a)
         (fn [unique-bljzndd] unique-bljzndd)
         """
-        lcompile(
-            code,
-            opts={compiler.WARN_ON_SHADOWED_NAME: True},
-        )
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
 
         logger.warning.assert_called_once_with(
             "name 'unique-bljzndd' shadows def'ed Var from outer scope"
@@ -320,10 +314,7 @@ def test_fn_warn_on_shadow_name(ns: runtime.Namespace):
           ([] :b)
           ([unique-yezddid] unique-yezddid))
         """
-        lcompile(
-            code,
-            opts={compiler.WARN_ON_SHADOWED_NAME: True},
-        )
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
 
         logger.warning.assert_called_once_with(
             "name 'unique-yezddid' shadows def'ed Var from outer scope"
@@ -336,10 +327,7 @@ def test_fn_warn_on_shadow_var(ns: runtime.Namespace):
         (def unique-vfsdhsk :a)
         (fn [unique-vfsdhsk] unique-vfsdhsk)
         """
-        lcompile(
-            code,
-            opts={compiler.WARN_ON_SHADOWED_VAR: False},
-        )
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
 
         logger.warning.assert_not_called()
 
@@ -350,10 +338,7 @@ def test_fn_warn_on_shadow_var(ns: runtime.Namespace):
           ([] :b)
           ([unique-mmndheee] unique-mmndheee))
         """
-        lcompile(
-            code,
-            opts={compiler.WARN_ON_SHADOWED_VAR: False},
-        )
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
 
         logger.warning.assert_not_called()
 
@@ -362,10 +347,7 @@ def test_fn_warn_on_shadow_var(ns: runtime.Namespace):
         (def unique-kuieeid :a)
         (fn [unique-kuieeid] unique-kuieeid)
         """
-        lcompile(
-            code,
-            opts={compiler.WARN_ON_SHADOWED_VAR: True},
-        )
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
 
         logger.warning.assert_called_once_with(
             "name 'unique-kuieeid' shadows def'ed Var from outer scope"
@@ -378,10 +360,7 @@ def test_fn_warn_on_shadow_var(ns: runtime.Namespace):
           ([] :b)
           ([unique-peuudcdf] unique-peuudcdf))
         """
-        lcompile(
-            code,
-            opts={compiler.WARN_ON_SHADOWED_VAR: True},
-        )
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
 
         logger.warning.assert_called_once_with(
             "name 'unique-peuudcdf' shadows def'ed Var from outer scope"
@@ -390,10 +369,7 @@ def test_fn_warn_on_shadow_var(ns: runtime.Namespace):
 
 def test_fn_warn_on_unused_name(ns: runtime.Namespace):
     with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile(
-            "(fn [v] (fn [v] v))",
-            opts={compiler.WARN_ON_UNUSED_NAMES: True},
-        )
+        lcompile("(fn [v] (fn [v] v))", opts={compiler.WARN_ON_UNUSED_NAMES: True})
         logger.warning.assert_called_once_with(
             f"symbol 'v' defined but not used ({ns}: 1)"
         )
@@ -696,25 +672,21 @@ def test_let_warn_on_shadow_name(ns: runtime.Namespace):
 
     with mock.patch("basilisp.lang.compiler.logger") as logger:
         lcompile(
-            "(let [m 3] (let [m 4] m))",
-            opts={compiler.WARN_ON_UNUSED_NAMES: False},
+            "(let [m 3] (let [m 4] m))", opts={compiler.WARN_ON_UNUSED_NAMES: False}
         )
         logger.warning.assert_not_called()
 
     with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile(
-            "(let [m 3] m)",
-            opts={compiler.WARN_ON_SHADOWED_NAME: True},
-        )
+        lcompile("(let [m 3] m)", opts={compiler.WARN_ON_SHADOWED_NAME: True})
         logger.warning.assert_not_called()
 
     with mock.patch("basilisp.lang.compiler.logger") as logger:
         lcompile(
             "(let [m 3] (let [m 4] m))",
-                opts={
-                    compiler.WARN_ON_SHADOWED_NAME: True,
-                    compiler.WARN_ON_UNUSED_NAMES: False,
-                }
+            opts={
+                compiler.WARN_ON_SHADOWED_NAME: True,
+                compiler.WARN_ON_UNUSED_NAMES: False,
+            },
         )
         logger.warning.assert_called_once_with("name 'm' shadows name from outer scope")
 
@@ -724,10 +696,7 @@ def test_let_warn_on_shadow_name(ns: runtime.Namespace):
         (let [unique-yyenfvhj 3] unique-yyenfvhj)
         """
 
-        lcompile(
-            code,
-            opts={compiler.WARN_ON_SHADOWED_NAME: True},
-        )
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
         logger.warning.assert_called_once_with(
             "name 'unique-yyenfvhj' shadows def'ed Var from outer scope"
         )
@@ -740,10 +709,7 @@ def test_let_warn_on_shadow_var(ns: runtime.Namespace):
         (let [unique-gghdjeeh 3] unique-gghdjeeh)
         """
 
-        lcompile(
-            code,
-            opts={compiler.WARN_ON_SHADOWED_VAR: False},
-        )
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
         logger.warning.assert_not_called()
 
     with mock.patch("basilisp.lang.compiler.logger") as logger:
@@ -751,10 +717,7 @@ def test_let_warn_on_shadow_var(ns: runtime.Namespace):
         (def unique-uoieyqq :a)
         (let [unique-uoieyqq 3] unique-uoieyqq)
         """
-        lcompile(
-            code,
-            opts={compiler.WARN_ON_SHADOWED_VAR: True},
-        )
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
         logger.warning.assert_called_once_with(
             "name 'unique-uoieyqq' shadows def'ed Var from outer scope"
         )
@@ -762,10 +725,7 @@ def test_let_warn_on_shadow_var(ns: runtime.Namespace):
 
 def test_let_warn_on_unused_name(ns: runtime.Namespace):
     with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile(
-            "(let [v 4] :a)",
-            opts={compiler.WARN_ON_UNUSED_NAMES: True},
-        )
+        lcompile("(let [v 4] :a)", opts={compiler.WARN_ON_UNUSED_NAMES: True})
         logger.warning.assert_called_once_with(
             f"symbol 'v' defined but not used ({ns}: 1)"
         )
@@ -1108,10 +1068,7 @@ def test_try_catch(capsys, ns: runtime.Namespace):
 
 def test_warn_on_var_indirection(ns: runtime.Namespace):
     with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile(
-            "(fn [] m)",
-                opts={compiler.WARN_ON_VAR_INDIRECTION: False}
-        )
+        lcompile("(fn [] m)", opts={compiler.WARN_ON_VAR_INDIRECTION: False})
         logger.warning.assert_not_called()
 
     with mock.patch("basilisp.lang.compiler.logger") as logger:
@@ -1174,7 +1131,7 @@ def test_warn_on_var_indirection_cross_ns(ns: runtime.Namespace):
             with mock.patch("basilisp.lang.compiler.logger") as logger:
                 lcompile(
                     "(fn [] (other.ns/m :z))",
-                        opts={compiler.WARN_ON_SHADOWED_VAR: True}
+                    opts={compiler.WARN_ON_SHADOWED_VAR: True},
                 )
 
                 logger.warning.assert_called_once_with(
@@ -1183,8 +1140,7 @@ def test_warn_on_var_indirection_cross_ns(ns: runtime.Namespace):
 
             with mock.patch("basilisp.lang.compiler.logger") as logger:
                 lcompile(
-                    "(fn [] (other/m :z))",
-                        opts={compiler.WARN_ON_SHADOWED_VAR: True}
+                    "(fn [] (other/m :z))", opts={compiler.WARN_ON_SHADOWED_VAR: True}
                 )
 
                 logger.warning.assert_called_once_with(
@@ -1200,8 +1156,7 @@ def test_warn_on_var_indirection_on_import(ns: runtime.Namespace):
     with runtime.ns_bindings(ns.name):
         with mock.patch("basilisp.lang.compiler.logger") as logger:
             lcompile(
-                "(fn [] (string/m :z))",
-                    opts={compiler.WARN_ON_SHADOWED_VAR: True}
+                "(fn [] (string/m :z))", opts={compiler.WARN_ON_SHADOWED_VAR: True}
             )
 
             logger.warning.assert_called_once_with(

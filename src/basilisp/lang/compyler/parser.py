@@ -890,6 +890,8 @@ def _assert_recur_is_tail(node: Node) -> None:
         _assert_recur_is_tail(node.else_)
     elif node.op in {NodeOp.LET, NodeOp.LETFN}:
         assert isinstance(node, (Let, LetFn))
+        for binding in node.bindings:
+            _assert_no_recur(binding.init)
         _assert_recur_is_tail(node.body)
     elif node.op == NodeOp.RECUR:
         pass
