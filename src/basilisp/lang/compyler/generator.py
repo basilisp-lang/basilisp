@@ -1822,7 +1822,7 @@ _CONST_VALUE_HANDLERS: Dict[Type, SimplePyASTGenerator] = {  # type: ignore
     lmap.Map: _const_map_to_py_ast,
     lset.Set: _const_set_to_py_ast,
     lseq.Seq: _const_seq_to_py_ast,
-    type(re.compile('')): _regex_to_py_ast,
+    type(re.compile("")): _regex_to_py_ast,
     sym.Symbol: _const_sym_to_py_ast,
     str: _str_to_py_ast,
     type(None): _name_const_to_py_ast,

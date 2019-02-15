@@ -1210,7 +1210,7 @@ _CONST_NODE_TYPES = {  # type: ignore
     lmap.Map: ConstType.MAP,
     lset.Set: ConstType.SET,
     lseq.Seq: ConstType.SEQ,
-    type(re.compile('')): ConstType.REGEX,
+    type(re.compile("")): ConstType.REGEX,
     sym.Symbol: ConstType.SYMBOL,
     str: ConstType.STRING,
     type(None): ConstType.NIL,
@@ -1246,10 +1246,7 @@ def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
     node_type = _CONST_NODE_TYPES.get(type(form), ConstType.UNKNOWN)
     assert node_type != ConstType.UNKNOWN, "Only allow known constant types"
     descriptor = Const(
-        form=form,
-        is_literal=True,
-        type=cast(ConstType, node_type),
-        val=form,
+        form=form, is_literal=True, type=cast(ConstType, node_type), val=form
     )
 
     if hasattr(form, "meta") and form.meta is not None:  # type: ignore
