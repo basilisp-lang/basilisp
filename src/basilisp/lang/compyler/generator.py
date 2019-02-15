@@ -1297,7 +1297,7 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
             catch_handlers.append(
                 ast.ExceptHandler(
                     type=exc_type.node,
-                    name=munge(exc_binding.name),
+                    name=catch_exc_name,
                     body=list(
                         chain(
                             map(statementize, catch_ast.dependencies),
@@ -1409,7 +1409,8 @@ def _var_sym_to_py_ast(
 
     # Return the actual var, rather than its value if requested
     if node.return_var:
-        return GeneratedPyAST(node=ast.Call(
+        return GeneratedPyAST(
+            node=ast.Call(
                 func=_FIND_VAR_FN_NAME,
                 args=[
                     ast.Call(
@@ -1419,7 +1420,8 @@ def _var_sym_to_py_ast(
                     )
                 ],
                 keywords=[],
-            ))
+            )
+        )
 
     # Check if we should use Var indirection
     if ctx.use_var_indirection or _is_dynamic(var) or _is_redefable(var):
