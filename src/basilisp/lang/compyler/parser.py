@@ -1151,12 +1151,22 @@ def _resolve_sym(
             if v is not None:
                 return VarRef(form=form, var=v)
 
+        if "." in form.name:
+            raise ParserException(
+                "symbol names may not contain the '.' operator", form=form
+            )
+
         return MaybeHostForm(form=form, class_=ns_sym.name, field=form.name)
     else:
         # Look up the symbol in the namespace mapping of the current namespace.
         v = ctx.current_ns.find(form)
         if v is not None:
             return VarRef(form=form, var=v)
+
+        if "." in form.name:
+            raise ParserException(
+                "symbol names may not contain the '.' operator", form=form
+            )
 
         return MaybeClass(form=form, class_=form.name)
 

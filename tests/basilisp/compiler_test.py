@@ -608,7 +608,7 @@ def test_interop_new(ns: runtime.Namespace):
     assert "1" == lcompile("(builtins.str. 1)")
     assert sym.symbol("hi") == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
 
-    with pytest.raises(runtime.RuntimeException):
+    with pytest.raises(compiler.CompilerException):
         lcompile('(builtins.str "hi")')
 
 
