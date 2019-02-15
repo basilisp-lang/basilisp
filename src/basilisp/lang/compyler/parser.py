@@ -893,6 +893,10 @@ def _assert_recur_is_tail(node: Node) -> None:
         for binding in node.bindings:
             _assert_no_recur(binding.init)
         _assert_recur_is_tail(node.body)
+    elif node.op == NodeOp.LOOP:
+        assert isinstance(node, Loop)
+        for binding in node.bindings:
+            _assert_no_recur(binding.init)
     elif node.op == NodeOp.RECUR:
         pass
     elif node.op == NodeOp.TRY:
