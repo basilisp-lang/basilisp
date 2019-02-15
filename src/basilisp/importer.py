@@ -225,8 +225,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             forms = reader.read_file(filename, resolver=runtime.resolve_alias)
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
                 forms,
-                compiler.ParserContext(filename=filename),
-                compiler.GeneratorContext(filename=filename),
+                compiler.CompilerContext(filename=filename),
                 module,
                 collect_bytecode=add_bytecode,
             )

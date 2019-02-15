@@ -45,10 +45,30 @@ def to_py_str(t: ast.AST) -> str:
 BytecodeCollector = Optional[Callable[[types.CodeType], None]]
 
 
+class CompilerContext:
+    __slots__ = ("_filename", "_gctx", "_pctx")
+
+    def __init__(self, filename: str, opts: Optional[Dict[str, bool]] = None):
+        self._filename = filename
+        self._gctx = GeneratorContext(filename=filename, opts=opts)
+        self._pctx = ParserContext(filename=filename, opts=opts)
+
+    @property
+    def filename(self) -> str:
+        return self._filename
+
+    @property
+    def generator_context(self) -> GeneratorContext:
+        return self._gctx
+
+    @property
+    def parser_context(self) -> ParserContext:
+        return self._pctx
+
+
 def compile_and_exec_form(  # pylint: disable= too-many-arguments
     form: LispForm,
-    pctx: ParserContext,
-    gctx: GeneratorContext,
+    ctx: CompilerContext,
     module: types.ModuleType,
     wrapped_fn_name: str = _DEFAULT_FN,
     collect_bytecode: Optional[BytecodeCollector] = None,
@@ -62,12 +82,12 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
         return None
 
     if not module.__basilisp_bootstrapped__:  # type: ignore
-        _bootstrap_module(gctx, module)
+        _bootstrap_module(ctx.generator_context, module)
 
     final_wrapped_name = genname(wrapped_fn_name)
 
-    lisp_ast = parse_ast(pctx, form)
-    py_ast = gen_py_ast(gctx, lisp_ast)
+    lisp_ast = parse_ast(ctx.parser_context, form)
+    py_ast = gen_py_ast(ctx.generator_context, lisp_ast)
     form_ast = list(
         map(
             _statementize,
@@ -86,7 +106,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     else:
         runtime.add_generated_python(to_py_str(ast_module))
 
-    bytecode = compile(ast_module, gctx.filename, "exec")
+    bytecode = compile(ast_module, ctx.filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
     exec(bytecode, module.__dict__)
@@ -140,8 +160,7 @@ def _bootstrap_module(
 
 def compile_module(
     forms: Iterable[LispForm],
-    pctx: ParserContext,
-    gctx: GeneratorContext,
+    ctx: CompilerContext,
     module: types.ModuleType,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
@@ -152,14 +171,14 @@ def compile_module(
     Basilisp import machinery, to allow callers to import Basilisp modules from
     Python code.
     """
-    _bootstrap_module(gctx, module)
+    _bootstrap_module(ctx.generator_context, module)
 
     for form in forms:
-        nodes = gen_py_ast(gctx, parse_ast(pctx, form))
+        nodes = gen_py_ast(ctx.generator_context, parse_ast(ctx.parser_context, form))
         _incremental_compile_module(
             nodes,
             module,
-            source_filename=gctx.filename,
+            source_filename=ctx.filename,
             collect_bytecode=collect_bytecode,
         )
 

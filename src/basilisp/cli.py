@@ -1,5 +1,4 @@
 import importlib
-
 # noinspection PyUnresolvedReferences
 import readline  # noqa: F401
 import traceback
@@ -26,28 +25,26 @@ def cli():
 
 def eval_file(
     filename: str,
-    pctx: compiler.ParserContext,
-    gctx: compiler.GeneratorContext,
+    ctx: compiler.CompilerContext,
     module: types.ModuleType,
 ):
     """Evaluate a file with the given name into a Python module AST node."""
     last = None
     for form in reader.read_file(filename, resolver=runtime.resolve_alias):
-        last = compiler.compile_and_exec_form(form, pctx, gctx, module, filename)
+        last = compiler.compile_and_exec_form(form, ctx, module, filename)
     return last
 
 
 def eval_str(
     s: str,
-    pctx: compiler.ParserContext,
-    gctx: compiler.GeneratorContext,
+    ctx: compiler.CompilerContext,
     module: types.ModuleType,
     eof: Any,
 ):
     """Evaluate the forms in a string into a Python module AST node."""
     last = eof
     for form in reader.read_str(s, resolver=runtime.resolve_alias, eof=eof):
-        last = compiler.compile_and_exec_form(form, pctx, gctx, module)
+        last = compiler.compile_and_exec_form(form, ctx, module)
     return last
 
 
@@ -106,20 +103,12 @@ def repl(
 ):
     basilisp.init()
     repl_module = bootstrap_repl(default_ns)
-    pctx = compiler.ParserContext(
-        filename=REPL_INPUT_FILE_PATH,
-        opts={
-            compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
-            compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
-        },
-    )
-    gctx = compiler.GeneratorContext(
-        filename=REPL_INPUT_FILE_PATH,
-        opts={
-            compiler.USE_VAR_INDIRECTION: use_var_indirection,
-            compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
-        },
-    )
+    ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts={
+        compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
+        compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
+        compiler.USE_VAR_INDIRECTION: use_var_indirection,
+        compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
+    })
     runtime.init_ns_var()
     runtime.bootstrap()
     ns_var = runtime.set_current_ns(default_ns)
@@ -138,7 +127,7 @@ def repl(
             continue
 
         try:
-            result = eval_str(lsrc, pctx, gctx, ns.module, eof)
+            result = eval_str(lsrc, ctx, ns.module, eof)
             if result is eof:
                 continue
             print(runtime.lrepr(result))
@@ -204,27 +193,19 @@ def run(  # pylint: disable=too-many-arguments
 ):
     """Run a Basilisp script or a line of code, if it is provided."""
     basilisp.init()
-    pctx = compiler.ParserContext(
-        filename=REPL_INPUT_FILE_PATH,
-        opts={
-            compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
-            compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
-        },
-    )
-    gctx = compiler.GeneratorContext(
-        filename=None if code else file_or_code,
-        opts={
-            compiler.USE_VAR_INDIRECTION: use_var_indirection,
-            compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
-        },
-    )
+    ctx = compiler.CompilerContext(filename=None if code else file_or_code, opts={
+        compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
+        compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
+        compiler.USE_VAR_INDIRECTION: use_var_indirection,
+        compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
+    })
     eof = object()
 
     with runtime.ns_bindings(in_ns) as ns:
         if code:
-            print(runtime.lrepr(eval_str(file_or_code, pctx, gctx, ns.module, eof)))
+            print(runtime.lrepr(eval_str(file_or_code, ctx, ns.module, eof)))
         else:
-            print(runtime.lrepr(eval_file(file_or_code, pctx, gctx, ns.module)))
+            print(runtime.lrepr(eval_file(file_or_code, ctx, ns.module)))
 
 
 @cli.command(short_help="run tests in a Basilisp project")
