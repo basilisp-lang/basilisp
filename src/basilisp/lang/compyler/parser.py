@@ -581,16 +581,23 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
         if not isinstance(field, sym.Symbol):
             raise ParserException("host interop field must be a symbol", form=form)
 
+        if not nelems == 3:
+            raise ParserException(
+                "host interop prop must be exactly 3 elems long: (.- target field)",
+                form=form,
+            )
+
         return HostField(
             form=form,
-            field=field.name[2:],
+            field=field.name,
             target=_parse_ast(ctx, runtime.nth(form, 1)),
             is_assignable=True,
         )
     else:
         if not nelems == 2:
             raise ParserException(
-                "host interop prop must be exactly 2 elements long", form=form
+                "host interop prop must be exactly 2 elements long: (.-field target)",
+                form=form,
             )
 
         return HostField(
