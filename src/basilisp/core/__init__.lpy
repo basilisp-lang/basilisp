@@ -1218,7 +1218,7 @@
         val  (second bindings)]
     `(try
        (do
-         (. (var ~vvar) ~'push-bindings ~val)
+         (. (var ~vvar) (~'push-bindings ~val))
          ~@(if (nthnext bindings 2)
              [(concat
                (list 'binding (vec (nthrest bindings 2)))
