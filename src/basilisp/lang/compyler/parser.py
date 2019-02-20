@@ -1,3 +1,4 @@
+import builtins
 import collections
 import contextlib
 import logging
@@ -1138,22 +1139,31 @@ def _resolve_sym(
 
         ns_sym = sym.symbol(form.ns)
         if ns_sym in ctx.current_ns.imports or ns_sym in ctx.current_ns.import_aliases:
+            # We still import Basilisp code, so we'll want to make sure
+            # that the symbol isn't referring to a Basilisp Var first
             v = Var.find(form)
             if v is not None:
                 return VarRef(form=form, var=v)
-            if ns_sym in ctx.current_ns.import_aliases:
-                ns_sym: sym.Symbol = ctx.current_ns.import_aliases[  # type: ignore
-                    ns_sym
-                ]
+
+            # Aliased imports generate code which uses the import alias, so we
+            # don't need to care if this is an import or an alias.
+            return MaybeHostForm(form=form, class_=ns_sym.name, field=form.name)
         elif ns_sym in ctx.current_ns.aliases:
             aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
             v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
-            if v is not None:
-                return VarRef(form=form, var=v)
+            if v is None:
+                raise ParserException(f"unable to resolve symbol '{ns_sym}' in this context", form=form)
+            return VarRef(form=form, var=v)
 
         if "." in form.name:
             raise ParserException(
                 "symbol names may not contain the '.' operator", form=form
+            )
+
+        py_module = ns_sym.name.split(".")[0] if "." in ns_sym.name else ns_sym.name
+        if py_module not in ctx.current_ns.module.__dict__:
+            raise ParserException(
+                f"unable to resolve symbol '{ns_sym}' in this context", form=form
             )
 
         return MaybeHostForm(form=form, class_=ns_sym.name, field=form.name)
@@ -1166,6 +1176,14 @@ def _resolve_sym(
         if "." in form.name:
             raise ParserException(
                 "symbol names may not contain the '.' operator", form=form
+            )
+
+        if form.name in builtins.__dict__:
+            return MaybeClass(form=form, class_=form.name)
+
+        if form.name not in ctx.current_ns.module.__dict__:
+            raise ParserException(
+                f"unable to resolve symbol '{form}' in this context", form=form
             )
 
         return MaybeClass(form=form, class_=form.name)
