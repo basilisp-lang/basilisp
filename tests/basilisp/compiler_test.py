@@ -1079,12 +1079,12 @@ def test_warn_on_var_indirection(ns: runtime.Namespace):
 
 
 def test_unquote(ns: runtime.Namespace):
-    with pytest.raises(runtime.RuntimeException):
+    with pytest.raises(compiler.CompilerException):
         lcompile("~s")
 
     assert llist.l(sym.symbol("s")) == lcompile("`(s)")
 
-    with pytest.raises(runtime.RuntimeException):
+    with pytest.raises(compiler.CompilerException):
         lcompile("`(~s)")
 
 
