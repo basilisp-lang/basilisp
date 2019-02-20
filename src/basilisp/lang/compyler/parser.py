@@ -1256,26 +1256,30 @@ _CONST_NODE_TYPES = {  # type: ignore
 
 def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
     assert (
-        ctx.is_quoted
-        and isinstance(
-            form, (sym.Symbol, vec.Vector, llist.List, lmap.Map, lset.Set, lseq.Seq)
-        )
-    ) or isinstance(
-        form,
         (
-            bool,
-            complex,
-            datetime,
-            Decimal,
-            float,
-            Fraction,
-            int,
-            kw.Keyword,
-            Pattern,
-            str,
-            type(None),
-            uuid.UUID,
-        ),
+            ctx.is_quoted
+            and isinstance(
+                form, (sym.Symbol, vec.Vector, llist.List, lmap.Map, lset.Set, lseq.Seq)
+            )
+        )
+        or (isinstance(form, (llist.List, lseq.Seq)) and form.is_empty)
+        or isinstance(
+            form,
+            (
+                bool,
+                complex,
+                datetime,
+                Decimal,
+                float,
+                Fraction,
+                int,
+                kw.Keyword,
+                Pattern,
+                str,
+                type(None),
+                uuid.UUID,
+            ),
+        )
     )
 
     node_type = _CONST_NODE_TYPES.get(type(form), ConstType.UNKNOWN)
@@ -1297,6 +1301,10 @@ def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
 
 def _parse_ast(ctx: ParserContext, form: LispForm) -> Node:
     if isinstance(form, (llist.List, lseq.Seq)):
+        # Special case for unquoted empty list
+        if form == llist.List.empty():
+            with ctx.quoted():
+                return _const_node(ctx, form)
         return _list_node(ctx, form)
     elif isinstance(form, vec.Vector):
         if ctx.is_quoted:
