@@ -459,7 +459,12 @@ def _fn_method_ast(
 
         fn_loop_id = genname("fn_arity" if fnname is None else fnname.name)
         with ctx.new_recur_point(fn_loop_id, param_nodes):
-            *stmts, ret = map(partial(_parse_ast, ctx), form.rest)
+            body = list(map(partial(_parse_ast, ctx), form.rest))
+            if body:
+                *stmts, ret = body
+            else:
+                stmts, ret = (), _const_node(ctx, None)
+
             method = FnMethod(
                 form=form,
                 loop_id=fn_loop_id,

@@ -647,7 +647,7 @@ def test_let(ns: runtime.Namespace):
     assert lcompile("(let* [a 1 b :length c {b a} a 4] a)") == 4
     assert lcompile('(let* [a "lower"] (.upper a))') == "LOWER"
 
-    with pytest.raises(runtime.RuntimeException):
+    with pytest.raises(compiler.CompilerException):
         lcompile("(let* [a 'sym] c)")
 
     with pytest.raises(compiler.CompilerException):
