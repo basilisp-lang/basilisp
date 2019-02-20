@@ -757,7 +757,7 @@ def test_loop(ns: runtime.Namespace):
     assert "LOWER" == lcompile('(loop* [a "lower"] (.upper a))')
     assert "string" == lcompile('(loop* [] "string")')
 
-    with pytest.raises(runtime.RuntimeException):
+    with pytest.raises(compiler.CompilerException):
         lcompile("(loop* [a 'sym] c)")
 
     code = """

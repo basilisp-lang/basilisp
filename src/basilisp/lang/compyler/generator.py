@@ -881,12 +881,12 @@ def __if_body_to_py_ast(
         assert isinstance(node, Recur)
         return _recur_to_py_ast(ctx, node)
     else:
-        then_ast = gen_py_ast(ctx, node)
+        py_ast = gen_py_ast(ctx, node)
         return GeneratedPyAST(
             node=ast.Assign(
-                targets=[ast.Name(id=result_name, ctx=ast.Store())], value=then_ast.node
+                targets=[ast.Name(id=result_name, ctx=ast.Store())], value=py_ast.node
             ),
-            dependencies=then_ast.dependencies,
+            dependencies=py_ast.dependencies,
         )
 
 

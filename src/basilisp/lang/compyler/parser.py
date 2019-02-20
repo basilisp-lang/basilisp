@@ -38,7 +38,12 @@ from basilisp.lang.compyler.constants import (
     SYM_MACRO_META_KEY,
     DEFAULT_COMPILER_FILE_PATH,
     SYM_DYNAMIC_META_KEY,
-    COL_KW, FILE_KW, LINE_KW, NAME_KW, NS_KW)
+    COL_KW,
+    FILE_KW,
+    LINE_KW,
+    NAME_KW,
+    NS_KW,
+)
 from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compyler.nodes import (
     Const,
