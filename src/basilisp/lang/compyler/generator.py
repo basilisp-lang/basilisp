@@ -811,9 +811,10 @@ def __multi_arity_fn_to_py_ast(
     fn_defs = []
     for method in methods:
         arity_name = f"{py_fn_name}__arity{'_rest' if method.is_variadic else method.fixed_arity}"
-        arity_to_name[method.fixed_arity] = arity_name
         if method.is_variadic:
             rest_arity_name = arity_name
+        else:
+            arity_to_name[method.fixed_arity] = arity_name
 
         with ctx.new_symbol_table(arity_name), ctx.new_recur_point(
             method.loop_id, RecurType.FN, is_variadic=node.is_variadic
