@@ -548,6 +548,14 @@ def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
                     )
                 fixed_arities.add(method.fixed_arity)
 
+        if fixed_arity_for_variadic is not None and any(
+            [fixed_arity_for_variadic < arity for arity in fixed_arities]
+        ):
+            raise ParserException(
+                "variadic arity may not have fewer fixed arity arguments than any other arities",
+                form=form,
+            )
+
         return Fn(
             form=form,
             is_variadic=num_variadic == 1,
