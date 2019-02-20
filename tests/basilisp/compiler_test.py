@@ -19,6 +19,7 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+from basilisp.lang.compyler.constants import DEFAULT_COMPILER_FILE_PATH
 from basilisp.lang.runtime import Var
 from basilisp.main import init
 from basilisp.util import Maybe
@@ -175,7 +176,7 @@ def test_def_metadata(ns: runtime.Namespace):
     meta = var.meta
 
     assert 1 == meta.entry(kw.keyword("line"))
-    assert compiler.DEFAULT_COMPILER_FILE_PATH == meta.entry(kw.keyword("file"))
+    assert DEFAULT_COMPILER_FILE_PATH == meta.entry(kw.keyword("file"))
     assert 1 == meta.entry(kw.keyword("col"))
     assert sym.symbol("unique-oeuene") == meta.entry(kw.keyword("name"))
     assert ns == meta.entry(kw.keyword("ns"))

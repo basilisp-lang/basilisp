@@ -38,7 +38,7 @@ from basilisp.lang.compyler.constants import (
     SYM_MACRO_META_KEY,
     DEFAULT_COMPILER_FILE_PATH,
     SYM_DYNAMIC_META_KEY,
-)
+    COL_KW, FILE_KW, LINE_KW, NAME_KW, NS_KW)
 from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compyler.nodes import (
     Const,
@@ -362,6 +362,42 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
         init = _parse_ast(ctx, runtime.nth(form, 3))
         doc = runtime.nth(form, 2)
         children = vec.v(INIT)
+
+    # We still have to compile the meta here down to Python source code, so
+    # anything which is not constant below needs to be valid Basilisp code
+    # at the site it is called.
+    #
+    # We are roughly generating code like this:
+    #
+    # (def ^{:col  1
+    #        :file "<REPL Input>"
+    #        :line 1
+    #        :name 'some-name
+    #        :ns   ((.- basilisp.lang.runtime/Namespace get) 'user)}
+    #       some-name
+    #       "some value")
+    name = name.with_meta(
+        lmap.map(
+            {
+                COL_KW: Maybe(name.meta)
+                .map(lambda m: m.entry(reader.READER_COL_KW))
+                .or_else_get(None),
+                FILE_KW: ctx.filename,
+                LINE_KW: Maybe(name.meta)
+                .map(lambda m: m.entry(reader.READER_LINE_KW))
+                .or_else_get(None),
+                NAME_KW: llist.l(SpecialForm.QUOTE, name),
+                NS_KW: llist.l(
+                    llist.l(
+                        SpecialForm.INTEROP_PROP,
+                        sym.symbol("Namespace", "basilisp.lang.runtime"),
+                        sym.symbol("get"),
+                    ),
+                    llist.l(SpecialForm.QUOTE, sym.symbol(ctx.current_ns.name)),
+                ),
+            }
+        )
+    )
 
     ns_sym = sym.symbol(ctx.current_ns.name)
     var = Var.intern_unbound(
