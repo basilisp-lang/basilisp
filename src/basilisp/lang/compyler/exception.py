@@ -14,6 +14,7 @@ class CompilerPhase(Enum):
     PARSING = kw.keyword("parsing")
     CODE_GENERATION = kw.keyword("code-generation")
     MACROEXPANSION = kw.keyword("macroexpansion")
+    COMPILING_PYTHON = kw.keyword("compiling-python")
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)

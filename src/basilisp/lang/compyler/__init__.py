@@ -1,12 +1,12 @@
 import ast
 import itertools
 import types
-from typing import Optional, Callable, Any, Iterable, List
+from typing import Optional, Callable, Any, Iterable, List, Dict
 
 from astor import code_gen as codegen
 
 import basilisp.lang.runtime as runtime
-from basilisp.lang.compyler.exception import CompilerException
+from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compyler.generator import (
     GeneratorContext,
     GeneratedPyAST,
@@ -137,7 +137,15 @@ def _incremental_compile_module(
     else:
         runtime.add_generated_python(to_py_str(module))
 
-    bytecode = compile(module, source_filename, "exec")
+    try:
+        bytecode = compile(module, source_filename, "exec")
+    except (SyntaxError, TypeError) as e:
+        raise CompilerException(
+            "failed to compile generated Python",
+            CompilerPhase.COMPILING_PYTHON,
+            py_ast=module,
+        ) from e
+
     if collect_bytecode:
         collect_bytecode(bytecode)
     exec(bytecode, mod.__dict__)
