@@ -1157,7 +1157,9 @@ def _resolve_sym(
             aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
             v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
             if v is None:
-                raise ParserException(f"unable to resolve symbol '{ns_sym}' in this context", form=form)
+                raise ParserException(
+                    f"unable to resolve symbol '{ns_sym}' in this context", form=form
+                )
             return VarRef(form=form, var=v)
 
         if "." in form.name:
