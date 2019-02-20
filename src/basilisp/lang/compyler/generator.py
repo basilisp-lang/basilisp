@@ -629,7 +629,7 @@ def __single_arity_fn_to_py_ast(
         # Allow named anonymous functions to recursively call themselves
         if lisp_fn_name is not None:
             ctx.symbol_table.new_symbol(
-                sym.symbol(lisp_fn_name), munge(lisp_fn_name), LocalType.FN
+                sym.symbol(lisp_fn_name), py_fn_name, LocalType.FN
             )
 
         fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
@@ -821,7 +821,7 @@ def __multi_arity_fn_to_py_ast(
             # Allow named anonymous functions to recursively call themselves
             if lisp_fn_name is not None:
                 ctx.symbol_table.new_symbol(
-                    sym.symbol(lisp_fn_name), munge(lisp_fn_name), LocalType.FN
+                    sym.symbol(lisp_fn_name), py_fn_name, LocalType.FN
                 )
 
             fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
@@ -989,7 +989,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
                 func=_load_attr(f"{_NS_VAR_VALUE}.add_import"),
                 args=[
                     ast.Call(
-                        func=_NEW_SYM_FN_NAME, args=[ast.Str(alias.name)], keywords=[]
+                        func=_NEW_SYM_FN_NAME, args=[ast.Str(safe_name)], keywords=[]
                     ),
                     last,
                 ],
