@@ -4,17 +4,19 @@ from fractions import Fraction
 
 import dateutil.parser as dateparser
 
-import basilisp.lang.compiler as compiler
+import basilisp.lang.compyler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
+
+COMPILER_FILE_PATH = "lrepr_test"
 
 
 def lcompile(s: str):
     """Compile and execute the code in the input string.
 
     Return the resulting expression."""
-    ctx = compiler.CompilerContext()
-    mod = runtime._new_module("lrepr_test")
+    ctx = compiler.CompilerContext(COMPILER_FILE_PATH)
+    mod = runtime._new_module(COMPILER_FILE_PATH)
 
     last = None
     for form in reader.read_str(s):

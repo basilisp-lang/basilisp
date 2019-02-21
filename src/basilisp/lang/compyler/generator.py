@@ -394,6 +394,7 @@ def statementize(e: ast.AST) -> ast.AST:
             ast.Assign,
             ast.AnnAssign,  # type: ignore
             ast.AugAssign,
+            ast.Expr,
             ast.Raise,
             ast.Assert,
             ast.Pass,
@@ -533,23 +534,23 @@ def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     assert node.op == NodeOp.DO
     assert not node.is_body
 
-    do_fn_name = genname(_DO_PREFIX)
+    body_ast = GeneratedPyAST.reduce(
+        *chain(
+            map(partial(gen_py_ast, ctx), node.statements), [gen_py_ast(ctx, node.ret)]
+        )
+    )
+
+    fn_body_ast: List[ast.AST] = []
+    do_result_name = genname(_DO_PREFIX)
+    fn_body_ast.extend(map(statementize, body_ast.dependencies))
+    fn_body_ast.append(
+        ast.Assign(
+            targets=[ast.Name(id=do_result_name, ctx=ast.Store())], value=body_ast.node
+        )
+    )
 
     return GeneratedPyAST(
-        node=ast.Call(
-            func=ast.Name(id=do_fn_name, ctx=ast.Load()), args=[], keywords=[]
-        ),
-        dependencies=[
-            expressionize(
-                GeneratedPyAST.reduce(
-                    *chain(
-                        map(partial(gen_py_ast, ctx), node.statements),
-                        [gen_py_ast(ctx, node.ret)],
-                    )
-                ),
-                do_fn_name,
-            )
-        ],
+        node=ast.Name(id=do_result_name, ctx=ast.Load()), dependencies=fn_body_ast
     )
 
 
@@ -943,8 +944,8 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
             ],
         ),
         values=[],
-        body=list(chain(else_ast.dependencies, [else_ast.node])),
-        orelse=list(chain(then_ast.dependencies, [then_ast.node])),
+        body=list(map(statementize, chain(else_ast.dependencies, [else_ast.node]))),
+        orelse=list(map(statementize, chain(then_ast.dependencies, [then_ast.node]))),
     )
 
     return GeneratedPyAST(
@@ -1046,29 +1047,18 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
                 sym.symbol(binding.name), binding_name, LocalType.LET
             )
 
+        let_result_name = genname("let_result")
         body_ast = _synthetic_do_to_py_ast(ctx, node.body)
         fn_body_ast.extend(map(statementize, body_ast.dependencies))
-        fn_body_ast.append(ast.Return(value=body_ast.node))
+        fn_body_ast.append(
+            ast.Assign(
+                targets=[ast.Name(id=let_result_name, ctx=ast.Store())],
+                value=body_ast.node,
+            )
+        )
 
-        let_fn_name = genname("let")
         return GeneratedPyAST(
-            node=ast.Call(func=_load_attr(let_fn_name), args=[], keywords=[]),
-            dependencies=[
-                ast.FunctionDef(
-                    name=let_fn_name,
-                    args=ast.arguments(
-                        args=[],
-                        kwarg=None,
-                        vararg=None,
-                        kwonlyargs=[],
-                        defaults=[],
-                        kw_defaults=[],
-                    ),
-                    body=fn_body_ast,
-                    decorator_list=[],
-                    returns=None,
-                )
-            ],
+            node=ast.Name(id=let_result_name, ctx=ast.Load()), dependencies=fn_body_ast
         )
 
 
@@ -1096,44 +1086,43 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
                 sym.symbol(binding.name), binding_name, LocalType.LOOP
             )
 
-        loop_fn_name = genname("loop")
+        loop_result_name = genname("loop")
         with ctx.new_recur_point(
             node.loop_id, RecurType.LOOP, binding_names=binding_names
         ):
             loop_body_ast: List[ast.AST] = []
             body_ast = _synthetic_do_to_py_ast(ctx, node.body)
             loop_body_ast.extend(body_ast.dependencies)
-            loop_body_ast.append(ast.Return(value=body_ast.node))
+            loop_body_ast.append(
+                ast.Assign(
+                    targets=[ast.Name(id=loop_result_name, ctx=ast.Store())],
+                    value=body_ast.node,
+                )
+            )
+            loop_body_ast.append(ast.Break())
 
             return GeneratedPyAST(
-                node=ast.Call(func=_load_attr(loop_fn_name), args=[], keywords=[]),
-                dependencies=[
-                    ast.FunctionDef(
-                        name=loop_fn_name,
-                        args=ast.arguments(
-                            args=[],
-                            kwarg=None,
-                            vararg=None,
-                            kwonlyargs=[],
-                            defaults=[],
-                            kw_defaults=[],
-                        ),
-                        body=list(
-                            chain(
-                                init_bindings,
-                                [
-                                    ast.While(
-                                        test=ast.NameConstant(True),
-                                        body=loop_body_ast,
-                                        orelse=[],
-                                    )
+                node=_load_attr(loop_result_name),
+                dependencies=list(
+                    chain(
+                        [
+                            ast.Assign(
+                                targets=[
+                                    ast.Name(id=loop_result_name, ctx=ast.Store())
                                 ],
+                                value=ast.NameConstant(None),
                             )
-                        ),
-                        decorator_list=[],
-                        returns=None,
+                        ],
+                        init_bindings,
+                        [
+                            ast.While(
+                                test=ast.NameConstant(True),
+                                body=loop_body_ast,
+                                orelse=[],
+                            )
+                        ],
                     )
-                ],
+                ),
             )
 
 
