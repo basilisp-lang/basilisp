@@ -373,11 +373,11 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
         lmap.map(
             {
                 COL_KW: Maybe(name.meta)
-                .map(lambda m: m.entry(reader.READER_COL_KW))
+                .map(lambda m: m.entry(reader.READER_COL_KW))  # type: ignore
                 .or_else_get(None),
                 FILE_KW: ctx.filename,
                 LINE_KW: Maybe(name.meta)
-                .map(lambda m: m.entry(reader.READER_LINE_KW))
+                .map(lambda m: m.entry(reader.READER_LINE_KW))  # type: ignore
                 .or_else_get(None),
                 NAME_KW: name,
                 NS_KW: ctx.current_ns,
@@ -390,7 +390,7 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
         ns_sym,
         name,
         dynamic=Maybe(name.meta)
-        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))
+        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))  # type: ignore
         .or_else_get(False),
         meta=name.meta,
     )
@@ -509,7 +509,7 @@ def _fn_method_ast(
             if body:
                 *stmts, ret = body
             else:
-                stmts, ret = (), _const_node(ctx, None)
+                stmts, ret = [], _const_node(ctx, None)
 
             method = FnMethod(
                 form=form,
@@ -959,11 +959,13 @@ def _assert_recur_is_tail(node: Node) -> None:
     elif node.op in {NodeOp.LET, NodeOp.LETFN}:
         assert isinstance(node, (Let, LetFn))
         for binding in node.bindings:
+            assert binding.init is not None
             _assert_no_recur(binding.init)
         _assert_recur_is_tail(node.body)
     elif node.op == NodeOp.LOOP:
         assert isinstance(node, Loop)
         for binding in node.bindings:
+            assert binding.init is not None
             _assert_no_recur(binding.init)
     elif node.op == NodeOp.RECUR:
         pass

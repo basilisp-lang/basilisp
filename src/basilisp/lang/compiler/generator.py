@@ -490,7 +490,8 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
 
     # Warn if this symbol is potentially being redefined
     if safe_name in ctx.current_ns.module.__dict__ or (
-        defsym in ctx.current_ns.interns and ctx.current_ns.find(defsym).is_bound
+        defsym in ctx.current_ns.interns
+        and ctx.current_ns.find(defsym).is_bound  # type: ignore
     ):
         no_warn_on_redef = (
             Maybe(defsym.meta)
@@ -1852,7 +1853,7 @@ def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAS
     `_const_node_to_py_ast`."""
     handle_value = _CONST_VALUE_HANDLERS.get(type(form))
     if handle_value is None and isinstance(form, lseq.Seq):
-        handle_value = _const_seq_to_py_ast
+        handle_value = _const_seq_to_py_ast  # type: ignore
     assert handle_value is not None, "A type handler must be defined for constants"
     return handle_value(ctx, form)
 

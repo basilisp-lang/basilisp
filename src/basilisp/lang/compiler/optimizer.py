@@ -7,7 +7,14 @@ class PythonASTOptimizer(ast.NodeTransformer):
         """Eliminate no-op constant expressions which are in the tree
         as standalone statements."""
         if isinstance(
-            node.value, (ast.Constant, ast.Name, ast.NameConstant, ast.Num, ast.Str)
+            node.value,
+            (
+                ast.Constant,  # type: ignore
+                ast.Name,
+                ast.NameConstant,
+                ast.Num,
+                ast.Str,
+            ),
         ):
             return None
         return node

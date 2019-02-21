@@ -570,4 +570,5 @@ SpecialFormNode = Union[
     SetBang,
     Throw,
     Try,
+    VarRef,
 ]
