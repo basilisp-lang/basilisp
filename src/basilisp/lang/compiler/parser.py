@@ -132,6 +132,7 @@ class SymbolTableEntry:
     warn_if_unused: bool = True
 
 
+# pylint: disable=unsupported-membership-test,unsupported-delete-operation,unsupported-assignment-operation
 @attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
     name: str
@@ -453,7 +454,7 @@ def _fn_method_ast(
                 "function arity arguments must be a vector", form=params
             )
 
-        vargs, has_vargs, vargs_idx = None, False, 0
+        has_vargs, vargs_idx = False, 0
         param_nodes = []
         for i, s in enumerate(params):
             if not isinstance(s, sym.Symbol):
@@ -492,7 +493,7 @@ def _fn_method_ast(
                         form=vargs_sym,
                         name=vargs_sym.name,
                         local=LocalType.ARG,
-                        arg_id=i,
+                        arg_id=vargs_idx + 1,
                         is_variadic=True,
                     )
                 )

@@ -121,6 +121,7 @@ class SymbolTableEntry:
     symbol: sym.Symbol
 
 
+# pylint: disable=unsupported-membership-test,unsupported-delete-operation,unsupported-assignment-operation
 @attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
     name: str
@@ -1767,7 +1768,11 @@ def _const_map_to_py_ast(ctx: GeneratorContext, form: lmap.Map) -> GeneratedPyAS
             keywords=Maybe(meta).map(lambda p: [p.node]).or_else_get([]),
         ),
         dependencies=list(
-            chain(keys, vals, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
+            chain(
+                key_deps,
+                val_deps,
+                Maybe(meta).map(lambda p: p.dependencies).or_else_get([]),
+            )
         ),
     )
 
@@ -1782,7 +1787,7 @@ def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAS
             keywords=Maybe(meta).map(lambda p: [p.node]).or_else_get([]),
         ),
         dependencies=list(
-            chain(elems, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
+            chain(elem_deps, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
         ),
     )
 
@@ -1804,7 +1809,7 @@ def _const_seq_to_py_ast(
             keywords=Maybe(meta).map(lambda p: [p.node]).or_else_get([]),
         ),
         dependencies=list(
-            chain(elems, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
+            chain(elem_deps, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
         ),
     )
 
@@ -1818,7 +1823,12 @@ def _const_vec_to_py_ast(ctx: GeneratorContext, form: vec.Vector) -> GeneratedPy
             args=[ast.List(list(elems), ast.Load())],
             keywords=Maybe(meta).map(lambda p: [p.node]).or_else_get([]),
         ),
-        dependencies=Maybe(meta).map(lambda p: list(p.dependencies)).or_else_get([]),
+        dependencies=list(
+            chain(
+                elem_deps,
+                Maybe(meta).map(lambda p: list(p.dependencies)).or_else_get([]),
+            )
+        ),
     )
 
 
