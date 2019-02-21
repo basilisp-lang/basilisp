@@ -113,7 +113,15 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     else:
         runtime.add_generated_python(to_py_str(ast_module))
 
-    bytecode = compile(ast_module, ctx.filename, "exec")
+    try:
+        bytecode = compile(ast_module, ctx.filename, "exec")
+    except (SyntaxError, TypeError) as e:
+        raise CompilerException(
+            "failed to compile generated Python",
+            CompilerPhase.COMPILING_PYTHON,
+            py_ast=ast_module,
+        ) from e
+
     if collect_bytecode:
         collect_bytecode(bytecode)
     exec(bytecode, module.__dict__)
