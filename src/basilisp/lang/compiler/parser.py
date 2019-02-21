@@ -32,7 +32,7 @@ import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.compyler.constants import (
+from basilisp.lang.compiler.constants import (
     SpecialForm,
     AMPERSAND,
     SYM_MACRO_META_KEY,
@@ -44,8 +44,8 @@ from basilisp.lang.compyler.constants import (
     NAME_KW,
     NS_KW,
 )
-from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
-from basilisp.lang.compyler.nodes import (
+from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
+from basilisp.lang.compiler.nodes import (
     Const,
     Node,
     ConstType,
@@ -411,23 +411,27 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
     #        :ns   ((.- basilisp.lang.runtime/Namespace get) 'user)}
     #       some-name
     #       "some value")
-    meta_ast = _parse_ast(ctx, name.meta.update({
-        NAME_KW: llist.l(SpecialForm.QUOTE, name),
-        NS_KW: llist.l(
-            llist.l(
-                SpecialForm.INTEROP_PROP,
-                sym.symbol("Namespace", "basilisp.lang.runtime"),
-                sym.symbol("get"),
-            ),
-            llist.l(SpecialForm.QUOTE, sym.symbol(ctx.current_ns.name)),
+    meta_ast = _parse_ast(
+        ctx,
+        name.meta.update(
+            {
+                NAME_KW: llist.l(SpecialForm.QUOTE, name),
+                NS_KW: llist.l(
+                    llist.l(
+                        SpecialForm.INTEROP_PROP,
+                        sym.symbol("Namespace", "basilisp.lang.runtime"),
+                        sym.symbol("get"),
+                    ),
+                    llist.l(SpecialForm.QUOTE, sym.symbol(ctx.current_ns.name)),
+                ),
+            }
         ),
-    }))
+    )
 
     if isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP:
         existing_children = cast(vec.Vector, descriptor.children)
         return descriptor.assoc(
-            meta=meta_ast,
-            children=vec.vector(runtime.cons(META, existing_children)),
+            meta=meta_ast, children=vec.vector(runtime.cons(META, existing_children))
         )
 
     return descriptor

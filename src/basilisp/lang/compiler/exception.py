@@ -5,7 +5,7 @@ from typing import Optional, Union
 import attr
 
 import basilisp.lang.keyword as kw
-from basilisp.lang.compyler.nodes import Node
+from basilisp.lang.compiler.nodes import Node
 from basilisp.lang.seq import Seq
 from basilisp.lang.typing import LispForm
 

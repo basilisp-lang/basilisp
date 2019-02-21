@@ -9,7 +9,7 @@ from typing import Any
 import click
 import pytest
 
-import basilisp.lang.compyler as compiler
+import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym

@@ -39,14 +39,14 @@ import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.compyler.constants import (
+from basilisp.lang.compiler.constants import (
     DEFAULT_COMPILER_FILE_PATH,
     SYM_DYNAMIC_META_KEY,
     SYM_NO_WARN_ON_REDEF_META_KEY,
     SYM_REDEF_META_KEY,
 )
-from basilisp.lang.compyler.exception import CompilerException, CompilerPhase
-from basilisp.lang.compyler.nodes import (
+from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
+from basilisp.lang.compiler.nodes import (
     Node,
     NodeOp,
     ConstType,

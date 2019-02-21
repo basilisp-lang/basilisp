@@ -10,7 +10,7 @@ from unittest.mock import Mock
 import dateutil.parser as dateparser
 import pytest
 
-import basilisp.lang.compyler as compiler
+import basilisp.lang.compiler as compiler
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap

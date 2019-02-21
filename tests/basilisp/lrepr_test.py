@@ -4,7 +4,7 @@ from fractions import Fraction
 
 import dateutil.parser as dateparser
 
-import basilisp.lang.compyler as compiler
+import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 

@@ -9,7 +9,7 @@ import types
 from importlib.abc import MetaPathFinder, SourceLoader
 from typing import Optional, List, Dict
 
-import basilisp.lang.compyler as compiler
+import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 from basilisp.lang.util import demunge
