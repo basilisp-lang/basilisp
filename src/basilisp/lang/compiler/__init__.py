@@ -31,12 +31,6 @@ from basilisp.lang.util import genname
 _DEFAULT_FN = "__lisp_expr__"
 
 
-def to_py_source(t: ast.AST, outfile: str) -> None:
-    source = codegen.to_source(t)
-    with open(outfile, mode="w") as f:
-        f.writelines(source)
-
-
 def to_py_str(t: ast.AST) -> str:
     """Return a string of the Python code which would generate the input
     AST node."""
@@ -113,16 +107,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     else:
         runtime.add_generated_python(to_py_str(ast_module))
 
-    try:
-        bytecode = compile(ast_module, ctx.filename, "exec")
-    except (SyntaxError, TypeError) as e:
-        print(to_py_str(ast_module))
-        raise CompilerException(
-            "failed to compile generated Python",
-            CompilerPhase.COMPILING_PYTHON,
-            py_ast=ast_module,
-        ) from e
-
+    bytecode = compile(ast_module, ctx.filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
     exec(bytecode, module.__dict__)
@@ -155,16 +140,7 @@ def _incremental_compile_module(
     else:
         runtime.add_generated_python(to_py_str(module))
 
-    try:
-        bytecode = compile(module, source_filename, "exec")
-    except (SyntaxError, TypeError) as e:
-        print(to_py_str(module))
-        raise CompilerException(
-            "failed to compile generated Python",
-            CompilerPhase.COMPILING_PYTHON,
-            py_ast=module,
-        ) from e
-
+    bytecode = compile(module, source_filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
     exec(bytecode, mod.__dict__)
