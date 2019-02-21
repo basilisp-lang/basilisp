@@ -1862,6 +1862,8 @@ def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAS
     nested elements. For top-level :const Lisp AST nodes, see
     `_const_node_to_py_ast`."""
     handle_value = _CONST_VALUE_HANDLERS.get(type(form))
+    if handle_value is None and isinstance(form, lseq.Seq):
+        handle_value = _const_seq_to_py_ast
     assert handle_value is not None, "A type handler must be defined for constants"
     return handle_value(ctx, form)
 

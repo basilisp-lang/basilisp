@@ -368,19 +368,7 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
         doc = runtime.nth(form, 2)
         children = vec.v(INIT)
 
-    # We still have to compile the meta here down to Python source code, so
-    # anything which is not constant below needs to be valid Basilisp code
-    # at the site it is called.
-    #
-    # We are roughly generating code like this:
-    #
-    # (def ^{:col  1
-    #        :file "<REPL Input>"
-    #        :line 1
-    #        :name 'some-name
-    #        :ns   ((.- basilisp.lang.runtime/Namespace get) 'user)}
-    #       some-name
-    #       "some value")
+    # Attach metadata relevant for the current process below.
     name = name.with_meta(
         lmap.map(
             {
@@ -391,15 +379,8 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
                 LINE_KW: Maybe(name.meta)
                 .map(lambda m: m.entry(reader.READER_LINE_KW))
                 .or_else_get(None),
-                NAME_KW: llist.l(SpecialForm.QUOTE, name),
-                NS_KW: llist.l(
-                    llist.l(
-                        SpecialForm.INTEROP_PROP,
-                        sym.symbol("Namespace", "basilisp.lang.runtime"),
-                        sym.symbol("get"),
-                    ),
-                    llist.l(SpecialForm.QUOTE, sym.symbol(ctx.current_ns.name)),
-                ),
+                NAME_KW: name,
+                NS_KW: ctx.current_ns,
             }
         )
     )
@@ -417,17 +398,37 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
         form=form, name=name, var=var, init=init, doc=doc, children=children
     )
 
-    if name.meta is not None:
-        meta_ast = _parse_ast(ctx, name.meta)
+    # We still have to compile the meta here down to Python source code, so
+    # anything which is not constant below needs to be valid Basilisp code
+    # at the site it is called.
+    #
+    # We are roughly generating code like this:
+    #
+    # (def ^{:col  1
+    #        :file "<REPL Input>"
+    #        :line 1
+    #        :name 'some-name
+    #        :ns   ((.- basilisp.lang.runtime/Namespace get) 'user)}
+    #       some-name
+    #       "some value")
+    meta_ast = _parse_ast(ctx, name.meta.update({
+        NAME_KW: llist.l(SpecialForm.QUOTE, name),
+        NS_KW: llist.l(
+            llist.l(
+                SpecialForm.INTEROP_PROP,
+                sym.symbol("Namespace", "basilisp.lang.runtime"),
+                sym.symbol("get"),
+            ),
+            llist.l(SpecialForm.QUOTE, sym.symbol(ctx.current_ns.name)),
+        ),
+    }))
 
-        if not isinstance(meta_ast, Const) or meta_ast.type != ConstType.MAP:
-            existing_children = cast(vec.Vector, descriptor.children)
-            return descriptor.assoc(
-                meta=meta_ast,
-                children=vec.vector(runtime.cons(META, existing_children)),
-            )
-
-        raise ParserException(f"Meta applied to def name must be a map")
+    if isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP:
+        existing_children = cast(vec.Vector, descriptor.children)
+        return descriptor.assoc(
+            meta=meta_ast,
+            children=vec.vector(runtime.cons(META, existing_children)),
+        )
 
     return descriptor
 

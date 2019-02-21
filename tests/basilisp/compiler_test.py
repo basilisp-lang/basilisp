@@ -19,12 +19,14 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.compyler.constants import DEFAULT_COMPILER_FILE_PATH
 from basilisp.lang.runtime import Var
 from basilisp.main import init
 from basilisp.util import Maybe
 
 init()
+
+
+COMPILER_FILE_PATH = "compiler_test"
 
 # Cache the initial state of the `print_generated_python` flag.
 __PRINT_GENERATED_PYTHON_FN = runtime.print_generated_python
@@ -67,8 +69,8 @@ def lcompile(
     """Compile and execute the code in the input string.
 
     Return the resulting expression."""
-    ctx = compiler.CompilerContext("compiler_test", opts=opts)
-    mod = Maybe(mod).or_else(lambda: runtime._new_module("compiler_test"))
+    ctx = compiler.CompilerContext(COMPILER_FILE_PATH, opts=opts)
+    mod = Maybe(mod).or_else(lambda: runtime._new_module(COMPILER_FILE_PATH))
 
     last = None
     for form in reader.read_str(s, resolver=resolver):
@@ -176,8 +178,8 @@ def test_def_metadata(ns: runtime.Namespace):
     meta = var.meta
 
     assert 1 == meta.entry(kw.keyword("line"))
-    assert DEFAULT_COMPILER_FILE_PATH == meta.entry(kw.keyword("file"))
-    assert 1 == meta.entry(kw.keyword("col"))
+    assert COMPILER_FILE_PATH == meta.entry(kw.keyword("file"))
+    assert 37 == meta.entry(kw.keyword("col"))
     assert sym.symbol("unique-oeuene") == meta.entry(kw.keyword("name"))
     assert ns == meta.entry(kw.keyword("ns"))
     assert "Super cool docstring" == meta.entry(kw.keyword("doc"))
