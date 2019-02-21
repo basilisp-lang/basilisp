@@ -152,6 +152,10 @@ class Var:
             return False
 
     @property
+    def is_bound(self) -> bool:
+        return self._is_bound
+
+    @property
     def root(self):
         return self._root
 
