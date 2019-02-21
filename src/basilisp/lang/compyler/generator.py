@@ -488,7 +488,9 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
     meta_ast = gen_py_ast(ctx, node.meta) if node.meta is not None else None
 
     # Warn if this symbol is potentially being redefined
-    if safe_name in ctx.current_ns.module.__dict__ or defsym in ctx.current_ns.interns:
+    if safe_name in ctx.current_ns.module.__dict__ or (
+        defsym in ctx.current_ns.interns and ctx.current_ns.find(defsym).is_bound
+    ):
         no_warn_on_redef = (
             Maybe(defsym.meta)
             .map(lambda m: m.get(SYM_NO_WARN_ON_REDEF_META_KEY, False))  # type: ignore
@@ -880,6 +882,15 @@ def __if_body_to_py_ast(
     if node.op == NodeOp.RECUR and ctx.recur_point.type == RecurType.LOOP:
         assert isinstance(node, Recur)
         return _recur_to_py_ast(ctx, node)
+    elif node.op == NodeOp.DO:
+        assert isinstance(node, Do)
+        if_body = _synthetic_do_to_py_ast(ctx, node.assoc(is_body=True))
+        return GeneratedPyAST(
+            node=ast.Assign(
+                targets=[ast.Name(id=result_name, ctx=ast.Store())], value=if_body.node
+            ),
+            dependencies=list(map(statementize, if_body.dependencies)),
+        )
     else:
         py_ast = gen_py_ast(ctx, node)
         return GeneratedPyAST(
@@ -1160,17 +1171,25 @@ def __fn_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
 def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     """Return a Python AST node for `recur` occurring inside a `loop`."""
     assert node.op == NodeOp.RECUR
+
     recur_deps: List[ast.AST] = []
+    recur_targets: List[ast.Name] = []
+    recur_exprs: List[ast.AST] = []
     for name, expr in zip(ctx.recur_point.binding_names, node.exprs):
         expr_ast = gen_py_ast(ctx, expr)
         recur_deps.extend(expr_ast.dependencies)
-        recur_deps.append(
-            ast.Assign(
-                targets=[ast.Name(id=name, ctx=ast.Store())], value=expr_ast.node
-            )
-        )
+        recur_targets.append(ast.Name(id=name, ctx=ast.Store()))
+        recur_exprs.append(expr_ast.node)
 
-    return GeneratedPyAST(node=ast.Continue(), dependencies=recur_deps)
+    recur_deps.append(
+        ast.Assign(
+            targets=[ast.Tuple(elts=recur_targets, ctx=ast.Store())],
+            value=ast.Tuple(elts=recur_exprs, ctx=ast.Load()),
+        )
+    )
+    recur_deps.append(ast.Continue())
+
+    return GeneratedPyAST(node=ast.NameConstant(None), dependencies=recur_deps)
 
 
 _RECUR_TYPE_HANDLER = {

@@ -17,6 +17,7 @@ from basilisp.lang.compyler.generator import (
     USE_VAR_INDIRECTION,
     WARN_ON_VAR_INDIRECTION,
 )
+from basilisp.lang.compyler.optimizer import PythonASTOptimizer
 from basilisp.lang.compyler.parser import (
     ParserContext,
     parse_ast,
@@ -46,12 +47,13 @@ BytecodeCollector = Optional[Callable[[types.CodeType], None]]
 
 
 class CompilerContext:
-    __slots__ = ("_filename", "_gctx", "_pctx")
+    __slots__ = ("_filename", "_gctx", "_pctx", "_optimizer")
 
     def __init__(self, filename: str, opts: Optional[Dict[str, bool]] = None):
         self._filename = filename
         self._gctx = GeneratorContext(filename=filename, opts=opts)
         self._pctx = ParserContext(filename=filename, opts=opts)
+        self._optimizer = PythonASTOptimizer()
 
     @property
     def filename(self) -> str:
@@ -64,6 +66,10 @@ class CompilerContext:
     @property
     def parser_context(self) -> ParserContext:
         return self._pctx
+
+    @property
+    def py_ast_optimizer(self) -> PythonASTOptimizer:
+        return self._optimizer
 
 
 def compile_and_exec_form(  # pylint: disable= too-many-arguments
@@ -82,7 +88,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
         return None
 
     if not module.__basilisp_bootstrapped__:  # type: ignore
-        _bootstrap_module(ctx.generator_context, module)
+        _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, module)
 
     final_wrapped_name = genname(wrapped_fn_name)
 
@@ -99,6 +105,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     )
 
     ast_module = ast.Module(body=form_ast)
+    ast_module = ctx.py_ast_optimizer.visit(ast_module)
     ast.fix_missing_locations(ast_module)
 
     if runtime.print_generated_python():
@@ -114,6 +121,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
 
 
 def _incremental_compile_module(
+    optimizer: PythonASTOptimizer,
     py_ast: GeneratedPyAST,
     mod: types.ModuleType,
     source_filename: str,
@@ -130,6 +138,7 @@ def _incremental_compile_module(
     )
 
     module = ast.Module(body=list(module_body))
+    module = optimizer.visit(module)
     ast.fix_missing_locations(module)
 
     if runtime.print_generated_python():
@@ -153,11 +162,13 @@ def _incremental_compile_module(
 
 def _bootstrap_module(
     gctx: GeneratorContext,
+    optimizer: PythonASTOptimizer,
     mod: types.ModuleType,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
     """Bootstrap a new module with imports and other boilerplate."""
     _incremental_compile_module(
+        optimizer,
         py_module_preamble(gctx),
         mod,
         source_filename=gctx.filename,
@@ -179,11 +190,12 @@ def compile_module(
     Basilisp import machinery, to allow callers to import Basilisp modules from
     Python code.
     """
-    _bootstrap_module(ctx.generator_context, module)
+    _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, module)
 
     for form in forms:
         nodes = gen_py_ast(ctx.generator_context, parse_ast(ctx.parser_context, form))
         _incremental_compile_module(
+            ctx.py_ast_optimizer,
             nodes,
             module,
             source_filename=ctx.filename,
@@ -192,7 +204,10 @@ def compile_module(
 
 
 def compile_bytecode(
-    code: List[types.CodeType], gctx: GeneratorContext, module: types.ModuleType
+    code: List[types.CodeType],
+    gctx: GeneratorContext,
+    optimizer: PythonASTOptimizer,
+    module: types.ModuleType,
 ) -> None:
     """Compile cached bytecode into the given module.
 
@@ -200,6 +215,6 @@ def compile_bytecode(
     namespaces. When the cached bytecode is reloaded from disk, it needs to be
     compiled within a bootstrapped module. This function bootstraps the module
     and then proceeds to compile a collection of bytecodes into the module."""
-    _bootstrap_module(gctx, module)
+    _bootstrap_module(gctx, optimizer, module)
     for bytecode in code:
         exec(bytecode, module.__dict__)
