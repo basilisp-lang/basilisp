@@ -1047,12 +1047,7 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME, core_ns_name: str = _CORE_NS) -> 
 
     def in_ns(s: sym.Symbol):
         ns = Namespace.get_or_create(s)
-
-        v = Maybe(Var.find(ns_var_sym)).or_else_raise(
-            lambda: RuntimeException(f"Var {ns_var_sym} not bound!")
-        )
-        v.value = ns
-
+        __NS.value = ns
         return ns
 
     Var.intern_unbound(core_ns_sym, sym.symbol("unquote"))

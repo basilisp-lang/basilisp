@@ -6,8 +6,8 @@ from typing import Optional, Callable, Any, Iterable, List, Dict
 from astor import code_gen as codegen
 
 import basilisp.lang.runtime as runtime
-from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
-from basilisp.lang.compiler.generator import (
+from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
+from basilisp.lang.compiler.generator import (  # noqa
     GeneratorContext,
     GeneratedPyAST,
     expressionize as _expressionize,
@@ -18,7 +18,7 @@ from basilisp.lang.compiler.generator import (
     WARN_ON_VAR_INDIRECTION,
 )
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
-from basilisp.lang.compiler.parser import (
+from basilisp.lang.compiler.parser import (  # noqa
     ParserContext,
     parse_ast,
     WARN_ON_SHADOWED_NAME,

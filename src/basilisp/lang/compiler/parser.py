@@ -445,7 +445,7 @@ def _do_ast(ctx: ParserContext, form: lseq.Seq) -> Do:
     return Do(form=form, statements=vec.vector(statements), ret=ret)
 
 
-def _fn_method_ast(
+def _fn_method_ast(  # pylint: disable=too-many-branches
     ctx: ParserContext, form: lseq.Seq, fnname: Optional[sym.Symbol] = None
 ) -> FnMethod:
     with ctx.new_symbol_table("fn-method"):
@@ -527,7 +527,9 @@ def _fn_method_ast(
             return method
 
 
-def _fn_ast(ctx: ParserContext, form: lseq.Seq) -> Fn:
+def _fn_ast(  # pylint: disable=too-many-branches
+    ctx: ParserContext, form: lseq.Seq
+) -> Fn:
     assert form.first == SpecialForm.FN
 
     idx = 1
@@ -671,7 +673,7 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
         )
 
 
-def _host_interop_ast(
+def _host_interop_ast(  # pylint: disable=too-many-branches
     ctx: ParserContext, form: lseq.Seq
 ) -> Union[HostCall, HostField, HostInterop]:
     assert form.first == SpecialForm.INTEROP_CALL
@@ -942,7 +944,7 @@ def _assert_no_recur(node: Node) -> None:
         node.visit(_assert_no_recur)
 
 
-def _assert_recur_is_tail(node: Node) -> None:
+def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branches
     """Assert that `recur` forms only appear in the tail position of this
     or child AST nodes.
 
@@ -1058,7 +1060,9 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
         )
 
 
-def _try_ast(ctx: ParserContext, form: lseq.Seq) -> Try:
+def _try_ast(  # pylint: disable=too-many-branches
+    ctx: ParserContext, form: lseq.Seq
+) -> Try:
     assert form.first == SpecialForm.TRY
 
     try_exprs = []
@@ -1179,7 +1183,7 @@ def _list_node(ctx: ParserContext, form: lseq.Seq) -> Node:
     return _invoke_ast(ctx, form)
 
 
-def __resolve_namespaced_symbol(
+def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     ctx: ParserContext, form: sym.Symbol
 ) -> Union[MaybeClass, MaybeHostForm, VarRef]:
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
@@ -1405,7 +1409,9 @@ def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
     return descriptor
 
 
-def _parse_ast(ctx: ParserContext, form: LispForm) -> Node:
+def _parse_ast(  # pylint: disable=too-many-branches
+    ctx: ParserContext, form: LispForm
+) -> Node:
     if isinstance(form, (llist.List, lseq.Seq)):
         # Special case for unquoted empty list
         if form == llist.List.empty():
