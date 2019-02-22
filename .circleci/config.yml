@@ -1,0 +1,24 @@
+version: 2
+jobs:
+  build:
+    working_directory: ~
+    docker:
+      - image: chrisrink10/pyenv:3.6-3.7-3.8dev
+    steps:
+      - checkout
+      - run: sudo chown -R circleci:circleci /usr/local/bin
+      - run: sudo chown -R circleci:circleci /usr/local/lib/python3.6/site-packages
+      - restore_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+      - run:
+          command: |
+            sudo pip3.6 install tox
+      - save_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - ".venv"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python3.6/site-packages"
+      - run:
+          command: |
+            PYTEST_NUM_CORES=2 tox -p 2
