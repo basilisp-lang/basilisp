@@ -3,6 +3,7 @@ import collections
 import contextlib
 import logging
 import re
+import sys
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -86,7 +87,7 @@ from basilisp.lang.compiler.nodes import (
 )
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
-from basilisp.lang.util import count, genname
+from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe, partition
 
 # Parser logging
@@ -107,6 +108,7 @@ FINALLY = kw.keyword("finally")
 
 # Constants used in parsing
 AS = kw.keyword("as")
+_BUILTINS_NS = "builtins"
 
 # Symbols to be ignored for unused symbol warnings
 _IGNORED_SYM = sym.symbol("_")
@@ -370,7 +372,7 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
         children = vec.v(INIT)
 
     # Attach metadata relevant for the current process below.
-    name = name.with_meta(
+    def_meta: lmap.Map = name.meta.update(
         lmap.map(
             {
                 COL_KW: Maybe(name.meta)
@@ -385,18 +387,17 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
             }
         )
     )
+    bare_name = sym.symbol(name.name)
 
     ns_sym = sym.symbol(ctx.current_ns.name)
     var = Var.intern_unbound(
         ns_sym,
-        name,
-        dynamic=Maybe(name.meta)
-        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))  # type: ignore
-        .or_else_get(False),
-        meta=name.meta,
+        bare_name,
+        dynamic=def_meta.entry(SYM_DYNAMIC_META_KEY, False),
+        meta=def_meta,
     )
     descriptor = Def(
-        form=form, name=name, var=var, init=init, doc=doc, children=children
+        form=form, name=bare_name, var=var, init=init, doc=doc, children=children
     )
 
     # We still have to compile the meta here down to Python source code, so
@@ -414,9 +415,9 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
     #       "some value")
     meta_ast = _parse_ast(
         ctx,
-        name.meta.update(
+        def_meta.update(
             {
-                NAME_KW: llist.l(SpecialForm.QUOTE, name),
+                NAME_KW: llist.l(SpecialForm.QUOTE, bare_name),
                 NS_KW: llist.l(
                     llist.l(
                         SpecialForm.INTEROP_PROP,
@@ -429,13 +430,13 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
         ),
     )
 
-    if isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP:
-        existing_children = cast(vec.Vector, descriptor.children)
-        return descriptor.assoc(
-            meta=meta_ast, children=vec.vector(runtime.cons(META, existing_children))
-        )
-
-    return descriptor
+    assert (isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP) or (
+        isinstance(meta_ast, MapNode)
+    )
+    existing_children = cast(vec.Vector, descriptor.children)
+    return descriptor.assoc(
+        meta=meta_ast, children=vec.vector(runtime.cons(META, existing_children))
+    )
 
 
 def _do_ast(ctx: ParserContext, form: lseq.Seq) -> Do:
@@ -1178,6 +1179,108 @@ def _list_node(ctx: ParserContext, form: lseq.Seq) -> Node:
     return _invoke_ast(ctx, form)
 
 
+def __resolve_namespaced_symbol(
+    ctx: ParserContext, form: sym.Symbol
+) -> Union[MaybeClass, MaybeHostForm, VarRef]:
+    """Resolve a namespaced symbol into a Python name or Basilisp Var."""
+    assert form.ns is not None
+
+    if form.ns == ctx.current_ns.name:
+        v = ctx.current_ns.find(sym.symbol(form.name))
+        if v is not None:
+            return VarRef(form=form, var=v)
+    elif form.ns == _BUILTINS_NS:
+        return MaybeClass(form=form, class_=munge(form.name, allow_builtins=True))
+
+    ns_sym = sym.symbol(form.ns)
+    if ns_sym in ctx.current_ns.imports or ns_sym in ctx.current_ns.import_aliases:
+        # We still import Basilisp code, so we'll want to make sure
+        # that the symbol isn't referring to a Basilisp Var first
+        v = Var.find(form)
+        if v is not None:
+            return VarRef(form=form, var=v)
+
+        # Fetch the full namespace name for the aliased namespace/module.
+        # We don't need this for actually generating the link later, but
+        # we _do_ need it for fetching a reference to the module to check
+        # for membership.
+        if ns_sym in ctx.current_ns.import_aliases:
+            ns = ctx.current_ns.import_aliases[ns_sym]
+            assert ns is not None
+            ns_name = ns.name
+        else:
+            ns_name = ns_sym.name
+
+        safe_module_name = munge(ns_name)
+        assert (
+            safe_module_name in sys.modules
+        ), f"Module '{safe_module_name}' is not imported"
+        ns_module = sys.modules[safe_module_name]
+        safe_name = munge(form.name)
+
+        # Try without allowing builtins first
+        if safe_name in ns_module.__dict__:
+            return MaybeHostForm(form=form, class_=munge(ns_sym.name), field=safe_name)
+
+        # Then allow builtins
+        safe_name = munge(form.name, allow_builtins=True)
+        if safe_name not in ns_module.__dict__:
+            raise ParserException("can't identify aliased form", form=form)
+
+        # Aliased imports generate code which uses the import alias, so we
+        # don't need to care if this is an import or an alias.
+        return MaybeHostForm(form=form, class_=munge(ns_sym.name), field=safe_name)
+    elif ns_sym in ctx.current_ns.aliases:
+        aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
+        v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
+        if v is None:
+            raise ParserException(
+                f"unable to resolve symbol '{ns_sym}' in this context", form=form
+            )
+        return VarRef(form=form, var=v)
+
+    if "." in form.name:
+        raise ParserException(
+            "symbol names may not contain the '.' operator", form=form
+        )
+
+    py_module = ns_sym.name.split(".")[0] if "." in ns_sym.name else ns_sym.name
+    if py_module not in ctx.current_ns.module.__dict__:
+        raise ParserException(
+            f"unable to resolve symbol '{ns_sym}' in this context", form=form
+        )
+
+    return MaybeHostForm(form=form, class_=munge(ns_sym.name), field=munge(form.name))
+
+
+def __resolve_bare_symbol(
+    ctx: ParserContext, form: sym.Symbol
+) -> Union[MaybeClass, VarRef]:
+    """Resolve a non-namespaced symbol into a Python name or a local
+    Basilisp Var."""
+    assert form.ns is None
+
+    # Look up the symbol in the namespace mapping of the current namespace.
+    v = ctx.current_ns.find(form)
+    if v is not None:
+        return VarRef(form=form, var=v)
+
+    if "." in form.name:
+        raise ParserException(
+            "symbol names may not contain the '.' operator", form=form
+        )
+
+    if form.name in builtins.__dict__:
+        return MaybeClass(form=form, class_=munge(form.name, allow_builtins=True))
+
+    if form.name not in ctx.current_ns.module.__dict__:
+        raise ParserException(
+            f"unable to resolve symbol '{form}' in this context", form=form
+        )
+
+    return MaybeClass(form=form, class_=munge(form.name))
+
+
 def _resolve_sym(
     ctx: ParserContext, form: sym.Symbol
 ) -> Union[MaybeClass, MaybeHostForm, VarRef]:
@@ -1194,63 +1297,9 @@ def _resolve_sym(
             form = sym.symbol(form.name[:-1])
 
     if form.ns is not None:
-        if form.ns == ctx.current_ns.name:
-            v = ctx.current_ns.find(sym.symbol(form.name))
-            if v is not None:
-                return VarRef(form=form, var=v)
-
-        ns_sym = sym.symbol(form.ns)
-        if ns_sym in ctx.current_ns.imports or ns_sym in ctx.current_ns.import_aliases:
-            # We still import Basilisp code, so we'll want to make sure
-            # that the symbol isn't referring to a Basilisp Var first
-            v = Var.find(form)
-            if v is not None:
-                return VarRef(form=form, var=v)
-
-            # Aliased imports generate code which uses the import alias, so we
-            # don't need to care if this is an import or an alias.
-            return MaybeHostForm(form=form, class_=ns_sym.name, field=form.name)
-        elif ns_sym in ctx.current_ns.aliases:
-            aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
-            v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
-            if v is None:
-                raise ParserException(
-                    f"unable to resolve symbol '{ns_sym}' in this context", form=form
-                )
-            return VarRef(form=form, var=v)
-
-        if "." in form.name:
-            raise ParserException(
-                "symbol names may not contain the '.' operator", form=form
-            )
-
-        py_module = ns_sym.name.split(".")[0] if "." in ns_sym.name else ns_sym.name
-        if py_module not in ctx.current_ns.module.__dict__:
-            raise ParserException(
-                f"unable to resolve symbol '{ns_sym}' in this context", form=form
-            )
-
-        return MaybeHostForm(form=form, class_=ns_sym.name, field=form.name)
+        return __resolve_namespaced_symbol(ctx, form)
     else:
-        # Look up the symbol in the namespace mapping of the current namespace.
-        v = ctx.current_ns.find(form)
-        if v is not None:
-            return VarRef(form=form, var=v)
-
-        if "." in form.name:
-            raise ParserException(
-                "symbol names may not contain the '.' operator", form=form
-            )
-
-        if form.name in builtins.__dict__:
-            return MaybeClass(form=form, class_=form.name)
-
-        if form.name not in ctx.current_ns.module.__dict__:
-            raise ParserException(
-                f"unable to resolve symbol '{form}' in this context", form=form
-            )
-
-        return MaybeClass(form=form, class_=form.name)
+        return __resolve_bare_symbol(ctx, form)
 
 
 def _symbol_node(
