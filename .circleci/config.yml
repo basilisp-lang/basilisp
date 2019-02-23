@@ -9,10 +9,8 @@ jobs:
       - restore_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
       - run:
+          shell: /bin/bash -leo pipefail
           command: |
-            echo $PATH
-            cat ~/.bash_profile
-            cat ~/.bashrc
             pip install tox
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
@@ -21,5 +19,6 @@ jobs:
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
       - run:
+          shell: /bin/bash -leo pipefail
           command: |
             PYTEST_NUM_CORES=2 tox -p 2
