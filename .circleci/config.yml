@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.3
+      - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.4
         user: pyenv
     steps:
       - checkout
