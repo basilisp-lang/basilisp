@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.2
+      - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.3
         user: pyenv
     steps:
       - checkout
@@ -16,7 +16,7 @@ jobs:
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
           paths:
-            - ".venv"
+            - ".tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
       - run:
