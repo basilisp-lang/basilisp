@@ -19,6 +19,7 @@ jobs:
           environment:
             PYTEST_NUM_CORES: 2
             TOX_NUM_CORES: 2
+            TOX_SHOW_OUTPUT: True
           command: |
             tox -p $TOX_NUM_CORES -e py36,py37,coverage,mypy,format,lint,safety
       - save_cache:
