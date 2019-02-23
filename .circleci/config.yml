@@ -11,6 +11,8 @@ jobs:
       - run:
           command: |
             echo $PATH
+            cat ~/.bash_profile
+            cat ~/.bashrc
             pip install tox
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
