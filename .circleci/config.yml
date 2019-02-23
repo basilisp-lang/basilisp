@@ -6,8 +6,6 @@ jobs:
       - image: chrisrink10/pyenv:3.6-3.7-3.8dev
     steps:
       - checkout
-      - run: chown -R circleci:circleci /usr/local/bin
-      - run: chown -R circleci:circleci /usr/local/lib/python3.6/site-packages
       - restore_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
       - run:
