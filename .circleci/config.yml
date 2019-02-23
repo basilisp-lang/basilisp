@@ -20,7 +20,7 @@ jobs:
             PYTEST_NUM_CORES: 2
             TOX_NUM_CORES: 2
           command: |
-            tox -e coverage,mypy,format,lint,safety
+            tox -p $TOX_NUM_CORES -e py36,py37,coverage,mypy,format,lint,safety
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
           paths:
