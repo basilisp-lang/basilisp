@@ -3,6 +3,7 @@ jobs:
   build:
     docker:
       - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.1
+        user: pyenv
     steps:
       - checkout
       - restore_cache:
