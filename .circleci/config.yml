@@ -13,12 +13,6 @@ jobs:
           shell: /bin/bash -leo pipefail
           command: |
             pip install tox
-      - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
-          paths:
-            - ".tox"
-            - "/usr/local/bin"
-            - "/usr/local/lib/python3.6/site-packages"
       - run:
           name: Run Tests
           shell: /bin/bash -leo pipefail
@@ -27,3 +21,9 @@ jobs:
             TOX_NUM_CORES: 2
           command: |
             tox -p $TOX_NUM_CORES
+      - save_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - ".tox"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python3.6/site-packages"
