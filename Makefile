@@ -29,4 +29,4 @@ repl:
 
 .PHONY: test
 test:
-	@pipenv run tox
+	@pipenv run tox -p 4
