@@ -10,7 +10,7 @@ jobs:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
       - run:
           command: |
-            pip3.6 install tox
+            pip install tox
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
           paths:
