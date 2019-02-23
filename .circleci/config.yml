@@ -28,5 +28,7 @@ jobs:
             - ".tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
+      - store_artifacts:
+          path: .junit
       - store_test_results:
           path: .junit
