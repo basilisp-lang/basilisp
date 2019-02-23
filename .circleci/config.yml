@@ -1,7 +1,6 @@
 version: 2
 jobs:
   build:
-    working_directory: ~
     docker:
       - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.1
     steps:
