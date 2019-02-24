@@ -11,7 +11,7 @@ import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.runtime import Var
+from basilisp.lang.runtime import Namespace, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import munge
 
@@ -103,6 +103,11 @@ class Node(ABC, Generic[T]):
     def top_level(self) -> bool:
         pass
 
+    @property
+    @abstractmethod
+    def env(self) -> "NodeEnv":
+        pass
+
     def assoc(self, **kwargs):
         return attr.evolve(self, **kwargs)
 
@@ -121,6 +126,9 @@ class Node(ABC, Generic[T]):
                 child: Node = getattr(self, child_attr)
                 assert child is not None, "Listed child must not be none"
                 f(child, *args, **kwargs)
+
+    def fix_missing_locations(self, line: int, col: int) -> "Node":
+        pass
 
 
 class Assignable(ABC):
@@ -170,10 +178,19 @@ class LocalType(Enum):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
+class NodeEnv:
+    ns: Namespace
+    file: str
+    line: Optional[int] = None
+    col: Optional[int] = None
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
 class Binding(Node[sym.Symbol]):
     form: sym.Symbol
     name: str
     local: LocalType
+    env: NodeEnv
     arg_id: Optional[int] = None
     is_variadic: bool = False
     init: Optional[Node] = None
@@ -190,6 +207,7 @@ class Catch(Node[SpecialForm]):
     class_: Union["MaybeClass", "MaybeHostForm"]
     local: Binding
     body: "Do"
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(CLASS, LOCAL, BODY)
     op: NodeOp = NodeOp.CATCH
     top_level: bool = False
@@ -202,6 +220,7 @@ class Const(Node[ReaderLispForm]):
     type: ConstType
     val: ReaderLispForm
     is_literal: bool
+    env: NodeEnv
     meta: NodeMeta = None
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.CONST
@@ -216,6 +235,7 @@ class Def(Node[SpecialForm]):
     var: Var
     init: Optional[Node]
     doc: Optional[str]
+    env: NodeEnv
     meta: NodeMeta = None
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.DEF
@@ -228,6 +248,7 @@ class Do(Node[SpecialForm]):
     form: SpecialForm
     statements: Iterable[Node]
     ret: Node
+    env: NodeEnv
     is_body: bool = False
     children: Collection[kw.Keyword] = vec.v(STATEMENTS, RET)
     op: NodeOp = NodeOp.DO
@@ -240,6 +261,7 @@ class Fn(Node[SpecialForm]):
     form: SpecialForm
     max_fixed_arity: int
     methods: Collection["FnMethod"]
+    env: NodeEnv
     local: Optional[Binding] = None
     is_variadic: bool = False
     children: Collection[kw.Keyword] = vec.v(METHODS)
@@ -255,6 +277,7 @@ class FnMethod(Node[SpecialForm]):
     params: Iterable[Binding]
     fixed_arity: int
     body: Do
+    env: NodeEnv
     is_variadic: bool = False
     children: Collection[kw.Keyword] = vec.v(PARAMS, BODY)
     op: NodeOp = NodeOp.FN_METHOD
@@ -268,6 +291,7 @@ class HostCall(Node[SpecialForm]):
     method: str
     target: Node
     args: Iterable[Node]
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(TARGET, ARGS)
     op: NodeOp = NodeOp.HOST_CALL
     top_level: bool = False
@@ -279,6 +303,7 @@ class HostField(Node[SpecialForm], Assignable):
     form: SpecialForm
     field: str
     target: Node
+    env: NodeEnv
     is_assignable: bool = True
     children: Collection[kw.Keyword] = vec.v(TARGET)
     op: NodeOp = NodeOp.HOST_FIELD
@@ -291,6 +316,7 @@ class HostInterop(Node[SpecialForm], Assignable):
     form: SpecialForm
     m_or_f: str
     target: Node
+    env: NodeEnv
     args: Iterable[Node] = ()
     is_assignable: bool = True
     children: Collection[kw.Keyword] = vec.v(TARGET)
@@ -304,7 +330,8 @@ class If(Node[SpecialForm]):
     form: SpecialForm
     test: Node
     then: Node
-    else_: Node = Const(form=None, type=ConstType.NIL, val=None, is_literal=True)
+    env: NodeEnv
+    else_: Node
     children: Collection[kw.Keyword] = vec.v(TEST, THEN, ELSE)
     op: NodeOp = NodeOp.IF
     top_level: bool = False
@@ -315,6 +342,7 @@ class If(Node[SpecialForm]):
 class Import(Node[SpecialForm]):
     form: SpecialForm
     aliases: Iterable["ImportAlias"]
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.IMPORT
     top_level: bool = False
@@ -326,6 +354,7 @@ class ImportAlias(Node[Union[sym.Symbol, vec.Vector]]):
     form: Union[sym.Symbol, vec.Vector]
     name: str
     alias: str
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.IMPORT_ALIAS
     top_level: bool = False
@@ -337,6 +366,7 @@ class Invoke(Node[SpecialForm]):
     form: SpecialForm
     fn: Node
     args: Iterable[Node]
+    env: NodeEnv
     meta: NodeMeta = None
     children: Collection[kw.Keyword] = vec.v(FN, ARGS)
     op: NodeOp = NodeOp.INVOKE
@@ -349,6 +379,7 @@ class Let(Node[SpecialForm]):
     form: SpecialForm
     bindings: Iterable[Binding]
     body: Do
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LET
     top_level: bool = False
@@ -360,6 +391,7 @@ class LetFn(Node[SpecialForm]):
     form: SpecialForm
     bindings: Iterable[Binding]
     body: Do
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LETFN
     top_level: bool = False
@@ -371,6 +403,7 @@ class Local(Node[sym.Symbol], Assignable):
     form: sym.Symbol
     name: str
     local: LocalType
+    env: NodeEnv
     is_assignable: bool = False
     arg_id: Optional[int] = None
     is_variadic: bool = False
@@ -386,6 +419,7 @@ class Loop(Node[SpecialForm]):
     bindings: Iterable[Binding]
     body: Do
     loop_id: LoopID
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LOOP
     top_level: bool = False
@@ -397,6 +431,7 @@ class Map(Node[lmap.Map]):
     form: lmap.Map
     keys: Iterable[Node]
     vals: Iterable[Node]
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(KEYS, VALS)
     op: NodeOp = NodeOp.MAP
     top_level: bool = False
@@ -407,6 +442,7 @@ class Map(Node[lmap.Map]):
 class MaybeClass(Node[sym.Symbol]):
     form: sym.Symbol
     class_: str
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_CLASS
     top_level: bool = False
@@ -418,6 +454,7 @@ class MaybeHostForm(Node[sym.Symbol]):
     form: sym.Symbol
     class_: str
     field: str
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_HOST_FORM
     top_level: bool = False
@@ -428,6 +465,7 @@ class MaybeHostForm(Node[sym.Symbol]):
 class Quote(Node[SpecialForm]):
     form: SpecialForm
     expr: Const
+    env: NodeEnv
     is_literal: bool = True
     children: Collection[kw.Keyword] = vec.v(EXPR)
     op: NodeOp = NodeOp.QUOTE
@@ -440,6 +478,7 @@ class Recur(Node[SpecialForm]):
     form: SpecialForm
     exprs: Iterable[Node]
     loop_id: LoopID
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(EXPRS)
     op: NodeOp = NodeOp.RECUR
     top_level: bool = False
@@ -450,6 +489,7 @@ class Recur(Node[SpecialForm]):
 class Set(Node[lset.Set]):
     form: lset.Set
     items: Iterable[Node]
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.SET
     top_level: bool = False
@@ -461,6 +501,7 @@ class SetBang(Node[SpecialForm]):
     form: SpecialForm
     target: Union[Assignable, Node]
     val: Node
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(TARGET, VAL)
     op: NodeOp = NodeOp.SET_BANG
     top_level: bool = False
@@ -471,6 +512,7 @@ class SetBang(Node[SpecialForm]):
 class Throw(Node[SpecialForm]):
     form: SpecialForm
     exception: Node
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(EXCEPTION)
     op: NodeOp = NodeOp.THROW
     top_level: bool = False
@@ -483,6 +525,7 @@ class Try(Node[SpecialForm]):
     body: Do
     catches: Iterable[Catch]
     children: Collection[kw.Keyword]
+    env: NodeEnv
     finally_: Optional[Do] = None
     op: NodeOp = NodeOp.TRY
     top_level: bool = False
@@ -493,6 +536,7 @@ class Try(Node[SpecialForm]):
 class VarRef(Node[sym.Symbol], Assignable):
     form: sym.Symbol
     var: Var
+    env: NodeEnv
     return_var: bool = False
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.VAR
@@ -508,6 +552,7 @@ class VarRef(Node[sym.Symbol], Assignable):
 class Vector(Node[vec.Vector]):
     form: vec.Vector
     items: Iterable[Node]
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.VECTOR
     top_level: bool = False
@@ -519,6 +564,7 @@ class WithMeta(Node[LispForm]):
     form: LispForm
     meta: Union[Const, Map]
     expr: Union[Fn, Map, Set, Vector]
+    env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(META, EXPR)
     op: NodeOp = NodeOp.WITH_META
     top_level: bool = False

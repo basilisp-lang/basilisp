@@ -179,7 +179,7 @@ def test_def_metadata(ns: runtime.Namespace):
 
     assert 1 == meta.entry(kw.keyword("line"))
     assert COMPILER_FILE_PATH == meta.entry(kw.keyword("file"))
-    assert 37 == meta.entry(kw.keyword("col"))
+    assert 1 == meta.entry(kw.keyword("col"))
     assert sym.symbol("unique-oeuene") == meta.entry(kw.keyword("name"))
     assert ns == meta.entry(kw.keyword("ns"))
     assert "Super cool docstring" == meta.entry(kw.keyword("doc"))
