@@ -536,32 +536,30 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
     def_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[ast.Str(defsym.name)], keywords=[])
     safe_name = munge(defsym.name)
 
+    assert node.meta is not None, "Meta should always be attached to Def nodes"
+    def_meta = node.meta.form
+
     # If the Var is marked as dynamic, we need to generate a keyword argument
     # for the generated Python code to set the Var as dynamic
+    is_dynamic = def_meta.entry(SYM_DYNAMIC_META_KEY, False)
     dynamic_kwarg = (
-        Maybe(defsym.meta)
-        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))  # type: ignore
-        .map(lambda v: [ast.keyword(arg="dynamic", value=ast.NameConstant(v))])
-        .or_else_get([])
+        [ast.keyword(arg="dynamic", value=ast.NameConstant(is_dynamic))]
+        if is_dynamic
+        else []
     )
-
-    meta_ast = gen_py_ast(ctx, node.meta) if node.meta is not None else None
 
     # Warn if this symbol is potentially being redefined
     if safe_name in ctx.current_ns.module.__dict__ or (
         defsym in ctx.current_ns.interns
         and ctx.current_ns.find(defsym).is_bound  # type: ignore
     ):
-        no_warn_on_redef = (
-            Maybe(defsym.meta)
-            .map(lambda m: m.get(SYM_NO_WARN_ON_REDEF_META_KEY, False))  # type: ignore
-            .or_else_get(False)
-        )
+        no_warn_on_redef = def_meta.entry(SYM_NO_WARN_ON_REDEF_META_KEY, False)
         if not no_warn_on_redef:
             logger.warning(
                 f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'"
             )
 
+    meta_ast = gen_py_ast(ctx, node.meta)
     return GeneratedPyAST(
         node=ast.Call(
             func=_INTERN_VAR_FN_NAME,
