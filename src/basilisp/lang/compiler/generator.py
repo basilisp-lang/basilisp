@@ -521,7 +521,9 @@ def expressionize(
 
 
 @_with_ast_loc
-def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
+def _def_to_py_ast(  # pylint: disable=too-many-branches
+    ctx: GeneratorContext, node: Def
+) -> GeneratedPyAST:
     """Return a Python AST Node for a `def` expression."""
     assert node.op == NodeOp.DEF
 
@@ -581,9 +583,7 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
     if is_defn:
         def_dependencies = list(
             chain(
-                []
-                if node.top_level
-                else [ast.Global(names=[safe_name])],
+                [] if node.top_level else [ast.Global(names=[safe_name])],
                 def_ast.dependencies,
                 [] if meta_ast is None else meta_ast.dependencies,
             )
@@ -592,9 +592,7 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
         def_dependencies = list(
             chain(
                 def_ast.dependencies,
-                []
-                if node.top_level
-                else [ast.Global(names=[safe_name])],
+                [] if node.top_level else [ast.Global(names=[safe_name])],
                 [
                     ast.Assign(
                         targets=[ast.Name(id=safe_name, ctx=ast.Store())],
@@ -618,7 +616,7 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
                 )
             ),  # type: ignore
         ),
-        dependencies=def_dependencies
+        dependencies=def_dependencies,
     )
 
 
