@@ -79,6 +79,7 @@ from basilisp.lang.compiler.nodes import (
     FnMethod,
     Binding,
     NodeEnv,
+    Catch,
 )
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
@@ -525,10 +526,21 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
     assert node.op == NodeOp.DEF
 
     defsym = node.name
+    is_defn = False
 
     if INIT in node.children:
+        # Since Python function definitions always take the form `def name(...):`,
+        # it is redundant to assign them to the their final name after they have
+        # been defined under a private alias. This codepath generates `defn`
+        # declarations by directly generating the Python `def` with the correct
+        # function name and short-circuiting the default double-declaration.
         assert node.init is not None, "Def init must be defined"
-        def_ast = gen_py_ast(ctx, node.init)
+        if node.init.op == NodeOp.FN:
+            assert isinstance(node.init, Fn)
+            def_ast = _fn_to_py_ast(ctx, node.init, def_name=defsym.name)
+            is_defn = True
+        else:
+            def_ast = gen_py_ast(ctx, node.init)
     else:
         def_ast = GeneratedPyAST(node=ast.NameConstant(None))
 
@@ -574,11 +586,24 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
                 )
             ),  # type: ignore
         ),
+        # For defn style def generation, we specifically need to generate the
+        # global declaration prior to emitting the Python `def` otherwise the
+        # Python compiler will throw an exception during compilation
+        # complaining that we assign the value prior to global declaration.
+        # For all other cases, the global declaration can appear after the
+        # generated dependency values.
         dependencies=list(
             chain(
+                []
+                if not node.top_level and is_defn
+                else [ast.Global(names=[safe_name])],
                 def_ast.dependencies,
-                [] if node.top_level else [ast.Global(names=[safe_name])],
-                [
+                []
+                if node.top_level and not is_defn
+                else [ast.Global(names=[safe_name])],
+                []
+                if is_defn
+                else [
                     ast.Assign(
                         targets=[ast.Name(id=safe_name, ctx=ast.Store())],
                         value=def_ast.node,
@@ -680,14 +705,14 @@ def __fn_args_to_py_ast(
 
 @_with_ast_loc_deps
 def __single_arity_fn_to_py_ast(
-    ctx: GeneratorContext, node: Fn, method: FnMethod
+    ctx: GeneratorContext, node: Fn, method: FnMethod, def_name: Optional[str] = None
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with a single arity."""
     assert node.op == NodeOp.FN
     assert method.op == NodeOp.FN_METHOD
 
     lisp_fn_name = node.local.name if node.local is not None else None
-    py_fn_name = __fn_name(lisp_fn_name)
+    py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
     with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(
         method.loop_id, RecurType.FN, is_variadic=node.is_variadic
     ):
@@ -863,14 +888,17 @@ def __multi_arity_dispatch_fn(
 
 @_with_ast_loc_deps
 def __multi_arity_fn_to_py_ast(
-    ctx: GeneratorContext, node: Fn, methods: Collection[FnMethod]
+    ctx: GeneratorContext,
+    node: Fn,
+    methods: Collection[FnMethod],
+    def_name: Optional[str] = None,
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with multiple arities."""
     assert node.op == NodeOp.FN
     assert all([method.op == NodeOp.FN_METHOD for method in methods])
 
     lisp_fn_name = node.local.name if node.local is not None else None
-    py_fn_name = __fn_name(lisp_fn_name)
+    py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
 
     arity_to_name = {}
     rest_arity_name: Optional[str] = None
@@ -927,13 +955,17 @@ def __multi_arity_fn_to_py_ast(
 
 
 @_with_ast_loc
-def _fn_to_py_ast(ctx: GeneratorContext, node: Fn) -> GeneratedPyAST:
+def _fn_to_py_ast(
+    ctx: GeneratorContext, node: Fn, def_name: Optional[str] = None
+) -> GeneratedPyAST:
     """Return a Python AST Node for a `fn` expression."""
     assert node.op == NodeOp.FN
     if len(node.methods) == 1:
-        return __single_arity_fn_to_py_ast(ctx, node, next(iter(node.methods)))
+        return __single_arity_fn_to_py_ast(
+            ctx, node, next(iter(node.methods)), def_name=def_name
+        )
     else:
-        return __multi_arity_fn_to_py_ast(ctx, node, node.methods)
+        return __multi_arity_fn_to_py_ast(ctx, node, node.methods, def_name=def_name)
 
 
 @_with_ast_loc_deps
@@ -1231,6 +1263,7 @@ def __fn_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     )
 
 
+@_with_ast_loc_deps
 def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     """Return a Python AST node for `recur` occurring inside a `loop`."""
     assert node.op == NodeOp.RECUR
@@ -1244,12 +1277,16 @@ def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST
         recur_targets.append(ast.Name(id=name, ctx=ast.Store()))
         recur_exprs.append(expr_ast.node)
 
-    recur_deps.append(
-        ast.Assign(
-            targets=[ast.Tuple(elts=recur_targets, ctx=ast.Store())],
-            value=ast.Tuple(elts=recur_exprs, ctx=ast.Load()),
+    if len(recur_targets) == 1:
+        assert len(recur_exprs) == 1
+        recur_deps.append(ast.Assign(targets=recur_targets, value=recur_exprs[0]))
+    else:
+        recur_deps.append(
+            ast.Assign(
+                targets=[ast.Tuple(elts=recur_targets, ctx=ast.Store())],
+                value=ast.Tuple(elts=recur_exprs, ctx=ast.Load()),
+            )
         )
-    )
     recur_deps.append(ast.Continue())
 
     return GeneratedPyAST(node=ast.NameConstant(None), dependencies=recur_deps)
@@ -1261,7 +1298,6 @@ _RECUR_TYPE_HANDLER = {
 }
 
 
-@_with_ast_loc
 def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     """Return a Python AST Node for a `recur` expression.
 
