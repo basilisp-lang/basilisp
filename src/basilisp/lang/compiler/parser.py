@@ -20,7 +20,8 @@ from typing import (
     Any,
     Collection,
     Set,
-    Tuple)
+    Tuple,
+)
 
 import attr
 
@@ -502,10 +503,7 @@ def _do_ast(ctx: ParserContext, form: lseq.Seq) -> Do:
     assert form.first == SpecialForm.DO
     *statements, ret = map(partial(_parse_ast, ctx), form.rest)
     return Do(
-        form=form,
-        statements=vec.vector(statements),
-        ret=ret,
-        env=ctx.get_node_env(),
+        form=form, statements=vec.vector(statements), ret=ret, env=ctx.get_node_env()
     )
 
 
@@ -592,7 +590,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches
                     is_body=True,
                     # Use the argument vector or first body statement, whichever
                     # exists, for metadata.
-                    env=ctx.get_node_env()
+                    env=ctx.get_node_env(),
                 ),
                 # Use the argument vector for fetching line/col since the
                 # form itself is a sequence with no meaningful metadata.
@@ -614,10 +612,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
         if isinstance(name, sym.Symbol):
             ctx.symbol_table.new_symbol(name, LocalType.FN, warn_if_unused=False)
             name_node: Optional[Binding] = Binding(
-                form=name,
-                name=name.name,
-                local=LocalType.FN,
-                env=ctx.get_node_env(),
+                form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
             idx += 1
         elif isinstance(name, (llist.List, vec.Vector)):
@@ -1045,9 +1040,7 @@ def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
     with ctx.quoted():
         expr = _parse_ast(ctx, runtime.nth(form, 1))
         assert isinstance(expr, Const), "Quoted expressions must yield :const nodes"
-        return Quote(
-            form=form, expr=expr, is_literal=True, env=ctx.get_node_env()
-        )
+        return Quote(form=form, expr=expr, is_literal=True, env=ctx.get_node_env())
 
 
 def _assert_no_recur(node: Node) -> None:
@@ -1119,10 +1112,7 @@ def _recur_ast(ctx: ParserContext, form: lseq.Seq) -> Recur:
 
     exprs = vec.vector(map(partial(_parse_ast, ctx), form.rest))
     return Recur(
-        form=form,
-        exprs=exprs,
-        loop_id=ctx.recur_point.loop_id,
-        env=ctx.get_node_env(),
+        form=form, exprs=exprs, loop_id=ctx.recur_point.loop_id, env=ctx.get_node_env()
     )
 
 
@@ -1292,9 +1282,7 @@ def _var_ast(ctx: ParserContext, form: lseq.Seq) -> VarRef:
     if var is None:
         raise ParserException(f"cannot resolve var {var_sym}", form=form)
 
-    return VarRef(
-        form=var_sym, var=var, return_var=True, env=ctx.get_node_env()
-    )
+    return VarRef(form=var_sym, var=var, return_var=True, env=ctx.get_node_env())
 
 
 SpecialFormHandler = Callable[[ParserContext, lseq.Seq], SpecialFormNode]
@@ -1507,10 +1495,7 @@ def _map_node(ctx: ParserContext, form: lmap.Map) -> MapNode:
         vals.append(_parse_ast(ctx, v))
 
     return MapNode(
-        form=form,
-        keys=vec.vector(keys),
-        vals=vec.vector(vals),
-        env=ctx.get_node_env(),
+        form=form, keys=vec.vector(keys), vals=vec.vector(vals), env=ctx.get_node_env()
     )
 
 

@@ -1,6 +1,15 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Collection, Union, Optional, Iterable, Generic, TypeVar, Callable, Tuple
+from typing import (
+    Collection,
+    Union,
+    Optional,
+    Iterable,
+    Generic,
+    TypeVar,
+    Callable,
+    Tuple,
+)
 
 import attr
 
@@ -127,7 +136,9 @@ class Node(ABC, Generic[T]):
                 assert child is not None, "Listed child must not be none"
                 f(child, *args, **kwargs)
 
-    def fix_missing_locations(self, start_loc: Optional[Tuple[int, int]] = None) -> "Node":
+    def fix_missing_locations(
+        self, start_loc: Optional[Tuple[int, int]] = None
+    ) -> "Node":
         if self.env.line is None or self.env.col is None:
             loc = start_loc
 
@@ -141,7 +152,9 @@ class Node(ABC, Generic[T]):
         if loc is None or any([e is None for e in loc]):
             raise ValueError("Must specify location information")
 
-        self.visit(lambda node, loc=None: node.fix_missing_locations(start_loc=loc), loc=loc)
+        self.visit(
+            lambda node, loc=None: node.fix_missing_locations(start_loc=loc), loc=loc
+        )
 
         return self
 
