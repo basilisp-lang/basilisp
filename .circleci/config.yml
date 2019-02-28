@@ -34,7 +34,7 @@ jobs:
 
   test-pypy:
     docker:
-      - image: jamiehewland/alpine-pypy-build:3.6-7.0.0-alpine3.9
+      - image: pypy:3.6-7.0-jessie-slim
     steps:
       - checkout
       - restore_cache:
