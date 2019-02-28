@@ -538,6 +538,7 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
 
     assert node.meta is not None, "Meta should always be attached to Def nodes"
     def_meta = node.meta.form
+    assert isinstance(def_meta, lmap.Map), "Meta should always be a map"
 
     # If the Var is marked as dynamic, we need to generate a keyword argument
     # for the generated Python code to set the Var as dynamic

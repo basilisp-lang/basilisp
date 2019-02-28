@@ -331,6 +331,7 @@ def _loc(form: Union[LispForm, lseq.Seq]) -> Optional[Tuple[int, int]]:
     except AttributeError:
         return None
     else:
+        assert isinstance(line, int) and isinstance(col, int)
         return line, col
 
 
@@ -395,7 +396,9 @@ def _with_meta(gen_node):
     return with_meta
 
 
-def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
+def _def_node(  # pylint: disable=too-many-locals
+    ctx: ParserContext, form: lseq.Seq
+) -> Def:
     assert form.first == SpecialForm.DEF
 
     nelems = count(form)
@@ -1592,7 +1595,7 @@ def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
 
 @_with_loc
 def _parse_ast(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: LispForm
+    ctx: ParserContext, form: Union[LispForm, lseq.Seq]
 ) -> Node:
     if isinstance(form, (llist.List, lseq.Seq)):
         # Special case for unquoted empty list
