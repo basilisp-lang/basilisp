@@ -1044,6 +1044,9 @@ def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branc
         for child in node.statements:
             _assert_no_recur(child)
         _assert_recur_is_tail(node.ret)
+    elif node.op in {NodeOp.FN, NodeOp.FN_METHOD}:
+        assert isinstance(node, (Fn, FnMethod))
+        node.visit(_assert_recur_is_tail)
     elif node.op == NodeOp.IF:
         assert isinstance(node, If)
         _assert_no_recur(node.test)
