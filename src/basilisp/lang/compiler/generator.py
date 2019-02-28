@@ -573,6 +573,38 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
             )
 
     meta_ast = gen_py_ast(ctx, node.meta)
+
+    # For defn style def generation, we specifically need to generate the
+    # global declaration prior to emitting the Python `def` otherwise the
+    # Python compiler will throw an exception during compilation
+    # complaining that we assign the value prior to global declaration.
+    if is_defn:
+        def_dependencies = list(
+            chain(
+                []
+                if node.top_level
+                else [ast.Global(names=[safe_name])],
+                def_ast.dependencies,
+                [] if meta_ast is None else meta_ast.dependencies,
+            )
+        )
+    else:
+        def_dependencies = list(
+            chain(
+                def_ast.dependencies,
+                []
+                if node.top_level
+                else [ast.Global(names=[safe_name])],
+                [
+                    ast.Assign(
+                        targets=[ast.Name(id=safe_name, ctx=ast.Store())],
+                        value=def_ast.node,
+                    )
+                ],
+                [] if meta_ast is None else meta_ast.dependencies,
+            )
+        )
+
     return GeneratedPyAST(
         node=ast.Call(
             func=_INTERN_VAR_FN_NAME,
@@ -586,32 +618,7 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
                 )
             ),  # type: ignore
         ),
-        # For defn style def generation, we specifically need to generate the
-        # global declaration prior to emitting the Python `def` otherwise the
-        # Python compiler will throw an exception during compilation
-        # complaining that we assign the value prior to global declaration.
-        # For all other cases, the global declaration can appear after the
-        # generated dependency values.
-        dependencies=list(
-            chain(
-                []
-                if not node.top_level and is_defn
-                else [ast.Global(names=[safe_name])],
-                def_ast.dependencies,
-                []
-                if node.top_level and not is_defn
-                else [ast.Global(names=[safe_name])],
-                []
-                if is_defn
-                else [
-                    ast.Assign(
-                        targets=[ast.Name(id=safe_name, ctx=ast.Store())],
-                        value=def_ast.node,
-                    )
-                ],
-                [] if meta_ast is None else meta_ast.dependencies,
-            )
-        ),
+        dependencies=def_dependencies
     )
 
 
