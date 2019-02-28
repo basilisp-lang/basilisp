@@ -1,6 +1,6 @@
 version: 2
 jobs:
-  build:
+  test-cpython:
     docker:
       - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.4
         user: pyenv
@@ -17,7 +17,6 @@ jobs:
           name: Run Tests
           shell: /bin/bash -leo pipefail
           environment:
-            PYTEST_NUM_CORES: 2
             TOX_NUM_CORES: 2
             TOX_SHOW_OUTPUT: "True"
           command: |
@@ -32,3 +31,37 @@ jobs:
           path: .junit
       - store_test_results:
           path: .junit
+
+  test-pypy:
+    docker:
+      - image: jamiehewland/alpine-pypy-build:3.6-7.0.0-alpine3.9
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+      - run:
+          name: Install tox
+          shell: /bin/bash -leo pipefail
+          command: |
+            pip install tox
+      - run:
+          name: Run Tests
+          command: |
+            tox -e pypy3
+      - save_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - ".tox"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python3.6/site-packages"
+      - store_artifacts:
+          path: .junit
+      - store_test_results:
+          path: .junit
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - test-cpython
+      - test-pypy
