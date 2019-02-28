@@ -34,7 +34,7 @@ jobs:
 
   test-pypy:
     docker:
-      - image: pypy:3.6-7.0-jessie-slim
+      - image: pypy:3.6-7.0-slim-jessie
     steps:
       - checkout
       - restore_cache:
