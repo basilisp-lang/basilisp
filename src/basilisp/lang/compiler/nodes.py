@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Collection, Union, Optional, Iterable, Generic, TypeVar, Callable
+from typing import Collection, Union, Optional, Iterable, Generic, TypeVar, Callable, Tuple
 
 import attr
 
@@ -127,8 +127,23 @@ class Node(ABC, Generic[T]):
                 assert child is not None, "Listed child must not be none"
                 f(child, *args, **kwargs)
 
-    def fix_missing_locations(self, line: int, col: int) -> "Node":
-        pass
+    def fix_missing_locations(self, start_loc: Optional[Tuple[int, int]] = None) -> "Node":
+        if self.env.line is None or self.env.col is None:
+            loc = start_loc
+
+            if loc is None:
+                raise ValueError("Must specify location information")
+
+            self.env.set_loc(loc[0], loc[1])
+        else:
+            loc = (self.env.line, self.env.col)
+
+        if loc is None or any([e is None for e in loc]):
+            raise ValueError("Must specify location information")
+
+        self.visit(lambda node, loc=None: node.fix_missing_locations(start_loc=loc), loc=loc)
+
+        return self
 
 
 class Assignable(ABC):
@@ -177,12 +192,19 @@ class LocalType(Enum):
     LOOP = kw.keyword("loop")
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.s(auto_attribs=True, slots=True)
 class NodeEnv:
     ns: Namespace
     file: str
     line: Optional[int] = None
     col: Optional[int] = None
+
+    def set_loc(self, line: int, col: int):
+        if self.line is None:
+            self.line = line
+
+        if self.col is None:
+            self.col = col
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)

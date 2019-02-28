@@ -1352,6 +1352,44 @@ def _throw_to_py_ast(ctx: GeneratorContext, node: Throw) -> GeneratedPyAST:
     )
 
 
+def __catch_to_py_ast(
+    ctx: GeneratorContext, catch: Catch, *, try_expr_name: str
+) -> ast.ExceptHandler:
+    assert catch.class_.op in {NodeOp.MAYBE_CLASS, NodeOp.MAYBE_HOST_FORM}
+
+    exc_type = gen_py_ast(ctx, catch.class_)
+    assert (
+        count(exc_type.dependencies) == 0
+    ), ":maybe-class and :maybe-host-form node cannot have dependency nodes"
+
+    exc_binding = catch.local
+    assert (
+        exc_binding.local == LocalType.CATCH
+    ), ":local of :binding node must be :catch for Catch node"
+
+    with ctx.new_symbol_table("catch"):
+        catch_exc_name = genname(munge(exc_binding.name))
+        ctx.symbol_table.new_symbol(
+            sym.symbol(exc_binding.name), catch_exc_name, LocalType.CATCH
+        )
+        catch_ast = _synthetic_do_to_py_ast(ctx, catch.body)
+        return ast.ExceptHandler(
+            type=exc_type.node,
+            name=catch_exc_name,
+            body=list(
+                chain(
+                    map(statementize, catch_ast.dependencies),
+                    [
+                        ast.Assign(
+                            targets=[ast.Name(id=try_expr_name, ctx=ast.Store())],
+                            value=catch_ast.node,
+                        )
+                    ],
+                )
+            ),
+        )
+
+
 @_with_ast_loc_deps
 def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
     """Return a Python AST Node for a `try` expression."""
@@ -1360,46 +1398,9 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
     try_expr_name = genname("try_expr")
 
     body_ast = _synthetic_do_to_py_ast(ctx, node.body)
-
-    catch_handlers = []
-    for catch in node.catches:
-        assert catch.class_.op in {NodeOp.MAYBE_CLASS, NodeOp.MAYBE_HOST_FORM}
-
-        exc_type = gen_py_ast(ctx, catch.class_)
-        assert (
-            count(exc_type.dependencies) == 0
-        ), ":maybe-class and :maybe-host-form node cannot have dependency nodes"
-
-        exc_binding = catch.local
-        assert (
-            exc_binding.local == LocalType.CATCH
-        ), ":local of :binding node must be :catch for Catch node"
-
-        with ctx.new_symbol_table("catch"):
-            catch_exc_name = genname(munge(exc_binding.name))
-            ctx.symbol_table.new_symbol(
-                sym.symbol(exc_binding.name), catch_exc_name, LocalType.CATCH
-            )
-            catch_ast = _synthetic_do_to_py_ast(ctx, catch.body)
-            catch_handlers.append(
-                ast.ExceptHandler(
-                    type=exc_type.node,
-                    name=catch_exc_name,
-                    body=list(
-                        chain(
-                            map(statementize, catch_ast.dependencies),
-                            [
-                                ast.Assign(
-                                    targets=[
-                                        ast.Name(id=try_expr_name, ctx=ast.Store())
-                                    ],
-                                    value=catch_ast.node,
-                                )
-                            ],
-                        )
-                    ),
-                )
-            )
+    catch_handlers = list(
+        map(partial(__catch_to_py_ast, ctx, try_expr_name=try_expr_name), node.catches)
+    )
 
     finallys: List[ast.AST] = []
     if node.finally_ is not None:

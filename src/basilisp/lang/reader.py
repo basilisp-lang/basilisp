@@ -739,17 +739,17 @@ def _process_syntax_quoted_form(ctx: ReaderContext, form: LispForm) -> LispForm:
     Vectors are turned into:
         (basilisp.core/apply
          basilisp.core/vector
-         (basilisp.core.concat/ [& rest]))
+         (basilisp.core/concat [& rest]))
 
     Sets are turned into:
         (basilisp.core/apply
          basilisp.core/hash-set
-         (basilisp.core.concat/ [& rest]))
+         (basilisp.core/concat [& rest]))
 
     Maps are turned into:
         (basilisp.core/apply
          basilisp.core/hash-map
-         (basilisp.core.concat/ [& rest]))
+         (basilisp.core/concat [& rest]))
 
     The child forms (called rest above) are processed by _expand_syntax_quote.
 

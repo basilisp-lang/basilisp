@@ -20,7 +20,7 @@ from typing import (
     Any,
     Collection,
     Set,
-)
+    Tuple)
 
 import attr
 
@@ -304,6 +304,9 @@ class ParserContext:
             yield st
             self._st.pop()
 
+    def get_node_env(self):
+        return NodeEnv(ns=self.current_ns, file=self.filename)
+
 
 def _is_macro(v: Var) -> bool:
     """Return True if the Var holds a macro function."""
@@ -314,19 +317,37 @@ def _is_macro(v: Var) -> bool:
     )
 
 
-ParseFunction = Callable[[ParserContext, LispForm], lmap.Map]
+ParseFunction = Callable[[ParserContext, Union[LispForm, lseq.Seq]], Node]
 
 
-def _get_node_env(ctx: ParserContext, form: Union[LispForm, lseq.Seq]) -> NodeEnv:
-    """Return the node environment."""
+def _loc(form: Union[LispForm, lseq.Seq]) -> Optional[Tuple[int, int]]:
+    """Fetch the location of the form in the original filename from the
+    input form, if it has metadata."""
     try:
         meta = form.meta  # type: ignore
         line = meta.get(reader.READER_LINE_KW)  # type: ignore
         col = meta.get(reader.READER_COL_KW)  # type: ignore
     except AttributeError:
-        return NodeEnv(ns=ctx.current_ns, file=ctx.filename)
+        return None
     else:
-        return NodeEnv(ns=ctx.current_ns, file=ctx.filename, line=line, col=col)
+        return line, col
+
+
+def _with_loc(f: ParseFunction):
+    """Attach any available location information from the input form to
+    the node environment returned from the parsing function."""
+
+    @wraps(f)
+    def _parse_form(ctx: ParserContext, form: Union[LispForm, lseq.Seq]) -> Node:
+        form_loc = _loc(form)
+        if form_loc is None:
+            return f(ctx, form)
+        else:
+            node = f(ctx, form)
+            node.fix_missing_locations(form_loc)
+            return node
+
+    return _parse_form
 
 
 def _clean_meta(meta: Optional[lmap.Map]) -> Optional[lmap.Map]:
@@ -363,7 +384,7 @@ def _with_meta(gen_node):
                         form=form,
                         meta=meta_ast,
                         expr=descriptor,
-                        env=_get_node_env(ctx, form),
+                        env=ctx.get_node_env(),
                     )
 
                 raise ParserException(f"meta must be a map")
@@ -398,17 +419,20 @@ def _def_node(ctx: ParserContext, form: lseq.Seq) -> Def:
     else:
         init = _parse_ast(ctx, runtime.nth(form, 3))
         doc = runtime.nth(form, 2)
+        if not isinstance(doc, str):
+            raise ParserException("def docstring must be a string", form=doc)
         children = vec.v(INIT)
 
     # Attach metadata relevant for the current process below.
-    def_node_env = _get_node_env(ctx, form)
+    def_loc = _loc(form)
+    def_node_env = ctx.get_node_env()
     def_meta = _clean_meta(
         name.meta.update(
             lmap.map(
                 {
-                    COL_KW: def_node_env.col,
+                    COL_KW: def_loc[1] if def_loc is not None else None,
                     FILE_KW: def_node_env.file,
-                    LINE_KW: def_node_env.line,
+                    LINE_KW: def_loc[0] if def_loc is not None else None,
                     NAME_KW: name,
                     NS_KW: ctx.current_ns,
                 }
@@ -481,7 +505,7 @@ def _do_ast(ctx: ParserContext, form: lseq.Seq) -> Do:
         form=form,
         statements=vec.vector(statements),
         ret=ret,
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -515,7 +539,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches
                     local=LocalType.ARG,
                     arg_id=i,
                     is_variadic=False,
-                    env=_get_node_env(ctx, s),
+                    env=ctx.get_node_env(),
                 )
             )
 
@@ -537,7 +561,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches
                         local=LocalType.ARG,
                         arg_id=vargs_idx + 1,
                         is_variadic=True,
-                        env=_get_node_env(ctx, vargs_sym),
+                        env=ctx.get_node_env(),
                     )
                 )
 
@@ -568,11 +592,11 @@ def __fn_method_ast(  # pylint: disable=too-many-branches
                     is_body=True,
                     # Use the argument vector or first body statement, whichever
                     # exists, for metadata.
-                    env=_get_node_env(ctx, form.rest.first if body else params),
+                    env=ctx.get_node_env()
                 ),
                 # Use the argument vector for fetching line/col since the
                 # form itself is a sequence with no meaningful metadata.
-                env=_get_node_env(ctx, params),
+                env=ctx.get_node_env(),
             )
             method.visit(_assert_recur_is_tail)
             return method
@@ -593,7 +617,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=name,
                 name=name.name,
                 local=LocalType.FN,
-                env=_get_node_env(ctx, name),
+                env=ctx.get_node_env(),
             )
             idx += 1
         elif isinstance(name, (llist.List, vec.Vector)):
@@ -668,7 +692,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
             local=name_node,
             # Use the function name for metadata if it exists or otherwise
             # try the `fn*` symbol.
-            env=_get_node_env(ctx, name or form.first),
+            env=ctx.get_node_env(),
         )
 
 
@@ -688,7 +712,7 @@ def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> HostCall:
         method=method.name[1:],
         target=_parse_ast(ctx, runtime.nth(form, 1)),
         args=vec.vector(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2))),
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -715,7 +739,7 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
             field=field.name,
             target=_parse_ast(ctx, runtime.nth(form, 1)),
             is_assignable=True,
-            env=_get_node_env(ctx, form),
+            env=ctx.get_node_env(),
         )
     else:
         if not nelems == 2:
@@ -729,7 +753,7 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
             field=field.name[2:],
             target=_parse_ast(ctx, runtime.nth(form, 1)),
             is_assignable=True,
-            env=_get_node_env(ctx, form),
+            env=ctx.get_node_env(),
         )
 
 
@@ -757,7 +781,7 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
                 field=maybe_m_or_f.name[1:],
                 target=_parse_ast(ctx, runtime.nth(form, 1)),
                 is_assignable=True,
-                env=_get_node_env(ctx, form),
+                env=ctx.get_node_env(),
             )
         else:
             return HostCall(
@@ -767,7 +791,7 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
                 args=vec.vector(
                     map(partial(_parse_ast, ctx), runtime.nthrest(form, 3))
                 ),
-                env=_get_node_env(ctx, form),
+                env=ctx.get_node_env(),
             )
     elif isinstance(maybe_m_or_f, (llist.List, lseq.Seq)):
         # Likewise, I emit :host-call for forms like (. target (method arg1 ...)).
@@ -780,7 +804,7 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
             method=method.name[1:] if method.name.startswith("-") else method.name,
             target=_parse_ast(ctx, runtime.nth(form, 1)),
             args=vec.vector(map(partial(_parse_ast, ctx), maybe_m_or_f.rest)),
-            env=_get_node_env(ctx, form),
+            env=ctx.get_node_env(),
         )
 
     if nelems != 3:
@@ -799,7 +823,7 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
         target=_parse_ast(ctx, runtime.nth(form, 1)),
         m_or_f=m_or_f.name,
         is_assignable=True,
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -823,7 +847,7 @@ def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:
         test=_parse_ast(ctx, runtime.nth(form, 1)),
         then=_parse_ast(ctx, runtime.nth(form, 2)),
         else_=else_node,
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -850,11 +874,11 @@ def _import_ast(ctx: ParserContext, form: lseq.Seq) -> Import:
                 form=f,
                 name=module_name.name,
                 alias=module_alias,
-                env=_get_node_env(ctx, f),
+                env=ctx.get_node_env(),
             )
         )
 
-    return Import(form=form, aliases=aliases, env=_get_node_env(ctx, form))
+    return Import(form=form, aliases=aliases, env=ctx.get_node_env())
 
 
 def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
@@ -865,6 +889,12 @@ def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
             try:
                 expanded = fn.var.value(form, *form.rest)
                 expanded_ast = _parse_ast(ctx, expanded)
+
+                # Verify that macroexpanded code also does not have any
+                # non-tail recur forms
+                if ctx.recur_point is not None:
+                    _assert_recur_is_tail(expanded_ast)
+
                 return expanded_ast.assoc(
                     raw_forms=cast(vec.Vector, expanded_ast.raw_forms).cons(form)
                 )
@@ -879,7 +909,7 @@ def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
         form=form,
         fn=fn,
         args=vec.vector(map(partial(_parse_ast, ctx), form.rest)),
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
     if hasattr(form, "meta"):  # type: ignore
@@ -931,7 +961,7 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
                     local=LocalType.LET,
                     init=_parse_ast(ctx, value),
                     children=vec.v(INIT),
-                    env=_get_node_env(ctx, name),
+                    env=ctx.get_node_env(),
                 )
             )
 
@@ -947,9 +977,9 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
                 statements=vec.vector(statements),
                 ret=ret,
                 is_body=True,
-                env=_get_node_env(ctx, let_body),
+                env=ctx.get_node_env(),
             ),
-            env=_get_node_env(ctx, form),
+            env=ctx.get_node_env(),
         )
 
 
@@ -983,7 +1013,7 @@ def _loop_ast(ctx: ParserContext, form: lseq.Seq) -> Loop:
                     name=name.name,
                     local=LocalType.LOOP,
                     init=_parse_ast(ctx, value),
-                    env=_get_node_env(ctx, name),
+                    env=ctx.get_node_env(),
                 )
             )
 
@@ -1000,10 +1030,10 @@ def _loop_ast(ctx: ParserContext, form: lseq.Seq) -> Loop:
                     statements=vec.vector(statements),
                     ret=ret,
                     is_body=True,
-                    env=_get_node_env(ctx, loop_body),
+                    env=ctx.get_node_env(),
                 ),
                 loop_id=loop_id,
-                env=_get_node_env(ctx, form),
+                env=ctx.get_node_env(),
             )
             loop_node.visit(_assert_recur_is_tail)
             return loop_node
@@ -1016,7 +1046,7 @@ def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
         expr = _parse_ast(ctx, runtime.nth(form, 1))
         assert isinstance(expr, Const), "Quoted expressions must yield :const nodes"
         return Quote(
-            form=form, expr=expr, is_literal=True, env=_get_node_env(ctx, form)
+            form=form, expr=expr, is_literal=True, env=ctx.get_node_env()
         )
 
 
@@ -1092,7 +1122,7 @@ def _recur_ast(ctx: ParserContext, form: lseq.Seq) -> Recur:
         form=form,
         exprs=exprs,
         loop_id=ctx.recur_point.loop_id,
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -1114,7 +1144,7 @@ def _set_bang_ast(ctx: ParserContext, form: lseq.Seq) -> SetBang:
         form=form,
         target=target,
         val=_parse_ast(ctx, runtime.nth(form, 2)),
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -1123,7 +1153,7 @@ def _throw_ast(ctx: ParserContext, form: lseq.Seq) -> Throw:
     return Throw(
         form=form,
         exception=_parse_ast(ctx, runtime.nth(form, 1)),
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -1159,16 +1189,16 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
                 form=local_name,
                 name=local_name.name,
                 local=LocalType.CATCH,
-                env=_get_node_env(ctx, local_name),
+                env=ctx.get_node_env(),
             ),
             body=Do(
                 form=catch_body,
                 statements=vec.vector(catch_statements),
                 ret=catch_ret,
                 is_body=True,
-                env=_get_node_env(ctx, catch_body),
+                env=ctx.get_node_env(),
             ),
-            env=_get_node_env(ctx, form),
+            env=ctx.get_node_env(),
         )
 
 
@@ -1201,7 +1231,7 @@ def _try_ast(  # pylint: disable=too-many-branches
                     statements=vec.vector(finally_stmts),
                     ret=finally_ret,
                     is_body=True,
-                    env=_get_node_env(ctx, expr.rest),
+                    env=ctx.get_node_env(),
                 )
                 continue
 
@@ -1230,14 +1260,14 @@ def _try_ast(  # pylint: disable=too-many-branches
             statements=vec.vector(try_statements),
             ret=try_ret,
             is_body=True,
-            env=_get_node_env(ctx, form),
+            env=ctx.get_node_env(),
         ),
         catches=vec.vector(catches),
         finally_=finally_,
         children=vec.v(BODY, CATCHES, FINALLY)
         if finally_ is not None
         else vec.v(BODY, CATCHES),
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -1263,7 +1293,7 @@ def _var_ast(ctx: ParserContext, form: lseq.Seq) -> VarRef:
         raise ParserException(f"cannot resolve var {var_sym}", form=form)
 
     return VarRef(
-        form=var_sym, var=var, return_var=True, env=_get_node_env(ctx, var_sym)
+        form=var_sym, var=var, return_var=True, env=ctx.get_node_env()
     )
 
 
@@ -1312,12 +1342,12 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     if form.ns == ctx.current_ns.name:
         v = ctx.current_ns.find(sym.symbol(form.name))
         if v is not None:
-            return VarRef(form=form, var=v, env=_get_node_env(ctx, form))
+            return VarRef(form=form, var=v, env=ctx.get_node_env())
     elif form.ns == _BUILTINS_NS:
         return MaybeClass(
             form=form,
             class_=munge(form.name, allow_builtins=True),
-            env=_get_node_env(ctx, form),
+            env=ctx.get_node_env(),
         )
 
     ns_sym = sym.symbol(form.ns)
@@ -1326,7 +1356,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
         # that the symbol isn't referring to a Basilisp Var first
         v = Var.find(form)
         if v is not None:
-            return VarRef(form=form, var=v, env=_get_node_env(ctx, form))
+            return VarRef(form=form, var=v, env=ctx.get_node_env())
 
         # Fetch the full namespace name for the aliased namespace/module.
         # We don't need this for actually generating the link later, but
@@ -1352,7 +1382,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
                 form=form,
                 class_=munge(ns_sym.name),
                 field=safe_name,
-                env=_get_node_env(ctx, form),
+                env=ctx.get_node_env(),
             )
 
         # Then allow builtins
@@ -1366,7 +1396,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             form=form,
             class_=munge(ns_sym.name),
             field=safe_name,
-            env=_get_node_env(ctx, form),
+            env=ctx.get_node_env(),
         )
     elif ns_sym in ctx.current_ns.aliases:
         aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
@@ -1375,7 +1405,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             raise ParserException(
                 f"unable to resolve symbol '{ns_sym}' in this context", form=form
             )
-        return VarRef(form=form, var=v, env=_get_node_env(ctx, form))
+        return VarRef(form=form, var=v, env=ctx.get_node_env())
 
     if "." in form.name:
         raise ParserException(
@@ -1392,7 +1422,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
         form=form,
         class_=munge(ns_sym.name),
         field=munge(form.name),
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -1406,7 +1436,7 @@ def __resolve_bare_symbol(
     # Look up the symbol in the namespace mapping of the current namespace.
     v = ctx.current_ns.find(form)
     if v is not None:
-        return VarRef(form=form, var=v, env=_get_node_env(ctx, form))
+        return VarRef(form=form, var=v, env=ctx.get_node_env())
 
     if "." in form.name:
         raise ParserException(
@@ -1417,7 +1447,7 @@ def __resolve_bare_symbol(
         return MaybeClass(
             form=form,
             class_=munge(form.name, allow_builtins=True),
-            env=_get_node_env(ctx, form),
+            env=ctx.get_node_env(),
         )
 
     if form.name not in ctx.current_ns.module.__dict__:
@@ -1425,7 +1455,7 @@ def __resolve_bare_symbol(
             f"unable to resolve symbol '{form}' in this context", form=form
         )
 
-    return MaybeClass(form=form, class_=munge(form.name), env=_get_node_env(ctx, form))
+    return MaybeClass(form=form, class_=munge(form.name), env=ctx.get_node_env())
 
 
 def _resolve_sym(
@@ -1463,7 +1493,7 @@ def _symbol_node(
             name=form.name,
             local=sym_entry.context,
             is_assignable=False,
-            env=_get_node_env(ctx, form),
+            env=ctx.get_node_env(),
         )
 
     return _resolve_sym(ctx, form)
@@ -1480,7 +1510,7 @@ def _map_node(ctx: ParserContext, form: lmap.Map) -> MapNode:
         form=form,
         keys=vec.vector(keys),
         vals=vec.vector(vals),
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -1489,7 +1519,7 @@ def _set_node(ctx: ParserContext, form: lset.Set) -> SetNode:
     return SetNode(
         form=form,
         items=vec.vector(map(partial(_parse_ast, ctx), form)),
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -1498,7 +1528,7 @@ def _vector_node(ctx: ParserContext, form: vec.Vector) -> VectorNode:
     return VectorNode(
         form=form,
         items=vec.vector(map(partial(_parse_ast, ctx), form)),
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
 
@@ -1559,7 +1589,7 @@ def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
         is_literal=True,
         type=cast(ConstType, node_type),
         val=form,
-        env=_get_node_env(ctx, form),
+        env=ctx.get_node_env(),
     )
 
     if hasattr(form, "meta"):  # type: ignore
@@ -1575,6 +1605,7 @@ def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
     return descriptor
 
 
+@_with_loc
 def _parse_ast(  # pylint: disable=too-many-branches
     ctx: ParserContext, form: LispForm
 ) -> Node:

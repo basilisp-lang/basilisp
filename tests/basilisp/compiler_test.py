@@ -23,24 +23,18 @@ from basilisp.lang.runtime import Var
 from basilisp.main import init
 from basilisp.util import Maybe
 
-init()
-
-
 COMPILER_FILE_PATH = "compiler_test"
 
-# Cache the initial state of the `print_generated_python` flag.
-__PRINT_GENERATED_PYTHON_FN = runtime.print_generated_python
 
-
-def setup_module(module):
+@pytest.fixture(scope="module", autouse=True)
+def setup_module():
     """Disable the `print_generated_python` flag so we can safely capture
     stderr and stdout for tests which require those facilities."""
+    init()
+    orig = runtime.print_generated_python
     runtime.print_generated_python = Mock(return_value=False)
-
-
-def teardown_module(module):
-    """Restore the `print_generated_python` flag after we finish running tests."""
-    runtime.print_generated_python = __PRINT_GENERATED_PYTHON_FN
+    yield
+    runtime.print_generated_python = orig
 
 
 @pytest.fixture
