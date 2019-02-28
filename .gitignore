@@ -65,3 +65,4 @@ ENV/
 TODO
 lintout.txt
 .idea/
+.envrc
