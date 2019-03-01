@@ -22,7 +22,9 @@ class Vector(Associative, Collection, LispObject, Meta, Seqable):
         return item in self._inner
 
     def __eq__(self, other):
-        return self._inner == other
+        if hasattr(other, "__len__"):
+            return self._inner == other
+        return all(e1 == e2 for e1, e2 in zip(self._inner, other))
 
     def __getitem__(self, item):
         if isinstance(item, slice):
