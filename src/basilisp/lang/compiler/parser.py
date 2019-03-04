@@ -345,9 +345,7 @@ def _with_loc(f: ParseFunction):
         if form_loc is None:
             return f(ctx, form)
         else:
-            node = f(ctx, form)
-            node.fix_missing_locations(form_loc)
-            return node
+            return f(ctx, form).fix_missing_locations(form_loc)
 
     return _parse_form
 

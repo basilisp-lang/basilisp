@@ -9,6 +9,7 @@ from typing import (
     TypeVar,
     Callable,
     Tuple,
+    Dict,
 )
 
 import attr
@@ -139,24 +140,39 @@ class Node(ABC, Generic[T]):
     def fix_missing_locations(
         self, start_loc: Optional[Tuple[int, int]] = None
     ) -> "Node":
+        """Return a transformed copy of this node with location in this node's
+        environment updated to match the `start_loc` if given, or using its
+        existing location otherwise. All child nodes will be recursively
+        transformed and replaced. Child nodes will use their parent node
+        location if they do not have one."""
         if self.env.line is None or self.env.col is None:
             loc = start_loc
-
-            if loc is None:
-                raise ValueError("Must specify location information")
-
-            self.env.set_loc(loc[0], loc[1])
         else:
             loc = (self.env.line, self.env.col)
 
         if loc is None or any([e is None for e in loc]):
             raise ValueError("Must specify location information")
 
-        self.visit(
-            lambda node, loc=None: node.fix_missing_locations(start_loc=loc), loc=loc
-        )
+        new_attrs: Dict[str, Union[NodeEnv, Node, Iterable[Node]]] = {
+            "env": attr.evolve(self.env, line=loc[0], col=loc[1])
+        }
+        for child_kw in self.children:
+            child_attr = munge(child_kw.name)
+            assert child_attr != "env", "Node environment already set"
 
-        return self
+            if child_attr.endswith("s"):
+                iter_child: Iterable[Node] = getattr(self, child_attr)
+                assert iter_child is not None, "Listed child must not be none"
+                new_children = []
+                for item in iter_child:
+                    new_children.append(item.fix_missing_locations(start_loc))
+                new_attrs[child_attr] = new_children
+            else:
+                child: Node = getattr(self, child_attr)
+                assert child is not None, "Listed child must not be none"
+                new_attrs[child_attr] = child.fix_missing_locations(start_loc)
+
+        return self.assoc(**new_attrs)
 
 
 class Assignable(ABC):
