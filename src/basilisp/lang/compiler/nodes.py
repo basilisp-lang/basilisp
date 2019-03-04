@@ -221,19 +221,12 @@ class LocalType(Enum):
     LOOP = kw.keyword("loop")
 
 
-@attr.s(auto_attribs=True, slots=True)
+@attr.s(auto_attribs=True, frozen=True, slots=True)
 class NodeEnv:
     ns: Namespace
     file: str
     line: Optional[int] = None
     col: Optional[int] = None
-
-    def set_loc(self, line: int, col: int):
-        if self.line is None:
-            self.line = line
-
-        if self.col is None:
-            self.col = col
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
