@@ -166,7 +166,7 @@ class Node(ABC, Generic[T]):
                 new_children = []
                 for item in iter_child:
                     new_children.append(item.fix_missing_locations(start_loc))
-                new_attrs[child_attr] = new_children
+                new_attrs[child_attr] = vec.vector(new_children)
             else:
                 child: Node = getattr(self, child_attr)
                 assert child is not None, "Listed child must not be none"
