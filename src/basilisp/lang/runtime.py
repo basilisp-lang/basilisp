@@ -680,7 +680,9 @@ def nth(coll, i, notfound=__nth_sentinel):
             return notfound
         raise ex
     except TypeError as ex:
-        logger.debug("Ignored %s: %s", type(ex).__name__, ex)
+        # Log these at TRACE so they don't gum up the DEBUG logs since most
+        # cases where this exception occurs are not bugs.
+        logger.log(5, "Ignored %s: %s", type(ex).__name__, ex)
 
     try:
         for j, e in enumerate(coll):
