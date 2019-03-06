@@ -1,10 +1,10 @@
 import decimal
+import logging
 import re
 import types
 import uuid
 from fractions import Fraction
 from typing import Optional, Dict
-from unittest import mock
 from unittest.mock import Mock
 
 import dateutil.parser as dateparser
@@ -52,6 +52,13 @@ def ns(test_ns: str) -> runtime.Namespace:
 @pytest.fixture
 def resolver() -> reader.Resolver:
     return runtime.resolve_alias
+
+
+def assert_no_logs(caplog):
+    __tracebackhide__ = True
+    log_records = caplog.record_tuples
+    if len(log_records) != 0:
+        pytest.fail(f"At least one log message found: {log_records}")
 
 
 def lcompile(
@@ -153,81 +160,82 @@ def test_vec():
     assert lcompile("[:a 1]") == vec.v(kw.keyword("a"), 1)
 
 
-def test_def(ns: runtime.Namespace):
-    ns_name = ns.name
-    assert lcompile("(def a :some-val)") == Var.find_in_ns(
-        sym.symbol(ns_name), sym.symbol("a")
-    )
-    assert lcompile('(def beep "a sound a robot makes")') == Var.find_in_ns(
-        sym.symbol(ns_name), sym.symbol("beep")
-    )
-    assert lcompile("a") == kw.keyword("some-val")
-    assert lcompile("beep") == "a sound a robot makes"
+class TestDef:
+    def test_def(self, ns: runtime.Namespace):
+        ns_name = ns.name
+        assert lcompile("(def a :some-val)") == Var.find_in_ns(
+            sym.symbol(ns_name), sym.symbol("a")
+        )
+        assert lcompile('(def beep "a sound a robot makes")') == Var.find_in_ns(
+            sym.symbol(ns_name), sym.symbol("beep")
+        )
+        assert lcompile("a") == kw.keyword("some-val")
+        assert lcompile("beep") == "a sound a robot makes"
 
+    def test_compiler_metadata(self, ns: runtime.Namespace):
+        lcompile('(def ^{:doc "Super cool docstring"} unique-oeuene :a)')
 
-def test_def_metadata(ns: runtime.Namespace):
-    lcompile('(def ^{:doc "Super cool docstring"} unique-oeuene :a)')
+        var = ns.find(sym.symbol("unique-oeuene"))
+        meta = var.meta
 
-    var = ns.find(sym.symbol("unique-oeuene"))
-    meta = var.meta
+        assert 1 == meta.entry(kw.keyword("line"))
+        assert COMPILER_FILE_PATH == meta.entry(kw.keyword("file"))
+        assert 1 == meta.entry(kw.keyword("col"))
+        assert sym.symbol("unique-oeuene") == meta.entry(kw.keyword("name"))
+        assert ns == meta.entry(kw.keyword("ns"))
+        assert "Super cool docstring" == meta.entry(kw.keyword("doc"))
 
-    assert 1 == meta.entry(kw.keyword("line"))
-    assert COMPILER_FILE_PATH == meta.entry(kw.keyword("file"))
-    assert 1 == meta.entry(kw.keyword("col"))
-    assert sym.symbol("unique-oeuene") == meta.entry(kw.keyword("name"))
-    assert ns == meta.entry(kw.keyword("ns"))
-    assert "Super cool docstring" == meta.entry(kw.keyword("doc"))
-
-
-def test_def_no_warn_on_redef(ns: runtime.Namespace):
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_no_warn_on_redef_meta(self, ns: runtime.Namespace, caplog):
         lcompile(
             """
         (def unique-zhddkd :a)
         (def ^:no-warn-on-redef unique-zhddkd :b)
         """
         )
+        assert_no_logs(caplog)
 
-        logger.warning.assert_not_called()
-
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_warn_on_redef_if_warn_on_redef_meta_missing(
+        self, ns: runtime.Namespace, caplog
+    ):
         lcompile(
             """
         (def unique-djhvyz :a)
         (def unique-djhvyz :b)
         """
         )
+        assert (
+            "basilisp.lang.compiler.generator",
+            logging.WARNING,
+            f"redefining local Python name 'unique_djhvyz' in module '{ns.name}'",
+        ) in caplog.record_tuples
 
-        logger.warning.assert_called_with(
-            f"redefining local Python name 'unique_djhvyz' in module '{ns.name}'"
-        )
-
-
-def test_redef_vars(ns: runtime.Namespace):
-    assert kw.keyword("b") == lcompile(
+    def test_redef_vars(self, ns: runtime.Namespace, caplog):
+        assert kw.keyword("b") == lcompile(
+            """
+        (def ^:redef orig :a)
+        (def redef-check (fn* [] orig))
+        (def orig :b)
+        (redef-check)
         """
-    (def ^:redef orig :a)
-    (def redef-check (fn* [] orig))
-    (def orig :b)
-    (redef-check)
-    """
-    )
+        )
+        assert (
+            f"redefining local Python name 'orig' in module '{ns.name}'"
+        ) not in caplog.messages
 
+    def test_def_dynamic(self, ns: runtime.Namespace):
+        v: Var = lcompile("(def ^:dynamic *a-dynamic-var* 1)")
+        assert v.dynamic is True
+        lcompile("(.push-bindings #'*a-dynamic-var* :hi)")
+        assert kw.keyword("hi") == lcompile("*a-dynamic-var*")
+        assert kw.keyword("hi") == lcompile("(.pop-bindings #'*a-dynamic-var*)")
+        assert 1 == lcompile("*a-dynamic-var*")
 
-def test_def_dynamic(ns: runtime.Namespace):
-    v: Var = lcompile("(def ^:dynamic *a-dynamic-var* 1)")
-    assert v.dynamic is True
-    lcompile("(.push-bindings #'*a-dynamic-var* :hi)")
-    assert kw.keyword("hi") == lcompile("*a-dynamic-var*")
-    assert kw.keyword("hi") == lcompile("(.pop-bindings #'*a-dynamic-var*)")
-    assert 1 == lcompile("*a-dynamic-var*")
-
-    v: Var = lcompile("(def a-regular-var 1)")
-    assert v.dynamic is False
-    lcompile("(.push-bindings #'a-regular-var :hi)")
-    assert 1 == lcompile("a-regular-var")
-    assert kw.keyword("hi") == lcompile("(.pop-bindings #'a-regular-var)")
-    assert 1 == lcompile("a-regular-var")
+        v: Var = lcompile("(def a-regular-var 1)")
+        assert v.dynamic is False
+        lcompile("(.push-bindings #'a-regular-var :hi)")
+        assert 1 == lcompile("a-regular-var")
+        assert kw.keyword("hi") == lcompile("(.pop-bindings #'a-regular-var)")
+        assert 1 == lcompile("a-regular-var")
 
 
 def test_do(ns: runtime.Namespace):
@@ -244,17 +252,141 @@ def test_do(ns: runtime.Namespace):
     assert lcompile("last-name") == "Vader"
 
 
-def test_invalid_fn_def(ns: runtime.Namespace):
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [m &] m)")
+class TestFunctionShadowName:
+    def test_single_arity_fn_no_log_if_warning_disabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        lcompile("(fn [v] (fn [v] v))")
+        assert ("name 'v' shadows name from outer scope") not in caplog.messages
+
+    def test_multi_arity_fn_no_log_if_warning_disabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        lcompile(
+            """
+        (fn
+          ([] :a)
+          ([v] (fn [v] v)))
+        """
+        )
+        assert ("name 'v' shadows name from outer scope") not in caplog.messages
+
+    def test_single_arity_fn_log_if_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        lcompile("(fn [v] (fn [v] v))", opts={compiler.WARN_ON_SHADOWED_NAME: True})
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            "name 'v' shadows name from outer scope",
+        ) in caplog.record_tuples
+
+    def test_multi_arity_fn_log_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+        code = """
+        (fn
+          ([] :a)
+          ([v] (fn [v] v)))
+        """
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            "name 'v' shadows name from outer scope",
+        ) in caplog.record_tuples
+
+    def test_single_arity_fn_log_shadows_var_if_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        code = """
+        (def unique-bljzndd :a)
+        (fn [unique-bljzndd] unique-bljzndd)
+        """
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            "name 'unique-bljzndd' shadows def'ed Var from outer scope",
+        ) in caplog.record_tuples
+
+    def test_multi_arity_fn_log_shadows_var_if_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        code = """
+        (def unique-yezddid :a)
+        (fn
+          ([] :b)
+          ([unique-yezddid] unique-yezddid))
+        """
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            "name 'unique-yezddid' shadows def'ed Var from outer scope",
+        ) in caplog.record_tuples
 
 
-def test_fn_warn_on_shadow_name(ns: runtime.Namespace):
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+class TestFunctionShadowVar:
+    def test_single_arity_fn_no_log_if_warning_disabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        code = """
+        (def unique-vfsdhsk :a)
+        (fn [unique-vfsdhsk] unique-vfsdhsk)
+        """
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
+        assert_no_logs(caplog)
+
+    def test_multi_arity_fn_no_log_if_warning_disabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        code = """
+        (def unique-mmndheee :a)
+        (fn
+          ([] :b)
+          ([unique-mmndheee] unique-mmndheee))
+        """
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
+        assert_no_logs(caplog)
+
+    def test_single_arity_fn_log_if_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        code = """
+        (def unique-kuieeid :a)
+        (fn [unique-kuieeid] unique-kuieeid)
+        """
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            "name 'unique-kuieeid' shadows def'ed Var from outer scope",
+        ) in caplog.record_tuples
+
+    def test_multi_arity_fn_log_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+        code = """
+        (def unique-peuudcdf :a)
+        (fn
+          ([] :b)
+          ([unique-peuudcdf] unique-peuudcdf))
+        """
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            "name 'unique-peuudcdf' shadows def'ed Var from outer scope",
+        ) in caplog.record_tuples
+
+
+class TestFunctionWarnUnusedName:
+    def test_single_arity_fn_no_log_if_warning_disabled(
+        self, ns: runtime.Namespace, caplog
+    ):
         lcompile("(fn [v] (fn [v] v))", opts={compiler.WARN_ON_UNUSED_NAMES: False})
-        logger.warning.assert_not_called()
+        assert_no_logs(caplog)
 
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_multi_arity_fn_no_log_if_warning_disabled(
+        self, ns: runtime.Namespace, caplog
+    ):
         lcompile(
             """
         (fn
@@ -263,115 +395,19 @@ def test_fn_warn_on_shadow_name(ns: runtime.Namespace):
         """,
             opts={compiler.WARN_ON_UNUSED_NAMES: False},
         )
+        assert_no_logs(caplog)
 
-        logger.warning.assert_not_called()
-
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile(
-            "(fn [v] (fn [v] v))",
-            opts={
-                compiler.WARN_ON_SHADOWED_NAME: True,
-                compiler.WARN_ON_UNUSED_NAMES: False,
-            },
-        )
-
-        logger.warning.assert_called_once_with("name 'v' shadows name from outer scope")
-
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
-        code = """
-        (fn
-          ([] :a)
-          ([v] (fn [v] v)))
-        """
-        lcompile(
-            code,
-            opts={
-                compiler.WARN_ON_SHADOWED_NAME: True,
-                compiler.WARN_ON_UNUSED_NAMES: False,
-            },
-        )
-
-        logger.warning.assert_called_once_with("name 'v' shadows name from outer scope")
-
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
-        code = """
-        (def unique-bljzndd :a)
-        (fn [unique-bljzndd] unique-bljzndd)
-        """
-        lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
-
-        logger.warning.assert_called_once_with(
-            "name 'unique-bljzndd' shadows def'ed Var from outer scope"
-        )
-
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
-        code = """
-        (def unique-yezddid :a)
-        (fn
-          ([] :b)
-          ([unique-yezddid] unique-yezddid))
-        """
-        lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
-
-        logger.warning.assert_called_once_with(
-            "name 'unique-yezddid' shadows def'ed Var from outer scope"
-        )
-
-
-def test_fn_warn_on_shadow_var(ns: runtime.Namespace):
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
-        code = """
-        (def unique-vfsdhsk :a)
-        (fn [unique-vfsdhsk] unique-vfsdhsk)
-        """
-        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
-
-        logger.warning.assert_not_called()
-
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
-        code = """
-        (def unique-mmndheee :a)
-        (fn
-          ([] :b)
-          ([unique-mmndheee] unique-mmndheee))
-        """
-        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
-
-        logger.warning.assert_not_called()
-
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
-        code = """
-        (def unique-kuieeid :a)
-        (fn [unique-kuieeid] unique-kuieeid)
-        """
-        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
-
-        logger.warning.assert_called_once_with(
-            "name 'unique-kuieeid' shadows def'ed Var from outer scope"
-        )
-
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
-        code = """
-        (def unique-peuudcdf :a)
-        (fn
-          ([] :b)
-          ([unique-peuudcdf] unique-peuudcdf))
-        """
-        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
-
-        logger.warning.assert_called_once_with(
-            "name 'unique-peuudcdf' shadows def'ed Var from outer scope"
-        )
-
-
-def test_fn_warn_on_unused_name(ns: runtime.Namespace):
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_single_arity_fn_log_if_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
         lcompile("(fn [v] (fn [v] v))", opts={compiler.WARN_ON_UNUSED_NAMES: True})
-        logger.warning.assert_called_once_with(
-            f"symbol 'v' defined but not used ({ns}: 1)"
-        )
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            f"symbol 'v' defined but not used ({ns}: 1)",
+        ) in caplog.record_tuples
 
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_multi_arity_fn_log_if_warning_enabled(self, ns: runtime.Namespace, caplog):
         lcompile(
             """
         (fn
@@ -380,10 +416,16 @@ def test_fn_warn_on_unused_name(ns: runtime.Namespace):
         """,
             opts={compiler.WARN_ON_UNUSED_NAMES: True},
         )
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            f"symbol 'v' defined but not used ({ns}: 3)",
+        ) in caplog.record_tuples
 
-        logger.warning.assert_called_once_with(
-            f"symbol 'v' defined but not used ({ns}: 3)"
-        )
+
+def test_invalid_fn_def(ns: runtime.Namespace):
+    with pytest.raises(compiler.CompilerException):
+        lcompile("(fn [m &] m)")
 
 
 def test_single_arity_fn(ns: runtime.Namespace):
@@ -662,72 +704,90 @@ def test_let_lazy_evaluation(ns: runtime.Namespace):
     assert kw.keyword("false") == lcompile(code)
 
 
-def test_let_warn_on_shadow_name(ns: runtime.Namespace):
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+class TestLetShadowName:
+    def test_no_warning_if_no_shadowing_and_warning_disabled(
+        self, ns: runtime.Namespace, caplog
+    ):
         lcompile("(let [m 3] m)")
-        logger.warning.assert_not_called()
+        assert_no_logs(caplog)
 
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
         lcompile(
             "(let [m 3] (let [m 4] m))", opts={compiler.WARN_ON_UNUSED_NAMES: False}
         )
-        logger.warning.assert_not_called()
+        assert_no_logs(caplog)
 
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_no_warning_if_no_shadowing_and_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
         lcompile("(let [m 3] m)", opts={compiler.WARN_ON_SHADOWED_NAME: True})
-        logger.warning.assert_not_called()
+        assert_no_logs(caplog)
 
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
         lcompile(
-            "(let [m 3] (let [m 4] m))",
-            opts={
-                compiler.WARN_ON_SHADOWED_NAME: True,
-                compiler.WARN_ON_UNUSED_NAMES: False,
-            },
+            "(let [m 3] (let [m 4] m))", opts={compiler.WARN_ON_SHADOWED_NAME: True}
         )
-        logger.warning.assert_called_once_with("name 'm' shadows name from outer scope")
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            "name 'm' shadows name from outer scope",
+        ) in caplog.record_tuples
 
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_warning_if_shadowing_var_and_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
         code = """
         (def unique-yyenfvhj :a)
         (let [unique-yyenfvhj 3] unique-yyenfvhj)
         """
 
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
-        logger.warning.assert_called_once_with(
-            "name 'unique-yyenfvhj' shadows def'ed Var from outer scope"
-        )
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            "name 'unique-yyenfvhj' shadows def'ed Var from outer scope",
+        ) in caplog.record_tuples
 
 
-def test_let_warn_on_shadow_var(ns: runtime.Namespace):
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+class TestLetShadowVar:
+    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
         code = """
         (def unique-gghdjeeh :a)
         (let [unique-gghdjeeh 3] unique-gghdjeeh)
         """
 
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
-        logger.warning.assert_not_called()
+        assert_no_logs(caplog)
 
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
         code = """
         (def unique-uoieyqq :a)
         (let [unique-uoieyqq 3] unique-uoieyqq)
         """
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
-        logger.warning.assert_called_once_with(
-            "name 'unique-uoieyqq' shadows def'ed Var from outer scope"
-        )
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            "name 'unique-uoieyqq' shadows def'ed Var from outer scope",
+        ) in caplog.record_tuples
 
 
-def test_let_warn_on_unused_name(ns: runtime.Namespace):
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+class TestLetUnusedNames:
+    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
         lcompile("(let [v 4] :a)", opts={compiler.WARN_ON_UNUSED_NAMES: True})
-        logger.warning.assert_called_once_with(
-            f"symbol 'v' defined but not used ({ns}: 1)"
-        )
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            f"symbol 'v' defined but not used ({ns}: 1)",
+        ) in caplog.record_tuples
 
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
+    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
+        lcompile("(let [v 4] :a)", opts={compiler.WARN_ON_UNUSED_NAMES: False})
+        assert f"symbol 'v' defined but not used ({ns}: 1)" not in caplog.messages
+
+    def test_warning_for_nested_let_if_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
         lcompile(
             """
         (let [v 4]
@@ -736,10 +796,24 @@ def test_let_warn_on_unused_name(ns: runtime.Namespace):
         """,
             opts={compiler.WARN_ON_UNUSED_NAMES: True},
         )
+        assert (
+            "basilisp.lang.compiler.parser",
+            logging.WARNING,
+            f"symbol 'v' defined but not used ({ns}: 1)",
+        ) in caplog.record_tuples
 
-        logger.warning.assert_called_once_with(
-            f"symbol 'v' defined but not used ({ns}: 1)"
+    def test_no_warning_for_nested_let_if_warning_disabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        lcompile(
+            """
+        (let [v 4]
+          (let [v 5]
+            v))
+        """,
+            opts={compiler.WARN_ON_UNUSED_NAMES: False},
         )
+        assert f"symbol 'v' defined but not used ({ns}: 1)" not in caplog.messages
 
 
 def test_loop(ns: runtime.Namespace):
@@ -1063,18 +1137,6 @@ def test_try_catch(capsys, ns: runtime.Namespace):
     assert "neither\n" == captured.out
 
 
-def test_warn_on_var_indirection(ns: runtime.Namespace):
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile("(fn [] m)", opts={compiler.WARN_ON_VAR_INDIRECTION: False})
-        logger.warning.assert_not_called()
-
-    with mock.patch("basilisp.lang.compiler.logger") as logger:
-        lcompile("(fn [] m)")
-        logger.warning.assert_called_once_with(
-            "could not resolve a direct link to Var 'm'"
-        )
-
-
 def test_unquote(ns: runtime.Namespace):
     with pytest.raises(compiler.CompilerException):
         lcompile("~s")
@@ -1116,49 +1178,82 @@ def test_aliased_macro_symbol_resolution(ns: runtime.Namespace):
         runtime.Namespace.remove(other_ns_name)
 
 
-def test_warn_on_var_indirection_cross_ns(ns: runtime.Namespace):
-    current_ns: runtime.Namespace = ns
-    other_ns_name = sym.symbol("other.ns")
-    try:
-        other_ns = runtime.Namespace.get_or_create(other_ns_name)
-        current_ns.add_alias(other_ns_name, other_ns)
-        current_ns.add_alias(sym.symbol("other"), other_ns)
+class TestWarnOnVarIndirection:
+    @pytest.fixture
+    def other_ns(self, ns: runtime.Namespace):
+        current_ns: runtime.Namespace = ns
+        other_ns_name = sym.symbol("other.ns")
+        try:
+            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            Var.intern(other_ns_name, sym.symbol("m"), lambda x: x)
+            current_ns.add_alias(other_ns_name, other_ns)
+            current_ns.add_alias(sym.symbol("other"), other_ns)
 
-        with runtime.ns_bindings(current_ns.name):
-            with mock.patch("basilisp.lang.compiler.logger") as logger:
-                lcompile(
-                    "(fn [] (other.ns/m :z))",
-                    opts={compiler.WARN_ON_SHADOWED_VAR: True},
-                )
+            with runtime.ns_bindings(current_ns.name):
+                yield
+        finally:
+            runtime.Namespace.remove(other_ns_name)
 
-                logger.warning.assert_called_once_with(
-                    "could not resolve a direct link to Var 'other.ns/m'"
-                )
+    def test_warning_for_cross_ns_reference(self, other_ns, caplog):
+        lcompile(
+            "(fn [] (other.ns/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: True}
+        )
+        assert (
+            "basilisp.lang.compiler.generator",
+            logging.WARNING,
+            "could not resolve a direct link to Var 'm'",
+        ) in caplog.record_tuples
 
-            with mock.patch("basilisp.lang.compiler.logger") as logger:
-                lcompile(
-                    "(fn [] (other/m :z))", opts={compiler.WARN_ON_SHADOWED_VAR: True}
-                )
+    def test_no_warning_for_cross_ns_reference_if_warning_disabled(
+        self, other_ns, caplog
+    ):
+        lcompile(
+            "(fn [] (other.ns/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: False}
+        )
+        assert ("could not resolve a direct link to Var 'm'") not in caplog.messages
 
-                logger.warning.assert_called_once_with(
-                    "could not resolve a direct link to Var 'other/m'"
-                )
-    finally:
-        runtime.Namespace.remove(other_ns_name)
+    def test_warning_for_cross_ns_alias_reference(self, other_ns, caplog):
+        lcompile("(fn [] (other/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: True})
+        assert (
+            "basilisp.lang.compiler.generator",
+            logging.WARNING,
+            "could not resolve a direct link to Var 'm'",
+        ) in caplog.record_tuples
 
+    def test_no_warning_for_cross_ns_alias_reference_if_warning_disabled(
+        self, other_ns, caplog
+    ):
+        lcompile("(fn [] (other/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: False})
+        assert ("could not resolve a direct link to Var 'm'") not in caplog.messages
 
-def test_warn_on_var_indirection_on_import(ns: runtime.Namespace):
-    ns.add_import(sym.symbol("string"), __import__("string"))
+    def test_warning_on_imported_name(self, ns: runtime.Namespace, caplog):
+        """Basilisp should be able to directly resolve a link to cross-namespace
+        imports, so no warning should be raised."""
+        ns.add_import(sym.symbol("string"), __import__("string"))
 
-    with runtime.ns_bindings(ns.name):
-        with mock.patch("basilisp.lang.compiler.logger") as logger:
+        with runtime.ns_bindings(ns.name):
             lcompile(
-                "(fn [] (string/m :z))", opts={compiler.WARN_ON_SHADOWED_VAR: True}
+                '(fn [] (string/capwords "capitalize this"))',
+                opts={compiler.WARN_ON_VAR_INDIRECTION: True},
+            )
+            assert (
+                "could not resolve a direct link to Python variable 'string/m'"
+            ) not in caplog.messages
+
+    def test_exception_raised_for_nonexistent_imported_name(
+        self, ns: runtime.Namespace, caplog
+    ):
+        """If a name does not exist, then a CompilerException will be raised."""
+        ns.add_import(sym.symbol("string"), __import__("string"))
+
+        with runtime.ns_bindings(ns.name), pytest.raises(compiler.CompilerException):
+            lcompile(
+                "(fn [] (string/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: True}
             )
 
-            logger.warning.assert_called_once_with(
-                "could not resolve a direct link to Python variable 'string/m'"
-            )
+    def test_exception_raised_for_nonexistent_var_name(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn [] m)", opts={compiler.WARN_ON_VAR_INDIRECTION: True})
 
 
 def test_var(ns: runtime.Namespace):

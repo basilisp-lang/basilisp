@@ -520,6 +520,28 @@ def expressionize(
 #################
 
 
+def __should_warn_on_redef(
+    ctx: GeneratorContext, defsym: sym.Symbol, safe_name: str, def_meta: lmap.Map
+) -> bool:
+    """Return True if the compiler should emit a warning about this name being redefined."""
+    no_warn_on_redef = def_meta.entry(SYM_NO_WARN_ON_REDEF_META_KEY, False)
+    if no_warn_on_redef:
+        return False
+    elif safe_name in ctx.current_ns.module.__dict__:
+        return True
+    elif defsym in ctx.current_ns.interns:
+        var = ctx.current_ns.find(defsym)
+        assert var is not None, f"Var {defsym} cannot be none here"
+
+        if var.meta is not None and var.meta.entry(SYM_REDEF_META_KEY):
+            return False
+
+        if var.is_bound:
+            return True
+    else:
+        return False
+
+
 @_with_ast_loc
 def _def_to_py_ast(  # pylint: disable=too-many-branches
     ctx: GeneratorContext, node: Def
@@ -564,15 +586,10 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     )
 
     # Warn if this symbol is potentially being redefined
-    if safe_name in ctx.current_ns.module.__dict__ or (
-        defsym in ctx.current_ns.interns
-        and ctx.current_ns.find(defsym).is_bound  # type: ignore
-    ):
-        no_warn_on_redef = def_meta.entry(SYM_NO_WARN_ON_REDEF_META_KEY, False)
-        if not no_warn_on_redef:
-            logger.warning(
-                f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'"
-            )
+    if __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
+        logger.warning(
+            f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'"
+        )
 
     meta_ast = gen_py_ast(ctx, node.meta)
 
@@ -1570,6 +1587,9 @@ def _var_sym_to_py_ast(
         if ns is ctx.current_ns:
             return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
         return GeneratedPyAST(node=_load_attr(f"{safe_ns}.{safe_name}", ctx=py_var_ctx))
+
+    if ctx.warn_on_var_indirection:
+        logger.warning(f"could not resolve a direct link to Var '{var_name}'")
 
     return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
 

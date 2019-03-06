@@ -45,6 +45,7 @@ from basilisp.lang.compiler.constants import (
     LINE_KW,
     NAME_KW,
     NS_KW,
+    SYM_NO_WARN_WHEN_UNUSED_META_KEY,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compiler.nodes import (
@@ -297,6 +298,43 @@ class ParserContext:
     def symbol_table(self) -> SymbolTable:
         return self._st[-1]
 
+    def put_new_symbol(  # pylint: disable=too-many-arguments
+        self,
+        s: sym.Symbol,
+        sym_ctx: LocalType,
+        warn_on_shadowed_name: bool = True,
+        warn_on_shadowed_var: bool = True,
+        warn_if_unused: bool = True,
+    ):
+        """Add a new symbol to the symbol table.
+
+        This function allows individual warnings to be disabled for one run
+        by supplying keyword arguments temporarily disabling those warnings.
+        In certain cases, we do not want to issue warnings again for a
+        previously checked case, so this is a simple way of disabling these
+        warnings for those cases.
+
+        If WARN_ON_SHADOWED_NAME compiler option is active and the
+        warn_on_shadowed_name keyword argument is True, then a warning will be
+        emitted if a local name is shadowed by another local name. Note that
+        WARN_ON_SHADOWED_NAME implies WARN_ON_SHADOWED_VAR.
+
+        If WARN_ON_SHADOWED_VAR compiler option is active and the
+        warn_on_shadowed_var keyword argument is True, then a warning will be
+        emitted if a named var is shadowed by a local name."""
+        st = self.symbol_table
+        if warn_on_shadowed_name and self.warn_on_shadowed_name:
+            if st.find_symbol(s) is not None:
+                logger.warning(f"name '{s}' shadows name from outer scope")
+        if (
+            warn_on_shadowed_name or warn_on_shadowed_var
+        ) and self.warn_on_shadowed_var:
+            if self.current_ns.find(s) is not None:
+                logger.warning(f"name '{s}' shadows def'ed Var from outer scope")
+        if s.meta is not None and s.meta.entry(SYM_NO_WARN_WHEN_UNUSED_META_KEY, None):
+            warn_if_unused = False
+        st.new_symbol(s, sym_ctx, warn_if_unused=warn_if_unused)
+
     @contextlib.contextmanager
     def new_symbol_table(self, name):
         old_st = self.symbol_table
@@ -542,7 +580,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches
                 )
             )
 
-            ctx.symbol_table.new_symbol(s, LocalType.ARG)
+            ctx.put_new_symbol(s, LocalType.ARG)
 
         if has_vargs:
             try:
@@ -564,7 +602,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches
                     )
                 )
 
-                ctx.symbol_table.new_symbol(vargs_sym, LocalType.ARG)
+                ctx.put_new_symbol(vargs_sym, LocalType.ARG)
             except IndexError:
                 raise ParserException(
                     "Expected variadic argument name after '&'", form=params
@@ -611,7 +649,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
     with ctx.new_symbol_table("fn"):
         name = runtime.nth(form, idx)
         if isinstance(name, sym.Symbol):
-            ctx.symbol_table.new_symbol(name, LocalType.FN, warn_if_unused=False)
+            ctx.put_new_symbol(name, LocalType.FN, warn_if_unused=False)
             name_node: Optional[Binding] = Binding(
                 form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
@@ -961,7 +999,7 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
                 )
             )
 
-            ctx.symbol_table.new_symbol(name, LocalType.LET)
+            ctx.put_new_symbol(name, LocalType.LET)
 
         let_body = runtime.nthrest(form, 2)
         *statements, ret = map(partial(_parse_ast, ctx), let_body)
@@ -1013,7 +1051,7 @@ def _loop_ast(ctx: ParserContext, form: lseq.Seq) -> Loop:
                 )
             )
 
-            ctx.symbol_table.new_symbol(name, LocalType.LOOP)
+            ctx.put_new_symbol(name, LocalType.LOOP)
 
         with ctx.new_recur_point(loop_id, binding_nodes):
             loop_body = runtime.nthrest(form, 2)
@@ -1169,7 +1207,7 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
         raise ParserException("catch local must be a symbol", form=local_name)
 
     with ctx.new_symbol_table("catch"):
-        ctx.symbol_table.new_symbol(local_name, LocalType.CATCH)
+        ctx.put_new_symbol(local_name, LocalType.CATCH)
 
         catch_body = runtime.nthrest(form, 3)
         *catch_statements, catch_ret = map(partial(_parse_ast, ctx), catch_body)
