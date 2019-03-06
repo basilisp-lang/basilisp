@@ -535,9 +535,10 @@ def __should_warn_on_redef(
 
         if var.meta is not None and var.meta.entry(SYM_REDEF_META_KEY):
             return False
-
-        if var.is_bound:
+        elif var.is_bound:
             return True
+        else:
+            return False
     else:
         return False
 
