@@ -606,7 +606,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches
             except IndexError:
                 raise ParserException(
                     "Expected variadic argument name after '&'", form=params
-                )
+                ) from None
 
         fn_loop_id = genname("fn_arity" if fnname is None else fnname.name)
         with ctx.new_recur_point(fn_loop_id, param_nodes):
@@ -932,12 +932,12 @@ def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
                 return expanded_ast.assoc(
                     raw_forms=cast(vec.Vector, expanded_ast.raw_forms).cons(form)
                 )
-            except Exception:
+            except Exception as e:
                 raise CompilerException(
                     "error occurred during macroexpansion",
                     form=form,
                     phase=CompilerPhase.MACROEXPANSION,
-                )
+                ) from e
 
     descriptor = Invoke(
         form=form,

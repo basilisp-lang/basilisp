@@ -17,7 +17,7 @@ class CompilerPhase(Enum):
     COMPILING_PYTHON = kw.keyword("compiling-python")
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.s(auto_attribs=True, slots=True)
 class CompilerException(Exception):
     msg: str
     phase: CompilerPhase

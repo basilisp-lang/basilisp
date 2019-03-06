@@ -15,6 +15,7 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
 import basilisp.main as basilisp
 
+CLI_INPUT_FILE_PATH = "<CLI Input>"
 REPL_INPUT_FILE_PATH = "<REPL Input>"
 
 
@@ -189,7 +190,7 @@ def run(  # pylint: disable=too-many-arguments
     """Run a Basilisp script or a line of code, if it is provided."""
     basilisp.init()
     ctx = compiler.CompilerContext(
-        filename=None if code else file_or_code,
+        filename=CLI_INPUT_FILE_PATH if code else file_or_code,
         opts={
             compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
             compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
