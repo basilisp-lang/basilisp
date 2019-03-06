@@ -663,7 +663,16 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
-        arity_or_args = runtime.nth(form, idx)
+        try:
+            arity_or_args = runtime.nth(form, idx)
+        except IndexError:
+            raise ParserException(
+                "fn form expects either multiple arities or a vector of arguments",
+                form=form,
+            )
+
+        assert isinstance(arity_or_args, (llist.List, vec.Vector))
+
         if isinstance(arity_or_args, llist.List):
             methods = vec.vector(
                 map(
@@ -674,11 +683,6 @@ def _fn_ast(  # pylint: disable=too-many-branches
         elif isinstance(arity_or_args, vec.Vector):
             methods = vec.v(
                 __fn_method_ast(ctx, runtime.nthrest(form, idx), fnname=name)
-            )
-        else:
-            raise ParserException(
-                "fn form expects either multiple arities or a vector of arguments",
-                form=arity_or_args,
             )
 
         if count(methods) == 0:

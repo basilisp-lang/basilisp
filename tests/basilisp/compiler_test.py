@@ -80,84 +80,76 @@ def lcompile(
     return last
 
 
-def test_string():
-    assert lcompile('"some string"') == "some string"
-    assert lcompile('""') == ""
+class TestLiterals:
+    def test_string(self):
+        assert lcompile('"some string"') == "some string"
+        assert lcompile('""') == ""
 
+    def test_int(self):
+        assert 1 == lcompile("1")
+        assert 100 == lcompile("100")
+        assert 99_927_273 == lcompile("99927273")
+        assert 0 == lcompile("0")
+        assert -1 == lcompile("-1")
+        assert -538_282 == lcompile("-538282")
 
-def test_int():
-    assert 1 == lcompile("1")
-    assert 100 == lcompile("100")
-    assert 99_927_273 == lcompile("99927273")
-    assert 0 == lcompile("0")
-    assert -1 == lcompile("-1")
-    assert -538_282 == lcompile("-538282")
+        assert 1 == lcompile("1N")
+        assert 100 == lcompile("100N")
+        assert 99_927_273 == lcompile("99927273N")
+        assert 0 == lcompile("0N")
+        assert -1 == lcompile("-1N")
+        assert -538_282 == lcompile("-538282N")
 
-    assert 1 == lcompile("1N")
-    assert 100 == lcompile("100N")
-    assert 99_927_273 == lcompile("99927273N")
-    assert 0 == lcompile("0N")
-    assert -1 == lcompile("-1N")
-    assert -538_282 == lcompile("-538282N")
+    def test_decimal(self):
+        assert decimal.Decimal("0.0") == lcompile("0.0M")
+        assert decimal.Decimal("0.09387372") == lcompile("0.09387372M")
+        assert decimal.Decimal("1.0") == lcompile("1.0M")
+        assert decimal.Decimal("1.332") == lcompile("1.332M")
+        assert decimal.Decimal("-1.332") == lcompile("-1.332M")
+        assert decimal.Decimal("-1.0") == lcompile("-1.0M")
+        assert decimal.Decimal("-0.332") == lcompile("-0.332M")
+        assert decimal.Decimal("3.14") == lcompile("3.14M")
 
+    def test_float(self):
+        assert lcompile("0.0") == 0.0
+        assert lcompile("0.09387372") == 0.093_873_72
+        assert lcompile("1.0") == 1.0
+        assert lcompile("1.332") == 1.332
+        assert lcompile("-1.332") == -1.332
+        assert lcompile("-1.0") == -1.0
+        assert lcompile("-0.332") == -0.332
 
-def test_decimal():
-    assert decimal.Decimal("0.0") == lcompile("0.0M")
-    assert decimal.Decimal("0.09387372") == lcompile("0.09387372M")
-    assert decimal.Decimal("1.0") == lcompile("1.0M")
-    assert decimal.Decimal("1.332") == lcompile("1.332M")
-    assert decimal.Decimal("-1.332") == lcompile("-1.332M")
-    assert decimal.Decimal("-1.0") == lcompile("-1.0M")
-    assert decimal.Decimal("-0.332") == lcompile("-0.332M")
-    assert decimal.Decimal("3.14") == lcompile("3.14M")
+    def test_kw(self):
+        assert lcompile(":kw") == kw.keyword("kw")
+        assert lcompile(":ns/kw") == kw.keyword("kw", ns="ns")
+        assert lcompile(":qualified.ns/kw") == kw.keyword("kw", ns="qualified.ns")
 
+    def test_literals(self):
+        assert lcompile("nil") is None
+        assert lcompile("true") is True
+        assert lcompile("false") is False
 
-def test_float():
-    assert lcompile("0.0") == 0.0
-    assert lcompile("0.09387372") == 0.093_873_72
-    assert lcompile("1.0") == 1.0
-    assert lcompile("1.332") == 1.332
-    assert lcompile("-1.332") == -1.332
-    assert lcompile("-1.0") == -1.0
-    assert lcompile("-0.332") == -0.332
+    def test_quoted_symbol(self):
+        assert lcompile("'sym") == sym.symbol("sym")
+        assert lcompile("'ns/sym") == sym.symbol("sym", ns="ns")
+        assert lcompile("'qualified.ns/sym") == sym.symbol("sym", ns="qualified.ns")
 
+    def test_map(self):
+        assert lcompile("{}") == lmap.m()
+        assert lcompile('{:a "string"}') == lmap.map({kw.keyword("a"): "string"})
+        assert lcompile('{:a "string" 45 :my-age}') == lmap.map(
+            {kw.keyword("a"): "string", 45: kw.keyword("my-age")}
+        )
 
-def test_kw():
-    assert lcompile(":kw") == kw.keyword("kw")
-    assert lcompile(":ns/kw") == kw.keyword("kw", ns="ns")
-    assert lcompile(":qualified.ns/kw") == kw.keyword("kw", ns="qualified.ns")
+    def test_set(self):
+        assert lcompile("#{}") == lset.s()
+        assert lcompile("#{:a}") == lset.s(kw.keyword("a"))
+        assert lcompile("#{:a 1}") == lset.s(kw.keyword("a"), 1)
 
-
-def test_literals():
-    assert lcompile("nil") is None
-    assert lcompile("true") is True
-    assert lcompile("false") is False
-
-
-def test_quoted_symbol():
-    assert lcompile("'sym") == sym.symbol("sym")
-    assert lcompile("'ns/sym") == sym.symbol("sym", ns="ns")
-    assert lcompile("'qualified.ns/sym") == sym.symbol("sym", ns="qualified.ns")
-
-
-def test_map():
-    assert lcompile("{}") == lmap.m()
-    assert lcompile('{:a "string"}') == lmap.map({kw.keyword("a"): "string"})
-    assert lcompile('{:a "string" 45 :my-age}') == lmap.map(
-        {kw.keyword("a"): "string", 45: kw.keyword("my-age")}
-    )
-
-
-def test_set():
-    assert lcompile("#{}") == lset.s()
-    assert lcompile("#{:a}") == lset.s(kw.keyword("a"))
-    assert lcompile("#{:a 1}") == lset.s(kw.keyword("a"), 1)
-
-
-def test_vec():
-    assert lcompile("[]") == vec.v()
-    assert lcompile("[:a]") == vec.v(kw.keyword("a"))
-    assert lcompile("[:a 1]") == vec.v(kw.keyword("a"), 1)
+    def test_vec(self):
+        assert lcompile("[]") == vec.v()
+        assert lcompile("[:a]") == vec.v(kw.keyword("a"))
+        assert lcompile("[:a 1]") == vec.v(kw.keyword("a"), 1)
 
 
 class TestDef:
@@ -171,6 +163,28 @@ class TestDef:
         )
         assert lcompile("a") == kw.keyword("some-val")
         assert lcompile("beep") == "a sound a robot makes"
+
+    def test_def_unbound(self, ns: runtime.Namespace):
+        lcompile("(def a)")
+        var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("a"))
+        assert var.root is None
+        # TODO: fix this
+        # assert not var.is_bound
+
+    def test_def_number_of_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(def)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(def a "docstring" :b :c)')
+
+    def test_def_name_is_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(def :a)")
+
+    def test_def_docstring_is_string(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(def a :not-a-docstring :a)")
 
     def test_compiler_metadata(self, ns: runtime.Namespace):
         lcompile('(def ^{:doc "Super cool docstring"} unique-oeuene :a)')
@@ -423,124 +437,203 @@ class TestFunctionWarnUnusedName:
         ) in caplog.record_tuples
 
 
-def test_invalid_fn_def(ns: runtime.Namespace):
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [m &] m)")
+class TestFunctionDef:
+    def test_fn_with_no_args_throws(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* a)")
 
+    def test_fn_with_invalid_name_throws(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* :a)")
 
-def test_single_arity_fn(ns: runtime.Namespace):
-    code = """
-    (def empty-single (fn* empty-single []))
-    """
-    ns_name = ns.name
-    fvar = lcompile(code)
-    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("empty-single")) == fvar
-    assert callable(fvar.value)
-    assert None is fvar.value()
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* :a [])")
 
-    code = """
-    (def string-upper (fn* string-upper [s] (.upper s)))
-    """
-    ns_name = ns.name
-    fvar = lcompile(code)
-    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-upper")) == fvar
-    assert callable(fvar.value)
-    assert "LOWER" == fvar.value("lower")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* :a ([] :a) ([a] a))")
 
-    code = """
-    (def string-upper (fn* string-upper ([s] (.upper s))))
-    """
-    ns_name = ns.name
-    fvar = lcompile(code)
-    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-upper")) == fvar
-    assert callable(fvar.value)
-    assert "LOWER" == fvar.value("lower")
+    def test_variadic_arity_fn_has_variadic_argument(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* [m &] m)")
 
-    code = """
-    (def string-lower #(.lower %))
-    """
-    ns_name = ns.name
-    fvar = lcompile(code)
-    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-lower")) == fvar
-    assert callable(fvar.value)
-    assert "upper" == fvar.value("UPPER")
+    def test_variadic_arity_fn_method_has_variadic_argument(
+        self, ns: runtime.Namespace
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* ([] :a) ([m &] m))")
 
+    def test_fn_argument_vector_is_vector(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* () :a)")
 
-def test_multi_arity_fn(ns: runtime.Namespace):
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(fn f)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* (a) a)")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile(
-            """
-            (def f
-              (fn* f
-                ([] :no-args)
-                ([] :also-no-args)))
-            """
-        )
+    def test_fn_method_argument_vector_is_vector(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* (() :a) ((a) a))")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile(
-            """
-            (def f
-              (fn* f
-                ([& args] (concat [:no-starter] args))
-                ([s & args] (concat [s] args))))
-            """
-        )
+    def test_fn_arg_is_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* [:a] :a)")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile(
-            """
-            (def f
-              (fn* f
-                ([s] (concat [s] :one-arg))
-                ([& args] (concat [:rest-params] args))))
-            """
-        )
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* [a :b] :a)")
 
-    code = """
-    (def empty-multi-fn
-      (fn* empty-multi-fn
-        ([])
-        ([s])))
-    """
-    ns_name = ns.name
-    fvar = lcompile(code)
-    assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("empty-multi-fn")) == fvar
-    assert callable(fvar.value)
-    assert None is fvar.value()
-    assert None is fvar.value("STRING")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* [a b & :c] :a)")
 
-    code = """
-    (def multi-fn
-      (fn* multi-fn
-        ([] :no-args)
-        ([s] s)
-        ([s & args] (concat [s] args))))
-    """
-    ns_name = ns.name
-    fvar = lcompile(code)
-    assert fvar == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("multi-fn"))
-    assert callable(fvar.value)
-    assert fvar.value() == kw.keyword("no-args")
-    assert fvar.value("STRING") == "STRING"
-    assert fvar.value(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
-        kw.keyword("first-arg"), "second-arg", 3
-    )
+    def test_fn_method_arg_is_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* ([a] a) ([a :b] a))")
 
-    with pytest.raises(runtime.RuntimeException):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* ([a] a) ([a & :b] a))")
+
+    def test_fn_allows_empty_body(self, ns: runtime.Namespace):
+        ns_name = ns.name
+        fvar = lcompile("(def empty-single (fn* empty-single []))")
+        assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("empty-single")) == fvar
+        assert callable(fvar.value)
+        assert None is fvar.value()
+
+    def test_fn_method_allows_empty_body(self, ns: runtime.Namespace):
+        ns_name = ns.name
+        fvar = lcompile("(def empty-single (fn* empty-single ([]) ([a] :a)))")
+        assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("empty-single")) == fvar
+        assert callable(fvar.value)
+        assert None is fvar.value()
+
+    def test_single_arity_fn(self, ns: runtime.Namespace):
         code = """
-            (def angry-multi-fn
-              (fn* angry-multi-fn
-                ([] :send-me-an-arg!)
-                ([i] i)
-                ([i j] (concat [i] [j]))))
-            """
+        (def string-upper (fn* string-upper [s] (.upper s)))
+        """
         ns_name = ns.name
         fvar = lcompile(code)
-        fvar.value(1, 2, 3)
+        assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-upper")) == fvar
+        assert callable(fvar.value)
+        assert "LOWER" == fvar.value("lower")
+
+        code = """
+        (def string-upper (fn* string-upper ([s] (.upper s))))
+        """
+        ns_name = ns.name
+        fvar = lcompile(code)
+        assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-upper")) == fvar
+        assert callable(fvar.value)
+        assert "LOWER" == fvar.value("lower")
+
+        code = """
+        (def string-lower #(.lower %))
+        """
+        ns_name = ns.name
+        fvar = lcompile(code)
+        assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-lower")) == fvar
+        assert callable(fvar.value)
+        assert "upper" == fvar.value("UPPER")
+
+    def test_no_fn_method_has_same_fixed_arity(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (def f
+                  (fn* f
+                    ([] :no-args)
+                    ([] :also-no-args)))
+                """
+            )
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (def f
+                  (fn* f
+                    ([s] :one-arg)
+                    ([s] :also-one-arg)))
+                """
+            )
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (def f
+                  (fn* f
+                    ([] :no-args)
+                    ([s] :one-arg)
+                    ([a b] [a b])
+                    ([s3] :also-one-arg)))
+                """
+            )
+
+    def test_multi_arity_fn_cannot_have_two_variadic_methods(
+        self, ns: runtime.Namespace
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (def f
+                  (fn* f
+                    ([& args] (concat [:no-starter] args))
+                    ([s & args] (concat [s] args))))
+                """
+            )
+
+    def test_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
+        self, ns: runtime.Namespace
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (def f
+                  (fn* f
+                    ([s] (concat [s] :one-arg))
+                    ([& args] (concat [:rest-params] args))))
+                """
+            )
+
+    def test_multi_arity_fn_dispatches_properly(self, ns: runtime.Namespace):
+        code = """
+        (def empty-multi-fn
+          (fn* empty-multi-fn
+            ([])
+            ([s])))
+        """
+        ns_name = ns.name
+        fvar = lcompile(code)
+        assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("empty-multi-fn")) == fvar
+        assert callable(fvar.value)
+        assert None is fvar.value()
+        assert None is fvar.value("STRING")
+
+        code = """
+        (def multi-fn
+          (fn* multi-fn
+            ([] :no-args)
+            ([s] s)
+            ([s & args] (concat [s] args))))
+        """
+        ns_name = ns.name
+        fvar = lcompile(code)
+        assert fvar == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("multi-fn"))
+        assert callable(fvar.value)
+        assert fvar.value() == kw.keyword("no-args")
+        assert fvar.value("STRING") == "STRING"
+        assert fvar.value(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
+            kw.keyword("first-arg"), "second-arg", 3
+        )
+
+    def test_multi_arity_fn_call_fails_if_no_valid_arity(self, ns: runtime.Namespace):
+        with pytest.raises(runtime.RuntimeException):
+            fvar = lcompile(
+                """
+                (def angry-multi-fn
+                  (fn* angry-multi-fn
+                    ([] :send-me-an-arg!)
+                    ([i] i)
+                    ([i j] (concat [i] [j]))))
+                """
+            )
+            fvar.value(1, 2, 3)
 
 
 def test_fn_call(ns: runtime.Namespace):
