@@ -937,7 +937,7 @@ def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
                     "error occurred during macroexpansion",
                     form=form,
                     phase=CompilerPhase.MACROEXPANSION,
-                ) from e
+                )
 
     descriptor = Invoke(
         form=form,
