@@ -758,38 +758,57 @@ def test_import(ns: runtime.Namespace):
     )
 
 
-def test_interop_new(ns: runtime.Namespace):
-    assert "hi" == lcompile('(builtins.str. "hi")')
-    assert "1" == lcompile("(builtins.str. 1)")
-    assert sym.symbol("hi") == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
+class TestPythonInterop:
+    def test_interop_new(self, ns: runtime.Namespace):
+        assert "hi" == lcompile('(builtins.str. "hi")')
+        assert "1" == lcompile("(builtins.str. 1)")
+        assert sym.symbol("hi") == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(builtins.str "hi")')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(builtins.str "hi")')
 
+    def test_interop_call_num_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(.upper)")
 
-def test_interop_call(ns: runtime.Namespace):
-    assert lcompile('(. "ALL-UPPER" lower)') == "all-upper"
-    assert lcompile('(.upper "lower-string")') == "LOWER-STRING"
-    assert lcompile('(.strip "www.example.com" "cmowz.")') == "example"
+    def test_interop_call(self, ns: runtime.Namespace):
+        assert lcompile('(. "ALL-UPPER" lower)') == "all-upper"
+        assert lcompile('(.upper "lower-string")') == "LOWER-STRING"
+        assert lcompile('(.strip "www.example.com" "cmowz.")') == "example"
 
+    def test_interop_prop_field_is_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(.- 'some.ns/sym :ns)")
 
-def test_interop_prop(ns: runtime.Namespace):
-    assert lcompile("(.-ns 'some.ns/sym)") == "some.ns"
-    assert lcompile("(.- 'some.ns/sym ns)") == "some.ns"
-    assert lcompile("(.-name 'some.ns/sym)") == "sym"
-    assert lcompile("(.- 'some.ns/sym name)") == "sym"
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(.- \'some.ns/sym "ns")')
 
-    with pytest.raises(AttributeError):
-        lcompile("(.-fake 'some.ns/sym)")
+    def test_interop_prop_num_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(.- 'some.ns/sym)")
 
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(.- 'some.ns/sym ns :argument)")
 
-def test_interop_quoted(ns: runtime.Namespace):
-    assert lcompile("'(.match pattern)") == llist.l(
-        sym.symbol(".match"), sym.symbol("pattern")
-    )
-    assert lcompile("'(.-pattern regex)") == llist.l(
-        sym.symbol(".-pattern"), sym.symbol("regex")
-    )
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(.-ns 'some.ns/sym :argument)")
+
+    def test_interop_prop(self, ns: runtime.Namespace):
+        assert lcompile("(.-ns 'some.ns/sym)") == "some.ns"
+        assert lcompile("(.- 'some.ns/sym ns)") == "some.ns"
+        assert lcompile("(.-name 'some.ns/sym)") == "sym"
+        assert lcompile("(.- 'some.ns/sym name)") == "sym"
+
+        with pytest.raises(AttributeError):
+            lcompile("(.-fake 'some.ns/sym)")
+
+    def test_interop_quoted(self, ns: runtime.Namespace):
+        assert lcompile("'(.match pattern)") == llist.l(
+            sym.symbol(".match"), sym.symbol("pattern")
+        )
+        assert lcompile("'(.-pattern regex)") == llist.l(
+            sym.symbol(".-pattern"), sym.symbol("regex")
+        )
 
 
 def test_let(ns: runtime.Namespace):

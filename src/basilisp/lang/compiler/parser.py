@@ -750,6 +750,7 @@ def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> HostCall:
     assert isinstance(form.first, sym.Symbol)
 
     method = form.first
+    assert isinstance(method, sym.Symbol), "host interop field must be a symbol"
     assert method.name.startswith(".")
 
     if not count(form) >= 2:
@@ -770,13 +771,22 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
     assert isinstance(form.first, sym.Symbol)
 
     field = form.first
+    assert isinstance(field, sym.Symbol), "host interop field must be a symbol"
+
     nelems = count(form)
     assert field.name.startswith(".-")
 
     if field.name == ".-":
-        field = runtime.nth(form, 2)
-        if not isinstance(field, sym.Symbol):
-            raise ParserException("host interop field must be a symbol", form=form)
+        try:
+            field = runtime.nth(form, 2)
+        except IndexError:
+            raise ParserException(
+                "host interop prop must be exactly 3 elems long: (.- target field)",
+                form=form,
+            )
+        else:
+            if not isinstance(field, sym.Symbol):
+                raise ParserException("host interop field must be a symbol", form=form)
 
         if not nelems == 3:
             raise ParserException(
