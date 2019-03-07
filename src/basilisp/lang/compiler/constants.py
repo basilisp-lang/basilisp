@@ -33,6 +33,7 @@ SYM_NO_WARN_WHEN_UNUSED_META_KEY = kw.keyword("no-warn-when-unused")
 SYM_REDEF_META_KEY = kw.keyword("redef")
 
 COL_KW = kw.keyword("col")
+DOC_KW = kw.keyword("doc")
 FILE_KW = kw.keyword("file")
 LINE_KW = kw.keyword("line")
 NAME_KW = kw.keyword("name")

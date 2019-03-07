@@ -46,6 +46,7 @@ from basilisp.lang.compiler.constants import (
     NAME_KW,
     NS_KW,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
+    DOC_KW,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compiler.nodes import (
@@ -432,7 +433,7 @@ def _with_meta(gen_node):
     return with_meta
 
 
-def _def_node(  # pylint: disable=too-many-locals
+def _def_ast(  # pylint: disable=too-many-locals
     ctx: ParserContext, form: lseq.Seq
 ) -> Def:
     assert form.first == SpecialForm.DEF
@@ -479,7 +480,12 @@ def _def_node(  # pylint: disable=too-many-locals
             )
         )
     )
+    if doc is not None:
+        def_meta = def_meta.assoc(DOC_KW, doc)
     assert def_meta is not None, "def metadata must be defined at this point"
+
+    # Generation fails later if we use the same symbol we received, since
+    # its meta may contain values which fail to compile.
     bare_name = sym.symbol(name.name)
 
     ns_sym = sym.symbol(ctx.current_ns.name)
@@ -647,7 +653,14 @@ def _fn_ast(  # pylint: disable=too-many-branches
     idx = 1
 
     with ctx.new_symbol_table("fn"):
-        name = runtime.nth(form, idx)
+        try:
+            name = runtime.nth(form, idx)
+        except IndexError:
+            raise ParserException(
+                "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
+                form=form,
+            )
+
         if isinstance(name, sym.Symbol):
             ctx.put_new_symbol(name, LocalType.FN, warn_if_unused=False)
             name_node: Optional[Binding] = Binding(
@@ -685,8 +698,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 __fn_method_ast(ctx, runtime.nthrest(form, idx), fnname=name)
             )
 
-        if count(methods) == 0:
-            raise ParserException("fn must have at least one arity", form=form)
+        assert count(methods) > 0, "fn must have at least one arity"
 
         fixed_arities: Set[int] = set()
         fixed_arity_for_variadic: Optional[int] = None
@@ -1330,7 +1342,7 @@ def _var_ast(ctx: ParserContext, form: lseq.Seq) -> VarRef:
 
 SpecialFormHandler = Callable[[ParserContext, lseq.Seq], SpecialFormNode]
 _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
-    SpecialForm.DEF: _def_node,
+    SpecialForm.DEF: _def_ast,
     SpecialForm.DO: _do_ast,
     SpecialForm.FN: _fn_ast,
     SpecialForm.IF: _if_ast,

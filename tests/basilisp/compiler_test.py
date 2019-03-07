@@ -164,6 +164,15 @@ class TestDef:
         assert lcompile("a") == kw.keyword("some-val")
         assert lcompile("beep") == "a sound a robot makes"
 
+    def test_def_with_docstring(self, ns: runtime.Namespace):
+        ns_name = ns.name
+        assert lcompile('(def z "this is a docstring" :some-val)') == Var.find_in_ns(
+            sym.symbol(ns_name), sym.symbol("z")
+        )
+        assert lcompile("z") == kw.keyword("some-val")
+        var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("z"))
+        assert "this is a docstring" == var.meta.entry(kw.keyword("doc"))
+
     def test_def_unbound(self, ns: runtime.Namespace):
         lcompile("(def a)")
         var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("a"))
@@ -438,6 +447,10 @@ class TestFunctionWarnUnusedName:
 
 
 class TestFunctionDef:
+    def test_fn_with_no_name_or_args(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn*)")
+
     def test_fn_with_no_args_throws(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* a)")
@@ -575,6 +588,16 @@ class TestFunctionDef:
                   (fn* f
                     ([& args] (concat [:no-starter] args))
                     ([s & args] (concat [s] args))))
+                """
+            )
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (def f
+                  (fn* f
+                    ([s & args] (concat [s] args))
+                    ([& args] (concat [:no-starter] args))))
                 """
             )
 
