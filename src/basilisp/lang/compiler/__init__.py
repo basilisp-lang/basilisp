@@ -136,7 +136,7 @@ def _incremental_compile_module(
     ast.fix_missing_locations(module)
 
     if runtime.print_generated_python():
-        print(to_py_str(module))   # pragma: no cover
+        print(to_py_str(module))  # pragma: no cover
     else:
         runtime.add_generated_python(to_py_str(module))
 
