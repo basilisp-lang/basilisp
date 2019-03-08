@@ -1192,6 +1192,12 @@ def _recur_ast(ctx: ParserContext, form: lseq.Seq) -> Recur:
 
 def _set_bang_ast(ctx: ParserContext, form: lseq.Seq) -> SetBang:
     assert form.first == SpecialForm.SET_BANG
+    nelems = count(form)
+
+    if nelems != 3:
+        raise ParserException(
+            "set! forms must contain exactly 3 elements: (set! target value)", form=form
+        )
 
     target = _parse_ast(ctx, runtime.nth(form, 1))
     if not isinstance(target, Assignable):

@@ -109,6 +109,8 @@ class Var:
         self._meta = meta
 
         if dynamic:
+            self._tl.bindings = []
+
             # If this var was created with the dynamic keyword argument, then the
             # Var metadata should also specify that the Var is dynamic.
             if isinstance(self._meta, lmap.Map):
@@ -174,22 +176,20 @@ class Var:
 
     @property
     def value(self):
-        if (
-            self._dynamic
-            and hasattr(self._tl, "bindings")
-            and len(self._tl.bindings) > 0
-        ):
-            return self._tl.bindings[-1]
+        if self._dynamic:
+            assert hasattr(self._tl, "bindings")
+            if len(self._tl.bindings) > 0:
+                return self._tl.bindings[-1]
         return self._root
 
     @value.setter
     def value(self, v):
-        if (
-            self._dynamic
-            and hasattr(self._tl, "bindings")
-            and len(self._tl.bindings) > 0
-        ):
-            self._tl.bindings[-1] = v
+        if self._dynamic:
+            assert hasattr(self._tl, "bindings")
+            if len(self._tl.bindings) > 0:
+                self._tl.bindings[-1] = v
+            else:
+                self.push_bindings(v)
             return
         self._root = v
 

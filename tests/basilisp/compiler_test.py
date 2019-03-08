@@ -1329,6 +1329,66 @@ class TestRecur:
         assert 15 == lcompile(code)
 
 
+class TestSetBang:
+    def test_num_elems(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(set!)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(set! target)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(set! target value arg)")
+
+    def test_set_target_must_be_assignable_type(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(set! "a string" "another string")')
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(set! 3 4)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(set! :kw :new-kw)")
+
+    def test_set_cannot_assign_local(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let [a :b] (set! a :c))")
+
+    def test_set_cannot_assign_non_dynamic_var(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+            (def static-var :kw)
+            (set! static-var \"instead a string\")
+            """
+            )
+
+    def test_set_can_assign_dynamic_var(self, ns: runtime.Namespace):
+        code = """
+        (def ^:dynamic *dynamic-var* :kw)
+        (set! *dynamic-var* \"instead a string\")
+        """
+        assert "instead a string" == lcompile(code)
+        var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("*dynamic-var*"))
+        assert var is not None
+        assert "instead a string" == var.value
+        assert kw.keyword("kw") == var.root
+
+    def test_set_can_object_attrs(self, ns: runtime.Namespace):
+        code = """
+        (import* threading)
+        (def tl (threading/local))
+        (set! (.-some-field tl) :kw)
+        """
+        assert kw.keyword("kw") == lcompile(code)
+        var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("tl"))
+        assert var is not None
+        assert kw.keyword("kw") == var.value.some_field
+
+        assert "now a string" == lcompile('(set! (.-some-field tl) "now a string")')
+        assert "now a string" == var.value.some_field
+
+
 def test_syntax_quoting(test_ns: str, ns: runtime.Namespace, resolver: reader.Resolver):
     code = """
     (def some-val \"some value!\")
