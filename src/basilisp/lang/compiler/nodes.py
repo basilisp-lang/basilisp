@@ -91,32 +91,32 @@ class Node(ABC, Generic[T]):
     @property
     @abstractmethod
     def op(self) -> NodeOp:
-        pass
+        raise NotImplementedError()
 
     @property
     @abstractmethod
     def form(self) -> T:
-        pass
+        raise NotImplementedError()
 
     @property
     @abstractmethod
     def children(self) -> Collection[kw.Keyword]:
-        pass
+        raise NotImplementedError()
 
     @property
     @abstractmethod
     def raw_forms(self) -> Collection[LispForm]:
-        pass
+        raise NotImplementedError()
 
     @property
     @abstractmethod
     def top_level(self) -> bool:
-        pass
+        raise NotImplementedError()
 
     @property
     @abstractmethod
     def env(self) -> "NodeEnv":
-        pass
+        raise NotImplementedError()
 
     def assoc(self, **kwargs):
         return attr.evolve(self, **kwargs)
