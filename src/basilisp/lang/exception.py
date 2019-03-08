@@ -4,7 +4,7 @@ import basilisp.lang.map as lmap
 from basilisp.lang.obj import lrepr
 
 
-@attr.s(auto_attribs=True, repr=False, slots=True, str=False)
+@attr.s(auto_attribs=True, hash=False, repr=False, slots=True, str=False)
 class ExceptionInfo(Exception):
     message: str
     data: lmap.Map

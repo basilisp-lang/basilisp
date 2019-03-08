@@ -681,81 +681,131 @@ def test_macro_expansion(ns: runtime.Namespace):
     assert llist.l(1, 2, 3) == lcompile("((fn [] '(1 2 3)))")
 
 
-def test_if(ns: runtime.Namespace):
-    assert lcompile("(if true :a :b)") == kw.keyword("a")
-    assert lcompile("(if false :a :b)") == kw.keyword("b")
-    assert lcompile("(if nil :a :b)") == kw.keyword("b")
-    assert lcompile("(if true (if false :a :c) :b)") == kw.keyword("c")
+class TestIf:
+    def test_if_number_of_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(if)")
 
-    code = """
-    (def f (fn* [s] s))
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(if true)")
 
-    (f (if true \"YELLING\" \"whispering\"))
-    """
-    assert "YELLING" == lcompile(code)
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(if true :true :false :other)")
+
+    def test_if(self, ns: runtime.Namespace):
+        assert lcompile("(if true :a :b)") == kw.keyword("a")
+        assert lcompile("(if false :a :b)") == kw.keyword("b")
+        assert lcompile("(if nil :a :b)") == kw.keyword("b")
+        assert lcompile("(if true (if false :a :c) :b)") == kw.keyword("c")
+
+        code = """
+        (def f (fn* [s] s))
+
+        (f (if true \"YELLING\" \"whispering\"))
+        """
+        assert "YELLING" == lcompile(code)
+
+    def test_truthiness(self, ns: runtime.Namespace):
+        # Valid false values
+        assert kw.keyword("b") == lcompile("(if false :a :b)")
+        assert kw.keyword("b") == lcompile("(if nil :a :b)")
+
+        # Everything else is true
+        assert kw.keyword("a") == lcompile("(if true :a :b)")
+
+        assert kw.keyword("a") == lcompile("(if 's :a :b)")
+        assert kw.keyword("a") == lcompile("(if 'ns/s :a :b)")
+
+        assert kw.keyword("a") == lcompile("(if :kw :a :b)")
+        assert kw.keyword("a") == lcompile("(if :ns/kw :a :b)")
+
+        assert kw.keyword("a") == lcompile('(if "" :a :b)')
+        assert kw.keyword("a") == lcompile('(if "not empty" :a :b)')
+
+        assert kw.keyword("a") == lcompile("(if 0 :a :b)")
+        assert kw.keyword("a") == lcompile("(if 1 :a :b)")
+        assert kw.keyword("a") == lcompile("(if -1 :a :b)")
+        assert kw.keyword("a") == lcompile("(if 1.0 :a :b)")
+        assert kw.keyword("a") == lcompile("(if 0.0 :a :b)")
+        assert kw.keyword("a") == lcompile("(if -1.0 :a :b)")
+
+        assert kw.keyword("a") == lcompile("(if () :a :b)")
+        assert kw.keyword("a") == lcompile("(if '(0) :a :b)")
+        assert kw.keyword("a") == lcompile("(if '(false) :a :b)")
+        assert kw.keyword("a") == lcompile("(if '(true) :a :b)")
+
+        assert kw.keyword("a") == lcompile("(if [] :a :b)")
+        assert kw.keyword("a") == lcompile("(if [0] :a :b)")
+        assert kw.keyword("a") == lcompile("(if '(false) :a :b)")
+        assert kw.keyword("a") == lcompile("(if '(true) :a :b)")
+
+        assert kw.keyword("a") == lcompile("(if {} :a :b)")
+        assert kw.keyword("a") == lcompile("(if {0 0} :a :b)")
+        assert kw.keyword("a") == lcompile("(if {false false} :a :b)")
+        assert kw.keyword("a") == lcompile("(if {true true} :a :b)")
+
+        assert kw.keyword("a") == lcompile("(if #{} :a :b)")
+        assert kw.keyword("a") == lcompile("(if #{0} :a :b)")
+        assert kw.keyword("a") == lcompile("(if #{false} :a :b)")
+        assert kw.keyword("a") == lcompile("(if #{true} :a :b)")
 
 
-def test_truthiness(ns: runtime.Namespace):
-    # Valid false values
-    assert kw.keyword("b") == lcompile("(if false :a :b)")
-    assert kw.keyword("b") == lcompile("(if nil :a :b)")
+class TestImport:
+    def test_import_module_must_be_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import* :time)")
 
-    # Everything else is true
-    assert kw.keyword("a") == lcompile("(if true :a :b)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(import* "time")')
 
-    assert kw.keyword("a") == lcompile("(if 's :a :b)")
-    assert kw.keyword("a") == lcompile("(if 'ns/s :a :b)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import* string :time)")
 
-    assert kw.keyword("a") == lcompile("(if :kw :a :b)")
-    assert kw.keyword("a") == lcompile("(if :ns/kw :a :b)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(import* string "time")')
 
-    assert kw.keyword("a") == lcompile('(if "" :a :b)')
-    assert kw.keyword("a") == lcompile('(if "not empty" :a :b)')
+    def test_import_aliased_module_format(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import* [time py-time])")
 
-    assert kw.keyword("a") == lcompile("(if 0 :a :b)")
-    assert kw.keyword("a") == lcompile("(if 1 :a :b)")
-    assert kw.keyword("a") == lcompile("(if -1 :a :b)")
-    assert kw.keyword("a") == lcompile("(if 1.0 :a :b)")
-    assert kw.keyword("a") == lcompile("(if 0.0 :a :b)")
-    assert kw.keyword("a") == lcompile("(if -1.0 :a :b)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import* [time :as :py-time])")
 
-    assert kw.keyword("a") == lcompile("(if () :a :b)")
-    assert kw.keyword("a") == lcompile("(if '(0) :a :b)")
-    assert kw.keyword("a") == lcompile("(if '(false) :a :b)")
-    assert kw.keyword("a") == lcompile("(if '(true) :a :b)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import* [time :as])")
 
-    assert kw.keyword("a") == lcompile("(if [] :a :b)")
-    assert kw.keyword("a") == lcompile("(if [0] :a :b)")
-    assert kw.keyword("a") == lcompile("(if '(false) :a :b)")
-    assert kw.keyword("a") == lcompile("(if '(true) :a :b)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import* [time :named py-time])")
 
-    assert kw.keyword("a") == lcompile("(if {} :a :b)")
-    assert kw.keyword("a") == lcompile("(if {0 0} :a :b)")
-    assert kw.keyword("a") == lcompile("(if {false false} :a :b)")
-    assert kw.keyword("a") == lcompile("(if {true true} :a :b)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import* [time :named py time])")
 
-    assert kw.keyword("a") == lcompile("(if #{} :a :b)")
-    assert kw.keyword("a") == lcompile("(if #{0} :a :b)")
-    assert kw.keyword("a") == lcompile("(if #{false} :a :b)")
-    assert kw.keyword("a") == lcompile("(if #{true} :a :b)")
+    def test_import_module_must_exist(self, ns: runtime.Namespace):
+        with pytest.raises(ImportError):
+            lcompile("(import* real.fake.module)")
 
+    def test_single_import(self, ns: runtime.Namespace):
+        import time
 
-def test_import(ns: runtime.Namespace):
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(import* :time)")
+        assert time.perf_counter == lcompile("(import* time) time/perf-counter")
+        assert time.perf_counter == lcompile(
+            "(import* [time :as py-time]) py-time/perf-counter"
+        )
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(import* "time")')
+    def test_multi_import(self, ns: runtime.Namespace):
+        import string
+        import time
 
-    with pytest.raises(ImportError):
-        lcompile("(import* real.fake.module)")
-
-    import time
-
-    assert time.perf_counter == lcompile("(import* time) time/perf-counter")
-    assert time.perf_counter == lcompile(
-        "(import* [time :as py-time]) py-time/perf-counter"
-    )
+        assert [time.perf_counter, string.capwords] == list(
+            lcompile(
+                "(import* [string :as pystr] time) [time/perf-counter pystr/capwords]"
+            )
+        )
+        assert [string.capwords, time.perf_counter] == list(
+            lcompile(
+                "(import* string [time :as py-time]) [string/capwords py-time/perf-counter]"
+            )
+        )
 
 
 class TestPythonInterop:
@@ -770,6 +820,13 @@ class TestPythonInterop:
     def test_interop_call_num_elems(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(.upper)")
+
+    def test_interop_prop_method_is_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(. "ALL-UPPER" (:lower))')
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(. "ALL-UPPER" ("lower"))')
 
     def test_interop_call(self, ns: runtime.Namespace):
         assert lcompile('(. "ALL-UPPER" lower)') == "all-upper"
@@ -793,6 +850,9 @@ class TestPythonInterop:
         with pytest.raises(compiler.CompilerException):
             lcompile("(.-ns 'some.ns/sym :argument)")
 
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(. 'some.ns/sym -ns :argument)")
+
     def test_interop_prop(self, ns: runtime.Namespace):
         assert lcompile("(.-ns 'some.ns/sym)") == "some.ns"
         assert lcompile("(.- 'some.ns/sym ns)") == "some.ns"
@@ -811,32 +871,59 @@ class TestPythonInterop:
         )
 
 
-def test_let(ns: runtime.Namespace):
-    assert lcompile("(let* [a 1] a)") == 1
-    assert lcompile('(let* [a :keyword b "string"] a)') == kw.keyword("keyword")
-    assert lcompile("(let* [a :value b a] b)") == kw.keyword("value")
-    assert lcompile("(let* [a 1 b :length c {b a} a 4] c)") == lmap.map(
-        {kw.keyword("length"): 1}
-    )
-    assert lcompile("(let* [a 1 b :length c {b a} a 4] a)") == 4
-    assert lcompile('(let* [a "lower"] (.upper a))') == "LOWER"
+class TestLet:
+    def test_let_num_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let*)")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(let* [a 'sym] c)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let* [a :kw])")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(let* [] "string")')
+    def test_let_bindings_must_be_vector(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let* (a kw))")
 
+    def test_let_bindings_must_have_name_and_value(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let* [a :kw b] a)")
 
-def test_let_lazy_evaluation(ns: runtime.Namespace):
-    code = """
-    (if false
-      (let [n  (.-name :value)
-            ns (.-ns "string")]  ;; this line would fail if we eagerly evaluated
-        :true)
-      :false)
-    """
-    assert kw.keyword("false") == lcompile(code)
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let* [a :kw b :other-kw c] a)")
+
+    def test_let_binding_name_must_be_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let* [:a :kw] a)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let* [a :kw :b :other-kw] a)")
+
+    def test_let_name_does_not_resolve(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let* [a 'sym] c)")
+
+    def test_let_must_have_bindings(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(let* [] "string")')
+
+    def test_let(self, ns: runtime.Namespace):
+        assert lcompile("(let* [a 1] a)") == 1
+        assert lcompile('(let* [a :keyword b "string"] a)') == kw.keyword("keyword")
+        assert lcompile("(let* [a :value b a] b)") == kw.keyword("value")
+        assert lcompile("(let* [a 1 b :length c {b a} a 4] c)") == lmap.map(
+            {kw.keyword("length"): 1}
+        )
+        assert lcompile("(let* [a 1 b :length c {b a} a 4] a)") == 4
+        assert lcompile('(let* [a "lower"] (.upper a))') == "LOWER"
+
+    def test_let_lazy_evaluation(self, ns: runtime.Namespace):
+        code = """
+        (if false
+          (let [n  (.-name :value)
+                ns (.-ns "string")]  ;; this line would fail if we eagerly evaluated
+            :true)
+          :false)
+        """
+        assert kw.keyword("false") == lcompile(code)
 
 
 class TestLetShadowName:

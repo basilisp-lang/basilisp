@@ -911,7 +911,9 @@ def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:
     )
 
 
-def _import_ast(ctx: ParserContext, form: lseq.Seq) -> Import:
+def _import_ast(  # pylint: disable=too-many-branches
+    ctx: ParserContext, form: lseq.Seq
+) -> Import:
     assert form.first == SpecialForm.IMPORT
 
     aliases = []
@@ -920,12 +922,19 @@ def _import_ast(ctx: ParserContext, form: lseq.Seq) -> Import:
             module_name = f
             module_alias = module_name.name.split(".", maxsplit=1)[0]
         elif isinstance(f, vec.Vector):
+            if len(f) != 3:
+                raise ParserException(
+                    "import alias must take the form: [module :as alias]", form=f
+                )
             module_name = f.entry(0)
             if not isinstance(module_name, sym.Symbol):
                 raise ParserException("Python module name must be a symbol", form=f)
             if not AS == f.entry(1):
                 raise ParserException("expected :as alias for Python import", form=f)
-            module_alias = f.entry(2).name
+            module_alias_sym = f.entry(2)
+            if not isinstance(module_alias_sym, sym.Symbol):
+                raise ParserException("Python module alias must be a symbol", form=f)
+            module_alias = module_alias_sym.name
         else:
             raise ParserException("symbol or vector expected for import*", form=f)
 
