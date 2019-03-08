@@ -151,6 +151,22 @@ class TestLiterals:
         assert lcompile("[:a]") == vec.v(kw.keyword("a"))
         assert lcompile("[:a 1]") == vec.v(kw.keyword("a"), 1)
 
+    def test_fraction(self):
+        assert Fraction("22/7") == lcompile("22/7")
+
+    def test_inst(self):
+        assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
+            '#inst "2018-01-18T03:26:57.296-00:00"'
+        )
+
+    def test_regex(self):
+        assert lcompile(r'#"\s"') == re.compile(r"\s")
+
+    def test_uuid(self):
+        assert uuid.UUID("{0366f074-a8c5-4764-b340-6a5576afd2e8}") == lcompile(
+            '#uuid "0366f074-a8c5-4764-b340-6a5576afd2e8"'
+        )
+
 
 class TestDef:
     def test_def(self, ns: runtime.Namespace):
@@ -1359,42 +1375,139 @@ def test_throw(ns: runtime.Namespace):
         lcompile("(throw (builtins/ValueError))")
 
 
-def test_try_catch(capsys, ns: runtime.Namespace):
-    code = """
-      (try
-        (.fake-lower "UPPER")
-        (catch AttributeError _ "lower"))
-    """
-    assert "lower" == lcompile(code)
+class TestTryCatch:
+    def test_single_catch_ignoring_binding(self, capsys, ns: runtime.Namespace):
+        code = """
+          (try
+            (.fake-lower "UPPER")
+            (catch AttributeError _ "lower"))
+        """
+        assert "lower" == lcompile(code)
 
-    code = """
-      (try
-        (.fake-lower "UPPER")
-        (catch builtins/AttributeError e (.-args e)))
-    """
-    assert ("'str' object has no attribute 'fake_lower'",) == lcompile(code)
+    def test_single_catch_with_binding(self, capsys, ns: runtime.Namespace):
+        code = """
+          (try
+            (.fake-lower "UPPER")
+            (catch builtins/AttributeError e (.-args e)))
+        """
+        assert ("'str' object has no attribute 'fake_lower'",) == lcompile(code)
 
-    code = """
-      (try
-        (.fake-lower "UPPER")
-        (catch TypeError _ "lower")
-        (catch AttributeError _ "mIxEd"))
-    """
-    assert "mIxEd" == lcompile(code)
+    def test_multiple_catch(self, ns: runtime.Namespace):
+        code = """
+          (try
+            (.fake-lower "UPPER")
+            (catch TypeError _ "lower")
+            (catch AttributeError _ "mIxEd"))
+        """
+        assert "mIxEd" == lcompile(code)
 
-    # If you hit an error here, do yourself a favor
-    # and look in the import code first.
-    code = """
-      (import* builtins)
-      (try
-        (.fake-lower "UPPER")
-        (catch TypeError _ "lower")
-        (catch AttributeError _ "mIxEd")
-        (finally (builtins/print "neither")))
-    """
-    assert "mIxEd" == lcompile(code)
-    captured = capsys.readouterr()
-    assert "neither\n" == captured.out
+    def test_multiple_catch_with_finally(self, capsys, ns: runtime.Namespace):
+        # If you hit an error here, do yourself a favor
+        # and look in the import code first.
+        code = """
+          (import* builtins)
+          (try
+            (.fake-lower "UPPER")
+            (catch TypeError _ "lower")
+            (catch AttributeError _ "mIxEd")
+            (finally (builtins/print "neither")))
+        """
+        assert "mIxEd" == lcompile(code)
+        captured = capsys.readouterr()
+        assert "neither\n" == captured.out
+
+    def test_catch_num_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+              (try
+                (.lower "UPPER")
+                (catch AttributeError _))
+            """
+            )
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+              (try
+                (.lower "UPPER")
+                (catch AttributeError))
+            """
+            )
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+              (try
+                (.lower "UPPER")
+                (catch))
+            """
+            )
+
+    def test_catch_must_name_exception(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+              (try
+                (.lower "UPPER")
+                (catch :attribute-error _ "mIxEd"))
+            """
+            )
+
+    def test_catch_name_must_be_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+              (try
+                (.lower "UPPER")
+                (catch AttributeError :e "mIxEd"))
+            """
+            )
+
+    def test_body_may_not_appear_after_catch(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+              (try
+                (.lower "UPPER")
+                (catch AttributeError _ "mIxEd")
+                "neither")
+            """
+            )
+
+    def test_body_may_not_appear_after_finally(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+              (try
+                (.lower "UPPER")
+                (finally (builtins/print "mIxEd"))
+                "neither")
+            """
+            )
+
+    def test_catch_may_not_appear_after_finally(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+              (try
+                (.fake-lower "UPPER")
+                (finally (builtins/print "this is bad!"))
+                (catch AttributeError _ "mIxEd"))
+            """
+            )
+
+    def test_try_may_not_have_multiple_finallys(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+              (try
+                (.fake-lower "UPPER")
+                (catch AttributeError _ "mIxEd")
+                (finally (builtins/print "this is bad!"))
+                (finally (builtins/print "but this is worse")))
+            """
+            )
 
 
 def test_unquote(ns: runtime.Namespace):
@@ -1516,43 +1629,36 @@ class TestWarnOnVarIndirection:
             lcompile("(fn [] m)", opts={compiler.WARN_ON_VAR_INDIRECTION: True})
 
 
-def test_var(ns: runtime.Namespace):
-    code = """
-    (def some-var "a value")
+class TestVar:
+    def test_var_num_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(var)")
 
-    (var test/some-var)"""
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(var test/some-var test/other-var)")
 
-    ns_name = ns.name
-    v = lcompile(code)
-    assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("some-var"))
-    assert v.value == "a value"
+    def test_var_does_not_resolve(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(var test/definitely-not-a-var-in-this-namespace)")
 
-    code = """
-    (def some-var "a value")
+    def test_var(self, ns: runtime.Namespace):
+        code = """
+        (def some-var "a value")
 
-    #'test/some-var"""
+        (var test/some-var)"""
 
-    ns_name = ns.name
-    v = lcompile(code)
-    assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("some-var"))
-    assert v.value == "a value"
+        ns_name = ns.name
+        v = lcompile(code)
+        assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("some-var"))
+        assert v.value == "a value"
 
+    def test_var_reader_literal(self, ns: runtime.Namespace):
+        code = """
+        (def some-var "a value")
 
-def test_fraction(ns: runtime.Namespace):
-    assert Fraction("22/7") == lcompile("22/7")
+        #'test/some-var"""
 
-
-def test_inst(ns: runtime.Namespace):
-    assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
-        '#inst "2018-01-18T03:26:57.296-00:00"'
-    )
-
-
-def test_regex(ns: runtime.Namespace):
-    assert lcompile(r'#"\s"') == re.compile(r"\s")
-
-
-def test_uuid(ns: runtime.Namespace):
-    assert uuid.UUID("{0366f074-a8c5-4764-b340-6a5576afd2e8}") == lcompile(
-        '#uuid "0366f074-a8c5-4764-b340-6a5576afd2e8"'
-    )
+        ns_name = ns.name
+        v = lcompile(code)
+        assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("some-var"))
+        assert v.value == "a value"

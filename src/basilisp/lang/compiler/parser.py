@@ -1707,21 +1707,11 @@ def _parse_ast(  # pylint: disable=too-many-branches
         ),
     ):
         return _const_node(ctx, form)
-    else:
+    else:  # pragma: no cover
         raise ParserException(f"Unexpected form type {type(form)}", form=form)
 
 
-def parse_ast(ctx: ParserContext, form: LispForm, is_top_level: bool = True) -> Node:
+def parse_ast(ctx: ParserContext, form: LispForm) -> Node:
     """Take a Lisp form as an argument and produce a Basilisp syntax
-    tree matching the clojure.tools.analyzer AST spec.
-
-    If this function is called internally (such as by the generator
-    during macroexpansion), the `is_top_level` keyword argument should
-    be specified correctly for that situation. It is defaulted to True,
-    which is correct for the majority of use cases."""
-    node = _parse_ast(ctx, form)
-
-    if is_top_level:
-        return node.assoc(top_level=True)
-
-    return node
+    tree matching the clojure.tools.analyzer AST spec."""
+    return _parse_ast(ctx, form).assoc(top_level=True)
