@@ -187,7 +187,7 @@ class GeneratorContext:
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>")])
 
-        if logger.isEnabledFor(logging.DEBUG):
+        if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             for k, v in self._opts:
                 logger.debug("Compiler option %s=%s", k, v)
 

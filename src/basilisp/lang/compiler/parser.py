@@ -174,7 +174,7 @@ class SymbolTable:
             self._table[s] = attr.evolve(old, used=True)
         elif self._parent is not None:
             self._parent.mark_used(s)
-        else:
+        else:  # pragma: no cover
             assert False, f"Symbol {s} not defined in any symbol table"
 
     def _warn_unused_names(self):

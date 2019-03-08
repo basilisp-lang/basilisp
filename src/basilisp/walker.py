@@ -1,4 +1,5 @@
 from functools import partial
+
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
@@ -29,14 +30,14 @@ def prewalk(f, form):
     return walk(inner_f, lambda x: x, f(form))
 
 
-def _print_identity(v):
+def _print_identity(v):  # pragma: no cover
     print(v)
     return v
 
 
-def postwalk_demo(form):
+def postwalk_demo(form):  # pragma: no cover
     return postwalk(_print_identity, form)
 
 
-def prewalk_demo(form):
+def prewalk_demo(form):  # pragma: no cover
     return prewalk(_print_identity, form)
