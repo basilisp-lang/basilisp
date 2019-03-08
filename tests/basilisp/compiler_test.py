@@ -766,6 +766,9 @@ class TestImport:
 
     def test_import_aliased_module_format(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
+            lcompile("(import* [:time :as py-time])")
+
+        with pytest.raises(compiler.CompilerException):
             lcompile("(import* [time py-time])")
 
         with pytest.raises(compiler.CompilerException):
@@ -881,7 +884,7 @@ class TestLet:
 
     def test_let_bindings_must_be_vector(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
-            lcompile("(let* (a kw))")
+            lcompile("(let* (a kw) a)")
 
     def test_let_bindings_must_have_name_and_value(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
@@ -1038,40 +1041,71 @@ class TestLetUnusedNames:
         assert f"symbol 'v' defined but not used ({ns}: 1)" not in caplog.messages
 
 
-def test_loop(ns: runtime.Namespace):
-    assert 1 == lcompile("(loop* [a 1] a)")
-    assert kw.keyword("keyword") == lcompile('(loop* [a :keyword b "string"] a)')
-    assert kw.keyword("value") == lcompile("(loop* [a :value b a] b)")
-    assert lmap.map({kw.keyword("length"): 1}) == lcompile(
-        "(loop* [a 1 b :length c {b a} a 4] c)"
-    )
-    assert 4 == lcompile("(loop* [a 1 b :length c {b a} a 4] a)")
-    assert "LOWER" == lcompile('(loop* [a "lower"] (.upper a))')
-    assert "string" == lcompile('(loop* [] "string")')
+class TestLoop:
+    def test_loop_num_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(loop*)")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(loop* [a 'sym] c)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(loop* [a :kw])")
 
-    code = """
-    (import* io)
-    (let* [reader (io/StringIO "string")
-           writer (io/StringIO)]
-      (loop* []
-        (let* [c (.read reader 1)]
-          (if (not= c "")
-            (do
-              (.write writer c)
-              (recur))
-            (.getvalue writer)))))"""
-    assert "string" == lcompile(code)
+    def test_loop_bindings_must_be_vector(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(loop* () a)")
 
-    code = """
-    (loop* [s     "tester"
-            accum []]
-      (if (seq s)
-        (recur (rest s) (conj accum (first s)))
-        (apply str accum)))"""
-    assert "tester" == lcompile(code)
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(loop* (a kw) a)")
+
+    def test_loop_bindings_must_have_name_and_value(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(loop* [a :kw b] a)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(loop* [a :kw b :other-kw c] a)")
+
+    def test_loop_binding_name_must_be_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(loop* [:a :kw] a)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(loop* [a :kw :b :other-kw] a)")
+
+    def test_let_name_does_not_resolve(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(loop* [a 'sym] c)")
+
+    def test_loop_without_recur(self, ns: runtime.Namespace):
+        assert 1 == lcompile("(loop* [a 1] a)")
+        assert kw.keyword("keyword") == lcompile('(loop* [a :keyword b "string"] a)')
+        assert kw.keyword("value") == lcompile("(loop* [a :value b a] b)")
+        assert lmap.map({kw.keyword("length"): 1}) == lcompile(
+            "(loop* [a 1 b :length c {b a} a 4] c)"
+        )
+        assert 4 == lcompile("(loop* [a 1 b :length c {b a} a 4] a)")
+        assert "LOWER" == lcompile('(loop* [a "lower"] (.upper a))')
+        assert "string" == lcompile('(loop* [] "string")')
+
+    def test_loop_with_recur(self, ns: runtime.Namespace):
+        code = """
+        (import* io)
+        (let* [reader (io/StringIO "string")
+               writer (io/StringIO)]
+          (loop* []
+            (let* [c (.read reader 1)]
+              (if (not= c "")
+                (do
+                  (.write writer c)
+                  (recur))
+                (.getvalue writer)))))"""
+        assert "string" == lcompile(code)
+
+        code = """
+        (loop* [s     "tester"
+                accum []]
+          (if (seq s)
+            (recur (rest s) (conj accum (first s)))
+            (apply str accum)))"""
+        assert "tester" == lcompile(code)
 
 
 def test_quoted_list(ns: runtime.Namespace):
