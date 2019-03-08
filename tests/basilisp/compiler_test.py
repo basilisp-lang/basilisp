@@ -1117,193 +1117,197 @@ def test_quoted_list(ns: runtime.Namespace):
     )
 
 
-def test_recur(ns: runtime.Namespace):
-    code = """
-    (def last
-      (fn [s]
-        (if (seq (rest s))
-          (recur (rest s))
-          (first s))))
-    """
+class TestRecur:
+    def test_recur(self, ns: runtime.Namespace):
+        code = """
+        (def last
+          (fn [s]
+            (if (seq (rest s))
+              (recur (rest s))
+              (first s))))
+        """
 
-    lcompile(code)
+        lcompile(code)
 
-    assert None is lcompile("(last '())")
-    assert 1 == lcompile("(last '(1))")
-    assert 2 == lcompile("(last '(1 2))")
-    assert 3 == lcompile("(last '(1 2 3))")
+        assert None is lcompile("(last '())")
+        assert 1 == lcompile("(last '(1))")
+        assert 2 == lcompile("(last '(1 2))")
+        assert 3 == lcompile("(last '(1 2 3))")
 
-    code = """
-    (def last
-      (fn [s]
-        (let [r (rest s)]
-          (if (seq r)
-            (recur r)
-            (first s)))))
-    """
+        code = """
+        (def last
+          (fn [s]
+            (let [r (rest s)]
+              (if (seq r)
+                (recur r)
+                (first s)))))
+        """
 
-    lcompile(code)
+        lcompile(code)
 
-    assert None is lcompile("(last '())")
-    assert 1 == lcompile("(last '(1))")
-    assert 2 == lcompile("(last '(1 2))")
-    assert 3 == lcompile("(last '(1 2 3))")
+        assert None is lcompile("(last '())")
+        assert 1 == lcompile("(last '(1))")
+        assert 2 == lcompile("(last '(1 2))")
+        assert 3 == lcompile("(last '(1 2 3))")
 
-    code = """
-    (def rev-str
-      (fn rev-str [s & args]
-        (let [coerce (fn [in out]
-                       (if (seq (rest in))
-                         (recur (rest in) (cons (builtins/str (first in)) out))
-                         (cons (builtins/str (first in)) out)))]
-         (.join \"\" (coerce (cons s args) '())))))
-     """
+        code = """
+        (def rev-str
+          (fn rev-str [s & args]
+            (let [coerce (fn [in out]
+                           (if (seq (rest in))
+                             (recur (rest in) (cons (builtins/str (first in)) out))
+                             (cons (builtins/str (first in)) out)))]
+             (.join \"\" (coerce (cons s args) '())))))
+         """
 
-    lcompile(code)
+        lcompile(code)
 
-    assert "a" == lcompile('(rev-str "a")')
-    assert ":ba" == lcompile('(rev-str "a" :b)')
-    assert "3:ba" == lcompile('(rev-str "a" :b 3)')
+        assert "a" == lcompile('(rev-str "a")')
+        assert ":ba" == lcompile('(rev-str "a" :b)')
+        assert "3:ba" == lcompile('(rev-str "a" :b 3)')
 
+    def test_recur_arity_must_match_recur_point(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn [s] (recur :a :b))")
 
-def test_recur_arity(ns: runtime.Namespace):
-    # Single arity function
-    code = """
-    (def ++
-      (fn ++ [x & args]
-        (if (seq (rest args))
-          (recur (operator/add x (first args)) (rest args))
-          (operator/add x (first args)))))
-    """
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn [a b] (recur a))")
 
-    lcompile(code)
+    def test_single_arity_recur(self, ns: runtime.Namespace):
+        code = """
+        (def ++
+          (fn ++ [x & args]
+            (if (seq (rest args))
+              (recur (operator/add x (first args)) (rest args))
+              (operator/add x (first args)))))
+        """
 
-    assert 3 == lcompile("(++ 1 2)")
-    assert 6 == lcompile("(++ 1 2 3)")
-    assert 10 == lcompile("(++ 1 2 3 4)")
-    assert 15 == lcompile("(++ 1 2 3 4 5)")
+        lcompile(code)
 
-    # Multi-arity function
-    code = """
-    (def +++
-      (fn +++ 
-        ([] 0)
-        ([x] x)
-        ([x & args]
-          (if (seq (rest args))
-            (recur (operator/add x (first args)) (rest args))
-            (operator/add x (first args))))))
-    """
+        assert 3 == lcompile("(++ 1 2)")
+        assert 6 == lcompile("(++ 1 2 3)")
+        assert 10 == lcompile("(++ 1 2 3 4)")
+        assert 15 == lcompile("(++ 1 2 3 4 5)")
 
-    lcompile(code)
+    def test_multi_arity_recur(self, ns: runtime.Namespace):
+        code = """
+        (def +++
+          (fn +++ 
+            ([] 0)
+            ([x] x)
+            ([x & args]
+              (if (seq (rest args))
+                (recur (operator/add x (first args)) (rest args))
+                (operator/add x (first args))))))
+        """
 
-    assert 0 == lcompile("(+++)")
-    assert 1 == lcompile("(+++ 1)")
-    assert 3 == lcompile("(+++ 1 2)")
-    assert 6 == lcompile("(+++ 1 2 3)")
-    assert 10 == lcompile("(+++ 1 2 3 4)")
-    assert 15 == lcompile("(+++ 1 2 3 4 5)")
+        lcompile(code)
 
+        assert 0 == lcompile("(+++)")
+        assert 1 == lcompile("(+++ 1)")
+        assert 3 == lcompile("(+++ 1 2)")
+        assert 6 == lcompile("(+++ 1 2 3)")
+        assert 10 == lcompile("(+++ 1 2 3 4)")
+        assert 15 == lcompile("(+++ 1 2 3 4 5)")
 
-def test_disallow_recur_in_special_forms(ns: runtime.Namespace):
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (def b (recur "a")))')
+    def test_disallow_recur_in_special_forms(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (def b (recur "a")))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (import* (recur "a")))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (import* (recur "a")))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (.join "" (recur "a")))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (.join "" (recur "a")))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (.-p (recur "a")))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (.-p (recur "a")))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (throw (recur "a"))))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (throw (recur "a"))))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (var (recur "a"))))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (var (recur "a"))))')
 
+    def test_disallow_recur_outside_tail(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(recur)")
 
-def test_disallow_recur_outside_tail(ns: runtime.Namespace):
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(recur)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(do (recur))")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(do (recur))")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(if true (recur) :b)")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(if true (recur) :b)")
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (do (recur "a") :b))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (do (recur "a") :b))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (if (recur "a") :a :b))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (if (recur "a") :a :b))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (if (recur "a") :a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (if (recur "a") :a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (let [a (recur "a")] a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (let [a (recur "a")] a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (let [a (do (recur "a"))] a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (let [a (do (recur "a"))] a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (let [a (do :b (recur "a"))] a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (let [a (do :b (recur "a"))] a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (let [a (do (recur "a") :c)] a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (let [a (do (recur "a") :c)] a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (let [a "a"] (recur a) a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (let [a "a"] (recur a) a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (loop* [a (recur "a")] a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (loop* [a (recur "a")] a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (loop* [a (do (recur "a"))] a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (loop* [a (do (recur "a"))] a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (loop* [a (do :b (recur "a"))] a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (loop* [a (do :b (recur "a"))] a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (loop* [a (do (recur "a") :c)] a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (loop* [a (do (recur "a") :c)] a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(fn [a] (loop* [a "a"] (recur a) a))')
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile('(fn [a] (loop* [a "a"] (recur a) a))')
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn [a] (try (do (recur a) :b) (catch AttributeError _ nil)))")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (try (do (recur a) :b) (catch AttributeError _ nil)))")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn [a] (try :b (catch AttributeError _ (do (recur :a) :c))))")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (try :b (catch AttributeError _ (do (recur :a) :c))))")
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn [a] (try :b (finally (do (recur :a) :c))))")
 
-    with pytest.raises(compiler.CompilerException):
-        lcompile("(fn [a] (try :b (finally (do (recur :a) :c))))")
+    def test_single_arity_named_anonymous_fn_recursion(self, ns: runtime.Namespace):
+        code = """
+        (let [compute-sum (fn sum [n]
+                            (if (operator/eq 0 n)
+                              0
+                              (operator/add n (sum (operator/sub n 1)))))]
+          (compute-sum 5))
+        """
+        assert 15 == lcompile(code)
 
-
-def test_named_anonymous_fn_recursion(ns: runtime.Namespace):
-    code = """
-    (let [compute-sum (fn sum [n]
-                        (if (operator/eq 0 n)
-                          0
-                          (operator/add n (sum (operator/sub n 1)))))]
-      (compute-sum 5))
-    """
-    assert 15 == lcompile(code)
-
-    code = """
-    (let [compute-sum (fn sum
-                        ([] 0)
-                        ([n]
-                         (if (operator/eq 0 n)
-                           0
-                           (operator/add n (sum (operator/sub n 1))))))]
-      (compute-sum 5))
-    """
-    assert 15 == lcompile(code)
+    def test_multi_arity_named_anonymous_fn_recursion(self, ns: runtime.Namespace):
+        code = """
+        (let [compute-sum (fn sum
+                            ([] 0)
+                            ([n]
+                             (if (operator/eq 0 n)
+                               0
+                               (operator/add n (sum (operator/sub n 1))))))]
+          (compute-sum 5))
+        """
+        assert 15 == lcompile(code)
 
 
 def test_syntax_quoting(test_ns: str, ns: runtime.Namespace, resolver: reader.Resolver):
