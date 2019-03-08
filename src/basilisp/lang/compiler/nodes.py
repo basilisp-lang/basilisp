@@ -150,8 +150,9 @@ class Node(ABC, Generic[T]):
         else:
             loc = (self.env.line, self.env.col)
 
-        if loc is None or any([e is None for e in loc]):
-            raise ValueError("Must specify location information")
+        assert loc is not None and all(
+            [e is not None for e in loc]
+        ), "Must specify location information"
 
         new_attrs: Dict[str, Union[NodeEnv, Node, Iterable[Node]]] = {
             "env": attr.evolve(self.env, line=loc[0], col=loc[1])

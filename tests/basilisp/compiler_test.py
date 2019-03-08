@@ -81,6 +81,9 @@ def lcompile(
 
 
 class TestLiterals:
+    def test_nil(self):
+        assert None is lcompile("nil")
+
     def test_string(self):
         assert lcompile('"some string"') == "some string"
         assert lcompile('""') == ""
