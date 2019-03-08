@@ -480,9 +480,9 @@ def _def_ast(  # pylint: disable=too-many-locals
             )
         )
     )
+    assert def_meta is not None, "def metadata must be defined at this point"
     if doc is not None:
         def_meta = def_meta.assoc(DOC_KW, doc)
-    assert def_meta is not None, "def metadata must be defined at this point"
 
     # Generation fails later if we use the same symbol we received, since
     # its meta may contain values which fail to compile.
@@ -645,7 +645,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches
             return method
 
 
-def _fn_ast(  # pylint: disable=too-many-branches
+def _fn_ast(  # pylint: disable=too-many-branches  # noqa: MC0001
     ctx: ParserContext, form: lseq.Seq
 ) -> Fn:
     assert form.first == SpecialForm.FN
