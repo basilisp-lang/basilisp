@@ -66,7 +66,6 @@ from basilisp.lang.compiler.nodes import (
     ReaderLispForm,
     Invoke,
     Throw,
-    HostInterop,
     Try,
     LocalType,
     SetBang,
@@ -1355,8 +1354,6 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
         target_ast = GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Store()))
     elif isinstance(target, HostField):
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
-    elif isinstance(target, HostInterop):
-        target_ast = _interop_to_py_ast(ctx, target, is_assigning=True)
     elif isinstance(target, VarRef):
         target_ast = _var_sym_to_py_ast(ctx, target, is_assigning=True)
     else:
@@ -1635,25 +1632,6 @@ def _interop_prop_to_py_ast(
         node=ast.Attribute(
             value=target_ast.node,
             attr=munge(node.field),
-            ctx=ast.Store() if is_assigning else ast.Load(),
-        ),
-        dependencies=target_ast.dependencies,
-    )
-
-
-@_with_ast_loc
-def _interop_to_py_ast(
-    ctx: GeneratorContext, node: HostInterop, is_assigning: bool = False
-) -> GeneratedPyAST:
-    """Generate a Python AST node for Python property or field access."""
-    assert node.op == NodeOp.HOST_INTEROP
-
-    target_ast = gen_py_ast(ctx, node.target)
-
-    return GeneratedPyAST(
-        node=ast.Attribute(
-            value=target_ast.node,
-            attr=munge(node.m_or_f),
             ctx=ast.Store() if is_assigning else ast.Load(),
         ),
         dependencies=target_ast.dependencies,
@@ -2056,7 +2034,6 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.HOST_CALL: _interop_call_to_py_ast,
     NodeOp.HOST_FIELD: _interop_prop_to_py_ast,
-    NodeOp.HOST_INTEROP: _interop_to_py_ast,
     NodeOp.IF: _if_to_py_ast,
     NodeOp.IMPORT: _import_to_py_ast,
     NodeOp.INVOKE: _invoke_to_py_ast,

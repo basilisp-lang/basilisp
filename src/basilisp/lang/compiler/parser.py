@@ -64,7 +64,6 @@ from basilisp.lang.compiler.nodes import (
     HostCall,
     HostField,
     Do,
-    HostInterop,
     Catch,
     Binding,
     LocalType,
@@ -816,7 +815,7 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
 
 def _host_interop_ast(  # pylint: disable=too-many-branches
     ctx: ParserContext, form: lseq.Seq
-) -> Union[HostCall, HostField, HostInterop]:
+) -> Union[HostCall, HostField]:
     assert form.first == SpecialForm.INTEROP_CALL
     nelems = count(form)
     assert nelems >= 3

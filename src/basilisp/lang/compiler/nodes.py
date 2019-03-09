@@ -357,20 +357,6 @@ class HostField(Node[SpecialForm], Assignable):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class HostInterop(Node[SpecialForm], Assignable):
-    form: SpecialForm
-    m_or_f: str
-    target: Node
-    env: NodeEnv
-    args: Iterable[Node] = ()
-    is_assignable: bool = True
-    children: Collection[kw.Keyword] = vec.v(TARGET)
-    op: NodeOp = NodeOp.HOST_INTEROP
-    top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
-
-
-@attr.s(auto_attribs=True, frozen=True, slots=True)
 class If(Node[SpecialForm]):
     form: SpecialForm
     test: Node
@@ -622,7 +608,6 @@ ParentNode = Union[
     Fn,
     HostCall,
     HostField,
-    HostInterop,
     If,
     Import,
     Invoke,
@@ -650,7 +635,6 @@ SpecialFormNode = Union[
     If,
     HostCall,
     HostField,
-    HostInterop,
     Import,
     Invoke,
     Let,
