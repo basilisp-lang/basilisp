@@ -863,25 +863,14 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
             args=vec.vector(map(partial(_parse_ast, ctx), maybe_m_or_f.rest)),
             env=ctx.get_node_env(),
         )
-
-    if nelems != 3:
+    else:
         raise ParserException(
-            "host interop forms must be 3 or more elements long", form=form
+            "host interop forms must take the form: "
+            "(. instance (method args*)), "
+            "(. instance method args*), "
+            "(. instance -field), ",
+            form=form,
         )
-
-    m_or_f = runtime.nth(form, 2)
-    if not isinstance(m_or_f, sym.Symbol):
-        raise ParserException(
-            "host interop member or field must be a symbol", form=m_or_f
-        )
-
-    return HostInterop(
-        form=form,
-        target=_parse_ast(ctx, runtime.nth(form, 1)),
-        m_or_f=m_or_f.name,
-        is_assignable=True,
-        env=ctx.get_node_env(),
-    )
 
 
 def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:

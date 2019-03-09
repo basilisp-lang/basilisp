@@ -856,10 +856,13 @@ class TestPythonInterop:
 
     def test_interop_call(self, ns: runtime.Namespace):
         assert "all-upper" == lcompile('(. "ALL-UPPER" lower)')
+
         assert "LOWER-STRING" == lcompile('(.upper "lower-string")')
         assert "LOWER-STRING" == lcompile('(. "lower-string" (upper))')
+
         assert "example" == lcompile('(.strip "www.example.com" "cmowz.")')
         assert "example" == lcompile('(. "www.example.com" (strip "cmowz."))')
+        assert "example" == lcompile('(. "www.example.com" strip "cmowz.")')
 
     def test_interop_prop_field_is_symbol(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
