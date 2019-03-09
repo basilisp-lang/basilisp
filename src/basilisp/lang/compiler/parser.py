@@ -1401,6 +1401,11 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             env=ctx.get_node_env(),
         )
 
+    if "." in form.name:
+        raise ParserException(
+            "symbol names may not contain the '.' operator", form=form
+        )
+
     ns_sym = sym.symbol(form.ns)
     if ns_sym in ctx.current_ns.imports or ns_sym in ctx.current_ns.import_aliases:
         # We still import Basilisp code, so we'll want to make sure
@@ -1454,27 +1459,14 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
         v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
         if v is None:
             raise ParserException(
-                f"unable to resolve symbol '{ns_sym}' in this context", form=form
+                f"unable to resolve symbol '{sym.symbol(form.name, ns_sym.name)}' in this context",
+                form=form,
             )
         return VarRef(form=form, var=v, env=ctx.get_node_env())
-
-    if "." in form.name:
+    else:
         raise ParserException(
-            "symbol names may not contain the '.' operator", form=form
+            f"unable to resolve symbol '{form}' in this context", form=form
         )
-
-    py_module = ns_sym.name.split(".")[0] if "." in ns_sym.name else ns_sym.name
-    if py_module not in ctx.current_ns.module.__dict__:
-        raise ParserException(
-            f"unable to resolve symbol '{ns_sym}' in this context", form=form
-        )
-
-    return MaybeHostForm(
-        form=form,
-        class_=munge(ns_sym.name),
-        field=munge(form.name),
-        env=ctx.get_node_env(),
-    )
 
 
 def __resolve_bare_symbol(
@@ -1501,12 +1493,10 @@ def __resolve_bare_symbol(
             env=ctx.get_node_env(),
         )
 
-    if form.name not in ctx.current_ns.module.__dict__:
-        raise ParserException(
-            f"unable to resolve symbol '{form}' in this context", form=form
-        )
-
-    return MaybeClass(form=form, class_=munge(form.name), env=ctx.get_node_env())
+    assert form.name not in ctx.current_ns.module.__dict__
+    raise ParserException(
+        f"unable to resolve symbol '{form}' in this context", form=form
+    )
 
 
 def _resolve_sym(

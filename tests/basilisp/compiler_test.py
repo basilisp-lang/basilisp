@@ -1617,22 +1617,47 @@ def test_unquote_splicing(ns: runtime.Namespace, resolver: reader.Resolver):
     assert llist.l(llist.l(reader._UNQUOTE_SPLICING, 53233)) == lcompile("'(~@53233)")
 
 
-def test_aliased_macro_symbol_resolution(ns: runtime.Namespace):
-    current_ns: runtime.Namespace = ns
-    other_ns_name = sym.symbol("other.ns")
-    try:
-        other_ns = runtime.Namespace.get_or_create(other_ns_name)
-        current_ns.add_alias(other_ns_name, other_ns)
-        current_ns.add_alias(sym.symbol("other"), other_ns)
+class TestSymbolResolution:
+    def test_bare_sym_resolves_builtins(self, ns: runtime.Namespace):
+        assert object is lcompile("object")
 
-        with runtime.ns_bindings(other_ns_name.name):
-            lcompile("(def ^:macro m (fn* [&form v] v))")
+    def test_namespaced_sym_may_not_contain_period(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("other.ns/with.sep")
 
-        with runtime.ns_bindings(current_ns.name):
-            assert kw.keyword("z") == lcompile("(other.ns/m :z)")
-            assert kw.keyword("a") == lcompile("(other/m :a)")
-    finally:
-        runtime.Namespace.remove(other_ns_name)
+    def test_namespaced_sym_cannot_resolve(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("other.ns/name")
+
+    def test_aliased_var_does_not_resolve(self, ns: runtime.Namespace):
+        current_ns: runtime.Namespace = ns
+        other_ns_name = sym.symbol("other.ns")
+        try:
+            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            current_ns.add_alias(other_ns_name, other_ns)
+            current_ns.add_alias(sym.symbol("other"), other_ns)
+
+            with pytest.raises(compiler.CompilerException):
+                lcompile("(other/m :arg)")
+        finally:
+            runtime.Namespace.remove(other_ns_name)
+
+    def test_aliased_macro_symbol_resolution(self, ns: runtime.Namespace):
+        current_ns: runtime.Namespace = ns
+        other_ns_name = sym.symbol("other.ns")
+        try:
+            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            current_ns.add_alias(other_ns_name, other_ns)
+            current_ns.add_alias(sym.symbol("other"), other_ns)
+
+            with runtime.ns_bindings(other_ns_name.name):
+                lcompile("(def ^:macro m (fn* [&form v] v))")
+
+            with runtime.ns_bindings(current_ns.name):
+                assert kw.keyword("z") == lcompile("(other.ns/m :z)")
+                assert kw.keyword("a") == lcompile("(other/m :a)")
+        finally:
+            runtime.Namespace.remove(other_ns_name)
 
 
 class TestWarnOnVarIndirection:
