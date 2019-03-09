@@ -315,10 +315,7 @@ def _collection_ast(
 
 def _clean_meta(form: lmeta.Meta) -> LispForm:
     """Remove reader metadata from the form's meta map."""
-    try:
-        meta = form.meta.discard(reader.READER_LINE_KW, reader.READER_COL_KW)
-    except AttributeError:
-        return None
+    meta = form.meta.discard(reader.READER_LINE_KW, reader.READER_COL_KW)
     if len(meta) == 0:
         return None
     return meta
