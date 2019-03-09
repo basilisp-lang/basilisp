@@ -810,6 +810,17 @@ class TestImport:
         with pytest.raises(ImportError):
             lcompile("(import* real.fake.module)")
 
+    def test_import_resolves_within_do_block(self):
+        import time
+
+        assert time.perf_counter == lcompile("(do (import* time)) time/perf-counter")
+        assert time.perf_counter == lcompile(
+            """
+            (do (import* [time :as py-time]))
+            py-time/perf-counter
+            """
+        )
+
     def test_single_import(self, ns: runtime.Namespace):
         import time
 

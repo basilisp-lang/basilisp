@@ -1095,9 +1095,6 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
                 f"Python module '{alias.name}' not found", node.form, node
             ) from e
 
-        if not node.top_level:
-            deps.append(ast.Global(names=[safe_alias]))
-
         deps.append(
             ast.Assign(
                 targets=[ast.Name(id=safe_alias, ctx=ast.Store())],
