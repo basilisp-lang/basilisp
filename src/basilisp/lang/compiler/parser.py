@@ -415,18 +415,12 @@ def _with_meta(gen_node):
             form_meta = _clean_meta(form.meta)
             if form_meta is not None:
                 meta_ast = _parse_ast(ctx, form_meta)  # type: ignore
-
-                if isinstance(meta_ast, MapNode) or (
+                assert isinstance(meta_ast, MapNode) or (
                     isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP
-                ):
-                    return WithMeta(
-                        form=form,
-                        meta=meta_ast,
-                        expr=descriptor,
-                        env=ctx.get_node_env(),
-                    )
-
-                raise ParserException(f"meta must be a map")
+                )
+                return WithMeta(
+                    form=form, meta=meta_ast, expr=descriptor, env=ctx.get_node_env()
+                )
 
         return descriptor
 
@@ -684,8 +678,6 @@ def _fn_ast(  # pylint: disable=too-many-branches  # noqa: MC0001
                 form=form,
             )
 
-        assert isinstance(arity_or_args, (llist.List, vec.Vector))
-
         if isinstance(arity_or_args, llist.List):
             methods = vec.vector(
                 map(
@@ -696,6 +688,11 @@ def _fn_ast(  # pylint: disable=too-many-branches  # noqa: MC0001
         elif isinstance(arity_or_args, vec.Vector):
             methods = vec.v(
                 __fn_method_ast(ctx, runtime.nthrest(form, idx), fnname=name)
+            )
+        else:
+            raise ParserException(
+                "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
+                form=form,
             )
 
         assert count(methods) > 0, "fn must have at least one arity"
@@ -974,26 +971,12 @@ def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
                     phase=CompilerPhase.MACROEXPANSION,
                 ) from e
 
-    descriptor = Invoke(
+    return Invoke(
         form=form,
         fn=fn,
         args=vec.vector(map(partial(_parse_ast, ctx), form.rest)),
         env=ctx.get_node_env(),
     )
-
-    if hasattr(form, "meta"):  # type: ignore
-        form_meta = _clean_meta(form.meta)  # type: ignore
-        if form_meta is not None:
-            meta_ast = _parse_ast(ctx, form_meta)
-
-            if isinstance(meta_ast, MapNode) or (
-                isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP
-            ):
-                return descriptor.assoc(meta=meta_ast)
-
-            raise ParserException(f"Meta must be a map")
-
-    return descriptor
 
 
 def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
@@ -1661,10 +1644,9 @@ def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
         form_meta = _clean_meta(form.meta)  # type: ignore
         if form_meta is not None:
             meta_ast = _const_node(ctx, form_meta)
-
-            if not isinstance(meta_ast, Const) or meta_ast.type != ConstType.MAP:
-                raise ParserException(f"Meta applied to constant must be a map")
-
+            assert isinstance(meta_ast, MapNode) or (
+                isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP
+            )
             return descriptor.assoc(meta=meta_ast, children=vec.v(META))
 
     return descriptor

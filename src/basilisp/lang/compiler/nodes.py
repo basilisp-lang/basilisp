@@ -412,7 +412,6 @@ class Invoke(Node[SpecialForm]):
     fn: Node
     args: Iterable[Node]
     env: NodeEnv
-    meta: NodeMeta = None
     children: Collection[kw.Keyword] = vec.v(FN, ARGS)
     op: NodeOp = NodeOp.INVOKE
     top_level: bool = False

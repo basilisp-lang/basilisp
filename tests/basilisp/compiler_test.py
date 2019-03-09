@@ -522,6 +522,10 @@ class TestFunctionDef:
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* ([a] a) ([a & :b] a))")
 
+    def test_fn_has_arity_or_arg(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn* a :a)")
+
     def test_fn_allows_empty_body(self, ns: runtime.Namespace):
         ns_name = ns.name
         fvar = lcompile("(def empty-single (fn* empty-single []))")
@@ -851,9 +855,11 @@ class TestPythonInterop:
             lcompile('(. "ALL-UPPER" ("lower"))')
 
     def test_interop_call(self, ns: runtime.Namespace):
-        assert lcompile('(. "ALL-UPPER" lower)') == "all-upper"
-        assert lcompile('(.upper "lower-string")') == "LOWER-STRING"
-        assert lcompile('(.strip "www.example.com" "cmowz.")') == "example"
+        assert "all-upper" == lcompile('(. "ALL-UPPER" lower)')
+        assert "LOWER-STRING" == lcompile('(.upper "lower-string")')
+        assert "LOWER-STRING" == lcompile('(. "lower-string" (upper))')
+        assert "example" == lcompile('(.strip "www.example.com" "cmowz.")')
+        assert "example" == lcompile('(. "www.example.com" (strip "cmowz."))')
 
     def test_interop_prop_field_is_symbol(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
@@ -876,10 +882,12 @@ class TestPythonInterop:
             lcompile("(. 'some.ns/sym -ns :argument)")
 
     def test_interop_prop(self, ns: runtime.Namespace):
-        assert lcompile("(.-ns 'some.ns/sym)") == "some.ns"
-        assert lcompile("(.- 'some.ns/sym ns)") == "some.ns"
-        assert lcompile("(.-name 'some.ns/sym)") == "sym"
-        assert lcompile("(.- 'some.ns/sym name)") == "sym"
+        assert "some.ns" == lcompile("(.-ns 'some.ns/sym)")
+        assert "some.ns" == lcompile("(.- 'some.ns/sym ns)")
+        assert "some.ns" == lcompile("(. 'some.ns/sym -ns)")
+        assert "sym" == lcompile("(.-name 'some.ns/sym)")
+        assert "sym" == lcompile("(.- 'some.ns/sym name)")
+        assert "sym" == lcompile("(. 'some.ns/sym -name)")
 
         with pytest.raises(AttributeError):
             lcompile("(.-fake 'some.ns/sym)")
@@ -1127,13 +1135,26 @@ class TestLoop:
         assert "tester" == lcompile(code)
 
 
-def test_quoted_list(ns: runtime.Namespace):
-    assert lcompile("'()") == llist.l()
-    assert lcompile("'(str)") == llist.l(sym.symbol("str"))
-    assert lcompile("'(str 3)") == llist.l(sym.symbol("str"), 3)
-    assert lcompile("'(str 3 :feet-deep)") == llist.l(
-        sym.symbol("str"), 3, kw.keyword("feet-deep")
-    )
+class TestQuote:
+    def test_quoted_list(self, ns: runtime.Namespace):
+        assert lcompile("'()") == llist.l()
+        assert lcompile("'(str)") == llist.l(sym.symbol("str"))
+        assert lcompile("'(str 3)") == llist.l(sym.symbol("str"), 3)
+        assert lcompile("'(str 3 :feet-deep)") == llist.l(
+            sym.symbol("str"), 3, kw.keyword("feet-deep")
+        )
+
+    def test_quoted_map(self, ns: runtime.Namespace):
+        assert lcompile("'{}") == lmap.Map.empty()
+        assert lcompile("'{:a 2}") == lmap.map({kw.keyword("a"): 2})
+        assert lcompile('\'{:a 2 "str" s}') == lmap.map(
+            {kw.keyword("a"): 2, "str": sym.symbol("s")}
+        )
+
+    def test_quoted_set(self, ns: runtime.Namespace):
+        assert lcompile("'#{}") == lset.Set.empty()
+        assert lcompile("'#{:a 2}") == lset.s(kw.keyword("a"), 2)
+        assert lcompile('\'#{:a 2 "str"}') == lset.s(kw.keyword("a"), 2, "str")
 
 
 class TestRecur:
