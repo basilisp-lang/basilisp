@@ -105,8 +105,6 @@ def repl(
             compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
         },
     )
-    runtime.init_ns_var()
-    runtime.bootstrap()
     ns_var = runtime.set_current_ns(default_ns)
     eof = object()
     while True:
