@@ -182,7 +182,7 @@ class Assignable(ABC):
     @property
     @abstractmethod
     def is_assignable(self) -> bool:
-        pass
+        raise NotImplementedError()
 
 
 class ConstType(Enum):

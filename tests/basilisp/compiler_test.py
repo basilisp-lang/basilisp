@@ -1141,6 +1141,17 @@ class TestLoop:
         assert "string" == lcompile(code)
 
         code = """
+        (import* io)
+        (let* [writer (io/StringIO)]
+          (loop* [s "string"]
+            (if (seq s)
+              (do
+                (.write writer (first s))
+                (recur (rest s)))
+              (.getvalue writer))))"""
+        assert "string" == lcompile(code)
+
+        code = """
         (loop* [s     "tester"
                 accum []]
           (if (seq s)
@@ -1385,9 +1396,17 @@ class TestSetBang:
         with pytest.raises(compiler.CompilerException):
             lcompile("(set! :kw :new-kw)")
 
-    def test_set_cannot_assign_local(self):
+    def test_set_cannot_assign_let_local(self):
         with pytest.raises(compiler.CompilerException):
             lcompile("(let [a :b] (set! a :c))")
+
+    def test_set_cannot_assign_loop_local(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(loop [a :b] (set! a :c))")
+
+    def test_set_cannot_assign_fn_arg_local(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn [a b] (set! a :c))")
 
     def test_set_cannot_assign_non_dynamic_var(self):
         with pytest.raises(compiler.CompilerException):

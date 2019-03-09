@@ -1343,17 +1343,23 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
     val_ast = gen_py_ast(ctx, node.val)
 
     target = node.target
-    if isinstance(target, Local):
-        safe_name = munge(target.name)
-        target_ast = GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Store()))
-    elif isinstance(target, HostField):
+    assert isinstance(
+        target, (HostField, Local, VarRef)
+    ), f"invalid set! target type {type(target)}"
+
+    if isinstance(target, HostField):
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
     elif isinstance(target, VarRef):
         target_ast = _var_sym_to_py_ast(ctx, target, is_assigning=True)
-    else:
-        raise GeneratorException(
-            f"invalid set! target type {type(target)}", lisp_ast=node
-        )
+    elif isinstance(target, Local):  # pragma: no cover
+        # Local nodes cannot be assigned by any existing code, but the
+        # clojure.tools.analyzer.jvm AST adds additional specialized Java
+        # nodes to the base clojure.tools.analyzer AST spec which include
+        # assignable locals (such as fields in deftype forms). I'm going
+        # to keep this branch here for now since I suspect I'll eventually
+        # enrich the AST to include assignable locals.
+        safe_name = munge(target.name)
+        target_ast = GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Store()))
 
     return GeneratedPyAST(
         node=ast.Name(id=val_temp_name, ctx=ast.Load()),
