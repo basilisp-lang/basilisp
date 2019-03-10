@@ -15,7 +15,8 @@ twine = "*"
 [packages]
 astor = "*"
 atomos = "*"
-basilisp = {editable = true, path = "."}
+attrs = "*"
+basilisp = {editable = true,path = "."}
 click = "*"
 pyfunctional = "*"
 pyrsistent = "*"

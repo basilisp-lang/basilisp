@@ -15,6 +15,7 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
 import basilisp.main as basilisp
 
+CLI_INPUT_FILE_PATH = "<CLI Input>"
 REPL_INPUT_FILE_PATH = "<REPL Input>"
 
 
@@ -98,9 +99,9 @@ def repl(
     ctx = compiler.CompilerContext(
         filename=REPL_INPUT_FILE_PATH,
         opts={
-            compiler.USE_VAR_INDIRECTION: use_var_indirection,
             compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
             compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
+            compiler.USE_VAR_INDIRECTION: use_var_indirection,
             compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
         },
     )
@@ -123,7 +124,7 @@ def repl(
             result = eval_str(lsrc, ctx, ns.module, eof)
             if result is eof:
                 continue
-            print(compiler.lrepr(result))
+            print(runtime.lrepr(result))
             repl_module.mark_repl_result(result)
         except reader.SyntaxError as e:
             traceback.print_exception(reader.SyntaxError, e, e.__traceback__)
@@ -187,11 +188,11 @@ def run(  # pylint: disable=too-many-arguments
     """Run a Basilisp script or a line of code, if it is provided."""
     basilisp.init()
     ctx = compiler.CompilerContext(
-        filename=None if code else file_or_code,
+        filename=CLI_INPUT_FILE_PATH if code else file_or_code,
         opts={
-            compiler.USE_VAR_INDIRECTION: use_var_indirection,
             compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
             compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
+            compiler.USE_VAR_INDIRECTION: use_var_indirection,
             compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
         },
     )
@@ -199,9 +200,9 @@ def run(  # pylint: disable=too-many-arguments
 
     with runtime.ns_bindings(in_ns) as ns:
         if code:
-            print(compiler.lrepr(eval_str(file_or_code, ctx, ns.module, eof)))
+            print(runtime.lrepr(eval_str(file_or_code, ctx, ns.module, eof)))
         else:
-            print(compiler.lrepr(eval_file(file_or_code, ctx, ns.module)))
+            print(runtime.lrepr(eval_file(file_or_code, ctx, ns.module)))
 
 
 @cli.command(short_help="run tests in a Basilisp project")

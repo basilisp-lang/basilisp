@@ -23,6 +23,7 @@ VERSION = None
 REQUIRED = [
     "astor",
     "atomos",
+    "attrs",
     "click",
     "pyfunctional",
     "pyrsistent",
