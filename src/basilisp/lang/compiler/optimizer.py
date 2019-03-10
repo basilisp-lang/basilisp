@@ -16,6 +16,7 @@ def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:
 
 class PythonASTOptimizer(ast.NodeTransformer):
     def visit_ExceptHandler(self, node: ast.ExceptHandler) -> Optional[ast.AST]:
+        """Eliminate dead code from except handler bodies."""
         new_node = self.generic_visit(node)
         if not isinstance(new_node, ast.ExceptHandler):
             return new_node
@@ -46,6 +47,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
         return node
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Optional[ast.AST]:
+        """Eliminate dead code from function bodies."""
         new_node = self.generic_visit(node)
         if not isinstance(new_node, ast.FunctionDef):
             return new_node
@@ -62,6 +64,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
             )
 
     def visit_If(self, node: ast.If) -> Optional[ast.AST]:
+        """Eliminate dead code from if/elif bodies."""
         new_node = self.generic_visit(node)
         if not isinstance(new_node, ast.If):
             return new_node
@@ -76,6 +79,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
             )
 
     def visit_While(self, node: ast.While) -> Optional[ast.AST]:
+        """Eliminate dead code from while bodies."""
         new_node = self.generic_visit(node)
         if not isinstance(new_node, ast.While):
             return new_node
@@ -90,6 +94,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
             )
 
     def visit_Try(self, node: ast.Try) -> Optional[ast.AST]:
+        """Eliminate dead code from except try bodies."""
         new_node = self.generic_visit(node)
         if not isinstance(new_node, ast.Try):
             return new_node
