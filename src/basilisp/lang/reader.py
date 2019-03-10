@@ -631,6 +631,7 @@ def _read_meta(ctx: ReaderContext) -> lmeta.Meta:
         )
 
 
+@_with_loc
 def _read_function(ctx: ReaderContext) -> llist.List:
     """Read a function reader macro from the input stream."""
     if ctx.is_in_anon_fn:
@@ -677,6 +678,7 @@ def _read_function(ctx: ReaderContext) -> llist.List:
     return llist.l(_FN, vector.vector(arg_list), body)
 
 
+@_with_loc
 def _read_quoted(ctx: ReaderContext) -> llist.List:
     """Read a quoted form from the input stream."""
     start = ctx.reader.advance()
@@ -739,17 +741,17 @@ def _process_syntax_quoted_form(ctx: ReaderContext, form: LispForm) -> LispForm:
     Vectors are turned into:
         (basilisp.core/apply
          basilisp.core/vector
-         (basilisp.core.concat/ [& rest]))
+         (basilisp.core/concat [& rest]))
 
     Sets are turned into:
         (basilisp.core/apply
          basilisp.core/hash-set
-         (basilisp.core.concat/ [& rest]))
+         (basilisp.core/concat [& rest]))
 
     Maps are turned into:
         (basilisp.core/apply
          basilisp.core/hash-map
-         (basilisp.core.concat/ [& rest]))
+         (basilisp.core/concat [& rest]))
 
     The child forms (called rest above) are processed by _expand_syntax_quote.
 
@@ -773,7 +775,9 @@ def _process_syntax_quoted_form(ctx: ReaderContext, form: LispForm) -> LispForm:
             try:
                 return llist.l(_QUOTE, ctx.gensym_env[form.name])
             except KeyError:
-                genned = symbol.symbol(langutil.genname(form.name[:-1]))
+                genned = symbol.symbol(langutil.genname(form.name[:-1])).with_meta(
+                    form.meta
+                )
                 ctx.gensym_env[form.name] = genned
                 return llist.l(_QUOTE, genned)
         return llist.l(_QUOTE, form)
@@ -817,6 +821,7 @@ def _read_unquote(ctx: ReaderContext) -> LispForm:
             return llist.l(_UNQUOTE, next_form)
 
 
+@_with_loc
 def _read_deref(ctx: ReaderContext) -> LispForm:
     """Read a derefed form from the input stream."""
     start = ctx.reader.advance()
