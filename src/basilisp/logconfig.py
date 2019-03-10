@@ -18,7 +18,9 @@ def get_handler(level: str, fmt: str) -> logging.Handler:
     return handler
 
 
-logging.addLevelName(5, "TRACE")
+TRACE = 5
+
+logging.addLevelName(TRACE, "TRACE")
 
 DEFAULT_FORMAT = (
     "%(asctime)s %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] - %(message)s"
