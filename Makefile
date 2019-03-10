@@ -36,6 +36,7 @@ test-pypy:
 		pypy:3.6-7.0-slim-jessie \
 		/bin/sh -c 'cd /usr/src/app && pip install tox && tox -e pypy3'
 
+
 .PHONY: pypy-shell
 pypy-shell:
 	@docker run -it \
