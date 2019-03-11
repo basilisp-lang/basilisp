@@ -44,7 +44,7 @@
             :expr         (quote ~expr)
             :actual       ~(nth expr 2)
             :expected     ~(second expr)
-            :line         (line-no 4)
+            :line         (line-no 1)
             :type         :failure})))
 
 (defmethod gen-assert 'thrown?
@@ -61,7 +61,7 @@
                  :expr         (quote ~expr)
                  :actual       result#
                  :expected     (quote ~exc-type)
-                 :line         (line-no 3)
+                 :line         (line-no 1)
                  :type         :failure}))
        (catch ~exc-type _ nil)
        (catch builtins/Exception e#
@@ -73,7 +73,7 @@
                  :expr         (quote ~expr)
                  :actual       e#
                  :expected     ~exc-type
-                 :line         (line-no 3)
+                 :line         (line-no 1)
                  :type         :failure})))))
 
 (defmethod gen-assert :default
@@ -88,7 +88,7 @@
                :expr         (quote ~expr)
                :actual       computed#
                :expected     computed#
-               :line         (line-no 6)
+               :line         (line-no 1)
                :type         :failure}))))
 
 (defmacro is
@@ -107,7 +107,7 @@
                 :expr         (quote ~expr)
                 :actual       e#
                 :expected     (quote ~expr)
-                :line         (line-no 2)
+                :line         (line-no 1)
                 :type         :error})))))
 
 (defmacro testing

@@ -194,7 +194,10 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 fullname, path_stats["mtime"], path_stats["size"], cache_data
             )
             compiler.compile_bytecode(
-                cached_code, compiler.CompilerContext(filename=filename), module
+                cached_code,
+                compiler.GeneratorContext(filename=filename),
+                compiler.PythonASTOptimizer(),
+                module,
             )
 
     def _exec_module(

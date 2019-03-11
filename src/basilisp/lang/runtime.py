@@ -110,6 +110,8 @@ class Var:
         self._meta = meta
 
         if dynamic:
+            self._tl.bindings = []
+
             # If this var was created with the dynamic keyword argument, then the
             # Var metadata should also specify that the Var is dynamic.
             if isinstance(self._meta, lmap.Map):
@@ -153,6 +155,10 @@ class Var:
             return False
 
     @property
+    def is_bound(self) -> bool:
+        return self._is_bound
+
+    @property
     def root(self):
         return self._root
 
@@ -171,22 +177,20 @@ class Var:
 
     @property
     def value(self):
-        if (
-            self._dynamic
-            and hasattr(self._tl, "bindings")
-            and len(self._tl.bindings) > 0
-        ):
-            return self._tl.bindings[-1]
+        if self._dynamic:
+            assert hasattr(self._tl, "bindings")
+            if len(self._tl.bindings) > 0:
+                return self._tl.bindings[-1]
         return self._root
 
     @value.setter
     def value(self, v):
-        if (
-            self._dynamic
-            and hasattr(self._tl, "bindings")
-            and len(self._tl.bindings) > 0
-        ):
-            self._tl.bindings[-1] = v
+        if self._dynamic:
+            assert hasattr(self._tl, "bindings")
+            if len(self._tl.bindings) > 0:
+                self._tl.bindings[-1] = v
+            else:
+                self.push_bindings(v)
             return
         self._root = v
 
@@ -1044,29 +1048,13 @@ def bootstrap(ns_var_name: str = _NS_VAR_NAME, core_ns_name: str = _CORE_NS) -> 
         lambda: RuntimeException(f"Dynamic Var {ns_var_sym} not bound!")
     )
 
-    def set_BANG_(var_sym: sym.Symbol, expr):
-        ns = Maybe(var_sym.ns).or_else(lambda: __NS.value.name)
-        name = var_sym.name
-
-        v = Maybe(Var.find(sym.symbol(name, ns=ns))).or_else_raise(
-            lambda: RuntimeException(f"Var {ns_var_sym} not bound!")
-        )
-        v.value = expr
-        return expr
-
     def in_ns(s: sym.Symbol):
         ns = Namespace.get_or_create(s)
-        set_BANG_(ns_var_sym, ns)
+        __NS.value = ns
         return ns
 
     Var.intern_unbound(core_ns_sym, sym.symbol("unquote"))
     Var.intern_unbound(core_ns_sym, sym.symbol("unquote-splicing"))
-    Var.intern(
-        core_ns_sym,
-        sym.symbol("set!"),
-        set_BANG_,
-        meta=lmap.map({_REDEF_META_KEY: True}),
-    )
     Var.intern(
         core_ns_sym, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
     )
