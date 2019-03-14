@@ -5,6 +5,7 @@ from fractions import Fraction
 import dateutil.parser as dateparser
 
 import basilisp.lang.compiler as compiler
+import basilisp.lang.keyword as kw
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 
@@ -148,6 +149,18 @@ def test_lrepr():
         '(pr-str #inst "2018-11-28T12:43:25.477-00:00")'
     )
 
+    assert "#py {}" == lcompile("(pr-str #py {})")
+    assert "#py {:a 1}" == lcompile("(pr-str #py {:a 1})")
+
+    assert "#py []" == lcompile("(pr-str #py [])")
+    assert "#py [:a 1 \"s\"]" == lcompile("(pr-str #py [:a 1 \"s\"])")
+
+    assert "#py #{}" == lcompile("(pr-str #py #{})")
+    assert "#py #{:a}" == lcompile("(pr-str #py #{:a})")
+
+    assert "#py ()" == lcompile("(pr-str #py ())")
+    assert "#py (:a 1 \"s\")" == lcompile("(pr-str #py (:a 1 \"s\"))")
+
 
 def test_lrepr_round_trip():
     assert True is lcompile("(read-string (pr-str true))")
@@ -168,6 +181,18 @@ def test_lrepr_round_trip():
     assert dateparser.parse("2018-11-28T12:43:25.477000+00:00") == lcompile(
         '(read-string (pr-str #inst "2018-11-28T12:43:25.477-00:00"))'
     )
+
+    assert {} == lcompile("(read-string (pr-str #py {}))")
+    assert {kw.keyword("a"): 1} == lcompile("(read-string (pr-str #py {:a 1}))")
+
+    assert [] == lcompile("(read-string (pr-str #py []))")
+    assert [kw.keyword("a"), 1, "s"] == lcompile("(read-string (pr-str #py [:a 1 \"s\"]))")
+
+    assert set() == lcompile("(read-string (pr-str #py #{}))")
+    assert {kw.keyword("a"), 1, "s"} == lcompile("(read-string (pr-str #py #{:a}))")
+
+    assert () == lcompile("(read-string (pr-str #py ()))")
+    assert (kw.keyword("a"), 1, "s") == lcompile("(read-string (pr-str #py (:a 1 \"s\")))")
 
 
 def test_lstr():
