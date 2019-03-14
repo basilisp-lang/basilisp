@@ -1009,6 +1009,22 @@ def test_python_literals():
         sym.symbol("set", ns="builtins"), lset.s(1, kw.keyword("a"), "str")
     ) == read_str_first('#py #{1 :a "str"}')
 
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("#py :kw")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('#py "s"')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("#py 3")
+
+
+def test_namespace_tags_allowed():
+    assert "s" == read_str_first(
+        '#foo/bar "s"',
+        data_readers=lmap.map({sym.symbol("bar", ns="foo"): lambda v: v}),
+    )
+
 
 def test_non_namespaced_tags_reserved():
     with pytest.raises(TypeError):

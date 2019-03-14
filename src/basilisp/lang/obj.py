@@ -58,6 +58,12 @@ class LispObject(ABC):
         meta=None,
         **kwargs,
     ) -> str:
+        """Produce a Lisp representation of an associative collection, bookended
+        with the start and end string supplied. The entries argument must be a
+        callable which will produce tuples of key-value pairs.
+
+        The keyword arguments will be passed along to lrepr for the sequence
+        elements."""
         print_level = kwargs["print_level"]
         if isinstance(print_level, int) and print_level < 1:
             return SURPASSED_PRINT_LEVEL
@@ -168,7 +174,33 @@ def lrepr(  # pylint: disable=too-many-arguments
     }
     if isinstance(o, LispObject):
         return o._lrepr(**kwargs)
-    elif isinstance(o, bool):
+    else:  # pragma: no cover
+        return _lrepr_fallback(o, **kwargs)
+
+
+def _lrepr_fallback(
+    o: Any,
+    human_readable: bool = False,
+    print_dup: bool = PRINT_DUP,
+    print_length: PrintCountSetting = PRINT_LENGTH,
+    print_level: PrintCountSetting = PRINT_LEVEL,
+    print_meta: bool = PRINT_META,
+    print_readably: bool = PRINT_READABLY,
+) -> str:  # pragma: no cover
+    """Fallback function for lrepr for subclasses of standard types.
+
+    The singledispatch used for standard lrepr dispatches using an exact
+    type match on the first argument, so we will only hit this function
+    for subclasses of common Python types like strings or lists."""
+    kwargs = {
+        "human_readable": human_readable,
+        "print_dup": print_dup,
+        "print_length": print_length,
+        "print_level": print_level,
+        "print_meta": print_meta,
+        "print_readably": print_readably,
+    }
+    if isinstance(o, bool):
         return _lrepr_bool(o)
     elif o is None:
         return _lrepr_nil(o)

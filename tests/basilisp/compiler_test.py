@@ -170,6 +170,26 @@ class TestLiterals:
             '#uuid "0366f074-a8c5-4764-b340-6a5576afd2e8"'
         )
 
+    def test_py_dict(self):
+        assert isinstance(lcompile("#py {}"), dict)
+        assert {} == lcompile("#py {}")
+        assert {kw.keyword("a"): 1, "b": "str"} == lcompile('#py {:a 1 "b" "str"}')
+
+    def test_py_list(self):
+        assert isinstance(lcompile("#py []"), list)
+        assert [] == lcompile("#py []")
+        assert [1, kw.keyword("a"), "str"] == lcompile('#py [1 :a "str"]')
+
+    def test_py_set(self):
+        assert isinstance(lcompile("#py #{}"), set)
+        assert set() == lcompile("#py #{}")
+        assert {1, kw.keyword("a"), "str"} == lcompile('#py #{1 :a "str"}')
+
+    def test_py_tuple(self):
+        assert isinstance(lcompile("#py ()"), tuple)
+        assert tuple() == lcompile("#py ()")
+        assert (1, kw.keyword("a"), "str") == lcompile('#py (1 :a "str")')
+
 
 class TestDef:
     def test_def(self, ns: runtime.Namespace):
