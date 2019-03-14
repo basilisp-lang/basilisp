@@ -164,21 +164,28 @@ def lrepr(  # pylint: disable=too-many-arguments
     runtime to the basilisp.core dynamic variables which correspond to each
     of the keyword arguments to this function. To use a version of lrepr
     which does capture those values, call basilisp.lang.runtime.lrepr directly."""
-    kwargs = {
-        "human_readable": human_readable,
-        "print_dup": print_dup,
-        "print_length": print_length,
-        "print_level": print_level,
-        "print_meta": print_meta,
-        "print_readably": print_readably,
-    }
     if isinstance(o, LispObject):
-        return o._lrepr(**kwargs)
+        return o._lrepr(
+            human_readable=human_readable,
+            print_dup=print_dup,
+            print_length=print_length,
+            print_level=print_level,
+            print_meta=print_meta,
+            print_readably=print_readably,
+        )
     else:  # pragma: no cover
-        return _lrepr_fallback(o, **kwargs)
+        return _lrepr_fallback(
+            o,
+            human_readable=human_readable,
+            print_dup=print_dup,
+            print_length=print_length,
+            print_level=print_level,
+            print_meta=print_meta,
+            print_readably=print_readably,
+        )
 
 
-def _lrepr_fallback(
+def _lrepr_fallback(  # pylint: disable=too-many-arguments
     o: Any,
     human_readable: bool = False,
     print_dup: bool = PRINT_DUP,
