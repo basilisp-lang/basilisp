@@ -162,6 +162,39 @@ class StreamReader:
         return self.peek()
 
 
+_PY_LIST_BUILTIN = symbol.symbol("list", ns="builtins")
+_PY_MAP_BUILTIN = symbol.symbol("dict", ns="builtins")
+_PY_SET_BUILTIN = symbol.symbol("set", ns="builtins")
+_PY_TUPLE_BUILTIN = symbol.symbol("tuple", ns="builtins")
+
+
+@functools.singledispatch
+def _py_from_lisp(
+    form: Union[llist.List, lmap.Map, lset.Set, vector.Vector]
+) -> llist.List:
+    raise SyntaxError(f"Unrecognized Python type: {type(form)}")
+
+
+@_py_from_lisp.register(llist.List)
+def _py_tuple_from_list(form: llist.List) -> llist.List:
+    return llist.l(_PY_TUPLE_BUILTIN, llist.l(_QUOTE, form))
+
+
+@_py_from_lisp.register(lmap.Map)
+def _py_dict_from_map(form: lmap.Map) -> llist.List:
+    return llist.l(_PY_MAP_BUILTIN, form)
+
+
+@_py_from_lisp.register(lset.Set)
+def _py_set_from_set(form: lset.Set) -> llist.List:
+    return llist.l(_PY_SET_BUILTIN, form)
+
+
+@_py_from_lisp.register(vector.Vector)
+def _py_list_from_vec(form: vector.Vector) -> llist.List:
+    return llist.l(_PY_LIST_BUILTIN, form)
+
+
 def _inst_from_str(inst_str: str) -> datetime:
     try:
         return langutil.inst_from_str(inst_str)
@@ -178,7 +211,11 @@ def _uuid_from_str(uuid_str: str) -> uuid.UUID:
 
 class ReaderContext:
     _DATA_READERS = lmap.map(
-        {symbol.symbol("inst"): _inst_from_str, symbol.symbol("uuid"): _uuid_from_str}
+        {
+            symbol.symbol("inst"): _inst_from_str,
+            symbol.symbol("py"): _py_from_lisp,
+            symbol.symbol("uuid"): _uuid_from_str,
+        }
     )
 
     __slots__ = (

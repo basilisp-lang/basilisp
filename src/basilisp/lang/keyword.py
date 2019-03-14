@@ -33,7 +33,7 @@ class Keyword(LispObject):
         return self is other
 
     def __hash__(self):
-        return hash(str(self))
+        return hash((self._name, self._ns))
 
     def __call__(self, m: lassoc.Associative, default=None):
         try:

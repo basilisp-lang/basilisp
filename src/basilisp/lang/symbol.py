@@ -52,7 +52,7 @@ class Symbol(LispObject, Meta):
         return self._ns == other._ns and self._name == other._name
 
     def __hash__(self):
-        return hash(str(self))
+        return hash((self._ns, self._name))
 
 
 def symbol(name: str, ns: Optional[str] = None, meta=None) -> Symbol:
