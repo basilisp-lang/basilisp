@@ -977,6 +977,38 @@ def test_uuid_reader_literal():
         read_str_first('#uuid "I am a little teapot short and stout"')
 
 
+def test_python_literals():
+    assert [] == read_str_first("#py []")
+    assert [1, kw.keyword("a"), "str"] == read_str_first('#py [1 :a "str"]')
+
+    assert () == read_str_first("#py ()")
+    assert (1, kw.keyword("a"), "str") == read_str_first('#py (1 :a "str")')
+
+    assert {} == read_str_first("#py {}")
+    assert {kw.keyword("a"): 1, kw.keyword("other"): "str"} == read_str_first(
+        '#py {:a 1 :other "str"}'
+    )
+
+    assert set() == read_str_first("#py #{}")
+    assert {1, kw.keyword("a"), "str"} == read_str_first('#py #{1 :a "str"}')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("#py :kw")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('#py "s"')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("#py 3")
+
+
+def test_namespace_tags_allowed():
+    assert "s" == read_str_first(
+        '#foo/bar "s"',
+        data_readers=lmap.map({sym.symbol("bar", ns="foo"): lambda v: v}),
+    )
+
+
 def test_non_namespaced_tags_reserved():
     with pytest.raises(TypeError):
         read_str_first(

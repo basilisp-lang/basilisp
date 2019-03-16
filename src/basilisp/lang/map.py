@@ -2,10 +2,8 @@ from builtins import map as pymap
 from collections import Sequence
 from typing import Optional  # noqa # pylint: disable=unused-import
 
-from functional import seq
 from pyrsistent import pmap, PMap
 
-import basilisp.lang.obj as lobj
 import basilisp.lang.vector as vec
 from basilisp.lang.associative import Associative
 from basilisp.lang.collection import Collection
@@ -99,34 +97,9 @@ class Map(Associative, Collection, LispObject, Meta, Seqable):
         return len(self._inner)
 
     def _lrepr(self, **kwargs):
-        print_level = kwargs["print_level"]
-        if isinstance(print_level, int) and print_level < 1:
-            return lobj.SURPASSED_PRINT_LEVEL
-
-        kwargs = LispObject._process_kwargs(**kwargs)
-
-        def entry_reprs():
-            for k, v in self._inner.iteritems():
-                yield "{k} {v}".format(k=lrepr(k, **kwargs), v=lrepr(v, **kwargs))
-
-        trailer = []
-        print_dup = kwargs["print_dup"]
-        print_length = kwargs["print_length"]
-        if not print_dup and isinstance(print_length, int):
-            items = seq(entry_reprs()).take(print_length + 1).to_list()
-            if len(items) > print_length:
-                items.pop()
-                trailer.append(lobj.SURPASSED_PRINT_LENGTH)
-        else:
-            items = list(entry_reprs())
-
-        seq_lrepr = lobj.PRINT_SEPARATOR.join(items + trailer)
-
-        print_meta = kwargs["print_meta"]
-        if print_meta and self._meta:
-            return f"^{lrepr(self._meta, **kwargs)} {{{seq_lrepr}}}"
-
-        return f"{{{seq_lrepr}}}"
+        return LispObject.map_lrepr(
+            self._inner.iteritems, start="{", end="}", meta=self._meta, **kwargs
+        )
 
     def items(self):
         return self._inner.items()

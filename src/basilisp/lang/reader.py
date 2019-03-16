@@ -35,7 +35,7 @@ import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vector
 import basilisp.walker as walk
-from basilisp.lang.typing import LispForm, IterableLispForm
+from basilisp.lang.typing import LispForm, IterableLispForm, ReaderForm
 from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|\.")
@@ -81,7 +81,7 @@ class Comment:
 
 COMMENT = Comment()
 
-LispReaderForm = Union[LispForm, Comment]
+LispReaderForm = Union[ReaderForm, Comment]
 
 
 class SyntaxError(Exception):  # pylint:disable=redefined-builtin
@@ -162,6 +162,33 @@ class StreamReader:
         return self.peek()
 
 
+@functools.singledispatch
+def _py_from_lisp(
+    form: Union[llist.List, lmap.Map, lset.Set, vector.Vector]
+) -> ReaderForm:
+    raise SyntaxError(f"Unrecognized Python type: {type(form)}")
+
+
+@_py_from_lisp.register(llist.List)
+def _py_tuple_from_list(form: llist.List) -> tuple:
+    return tuple(form)
+
+
+@_py_from_lisp.register(lmap.Map)
+def _py_dict_from_map(form: lmap.Map) -> dict:
+    return dict(form)
+
+
+@_py_from_lisp.register(lset.Set)
+def _py_set_from_set(form: lset.Set) -> set:
+    return set(form)
+
+
+@_py_from_lisp.register(vector.Vector)
+def _py_list_from_vec(form: vector.Vector) -> list:
+    return list(form)
+
+
 def _inst_from_str(inst_str: str) -> datetime:
     try:
         return langutil.inst_from_str(inst_str)
@@ -178,7 +205,11 @@ def _uuid_from_str(uuid_str: str) -> uuid.UUID:
 
 class ReaderContext:
     _DATA_READERS = lmap.map(
-        {symbol.symbol("inst"): _inst_from_str, symbol.symbol("uuid"): _uuid_from_str}
+        {
+            symbol.symbol("inst"): _inst_from_str,
+            symbol.symbol("py"): _py_from_lisp,
+            symbol.symbol("uuid"): _uuid_from_str,
+        }
     )
 
     __slots__ = (
@@ -687,7 +718,7 @@ def _read_quoted(ctx: ReaderContext) -> llist.List:
     return llist.l(_QUOTE, next_form)
 
 
-def _is_unquote(form: LispForm) -> bool:
+def _is_unquote(form: ReaderForm) -> bool:
     """Return True if this form is unquote."""
     try:
         return form.first == _UNQUOTE  # type: ignore
@@ -695,7 +726,7 @@ def _is_unquote(form: LispForm) -> bool:
         return False
 
 
-def _is_unquote_splicing(form: LispForm) -> bool:
+def _is_unquote_splicing(form: ReaderForm) -> bool:
     """Return True if this form is unquote-splicing."""
     try:
         return form.first == _UNQUOTE_SPLICING  # type: ignore
@@ -730,7 +761,7 @@ def _expand_syntax_quote(
     return expanded
 
 
-def _process_syntax_quoted_form(ctx: ReaderContext, form: LispForm) -> LispForm:
+def _process_syntax_quoted_form(ctx: ReaderContext, form: ReaderForm) -> ReaderForm:
     """Post-process syntax quoted forms to generate forms that can be assembled
     into the correct types at runtime.
 
@@ -785,7 +816,7 @@ def _process_syntax_quoted_form(ctx: ReaderContext, form: LispForm) -> LispForm:
         return form
 
 
-def _read_syntax_quoted(ctx: ReaderContext) -> LispForm:
+def _read_syntax_quoted(ctx: ReaderContext) -> ReaderForm:
     """Read a syntax-quote and set the syntax-quoting state in the reader."""
     start = ctx.reader.advance()
     assert start == "`"
@@ -941,7 +972,7 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
         reader.advance()
 
 
-def _read_next_consuming_comment(ctx: ReaderContext) -> LispForm:
+def _read_next_consuming_comment(ctx: ReaderContext) -> ReaderForm:
     """Read the next full form from the input stream, consuming any
     reader comments completely."""
     while True:
@@ -1002,7 +1033,7 @@ def read(
     data_readers: DataReaders = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
-) -> Iterable[LispForm]:
+) -> Iterable[ReaderForm]:
     """Read the contents of a stream as a Lisp expression.
 
     Callers may optionally specify a namespace resolver, which will be used
@@ -1035,7 +1066,7 @@ def read_str(
     data_readers: DataReaders = None,
     eof: Any = None,
     is_eof_error: bool = False,
-) -> Iterable[LispForm]:
+) -> Iterable[ReaderForm]:
     """Read the contents of a string as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
@@ -1056,7 +1087,7 @@ def read_file(
     data_readers: DataReaders = None,
     eof: Any = None,
     is_eof_error: bool = False,
-) -> Iterable[LispForm]:
+) -> Iterable[ReaderForm]:
     """Read the contents of a file as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of

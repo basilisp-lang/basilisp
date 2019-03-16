@@ -5,6 +5,7 @@ from fractions import Fraction
 import dateutil.parser as dateparser
 
 import basilisp.lang.compiler as compiler
+import basilisp.lang.keyword as kw
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 
@@ -59,6 +60,22 @@ def test_print_level():
         "(binding [*print-level* nil] (pr-str [[[1 2 3]]]))"
     )
 
+    assert "#py [1 2 3]" == lcompile("(binding [*print-level* 1] (pr-str #py [1 2 3]))")
+    assert "#py [#]" == lcompile("(binding [*print-level* 1] (pr-str #py [[1 2 3]]))")
+    assert "#py [#]" == lcompile("(binding [*print-level* 1] (pr-str #py [[[1 2 3]]]))")
+    assert "#py [[#]]" == lcompile(
+        "(binding [*print-level* 2] (pr-str #py [[[1 2 3]]]))"
+    )
+    assert "#py [[[1 2 3]]]" == lcompile(
+        "(binding [*print-level* 3] (pr-str #py [[[1 2 3]]]))"
+    )
+    assert "#py [[[1 2 3]]]" == lcompile(
+        "(binding [*print-level* 4] (pr-str #py [[[1 2 3]]]))"
+    )
+    assert "#py [[[1 2 3]]]" == lcompile(
+        "(binding [*print-level* nil] (pr-str #py [[[1 2 3]]]))"
+    )
+
     assert "{:a #}" == lcompile(
         "(binding [*print-level* 1] (pr-str {:a {:b {:c :d}}}))"
     )
@@ -73,6 +90,22 @@ def test_print_level():
     )
     assert "{:a {:b {:c :d}}}" == lcompile(
         "(binding [*print-level* nil] (pr-str {:a {:b {:c :d}}}))"
+    )
+
+    assert "#py {:a #}" == lcompile(
+        "(binding [*print-level* 1] (pr-str #py {:a {:b {:c :d}}}))"
+    )
+    assert "#py {:a {:b #}}" == lcompile(
+        "(binding [*print-level* 2] (pr-str #py {:a {:b {:c :d}}}))"
+    )
+    assert "#py {:a {:b {:c :d}}}" == lcompile(
+        "(binding [*print-level* 3] (pr-str #py {:a {:b {:c :d}}}))"
+    )
+    assert "#py {:a {:b {:c :d}}}" == lcompile(
+        "(binding [*print-level* 4] (pr-str #py {:a {:b {:c :d}}}))"
+    )
+    assert "#py {:a {:b {:c :d}}}" == lcompile(
+        "(binding [*print-level* nil] (pr-str #py {:a {:b {:c :d}}}))"
     )
 
 
@@ -148,6 +181,18 @@ def test_lrepr():
         '(pr-str #inst "2018-11-28T12:43:25.477-00:00")'
     )
 
+    assert "#py {}" == lcompile("(pr-str #py {})")
+    assert "#py {:a 1}" == lcompile("(pr-str #py {:a 1})")
+
+    assert "#py []" == lcompile("(pr-str #py [])")
+    assert '#py [:a 1 "s"]' == lcompile('(pr-str #py [:a 1 "s"])')
+
+    assert "#py #{}" == lcompile("(pr-str #py #{})")
+    assert "#py #{:a}" == lcompile("(pr-str #py #{:a})")
+
+    assert "#py ()" == lcompile("(pr-str #py ())")
+    assert '#py (:a 1 "s")' == lcompile('(pr-str #py (:a 1 "s"))')
+
 
 def test_lrepr_round_trip():
     assert True is lcompile("(read-string (pr-str true))")
@@ -167,6 +212,24 @@ def test_lrepr_round_trip():
     assert re.compile(r"\s") == lcompile('(read-string (pr-str #"\\s"))')
     assert dateparser.parse("2018-11-28T12:43:25.477000+00:00") == lcompile(
         '(read-string (pr-str #inst "2018-11-28T12:43:25.477-00:00"))'
+    )
+
+    assert {} == lcompile("(read-string (pr-str #py {}))")
+    assert {kw.keyword("a"): 1} == lcompile("(read-string (pr-str #py {:a 1}))")
+
+    assert [] == lcompile("(read-string (pr-str #py []))")
+    assert [kw.keyword("a"), 1, "s"] == lcompile(
+        '(read-string (pr-str #py [:a 1 "s"]))'
+    )
+
+    assert set() == lcompile("(read-string (pr-str #py #{}))")
+    assert {kw.keyword("a"), 1, "a"} == lcompile(
+        '(read-string (pr-str #py #{:a 1 "a"}))'
+    )
+
+    assert () == lcompile("(read-string (pr-str #py ()))")
+    assert (kw.keyword("a"), 1, "s") == lcompile(
+        '(read-string (pr-str #py (:a 1 "s")))'
     )
 
 
@@ -190,3 +253,7 @@ def test_lstr():
     assert '#inst "2018-11-28T12:43:25.477000+00:00"' == lcompile(
         '(print-str #inst "2018-11-28T12:43:25.477-00:00")'
     )
+    assert "#py []" == lcompile("(print-str #py [])")
+    assert "#py ()" == lcompile("(print-str #py ())")
+    assert "#py {}" == lcompile("(print-str #py {})")
+    assert "#py #{}" == lcompile("(print-str #py #{})")
