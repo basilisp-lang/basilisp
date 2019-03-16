@@ -1601,17 +1601,21 @@ _CONST_NODE_TYPES = {  # type: ignore
     complex: ConstType.NUMBER,
     datetime: ConstType.INST,
     Decimal: ConstType.DECIMAL,
+    dict: ConstType.PY_DICT,
     float: ConstType.NUMBER,
     Fraction: ConstType.FRACTION,
     int: ConstType.NUMBER,
     kw.Keyword: ConstType.KEYWORD,
+    list: ConstType.PY_LIST,
     llist.List: ConstType.SEQ,
     lmap.Map: ConstType.MAP,
     lset.Set: ConstType.SET,
     lseq.Seq: ConstType.SEQ,
     type(re.compile("")): ConstType.REGEX,
+    set: ConstType.PY_SET,
     sym.Symbol: ConstType.SYMBOL,
     str: ConstType.STRING,
+    tuple: ConstType.PY_TUPLE,
     type(None): ConstType.NIL,
     uuid.UUID: ConstType.UUID,
     vec.Vector: ConstType.VECTOR,
@@ -1634,12 +1638,16 @@ def _const_node(ctx: ParserContext, form: ReaderForm) -> Const:
                 complex,
                 datetime,
                 Decimal,
+                dict,
                 float,
                 Fraction,
                 int,
                 kw.Keyword,
+                list,
                 Pattern,
+                set,
                 str,
+                tuple,
                 type(None),
                 uuid.UUID,
             ),
@@ -1668,7 +1676,7 @@ def _const_node(ctx: ParserContext, form: ReaderForm) -> Const:
     return descriptor
 
 
-@_with_loc
+@_with_loc  # noqa: MC0001
 def _parse_ast(  # pylint: disable=too-many-branches
     ctx: ParserContext, form: Union[ReaderForm, lseq.Seq]
 ) -> Node:
@@ -1712,12 +1720,20 @@ def _parse_ast(  # pylint: disable=too-many-branches
     ):
         return _const_node(ctx, form)
     elif isinstance(form, dict):
+        if ctx.is_quoted:
+            return _const_node(ctx, form)
         return _py_dict_node(ctx, form)
     elif isinstance(form, list):
+        if ctx.is_quoted:
+            return _const_node(ctx, form)
         return _py_list_node(ctx, form)
     elif isinstance(form, set):
+        if ctx.is_quoted:
+            return _const_node(ctx, form)
         return _py_set_node(ctx, form)
     elif isinstance(form, tuple):
+        if ctx.is_quoted:
+            return _const_node(ctx, form)
         return _py_tuple_node(ctx, form)
     else:  # pragma: no cover
         raise ParserException(f"Unexpected form type {type(form)}", form=form)

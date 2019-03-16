@@ -206,6 +206,10 @@ class ConstType(Enum):
     CLASS = kw.keyword("class")
     INST = kw.keyword("inst")
     UUID = kw.keyword("uuid")
+    PY_DICT = kw.keyword("py-dict")
+    PY_LIST = kw.keyword("py-list")
+    PY_SET = kw.keyword("py-set")
+    PY_TUPLE = kw.keyword("py-tuple")
     UNKNOWN = kw.keyword("unknown")
 
 

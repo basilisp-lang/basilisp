@@ -1920,6 +1920,34 @@ def _uuid_to_py_ast(_: GeneratorContext, form: uuid.UUID) -> ast.AST:
     return ast.Call(func=_NEW_UUID_FN_NAME, args=[ast.Str(str(form))], keywords=[])
 
 
+def _const_py_dict_to_py_ast(ctx: GeneratorContext, node: dict) -> GeneratedPyAST:
+    key_deps, keys = _chain_py_ast(*_collection_literal_to_py_ast(ctx, node.keys()))
+    val_deps, vals = _chain_py_ast(*_collection_literal_to_py_ast(ctx, node.values()))
+    return GeneratedPyAST(
+        node=ast.Dict(keys=list(keys), values=list(vals)),
+        dependencies=list(chain(key_deps, val_deps)),
+    )
+
+
+def _const_py_list_to_py_ast(ctx: GeneratorContext, node: list) -> GeneratedPyAST:
+    elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, node))
+    return GeneratedPyAST(
+        node=ast.List(elts=list(elems), ctx=ast.Load()), dependencies=list(elem_deps)
+    )
+
+
+def _const_py_set_to_py_ast(ctx: GeneratorContext, node: set) -> GeneratedPyAST:
+    elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, node))
+    return GeneratedPyAST(node=ast.Set(elts=list(elems)), dependencies=list(elem_deps))
+
+
+def _const_py_tuple_to_py_ast(ctx: GeneratorContext, node: tuple) -> GeneratedPyAST:
+    elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, node))
+    return GeneratedPyAST(
+        node=ast.Tuple(elts=list(elems), ctx=ast.Load()), dependencies=list(elem_deps)
+    )
+
+
 def _const_map_to_py_ast(ctx: GeneratorContext, form: lmap.Map) -> GeneratedPyAST:
     key_deps, keys = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form.keys()))
     val_deps, vals = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form.values()))
@@ -2000,17 +2028,21 @@ _CONST_VALUE_HANDLERS: Dict[Type, SimplePyASTGenerator] = {  # type: ignore
     complex: _num_to_py_ast,
     datetime: _inst_to_py_ast,
     Decimal: _decimal_to_py_ast,
+    dict: _const_py_dict_to_py_ast,
     float: _num_to_py_ast,
     Fraction: _fraction_to_py_ast,
     int: _num_to_py_ast,
     kw.Keyword: _kw_to_py_ast,
+    list: _const_py_list_to_py_ast,
     llist.List: _const_seq_to_py_ast,
     lmap.Map: _const_map_to_py_ast,
     lset.Set: _const_set_to_py_ast,
     lseq.Seq: _const_seq_to_py_ast,
     type(re.compile("")): _regex_to_py_ast,
+    set: _const_py_set_to_py_ast,
     sym.Symbol: _const_sym_to_py_ast,
     str: _str_to_py_ast,
+    tuple: _const_py_tuple_to_py_ast,
     type(None): _name_const_to_py_ast,
     uuid.UUID: _uuid_to_py_ast,
     vec.Vector: _const_vec_to_py_ast,
@@ -2057,6 +2089,10 @@ _CONSTANT_HANDLER: Dict[ConstType, SimplePyASTGenerator] = {  # type: ignore
     ConstType.STRING: _str_to_py_ast,
     ConstType.NIL: _name_const_to_py_ast,
     ConstType.UUID: _uuid_to_py_ast,
+    ConstType.PY_DICT: _const_py_dict_to_py_ast,
+    ConstType.PY_LIST: _const_py_list_to_py_ast,
+    ConstType.PY_SET: _const_py_set_to_py_ast,
+    ConstType.PY_TUPLE: _const_py_tuple_to_py_ast,
     ConstType.VECTOR: _const_vec_to_py_ast,
 }
 

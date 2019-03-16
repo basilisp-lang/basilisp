@@ -63,9 +63,15 @@ def test_print_level():
     assert "#py [1 2 3]" == lcompile("(binding [*print-level* 1] (pr-str #py [1 2 3]))")
     assert "#py [#]" == lcompile("(binding [*print-level* 1] (pr-str #py [[1 2 3]]))")
     assert "#py [#]" == lcompile("(binding [*print-level* 1] (pr-str #py [[[1 2 3]]]))")
-    assert "#py [[#]]" == lcompile("(binding [*print-level* 2] (pr-str #py [[[1 2 3]]]))")
-    assert "#py [[[1 2 3]]]" == lcompile("(binding [*print-level* 3] (pr-str #py [[[1 2 3]]]))")
-    assert "#py [[[1 2 3]]]" == lcompile("(binding [*print-level* 4] (pr-str #py [[[1 2 3]]]))")
+    assert "#py [[#]]" == lcompile(
+        "(binding [*print-level* 2] (pr-str #py [[[1 2 3]]]))"
+    )
+    assert "#py [[[1 2 3]]]" == lcompile(
+        "(binding [*print-level* 3] (pr-str #py [[[1 2 3]]]))"
+    )
+    assert "#py [[[1 2 3]]]" == lcompile(
+        "(binding [*print-level* 4] (pr-str #py [[[1 2 3]]]))"
+    )
     assert "#py [[[1 2 3]]]" == lcompile(
         "(binding [*print-level* nil] (pr-str #py [[[1 2 3]]]))"
     )

@@ -162,12 +162,6 @@ class StreamReader:
         return self.peek()
 
 
-_PY_LIST_BUILTIN = symbol.symbol("list", ns="builtins")
-_PY_MAP_BUILTIN = symbol.symbol("dict", ns="builtins")
-_PY_SET_BUILTIN = symbol.symbol("set", ns="builtins")
-_PY_TUPLE_BUILTIN = symbol.symbol("tuple", ns="builtins")
-
-
 @functools.singledispatch
 def _py_from_lisp(
     form: Union[llist.List, lmap.Map, lset.Set, vector.Vector]
