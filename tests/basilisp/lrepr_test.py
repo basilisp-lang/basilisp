@@ -191,7 +191,9 @@ def test_lrepr_round_trip():
     )
 
     assert set() == lcompile("(read-string (pr-str #py #{}))")
-    assert {kw.keyword("a"), 1, "a"} == lcompile("(read-string (pr-str #py #{:a 1 \"a\"}))")
+    assert {kw.keyword("a"), 1, "a"} == lcompile(
+        '(read-string (pr-str #py #{:a 1 "a"}))'
+    )
 
     assert () == lcompile("(read-string (pr-str #py ()))")
     assert (kw.keyword("a"), 1, "s") == lcompile(

@@ -985,7 +985,9 @@ def test_python_literals():
     assert (1, kw.keyword("a"), "str") == read_str_first('#py (1 :a "str")')
 
     assert {} == read_str_first("#py {}")
-    assert {kw.keyword("a"): 1, kw.keyword("other"): "str"} == read_str_first('#py {:a 1 :other "str"}')
+    assert {kw.keyword("a"): 1, kw.keyword("other"): "str"} == read_str_first(
+        '#py {:a 1 :other "str"}'
+    )
 
     assert set() == read_str_first("#py #{}")
     assert {1, kw.keyword("a"), "str"} == read_str_first('#py #{1 :a "str"}')
