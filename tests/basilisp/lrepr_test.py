@@ -60,6 +60,16 @@ def test_print_level():
         "(binding [*print-level* nil] (pr-str [[[1 2 3]]]))"
     )
 
+    assert "#py [1 2 3]" == lcompile("(binding [*print-level* 1] (pr-str #py [1 2 3]))")
+    assert "#py [#]" == lcompile("(binding [*print-level* 1] (pr-str #py [[1 2 3]]))")
+    assert "#py [#]" == lcompile("(binding [*print-level* 1] (pr-str #py [[[1 2 3]]]))")
+    assert "#py [[#]]" == lcompile("(binding [*print-level* 2] (pr-str #py [[[1 2 3]]]))")
+    assert "#py [[[1 2 3]]]" == lcompile("(binding [*print-level* 3] (pr-str #py [[[1 2 3]]]))")
+    assert "#py [[[1 2 3]]]" == lcompile("(binding [*print-level* 4] (pr-str #py [[[1 2 3]]]))")
+    assert "#py [[[1 2 3]]]" == lcompile(
+        "(binding [*print-level* nil] (pr-str #py [[[1 2 3]]]))"
+    )
+
     assert "{:a #}" == lcompile(
         "(binding [*print-level* 1] (pr-str {:a {:b {:c :d}}}))"
     )
@@ -74,6 +84,22 @@ def test_print_level():
     )
     assert "{:a {:b {:c :d}}}" == lcompile(
         "(binding [*print-level* nil] (pr-str {:a {:b {:c :d}}}))"
+    )
+
+    assert "#py {:a #}" == lcompile(
+        "(binding [*print-level* 1] (pr-str #py {:a {:b {:c :d}}}))"
+    )
+    assert "#py {:a {:b #}}" == lcompile(
+        "(binding [*print-level* 2] (pr-str #py {:a {:b {:c :d}}}))"
+    )
+    assert "#py {:a {:b {:c :d}}}" == lcompile(
+        "(binding [*print-level* 3] (pr-str #py {:a {:b {:c :d}}}))"
+    )
+    assert "#py {:a {:b {:c :d}}}" == lcompile(
+        "(binding [*print-level* 4] (pr-str #py {:a {:b {:c :d}}}))"
+    )
+    assert "#py {:a {:b {:c :d}}}" == lcompile(
+        "(binding [*print-level* nil] (pr-str #py {:a {:b {:c :d}}}))"
     )
 
 
@@ -221,3 +247,7 @@ def test_lstr():
     assert '#inst "2018-11-28T12:43:25.477000+00:00"' == lcompile(
         '(print-str #inst "2018-11-28T12:43:25.477-00:00")'
     )
+    assert "#py []" == lcompile("(print-str #py [])")
+    assert "#py ()" == lcompile("(print-str #py ())")
+    assert "#py {}" == lcompile("(print-str #py {})")
+    assert "#py #{}" == lcompile("(print-str #py #{})")
