@@ -978,36 +978,17 @@ def test_uuid_reader_literal():
 
 
 def test_python_literals():
-    assert llist.l(
-        sym.symbol("list", ns="builtins"), vec.Vector.empty()
-    ) == read_str_first("#py []")
-    assert llist.l(
-        sym.symbol("list", ns="builtins"), vec.v(1, kw.keyword("a"), "str")
-    ) == read_str_first('#py [1 :a "str"]')
+    assert [] == read_str_first("#py []")
+    assert [1, kw.keyword("a"), "str"] == read_str_first('#py [1 :a "str"]')
 
-    assert llist.l(
-        sym.symbol("tuple", ns="builtins"),
-        llist.l(sym.symbol("quote"), llist.List.empty()),
-    ) == read_str_first("#py ()")
-    assert llist.l(
-        sym.symbol("tuple", ns="builtins"),
-        llist.l(sym.symbol("quote"), llist.l(1, kw.keyword("a"), "str")),
-    ) == read_str_first('#py (1 :a "str")')
+    assert () == read_str_first("#py ()")
+    assert (1, kw.keyword("a"), "str") == read_str_first('#py (1 :a "str")')
 
-    assert llist.l(
-        sym.symbol("dict", ns="builtins"), lmap.Map.empty()
-    ) == read_str_first("#py {}")
-    assert llist.l(
-        sym.symbol("dict", ns="builtins"),
-        lmap.map({kw.keyword("a"): 1, kw.keyword("other"): "str"}),
-    ) == read_str_first('#py {:a 1 :other "str"}')
+    assert {} == read_str_first("#py {}")
+    assert {kw.keyword("a"): 1, kw.keyword("other"): "str"} == read_str_first('#py {:a 1 :other "str"}')
 
-    assert llist.l(
-        sym.symbol("set", ns="builtins"), lset.Set.empty()
-    ) == read_str_first("#py #{}")
-    assert llist.l(
-        sym.symbol("set", ns="builtins"), lset.s(1, kw.keyword("a"), "str")
-    ) == read_str_first('#py #{1 :a "str"}')
+    assert set() == read_str_first("#py #{}")
+    assert {1, kw.keyword("a"), "str"} == read_str_first('#py #{1 :a "str"}')
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("#py :kw")

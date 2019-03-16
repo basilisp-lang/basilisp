@@ -15,14 +15,12 @@ from typing import (
 import attr
 
 import basilisp.lang.keyword as kw
-import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.runtime import Namespace, Var
-from basilisp.lang.typing import LispForm
+from basilisp.lang.typing import LispForm, ReaderForm as ReaderLispForm, SpecialForm
 from basilisp.lang.util import munge
 
 BODY = kw.keyword("body")
@@ -71,6 +69,10 @@ class NodeOp(Enum):
     MAP = kw.keyword("map")
     MAYBE_CLASS = kw.keyword("maybe-class")
     MAYBE_HOST_FORM = kw.keyword("maybe-host-form")
+    PY_DICT = kw.keyword("py-dict")
+    PY_LIST = kw.keyword("py-list")
+    PY_SET = kw.keyword("py-set")
+    PY_TUPLE = kw.keyword("py-tuple")
     QUOTE = kw.keyword("quote")
     RECUR = kw.keyword("recur")
     SET = kw.keyword("set")
@@ -208,8 +210,6 @@ class ConstType(Enum):
 
 
 NodeMeta = Union[None, "Const", "Map"]
-ReaderLispForm = Union[LispForm, lseq.Seq]
-SpecialForm = Union[llist.List, lseq.Seq]
 LoopID = str
 
 
@@ -491,6 +491,51 @@ class MaybeHostForm(Node[sym.Symbol]):
     raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
+@attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
+class PyDict(Node[dict]):
+    form: dict
+    keys: Iterable[Node]
+    vals: Iterable[Node]
+    env: NodeEnv
+    children: Collection[kw.Keyword] = vec.v(KEYS, VALS)
+    op: NodeOp = NodeOp.PY_DICT
+    top_level: bool = False
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
+class PyList(Node[list]):
+    form: list
+    items: Iterable[Node]
+    env: NodeEnv
+    children: Collection[kw.Keyword] = vec.v(ITEMS)
+    op: NodeOp = NodeOp.PY_LIST
+    top_level: bool = False
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
+class PySet(Node[Union[frozenset, set]]):
+    form: Union[frozenset, set]
+    items: Iterable[Node]
+    env: NodeEnv
+    children: Collection[kw.Keyword] = vec.v(ITEMS)
+    op: NodeOp = NodeOp.PY_SET
+    top_level: bool = False
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class PyTuple(Node[tuple]):
+    form: tuple
+    items: Iterable[Node]
+    env: NodeEnv
+    children: Collection[kw.Keyword] = vec.v(ITEMS)
+    op: NodeOp = NodeOp.PY_TUPLE
+    top_level: bool = False
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
+
+
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class Quote(Node[SpecialForm]):
     form: SpecialForm
@@ -617,6 +662,10 @@ ParentNode = Union[
     Map,
     MaybeClass,
     MaybeHostForm,
+    PyDict,
+    PyList,
+    PySet,
+    PyTuple,
     Quote,
     Set,
     SetBang,

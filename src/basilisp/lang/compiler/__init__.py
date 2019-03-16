@@ -25,7 +25,7 @@ from basilisp.lang.compiler.parser import (  # noqa
     WARN_ON_SHADOWED_VAR,
     WARN_ON_UNUSED_NAMES,
 )
-from basilisp.lang.typing import LispForm
+from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import genname
 
 _DEFAULT_FN = "__lisp_expr__"
@@ -67,7 +67,7 @@ class CompilerContext:
 
 
 def compile_and_exec_form(  # pylint: disable= too-many-arguments
-    form: LispForm,
+    form: ReaderForm,
     ctx: CompilerContext,
     module: types.ModuleType,
     wrapped_fn_name: str = _DEFAULT_FN,
@@ -164,7 +164,7 @@ def _bootstrap_module(
 
 
 def compile_module(
-    forms: Iterable[LispForm],
+    forms: Iterable[ReaderForm],
     ctx: CompilerContext,
     module: types.ModuleType,
     collect_bytecode: Optional[BytecodeCollector] = None,

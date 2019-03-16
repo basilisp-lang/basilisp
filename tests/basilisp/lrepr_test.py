@@ -153,13 +153,13 @@ def test_lrepr():
     assert "#py {:a 1}" == lcompile("(pr-str #py {:a 1})")
 
     assert "#py []" == lcompile("(pr-str #py [])")
-    assert "#py [:a 1 \"s\"]" == lcompile("(pr-str #py [:a 1 \"s\"])")
+    assert '#py [:a 1 "s"]' == lcompile('(pr-str #py [:a 1 "s"])')
 
     assert "#py #{}" == lcompile("(pr-str #py #{})")
     assert "#py #{:a}" == lcompile("(pr-str #py #{:a})")
 
     assert "#py ()" == lcompile("(pr-str #py ())")
-    assert "#py (:a 1 \"s\")" == lcompile("(pr-str #py (:a 1 \"s\"))")
+    assert '#py (:a 1 "s")' == lcompile('(pr-str #py (:a 1 "s"))')
 
 
 def test_lrepr_round_trip():
@@ -186,13 +186,17 @@ def test_lrepr_round_trip():
     assert {kw.keyword("a"): 1} == lcompile("(read-string (pr-str #py {:a 1}))")
 
     assert [] == lcompile("(read-string (pr-str #py []))")
-    assert [kw.keyword("a"), 1, "s"] == lcompile("(read-string (pr-str #py [:a 1 \"s\"]))")
+    assert [kw.keyword("a"), 1, "s"] == lcompile(
+        '(read-string (pr-str #py [:a 1 "s"]))'
+    )
 
     assert set() == lcompile("(read-string (pr-str #py #{}))")
-    assert {kw.keyword("a"), 1, "s"} == lcompile("(read-string (pr-str #py #{:a}))")
+    assert {kw.keyword("a"), 1, "a"} == lcompile("(read-string (pr-str #py #{:a 1 \"a\"}))")
 
     assert () == lcompile("(read-string (pr-str #py ()))")
-    assert (kw.keyword("a"), 1, "s") == lcompile("(read-string (pr-str #py (:a 1 \"s\")))")
+    assert (kw.keyword("a"), 1, "s") == lcompile(
+        '(read-string (pr-str #py (:a 1 "s")))'
+    )
 
 
 def test_lstr():

@@ -79,6 +79,10 @@ from basilisp.lang.compiler.nodes import (
     Binding,
     NodeEnv,
     Catch,
+    PyList,
+    PySet,
+    PyTuple,
+    PyDict,
 )
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm
@@ -1752,6 +1756,51 @@ def _vec_to_py_ast(
     )
 
 
+#####################
+# Python Collections
+#####################
+
+
+@_with_ast_loc
+def _py_dict_to_py_ast(ctx: GeneratorContext, node: PyDict) -> GeneratedPyAST:
+    assert node.op == NodeOp.PY_DICT
+
+    key_deps, keys = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.keys))
+    val_deps, vals = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.vals))
+    return GeneratedPyAST(
+        node=ast.Dict(keys=list(keys), values=list(vals)),
+        dependencies=list(chain(key_deps, val_deps)),
+    )
+
+
+@_with_ast_loc
+def _py_list_to_py_ast(ctx: GeneratorContext, node: PyList) -> GeneratedPyAST:
+    assert node.op == NodeOp.PY_LIST
+
+    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.items))
+    return GeneratedPyAST(
+        node=ast.List(elts=list(elems), ctx=ast.Load()), dependencies=list(elem_deps)
+    )
+
+
+@_with_ast_loc
+def _py_set_to_py_ast(ctx: GeneratorContext, node: PySet) -> GeneratedPyAST:
+    assert node.op == NodeOp.PY_SET
+
+    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.items))
+    return GeneratedPyAST(node=ast.Set(elts=list(elems)), dependencies=list(elem_deps))
+
+
+@_with_ast_loc
+def _py_tuple_to_py_ast(ctx: GeneratorContext, node: PyTuple) -> GeneratedPyAST:
+    assert node.op == NodeOp.PY_TUPLE
+
+    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.items))
+    return GeneratedPyAST(
+        node=ast.Tuple(elts=list(elems), ctx=ast.Load()), dependencies=list(elem_deps)
+    )
+
+
 ############
 # With Meta
 ############
@@ -2044,6 +2093,10 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.MAP: _map_to_py_ast,
     NodeOp.MAYBE_CLASS: _maybe_class_to_py_ast,
     NodeOp.MAYBE_HOST_FORM: _maybe_host_form_to_py_ast,
+    NodeOp.PY_DICT: _py_dict_to_py_ast,
+    NodeOp.PY_LIST: _py_list_to_py_ast,
+    NodeOp.PY_SET: _py_set_to_py_ast,
+    NodeOp.PY_TUPLE: _py_tuple_to_py_ast,
     NodeOp.QUOTE: _quote_to_py_ast,
     NodeOp.RECUR: _recur_to_py_ast,
     NodeOp.SET: _set_to_py_ast,

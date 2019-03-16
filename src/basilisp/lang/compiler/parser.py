@@ -76,7 +76,6 @@ from basilisp.lang.compiler.nodes import (
     Try,
     MaybeHostForm,
     VarRef,
-    ReaderLispForm,
     SetBang,
     Assignable,
     Loop,
@@ -87,9 +86,13 @@ from basilisp.lang.compiler.nodes import (
     ImportAlias,
     LetFn,
     NodeEnv,
+    PyDict,
+    PyList,
+    PySet,
+    PyTuple,
 )
 from basilisp.lang.runtime import Var
-from basilisp.lang.typing import LispForm
+from basilisp.lang.typing import LispForm, ReaderForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe, partition
 
@@ -1528,6 +1531,41 @@ def _symbol_node(
     return _resolve_sym(ctx, form)
 
 
+def _py_dict_node(ctx: ParserContext, form: dict) -> PyDict:
+    keys, vals = [], []
+    for k, v in form.items():
+        keys.append(_parse_ast(ctx, k))
+        vals.append(_parse_ast(ctx, v))
+
+    return PyDict(
+        form=form, keys=vec.vector(keys), vals=vec.vector(vals), env=ctx.get_node_env()
+    )
+
+
+def _py_list_node(ctx: ParserContext, form: list) -> PyList:
+    return PyList(
+        form=form,
+        items=vec.vector(map(partial(_parse_ast, ctx), form)),
+        env=ctx.get_node_env(),
+    )
+
+
+def _py_set_node(ctx: ParserContext, form: set) -> PySet:
+    return PySet(
+        form=form,
+        items=vec.vector(map(partial(_parse_ast, ctx), form)),
+        env=ctx.get_node_env(),
+    )
+
+
+def _py_tuple_node(ctx: ParserContext, form: tuple) -> PyTuple:
+    return PyTuple(
+        form=form,
+        items=vec.vector(map(partial(_parse_ast, ctx), form)),
+        env=ctx.get_node_env(),
+    )
+
+
 @_with_meta
 def _map_node(ctx: ParserContext, form: lmap.Map) -> MapNode:
     keys, vals = [], []
@@ -1580,7 +1618,7 @@ _CONST_NODE_TYPES = {  # type: ignore
 }
 
 
-def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
+def _const_node(ctx: ParserContext, form: ReaderForm) -> Const:
     assert (
         (
             ctx.is_quoted
@@ -1632,7 +1670,7 @@ def _const_node(ctx: ParserContext, form: ReaderLispForm) -> Const:
 
 @_with_loc
 def _parse_ast(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: Union[LispForm, lseq.Seq]
+    ctx: ParserContext, form: Union[ReaderForm, lseq.Seq]
 ) -> Node:
     if isinstance(form, (llist.List, lseq.Seq)):
         # Special case for unquoted empty list
@@ -1673,11 +1711,19 @@ def _parse_ast(  # pylint: disable=too-many-branches
         ),
     ):
         return _const_node(ctx, form)
+    elif isinstance(form, dict):
+        return _py_dict_node(ctx, form)
+    elif isinstance(form, list):
+        return _py_list_node(ctx, form)
+    elif isinstance(form, set):
+        return _py_set_node(ctx, form)
+    elif isinstance(form, tuple):
+        return _py_tuple_node(ctx, form)
     else:  # pragma: no cover
         raise ParserException(f"Unexpected form type {type(form)}", form=form)
 
 
-def parse_ast(ctx: ParserContext, form: LispForm) -> Node:
+def parse_ast(ctx: ParserContext, form: ReaderForm) -> Node:
     """Take a Lisp form as an argument and produce a Basilisp syntax
     tree matching the clojure.tools.analyzer AST spec."""
     return _parse_ast(ctx, form).assoc(top_level=True)
