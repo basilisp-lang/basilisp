@@ -134,10 +134,17 @@ class RecurPoint:
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class SymbolTableEntry:
-    context: LocalType
-    symbol: sym.Symbol
+    binding: Binding
     used: bool = False
     warn_if_unused: bool = True
+
+    @property
+    def symbol(self) -> sym.Symbol:
+        return self.binding.form
+
+    @property
+    def context(self) -> LocalType:
+        return self.binding.local
 
 
 # pylint: disable=unsupported-membership-test,unsupported-delete-operation,unsupported-assignment-operation
@@ -149,14 +156,16 @@ class SymbolTable:
     _children: Dict[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(
-        self, s: sym.Symbol, ctx: LocalType, warn_if_unused: bool = True
+        self, s: sym.Symbol, binding: Binding, warn_if_unused: bool = True
     ) -> "SymbolTable":
+        assert s == binding.form, "Binding symbol must match passed symbol"
+
         if s in self._table:
             self._table[s] = attr.evolve(
-                self._table[s], context=ctx, symbol=s, warn_if_unused=warn_if_unused
+                self._table[s], binding=binding, warn_if_unused=warn_if_unused
             )
         else:
-            self._table[s] = SymbolTableEntry(ctx, s, warn_if_unused=warn_if_unused)
+            self._table[s] = SymbolTableEntry(binding, warn_if_unused=warn_if_unused)
         return self
 
     def find_symbol(self, s: sym.Symbol) -> Optional[SymbolTableEntry]:
@@ -227,6 +236,16 @@ class SymbolTable:
         if warn_on_unused_names and logger.isEnabledFor(logging.WARNING):
             new_frame._warn_unused_names()
         self.pop_frame(name)
+
+    def _as_env_map(self) -> Dict[sym.Symbol, lmap.Map]:
+        locals_ = {} if self._parent is None else self._parent._as_env_map()
+        locals_.update({k: v.binding.to_map() for k, v in self._table.items()})
+        return locals_
+
+    def as_env_map(self) -> lmap.Map:
+        """Return a map of symbols to the local binding objects in the
+        local symbol table as of this call."""
+        return lmap.map(self._as_env_map())
 
 
 class ParserContext:
@@ -304,7 +323,7 @@ class ParserContext:
     def put_new_symbol(  # pylint: disable=too-many-arguments
         self,
         s: sym.Symbol,
-        sym_ctx: LocalType,
+        binding: Binding,
         warn_on_shadowed_name: bool = True,
         warn_on_shadowed_var: bool = True,
         warn_if_unused: bool = True,
@@ -336,7 +355,7 @@ class ParserContext:
                 logger.warning(f"name '{s}' shadows def'ed Var from outer scope")
         if s.meta is not None and s.meta.entry(SYM_NO_WARN_WHEN_UNUSED_META_KEY, None):
             warn_if_unused = False
-        st.new_symbol(s, sym_ctx, warn_if_unused=warn_if_unused)
+        st.new_symbol(s, binding, warn_if_unused=warn_if_unused)
 
     @contextlib.contextmanager
     def new_symbol_table(self, name):
@@ -548,7 +567,7 @@ def _do_ast(ctx: ParserContext, form: lseq.Seq) -> Do:
     )
 
 
-def __fn_method_ast(  # pylint: disable=too-many-branches
+def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
     ctx: ParserContext, form: lseq.Seq, fnname: Optional[sym.Symbol] = None
 ) -> FnMethod:
     with ctx.new_symbol_table("fn-method"):
@@ -571,18 +590,16 @@ def __fn_method_ast(  # pylint: disable=too-many-branches
                 vargs_idx = i
                 break
 
-            param_nodes.append(
-                Binding(
-                    form=s,
-                    name=s.name,
-                    local=LocalType.ARG,
-                    arg_id=i,
-                    is_variadic=False,
-                    env=ctx.get_node_env(),
-                )
+            binding = Binding(
+                form=s,
+                name=s.name,
+                local=LocalType.ARG,
+                arg_id=i,
+                is_variadic=False,
+                env=ctx.get_node_env(),
             )
-
-            ctx.put_new_symbol(s, LocalType.ARG)
+            param_nodes.append(binding)
+            ctx.put_new_symbol(s, binding)
 
         if has_vargs:
             try:
@@ -593,18 +610,16 @@ def __fn_method_ast(  # pylint: disable=too-many-branches
                         "function rest parameter name must be a symbol", form=vargs_sym
                     )
 
-                param_nodes.append(
-                    Binding(
-                        form=vargs_sym,
-                        name=vargs_sym.name,
-                        local=LocalType.ARG,
-                        arg_id=vargs_idx + 1,
-                        is_variadic=True,
-                        env=ctx.get_node_env(),
-                    )
+                binding = Binding(
+                    form=vargs_sym,
+                    name=vargs_sym.name,
+                    local=LocalType.ARG,
+                    arg_id=vargs_idx + 1,
+                    is_variadic=True,
+                    env=ctx.get_node_env(),
                 )
-
-                ctx.put_new_symbol(vargs_sym, LocalType.ARG)
+                param_nodes.append(binding)
+                ctx.put_new_symbol(vargs_sym, binding)
             except IndexError:
                 raise ParserException(
                     "Expected variadic argument name after '&'", form=params
@@ -658,10 +673,11 @@ def _fn_ast(  # pylint: disable=too-many-branches  # noqa: MC0001
             )
 
         if isinstance(name, sym.Symbol):
-            ctx.put_new_symbol(name, LocalType.FN, warn_if_unused=False)
             name_node: Optional[Binding] = Binding(
                 form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
+            assert name_node is not None
+            ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
         elif isinstance(name, (llist.List, vec.Vector)):
             name = None
@@ -944,7 +960,8 @@ def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
         if _is_macro(fn.var):
             try:
-                expanded = fn.var.value(form, *form.rest)
+                macro_env = ctx.symbol_table.as_env_map()
+                expanded = fn.var.value(macro_env, form, *form.rest)
                 expanded_ast = _parse_ast(ctx, expanded)
 
                 # Verify that macroexpanded code also does not have any
@@ -997,18 +1014,16 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
             if not isinstance(name, sym.Symbol):
                 raise ParserException("let binding name must be a symbol", form=name)
 
-            binding_nodes.append(
-                Binding(
-                    form=name,
-                    name=name.name,
-                    local=LocalType.LET,
-                    init=_parse_ast(ctx, value),
-                    children=vec.v(INIT),
-                    env=ctx.get_node_env(),
-                )
+            binding = Binding(
+                form=name,
+                name=name.name,
+                local=LocalType.LET,
+                init=_parse_ast(ctx, value),
+                children=vec.v(INIT),
+                env=ctx.get_node_env(),
             )
-
-            ctx.put_new_symbol(name, LocalType.LET)
+            binding_nodes.append(binding)
+            ctx.put_new_symbol(name, binding)
 
         let_body = runtime.nthrest(form, 2)
         *statements, ret = map(partial(_parse_ast, ctx), let_body)
@@ -1050,17 +1065,15 @@ def _loop_ast(ctx: ParserContext, form: lseq.Seq) -> Loop:
             if not isinstance(name, sym.Symbol):
                 raise ParserException("loop binding name must be a symbol", form=name)
 
-            binding_nodes.append(
-                Binding(
-                    form=name,
-                    name=name.name,
-                    local=LocalType.LOOP,
-                    init=_parse_ast(ctx, value),
-                    env=ctx.get_node_env(),
-                )
+            binding = Binding(
+                form=name,
+                name=name.name,
+                local=LocalType.LOOP,
+                init=_parse_ast(ctx, value),
+                env=ctx.get_node_env(),
             )
-
-            ctx.put_new_symbol(name, LocalType.LOOP)
+            binding_nodes.append(binding)
+            ctx.put_new_symbol(name, binding)
 
         with ctx.new_recur_point(loop_id, binding_nodes):
             loop_body = runtime.nthrest(form, 2)
@@ -1222,19 +1235,20 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
         raise ParserException("catch local must be a symbol", form=local_name)
 
     with ctx.new_symbol_table("catch"):
-        ctx.put_new_symbol(local_name, LocalType.CATCH)
+        catch_binding = Binding(
+            form=local_name,
+            name=local_name.name,
+            local=LocalType.CATCH,
+            env=ctx.get_node_env(),
+        )
+        ctx.put_new_symbol(local_name, catch_binding)
 
         catch_body = runtime.nthrest(form, 3)
         *catch_statements, catch_ret = map(partial(_parse_ast, ctx), catch_body)
         return Catch(
             form=form,
             class_=catch_cls,
-            local=Binding(
-                form=local_name,
-                name=local_name.name,
-                local=LocalType.CATCH,
-                env=ctx.get_node_env(),
-            ),
+            local=catch_binding,
             body=Do(
                 form=catch_body,
                 statements=vec.vector(catch_statements),

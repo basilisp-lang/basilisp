@@ -7,7 +7,7 @@ import math
 import threading
 import types
 from fractions import Fraction
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, Union, Any, Callable
 
 import basilisp.lang.associative as lassoc
 import basilisp.lang.collection as lcoll
@@ -19,6 +19,7 @@ import basilisp.lang.obj as lobj
 import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
+import basilisp.lang.vector as vec
 from basilisp.lang import atom
 from basilisp.lang.typing import LispNumber
 from basilisp.logconfig import TRACE
@@ -808,6 +809,111 @@ def get(m, k, default=None):
     except (KeyError, IndexError, TypeError) as e:
         logger.debug("Ignored %s: %s", type(e).__name__, e)
         return default
+
+
+@functools.singledispatch
+def to_lisp(o, keywordize_keys: bool = True):
+    """Recursively convert Python collections into Lisp collections."""
+    if not isinstance(o, (dict, frozenset, list, set, tuple)):
+        return o
+    else:  # pragma: no cover
+        return _to_lisp_backup(o, keywordize_keys=keywordize_keys)
+
+
+def _to_lisp_backup(o, keywordize_keys: bool = True):  # pragma: no cover
+    if isinstance(o, (list, tuple)):
+        return _to_lisp_vec(o, keywordize_keys=keywordize_keys)
+    elif isinstance(o, dict):
+        return _to_lisp_map(o, keywordize_keys=keywordize_keys)
+    elif isinstance(o, (frozenset, set)):
+        return _to_lisp_set(o, keywordize_keys=keywordize_keys)
+    else:
+        return o
+
+
+@to_lisp.register(list)
+@to_lisp.register(tuple)
+def _to_lisp_vec(o: Union[list, tuple], keywordize_keys: bool = True) -> vec.Vector:
+    return vec.vector(
+        map(functools.partial(to_lisp, keywordize_keys=keywordize_keys), o)
+    )
+
+
+@to_lisp.register(dict)
+def _to_lisp_map(o: dict, keywordize_keys: bool = True) -> lmap.Map:
+    kvs = {}
+    for k, v in o.items():
+        if isinstance(k, str) and keywordize_keys:
+            processed_key = kw.keyword(k)
+        else:
+            processed_key = to_lisp(k, keywordize_keys=keywordize_keys)
+
+        kvs[processed_key] = to_lisp(v, keywordize_keys=keywordize_keys)
+    return lmap.map(kvs)
+
+
+@to_lisp.register(frozenset)
+@to_lisp.register(set)
+def _to_lisp_set(o: Union[frozenset, set], keywordize_keys: bool = True) -> lset.Set:
+    return lset.set(map(functools.partial(to_lisp, keywordize_keys=keywordize_keys), o))
+
+
+def _kw_name(kw: kw.Keyword) -> str:
+    return kw.name
+
+
+@functools.singledispatch
+def to_py(o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name):
+    """Recursively convert Lisp collections into Python collections."""
+    if isinstance(o, lseq.Seq):
+        return _to_py_list(o, keyword_fn=keyword_fn)
+    elif not isinstance(o, (llist.List, lmap.Map, lset.Set, vec.Vector)):
+        return o
+    else:  # pragma: no cover
+        return _to_py_backup(o, keyword_fn=keyword_fn)
+
+
+def _to_py_backup(
+    o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
+):  # pragma: no cover
+    if isinstance(o, (llist.List, vec.Vector)):
+        return _to_py_list(o, keyword_fn=keyword_fn)
+    elif isinstance(o, lmap.Map):
+        return _to_py_map(o, keyword_fn=keyword_fn)
+    elif isinstance(o, lset.Set):
+        return _to_py_set(o, keyword_fn=keyword_fn)
+    else:
+        return o
+
+
+@to_py.register(kw.Keyword)
+def _to_py_kw(o: kw.Keyword, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name) -> Any:
+    return keyword_fn(o)
+
+
+@to_py.register(llist.List)
+@to_py.register(lseq.Seq)
+@to_py.register(vec.Vector)
+def _to_py_list(
+    o: Union[llist.List, lseq.Seq, vec.Vector],
+    keyword_fn: Callable[[kw.Keyword], Any] = _kw_name,
+) -> list:
+    return list(map(functools.partial(to_py, keyword_fn=keyword_fn), o))
+
+
+@to_py.register(lmap.Map)
+def _to_py_map(o: lmap.Map, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name) -> dict:
+    return {
+        to_py(entry.key, keyword_fn=keyword_fn): to_py(
+            entry.value, keyword_fn=keyword_fn
+        )
+        for entry in o
+    }
+
+
+@to_py.register(lset.Set)
+def _to_py_set(o: lset.Set, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name) -> set:
+    return set(to_py(e, keyword_fn=keyword_fn) for e in o)
 
 
 def lrepr(o, human_readable: bool = False) -> str:

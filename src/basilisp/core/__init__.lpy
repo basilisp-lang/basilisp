@@ -61,15 +61,15 @@
        (.with-meta o meta)))
 
 (def ^:macro ^:redef let
-  (fn* let [&form & decl]
+  (fn* let [&env &form & decl]
        (cons 'let* decl)))
 
 (def ^:macro ^:redef loop
-  (fn* loop [&form & decl]
+  (fn* loop [&env &form & decl]
        (cons 'loop* decl)))
 
 (def ^:macro ^:redef fn
-  (fn* fn [&form & decl]
+  (fn* fn [&env &form & decl]
        (with-meta
          (cons 'fn* decl)
          (meta &form))))
@@ -264,7 +264,7 @@
     :doc      "Define a new function with an optional docstring."
     :arglists '([name & body] [name doc & body])}
   defn
-  (fn defn [&form name & body]
+  (fn defn [&env &form name & body]
     (if (symbol? name)
       nil  ;; Do nothing!
       (throw (ex-info "First argument to defn must be a symbol"
@@ -382,7 +382,7 @@
     :doc   "Define a new macro like defn. Macro functions are available to the
             compiler during macroexpansion."}
   defmacro
-  (fn defmacro [&form name & body]
+  (fn defmacro [&env &form name & body]
     (let [body   (concat body)
           doc    (if (string? (first body))
                    (first body)
@@ -408,7 +408,10 @@
           add-implicit-args (fn [body]
                               (cons
                                (if (vector? (first body))
-                                 (apply vector (cons '&form (first body)))
+                                 (apply vector
+                                        (cons '&env
+                                              (cons '&form
+                                                    (first body))))
                                  (throw
                                   (ex-info "Expected an argument vector"
                                            {:found (first body)})))
@@ -2245,3 +2248,29 @@
   (let [[bindings body] (loop-with-destructuring bindings body)]
     `(loop* ~bindings
         ~@body)))
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Interop Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn lisp->py
+  "Recursively convert Basilisp data structures into Python data structures.
+
+  Callers can specify a keyword argument :keyword-fn, which names a function
+  which is called for each keyword value in the input structure to return a
+  new value. By default :keyword-fn is the function `name`."
+  ([o]
+   (basilisp.lang.runtime/to-py o))
+  ([o & {:keys [keyword-fn] :or {keyword-fn name}}]
+   (basilisp.lang.runtime/to-py o keyword-fn)))
+
+(defn py->lisp
+  "Recursively convert Python data structures into Basilisp data structures.
+
+  Callers can specify a keyword argument :keywordize-keys, which defaults to
+  true. If :keywordize-keys is true, then all string keys in Python dicts will
+  be converted into keywords in the final return value."
+  ([o]
+   (basilisp.lang.runtime/to-lisp o))
+  ([o & {:keys [keywordize-keys] :or {keywordize-keys true}}]
+   (basilisp.lang.runtime/to-lisp o keywordize-keys)))
