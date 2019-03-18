@@ -1739,7 +1739,7 @@ class TestSymbolResolution:
             current_ns.add_alias(sym.symbol("other"), other_ns)
 
             with runtime.ns_bindings(other_ns_name.name):
-                lcompile("(def ^:macro m (fn* [&form v] v))")
+                lcompile("(def ^:macro m (fn* [&env &form v] v))")
 
             with runtime.ns_bindings(current_ns.name):
                 assert kw.keyword("z") == lcompile("(other.ns/m :z)")

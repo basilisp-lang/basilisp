@@ -19,7 +19,7 @@ import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.runtime import Namespace, Var
+from basilisp.lang.runtime import Namespace, Var, to_lisp
 from basilisp.lang.typing import LispForm, ReaderForm as ReaderLispForm, SpecialForm
 from basilisp.lang.util import munge
 
@@ -119,6 +119,9 @@ class Node(ABC, Generic[T]):
     @abstractmethod
     def env(self) -> "NodeEnv":
         raise NotImplementedError()
+
+    def to_map(self) -> lmap.Map:
+        return to_lisp(attr.asdict(self))
 
     def assoc(self, **kwargs):
         return attr.evolve(self, **kwargs)
