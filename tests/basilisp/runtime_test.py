@@ -287,9 +287,7 @@ class TestToPython:
         assert sym.symbol("sym") == runtime.to_py(sym.symbol("sym"))
         assert sym.symbol("sym", ns="ns") == runtime.to_py(sym.symbol("sym", ns="ns"))
         assert "kw" == runtime.to_py(keyword.keyword("kw"))
-        assert "kw" == runtime.to_py(
-            keyword.keyword("kw", ns="kw")
-        )
+        assert "kw" == runtime.to_py(keyword.keyword("kw", ns="kw"))
 
     def test_to_dict(self):
         assert {} == runtime.to_py(lmap.Map.empty())
@@ -314,9 +312,7 @@ class TestToPython:
     def test_to_set(self):
         assert set() == runtime.to_py(lset.Set.empty())
         assert {"a", 2} == runtime.to_py(lset.set({"a", 2}))
-        assert {"a", 2, "b"} == runtime.to_py(
-            lset.set({"a", 2, keyword.keyword("b")})
-        )
+        assert {"a", 2, "b"} == runtime.to_py(lset.set({"a", 2, keyword.keyword("b")}))
 
 
 class TestToLisp:
@@ -335,9 +331,9 @@ class TestToLisp:
     def test_to_map(self):
         assert lmap.Map.empty() == runtime.to_lisp({})
         assert lmap.map({keyword.keyword("a"): 2}) == runtime.to_lisp({"a": 2})
-        assert lmap.map({keyword.keyword("a"): 2, keyword.keyword("b"): "string"}) == runtime.to_lisp(
-            {"a": 2, "b": "string"}
-        )
+        assert lmap.map(
+            {keyword.keyword("a"): 2, keyword.keyword("b"): "string"}
+        ) == runtime.to_lisp({"a": 2, "b": "string"})
 
     def test_to_map_no_keywordize(self):
         assert lmap.Map.empty() == runtime.to_lisp({})
