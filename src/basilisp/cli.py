@@ -1,7 +1,4 @@
 import importlib
-
-# noinspection PyUnresolvedReferences
-import readline  # noqa: F401
 import traceback
 import types
 from typing import Any
@@ -17,6 +14,16 @@ import basilisp.main as basilisp
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
 REPL_INPUT_FILE_PATH = "<REPL Input>"
+
+
+try:
+    import readline
+except ImportError:
+    pass
+else:
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer_delims("()[]{} \n\t")
+    readline.set_completer(runtime.repl_complete)
 
 
 @click.group()
