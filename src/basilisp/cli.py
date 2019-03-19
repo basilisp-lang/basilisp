@@ -15,7 +15,9 @@ import basilisp.lang.symbol as sym
 import basilisp.main as basilisp
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
-BASILISP_REPL_HISTORY_FILE_PATH = os.path.join(os.path.expanduser("~"), ".basilisp_history")
+BASILISP_REPL_HISTORY_FILE_PATH = os.path.join(
+    os.path.expanduser("~"), ".basilisp_history"
+)
 BASILISP_REPL_HISTORY_LENGTH = 1000
 REPL_INPUT_FILE_PATH = "<REPL Input>"
 
