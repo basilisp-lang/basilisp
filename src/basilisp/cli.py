@@ -1,4 +1,6 @@
+import atexit
 import importlib
+import os.path
 import traceback
 import types
 from typing import Any
@@ -13,6 +15,8 @@ import basilisp.lang.symbol as sym
 import basilisp.main as basilisp
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
+BASILISP_REPL_HISTORY_FILE_PATH = os.path.join(os.path.expanduser("~"), ".basilisp_history")
+BASILISP_REPL_HISTORY_LENGTH = 1000
 REPL_INPUT_FILE_PATH = "<REPL Input>"
 
 
@@ -24,6 +28,14 @@ else:
     readline.parse_and_bind("tab: complete")
     readline.set_completer_delims("()[]{} \n\t")
     readline.set_completer(runtime.repl_complete)
+
+    try:
+        readline.read_history_file(BASILISP_REPL_HISTORY_FILE_PATH)
+        readline.set_history_length(BASILISP_REPL_HISTORY_LENGTH)
+    except FileNotFoundError:
+        pass
+
+    atexit.register(readline.write_history_file, BASILISP_REPL_HISTORY_FILE_PATH)
 
 
 @click.group()
