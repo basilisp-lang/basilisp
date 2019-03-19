@@ -42,10 +42,13 @@ class Keyword(LispObject):
             return None
 
 
-def complete(text: str) -> Iterable[str]:
+def complete(
+    text: str, kw_cache: atom.Atom["PMap[int, Keyword]"] = __INTERN
+) -> Iterable[str]:
     """Return an iterable of possible completions for the given text."""
-    interns = __INTERN.deref()
-    text = text[1:] if text.startswith(":") else text
+    assert text.startswith(":")
+    interns = kw_cache.deref()
+    text = text[1:]
 
     if "/" in text:
         prefix, suffix = text.split("/", maxsplit=1)
