@@ -583,9 +583,16 @@ class Namespace:
         prefix from the list of imports and aliased imports. If name_in_module
         is given, further attempt to refine the list to matching names in that
         namespace."""
+        imports = self.imports
+        aliases = lmap.map(
+            {
+                alias: imports.entry(import_name)
+                for alias, import_name in self.import_aliases
+            }
+        )
+
         candidates: Iterable[Tuple[sym.Symbol, types.ModuleType]] = filter(
-            Namespace.__completion_matcher(prefix),
-            itertools.chain(self.import_aliases, self.imports),
+            Namespace.__completion_matcher(prefix), itertools.chain(aliases, imports)
         )
         if name_in_module is not None:
             for _, module in candidates:

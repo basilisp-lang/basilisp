@@ -293,3 +293,52 @@ def test_alias(ns_cache: patch):
 
         assert None is ns1.get_alias(sym.symbol("ns2"))
         assert ns2 is ns1.get_alias(sym.symbol("n2"))
+
+
+class TestCompletion:
+    @pytest.fixture
+    def ns(self) -> Namespace:
+        ns_sym = sym.symbol("test")
+        ns = Namespace(ns_sym)
+
+        str_ns_alias = sym.symbol("basilisp.string")
+        join_sym = sym.symbol("join")
+        chars_sym = sym.symbol("chars")
+        str_ns = Namespace(str_ns_alias)
+        str_ns.intern(join_sym, Var(ns, join_sym))
+        str_ns.intern(
+            chars_sym, Var(ns, chars_sym, meta=lmap.map({kw.keyword("private"): True}))
+        )
+        ns.add_alias(str_ns_alias, str_ns)
+
+        str_alias = sym.symbol("str")
+        ns.add_alias(str_alias, Namespace(str_alias))
+
+        str_sym = sym.symbol("str")
+        ns.intern(str_sym, Var(ns, str_sym))
+
+        is_string_sym = sym.symbol("string?")
+        ns.intern(is_string_sym, Var(ns, is_string_sym))
+
+        time_sym = sym.symbol("time")
+        time_alias = sym.symbol("py-time")
+        ns.add_import(time_sym, __import__("time"), time_alias)
+
+        core_ns = Namespace(sym.symbol("basilisp.core"))
+        map_alias = sym.symbol("map")
+        ns.add_refer(map_alias, Var(core_ns, map_alias))
+
+        return ns
+
+    def test_ns_completion(self, ns: Namespace):
+        assert {"basilisp.string/"} == set(ns.complete("basilisp.st"))
+        assert {"basilisp.string/join"} == set(ns.complete("basilisp.string/j"))
+        assert {"str/", "string?", "str"} == set(ns.complete("st"))
+        assert {"map"} == set(ns.complete("m"))
+        assert {"map"} == set(ns.complete("ma"))
+
+    def test_import_and_alias(self, ns: Namespace):
+        assert {"time/"} == set(ns.complete("ti"))
+        assert {"time/asctime"} == set(ns.complete("time/as"))
+        assert {"py-time/"} == set(ns.complete("py-t"))
+        assert {"py-time/asctime"} == set(ns.complete("py-time/as"))
