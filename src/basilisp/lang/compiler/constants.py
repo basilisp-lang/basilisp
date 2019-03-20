@@ -3,6 +3,7 @@ import basilisp.lang.symbol as sym
 
 
 class SpecialForm:
+    AWAIT = sym.symbol("await")
     CATCH = sym.symbol("catch")
     DEF = sym.symbol("def")
     DO = sym.symbol("do")

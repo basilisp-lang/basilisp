@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import (
-    Collection,
-    Union,
-    Optional,
-    Iterable,
-    Generic,
-    TypeVar,
     Callable,
-    Tuple,
+    Collection,
     Dict,
+    Generic,
+    Iterable,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
 )
 
 import attr
@@ -48,6 +48,7 @@ ELSE = kw.keyword("else")
 
 
 class NodeOp(Enum):
+    AWAIT = kw.keyword("await")
     BINDING = kw.keyword("binding")
     CATCH = kw.keyword("catch")
     CONST = kw.keyword("const")
@@ -235,6 +236,17 @@ class NodeEnv:
     file: str
     line: Optional[int] = None
     col: Optional[int] = None
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class Await(Node[ReaderLispForm]):
+    form: ReaderLispForm
+    expr: Node
+    env: NodeEnv
+    children: Collection[kw.Keyword] = vec.v(EXPR)
+    op: NodeOp = NodeOp.AWAIT
+    top_level: bool = False
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -654,6 +666,7 @@ class WithMeta(Node[LispForm]):
 
 
 ParentNode = Union[
+    Await,
     Const,
     Def,
     Do,
@@ -685,6 +698,7 @@ ParentNode = Union[
 ChildOnlyNode = Union[Binding, Catch, FnMethod, ImportAlias, Local, Recur]
 AnyNode = Union[ParentNode, ChildOnlyNode]
 SpecialFormNode = Union[
+    Await,
     Def,
     Do,
     Fn,

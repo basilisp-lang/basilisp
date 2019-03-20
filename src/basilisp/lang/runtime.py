@@ -8,7 +8,7 @@ import re
 import threading
 import types
 from fractions import Fraction
-from typing import Optional, Dict, Tuple, Union, Any, Callable, Iterable
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
 import basilisp.lang.associative as lassoc
 import basilisp.lang.collection as lcoll
@@ -28,11 +28,13 @@ from basilisp.util import Maybe
 
 logger = logging.getLogger(__name__)
 
-_CORE_NS = "basilisp.core"
-_REPL_DEFAULT_NS = "user"
-_NS_VAR_NAME = "*ns*"
-_NS_VAR_NS = _CORE_NS
-_PYTHON_PACKAGE_NAME = "basilisp"
+# Public constants
+CORE_NS = "basilisp.core"
+NS_VAR_NAME = "*ns*"
+NS_VAR_NS = CORE_NS
+REPL_DEFAULT_NS = "user"
+
+# Private string constants
 _GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 _PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
 _PRINT_DUP_VAR_NAME = "*print-dup*"
@@ -41,11 +43,13 @@ _PRINT_LEVEL_VAR_NAME = "*print-level*"
 _PRINT_META_VAR_NAME = "*print-meta*"
 _PRINT_READABLY_VAR_NAME = "*print-readably*"
 
-
+# Common meta keys
 _DYNAMIC_META_KEY = kw.keyword("dynamic")
 _PRIVATE_META_KEY = kw.keyword("private")
 _REDEF_META_KEY = kw.keyword("redef")
 
+# Special form values, used for resolving Vars
+_AWAIT = sym.symbol("catch")
 _CATCH = sym.symbol("catch")
 _DEF = sym.symbol("def")
 _DO = sym.symbol("do")
@@ -59,10 +63,12 @@ _LET = sym.symbol("let*")
 _LOOP = sym.symbol("loop*")
 _QUOTE = sym.symbol("quote")
 _RECUR = sym.symbol("recur")
+_SET_BANG = sym.symbol("set!")
 _THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
 _SPECIAL_FORMS = lset.s(
+    _AWAIT,
     _CATCH,
     _DEF,
     _DO,
@@ -76,6 +82,7 @@ _SPECIAL_FORMS = lset.s(
     _LOOP,
     _QUOTE,
     _RECUR,
+    _SET_BANG,
     _THROW,
     _TRY,
     _VAR,
@@ -500,7 +507,7 @@ class Namespace:
         ns_cache: lmap.Map,
         name: sym.Symbol,
         module: types.ModuleType = None,
-        core_ns_name=_CORE_NS,
+        core_ns_name=CORE_NS,
     ) -> lmap.Map:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
@@ -1026,7 +1033,7 @@ def lrepr(o, human_readable: bool = False) -> str:
     """Produce a string representation of an object. If human_readable is False,
     the string representation of Lisp objects is something that can be read back
     in by the reader as the same object."""
-    core_ns = Namespace.get(sym.symbol(_CORE_NS))
+    core_ns = Namespace.get(sym.symbol(CORE_NS))
     assert core_ns is not None
     return lobj.lrepr(
         o,
@@ -1126,7 +1133,7 @@ def _trampoline(f):
 #########################
 
 
-def init_ns_var(which_ns: str = _CORE_NS, ns_var_name: str = _NS_VAR_NAME) -> Var:
+def init_ns_var(which_ns: str = CORE_NS, ns_var_name: str = NS_VAR_NAME) -> Var:
     """Initialize the dynamic `*ns*` variable in the Namespace `which_ns`."""
     core_sym = sym.Symbol(which_ns)
     core_ns = Namespace.get_or_create(core_sym)
@@ -1138,8 +1145,8 @@ def init_ns_var(which_ns: str = _CORE_NS, ns_var_name: str = _NS_VAR_NAME) -> Va
 def set_current_ns(
     ns_name: str,
     module: types.ModuleType = None,
-    ns_var_name: str = _NS_VAR_NAME,
-    ns_var_ns: str = _NS_VAR_NS,
+    ns_var_name: str = NS_VAR_NAME,
+    ns_var_ns: str = NS_VAR_NS,
 ) -> Var:
     """Set the value of the dynamic variable `*ns*` in the current thread."""
     symbol = sym.Symbol(ns_name)
@@ -1159,8 +1166,8 @@ def set_current_ns(
 def ns_bindings(
     ns_name: str,
     module: types.ModuleType = None,
-    ns_var_name: str = _NS_VAR_NAME,
-    ns_var_ns: str = _NS_VAR_NS,
+    ns_var_name: str = NS_VAR_NAME,
+    ns_var_ns: str = NS_VAR_NS,
 ):
     """Context manager for temporarily changing the value of basilisp.core/*ns*."""
     symbol = sym.Symbol(ns_name)
@@ -1182,7 +1189,7 @@ def ns_bindings(
 
 
 @contextlib.contextmanager
-def remove_ns_bindings(ns_var_name: str = _NS_VAR_NAME, ns_var_ns: str = _NS_VAR_NS):
+def remove_ns_bindings(ns_var_name: str = NS_VAR_NAME, ns_var_ns: str = NS_VAR_NS):
     """Context manager to pop the most recent bindings for basilisp.core/*ns* after
     completion of the code under management."""
     ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
@@ -1199,7 +1206,7 @@ def remove_ns_bindings(ns_var_name: str = _NS_VAR_NAME, ns_var_ns: str = _NS_VAR
 
 
 def get_current_ns(
-    ns_var_name: str = _NS_VAR_NAME, ns_var_ns: str = _NS_VAR_NS
+    ns_var_name: str = NS_VAR_NAME, ns_var_ns: str = NS_VAR_NS
 ) -> Namespace:
     """Get the value of the dynamic variable `*ns*` in the current thread."""
     ns_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
@@ -1257,7 +1264,7 @@ def add_generated_python(
 
 
 def print_generated_python(
-    var_name: str = _PRINT_GENERATED_PY_VAR_NAME, core_ns_name: str = _CORE_NS
+    var_name: str = _PRINT_GENERATED_PY_VAR_NAME, core_ns_name: str = CORE_NS
 ) -> bool:
     """Return the value of the `*print-generated-python*` dynamic variable."""
     ns_sym = sym.Symbol(var_name, ns=core_ns_name)
@@ -1268,7 +1275,7 @@ def print_generated_python(
     )
 
 
-def bootstrap(ns_var_name: str = _NS_VAR_NAME, core_ns_name: str = _CORE_NS) -> None:
+def bootstrap(ns_var_name: str = NS_VAR_NAME, core_ns_name: str = CORE_NS) -> None:
     """Bootstrap the environment with functions that are are difficult to
     express with the very minimal lisp environment."""
     core_ns_sym = sym.symbol(core_ns_name)

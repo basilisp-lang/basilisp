@@ -4,7 +4,7 @@ import re
 import types
 import uuid
 from fractions import Fraction
-from typing import Optional, Dict
+from typing import Dict, Optional
 from unittest.mock import Mock
 
 import dateutil.parser as dateparser
@@ -44,7 +44,7 @@ def test_ns() -> str:
 
 @pytest.fixture
 def ns(test_ns: str) -> runtime.Namespace:
-    runtime.init_ns_var(which_ns=runtime._CORE_NS)
+    runtime.init_ns_var(which_ns=runtime.CORE_NS)
     with runtime.ns_bindings(test_ns) as ns:
         yield ns
 

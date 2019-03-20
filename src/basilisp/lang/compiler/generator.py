@@ -10,20 +10,20 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from fractions import Fraction
-from functools import wraps, partial
+from functools import partial, wraps
 from itertools import chain
 from typing import (
-    Iterable,
-    Pattern,
-    Optional,
-    List,
-    Union,
+    Callable,
+    Collection,
     Deque,
     Dict,
-    Callable,
+    Iterable,
+    List,
+    Optional,
+    Pattern,
     Tuple,
     Type,
-    Collection,
+    Union,
 )
 
 import attr
@@ -46,45 +46,45 @@ from basilisp.lang.compiler.constants import (
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compiler.nodes import (
-    Node,
-    NodeOp,
-    ConstType,
+    Binding,
+    Catch,
     Const,
-    WithMeta,
+    ConstType,
     Def,
     Do,
-    If,
-    VarRef,
+    Fn,
+    FnMethod,
     HostCall,
     HostField,
+    If,
+    Import,
+    Invoke,
+    Let,
+    Local,
+    LocalType,
+    Loop,
+    Map as MapNode,
     MaybeClass,
     MaybeHostForm,
-    Map as MapNode,
-    Set as SetNode,
-    Vector as VectorNode,
-    Quote,
-    ReaderLispForm,
-    Invoke,
-    Throw,
-    Try,
-    LocalType,
-    SetBang,
-    Local,
-    Let,
-    Loop,
-    Recur,
-    Fn,
-    Import,
-    FnMethod,
-    Binding,
+    Node,
     NodeEnv,
-    Catch,
+    NodeOp,
+    PyDict,
     PyList,
     PySet,
     PyTuple,
-    PyDict,
+    Quote,
+    ReaderLispForm,
+    Recur,
+    Set as SetNode,
+    SetBang,
+    Throw,
+    Try,
+    VarRef,
+    Vector as VectorNode,
+    WithMeta,
 )
-from basilisp.lang.runtime import Var
+from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
@@ -96,12 +96,8 @@ logger = logging.getLogger(__name__)
 USE_VAR_INDIRECTION = "use_var_indirection"
 WARN_ON_VAR_INDIRECTION = "warn_on_var_indirection"
 
-# Lisp AST node keywords
-INIT = kw.keyword("init")
-
 # String constants used in generating code
 _BUILTINS_NS = "builtins"
-_CORE_NS = "basilisp.core"
 _DEFAULT_FN = "__lisp_expr__"
 _DO_PREFIX = "lisp_do"
 _FN_PREFIX = "lisp_fn"
@@ -112,7 +108,6 @@ _MULTI_ARITY_ARG_NAME = "multi_arity_args"
 _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
 _NS_VAR = "__NS"
-_LISP_NS_VAR = "*ns*"
 
 
 GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERATION)
@@ -553,16 +548,23 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     defsym = node.name
     is_defn = False
 
-    if INIT in node.children:
+    if node.init is not None:
         # Since Python function definitions always take the form `def name(...):`,
         # it is redundant to assign them to the their final name after they have
         # been defined under a private alias. This codepath generates `defn`
         # declarations by directly generating the Python `def` with the correct
         # function name and short-circuiting the default double-declaration.
-        assert node.init is not None, "Def init must be defined"
         if node.init.op == NodeOp.FN:
             assert isinstance(node.init, Fn)
             def_ast = _fn_to_py_ast(ctx, node.init, def_name=defsym.name)
+            is_defn = True
+        elif (
+            node.init.op == NodeOp.WITH_META
+            and isinstance(node.init, WithMeta)
+            and node.init.expr.op == NodeOp.FN
+        ):
+            assert isinstance(node.init, WithMeta)
+            def_ast = _with_meta_to_py_ast(ctx, node.init, def_name=defsym.name)
             is_defn = True
         else:
             def_ast = gen_py_ast(ctx, node.init)
@@ -680,6 +682,9 @@ def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     )
 
 
+MetaNode = Union[Const, MapNode]
+
+
 def __fn_name(s: Optional[str]) -> str:
     """Generate a safe Python function name from a function name symbol.
     If no symbol is provided, generate a name with a default prefix."""
@@ -728,7 +733,11 @@ def __fn_args_to_py_ast(
 
 @_with_ast_loc_deps
 def __single_arity_fn_to_py_ast(
-    ctx: GeneratorContext, node: Fn, method: FnMethod, def_name: Optional[str] = None
+    ctx: GeneratorContext,
+    node: Fn,
+    method: FnMethod,
+    def_name: Optional[str] = None,
+    meta_node: Optional[MetaNode] = None,
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with a single arity."""
     assert node.op == NodeOp.FN
@@ -915,6 +924,7 @@ def __multi_arity_fn_to_py_ast(
     node: Fn,
     methods: Collection[FnMethod],
     def_name: Optional[str] = None,
+    meta_node: Optional[MetaNode] = None,
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with multiple arities."""
     assert node.op == NodeOp.FN
@@ -979,16 +989,21 @@ def __multi_arity_fn_to_py_ast(
 
 @_with_ast_loc
 def _fn_to_py_ast(
-    ctx: GeneratorContext, node: Fn, def_name: Optional[str] = None
+    ctx: GeneratorContext,
+    node: Fn,
+    def_name: Optional[str] = None,
+    meta_node: Optional[MetaNode] = None,
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `fn` expression."""
     assert node.op == NodeOp.FN
     if len(node.methods) == 1:
         return __single_arity_fn_to_py_ast(
-            ctx, node, next(iter(node.methods)), def_name=def_name
+            ctx, node, next(iter(node.methods)), def_name=def_name, meta_node=meta_node
         )
     else:
-        return __multi_arity_fn_to_py_ast(ctx, node, node.methods, def_name=def_name)
+        return __multi_arity_fn_to_py_ast(
+            ctx, node, node.methods, def_name=def_name, meta_node=meta_node
+        )
 
 
 @_with_ast_loc_deps
@@ -1665,9 +1680,6 @@ def _maybe_host_form_to_py_ast(
 #########################
 
 
-MetaNode = Union[Const, MapNode]
-
-
 @_with_ast_loc
 def _map_to_py_ast(
     ctx: GeneratorContext, node: MapNode, meta_node: Optional[MetaNode] = None
@@ -1807,14 +1819,16 @@ def _py_tuple_to_py_ast(ctx: GeneratorContext, node: PyTuple) -> GeneratedPyAST:
 
 
 _WITH_META_EXPR_HANDLER = {  # type: ignore
-    NodeOp.FN: None,  # TODO: function with meta
+    NodeOp.FN: _fn_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
 }
 
 
-def _with_meta_to_py_ast(ctx: GeneratorContext, node: WithMeta) -> GeneratedPyAST:
+def _with_meta_to_py_ast(
+    ctx: GeneratorContext, node: WithMeta, **kwargs
+) -> GeneratedPyAST:
     """Generate a Python AST node for Python interop method calls."""
     assert node.op == NodeOp.WITH_META
 
@@ -1822,7 +1836,7 @@ def _with_meta_to_py_ast(ctx: GeneratorContext, node: WithMeta) -> GeneratedPyAS
     assert (
         handle_expr is not None
     ), "No expression handler for with-meta child node type"
-    return handle_expr(ctx, node.expr, meta_node=node.meta)  # type: ignore
+    return handle_expr(ctx, node.expr, meta_node=node.meta, **kwargs)  # type: ignore
 
 
 #################
@@ -2203,9 +2217,7 @@ def _from_module_import() -> ast.ImportFrom:
 
 
 def _ns_var(
-    py_ns_var: str = _NS_VAR,
-    lisp_ns_var: str = _LISP_NS_VAR,
-    lisp_ns_ns: str = _CORE_NS,
+    py_ns_var: str = _NS_VAR, lisp_ns_var: str = LISP_NS_VAR, lisp_ns_ns: str = CORE_NS
 ) -> ast.Assign:
     """Assign a Python variable named `ns_var` to the value of the current
     namespace."""
