@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Iterable
 
 from pyrsistent import pmap, PMap
 
@@ -6,7 +6,7 @@ import basilisp.lang.associative as lassoc
 import basilisp.lang.atom as atom
 from basilisp.lang.obj import LispObject
 
-__INTERN = atom.Atom(pmap())
+__INTERN: atom.Atom["PMap[int, Keyword]"] = atom.Atom(pmap())
 
 
 class Keyword(LispObject):
@@ -42,7 +42,34 @@ class Keyword(LispObject):
             return None
 
 
-def __get_or_create(kw_cache: PMap, h: int, name: str, ns: Optional[str]) -> PMap:
+def complete(
+    text: str, kw_cache: atom.Atom["PMap[int, Keyword]"] = __INTERN
+) -> Iterable[str]:
+    """Return an iterable of possible completions for the given text."""
+    assert text.startswith(":")
+    interns = kw_cache.deref()
+    text = text[1:]
+
+    if "/" in text:
+        prefix, suffix = text.split("/", maxsplit=1)
+        results = filter(
+            lambda kw: (kw.ns is not None and kw.ns == prefix)
+            and kw.name.startswith(suffix),
+            interns.itervalues(),
+        )
+    else:
+        results = filter(
+            lambda kw: kw.name.startswith(text)
+            or (kw.ns is not None and kw.ns.startswith(text)),
+            interns.itervalues(),
+        )
+
+    return map(str, results)
+
+
+def __get_or_create(
+    kw_cache: "PMap[int, Keyword]", h: int, name: str, ns: Optional[str]
+) -> PMap:
     """Private swap function used to either get the interned keyword
     instance from the input string."""
     if h in kw_cache:
@@ -52,7 +79,9 @@ def __get_or_create(kw_cache: PMap, h: int, name: str, ns: Optional[str]) -> PMa
 
 
 def keyword(
-    name: str, ns: Optional[str] = None, kw_cache: atom.Atom = __INTERN
+    name: str,
+    ns: Optional[str] = None,
+    kw_cache: atom.Atom["PMap[int, Keyword]"] = __INTERN,
 ) -> Keyword:
     """Create a new keyword."""
     h = hash((name, ns))

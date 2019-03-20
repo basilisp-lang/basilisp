@@ -4,10 +4,11 @@ import importlib
 import itertools
 import logging
 import math
+import re
 import threading
 import types
 from fractions import Fraction
-from typing import Optional, Dict, Tuple, Union, Any, Callable
+from typing import Optional, Dict, Tuple, Union, Any, Callable, Iterable
 
 import basilisp.lang.associative as lassoc
 import basilisp.lang.collection as lcoll
@@ -79,6 +80,9 @@ _SPECIAL_FORMS = lset.s(
     _TRY,
     _VAR,
 )
+
+CompletionMatcher = Callable[[Tuple[sym.Symbol, Any]], bool]
+CompletionTrimmer = Callable[[Tuple[sym.Symbol, Any]], str]
 
 
 def _new_module(name: str, doc=None) -> types.ModuleType:
@@ -541,6 +545,108 @@ class Namespace:
             if cls._NAMESPACES.compare_and_set(oldval, newval):
                 return ns
 
+    # REPL Completion support
+
+    @staticmethod
+    def __completion_matcher(text: str) -> CompletionMatcher:
+        """Return a function which matches any symbol keys from map entries
+        against the given text."""
+
+        def is_match(entry: Tuple[sym.Symbol, Any]) -> bool:
+            return entry[0].name.startswith(text)
+
+        return is_match
+
+    def __complete_alias(
+        self, prefix: str, name_in_ns: Optional[str] = None
+    ) -> Iterable[str]:
+        """Return an iterable of possible completions matching the given
+        prefix from the list of aliased namespaces. If name_in_ns is given,
+        further attempt to refine the list to matching names in that namespace."""
+        candidates: Iterable[Tuple[sym.Symbol, Namespace]] = filter(
+            Namespace.__completion_matcher(prefix), self.aliases
+        )
+        if name_in_ns is not None:
+            for _, candidate_ns in candidates:
+                for match in candidate_ns.__complete_interns(
+                    name_in_ns, include_private_vars=False
+                ):
+                    yield f"{prefix}/{match}"
+        else:
+            for alias, _ in candidates:
+                yield f"{alias}/"
+
+    def __complete_imports_and_aliases(
+        self, prefix: str, name_in_module: Optional[str] = None
+    ) -> Iterable[str]:
+        """Return an iterable of possible completions matching the given
+        prefix from the list of imports and aliased imports. If name_in_module
+        is given, further attempt to refine the list to matching names in that
+        namespace."""
+        imports = self.imports
+        aliases = lmap.map(
+            {
+                alias: imports.entry(import_name)
+                for alias, import_name in self.import_aliases
+            }
+        )
+
+        candidates: Iterable[Tuple[sym.Symbol, types.ModuleType]] = filter(
+            Namespace.__completion_matcher(prefix), itertools.chain(aliases, imports)
+        )
+        if name_in_module is not None:
+            for _, module in candidates:
+                for name in module.__dict__:
+                    if name.startswith(name_in_module):
+                        yield f"{prefix}/{name}"
+        else:
+            for candidate_name, _ in candidates:
+                yield f"{candidate_name}/"
+
+    def __complete_interns(
+        self, value: str, include_private_vars: bool = True
+    ) -> Iterable[str]:
+        """Return an iterable of possible completions matching the given
+        prefix from the list of interned Vars."""
+        if include_private_vars:
+            is_match = Namespace.__completion_matcher(value)
+        else:
+            _is_match = Namespace.__completion_matcher(value)
+
+            def is_match(entry: Tuple[sym.Symbol, Var]) -> bool:
+                return _is_match(entry) and not entry[1].is_private
+
+        return map(lambda entry: f"{entry[0].name}", filter(is_match, self.interns))
+
+    def __complete_refers(self, value: str) -> Iterable[str]:
+        """Return an iterable of possible completions matching the given
+        prefix from the list of referred Vars."""
+        return map(
+            lambda entry: f"{entry[0].name}",
+            filter(Namespace.__completion_matcher(value), self.refers),
+        )
+
+    def complete(self, text: str) -> Iterable[str]:
+        """Return an iterable of possible completions for the given text in
+        this namespace."""
+        assert not text.startswith(":")
+
+        if "/" in text:
+            prefix, suffix = text.split("/", maxsplit=1)
+            results = itertools.chain(
+                self.__complete_alias(prefix, name_in_ns=suffix),
+                self.__complete_imports_and_aliases(prefix, name_in_module=suffix),
+            )
+        else:
+            results = itertools.chain(
+                self.__complete_alias(text),
+                self.__complete_imports_and_aliases(text),
+                self.__complete_interns(text),
+                self.__complete_refers(text),
+            )
+
+        return results
+
 
 ###################
 # Runtime Support #
@@ -942,6 +1048,23 @@ def lrepr(o, human_readable: bool = False) -> str:
 def lstr(o) -> str:
     """Produce a human readable string representation of an object."""
     return lrepr(o, human_readable=True)
+
+
+__NOT_COMPLETEABLE = re.compile(r"^[0-9].*")
+
+
+def repl_complete(text: str, state: int) -> Optional[str]:
+    """Completer function for Python's readline/libedit implementation."""
+    # Can't complete Keywords, Numerals
+    if __NOT_COMPLETEABLE.match(text):
+        return None
+    elif text.startswith(":"):
+        completions = kw.complete(text)
+    else:
+        ns = get_current_ns()
+        completions = ns.complete(text)
+
+    return list(completions)[state] if completions is not None else None
 
 
 def _collect_args(args) -> lseq.Seq:
