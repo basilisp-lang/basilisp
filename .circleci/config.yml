@@ -24,7 +24,7 @@ jobs:
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
           paths:
-            - ".tox"
+            - "/home/pyenv/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
       - store_artifacts:
@@ -50,7 +50,7 @@ jobs:
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
           paths:
-            - ".tox"
+            - "/home/pyenv/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
       - store_artifacts:
