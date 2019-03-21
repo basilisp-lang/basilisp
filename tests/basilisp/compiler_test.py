@@ -1,3 +1,4 @@
+import asyncio
 import decimal
 import logging
 import re
@@ -59,6 +60,12 @@ def assert_no_logs(caplog):
     log_records = caplog.record_tuples
     if len(log_records) != 0:
         pytest.fail(f"At least one log message found: {log_records}")
+
+
+def async_to_sync(asyncf, *args, **kwargs):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    return loop.run_until_complete(asyncf(*args, **kwargs))
 
 
 def lcompile(
@@ -189,6 +196,51 @@ class TestLiterals:
         assert isinstance(lcompile("#py ()"), tuple)
         assert tuple() == lcompile("#py ()")
         assert (1, kw.keyword("a"), "str") == lcompile('#py (1 :a "str")')
+
+
+class TestAwait:
+    def test_await_must_appear_in_async_def(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn [] (await :a))")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn test [] (await :a))")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn ^:async test [] (fn [] (await :a)))")
+
+        lcompile(
+            """
+        (fn ^:async test []
+          (fn []
+            (fn ^:async inner [] (await :a))))
+        """
+        )
+
+    def test_await_number_of_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn ^:async test [] (await))")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(fn ^:async test [] (await :a :b))")
+
+    def test_await(self, ns: runtime.Namespace):
+        awaiter_var: runtime.Var = lcompile(
+            """
+        (def unique-tywend
+          (fn ^:async unique-tywend
+            []
+            :await-result))
+
+        (def unique-jkeddd
+          (fn ^:async unique-jkeddd
+            []
+            (await (unique-tywend))))
+        """
+        )
+
+        awaiter = awaiter_var.value
+        assert kw.keyword("await-result") == async_to_sync(awaiter)
 
 
 class TestDef:
@@ -700,6 +752,46 @@ class TestFunctionDef:
                 """
             )
             fvar.value(1, 2, 3)
+
+    def test_async_single_arity(self, ns: runtime.Namespace):
+        awaiter_var: runtime.Var = lcompile(
+            """
+        (def unique-kdghii
+          (fn ^:async unique-kdghii
+            []
+            :await-result))
+
+        (def unique-pqekee
+          (fn ^:async unique-pqekee
+            []
+            (await (unique-kdghii))))
+        """
+        )
+
+        awaiter = awaiter_var.value
+        assert kw.keyword("await-result") == async_to_sync(awaiter)
+
+    def test_async_multiy_arity(self, ns: runtime.Namespace):
+        awaiter_var: runtime.Var = lcompile(
+            """
+        (def unique-wywbddd
+          (fn ^:async unique-wywbddd
+            ([]
+             :await-result-0)
+            ([^:no-warn-when-unused arg]
+             :await-result-1)))
+
+        (def unique-hdhene
+          (fn ^:async unique-hdhene
+            []
+            [(await (unique-wywbddd)) (await (unique-wywbddd :arg1))]))
+        """
+        )
+
+        awaiter = awaiter_var.value
+        assert vec.v(
+            kw.keyword("await-result-0"), kw.keyword("await-result-1")
+        ) == async_to_sync(awaiter)
 
 
 def test_fn_call(ns: runtime.Namespace):

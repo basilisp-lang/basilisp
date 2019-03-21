@@ -395,9 +395,11 @@ class ParserContext:
 
 def _is_async(o: lmeta.Meta) -> bool:
     """Return True if the meta contains :async keyword."""
-    return Maybe(o.meta).map(
-        lambda m: m.get(SYM_ASYNC_META_KEY, None)  # type: ignore
-    ).or_else_get(False)
+    return (
+        Maybe(o.meta)
+        .map(lambda m: m.get(SYM_ASYNC_META_KEY, None))  # type: ignore
+        .or_else_get(False)
+    )
 
 
 def _is_macro(v: Var) -> bool:
@@ -727,7 +729,9 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
             assert name_node is not None
-            is_async = _is_async(name) or isinstance(form, lmeta.Meta) and _is_async(form)
+            is_async = (
+                _is_async(name) or isinstance(form, lmeta.Meta) and _is_async(form)
+            )
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
         elif isinstance(name, (llist.List, vec.Vector)):
