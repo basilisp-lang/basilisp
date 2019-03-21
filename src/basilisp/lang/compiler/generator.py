@@ -46,6 +46,7 @@ from basilisp.lang.compiler.constants import (
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compiler.nodes import (
+    Await,
     Binding,
     Catch,
     Const,
@@ -515,6 +516,15 @@ def expressionize(
 #################
 
 
+@_with_ast_loc_deps
+def _await_to_py_ast(ctx: GeneratorContext, node: Await) -> GeneratedPyAST:
+    assert node.op == NodeOp.AWAIT
+    expr_ast = gen_py_ast(ctx, node.expr)
+    return GeneratedPyAST(
+        node=ast.Await(value=expr_ast.node), dependencies=expr_ast.dependencies
+    )
+
+
 def __should_warn_on_redef(
     ctx: GeneratorContext, defsym: sym.Symbol, safe_name: str, def_meta: lmap.Map
 ) -> bool:
@@ -745,6 +755,7 @@ def __single_arity_fn_to_py_ast(
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
+    py_fn_node = ast.AsyncFunctionDef if node.is_async else ast.FunctionDef
     with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(
         method.loop_id, RecurType.FN, is_variadic=node.is_variadic
     ):
@@ -760,7 +771,7 @@ def __single_arity_fn_to_py_ast(
         return GeneratedPyAST(
             node=ast.Name(id=py_fn_name, ctx=ast.Load()),
             dependencies=[
-                ast.FunctionDef(
+                py_fn_node(
                     name=py_fn_name,
                     args=ast.arguments(
                         args=fn_args,
@@ -785,6 +796,7 @@ def __multi_arity_dispatch_fn(
     arity_map: Dict[int, str],
     default_name: Optional[str] = None,
     max_fixed_arity: Optional[int] = None,
+    is_async: bool = False,
 ) -> GeneratedPyAST:
     """Return the Python AST nodes for a argument-length dispatch function
     for multi-arity functions.
@@ -893,6 +905,7 @@ def __multi_arity_dispatch_fn(
         ),
     ]
 
+    py_fn_node = ast.AsyncFunctionDef if is_async else ast.FunctionDef
     return GeneratedPyAST(
         node=ast.Name(id=name, ctx=ast.Load()),
         dependencies=[
@@ -900,7 +913,7 @@ def __multi_arity_dispatch_fn(
                 targets=[ast.Name(id=dispatch_map_name, ctx=ast.Store())],
                 value=ast.Dict(keys=dispatch_keys, values=dispatch_vals),
             ),
-            ast.FunctionDef(
+            py_fn_node(
                 name=name,
                 args=ast.arguments(
                     args=[],
@@ -933,6 +946,8 @@ def __multi_arity_fn_to_py_ast(
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
 
+    py_fn_node = ast.AsyncFunctionDef if node.is_async else ast.FunctionDef
+
     arity_to_name = {}
     rest_arity_name: Optional[str] = None
     fn_defs = []
@@ -956,7 +971,7 @@ def __multi_arity_fn_to_py_ast(
                 ctx, method.params, method.body
             )
             fn_defs.append(
-                ast.FunctionDef(
+                py_fn_node(
                     name=arity_name,
                     args=ast.arguments(
                         args=fn_args,
@@ -2127,6 +2142,7 @@ def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: Const) -> GeneratedPy
 
 
 _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
+    NodeOp.AWAIT: _await_to_py_ast,
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,
     NodeOp.DO: _do_to_py_ast,

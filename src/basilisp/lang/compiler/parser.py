@@ -28,6 +28,7 @@ import attr
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
+import basilisp.lang.meta as lmeta
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
@@ -43,6 +44,7 @@ from basilisp.lang.compiler.constants import (
     LINE_KW,
     NAME_KW,
     NS_KW,
+    SYM_ASYNC_META_KEY,
     SYM_DYNAMIC_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
@@ -250,12 +252,20 @@ class SymbolTable:
 
 
 class ParserContext:
-    __slots__ = ("_filename", "_is_quoted", "_opts", "_recur_points", "_st")
+    __slots__ = (
+        "_filename",
+        "_func_ctx",
+        "_is_quoted",
+        "_opts",
+        "_recur_points",
+        "_st",
+    )
 
     def __init__(
         self, filename: Optional[str] = None, opts: Optional[Dict[str, bool]] = None
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
+        self._func_ctx: Deque[bool] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.Map.empty())
         self._recur_points: Deque[RecurPoint] = collections.deque([])
@@ -303,6 +313,19 @@ class ParserContext:
         self._is_quoted.append(True)
         yield
         self._is_quoted.pop()
+
+    @property
+    def is_async_ctx(self) -> bool:
+        try:
+            return self._func_ctx[-1] is True
+        except IndexError:
+            return False
+
+    @contextlib.contextmanager
+    def new_func_ctx(self, is_async: bool = False):
+        self._func_ctx.append(is_async)
+        yield
+        self._func_ctx.pop()
 
     @property
     def recur_point(self) -> Optional[RecurPoint]:
@@ -368,6 +391,13 @@ class ParserContext:
 
     def get_node_env(self):
         return NodeEnv(ns=self.current_ns, file=self.filename)
+
+
+def _is_async(o: lmeta.Meta) -> bool:
+    """Return True if the meta contains :async keyword."""
+    return Maybe(o.meta).map(
+        lambda m: m.get(SYM_ASYNC_META_KEY, None)  # type: ignore
+    ).or_else_get(False)
 
 
 def _is_macro(v: Var) -> bool:
@@ -451,6 +481,11 @@ def _with_meta(gen_node):
 
 def _await_ast(ctx: ParserContext, form: lseq.Seq) -> Await:
     assert form.first == SpecialForm.AWAIT
+
+    if not ctx.is_async_ctx:
+        raise ParserException(
+            f"await forms may not appear in non-async context", form=form
+        )
 
     nelems = count(form)
     if nelems != 2:
@@ -672,7 +707,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
 
 @_with_meta  # noqa: MC0001
 def _fn_ast(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: lseq.Seq
+    ctx: ParserContext, form: Union[llist.List, lseq.Seq]
 ) -> Fn:
     assert form.first == SpecialForm.FN
 
@@ -692,11 +727,13 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
             assert name_node is not None
+            is_async = _is_async(name) or isinstance(form, lmeta.Meta) and _is_async(form)
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
         elif isinstance(name, (llist.List, vec.Vector)):
             name = None
             name_node = None
+            is_async = isinstance(form, lmeta.Meta) and _is_async(form)
         else:
             raise ParserException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
@@ -711,22 +748,23 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
-        if isinstance(arity_or_args, llist.List):
-            methods = vec.vector(
-                map(
-                    partial(__fn_method_ast, ctx, fnname=name),
-                    runtime.nthrest(form, idx),
+        with ctx.new_func_ctx(is_async=is_async):
+            if isinstance(arity_or_args, llist.List):
+                methods = vec.vector(
+                    map(
+                        partial(__fn_method_ast, ctx, fnname=name),
+                        runtime.nthrest(form, idx),
+                    )
                 )
-            )
-        elif isinstance(arity_or_args, vec.Vector):
-            methods = vec.v(
-                __fn_method_ast(ctx, runtime.nthrest(form, idx), fnname=name)
-            )
-        else:
-            raise ParserException(
-                "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
-                form=form,
-            )
+            elif isinstance(arity_or_args, vec.Vector):
+                methods = vec.v(
+                    __fn_method_ast(ctx, runtime.nthrest(form, idx), fnname=name)
+                )
+            else:
+                raise ParserException(
+                    "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
+                    form=form,
+                )
 
         assert count(methods) > 0, "fn must have at least one arity"
 
@@ -771,6 +809,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
             methods=methods,
             local=name_node,
             env=ctx.get_node_env(),
+            is_async=is_async,
         )
 
 

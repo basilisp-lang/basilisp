@@ -328,6 +328,7 @@ class Fn(Node[SpecialForm]):
     env: NodeEnv
     local: Optional[Binding] = None
     is_variadic: bool = False
+    is_async: bool = False
     children: Collection[kw.Keyword] = vec.v(METHODS)
     op: NodeOp = NodeOp.FN
     top_level: bool = False
