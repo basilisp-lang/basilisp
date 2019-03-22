@@ -958,6 +958,16 @@ class TestImport:
 
 
 class TestPythonInterop:
+    def test_interop_is_valid_type(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(. :kw "str")')
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(. :kw [:vec :of :kws])")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(. :kw 1)")
+
     def test_interop_new(self, ns: runtime.Namespace):
         assert "hi" == lcompile('(builtins.str. "hi")')
         assert "1" == lcompile("(builtins.str. 1)")
