@@ -707,8 +707,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
             return method
 
 
-@_with_meta  # noqa: MC0001
-def _fn_ast(  # pylint: disable=too-many-branches
+def _fn_ast(  # pylint: disable=too-many-branches  # noqa: MC0001
     ctx: ParserContext, form: Union[llist.List, lseq.Seq]
 ) -> Fn:
     assert form.first == SpecialForm.FN
