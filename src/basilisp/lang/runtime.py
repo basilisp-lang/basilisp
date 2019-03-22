@@ -49,7 +49,7 @@ _PRIVATE_META_KEY = kw.keyword("private")
 _REDEF_META_KEY = kw.keyword("redef")
 
 # Special form values, used for resolving Vars
-_AWAIT = sym.symbol("catch")
+_AWAIT = sym.symbol("await")
 _CATCH = sym.symbol("catch")
 _DEF = sym.symbol("def")
 _DO = sym.symbol("do")
