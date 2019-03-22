@@ -371,7 +371,7 @@ class TestFunctionShadowName:
         self, ns: runtime.Namespace, caplog
     ):
         lcompile("(fn [v] (fn [v] v))")
-        assert ("name 'v' shadows name from outer scope") not in caplog.messages
+        assert "name 'v' shadows name from outer scope" not in caplog.messages
 
     def test_multi_arity_fn_no_log_if_warning_disabled(
         self, ns: runtime.Namespace, caplog
@@ -383,7 +383,7 @@ class TestFunctionShadowName:
           ([v] (fn [v] v)))
         """
         )
-        assert ("name 'v' shadows name from outer scope") not in caplog.messages
+        assert "name 'v' shadows name from outer scope" not in caplog.messages
 
     def test_single_arity_fn_log_if_warning_enabled(
         self, ns: runtime.Namespace, caplog
