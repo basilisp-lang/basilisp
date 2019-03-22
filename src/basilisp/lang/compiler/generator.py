@@ -430,6 +430,8 @@ _INTERN_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern")
 _FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
 _COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
+_BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
+_FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
 _TRAMPOLINE_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._trampoline")
 _TRAMPOLINE_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._TrampolineArgs")
 
@@ -741,6 +743,25 @@ def __fn_args_to_py_ast(
     return fn_args, varg, fn_body_ast
 
 
+def __fn_meta(
+    ctx: GeneratorContext, meta_node: Optional[MetaNode] = None
+) -> Tuple[Iterable[ast.AST], Iterable[ast.AST]]:
+    if meta_node is not None:
+        meta_ast = gen_py_ast(ctx, meta_node)
+        return (
+            meta_ast.dependencies,
+            [
+                ast.Call(
+                    func=_FN_WITH_ATTRS_FN_NAME,
+                    args=[],
+                    kwargs=[ast.keyword(arg="meta", value=meta_ast.node)],
+                )
+            ],
+        )
+    else:
+        return (), ()
+
+
 @_with_ast_loc_deps
 def __single_arity_fn_to_py_ast(
     ctx: GeneratorContext,
@@ -768,34 +789,48 @@ def __single_arity_fn_to_py_ast(
         fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
             ctx, method.params, method.body
         )
+        meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
         return GeneratedPyAST(
             node=ast.Name(id=py_fn_name, ctx=ast.Load()),
-            dependencies=[
-                py_fn_node(
-                    name=py_fn_name,
-                    args=ast.arguments(
-                        args=fn_args,
-                        kwarg=None,
-                        vararg=varg,
-                        kwonlyargs=[],
-                        defaults=[],
-                        kw_defaults=[],
-                    ),
-                    body=fn_body_ast,
-                    decorator_list=[_TRAMPOLINE_FN_NAME]
-                    if ctx.recur_point.has_recur
-                    else [],
-                    returns=None,
+            dependencies=list(
+                chain(
+                    meta_deps,
+                    [
+                        py_fn_node(
+                            name=py_fn_name,
+                            args=ast.arguments(
+                                args=fn_args,
+                                kwarg=None,
+                                vararg=varg,
+                                kwonlyargs=[],
+                                defaults=[],
+                                kw_defaults=[],
+                            ),
+                            body=fn_body_ast,
+                            decorator_list=list(
+                                chain(
+                                    [_BASILISP_FN_FN_NAME],
+                                    meta_decorators,
+                                    [_TRAMPOLINE_FN_NAME]
+                                    if ctx.recur_point.has_recur
+                                    else [],
+                                )
+                            ),
+                            returns=None,
+                        )
+                    ],
                 )
-            ],
+            ),
         )
 
 
 def __multi_arity_dispatch_fn(
+    ctx: GeneratorContext,
     name: str,
     arity_map: Dict[int, str],
     default_name: Optional[str] = None,
     max_fixed_arity: Optional[int] = None,
+    meta_node: Optional[MetaNode] = None,
     is_async: bool = False,
 ) -> GeneratedPyAST:
     """Return the Python AST nodes for a argument-length dispatch function
@@ -906,28 +941,34 @@ def __multi_arity_dispatch_fn(
     ]
 
     py_fn_node = ast.AsyncFunctionDef if is_async else ast.FunctionDef
+    meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
     return GeneratedPyAST(
         node=ast.Name(id=name, ctx=ast.Load()),
-        dependencies=[
-            ast.Assign(
-                targets=[ast.Name(id=dispatch_map_name, ctx=ast.Store())],
-                value=ast.Dict(keys=dispatch_keys, values=dispatch_vals),
-            ),
-            py_fn_node(
-                name=name,
-                args=ast.arguments(
-                    args=[],
-                    kwarg=None,
-                    vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
-                    kwonlyargs=[],
-                    defaults=[],
-                    kw_defaults=[],
-                ),
-                body=body,
-                decorator_list=[],
-                returns=None,
-            ),
-        ],
+        dependencies=chain(
+            [
+                ast.Assign(
+                    targets=[ast.Name(id=dispatch_map_name, ctx=ast.Store())],
+                    value=ast.Dict(keys=dispatch_keys, values=dispatch_vals),
+                )
+            ],
+            meta_deps,
+            [
+                py_fn_node(
+                    name=name,
+                    args=ast.arguments(
+                        args=[],
+                        kwarg=None,
+                        vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
+                        kwonlyargs=[],
+                        defaults=[],
+                        kw_defaults=[],
+                    ),
+                    body=body,
+                    decorator_list=list(chain([_BASILISP_FN_FN_NAME], meta_decorators)),
+                    returns=None,
+                )
+            ],
+        ),
     )
 
 
@@ -990,10 +1031,13 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
             )
 
     dispatch_fn_ast = __multi_arity_dispatch_fn(
+        ctx,
         py_fn_name,
         arity_to_name,
         default_name=rest_arity_name,
         max_fixed_arity=node.max_fixed_arity,
+        meta_node=meta_node,
+        is_async=node.is_async,
     )
 
     return GeneratedPyAST(

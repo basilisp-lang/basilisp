@@ -1128,6 +1128,45 @@ def _trampoline(f):
     return trampoline
 
 
+def _with_attrs(**kwargs):
+    """Decorator to set attributes on a function. Returns the original
+    function after setting the attributes named by the keyword arguments."""
+
+    def decorator(f):
+        for k, v in kwargs.items():
+            setattr(f, k, v)
+        return f
+
+    return decorator
+
+
+def _fn_with_meta(f, meta: Optional[lmap.Map]):
+    """Return a new function with the given meta. If the function f already
+    has a meta map, then merge the """
+
+    if meta is None:
+        raise TypeError("meta must be a map")
+
+    @functools.wraps(f)
+    def wrapped_f(*args, **kwargs):
+        return f(*args, **kwargs)
+
+    wrapped_f.meta = (
+        f.meta.update(meta)
+        if hasattr(f, "meta") and isinstance(f.meta, lmap.Map)
+        else meta
+    )
+    return wrapped_f
+
+
+def _basilisp_fn(f):
+    """Create a Basilisp function, setting meta and supplying a with_meta
+    method implementation."""
+    f.meta = None
+    f.with_meta = partial(_fn_with_meta, f)
+    return f
+
+
 #########################
 # Bootstrap the Runtime #
 #########################
