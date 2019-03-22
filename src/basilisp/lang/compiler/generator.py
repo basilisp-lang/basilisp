@@ -932,7 +932,7 @@ def __multi_arity_dispatch_fn(
 
 
 @_with_ast_loc_deps
-def __multi_arity_fn_to_py_ast(
+def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext,
     node: Fn,
     methods: Collection[FnMethod],
