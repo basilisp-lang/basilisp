@@ -77,7 +77,7 @@ def bootstrap_repl(which_ns: str) -> types.ModuleType:
 @cli.command(short_help="start the Basilisp REPL")
 @click.option(
     "--default-ns",
-    default=runtime._REPL_DEFAULT_NS,
+    default=runtime.REPL_DEFAULT_NS,
     help="default namespace to use for the REPL",
 )
 @click.option(
@@ -167,7 +167,7 @@ def repl(
     "-c", "--code", is_flag=True, help="if provided, treat argument as a string of code"
 )
 @click.option(
-    "--in-ns", default=runtime._REPL_DEFAULT_NS, help="namespace to use for the code"
+    "--in-ns", default=runtime.REPL_DEFAULT_NS, help="namespace to use for the code"
 )
 @click.option(
     "--use-var-indirection",

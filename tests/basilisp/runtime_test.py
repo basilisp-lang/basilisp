@@ -9,6 +9,7 @@ import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+from basilisp.lang.compiler.constants import SpecialForm
 
 
 def test_first():
@@ -381,36 +382,49 @@ def test_trampoline_args():
 
 @pytest.fixture
 def core_ns():
-    ns_var = runtime.init_ns_var(which_ns=runtime._CORE_NS)
+    ns_var = runtime.init_ns_var(which_ns=runtime.CORE_NS)
     yield ns_var.value
 
 
-def test_resolve_alias(core_ns):
-    for form in runtime._SPECIAL_FORMS:
-        assert form == runtime.resolve_alias(form)
-
-    ns_name = "resolve-test"
-    ns_sym = sym.symbol(ns_name)
-
-    with runtime.ns_bindings(ns_name) as ns:
-        runtime.Var.intern(ns_sym, sym.symbol("existing-var"), None)
-        assert sym.symbol("existing-var", ns=ns_name) == runtime.resolve_alias(
-            sym.symbol("existing-var"), ns=ns
+class TestResolveAlias:
+    @pytest.fixture
+    def compiler_special_forms(self) -> lset.Set:
+        return lset.set(
+            [v for k, v in SpecialForm.__dict__.items() if isinstance(v, sym.Symbol)]
         )
 
-        assert sym.symbol("non-existent-var", ns=ns_name) == runtime.resolve_alias(
-            sym.symbol("non-existent-var"), ns=ns
-        )
+    def test_runtime_and_compiler_special_forms_in_sync(
+        self, compiler_special_forms: lset.Set
+    ):
+        assert compiler_special_forms == runtime._SPECIAL_FORMS
 
-        foo_ns_sym = sym.symbol("zux.bar.foo")
-        foo_ns = runtime.Namespace.get_or_create(foo_ns_sym)
-        ns.add_alias(sym.symbol("foo"), foo_ns)
-        assert sym.symbol("aliased-var", ns=foo_ns_sym.name) == runtime.resolve_alias(
-            sym.symbol("aliased-var", ns="foo"), ns=ns
-        )
+    def test_resolve_alias_does_not_resolve_special_forms(self):
+        for form in runtime._SPECIAL_FORMS:
+            assert form == runtime.resolve_alias(form)
 
-        assert sym.symbol(
-            "non-existent-alias-var", ns="wee.woo"
-        ) == runtime.resolve_alias(
-            sym.symbol("non-existent-alias-var", ns="wee.woo"), ns=ns
-        )
+    def test_resolve_alias(self, core_ns):
+        ns_name = "resolve-test"
+        ns_sym = sym.symbol(ns_name)
+
+        with runtime.ns_bindings(ns_name) as ns:
+            runtime.Var.intern(ns_sym, sym.symbol("existing-var"), None)
+            assert sym.symbol("existing-var", ns=ns_name) == runtime.resolve_alias(
+                sym.symbol("existing-var"), ns=ns
+            )
+
+            assert sym.symbol("non-existent-var", ns=ns_name) == runtime.resolve_alias(
+                sym.symbol("non-existent-var"), ns=ns
+            )
+
+            foo_ns_sym = sym.symbol("zux.bar.foo")
+            foo_ns = runtime.Namespace.get_or_create(foo_ns_sym)
+            ns.add_alias(sym.symbol("foo"), foo_ns)
+            assert sym.symbol(
+                "aliased-var", ns=foo_ns_sym.name
+            ) == runtime.resolve_alias(sym.symbol("aliased-var", ns="foo"), ns=ns)
+
+            assert sym.symbol(
+                "non-existent-alias-var", ns="wee.woo"
+            ) == runtime.resolve_alias(
+                sym.symbol("non-existent-alias-var", ns="wee.woo"), ns=ns
+            )

@@ -14,7 +14,7 @@ from basilisp.lang.runtime import Namespace, Var
 
 @pytest.fixture
 def core_ns_sym() -> sym.Symbol:
-    return sym.symbol(runtime._CORE_NS)
+    return sym.symbol(runtime.CORE_NS)
 
 
 @pytest.fixture
@@ -161,8 +161,8 @@ def other_ns(
     core_private_val: str,
     test_ns: str,
 ) -> Namespace:
-    runtime.init_ns_var(which_ns=runtime._CORE_NS)
-    core_ns = Namespace.get_or_create(sym.symbol(runtime._CORE_NS))
+    runtime.init_ns_var(which_ns=runtime.CORE_NS)
+    core_ns = Namespace.get_or_create(sym.symbol(runtime.CORE_NS))
 
     # Add a public Var
     map_var = Var(core_ns, core_map)

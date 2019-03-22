@@ -10,20 +10,20 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from fractions import Fraction
-from functools import wraps, partial
+from functools import partial, wraps
 from itertools import chain
 from typing import (
-    Iterable,
-    Pattern,
-    Optional,
-    List,
-    Union,
+    Callable,
+    Collection,
     Deque,
     Dict,
-    Callable,
+    Iterable,
+    List,
+    Optional,
+    Pattern,
     Tuple,
     Type,
-    Collection,
+    Union,
 )
 
 import attr
@@ -46,45 +46,46 @@ from basilisp.lang.compiler.constants import (
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compiler.nodes import (
-    Node,
-    NodeOp,
-    ConstType,
+    Await,
+    Binding,
+    Catch,
     Const,
-    WithMeta,
+    ConstType,
     Def,
     Do,
-    If,
-    VarRef,
+    Fn,
+    FnMethod,
     HostCall,
     HostField,
+    If,
+    Import,
+    Invoke,
+    Let,
+    Local,
+    LocalType,
+    Loop,
+    Map as MapNode,
     MaybeClass,
     MaybeHostForm,
-    Map as MapNode,
-    Set as SetNode,
-    Vector as VectorNode,
-    Quote,
-    ReaderLispForm,
-    Invoke,
-    Throw,
-    Try,
-    LocalType,
-    SetBang,
-    Local,
-    Let,
-    Loop,
-    Recur,
-    Fn,
-    Import,
-    FnMethod,
-    Binding,
+    Node,
     NodeEnv,
-    Catch,
+    NodeOp,
+    PyDict,
     PyList,
     PySet,
     PyTuple,
-    PyDict,
+    Quote,
+    ReaderLispForm,
+    Recur,
+    Set as SetNode,
+    SetBang,
+    Throw,
+    Try,
+    VarRef,
+    Vector as VectorNode,
+    WithMeta,
 )
-from basilisp.lang.runtime import Var
+from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
@@ -96,12 +97,8 @@ logger = logging.getLogger(__name__)
 USE_VAR_INDIRECTION = "use_var_indirection"
 WARN_ON_VAR_INDIRECTION = "warn_on_var_indirection"
 
-# Lisp AST node keywords
-INIT = kw.keyword("init")
-
 # String constants used in generating code
 _BUILTINS_NS = "builtins"
-_CORE_NS = "basilisp.core"
 _DEFAULT_FN = "__lisp_expr__"
 _DO_PREFIX = "lisp_do"
 _FN_PREFIX = "lisp_fn"
@@ -112,7 +109,6 @@ _MULTI_ARITY_ARG_NAME = "multi_arity_args"
 _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
 _NS_VAR = "__NS"
-_LISP_NS_VAR = "*ns*"
 
 
 GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERATION)
@@ -520,6 +516,15 @@ def expressionize(
 #################
 
 
+@_with_ast_loc_deps
+def _await_to_py_ast(ctx: GeneratorContext, node: Await) -> GeneratedPyAST:
+    assert node.op == NodeOp.AWAIT
+    expr_ast = gen_py_ast(ctx, node.expr)
+    return GeneratedPyAST(
+        node=ast.Await(value=expr_ast.node), dependencies=expr_ast.dependencies
+    )
+
+
 def __should_warn_on_redef(
     ctx: GeneratorContext, defsym: sym.Symbol, safe_name: str, def_meta: lmap.Map
 ) -> bool:
@@ -553,13 +558,12 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     defsym = node.name
     is_defn = False
 
-    if INIT in node.children:
+    if node.init is not None:
         # Since Python function definitions always take the form `def name(...):`,
         # it is redundant to assign them to the their final name after they have
         # been defined under a private alias. This codepath generates `defn`
         # declarations by directly generating the Python `def` with the correct
         # function name and short-circuiting the default double-declaration.
-        assert node.init is not None, "Def init must be defined"
         if node.init.op == NodeOp.FN:
             assert isinstance(node.init, Fn)
             def_ast = _fn_to_py_ast(ctx, node.init, def_name=defsym.name)
@@ -736,6 +740,7 @@ def __single_arity_fn_to_py_ast(
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
+    py_fn_node = ast.AsyncFunctionDef if node.is_async else ast.FunctionDef
     with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(
         method.loop_id, RecurType.FN, is_variadic=node.is_variadic
     ):
@@ -751,7 +756,7 @@ def __single_arity_fn_to_py_ast(
         return GeneratedPyAST(
             node=ast.Name(id=py_fn_name, ctx=ast.Load()),
             dependencies=[
-                ast.FunctionDef(
+                py_fn_node(
                     name=py_fn_name,
                     args=ast.arguments(
                         args=fn_args,
@@ -776,6 +781,7 @@ def __multi_arity_dispatch_fn(
     arity_map: Dict[int, str],
     default_name: Optional[str] = None,
     max_fixed_arity: Optional[int] = None,
+    is_async: bool = False,
 ) -> GeneratedPyAST:
     """Return the Python AST nodes for a argument-length dispatch function
     for multi-arity functions.
@@ -884,6 +890,7 @@ def __multi_arity_dispatch_fn(
         ),
     ]
 
+    py_fn_node = ast.AsyncFunctionDef if is_async else ast.FunctionDef
     return GeneratedPyAST(
         node=ast.Name(id=name, ctx=ast.Load()),
         dependencies=[
@@ -891,7 +898,7 @@ def __multi_arity_dispatch_fn(
                 targets=[ast.Name(id=dispatch_map_name, ctx=ast.Store())],
                 value=ast.Dict(keys=dispatch_keys, values=dispatch_vals),
             ),
-            ast.FunctionDef(
+            py_fn_node(
                 name=name,
                 args=ast.arguments(
                     args=[],
@@ -910,7 +917,7 @@ def __multi_arity_dispatch_fn(
 
 
 @_with_ast_loc_deps
-def __multi_arity_fn_to_py_ast(
+def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext,
     node: Fn,
     methods: Collection[FnMethod],
@@ -922,6 +929,8 @@ def __multi_arity_fn_to_py_ast(
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
+
+    py_fn_node = ast.AsyncFunctionDef if node.is_async else ast.FunctionDef
 
     arity_to_name = {}
     rest_arity_name: Optional[str] = None
@@ -946,7 +955,7 @@ def __multi_arity_fn_to_py_ast(
                 ctx, method.params, method.body
             )
             fn_defs.append(
-                ast.FunctionDef(
+                py_fn_node(
                     name=arity_name,
                     args=ast.arguments(
                         args=fn_args,
@@ -2113,6 +2122,7 @@ def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: Const) -> GeneratedPy
 
 
 _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
+    NodeOp.AWAIT: _await_to_py_ast,
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,
     NodeOp.DO: _do_to_py_ast,
@@ -2203,9 +2213,7 @@ def _from_module_import() -> ast.ImportFrom:
 
 
 def _ns_var(
-    py_ns_var: str = _NS_VAR,
-    lisp_ns_var: str = _LISP_NS_VAR,
-    lisp_ns_ns: str = _CORE_NS,
+    py_ns_var: str = _NS_VAR, lisp_ns_var: str = LISP_NS_VAR, lisp_ns_ns: str = CORE_NS
 ) -> ast.Assign:
     """Assign a Python variable named `ns_var` to the value of the current
     namespace."""
