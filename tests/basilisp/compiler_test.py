@@ -771,7 +771,7 @@ class TestFunctionDef:
         awaiter = awaiter_var.value
         assert kw.keyword("await-result") == async_to_sync(awaiter)
 
-    def test_async_multiy_arity(self, ns: runtime.Namespace):
+    def test_async_multi_arity(self, ns: runtime.Namespace):
         awaiter_var: runtime.Var = lcompile(
             """
         (def unique-wywbddd

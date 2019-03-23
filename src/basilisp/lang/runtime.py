@@ -1,6 +1,7 @@
 import contextlib
 import functools
 import importlib
+import inspect
 import itertools
 import logging
 import math
@@ -1147,15 +1148,24 @@ def _fn_with_meta(f, meta: Optional[lmap.Map]):
     if meta is None:
         raise TypeError("meta must be a map")
 
-    @functools.wraps(f)
-    def wrapped_f(*args, **kwargs):
-        return f(*args, **kwargs)
+    if inspect.iscoroutinefunction(f):
+
+        @functools.wraps(f)
+        async def wrapped_f(*args, **kwargs):
+            return await f(*args, **kwargs)
+
+    else:
+
+        @functools.wraps(f)
+        def wrapped_f(*args, **kwargs):
+            return f(*args, **kwargs)
 
     wrapped_f.meta = (  # type: ignore
         f.meta.update(meta)
         if hasattr(f, "meta") and isinstance(f.meta, lmap.Map)
         else meta
     )
+    wrapped_f.with_meta = partial(_fn_with_meta, wrapped_f)
     return wrapped_f
 
 
