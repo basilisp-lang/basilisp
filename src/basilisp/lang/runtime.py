@@ -1075,6 +1075,11 @@ def repl_complete(text: str, state: int) -> Optional[str]:
     return list(completions)[state] if completions is not None else None
 
 
+####################
+# Compiler Support #
+####################
+
+
 def _collect_args(args) -> lseq.Seq:
     """Collect Python starred arguments into a Basilisp list."""
     if isinstance(args, tuple):
@@ -1156,7 +1161,7 @@ def _fn_with_meta(f, meta: Optional[lmap.Map]):
 
     else:
 
-        @functools.wraps(f)
+        @functools.wraps(f)  # type: ignore
         def wrapped_f(*args, **kwargs):
             return f(*args, **kwargs)
 
@@ -1165,7 +1170,7 @@ def _fn_with_meta(f, meta: Optional[lmap.Map]):
         if hasattr(f, "meta") and isinstance(f.meta, lmap.Map)
         else meta
     )
-    wrapped_f.with_meta = partial(_fn_with_meta, wrapped_f)
+    wrapped_f.with_meta = partial(_fn_with_meta, wrapped_f)  # type: ignore
     return wrapped_f
 
 
