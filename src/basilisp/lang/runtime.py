@@ -1,6 +1,7 @@
 import contextlib
 import functools
 import importlib
+import inspect
 import itertools
 import logging
 import math
@@ -1074,6 +1075,11 @@ def repl_complete(text: str, state: int) -> Optional[str]:
     return list(completions)[state] if completions is not None else None
 
 
+####################
+# Compiler Support #
+####################
+
+
 def _collect_args(args) -> lseq.Seq:
     """Collect Python starred arguments into a Basilisp list."""
     if isinstance(args, tuple):
@@ -1126,6 +1132,55 @@ def _trampoline(f):
             return ret
 
     return trampoline
+
+
+def _with_attrs(**kwargs):
+    """Decorator to set attributes on a function. Returns the original
+    function after setting the attributes named by the keyword arguments."""
+
+    def decorator(f):
+        for k, v in kwargs.items():
+            setattr(f, k, v)
+        return f
+
+    return decorator
+
+
+def _fn_with_meta(f, meta: Optional[lmap.Map]):
+    """Return a new function with the given meta. If the function f already
+    has a meta map, then merge the """
+
+    if not isinstance(meta, lmap.Map):
+        raise TypeError("meta must be a map")
+
+    if inspect.iscoroutinefunction(f):
+
+        @functools.wraps(f)
+        async def wrapped_f(*args, **kwargs):
+            return await f(*args, **kwargs)
+
+    else:
+
+        @functools.wraps(f)  # type: ignore
+        def wrapped_f(*args, **kwargs):
+            return f(*args, **kwargs)
+
+    wrapped_f.meta = (  # type: ignore
+        f.meta.update(meta)
+        if hasattr(f, "meta") and isinstance(f.meta, lmap.Map)
+        else meta
+    )
+    wrapped_f.with_meta = partial(_fn_with_meta, wrapped_f)  # type: ignore
+    return wrapped_f
+
+
+def _basilisp_fn(f):
+    """Create a Basilisp function, setting meta and supplying a with_meta
+    method implementation."""
+    assert not hasattr(f, "meta")
+    f.meta = None
+    f.with_meta = partial(_fn_with_meta, f)
+    return f
 
 
 #########################
