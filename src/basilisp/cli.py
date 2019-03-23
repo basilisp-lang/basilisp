@@ -20,11 +20,13 @@ BASILISP_REPL_HISTORY_FILE_PATH = os.path.join(
 )
 BASILISP_REPL_HISTORY_LENGTH = 1000
 REPL_INPUT_FILE_PATH = "<REPL Input>"
+STDIN_INPUT_FILE_PATH = "<stdin>"
+STDIN_FILE_NAME = "-"
 
 
 try:
     import readline
-except ImportError:
+except ImportError:  # pragma: no cover
     pass
 else:
     readline.parse_and_bind("tab: complete")
@@ -34,7 +36,7 @@ else:
     try:
         readline.read_history_file(BASILISP_REPL_HISTORY_FILE_PATH)
         readline.set_history_length(BASILISP_REPL_HISTORY_LENGTH)
-    except FileNotFoundError:
+    except FileNotFoundError:  # pragma: no cover
         pass
 
     atexit.register(readline.write_history_file, BASILISP_REPL_HISTORY_FILE_PATH)
@@ -43,14 +45,21 @@ else:
 @click.group()
 def cli():
     """Basilisp is a Lisp dialect inspired by Clojure targeting Python 3."""
-    pass
 
 
 def eval_file(filename: str, ctx: compiler.CompilerContext, module: types.ModuleType):
     """Evaluate a file with the given name into a Python module AST node."""
     last = None
     for form in reader.read_file(filename, resolver=runtime.resolve_alias):
-        last = compiler.compile_and_exec_form(form, ctx, module, filename)
+        last = compiler.compile_and_exec_form(form, ctx, module)
+    return last
+
+
+def eval_stream(stream, ctx: compiler.CompilerContext, module: types.ModuleType):
+    """Evaluate the forms in stdin into a Python module AST node."""
+    last = None
+    for form in reader.read(stream, resolver=runtime.resolve_alias):
+        last = compiler.compile_and_exec_form(form, ctx, module)
     return last
 
 
@@ -134,7 +143,7 @@ def repl(
             lsrc = input(f"{ns.name}=> ")
         except EOFError:
             break
-        except KeyboardInterrupt:
+        except KeyboardInterrupt:  # pragma: no cover
             print("")
             continue
 
@@ -143,7 +152,7 @@ def repl(
 
         try:
             result = eval_str(lsrc, ctx, ns.module, eof)
-            if result is eof:
+            if result is eof:  # pragma: no cover
                 continue
             print(runtime.lrepr(result))
             repl_module.mark_repl_result(result)
@@ -209,7 +218,11 @@ def run(  # pylint: disable=too-many-arguments
     """Run a Basilisp script or a line of code, if it is provided."""
     basilisp.init()
     ctx = compiler.CompilerContext(
-        filename=CLI_INPUT_FILE_PATH if code else file_or_code,
+        filename=CLI_INPUT_FILE_PATH
+        if code
+        else (
+            STDIN_INPUT_FILE_PATH if file_or_code == STDIN_FILE_NAME else file_or_code
+        ),
         opts={
             compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
             compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
@@ -222,15 +235,28 @@ def run(  # pylint: disable=too-many-arguments
     with runtime.ns_bindings(in_ns) as ns:
         if code:
             print(runtime.lrepr(eval_str(file_or_code, ctx, ns.module, eof)))
+        elif file_or_code == STDIN_FILE_NAME:
+            print(
+                runtime.lrepr(
+                    eval_stream(click.get_text_stream("stdin"), ctx, ns.module)
+                )
+            )
         else:
             print(runtime.lrepr(eval_file(file_or_code, ctx, ns.module)))
 
 
 @cli.command(short_help="run tests in a Basilisp project")
 @click.argument("args", nargs=-1)
-def test(args):
+def test(args):  # pragma: no cover
     """Run tests in a Basilisp project."""
     pytest.main(args=list(args))
+
+
+@cli.command(short_help="print the version of Basilisp")
+def version():
+    from basilisp.__version__ import __version__
+
+    print(f"Basilisp {__version__}")
 
 
 if __name__ == "__main__":
