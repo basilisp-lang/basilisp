@@ -1151,7 +1151,7 @@ def _fn_with_meta(f, meta: Optional[lmap.Map]):
     def wrapped_f(*args, **kwargs):
         return f(*args, **kwargs)
 
-    wrapped_f.meta = (
+    wrapped_f.meta = (  # type: ignore
         f.meta.update(meta)
         if hasattr(f, "meta") and isinstance(f.meta, lmap.Map)
         else meta

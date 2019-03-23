@@ -824,7 +824,7 @@ def __single_arity_fn_to_py_ast(
         )
 
 
-def __multi_arity_dispatch_fn(
+def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-locals
     ctx: GeneratorContext,
     name: str,
     arity_map: Dict[int, str],
