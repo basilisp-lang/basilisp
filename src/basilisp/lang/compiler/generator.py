@@ -754,7 +754,7 @@ def __fn_meta(
                 ast.Call(
                     func=_FN_WITH_ATTRS_FN_NAME,
                     args=[],
-                    kwargs=[ast.keyword(arg="meta", value=meta_ast.node)],
+                    keywords=[ast.keyword(arg="meta", value=meta_ast.node)],
                 )
             ],
         )
@@ -809,8 +809,8 @@ def __single_arity_fn_to_py_ast(
                             body=fn_body_ast,
                             decorator_list=list(
                                 chain(
-                                    [_BASILISP_FN_FN_NAME],
                                     meta_decorators,
+                                    [_BASILISP_FN_FN_NAME],
                                     [_TRAMPOLINE_FN_NAME]
                                     if ctx.recur_point.has_recur
                                     else [],
@@ -975,7 +975,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                         kw_defaults=[],
                     ),
                     body=body,
-                    decorator_list=list(chain([_BASILISP_FN_FN_NAME], meta_decorators)),
+                    decorator_list=list(chain(meta_decorators, [_BASILISP_FN_FN_NAME])),
                     returns=None,
                 )
             ],

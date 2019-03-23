@@ -1150,7 +1150,7 @@ def _fn_with_meta(f, meta: Optional[lmap.Map]):
     """Return a new function with the given meta. If the function f already
     has a meta map, then merge the """
 
-    if meta is None:
+    if not isinstance(meta, lmap.Map):
         raise TypeError("meta must be a map")
 
     if inspect.iscoroutinefunction(f):
@@ -1177,6 +1177,7 @@ def _fn_with_meta(f, meta: Optional[lmap.Map]):
 def _basilisp_fn(f):
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
+    assert not hasattr(f, "meta")
     f.meta = None
     f.with_meta = partial(_fn_with_meta, f)
     return f

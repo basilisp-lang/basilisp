@@ -351,6 +351,15 @@ class TestDef:
         assert kw.keyword("hi") == lcompile("(.pop-bindings #'a-regular-var)")
         assert 1 == lcompile("a-regular-var")
 
+    def test_def_fn_with_meta(self, ns: runtime.Namespace):
+        v: Var = lcompile(
+            "(def with-meta-fn-node ^:meta-kw (fn* [] :fn-with-meta-node))"
+        )
+        assert hasattr(v.value, "meta")
+        assert hasattr(v.value, "with_meta")
+        assert lmap.map({kw.keyword("meta-kw"): True}) == v.value.meta
+        assert kw.keyword("fn-with-meta-node") == v.value()
+
 
 def test_do(ns: runtime.Namespace):
     code = """
@@ -792,6 +801,82 @@ class TestFunctionDef:
         assert vec.v(
             kw.keyword("await-result-0"), kw.keyword("await-result-1")
         ) == async_to_sync(awaiter)
+
+    def test_fn_with_meta_must_be_map(self, ns: runtime.Namespace):
+        f = lcompile("^:meta-kw (fn* [] :super-unique-kw)")
+        with pytest.raises(TypeError):
+            f.with_meta(None)
+
+    def test_single_arity_meta(self, ns: runtime.Namespace):
+        f = lcompile("^:meta-kw (fn* [] :super-unique-kw)")
+        assert hasattr(f, "meta")
+        assert hasattr(f, "with_meta")
+        assert lmap.map({kw.keyword("meta-kw"): True}) == f.meta
+        assert kw.keyword("super-unique-kw") == f()
+
+    def test_single_arity_with_meta(self, ns: runtime.Namespace):
+        f = lcompile(
+            """
+        (with-meta
+          ^:meta-kw (fn* [] :super-unique-kw)
+          {:meta-kw false :other-meta "True"})
+        """
+        )
+        assert hasattr(f, "meta")
+        assert hasattr(f, "with_meta")
+        assert (
+            lmap.map({kw.keyword("meta-kw"): False, kw.keyword("other-meta"): "True"})
+            == f.meta
+        )
+        assert kw.keyword("super-unique-kw") == f()
+
+    def test_multi_arity_meta(self, ns: runtime.Namespace):
+        f = lcompile(
+            """
+        ^:meta-kw (fn* ([] :arity-0-kw) ([a] [a :arity-1-kw]))
+        """
+        )
+        assert hasattr(f, "meta")
+        assert hasattr(f, "with_meta")
+        assert lmap.map({kw.keyword("meta-kw"): True}) == f.meta
+        assert kw.keyword("arity-0-kw") == f()
+        assert vec.v(kw.keyword("jabberwocky"), kw.keyword("arity-1-kw")) == f(
+            kw.keyword("jabberwocky")
+        )
+
+    def test_multi_arity_with_meta(self, ns: runtime.Namespace):
+        f = lcompile(
+            """
+        (with-meta
+          ^:meta-kw (fn* ([] :arity-0-kw) ([a] [a :arity-1-kw]))
+          {:meta-kw false :other-meta "True"})
+        """
+        )
+        assert hasattr(f, "meta")
+        assert hasattr(f, "with_meta")
+        assert (
+            lmap.map({kw.keyword("meta-kw"): False, kw.keyword("other-meta"): "True"})
+            == f.meta
+        )
+        assert kw.keyword("arity-0-kw") == f()
+        assert vec.v(kw.keyword("jabberwocky"), kw.keyword("arity-1-kw")) == f(
+            kw.keyword("jabberwocky")
+        )
+
+    def test_async_with_meta(self, ns: runtime.Namespace):
+        f = lcompile(
+            """
+        (with-meta
+          ^:async (fn* [] :super-unique-kw)
+          {:meta-kw true})
+        """
+        )
+        assert hasattr(f, "meta")
+        assert hasattr(f, "with_meta")
+        assert (
+            lmap.map({kw.keyword("meta-kw"): True, kw.keyword("async"): True}) == f.meta
+        )
+        assert kw.keyword("super-unique-kw") == async_to_sync(f)
 
 
 def test_fn_call(ns: runtime.Namespace):
