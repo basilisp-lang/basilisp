@@ -2,6 +2,17 @@
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
+(deftest fn-meta
+  (testing "fn has no meta to start"
+    (is (nil? (meta (fn* []))))
+    (is (nil? (meta (fn [])))))
+
+  (testing "fn retains meta after macro"
+    (is (= {:meta-kw true} (meta ^:meta-kw (fn* []))))
+    (is (= {:meta-kw true} (meta ^:meta-kw (fn []))))
+    (is (= {:meta-kw true :other-kw true}
+           (meta ^:meta-kw ^:other-kw (fn []))))))
+
 (deftest condp-test
   (testing "condp result value"
     (is (= :a (condp = "a" :a)))

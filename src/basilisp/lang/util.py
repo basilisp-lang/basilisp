@@ -5,7 +5,7 @@ import re
 import uuid
 from decimal import Decimal
 from fractions import Fraction
-from typing import Pattern, Match, Iterable
+from typing import Iterable, Match, Pattern
 
 import dateutil.parser as dateparser
 
@@ -23,6 +23,7 @@ _MUNGE_REPLACEMENTS = {
     "?": "__Q__",
     "\\": "__IDIV__",
     "&": "__AMP__",
+    "$": "__DOLLAR__",
 }
 
 

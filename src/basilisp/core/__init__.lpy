@@ -2187,10 +2187,11 @@
 
                   :else
                   body)]
-    (if name
-      `(fn* ~name
-            ~@arities)
-      `(fn* ~@arities))))
+    (as-> arities $
+      (cond->> $ name (cons name))
+      (cons 'fn* $)
+      (cond-> $
+        (meta &form) (with-meta (meta &form))))))
 
 (defn destructure
   "Take a [binding expr] pair (as from a let block) and produce all of the
