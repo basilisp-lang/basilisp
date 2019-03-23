@@ -7,7 +7,7 @@ from click.testing import CliRunner
 from basilisp.cli import cli
 
 pytestmark = pytest.mark.skipif(
-    platform.python_implementation() == "PyPy", "CLI tests fail on PyPy 3.6"
+    platform.python_implementation() == "PyPy", reason="CLI tests fail on PyPy 3.6"
 )
 
 
