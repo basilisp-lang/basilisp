@@ -33,16 +33,18 @@ repl:
 test-pypy:
 	@docker run \
 		--mount src=`pwd`,target=/usr/src/app,type=bind \
+		--workdir /usr/src/app \
 		pypy:3.6-7.0-slim-jessie \
-		/bin/sh -c 'cd /usr/src/app && pip install tox && tox -e pypy3'
+		/bin/sh -c 'pip install tox && tox -e pypy3'
 
 
 .PHONY: pypy-shell
 pypy-shell:
 	@docker run -it \
 		--mount src=`pwd`,target=/usr/src/app,type=bind \
+		--workdir /usr/src/app \
 		pypy:3.6-7.0-slim-jessie \
-		/bin/sh -c 'cd /usr/src/app && pip install -e . && basilisp repl'
+		/bin/sh -c 'pip install -e . && basilisp repl'
 
 
 .PHONY: test
