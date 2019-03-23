@@ -43,8 +43,8 @@ else:
         # PyPy 3.6's ncurses implementation throws an error here
         if platform.python_implementation() != "PyPy":
             raise
-
-    atexit.register(readline.write_history_file, BASILISP_REPL_HISTORY_FILE_PATH)
+    else:
+        atexit.register(readline.write_history_file, BASILISP_REPL_HISTORY_FILE_PATH)
 
 
 @click.group()
