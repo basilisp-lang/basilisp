@@ -824,6 +824,14 @@ def __single_arity_fn_to_py_ast(
         )
 
 
+def __handle_async_return(node: ast.AST) -> ast.Return:
+    return ast.Return(value=ast.Await(value=node))
+
+
+def __handle_return(node: ast.AST) -> ast.Return:
+    return ast.Return(value=node)
+
+
 def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-locals
     ctx: GeneratorContext,
     name: str,
@@ -852,6 +860,9 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     for k, v in arity_map.items():
         dispatch_keys.append(ast.Num(k))
         dispatch_vals.append(ast.Name(id=v, ctx=ast.Load()))
+
+    # Async functions should return await, otherwise just return
+    handle_return = __handle_async_return if is_async else __handle_return
 
     nargs_name = genname("nargs")
     method_name = genname("method")
@@ -883,8 +894,8 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                 comparators=[ast.Name(id=method_name, ctx=ast.Load())],
             ),
             body=[
-                ast.Return(
-                    value=ast.Call(
+                handle_return(
+                    ast.Call(
                         func=ast.Name(id=method_name, ctx=ast.Load()),
                         args=[
                             ast.Starred(
@@ -908,8 +919,8 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                         comparators=[ast.Num(max_fixed_arity)],
                     ),
                     body=[
-                        ast.Return(
-                            value=ast.Call(
+                        handle_return(
+                            ast.Call(
                                 func=ast.Name(id=default_name, ctx=ast.Load()),
                                 args=[
                                     ast.Starred(
