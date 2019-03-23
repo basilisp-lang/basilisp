@@ -1,6 +1,7 @@
 import atexit
 import importlib
 import os.path
+import platform
 import traceback
 import types
 from typing import Any
@@ -38,6 +39,10 @@ else:
         readline.set_history_length(BASILISP_REPL_HISTORY_LENGTH)
     except FileNotFoundError:  # pragma: no cover
         pass
+    except Exception:  # noqa  # pragma: no cover
+        # PyPy 3.6's ncurses implementation throws an error here
+        if platform.python_implementation() != "PyPy":
+            raise
 
     atexit.register(readline.write_history_file, BASILISP_REPL_HISTORY_FILE_PATH)
 
