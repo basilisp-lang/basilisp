@@ -37,6 +37,7 @@ import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.compiler.constants import (
     AMPERSAND,
+    ARGLISTS_KW,
     COL_KW,
     DEFAULT_COMPILER_FILE_PATH,
     DOC_KW,
@@ -550,6 +551,20 @@ def _def_ast(  # pylint: disable=too-many-locals
     if doc is not None:
         def_meta = def_meta.assoc(DOC_KW, doc)
 
+    # Var metadata is set both for the running Basilisp instance
+    # and cached as Python bytecode to be reread again. Argument lists
+    # are quoted so as not to resolve argument symbols. For the compiled
+    # and cached bytecode, this causes no trouble. However, for the case
+    # where we directly set the Var meta for the running Basilisp instance
+    # this causes problems since we'll end up getting something like
+    # `(quote ([] [v]))` rather than simply `([] [v])`.
+    arglists_meta = def_meta.entry(ARGLISTS_KW)
+    if isinstance(arglists_meta, llist.List):
+        assert arglists_meta.first == SpecialForm.QUOTE
+        var_meta = def_meta.update({ARGLISTS_KW: runtime.nth(arglists_meta, 1)})
+    else:
+        var_meta = def_meta
+
     # Generation fails later if we use the same symbol we received, since
     # its meta may contain values which fail to compile.
     bare_name = sym.symbol(name.name)
@@ -559,7 +574,7 @@ def _def_ast(  # pylint: disable=too-many-locals
         ns_sym,
         bare_name,
         dynamic=def_meta.entry(SYM_DYNAMIC_META_KEY, False),
-        meta=def_meta,
+        meta=var_meta,
     )
     descriptor = Def(
         form=form,
@@ -1756,7 +1771,10 @@ def _parse_ast(  # pylint: disable=too-many-branches
         if form == llist.List.empty():
             with ctx.quoted():
                 return _const_node(ctx, form)
-        return _list_node(ctx, form)
+        elif ctx.is_quoted:
+            return _const_node(ctx, form)
+        else:
+            return _list_node(ctx, form)
     elif isinstance(form, vec.Vector):
         if ctx.is_quoted:
             return _const_node(ctx, form)

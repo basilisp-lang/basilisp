@@ -1,8 +1,179 @@
 (ns basilisp.core-macros-test
+  (:import inspect)
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
-(deftest fn-meta
+(deftest defn-test
+  (testing "single arity defn"
+    (testing "simple"
+      (let [fvar  (defn f1 [] :kw)
+            vmeta (meta fvar)]
+        (is (= 'f1 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "with docstring"
+      (let [fvar  (defn f2 "a docstring" [] :kw)
+            vmeta (meta fvar)]
+        (is (= 'f2 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (= "a docstring" (:doc vmeta)))))
+
+    (testing "with attr-map"
+      (let [fvar  (defn f3 {:added "0.1"} [] :kw)
+            vmeta (meta fvar)]
+        (is (= 'f3 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (= "0.1" (:added vmeta)))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "attr-map and docstring"
+      (let [fvar  (defn f4
+                    "another docstring"
+                    {:added "0.1"}
+                    []
+                    :kw)
+            vmeta (meta fvar)]
+        (is (= 'f4 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (= "0.1" (:added vmeta)))
+        (is (= "another docstring" (:doc vmeta))))))
+
+  (testing "multi arity defn"
+    (testing "simple"
+      (let [fvar  (defn f5 ([] :kw) ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'f5 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "with docstring"
+      (let [fvar  (defn f6
+                    "multi-arity docstring"
+                    ([] :kw)
+                    ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'f6 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (= "multi-arity docstring" (:doc vmeta)))))
+
+    (testing "with attr-map"
+      (let [fvar  (defn f7
+                    {:added "0.1"}
+                    ([] :kw)
+                    ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'f7 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (= "0.1" (:added vmeta)))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "attr-map and docstring"
+      (let [fvar  (defn f8
+                    "another multi-arity docstring"
+                    {:added "0.1"}
+                    ([] :kw)
+                    ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'f8 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (= "0.1" (:added vmeta)))
+        (is (= "another multi-arity docstring" (:doc vmeta)))))))
+
+(deftest defasync-test
+  (testing "single arity defasync"
+    (testing "simple"
+      (let [fvar  (defasync af1 [] :kw)
+            vmeta (meta fvar)]
+        (is (= 'af1 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (:async vmeta))
+        (is (inspect/iscoroutinefunction af1))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "with docstring"
+      (let [fvar  (defasync af2 "a docstring" [] :kw)
+            vmeta (meta fvar)]
+        (is (= 'af2 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (:async vmeta))
+        (is (inspect/iscoroutinefunction af2))
+        (is (= "a docstring" (:doc vmeta)))))
+
+    (testing "with attr-map"
+      (let [fvar  (defasync af3 {:added "0.1"} [] :kw)
+            vmeta (meta fvar)]
+        (is (= 'af3 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (:async vmeta))
+        (is (inspect/iscoroutinefunction af3))
+        (is (= "0.1" (:added vmeta)))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "attr-map and docstring"
+      (let [fvar  (defasync af4
+                    "another docstring"
+                    {:added "0.1"}
+                    []
+                    :kw)
+            vmeta (meta fvar)]
+        (is (= 'af4 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (:async vmeta))
+        (is (inspect/iscoroutinefunction af4))
+        (is (= "0.1" (:added vmeta)))
+        (is (= "another docstring" (:doc vmeta))))))
+
+  (testing "multi arity defasync"
+    (testing "simple"
+      (let [fvar  (defasync af5 ([] :kw) ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'af5 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (:async vmeta))
+        (is (inspect/iscoroutinefunction af5))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "with docstring"
+      (let [fvar  (defasync af6
+                    "multi-arity docstring"
+                    ([] :kw)
+                    ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'af6 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (:async vmeta))
+        (is (inspect/iscoroutinefunction af6))
+        (is (= "multi-arity docstring" (:doc vmeta)))))
+
+    (testing "with attr-map"
+      (let [fvar  (defasync af7
+                    {:added "0.1"}
+                    ([] :kw)
+                    ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'af7 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (:async vmeta))
+        (is (inspect/iscoroutinefunction af7))
+        (is (= "0.1" (:added vmeta)))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "attr-map and docstring"
+      (let [fvar  (defasync af8
+                    "another multi-arity docstring"
+                    {:added "0.1"}
+                    ([] :kw)
+                    ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'af8 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (:async vmeta))
+        (is (inspect/iscoroutinefunction af8))
+        (is (= "0.1" (:added vmeta)))
+        (is (= "another multi-arity docstring" (:doc vmeta)))))))
+
+(deftest fn-meta-test
   (testing "fn has no meta to start"
     (is (nil? (meta (fn* []))))
     (is (nil? (meta (fn []))))

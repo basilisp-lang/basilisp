@@ -58,7 +58,9 @@
        :arglists '([o meta])}
   with-meta
   (fn* with-meta [o meta]
-       (.with-meta o meta)))
+       (if meta
+         (.with-meta o meta)
+         o)))
 
 (def ^:macro ^:redef let
   (fn* let [&env &form & decl]
@@ -262,7 +264,7 @@
 (def
   ^{:macro    true
     :doc      "Define a new function with an optional docstring."
-    :arglists '([name & body] [name doc & body])}
+    :arglists '([name & body] [name doc? & body] [name doc? attr-map? & body])}
   defn
   (fn defn [&env &form name & body]
     (if (symbol? name)
@@ -273,10 +275,16 @@
           doc    (if (string? (first body))
                    (first body)
                    nil)
-          fname  (if doc
-                   (with-meta name {:doc doc})
-                   name)
           body   (if doc
+                   (rest body)
+                   body)
+          fmeta (if (map? (first body))
+                  (first body)
+                  nil)
+          fname  (if doc
+                   (with-meta name (assoc fmeta :doc doc))
+                   (with-meta name fmeta))
+          body   (if fmeta
                    (rest body)
                    body)
           multi? (list? (first body))
@@ -286,9 +294,9 @@
                      (if (seq arities)
                        (recur (rest arities)
                               (conj sigs (ffirst arities)))
-                       `(quote ~(apply list sigs))))
-                   `(quote ~(list (first body))))
-          fname  (with-meta fname {:arglists fsigs})
+                       (apply list sigs)))
+                   (list (first body)))
+          fname  (with-meta fname {:arglists (list 'quote fsigs)})
           body   (if multi?
                    body
                    (cons
@@ -378,22 +386,28 @@
   (.-ns v))
 
 (def
-  ^{:macro true
-    :doc   "Define a new macro like defn. Macro functions are available to the
-            compiler during macroexpansion."}
+  ^{:macro    true
+    :doc      "Define a new macro like defn. Macro functions are available to the
+               compiler during macroexpansion."
+    :arglists '([name & body] [name doc? & body] [name doc? attr-map? & body])}
   defmacro
   (fn defmacro [&env &form name & body]
     (let [body   (concat body)
           doc    (if (string? (first body))
                    (first body)
                    nil)
-          fname  (with-meta (if doc
-                              (with-meta name {:doc doc})
-                              name)
-                   {:macro true})
           body   (if doc
                    (rest body)
                    body)
+          fmeta  (if (map? (first body))
+                   (first body)
+                   nil)
+          body   (if fmeta
+                   (rest body)
+                   body)
+          fname  (if doc
+                   (with-meta name (assoc fmeta :doc doc :macro true))
+                   (with-meta name (assoc fmeta :macro true)))
           multi? (list? (first body))
           fsigs  (if multi?
                    (loop [arities body
@@ -428,6 +442,30 @@
                  (add-implicit-args body))]
       `(defn ~fname
          ~@body))))
+
+(defmacro defasync
+  "Define a new asynchronous function with an optional docstring."
+  [name & body]
+  (let [body   (concat body)
+        doc    (if (string? (first body))
+                 (first body)
+                 nil)
+        body   (if doc
+                 (rest body)
+                 body)
+        fmeta (if (map? (first body))
+                (assoc (first body))
+                nil)
+        body   (if fmeta
+                 (rest body)
+                 body)
+        fmeta (apply assoc fmeta (concat [:async true]
+                                         (if doc
+                                           [:doc doc]
+                                           nil)))]
+    `(defn ~name
+       ~fmeta
+       ~@body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Logical Comparisons & Macros ;;
@@ -1546,12 +1584,11 @@
 (defn eval
   "Evaluate a form (not a string) and return its result."
   [form]
-  (let [ctx    (basilisp.lang.compiler.CompilerContext.)
+  (let [ctx    (basilisp.lang.compiler.CompilerContext. "<Eval Input>")
         module (.-module *ns*)]
     (basilisp.lang.compiler/compile-and-exec-form form
                                                   ctx
-                                                  module
-                                                  "<Eval Input>")))
+                                                  module)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Namespace Utilities ;;
