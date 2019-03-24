@@ -500,7 +500,7 @@ def _await_ast(ctx: ParserContext, form: lseq.Seq) -> Await:
     return Await(form=form, expr=expr, env=ctx.get_node_env())
 
 
-def _def_ast(  # pylint: disable=too-many-locals
+def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     ctx: ParserContext, form: lseq.Seq
 ) -> Def:
     assert form.first == SpecialForm.DEF
