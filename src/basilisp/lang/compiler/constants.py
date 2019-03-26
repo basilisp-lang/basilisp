@@ -6,6 +6,7 @@ class SpecialForm:
     AWAIT = sym.symbol("await")
     CATCH = sym.symbol("catch")
     DEF = sym.symbol("def")
+    DEFTYPE = sym.symbol("deftype*")
     DO = sym.symbol("do")
     FINALLY = sym.symbol("finally")
     FN = sym.symbol("fn*")

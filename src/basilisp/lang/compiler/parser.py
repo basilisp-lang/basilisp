@@ -9,12 +9,15 @@ from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from functools import partial, wraps
+from itertools import chain
 from typing import (
     Any,
     Callable,
     Collection,
     Deque,
     Dict,
+    Iterable,
+    List,
     Optional,
     Pattern,
     Set,
@@ -60,6 +63,8 @@ from basilisp.lang.compiler.nodes import (
     Const,
     ConstType,
     Def,
+    DefType,
+    DefTypeBase,
     Do,
     Fn,
     FnMethod,
@@ -77,6 +82,7 @@ from basilisp.lang.compiler.nodes import (
     Map as MapNode,
     MaybeClass,
     MaybeHostForm,
+    Method,
     Node,
     NodeEnv,
     NodeOp,
@@ -623,6 +629,209 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     return descriptor.assoc(
         meta=meta_ast, children=vec.vector(runtime.cons(META, existing_children))
     )
+
+
+def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
+    ctx: ParserContext, form: lseq.Seq, interface: DefTypeBase
+) -> Method:
+    if not isinstance(form.first, sym.Symbol):
+        raise ParserException(
+            "deftype* method must be named by symbol: (name [& args] & body)",
+            form=form.first,
+        )
+    method_name = form.first.name
+
+    args = runtime.nth(form, 1)
+    if not isinstance(args, vec.Vector):
+        raise ParserException(
+            f"deftype* method arguments must be vector, not {type(args)}", form=args
+        )
+
+    try:
+        this_arg = args[0]
+    except IndexError:
+        raise ParserException(
+            f"deftype* method must include 'this' or 'self' argument", form=args
+        )
+    else:
+        if not isinstance(this_arg, sym.Symbol):
+            raise ParserException(
+                f"deftype* method 'this' argument must be a symbol", form=args
+            )
+        this_binding = Binding(
+            form=this_arg,
+            name=this_arg.name,
+            local=LocalType.THIS,
+            env=ctx.get_node_env(),
+        )
+
+    param_nodes = []
+    for i, s in enumerate(runtime.nthrest(args, 1)):
+        if not isinstance(s, sym.Symbol):
+            raise ParserException(
+                "deftype* method parameter name must be a symbol", form=s
+            )
+
+        binding = Binding(
+            form=s,
+            name=s.name,
+            local=LocalType.ARG,
+            arg_id=i,
+            is_variadic=False,
+            env=ctx.get_node_env(),
+        )
+        param_nodes.append(binding)
+        ctx.put_new_symbol(s, binding)
+
+    loop_id = genname(method_name)
+    with ctx.new_recur_point(loop_id, param_nodes):
+        body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
+        if body:
+            *stmts, ret = body
+        else:
+            stmts, ret = [], _const_node(ctx, None)
+
+        method = Method(
+            form=form,
+            name=method_name,
+            interface=interface,
+            this_local=this_binding,
+            params=vec.vector(param_nodes),
+            body=Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                # Use the argument vector or first body statement, whichever
+                # exists, for metadata.
+                env=ctx.get_node_env(),
+            ),
+            loop_id=loop_id,
+            env=ctx.get_node_env(),
+        )
+        method.visit(_assert_recur_is_tail)
+        return method
+
+
+def __deftype_impls(  # pylint: disable=too-many-branches
+    ctx: ParserContext, form: lseq.Seq
+) -> Tuple[Iterable[DefTypeBase], Iterable[Method]]:
+    """Roll up deftype* declared bases and method implementations."""
+    current_interface_sym: Optional[sym.Symbol] = None
+    current_interface: Optional[DefTypeBase] = None
+    interfaces = []
+    methods: List[Method] = []
+    interface_methods: Dict[sym.Symbol, List[Method]] = {}
+    for elem in form:
+        if isinstance(elem, sym.Symbol):
+            if current_interface is not None:
+                if current_interface_sym in interface_methods:
+                    raise ParserException(
+                        f"deftype* forms may only implement an interface once",
+                        form=elem,
+                    )
+                assert (
+                    current_interface_sym is not None
+                ), "Symbol must be defined with interface"
+                interface_methods[current_interface_sym] = methods
+
+            current_interface_sym = elem
+            current_interface = _parse_ast(ctx, elem)
+            methods = []
+
+            if not isinstance(current_interface, (MaybeClass, MaybeHostForm, VarRef)):
+                raise ParserException(
+                    f"deftype* interface implementation must be an existing interface",
+                    form=elem,
+                )
+            interfaces.append(current_interface)
+        elif isinstance(elem, lseq.Seq):
+            if current_interface is None:
+                raise ParserException(
+                    f"deftype* method cannot be declared without interface", form=elem
+                )
+            methods.append(__deftype_method(ctx, elem, current_interface))
+        else:
+            raise ParserException(
+                f"deftype* must consist of interface or protocol names and methods",
+                form=elem,
+            )
+
+    if current_interface is not None:
+        if len(methods) > 0:
+            if current_interface_sym in interface_methods:
+                raise ParserException(
+                    f"deftype* forms may only implement an interface once",
+                    form=current_interface_sym,
+                )
+            assert (
+                current_interface_sym is not None
+            ), "Symbol must be defined with interface"
+            interface_methods[current_interface_sym] = methods
+        else:
+            raise ParserException(
+                f"deftype* may not declare interface without at least one method",
+                form=current_interface_sym,
+            )
+
+    return interfaces, chain.from_iterable(interface_methods.values())
+
+
+def _deftype_ast(  # pylint: disable=too-many-branches
+    ctx: ParserContext, form: lseq.Seq
+) -> DefType:
+    assert form.first == SpecialForm.DEFTYPE
+
+    nelems = count(form)
+    if nelems < 3:
+        raise ParserException(
+            f"deftype forms must have 3 or more elements, as in: (deftype* name fields [bases+impls])",
+            form=form,
+        )
+
+    name = runtime.nth(form, 1)
+    if not isinstance(name, sym.Symbol):
+        raise ParserException(
+            f"deftype* names must be symbols, not {type(name)}", form=name
+        )
+    ctx.put_new_symbol(
+        name,
+        Binding(
+            form=name, name=name.name, local=LocalType.DEFTYPE, env=ctx.get_node_env()
+        ),
+        warn_if_unused=False,
+    )
+
+    fields = runtime.nth(form, 2)
+    if not isinstance(fields, vec.Vector):
+        raise ParserException(
+            f"deftype* fields must be vector, not {type(fields)}", form=fields
+        )
+
+    with ctx.new_symbol_table(name.name):
+        param_nodes = []
+        for field in fields:
+            if not isinstance(field, sym.Symbol):
+                raise ParserException(f"deftype* fields must be symbols", form=field)
+
+            binding = Binding(
+                form=field,
+                name=field.name,
+                local=LocalType.FIELD,
+                env=ctx.get_node_env(),
+            )
+            param_nodes.append(binding)
+            ctx.put_new_symbol(field, binding, warn_if_unused=False)
+
+        interfaces, methods = __deftype_impls(ctx, runtime.nthrest(form, 3))
+        return DefType(
+            form=form,
+            name=name.name,
+            interfaces=vec.vector(interfaces),
+            fields=vec.vector(param_nodes),
+            methods=vec.vector(methods),
+            env=ctx.get_node_env(),
+        )
 
 
 def _do_ast(ctx: ParserContext, form: lseq.Seq) -> Do:
@@ -1199,8 +1408,8 @@ def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branc
         for child in node.statements:
             _assert_no_recur(child)
         _assert_recur_is_tail(node.ret)
-    elif node.op in {NodeOp.FN, NodeOp.FN_METHOD}:
-        assert isinstance(node, (Fn, FnMethod))
+    elif node.op in {NodeOp.FN, NodeOp.FN_METHOD, NodeOp.METHOD}:
+        assert isinstance(node, (Fn, FnMethod, Method))
         node.visit(_assert_recur_is_tail)
     elif node.op == NodeOp.IF:
         assert isinstance(node, If)
@@ -1429,6 +1638,7 @@ _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.AWAIT: _await_ast,
     SpecialForm.DEF: _def_ast,
     SpecialForm.DO: _do_ast,
+    SpecialForm.DEFTYPE: _deftype_ast,
     SpecialForm.FN: _fn_ast,
     SpecialForm.IF: _if_ast,
     SpecialForm.IMPORT: _import_ast,

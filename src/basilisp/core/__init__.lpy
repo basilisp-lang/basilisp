@@ -841,6 +841,10 @@
 ;; Higher Order Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defn apply-kw
+  [f & args]
+  (basilisp.lang.runtime/apply-kw f args))
+
 (defmacro lazy-seq
   "Takes a body of expressions which will produce a seq or nil. When
   seq is first called on the resulting lazy-seq, the sequence will be
@@ -2312,3 +2316,142 @@
    (basilisp.lang.runtime/to-lisp o))
   ([o & {:keys [keywordize-keys] :or {keywordize-keys true}}]
    (basilisp.lang.runtime/to-lisp o keywordize-keys)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Data Types & Protocols ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(import* abc attr)
+
+(defmulti ^:private munge
+  "Munge the input value into a Python-safe string. Converts keywords and
+  symbols into strings as by `name` prior to munging. Returns a string."
+  builtins/type)
+
+(defmethod munge basilisp.lang.keyword/Keyword
+  [kw]
+  (basilisp.lang.util/munge (name kw)))
+
+(defmethod munge basilisp.lang.symbol/Symbol
+  [s]
+  (basilisp.lang.util/munge (name s)))
+
+(defmethod munge builtins/str
+  [s]
+  (basilisp.lang.util/munge s))
+
+(defn gen-interface
+  "Generate and return a new Python interface (abstract base clase) with
+  the given name and method signatures.
+
+  Method signatures are in the form (method-name [arg1 arg2 ...]).
+
+  Interface objects cannot be directly instantiated. Instead, you must create
+  a concrete implementation of an interface (perhaps via deftype) and supply
+  implementations for all of the abstract methods."
+  [interface-name methods]
+  (let [methods (reduce (fn [m [method-name args]]
+                          (let [method-args (->> (concat ['self] args)
+                                                 (apply vector))
+                                method      (->> (list 'fn* method-name method-args)
+                                                 (eval)
+                                                 (abc/abstractmethod))]
+                            (assoc m (munge method-name) method)))
+                        {}
+                        methods)]
+    (builtins/type interface-name
+                   #py (abc/ABC)
+                   (lisp->py methods))))
+
+(defmacro definterface
+  "Define a new Python interface with the given method definitions."
+  [interface-name & methods]
+  (let [name-str    (name interface-name)
+        method-sigs (map #(list 'quote %) methods)]
+    `(def ~interface-name
+       (gen-interface ~name-str [~@method-sigs]))))
+
+#_(defn gen-type
+  "Generate and return a new Python data type which has the fields given
+  in the fields vector. Impls is a map of base classes to the methods that
+  this type implements for that base class."
+  [type-name fields impls]
+  (let [;; Explicitly order type fields in the order they are given,
+        ;; pass them into the Python dict constructor, which will
+        ;; preserve insertion order (since Basilisp only runs on 3.6+).
+        ;; Attrs sets the field order using the dictionary order.
+        field-defs (->> fields
+                        (reduce (fn [coll field-sym]
+                                  (conj coll [(name field-sym) (attr/ib)]))
+                                [])
+                        (lisp->py)
+                        (builtins/dict))
+        methods    (if (seq impls)
+                     (->> (vals impls)
+                          (apply concat)
+                          (reduce (fn [m [method-name args & body]]
+                                    (let [method (-> (list 'fn* method-name args)
+                                                     (concat body)
+                                                     (eval))]
+                                      (assoc m (munge method-name) method)))
+                                  {}))
+                     {})
+        type       (builtins/type type-name
+                                  (builtins/tuple (or (keys impls) []))
+                                  (lisp->py methods))]
+    (apply-kw attr/s
+              type
+              (lisp->py field-defs)
+              #py {"cmp"   false
+                   "slots" true})))
+
+#_(defn ^:private collect-type-impls
+  "Collect all interface and protocol implementations into a map of interface
+  or protocol names to method bodies."
+  [methods]
+  (loop [base         (first methods)
+         methods      (rest methods)
+         base-methods []
+         impls        {}]
+    (if (seq methods)
+      (cond
+        (list? (first methods))
+        (recur base
+               (rest methods)
+               (conj base-methods (list 'quote (first methods)))
+               impls)
+
+        (symbol? (first methods))
+        (recur (first methods)
+               (rest methods)
+               []
+               (assoc impls base base-methods))
+
+        :else
+        (throw
+         (ex-info "Expected either an interface or protocol name or a list"
+                  {:found (first methods)})))
+      (assoc impls base base-methods))))
+
+(defmacro deftype
+  "Define a new Python concrete type which can implement 0 or more Python
+  interfaces or Basilisp protocols."
+  [type-name fields & method-impls]
+  (let [ctor-name (with-meta
+                    (symbol (str "->" (name type-name)))
+                    (meta type-name))]
+    `(do
+       (deftype* ~type-name ~fields
+         ~@method-impls)
+       (def ~ctor-name ~type-name)
+       ~type-name)))
+
+#_(defmacro defprotocol
+  [name & body]
+  (let [doc  (if (string? (first body))
+               (first body)
+               nil)
+        body (if doc
+               (rest body)
+               body)]
+    body))
