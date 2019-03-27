@@ -19,7 +19,7 @@ from basilisp.lang.compiler.generator import (  # noqa
     statementize as _statementize,
 )
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
-from basilisp.lang.compiler.parser import (
+from basilisp.lang.compiler.parser import (  # noqa
     ParserContext,
     WARN_ON_SHADOWED_NAME,
     WARN_ON_SHADOWED_VAR,
