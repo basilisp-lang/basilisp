@@ -579,6 +579,21 @@ class TestDefType:
         pt(4)
         assert (4, 2, 3) == (pt.x, pt.y, pt.z)
 
+    def test_deftype_allows_recur(self):
+        Point = lcompile(
+            """
+        (import* collections.abc operator)
+        (deftype* Point [x]
+          collections.abc/Callable
+          (--call-- [this sum start]
+            (if (operator/gt start 0)
+              (recur (operator/add sum start) (operator/sub start 1))
+              (operator/add sum x))))
+        """
+        )
+        pt = Point(7)
+        assert 22 == pt(0, 5)
+
     def test_deftype_cannot_set_immutable_field(self):
         with pytest.raises(compiler.CompilerException):
             lcompile(

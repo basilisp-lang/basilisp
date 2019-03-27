@@ -165,6 +165,7 @@ class SymbolTable:
 
 class RecurType(Enum):
     FN = kw.keyword("fn")
+    METHOD = kw.keyword("method")
     LOOP = kw.keyword("loop")
 
 
@@ -678,7 +679,7 @@ def __deftype_method_to_py_ast(  # pylint: disable=too-many-branches
     method_name = munge(node.name)
 
     with ctx.new_symbol_table(node.name), ctx.new_recur_point(
-        node.loop_id, RecurType.FN
+        node.loop_id, RecurType.METHOD, is_variadic=False
     ):
         this_name = genname(munge(node.this_local.name))
         this_sym = sym.symbol(node.this_local.name)
@@ -1489,6 +1490,41 @@ def __fn_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     )
 
 
+@_with_ast_loc
+def __deftype_method_recur_to_py_ast(
+    ctx: GeneratorContext, node: Recur
+) -> GeneratedPyAST:
+    """Return a Python AST node for `recur` occurring inside a `deftype*` method."""
+    assert node.op == NodeOp.RECUR
+    recur_nodes: List[ast.AST] = []
+    recur_deps: List[ast.AST] = []
+    for expr in node.exprs:
+        expr_ast = gen_py_ast(ctx, expr)
+        recur_nodes.append(expr_ast.node)
+        recur_deps.extend(expr_ast.dependencies)
+
+    this_entry = ctx.symbol_table.find_symbol(ctx.current_this)
+    assert this_entry is not None, "Field type local must have this"
+
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_TRAMPOLINE_ARGS_FN_NAME,
+            args=list(
+                chain(
+                    [
+                        # For the moment at least, deftype methods cannot be variadic
+                        ast.NameConstant(False),
+                        ast.Name(id=this_entry.munged, ctx=ast.Load()),
+                    ],
+                    recur_nodes,
+                )  # type: ignore
+            ),
+            keywords=[],
+        ),
+        dependencies=recur_deps,
+    )
+
+
 @_with_ast_loc_deps
 def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     """Return a Python AST node for `recur` occurring inside a `loop`."""
@@ -1520,6 +1556,7 @@ def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST
 
 _RECUR_TYPE_HANDLER = {
     RecurType.FN: __fn_recur_to_py_ast,
+    RecurType.METHOD: __deftype_method_recur_to_py_ast,
     RecurType.LOOP: __loop_recur_to_py_ast,
 }
 
