@@ -2435,7 +2435,39 @@
 
 (defmacro deftype
   "Define a new Python concrete type which can implement 0 or more Python
-  interfaces or Basilisp protocols."
+  interfaces or Basilisp protocols.
+
+  The new type will have fields matching the names in `fields`. Fields may
+  be referred to unqualified in the bodies of implemented methods. By default
+  the fields of this type are immutable. Fields may be made mutable by
+  annotating their definition with `:mutable` metadata. Mutable fields may
+  be set within method bodies using the `set!` special form. It is not advised
+  to use mutable fields unless you are sure you know what you are doing.
+  Attempting to set non-mutable fields from a method body will result in a
+  compiler error.
+
+  As a consequence of Python's lax policy towards immutability, types with
+  even one mutable field may be mutated by outside callers using `set!`.
+
+  Interface or protocol implementations are declared as the name of the
+  interface or protocol as a symbol, followed by 1 or more method
+  definitions for that interface. Types are not required to declare
+  any interface implementations.
+
+  Method declarations should appear as:
+
+    (method-name [arg1 arg2 ...] & body)
+
+  Type objects are created with sensible `object` defaults as by `attrs`.
+  New types may override `object` defaults. An `__init__` function is
+  automatically created which takes positional arguments matching the
+  order of definition in `fields`. Additionally, given a name `NewType`,
+  a factory function will be created `->NewType` which can be used to
+  generate new instances of the type.
+
+  Methods must supply a `this` or `self` parameter. `recur` special forms
+  used in the body of a method should not include that parameter, as it
+  will be supplied automatically."
   [type-name fields & method-impls]
   (let [ctor-name (with-meta
                     (symbol (str "->" (name type-name)))

@@ -51,6 +51,7 @@ from basilisp.lang.compiler.constants import (
     SYM_ASYNC_META_KEY,
     SYM_DYNAMIC_META_KEY,
     SYM_MACRO_META_KEY,
+    SYM_MUTABLE_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
     SpecialForm,
 )
@@ -809,15 +810,25 @@ def _deftype_ast(  # pylint: disable=too-many-branches
         )
 
     with ctx.new_symbol_table(name.name):
+        is_frozen = True
         param_nodes = []
         for field in fields:
             if not isinstance(field, sym.Symbol):
                 raise ParserException(f"deftype* fields must be symbols", form=field)
 
+            is_mutable = (
+                Maybe(field.meta)
+                .map(lambda m: m.entry(SYM_MUTABLE_META_KEY))  # type: ignore
+                .or_else_get(False)
+            )
+            if is_mutable:
+                is_frozen = False
+
             binding = Binding(
                 form=field,
                 name=field.name,
                 local=LocalType.FIELD,
+                is_assignable=is_mutable,
                 env=ctx.get_node_env(),
             )
             param_nodes.append(binding)
@@ -830,6 +841,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             interfaces=vec.vector(interfaces),
             fields=vec.vector(param_nodes),
             methods=vec.vector(methods),
+            is_frozen=is_frozen,
             env=ctx.get_node_env(),
         )
 
@@ -1820,7 +1832,7 @@ def _symbol_node(
             form=form,
             name=form.name,
             local=sym_entry.context,
-            is_assignable=False,
+            is_assignable=sym_entry.binding.is_assignable,
             env=ctx.get_node_env(),
         )
 

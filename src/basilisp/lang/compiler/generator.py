@@ -303,10 +303,13 @@ def _load_attr(name: str, ctx: ast.AST = ast.Load()) -> ast.Attribute:
 
     def attr_node(node, idx):
         if idx >= len(attrs):
+            node.ctx = ctx
             return node
-        return attr_node(ast.Attribute(value=node, attr=attrs[idx], ctx=ctx), idx + 1)
+        return attr_node(
+            ast.Attribute(value=node, attr=attrs[idx], ctx=ast.Load()), idx + 1
+        )
 
-    return attr_node(ast.Name(id=attrs[0], ctx=ctx), 1)
+    return attr_node(ast.Name(id=attrs[0], ctx=ast.Load()), 1)
 
 
 def _simple_ast_generator(gen_ast):
@@ -732,6 +735,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
         args=[],
         keywords=[
             ast.keyword(arg="cmp", value=ast.NameConstant(False)),
+            ast.keyword(arg="frozen", value=ast.NameConstant(node.is_frozen)),
             ast.keyword(arg="slots", value=ast.NameConstant(True)),
         ],
     )
@@ -1563,15 +1567,8 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
     elif isinstance(target, VarRef):
         target_ast = _var_sym_to_py_ast(ctx, target, is_assigning=True)
-    elif isinstance(target, Local):  # pragma: no cover
-        # Local nodes cannot be assigned by any existing code, but the
-        # clojure.tools.analyzer.jvm AST adds additional specialized Java
-        # nodes to the base clojure.tools.analyzer AST spec which include
-        # assignable locals (such as fields in deftype forms). I'm going
-        # to keep this branch here for now since I suspect I'll eventually
-        # enrich the AST to include assignable locals.
-        safe_name = munge(target.name)
-        target_ast = GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Store()))
+    elif isinstance(target, Local):
+        target_ast = _local_sym_to_py_ast(ctx, target, is_assigning=True)
 
     return GeneratedPyAST(
         node=ast.Name(id=val_temp_name, ctx=ast.Load()),

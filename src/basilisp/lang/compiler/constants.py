@@ -31,6 +31,7 @@ DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
 SYM_ASYNC_META_KEY = kw.keyword("async")
 SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
 SYM_MACRO_META_KEY = kw.keyword("macro")
+SYM_MUTABLE_META_KEY = kw.keyword("mutable")
 SYM_NO_WARN_ON_REDEF_META_KEY = kw.keyword("no-warn-on-redef")
 SYM_NO_WARN_WHEN_UNUSED_META_KEY = kw.keyword("no-warn-when-unused")
 SYM_REDEF_META_KEY = kw.keyword("redef")

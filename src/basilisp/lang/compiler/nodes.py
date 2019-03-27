@@ -257,13 +257,14 @@ class Await(Node[ReaderLispForm]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class Binding(Node[sym.Symbol]):
+class Binding(Node[sym.Symbol], Assignable):
     form: sym.Symbol
     name: str
     local: LocalType
     env: NodeEnv
     arg_id: Optional[int] = None
     is_variadic: bool = False
+    is_assignable: bool = False
     init: Optional[Node] = None
     meta: NodeMeta = None
     children: Collection[kw.Keyword] = vec.Vector.empty()
@@ -325,6 +326,7 @@ class DefType(Node[SpecialForm]):
     fields: Iterable[Binding]
     methods: Iterable["Method"]
     env: NodeEnv
+    is_frozen: bool = True
     meta: NodeMeta = None
     children: Collection[kw.Keyword] = vec.v(FIELDS, METHODS)
     op: NodeOp = NodeOp.DEFTYPE

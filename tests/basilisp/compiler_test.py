@@ -564,6 +564,33 @@ class TestDefType:
         assert None is pt()
         assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
+    def test_deftype_mutable_field(self):
+        Point = lcompile(
+            """
+        (import* collections.abc)
+        (deftype* Point [^:mutable x y z]
+          collections.abc/Callable
+          (--call-- [this new-x]
+            (set! x new-x)))
+        """
+        )
+        pt = Point(1, 2, 3)
+        assert (1, 2, 3) == (pt.x, pt.y, pt.z)
+        pt(4)
+        assert (4, 2, 3) == (pt.x, pt.y, pt.z)
+
+    def test_deftype_cannot_set_immutable_field(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+            (import* collections.abc)
+            (deftype* Point [^:mutable x y z]
+              collections.abc/Callable
+              (--call-- [this new-y]
+                (set! y new-y)))
+            """
+            )
+
     def test_deftype_impl_method_is_named_by_sym(self):
         with pytest.raises(compiler.CompilerException):
             lcompile(
