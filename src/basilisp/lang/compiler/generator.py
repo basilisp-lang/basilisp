@@ -784,10 +784,7 @@ def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     assert not node.is_body
 
     body_ast = GeneratedPyAST.reduce(
-        *chain(
-            list(map(partial(gen_py_ast, ctx), node.statements)),
-            [gen_py_ast(ctx, node.ret)],
-        )
+        *map(partial(gen_py_ast, ctx), chain(node.statements, [node.ret]))
     )
 
     fn_body_ast: List[ast.AST] = []
@@ -814,10 +811,7 @@ def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     # TODO: investigate how to handle recur in node.ret
 
     return GeneratedPyAST.reduce(
-        *chain(
-            list(map(partial(gen_py_ast, ctx), node.statements)),
-            [gen_py_ast(ctx, node.ret)],
-        )
+        *map(partial(gen_py_ast, ctx), chain(node.statements, [node.ret]))
     )
 
 
@@ -1569,6 +1563,10 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
         target_ast = _var_sym_to_py_ast(ctx, target, is_assigning=True)
     elif isinstance(target, Local):
         target_ast = _local_sym_to_py_ast(ctx, target, is_assigning=True)
+    else:  # pragma: no cover
+        raise GeneratorException(
+            f"invalid set! target type {type(target)}", lisp_ast=target
+        )
 
     return GeneratedPyAST(
         node=ast.Name(id=val_temp_name, ctx=ast.Load()),
