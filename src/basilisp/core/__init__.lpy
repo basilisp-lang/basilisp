@@ -2415,13 +2415,3 @@
          ~@method-impls)
        (def ~ctor-name ~type-name)
        ~type-name)))
-
-#_(defmacro defprotocol
-  [name & body]
-  (let [doc  (if (string? (first body))
-               (first body)
-               nil)
-        body (if doc
-               (rest body)
-               body)]
-    body))
