@@ -1,6 +1,7 @@
 import builtins
 import collections
 import contextlib
+import inspect
 import logging
 import re
 import sys
@@ -16,6 +17,7 @@ from typing import (
     Collection,
     Deque,
     Dict,
+    FrozenSet,
     Iterable,
     List,
     Optional,
@@ -716,7 +718,7 @@ def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
 
 def __deftype_impls(  # pylint: disable=too-many-branches
     ctx: ParserContext, form: lseq.Seq
-) -> Tuple[Iterable[DefTypeBase], Iterable[Method]]:
+) -> Tuple[List[DefTypeBase], List[Method]]:
     """Roll up deftype* declared bases and method implementations."""
     current_interface_sym: Optional[sym.Symbol] = None
     current_interface: Optional[DefTypeBase] = None
@@ -775,7 +777,38 @@ def __deftype_impls(  # pylint: disable=too-many-branches
                 form=current_interface_sym,
             )
 
-    return interfaces, chain.from_iterable(interface_methods.values())
+    return interfaces, list(chain.from_iterable(interface_methods.values()))
+
+
+def __assert_deftype_impls_are_abstract(
+    interfaces: Iterable[DefTypeBase], methods: Iterable[Method]
+) -> None:
+    method_names = frozenset(munge(method.name) for method in methods)
+    for interface in interfaces:
+        if isinstance(interface, (MaybeClass, MaybeHostForm)):
+            interface_type = interface.target
+        elif isinstance(interface, VarRef):
+            interface_type = interface.var.value
+        else:  # pragma: no cover
+            assert False, "Interface must be MaybeClass, MaybeHostForm, or VarRef"
+
+        if interface_type is object:
+            continue
+
+        if not inspect.isabstract(interface_type):
+            raise ParserException(
+                "deftype* interface must be Python abstract class or object",
+                form=interface.form,
+                lisp_ast=interface,
+            )
+
+        interface_methods: FrozenSet[str] = interface_type.__abstractmethods__
+        if not interface_methods.issubset(method_names):
+            missing_methods = "".join(interface_methods - method_names)
+            raise ParserException(
+                "deftype* definition missing interface methods for interface "
+                f"{interface.form}: {missing_methods}"
+            )
 
 
 def _deftype_ast(  # pylint: disable=too-many-branches
@@ -835,6 +868,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             ctx.put_new_symbol(field, binding, warn_if_unused=False)
 
         interfaces, methods = __deftype_impls(ctx, runtime.nthrest(form, 3))
+        __assert_deftype_impls_are_abstract(interfaces, methods)
         return DefType(
             form=form,
             name=name.name,
@@ -1694,10 +1728,14 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
         if v is not None:
             return VarRef(form=form, var=v, env=ctx.get_node_env())
     elif form.ns == _BUILTINS_NS:
+        class_ = munge(form.name, allow_builtins=True)
+        target = getattr(builtins, class_)
+        if target is None:
+            raise ParserException(
+                f"cannot resolve builtin function '{class_}'", form=form
+            )
         return MaybeClass(
-            form=form,
-            class_=munge(form.name, allow_builtins=True),
-            env=ctx.get_node_env(),
+            form=form, class_=class_, target=target, env=ctx.get_node_env()
         )
 
     if "." in form.name:
@@ -1732,17 +1770,18 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
         safe_name = munge(form.name)
 
         # Try without allowing builtins first
-        if safe_name in ns_module.__dict__:
+        if safe_name in vars(ns_module):
             return MaybeHostForm(
                 form=form,
                 class_=munge(ns_sym.name),
                 field=safe_name,
+                target=vars(ns_module)[safe_name],
                 env=ctx.get_node_env(),
             )
 
         # Then allow builtins
         safe_name = munge(form.name, allow_builtins=True)
-        if safe_name not in ns_module.__dict__:
+        if safe_name not in vars(ns_module):
             raise ParserException("can't identify aliased form", form=form)
 
         # Aliased imports generate code which uses the import alias, so we
@@ -1751,6 +1790,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             form=form,
             class_=munge(ns_sym.name),
             field=safe_name,
+            target=vars(ns_module)[safe_name],
             env=ctx.get_node_env(),
         )
     elif ns_sym in ctx.current_ns.aliases:
@@ -1785,14 +1825,16 @@ def __resolve_bare_symbol(
             "symbol names may not contain the '.' operator", form=form
         )
 
-    if form.name in builtins.__dict__:
+    munged = munge(form.name, allow_builtins=True)
+    if munged in vars(builtins):
         return MaybeClass(
             form=form,
-            class_=munge(form.name, allow_builtins=True),
+            class_=munged,
+            target=vars(builtins)[munged],
             env=ctx.get_node_env(),
         )
 
-    assert form.name not in ctx.current_ns.module.__dict__
+    assert munged not in vars(ctx.current_ns.module)
     raise ParserException(
         f"unable to resolve symbol '{form}' in this context", form=form
     )

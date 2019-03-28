@@ -2390,7 +2390,10 @@
   Interface or protocol implementations are declared as the name of the
   interface or protocol as a symbol, followed by 1 or more method
   definitions for that interface. Types are not required to declare
-  any interface implementations.
+  any interface implementations. Types which do declare interface
+  implementations are required to implement all interface methods. Failing
+  to implement all interface methods is a compile time error. Types
+  implementing `object` are not required to implement all `object` methods.
 
   Method declarations should appear as:
 

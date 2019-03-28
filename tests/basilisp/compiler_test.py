@@ -502,6 +502,40 @@ class TestDefType:
             """
             )
 
+    def test_deftype_interface_must_be_abstract(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+            (import* collections)
+            (deftype* Point [x y z]
+              collections/OrderedDict
+              (keys [this] [x y z]))
+            """
+            )
+
+    def test_deftype_interface_must_implement_all_abstract_methods(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              collections.abc/Collection
+              (--len-- [this] 3))
+            """
+            )
+
+    def test_deftype_interface_may_implement_only_some_object_methods(self):
+        Point = lcompile(
+            """
+        (deftype* Point [x y z]
+          builtins/object
+          (--str-- [this] 
+            (builtins/repr #py ("Point" x y z))))
+        """
+        )
+        pt = Point(1, 2, 3)
+        assert "('Point', 1, 2, 3)" == str(pt)
+
     def test_deftype_fields(self):
         Point = lcompile("(deftype* Point [x y z])")
         pt = Point(1, 2, 3)

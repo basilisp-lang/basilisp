@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import (
+    Any,
     Callable,
     Collection,
     Dict,
@@ -519,6 +520,7 @@ class Map(Node[lmap.Map]):
 class MaybeClass(Node[sym.Symbol]):
     form: sym.Symbol
     class_: str
+    target: Any
     env: NodeEnv
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_CLASS
@@ -531,6 +533,7 @@ class MaybeHostForm(Node[sym.Symbol]):
     form: sym.Symbol
     class_: str
     field: str
+    target: Any
     env: NodeEnv
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_HOST_FORM
