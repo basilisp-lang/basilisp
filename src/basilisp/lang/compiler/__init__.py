@@ -67,7 +67,7 @@ class CompilerContext:
         return self._optimizer
 
 
-def _emit_ast_string(module: ast.AST) -> None:
+def _emit_ast_string(module: ast.AST) -> None:  # pragma: no cover
     """Emit the generated Python AST string either to standard out or to the
     *generated-python* dynamic Var for the current namespace. If the
     BASILISP_EMIT_GENERATED_PYTHON env var is not set True, this method is a
@@ -79,7 +79,7 @@ def _emit_ast_string(module: ast.AST) -> None:
         return
 
     if runtime.print_generated_python():
-        print(to_py_str(module))  # pragma: no cover
+        print(to_py_str(module))
     else:
         runtime.add_generated_python(to_py_str(module))
 
