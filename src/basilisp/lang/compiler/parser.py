@@ -1729,7 +1729,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             return VarRef(form=form, var=v, env=ctx.get_node_env())
     elif form.ns == _BUILTINS_NS:
         class_ = munge(form.name, allow_builtins=True)
-        target = getattr(builtins, class_)
+        target = getattr(builtins, class_, None)
         if target is None:
             raise ParserException(
                 f"cannot resolve builtin function '{class_}'", form=form

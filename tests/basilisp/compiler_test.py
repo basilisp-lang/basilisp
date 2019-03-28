@@ -2237,8 +2237,15 @@ def test_unquote_splicing(ns: runtime.Namespace, resolver: reader.Resolver):
 
 
 class TestSymbolResolution:
-    def test_bare_sym_resolves_builtins(self, ns: runtime.Namespace):
+    def test_bare_sym_resolves_builtins(self):
         assert object is lcompile("object")
+
+    def test_builtin_resolves_builtins(self):
+        assert object is lcompile("builtins/object")
+
+    def test_builtins_fails_to_resolve_correctly(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("builtins/fake")
 
     def test_namespaced_sym_may_not_contain_period(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
