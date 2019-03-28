@@ -2321,7 +2321,7 @@
 ;; Data Types & Protocols ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(import* abc attr)
+(import* abc)
 
 (defmulti ^:private munge
   "Munge the input value into a Python-safe string. Converts keywords and
@@ -2341,14 +2341,9 @@
   (basilisp.lang.util/munge s))
 
 (defn gen-interface
-  "Generate and return a new Python interface (abstract base clase) with
-  the given name and method signatures.
+  "Generate and return a new Python interface (abstract base clase).
 
-  Method signatures are in the form (method-name [arg1 arg2 ...]).
-
-  Interface objects cannot be directly instantiated. Instead, you must create
-  a concrete implementation of an interface (perhaps via deftype) and supply
-  implementations for all of the abstract methods."
+  Callers should use `definterface` to generate new interfaces."
   [interface-name methods]
   (let [methods (reduce (fn [m [method-name args]]
                           (let [method-args (->> (concat ['self] args)
@@ -2364,7 +2359,21 @@
                    (lisp->py methods))))
 
 (defmacro definterface
-  "Define a new Python interface with the given method definitions."
+  "Define a new Python interface (abstract base clase) with the given name
+  and method signatures.
+
+  Method signatures are in the form (method-name [arg1 arg2 ...]).
+
+  Interface objects cannot be directly instantiated. Instead, you must create
+  a concrete implementation of an interface (perhaps via deftype) and supply
+  implementations for all of the abstract methods.
+
+  The generated interface derives from Python's `abc.ABC` and all method
+  definitions are declared as `abc.abstractmethod`s and thus must be implemented
+  by a concrete type.
+
+  The generated interface will be immediately available after this form has
+  been evaluated and its utility is not limited to compilation."
   [interface-name & methods]
   (let [name-str    (name interface-name)
         method-sigs (map #(list 'quote %) methods)]
