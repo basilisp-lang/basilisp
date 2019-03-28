@@ -263,7 +263,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
 
         # Check if a valid, cached version of this Basilisp namespace exists and, if so,
         # load it and bypass the expensive compilation process below.
-        if os.getenv(_NO_CACHE_ENVVAR, None) == "True":
+        if os.getenv(_NO_CACHE_ENVVAR, None) == "true":
             self._exec_module(fullname, spec.loader_state, path_stats, module)
         else:
             try:

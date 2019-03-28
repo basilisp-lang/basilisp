@@ -1,29 +1,30 @@
 import ast
 import itertools
+import os
 import types
-from typing import Optional, Callable, Any, Iterable, List, Dict
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from astor import code_gen as codegen
 
 import basilisp.lang.runtime as runtime
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
 from basilisp.lang.compiler.generator import (  # noqa
-    GeneratorContext,
     GeneratedPyAST,
+    GeneratorContext,
+    USE_VAR_INDIRECTION,
+    WARN_ON_VAR_INDIRECTION,
     expressionize as _expressionize,
     gen_py_ast,
     py_module_preamble,
     statementize as _statementize,
-    USE_VAR_INDIRECTION,
-    WARN_ON_VAR_INDIRECTION,
 )
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
 from basilisp.lang.compiler.parser import (  # noqa
     ParserContext,
-    parse_ast,
     WARN_ON_SHADOWED_NAME,
     WARN_ON_SHADOWED_VAR,
     WARN_ON_UNUSED_NAMES,
+    parse_ast,
 )
 from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import genname
@@ -66,6 +67,23 @@ class CompilerContext:
         return self._optimizer
 
 
+def _emit_ast_string(module: ast.AST) -> None:  # pragma: no cover
+    """Emit the generated Python AST string either to standard out or to the
+    *generated-python* dynamic Var for the current namespace. If the
+    BASILISP_EMIT_GENERATED_PYTHON env var is not set True, this method is a
+    no-op."""
+    # TODO: eventually, this default should become "false" but during this
+    #       period of heavy development, having it set to "true" by default
+    #       is tremendously useful
+    if os.getenv("BASILISP_EMIT_GENERATED_PYTHON", "true") != "true":
+        return
+
+    if runtime.print_generated_python():
+        print(to_py_str(module))
+    else:
+        runtime.add_generated_python(to_py_str(module))
+
+
 def compile_and_exec_form(  # pylint: disable= too-many-arguments
     form: ReaderForm,
     ctx: CompilerContext,
@@ -102,10 +120,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     ast_module = ctx.py_ast_optimizer.visit(ast_module)
     ast.fix_missing_locations(ast_module)
 
-    if runtime.print_generated_python():
-        print(to_py_str(ast_module))  # pragma: no cover
-    else:
-        runtime.add_generated_python(to_py_str(ast_module))
+    _emit_ast_string(ast_module)
 
     bytecode = compile(ast_module, ctx.filename, "exec")
     if collect_bytecode:
@@ -135,10 +150,7 @@ def _incremental_compile_module(
     module = optimizer.visit(module)
     ast.fix_missing_locations(module)
 
-    if runtime.print_generated_python():
-        print(to_py_str(module))  # pragma: no cover
-    else:
-        runtime.add_generated_python(to_py_str(module))
+    _emit_ast_string(module)
 
     bytecode = compile(module, source_filename, "exec")
     if collect_bytecode:
