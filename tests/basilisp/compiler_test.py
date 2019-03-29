@@ -371,25 +371,25 @@ class TestDef:
 
 
 class TestDefType:
-    def test_deftype_number_of_elems(self):
+    def test_deftype_number_of_elems(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(deftype*)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(deftype* Point)")
 
-    def test_deftype_name_is_sym(self):
+    def test_deftype_name_is_sym(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(deftype* :Point [x y])")
 
         with pytest.raises(compiler.CompilerException):
             lcompile('(deftype* "Point" [x y])')
 
-    def test_deftype_fields_is_vec(self):
+    def test_deftype_fields_is_vec(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(deftype* Point (x y))")
 
-    def test_deftype_fields_are_syms(self):
+    def test_deftype_fields_are_syms(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(deftype* Point [:x y])")
 
@@ -399,7 +399,7 @@ class TestDefType:
         with pytest.raises(compiler.CompilerException):
             lcompile('(deftype* Point [x y "z"])')
 
-    def test_deftype_matching_impls(self):
+    def test_deftype_matching_impls(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -428,7 +428,7 @@ class TestDefType:
             """
             )
 
-    def test_deftype_prohibit_duplicate_interface(self):
+    def test_deftype_prohibit_duplicate_interface(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -469,7 +469,7 @@ class TestDefType:
             """
             )
 
-    def test_deftype_impls_must_be_sym_or_list(self):
+    def test_deftype_impls_must_be_sym_or_list(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -500,7 +500,7 @@ class TestDefType:
             """
             )
 
-    def test_deftype_interface_must_be_host_form(self):
+    def test_deftype_interface_must_be_host_form(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -511,7 +511,7 @@ class TestDefType:
             """
             )
 
-    def test_deftype_interface_must_be_abstract(self):
+    def test_deftype_interface_must_be_abstract(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -522,7 +522,9 @@ class TestDefType:
             """
             )
 
-    def test_deftype_interface_must_implement_all_abstract_methods(self):
+    def test_deftype_interface_must_implement_all_abstract_methods(
+        self, ns: runtime.Namespace
+    ):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -533,7 +535,9 @@ class TestDefType:
             """
             )
 
-    def test_deftype_may_not_add_extra_methods_to_interface(self):
+    def test_deftype_may_not_add_extra_methods_to_interface(
+        self, ns: runtime.Namespace
+    ):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -545,7 +549,9 @@ class TestDefType:
             """
             )
 
-    def test_deftype_interface_may_implement_only_some_object_methods(self):
+    def test_deftype_interface_may_implement_only_some_object_methods(
+        self, ns: runtime.Namespace
+    ):
         Point = lcompile(
             """
         (deftype* Point [x y z]
@@ -557,12 +563,12 @@ class TestDefType:
         pt = Point(1, 2, 3)
         assert "('Point', 1, 2, 3)" == str(pt)
 
-    def test_deftype_fields(self):
+    def test_deftype_fields(self, ns: runtime.Namespace):
         Point = lcompile("(deftype* Point [x y z])")
         pt = Point(1, 2, 3)
         assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-    def test_deftype_fields_and_impls(self):
+    def test_deftype_fields_and_impls(self, ns: runtime.Namespace):
         Point = lcompile(
             """
         (import* collections.abc)
@@ -578,7 +584,7 @@ class TestDefType:
         assert vec.v(1, 2, 3) == pt()
         assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-    def test_deftype_impl_with_args(self):
+    def test_deftype_impl_with_args(self, ns: runtime.Namespace):
         Point = lcompile(
             """
         (import* collections.abc)
@@ -591,7 +597,7 @@ class TestDefType:
         assert vec.v(1, 4, 2, 5, 3, 6) == pt(4, 5, 6)
         assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-    def test_deftype_can_refer_to_type_within_methods(self):
+    def test_deftype_can_refer_to_type_within_methods(self, ns: runtime.Namespace):
         Point = lcompile(
             """
         (import* collections.abc)
@@ -606,7 +612,7 @@ class TestDefType:
         pt2 = pt(4, 5, 6)
         assert (4, 5, 6) == (pt2.x, pt2.y, pt2.z)
 
-    def test_deftype_empty_impl_body(self):
+    def test_deftype_empty_impl_body(self, ns: runtime.Namespace):
         Point = lcompile(
             """
         (import* collections.abc)
@@ -619,7 +625,7 @@ class TestDefType:
         assert None is pt()
         assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-    def test_deftype_mutable_field(self):
+    def test_deftype_mutable_field(self, ns: runtime.Namespace):
         Point = lcompile(
             """
         (import* collections.abc)
@@ -634,7 +640,7 @@ class TestDefType:
         pt(4)
         assert (4, 2, 3) == (pt.x, pt.y, pt.z)
 
-    def test_deftype_allows_recur(self):
+    def test_deftype_allows_recur(self, ns: runtime.Namespace):
         Point = lcompile(
             """
         (import* collections.abc operator)
@@ -649,7 +655,7 @@ class TestDefType:
         pt = Point(7)
         assert 22 == pt(0, 5)
 
-    def test_deftype_cannot_set_immutable_field(self):
+    def test_deftype_cannot_set_immutable_field(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -661,7 +667,7 @@ class TestDefType:
             """
             )
 
-    def test_deftype_impl_method_is_named_by_sym(self):
+    def test_deftype_impl_method_is_named_by_sym(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -682,7 +688,7 @@ class TestDefType:
             """
             )
 
-    def test_deftype_impl_method_args_are_vec(self):
+    def test_deftype_impl_method_args_are_vec(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -693,7 +699,7 @@ class TestDefType:
             """
             )
 
-    def test_deftype_impl_method_args_vec_includes_this(self):
+    def test_deftype_impl_method_args_vec_includes_this(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -704,7 +710,7 @@ class TestDefType:
             """
             )
 
-    def test_deftype_impl_method_args_are_syms(self):
+    def test_deftype_impl_method_args_are_syms(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -2268,13 +2274,13 @@ def test_unquote_splicing(ns: runtime.Namespace, resolver: reader.Resolver):
 
 
 class TestSymbolResolution:
-    def test_bare_sym_resolves_builtins(self):
+    def test_bare_sym_resolves_builtins(self, ns: runtime.Namespace):
         assert object is lcompile("object")
 
-    def test_builtin_resolves_builtins(self):
+    def test_builtin_resolves_builtins(self, ns: runtime.Namespace):
         assert object is lcompile("builtins/object")
 
-    def test_builtins_fails_to_resolve_correctly(self):
+    def test_builtins_fails_to_resolve_correctly(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("builtins/fake")
 
