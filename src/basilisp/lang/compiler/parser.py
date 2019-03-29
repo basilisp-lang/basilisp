@@ -995,7 +995,7 @@ def _import_ast(  # pylint: disable=too-many-branches
     for f in form.rest:
         if isinstance(f, sym.Symbol):
             module_name = f
-            module_alias = module_name.name.split(".", maxsplit=1)[0]
+            module_alias = None
         elif isinstance(f, vec.Vector):
             if len(f) != 3:
                 raise ParserException(
