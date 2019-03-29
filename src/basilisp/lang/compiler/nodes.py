@@ -432,7 +432,7 @@ class Import(Node[SpecialForm]):
 class ImportAlias(Node[Union[sym.Symbol, vec.Vector]]):
     form: Union[sym.Symbol, vec.Vector]
     name: str
-    alias: str
+    alias: Optional[str]
     env: NodeEnv
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.IMPORT_ALIAS

@@ -1293,11 +1293,10 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
     deps: List[ast.AST] = []
     for alias in node.aliases:
         safe_name = munge(alias.name)
-        safe_alias = munge(alias.alias)
 
         try:
             module = importlib.import_module(safe_name)
-            if alias.name != alias.alias:
+            if alias.alias is not None:
                 ctx.add_import(sym.symbol(alias.name), module, sym.symbol(alias.alias))
             else:
                 ctx.add_import(sym.symbol(alias.name), module)
@@ -1306,9 +1305,14 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
                 f"Python module '{alias.name}' not found", node.form, node
             ) from e
 
+        py_import_alias = (
+            munge(alias.alias)
+            if alias.alias is not None
+            else safe_name.split(".", maxsplit=1)[0]
+        )
         deps.append(
             ast.Assign(
-                targets=[ast.Name(id=safe_alias, ctx=ast.Store())],
+                targets=[ast.Name(id=py_import_alias, ctx=ast.Store())],
                 value=ast.Call(
                     func=_load_attr("builtins.__import__"),
                     args=[ast.Str(safe_name)],
@@ -1316,7 +1320,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
                 ),
             )
         )
-        last = ast.Name(id=safe_alias, ctx=ast.Load())
+        last = ast.Name(id=py_import_alias, ctx=ast.Load())
 
         # Note that we add this import to the live running system in the above
         # calls to `ctx.add_import`, however, since we compile and cache Python
