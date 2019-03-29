@@ -44,10 +44,19 @@ def test_ns() -> str:
 
 
 @pytest.fixture
-def ns(test_ns: str) -> runtime.Namespace:
+def test_ns_sym(test_ns: str) -> sym.Symbol:
+    return sym.symbol(test_ns)
+
+
+@pytest.fixture
+def ns(test_ns: str, test_ns_sym: sym.Symbol) -> runtime.Namespace:
     runtime.init_ns_var(which_ns=runtime.CORE_NS)
+    runtime.Namespace.get_or_create(test_ns_sym)
     with runtime.ns_bindings(test_ns) as ns:
-        yield ns
+        try:
+            yield ns
+        finally:
+            runtime.Namespace.remove(test_ns_sym)
 
 
 @pytest.fixture
@@ -902,7 +911,7 @@ def test_macro_expansion(ns: runtime.Namespace):
 
 
 class TestIf:
-    def test_if_number_of_elems(self, ns: runtime.Namespace):
+    def test_if_number_of_elems(self):
         with pytest.raises(compiler.CompilerException):
             lcompile("(if)")
 
@@ -925,7 +934,7 @@ class TestIf:
         """
         assert "YELLING" == lcompile(code)
 
-    def test_truthiness(self, ns: runtime.Namespace):
+    def test_truthiness(self):
         # Valid false values
         assert kw.keyword("b") == lcompile("(if false :a :b)")
         assert kw.keyword("b") == lcompile("(if nil :a :b)")
@@ -1007,7 +1016,7 @@ class TestImport:
         with pytest.raises(ImportError):
             lcompile("(import* real.fake.module)")
 
-    def test_import_resolves_within_do_block(self):
+    def test_import_resolves_within_do_block(self, ns: runtime.Namespace):
         import time
 
         assert time.perf_counter == lcompile("(do (import* time)) time/perf-counter")
@@ -1039,6 +1048,16 @@ class TestImport:
             lcompile(
                 "(import* string [time :as py-time]) [string/capwords py-time/perf-counter]"
             )
+        )
+
+    def test_nested_imports_visible_with_parent(self, ns: runtime.Namespace):
+        import collections.abc
+
+        assert [collections.OrderedDict, collections.abc.Sized] == lcompile(
+            """
+        (import* collections collections.abc)
+        #py [collections/OrderedDict collections.abc/Sized]
+        """
         )
 
 
@@ -1368,7 +1387,7 @@ class TestLoop:
 
 
 class TestQuote:
-    def test_quoted_list(self, ns: runtime.Namespace):
+    def test_quoted_list(self):
         assert lcompile("'()") == llist.l()
         assert lcompile("'(str)") == llist.l(sym.symbol("str"))
         assert lcompile("'(str 3)") == llist.l(sym.symbol("str"), 3)
@@ -1376,14 +1395,14 @@ class TestQuote:
             sym.symbol("str"), 3, kw.keyword("feet-deep")
         )
 
-    def test_quoted_map(self, ns: runtime.Namespace):
+    def test_quoted_map(self):
         assert lcompile("'{}") == lmap.Map.empty()
         assert lcompile("'{:a 2}") == lmap.map({kw.keyword("a"): 2})
         assert lcompile('\'{:a 2 "str" s}') == lmap.map(
             {kw.keyword("a"): 2, "str": sym.symbol("s")}
         )
 
-    def test_quoted_set(self, ns: runtime.Namespace):
+    def test_quoted_set(self):
         assert lcompile("'#{}") == lset.Set.empty()
         assert lcompile("'#{:a 2}") == lset.s(kw.keyword("a"), 2)
         assert lcompile('\'#{:a 2 "str"}') == lset.s(kw.keyword("a"), 2, "str")
@@ -1650,7 +1669,7 @@ class TestSetBang:
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn [a b] (set! a :c))")
 
-    def test_set_cannot_assign_non_dynamic_var(self):
+    def test_set_cannot_assign_non_dynamic_var(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
