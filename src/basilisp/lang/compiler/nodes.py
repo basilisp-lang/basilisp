@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import (
+    Any,
     Callable,
     Collection,
     Dict,
@@ -28,6 +29,8 @@ CLASS = kw.keyword("class")
 LOCAL = kw.keyword("local")
 STATEMENTS = kw.keyword("statements")
 RET = kw.keyword("ret")
+THIS_LOCAL = kw.keyword("this-local")
+FIELDS = kw.keyword("fields")
 METHODS = kw.keyword("methods")
 PARAMS = kw.keyword("params")
 TARGET = kw.keyword("target")
@@ -53,6 +56,7 @@ class NodeOp(Enum):
     CATCH = kw.keyword("catch")
     CONST = kw.keyword("const")
     DEF = kw.keyword("def")
+    DEFTYPE = kw.keyword("deftype")
     DO = kw.keyword("do")
     FN = kw.keyword("fn")
     FN_METHOD = kw.keyword("fn-method")
@@ -70,6 +74,7 @@ class NodeOp(Enum):
     MAP = kw.keyword("map")
     MAYBE_CLASS = kw.keyword("maybe-class")
     MAYBE_HOST_FORM = kw.keyword("maybe-host-form")
+    METHOD = kw.keyword("method")
     PY_DICT = kw.keyword("py-dict")
     PY_LIST = kw.keyword("py-list")
     PY_SET = kw.keyword("py-set")
@@ -224,10 +229,13 @@ LoopID = str
 class LocalType(Enum):
     ARG = kw.keyword("arg")
     CATCH = kw.keyword("catch")
+    DEFTYPE = kw.keyword("deftype")
+    FIELD = kw.keyword("field")
     FN = kw.keyword("fn")
     LET = kw.keyword("let")
     LETFN = kw.keyword("letfn")
     LOOP = kw.keyword("loop")
+    THIS = kw.keyword("this")
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -250,13 +258,14 @@ class Await(Node[ReaderLispForm]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class Binding(Node[sym.Symbol]):
+class Binding(Node[sym.Symbol], Assignable):
     form: sym.Symbol
     name: str
     local: LocalType
     env: NodeEnv
     arg_id: Optional[int] = None
     is_variadic: bool = False
+    is_assignable: bool = False
     init: Optional[Node] = None
     meta: NodeMeta = None
     children: Collection[kw.Keyword] = vec.Vector.empty()
@@ -303,6 +312,25 @@ class Def(Node[SpecialForm]):
     meta: NodeMeta = None
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.DEF
+    top_level: bool = False
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
+
+
+DefTypeBase = Union["MaybeClass", "MaybeHostForm", "VarRef"]
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefType(Node[SpecialForm]):
+    form: SpecialForm
+    name: str
+    interfaces: Iterable[DefTypeBase]
+    fields: Iterable[Binding]
+    methods: Iterable["Method"]
+    env: NodeEnv
+    is_frozen: bool = True
+    meta: NodeMeta = None
+    children: Collection[kw.Keyword] = vec.v(FIELDS, METHODS)
+    op: NodeOp = NodeOp.DEFTYPE
     top_level: bool = False
     raw_forms: Collection[LispForm] = vec.Vector.empty()
 
@@ -492,6 +520,7 @@ class Map(Node[lmap.Map]):
 class MaybeClass(Node[sym.Symbol]):
     form: sym.Symbol
     class_: str
+    target: Any
     env: NodeEnv
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_CLASS
@@ -504,9 +533,26 @@ class MaybeHostForm(Node[sym.Symbol]):
     form: sym.Symbol
     class_: str
     field: str
+    target: Any
     env: NodeEnv
     children: Collection[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_HOST_FORM
+    top_level: bool = False
+    raw_forms: Collection[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class Method(Node[SpecialForm]):
+    form: SpecialForm
+    name: str
+    interface: DefTypeBase
+    this_local: Binding
+    loop_id: LoopID
+    params: Iterable[Binding]
+    body: Do
+    env: NodeEnv
+    children: Collection[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
+    op: NodeOp = NodeOp.METHOD
     top_level: bool = False
     raw_forms: Collection[LispForm] = vec.Vector.empty()
 
@@ -701,6 +747,7 @@ AnyNode = Union[ParentNode, ChildOnlyNode]
 SpecialFormNode = Union[
     Await,
     Def,
+    DefType,
     Do,
     Fn,
     If,

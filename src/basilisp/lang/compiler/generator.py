@@ -52,6 +52,7 @@ from basilisp.lang.compiler.nodes import (
     Const,
     ConstType,
     Def,
+    DefType,
     Do,
     Fn,
     FnMethod,
@@ -67,6 +68,7 @@ from basilisp.lang.compiler.nodes import (
     Map as MapNode,
     MaybeClass,
     MaybeHostForm,
+    Method,
     Node,
     NodeEnv,
     NodeOp,
@@ -163,6 +165,7 @@ class SymbolTable:
 
 class RecurType(Enum):
     FN = kw.keyword("fn")
+    METHOD = kw.keyword("method")
     LOOP = kw.keyword("loop")
 
 
@@ -176,7 +179,7 @@ class RecurPoint:
 
 
 class GeneratorContext:
-    __slots__ = ("_filename", "_opts", "_recur_points", "_st")
+    __slots__ = ("_filename", "_opts", "_recur_points", "_st", "_this")
 
     def __init__(
         self, filename: Optional[str] = None, opts: Optional[Dict[str, bool]] = None
@@ -185,6 +188,7 @@ class GeneratorContext:
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>")])
+        self._this: Deque[sym.Symbol] = collections.deque([])
 
         if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             for k, v in self._opts:
@@ -250,6 +254,16 @@ class GeneratorContext:
     def imports(self) -> lmap.Map:
         return self.current_ns.imports
 
+    @property
+    def current_this(self):
+        return self._this[-1]
+
+    @contextlib.contextmanager
+    def new_this(self, this: sym.Symbol):
+        self._this.append(this)
+        yield
+        self._this.pop()
+
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class GeneratedPyAST:
@@ -290,10 +304,13 @@ def _load_attr(name: str, ctx: ast.AST = ast.Load()) -> ast.Attribute:
 
     def attr_node(node, idx):
         if idx >= len(attrs):
+            node.ctx = ctx
             return node
-        return attr_node(ast.Attribute(value=node, attr=attrs[idx], ctx=ctx), idx + 1)
+        return attr_node(
+            ast.Attribute(value=node, attr=attrs[idx], ctx=ast.Load()), idx + 1
+        )
 
-    return attr_node(ast.Name(id=attrs[0], ctx=ctx), 1)
+    return attr_node(ast.Name(id=attrs[0], ctx=ast.Load()), 1)
 
 
 def _simple_ast_generator(gen_ast):
@@ -428,6 +445,8 @@ _NEW_UUID_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.uuid_from_str")
 _NEW_VEC_FN_NAME = _load_attr(f"{_VEC_ALIAS}.vector")
 _INTERN_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern")
 _FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
+_ATTR_CLASS_DECORATOR_NAME = _load_attr(f"attr.s")
+_ATTRIB_FIELD_FN_NAME = _load_attr(f"attr.ib")
 _COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
@@ -652,6 +671,113 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     )
 
 
+@_with_ast_loc
+def __deftype_method_to_py_ast(  # pylint: disable=too-many-branches
+    ctx: GeneratorContext, node: Method
+) -> GeneratedPyAST:
+    assert node.op == NodeOp.METHOD
+    method_name = munge(node.name)
+
+    with ctx.new_symbol_table(node.name), ctx.new_recur_point(
+        node.loop_id, RecurType.METHOD, is_variadic=False
+    ):
+        this_name = genname(munge(node.this_local.name))
+        this_sym = sym.symbol(node.this_local.name)
+        ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
+
+        with ctx.new_this(this_sym):
+            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+                ctx, node.params, node.body
+            )
+            return GeneratedPyAST(
+                node=ast.FunctionDef(
+                    name=method_name,
+                    args=ast.arguments(
+                        args=list(
+                            chain([ast.arg(arg=this_name, annotation=None)], fn_args)
+                        ),
+                        kwarg=None,
+                        vararg=varg,
+                        kwonlyargs=[],
+                        defaults=[],
+                        kw_defaults=[],
+                    ),
+                    body=fn_body_ast,
+                    decorator_list=list(
+                        chain(
+                            [_BASILISP_FN_FN_NAME],
+                            [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
+                        )
+                    ),
+                    returns=None,
+                )
+            )
+
+
+@_with_ast_loc
+def _deftype_to_py_ast(  # pylint: disable=too-many-branches
+    ctx: GeneratorContext, node: DefType
+) -> GeneratedPyAST:
+    """Return a Python AST Node for a `deftype*` expression."""
+    assert node.op == NodeOp.DEFTYPE
+    type_name = munge(node.name)
+    ctx.symbol_table.new_symbol(sym.symbol(node.name), type_name, LocalType.DEFTYPE)
+
+    bases = []
+    for base in node.interfaces:
+        base_node = gen_py_ast(ctx, base)
+        assert (
+            count(base_node.dependencies) == 0
+        ), "Class and host form nodes do not have dependencies"
+        bases.append(base_node.node)
+
+    decorator = ast.Call(
+        func=_ATTR_CLASS_DECORATOR_NAME,
+        args=[],
+        keywords=[
+            ast.keyword(arg="cmp", value=ast.NameConstant(False)),
+            ast.keyword(arg="frozen", value=ast.NameConstant(node.is_frozen)),
+            ast.keyword(arg="slots", value=ast.NameConstant(True)),
+        ],
+    )
+
+    with ctx.new_symbol_table(node.name):
+        type_nodes = []
+        for field in node.fields:
+            safe_field = munge(field.name)
+            type_nodes.append(
+                ast.Assign(
+                    targets=[ast.Name(id=safe_field, ctx=ast.Store())],
+                    value=ast.Call(func=_ATTRIB_FIELD_FN_NAME, args=[], keywords=[]),
+                )
+            )
+            ctx.symbol_table.new_symbol(sym.symbol(field.name), safe_field, field.local)
+
+        type_deps: List[ast.AST] = []
+        for method in node.methods:
+            type_ast = __deftype_method_to_py_ast(ctx, method)
+            type_nodes.append(type_ast.node)
+            type_deps.extend(type_ast.dependencies)
+
+        return GeneratedPyAST(
+            node=ast.Name(id=type_name, ctx=ast.Load()),
+            dependencies=list(
+                chain(
+                    type_deps,
+                    [
+                        ast.ClassDef(
+                            name=type_name,
+                            bases=bases,
+                            keywords=[],
+                            body=type_nodes,
+                            decorator_list=[decorator],
+                        )
+                    ],
+                )
+            ),
+        )
+
+
 @_with_ast_loc_deps
 def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     """Return a Python AST Node for a `do` expression."""
@@ -659,9 +785,7 @@ def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     assert not node.is_body
 
     body_ast = GeneratedPyAST.reduce(
-        *chain(
-            map(partial(gen_py_ast, ctx), node.statements), [gen_py_ast(ctx, node.ret)]
-        )
+        *map(partial(gen_py_ast, ctx), chain(node.statements, [node.ret]))
     )
 
     fn_body_ast: List[ast.AST] = []
@@ -688,9 +812,7 @@ def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     # TODO: investigate how to handle recur in node.ret
 
     return GeneratedPyAST.reduce(
-        *chain(
-            map(partial(gen_py_ast, ctx), node.statements), [gen_py_ast(ctx, node.ret)]
-        )
+        *map(partial(gen_py_ast, ctx), chain(node.statements, [node.ret]))
     )
 
 
@@ -1372,6 +1494,41 @@ def __fn_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     )
 
 
+@_with_ast_loc
+def __deftype_method_recur_to_py_ast(
+    ctx: GeneratorContext, node: Recur
+) -> GeneratedPyAST:
+    """Return a Python AST node for `recur` occurring inside a `deftype*` method."""
+    assert node.op == NodeOp.RECUR
+    recur_nodes: List[ast.AST] = []
+    recur_deps: List[ast.AST] = []
+    for expr in node.exprs:
+        expr_ast = gen_py_ast(ctx, expr)
+        recur_nodes.append(expr_ast.node)
+        recur_deps.extend(expr_ast.dependencies)
+
+    this_entry = ctx.symbol_table.find_symbol(ctx.current_this)
+    assert this_entry is not None, "Field type local must have this"
+
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_TRAMPOLINE_ARGS_FN_NAME,
+            args=list(
+                chain(
+                    [
+                        # For the moment at least, deftype methods cannot be variadic
+                        ast.NameConstant(False),
+                        ast.Name(id=this_entry.munged, ctx=ast.Load()),
+                    ],
+                    recur_nodes,
+                )  # type: ignore
+            ),
+            keywords=[],
+        ),
+        dependencies=recur_deps,
+    )
+
+
 @_with_ast_loc_deps
 def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     """Return a Python AST node for `recur` occurring inside a `loop`."""
@@ -1403,6 +1560,7 @@ def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST
 
 _RECUR_TYPE_HANDLER = {
     RecurType.FN: __fn_recur_to_py_ast,
+    RecurType.METHOD: __deftype_method_recur_to_py_ast,
     RecurType.LOOP: __loop_recur_to_py_ast,
 }
 
@@ -1444,15 +1602,12 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
     elif isinstance(target, VarRef):
         target_ast = _var_sym_to_py_ast(ctx, target, is_assigning=True)
-    elif isinstance(target, Local):  # pragma: no cover
-        # Local nodes cannot be assigned by any existing code, but the
-        # clojure.tools.analyzer.jvm AST adds additional specialized Java
-        # nodes to the base clojure.tools.analyzer AST spec which include
-        # assignable locals (such as fields in deftype forms). I'm going
-        # to keep this branch here for now since I suspect I'll eventually
-        # enrich the AST to include assignable locals.
-        safe_name = munge(target.name)
-        target_ast = GeneratedPyAST(node=ast.Name(id=safe_name, ctx=ast.Store()))
+    elif isinstance(target, Local):
+        target_ast = _local_sym_to_py_ast(ctx, target, is_assigning=True)
+    else:  # pragma: no cover
+        raise GeneratorException(
+            f"invalid set! target type {type(target)}", lisp_ast=target
+        )
 
     return GeneratedPyAST(
         node=ast.Name(id=val_temp_name, ctx=ast.Load()),
@@ -1596,11 +1751,22 @@ def _local_sym_to_py_ast(
     sym_entry = ctx.symbol_table.find_symbol(sym.symbol(node.name))
     assert sym_entry is not None
 
-    return GeneratedPyAST(
-        node=ast.Name(
-            id=sym_entry.munged, ctx=ast.Store() if is_assigning else ast.Load()
+    if node.local == LocalType.FIELD:
+        this_entry = ctx.symbol_table.find_symbol(ctx.current_this)
+        assert this_entry is not None, "Field type local must have this"
+
+        return GeneratedPyAST(
+            node=_load_attr(
+                f"{this_entry.munged}.{sym_entry.munged}",
+                ctx=ast.Store() if is_assigning else ast.Load(),
+            )
         )
-    )
+    else:
+        return GeneratedPyAST(
+            node=ast.Name(
+                id=sym_entry.munged, ctx=ast.Store() if is_assigning else ast.Load()
+            )
+        )
 
 
 def __var_find_to_py_ast(
@@ -2204,6 +2370,7 @@ _NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.AWAIT: _await_to_py_ast,
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,
+    NodeOp.DEFTYPE: _deftype_to_py_ast,
     NodeOp.DO: _do_to_py_ast,
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.HOST_CALL: _interop_call_to_py_ast,

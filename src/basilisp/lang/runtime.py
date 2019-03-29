@@ -53,6 +53,7 @@ _REDEF_META_KEY = kw.keyword("redef")
 _AWAIT = sym.symbol("await")
 _CATCH = sym.symbol("catch")
 _DEF = sym.symbol("def")
+_DEFTYPE = sym.symbol("deftype*")
 _DO = sym.symbol("do")
 _FINALLY = sym.symbol("finally")
 _FN = sym.symbol("fn*")
@@ -72,6 +73,7 @@ _SPECIAL_FORMS = lset.s(
     _AWAIT,
     _CATCH,
     _DEF,
+    _DEFTYPE,
     _DO,
     _FINALLY,
     _FN,
@@ -293,6 +295,7 @@ class Namespace:
             map(
                 sym.symbol,
                 [
+                    "attr",
                     "builtins",
                     "io",
                     "operator",
@@ -777,6 +780,23 @@ def apply(f, args):
         final.extend(s)
 
     return f(*final)
+
+
+def apply_kw(f, args):
+    """Apply function f to the arguments provided.
+    The last argument must always be coercible to a Mapping. Intermediate
+    arguments are not modified.
+    For example:
+        (apply builtins/dict {:a 1} {:b 2})   ;=> #py {:a 1 :b 2}
+        (apply builtins/dict {:a 1} {:a 2})   ;=> #py {:a 2}"""
+    final = list(args[:-1])
+
+    try:
+        last = args[-1]
+    except TypeError as e:
+        logger.debug("Ignored %s: %s", type(e).__name__, e)
+
+    return f(*final, **last)
 
 
 __nth_sentinel = object()
