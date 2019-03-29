@@ -524,6 +524,18 @@ class TestDefType:
             """
             )
 
+    def test_deftype_may_not_add_extra_methods_to_interface(self):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              collections.abc/Sized
+              (--len-- [this] 3)
+              (call [this] :called))
+            """
+            )
+
     def test_deftype_interface_may_implement_only_some_object_methods(self):
         Point = lcompile(
             """

@@ -780,7 +780,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
     return interfaces, list(chain.from_iterable(interface_methods.values()))
 
 
-def __assert_deftype_impls_are_abstract(
+def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
     interfaces: Iterable[DefTypeBase], methods: Iterable[Method]
 ) -> None:
     method_names = frozenset(munge(method.name) for method in methods)
@@ -802,12 +802,24 @@ def __assert_deftype_impls_are_abstract(
                 lisp_ast=interface,
             )
 
-        interface_methods: FrozenSet[str] = interface_type.__abstractmethods__
-        if not interface_methods.issubset(method_names):
-            missing_methods = "".join(interface_methods - method_names)
+        interface_method_names: FrozenSet[str] = interface_type.__abstractmethods__
+        if not interface_method_names.issubset(method_names):
+            missing_methods = ", ".join(interface_method_names - method_names)
             raise ParserException(
                 "deftype* definition missing interface methods for interface "
                 f"{interface.form}: {missing_methods}"
+            )
+
+        defined_interface_methods = frozenset(
+            munge(method.name) for method in methods if method.interface == interface
+        )
+        if defined_interface_methods - interface_method_names:
+            extra_methods = ", ".join(
+                defined_interface_methods - interface_method_names
+            )
+            raise ParserException(
+                "deftype* definition for interface includes methods not part of "
+                f"{interface.form}: {extra_methods}"
             )
 
 
