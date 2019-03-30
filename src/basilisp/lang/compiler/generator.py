@@ -419,15 +419,44 @@ def _is_redefable(v: Var) -> bool:
 #######################
 
 
+_ATOM_ALIAS = genname("atom")
+_ASSOC_ALIAS = genname("assoc")
+_COMPILER_ALIAS = genname("compiler")
+_DELAY_ALIAS = genname("delay")
+_EXC_ALIAS = genname("exc")
 _KW_ALIAS = genname("kw")
 _LIST_ALIAS = genname("llist")
 _MAP_ALIAS = genname("lmap")
+_MULTIFN_ALIAS = genname("multifn")
+_READER_ALIAS = genname("reader")
 _RUNTIME_ALIAS = genname("runtime")
+_SEQ_ALIAS = genname("seq")
 _SET_ALIAS = genname("lset")
 _SYM_ALIAS = genname("sym")
 _VEC_ALIAS = genname("vec")
 _VAR_ALIAS = genname("Var")
 _UTIL_ALIAS = genname("langutil")
+
+_MODULE_ALIASES = {
+    "builtins": None,
+    "basilisp.lang.atom": _ATOM_ALIAS,
+    "basilisp.lang.associative": _ASSOC_ALIAS,
+    "basilisp.lang.compiler": _COMPILER_ALIAS,
+    "basilisp.lang.delay": _DELAY_ALIAS,
+    "basilisp.lang.exception": _EXC_ALIAS,
+    "basilisp.lang.keyword": _KW_ALIAS,
+    "basilisp.lang.list": _LIST_ALIAS,
+    "basilisp.lang.map": _MAP_ALIAS,
+    "basilisp.lang.multifn": _MULTIFN_ALIAS,
+    "basilisp.lang.reader": _READER_ALIAS,
+    "basilisp.lang.runtime": _RUNTIME_ALIAS,
+    "basilisp.lang.seq": _SEQ_ALIAS,
+    "basilisp.lang.set": _SET_ALIAS,
+    "basilisp.lang.symbol": _SYM_ALIAS,
+    "basilisp.lang.vector": _VEC_ALIAS,
+    "basilisp.lang.util": _UTIL_ALIAS,
+}
+
 _NS_VAR_VALUE = f"{_NS_VAR}.value"
 
 _NS_VAR_NAME = _load_attr(f"{_NS_VAR_VALUE}.name")
@@ -1902,7 +1931,12 @@ def _maybe_class_to_py_ast(_: GeneratorContext, node: MaybeClass) -> GeneratedPy
     """Generate a Python AST node for accessing a potential Python module
     variable name."""
     assert node.op == NodeOp.MAYBE_CLASS
-    return GeneratedPyAST(node=ast.Name(id=node.class_, ctx=ast.Load()))
+    return GeneratedPyAST(
+        node=ast.Name(
+            id=Maybe(_MODULE_ALIASES.get(node.class_)).or_else_get(node.class_),
+            ctx=ast.Load(),
+        )
+    )
 
 
 @_with_ast_loc
@@ -1912,7 +1946,11 @@ def _maybe_host_form_to_py_ast(
     """Generate a Python AST node for accessing a potential Python module
     variable name with a namespace."""
     assert node.op == NodeOp.MAYBE_HOST_FORM
-    return GeneratedPyAST(node=_load_attr(f"{node.class_}.{node.field}"))
+    return GeneratedPyAST(
+        node=_load_attr(
+            f"{Maybe(_MODULE_ALIASES.get(node.class_)).or_else_get(node.class_)}.{node.field}"
+        )
+    )
 
 
 #########################
@@ -2426,22 +2464,10 @@ def gen_py_ast(ctx: GeneratorContext, lisp_ast: Node) -> GeneratedPyAST:
 #############################
 
 
-_MODULE_ALIASES = {
-    "builtins": None,
-    "basilisp.lang.keyword": _KW_ALIAS,
-    "basilisp.lang.list": _LIST_ALIAS,
-    "basilisp.lang.map": _MAP_ALIAS,
-    "basilisp.lang.runtime": _RUNTIME_ALIAS,
-    "basilisp.lang.set": _SET_ALIAS,
-    "basilisp.lang.symbol": _SYM_ALIAS,
-    "basilisp.lang.vector": _VEC_ALIAS,
-    "basilisp.lang.util": _UTIL_ALIAS,
-}
-
-
 def _module_imports(ctx: GeneratorContext) -> Iterable[ast.Import]:
     """Generate the Python Import AST node for importing all required
     language support modules."""
+    yield ast.Import(names=[ast.alias(name="basilisp", asname=None)])
     for imp in ctx.imports:
         name = imp.key.name
         alias = _MODULE_ALIASES.get(name, None)
