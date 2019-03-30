@@ -301,6 +301,7 @@ class Namespace:
                     "operator",
                     "sys",
                     "basilisp.lang.atom",
+                    "basilisp.lang.associative",
                     "basilisp.lang.compiler",
                     "basilisp.lang.delay",
                     "basilisp.lang.exception",
