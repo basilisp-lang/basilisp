@@ -2467,6 +2467,8 @@ def gen_py_ast(ctx: GeneratorContext, lisp_ast: Node) -> GeneratedPyAST:
 def _module_imports(ctx: GeneratorContext) -> Iterable[ast.Import]:
     """Generate the Python Import AST node for importing all required
     language support modules."""
+    # Yield `import basilisp` so code attempting to call fully qualified
+    # `basilisp.lang...` modules don't result in compiler errors
     yield ast.Import(names=[ast.alias(name="basilisp", asname=None)])
     for imp in ctx.imports:
         name = imp.key.name
