@@ -2,14 +2,17 @@ from builtins import map as pymap
 from collections import Sequence
 from typing import Optional  # noqa # pylint: disable=unused-import
 
-from pyrsistent import pmap, PMap
+from pyrsistent import PMap, pmap
 
 import basilisp.lang.vector as vec
-from basilisp.lang.associative import Associative
-from basilisp.lang.collection import Collection
-from basilisp.lang.meta import Meta
+from basilisp.lang.interfaces import (
+    IMeta,
+    IPersistentCollection,
+    IPersistentMap,
+    ISeqable,
+)
 from basilisp.lang.obj import LispObject, lrepr
-from basilisp.lang.seq import Seqable, sequence, Seq
+from basilisp.lang.seq import Seq, sequence
 from basilisp.util import partition
 
 
@@ -60,7 +63,7 @@ class MapEntry:
         return MapEntry(vec.vector(v))
 
 
-class Map(Associative, Collection, LispObject, Meta, Seqable):
+class Map(IPersistentCollection, IPersistentMap, LispObject, IMeta, ISeqable):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""
@@ -114,7 +117,7 @@ class Map(Associative, Collection, LispObject, Meta, Seqable):
     def meta(self) -> "Optional[Map]":
         return self._meta
 
-    def with_meta(self, meta: "Map") -> "Map":
+    def with_meta(self, meta: "IPersistentMap") -> "Map":
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return Map(self._inner, meta=new_meta)
 
@@ -130,9 +133,6 @@ class Map(Associative, Collection, LispObject, Meta, Seqable):
         return False
 
     def dissoc(self, *ks) -> "Map":
-        return self.discard(*ks)
-
-    def discard(self, *ks) -> "Map":
         m = self._inner.evolver()
         for k in ks:
             try:

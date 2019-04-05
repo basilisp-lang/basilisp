@@ -31,7 +31,6 @@ import attr
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as lmeta
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
@@ -87,6 +86,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
+from basilisp.lang.interfaces import IMeta
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
@@ -330,9 +330,10 @@ def _collection_ast(
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
 
 
-def _clean_meta(form: lmeta.Meta) -> LispForm:
+def _clean_meta(form: IMeta) -> LispForm:
     """Remove reader metadata from the form's meta map."""
-    meta = form.meta.discard(reader.READER_LINE_KW, reader.READER_COL_KW)
+    assert form.meta is not None, "Form must have non-null 'meta' attribute"
+    meta = form.meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
     if len(meta) == 0:
         return None
     return meta
@@ -420,10 +421,11 @@ def _is_redefable(v: Var) -> bool:
 
 
 _ATOM_ALIAS = genname("atom")
-_ASSOC_ALIAS = genname("assoc")
 _COMPILER_ALIAS = genname("compiler")
+_CORE_ALIAS = genname("core")
 _DELAY_ALIAS = genname("delay")
 _EXC_ALIAS = genname("exc")
+_INTERFACES_ALIAS = genname("interfaces")
 _KW_ALIAS = genname("kw")
 _LIST_ALIAS = genname("llist")
 _MAP_ALIAS = genname("lmap")
@@ -440,10 +442,11 @@ _UTIL_ALIAS = genname("langutil")
 _MODULE_ALIASES = {
     "builtins": None,
     "basilisp.lang.atom": _ATOM_ALIAS,
-    "basilisp.lang.associative": _ASSOC_ALIAS,
     "basilisp.lang.compiler": _COMPILER_ALIAS,
+    "basilisp.core": _CORE_ALIAS,
     "basilisp.lang.delay": _DELAY_ALIAS,
     "basilisp.lang.exception": _EXC_ALIAS,
+    "basilisp.lang.interfaces": _INTERFACES_ALIAS,
     "basilisp.lang.keyword": _KW_ALIAS,
     "basilisp.lang.list": _LIST_ALIAS,
     "basilisp.lang.map": _MAP_ALIAS,
@@ -708,7 +711,7 @@ def __deftype_method_to_py_ast(  # pylint: disable=too-many-branches
     method_name = munge(node.name)
 
     with ctx.new_symbol_table(node.name), ctx.new_recur_point(
-        node.loop_id, RecurType.METHOD, is_variadic=False
+        node.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
     ):
         this_name = genname(munge(node.this_local.name))
         this_sym = sym.symbol(node.this_local.name)
@@ -732,12 +735,9 @@ def __deftype_method_to_py_ast(  # pylint: disable=too-many-branches
                         kw_defaults=[],
                     ),
                     body=fn_body_ast,
-                    decorator_list=list(
-                        chain(
-                            [_BASILISP_FN_FN_NAME],
-                            [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
-                        )
-                    ),
+                    decorator_list=[_TRAMPOLINE_FN_NAME]
+                    if ctx.recur_point.has_recur
+                    else [],
                     returns=None,
                 )
             )
@@ -1545,8 +1545,7 @@ def __deftype_method_recur_to_py_ast(
             args=list(
                 chain(
                     [
-                        # For the moment at least, deftype methods cannot be variadic
-                        ast.NameConstant(False),
+                        ast.NameConstant(ctx.recur_point.is_variadic),
                         ast.Name(id=this_entry.munged, ctx=ast.Load()),
                     ],
                     recur_nodes,
@@ -2123,7 +2122,7 @@ def _with_meta_to_py_ast(
 
 
 def _const_meta_kwargs_ast(  # pylint:disable=inconsistent-return-statements
-    ctx: GeneratorContext, form: lmeta.Meta
+    ctx: GeneratorContext, form: IMeta
 ) -> Optional[GeneratedPyAST]:
     if hasattr(form, "meta") and form.meta is not None:
         genned = _const_val_to_py_ast(ctx, _clean_meta(form))

@@ -1,13 +1,14 @@
-from pyrsistent import plist, PList
+from typing import Optional, cast
+
+from pyrsistent import PList, plist
 from pyrsistent._plist import _EMPTY_PLIST
 
-from basilisp.lang.collection import Collection
-from basilisp.lang.meta import Meta
+from basilisp.lang.interfaces import IMeta, IPersistentList, IPersistentMap
 from basilisp.lang.obj import LispObject
-from basilisp.lang.seq import Seq, EMPTY
+from basilisp.lang.seq import EMPTY, Seq
 
 
-class List(Collection, Meta, Seq):
+class List(IPersistentList, IMeta, Seq):
     """Basilisp List. Delegates internally to a pyrsistent.PList object.
 
     Do not instantiate directly. Instead use the l() and list() factory
@@ -37,10 +38,10 @@ class List(Collection, Meta, Seq):
         return LispObject.seq_lrepr(self._inner, "(", ")", meta=self._meta, **kwargs)
 
     @property
-    def meta(self):
+    def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta) -> "List":
+    def with_meta(self, meta: IPersistentMap) -> "List":
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return list(self._inner, meta=new_meta)
 
@@ -70,6 +71,15 @@ class List(Collection, Meta, Seq):
     @staticmethod
     def empty(meta=None) -> "List":  # pylint:disable=arguments-differ
         return l(meta=meta)
+
+    def peek(self):
+        return self.first
+
+    def pop(self) -> "List":
+        rest = self.rest
+        if rest is EMPTY:
+            raise IndexError("Cannot pop an empty list")
+        return cast(List, rest)
 
 
 def list(members, meta=None) -> List:  # pylint:disable=redefined-builtin

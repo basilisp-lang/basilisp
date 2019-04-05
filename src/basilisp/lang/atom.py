@@ -1,13 +1,13 @@
-from typing import Generic, TypeVar, Callable
+from typing import Callable, Generic, TypeVar
 
 import atomos.atom
 
-from basilisp.lang.deref import Deref
+from basilisp.lang.interfaces import IDeref
 
 T = TypeVar("T")
 
 
-class Atom(Deref, Generic[T]):
+class Atom(IDeref, Generic[T]):
     __slots__ = ("_atom",)
 
     def __init__(self, state: T) -> None:

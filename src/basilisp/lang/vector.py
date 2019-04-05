@@ -1,13 +1,21 @@
+from typing import Iterable, Optional, TypeVar
+
 from pyrsistent import PVector, pvector
 
-from basilisp.lang.associative import Associative
-from basilisp.lang.collection import Collection
-from basilisp.lang.meta import Meta
+from basilisp.lang.interfaces import (
+    IMeta,
+    IPersistentMap,
+    IPersistentVector,
+    ISeq,
+    ISeqable,
+)
 from basilisp.lang.obj import LispObject
-from basilisp.lang.seq import Seqable, Seq, sequence
+from basilisp.lang.seq import sequence
+
+T = TypeVar("T")
 
 
-class Vector(Associative, Collection, LispObject, Meta, Seqable):
+class Vector(IPersistentVector[T], LispObject, IMeta, ISeqable):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""
@@ -47,17 +55,17 @@ class Vector(Associative, Collection, LispObject, Meta, Seqable):
     def meta(self):
         return self._meta
 
-    def with_meta(self, meta) -> "Vector":
+    def with_meta(self, meta) -> "Vector[T]":
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return vector(self._inner, meta=new_meta)
 
-    def cons(self, *elems) -> "Vector":
+    def cons(self, *elems: T) -> "Vector[T]":
         e = self._inner.evolver()
         for elem in elems:
             e.append(elem)
         return Vector(e.persistent(), meta=self.meta)
 
-    def assoc(self, *kvs):
+    def assoc(self, *kvs: T) -> "Vector[T]":
         return Vector(self._inner.mset(*kvs))
 
     def contains(self, k):
@@ -70,18 +78,26 @@ class Vector(Associative, Collection, LispObject, Meta, Seqable):
             return default
 
     @staticmethod
-    def empty() -> "Vector":
+    def empty() -> "Vector[T]":
         return v()
 
-    def seq(self) -> Seq:
+    def seq(self) -> ISeq:
         return sequence(self)
 
+    def peek(self):
+        return self[-1]
 
-def vector(members, meta=None) -> Vector:
+    def pop(self) -> "Vector[T]":
+        if len(self) == 0:
+            raise IndexError("Cannot pop an empty vector")
+        return self[:-1]
+
+
+def vector(members: Iterable[T], meta: Optional[IPersistentMap] = None) -> Vector[T]:
     """Creates a new vector."""
     return Vector(pvector(members), meta=meta)
 
 
-def v(*members, meta=None) -> Vector:
+def v(*members: T, meta: Optional[IPersistentMap] = None) -> Vector[T]:
     """Creates a new vector from members."""
     return Vector(pvector(members), meta=meta)

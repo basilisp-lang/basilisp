@@ -1,38 +1,18 @@
 import itertools
-from abc import ABC, abstractmethod
-from typing import Iterator, Optional, TypeVar, Iterable, Any, Callable
+from typing import Any, Callable, Iterable, Iterator, Optional, TypeVar
 
-from basilisp.lang.meta import Meta
+from basilisp.lang.interfaces import IMeta, ISeq
 from basilisp.lang.obj import LispObject
 from basilisp.util import Maybe
 
 T = TypeVar("T")
 
 
-class Seq(LispObject, Iterable[T]):
+class Seq(LispObject, ISeq[T]):
     __slots__ = ()
 
     def _lrepr(self, **kwargs):
         return LispObject.seq_lrepr(iter(self), "(", ")", **kwargs)
-
-    @property
-    @abstractmethod
-    def is_empty(self) -> bool:
-        raise NotImplementedError()
-
-    @property
-    @abstractmethod
-    def first(self) -> Optional[T]:
-        raise NotImplementedError()
-
-    @property
-    @abstractmethod
-    def rest(self) -> "Seq[T]":
-        raise NotImplementedError()
-
-    @abstractmethod
-    def cons(self, elem):
-        raise NotImplementedError()
 
     def __eq__(self, other):
         sentinel = object()
@@ -48,13 +28,6 @@ class Seq(LispObject, Iterable[T]):
         while o:
             yield o.first
             o = o.rest
-
-
-class Seqable(ABC, Iterable[T]):
-    __slots__ = ()
-
-    def seq(self) -> Seq[T]:
-        raise NotImplementedError()
 
 
 class _EmptySequence(Seq[T]):
@@ -83,7 +56,7 @@ class _EmptySequence(Seq[T]):
 EMPTY: Seq = _EmptySequence()
 
 
-class Cons(Seq, Meta):
+class Cons(Seq, IMeta):
     __slots__ = ("_first", "_rest", "_meta")
 
     def __init__(self, first=None, seq: Optional[Seq[Any]] = None, meta=None) -> None:

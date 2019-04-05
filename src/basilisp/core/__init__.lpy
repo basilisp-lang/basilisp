@@ -561,6 +561,16 @@
   [_]
   true)
 
+(defn hash
+  "Return the hash code for its argument."
+  [x]
+  (builtins/hash x))
+
+(defn identical?
+  "Return true if x and y are the same object, otherwise false."
+  [x y]
+  (operator/is_ x y))
+
 (defn =
   "Return true if x and y are equal, otherwise false."
   ([_] true)
@@ -2408,6 +2418,9 @@
 
     (method-name [arg1 arg2 ...] & body)
 
+  Unlike in Clojure, interface and protocol methods are permitted to
+  include variadic arguments.
+
   Type objects are created with sensible `object` defaults as by `attrs`.
   New types may override `object` defaults. An `__init__` function is
   automatically created which takes positional arguments matching the
@@ -2426,4 +2439,147 @@
        (deftype* ~type-name ~fields
          ~@method-impls)
        (def ~ctor-name ~type-name)
+       ~type-name)))
+
+(import* attr)
+
+(defn ^:private evolve
+  [rec & kwargs]
+  (->> (apply hash-map kwargs)
+       (apply-kw attr/evolve rec)))
+
+(defmacro defrecord
+  "Define a new Basilisp record.
+
+  The new record will have fields matching the names in `fields`. Fields may
+  be referred to unqualified in the bodies of implemented methods.
+
+  Interface or protocol implementations are declared as the name of the
+  interface or protocol as a symbol, followed by 1 or more method
+  definitions for that interface. Records are not required to declare
+  any interface implementations. Records which do declare interface
+  implementations are required to implement all interface methods. Failing
+  to implement all interface methods is a compile time error. Records
+  implementing `object` are not required to implement all `object` methods.
+
+  Method declarations should appear as:
+
+    (method-name [arg1 arg2 ...] & body)
+
+  Records objects are created with sensible `object` defaults as by `attrs`.
+  New records may override `object` defaults. An `__init__` function is
+  automatically created which takes positional arguments matching the
+  order of definition in `fields`. Additionally, given a name `NewRecord`,
+  a factory function will be created `->NewRecord` which can be used to
+  generate new instances of the record.
+
+  Methods must supply a `this` or `self` parameter. `recur` special forms
+  used in the body of a method should not include that parameter, as it
+  will be supplied automatically."
+  [type-name fields & method-impls]
+  (let [ctor-name     (with-meta
+                        (symbol (str "->" (name type-name)))
+                        (meta type-name))
+        map-ctor      (with-meta
+                        (symbol (str "map->" (name type-name)))
+                        (meta type-name))
+        record-fields (vec (concat ['meta '_recmap] fields))
+        field-kws     (->> fields (map (comp keyword name)))
+        field-kw-set  (set field-kws)
+
+        ;; We can use these gensyms repeatedly and interpolate them in
+        ;; multiple layers of syntax quoting, unlike gensyms using # syntax.
+        this-gs  (gensym "this")
+        other-gs (gensym "other")
+        key-gs   (gensym "k")]
+
+    (when (some #(#{:meta :_recmap} %) field-kws)
+      (throw
+       (ex-info "Reserved fields cannot be used for Record field names"
+                {:fields (.intersection #{:meta :_recmap} field-kw-set)})))
+
+    (when (some #(:mutable (meta %)) fields)
+      (throw
+       (ex-info "Mutable fields not permitted in Record types"
+                {:fields (filter #(:mutable (meta %)) fields)})))
+
+    `(do
+       (deftype* ~type-name ~record-fields
+         ~@method-impls
+
+         basilisp.lang.interfaces/IPersistentMap
+         (~'assoc [~this-gs ~'& args#]
+          (let [{fields# :fields map# :map} (->> (partition 2 args#)
+                                                 (group-by (fn [[k#]]
+                                                             (if (contains? ~field-kw-set k#)
+                                                               :fields
+                                                               :map))))
+
+                new-recmap# (when (seq map#)
+                              ["_recmap" (apply assoc ~'_recmap map#)])]
+            (->> fields#
+                 (map (fn [[k# v#]] [(name k#) v#]))
+                 (concat new-recmap#)
+                 (mapcat identity)
+                 (apply evolve ~this-gs))))
+         (~'dissoc [~this-gs ~'& ks]
+          nil)
+         (~'contains [~this-gs ~key-gs]
+          (or (~field-kw-set ~key-gs)
+              (contains? ~'_recmap ~key-gs)))
+         (~'entry [~this-gs ~key-gs ~'& args#]
+          (let [[default#] args#]
+            (cond
+              (contains? ~field-kw-set ~key-gs)
+              (builtins/getattr ~this-gs (name ~key-gs))
+
+              (contains? ~'_recmap ~key-gs)
+              (get ~'_recmap ~key-gs default#))))
+         (~'__getitem__ [~this-gs ~key-gs]
+          (. ~this-gs ~'entry ~key-gs))
+         (~'__iter__ [~this-gs]
+          (concat
+           [~@(map (fn [field]
+                     [(keyword (name field)) field])
+                   fields)]
+           (seq ~'_recmap)))
+         (~'__len__ [~this-gs]
+          (+ ~(count field-kw-set)
+             (count ~'_recmap)))
+
+         basilisp.lang.interfaces/IMeta
+         (~'with-meta [~this-gs new-meta#]
+          (->> (merge ~'meta new-meta#)
+               (evolve ~this-gs "meta")))
+
+         builtins/object
+         (~'__eq__ [~this-gs ~other-gs]
+          (or (identical? ~this-gs ~other-gs)
+              (= [~@fields
+                  ~'_recmap]
+                 [~@(map (fn [field]
+                           `(.- ~other-gs ~field))
+                         fields)
+                  (.- ~other-gs ~'_recmap)])))
+         (~'__hash__ [~this-gs]
+          (hash [~@fields ~'_recmap])))
+
+       (defn ~ctor-name
+         ~(str
+           "Create a new instance of the record " type-name ".")
+         ~fields
+         (~type-name nil {} ~@fields))
+
+       (defn ~map-ctor
+         ~(str
+           "Create a new instance of the record " type-name " from a "
+           "map whose keys correspond to the fields of " type-name ".")
+         [m#]
+         (apply ~type-name
+                nil
+                {}
+                (map (fn [field-kw#]
+                       (get m# field-kw#))
+                     [~@field-kws])))
+
        ~type-name)))

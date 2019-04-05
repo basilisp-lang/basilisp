@@ -11,9 +11,6 @@ import types
 from fractions import Fraction
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
-import basilisp.lang.associative as lassoc
-import basilisp.lang.collection as lcoll
-import basilisp.lang.deref as lderef
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
@@ -23,6 +20,13 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang import atom
+from basilisp.lang.interfaces import (
+    IAssociative,
+    IDeref,
+    IPersistentCollection,
+    ISeq,
+    ISeqable,
+)
 from basilisp.lang.typing import LispNumber
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
@@ -301,10 +305,10 @@ class Namespace:
                     "operator",
                     "sys",
                     "basilisp.lang.atom",
-                    "basilisp.lang.associative",
                     "basilisp.lang.compiler",
                     "basilisp.lang.delay",
                     "basilisp.lang.exception",
+                    "basilisp.lang.interfaces",
                     "basilisp.lang.keyword",
                     "basilisp.lang.list",
                     "basilisp.lang.map",
@@ -553,7 +557,7 @@ class Namespace:
             ns: Optional[Namespace] = oldval.entry(name, None)
             newval = oldval
             if ns is not None:
-                newval = oldval.discard(name)
+                newval = oldval.dissoc(name)
             if cls._NAMESPACES.compare_and_set(oldval, newval):
                 return ns
 
@@ -666,11 +670,11 @@ class Namespace:
 
 
 def first(o):
-    """If o is a Seq, return the first element from o. If o is None, return
+    """If o is a ISeq, return the first element from o. If o is None, return
     None. Otherwise, coerces o to a Seq and returns the first."""
     if o is None:
         return None
-    if isinstance(o, lseq.Seq):
+    if isinstance(o, ISeq):
         return o.first
     s = to_seq(o)
     if s is None:
@@ -678,12 +682,12 @@ def first(o):
     return s.first
 
 
-def rest(o) -> Optional[lseq.Seq]:
-    """If o is a Seq, return the elements after the first in o. If o is None,
+def rest(o) -> Optional[ISeq]:
+    """If o is a ISeq, return the elements after the first in o. If o is None,
     returns an empty seq. Otherwise, coerces o to a seq and returns the rest."""
     if o is None:
         return None
-    if isinstance(o, lseq.Seq):
+    if isinstance(o, ISeq):
         s = o.rest
         if s is None:
             return lseq.EMPTY
@@ -705,7 +709,7 @@ def nthrest(coll, i: int):
         coll = rest(coll)
 
 
-def next_(o) -> Optional[lseq.Seq]:
+def next_(o) -> Optional[ISeq]:
     """Calls rest on o. If o returns an empty sequence or None, returns None.
     Otherwise, returns the elements after the first in o."""
     s = rest(o)
@@ -714,7 +718,7 @@ def next_(o) -> Optional[lseq.Seq]:
     return s
 
 
-def nthnext(coll, i: int) -> Optional[lseq.Seq]:
+def nthnext(coll, i: int) -> Optional[ISeq]:
     """Returns the nth next sequence of coll."""
     while True:
         if coll is None:
@@ -725,37 +729,37 @@ def nthnext(coll, i: int) -> Optional[lseq.Seq]:
         coll = next_(coll)
 
 
-def cons(o, seq) -> lseq.Seq:
+def cons(o, seq) -> ISeq:
     """Creates a new sequence where o is the first element and seq is the rest.
-    If seq is None, return a list containing o. If seq is not a Seq, attempt
-    to coerce it to a Seq and then cons o onto the resulting sequence."""
+    If seq is None, return a list containing o. If seq is not a ISeq, attempt
+    to coerce it to a ISeq and then cons o onto the resulting sequence."""
     if seq is None:
         return llist.l(o)
-    if isinstance(seq, lseq.Seq):
+    if isinstance(seq, ISeq):
         return seq.cons(o)
     return Maybe(to_seq(seq)).map(lambda s: s.cons(o)).or_else(lambda: llist.l(o))
 
 
-def _seq_or_nil(s: lseq.Seq) -> Optional[lseq.Seq]:
-    """Return None if a Seq is empty, the Seq otherwise."""
+def _seq_or_nil(s: ISeq) -> Optional[ISeq]:
+    """Return None if a ISeq is empty, the ISeq otherwise."""
     if s.is_empty:
         return None
     return s
 
 
-def to_seq(o) -> Optional[lseq.Seq]:
-    """Coerce the argument o to a Seq. If o is None, return None."""
+def to_seq(o) -> Optional[ISeq]:
+    """Coerce the argument o to a ISeq. If o is None, return None."""
     if o is None:
         return None
-    if isinstance(o, lseq.Seq):
+    if isinstance(o, ISeq):
         return _seq_or_nil(o)
-    if isinstance(o, lseq.Seqable):
+    if isinstance(o, ISeqable):
         return _seq_or_nil(o.seq())
     return _seq_or_nil(lseq.sequence(o))
 
 
-def concat(*seqs) -> lseq.Seq:
-    """Concatenate the sequences given by seqs into a single Seq."""
+def concat(*seqs) -> ISeq:
+    """Concatenate the sequences given by seqs into a single ISeq."""
     allseqs = lseq.sequence(itertools.chain(*filter(None, map(to_seq, seqs))))
     if allseqs is None:
         return lseq.EMPTY
@@ -839,7 +843,7 @@ def assoc(m, *kvs):
     returns a new Map with key-values kvs."""
     if m is None:
         return lmap.Map.empty().assoc(*kvs)
-    if isinstance(m, lassoc.Associative):
+    if isinstance(m, IAssociative):
         return m.assoc(*kvs)
     raise TypeError(
         f"Object of type {type(m)} does not implement Associative interface"
@@ -852,7 +856,7 @@ def update(m, k, f, *args):
     None."""
     if m is None:
         return lmap.Map.empty().assoc(k, f(None, *args))
-    if isinstance(m, lassoc.Associative):
+    if isinstance(m, IAssociative):
         old_v = m.entry(k)
         new_v = f(old_v, *args)
         return m.assoc(k, new_v)
@@ -868,7 +872,7 @@ def conj(coll, *xs):
     if coll is None:
         l = llist.List.empty()
         return l.cons(*xs)
-    if isinstance(coll, lcoll.Collection):
+    if isinstance(coll, IPersistentCollection):
         return coll.cons(*xs)
     raise TypeError(
         f"Object of type {type(coll)} does not implement Collection interface"
@@ -887,7 +891,7 @@ def partial(f, *args):
 
 def deref(o):
     """Dereference a Deref object and return its contents."""
-    if isinstance(o, lderef.Deref):
+    if isinstance(o, IDeref):
         return o.deref()
     raise TypeError(f"Object of type {type(o)} cannot be dereferenced")
 
@@ -921,7 +925,7 @@ def quotient(num, div) -> LispNumber:
     return math.trunc(num / div)
 
 
-def sort(coll, f=None) -> Optional[lseq.Seq]:
+def sort(coll, f=None) -> Optional[ISeq]:
     """Return a sorted sequence of the elements in coll. If a comparator
     function f is provided, compare elements in coll using f."""
     return to_seq(sorted(coll, key=Maybe(f).map(functools.cmp_to_key).value))
@@ -929,14 +933,14 @@ def sort(coll, f=None) -> Optional[lseq.Seq]:
 
 def contains(coll, k):
     """Return true if o contains the key k."""
-    if isinstance(coll, lassoc.Associative):
+    if isinstance(coll, IAssociative):
         return coll.contains(k)
     return k in coll
 
 
 def get(m, k, default=None):
     """Return the value of k in m. Return default if k not found in m."""
-    if isinstance(m, lassoc.Associative):
+    if isinstance(m, IAssociative):
         return m.entry(k, default=default)
 
     try:

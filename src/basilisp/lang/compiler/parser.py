@@ -30,10 +30,10 @@ from typing import (
 
 import attr
 
+import basilisp.lang.interfaces
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as lmeta
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
@@ -403,7 +403,7 @@ class ParserContext:
         return NodeEnv(ns=self.current_ns, file=self.filename)
 
 
-def _is_async(o: lmeta.Meta) -> bool:
+def _is_async(o: basilisp.lang.interfaces.IMeta) -> bool:
     """Return True if the meta contains :async keyword."""
     return (
         Maybe(o.meta)
@@ -458,7 +458,7 @@ def _clean_meta(meta: Optional[lmap.Map]) -> Optional[lmap.Map]:
     if meta is None:
         return None
     else:
-        new_meta = meta.discard(reader.READER_LINE_KW, reader.READER_COL_KW)
+        new_meta = meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
         return None if len(new_meta) == 0 else new_meta
 
 
@@ -635,7 +635,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
 
 
 def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: ParserContext, form: lseq.Seq, interface: DefTypeBase
+    ctx: ParserContext, form: Union[llist.List, lseq.Seq], interface: DefTypeBase
 ) -> Method:
     if not isinstance(form.first, sym.Symbol):
         raise ParserException(
@@ -667,13 +667,21 @@ def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
             local=LocalType.THIS,
             env=ctx.get_node_env(),
         )
+        ctx.put_new_symbol(this_arg, this_binding)
 
+    params = args[1:]
+    has_vargs, vargs_idx = False, 0
     param_nodes = []
-    for i, s in enumerate(runtime.nthrest(args, 1)):
+    for i, s in enumerate(params):
         if not isinstance(s, sym.Symbol):
             raise ParserException(
                 "deftype* method parameter name must be a symbol", form=s
             )
+
+        if s == AMPERSAND:
+            has_vargs = True
+            vargs_idx = i
+            break
 
         binding = Binding(
             form=s,
@@ -685,6 +693,31 @@ def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
         )
         param_nodes.append(binding)
         ctx.put_new_symbol(s, binding)
+
+    if has_vargs:
+        try:
+            vargs_sym = params[vargs_idx + 1]
+
+            if not isinstance(vargs_sym, sym.Symbol):
+                raise ParserException(
+                    "deftype* method rest parameter name must be a symbol",
+                    form=vargs_sym,
+                )
+
+            binding = Binding(
+                form=vargs_sym,
+                name=vargs_sym.name,
+                local=LocalType.ARG,
+                arg_id=vargs_idx + 1,
+                is_variadic=True,
+                env=ctx.get_node_env(),
+            )
+            param_nodes.append(binding)
+            ctx.put_new_symbol(vargs_sym, binding)
+        except IndexError:
+            raise ParserException(
+                "Expected variadic argument name after '&'", form=params
+            ) from None
 
     loop_id = genname(method_name)
     with ctx.new_recur_point(loop_id, param_nodes):
@@ -700,6 +733,7 @@ def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
             interface=interface,
             this_local=this_binding,
             params=vec.vector(param_nodes),
+            is_variadic=has_vargs,
             body=Do(
                 form=form.rest,
                 statements=vec.vector(stmts),
@@ -781,8 +815,9 @@ def __deftype_impls(  # pylint: disable=too-many-branches
 
 
 def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
-    interfaces: Iterable[DefTypeBase], methods: Iterable[Method]
+    fields: Iterable[str], interfaces: Iterable[DefTypeBase], methods: Iterable[Method]
 ) -> None:
+    field_names = frozenset(fields)
     method_names = frozenset(munge(method.name) for method in methods)
     for interface in interfaces:
         if isinstance(interface, (MaybeClass, MaybeHostForm)):
@@ -802,21 +837,31 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
                 lisp_ast=interface,
             )
 
-        interface_method_names: FrozenSet[str] = interface_type.__abstractmethods__
+        interface_names: FrozenSet[str] = interface_type.__abstractmethods__
+        interface_property_names: FrozenSet[str] = frozenset(
+            method
+            for method in interface_names
+            if isinstance(getattr(interface_type, method), property)
+        )
+        interface_method_names = interface_names - interface_property_names
         if not interface_method_names.issubset(method_names):
             missing_methods = ", ".join(interface_method_names - method_names)
             raise ParserException(
                 "deftype* definition missing interface methods for interface "
                 f"{interface.form}: {missing_methods}"
             )
+        elif not interface_property_names.issubset(field_names):
+            missing_fields = ", ".join(interface_property_names - field_names)
+            raise ParserException(
+                "deftype* definition missing interface properties for interface "
+                f"{interface.form}: {missing_fields}"
+            )
 
         defined_interface_methods = frozenset(
             munge(method.name) for method in methods if method.interface == interface
         )
-        if defined_interface_methods - interface_method_names:
-            extra_methods = ", ".join(
-                defined_interface_methods - interface_method_names
-            )
+        if defined_interface_methods - interface_names:
+            extra_methods = ", ".join(defined_interface_methods - interface_names)
             raise ParserException(
                 "deftype* definition for interface includes methods not part of "
                 f"{interface.form}: {extra_methods}"
@@ -880,7 +925,9 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             ctx.put_new_symbol(field, binding, warn_if_unused=False)
 
         interfaces, methods = __deftype_impls(ctx, runtime.nthrest(form, 3))
-        __assert_deftype_impls_are_abstract(interfaces, methods)
+        __assert_deftype_impls_are_abstract(
+            map(lambda f: f.name, fields), interfaces, methods
+        )
         return DefType(
             form=form,
             name=name.name,
@@ -1012,14 +1059,18 @@ def _fn_ast(  # pylint: disable=too-many-branches
             )
             assert name_node is not None
             is_async = (
-                _is_async(name) or isinstance(form, lmeta.Meta) and _is_async(form)
+                _is_async(name)
+                or isinstance(form, basilisp.lang.interfaces.IMeta)
+                and _is_async(form)
             )
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
         elif isinstance(name, (llist.List, vec.Vector)):
             name = None
             name_node = None
-            is_async = isinstance(form, lmeta.Meta) and _is_async(form)
+            is_async = isinstance(form, basilisp.lang.interfaces.IMeta) and _is_async(
+                form
+            )
         else:
             raise ParserException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",

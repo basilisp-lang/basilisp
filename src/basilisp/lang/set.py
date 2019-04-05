@@ -2,14 +2,13 @@ from typing import Optional
 
 from pyrsistent import PSet, pset
 
-from basilisp.lang.collection import Collection
+from basilisp.lang.interfaces import IMeta, IPersistentMap, IPersistentSet, ISeqable
 from basilisp.lang.map import Map
-from basilisp.lang.meta import Meta
 from basilisp.lang.obj import LispObject
-from basilisp.lang.seq import Seqable, Seq, sequence
+from basilisp.lang.seq import Seq, sequence
 
 
-class Set(Collection, LispObject, Meta, Seqable):
+class Set(IPersistentSet, LispObject, IMeta, ISeqable):
     """Basilisp Set. Delegates internally to a pyrsistent.PSet object.
 
     Do not instantiate directly. Instead use the s() and set() factory
@@ -93,7 +92,7 @@ class Set(Collection, LispObject, Meta, Seqable):
     def meta(self) -> Optional[Map]:
         return self._meta
 
-    def with_meta(self, meta: Map) -> "Set":
+    def with_meta(self, meta: IPersistentMap) -> "Set":
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return set(self._inner, meta=new_meta)
 

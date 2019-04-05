@@ -2,12 +2,12 @@ from typing import Callable, TypeVar
 
 import basilisp.lang.atom as atom
 import basilisp.lang.map as lmap
-from basilisp.lang.deref import Deref
+from basilisp.lang.interfaces import IDeref
 
 T = TypeVar("T")
 
 
-class Delay(Deref[T]):
+class Delay(IDeref[T]):
     __slots__ = ("_state",)
 
     def __init__(self, f: Callable[[], T]) -> None:

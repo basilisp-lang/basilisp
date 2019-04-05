@@ -1,31 +1,36 @@
-import basilisp.lang.associative as lassoc
-import basilisp.lang.collection as lcoll
+from typing import Collection
+
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as meta
-import basilisp.lang.seq as lseq
 import basilisp.lang.vector as vector
+from basilisp.lang.interfaces import (
+    IAssociative,
+    IMeta,
+    IPersistentCollection,
+    ISeqable,
+)
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
 
 
 def test_vector_associative_interface():
-    assert isinstance(vector.v(), lassoc.Associative)
-    assert issubclass(vector.Vector, lassoc.Associative)
+    assert isinstance(vector.v(), IAssociative)
+    assert issubclass(vector.Vector, IAssociative)
 
 
 def test_list_collection_interface():
-    assert isinstance(vector.v(), lcoll.Collection)
-    assert issubclass(vector.Vector, lcoll.Collection)
+    assert isinstance(vector.v(), IPersistentCollection)
+    assert issubclass(vector.Vector, IPersistentCollection)
 
 
 def test_vector_meta_interface():
-    assert isinstance(vector.v(), meta.Meta)
-    assert issubclass(vector.Vector, meta.Meta)
+    assert isinstance(vector.v(), IMeta)
+    assert issubclass(vector.Vector, IMeta)
 
 
 def test_vector_seqable_interface():
-    assert isinstance(vector.v(), lseq.Seqable)
-    assert issubclass(vector.Vector, lseq.Seqable)
+    assert isinstance(vector.v(), ISeqable)
+    assert issubclass(vector.Vector, ISeqable)
+    assert issubclass(vector.Vector, Collection)
 
 
 def test_vector_slice():
@@ -81,6 +86,14 @@ def test_entry():
     assert None is vector.Vector.empty().entry(0)
     assert None is vector.Vector.empty().entry(1)
     assert None is vector.Vector.empty().entry(-1)
+
+
+def test_peek():
+    pass
+
+
+def test_pop():
+    pass
 
 
 def test_vector_meta():

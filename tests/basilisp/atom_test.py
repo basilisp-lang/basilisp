@@ -1,12 +1,12 @@
 import basilisp.lang.atom as atom
-import basilisp.lang.deref as lderef
+import basilisp.lang.interfaces
 import basilisp.lang.map as lmap
 import basilisp.lang.vector as vec
 
 
 def test_atom_deref_interface():
-    assert isinstance(atom.Atom(1), lderef.Deref)
-    assert issubclass(atom.Atom, lderef.Deref)
+    assert isinstance(atom.Atom(1), basilisp.lang.interfaces.IDeref)
+    assert issubclass(atom.Atom, basilisp.lang.interfaces.IDeref)
 
 
 def test_atom():

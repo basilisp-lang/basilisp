@@ -8,20 +8,20 @@ import uuid
 from datetime import datetime
 from fractions import Fraction
 from typing import (
-    Deque,
-    List,
-    Tuple,
-    Optional,
-    Collection,
-    Callable,
     Any,
-    Union,
-    MutableMapping,
-    Pattern,
-    Iterable,
-    TypeVar,
-    cast,
+    Callable,
+    Collection,
+    Deque,
     Dict,
+    Iterable,
+    List,
+    MutableMapping,
+    Optional,
+    Pattern,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
 )
 
 from functional import seq
@@ -29,13 +29,13 @@ from functional import seq
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as lmeta
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vector
 import basilisp.walker as walk
-from basilisp.lang.typing import LispForm, IterableLispForm, ReaderForm
+from basilisp.lang.interfaces import IMeta
+from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|\.")
@@ -634,7 +634,7 @@ def _read_kw(ctx: ReaderContext) -> keyword.Keyword:
     return keyword.keyword(name, ns=ns)
 
 
-def _read_meta(ctx: ReaderContext) -> lmeta.Meta:
+def _read_meta(ctx: ReaderContext) -> IMeta:
     """Read metadata and apply that to the next object in the
     input stream."""
     start = ctx.reader.advance()

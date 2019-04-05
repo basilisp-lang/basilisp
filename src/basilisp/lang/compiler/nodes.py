@@ -20,6 +20,7 @@ import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+from basilisp.lang.interfaces import IPersistentVector
 from basilisp.lang.runtime import Namespace, Var, to_lisp
 from basilisp.lang.typing import LispForm, ReaderForm as ReaderLispForm, SpecialForm
 from basilisp.lang.util import munge
@@ -108,12 +109,12 @@ class Node(ABC, Generic[T]):
 
     @property
     @abstractmethod
-    def children(self) -> Collection[kw.Keyword]:
+    def children(self) -> IPersistentVector[kw.Keyword]:
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def raw_forms(self) -> Collection[LispForm]:
+    def raw_forms(self) -> IPersistentVector[LispForm]:
         raise NotImplementedError()
 
     @property
@@ -549,6 +550,7 @@ class Method(Node[SpecialForm]):
     this_local: Binding
     loop_id: LoopID
     params: Iterable[Binding]
+    is_variadic: bool
     body: Do
     env: NodeEnv
     children: Collection[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
