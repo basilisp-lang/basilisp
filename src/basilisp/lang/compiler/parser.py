@@ -406,18 +406,14 @@ class ParserContext:
 def _is_async(o: basilisp.lang.interfaces.IMeta) -> bool:
     """Return True if the meta contains :async keyword."""
     return (
-        Maybe(o.meta)
-        .map(lambda m: m.get(SYM_ASYNC_META_KEY, None))  # type: ignore
-        .or_else_get(False)
+        Maybe(o.meta).map(lambda m: m.get(SYM_ASYNC_META_KEY, None)).or_else_get(False)
     )
 
 
 def _is_macro(v: Var) -> bool:
     """Return True if the Var holds a macro function."""
     return (
-        Maybe(v.meta)
-        .map(lambda m: m.get(SYM_MACRO_META_KEY, None))  # type: ignore
-        .or_else_get(False)
+        Maybe(v.meta).map(lambda m: m.get(SYM_MACRO_META_KEY, None)).or_else_get(False)
     )
 
 
@@ -470,15 +466,18 @@ def _with_meta(gen_node):
     function expressions."""
 
     @wraps(gen_node)
-    def with_meta(ctx: ParserContext, form: lmap.Map) -> Node:
+    def with_meta(
+        ctx: ParserContext,
+        form: Union[llist.List, lmap.Map, lseq.Seq, lset.Set, vec.Vector],
+    ) -> Node:
         assert not ctx.is_quoted, "with-meta nodes are not used in quoted expressions"
 
         descriptor = gen_node(ctx, form)
 
-        if hasattr(form, "meta"):  # type: ignore
+        if hasattr(form, "meta"):
             form_meta = _clean_meta(form.meta)
             if form_meta is not None:
-                meta_ast = _parse_ast(ctx, form_meta)  # type: ignore
+                meta_ast = _parse_ast(ctx, form_meta)
                 assert isinstance(meta_ast, MapNode) or (
                     isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP
                 )
@@ -2009,7 +2008,7 @@ def _vector_node(ctx: ParserContext, form: vec.Vector) -> VectorNode:
     )
 
 
-_CONST_NODE_TYPES = {  # type: ignore
+_CONST_NODE_TYPES = {
     bool: ConstType.BOOL,
     complex: ConstType.NUMBER,
     datetime: ConstType.INST,
@@ -2077,7 +2076,7 @@ def _const_node(ctx: ParserContext, form: ReaderForm) -> Const:
         env=ctx.get_node_env(),
     )
 
-    if hasattr(form, "meta"):  # type: ignore
+    if hasattr(form, "meta"):
         form_meta = _clean_meta(form.meta)  # type: ignore
         if form_meta is not None:
             meta_ast = _const_node(ctx, form_meta)

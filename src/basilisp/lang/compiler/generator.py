@@ -345,14 +345,14 @@ def _ast_with_loc(
     """Hydrate Generated Python AST nodes with line numbers and column offsets
     if they exist in the node environment."""
     if env.line is not None:
-        py_ast.node.lineno = env.line  # type: ignore
+        py_ast.node.lineno = env.line
 
         if include_dependencies:
             for dep in py_ast.dependencies:
                 dep.lineno = env.line
 
     if env.col is not None:
-        py_ast.node.col_offset = env.col  # type: ignore
+        py_ast.node.col_offset = env.col
 
         if include_dependencies:
             for dep in py_ast.dependencies:
@@ -500,7 +500,7 @@ def statementize(e: ast.AST) -> ast.AST:
         e,
         (
             ast.Assign,
-            ast.AnnAssign,  # type: ignore
+            ast.AnnAssign,
             ast.AugAssign,
             ast.Expr,
             ast.Raise,
@@ -697,7 +697,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
                     if meta_ast is None
                     else [ast.keyword(arg="meta", value=meta_ast.node)],
                 )
-            ),  # type: ignore
+            ),
         ),
         dependencies=def_dependencies,
     )
@@ -1513,9 +1513,7 @@ def __fn_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
         node=ast.Call(
             func=_TRAMPOLINE_ARGS_FN_NAME,
             args=list(
-                chain(
-                    [ast.NameConstant(ctx.recur_point.is_variadic)], recur_nodes
-                )  # type: ignore
+                chain([ast.NameConstant(ctx.recur_point.is_variadic)], recur_nodes)
             ),
             keywords=[],
         ),
@@ -1549,7 +1547,7 @@ def __deftype_method_recur_to_py_ast(
                         ast.Name(id=this_entry.munged, ctx=ast.Load()),
                     ],
                     recur_nodes,
-                )  # type: ignore
+                )
             ),
             keywords=[],
         ),
@@ -2095,7 +2093,7 @@ def _py_tuple_to_py_ast(ctx: GeneratorContext, node: PyTuple) -> GeneratedPyAST:
 ############
 
 
-_WITH_META_EXPR_HANDLER = {  # type: ignore
+_WITH_META_EXPR_HANDLER = {
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
@@ -2113,7 +2111,7 @@ def _with_meta_to_py_ast(
     assert (
         handle_expr is not None
     ), "No expression handler for with-meta child node type"
-    return handle_expr(ctx, node.expr, meta_node=node.meta, **kwargs)  # type: ignore
+    return handle_expr(ctx, node.expr, meta_node=node.meta, **kwargs)
 
 
 #################

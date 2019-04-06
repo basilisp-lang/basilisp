@@ -7,7 +7,7 @@ import os.path
 import sys
 import types
 from importlib.abc import MetaPathFinder, SourceLoader
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
 
 import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
@@ -92,7 +92,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
     Python."""
 
     def __init__(self):
-        self._cache = {}
+        self._cache: Dict[str, dict] = {}
 
     def find_spec(
         self,

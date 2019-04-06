@@ -917,7 +917,7 @@ def divide(x: LispNumber, y: LispNumber) -> LispNumber:
     Otherwise, return the true division of x and y."""
     if isinstance(x, int) and isinstance(y, int):
         return Fraction(x, y)
-    return x / y  # type: ignore
+    return x / y
 
 
 def quotient(num, div) -> LispNumber:
