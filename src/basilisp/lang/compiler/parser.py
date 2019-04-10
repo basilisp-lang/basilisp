@@ -20,6 +20,7 @@ from typing import (
     FrozenSet,
     Iterable,
     List,
+    Mapping,
     Optional,
     Pattern,
     Set,
@@ -30,13 +31,11 @@ from typing import (
 
 import attr
 
-import basilisp.lang.interfaces
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
-import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
@@ -104,6 +103,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
+from basilisp.lang.interfaces import IMeta, ISeq
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm, ReaderForm
 from basilisp.lang.util import count, genname, munge
@@ -224,7 +224,9 @@ class SymbolTable:
             if entry.warn_if_unused and not entry.used:
                 code_loc = (
                     Maybe(entry.symbol.meta)
-                    .map(lambda m: f": {m.entry(reader.READER_LINE_KW)}")
+                    .map(
+                        lambda m: f": {m.entry(reader.READER_LINE_KW)}"  # type: ignore
+                    )
                     .or_else_get("")
                 )
                 logger.warning(
@@ -272,12 +274,14 @@ class ParserContext:
     )
 
     def __init__(
-        self, filename: Optional[str] = None, opts: Optional[Dict[str, bool]] = None
+        self, filename: Optional[str] = None, opts: Optional[Mapping[str, bool]] = None
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._func_ctx: Deque[bool] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
-        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.Map.empty())
+        self._opts = (
+            Maybe(opts).map(lmap.map).or_else_get(lmap.Map.empty())  # type: ignore
+        )
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>")])
 
@@ -403,24 +407,28 @@ class ParserContext:
         return NodeEnv(ns=self.current_ns, file=self.filename)
 
 
-def _is_async(o: basilisp.lang.interfaces.IMeta) -> bool:
+def _is_async(o: IMeta) -> bool:
     """Return True if the meta contains :async keyword."""
-    return (
-        Maybe(o.meta).map(lambda m: m.get(SYM_ASYNC_META_KEY, None)).or_else_get(False)
+    return (  # type: ignore
+        Maybe(o.meta)
+        .map(lambda m: m.entry(SYM_ASYNC_META_KEY, None))
+        .or_else_get(False)
     )
 
 
 def _is_macro(v: Var) -> bool:
     """Return True if the Var holds a macro function."""
     return (
-        Maybe(v.meta).map(lambda m: m.get(SYM_MACRO_META_KEY, None)).or_else_get(False)
+        Maybe(v.meta)
+        .map(lambda m: m.entry(SYM_MACRO_META_KEY, None))  # type: ignore
+        .or_else_get(False)
     )
 
 
-ParseFunction = Callable[[ParserContext, Union[LispForm, lseq.Seq]], Node]
+ParseFunction = Callable[[ParserContext, Union[LispForm, ISeq]], Node]
 
 
-def _loc(form: Union[LispForm, lseq.Seq]) -> Optional[Tuple[int, int]]:
+def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
     """Fetch the location of the form in the original filename from the
     input form, if it has metadata."""
     try:
@@ -439,7 +447,7 @@ def _with_loc(f: ParseFunction):
     the node environment returned from the parsing function."""
 
     @wraps(f)
-    def _parse_form(ctx: ParserContext, form: Union[LispForm, lseq.Seq]) -> Node:
+    def _parse_form(ctx: ParserContext, form: Union[LispForm, ISeq]) -> Node:
         form_loc = _loc(form)
         if form_loc is None:
             return f(ctx, form)
@@ -468,13 +476,14 @@ def _with_meta(gen_node):
     @wraps(gen_node)
     def with_meta(
         ctx: ParserContext,
-        form: Union[llist.List, lmap.Map, lseq.Seq, lset.Set, vec.Vector],
+        form: Union[llist.List, lmap.Map, ISeq, lset.Set, vec.Vector],
     ) -> Node:
         assert not ctx.is_quoted, "with-meta nodes are not used in quoted expressions"
 
         descriptor = gen_node(ctx, form)
 
-        if hasattr(form, "meta"):
+        if isinstance(form, IMeta):
+            assert isinstance(form.meta, (lmap.Map, type(None)))
             form_meta = _clean_meta(form.meta)
             if form_meta is not None:
                 meta_ast = _parse_ast(ctx, form_meta)
@@ -490,7 +499,7 @@ def _with_meta(gen_node):
     return with_meta
 
 
-def _await_ast(ctx: ParserContext, form: lseq.Seq) -> Await:
+def _await_ast(ctx: ParserContext, form: ISeq) -> Await:
     assert form.first == SpecialForm.AWAIT
 
     if not ctx.is_async_ctx:
@@ -509,7 +518,7 @@ def _await_ast(ctx: ParserContext, form: lseq.Seq) -> Await:
 
 
 def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: ParserContext, form: lseq.Seq
+    ctx: ParserContext, form: ISeq
 ) -> Def:
     assert form.first == SpecialForm.DEF
 
@@ -527,7 +536,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     if nelems == 2:
         init = None
         doc = None
-        children = vec.Vector.empty()
+        children: vec.Vector[kw.Keyword] = vec.Vector.empty()
     elif nelems == 3:
         init = _parse_ast(ctx, runtime.nth(form, 2))
         doc = None
@@ -566,10 +575,12 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     # where we directly set the Var meta for the running Basilisp instance
     # this causes problems since we'll end up getting something like
     # `(quote ([] [v]))` rather than simply `([] [v])`.
-    arglists_meta = def_meta.entry(ARGLISTS_KW)
+    arglists_meta = def_meta.entry(ARGLISTS_KW)  # type: ignore
     if isinstance(arglists_meta, llist.List):
         assert arglists_meta.first == SpecialForm.QUOTE
-        var_meta = def_meta.update({ARGLISTS_KW: runtime.nth(arglists_meta, 1)})
+        var_meta = def_meta.update(  # type: ignore
+            {ARGLISTS_KW: runtime.nth(arglists_meta, 1)}
+        )
     else:
         var_meta = def_meta
 
@@ -581,7 +592,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     var = Var.intern_unbound(
         ns_sym,
         bare_name,
-        dynamic=def_meta.entry(SYM_DYNAMIC_META_KEY, False),
+        dynamic=def_meta.entry(SYM_DYNAMIC_META_KEY, False),  # type: ignore
         meta=var_meta,
     )
     descriptor = Def(
@@ -609,7 +620,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     #       "some value")
     meta_ast = _parse_ast(
         ctx,
-        def_meta.update(
+        def_meta.update(  # type: ignore
             {
                 NAME_KW: llist.l(SpecialForm.QUOTE, bare_name),
                 NS_KW: llist.l(
@@ -634,7 +645,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
 
 
 def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: ParserContext, form: Union[llist.List, lseq.Seq], interface: DefTypeBase
+    ctx: ParserContext, form: Union[llist.List, ISeq], interface: DefTypeBase
 ) -> Method:
     if not isinstance(form.first, sym.Symbol):
         raise ParserException(
@@ -750,7 +761,7 @@ def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
 
 
 def __deftype_impls(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: lseq.Seq
+    ctx: ParserContext, form: ISeq
 ) -> Tuple[List[DefTypeBase], List[Method]]:
     """Roll up deftype* declared bases and method implementations."""
     current_interface_sym: Optional[sym.Symbol] = None
@@ -781,7 +792,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
                     form=elem,
                 )
             interfaces.append(current_interface)
-        elif isinstance(elem, lseq.Seq):
+        elif isinstance(elem, ISeq):
             if current_interface is None:
                 raise ParserException(
                     f"deftype* method cannot be declared without interface", form=elem
@@ -868,7 +879,7 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
 
 
 def _deftype_ast(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: lseq.Seq
+    ctx: ParserContext, form: ISeq
 ) -> DefType:
     assert form.first == SpecialForm.DEFTYPE
 
@@ -938,7 +949,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
         )
 
 
-def _do_ast(ctx: ParserContext, form: lseq.Seq) -> Do:
+def _do_ast(ctx: ParserContext, form: ISeq) -> Do:
     assert form.first == SpecialForm.DO
     *statements, ret = map(partial(_parse_ast, ctx), form.rest)
     return Do(
@@ -947,7 +958,7 @@ def _do_ast(ctx: ParserContext, form: lseq.Seq) -> Do:
 
 
 def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: ParserContext, form: lseq.Seq, fnname: Optional[sym.Symbol] = None
+    ctx: ParserContext, form: ISeq, fnname: Optional[sym.Symbol] = None
 ) -> FnMethod:
     with ctx.new_symbol_table("fn-method"):
         params = form.first
@@ -1037,7 +1048,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
 
 @_with_meta  # noqa: MC0001
 def _fn_ast(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: Union[llist.List, lseq.Seq]
+    ctx: ParserContext, form: Union[llist.List, ISeq]
 ) -> Fn:
     assert form.first == SpecialForm.FN
 
@@ -1057,19 +1068,13 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
             assert name_node is not None
-            is_async = (
-                _is_async(name)
-                or isinstance(form, basilisp.lang.interfaces.IMeta)
-                and _is_async(form)
-            )
+            is_async = _is_async(name) or isinstance(form, IMeta) and _is_async(form)
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
         elif isinstance(name, (llist.List, vec.Vector)):
             name = None
             name_node = None
-            is_async = isinstance(form, basilisp.lang.interfaces.IMeta) and _is_async(
-                form
-            )
+            is_async = isinstance(form, IMeta) and _is_async(form)
         else:
             raise ParserException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
@@ -1149,7 +1154,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
         )
 
 
-def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> HostCall:
+def _host_call_ast(ctx: ParserContext, form: ISeq) -> HostCall:
     assert isinstance(form.first, sym.Symbol)
 
     method = form.first
@@ -1170,7 +1175,7 @@ def _host_call_ast(ctx: ParserContext, form: lseq.Seq) -> HostCall:
     )
 
 
-def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
+def _host_prop_ast(ctx: ParserContext, form: ISeq) -> HostField:
     assert isinstance(form.first, sym.Symbol)
 
     field = form.first
@@ -1221,7 +1226,7 @@ def _host_prop_ast(ctx: ParserContext, form: lseq.Seq) -> HostField:
 
 
 def _host_interop_ast(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: lseq.Seq
+    ctx: ParserContext, form: ISeq
 ) -> Union[HostCall, HostField]:
     assert form.first == SpecialForm.INTEROP_CALL
     nelems = count(form)
@@ -1256,7 +1261,7 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
                 ),
                 env=ctx.get_node_env(),
             )
-    elif isinstance(maybe_m_or_f, (llist.List, lseq.Seq)):
+    elif isinstance(maybe_m_or_f, (llist.List, ISeq)):
         # Likewise, I emit :host-call for forms like (. target (method arg1 ...)).
         method = maybe_m_or_f.first
         if not isinstance(method, sym.Symbol):
@@ -1279,7 +1284,7 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
         )
 
 
-def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:
+def _if_ast(ctx: ParserContext, form: ISeq) -> If:
     assert form.first == SpecialForm.IF
 
     nelems = count(form)
@@ -1304,7 +1309,7 @@ def _if_ast(ctx: ParserContext, form: lseq.Seq) -> If:
 
 
 def _import_ast(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: lseq.Seq
+    ctx: ParserContext, form: ISeq
 ) -> Import:
     assert form.first == SpecialForm.IMPORT
 
@@ -1342,7 +1347,7 @@ def _import_ast(  # pylint: disable=too-many-branches
     return Import(form=form, aliases=aliases, env=ctx.get_node_env())
 
 
-def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
+def _invoke_ast(ctx: ParserContext, form: Union[llist.List, ISeq]) -> Node:
     fn = _parse_ast(ctx, form.first)
 
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
@@ -1375,7 +1380,7 @@ def _invoke_ast(ctx: ParserContext, form: Union[llist.List, lseq.Seq]) -> Node:
     )
 
 
-def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
+def _let_ast(ctx: ParserContext, form: ISeq) -> Let:
     assert form.first == SpecialForm.LET
     nelems = count(form)
 
@@ -1429,7 +1434,7 @@ def _let_ast(ctx: ParserContext, form: lseq.Seq) -> Let:
         )
 
 
-def _loop_ast(ctx: ParserContext, form: lseq.Seq) -> Loop:
+def _loop_ast(ctx: ParserContext, form: ISeq) -> Loop:
     assert form.first == SpecialForm.LOOP
     nelems = count(form)
 
@@ -1483,7 +1488,7 @@ def _loop_ast(ctx: ParserContext, form: lseq.Seq) -> Loop:
             return loop_node
 
 
-def _quote_ast(ctx: ParserContext, form: lseq.Seq) -> Quote:
+def _quote_ast(ctx: ParserContext, form: ISeq) -> Quote:
     assert form.first == SpecialForm.QUOTE
 
     with ctx.quoted():
@@ -1548,7 +1553,7 @@ def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branc
         node.visit(_assert_no_recur)
 
 
-def _recur_ast(ctx: ParserContext, form: lseq.Seq) -> Recur:
+def _recur_ast(ctx: ParserContext, form: ISeq) -> Recur:
     assert form.first == SpecialForm.RECUR
 
     if ctx.recur_point is None:
@@ -1565,7 +1570,7 @@ def _recur_ast(ctx: ParserContext, form: lseq.Seq) -> Recur:
     )
 
 
-def _set_bang_ast(ctx: ParserContext, form: lseq.Seq) -> SetBang:
+def _set_bang_ast(ctx: ParserContext, form: ISeq) -> SetBang:
     assert form.first == SpecialForm.SET_BANG
     nelems = count(form)
 
@@ -1593,7 +1598,7 @@ def _set_bang_ast(ctx: ParserContext, form: lseq.Seq) -> SetBang:
     )
 
 
-def _throw_ast(ctx: ParserContext, form: lseq.Seq) -> Throw:
+def _throw_ast(ctx: ParserContext, form: ISeq) -> Throw:
     assert form.first == SpecialForm.THROW
     return Throw(
         form=form,
@@ -1602,7 +1607,7 @@ def _throw_ast(ctx: ParserContext, form: lseq.Seq) -> Throw:
     )
 
 
-def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
+def _catch_ast(ctx: ParserContext, form: ISeq) -> Catch:
     assert form.first == SpecialForm.CATCH
     nelems = count(form)
 
@@ -1649,7 +1654,7 @@ def _catch_ast(ctx: ParserContext, form: lseq.Seq) -> Catch:
 
 
 def _try_ast(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: lseq.Seq
+    ctx: ParserContext, form: ISeq
 ) -> Try:
     assert form.first == SpecialForm.TRY
 
@@ -1657,7 +1662,7 @@ def _try_ast(  # pylint: disable=too-many-branches
     catches = []
     finally_: Optional[Do] = None
     for expr in form.rest:
-        if isinstance(expr, (llist.List, lseq.Seq)):
+        if isinstance(expr, (llist.List, ISeq)):
             if expr.first == SpecialForm.CATCH:
                 if finally_:
                     raise ParserException(
@@ -1717,7 +1722,7 @@ def _try_ast(  # pylint: disable=too-many-branches
     )
 
 
-def _var_ast(ctx: ParserContext, form: lseq.Seq) -> VarRef:
+def _var_ast(ctx: ParserContext, form: ISeq) -> VarRef:
     assert form.first == SpecialForm.VAR
 
     nelems = count(form)
@@ -1741,7 +1746,7 @@ def _var_ast(ctx: ParserContext, form: lseq.Seq) -> VarRef:
     return VarRef(form=var_sym, var=var, return_var=True, env=ctx.get_node_env())
 
 
-SpecialFormHandler = Callable[[ParserContext, lseq.Seq], SpecialFormNode]
+SpecialFormHandler = Callable[[ParserContext, ISeq], SpecialFormNode]
 _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.AWAIT: _await_ast,
     SpecialForm.DEF: _def_ast,
@@ -1762,7 +1767,7 @@ _SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
 }
 
 
-def _list_node(ctx: ParserContext, form: lseq.Seq) -> Node:
+def _list_node(ctx: ParserContext, form: ISeq) -> Node:
     if ctx.is_quoted:
         return _const_node(ctx, form)
 
@@ -2022,7 +2027,7 @@ _CONST_NODE_TYPES = {
     llist.List: ConstType.SEQ,
     lmap.Map: ConstType.MAP,
     lset.Set: ConstType.SET,
-    lseq.Seq: ConstType.SEQ,
+    ISeq: ConstType.SEQ,
     type(re.compile("")): ConstType.REGEX,
     set: ConstType.PY_SET,
     sym.Symbol: ConstType.SYMBOL,
@@ -2039,10 +2044,10 @@ def _const_node(ctx: ParserContext, form: ReaderForm) -> Const:
         (
             ctx.is_quoted
             and isinstance(
-                form, (sym.Symbol, vec.Vector, llist.List, lmap.Map, lset.Set, lseq.Seq)
+                form, (sym.Symbol, vec.Vector, llist.List, lmap.Map, lset.Set, ISeq)
             )
         )
-        or (isinstance(form, (llist.List, lseq.Seq)) and form.is_empty)
+        or (isinstance(form, (llist.List, ISeq)) and form.is_empty)
         or isinstance(
             form,
             (
@@ -2090,9 +2095,9 @@ def _const_node(ctx: ParserContext, form: ReaderForm) -> Const:
 
 @_with_loc  # noqa: MC0001
 def _parse_ast(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: Union[ReaderForm, lseq.Seq]
+    ctx: ParserContext, form: Union[ReaderForm, ISeq]
 ) -> Node:
-    if isinstance(form, (llist.List, lseq.Seq)):
+    if isinstance(form, (llist.List, ISeq)):
         # Special case for unquoted empty list
         if form == llist.List.empty():
             with ctx.quoted():

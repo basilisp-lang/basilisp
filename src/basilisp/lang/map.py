@@ -1,6 +1,14 @@
 from builtins import map as pymap
 from collections import Sequence
-from typing import Optional  # noqa # pylint: disable=unused-import
+from typing import (
+    Callable,
+    Dict,
+    Generic,
+    Iterable,
+    Mapping,
+    TypeVar,
+    Union,
+)  # noqa # pylint: disable=unused-import
 
 from pyrsistent import PMap, pmap
 
@@ -9,14 +17,18 @@ from basilisp.lang.interfaces import (
     IMeta,
     IPersistentCollection,
     IPersistentMap,
+    ISeq,
     ISeqable,
 )
 from basilisp.lang.obj import LispObject, lrepr
-from basilisp.lang.seq import Seq, sequence
+from basilisp.lang.seq import sequence
 from basilisp.util import partition
 
+K = TypeVar("K")
+V = TypeVar("V")
 
-class MapEntry:
+
+class MapEntry(Generic[K, V]):
     __slots__ = ("_inner",)
 
     def __init__(self, wrapped: vec.Vector) -> None:
@@ -26,7 +38,7 @@ class MapEntry:
         except TypeError as e:
             raise TypeError(f"Cannot make map entry from {type(wrapped)}") from e
 
-        self._inner = wrapped
+        self._inner = wrapped  # pylint: disable=assigning-non-slot
 
     def __repr__(self):
         return lrepr(self._inner)
@@ -47,15 +59,15 @@ class MapEntry:
         return len(self._inner)
 
     @property
-    def key(self):
+    def key(self) -> K:
         return self[0]
 
     @property
-    def value(self):
+    def value(self) -> V:
         return self[1]
 
     @staticmethod
-    def of(k, v) -> "MapEntry":
+    def of(k: K, v: V) -> "MapEntry":
         return MapEntry(vec.v(k, v))
 
     @staticmethod
@@ -63,7 +75,7 @@ class MapEntry:
         return MapEntry(vec.vector(v))
 
 
-class Map(IPersistentCollection, IPersistentMap, LispObject, IMeta, ISeqable):
+class Map(IPersistentCollection, LispObject, IMeta, ISeqable, IPersistentMap[K, V]):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""
@@ -114,14 +126,14 @@ class Map(IPersistentCollection, IPersistentMap, LispObject, IMeta, ISeqable):
         return self._inner.values()
 
     @property
-    def meta(self) -> "Optional[Map]":
+    def meta(self):
         return self._meta
 
     def with_meta(self, meta: "IPersistentMap") -> "Map":
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return Map(self._inner, meta=new_meta)
 
-    def assoc(self, *kvs) -> "Map":
+    def assoc(self, *kvs):
         m = self._inner.evolver()
         for k, v in partition(kvs, 2):
             m[k] = v
@@ -132,7 +144,7 @@ class Map(IPersistentCollection, IPersistentMap, LispObject, IMeta, ISeqable):
             return True
         return False
 
-    def dissoc(self, *ks) -> "Map":
+    def dissoc(self, *ks):
         m = self._inner.evolver()
         for k in ks:
             try:
@@ -144,15 +156,20 @@ class Map(IPersistentCollection, IPersistentMap, LispObject, IMeta, ISeqable):
     def entry(self, k, default=None):
         return self._inner.get(k, default)
 
-    def update(self, *maps) -> "Map":
+    def update(self, *maps: Mapping[K, V]) -> "Map":
         m: PMap = self._inner.update(*maps)
         return Map(m)
 
-    def update_with(self, merge_fn, *maps) -> "Map":
+    def update_with(
+        self, merge_fn: Callable[[V, V], V], *maps: Mapping[K, V]
+    ) -> "Map[K, V]":
         m: PMap = self._inner.update_with(merge_fn, *maps)
         return Map(m)
 
-    def cons(self, *elems) -> "Map":
+    def cons(
+        self,
+        *elems: Union["Map[K, V]", Dict[K, V], MapEntry[K, V], vec.Vector[Union[K, V]]],
+    ) -> "Map[K, V]":
         e = self._inner.evolver()
         try:
             for elem in elems:
@@ -177,22 +194,22 @@ class Map(IPersistentCollection, IPersistentMap, LispObject, IMeta, ISeqable):
     def empty() -> "Map":
         return m()
 
-    def seq(self) -> Seq:
+    def seq(self) -> ISeq[MapEntry[K, V]]:
         return sequence(self)
 
 
-def map(kvs, meta=None) -> Map:  # pylint:disable=redefined-builtin
+def map(kvs: Mapping[K, V], meta=None) -> Map[K, V]:  # pylint:disable=redefined-builtin
     """Creates a new map."""
     return Map(pmap(initial=kvs), meta=meta)
 
 
-def m(**kvs) -> Map:
+def m(**kvs) -> Map[str, V]:
     """Creates a new map from keyword arguments."""
     return Map(pmap(initial=kvs))
 
 
-def from_entries(entries):
-    m = pmap().evolver()
+def from_entries(entries: Iterable[MapEntry[K, V]]) -> Map[K, V]:
+    m = pmap().evolver()  # type: ignore
     for entry in entries:
         m.set(entry.key, entry.value)
     return Map(m.persistent())

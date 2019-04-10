@@ -1,7 +1,6 @@
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.seq as lseq
-from basilisp.lang.interfaces import IMeta, IPersistentCollection
+from basilisp.lang.interfaces import IMeta, IPersistentCollection, ISeq
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
 
@@ -17,8 +16,8 @@ def test_list_meta_interface():
 
 
 def test_list_seq_interface():
-    assert isinstance(llist.l(), lseq.Seq)
-    assert issubclass(llist.List, lseq.Seq)
+    assert isinstance(llist.l(), ISeq)
+    assert issubclass(llist.List, ISeq)
 
 
 def test_list_slice():

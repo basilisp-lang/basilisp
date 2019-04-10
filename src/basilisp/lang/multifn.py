@@ -1,4 +1,4 @@
-from typing import TypeVar, Generic, Callable, Any, Optional
+from typing import Any, Callable, Generic, Optional, TypeVar
 
 import basilisp.lang.atom as atom
 import basilisp.lang.map as lmap
@@ -26,8 +26,10 @@ class MultiFunction(Generic[T]):
     def __call__(self, *args, **kwargs):
         key = self._dispatch(*args, **kwargs)
         method_cache = self.methods
-        method = Maybe(method_cache.entry(key, None)).or_else(
-            lambda: method_cache.entry(self._default, None)
+        method: Optional[Callable[..., Any]] = Maybe(
+            method_cache.entry(key, None)
+        ).or_else(
+            lambda: method_cache.entry(self._default, None)  # type: ignore
         )
         if method:
             return method(*args, **kwargs)

@@ -15,7 +15,7 @@ from basilisp.lang.seq import sequence
 T = TypeVar("T")
 
 
-class Vector(IPersistentVector[T], LispObject, IMeta, ISeqable):
+class Vector(LispObject, IMeta, ISeqable[T], IPersistentVector[T]):  # type: ignore
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""
@@ -66,7 +66,7 @@ class Vector(IPersistentVector[T], LispObject, IMeta, ISeqable):
         return Vector(e.persistent(), meta=self.meta)
 
     def assoc(self, *kvs: T) -> "Vector[T]":
-        return Vector(self._inner.mset(*kvs))
+        return Vector(self._inner.mset(*kvs))  # type: ignore
 
     def contains(self, k):
         return 0 <= k < len(self._inner)
@@ -81,10 +81,10 @@ class Vector(IPersistentVector[T], LispObject, IMeta, ISeqable):
     def empty() -> "Vector[T]":
         return v()
 
-    def seq(self) -> ISeq:
+    def seq(self) -> ISeq[T]:
         return sequence(self)
 
-    def peek(self):
+    def peek(self) -> T:
         return self[-1]
 
     def pop(self) -> "Vector[T]":

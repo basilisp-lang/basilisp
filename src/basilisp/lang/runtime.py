@@ -1004,7 +1004,7 @@ def _kw_name(kw: kw.Keyword) -> str:
 @functools.singledispatch
 def to_py(o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name):
     """Recursively convert Lisp collections into Python collections."""
-    if isinstance(o, lseq.Seq):
+    if isinstance(o, ISeq):
         return _to_py_list(o, keyword_fn=keyword_fn)
     elif not isinstance(o, (llist.List, lmap.Map, lset.Set, vec.Vector)):
         return o
@@ -1031,10 +1031,10 @@ def _to_py_kw(o: kw.Keyword, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name)
 
 
 @to_py.register(llist.List)
-@to_py.register(lseq.Seq)
+@to_py.register(ISeq)
 @to_py.register(vec.Vector)
 def _to_py_list(
-    o: Union[llist.List, lseq.Seq, vec.Vector],
+    o: Union[llist.List, ISeq, vec.Vector],
     keyword_fn: Callable[[kw.Keyword], Any] = _kw_name,
 ) -> list:
     return list(map(functools.partial(to_py, keyword_fn=keyword_fn), o))
@@ -1105,7 +1105,7 @@ def repl_complete(text: str, state: int) -> Optional[str]:
 ####################
 
 
-def _collect_args(args) -> lseq.Seq:
+def _collect_args(args) -> ISeq:
     """Collect Python starred arguments into a Basilisp list."""
     if isinstance(args, tuple):
         return llist.list(args)
@@ -1130,7 +1130,7 @@ class _TrampolineArgs:
 
         try:
             final = self._args[-1]
-            if isinstance(final, lseq.Seq):
+            if isinstance(final, ISeq):
                 inits = self._args[:-1]
                 return tuple(itertools.chain(inits, final))
             return self._args

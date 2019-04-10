@@ -1,5 +1,8 @@
+import itertools
 from abc import ABC, abstractmethod
-from typing import (AbstractSet, Collection, Generic, Iterable, Mapping, Optional, TypeVar)
+from typing import AbstractSet, Generic, Iterable, Mapping, Optional, Sequence, TypeVar
+
+from basilisp.lang.obj import LispObject
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -28,7 +31,7 @@ class IDeref(ABC, Generic[T]):
     __slots__ = ()
 
     @abstractmethod
-    def deref(self) -> T:
+    def deref(self) -> Optional[T]:
         raise NotImplementedError()
 
 
@@ -59,6 +62,8 @@ class IPersistentCollection(Generic[T]):
 
 
 class IPersistentStack(IPersistentCollection[T]):
+    __slots__ = ()
+
     @abstractmethod
     def peek(self) -> Optional[T]:
         raise NotImplementedError()
@@ -69,26 +74,32 @@ class IPersistentStack(IPersistentCollection[T]):
 
 
 class IPersistentList(IPersistentStack[T]):
-    pass
+    __slots__ = ()
 
 
 class IPersistentMap(IAssociative[K, V]):
+    __slots__ = ()
+
     @abstractmethod
     def dissoc(self, *ks: K) -> "IPersistentMap[K, V]":
         raise NotImplementedError()
 
 
-class IPersistentSet(IPersistentCollection[T], AbstractSet[T]):
+class IPersistentSet(AbstractSet[T], IPersistentCollection[T]):
+    __slots__ = ()
+
     @abstractmethod
     def disj(self, *elems: T) -> "IPersistentSet[T]":
         raise NotImplementedError()
 
 
-class IPersistentVector(IAssociative[int, T], Collection[T], IPersistentStack[T]):
-    pass
+class IPersistentVector(  # type: ignore
+    IAssociative[int, T], IPersistentStack[T], Sequence[T]
+):
+    __slots__ = ()
 
 
-class ISeq(Iterable[T]):
+class ISeq(LispObject, Iterable[T]):
     __slots__ = ()
 
     @property
@@ -107,8 +118,26 @@ class ISeq(Iterable[T]):
         raise NotImplementedError()
 
     @abstractmethod
-    def cons(self, elem):
+    def cons(self, elem: T) -> "ISeq[T]":
         raise NotImplementedError()
+
+    def _lrepr(self, **kwargs):
+        return LispObject.seq_lrepr(iter(self), "(", ")", **kwargs)
+
+    def __eq__(self, other):
+        sentinel = object()
+        for e1, e2 in itertools.zip_longest(self, other, fillvalue=sentinel):
+            if bool(e1 is sentinel) or bool(e2 is sentinel):
+                return False
+            if e1 != e2:
+                return False
+        return True
+
+    def __iter__(self):
+        o = self
+        while o:
+            yield o.first
+            o = o.rest
 
 
 class ISeqable(ABC, Iterable[T]):

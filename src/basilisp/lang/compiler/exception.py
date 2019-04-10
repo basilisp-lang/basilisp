@@ -6,7 +6,7 @@ import attr
 
 import basilisp.lang.keyword as kw
 from basilisp.lang.compiler.nodes import Node
-from basilisp.lang.seq import Seq
+from basilisp.lang.interfaces import ISeq
 from basilisp.lang.typing import LispForm
 
 
@@ -21,6 +21,6 @@ class CompilerPhase(Enum):
 class CompilerException(Exception):
     msg: str
     phase: CompilerPhase
-    form: Union[LispForm, None, Seq] = None
+    form: Union[LispForm, None, ISeq] = None
     lisp_ast: Optional[Node] = None
     py_ast: Optional[ast.AST] = None

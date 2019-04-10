@@ -5,6 +5,7 @@ test-warnings: true
 doc-warnings: false
 
 ignore-paths:
+  - build
   - tests
 
 pep8:

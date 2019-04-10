@@ -1,10 +1,24 @@
-from typing import Callable, TypeVar
+from typing import Callable, Generic, Optional, TypeVar
+
+import attr
 
 import basilisp.lang.atom as atom
-import basilisp.lang.map as lmap
 from basilisp.lang.interfaces import IDeref
 
 T = TypeVar("T")
+
+
+# Use attrs `these` for now as there is an open bug around slotted
+# generic classes: https://github.com/python-attrs/attrs/issues/313
+@attr.s(
+    auto_attribs=True,
+    frozen=True,
+    these={"f": attr.ib(), "value": attr.ib(), "computed": attr.ib()},
+)
+class _DelayState(Generic[T]):
+    f: Callable[[], T]
+    value: Optional[T]
+    computed: bool = False
 
 
 class Delay(IDeref[T]):
@@ -12,19 +26,19 @@ class Delay(IDeref[T]):
 
     def __init__(self, f: Callable[[], T]) -> None:
         self._state = atom.Atom(  # pylint:disable=assigning-non-slot
-            lmap.m(f=f, value=None, computed=False)
+            _DelayState(f=f, value=None, computed=False)
         )
 
     @staticmethod
-    def __deref(m: lmap.Map):
-        if m["computed"]:
-            return m
+    def __deref(state: _DelayState) -> _DelayState:
+        if state.computed:
+            return state
         else:
-            return m.assoc("value", m["f"](), "computed", True)
+            return _DelayState(f=state.f, value=state.f(), computed=True)
 
-    def deref(self) -> T:
+    def deref(self) -> Optional[T]:
         return self._state.swap(Delay.__deref).value
 
     @property
     def is_realized(self) -> bool:
-        return self._state.deref()["computed"]
+        return self._state.deref().computed

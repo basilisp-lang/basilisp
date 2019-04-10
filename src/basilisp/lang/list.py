@@ -1,14 +1,16 @@
-from typing import Optional, cast
+from typing import Optional, TypeVar, cast
 
 from pyrsistent import PList, plist
 from pyrsistent._plist import _EMPTY_PLIST
 
-from basilisp.lang.interfaces import IMeta, IPersistentList, IPersistentMap
+from basilisp.lang.interfaces import IMeta, IPersistentList, IPersistentMap, ISeq
 from basilisp.lang.obj import LispObject
-from basilisp.lang.seq import EMPTY, Seq
+from basilisp.lang.seq import EMPTY
+
+T = TypeVar("T")
 
 
-class List(IPersistentList, IMeta, Seq):
+class List(IMeta, ISeq[T], IPersistentList[T]):  # type: ignore
     """Basilisp List. Delegates internally to a pyrsistent.PList object.
 
     Do not instantiate directly. Instead use the l() and list() factory
@@ -57,12 +59,12 @@ class List(IPersistentList, IMeta, Seq):
             return None
 
     @property
-    def rest(self) -> Seq:
-        if self._inner.rest is _EMPTY_PLIST:
+    def rest(self) -> ISeq:
+        if self._inner.rest is _EMPTY_PLIST:  # type: ignore
             return EMPTY
-        return List(self._inner.rest)
+        return List(self._inner.rest)  # type: ignore
 
-    def cons(self, *elems) -> "List":
+    def cons(self, *elems: T) -> "List[T]":
         l = self._inner
         for elem in elems:
             l = l.cons(elem)

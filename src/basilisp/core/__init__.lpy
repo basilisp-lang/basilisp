@@ -135,35 +135,35 @@
     :arglists '([o])}
   list?
   (fn list? [o]
-    (instance? basilisp.lang.list/List o)))
+    (instance? basilisp.lang.interfaces/IPersistentList o)))
 
 (def
   ^{:doc      "Return true if o is a map."
     :arglists '([o])}
   map?
   (fn map? [o]
-    (instance? basilisp.lang.map/Map o)))
+    (instance? basilisp.lang.interfaces/IPersistentMap o)))
 
 (def
   ^{:doc      "Return true if o is a set."
     :arglists '([o])}
   set?
   (fn set? [o]
-    (instance? basilisp.lang.set/Set o)))
+    (instance? basilisp.lang.interfaces/IPersistentSet o)))
 
 (def
   ^{:doc      "Return true if o is a vector."
     :arglists '([o])}
   vector?
   (fn vector? [o]
-    (instance? basilisp.lang.vector/Vector o)))
+    (instance? basilisp.lang.interfaces/IPersistentVector o)))
 
 (def
   ^{:doc      "Return true if o implements Seq."
     :arglists '([o])}
   seq?
   (fn seq? [o]
-    (instance? basilisp.lang.seq/Seq o)))
+    (instance? basilisp.lang.interfaces/ISeq o)))
 
 (def ^{:doc      "Coerce the argument o to a Seq. If o is nil, return nil."
        :arglists '([o])}

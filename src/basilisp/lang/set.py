@@ -1,14 +1,21 @@
-from typing import Optional
+from typing import Iterable, Optional, TypeVar
 
 from pyrsistent import PSet, pset
 
-from basilisp.lang.interfaces import IMeta, IPersistentMap, IPersistentSet, ISeqable
-from basilisp.lang.map import Map
+from basilisp.lang.interfaces import (
+    IMeta,
+    IPersistentMap,
+    IPersistentSet,
+    ISeq,
+    ISeqable,
+)
 from basilisp.lang.obj import LispObject
-from basilisp.lang.seq import Seq, sequence
+from basilisp.lang.seq import sequence
+
+T = TypeVar("T")
 
 
-class Set(IPersistentSet, LispObject, IMeta, ISeqable):
+class Set(IMeta, LispObject, ISeqable[T], IPersistentSet[T]):
     """Basilisp Set. Delegates internally to a pyrsistent.PSet object.
 
     Do not instantiate directly. Instead use the s() and set() factory
@@ -16,7 +23,7 @@ class Set(IPersistentSet, LispObject, IMeta, ISeqable):
 
     __slots__ = ("_inner", "_meta")
 
-    def __init__(self, wrapped: PSet, meta=None) -> None:
+    def __init__(self, wrapped: "PSet[T]", meta=None) -> None:
         self._inner = wrapped
         self._meta = meta
 
@@ -89,20 +96,20 @@ class Set(IPersistentSet, LispObject, IMeta, ISeqable):
         return self._inner <= other
 
     @property
-    def meta(self) -> Optional[Map]:
+    def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: IPersistentMap) -> "Set":
+    def with_meta(self, meta: IPersistentMap) -> "Set[T]":
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return set(self._inner, meta=new_meta)
 
-    def cons(self, *elems) -> "Set":
+    def cons(self, *elems: T) -> "Set[T]":
         e = self._inner.evolver()
         for elem in elems:
             e.add(elem)
         return Set(e.persistent(), meta=self.meta)
 
-    def disj(self, *elems) -> "Set":
+    def disj(self, *elems: T) -> "Set[T]":
         e = self._inner.evolver()
         for elem in elems:
             try:
@@ -115,15 +122,15 @@ class Set(IPersistentSet, LispObject, IMeta, ISeqable):
     def empty() -> "Set":
         return s()
 
-    def seq(self) -> Seq:
+    def seq(self) -> ISeq[T]:
         return sequence(self)
 
 
-def set(members, meta=None) -> Set:  # pylint:disable=redefined-builtin
+def set(members: Iterable[T], meta=None) -> Set[T]:  # pylint:disable=redefined-builtin
     """Creates a new set."""
     return Set(pset(members), meta=meta)
 
 
-def s(*members, meta=None) -> Set:
+def s(*members: T, meta=None) -> Set[T]:
     """Creates a new set from members."""
     return Set(pset(members), meta=meta)

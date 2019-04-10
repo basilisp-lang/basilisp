@@ -19,11 +19,13 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Mapping,
     Optional,
     Pattern,
     Tuple,
     Type,
     Union,
+    cast,
 )
 
 import attr
@@ -33,7 +35,6 @@ import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
-import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
@@ -86,7 +87,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
-from basilisp.lang.interfaces import IMeta
+from basilisp.lang.interfaces import IMeta, ISeq
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
@@ -182,10 +183,10 @@ class GeneratorContext:
     __slots__ = ("_filename", "_opts", "_recur_points", "_st", "_this")
 
     def __init__(
-        self, filename: Optional[str] = None, opts: Optional[Dict[str, bool]] = None
+        self, filename: Optional[str] = None, opts: Optional[Mapping[str, bool]] = None
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
-        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
+        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())  # type: ignore
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>")])
         self._this: Deque[sym.Symbol] = collections.deque([])
@@ -336,7 +337,7 @@ def _clean_meta(form: IMeta) -> LispForm:
     meta = form.meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
     if len(meta) == 0:
         return None
-    return meta
+    return cast(lmap.Map, meta)
 
 
 def _ast_with_loc(
@@ -2273,7 +2274,7 @@ def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAS
 
 
 def _const_seq_to_py_ast(
-    ctx: GeneratorContext, form: Union[llist.List, lseq.Seq]
+    ctx: GeneratorContext, form: Union[llist.List, ISeq]
 ) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
 
@@ -2326,7 +2327,7 @@ _CONST_VALUE_HANDLERS: Dict[Type, SimplePyASTGenerator] = {  # type: ignore
     llist.List: _const_seq_to_py_ast,
     lmap.Map: _const_map_to_py_ast,
     lset.Set: _const_set_to_py_ast,
-    lseq.Seq: _const_seq_to_py_ast,
+    ISeq: _const_seq_to_py_ast,
     type(re.compile("")): _regex_to_py_ast,
     set: _const_py_set_to_py_ast,
     sym.Symbol: _const_sym_to_py_ast,
@@ -2346,7 +2347,7 @@ def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAS
     nested elements. For top-level :const Lisp AST nodes, see
     `_const_node_to_py_ast`."""
     handle_value = _CONST_VALUE_HANDLERS.get(type(form))
-    if handle_value is None and isinstance(form, lseq.Seq):
+    if handle_value is None and isinstance(form, ISeq):
         handle_value = _const_seq_to_py_ast  # type: ignore
     assert handle_value is not None, "A type handler must be defined for constants"
     return handle_value(ctx, form)

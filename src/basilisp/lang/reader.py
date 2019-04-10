@@ -641,7 +641,7 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
     assert start == "^"
     meta = _read_next_consuming_comment(ctx)
 
-    meta_map = None
+    meta_map: Optional[lmap.Map[LispForm, LispForm]] = None
     if isinstance(meta, symbol.Symbol):
         meta_map = lmap.map({keyword.keyword("tag"): meta})
     elif isinstance(meta, keyword.Keyword):

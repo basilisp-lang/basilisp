@@ -1,5 +1,3 @@
-from typing import Collection
-
 import basilisp.lang.map as lmap
 import basilisp.lang.vector as vector
 from basilisp.lang.interfaces import (
@@ -30,7 +28,6 @@ def test_vector_meta_interface():
 def test_vector_seqable_interface():
     assert isinstance(vector.v(), ISeqable)
     assert issubclass(vector.Vector, ISeqable)
-    assert issubclass(vector.Vector, Collection)
 
 
 def test_vector_slice():
