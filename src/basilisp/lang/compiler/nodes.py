@@ -3,9 +3,9 @@ from enum import Enum
 from typing import (
     Any,
     Callable,
-    Dict,
     Generic,
     Iterable,
+    MutableMapping,
     Optional,
     Sequence,
     Tuple,
@@ -193,7 +193,7 @@ class Node(ABC, Generic[T]):
             [e is not None for e in loc]
         ), "Must specify location information"
 
-        new_attrs: Dict[str, Union[NodeEnv, Node, Iterable[Node]]] = {
+        new_attrs: MutableMapping[str, Union[NodeEnv, Node, Iterable[Node]]] = {
             "env": attr.evolve(self.env, line=loc[0], col=loc[1])
         }
         for child_kw in self.children:

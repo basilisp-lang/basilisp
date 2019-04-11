@@ -16,15 +16,16 @@ from typing import (
     Callable,
     Collection,
     Deque,
-    Dict,
     FrozenSet,
     Iterable,
     List,
     Mapping,
+    MutableMapping,
     Optional,
     Pattern,
     Set,
     Tuple,
+    Type,
     Union,
     cast,
 )
@@ -165,8 +166,8 @@ class SymbolTableEntry:
 class SymbolTable:
     name: str
     _parent: Optional["SymbolTable"] = None
-    _table: Dict[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
-    _children: Dict[str, "SymbolTable"] = attr.ib(factory=dict)
+    _table: MutableMapping[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
+    _children: MutableMapping[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(
         self, s: sym.Symbol, binding: Binding, warn_if_unused: bool = True
@@ -252,7 +253,7 @@ class SymbolTable:
             new_frame._warn_unused_names()
         self.pop_frame(name)
 
-    def _as_env_map(self) -> Dict[sym.Symbol, lmap.Map]:
+    def _as_env_map(self) -> MutableMapping[sym.Symbol, lmap.Map]:
         locals_ = {} if self._parent is None else self._parent._as_env_map()
         locals_.update({k: v.binding.to_map() for k, v in self._table.items()})
         return locals_
@@ -768,7 +769,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
     current_interface: Optional[DefTypeBase] = None
     interfaces = []
     methods: List[Method] = []
-    interface_methods: Dict[sym.Symbol, List[Method]] = {}
+    interface_methods: MutableMapping[sym.Symbol, List[Method]] = {}
     for elem in form:
         if isinstance(elem, sym.Symbol):
             if current_interface is not None:
@@ -1747,7 +1748,7 @@ def _var_ast(ctx: ParserContext, form: ISeq) -> VarRef:
 
 
 SpecialFormHandler = Callable[[ParserContext, ISeq], SpecialFormNode]
-_SPECIAL_FORM_HANDLERS: Dict[sym.Symbol, SpecialFormHandler] = {
+_SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.AWAIT: _await_ast,
     SpecialForm.DEF: _def_ast,
     SpecialForm.DO: _do_ast,
@@ -2013,7 +2014,7 @@ def _vector_node(ctx: ParserContext, form: vec.Vector) -> VectorNode:
     )
 
 
-_CONST_NODE_TYPES = {
+_CONST_NODE_TYPES: Mapping[Type, ConstType] = {
     bool: ConstType.BOOL,
     complex: ConstType.NUMBER,
     datetime: ConstType.INST,

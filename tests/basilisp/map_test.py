@@ -1,3 +1,5 @@
+from typing import Mapping
+
 import pytest
 
 import basilisp.lang.map as lmap
@@ -32,6 +34,11 @@ def test_map_meta_interface():
 def test_map_map_interface():
     assert isinstance(lmap.m(), IPersistentMap)
     assert issubclass(lmap.Map, IPersistentMap)
+
+
+def test_map_mapping_interface():
+    assert isinstance(lmap.m(), Mapping)
+    assert issubclass(lmap.Map, Mapping)
 
 
 def test_map_object_interface():

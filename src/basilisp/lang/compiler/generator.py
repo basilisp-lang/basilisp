@@ -16,10 +16,10 @@ from typing import (
     Callable,
     Collection,
     Deque,
-    Dict,
     Iterable,
     List,
     Mapping,
+    MutableMapping,
     Optional,
     Pattern,
     Tuple,
@@ -129,8 +129,8 @@ class SymbolTableEntry:
 class SymbolTable:
     name: str
     _parent: Optional["SymbolTable"] = None
-    _table: Dict[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
-    _children: Dict[str, "SymbolTable"] = attr.ib(factory=dict)
+    _table: MutableMapping[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
+    _children: MutableMapping[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(self, s: sym.Symbol, munged: str, ctx: LocalType) -> "SymbolTable":
         if s in self._table:
@@ -987,7 +987,7 @@ def __handle_return(node: ast.AST) -> ast.Return:
 def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-locals
     ctx: GeneratorContext,
     name: str,
-    arity_map: Dict[int, str],
+    arity_map: Mapping[int, str],
     default_name: Optional[str] = None,
     max_fixed_arity: Optional[int] = None,
     meta_node: Optional[MetaNode] = None,
@@ -2313,7 +2313,7 @@ def _const_vec_to_py_ast(ctx: GeneratorContext, form: vec.Vector) -> GeneratedPy
     )
 
 
-_CONST_VALUE_HANDLERS: Dict[Type, SimplePyASTGenerator] = {  # type: ignore
+_CONST_VALUE_HANDLERS: Mapping[Type, SimplePyASTGenerator] = {  # type: ignore
     bool: _name_const_to_py_ast,
     complex: _num_to_py_ast,
     datetime: _inst_to_py_ast,
@@ -2364,7 +2364,7 @@ def _collection_literal_to_py_ast(
     yield from map(partial(_const_val_to_py_ast, ctx), form)
 
 
-_CONSTANT_HANDLER: Dict[ConstType, SimplePyASTGenerator] = {  # type: ignore
+_CONSTANT_HANDLER: Mapping[ConstType, SimplePyASTGenerator] = {  # type: ignore
     ConstType.BOOL: _name_const_to_py_ast,
     ConstType.INST: _inst_to_py_ast,
     ConstType.NUMBER: _num_to_py_ast,
@@ -2402,7 +2402,7 @@ def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: Const) -> GeneratedPy
     return handle_const_node(ctx, node_val)
 
 
-_NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
+_NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.AWAIT: _await_to_py_ast,
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,

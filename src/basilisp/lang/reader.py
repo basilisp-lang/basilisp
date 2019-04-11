@@ -12,7 +12,6 @@ from typing import (
     Callable,
     Collection,
     Deque,
-    Dict,
     Iterable,
     List,
     MutableMapping,
@@ -48,7 +47,7 @@ fn_macro_args = re.compile("(%)(&|[0-9])?")
 unicode_char = re.compile(r"u(\w+)")
 
 DataReaders = Optional[lmap.Map]
-GenSymEnvironment = Dict[str, symbol.Symbol]
+GenSymEnvironment = MutableMapping[str, symbol.Symbol]
 Resolver = Callable[[symbol.Symbol], symbol.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
 W = TypeVar("W", bound=LispReaderFn)

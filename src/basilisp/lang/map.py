@@ -1,13 +1,5 @@
 from builtins import map as pymap
-from collections import Sequence
-from typing import (
-    Callable,
-    Dict,
-    Iterable,
-    Mapping,
-    TypeVar,
-    Union,
-)  # noqa # pylint: disable=unused-import
+from typing import Callable, Dict, Iterable, Mapping, Sequence, TypeVar, Union
 
 from pyrsistent import (  # noqa # pylint: disable=unused-import
     PMap,
@@ -58,7 +50,7 @@ class MapEntry(Vector[T]):
         return MapEntry(pvector([k, v]))
 
     @staticmethod
-    def from_vec(v: Sequence) -> "MapEntry[Union[K, V]]":
+    def from_vec(v: Sequence[Union[K, V]]) -> "MapEntry[Union[K, V]]":
         return MapEntry(pvector(v))
 
 
