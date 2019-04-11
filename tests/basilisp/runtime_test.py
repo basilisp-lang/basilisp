@@ -10,6 +10,7 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.compiler.constants import SpecialForm
+from basilisp.lang.interfaces import ISeq
 
 
 def test_first():
@@ -115,7 +116,7 @@ def test_to_seq():
 
     v1 = vec.v(keyword.keyword("kw"), 1, llist.l("something"), 3)
     s1 = runtime.to_seq(v1)
-    assert isinstance(s1, lseq.Seq)
+    assert isinstance(s1, ISeq)
     for v, s in zip(v1, s1):
         assert v == s
 

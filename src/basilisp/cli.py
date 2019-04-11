@@ -160,18 +160,18 @@ def repl(
             if result is eof:  # pragma: no cover
                 continue
             print(runtime.lrepr(result))
-            repl_module.mark_repl_result(result)
+            repl_module.mark_repl_result(result)  # type: ignore
         except reader.SyntaxError as e:
             traceback.print_exception(reader.SyntaxError, e, e.__traceback__)
-            repl_module.mark_exception(e)
+            repl_module.mark_exception(e)  # type: ignore
             continue
         except compiler.CompilerException as e:
             traceback.print_exception(compiler.CompilerException, e, e.__traceback__)
-            repl_module.mark_exception(e)
+            repl_module.mark_exception(e)  # type: ignore
             continue
         except Exception as e:
             traceback.print_exception(Exception, e, e.__traceback__)
-            repl_module.mark_exception(e)
+            repl_module.mark_exception(e)  # type: ignore
             continue
 
 

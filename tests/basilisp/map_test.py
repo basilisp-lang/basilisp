@@ -1,33 +1,47 @@
 import pytest
 
-import basilisp.lang.associative as lassoc
-import basilisp.lang.collection as lcoll
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as meta
-import basilisp.lang.seq as lseq
+from basilisp.lang.interfaces import (
+    IAssociative,
+    IMeta,
+    IPersistentCollection,
+    IPersistentMap,
+    ISeqable,
+)
 from basilisp.lang.keyword import keyword
 from basilisp.lang.map import MapEntry
+from basilisp.lang.obj import LispObject
 from basilisp.lang.symbol import symbol
 
 
 def test_map_associative_interface():
-    assert isinstance(lmap.m(), lassoc.Associative)
-    assert issubclass(lmap.Map, lassoc.Associative)
+    assert isinstance(lmap.m(), IAssociative)
+    assert issubclass(lmap.Map, IAssociative)
 
 
 def test_map_collection_interface():
-    assert isinstance(lmap.m(), lcoll.Collection)
-    assert issubclass(lmap.Map, lcoll.Collection)
+    assert isinstance(lmap.m(), IPersistentCollection)
+    assert issubclass(lmap.Map, IPersistentCollection)
 
 
 def test_map_meta_interface():
-    assert isinstance(lmap.m(), meta.Meta)
-    assert issubclass(lmap.Map, meta.Meta)
+    assert isinstance(lmap.m(), IMeta)
+    assert issubclass(lmap.Map, IMeta)
+
+
+def test_map_map_interface():
+    assert isinstance(lmap.m(), IPersistentMap)
+    assert issubclass(lmap.Map, IPersistentMap)
+
+
+def test_map_object_interface():
+    assert isinstance(lmap.m(), LispObject)
+    assert issubclass(lmap.Map, LispObject)
 
 
 def test_map_seqable_interface():
-    assert isinstance(lmap.m(), lseq.Seqable)
-    assert issubclass(lmap.Map, lseq.Seqable)
+    assert isinstance(lmap.m(), ISeqable)
+    assert issubclass(lmap.Map, ISeqable)
 
 
 def test_assoc():

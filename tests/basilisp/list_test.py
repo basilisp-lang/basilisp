@@ -1,25 +1,34 @@
-import basilisp.lang.collection as lcoll
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as meta
-import basilisp.lang.seq as lseq
+from basilisp.lang.interfaces import IMeta, IPersistentCollection, IPersistentList, ISeq
 from basilisp.lang.keyword import keyword
+from basilisp.lang.obj import LispObject
 from basilisp.lang.symbol import symbol
 
 
 def test_list_collection_interface():
-    assert isinstance(llist.l(), lcoll.Collection)
-    assert issubclass(llist.List, lcoll.Collection)
+    assert isinstance(llist.l(), IPersistentCollection)
+    assert issubclass(llist.List, IPersistentCollection)
+
+
+def test_list_list_interface():
+    assert isinstance(llist.l(), IPersistentList)
+    assert issubclass(llist.List, IPersistentList)
 
 
 def test_list_meta_interface():
-    assert isinstance(llist.l(), meta.Meta)
-    assert issubclass(llist.List, meta.Meta)
+    assert isinstance(llist.l(), IMeta)
+    assert issubclass(llist.List, IMeta)
+
+
+def test_map_object_interface():
+    assert isinstance(llist.l(), LispObject)
+    assert issubclass(llist.List, LispObject)
 
 
 def test_list_seq_interface():
-    assert isinstance(llist.l(), lseq.Seq)
-    assert issubclass(llist.List, lseq.Seq)
+    assert isinstance(llist.l(), ISeq)
+    assert issubclass(llist.List, ISeq)
 
 
 def test_list_slice():
@@ -35,6 +44,14 @@ def test_list_cons():
     assert len(l2) == 2
     assert meta == l1.meta
     assert l2.meta is None
+
+
+def test_list_peek():
+    pass
+
+
+def test_list_pop():
+    pass
 
 
 def test_list_meta():

@@ -11,9 +11,6 @@ import types
 from fractions import Fraction
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
-import basilisp.lang.associative as lassoc
-import basilisp.lang.collection as lcoll
-import basilisp.lang.deref as lderef
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
@@ -22,7 +19,14 @@ import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang import atom
+from basilisp.lang.atom import Atom
+from basilisp.lang.interfaces import (
+    IAssociative,
+    IDeref,
+    IPersistentCollection,
+    ISeq,
+    ISeqable,
+)
 from basilisp.lang.typing import LispNumber
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
@@ -264,6 +268,12 @@ class Var:
         return v
 
 
+AliasMap = lmap.Map[sym.Symbol, sym.Symbol]
+ModuleMap = lmap.Map[sym.Symbol, types.ModuleType]
+NamespaceMap = lmap.Map[sym.Symbol, "Namespace"]
+VarMap = lmap.Map[sym.Symbol, Var]
+
+
 class Namespace:
     """Namespaces serve as organizational units in Basilisp code, just as
     they do in Clojure code. Vars are mutable containers for functions and
@@ -290,7 +300,7 @@ class Namespace:
       to without an alias in this namespace.
     """
 
-    DEFAULT_IMPORTS = atom.Atom(
+    DEFAULT_IMPORTS = Atom(
         lset.set(
             map(
                 sym.symbol,
@@ -301,10 +311,10 @@ class Namespace:
                     "operator",
                     "sys",
                     "basilisp.lang.atom",
-                    "basilisp.lang.associative",
                     "basilisp.lang.compiler",
                     "basilisp.lang.delay",
                     "basilisp.lang.exception",
+                    "basilisp.lang.interfaces",
                     "basilisp.lang.keyword",
                     "basilisp.lang.list",
                     "basilisp.lang.map",
@@ -322,7 +332,7 @@ class Namespace:
     )
     GATED_IMPORTS = lset.set(["basilisp.core"])
 
-    _NAMESPACES = atom.Atom(lmap.Map.empty())
+    _NAMESPACES: Atom[NamespaceMap] = Atom(lmap.Map.empty())
 
     __slots__ = (
         "_name",
@@ -338,8 +348,8 @@ class Namespace:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
-        self._aliases: atom.Atom = atom.Atom(lmap.Map.empty())
-        self._imports: atom.Atom = atom.Atom(
+        self._aliases: Atom[NamespaceMap] = Atom(lmap.Map.empty())
+        self._imports: Atom[ModuleMap] = Atom(
             lmap.map(
                 dict(
                     map(
@@ -349,9 +359,9 @@ class Namespace:
                 )
             )
         )
-        self._import_aliases: atom.Atom = atom.Atom(lmap.Map.empty())
-        self._interns: atom.Atom = atom.Atom(lmap.Map.empty())
-        self._refers: atom.Atom = atom.Atom(lmap.Map.empty())
+        self._import_aliases: Atom[AliasMap] = Atom(lmap.Map.empty())
+        self._interns: Atom[VarMap] = Atom(lmap.Map.empty())
+        self._refers: Atom[VarMap] = Atom(lmap.Map.empty())
 
     @classmethod
     def add_default_import(cls, module: str):
@@ -367,7 +377,7 @@ class Namespace:
         return self._name.name
 
     @property
-    def module(self):
+    def module(self) -> types.ModuleType:
         return self._module
 
     @module.setter
@@ -380,31 +390,31 @@ class Namespace:
         self._module = m
 
     @property
-    def aliases(self) -> lmap.Map:
+    def aliases(self) -> NamespaceMap:
         """A mapping between a symbolic alias and another Namespace. The
         fully qualified name of a namespace is also an alias for itself."""
         return self._aliases.deref()
 
     @property
-    def imports(self) -> lmap.Map:
+    def imports(self) -> ModuleMap:
         """A mapping of names to Python modules imported into the current
         namespace."""
         return self._imports.deref()
 
     @property
-    def import_aliases(self) -> lmap.Map:
+    def import_aliases(self) -> AliasMap:
         """A mapping of a symbolic alias and a Python module name."""
         return self._import_aliases.deref()
 
     @property
-    def interns(self) -> lmap.Map:
+    def interns(self) -> VarMap:
         """A mapping between a symbolic name and a Var. The Var may point to
         code, data, or nothing, if it is unbound. Vars in `interns` are
         interned in _this_ namespace."""
         return self._interns.deref()
 
     @property
-    def refers(self) -> lmap.Map:
+    def refers(self) -> VarMap:
         """A mapping between a symbolic name and a Var. Vars in refers are
         interned in another namespace and are only referred to without an
         alias in this namespace."""
@@ -509,7 +519,7 @@ class Namespace:
 
     @staticmethod
     def __get_or_create(
-        ns_cache: lmap.Map,
+        ns_cache: NamespaceMap,
         name: sym.Symbol,
         module: types.ModuleType = None,
         core_ns_name=CORE_NS,
@@ -553,7 +563,7 @@ class Namespace:
             ns: Optional[Namespace] = oldval.entry(name, None)
             newval = oldval
             if ns is not None:
-                newval = oldval.discard(name)
+                newval = oldval.dissoc(name)
             if cls._NAMESPACES.compare_and_set(oldval, newval):
                 return ns
 
@@ -575,8 +585,8 @@ class Namespace:
         """Return an iterable of possible completions matching the given
         prefix from the list of aliased namespaces. If name_in_ns is given,
         further attempt to refine the list to matching names in that namespace."""
-        candidates: Iterable[Tuple[sym.Symbol, Namespace]] = filter(
-            Namespace.__completion_matcher(prefix), self.aliases
+        candidates = filter(
+            Namespace.__completion_matcher(prefix), [(s, n) for s, n in self.aliases]
         )
         if name_in_ns is not None:
             for _, candidate_ns in candidates:
@@ -603,7 +613,7 @@ class Namespace:
             }
         )
 
-        candidates: Iterable[Tuple[sym.Symbol, types.ModuleType]] = filter(
+        candidates = filter(  # type: ignore
             Namespace.__completion_matcher(prefix), itertools.chain(aliases, imports)
         )
         if name_in_module is not None:
@@ -628,14 +638,19 @@ class Namespace:
             def is_match(entry: Tuple[sym.Symbol, Var]) -> bool:
                 return _is_match(entry) and not entry[1].is_private
 
-        return map(lambda entry: f"{entry[0].name}", filter(is_match, self.interns))
+        return map(
+            lambda entry: f"{entry[0].name}",
+            filter(is_match, [(s, v) for s, v in self.interns]),
+        )
 
     def __complete_refers(self, value: str) -> Iterable[str]:
         """Return an iterable of possible completions matching the given
         prefix from the list of referred Vars."""
         return map(
             lambda entry: f"{entry[0].name}",
-            filter(Namespace.__completion_matcher(value), self.refers),
+            filter(
+                Namespace.__completion_matcher(value), [(s, v) for s, v in self.refers]
+            ),
         )
 
     def complete(self, text: str) -> Iterable[str]:
@@ -666,11 +681,11 @@ class Namespace:
 
 
 def first(o):
-    """If o is a Seq, return the first element from o. If o is None, return
+    """If o is a ISeq, return the first element from o. If o is None, return
     None. Otherwise, coerces o to a Seq and returns the first."""
     if o is None:
         return None
-    if isinstance(o, lseq.Seq):
+    if isinstance(o, ISeq):
         return o.first
     s = to_seq(o)
     if s is None:
@@ -678,12 +693,12 @@ def first(o):
     return s.first
 
 
-def rest(o) -> Optional[lseq.Seq]:
-    """If o is a Seq, return the elements after the first in o. If o is None,
+def rest(o) -> Optional[ISeq]:
+    """If o is a ISeq, return the elements after the first in o. If o is None,
     returns an empty seq. Otherwise, coerces o to a seq and returns the rest."""
     if o is None:
         return None
-    if isinstance(o, lseq.Seq):
+    if isinstance(o, ISeq):
         s = o.rest
         if s is None:
             return lseq.EMPTY
@@ -705,7 +720,7 @@ def nthrest(coll, i: int):
         coll = rest(coll)
 
 
-def next_(o) -> Optional[lseq.Seq]:
+def next_(o) -> Optional[ISeq]:
     """Calls rest on o. If o returns an empty sequence or None, returns None.
     Otherwise, returns the elements after the first in o."""
     s = rest(o)
@@ -714,7 +729,7 @@ def next_(o) -> Optional[lseq.Seq]:
     return s
 
 
-def nthnext(coll, i: int) -> Optional[lseq.Seq]:
+def nthnext(coll, i: int) -> Optional[ISeq]:
     """Returns the nth next sequence of coll."""
     while True:
         if coll is None:
@@ -725,37 +740,37 @@ def nthnext(coll, i: int) -> Optional[lseq.Seq]:
         coll = next_(coll)
 
 
-def cons(o, seq) -> lseq.Seq:
+def cons(o, seq) -> ISeq:
     """Creates a new sequence where o is the first element and seq is the rest.
-    If seq is None, return a list containing o. If seq is not a Seq, attempt
-    to coerce it to a Seq and then cons o onto the resulting sequence."""
+    If seq is None, return a list containing o. If seq is not a ISeq, attempt
+    to coerce it to a ISeq and then cons o onto the resulting sequence."""
     if seq is None:
         return llist.l(o)
-    if isinstance(seq, lseq.Seq):
+    if isinstance(seq, ISeq):
         return seq.cons(o)
     return Maybe(to_seq(seq)).map(lambda s: s.cons(o)).or_else(lambda: llist.l(o))
 
 
-def _seq_or_nil(s: lseq.Seq) -> Optional[lseq.Seq]:
-    """Return None if a Seq is empty, the Seq otherwise."""
+def _seq_or_nil(s: ISeq) -> Optional[ISeq]:
+    """Return None if a ISeq is empty, the ISeq otherwise."""
     if s.is_empty:
         return None
     return s
 
 
-def to_seq(o) -> Optional[lseq.Seq]:
-    """Coerce the argument o to a Seq. If o is None, return None."""
+def to_seq(o) -> Optional[ISeq]:
+    """Coerce the argument o to a ISeq. If o is None, return None."""
     if o is None:
         return None
-    if isinstance(o, lseq.Seq):
+    if isinstance(o, ISeq):
         return _seq_or_nil(o)
-    if isinstance(o, lseq.Seqable):
+    if isinstance(o, ISeqable):
         return _seq_or_nil(o.seq())
     return _seq_or_nil(lseq.sequence(o))
 
 
-def concat(*seqs) -> lseq.Seq:
-    """Concatenate the sequences given by seqs into a single Seq."""
+def concat(*seqs) -> ISeq:
+    """Concatenate the sequences given by seqs into a single ISeq."""
     allseqs = lseq.sequence(itertools.chain(*filter(None, map(to_seq, seqs))))
     if allseqs is None:
         return lseq.EMPTY
@@ -839,7 +854,7 @@ def assoc(m, *kvs):
     returns a new Map with key-values kvs."""
     if m is None:
         return lmap.Map.empty().assoc(*kvs)
-    if isinstance(m, lassoc.Associative):
+    if isinstance(m, IAssociative):
         return m.assoc(*kvs)
     raise TypeError(
         f"Object of type {type(m)} does not implement Associative interface"
@@ -852,7 +867,7 @@ def update(m, k, f, *args):
     None."""
     if m is None:
         return lmap.Map.empty().assoc(k, f(None, *args))
-    if isinstance(m, lassoc.Associative):
+    if isinstance(m, IAssociative):
         old_v = m.entry(k)
         new_v = f(old_v, *args)
         return m.assoc(k, new_v)
@@ -868,7 +883,7 @@ def conj(coll, *xs):
     if coll is None:
         l = llist.List.empty()
         return l.cons(*xs)
-    if isinstance(coll, lcoll.Collection):
+    if isinstance(coll, IPersistentCollection):
         return coll.cons(*xs)
     raise TypeError(
         f"Object of type {type(coll)} does not implement Collection interface"
@@ -887,12 +902,12 @@ def partial(f, *args):
 
 def deref(o):
     """Dereference a Deref object and return its contents."""
-    if isinstance(o, lderef.Deref):
+    if isinstance(o, IDeref):
         return o.deref()
     raise TypeError(f"Object of type {type(o)} cannot be dereferenced")
 
 
-def swap(a: atom.Atom, f, *args):
+def swap(a: Atom, f, *args):
     """Atomically swap the value of an atom to the return value of (apply f
     current-value args). The function f may be called multiple times while
     swapping, so should be free of side effects. Return the new value."""
@@ -913,7 +928,7 @@ def divide(x: LispNumber, y: LispNumber) -> LispNumber:
     Otherwise, return the true division of x and y."""
     if isinstance(x, int) and isinstance(y, int):
         return Fraction(x, y)
-    return x / y  # type: ignore
+    return x / y
 
 
 def quotient(num, div) -> LispNumber:
@@ -921,7 +936,7 @@ def quotient(num, div) -> LispNumber:
     return math.trunc(num / div)
 
 
-def sort(coll, f=None) -> Optional[lseq.Seq]:
+def sort(coll, f=None) -> Optional[ISeq]:
     """Return a sorted sequence of the elements in coll. If a comparator
     function f is provided, compare elements in coll using f."""
     return to_seq(sorted(coll, key=Maybe(f).map(functools.cmp_to_key).value))
@@ -929,14 +944,14 @@ def sort(coll, f=None) -> Optional[lseq.Seq]:
 
 def contains(coll, k):
     """Return true if o contains the key k."""
-    if isinstance(coll, lassoc.Associative):
+    if isinstance(coll, IAssociative):
         return coll.contains(k)
     return k in coll
 
 
 def get(m, k, default=None):
     """Return the value of k in m. Return default if k not found in m."""
-    if isinstance(m, lassoc.Associative):
+    if isinstance(m, IAssociative):
         return m.entry(k, default=default)
 
     try:
@@ -1000,7 +1015,7 @@ def _kw_name(kw: kw.Keyword) -> str:
 @functools.singledispatch
 def to_py(o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name):
     """Recursively convert Lisp collections into Python collections."""
-    if isinstance(o, lseq.Seq):
+    if isinstance(o, ISeq):
         return _to_py_list(o, keyword_fn=keyword_fn)
     elif not isinstance(o, (llist.List, lmap.Map, lset.Set, vec.Vector)):
         return o
@@ -1027,10 +1042,10 @@ def _to_py_kw(o: kw.Keyword, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name)
 
 
 @to_py.register(llist.List)
-@to_py.register(lseq.Seq)
+@to_py.register(ISeq)
 @to_py.register(vec.Vector)
 def _to_py_list(
-    o: Union[llist.List, lseq.Seq, vec.Vector],
+    o: Union[llist.List, ISeq, vec.Vector],
     keyword_fn: Callable[[kw.Keyword], Any] = _kw_name,
 ) -> list:
     return list(map(functools.partial(to_py, keyword_fn=keyword_fn), o))
@@ -1101,7 +1116,7 @@ def repl_complete(text: str, state: int) -> Optional[str]:
 ####################
 
 
-def _collect_args(args) -> lseq.Seq:
+def _collect_args(args) -> ISeq:
     """Collect Python starred arguments into a Basilisp list."""
     if isinstance(args, tuple):
         return llist.list(args)
@@ -1126,7 +1141,7 @@ class _TrampolineArgs:
 
         try:
             final = self._args[-1]
-            if isinstance(final, lseq.Seq):
+            if isinstance(final, ISeq):
                 inits = self._args[:-1]
                 return tuple(itertools.chain(inits, final))
             return self._args

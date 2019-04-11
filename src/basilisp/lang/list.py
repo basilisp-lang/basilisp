@@ -1,13 +1,16 @@
-from pyrsistent import plist, PList
+from typing import Optional, TypeVar, cast
+
+from pyrsistent import PList, plist  # noqa # pylint: disable=unused-import
 from pyrsistent._plist import _EMPTY_PLIST
 
-from basilisp.lang.collection import Collection
-from basilisp.lang.meta import Meta
+from basilisp.lang.interfaces import IMeta, IPersistentList, IPersistentMap, ISeq
 from basilisp.lang.obj import LispObject
-from basilisp.lang.seq import Seq, EMPTY
+from basilisp.lang.seq import EMPTY
+
+T = TypeVar("T")
 
 
-class List(Collection, Meta, Seq):
+class List(IMeta, ISeq[T], IPersistentList[T]):  # type: ignore
     """Basilisp List. Delegates internally to a pyrsistent.PList object.
 
     Do not instantiate directly. Instead use the l() and list() factory
@@ -15,7 +18,7 @@ class List(Collection, Meta, Seq):
 
     __slots__ = ("_inner", "_meta")
 
-    def __init__(self, wrapped: PList, meta=None) -> None:
+    def __init__(self, wrapped: "PList[T]", meta=None) -> None:
         self._inner = wrapped
         self._meta = meta
 
@@ -37,10 +40,10 @@ class List(Collection, Meta, Seq):
         return LispObject.seq_lrepr(self._inner, "(", ")", meta=self._meta, **kwargs)
 
     @property
-    def meta(self):
+    def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta) -> "List":
+    def with_meta(self, meta: IPersistentMap) -> "List":
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return list(self._inner, meta=new_meta)
 
@@ -56,12 +59,12 @@ class List(Collection, Meta, Seq):
             return None
 
     @property
-    def rest(self) -> Seq:
-        if self._inner.rest is _EMPTY_PLIST:
+    def rest(self) -> ISeq:
+        if self._inner.rest is _EMPTY_PLIST:  # type: ignore
             return EMPTY
-        return List(self._inner.rest)
+        return List(self._inner.rest)  # type: ignore
 
-    def cons(self, *elems) -> "List":
+    def cons(self, *elems: T) -> "List[T]":
         l = self._inner
         for elem in elems:
             l = l.cons(elem)
@@ -70,6 +73,15 @@ class List(Collection, Meta, Seq):
     @staticmethod
     def empty(meta=None) -> "List":  # pylint:disable=arguments-differ
         return l(meta=meta)
+
+    def peek(self):
+        return self.first
+
+    def pop(self) -> "List":
+        rest = self.rest
+        if rest is EMPTY:
+            raise IndexError("Cannot pop an empty list")
+        return cast(List, rest)
 
 
 def list(members, meta=None) -> List:  # pylint:disable=redefined-builtin

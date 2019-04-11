@@ -1,63 +1,12 @@
-import itertools
-from abc import ABC, abstractmethod
-from typing import Iterator, Optional, TypeVar, Iterable, Any, Callable
+from typing import Any, Callable, Iterable, Iterator, Optional, TypeVar
 
-from basilisp.lang.meta import Meta
-from basilisp.lang.obj import LispObject
+from basilisp.lang.interfaces import IMeta, ISeq
 from basilisp.util import Maybe
 
 T = TypeVar("T")
 
 
-class Seq(LispObject, Iterable[T]):
-    __slots__ = ()
-
-    def _lrepr(self, **kwargs):
-        return LispObject.seq_lrepr(iter(self), "(", ")", **kwargs)
-
-    @property
-    @abstractmethod
-    def is_empty(self) -> bool:
-        raise NotImplementedError()
-
-    @property
-    @abstractmethod
-    def first(self) -> Optional[T]:
-        raise NotImplementedError()
-
-    @property
-    @abstractmethod
-    def rest(self) -> "Seq[T]":
-        raise NotImplementedError()
-
-    @abstractmethod
-    def cons(self, elem):
-        raise NotImplementedError()
-
-    def __eq__(self, other):
-        sentinel = object()
-        for e1, e2 in itertools.zip_longest(self, other, fillvalue=sentinel):
-            if bool(e1 is sentinel) or bool(e2 is sentinel):
-                return False
-            if e1 != e2:
-                return False
-        return True
-
-    def __iter__(self):
-        o = self
-        while o:
-            yield o.first
-            o = o.rest
-
-
-class Seqable(ABC, Iterable[T]):
-    __slots__ = ()
-
-    def seq(self) -> Seq[T]:
-        raise NotImplementedError()
-
-
-class _EmptySequence(Seq[T]):
+class _EmptySequence(ISeq[T]):
     def __repr__(self):
         return "()"
 
@@ -73,20 +22,20 @@ class _EmptySequence(Seq[T]):
         return None
 
     @property
-    def rest(self) -> Seq[T]:
+    def rest(self) -> ISeq[T]:
         return self
 
     def cons(self, elem):
         return Cons(elem, self)
 
 
-EMPTY: Seq = _EmptySequence()
+EMPTY: ISeq = _EmptySequence()
 
 
-class Cons(Seq, Meta):
+class Cons(ISeq[T], IMeta):
     __slots__ = ("_first", "_rest", "_meta")
 
-    def __init__(self, first=None, seq: Optional[Seq[Any]] = None, meta=None) -> None:
+    def __init__(self, first=None, seq: Optional[ISeq[T]] = None, meta=None) -> None:
         self._first = first
         self._rest = Maybe(seq).or_else_get(EMPTY)
         self._meta = meta
@@ -96,14 +45,14 @@ class Cons(Seq, Meta):
         return False
 
     @property
-    def first(self) -> Optional[Any]:
+    def first(self) -> Optional[T]:
         return self._first
 
     @property
-    def rest(self) -> Seq[Any]:
+    def rest(self) -> ISeq[T]:
         return self._rest
 
-    def cons(self, elem) -> "Cons":
+    def cons(self, elem: T) -> "Cons[T]":
         return Cons(elem, self)
 
     @property
@@ -115,9 +64,9 @@ class Cons(Seq, Meta):
         return Cons(first=self._first, seq=self._rest, meta=new_meta)
 
 
-class _Sequence(Seq[T]):
+class _Sequence(ISeq[T]):
     """Sequences are a thin wrapper over Python Iterable values so they can
-    satisfy the Basilisp `Seq` interface.
+    satisfy the Basilisp `ISeq` interface.
 
     Sequences are singly linked lists which lazily traverse the input Iterable.
 
@@ -129,7 +78,7 @@ class _Sequence(Seq[T]):
     def __init__(self, s: Iterator, first: T) -> None:
         self._seq = s  # pylint:disable=assigning-non-slot
         self._first = first  # pylint:disable=assigning-non-slot
-        self._rest: Optional[Seq] = None  # pylint:disable=assigning-non-slot
+        self._rest: Optional[ISeq] = None  # pylint:disable=assigning-non-slot
 
     @property
     def is_empty(self) -> bool:
@@ -140,7 +89,7 @@ class _Sequence(Seq[T]):
         return self._first
 
     @property
-    def rest(self) -> "Seq[T]":
+    def rest(self) -> "ISeq[T]":
         if self._rest:
             return self._rest
 
@@ -156,17 +105,17 @@ class _Sequence(Seq[T]):
         return Cons(elem, self)
 
 
-class LazySeq(Seq[T]):
+class LazySeq(ISeq[T]):
     """LazySeqs are wrappers for delaying sequence computation. Create a LazySeq
     with a function that can either return None or a Seq. If a Seq is returned,
     the LazySeq is a proxy to that Seq."""
 
     __slots__ = ("_gen", "_realized", "_seq")
 
-    def __init__(self, gen: Callable[[], Optional[Seq]]) -> None:
+    def __init__(self, gen: Callable[[], Optional[ISeq[T]]]) -> None:
         self._gen = gen  # pylint:disable=assigning-non-slot
         self._realized = False  # pylint:disable=assigning-non-slot
-        self._seq: Optional[Seq] = None  # pylint:disable=assigning-non-slot
+        self._seq: Optional[ISeq[T]] = None  # pylint:disable=assigning-non-slot
 
     def _realize(self):
         if not self._realized:
@@ -192,7 +141,7 @@ class LazySeq(Seq[T]):
             return None
 
     @property
-    def rest(self) -> "Seq[T]":
+    def rest(self) -> "ISeq[T]":
         if not self._realized:
             self._realize()
         try:
@@ -218,7 +167,7 @@ class LazySeq(Seq[T]):
             o = o.rest
 
 
-def sequence(s: Iterable) -> Seq[Any]:
+def sequence(s: Iterable) -> ISeq[Any]:
     """Create a Sequence from Iterable s."""
     try:
         i = iter(s)
