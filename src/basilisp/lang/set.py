@@ -1,6 +1,6 @@
 from typing import Iterable, Optional, TypeVar
 
-from pyrsistent import PSet, pset
+from pyrsistent import PSet, pset  # pylint: disable=unused-import
 
 from basilisp.lang.interfaces import (
     IMeta,
