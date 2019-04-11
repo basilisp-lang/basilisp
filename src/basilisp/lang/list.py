@@ -78,10 +78,9 @@ class List(IMeta, ISeq[T], IPersistentList[T]):  # type: ignore
         return self.first
 
     def pop(self) -> "List":
-        rest = self.rest
-        if rest is EMPTY:
+        if self.is_empty:
             raise IndexError("Cannot pop an empty list")
-        return cast(List, rest)
+        return cast(List, self.rest)
 
 
 def list(members, meta=None) -> List:  # pylint:disable=redefined-builtin

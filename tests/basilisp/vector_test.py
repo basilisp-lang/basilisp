@@ -1,3 +1,5 @@
+import pytest
+
 import basilisp.lang.map as lmap
 import basilisp.lang.vector as vector
 from basilisp.lang.interfaces import (
@@ -98,11 +100,20 @@ def test_entry():
 
 
 def test_peek():
-    pass
+    assert None is vector.v().peek()
+
+    assert 1 == vector.v(1).peek()
+    assert 2 == vector.v(1, 2).peek()
+    assert 3 == vector.v(1, 2, 3).peek()
 
 
 def test_pop():
-    pass
+    with pytest.raises(IndexError):
+        vector.v().pop()
+
+    assert vector.Vector.empty() == vector.v(1).pop()
+    assert vector.v(1) == vector.v(1, 2).pop()
+    assert vector.v(1, 2) == vector.v(1, 2, 3).pop()
 
 
 def test_vector_meta():

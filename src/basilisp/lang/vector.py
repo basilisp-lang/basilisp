@@ -84,7 +84,9 @@ class Vector(LispObject, IMeta, ISeqable[T], IPersistentVector[T]):  # type: ign
     def seq(self) -> ISeq[T]:
         return sequence(self)
 
-    def peek(self) -> T:
+    def peek(self) -> Optional[T]:
+        if len(self) == 0:
+            return None
         return self[-1]
 
     def pop(self) -> "Vector[T]":
