@@ -7,11 +7,11 @@ from basilisp.lang.interfaces import IDeref
 T = TypeVar("T")
 
 
-class Atom(IDeref, Generic[T]):
+class Atom(IDeref[T], Generic[T]):
     __slots__ = ("_atom",)
 
     def __init__(self, state: T) -> None:
-        self._atom = atomos.atom.Atom(state)
+        self._atom = atomos.atom.Atom(state)  # pylint: disable=assigning-non-slot
 
     def compare_and_set(self, old, new):
         return self._atom.compare_and_set(old, new)

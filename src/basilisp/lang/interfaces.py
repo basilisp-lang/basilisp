@@ -8,7 +8,7 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class IAssociative(ABC, Mapping[K, V]):
+class IAssociative(Mapping[K, V]):
     __slots__ = ()
 
     @abstractmethod
@@ -27,7 +27,7 @@ class IAssociative(ABC, Mapping[K, V]):
 T = TypeVar("T")
 
 
-class IDeref(ABC, Generic[T]):
+class IDeref(Generic[T]):
     __slots__ = ()
 
     @abstractmethod

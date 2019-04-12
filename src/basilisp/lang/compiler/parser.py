@@ -21,9 +21,9 @@ from typing import (
     List,
     Mapping,
     MutableMapping,
+    MutableSet,
     Optional,
     Pattern,
-    Set,
     Tuple,
     Type,
     Union,
@@ -1110,7 +1110,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
 
         assert count(methods) > 0, "fn must have at least one arity"
 
-        fixed_arities: Set[int] = set()
+        fixed_arities: MutableSet[int] = set()
         fixed_arity_for_variadic: Optional[int] = None
         num_variadic = 0
         for method in methods:
