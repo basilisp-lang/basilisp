@@ -2,9 +2,14 @@ import pytest
 
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-from basilisp.lang.interfaces import IMeta, IPersistentCollection, IPersistentList, ISeq
+from basilisp.lang.interfaces import (
+    ILispObject,
+    IMeta,
+    IPersistentCollection,
+    IPersistentList,
+    ISeq,
+)
 from basilisp.lang.keyword import keyword
-from basilisp.lang.obj import LispObject
 from basilisp.lang.symbol import symbol
 
 
@@ -24,8 +29,8 @@ def test_list_meta_interface():
 
 
 def test_map_object_interface():
-    assert isinstance(llist.l(), LispObject)
-    assert issubclass(llist.List, LispObject)
+    assert isinstance(llist.l(), ILispObject)
+    assert issubclass(llist.List, ILispObject)
 
 
 def test_list_seq_interface():

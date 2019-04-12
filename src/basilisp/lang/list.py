@@ -4,7 +4,7 @@ from pyrsistent import PList, plist  # noqa # pylint: disable=unused-import
 from pyrsistent._plist import _EMPTY_PLIST
 
 from basilisp.lang.interfaces import IMeta, IPersistentList, IPersistentMap, ISeq
-from basilisp.lang.obj import LispObject
+from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import EMPTY
 
 T = TypeVar("T")
@@ -37,7 +37,7 @@ class List(IMeta, ISeq[T], IPersistentList[T]):  # type: ignore
         return len(self._inner)
 
     def _lrepr(self, **kwargs) -> str:
-        return LispObject.seq_lrepr(self._inner, "(", ")", meta=self._meta, **kwargs)
+        return _seq_lrepr(self._inner, "(", ")", meta=self._meta, **kwargs)
 
     @property
     def meta(self) -> Optional[IPersistentMap]:

@@ -1,13 +1,13 @@
 import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 from basilisp.lang.interfaces import (
+    ILispObject,
     IMeta,
     IPersistentCollection,
     IPersistentSet,
     ISeqable,
 )
 from basilisp.lang.keyword import keyword
-from basilisp.lang.obj import LispObject
 from basilisp.lang.symbol import symbol
 
 
@@ -22,8 +22,8 @@ def test_list_meta_interface():
 
 
 def test_set_object_interface():
-    assert isinstance(lset.s(), LispObject)
-    assert issubclass(lset.Set, LispObject)
+    assert isinstance(lset.s(), ILispObject)
+    assert issubclass(lset.Set, ILispObject)
 
 
 def test_set_seqable_interface():

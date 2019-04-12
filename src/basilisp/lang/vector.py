@@ -3,19 +3,20 @@ from typing import Iterable, Optional, TypeVar
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 
 from basilisp.lang.interfaces import (
+    ILispObject,
     IMeta,
     IPersistentMap,
     IPersistentVector,
     ISeq,
     ISeqable,
 )
-from basilisp.lang.obj import LispObject
+from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
 
 T = TypeVar("T")
 
 
-class Vector(LispObject, IMeta, ISeqable[T], IPersistentVector[T]):  # type: ignore
+class Vector(ILispObject, IMeta, ISeqable[T], IPersistentVector[T]):  # type: ignore
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""
@@ -49,7 +50,7 @@ class Vector(LispObject, IMeta, ISeqable[T], IPersistentVector[T]):  # type: ign
         return len(self._inner)
 
     def _lrepr(self, **kwargs) -> str:
-        return LispObject.seq_lrepr(self._inner, "[", "]", meta=self._meta, **kwargs)
+        return _seq_lrepr(self._inner, "[", "]", meta=self._meta, **kwargs)
 
     @property
     def meta(self):

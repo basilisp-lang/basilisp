@@ -4,13 +4,13 @@ import basilisp.lang.map as lmap
 import basilisp.lang.vector as vector
 from basilisp.lang.interfaces import (
     IAssociative,
+    ILispObject,
     IMeta,
     IPersistentCollection,
     IPersistentVector,
     ISeqable,
 )
 from basilisp.lang.keyword import keyword
-from basilisp.lang.obj import LispObject
 from basilisp.lang.symbol import symbol
 
 
@@ -30,8 +30,8 @@ def test_vector_meta_interface():
 
 
 def test_vector_object_interface():
-    assert isinstance(vector.v(), LispObject)
-    assert issubclass(vector.Vector, LispObject)
+    assert isinstance(vector.v(), ILispObject)
+    assert issubclass(vector.Vector, ILispObject)
 
 
 def test_vector_seqable_interface():

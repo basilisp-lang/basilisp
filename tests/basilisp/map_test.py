@@ -5,6 +5,7 @@ import pytest
 import basilisp.lang.map as lmap
 from basilisp.lang.interfaces import (
     IAssociative,
+    ILispObject,
     IMeta,
     IPersistentCollection,
     IPersistentMap,
@@ -12,7 +13,6 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.keyword import keyword
 from basilisp.lang.map import MapEntry
-from basilisp.lang.obj import LispObject
 from basilisp.lang.symbol import symbol
 
 
@@ -42,8 +42,8 @@ def test_map_mapping_interface():
 
 
 def test_map_object_interface():
-    assert isinstance(lmap.m(), LispObject)
-    assert issubclass(lmap.Map, LispObject)
+    assert isinstance(lmap.m(), ILispObject)
+    assert issubclass(lmap.Map, ILispObject)
 
 
 def test_map_seqable_interface():

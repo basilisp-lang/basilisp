@@ -9,6 +9,7 @@ from pyrsistent import (  # noqa # pylint: disable=unused-import
 )
 
 from basilisp.lang.interfaces import (
+    ILispObject,
     IMapEntry,
     IMeta,
     IPersistentCollection,
@@ -16,7 +17,7 @@ from basilisp.lang.interfaces import (
     ISeq,
     ISeqable,
 )
-from basilisp.lang.obj import LispObject
+from basilisp.lang.obj import map_lrepr as _map_lrepr
 from basilisp.lang.seq import sequence
 from basilisp.lang.vector import Vector
 from basilisp.util import partition
@@ -57,7 +58,7 @@ class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):  # type: ignore
 
 class Map(
     IPersistentCollection[MapEntry[K, V]],
-    LispObject,
+    ILispObject,
     IMeta,
     ISeqable[MapEntry[K, V]],
     IPersistentMap[K, V],
@@ -98,7 +99,7 @@ class Map(
         return len(self._inner)
 
     def _lrepr(self, **kwargs):
-        return LispObject.map_lrepr(
+        return _map_lrepr(
             self._inner.iteritems, start="{", end="}", meta=self._meta, **kwargs
         )
 

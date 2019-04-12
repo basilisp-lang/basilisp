@@ -2,7 +2,7 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import AbstractSet, Generic, Iterable, Mapping, Optional, Sequence, TypeVar
 
-from basilisp.lang.obj import LispObject
+from basilisp.lang.obj import LispObject as _LispObject, seq_lrepr
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -75,6 +75,9 @@ class IMeta(ABC):
         raise NotImplementedError()
 
 
+ILispObject = _LispObject
+
+
 class IPersistentCollection(Generic[T]):
     __slots__ = ()
 
@@ -126,7 +129,11 @@ class IPersistentVector(  # type: ignore
     __slots__ = ()
 
 
-class ISeq(LispObject, Iterable[T]):
+class IRecord(ABC):
+    __slots__ = ()
+
+
+class ISeq(ILispObject, Iterable[T]):
     __slots__ = ()
 
     @property
@@ -149,7 +156,7 @@ class ISeq(LispObject, Iterable[T]):
         raise NotImplementedError()
 
     def _lrepr(self, **kwargs):
-        return LispObject.seq_lrepr(iter(self), "(", ")", **kwargs)
+        return seq_lrepr(iter(self), "(", ")", **kwargs)
 
     def __eq__(self, other):
         sentinel = object()
@@ -172,3 +179,7 @@ class ISeqable(ABC, Iterable[T]):
 
     def seq(self) -> ISeq[T]:
         raise NotImplementedError()
+
+
+class IType(ABC):
+    __slots__ = ()
