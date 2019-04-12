@@ -35,6 +35,20 @@ class IDeref(Generic[T]):
         raise NotImplementedError()
 
 
+class IMapEntry(Generic[K, V]):
+    __slots__ = ()
+
+    @property
+    @abstractmethod
+    def key(self) -> K:
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def value(self) -> V:
+        raise NotImplementedError()
+
+
 class IMeta(ABC):
     __slots__ = ()
 

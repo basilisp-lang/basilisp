@@ -9,6 +9,7 @@ from pyrsistent import (  # noqa # pylint: disable=unused-import
 )
 
 from basilisp.lang.interfaces import (
+    IMapEntry,
     IMeta,
     IPersistentCollection,
     IPersistentMap,
@@ -25,10 +26,10 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class MapEntry(Vector[T]):
+class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):  # type: ignore
     __slots__ = ()
 
-    def __init__(self, wrapped: PVector) -> None:
+    def __init__(self, wrapped: "PVector[Union[K, V]]") -> None:
         try:
             if not len(wrapped) == 2:
                 raise ValueError("Vector arg to map conj must be a pair")
@@ -46,19 +47,19 @@ class MapEntry(Vector[T]):
         return self[1]
 
     @staticmethod
-    def of(k: K, v: V) -> "MapEntry[Union[K, V]]":
+    def of(k: K, v: V) -> "MapEntry[K, V]":
         return MapEntry(pvector([k, v]))
 
     @staticmethod
-    def from_vec(v: Sequence[Union[K, V]]) -> "MapEntry[Union[K, V]]":
+    def from_vec(v: Sequence[Union[K, V]]) -> "MapEntry[K, V]":
         return MapEntry(pvector(v))
 
 
 class Map(
-    IPersistentCollection[MapEntry[Union[K, V]]],
+    IPersistentCollection[MapEntry[K, V]],
     LispObject,
     IMeta,
-    ISeqable[MapEntry[Union[K, V]]],
+    ISeqable[MapEntry[K, V]],
     IPersistentMap[K, V],
 ):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
@@ -153,9 +154,7 @@ class Map(
 
     def cons(
         self,
-        *elems: Union[
-            "Map[K, V]", Dict[K, V], MapEntry[Union[K, V]], Vector[Union[K, V]]
-        ],
+        *elems: Union["Map[K, V]", Dict[K, V], MapEntry[K, V], Vector[Union[K, V]]],
     ) -> "Map[K, V]":
         e = self._inner.evolver()
         try:
@@ -167,7 +166,7 @@ class Map(
                     for k, v in elem.items():
                         e.set(k, v)
                 elif isinstance(elem, MapEntry):
-                    e.set(elem.key, elem.value)  # type: ignore
+                    e.set(elem.key, elem.value)
                 else:
                     entry = MapEntry.from_vec(elem)
                     e.set(entry.key, entry.value)
@@ -181,7 +180,7 @@ class Map(
     def empty() -> "Map":
         return m()
 
-    def seq(self) -> ISeq[MapEntry[Union[K, V]]]:
+    def seq(self) -> ISeq[MapEntry[K, V]]:
         return sequence(self)
 
 
@@ -195,7 +194,7 @@ def m(**kvs) -> Map[str, V]:
     return Map(pmap(initial=kvs))
 
 
-def from_entries(entries: Iterable[MapEntry[Union[K, V]]]) -> Map[K, V]:
+def from_entries(entries: Iterable[MapEntry[K, V]]) -> Map[K, V]:
     m = pmap().evolver()  # type: ignore
     for entry in entries:
         m.set(entry.key, entry.value)
