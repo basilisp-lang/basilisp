@@ -1,11 +1,11 @@
 from typing import Optional
 
-from basilisp.lang.meta import Meta
-from basilisp.lang.obj import LispObject, lrepr
+from basilisp.lang.interfaces import ILispObject, IMeta
+from basilisp.lang.obj import lrepr
 from basilisp.lang.util import munge
 
 
-class Symbol(LispObject, Meta):
+class Symbol(ILispObject, IMeta):
     __slots__ = ("_name", "_ns", "_meta")
 
     def __init__(self, name: str, ns: Optional[str] = None, meta=None) -> None:

@@ -1,5 +1,5 @@
 import ast
-from typing import Optional, Iterable, List
+from typing import Iterable, List, Optional
 
 
 def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:

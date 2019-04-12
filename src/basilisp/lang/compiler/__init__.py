@@ -2,7 +2,7 @@ import ast
 import itertools
 import os
 import types
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Iterable, List, Mapping, Optional
 
 from astor import code_gen as codegen
 
@@ -44,7 +44,7 @@ BytecodeCollector = Optional[Callable[[types.CodeType], None]]
 class CompilerContext:
     __slots__ = ("_filename", "_gctx", "_pctx", "_optimizer")
 
-    def __init__(self, filename: str, opts: Optional[Dict[str, bool]] = None):
+    def __init__(self, filename: str, opts: Optional[Mapping[str, bool]] = None):
         self._filename = filename
         self._gctx = GeneratorContext(filename=filename, opts=opts)
         self._pctx = ParserContext(filename=filename, opts=opts)

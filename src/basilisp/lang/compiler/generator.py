@@ -16,14 +16,16 @@ from typing import (
     Callable,
     Collection,
     Deque,
-    Dict,
     Iterable,
     List,
+    Mapping,
+    MutableMapping,
     Optional,
     Pattern,
     Tuple,
     Type,
     Union,
+    cast,
 )
 
 import attr
@@ -31,10 +33,8 @@ import attr
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as lmeta
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
-import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
@@ -87,6 +87,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
+from basilisp.lang.interfaces import IMeta, ISeq
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
@@ -128,8 +129,8 @@ class SymbolTableEntry:
 class SymbolTable:
     name: str
     _parent: Optional["SymbolTable"] = None
-    _table: Dict[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
-    _children: Dict[str, "SymbolTable"] = attr.ib(factory=dict)
+    _table: MutableMapping[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
+    _children: MutableMapping[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(self, s: sym.Symbol, munged: str, ctx: LocalType) -> "SymbolTable":
         if s in self._table:
@@ -182,10 +183,10 @@ class GeneratorContext:
     __slots__ = ("_filename", "_opts", "_recur_points", "_st", "_this")
 
     def __init__(
-        self, filename: Optional[str] = None, opts: Optional[Dict[str, bool]] = None
+        self, filename: Optional[str] = None, opts: Optional[Mapping[str, bool]] = None
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
-        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())
+        self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())  # type: ignore
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>")])
         self._this: Deque[sym.Symbol] = collections.deque([])
@@ -251,7 +252,7 @@ class GeneratorContext:
         self.current_ns.add_import(imp, mod, *aliases)
 
     @property
-    def imports(self) -> lmap.Map:
+    def imports(self) -> lmap.Map[sym.Symbol, types.ModuleType]:
         return self.current_ns.imports
 
     @property
@@ -330,12 +331,13 @@ def _collection_ast(
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
 
 
-def _clean_meta(form: lmeta.Meta) -> LispForm:
+def _clean_meta(form: IMeta) -> LispForm:
     """Remove reader metadata from the form's meta map."""
-    meta = form.meta.discard(reader.READER_LINE_KW, reader.READER_COL_KW)
+    assert form.meta is not None, "Form must have non-null 'meta' attribute"
+    meta = form.meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
     if len(meta) == 0:
         return None
-    return meta
+    return cast(lmap.Map, meta)
 
 
 def _ast_with_loc(
@@ -344,14 +346,14 @@ def _ast_with_loc(
     """Hydrate Generated Python AST nodes with line numbers and column offsets
     if they exist in the node environment."""
     if env.line is not None:
-        py_ast.node.lineno = env.line  # type: ignore
+        py_ast.node.lineno = env.line
 
         if include_dependencies:
             for dep in py_ast.dependencies:
                 dep.lineno = env.line
 
     if env.col is not None:
-        py_ast.node.col_offset = env.col  # type: ignore
+        py_ast.node.col_offset = env.col
 
         if include_dependencies:
             for dep in py_ast.dependencies:
@@ -420,10 +422,11 @@ def _is_redefable(v: Var) -> bool:
 
 
 _ATOM_ALIAS = genname("atom")
-_ASSOC_ALIAS = genname("assoc")
 _COMPILER_ALIAS = genname("compiler")
+_CORE_ALIAS = genname("core")
 _DELAY_ALIAS = genname("delay")
 _EXC_ALIAS = genname("exc")
+_INTERFACES_ALIAS = genname("interfaces")
 _KW_ALIAS = genname("kw")
 _LIST_ALIAS = genname("llist")
 _MAP_ALIAS = genname("lmap")
@@ -440,10 +443,11 @@ _UTIL_ALIAS = genname("langutil")
 _MODULE_ALIASES = {
     "builtins": None,
     "basilisp.lang.atom": _ATOM_ALIAS,
-    "basilisp.lang.associative": _ASSOC_ALIAS,
     "basilisp.lang.compiler": _COMPILER_ALIAS,
+    "basilisp.core": _CORE_ALIAS,
     "basilisp.lang.delay": _DELAY_ALIAS,
     "basilisp.lang.exception": _EXC_ALIAS,
+    "basilisp.lang.interfaces": _INTERFACES_ALIAS,
     "basilisp.lang.keyword": _KW_ALIAS,
     "basilisp.lang.list": _LIST_ALIAS,
     "basilisp.lang.map": _MAP_ALIAS,
@@ -497,7 +501,7 @@ def statementize(e: ast.AST) -> ast.AST:
         e,
         (
             ast.Assign,
-            ast.AnnAssign,  # type: ignore
+            ast.AnnAssign,
             ast.AugAssign,
             ast.Expr,
             ast.Raise,
@@ -694,7 +698,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
                     if meta_ast is None
                     else [ast.keyword(arg="meta", value=meta_ast.node)],
                 )
-            ),  # type: ignore
+            ),
         ),
         dependencies=def_dependencies,
     )
@@ -708,7 +712,7 @@ def __deftype_method_to_py_ast(  # pylint: disable=too-many-branches
     method_name = munge(node.name)
 
     with ctx.new_symbol_table(node.name), ctx.new_recur_point(
-        node.loop_id, RecurType.METHOD, is_variadic=False
+        node.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
     ):
         this_name = genname(munge(node.this_local.name))
         this_sym = sym.symbol(node.this_local.name)
@@ -732,12 +736,9 @@ def __deftype_method_to_py_ast(  # pylint: disable=too-many-branches
                         kw_defaults=[],
                     ),
                     body=fn_body_ast,
-                    decorator_list=list(
-                        chain(
-                            [_BASILISP_FN_FN_NAME],
-                            [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
-                        )
-                    ),
+                    decorator_list=[_TRAMPOLINE_FN_NAME]
+                    if ctx.recur_point.has_recur
+                    else [],
                     returns=None,
                 )
             )
@@ -986,7 +987,7 @@ def __handle_return(node: ast.AST) -> ast.Return:
 def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-locals
     ctx: GeneratorContext,
     name: str,
-    arity_map: Dict[int, str],
+    arity_map: Mapping[int, str],
     default_name: Optional[str] = None,
     max_fixed_arity: Optional[int] = None,
     meta_node: Optional[MetaNode] = None,
@@ -1513,9 +1514,7 @@ def __fn_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
         node=ast.Call(
             func=_TRAMPOLINE_ARGS_FN_NAME,
             args=list(
-                chain(
-                    [ast.NameConstant(ctx.recur_point.is_variadic)], recur_nodes
-                )  # type: ignore
+                chain([ast.NameConstant(ctx.recur_point.is_variadic)], recur_nodes)
             ),
             keywords=[],
         ),
@@ -1545,12 +1544,11 @@ def __deftype_method_recur_to_py_ast(
             args=list(
                 chain(
                     [
-                        # For the moment at least, deftype methods cannot be variadic
-                        ast.NameConstant(False),
+                        ast.NameConstant(ctx.recur_point.is_variadic),
                         ast.Name(id=this_entry.munged, ctx=ast.Load()),
                     ],
                     recur_nodes,
-                )  # type: ignore
+                )
             ),
             keywords=[],
         ),
@@ -2096,7 +2094,7 @@ def _py_tuple_to_py_ast(ctx: GeneratorContext, node: PyTuple) -> GeneratedPyAST:
 ############
 
 
-_WITH_META_EXPR_HANDLER = {  # type: ignore
+_WITH_META_EXPR_HANDLER = {
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
@@ -2114,7 +2112,7 @@ def _with_meta_to_py_ast(
     assert (
         handle_expr is not None
     ), "No expression handler for with-meta child node type"
-    return handle_expr(ctx, node.expr, meta_node=node.meta, **kwargs)  # type: ignore
+    return handle_expr(ctx, node.expr, meta_node=node.meta, **kwargs)
 
 
 #################
@@ -2123,7 +2121,7 @@ def _with_meta_to_py_ast(
 
 
 def _const_meta_kwargs_ast(  # pylint:disable=inconsistent-return-statements
-    ctx: GeneratorContext, form: lmeta.Meta
+    ctx: GeneratorContext, form: IMeta
 ) -> Optional[GeneratedPyAST]:
     if hasattr(form, "meta") and form.meta is not None:
         genned = _const_val_to_py_ast(ctx, _clean_meta(form))
@@ -2276,7 +2274,7 @@ def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAS
 
 
 def _const_seq_to_py_ast(
-    ctx: GeneratorContext, form: Union[llist.List, lseq.Seq]
+    ctx: GeneratorContext, form: Union[llist.List, ISeq]
 ) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
 
@@ -2315,7 +2313,7 @@ def _const_vec_to_py_ast(ctx: GeneratorContext, form: vec.Vector) -> GeneratedPy
     )
 
 
-_CONST_VALUE_HANDLERS: Dict[Type, SimplePyASTGenerator] = {  # type: ignore
+_CONST_VALUE_HANDLERS: Mapping[Type, SimplePyASTGenerator] = {  # type: ignore
     bool: _name_const_to_py_ast,
     complex: _num_to_py_ast,
     datetime: _inst_to_py_ast,
@@ -2329,7 +2327,7 @@ _CONST_VALUE_HANDLERS: Dict[Type, SimplePyASTGenerator] = {  # type: ignore
     llist.List: _const_seq_to_py_ast,
     lmap.Map: _const_map_to_py_ast,
     lset.Set: _const_set_to_py_ast,
-    lseq.Seq: _const_seq_to_py_ast,
+    ISeq: _const_seq_to_py_ast,
     type(re.compile("")): _regex_to_py_ast,
     set: _const_py_set_to_py_ast,
     sym.Symbol: _const_sym_to_py_ast,
@@ -2349,7 +2347,7 @@ def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAS
     nested elements. For top-level :const Lisp AST nodes, see
     `_const_node_to_py_ast`."""
     handle_value = _CONST_VALUE_HANDLERS.get(type(form))
-    if handle_value is None and isinstance(form, lseq.Seq):
+    if handle_value is None and isinstance(form, ISeq):
         handle_value = _const_seq_to_py_ast  # type: ignore
     assert handle_value is not None, "A type handler must be defined for constants"
     return handle_value(ctx, form)
@@ -2366,7 +2364,7 @@ def _collection_literal_to_py_ast(
     yield from map(partial(_const_val_to_py_ast, ctx), form)
 
 
-_CONSTANT_HANDLER: Dict[ConstType, SimplePyASTGenerator] = {  # type: ignore
+_CONSTANT_HANDLER: Mapping[ConstType, SimplePyASTGenerator] = {  # type: ignore
     ConstType.BOOL: _name_const_to_py_ast,
     ConstType.INST: _inst_to_py_ast,
     ConstType.NUMBER: _num_to_py_ast,
@@ -2404,7 +2402,7 @@ def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: Const) -> GeneratedPy
     return handle_const_node(ctx, node_val)
 
 
-_NODE_HANDLERS: Dict[NodeOp, PyASTGenerator] = {  # type: ignore
+_NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.AWAIT: _await_to_py_ast,
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,

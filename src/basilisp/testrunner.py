@@ -1,6 +1,6 @@
 import importlib
 import traceback
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import pytest
 
@@ -101,6 +101,7 @@ class BasilispFile(pytest.File):
         self.fspath.pyimport()
         ns = _current_ns()
         tests = _collected_tests()
+        assert tests is not None, "Must have collected tests"
         for test in tests:
             f: TestFunction = test.value
             yield BasilispTestItem(test.name.name, self, f, ns, filename)
@@ -173,8 +174,7 @@ class BasilispTestItem(pytest.Item):
 
             return "\n\n".join(messages)
         elif isinstance(excinfo.value, Exception):
-            exc = excinfo.value
-            return self._error_msg(exc)
+            return self._error_msg(excinfo.value)
         else:
             return None
 

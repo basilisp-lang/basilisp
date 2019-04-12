@@ -3,11 +3,11 @@ from enum import Enum
 from typing import (
     Any,
     Callable,
-    Collection,
-    Dict,
     Generic,
     Iterable,
+    MutableMapping,
     Optional,
+    Sequence,
     Tuple,
     TypeVar,
     Union,
@@ -20,6 +20,7 @@ import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+from basilisp.lang.interfaces import IPersistentVector
 from basilisp.lang.runtime import Namespace, Var, to_lisp
 from basilisp.lang.typing import LispForm, ReaderForm as ReaderLispForm, SpecialForm
 from basilisp.lang.util import munge
@@ -99,32 +100,59 @@ class Node(ABC, Generic[T]):
     @property
     @abstractmethod
     def op(self) -> NodeOp:
-        raise NotImplementedError()
+        """Enumerated keyword uniquely identifying this type of Node.
+
+        The type and NodeOp should always be in sync.
+
+        Having a simple enum value in addition to the type allows us to use
+        switch-like syntax with Python dictionaries in compiler code, which
+        is much faster than performing isinstance checks."""
 
     @property
     @abstractmethod
     def form(self) -> T:
-        raise NotImplementedError()
+        """The original Lisp form corresponding to this Node."""
 
     @property
     @abstractmethod
-    def children(self) -> Collection[kw.Keyword]:
-        raise NotImplementedError()
+    def children(self) -> Iterable[kw.Keyword]:
+        """An iterable of keywords naming the attributes on the node which
+        contain child nodes used for visiting all nodes in a tree.
+
+        In most cases, children are safely defaulted at class definition.
+        For certain nodes, the children may be variable and must be set at
+        construction.
+
+        Initially, this property was typed as a typing.Collection. In practice,
+        children is always a Vector. However, MyPy seems to have trouble
+        identifying IPersistentVector-typed attributes as typing.Collection, so
+        this type was set as typing.Iterable which seems to work for now."""
 
     @property
     @abstractmethod
-    def raw_forms(self) -> Collection[LispForm]:
-        raise NotImplementedError()
+    def raw_forms(self) -> IPersistentVector[LispForm]:
+        """A collection of intermediate forms produced by macros before emitting
+        the final form.
+
+        As with children above, this was formerly a more generic typing.Collection
+        type, but MyPy was returning an error. If this error is ever fixed,
+        this should be returned to a more protocol type."""
 
     @property
     @abstractmethod
     def top_level(self) -> bool:
-        raise NotImplementedError()
+        """True if this node is the root of the entire syntax tree, False
+        otherwise.
+
+        In practice, things such as def forms will end up being top level nodes,
+        though at the REPL even something simple like a Const node could be top
+        level."""
 
     @property
     @abstractmethod
     def env(self) -> "NodeEnv":
-        raise NotImplementedError()
+        """Details about the environment of the original form such as line and
+        column numbers."""
 
     def to_map(self) -> lmap.Map:
         return to_lisp(attr.asdict(self))
@@ -165,7 +193,7 @@ class Node(ABC, Generic[T]):
             [e is not None for e in loc]
         ), "Must specify location information"
 
-        new_attrs: Dict[str, Union[NodeEnv, Node, Iterable[Node]]] = {
+        new_attrs: MutableMapping[str, Union[NodeEnv, Node, Iterable[Node]]] = {
             "env": attr.evolve(self.env, line=loc[0], col=loc[1])
         }
         for child_kw in self.children:
@@ -193,7 +221,7 @@ class Assignable(ABC):
     @property
     @abstractmethod
     def is_assignable(self) -> bool:
-        raise NotImplementedError()
+        """True if this Node can be assigned in a set! form, False otherwise."""
 
 
 class ConstType(Enum):
@@ -251,10 +279,10 @@ class Await(Node[ReaderLispForm]):
     form: ReaderLispForm
     expr: Node
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(EXPR)
+    children: Sequence[kw.Keyword] = vec.v(EXPR)
     op: NodeOp = NodeOp.AWAIT
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -268,10 +296,10 @@ class Binding(Node[sym.Symbol], Assignable):
     is_assignable: bool = False
     init: Optional[Node] = None
     meta: NodeMeta = None
-    children: Collection[kw.Keyword] = vec.Vector.empty()
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.BINDING
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -281,10 +309,10 @@ class Catch(Node[SpecialForm]):
     local: Binding
     body: "Do"
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(CLASS, LOCAL, BODY)
+    children: Sequence[kw.Keyword] = vec.v(CLASS, LOCAL, BODY)
     op: NodeOp = NodeOp.CATCH
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -295,10 +323,10 @@ class Const(Node[ReaderLispForm]):
     is_literal: bool
     env: NodeEnv
     meta: NodeMeta = None
-    children: Collection[kw.Keyword] = vec.Vector.empty()
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.CONST
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -310,10 +338,10 @@ class Def(Node[SpecialForm]):
     doc: Optional[str]
     env: NodeEnv
     meta: NodeMeta = None
-    children: Collection[kw.Keyword] = vec.Vector.empty()
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.DEF
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 DefTypeBase = Union["MaybeClass", "MaybeHostForm", "VarRef"]
@@ -329,10 +357,10 @@ class DefType(Node[SpecialForm]):
     env: NodeEnv
     is_frozen: bool = True
     meta: NodeMeta = None
-    children: Collection[kw.Keyword] = vec.v(FIELDS, METHODS)
+    children: Sequence[kw.Keyword] = vec.v(FIELDS, METHODS)
     op: NodeOp = NodeOp.DEFTYPE
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -342,25 +370,25 @@ class Do(Node[SpecialForm]):
     ret: Node
     env: NodeEnv
     is_body: bool = False
-    children: Collection[kw.Keyword] = vec.v(STATEMENTS, RET)
+    children: Sequence[kw.Keyword] = vec.v(STATEMENTS, RET)
     op: NodeOp = NodeOp.DO
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class Fn(Node[SpecialForm]):
     form: SpecialForm
     max_fixed_arity: int
-    methods: Collection["FnMethod"]
+    methods: IPersistentVector["FnMethod"]
     env: NodeEnv
     local: Optional[Binding] = None
     is_variadic: bool = False
     is_async: bool = False
-    children: Collection[kw.Keyword] = vec.v(METHODS)
+    children: Sequence[kw.Keyword] = vec.v(METHODS)
     op: NodeOp = NodeOp.FN
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -372,10 +400,10 @@ class FnMethod(Node[SpecialForm]):
     body: Do
     env: NodeEnv
     is_variadic: bool = False
-    children: Collection[kw.Keyword] = vec.v(PARAMS, BODY)
+    children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
     op: NodeOp = NodeOp.FN_METHOD
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -385,10 +413,10 @@ class HostCall(Node[SpecialForm]):
     target: Node
     args: Iterable[Node]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(TARGET, ARGS)
+    children: Sequence[kw.Keyword] = vec.v(TARGET, ARGS)
     op: NodeOp = NodeOp.HOST_CALL
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -398,10 +426,10 @@ class HostField(Node[SpecialForm], Assignable):
     target: Node
     env: NodeEnv
     is_assignable: bool = True
-    children: Collection[kw.Keyword] = vec.v(TARGET)
+    children: Sequence[kw.Keyword] = vec.v(TARGET)
     op: NodeOp = NodeOp.HOST_FIELD
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -411,10 +439,10 @@ class If(Node[SpecialForm]):
     then: Node
     env: NodeEnv
     else_: Node
-    children: Collection[kw.Keyword] = vec.v(TEST, THEN, ELSE)
+    children: Sequence[kw.Keyword] = vec.v(TEST, THEN, ELSE)
     op: NodeOp = NodeOp.IF
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -422,10 +450,10 @@ class Import(Node[SpecialForm]):
     form: SpecialForm
     aliases: Iterable["ImportAlias"]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.Vector.empty()
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.IMPORT
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -434,10 +462,10 @@ class ImportAlias(Node[Union[sym.Symbol, vec.Vector]]):
     name: str
     alias: Optional[str]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.Vector.empty()
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.IMPORT_ALIAS
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -446,10 +474,10 @@ class Invoke(Node[SpecialForm]):
     fn: Node
     args: Iterable[Node]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(FN, ARGS)
+    children: Sequence[kw.Keyword] = vec.v(FN, ARGS)
     op: NodeOp = NodeOp.INVOKE
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -458,10 +486,10 @@ class Let(Node[SpecialForm]):
     bindings: Iterable[Binding]
     body: Do
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(BINDINGS, BODY)
+    children: Sequence[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LET
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -470,10 +498,10 @@ class LetFn(Node[SpecialForm]):
     bindings: Iterable[Binding]
     body: Do
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(BINDINGS, BODY)
+    children: Sequence[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LETFN
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -485,10 +513,10 @@ class Local(Node[sym.Symbol], Assignable):
     is_assignable: bool = False
     arg_id: Optional[int] = None
     is_variadic: bool = False
-    children: Collection[kw.Keyword] = vec.Vector.empty()
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.LOCAL
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -498,10 +526,10 @@ class Loop(Node[SpecialForm]):
     body: Do
     loop_id: LoopID
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(BINDINGS, BODY)
+    children: Sequence[kw.Keyword] = vec.v(BINDINGS, BODY)
     op: NodeOp = NodeOp.LOOP
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -510,10 +538,10 @@ class Map(Node[lmap.Map]):
     keys: Iterable[Node]
     vals: Iterable[Node]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(KEYS, VALS)
+    children: Sequence[kw.Keyword] = vec.v(KEYS, VALS)
     op: NodeOp = NodeOp.MAP
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -522,10 +550,10 @@ class MaybeClass(Node[sym.Symbol]):
     class_: str
     target: Any
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.Vector.empty()
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_CLASS
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -535,10 +563,10 @@ class MaybeHostForm(Node[sym.Symbol]):
     field: str
     target: Any
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.Vector.empty()
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_HOST_FORM
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -549,12 +577,13 @@ class Method(Node[SpecialForm]):
     this_local: Binding
     loop_id: LoopID
     params: Iterable[Binding]
+    is_variadic: bool
     body: Do
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
+    children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
     op: NodeOp = NodeOp.METHOD
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
@@ -563,10 +592,10 @@ class PyDict(Node[dict]):
     keys: Iterable[Node]
     vals: Iterable[Node]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(KEYS, VALS)
+    children: Sequence[kw.Keyword] = vec.v(KEYS, VALS)
     op: NodeOp = NodeOp.PY_DICT
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
@@ -574,10 +603,10 @@ class PyList(Node[list]):
     form: list
     items: Iterable[Node]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(ITEMS)
+    children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.PY_LIST
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
@@ -585,10 +614,10 @@ class PySet(Node[Union[frozenset, set]]):
     form: Union[frozenset, set]
     items: Iterable[Node]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(ITEMS)
+    children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.PY_SET
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -596,10 +625,10 @@ class PyTuple(Node[tuple]):
     form: tuple
     items: Iterable[Node]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(ITEMS)
+    children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.PY_TUPLE
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -608,10 +637,10 @@ class Quote(Node[SpecialForm]):
     expr: Const
     env: NodeEnv
     is_literal: bool = True
-    children: Collection[kw.Keyword] = vec.v(EXPR)
+    children: Sequence[kw.Keyword] = vec.v(EXPR)
     op: NodeOp = NodeOp.QUOTE
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -620,10 +649,10 @@ class Recur(Node[SpecialForm]):
     exprs: Iterable[Node]
     loop_id: LoopID
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(EXPRS)
+    children: Sequence[kw.Keyword] = vec.v(EXPRS)
     op: NodeOp = NodeOp.RECUR
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -631,10 +660,10 @@ class Set(Node[lset.Set]):
     form: lset.Set
     items: Iterable[Node]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(ITEMS)
+    children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.SET
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -643,10 +672,10 @@ class SetBang(Node[SpecialForm]):
     target: Union[Assignable, Node]
     val: Node
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(TARGET, VAL)
+    children: Sequence[kw.Keyword] = vec.v(TARGET, VAL)
     op: NodeOp = NodeOp.SET_BANG
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -654,10 +683,10 @@ class Throw(Node[SpecialForm]):
     form: SpecialForm
     exception: Node
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(EXCEPTION)
+    children: Sequence[kw.Keyword] = vec.v(EXCEPTION)
     op: NodeOp = NodeOp.THROW
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -665,12 +694,12 @@ class Try(Node[SpecialForm]):
     form: SpecialForm
     body: Do
     catches: Iterable[Catch]
-    children: Collection[kw.Keyword]
+    children: Sequence[kw.Keyword]
     env: NodeEnv
     finally_: Optional[Do] = None
     op: NodeOp = NodeOp.TRY
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -679,10 +708,10 @@ class VarRef(Node[sym.Symbol], Assignable):
     var: Var
     env: NodeEnv
     return_var: bool = False
-    children: Collection[kw.Keyword] = vec.Vector.empty()
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.VAR
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
     @property
     def is_assignable(self) -> bool:
@@ -694,10 +723,10 @@ class Vector(Node[vec.Vector]):
     form: vec.Vector
     items: Iterable[Node]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(ITEMS)
+    children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.VECTOR
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -706,10 +735,10 @@ class WithMeta(Node[LispForm]):
     meta: Union[Const, Map]
     expr: Union[Fn, Map, Set, Vector]
     env: NodeEnv
-    children: Collection[kw.Keyword] = vec.v(META, EXPR)
+    children: Sequence[kw.Keyword] = vec.v(META, EXPR)
     op: NodeOp = NodeOp.WITH_META
     top_level: bool = False
-    raw_forms: Collection[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 ParentNode = Union[

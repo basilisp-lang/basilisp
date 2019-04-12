@@ -1,15 +1,14 @@
-from typing import Optional, Iterable
+from typing import Iterable, Optional
 
-from pyrsistent import pmap, PMap
+from pyrsistent import PMap, pmap
 
-import basilisp.lang.associative as lassoc
 import basilisp.lang.atom as atom
-from basilisp.lang.obj import LispObject
+from basilisp.lang.interfaces import IAssociative, ILispObject
 
 __INTERN: atom.Atom["PMap[int, Keyword]"] = atom.Atom(pmap())
 
 
-class Keyword(LispObject):
+class Keyword(ILispObject):
     __slots__ = ("_name", "_ns")
 
     def __init__(self, name: str, ns: Optional[str] = None) -> None:
@@ -35,7 +34,7 @@ class Keyword(LispObject):
     def __hash__(self):
         return hash((self._name, self._ns))
 
-    def __call__(self, m: lassoc.Associative, default=None):
+    def __call__(self, m: IAssociative, default=None):
         try:
             return m.entry(self, default)
         except AttributeError:

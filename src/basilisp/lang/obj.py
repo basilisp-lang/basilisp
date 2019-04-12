@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from decimal import Decimal
 from fractions import Fraction
 from functools import singledispatch
-from typing import Union, Any, Pattern, Iterable, Tuple, Callable
+from typing import Any, Callable, Iterable, Pattern, Tuple, Union
 
 from functional import seq
 
@@ -29,7 +29,20 @@ def _dec_print_level(lvl: PrintCountSetting):
     return lvl
 
 
+def _process_kwargs(**kwargs):
+    """Process keyword arguments, decreasing the print-level. Should be called
+    after examining the print level for the current level."""
+    return dict(kwargs, print_level=_dec_print_level(kwargs["print_level"]))
+
+
 class LispObject(ABC):
+    """Abstract base class for Lisp objects which would like to customize
+    their `str` and Python `repr` representation.
+
+    Callers should use `ILispObject` in `basilisp.lang.interfaces` as their
+    main interface. This interface is defined here so it may be used in
+    `isinstance` checks below."""
+
     __slots__ = ()
 
     def __repr__(self):
@@ -50,87 +63,81 @@ class LispObject(ABC):
         read by the reader."""
         return lrepr(self, **kwargs)
 
-    @staticmethod
-    def map_lrepr(
-        entries: Callable[[], Iterable[Tuple[Any, Any]]],
-        start: str,
-        end: str,
-        meta=None,
-        **kwargs,
-    ) -> str:
-        """Produce a Lisp representation of an associative collection, bookended
-        with the start and end string supplied. The entries argument must be a
-        callable which will produce tuples of key-value pairs.
 
-        The keyword arguments will be passed along to lrepr for the sequence
-        elements."""
-        print_level = kwargs["print_level"]
-        if isinstance(print_level, int) and print_level < 1:
-            return SURPASSED_PRINT_LEVEL
+def map_lrepr(
+    entries: Callable[[], Iterable[Tuple[Any, Any]]],
+    start: str,
+    end: str,
+    meta=None,
+    **kwargs,
+) -> str:
+    """Produce a Lisp representation of an associative collection, bookended
+    with the start and end string supplied. The entries argument must be a
+    callable which will produce tuples of key-value pairs.
 
-        kwargs = LispObject._process_kwargs(**kwargs)
+    The keyword arguments will be passed along to lrepr for the sequence
+    elements."""
+    print_level = kwargs["print_level"]
+    if isinstance(print_level, int) and print_level < 1:
+        return SURPASSED_PRINT_LEVEL
 
-        def entry_reprs():
-            for k, v in entries():
-                yield "{k} {v}".format(k=lrepr(k, **kwargs), v=lrepr(v, **kwargs))
+    kwargs = _process_kwargs(**kwargs)
 
-        trailer = []
-        print_dup = kwargs["print_dup"]
-        print_length = kwargs["print_length"]
-        if not print_dup and isinstance(print_length, int):
-            items = seq(entry_reprs()).take(print_length + 1).to_list()
-            if len(items) > print_length:
-                items.pop()
-                trailer.append(SURPASSED_PRINT_LENGTH)
-        else:
-            items = list(entry_reprs())
+    def entry_reprs():
+        for k, v in entries():
+            yield "{k} {v}".format(k=lrepr(k, **kwargs), v=lrepr(v, **kwargs))
 
-        seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
+    trailer = []
+    print_dup = kwargs["print_dup"]
+    print_length = kwargs["print_length"]
+    if not print_dup and isinstance(print_length, int):
+        items = seq(entry_reprs()).take(print_length + 1).to_list()
+        if len(items) > print_length:
+            items.pop()
+            trailer.append(SURPASSED_PRINT_LENGTH)
+    else:
+        items = list(entry_reprs())
 
-        print_meta = kwargs["print_meta"]
-        if print_meta and meta:
-            return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
+    seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
 
-        return f"{start}{seq_lrepr}{end}"
+    print_meta = kwargs["print_meta"]
+    if print_meta and meta:
+        return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
 
-    @staticmethod
-    def seq_lrepr(
-        iterable: Iterable[Any], start: str, end: str, meta=None, **kwargs
-    ) -> str:
-        """Produce a Lisp representation of a sequential collection, bookended
-        with the start and end string supplied. The keyword arguments will be
-        passed along to lrepr for the sequence elements."""
-        print_level = kwargs["print_level"]
-        if isinstance(print_level, int) and print_level < 1:
-            return SURPASSED_PRINT_LEVEL
+    return f"{start}{seq_lrepr}{end}"
 
-        kwargs = LispObject._process_kwargs(**kwargs)
 
-        trailer = []
-        print_dup = kwargs["print_dup"]
-        print_length = kwargs["print_length"]
-        if not print_dup and isinstance(print_length, int):
-            items = seq(iterable).take(print_length + 1).to_list()
-            if len(items) > print_length:
-                items.pop()
-                trailer.append(SURPASSED_PRINT_LENGTH)
-        else:
-            items = iterable
+def seq_lrepr(
+    iterable: Iterable[Any], start: str, end: str, meta=None, **kwargs
+) -> str:
+    """Produce a Lisp representation of a sequential collection, bookended
+    with the start and end string supplied. The keyword arguments will be
+    passed along to lrepr for the sequence elements."""
+    print_level = kwargs["print_level"]
+    if isinstance(print_level, int) and print_level < 1:
+        return SURPASSED_PRINT_LEVEL
 
-        items = list(map(lambda o: lrepr(o, **kwargs), items))
-        seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
+    kwargs = _process_kwargs(**kwargs)
 
-        print_meta = kwargs["print_meta"]
-        if print_meta and meta:
-            return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
+    trailer = []
+    print_dup = kwargs["print_dup"]
+    print_length = kwargs["print_length"]
+    if not print_dup and isinstance(print_length, int):
+        items = seq(iterable).take(print_length + 1).to_list()
+        if len(items) > print_length:
+            items.pop()
+            trailer.append(SURPASSED_PRINT_LENGTH)
+    else:
+        items = iterable
 
-        return f"{start}{seq_lrepr}{end}"
+    items = list(map(lambda o: lrepr(o, **kwargs), items))
+    seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
 
-    @staticmethod
-    def _process_kwargs(**kwargs):
-        """Process keyword arguments, decreasing the print-level. Should be called
-        after examining the print level for the current level."""
-        return dict(kwargs, print_level=_dec_print_level(kwargs["print_level"]))
+    print_meta = kwargs["print_meta"]
+    if print_meta and meta:
+        return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
+
+    return f"{start}{seq_lrepr}{end}"
 
 
 @singledispatch
@@ -262,22 +269,22 @@ def _lrepr_str(
 
 @lrepr.register(list)
 def _lrepr_py_list(o: list, **kwargs) -> str:
-    return f"#py {LispObject.seq_lrepr(o, '[', ']', **kwargs)}"
+    return f"#py {seq_lrepr(o, '[', ']', **kwargs)}"
 
 
 @lrepr.register(dict)
 def _lrepr_py_dict(o: dict, **kwargs) -> str:
-    return f"#py {LispObject.map_lrepr(o.items, '{', '}', **kwargs)}"
+    return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
 
 
 @lrepr.register(set)
 def _lrepr_py_set(o: set, **kwargs) -> str:
-    return f"#py {LispObject.seq_lrepr(o, '#{', '}', **kwargs)}"
+    return f"#py {seq_lrepr(o, '#{', '}', **kwargs)}"
 
 
 @lrepr.register(tuple)
 def _lrepr_py_tuple(o: tuple, **kwargs) -> str:
-    return f"#py {LispObject.seq_lrepr(o, '(', ')', **kwargs)}"
+    return f"#py {seq_lrepr(o, '(', ')', **kwargs)}"
 
 
 @lrepr.register(complex)

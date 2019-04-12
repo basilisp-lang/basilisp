@@ -5,6 +5,12 @@ test-warnings: true
 doc-warnings: false
 
 ignore-paths:
+  - .cache
+  - .mypy_cache
+  - .pytest_cache
+  - .tox
+  - build
+  - dist
   - tests
 
 pep8:

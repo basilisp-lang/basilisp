@@ -8,20 +8,19 @@ import uuid
 from datetime import datetime
 from fractions import Fraction
 from typing import (
-    Deque,
-    List,
-    Tuple,
-    Optional,
-    Collection,
-    Callable,
     Any,
-    Union,
-    MutableMapping,
-    Pattern,
+    Callable,
+    Collection,
+    Deque,
     Iterable,
+    List,
+    MutableMapping,
+    Optional,
+    Pattern,
+    Tuple,
     TypeVar,
+    Union,
     cast,
-    Dict,
 )
 
 from functional import seq
@@ -29,13 +28,13 @@ from functional import seq
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as lmeta
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vector
 import basilisp.walker as walk
-from basilisp.lang.typing import LispForm, IterableLispForm, ReaderForm
+from basilisp.lang.interfaces import IMeta
+from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|\.")
@@ -48,7 +47,7 @@ fn_macro_args = re.compile("(%)(&|[0-9])?")
 unicode_char = re.compile(r"u(\w+)")
 
 DataReaders = Optional[lmap.Map]
-GenSymEnvironment = Dict[str, symbol.Symbol]
+GenSymEnvironment = MutableMapping[str, symbol.Symbol]
 Resolver = Callable[[symbol.Symbol], symbol.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
 W = TypeVar("W", bound=LispReaderFn)
@@ -634,14 +633,14 @@ def _read_kw(ctx: ReaderContext) -> keyword.Keyword:
     return keyword.keyword(name, ns=ns)
 
 
-def _read_meta(ctx: ReaderContext) -> lmeta.Meta:
+def _read_meta(ctx: ReaderContext) -> IMeta:
     """Read metadata and apply that to the next object in the
     input stream."""
     start = ctx.reader.advance()
     assert start == "^"
     meta = _read_next_consuming_comment(ctx)
 
-    meta_map = None
+    meta_map: Optional[lmap.Map[LispForm, LispForm]] = None
     if isinstance(meta, symbol.Symbol):
         meta_map = lmap.map({keyword.keyword("tag"): meta})
     elif isinstance(meta, keyword.Keyword):

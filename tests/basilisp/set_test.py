@@ -1,25 +1,39 @@
-import basilisp.lang.collection as lcoll
 import basilisp.lang.map as lmap
-import basilisp.lang.meta as meta
-import basilisp.lang.seq as lseq
 import basilisp.lang.set as lset
+from basilisp.lang.interfaces import (
+    ILispObject,
+    IMeta,
+    IPersistentCollection,
+    IPersistentSet,
+    ISeqable,
+)
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
 
 
 def test_list_collection_interface():
-    assert isinstance(lset.s(), lcoll.Collection)
-    assert issubclass(lset.Set, lcoll.Collection)
+    assert isinstance(lset.s(), IPersistentCollection)
+    assert issubclass(lset.Set, IPersistentCollection)
 
 
 def test_list_meta_interface():
-    assert isinstance(lset.s(), meta.Meta)
-    assert issubclass(lset.Set, meta.Meta)
+    assert isinstance(lset.s(), IMeta)
+    assert issubclass(lset.Set, IMeta)
+
+
+def test_set_object_interface():
+    assert isinstance(lset.s(), ILispObject)
+    assert issubclass(lset.Set, ILispObject)
 
 
 def test_set_seqable_interface():
-    assert isinstance(lset.s(), lseq.Seqable)
-    assert issubclass(lset.Set, lseq.Seqable)
+    assert isinstance(lset.s(), ISeqable)
+    assert issubclass(lset.Set, ISeqable)
+
+
+def test_set_set_interface():
+    assert isinstance(lset.s(), IPersistentSet)
+    assert issubclass(lset.Set, IPersistentSet)
 
 
 def test_set_conj():

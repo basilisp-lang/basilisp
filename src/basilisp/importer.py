@@ -7,7 +7,7 @@ import os.path
 import sys
 import types
 from importlib.abc import MetaPathFinder, SourceLoader
-from typing import Optional, List, Dict
+from typing import List, Mapping, MutableMapping, Optional
 
 import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
@@ -92,7 +92,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
     Python."""
 
     def __init__(self):
-        self._cache = {}
+        self._cache: MutableMapping[str, dict] = {}
 
     def find_spec(
         self,
@@ -175,8 +175,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
     def _exec_cached_module(
         self,
         fullname: str,
-        loader_state: Dict[str, str],
-        path_stats: Dict[str, int],
+        loader_state: Mapping[str, str],
+        path_stats: Mapping[str, int],
         module: types.ModuleType,
     ):
         """Load and execute a cached Basilisp module."""
@@ -203,8 +203,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
     def _exec_module(
         self,
         fullname: str,
-        loader_state: Dict[str, str],
-        path_stats: Dict[str, int],
+        loader_state: Mapping[str, str],
+        path_stats: Mapping[str, int],
         module: types.ModuleType,
     ):
         """Load and execute a non-cached Basilisp module."""
