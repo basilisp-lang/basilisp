@@ -26,9 +26,7 @@ class MultiFunction(Generic[T]):
     def __call__(self, *args, **kwargs):
         key = self._dispatch(*args, **kwargs)
         method_cache = self.methods
-        method: Optional[Callable[..., Any]] = Maybe(
-            method_cache.entry(key, None)
-        ).or_else(
+        method: Optional[Method] = Maybe(method_cache.entry(key, None)).or_else(
             lambda: method_cache.entry(self._default, None)  # type: ignore
         )
         if method:
