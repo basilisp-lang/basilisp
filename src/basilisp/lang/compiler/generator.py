@@ -252,7 +252,7 @@ class GeneratorContext:
         self.current_ns.add_import(imp, mod, *aliases)
 
     @property
-    def imports(self) -> lmap.Map:
+    def imports(self) -> lmap.Map[sym.Symbol, types.ModuleType]:
         return self.current_ns.imports
 
     @property
