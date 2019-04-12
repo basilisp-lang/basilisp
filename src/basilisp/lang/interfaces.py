@@ -35,6 +35,19 @@ class IDeref(Generic[T]):
         raise NotImplementedError()
 
 
+# Making this interface Generic causes the __repr__ to differ between
+# Python 3.6 and 3.6, which affects a few simple test assertions.
+# Since there is little benefit to this type being Generic, I'm leaving
+# it as is for now.
+class IExceptionInfo(Exception):
+    __slots__ = ()
+
+    @property
+    @abstractmethod
+    def data(self) -> "IPersistentMap":
+        raise NotImplementedError()
+
+
 class IMapEntry(Generic[K, V]):
     __slots__ = ()
 

@@ -1,13 +1,13 @@
 import attr
 
-import basilisp.lang.map as lmap
+from basilisp.lang.interfaces import IExceptionInfo, IPersistentMap
 from basilisp.lang.obj import lrepr
 
 
 @attr.s(auto_attribs=True, cmp=False, repr=False, slots=True, str=False)
-class ExceptionInfo(Exception):
+class ExceptionInfo(IExceptionInfo):
     message: str
-    data: lmap.Map
+    data: IPersistentMap
 
     def __repr__(self):
         return (
