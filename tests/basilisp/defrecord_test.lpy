@@ -1,0 +1,20 @@
+(ns basilisp.defrecord-test
+  (:require
+   [basilisp.test :refer [deftest is testing]]))
+
+(deftest simple-defrecord-test
+  (defrecord Point [x y z])
+
+  (testing "field access"
+    (let [p (->Point 1 2 3)]
+      (is (= 1 (:x p)))
+      (is (= 2 (:y p)))
+      (is (= 3 (:z p)))
+      (is (nil? (:l p)))))
+
+  (testing "contains?"
+    (let [p (->Point 1 2 3)]
+      (is (contains? p :x))
+      (is (contains? p :y))
+      (is (contains? p :z))
+      (is (not (contains? p :i))))))

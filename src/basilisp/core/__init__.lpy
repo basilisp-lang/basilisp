@@ -479,11 +479,61 @@
      ~false-cond
      ~true-cond))
 
+(defmacro if-let
+  "Evaluate the binding as with let, binding the given name for use in the
+  true expression iff the binding expression is true. Otherwise, return the
+  false expression without binding the name."
+  [binding true-cond false-cond]
+  (if (operator/ne 2 (count binding))
+    (throw
+     (ex-info "bindings take the form [name expr]"
+              {:bindings binding}))
+    nil)
+
+  `(let* [expr# ~(second binding)]
+     (if expr#
+       (let [~(first binding) expr#]
+         ~true-cond)
+       ~false-cond)))
+
+(defmacro if-some
+  "Evaluate the binding as with let, binding the given name for use in the
+  true expression iff the binding expression is not nil. Otherwise, return the
+  false expression without binding the name."
+  [binding true-cond false-cond]
+  (if (operator/ne 2 (count binding))
+    (throw
+     (ex-info "bindings take the form [name expr]"
+              {:bindings binding}))
+    nil)
+
+  `(let* [expr# ~(second binding)]
+     (if (operator/is- expr# nil)
+       ~false-cond
+       (let [~(first binding) expr#]
+         ~true-cond))))
+
 (defmacro when
   "Evaluate cond and if it is true, execute body in an implicit do block."
   [cond & body]
   `(if ~cond
      (do ~@body)
+     nil))
+
+(defmacro when-let
+  "Evaluate the binding as with let, binding the given name for use in the
+  true expression iff the binding expression is true. Return nil otherwise."
+  [binding true-cond]
+  `(if-let ~binding
+     ~true-cond
+     nil))
+
+(defmacro when-some
+  "Evaluate the binding as with let, binding the given name for use in the
+  true expression iff the binding expression is not nil. Return nil otherwise."
+  [binding true-cond]
+  `(if-some ~binding
+     ~true-cond
      nil))
 
 (defmacro when-not
@@ -536,30 +586,17 @@
   [expr]
   (if expr false true))
 
-(defn false?
-  "Return true if x is false, otherwise false."
-  [x]
-  (operator/is- x false))
 
-(defn true?
-  "Return true if x is true, otherwise false."
-  [x]
-  (operator/is- x true))
 
-(defn nil?
-  "Return true if x is nil, otherwise false."
+(defn hash
+  "Return the hash code for its argument."
   [x]
-  (operator/is- x nil))
+  (builtins/hash x))
 
-(defn some?
-  "Return true if x is not nil, otherwise false."
-  [x]
-  (not (nil? x)))
-
-(defn any?
-  "Return true for any x."
-  [_]
-  true)
+(defn identical?
+  "Return true if x and y are the same object, otherwise false."
+  [x y]
+  (operator/is_ x y))
 
 (defn =
   "Return true if x and y are equal, otherwise false."
@@ -616,14 +653,27 @@
        false)
      (operator/le x (first args)))))
 
+(defn distinct?
+  "Return true if no two arguments are equal."
+  [& args]
+  (= (count (vec args))
+     (count (set args))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; State Management Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn deref
-  "Dereference a delay or atom and returns its contents."
-  [o]
-  (basilisp.lang.runtime/deref o))
+  "Dereference a delay or atom and returns its contents.
+
+  If o is an object implementing IBlockingDeref and timeout-s and
+  timeout-val are supplied, deref will wait at most timeout-s seconds,
+  returning timeout-val if timeout-s seconds elapse and o has not
+  returned."
+  ([o]
+   (basilisp.lang.runtime/deref o))
+  ([o timeout-s timeout-val]
+   (basilisp.lang.runtime/deref o timeout-s timeout-val)))
 
 (defn compare-and-set!
   "Atomically set the value of atom to new-val if and only if old-val
@@ -667,6 +717,11 @@
   [& body]
   (list 'basilisp.lang.delay/Delay
         (concat '(fn* []) body)))
+
+(defn delay?
+  "Return true if x names a delay."
+  [x]
+  (instance? basilisp.lang.delay/Delay x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Arithmetic Functions ;;
@@ -733,36 +788,6 @@
   [x]
   (- x 1))
 
-(defn pos?
-  "Return true if x is positive."
-  [x]
-  (if (operator/gt x 0) true false))
-
-(defn non-neg?
-  "Return true if x is not negative."
-  [x]
-  (if (operator/ge x 0) true false))
-
-(defn zero?
-  "Return true if x is 0."
-  [x]
-  (= 0 x))
-
-(defn neg?
-  "Return true if x is negative."
-  [x]
-  (if (operator/lt x 0) true false))
-
-(defn even?
-  "Return true if x is even."
-  [x]
-  (if (= 0 (mod x 2)) true false))
-
-(defn odd?
-  "Return true if x is odd."
-  [x]
-  (if (= 1 (mod x 2)) true false))
-
 (defn min
   "Return the minimum of the arguments."
   [& args]
@@ -773,12 +798,218 @@
   [& args]
   (builtins/max args))
 
+(defn numerator
+  "Return the numerator of a Fraction."
+  [frac]
+  (.-numerator frac))
+
+(defn denominator
+  "Return the denominator of a Fraction."
+  [frac]
+  (.-denominator frac))
+
 (defn sort
   "Return a sorted sequence of the elements from coll."
   ([coll]
    (basilisp.lang.runtime/sort coll))
   ([cmp coll]
    (basilisp.lang.runtime/sort coll cmp)))
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Simple Predicates ;;
+;;;;;;;;;;;;;;;;;;;;;;;
+
+(import* decimal fractions uuid)
+
+(defn any?
+  "Return true for any x."
+  [_]
+  true)
+
+(defn associative?
+  "Return true if x implements IAssociative."
+  [x]
+  (instance? basilisp.lang.interfaces/IAssociative x))
+
+(defn class?
+  "Return true if x names a type."
+  [x]
+  (instance? builtins/type x))
+
+(defn coll?
+  "Return true if x implements IAssociative."
+  [x]
+  (instance? basilisp.lang.interfaces/IPersistentCollection x))
+
+(defn complex?
+  "Return true if x is a complex number."
+  [x]
+  (instance? builtins/complex x))
+
+(defn decimal?
+  "Return true if x is a Decimal."
+  [x]
+  (instance? decimal/Decimal x))
+
+(defn even?
+  "Return true if x is even."
+  [x]
+  (if (= 0 (mod x 2)) true false))
+
+(defn false?
+  "Return true if x is false, otherwise false."
+  [x]
+  (operator/is- x false))
+
+(def double? float?)
+
+(defn fn?
+  "Return true if x is a function created by `fn` or `fn*`."
+  [x]
+  (and (builtins/callable x)
+       (builtins/hasattr x "_basilisp_fn")
+       (builtins/getattr x "_basilisp_fn")))
+
+(defn ident?
+  "Return true if x is either a keyword or symbol."
+  [x]
+  (or (keyword? x) (symbol? x)))
+
+(defn ifn?
+  "Return true if x is callable as a function.
+
+  Many Basilisp data structures are callable as functions though
+  they are not proper function types."
+  [x]
+  (builtins/callable x))
+
+(def ^{:doc "Return true if x is an integer.
+
+             Note that unlike Clojure, Basilisp uses Python integers and
+             there is no distinction between standard and fixed-precision
+             integers."}
+  int?
+  integer?)
+
+(defn map-entry?
+  "Return true if x implements IMapEntry."
+  [x]
+  (instance? basilisp.lang.interfaces/IMapEntry x))
+
+(defn neg?
+  "Return true if x is negative."
+  [x]
+  (if (operator/lt x 0) true false))
+
+(defn non-neg?
+  "Return true if x is not negative."
+  [x]
+  (if (operator/ge x 0) true false))
+
+(defn nat-int?
+  "Return true if x is a non-negative integer"
+  [x]
+  (and (integer? x) (non-neg? x)))
+
+(defn neg-int?
+  "Return true if x is a negative integer."
+  [x]
+  (and (integer? x) (neg? x)))
+
+(defn nil?
+  "Return true if x is nil, otherwise false."
+  [x]
+  (operator/is- x nil))
+
+(defn number?
+  "Return true if x is a real number."
+  [x]
+  (or (integer? x) (float? x)))
+
+(defn odd?
+  "Return true if x is odd."
+  [x]
+  (if (= 1 (mod x 2)) true false))
+
+(defn pos?
+  "Return true if x is positive."
+  [x]
+  (if (operator/gt x 0) true false))
+
+(defn pos-int?
+  "Return true if x is a positive integer."
+  [x]
+  (and (integer? x) (pos? x)))
+
+(defn qualified-ident?
+  "Return true if x is either a keyword or symbol with a namespace."
+  [x]
+  (and (ident? x) (namespace x)))
+
+(defn qualified-keyword?
+  "Return true if x is a keyword with a namespace."
+  [x]
+  (and (keyword? x) (namespace x)))
+
+(defn qualified-symbol?
+  "Return true if x is a symbol with a namespace."
+  [x]
+  (and (symbol? x) (namespace x)))
+
+(defn ratio?
+  "Return true if x is a Fraction."
+  [x]
+  (instance? fractions/Fraction x))
+
+(defn rational?
+  "Return true if x is a rational number."
+  [x]
+  (or (int? x) (ratio? x) (decimal? x)))
+
+(defn seqable?
+  "Return true if an ISeq can be produced from x."
+  [x]
+  (instance? basilisp.lang.interfaces/ISeqable x))
+
+(defn simple-keyword?
+  "Return true if x is a keyword with no namespace."
+  [x]
+  (and (keyword? x) (nil? (namespace x))))
+
+(defn some?
+  "Return true if x is not nil, otherwise false."
+  [x]
+  (not (nil? x)))
+
+(defn special-symbol?
+  "Return true if x is a special form symbol."
+  [x]
+  (basilisp.lang.runtime/is-special-form x))
+
+(defn simple-symbol?
+  "Return true if x is a symbol with no namespace."
+  [x]
+  (and (symbol? x) (nil? (namespace x))))
+
+(defn true?
+  "Return true if x is true, otherwise false."
+  [x]
+  (operator/is- x true))
+
+(defn uuid?
+  "Return true if x is a UUID."
+  [x]
+  (instance? uuid/UUID x))
+
+(defn var?
+  "Return true if x is a Var."
+  [x]
+  (instance? basilisp.lang.runtime/Var x))
+
+(defn zero?
+  "Return true if x is 0."
+  [x]
+  (= 0 x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Associative Functions ;;
@@ -1159,6 +1390,17 @@
                  (concat s (take (- n ns) pad))
                  s)]
         (cons s (partition n step pad (drop step coll))))))))
+
+(defn partition-by
+  "Return a lazy sequence of partitions, splitting coll each time f
+  returns a different value."
+  [f coll]
+  (lazy-seq
+   (when (seq coll)
+     (let [elem  (first coll)
+           felem (f elem)
+           run   (cons elem (take-while #(= felem (f %)) (next coll)))]
+       (cons run (partition-by f (seq (drop (count run) coll))))))))
 
 (defn merge
   "Merge maps together from left to right as by conj. If a duplicate key
@@ -2408,6 +2650,9 @@
 
     (method-name [arg1 arg2 ...] & body)
 
+  Unlike in Clojure, interface and protocol methods are permitted to
+  include variadic arguments.
+
   Type objects are created with sensible `object` defaults as by `attrs`.
   New types may override `object` defaults. An `__init__` function is
   automatically created which takes positional arguments matching the
@@ -2426,4 +2671,147 @@
        (deftype* ~type-name ~fields
          ~@method-impls)
        (def ~ctor-name ~type-name)
+       ~type-name)))
+
+(import* attr)
+
+(defn ^:private evolve
+  [rec & kwargs]
+  (->> (apply hash-map kwargs)
+       (apply-kw attr/evolve rec)))
+
+(defmacro defrecord
+  "Define a new Basilisp record.
+
+  The new record will have fields matching the names in `fields`. Fields may
+  be referred to unqualified in the bodies of implemented methods.
+
+  Interface or protocol implementations are declared as the name of the
+  interface or protocol as a symbol, followed by 1 or more method
+  definitions for that interface. Records are not required to declare
+  any interface implementations. Records which do declare interface
+  implementations are required to implement all interface methods. Failing
+  to implement all interface methods is a compile time error. Records
+  implementing `object` are not required to implement all `object` methods.
+
+  Method declarations should appear as:
+
+    (method-name [arg1 arg2 ...] & body)
+
+  Records objects are created with sensible `object` defaults as by `attrs`.
+  New records may override `object` defaults. An `__init__` function is
+  automatically created which takes positional arguments matching the
+  order of definition in `fields`. Additionally, given a name `NewRecord`,
+  a factory function will be created `->NewRecord` which can be used to
+  generate new instances of the record.
+
+  Methods must supply a `this` or `self` parameter. `recur` special forms
+  used in the body of a method should not include that parameter, as it
+  will be supplied automatically."
+  [type-name fields & method-impls]
+  (let [ctor-name     (with-meta
+                        (symbol (str "->" (name type-name)))
+                        (meta type-name))
+        map-ctor      (with-meta
+                        (symbol (str "map->" (name type-name)))
+                        (meta type-name))
+        record-fields (vec (concat ['meta '_recmap] fields))
+        field-kws     (->> fields (map (comp keyword name)))
+        field-kw-set  (set field-kws)
+
+        ;; We can use these gensyms repeatedly and interpolate them in
+        ;; multiple layers of syntax quoting, unlike gensyms using # syntax.
+        this-gs  (gensym "this")
+        other-gs (gensym "other")
+        key-gs   (gensym "k")]
+
+    (when (some #(#{:meta :_recmap} %) field-kws)
+      (throw
+       (ex-info "Reserved fields cannot be used for Record field names"
+                {:fields (.intersection #{:meta :_recmap} field-kw-set)})))
+
+    (when (some #(:mutable (meta %)) fields)
+      (throw
+       (ex-info "Mutable fields not permitted in Record types"
+                {:fields (filter #(:mutable (meta %)) fields)})))
+
+    `(do
+       (deftype* ~type-name ~record-fields
+         ~@method-impls
+
+         basilisp.lang.interfaces/IPersistentMap
+         (~'assoc [~this-gs ~'& args#]
+          (let [{fields# :fields map# :map} (->> (partition 2 args#)
+                                                 (group-by (fn [[k#]]
+                                                             (if (contains? ~field-kw-set k#)
+                                                               :fields
+                                                               :map))))
+
+                new-recmap# (when (seq map#)
+                              ["_recmap" (apply assoc ~'_recmap map#)])]
+            (->> fields#
+                 (map (fn [[k# v#]] [(name k#) v#]))
+                 (concat new-recmap#)
+                 (mapcat identity)
+                 (apply evolve ~this-gs))))
+         (~'dissoc [~this-gs ~'& ks]
+          nil)
+         (~'contains [~this-gs ~key-gs]
+          (or (~field-kw-set ~key-gs)
+              (contains? ~'_recmap ~key-gs)))
+         (~'entry [~this-gs ~key-gs ~'& args#]
+          (let [[default#] args#]
+            (cond
+              (contains? ~field-kw-set ~key-gs)
+              (builtins/getattr ~this-gs (name ~key-gs))
+
+              (contains? ~'_recmap ~key-gs)
+              (get ~'_recmap ~key-gs default#))))
+         (~'__getitem__ [~this-gs ~key-gs]
+          (. ~this-gs ~'entry ~key-gs))
+         (~'__iter__ [~this-gs]
+          (concat
+           [~@(map (fn [field]
+                     [(keyword (name field)) field])
+                   fields)]
+           (seq ~'_recmap)))
+         (~'__len__ [~this-gs]
+          (+ ~(count field-kw-set)
+             (count ~'_recmap)))
+
+         basilisp.lang.interfaces/IMeta
+         (~'with-meta [~this-gs new-meta#]
+          (->> (merge ~'meta new-meta#)
+               (evolve ~this-gs "meta")))
+
+         builtins/object
+         (~'__eq__ [~this-gs ~other-gs]
+          (or (identical? ~this-gs ~other-gs)
+              (= [~@fields
+                  ~'_recmap]
+                 [~@(map (fn [field]
+                           `(.- ~other-gs ~field))
+                         fields)
+                  (.- ~other-gs ~'_recmap)])))
+         (~'__hash__ [~this-gs]
+          (hash [~@fields ~'_recmap])))
+
+       (defn ~ctor-name
+         ~(str
+           "Create a new instance of the record " type-name ".")
+         ~fields
+         (~type-name nil {} ~@fields))
+
+       (defn ~map-ctor
+         ~(str
+           "Create a new instance of the record " type-name " from a "
+           "map whose keys correspond to the fields of " type-name ".")
+         [m#]
+         (apply ~type-name
+                nil
+                {}
+                (map (fn [field-kw#]
+                       (get m# field-kw#))
+                     [~@field-kws])))
+
        ~type-name)))

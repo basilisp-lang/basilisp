@@ -22,6 +22,7 @@ import basilisp.lang.vector as vec
 from basilisp.lang.atom import Atom
 from basilisp.lang.interfaces import (
     IAssociative,
+    IBlockingDeref,
     IDeref,
     IPersistentCollection,
     ISeq,
@@ -900,10 +901,17 @@ def partial(f, *args):
     return partial_f
 
 
-def deref(o):
-    """Dereference a Deref object and return its contents."""
+def deref(o, timeout_s=None, timeout_val=None):
+    """Dereference a Deref object and return its contents.
+
+    If o is an object implementing IBlockingDeref and timeout_s and
+    timeout_val are supplied, deref will wait at most timeout_s seconds,
+    returning timeout_val if timeout_s seconds elapse and o has not
+    returned."""
     if isinstance(o, IDeref):
         return o.deref()
+    elif isinstance(o, IBlockingDeref):
+        return o.deref(timeout_s, timeout_val)
     raise TypeError(f"Object of type {type(o)} cannot be dereferenced")
 
 
@@ -959,6 +967,11 @@ def get(m, k, default=None):
     except (KeyError, IndexError, TypeError) as e:
         logger.debug("Ignored %s: %s", type(e).__name__, e)
         return default
+
+
+def is_special_form(s: sym.Symbol) -> bool:
+    """Return True if s names a special form."""
+    return s in _SPECIAL_FORMS
 
 
 @functools.singledispatch
@@ -1214,6 +1227,7 @@ def _basilisp_fn(f):
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
     assert not hasattr(f, "meta")
+    f._basilisp_fn = True
     f.meta = None
     f.with_meta = partial(_fn_with_meta, f)
     return f

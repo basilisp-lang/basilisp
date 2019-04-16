@@ -35,6 +35,16 @@ class IDeref(Generic[T]):
         raise NotImplementedError()
 
 
+class IBlockingDeref(IDeref[T]):
+    __slots__ = ()
+
+    @abstractmethod
+    def deref(
+        self, timeout: Optional[float] = None, timeout_val: Optional[T] = None
+    ) -> Optional[T]:
+        raise NotImplementedError()
+
+
 # Making this interface Generic causes the __repr__ to differ between
 # Python 3.6 and 3.6, which affects a few simple test assertions.
 # Since there is little benefit to this type being Generic, I'm leaving
