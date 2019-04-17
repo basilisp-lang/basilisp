@@ -613,25 +613,11 @@ class TestIsFn:
         assert True is core.ifn__Q__(basilisp_fn)
         assert True is core.ifn__Q__(py_fn)
 
-    @pytest.mark.parametrize(
-        "v",
-        [
-            kw.keyword("a"),
-            lmap.Map.empty(),
-            lset.Set.empty(),
-        ],
-    )
+    @pytest.mark.parametrize("v", [kw.keyword("a"), lmap.Map.empty(), lset.Set.empty()])
     def test_other_is_ifn(self, v):
         assert True is core.ifn__Q__(v)
 
-    @pytest.mark.parametrize(
-        "v",
-        [
-            "a",
-            1,
-            1.6,
-        ],
-    )
+    @pytest.mark.parametrize("v", ["a", 1, 1.6])
     def test_is_not_ifn(self, v):
         assert False is core.ifn__Q__(v)
 
