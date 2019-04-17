@@ -983,11 +983,6 @@ def get(m, k, default=None):
         return default
 
 
-def is_special_form(s: sym.Symbol) -> bool:
-    """Return True if s names a special form."""
-    return s in _SPECIAL_FORMS
-
-
 @functools.singledispatch
 def to_lisp(o, keywordize_keys: bool = True):
     """Recursively convert Python collections into Lisp collections."""
@@ -1245,7 +1240,6 @@ def _basilisp_fn(f):
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
     assert not hasattr(f, "meta")
-    f._basilisp_fn = True
     f.meta = None
     f.with_meta = partial(_fn_with_meta, f)
     return f
