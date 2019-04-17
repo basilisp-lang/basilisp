@@ -575,6 +575,25 @@ class TestIsDouble:
         assert False is core.float__Q__(complex_number)
 
 
+class TestIsEven:
+    def test_even_nums_are_even(self, even_number):
+        assert True is core.even__Q__(even_number)
+
+    def test_odd_nums_are_not_even(self, odd_number):
+        assert False is core.even__Q__(odd_number)
+
+
+class TestIsFalse:
+    def test_false_is_false(self):
+        assert True is core.false__Q__(False)
+
+    def test_none_is_not_false(self):
+        assert False is core.false__Q__(None)
+
+    def test_truth_values_are_not_false(self, truthy_value):
+        assert False is core.false__Q__(truthy_value)
+
+
 class TestIsFn:
     @pytest.fixture(scope="class")
     def basilisp_fn(self):
@@ -620,25 +639,6 @@ class TestIsFn:
     @pytest.mark.parametrize("v", ["a", 1, 1.6])
     def test_is_not_ifn(self, v):
         assert False is core.ifn__Q__(v)
-
-
-class TestIsEven:
-    def test_even_nums_are_even(self, even_number):
-        assert True is core.even__Q__(even_number)
-
-    def test_odd_nums_are_not_even(self, odd_number):
-        assert False is core.even__Q__(odd_number)
-
-
-class TestIsFalse:
-    def test_false_is_false(self):
-        assert True is core.false__Q__(False)
-
-    def test_none_is_not_false(self):
-        assert False is core.false__Q__(None)
-
-    def test_truth_values_are_not_false(self, truthy_value):
-        assert False is core.false__Q__(truthy_value)
 
 
 class TestIsNil:

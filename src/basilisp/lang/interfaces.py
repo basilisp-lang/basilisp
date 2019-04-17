@@ -4,26 +4,6 @@ from typing import AbstractSet, Generic, Iterable, Mapping, Optional, Sequence, 
 
 from basilisp.lang.obj import LispObject as _LispObject, seq_lrepr
 
-K = TypeVar("K")
-V = TypeVar("V")
-
-
-class IAssociative(Mapping[K, V]):
-    __slots__ = ()
-
-    @abstractmethod
-    def assoc(self, *kvs) -> "IAssociative[K, V]":
-        raise NotImplementedError()
-
-    @abstractmethod
-    def contains(self, k: K) -> bool:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def entry(self, k: K, default: Optional[V] = None) -> Optional[V]:
-        raise NotImplementedError()
-
-
 T = TypeVar("T")
 
 
@@ -58,6 +38,10 @@ class IExceptionInfo(Exception):
         raise NotImplementedError()
 
 
+K = TypeVar("K")
+V = TypeVar("V")
+
+
 class IMapEntry(Generic[K, V]):
     __slots__ = ()
 
@@ -88,7 +72,15 @@ class IMeta(ABC):
 ILispObject = _LispObject
 
 
-class IPersistentCollection(Generic[T]):
+class ISeqable(Iterable[T]):
+    __slots__ = ()
+
+    @abstractmethod
+    def seq(self) -> "ISeq[T]":
+        raise NotImplementedError()
+
+
+class IPersistentCollection(ISeqable[T]):
     __slots__ = ()
 
     @abstractmethod
@@ -98,6 +90,22 @@ class IPersistentCollection(Generic[T]):
     @staticmethod
     @abstractmethod
     def empty() -> "IPersistentCollection[T]":
+        raise NotImplementedError()
+
+
+class IAssociative(Mapping[K, V], IPersistentCollection[IMapEntry[K, V]]):
+    __slots__ = ()
+
+    @abstractmethod
+    def assoc(self, *kvs) -> "IAssociative[K, V]":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def contains(self, k: K) -> bool:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def entry(self, k: K, default: Optional[V] = None) -> Optional[V]:
         raise NotImplementedError()
 
 
@@ -133,17 +141,31 @@ class IPersistentSet(AbstractSet[T], IPersistentCollection[T]):
         raise NotImplementedError()
 
 
+# MyPy has a lot of trouble dealing with the fact that Vectors are
+# considered as mapping types (from int -> T) and more traditional
+# sequential collections since the Python supertypes signatures conflict.
+# Below, we override the supertype signatures to select the signature
+# we specifically want to appear, but MyPy still complains. For now,
+# we will simply silence MyPy.
 class IPersistentVector(  # type: ignore
-    IAssociative[int, T], IPersistentStack[T], Sequence[T]
+    Sequence[T], IAssociative[int, T], IPersistentStack[T]
 ):
     __slots__ = ()
+
+    @abstractmethod
+    def cons(self, *elems: T) -> "IPersistentVector[T]":  # type: ignore
+        raise NotImplementedError()
+
+    @abstractmethod
+    def seq(self) -> "ISeq[T]":  # type: ignore
+        raise NotImplementedError()
 
 
 class IRecord(ABC):
     __slots__ = ()
 
 
-class ISeq(ILispObject, Iterable[T]):
+class ISeq(ILispObject, ISeqable[T]):
     __slots__ = ()
 
     @property
@@ -165,6 +187,9 @@ class ISeq(ILispObject, Iterable[T]):
     def cons(self, elem: T) -> "ISeq[T]":
         raise NotImplementedError()
 
+    def seq(self) -> "ISeq[T]":
+        return self
+
     def _lrepr(self, **kwargs):
         return seq_lrepr(iter(self), "(", ")", **kwargs)
 
@@ -182,13 +207,6 @@ class ISeq(ILispObject, Iterable[T]):
         while o:
             yield o.first
             o = o.rest
-
-
-class ISeqable(ABC, Iterable[T]):
-    __slots__ = ()
-
-    def seq(self) -> ISeq[T]:
-        raise NotImplementedError()
 
 
 class IType(ABC):

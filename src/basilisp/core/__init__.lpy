@@ -1048,6 +1048,11 @@
   [m k f & args]
   (apply basilisp.lang.runtime/update m k f args))
 
+(defn map-entry
+  "Return a map entry containing key and value."
+  [k v]
+  ((.-of basilisp.lang.map/MapEntry) k v))
+
 (defn key
   "Return the key from a map entry."
   [entry]
@@ -1073,6 +1078,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn apply-kw
+  "Apply function f to the arguments provided, passing the keys from
+  the final argument (which must be a map) as Python keyword arguments
+  to f. Keywords and symbol keys will be converted to strings and munged
+  to be legal Python identifiers, to avoid errors.
+
+  The last argument must always be coercible to a Mapping. Intermediate
+  arguments are not modified."
   [f & args]
   (basilisp.lang.runtime/apply-kw f args))
 
@@ -2754,6 +2766,18 @@
                  (concat new-recmap#)
                  (mapcat identity)
                  (apply evolve ~this-gs))))
+         (~'cons [~this-gs]
+          nil)
+         (~'empty [~this-gs]
+          (throw
+           (builtins/TypeError
+            ~(str "Cannot create empty " type-name))))
+         (~'seq [~this-gs]
+          (concat
+           [~@(map (fn [field]
+                     (map-entry (keyword (name field)) field))
+                   fields)]
+           (seq ~'_recmap)))
          (~'dissoc [~this-gs ~'& ks]
           nil)
          (~'contains [~this-gs ~key-gs]
@@ -2770,11 +2794,7 @@
          (~'__getitem__ [~this-gs ~key-gs]
           (. ~this-gs ~'entry ~key-gs))
          (~'__iter__ [~this-gs]
-          (concat
-           [~@(map (fn [field]
-                     [(keyword (name field)) field])
-                   fields)]
-           (seq ~'_recmap)))
+          (seq ~this-gs))
          (~'__len__ [~this-gs]
           (+ ~(count field-kw-set)
              (count ~'_recmap)))
