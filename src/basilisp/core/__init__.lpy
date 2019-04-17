@@ -621,9 +621,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn deref
-  "Dereference a delay or atom and returns its contents."
-  [o]
-  (basilisp.lang.runtime/deref o))
+  "Dereference a delay or atom and returns its contents.
+  If o is an object implementing IBlockingDeref and timeout-s and
+  timeout-val are supplied, deref will wait at most timeout-s seconds,
+  returning timeout-val if timeout-s seconds elapse and o has not
+  returned."
+  ([o]
+   (basilisp.lang.runtime/deref o))
+  ([o timeout-s timeout-val]
+   (basilisp.lang.runtime/deref o timeout-s timeout-val)))
 
 (defn compare-and-set!
   "Atomically set the value of atom to new-val if and only if old-val

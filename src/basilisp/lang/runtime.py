@@ -9,7 +9,17 @@ import re
 import threading
 import types
 from fractions import Fraction
-from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
+from typing import (
+    AbstractSet,
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
@@ -22,8 +32,13 @@ import basilisp.lang.vector as vec
 from basilisp.lang.atom import Atom
 from basilisp.lang.interfaces import (
     IAssociative,
+    IBlockingDeref,
     IDeref,
     IPersistentCollection,
+    IPersistentList,
+    IPersistentMap,
+    IPersistentSet,
+    IPersistentVector,
     ISeq,
     ISeqable,
 )
@@ -613,7 +628,7 @@ class Namespace:
             }
         )
 
-        candidates = filter(  # type: ignore
+        candidates = filter(
             Namespace.__completion_matcher(prefix), itertools.chain(aliases, imports)
         )
         if name_in_module is not None:
@@ -900,10 +915,17 @@ def partial(f, *args):
     return partial_f
 
 
-def deref(o):
-    """Dereference a Deref object and return its contents."""
+def deref(o, timeout_s=None, timeout_val=None):
+    """Dereference a Deref object and return its contents.
+
+    If o is an object implementing IBlockingDeref and timeout_s and
+    timeout_val are supplied, deref will wait at most timeout_s seconds,
+    returning timeout_val if timeout_s seconds elapse and o has not
+    returned."""
     if isinstance(o, IDeref):
         return o.deref()
+    elif isinstance(o, IBlockingDeref):
+        return o.deref(timeout_s, timeout_val)
     raise TypeError(f"Object of type {type(o)} cannot be dereferenced")
 
 
@@ -971,26 +993,26 @@ def to_lisp(o, keywordize_keys: bool = True):
 
 
 def _to_lisp_backup(o, keywordize_keys: bool = True):  # pragma: no cover
-    if isinstance(o, (list, tuple)):
-        return _to_lisp_vec(o, keywordize_keys=keywordize_keys)
-    elif isinstance(o, dict):
+    if isinstance(o, Mapping):
         return _to_lisp_map(o, keywordize_keys=keywordize_keys)
-    elif isinstance(o, (frozenset, set)):
+    elif isinstance(o, AbstractSet):
         return _to_lisp_set(o, keywordize_keys=keywordize_keys)
+    elif isinstance(o, Iterable):
+        return _to_lisp_vec(o, keywordize_keys=keywordize_keys)
     else:
         return o
 
 
 @to_lisp.register(list)
 @to_lisp.register(tuple)
-def _to_lisp_vec(o: Union[list, tuple], keywordize_keys: bool = True) -> vec.Vector:
+def _to_lisp_vec(o: Iterable, keywordize_keys: bool = True) -> vec.Vector:
     return vec.vector(
         map(functools.partial(to_lisp, keywordize_keys=keywordize_keys), o)
     )
 
 
 @to_lisp.register(dict)
-def _to_lisp_map(o: dict, keywordize_keys: bool = True) -> lmap.Map:
+def _to_lisp_map(o: Mapping, keywordize_keys: bool = True) -> lmap.Map:
     kvs = {}
     for k, v in o.items():
         if isinstance(k, str) and keywordize_keys:
@@ -1004,7 +1026,7 @@ def _to_lisp_map(o: dict, keywordize_keys: bool = True) -> lmap.Map:
 
 @to_lisp.register(frozenset)
 @to_lisp.register(set)
-def _to_lisp_set(o: Union[frozenset, set], keywordize_keys: bool = True) -> lset.Set:
+def _to_lisp_set(o: AbstractSet, keywordize_keys: bool = True) -> lset.Set:
     return lset.set(map(functools.partial(to_lisp, keywordize_keys=keywordize_keys), o))
 
 
@@ -1017,7 +1039,9 @@ def to_py(o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name):
     """Recursively convert Lisp collections into Python collections."""
     if isinstance(o, ISeq):
         return _to_py_list(o, keyword_fn=keyword_fn)
-    elif not isinstance(o, (llist.List, lmap.Map, lset.Set, vec.Vector)):
+    elif not isinstance(
+        o, (IPersistentList, IPersistentMap, IPersistentSet, IPersistentVector)
+    ):
         return o
     else:  # pragma: no cover
         return _to_py_backup(o, keyword_fn=keyword_fn)
@@ -1026,11 +1050,11 @@ def to_py(o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name):
 def _to_py_backup(
     o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
 ):  # pragma: no cover
-    if isinstance(o, (llist.List, vec.Vector)):
+    if isinstance(o, (IPersistentList, IPersistentVector)):
         return _to_py_list(o, keyword_fn=keyword_fn)
-    elif isinstance(o, lmap.Map):
+    elif isinstance(o, IPersistentMap):
         return _to_py_map(o, keyword_fn=keyword_fn)
-    elif isinstance(o, lset.Set):
+    elif isinstance(o, IPersistentSet):
         return _to_py_set(o, keyword_fn=keyword_fn)
     else:
         return o
@@ -1045,24 +1069,26 @@ def _to_py_kw(o: kw.Keyword, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name)
 @to_py.register(ISeq)
 @to_py.register(vec.Vector)
 def _to_py_list(
-    o: Union[llist.List, ISeq, vec.Vector],
+    o: Union[IPersistentList, ISeq, IPersistentVector],
     keyword_fn: Callable[[kw.Keyword], Any] = _kw_name,
 ) -> list:
     return list(map(functools.partial(to_py, keyword_fn=keyword_fn), o))
 
 
 @to_py.register(lmap.Map)
-def _to_py_map(o: lmap.Map, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name) -> dict:
+def _to_py_map(
+    o: IPersistentMap, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
+) -> dict:
     return {
-        to_py(entry.key, keyword_fn=keyword_fn): to_py(
-            entry.value, keyword_fn=keyword_fn
-        )
-        for entry in o
+        to_py(key, keyword_fn=keyword_fn): to_py(value, keyword_fn=keyword_fn)
+        for key, value in o
     }
 
 
 @to_py.register(lset.Set)
-def _to_py_set(o: lset.Set, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name) -> set:
+def _to_py_set(
+    o: IPersistentSet, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
+) -> set:
     return set(to_py(e, keyword_fn=keyword_fn) for e in o)
 
 

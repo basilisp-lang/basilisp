@@ -8,15 +8,7 @@ from pyrsistent import (  # noqa # pylint: disable=unused-import
     pvector,
 )
 
-from basilisp.lang.interfaces import (
-    ILispObject,
-    IMapEntry,
-    IMeta,
-    IPersistentCollection,
-    IPersistentMap,
-    ISeq,
-    ISeqable,
-)
+from basilisp.lang.interfaces import ILispObject, IMapEntry, IMeta, IPersistentMap, ISeq
 from basilisp.lang.obj import map_lrepr as _map_lrepr
 from basilisp.lang.seq import sequence
 from basilisp.lang.vector import Vector
@@ -56,13 +48,7 @@ class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):  # type: ignore
         return MapEntry(pvector(v))
 
 
-class Map(
-    IPersistentCollection[MapEntry[K, V]],
-    ILispObject,
-    IMeta,
-    ISeqable[MapEntry[K, V]],
-    IPersistentMap[K, V],
-):
+class Map(ILispObject, IMeta, IPersistentMap[K, V]):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""
@@ -155,8 +141,11 @@ class Map(
 
     def cons(
         self,
-        *elems: Union["Map[K, V]", Dict[K, V], MapEntry[K, V], Vector[Union[K, V]]],
+        *elems: Union["Map[K, V]", Dict[K, V], IMapEntry[K, V], Vector[Union[K, V]]],
     ) -> "Map[K, V]":
+        # For now, this definition does not take the generic Mapping[K, V] type
+        # because Vectors are technically Mapping[int, V] types, so this would
+        # require restructuring of the logic.
         e = self._inner.evolver()
         try:
             for elem in elems:
@@ -166,7 +155,7 @@ class Map(
                 elif isinstance(elem, dict):
                     for k, v in elem.items():
                         e.set(k, v)
-                elif isinstance(elem, MapEntry):
+                elif isinstance(elem, IMapEntry):
                     e.set(elem.key, elem.value)
                 else:
                     entry = MapEntry.from_vec(elem)
@@ -181,7 +170,7 @@ class Map(
     def empty() -> "Map":
         return m()
 
-    def seq(self) -> ISeq[MapEntry[K, V]]:
+    def seq(self) -> ISeq[IMapEntry[K, V]]:
         return sequence(self)
 
 
