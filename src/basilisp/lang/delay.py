@@ -13,12 +13,12 @@ T = TypeVar("T")
 @attr.s(
     auto_attribs=True,
     frozen=True,
-    these={"f": attr.ib(), "value": attr.ib(), "computed": attr.ib()},
+    these={"f": attr.ib(), "value": attr.ib(), "computed": attr.ib(default=False)},
 )
 class _DelayState(Generic[T]):
     f: Callable[[], T]
     value: Optional[T]
-    computed: bool = False
+    computed: bool
 
 
 class Delay(IDeref[T]):

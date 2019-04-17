@@ -8,7 +8,6 @@ from basilisp.lang.interfaces import (
     IPersistentMap,
     IPersistentVector,
     ISeq,
-    ISeqable,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
@@ -16,7 +15,7 @@ from basilisp.lang.seq import sequence
 T = TypeVar("T")
 
 
-class Vector(ILispObject, IMeta, ISeqable[T], IPersistentVector[T]):  # type: ignore
+class Vector(ILispObject, IMeta, IPersistentVector[T]):  # type: ignore
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""
@@ -60,7 +59,7 @@ class Vector(ILispObject, IMeta, ISeqable[T], IPersistentVector[T]):  # type: ig
         new_meta = meta if self._meta is None else self._meta.update(meta)
         return vector(self._inner, meta=new_meta)
 
-    def cons(self, *elems: T) -> "Vector[T]":
+    def cons(self, *elems: T) -> "Vector[T]":  # type: ignore
         e = self._inner.evolver()
         for elem in elems:
             e.append(elem)
@@ -82,7 +81,7 @@ class Vector(ILispObject, IMeta, ISeqable[T], IPersistentVector[T]):  # type: ig
     def empty() -> "Vector[T]":
         return v()
 
-    def seq(self) -> ISeq[T]:
+    def seq(self) -> ISeq[T]:  # type: ignore
         return sequence(self)
 
     def peek(self) -> Optional[T]:
