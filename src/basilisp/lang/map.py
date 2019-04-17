@@ -143,6 +143,9 @@ class Map(ILispObject, IMeta, IPersistentMap[K, V]):
         self,
         *elems: Union["Map[K, V]", Dict[K, V], IMapEntry[K, V], Vector[Union[K, V]]],
     ) -> "Map[K, V]":
+        # For now, this definition does not take the generic Mapping[K, V] type
+        # because Vectors are technically Mapping[int, V] types, so this would
+        # require restructuring of the logic.
         e = self._inner.evolver()
         try:
             for elem in elems:
