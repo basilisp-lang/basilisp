@@ -828,8 +828,7 @@ def apply_kw(f, args):
     except TypeError as e:
         logger.debug("Ignored %s: %s", type(e).__name__, e)
 
-    kwargs = to_py(last, lambda kw: munge(kw.name))
-    return f(*final, **kwargs)
+    return f(*final, **last)
 
 
 __nth_sentinel = object()
