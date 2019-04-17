@@ -43,7 +43,6 @@ from basilisp.lang.interfaces import (
     ISeqable,
 )
 from basilisp.lang.typing import LispNumber
-from basilisp.lang.util import munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
