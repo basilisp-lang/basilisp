@@ -523,17 +523,17 @@
 (defmacro when-let
   "Evaluate the binding as with let, binding the given name for use in the
   true expression iff the binding expression is true. Return nil otherwise."
-  [binding true-cond]
+  [binding & body]
   `(if-let ~binding
-     ~true-cond
+     (do ~@body)
      nil))
 
 (defmacro when-some
   "Evaluate the binding as with let, binding the given name for use in the
   true expression iff the binding expression is not nil. Return nil otherwise."
-  [binding true-cond]
+  [binding & body]
   `(if-some ~binding
-     ~true-cond
+     (do ~@body)
      nil))
 
 (defmacro when-not
