@@ -298,6 +298,15 @@ class TestComparison:
         assert True is core.__LT____EQ__(2, 2, 2)
         assert False is core.__LT____EQ__(5, 4, 3)
 
+    def test_is_identical(self, lisp_value):
+        assert core.identical__Q__(lisp_value, lisp_value)
+
+    def test_is_not_identical(self):
+        assert False is core.identical__Q__(object(), object())
+
+    def test_hash(self, lisp_value):
+        assert hash(lisp_value) == core.hash_(lisp_value)
+
 
 def test_str():
     assert "" == core.str_()
@@ -481,6 +490,14 @@ def test_max():
     assert 9 == core.max_(5, 9)
     assert 5 == core.max_(1, 2, 3, 4, 5)
     assert 532 == core.max_(5, 10, -1, 532, -399, 42.3, 99.1937, -33.8)
+
+
+def test_numerator(fraction):
+    assert fraction.numerator == core.numerator(fraction)
+
+
+def test_denominator(fraction):
+    assert fraction.denominator == core.denominator(fraction)
 
 
 def test_sort():
