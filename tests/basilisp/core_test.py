@@ -587,6 +587,10 @@ class TestIsDouble:
         assert False is core.double__Q__(fraction)
         assert False is core.float__Q__(fraction)
 
+    def test_integer_is_not_double(self, int_number):
+        assert False is core.double__Q__(int_number)
+        assert False is core.float__Q__(int_number)
+
     def test_complex_is_not_double(self, complex_number):
         assert False is core.double__Q__(complex_number)
         assert False is core.float__Q__(complex_number)
@@ -656,6 +660,28 @@ class TestIsFn:
     @pytest.mark.parametrize("v", ["a", 1, 1.6])
     def test_is_not_ifn(self, v):
         assert False is core.ifn__Q__(v)
+
+
+class TestIsInt:
+    def test_is_int(self, int_number):
+        assert True is core.integer__Q__(int_number)
+        assert True is core.int__Q__(int_number)
+
+    def test_decimal_is_not_int(self, decimal):
+        assert False is core.integer__Q__(decimal)
+        assert False is core.int__Q__(decimal)
+
+    def test_double_is_not_int(self, float_number):
+        assert False is core.integer__Q__(float_number)
+        assert False is core.int__Q__(float_number)
+
+    def test_fraction_is_not_int(self, fraction):
+        assert False is core.integer__Q__(fraction)
+        assert False is core.int__Q__(fraction)
+
+    def test_complex_is_not_int(self, complex_number):
+        assert False is core.integer__Q__(complex_number)
+        assert False is core.integer__Q__(complex_number)
 
 
 class TestIsNil:
