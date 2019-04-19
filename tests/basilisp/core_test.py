@@ -331,41 +331,6 @@ def test_namespace():
     assert "ns" == core.namespace(kw.keyword("kw", ns="ns"))
 
 
-class TestNumericPredicates:
-    @pytest.mark.parametrize("v", [1, 100, 1.0, 9_999_839.874_394])
-    def test_is_positive(self, v):
-        assert True is core.pos__Q__(v)
-
-    @pytest.mark.parametrize("v", [0, -1, -100, -1.0, -9_999_839.874_394])
-    def test_is_not_positive(self, v):
-        assert False is core.pos__Q__(v)
-
-    @pytest.mark.parametrize("v", [0, 1, 100, 1.0, 9_999_839.874_394])
-    def test_is_non_neg(self, v):
-        assert True is core.non_neg__Q__(v)
-
-    @pytest.mark.parametrize("v", [-1, -100, -1.0, -9_999_839.874_394])
-    def test_is_not_non_neg(self, v):
-        assert False is core.non_neg__Q__(v)
-
-    def test_is_zero(self):
-        assert True is core.zero__Q__(0)
-
-    @pytest.mark.parametrize(
-        "v", [1, 100, 1.0, 9_999_839.874_394, -1, -100, -1.0, -9_999_839.874_394]
-    )
-    def test_is_not_zero(self, v):
-        assert False is core.zero__Q__(v)
-
-    @pytest.mark.parametrize("v", [-1, -100, -1.0, -9_999_839.874_394])
-    def test_is_neg(self, v):
-        assert True is core.neg__Q__(v)
-
-    @pytest.mark.parametrize("v", [0, 1, 100, 1.0, 9_999_839.874_394])
-    def test_is_not_neg(self, v):
-        assert False is core.neg__Q__(1)
-
-
 class TestArithmetic:
     def test_addition(self):
         assert 0 == core.__PLUS__()
@@ -682,6 +647,80 @@ class TestIsInt:
     def test_complex_is_not_int(self, complex_number):
         assert False is core.integer__Q__(complex_number)
         assert False is core.integer__Q__(complex_number)
+
+
+def test_is_map_entry():
+    assert True is core.map_entry__Q__(lmap.MapEntry.of("a", "b"))
+    assert False is core.map_entry__Q__(vec.Vector.empty())
+    assert False is core.map_entry__Q__(vec.v("a", "b"))
+    assert False is core.map_entry__Q__(vec.v("a", "b", "c"))
+
+
+class TestNumericPredicates:
+    @pytest.mark.parametrize("v", [1, 100, 1.0, 9_999_839.874_394])
+    def test_is_positive(self, v):
+        assert True is core.pos__Q__(v)
+
+    @pytest.mark.parametrize("v", [0, -1, -100, -1.0, -9_999_839.874_394])
+    def test_is_not_positive(self, v):
+        assert False is core.pos__Q__(v)
+
+    @pytest.mark.parametrize("v", [0, 1, 100, 1.0, 9_999_839.874_394])
+    def test_is_non_neg(self, v):
+        assert True is core.non_neg__Q__(v)
+
+    @pytest.mark.parametrize("v", [-1, -100, -1.0, -9_999_839.874_394])
+    def test_is_not_non_neg(self, v):
+        assert False is core.non_neg__Q__(v)
+
+    def test_is_zero(self):
+        assert True is core.zero__Q__(0)
+
+    @pytest.mark.parametrize(
+        "v", [1, 100, 1.0, 9_999_839.874_394, -1, -100, -1.0, -9_999_839.874_394]
+    )
+    def test_is_not_zero(self, v):
+        assert False is core.zero__Q__(v)
+
+    @pytest.mark.parametrize("v", [-1, -100, -1.0, -9_999_839.874_394])
+    def test_is_neg(self, v):
+        assert True is core.neg__Q__(v)
+
+    @pytest.mark.parametrize("v", [0, 1, 100, 1.0, 9_999_839.874_394])
+    def test_is_not_neg(self, v):
+        assert False is core.neg__Q__(v)
+
+    @pytest.mark.parametrize("v", [-1, -100])
+    def test_is_neg_int(self, v):
+        assert True is core.neg_int__Q__(v)
+
+    @pytest.mark.parametrize(
+        "v", [0, 1, 100, 1.0, 9_999_839.874_394, -1.0, -9_999_839.874_394]
+    )
+    def test_is_not_neg_int(self, v):
+        assert False is core.neg_int__Q__(v)
+
+    @pytest.mark.parametrize("v", [0, 1, 100])
+    def test_is_nat_int(self, v):
+        assert True is core.nat_int__Q__(v)
+
+    @pytest.mark.parametrize(
+        "v", [-1, -100, -1.0, -9_999_839.874_394, 4.6, 3.14, 0.111]
+    )
+    def test_is_not_nat_int(self, v):
+        assert False is core.nat_int__Q__(v)
+
+    def test_is_number_includes_reals(self, real_number):
+        assert True is core.number__Q__(real_number)
+
+    def test_is_number_includes_complex(self, complex_number):
+        assert True is core.number__Q__(complex_number)
+
+    def test_is_real_number(self, real_number):
+        assert True is core.real_number__Q__(real_number)
+
+    def test_is_not_real_number(self, complex_number):
+        assert False is core.real_number__Q__(complex_number)
 
 
 class TestIsNil:
