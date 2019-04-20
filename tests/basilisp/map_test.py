@@ -6,6 +6,7 @@ import basilisp.lang.map as lmap
 from basilisp.lang.interfaces import (
     IAssociative,
     ILispObject,
+    IMapEntry,
     IMeta,
     IPersistentCollection,
     IPersistentMap,
@@ -14,6 +15,11 @@ from basilisp.lang.interfaces import (
 from basilisp.lang.keyword import keyword
 from basilisp.lang.map import MapEntry
 from basilisp.lang.symbol import symbol
+
+
+def test_map_entry_interface():
+    assert isinstance(lmap.MapEntry.of("a", "b"), IMapEntry)
+    assert issubclass(lmap.MapEntry, IMapEntry)
 
 
 def test_map_associative_interface():

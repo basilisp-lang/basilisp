@@ -158,13 +158,13 @@ class LazySeq(ISeq[T]):
 
     def __iter__(self):
         o = self
-        while o:
+        if o:
             first = o.first
             if isinstance(o, LazySeq):
                 if o.is_empty:
                     return
             yield first
-            o = o.rest
+            yield from o.rest
 
 
 def sequence(s: Iterable) -> ISeq[Any]:

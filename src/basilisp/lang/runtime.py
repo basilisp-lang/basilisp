@@ -43,6 +43,7 @@ from basilisp.lang.interfaces import (
     ISeqable,
 )
 from basilisp.lang.typing import LispNumber
+from basilisp.lang.util import munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
@@ -827,7 +828,8 @@ def apply_kw(f, args):
     except TypeError as e:
         logger.debug("Ignored %s: %s", type(e).__name__, e)
 
-    return f(*final, **last)
+    kwargs = to_py(last, lambda kw: munge(kw.name, allow_builtins=True))
+    return f(*final, **kwargs)
 
 
 __nth_sentinel = object()
@@ -981,6 +983,11 @@ def get(m, k, default=None):
     except (KeyError, IndexError, TypeError) as e:
         logger.debug("Ignored %s: %s", type(e).__name__, e)
         return default
+
+
+def is_special_form(s: sym.Symbol) -> bool:
+    """Return True if s names a special form."""
+    return s in _SPECIAL_FORMS
 
 
 @functools.singledispatch
@@ -1240,6 +1247,7 @@ def _basilisp_fn(f):
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
     assert not hasattr(f, "meta")
+    f._basilisp_fn = True
     f.meta = None
     f.with_meta = partial(_fn_with_meta, f)
     return f

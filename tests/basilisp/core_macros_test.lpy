@@ -218,6 +218,54 @@
   (is (= nil (comment 1)))
   (is (= nil (comment [1 2 3]))))
 
+(deftest if-let-test
+  (is (= :a (if-let [a :a] a :b)))
+  (is (= 2 (if-let [a 1] (inc a) :b)))
+  (is (= :b (if-let [a nil] a :b)))
+  (is (= :b (if-let [a false] a :b)))
+  (is (thrown? basilisp.lang.compiler/CompilerException
+               (eval '(if-let [a nil] a a))))
+
+  ;; ExceptionInfo is thrown and wrapped in a CompilerException
+  ;; during macro expansion
+  (is (thrown? basilisp.lang.compiler/CompilerException
+               (eval '(if-let [a nil b :something] a :b)))))
+
+(deftest if-some-test
+  (is (= :a (if-some [a :a] a :b)))
+  (is (= 2 (if-some [a 1] (inc a) :b)))
+  (is (= :b (if-some [a nil] a :b)))
+  (is (= false (if-some [a false] a :b)))
+  (is (thrown? basilisp.lang.compiler/CompilerException
+               (eval '(if-some [a nil] a a))))
+
+  ;; ExceptionInfo is thrown and wrapped in a CompilerException
+  ;; during macroexpansion
+  (is (thrown? basilisp.lang.compiler/CompilerException
+               (eval '(if-some [a nil b :something] a :b)))))
+
+(deftest when-let-test
+  (is (= :a (when-let [a :a] a)))
+  (is (= 2 (when-let [a 1] (inc a))))
+  (is (nil? (when-let [a nil] a)))
+  (is (nil? (when-let [a false] a)))
+
+  ;; ExceptionInfo is thrown and wrapped in a CompilerException
+  ;; during macroexpansion
+  (is (thrown? basilisp.lang.compiler/CompilerException
+               (eval '(when-let [a nil b :something] a)))))
+
+(deftest when-some-test
+  (is (= :a (when-some [a :a] a)))
+  (is (= 2 (when-some [a 1] (inc a))))
+  (is (nil? (when-some [a nil] a)))
+  (is (= false (when-some [a false] a)))
+
+  ;; ExceptionInfo is thrown and wrapped in a CompilerException
+  ;; during macroexpansion
+  (is (thrown? basilisp.lang.compiler/CompilerException
+               (eval '(when-some [a nil b :something] a)))))
+
 (deftest ->-test
   (is (= :a (-> :a)))
   (is (= 2 (-> 1 inc)))

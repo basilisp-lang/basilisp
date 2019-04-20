@@ -8,6 +8,7 @@ from basilisp.lang.interfaces import (
     IPersistentCollection,
     IPersistentList,
     ISeq,
+    ISeqable,
 )
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
@@ -36,6 +37,11 @@ def test_map_object_interface():
 def test_list_seq_interface():
     assert isinstance(llist.l(), ISeq)
     assert issubclass(llist.List, ISeq)
+
+
+def test_list_seqable_interface():
+    assert isinstance(llist.l(), ISeqable)
+    assert issubclass(llist.List, ISeqable)
 
 
 def test_list_slice():
