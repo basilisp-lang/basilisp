@@ -257,10 +257,6 @@ class TestNotEquals:
         assert True is core.not__EQ__(1, 2, 1, 1, 1, 1, 1, 1, 1)
         assert True is core.not__EQ__(1, 1, 1, 1, 1, 1, 1, 1, 2)
 
-        assert True is core.not__EQ__(0, 0, False)
-        assert False is core.not__EQ__(0, 0, 0)
-        assert False is core.not__EQ__(False, False, False)
-
 
 class TestComparison:
     def test_one_arg_gt(self, lisp_value):
