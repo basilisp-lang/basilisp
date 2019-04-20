@@ -840,6 +840,24 @@
   [x]
   (instance? basilisp.lang.interfaces/IAssociative x))
 
+(defn bytes?
+  "Return true if x is a byte array (the Python `bytearray` type).
+
+  Note that Python supplies byte string and byte array objects in its standard
+  library. This function complies with Clojure's standard library in returning
+  true iff x is a Python bytearray. To check if an object is a Python `bytes`,
+  use `byte-string?`."
+  [x]
+  (instance? builtins/bytearray x))
+
+(defn byte-string?
+  "Return true if x is a byte string (the Python `bytes` type).
+
+  Note that Python supplies byte string and byte array objects in its standard
+  library. To check if an object is a Python `bytearray`, use `bytes?`."
+  [x]
+  (instance? builtins/bytes x))
+
 (defn class?
   "Return true if x names a type."
   [x]
