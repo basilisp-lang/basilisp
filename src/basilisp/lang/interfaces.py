@@ -204,9 +204,9 @@ class ISeq(ILispObject, ISeqable[T]):
 
     def __iter__(self):
         o = self
-        while o:
+        if o:
             yield o.first
-            o = o.rest
+            yield from o.rest
 
 
 class IType(ABC):

@@ -3,6 +3,7 @@ import re
 from decimal import Decimal
 from fractions import Fraction
 from unittest.mock import Mock
+from uuid import UUID
 
 import pytest
 
@@ -256,6 +257,10 @@ class TestNotEquals:
         assert True is core.not__EQ__(1, 2, 1, 1, 1, 1, 1, 1, 1)
         assert True is core.not__EQ__(1, 1, 1, 1, 1, 1, 1, 1, 2)
 
+        assert True is core.not__EQ__(0, 0, False)
+        assert False is core.not__EQ__(0, 0, 0)
+        assert False is core.not__EQ__(False, False, False)
+
 
 class TestComparison:
     def test_one_arg_gt(self, lisp_value):
@@ -298,6 +303,15 @@ class TestComparison:
         assert True is core.__LT____EQ__(2, 2, 2)
         assert False is core.__LT____EQ__(5, 4, 3)
 
+    def test_is_identical(self, lisp_value):
+        assert core.identical__Q__(lisp_value, lisp_value)
+
+    def test_is_not_identical(self):
+        assert False is core.identical__Q__(object(), object())
+
+    def test_hash(self, lisp_value):
+        assert hash(lisp_value) == core.hash_(lisp_value)
+
 
 def test_str():
     assert "" == core.str_()
@@ -320,41 +334,6 @@ def test_namespace():
     assert "ns" == core.namespace(sym.symbol("sym", ns="ns"))
     assert None is core.namespace(kw.keyword("kw"))
     assert "ns" == core.namespace(kw.keyword("kw", ns="ns"))
-
-
-class TestNumericPredicates:
-    @pytest.mark.parametrize("v", [1, 100, 1.0, 9_999_839.874_394])
-    def test_is_positive(self, v):
-        assert True is core.pos__Q__(v)
-
-    @pytest.mark.parametrize("v", [0, -1, -100, -1.0, -9_999_839.874_394])
-    def test_is_not_positive(self, v):
-        assert False is core.pos__Q__(v)
-
-    @pytest.mark.parametrize("v", [0, 1, 100, 1.0, 9_999_839.874_394])
-    def test_is_non_neg(self, v):
-        assert True is core.non_neg__Q__(v)
-
-    @pytest.mark.parametrize("v", [-1, -100, -1.0, -9_999_839.874_394])
-    def test_is_not_non_neg(self, v):
-        assert False is core.non_neg__Q__(v)
-
-    def test_is_zero(self):
-        assert True is core.zero__Q__(0)
-
-    @pytest.mark.parametrize(
-        "v", [1, 100, 1.0, 9_999_839.874_394, -1, -100, -1.0, -9_999_839.874_394]
-    )
-    def test_is_not_zero(self, v):
-        assert False is core.zero__Q__(v)
-
-    @pytest.mark.parametrize("v", [-1, -100, -1.0, -9_999_839.874_394])
-    def test_is_neg(self, v):
-        assert True is core.neg__Q__(v)
-
-    @pytest.mark.parametrize("v", [0, 1, 100, 1.0, 9_999_839.874_394])
-    def test_is_not_neg(self, v):
-        assert False is core.neg__Q__(1)
 
 
 class TestArithmetic:
@@ -483,6 +462,14 @@ def test_max():
     assert 532 == core.max_(5, 10, -1, 532, -399, 42.3, 99.1937, -33.8)
 
 
+def test_numerator(fraction):
+    assert fraction.numerator == core.numerator(fraction)
+
+
+def test_denominator(fraction):
+    assert fraction.denominator == core.denominator(fraction)
+
+
 def test_sort():
     assert llist.l(1) == core.sort(vec.v(1))
     assert llist.l(1, 2, 3) == core.sort(vec.v(1, 2, 3))
@@ -527,60 +514,6 @@ class TestIsColl:
     @pytest.mark.parametrize("v", [kw.keyword("a"), 1, "string", sym.symbol("sym")])
     def test_is_not_coll(self, v):
         assert False is core.coll__Q__(v)
-
-
-class TestIsComplex:
-    def test_is_complex(self, complex_number):
-        assert True is core.complex__Q__(complex_number)
-
-    def test_real_is_not_complex(self, real_number):
-        assert False is core.complex__Q__(real_number)
-
-    def test_fraction_is_not_complex(self, fraction):
-        assert False is core.complex__Q__(fraction)
-
-    def test_decimal_is_not_complex(self, decimal):
-        assert False is core.complex__Q__(decimal)
-
-
-class TestIsDecimal:
-    def test_is_decimal(self, decimal):
-        assert True is core.decimal__Q__(decimal)
-
-    def test_real_is_not_decimal(self, real_number):
-        assert False is core.decimal__Q__(real_number)
-
-    def test_fraction_is_not_decimal(self, fraction):
-        assert False is core.decimal__Q__(fraction)
-
-    def test_complex_is_not_decimal(self, complex_number):
-        assert False is core.decimal__Q__(complex_number)
-
-
-class TestIsDouble:
-    def test_is_double(self, float_number):
-        assert True is core.double__Q__(float_number)
-        assert True is core.float__Q__(float_number)
-
-    def test_decimal_is_not_double(self, decimal):
-        assert False is core.double__Q__(decimal)
-        assert False is core.float__Q__(decimal)
-
-    def test_fraction_is_not_double(self, fraction):
-        assert False is core.double__Q__(fraction)
-        assert False is core.float__Q__(fraction)
-
-    def test_complex_is_not_double(self, complex_number):
-        assert False is core.double__Q__(complex_number)
-        assert False is core.float__Q__(complex_number)
-
-
-class TestIsEven:
-    def test_even_nums_are_even(self, even_number):
-        assert True is core.even__Q__(even_number)
-
-    def test_odd_nums_are_not_even(self, odd_number):
-        assert False is core.even__Q__(odd_number)
 
 
 class TestIsFalse:
@@ -641,6 +574,238 @@ class TestIsFn:
         assert False is core.ifn__Q__(v)
 
 
+class TestIsIdent:
+    @pytest.mark.parametrize(
+        "v",
+        [
+            kw.keyword("kw"),
+            sym.symbol("sym"),
+            kw.keyword("kw", ns="ns"),
+            sym.symbol("sym", ns="ns"),
+            kw.keyword("kw", ns="qualified.ns"),
+            sym.symbol("sym", ns="qualified.ns"),
+        ],
+    )
+    def test_is_ident(self, v):
+        assert True is core.ident__Q__(v)
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            kw.keyword("kw", ns="ns"),
+            kw.keyword("kw", ns="qualified.ns"),
+            sym.symbol("sym", ns="ns"),
+            sym.symbol("sym", ns="qualified.ns"),
+        ],
+    )
+    def test_is_qualified_ident(self, v):
+        assert True is core.qualified_ident__Q__(v)
+
+    @pytest.mark.parametrize("v", [kw.keyword("kw"), sym.symbol("sym")])
+    def test_is_not_qualified_ident(self, v):
+        assert False is core.qualified_ident__Q__(v)
+
+    @pytest.mark.parametrize("v", [kw.keyword("kw"), kw.keyword("kw", ns="ns")])
+    def test_is_keyword(self, v):
+        assert True is core.keyword__Q__(v)
+
+    @pytest.mark.parametrize(
+        "v", [kw.keyword("kw", ns="ns"), kw.keyword("kw", ns="qualified.ns")]
+    )
+    def test_is_qualified_keyword(self, v):
+        assert True is core.qualified_keyword__Q__(v)
+
+    @pytest.mark.parametrize("v", [sym.symbol("sym"), sym.symbol("sym", ns="ns")])
+    def test_is_symbol(self, v):
+        assert True is core.symbol__Q__(v)
+
+    @pytest.mark.parametrize(
+        "v", [sym.symbol("sym", ns="ns"), sym.symbol("sym", ns="qualified.ns")]
+    )
+    def test_is_qualified_symbol(self, v):
+        assert True is core.qualified_symbol__Q__(v)
+
+
+def test_is_map_entry():
+    assert True is core.map_entry__Q__(lmap.MapEntry.of("a", "b"))
+    assert False is core.map_entry__Q__(vec.Vector.empty())
+    assert False is core.map_entry__Q__(vec.v("a", "b"))
+    assert False is core.map_entry__Q__(vec.v("a", "b", "c"))
+
+
+class TestNumericPredicates:
+    def test_is_complex(self, complex_number):
+        assert True is core.complex__Q__(complex_number)
+
+    def test_real_is_not_complex(self, real_number):
+        assert False is core.complex__Q__(real_number)
+
+    def test_fraction_is_not_complex(self, fraction):
+        assert False is core.complex__Q__(fraction)
+
+    def test_decimal_is_not_complex(self, decimal):
+        assert False is core.complex__Q__(decimal)
+
+    def test_is_decimal(self, decimal):
+        assert True is core.decimal__Q__(decimal)
+
+    def test_real_is_not_decimal(self, real_number):
+        assert False is core.decimal__Q__(real_number)
+
+    def test_fraction_is_not_decimal(self, fraction):
+        assert False is core.decimal__Q__(fraction)
+
+    def test_complex_is_not_decimal(self, complex_number):
+        assert False is core.decimal__Q__(complex_number)
+
+    def test_is_double(self, float_number):
+        assert True is core.double__Q__(float_number)
+        assert True is core.float__Q__(float_number)
+
+    def test_decimal_is_not_double(self, decimal):
+        assert False is core.double__Q__(decimal)
+        assert False is core.float__Q__(decimal)
+
+    def test_fraction_is_not_double(self, fraction):
+        assert False is core.double__Q__(fraction)
+        assert False is core.float__Q__(fraction)
+
+    def test_integer_is_not_double(self, int_number):
+        assert False is core.double__Q__(int_number)
+        assert False is core.float__Q__(int_number)
+
+    def test_complex_is_not_double(self, complex_number):
+        assert False is core.double__Q__(complex_number)
+        assert False is core.float__Q__(complex_number)
+
+    def test_even_nums_are_even(self, even_number):
+        assert True is core.even__Q__(even_number)
+
+    def test_odd_nums_are_not_even(self, odd_number):
+        assert False is core.even__Q__(odd_number)
+
+    def test_is_int(self, int_number):
+        assert True is core.integer__Q__(int_number)
+        assert True is core.int__Q__(int_number)
+
+    def test_decimal_is_not_int(self, decimal):
+        assert False is core.integer__Q__(decimal)
+        assert False is core.int__Q__(decimal)
+
+    def test_double_is_not_int(self, float_number):
+        assert False is core.integer__Q__(float_number)
+        assert False is core.int__Q__(float_number)
+
+    def test_fraction_is_not_int(self, fraction):
+        assert False is core.integer__Q__(fraction)
+        assert False is core.int__Q__(fraction)
+
+    def test_complex_is_not_int(self, complex_number):
+        assert False is core.integer__Q__(complex_number)
+        assert False is core.integer__Q__(complex_number)
+
+    @pytest.mark.parametrize("v", [1, 100, 1.0, 9_999_839.874_394])
+    def test_is_positive(self, v):
+        assert True is core.pos__Q__(v)
+
+    @pytest.mark.parametrize("v", [0, -1, -100, -1.0, -9_999_839.874_394])
+    def test_is_not_positive(self, v):
+        assert False is core.pos__Q__(v)
+
+    @pytest.mark.parametrize("v", [0, 1, 100, 1.0, 9_999_839.874_394])
+    def test_is_non_neg(self, v):
+        assert True is core.non_neg__Q__(v)
+
+    @pytest.mark.parametrize("v", [-1, -100, -1.0, -9_999_839.874_394])
+    def test_is_not_non_neg(self, v):
+        assert False is core.non_neg__Q__(v)
+
+    def test_is_zero(self):
+        assert True is core.zero__Q__(0)
+
+    @pytest.mark.parametrize(
+        "v", [1, 100, 1.0, 9_999_839.874_394, -1, -100, -1.0, -9_999_839.874_394]
+    )
+    def test_is_not_zero(self, v):
+        assert False is core.zero__Q__(v)
+
+    @pytest.mark.parametrize("v", [-1, -100, -1.0, -9_999_839.874_394])
+    def test_is_neg(self, v):
+        assert True is core.neg__Q__(v)
+
+    @pytest.mark.parametrize("v", [0, 1, 100, 1.0, 9_999_839.874_394])
+    def test_is_not_neg(self, v):
+        assert False is core.neg__Q__(v)
+
+    @pytest.mark.parametrize("v", [-1, -100])
+    def test_is_neg_int(self, v):
+        assert True is core.neg_int__Q__(v)
+
+    @pytest.mark.parametrize(
+        "v", [0, 1, 100, 1.0, 9_999_839.874_394, -1.0, -9_999_839.874_394]
+    )
+    def test_is_not_neg_int(self, v):
+        assert False is core.neg_int__Q__(v)
+
+    @pytest.mark.parametrize("v", [0, 1, 100])
+    def test_is_nat_int(self, v):
+        assert True is core.nat_int__Q__(v)
+
+    @pytest.mark.parametrize(
+        "v", [-1, -100, -1.0, -9_999_839.874_394, 4.6, 3.14, 0.111]
+    )
+    def test_is_not_nat_int(self, v):
+        assert False is core.nat_int__Q__(v)
+
+    def test_is_number_includes_reals(self, real_number):
+        assert True is core.number__Q__(real_number)
+
+    def test_is_number_includes_complex(self, complex_number):
+        assert True is core.number__Q__(complex_number)
+
+    def test_is_real_number(self, real_number):
+        assert True is core.real_number__Q__(real_number)
+
+    def test_is_not_real_number(self, complex_number):
+        assert False is core.real_number__Q__(complex_number)
+
+    def test_is_fraction(self, fraction):
+        assert True is core.ratio__Q__(fraction)
+
+    def test_decimal_is_not_fraction(self, decimal):
+        assert False is core.ratio__Q__(decimal)
+
+    def test_double_is_not_fraction(self, float_number):
+        assert False is core.ratio__Q__(float_number)
+
+    def test_int_is_not_fraction(self, int_number):
+        assert False is core.ratio__Q__(int_number)
+
+    def test_complex_is_not_fraction(self, complex_number):
+        assert False is core.ratio__Q__(complex_number)
+
+    def test_odd_nums_are_odd(self, odd_number):
+        assert True is core.odd__Q__(odd_number)
+
+    def test_even_nums_are_not_odd(self, even_number):
+        assert False is core.odd__Q__(even_number)
+
+    def test_fraction_is_rational(self, fraction):
+        assert True is core.rational__Q__(fraction)
+
+    def test_decimal_is_rational(self, decimal):
+        assert True is core.rational__Q__(decimal)
+
+    def test_int_is_rational(self, int_number):
+        assert True is core.rational__Q__(int_number)
+
+    def test_double_is_not_rational(self, float_number):
+        assert False is core.rational__Q__(float_number)
+
+    def test_complex_is_not_rational(self, complex_number):
+        assert False is core.rational__Q__(complex_number)
+
+
 class TestIsNil:
     def test_nil_values_are_nil(self, nil_value):
         assert True is core.nil__Q__(nil_value)
@@ -649,12 +814,46 @@ class TestIsNil:
         assert False is core.nil__Q__(non_nil_value)
 
 
-class TestIsOdd:
-    def test_odd_nums_are_odd(self, odd_number):
-        assert True is core.odd__Q__(odd_number)
+class TestIsPy:
+    @pytest.mark.parametrize("v", [{}, {"a": "b"}])
+    def test_is_py_dict(self, v):
+        assert True is core.py_dict__Q__(v)
 
-    def test_even_nums_are_not_odd(self, even_number):
-        assert False is core.odd__Q__(even_number)
+    @pytest.mark.parametrize("v", [lmap.Map.empty(), lmap.map({"a": "b"})])
+    def test_is_not_py_dict(self, v):
+        assert False is core.py_dict__Q__(v)
+
+    @pytest.mark.parametrize("v", [frozenset(), frozenset(["a", "b"])])
+    def test_is_py_frozenset(self, v):
+        assert True is core.py_frozenset__Q__(v)
+
+    @pytest.mark.parametrize("v", [lset.Set.empty(), lset.s("a", "b")])
+    def test_is_not_py_frozenset(self, v):
+        assert False is core.py_frozenset__Q__(v)
+
+    @pytest.mark.parametrize("v", [[], ["a", "b"]])
+    def test_is_py_list(self, v):
+        assert True is core.py_list__Q__(v)
+
+    @pytest.mark.parametrize("v", [vec.Vector.empty(), vec.v("a", "b")])
+    def test_is_not_py_list(self, v):
+        assert False is core.py_list__Q__(v)
+
+    @pytest.mark.parametrize("v", [set(), {"a", "b"}])
+    def test_is_py_set(self, v):
+        assert True is core.py_set__Q__(v)
+
+    @pytest.mark.parametrize("v", [lset.Set.empty(), lset.s("a", "b")])
+    def test_is_not_py_set(self, v):
+        assert False is core.py_set__Q__(v)
+
+    @pytest.mark.parametrize("v", [(), ("a", "b")])
+    def test_is_py_tuple(self, v):
+        assert True is core.py_tuple__Q__(v)
+
+    @pytest.mark.parametrize("v", [llist.List.empty(), llist.l("a", "b")])
+    def test_is_not_py_tuple(self, v):
+        assert False is core.py_tuple__Q__(v)
 
 
 class TestIsSome:
@@ -672,6 +871,101 @@ class TestIsTrue:
     def test_other_values_are_not_true(self, lisp_value):
         if lisp_value is not True:
             assert False is core.true__Q__(lisp_value)
+
+
+class TestIsUUID:
+    def test_is_uuid(self):
+        assert True is core.uuid__Q__(UUID("1a937d1b-6d58-4a4b-9b61-64b1bf488125"))
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            "1a937d1b-6d58-4a4b-9b61-64b1bf488125",
+            226_621_546_944_545_983_927_518_395_183_087_914_867,
+            b"\xb7\x1a\xb0\xafk\xbcDS\xa3\xc7\x85\x17\xa4b\xe1\xeb",
+            (1_939_259_628, 18526, 17139, 160, 63, 61_716_288_539_780),
+            vec.v(1_939_259_628, 18526, 17139, 160, 63, 61_716_288_539_780),
+        ],
+    )
+    def test_is_not_uuid(self, v):
+        assert False is core.uuid__Q__(v)
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            UUID("1a937d1b-6d58-4a4b-9b61-64b1bf488125"),
+            "1a937d1b-6d58-4a4b-9b61-64b1bf488125",
+            226_621_546_944_545_983_927_518_395_183_087_914_867,
+            b"\xb7\x1a\xb0\xafk\xbcDS\xa3\xc7\x85\x17\xa4b\xe1\xeb",
+            (1_939_259_628, 18526, 17139, 160, 63, 61_716_288_539_780),
+            vec.v(1_939_259_628, 18526, 17139, 160, 63, 61_716_288_539_780),
+        ],
+    )
+    def test_is_uuid_like(self, v):
+        assert True is core.uuid_like__Q__(v)
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            "1a91b-6d58-4a-961-64b1bf488125",
+            226_621_546_944_545_983_927_518_395_867,
+            b"\xb7\x1a\xb0\xafk\xbcDS\x85\x17\xa4b\xe1\xeb",
+            (1_939_259_628, 18526, 17139, 160, 61_716_288_539_780),
+            vec.v(1_939_259_628, 18_526_160, 63, 61_716_288_539_780),
+        ],
+    )
+    def test_is_not_uuid_like(self, v):
+        assert False is core.uuid_like__Q__(lisp_value)
+
+
+def test_is_var():
+    assert True is core.var__Q__(
+        runtime.Var.find(sym.symbol("list", ns="basilisp.core"))
+    )
+    assert False is core.var__Q__(core.list_)
+
+
+class TestBitManipulation:
+    def test_bit_and(self):
+        assert 8 == core.bit_and(12, 9)
+        assert 195 == core.bit_and(235, 199)
+
+    def test_bit_or(self):
+        assert 13 == core.bit_or(12, 9)
+        assert 239 == core.bit_or(235, 199)
+
+    def test_bit_not(self):
+        assert -13 == core.bit_not(12)
+        assert -236 == core.bit_not(235)
+
+    def test_bit_shift_left(self):
+        assert 1024 == core.bit_shift_left(1, 10)
+        assert 360 == core.bit_shift_left(45, 3)
+
+    def test_bit_shift_right(self):
+        assert 1 == core.bit_shift_right(1024, 10)
+        assert 5 == core.bit_shift_right(45, 3)
+
+    def test_bit_xor(self):
+        assert 5 == core.bit_xor(12, 9)
+        assert 44 == core.bit_xor(235, 199)
+
+    def test_bit_clear(self):
+        assert 3 == core.bit_clear(11, 3)
+        assert 0 == core.bit_clear(1024, 10)
+
+    def test_bit_flip(self):
+        assert 11 == core.bit_flip(15, 2)
+        assert 1025 == core.bit_flip(1024, 0)
+
+    def test_bit_set(self):
+        assert 15 == core.bit_set(11, 2)
+        assert 9_223_372_036_854_775_808 == core.bit_set(0, 63)
+
+    def test_bit_test(self):
+        assert core.bit_test(9, 0)
+        assert not core.bit_test(9, 1)
+        assert not core.bit_test(9, 7)
 
 
 class TestAssociativeFunctions:
@@ -1064,6 +1358,13 @@ def test_partition():
     assert llist.l(
         llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
     ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 26))
+
+
+def test_partition_by():
+    assert llist.List.empty() == core.partition_by(core.odd__Q__, vec.Vector.empty())
+    assert llist.l(llist.l(1, 1, 1), llist.l(2, 2), llist.l(3, 3)) == core.partition_by(
+        core.odd__Q__, vec.v(1, 1, 1, 2, 2, 3, 3)
+    )
 
 
 class TestPrintFunctions:

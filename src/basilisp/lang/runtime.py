@@ -828,7 +828,7 @@ def apply_kw(f, args):
     except TypeError as e:
         logger.debug("Ignored %s: %s", type(e).__name__, e)
 
-    kwargs = to_py(last, lambda kw: munge(kw.name))
+    kwargs = to_py(last, lambda kw: munge(kw.name, allow_builtins=True))
     return f(*final, **kwargs)
 
 
