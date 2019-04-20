@@ -921,6 +921,49 @@ def test_is_var():
     assert False is core.var__Q__(core.list_)
 
 
+class TestBitManipulation:
+    def test_bit_and(self):
+        assert 8 == core.bit_and(12, 9)
+        assert 195 == core.bit_and(235, 199)
+
+    def test_bit_or(self):
+        assert 13 == core.bit_or(12, 9)
+        assert 239 == core.bit_or(235, 199)
+
+    def test_bit_not(self):
+        assert -13 == core.bit_not(12)
+        assert -236 == core.bit_not(235)
+
+    def test_bit_shift_left(self):
+        assert 1024 == core.bit_shift_left(1, 10)
+        assert 360 == core.bit_shift_left(45, 3)
+
+    def test_bit_shift_right(self):
+        assert 1 == core.bit_shift_right(1024, 10)
+        assert 5 == core.bit_shift_right(45, 3)
+
+    def test_bit_xor(self):
+        assert 5 == core.bit_xor(12, 9)
+        assert 44 == core.bit_xor(235, 199)
+
+    def test_bit_clear(self):
+        assert 3 == core.bit_clear(11, 3)
+        assert 0 == core.bit_clear(1024, 10)
+
+    def test_bit_flip(self):
+        assert 11 == core.bit_flip(15, 2)
+        assert 1025 == core.bit_flip(1024, 0)
+
+    def test_bit_set(self):
+        assert 15 == core.bit_set(11, 2)
+        assert 9223372036854775808 == core.bit_set(0, 63)
+
+    def test_bit_test(self):
+        assert core.bit_test(9, 0)
+        assert not core.bit_test(9, 1)
+        assert not core.bit_test(9, 7)
+
+
 class TestAssociativeFunctions:
     def test_contains(self):
         assert True is core.contains__Q__(lmap.map({"a": 1}), "a")

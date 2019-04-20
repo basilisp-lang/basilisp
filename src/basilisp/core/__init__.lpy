@@ -1087,6 +1087,73 @@
   [x]
   (= 0 x))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Bit Manipulation Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn bit-and
+  "Return the bitwise and of x and args."
+  [x & args]
+  (if-let [rest-arg (seq (rest args))]
+    (recur (operator/and- x (first args)) rest-arg)
+    (operator/and- x (first args))))
+
+(defn bit-or
+  "Return the bitwise or of x and args."
+  [x & args]
+  (if-let [rest-arg (seq (rest args))]
+    (recur (operator/or- x (first args)) rest-arg)
+    (operator/or- x (first args))))
+
+(defn bit-not
+  "Invert the bits of x."
+  [x]
+  (operator/invert x))
+
+(defn bit-shift-left
+  "Return x shifted left n bits."
+  [x n]
+  (operator/lshift x n))
+
+(defn bit-shift-right
+  "Return x shifted right n bits."
+  [x n]
+  (operator/rshift x n))
+
+(defn bit-xor
+  "Return the bitwise xor of x and args."
+  [x & args]
+  (if-let [rest-arg (seq (rest args))]
+    (recur (operator/xor x (first args)) rest-arg)
+    (operator/xor x (first args))))
+
+(defn bit-and-not
+  "Return the bitwise and complement of x and args."
+  [x & args]
+  (if-let [rest-arg (seq (rest args))]
+    (recur (operator/and- x (operator/not- (first args))) rest-arg)
+    (operator/and- x (operator/not- (first args)))))
+
+(defn bit-clear
+  "Clear the bit of x at index n."
+  [x n]
+  (bit-and x (bit-not (bit-shift-left 1 n))))
+
+(defn bit-flip
+  "Flip the bit of x at index n."
+  [x n]
+  (bit-xor x (bit-shift-left 1 n)))
+
+(defn bit-set
+  "Set the bit of x at index n."
+  [x n]
+  (bit-or x (bit-shift-left 1 n)))
+
+(defn bit-test
+  "Test the bit of x at index n."
+  [x n]
+  (bit-and (bit-shift-right x n) 1))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Associative Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
