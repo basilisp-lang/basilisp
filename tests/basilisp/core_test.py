@@ -956,7 +956,7 @@ class TestBitManipulation:
 
     def test_bit_set(self):
         assert 15 == core.bit_set(11, 2)
-        assert 9223372036854775808 == core.bit_set(0, 63)
+        assert 9_223_372_036_854_775_808 == core.bit_set(0, 63)
 
     def test_bit_test(self):
         assert core.bit_test(9, 0)
