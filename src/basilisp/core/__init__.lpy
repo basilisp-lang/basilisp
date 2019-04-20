@@ -586,7 +586,16 @@
   [expr]
   (if expr false true))
 
+(defn apply-kw
+  "Apply function f to the arguments provided, passing the keys from
+  the final argument (which must be a map) as Python keyword arguments
+  to f. Keywords and symbol keys will be converted to strings and munged
+  to be legal Python identifiers, to avoid errors.
 
+  The last argument must always be coercible to a Mapping. Intermediate
+  arguments are not modified."
+  [f & args]
+  (basilisp.lang.runtime/apply-kw f args))
 
 (defn hash
   "Return the hash code for its argument."
@@ -921,6 +930,11 @@
   [x]
   (operator/is- x nil))
 
+(defn some?
+  "Return true if x is not nil, otherwise false."
+  [x]
+  (not (nil? x)))
+
 (defn number?
   "Return true if x is a number."
   [x]
@@ -941,20 +955,45 @@
   [x]
   (and (integer? x) (pos? x)))
 
+(defn py-dict?
+  "Return true if x is a Python `dict`."
+  [x]
+  (instance? builtins/dict x))
+
+(defn py-frozenset?
+  "Return true if x is a Python `frozenset`."
+  [x]
+  (instance? builtins/frozenset x))
+
+(defn py-list?
+  "Return true if x is a Python `list`."
+  [x]
+  (instance? builtins/list x))
+
+(defn py-set?
+  "Return true if x is a Python `set`."
+  [x]
+  (instance? builtins/set x))
+
+(defn py-tuple?
+  "Return true if x is a Python `tuple`."
+  [x]
+  (instance? builtins/tuple x))
+
 (defn qualified-ident?
   "Return true if x is either a keyword or symbol with a namespace."
   [x]
-  (and (ident? x) (namespace x)))
+  (and (ident? x) (some? (namespace x))))
 
 (defn qualified-keyword?
   "Return true if x is a keyword with a namespace."
   [x]
-  (and (keyword? x) (namespace x)))
+  (and (keyword? x) (some? (namespace x))))
 
 (defn qualified-symbol?
   "Return true if x is a symbol with a namespace."
   [x]
-  (and (symbol? x) (namespace x)))
+  (and (symbol? x) (some? (namespace x))))
 
 (defn ratio?
   "Return true if x is a Fraction."
@@ -981,11 +1020,6 @@
   [x]
   (and (keyword? x) (nil? (namespace x))))
 
-(defn some?
-  "Return true if x is not nil, otherwise false."
-  [x]
-  (not (nil? x)))
-
 (defn special-symbol?
   "Return true if x is a special form symbol."
   [x]
@@ -1005,6 +1039,25 @@
   "Return true if x is a UUID."
   [x]
   (instance? uuid/UUID x))
+
+(defn uuid-like?
+  "Return true if x is coercible to a UUID.
+
+  Python's UUID constructor supports byte sequences in big- and little-
+  endian byte orders. This function checks only for big-endian bytes."
+  [x]
+  (try
+    (cond
+      (uuid? x)         true
+      (string? x)       (do (uuid/UUID x) true)
+      (int? x)          (do (apply-kw uuid/UUID {:int x}) true)
+      (byte-string? x)  (do (apply-kw uuid/UUID {:bytes x}) true)
+      (or (py-tuple? x)
+          (vector? x))  (do (apply-kw uuid/UUID {:fields x}) true)
+      :else             false)
+    (catch builtins/AttributeError _ false)
+    (catch builtins/TypeError _ false)
+    (catch builtins/ValueError _ false)))
 
 (defn var?
   "Return true if x is a Var."
@@ -1081,17 +1134,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn apply-kw
-  "Apply function f to the arguments provided, passing the keys from
-  the final argument (which must be a map) as Python keyword arguments
-  to f. Keywords and symbol keys will be converted to strings and munged
-  to be legal Python identifiers, to avoid errors.
-
-  The last argument must always be coercible to a Mapping. Intermediate
-  arguments are not modified."
-  [f & args]
-  (basilisp.lang.runtime/apply-kw f args))
 
 (defmacro lazy-seq
   "Takes a body of expressions which will produce a seq or nil. When
