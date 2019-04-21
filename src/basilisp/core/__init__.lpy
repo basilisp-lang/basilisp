@@ -2766,6 +2766,19 @@
     `(def ~interface-name
        (gen-interface ~name-str [~@method-sigs]))))
 
+(defn ^:private collect-methods
+  "Collect method and interface declarations for `deftype` and `defrecord`
+  into a map containing `:interfaces` and `:methods` keys."
+  [method-impls]
+  (group-by (fn [v]
+              (cond
+                (symbol? v) :interfaces
+                (seq v)     :methods
+                :else       (throw
+                             (ex-info "Expected method definition or interface name"
+                                      {:value v :type (type v)}))))
+            method-impls))
+
 (defmacro deftype
   "Define a new Python concrete type which can implement 0 or more Python
   interfaces or Basilisp protocols.
@@ -2810,10 +2823,14 @@
   [type-name fields & method-impls]
   (let [ctor-name (with-meta
                     (symbol (str "->" (name type-name)))
-                    (meta type-name))]
+                    (meta type-name))
+
+        {:keys [interfaces methods]} (collect-methods method-impls)]
     `(do
        (deftype* ~type-name ~fields
-         ~@method-impls)
+         ~@(when methods
+             `[:implements ~interfaces
+               ~@methods]))
        (def ~ctor-name ~type-name)
        ~type-name)))
 
@@ -2863,6 +2880,14 @@
         field-kws     (->> fields (map (comp keyword name)))
         field-kw-set  (set field-kws)
 
+        {:keys [interfaces methods]} (collect-methods method-impls)
+
+        interfaces (concat '[basilisp.lang.interfaces/IPersistentMap
+                             basilisp.lang.interfaces/IMeta
+                             basilisp.lang.interfaces/IRecord
+                             builtins/object]
+                           interfaces)
+
         ;; We can use these gensyms repeatedly and interpolate them in
         ;; multiple layers of syntax quoting, unlike gensyms using # syntax.
         this-gs  (gensym "this")
@@ -2881,9 +2906,9 @@
 
     `(do
        (deftype* ~type-name ~record-fields
-         ~@method-impls
+         :implements [~@interfaces]
 
-         basilisp.lang.interfaces/IPersistentMap
+         ;; IPersistentMap
          (~'assoc [~this-gs ~'& args#]
           (let [{fields# :fields map# :map} (->> (partition 2 args#)
                                                  (group-by (fn [[k#]]
@@ -2910,8 +2935,13 @@
                      (map-entry (keyword (name field)) field))
                    fields)]
            (seq ~'_recmap)))
-         (~'dissoc [~this-gs ~'& ks]
-          nil)
+         (~'dissoc [~this-gs ~'& ks#]
+          (cond
+            (contains? ~field-kw-set ~key-gs)
+            (builtins/getattr ~this-gs (name ~key-gs))
+
+            (contains? ~'_recmap ~key-gs)
+            (get ~'_recmap ~key-gs default#)))
          (~'contains [~this-gs ~key-gs]
           (or (~field-kw-set ~key-gs)
               (contains? ~'_recmap ~key-gs)))
@@ -2931,12 +2961,12 @@
           (+ ~(count field-kw-set)
              (count ~'_recmap)))
 
-         basilisp.lang.interfaces/IMeta
+         ;; IMeta
          (~'with-meta [~this-gs new-meta#]
           (->> (merge ~'meta new-meta#)
                (evolve ~this-gs "meta")))
 
-         builtins/object
+         ;; object
          (~'__eq__ [~this-gs ~other-gs]
           (or (identical? ~this-gs ~other-gs)
               (= [~@fields
@@ -2946,7 +2976,9 @@
                          fields)
                   (.- ~other-gs ~'_recmap)])))
          (~'__hash__ [~this-gs]
-          (hash [~@fields ~'_recmap])))
+          (hash [~@fields ~'_recmap]))
+
+         ~@methods)
 
        (defn ~ctor-name
          ~(str

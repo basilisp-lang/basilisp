@@ -573,7 +573,6 @@ class MaybeHostForm(Node[sym.Symbol]):
 class Method(Node[SpecialForm]):
     form: SpecialForm
     name: str
-    interface: DefTypeBase
     this_local: Binding
     loop_id: LoopID
     params: Iterable[Binding]

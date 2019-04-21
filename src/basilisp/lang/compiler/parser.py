@@ -10,7 +10,6 @@ from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from functools import partial, wraps
-from itertools import chain
 from typing import (
     Any,
     Callable,
@@ -24,6 +23,7 @@ from typing import (
     MutableSet,
     Optional,
     Pattern,
+    Set,
     Tuple,
     Type,
     Union,
@@ -50,6 +50,7 @@ from basilisp.lang.compiler.constants import (
     LINE_KW,
     NAME_KW,
     NS_KW,
+    OBJECT_DUNDER_METHODS,
     SYM_ASYNC_META_KEY,
     SYM_DYNAMIC_META_KEY,
     SYM_MACRO_META_KEY,
@@ -128,6 +129,7 @@ FINALLY = kw.keyword("finally")
 
 # Constants used in parsing
 AS = kw.keyword("as")
+IMPLEMENTS = kw.keyword("implements")
 _BUILTINS_NS = "builtins"
 
 # Symbols to be ignored for unused symbol warnings
@@ -646,7 +648,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
 
 
 def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: ParserContext, form: Union[llist.List, ISeq], interface: DefTypeBase
+    ctx: ParserContext, form: Union[llist.List, ISeq]
 ) -> Method:
     if not isinstance(form.first, sym.Symbol):
         raise ParserException(
@@ -741,7 +743,6 @@ def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
         method = Method(
             form=form,
             name=method_name,
-            interface=interface,
             this_local=this_binding,
             params=vec.vector(param_nodes),
             is_variadic=has_vargs,
@@ -765,64 +766,71 @@ def __deftype_impls(  # pylint: disable=too-many-branches
     ctx: ParserContext, form: ISeq
 ) -> Tuple[List[DefTypeBase], List[Method]]:
     """Roll up deftype* declared bases and method implementations."""
-    current_interface_sym: Optional[sym.Symbol] = None
-    current_interface: Optional[DefTypeBase] = None
+    interface_names: MutableSet[sym.Symbol] = set()
     interfaces = []
     methods: List[Method] = []
-    interface_methods: MutableMapping[sym.Symbol, List[Method]] = {}
-    for elem in form:
-        if isinstance(elem, sym.Symbol):
-            if current_interface is not None:
-                if current_interface_sym in interface_methods:
-                    raise ParserException(
-                        f"deftype* forms may only implement an interface once",
-                        form=elem,
-                    )
-                assert (
-                    current_interface_sym is not None
-                ), "Symbol must be defined with interface"
-                interface_methods[current_interface_sym] = methods
 
-            current_interface_sym = elem
-            current_interface = _parse_ast(ctx, elem)
-            methods = []
+    if runtime.to_seq(form) is None:
+        return [], []
 
-            if not isinstance(current_interface, (MaybeClass, MaybeHostForm, VarRef)):
-                raise ParserException(
-                    f"deftype* interface implementation must be an existing interface",
-                    form=elem,
-                )
-            interfaces.append(current_interface)
-        elif isinstance(elem, ISeq):
-            if current_interface is None:
-                raise ParserException(
-                    f"deftype* method cannot be declared without interface", form=elem
-                )
-            methods.append(__deftype_method(ctx, elem, current_interface))
+    if form.first != IMPLEMENTS:
+        raise ParserException(
+            f"deftype* forms must declare which interfaces they implement", form=form
+        )
+
+    implements = runtime.nth(form, 1)
+    if not isinstance(implements, vec.Vector):
+        raise ParserException(
+            "deftype* interfaces must be declared as :implements [Interface1 Interface2 ...]",
+            form=implements,
+        )
+
+    for iface in implements:
+        if not isinstance(iface, sym.Symbol):
+            raise ParserException("deftype* interfaces must be symbols", form=iface)
+
+        if iface in interface_names:
+            raise ParserException(
+                "deftype* interfaces may only appear once in :implements vector",
+                form=iface,
+            )
+        interface_names.add(iface)
+
+        current_interface = _parse_ast(ctx, iface)
+        if not isinstance(current_interface, (MaybeClass, MaybeHostForm, VarRef)):
+            raise ParserException(
+                f"deftype* interface implementation must be an existing interface",
+                form=iface,
+            )
+        interfaces.append(current_interface)
+
+    for elem in runtime.nthrest(form, 2):
+        if isinstance(elem, ISeq):
+            methods.append(__deftype_method(ctx, elem))
         else:
             raise ParserException(
                 f"deftype* must consist of interface or protocol names and methods",
                 form=elem,
             )
 
-    if current_interface is not None:
-        if len(methods) > 0:
-            if current_interface_sym in interface_methods:
-                raise ParserException(
-                    f"deftype* forms may only implement an interface once",
-                    form=current_interface_sym,
-                )
-            assert (
-                current_interface_sym is not None
-            ), "Symbol must be defined with interface"
-            interface_methods[current_interface_sym] = methods
-        else:
-            raise ParserException(
-                f"deftype* may not declare interface without at least one method",
-                form=current_interface_sym,
-            )
+    return interfaces, list(methods)
 
-    return interfaces, list(chain.from_iterable(interface_methods.values()))
+
+def __is_abstract(tp: Type) -> bool:
+    """Return True if tp is an abstract class.
+
+    The builtin inspect.isabstract returns False for marker abstract classes
+    which do not define any abstract methods."""
+    if inspect.isabstract(tp):
+        return True
+    elif (
+        inspect.isclass(tp)
+        and hasattr(tp, "__abstractmethods__")
+        and tp.__abstractmethods__ == frozenset()
+    ):
+        return True
+    else:
+        return False
 
 
 def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
@@ -830,6 +838,7 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
 ) -> None:
     field_names = frozenset(fields)
     method_names = frozenset(munge(method.name) for method in methods)
+    all_interface_methods: Set[str] = set()
     for interface in interfaces:
         if isinstance(interface, (MaybeClass, MaybeHostForm)):
             interface_type = interface.target
@@ -841,7 +850,7 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
         if interface_type is object:
             continue
 
-        if not inspect.isabstract(interface_type):
+        if not __is_abstract(interface_type):
             raise ParserException(
                 "deftype* interface must be Python abstract class or object",
                 form=interface.form,
@@ -868,15 +877,15 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
                 f"{interface.form}: {missing_fields}"
             )
 
-        defined_interface_methods = frozenset(
-            munge(method.name) for method in methods if method.interface == interface
+        all_interface_methods.update(interface_names)
+
+    extra_methods = method_names - all_interface_methods - OBJECT_DUNDER_METHODS
+    if extra_methods:
+        extra_method_str = ", ".join(extra_methods)
+        raise ParserException(
+            "deftype* definition for interface includes methods not part of "
+            f"defined interfaces: {extra_method_str}"
         )
-        if defined_interface_methods - interface_names:
-            extra_methods = ", ".join(defined_interface_methods - interface_names)
-            raise ParserException(
-                "deftype* definition for interface includes methods not part of "
-                f"{interface.form}: {extra_methods}"
-            )
 
 
 def _deftype_ast(  # pylint: disable=too-many-branches

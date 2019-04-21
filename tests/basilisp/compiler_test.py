@@ -555,7 +555,7 @@ class TestDefType:
         Point = lcompile(
             """
         (deftype* Point [x y z]
-          builtins/object
+          :implements [builtins/object]
           (--str-- [this] 
             (builtins/repr #py ("Point" x y z))))
         """
@@ -573,9 +573,8 @@ class TestDefType:
             """
         (import* collections.abc)
         (deftype* Point [x y z]
-          collections.abc/Sized
+          :implements [collections.abc/Callable collections.abc/Sized]
           (--len-- [this] 1)
-          collections.abc/Callable
           (--call-- [this] [x y z]))
         """
         )
@@ -589,7 +588,7 @@ class TestDefType:
             """
         (import* collections.abc)
         (deftype* Point [x y z]
-          collections.abc/Callable
+          :implements [collections.abc/Callable]
           (--call-- [this i j k] [x i y j z k]))
         """
         )
@@ -602,7 +601,7 @@ class TestDefType:
             """
         (import* collections.abc)
         (deftype* Point [x y z]
-          collections.abc/Callable
+          :implements [collections.abc/Callable]
           (--call-- [this i j k] 
             (Point i j k)))
         """
@@ -617,7 +616,7 @@ class TestDefType:
             """
         (import* collections.abc)
         (deftype* Point [x y z]
-          collections.abc/Callable
+          :implements [collections.abc/Callable]
           (--call-- [this]))
         """
         )
@@ -630,7 +629,7 @@ class TestDefType:
             """
         (import* collections.abc)
         (deftype* Point [^:mutable x y z]
-          collections.abc/Callable
+          :implements [collections.abc/Callable]
           (--call-- [this new-x]
             (set! x new-x)))
         """
@@ -645,7 +644,7 @@ class TestDefType:
             """
         (import* collections.abc operator)
         (deftype* Point [x]
-          collections.abc/Callable
+          :implements [collections.abc/Callable]
           (--call-- [this sum start]
             (if (operator/gt start 0)
               (recur (operator/add sum start) (operator/sub start 1))
