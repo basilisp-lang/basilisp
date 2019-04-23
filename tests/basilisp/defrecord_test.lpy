@@ -5,16 +5,58 @@
 (deftest simple-defrecord-test
   (defrecord Point [x y z])
 
-  (testing "field access"
-    (let [p (->Point 1 2 3)]
+  (let [p  (->Point 1 2 3)
+        p1 (assoc p :w 0)]
+
+    (testing "field access"
       (is (= 1 (:x p)))
       (is (= 2 (:y p)))
       (is (= 3 (:z p)))
-      (is (nil? (:l p)))))
+      (is (nil? (:l p))))
 
-  (testing "contains?"
-    (let [p (->Point 1 2 3)]
+    (testing "field access with recmap"
+      (is (= [0 1 2 3] ((juxt :w :x :y :z) p1)))
+      (is (nil? (:l p1))))
+
+    (testing "assoc"
+      (is (record? p))
+      (is (record? p1))
+      (is (= 4 (:x (assoc p :x 4))))
+      (is (= 5 (:y (assoc p :y 5))))
+      (is (= 6 (:z (assoc p :z 6))))
+      (is (= [1 2 3] ((juxt :x :y :z) p)))
+      (is (nil? (:l p)))
+      (is (= 6 (:w (assoc p1 :w 6))))
+      (is (= [0 1 4 3] ((juxt :w :x :y :z) (assoc p1 :y 4)))))
+
+    (testing "contains?"
       (is (contains? p :x))
       (is (contains? p :y))
       (is (contains? p :z))
-      (is (not (contains? p :i))))))
+      (is (not (contains? p :i))))
+
+    (testing "contains? with recmap"
+      (is (contains? p1 :w))
+      (is (contains? p1 :x))
+      (is (contains? p1 :y))
+      (is (contains? p1 :z))
+      (is (not (contains? p1 :i))))
+
+    (testing "count"
+      (is (= 3 (count p)))
+      (is (= 4 (count p1))))
+
+    (testing "empty record not supported"
+      (is (thrown? builtins/TypeError
+                   (empty (->Point 1 2 3)))))
+
+    (testing "seq"
+      (let [p (->Point 1 2 3)]
+        (is (= #{[:x 1] [:y 2] [:z 3]}
+               (set (seq p))))
+
+        (let [p1 (assoc p :w 0)]
+          (is (= #{[:w 0] [:x 1] [:y 2] [:z 3]}
+                 (set (seq p1))))))))
+
+  )

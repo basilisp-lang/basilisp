@@ -550,9 +550,10 @@
   ([] true)
   ([& args]
    (if (seq (rest args))
-     `(if ~(first args)
-        (and ~@(rest args))
-        ~(first args))
+     `(let* [expr# ~(first args)]
+        (if expr#
+          (and ~@(rest args))
+          expr#))
      (first args))))
 
 (defmacro or
@@ -562,9 +563,10 @@
   ([] nil)
   ([& args]
    (if (seq (rest args))
-     `(if ~(first args)
-        ~(first args)
-        (or ~@(rest args)))
+     `(let* [expr# ~(first args)]
+        (if expr#
+          expr#
+          (or ~@(rest args))))
      (first args))))
 
 (defmacro cond
@@ -1176,6 +1178,12 @@
   don't exist in m, they are ignored."
   [m & ks]
   (apply (.-dissoc m) ks))
+
+(defn empty
+  "Return an empty collection of the same interface type as coll, or nil."
+  [coll]
+  (when (coll? coll)
+    (.empty coll)))
 
 (defn get
   "Return the entry of m corresponding to k if it exists or nil/default otherwise."
@@ -2829,14 +2837,30 @@
     `(do
        (deftype* ~type-name ~fields
          ~@(when methods
-             `[:implements ~interfaces
+             `[:implements ~(conj interfaces
+                                  basilisp.lang.interfaces/IType)
                ~@methods]))
        (def ~ctor-name ~type-name)
        ~type-name)))
 
 (import* attr)
 
-(defn ^:private evolve
+(defn record?
+  "Return true if v is a record type."
+  [v]
+  (instance? basilisp.lang.interfaces/IRecord v))
+
+(defmulti ^:private evolve
+  (fn [v & _]
+    (cond
+      (record? v) :record
+      (map? v)    :map)))
+
+(defmethod evolve :map
+  [m & kwargs]
+  (apply assoc m kwargs))
+
+(defmethod evolve :record
   [rec & kwargs]
   (->> (apply hash-map kwargs)
        (apply-kw attr/evolve rec)))
@@ -2917,13 +2941,16 @@
                                                                :map))))
 
                 new-recmap# (when (seq map#)
-                              ["_recmap" (apply assoc ~'_recmap map#)])]
+                              ;; Python attrs does not allow the underscore prefixed
+                              ;; field name in the constructor
+                              ["recmap" (->> (mapcat identity map#)
+                                             (apply assoc ~'_recmap))])]
             (->> fields#
                  (map (fn [[k# v#]] [(name k#) v#]))
-                 (concat new-recmap#)
                  (mapcat identity)
+                 (concat new-recmap#)
                  (apply evolve ~this-gs))))
-         (~'cons [~this-gs]
+         (~'cons [~this-gs ~'& elems#]
           nil)
          (~'empty [~this-gs]
           (throw
@@ -2936,12 +2963,27 @@
                    fields)]
            (seq ~'_recmap)))
          (~'dissoc [~this-gs ~'& ks#]
-          (cond
-            (contains? ~field-kw-set ~key-gs)
-            (builtins/getattr ~this-gs (name ~key-gs))
+          (loop [[f# ~'& r#] ks#
+                 new-rec#    ~this-gs]
+            (cond
+              (not (seq r#))
+              new-rec#
 
-            (contains? ~'_recmap ~key-gs)
-            (get ~'_recmap ~key-gs default#)))
+              (contains? ~field-kw-set f#)
+              (recur r#
+                     (->> (seq new-rec#)
+                          (filter (fn [[k#]]
+                                    (not= k# f#)))
+                          (mapcat identity)
+                          (apply hash-map)))
+
+              (contains? ~'_recmap f#)
+              (recur r#
+                     (->> (dissoc ~'_recmap f#)
+                          (evolve new-rec# "_recmap")))
+
+              :else
+              (recur r# new-rec#))))
          (~'contains [~this-gs ~key-gs]
           (or (~field-kw-set ~key-gs)
               (contains? ~'_recmap ~key-gs)))
@@ -2949,7 +2991,7 @@
           (let [[default#] args#]
             (cond
               (contains? ~field-kw-set ~key-gs)
-              (builtins/getattr ~this-gs (name ~key-gs))
+              (builtins/getattr ~this-gs (munge ~key-gs))
 
               (contains? ~'_recmap ~key-gs)
               (get ~'_recmap ~key-gs default#))))
