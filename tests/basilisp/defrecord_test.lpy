@@ -6,7 +6,13 @@
   (defrecord Point [x y z])
 
   (let [p  (->Point 1 2 3)
-        p1 (assoc p :w 0)]
+        p1 (assoc p :w 0)
+        p2 (assoc p1 :new-key "some-value")]
+
+    (testing "record?"
+      (is (record? p))
+      (is (record? p1))
+      (is (record? p2)))
 
     (testing "field access"
       (is (= 1 (:x p)))
@@ -15,19 +21,28 @@
       (is (nil? (:l p))))
 
     (testing "field access with recmap"
-      (is (= [0 1 2 3] ((juxt :w :x :y :z) p1)))
-      (is (nil? (:l p1))))
+      (is (= [0 1 2 3]
+             ((juxt :w :x :y :z) p1)))
+      (is (nil? (:l p1)))
+      (is (nil? (:new-key p1)))
+      (is (= [0 1 2 3 "some-value"]
+             ((juxt :w :x :y :z :new-key) p2))))
 
     (testing "assoc"
-      (is (record? p))
-      (is (record? p1))
       (is (= 4 (:x (assoc p :x 4))))
       (is (= 5 (:y (assoc p :y 5))))
       (is (= 6 (:z (assoc p :z 6))))
       (is (= [1 2 3] ((juxt :x :y :z) p)))
       (is (nil? (:l p)))
       (is (= 6 (:w (assoc p1 :w 6))))
-      (is (= [0 1 4 3] ((juxt :w :x :y :z) (assoc p1 :y 4)))))
+      (is (= [0 1 4 3] ((juxt :w :x :y :z) (assoc p1 :y 4))))
+      (is (= [8 1 4 3] ((juxt :w :x :y :z) (assoc p1 :y 4 :w 8))))
+      (is (= [0 1 2 3 "no-value"]
+             ((juxt :w :x :y :z :new-key)
+              (assoc p2 :new-key "no-value"))))
+      (is (= [0 1 15 3 "no-value"]
+             ((juxt :w :x :y :z :new-key)
+              (assoc p2 :new-key "no-value" :y 15)))))
 
     (testing "contains?"
       (is (contains? p :x))
@@ -40,23 +55,42 @@
       (is (contains? p1 :x))
       (is (contains? p1 :y))
       (is (contains? p1 :z))
-      (is (not (contains? p1 :i))))
+      (is (not (contains? p1 :i)))
+      (is (contains? p2 :w))
+      (is (contains? p2 :x))
+      (is (contains? p2 :y))
+      (is (contains? p2 :z))
+      (is (not (contains? p2 :i)))
+      (is (contains? p2 :new-key)))
 
     (testing "count"
       (is (= 3 (count p)))
-      (is (= 4 (count p1))))
+      (is (= 4 (count p1)))
+      (is (= 5 (count p2))))
 
     (testing "empty record not supported"
       (is (thrown? builtins/TypeError
                    (empty (->Point 1 2 3)))))
 
     (testing "seq"
-      (let [p (->Point 1 2 3)]
-        (is (= #{[:x 1] [:y 2] [:z 3]}
-               (set (seq p))))
+      (is (= #{[:x 1] [:y 2] [:z 3]}
+             (set (seq p))))
+      (is (= #{[:w 0] [:x 1] [:y 2] [:z 3]}
+             (set (seq p1))))
+      (is (= #{[:w 0] [:x 1] [:y 2] [:z 3] [:new-key "some-value"]}
+             (set (seq p2)))))
 
-        (let [p1 (assoc p :w 0)]
-          (is (= #{[:w 0] [:x 1] [:y 2] [:z 3]}
-                 (set (seq p1))))))))
+    (testing "equals"
+      (is (= (->Point 1 2 3) p))
+      (is (= p1
+             (-> (->Point 1 2 3)
+                 (assoc :w 0))))
+      (is (= p2
+             (-> (->Point 1 2 3)
+                 (assoc :w 0 :new-key "some-value")))))
 
-  )
+    (testing "hash"
+      (is (= (hash [1 2 3 {}]) (hash p)))
+      (is (= (hash [1 2 3 {:w 0}]) (hash p1)))
+      (is (= (hash [1 2 3 {:w 0 :new-key "some-value"}]) (hash p2))))
+    ))
