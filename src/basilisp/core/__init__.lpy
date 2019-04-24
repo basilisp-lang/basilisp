@@ -2951,7 +2951,31 @@
                  (concat new-recmap#)
                  (apply evolve ~this-gs))))
          (~'cons [~this-gs ~'& elems#]
-          nil)
+          (loop [[f# ~'& r#] elems#
+                 new-rec#    ~this-gs]
+            (cond
+              (nil? f#)
+              new-rec#
+
+              (map? f#)
+              (recur r#
+                     (->> (seq f#)
+                          (apply assoc new-rec#)))
+
+              (map-entry? f#)
+              (recur r# (assoc new-rec# (key f#) (val f#)))
+
+              (py-dict? f#)
+              (recur r#
+                     (->> (seq (.items f#))
+                          (map (fn [[k v]] (map-entry k v)))
+                          (apply conj new-rec#)))
+
+              :else
+              (throw
+               (ex-info "Argument to record conj must be another Map or castable to MapEntry"
+                        {:value f#
+                         :type  (builtins/type f#)})))))
          (~'empty [~this-gs]
           (throw
            (builtins/TypeError
@@ -2966,7 +2990,7 @@
           (loop [[f# ~'& r#] ks#
                  new-rec#    ~this-gs]
             (cond
-              (not (seq r#))
+              (nil? f#)
               new-rec#
 
               (contains? ~field-kw-set f#)
@@ -2977,10 +3001,10 @@
                           (mapcat identity)
                           (apply hash-map)))
 
-              (contains? ~'_recmap f#)
+              (contains? (.- new-rec#  ~'_recmap) f#)
               (recur r#
-                     (->> (dissoc ~'_recmap f#)
-                          (evolve new-rec# "_recmap")))
+                     (->> (dissoc (.- new-rec# ~'_recmap) f#)
+                          (evolve new-rec# "recmap")))
 
               :else
               (recur r# new-rec#))))
