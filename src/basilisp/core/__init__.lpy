@@ -1200,9 +1200,17 @@
   (apply basilisp.lang.runtime/update m k f args))
 
 (defn map-entry
-  "Return a map entry containing key and value."
-  [k v]
-  ((.-of basilisp.lang.map/MapEntry) k v))
+  "With one argument, coerce the input to a map entry. With two arguments, return a
+  map entry containing key and value."
+  ([coll]
+   (if (= 2 (count coll))
+     ((.-from-vec basilisp.lang.map/MapEntry) coll)
+     (throw
+      (ex-info "Cannot coerce object to basilisp.lang.map.MapEntry"
+               {:coll coll
+                :type (type coll)}))))
+  ([k v]
+   ((.-of basilisp.lang.map/MapEntry) k v)))
 
 (defn key
   "Return the key from a map entry."
@@ -2740,7 +2748,7 @@
   Callers should use `definterface` to generate new interfaces."
   [interface-name methods]
   (let [methods (reduce (fn [m [method-name args]]
-                          (let [method-args (->> (concat ['self] args)
+                          (let [method-args (->> (concat ['^:no-warn-when-unused self] args)
                                                  (apply vector))
                                 method      (->> (list 'fn* method-name method-args)
                                                  (eval)
@@ -2906,11 +2914,11 @@
 
         {:keys [interfaces methods]} (collect-methods method-impls)
 
-        interfaces (concat '[basilisp.lang.interfaces/IPersistentMap
+        interfaces (concat interfaces
+                           '[basilisp.lang.interfaces/IPersistentMap
                              basilisp.lang.interfaces/IMeta
                              basilisp.lang.interfaces/IRecord
-                             builtins/object]
-                           interfaces)
+                             builtins/object])
 
         ;; We can use these gensyms repeatedly and interpolate them in
         ;; multiple layers of syntax quoting, unlike gensyms using # syntax.
