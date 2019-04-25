@@ -48,8 +48,21 @@
              ((juxt :w :x :y :z :new-key)
               (assoc p2 :new-key "no-value" :y 15)))))
 
+    (testing "conj"
+      (is (= p1 (conj p [:w 0])))
+      (is (= p1 (conj p (map-entry :w 0))))
+      (is (= p1 (conj p {:w 0})))
+      (is (= p1 (conj p #py {:w 0})))
+      (is (= p2 (conj p [:w 0] [:new-key "some-value"])))
+      (is (= p2 (conj p (map-entry :w 0) (map-entry :new-key "some-value"))))
+      (is (= p2 (conj p {:w 0} {:new-key "some-value"})))
+      (is (= p2 (conj p {:w 0 :new-key "some-value"})))
+      (is (= p2 (conj p #py {:w 0 :new-key "some-value"}))))
+
     (testing "dissoc"
+      (is (= p (dissoc p :l)))
       (is (= {} (dissoc p :x :y :z)))
+      (is (= {} (dissoc p :l :x :y :z)))
       (is (= {:x 1} (dissoc p :y :z)))
       (is (= p1 (dissoc p2 :new-key)))
       (is (= p (dissoc p2 :new-key :w))))

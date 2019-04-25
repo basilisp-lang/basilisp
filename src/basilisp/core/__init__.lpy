@@ -2960,10 +2960,14 @@
               (map? f#)
               (recur r#
                      (->> (seq f#)
+                          (mapcat identity)
                           (apply assoc new-rec#)))
 
               (map-entry? f#)
               (recur r# (assoc new-rec# (key f#) (val f#)))
+
+              (vector? f#)
+              (recur r# (apply assoc new-rec# f#))
 
               (py-dict? f#)
               (recur r#
