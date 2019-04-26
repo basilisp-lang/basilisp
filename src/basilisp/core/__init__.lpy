@@ -2762,6 +2762,12 @@
                    #py (abc/ABC)
                    (lisp->py methods))))
 
+;; The behavior described below where `definterface` forms are not permitted
+;; to be used in `deftype` and `defrecord` forms when they are not top-level
+;; is a bug, documented in the following issue:
+;;
+;; https://github.com/chrisrink10/basilisp/issues/376
+
 (defmacro definterface
   "Define a new Python interface (abstract base clase) with the given name
   and method signatures.
@@ -2777,7 +2783,10 @@
   by a concrete type.
 
   The generated interface will be immediately available after this form has
-  been evaluated and its utility is not limited to compilation."
+  been evaluated _if it is evaluated as a top-level form_. If this form appears
+  within a function and is referred to later in a `deftype` or `defrecord` form,
+  a compilation error will occur since the compiler will be unable to evaluate
+  whether the generated value refers to an abstract class."
   [interface-name & methods]
   (let [name-str    (name interface-name)
         method-sigs (map #(list 'quote %) methods)]
