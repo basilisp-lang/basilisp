@@ -2747,12 +2747,14 @@
 
   Callers should use `definterface` to generate new interfaces."
   [interface-name methods]
-  (let [methods (reduce (fn [m [method-name args]]
+  (let [methods (reduce (fn [m [method-name args docstring]]
                           (let [method-args (->> (concat ['^:no-warn-when-unused self] args)
                                                  (apply vector))
                                 method      (->> (list 'fn* method-name method-args)
                                                  (eval)
                                                  (abc/abstractmethod))]
+                            (when docstring
+                              (set! (.- method __doc__) docstring))
                             (assoc m (munge method-name) method)))
                         {}
                         methods)]
