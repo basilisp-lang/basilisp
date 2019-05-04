@@ -751,30 +751,33 @@ def __deftype_property_to_py_ast(
     assert node.op == NodeOp.PROPERTY_METHOD
     method_name = munge(node.name)
 
-    this_name = genname(munge(node.this_local.name))
-    this_sym = sym.symbol(node.this_local.name)
-    ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
+    with ctx.new_symbol_table(node.name):
+        this_name = genname(munge(node.this_local.name))
+        this_sym = sym.symbol(node.this_local.name)
+        ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
 
-    with ctx.new_this(this_sym):
-        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
-        return GeneratedPyAST(
-            node=ast.FunctionDef(
-                name=method_name,
-                args=ast.arguments(
-                    args=list(
-                        chain([ast.arg(arg=this_name, annotation=None)], fn_args)
-                    ),
-                    kwarg=None,
-                    vararg=varg,
-                    kwonlyargs=[],
-                    defaults=[],
-                    kw_defaults=[],
-                ),
-                body=fn_body_ast,
-                decorator_list=[_PY_PROPERTY_FN_NAME],
-                returns=None,
+        with ctx.new_this(this_sym):
+            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+                ctx, node.params, node.body
             )
-        )
+            return GeneratedPyAST(
+                node=ast.FunctionDef(
+                    name=method_name,
+                    args=ast.arguments(
+                        args=list(
+                            chain([ast.arg(arg=this_name, annotation=None)], fn_args)
+                        ),
+                        kwarg=None,
+                        vararg=varg,
+                        kwonlyargs=[],
+                        defaults=[],
+                        kw_defaults=[],
+                    ),
+                    body=fn_body_ast,
+                    decorator_list=[_PY_PROPERTY_FN_NAME],
+                    returns=None,
+                )
+            )
 
 
 @_with_ast_loc
