@@ -598,7 +598,6 @@ class Method(DefTypeMember):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class ClassMethod(DefTypeMember):
     class_local: Binding
-    loop_id: LoopID
     is_variadic: bool
     children: Sequence[kw.Keyword] = vec.v(CLASS_LOCAL, PARAMS, BODY)
     op: NodeOp = NodeOp.CLASS_METHOD
@@ -617,7 +616,6 @@ class PropertyMethod(DefTypeMember):
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class StaticMethod(DefTypeMember):
-    loop_id: LoopID
     is_variadic: bool
     children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
     op: NodeOp = NodeOp.STATIC_METHOD

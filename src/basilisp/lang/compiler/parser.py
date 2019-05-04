@@ -763,34 +763,31 @@ def __deftype_classmethod(
         params = args[1:]
         has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
 
-        loop_id = genname(method_name)
-        with ctx.new_recur_point(loop_id, param_nodes):
-            body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
-            if body:
-                *stmts, ret = body
-            else:
-                stmts, ret = [], _const_node(ctx, None)
+        body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
+        if body:
+            *stmts, ret = body
+        else:
+            stmts, ret = [], _const_node(ctx, None)
 
-            method = ClassMethod(
-                form=form,
-                name=method_name,
-                params=vec.vector(param_nodes),
-                body=Do(
-                    form=form.rest,
-                    statements=vec.vector(stmts),
-                    ret=ret,
-                    is_body=True,
-                    # Use the argument vector or first body statement, whichever
-                    # exists, for metadata.
-                    env=ctx.get_node_env(),
-                ),
+        method = ClassMethod(
+            form=form,
+            name=method_name,
+            params=vec.vector(param_nodes),
+            body=Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                # Use the argument vector or first body statement, whichever
+                # exists, for metadata.
                 env=ctx.get_node_env(),
-                class_local=this_binding,
-                loop_id=loop_id,
-                is_variadic=has_vargs,
-            )
-            method.visit(_assert_recur_is_tail)
-            return method
+            ),
+            env=ctx.get_node_env(),
+            class_local=this_binding,
+            is_variadic=has_vargs,
+        )
+        method.visit(_assert_no_recur)
+        return method
 
 
 def __deftype_method(
@@ -926,36 +923,33 @@ def __deftype_staticmethod(
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
         has_vargs, param_nodes = __deftype_method_param_bindings(ctx, args)
 
-        loop_id = genname(method_name)
-        with ctx.new_recur_point(loop_id, param_nodes):
-            body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
-            if body:
-                *stmts, ret = body
-            else:
-                stmts, ret = [], _const_node(ctx, None)
+        body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
+        if body:
+            *stmts, ret = body
+        else:
+            stmts, ret = [], _const_node(ctx, None)
 
-            method = StaticMethod(
-                form=form,
-                name=method_name,
-                params=vec.vector(param_nodes),
-                body=Do(
-                    form=form.rest,
-                    statements=vec.vector(stmts),
-                    ret=ret,
-                    is_body=True,
-                    # Use the argument vector or first body statement, whichever
-                    # exists, for metadata.
-                    env=ctx.get_node_env(),
-                ),
+        method = StaticMethod(
+            form=form,
+            name=method_name,
+            params=vec.vector(param_nodes),
+            body=Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                # Use the argument vector or first body statement, whichever
+                # exists, for metadata.
                 env=ctx.get_node_env(),
-                loop_id=loop_id,
-                is_variadic=has_vargs,
-            )
-            method.visit(_assert_recur_is_tail)
-            return method
+            ),
+            env=ctx.get_node_env(),
+            is_variadic=has_vargs,
+        )
+        method.visit(_assert_no_recur)
+        return method
 
 
-def __deftype_member(  # pylint: disable=too-many-branches,too-many-locals
+def __deftype_member(
     ctx: ParserContext, form: Union[llist.List, ISeq]
 ) -> DefTypeMember:
     """Emit a member node for a deftype* form.
@@ -1073,13 +1067,14 @@ def __is_abstract(tp: Type) -> bool:
         return False
 
 
-def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
+def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,too-many-locals
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
     members: Iterable[DefTypeMember],
 ) -> None:
     field_names = frozenset(fields)
     member_names = frozenset(munge(member.name) for member in members)
+    all_member_names = field_names.union(member_names)
     all_interface_methods: Set[str] = set()
     for interface in interfaces:
         if isinstance(interface, (MaybeClass, MaybeHostForm)):
@@ -1112,7 +1107,7 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
                 "deftype* definition missing interface members for interface "
                 f"{interface.form}: {missing_methods}"
             )
-        elif not interface_property_names.issubset(field_names.union(member_names)):
+        elif not interface_property_names.issubset(all_member_names):
             missing_fields = ", ".join(interface_property_names - field_names)
             raise ParserException(
                 "deftype* definition missing interface properties for interface "
@@ -1130,9 +1125,7 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
         )
 
 
-def _deftype_ast(  # pylint: disable=too-many-branches
-    ctx: ParserContext, form: ISeq
-) -> DefType:
+def _deftype_ast(ctx: ParserContext, form: ISeq) -> DefType:
     assert form.first == SpecialForm.DEFTYPE
 
     nelems = count(form)

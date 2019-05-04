@@ -677,7 +677,9 @@ class TestDefType:
                 """,
             ],
         )
-        def test_deftype_member_may_not_be_multiple_tyeps(self, ns: runtime.Namespace, code: str):
+        def test_deftype_member_may_not_be_multiple_tyeps(
+            self, ns: runtime.Namespace, code: str
+        ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
@@ -753,15 +755,16 @@ class TestDefType:
                     """
                 )
 
-        def test_deftype_classmethod_allows_recur(self, class_interface: Var):
-            lcompile(
+        def test_deftype_classmethod_disallows_recur(self, class_interface: Var):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x]
+                  :implements [WithCls]
+                  (^:classmethod create [cls]
+                    (recur)))
                 """
-            (deftype* Point [x]
-              :implements [WithCls]
-              (^:classmethod create [cls]
-                (recur)))
-            """
-            )
+                )
 
         def test_deftype_can_have_classmethod(self, class_interface: Var):
             Point = lcompile(
@@ -1104,15 +1107,16 @@ class TestDefType:
             )
             assert None is Point.dostatic()
 
-        def test_deftype_staticmethod_allows_recur(self, static_interface: Var):
-            lcompile(
-                """
-            (deftype* Point [x]
-              :implements [WithStatic]
-              (^:staticmethod dostatic []
-                (recur)))
-                """
-            )
+        def test_deftype_staticmethod_disallows_recur(self, static_interface: Var):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x]
+                  :implements [WithStatic]
+                  (^:staticmethod dostatic []
+                    (recur)))
+                    """
+                )
 
         def test_deftype_can_have_staticmethod(self, static_interface: Var):
             Point = lcompile(
