@@ -33,8 +33,10 @@ import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vector
 import basilisp.walker as walk
-from basilisp.lang.interfaces import IMeta
+from basilisp.lang.interfaces import IMeta, IRecord, IType
+from basilisp.lang.runtime import Namespace, Var
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
+from basilisp.lang.util import munge
 from basilisp.util import Maybe
 
 ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|\.")
@@ -922,6 +924,42 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
         raise SyntaxError(f"Unrecognized regex pattern syntax: {s}")
 
 
+def _load_record(s: symbol.Symbol, v: LispReaderForm) -> Union[IRecord, IType]:
+    """Attempt to load the constructor named by `s` and construct a new
+    record or type instance from the vector or map following name."""
+    assert s.ns is None, "Record reader macro cannot have namespace"
+    assert "." in s.name, "Record names must appear fully qualified"
+
+    ns_name, rec = s.name.rsplit(".", maxsplit=1)
+    ns_sym = symbol.symbol(ns_name)
+    ns = Namespace.get(ns_sym)
+    if ns is None:
+        raise SyntaxError(f"Namespace {ns_name} does not exist")
+
+    rectype = getattr(ns.module, munge(rec), None)
+    if rectype is None:
+        raise SyntaxError(f"Record or type {s} does not exist")
+
+    if isinstance(v, vector.Vector):
+        if issubclass(rectype, (IRecord, IType)):
+            posfactory = Var.find_in_ns(ns_sym, symbol.symbol(f"->{rec}"))
+            assert (
+                posfactory is not None
+            ), "Record and Type must have positional factories"
+            return posfactory.value(*v)
+        else:
+            raise SyntaxError(f"Var {s} is not a Record or Type")
+    elif isinstance(v, lmap.Map):
+        if issubclass(rectype, IRecord):
+            mapfactory = Var.find_in_ns(ns_sym, symbol.symbol(f"map->{rec}"))
+            assert mapfactory is not None, "Record must have map factory"
+            return mapfactory.value(v)
+        else:
+            raise SyntaxError(f"Var {s} is not a Record type")
+    else:
+        raise SyntaxError("Records may only be constructed from Vectors and Maps")
+
+
 def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
     """Return a data structure evaluated as a reader
     macro from the input stream."""
@@ -949,6 +987,8 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
         if s in ctx.data_readers:
             f = ctx.data_readers[s]
             return f(v)
+        elif s.ns is None and "." in s.name:
+            return _load_record(s, v)
         else:
             raise SyntaxError(f"No data reader found for tag #{s}")
 

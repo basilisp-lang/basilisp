@@ -2,9 +2,9 @@
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
-(deftest simple-defrecord-test
-  (defrecord Point [x y z])
+(defrecord Point [x y z])
 
+(deftest simple-defrecord-test
   (let [p  (->Point 1 2 3)
         p1 (assoc p :w 0)
         p2 (assoc p1 :new-key "some-value")
@@ -124,4 +124,49 @@
       (is (= (hash [1 2 3 {:w 0}]) (hash p1)))
       (is (= (hash [1 2 3 {:w 0 :new-key "some-value"}]) (hash p2)))
       (is (= (hash {:x 1 :z 3}) (hash p3))))
-    ))
+
+    (testing "meta and with-meta"
+      (is (nil? (meta p)))
+      (is (= {:tag Point} (meta (with-meta p {:tag Point})))))
+
+    (testing "repr"
+      (is (contains? #{"#tests.basilisp.defrecord_test.Point{:x 1 :y 2 :z 3}"
+                       "#tests.basilisp.defrecord_test.Point{:y 2 :z 3 :x 1}"
+                       "#tests.basilisp.defrecord_test.Point{:z 3 :x 1 :y 2}"
+                       "#tests.basilisp.defrecord_test.Point{:y 2 :x 1 :z 3}"
+                       "#tests.basilisp.defrecord_test.Point{:x 1 :z 3 :y 2}"
+                       "#tests.basilisp.defrecord_test.Point{:z 3 :y 2 :x 1}"}
+                     (str p)))
+      (is (contains? #{"^{:interesting :yes} #tests.basilisp.defrecord_test.Point{:x 1 :y 2 :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord_test.Point{:y 2 :z 3 :x 1}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord_test.Point{:z 3 :x 1 :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord_test.Point{:y 2 :x 1 :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord_test.Point{:x 1 :z 3 :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord_test.Point{:z 3 :y 2 :x 1}"}
+                     (binding [*print-meta* true]
+                       (str (with-meta p {:interesting :yes}))))))))
+
+(definterface Shape
+  (area []))
+
+(defrecord Circle [radius]
+  Shape
+  (area [self]
+    (* 3.14 radius radius)))
+
+(deftest defrecord-with-methods
+  (let [c  (->Circle 1)
+        c1 (assoc c :name "Kurt")]
+
+    (testing "defrecord method"
+      (is (= 3.14 (.area c))))
+
+    (testing "repr"
+      (is (= "#tests.basilisp.defrecord_test.Circle{:radius 1}"
+             (str c)))
+      (is (= "^{:interesting :yes} #tests.basilisp.defrecord_test.Circle{:radius 1}"
+             (binding [*print-meta* true]
+               (str (with-meta c {:interesting :yes})))))
+      (is (contains? #{"#tests.basilisp.defrecord_test.Circle{:radius 1 :name \"Kurt\"}"
+                       "#tests.basilisp.defrecord_test.Circle{:name \"Kurt\" :radius 1}"}
+                     (str c1))))))

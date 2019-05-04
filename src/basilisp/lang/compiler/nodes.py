@@ -30,9 +30,11 @@ CLASS = kw.keyword("class")
 LOCAL = kw.keyword("local")
 STATEMENTS = kw.keyword("statements")
 RET = kw.keyword("ret")
+CLASS_LOCAL = kw.keyword("class-local")
 THIS_LOCAL = kw.keyword("this-local")
 FIELDS = kw.keyword("fields")
 METHODS = kw.keyword("methods")
+MEMBERS = kw.keyword("members")
 PARAMS = kw.keyword("params")
 TARGET = kw.keyword("target")
 VAL = kw.keyword("val")
@@ -55,6 +57,7 @@ class NodeOp(Enum):
     AWAIT = kw.keyword("await")
     BINDING = kw.keyword("binding")
     CATCH = kw.keyword("catch")
+    CLASS_METHOD = kw.keyword("class-method")
     CONST = kw.keyword("const")
     DEF = kw.keyword("def")
     DEFTYPE = kw.keyword("deftype")
@@ -76,6 +79,7 @@ class NodeOp(Enum):
     MAYBE_CLASS = kw.keyword("maybe-class")
     MAYBE_HOST_FORM = kw.keyword("maybe-host-form")
     METHOD = kw.keyword("method")
+    PROPERTY_METHOD = kw.keyword("property")
     PY_DICT = kw.keyword("py-dict")
     PY_LIST = kw.keyword("py-list")
     PY_SET = kw.keyword("py-set")
@@ -84,6 +88,7 @@ class NodeOp(Enum):
     RECUR = kw.keyword("recur")
     SET = kw.keyword("set")
     SET_BANG = kw.keyword("set!")
+    STATIC_METHOD = kw.keyword("static-method")
     THROW = kw.keyword("throw")
     TRY = kw.keyword("try")
     VAR = kw.keyword("var")
@@ -237,6 +242,7 @@ class ConstType(Enum):
     DECIMAL = kw.keyword("decimal")
     FRACTION = kw.keyword("fraction")
     RECORD = kw.keyword("record")
+    TYPE = kw.keyword("type")
     SEQ = kw.keyword("seq")
     CHAR = kw.keyword("char")
     REGEX = kw.keyword("regex")
@@ -353,14 +359,23 @@ class DefType(Node[SpecialForm]):
     name: str
     interfaces: Iterable[DefTypeBase]
     fields: Iterable[Binding]
-    methods: Iterable["Method"]
+    members: Iterable["DefTypeMember"]
     env: NodeEnv
     is_frozen: bool = True
     meta: NodeMeta = None
-    children: Sequence[kw.Keyword] = vec.v(FIELDS, METHODS)
+    children: Sequence[kw.Keyword] = vec.v(FIELDS, MEMBERS)
     op: NodeOp = NodeOp.DEFTYPE
     top_level: bool = False
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeMember(Node[SpecialForm]):
+    form: SpecialForm
+    name: str
+    params: Iterable[Binding]
+    body: "Do"
+    env: NodeEnv
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -570,17 +585,42 @@ class MaybeHostForm(Node[sym.Symbol]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class Method(Node[SpecialForm]):
-    form: SpecialForm
-    name: str
+class Method(DefTypeMember):
     this_local: Binding
     loop_id: LoopID
-    params: Iterable[Binding]
     is_variadic: bool
-    body: Do
-    env: NodeEnv
     children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
     op: NodeOp = NodeOp.METHOD
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class ClassMethod(DefTypeMember):
+    class_local: Binding
+    loop_id: LoopID
+    is_variadic: bool
+    children: Sequence[kw.Keyword] = vec.v(CLASS_LOCAL, PARAMS, BODY)
+    op: NodeOp = NodeOp.CLASS_METHOD
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class PropertyMethod(DefTypeMember):
+    this_local: Binding
+    children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
+    op: NodeOp = NodeOp.PROPERTY_METHOD
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class StaticMethod(DefTypeMember):
+    loop_id: LoopID
+    is_variadic: bool
+    children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
+    op: NodeOp = NodeOp.STATIC_METHOD
     top_level: bool = False
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
@@ -770,7 +810,18 @@ ParentNode = Union[
     Vector,
     WithMeta,
 ]
-ChildOnlyNode = Union[Binding, Catch, FnMethod, ImportAlias, Local, Recur]
+ChildOnlyNode = Union[
+    Binding,
+    ClassMethod,
+    Catch,
+    FnMethod,
+    ImportAlias,
+    Local,
+    Method,
+    PropertyMethod,
+    Recur,
+    StaticMethod,
+]
 AnyNode = Union[ParentNode, ChildOnlyNode]
 SpecialFormNode = Union[
     Await,

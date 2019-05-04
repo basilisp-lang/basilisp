@@ -133,12 +133,15 @@ OBJECT_DUNDER_METHODS = frozenset(
 )
 
 SYM_ASYNC_META_KEY = kw.keyword("async")
+SYM_CLASSMETHOD_META_KEY = kw.keyword("classmethod")
 SYM_DYNAMIC_META_KEY = kw.keyword("dynamic")
+SYM_PROPERTY_META_KEY = kw.keyword("property")
 SYM_MACRO_META_KEY = kw.keyword("macro")
 SYM_MUTABLE_META_KEY = kw.keyword("mutable")
 SYM_NO_WARN_ON_REDEF_META_KEY = kw.keyword("no-warn-on-redef")
 SYM_NO_WARN_WHEN_UNUSED_META_KEY = kw.keyword("no-warn-when-unused")
 SYM_REDEF_META_KEY = kw.keyword("redef")
+SYM_STATICMETHOD_META_KEY = kw.keyword("staticmethod")
 
 ARGLISTS_KW = kw.keyword("arglists")
 COL_KW = kw.keyword("col")

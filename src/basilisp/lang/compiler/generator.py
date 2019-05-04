@@ -49,10 +49,12 @@ from basilisp.lang.compiler.nodes import (
     Await,
     Binding,
     Catch,
+    ClassMethod,
     Const,
     ConstType,
     Def,
     DefType,
+    DefTypeMember,
     Do,
     Fn,
     FnMethod,
@@ -72,6 +74,7 @@ from basilisp.lang.compiler.nodes import (
     Node,
     NodeEnv,
     NodeOp,
+    PropertyMethod,
     PyDict,
     PyList,
     PySet,
@@ -81,13 +84,14 @@ from basilisp.lang.compiler.nodes import (
     Recur,
     Set as SetNode,
     SetBang,
+    StaticMethod,
     Throw,
     Try,
     VarRef,
     Vector as VectorNode,
     WithMeta,
 )
-from basilisp.lang.interfaces import IMeta, ISeq
+from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
@@ -111,6 +115,7 @@ _IF_TEST_PREFIX = "if_test"
 _MULTI_ARITY_ARG_NAME = "multi_arity_args"
 _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
+_TYPE_CLASS_FACTORY_METHOD = "create_from_map"
 _NS_VAR = "__NS"
 
 
@@ -484,6 +489,9 @@ _COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
+_PY_CLASSMETHOD_FN_NAME = _load_attr("classmethod")
+_PY_PROPERTY_FN_NAME = _load_attr("property")
+_PY_STATICMETHOD_FN_NAME = _load_attr("staticmethod")
 _TRAMPOLINE_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._trampoline")
 _TRAMPOLINE_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._TrampolineArgs")
 
@@ -705,6 +713,82 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
 
 
 @_with_ast_loc
+def __deftype_classmethod_to_py_ast(  # pylint: disable=too-many-branches
+    ctx: GeneratorContext, node: ClassMethod
+) -> GeneratedPyAST:
+    assert node.op == NodeOp.CLASS_METHOD
+    method_name = munge(node.name)
+
+    with ctx.new_symbol_table(node.name), ctx.new_recur_point(
+        node.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
+    ):
+        class_name = genname(munge(node.class_local.name))
+        class_sym = sym.symbol(node.class_local.name)
+        ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.THIS)
+
+        with ctx.new_this(class_sym):
+            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+                ctx, node.params, node.body
+            )
+            return GeneratedPyAST(
+                node=ast.FunctionDef(
+                    name=method_name,
+                    args=ast.arguments(
+                        args=list(
+                            chain([ast.arg(arg=class_name, annotation=None)], fn_args)
+                        ),
+                        kwarg=None,
+                        vararg=varg,
+                        kwonlyargs=[],
+                        defaults=[],
+                        kw_defaults=[],
+                    ),
+                    body=fn_body_ast,
+                    decorator_list=list(
+                        chain(
+                            [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
+                            [_PY_CLASSMETHOD_FN_NAME],
+                        )
+                    ),
+                    returns=None,
+                )
+            )
+
+
+@_with_ast_loc
+def __deftype_property_to_py_ast(  # pylint: disable=too-many-branches
+    ctx: GeneratorContext, node: PropertyMethod
+) -> GeneratedPyAST:
+    assert node.op == NodeOp.PROPERTY_METHOD
+    method_name = munge(node.name)
+
+    this_name = genname(munge(node.this_local.name))
+    this_sym = sym.symbol(node.this_local.name)
+    ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
+
+    with ctx.new_this(this_sym):
+        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
+        return GeneratedPyAST(
+            node=ast.FunctionDef(
+                name=method_name,
+                args=ast.arguments(
+                    args=list(
+                        chain([ast.arg(arg=this_name, annotation=None)], fn_args)
+                    ),
+                    kwarg=None,
+                    vararg=varg,
+                    kwonlyargs=[],
+                    defaults=[],
+                    kw_defaults=[],
+                ),
+                body=fn_body_ast,
+                decorator_list=[_PY_PROPERTY_FN_NAME],
+                returns=None,
+            )
+        )
+
+
+@_with_ast_loc
 def __deftype_method_to_py_ast(  # pylint: disable=too-many-branches
     ctx: GeneratorContext, node: Method
 ) -> GeneratedPyAST:
@@ -742,6 +826,59 @@ def __deftype_method_to_py_ast(  # pylint: disable=too-many-branches
                     returns=None,
                 )
             )
+
+
+@_with_ast_loc
+def __deftype_staticmethod_to_py_ast(  # pylint: disable=too-many-branches
+    ctx: GeneratorContext, node: StaticMethod
+) -> GeneratedPyAST:
+    assert node.op == NodeOp.STATIC_METHOD
+    method_name = munge(node.name)
+
+    with ctx.new_symbol_table(node.name), ctx.new_recur_point(
+        node.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
+    ):
+        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
+        return GeneratedPyAST(
+            node=ast.FunctionDef(
+                name=method_name,
+                args=ast.arguments(
+                    args=list(fn_args),
+                    kwarg=None,
+                    vararg=varg,
+                    kwonlyargs=[],
+                    defaults=[],
+                    kw_defaults=[],
+                ),
+                body=fn_body_ast,
+                decorator_list=list(
+                    chain(
+                        [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
+                        [_PY_STATICMETHOD_FN_NAME],
+                    )
+                ),
+                returns=None,
+            )
+        )
+
+
+_DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, PyASTGenerator] = {
+    NodeOp.CLASS_METHOD: __deftype_classmethod_to_py_ast,
+    NodeOp.METHOD: __deftype_method_to_py_ast,
+    NodeOp.PROPERTY_METHOD: __deftype_property_to_py_ast,
+    NodeOp.STATIC_METHOD: __deftype_staticmethod_to_py_ast,
+}
+
+
+def __deftype_member_to_py_ast(
+    ctx: GeneratorContext, node: DefTypeMember
+) -> GeneratedPyAST:
+    member_type = node.op
+    handle_deftype_member = _DEFTYPE_MEMBER_HANDLER.get(member_type)
+    assert (
+        handle_deftype_member is not None
+    ), f"Invalid :const AST type handler for {member_type}"
+    return handle_deftype_member(ctx, node)
 
 
 @_with_ast_loc
@@ -784,9 +921,9 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
             ctx.symbol_table.new_symbol(sym.symbol(field.name), safe_field, field.local)
 
         type_deps: List[ast.AST] = []
-        for method in node.methods:
-            type_ast = __deftype_method_to_py_ast(ctx, method)
-            type_nodes.append(type_ast.node)
+        for member in node.members:
+            type_ast = __deftype_member_to_py_ast(ctx, member)
+            type_nodes.append(type_ast.node)  # type: ignore
             type_deps.extend(type_ast.dependencies)
 
         return GeneratedPyAST(
@@ -1870,7 +2007,11 @@ def _var_sym_to_py_ast(
     if safe_name in ns_module.__dict__:
         if ns is ctx.current_ns:
             return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
-        return GeneratedPyAST(node=_load_attr(f"{safe_ns}.{safe_name}", ctx=py_var_ctx))
+        return GeneratedPyAST(
+            node=_load_attr(
+                f"{_MODULE_ALIASES.get(ns_name, safe_ns)}.{safe_name}", ctx=py_var_ctx
+            )
+        )
 
     if ctx.warn_on_var_indirection:
         logger.warning(f"could not resolve a direct link to Var '{var_name}'")
@@ -1930,10 +2071,7 @@ def _maybe_class_to_py_ast(_: GeneratorContext, node: MaybeClass) -> GeneratedPy
     variable name."""
     assert node.op == NodeOp.MAYBE_CLASS
     return GeneratedPyAST(
-        node=ast.Name(
-            id=Maybe(_MODULE_ALIASES.get(node.class_)).or_else_get(node.class_),
-            ctx=ast.Load(),
-        )
+        node=ast.Name(id=_MODULE_ALIASES.get(node.class_, node.class_), ctx=ast.Load())
     )
 
 
@@ -1945,9 +2083,7 @@ def _maybe_host_form_to_py_ast(
     variable name with a namespace."""
     assert node.op == NodeOp.MAYBE_HOST_FORM
     return GeneratedPyAST(
-        node=_load_attr(
-            f"{Maybe(_MODULE_ALIASES.get(node.class_)).or_else_get(node.class_)}.{node.field}"
-        )
+        node=_load_attr(f"{_MODULE_ALIASES.get(node.class_, node.class_)}.{node.field}")
     )
 
 
@@ -2273,6 +2409,34 @@ def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAS
     )
 
 
+def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPyAST:
+    assert isinstance(form, ISeq), "IRecord types should also be ISeq"
+
+    tp = type(form)
+    assert hasattr(tp, "create") and callable(
+        tp.create
+    ), "IRecord and IType must declare a .create class method"
+
+    keys, vals = [], []
+    for k, v in runtime.to_seq(form):
+        assert isinstance(k, kw.Keyword)
+        keys.append(_kw_to_py_ast(ctx, k))
+
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_load_attr(f"{tp.__qualname__}.create"),
+            args=[
+                ast.Call(
+                    func=_NEW_MAP_FN_NAME,
+                    args=[ast.Dict(keys=[], values=[])],
+                    keywords=[],
+                )
+            ],
+            keywords=[],
+        )
+    )
+
+
 def _const_seq_to_py_ast(
     ctx: GeneratorContext, form: Union[llist.List, ISeq]
 ) -> GeneratedPyAST:
@@ -2293,6 +2457,10 @@ def _const_seq_to_py_ast(
             chain(elem_deps, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
         ),
     )
+
+
+def _const_type_to_py_ast(ctx: GeneratorContext, form: IType) -> GeneratedPyAST:
+    pass
 
 
 def _const_vec_to_py_ast(ctx: GeneratorContext, form: vec.Vector) -> GeneratedPyAST:
@@ -2327,7 +2495,9 @@ _CONST_VALUE_HANDLERS: Mapping[Type, SimplePyASTGenerator] = {  # type: ignore
     llist.List: _const_seq_to_py_ast,
     lmap.Map: _const_map_to_py_ast,
     lset.Set: _const_set_to_py_ast,
+    IRecord: None,
     ISeq: _const_seq_to_py_ast,
+    IType: None,
     type(re.compile("")): _regex_to_py_ast,
     set: _const_py_set_to_py_ast,
     sym.Symbol: _const_sym_to_py_ast,
@@ -2347,8 +2517,13 @@ def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAS
     nested elements. For top-level :const Lisp AST nodes, see
     `_const_node_to_py_ast`."""
     handle_value = _CONST_VALUE_HANDLERS.get(type(form))
-    if handle_value is None and isinstance(form, ISeq):
-        handle_value = _const_seq_to_py_ast  # type: ignore
+    if handle_value is None:
+        if isinstance(form, ISeq):
+            handle_value = _const_seq_to_py_ast  # type: ignore
+        elif isinstance(form, IRecord):
+            handle_value = None
+        elif isinstance(form, IType):
+            handle_value = None
     assert handle_value is not None, "A type handler must be defined for constants"
     return handle_value(ctx, form)
 
@@ -2373,7 +2548,9 @@ _CONSTANT_HANDLER: Mapping[ConstType, SimplePyASTGenerator] = {  # type: ignore
     ConstType.KEYWORD: _kw_to_py_ast,
     ConstType.MAP: _const_map_to_py_ast,
     ConstType.SET: _const_set_to_py_ast,
+    ConstType.RECORD: None,
     ConstType.SEQ: _const_seq_to_py_ast,
+    ConstType.TYPE: None,
     ConstType.REGEX: _regex_to_py_ast,
     ConstType.SYMBOL: _const_sym_to_py_ast,
     ConstType.STRING: _str_to_py_ast,

@@ -161,8 +161,27 @@ class IPersistentVector(  # type: ignore
         raise NotImplementedError()
 
 
-class IRecord(ABC):
+class IRecord(ILispObject):
     __slots__ = ()
+
+    @classmethod
+    @abstractmethod
+    def create(cls, m: IPersistentMap) -> "IRecord":
+        """Class method constructor from an IPersistentMap instance."""
+        raise NotImplementedError()
+
+    def _lrepr(self, **kwargs) -> str:
+        return self._record_lrepr(kwargs)
+
+    @abstractmethod
+    def _record_lrepr(self, kwargs: Mapping) -> str:
+        """Translation method converting Python keyword arguments into a
+        Python dict.
+
+        Basilisp methods and functions cannot formally accept Python keyword
+        arguments, so this method is called by `_lrepr` with the keyword
+        arguments cast to a Python dict."""
+        raise NotImplementedError()
 
 
 class ISeq(ILispObject, ISeqable[T]):

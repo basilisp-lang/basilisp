@@ -2935,6 +2935,7 @@
         ;; multiple layers of syntax quoting, unlike gensyms using # syntax.
         this-gs  (gensym "this")
         other-gs (gensym "other")
+        map-gs   (gensym "m")
         key-gs   (gensym "k")]
 
     (when (some #(#{:meta :_recmap} %) field-kws)
@@ -3052,18 +3053,35 @@
 
          ;; IMeta
          (~'with-meta [~this-gs new-meta#]
-          (->> (merge ~'meta new-meta#)
+          (->> (merge (or ~'meta {}) new-meta#)
                (evolve ~this-gs "meta")))
+
+         ;; IRecord
+         (~' ^:classmethod create [cls# ~map-gs]
+          (cls#
+           nil
+           (dissoc ~map-gs ~@field-kws)
+           ~@(map (fn [field-kw]
+                    `(get ~map-gs ~field-kw))
+                  field-kws)))
+         (~'_record_lrepr [~this-gs py-kwargs#]
+          (let [{print-meta :print_meta} (py->lisp py-kwargs#)]
+            (cond->> (->> (mapcat identity ~this-gs)
+                          (apply hash-map)
+                          (repr)
+                          (str "#" ~type-name))
+              print-meta (str "^" (repr (meta ~this-gs)) " "))))
 
          ;; object
          (~'__eq__ [~this-gs ~other-gs]
           (or (identical? ~this-gs ~other-gs)
-              (= [~@fields
-                  ~'_recmap]
-                 [~@(map (fn [field]
-                           `(.- ~other-gs ~field))
-                         fields)
-                  (.- ~other-gs ~'_recmap)])))
+              (and (instance? (builtins/type ~this-gs) ~other-gs)
+                   (= [~@fields
+                       ~'_recmap]
+                      [~@(map (fn [field]
+                                `(.- ~other-gs ~field))
+                              fields)
+                       (.- ~other-gs ~'_recmap)]))))
          (~'__hash__ [~this-gs]
           (hash [~@fields ~'_recmap]))
 
@@ -3080,11 +3098,6 @@
            "Create a new instance of the record " type-name " from a "
            "map whose keys correspond to the fields of " type-name ".")
          [m#]
-         (apply ~type-name
-                nil
-                {}
-                (map (fn [field-kw#]
-                       (get m# field-kw#))
-                     [~@field-kws])))
+         ((.- ~type-name ~'create) m#))
 
        ~type-name)))
