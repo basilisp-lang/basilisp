@@ -651,6 +651,126 @@ class TestDefType:
                 """
                 )
 
+    class TestDefTypeClassMethod:
+        @pytest.fixture
+        def class_interface(self, ns: runtime.Namespace):
+            return lcompile(
+                """
+            (import* abc)
+            (def WithCls
+              (builtins/type "WithCls"
+                             #py (abc/ABC)
+                             #py {"create"
+                                  (builtins/classmethod
+                                   (abc/abstractmethod
+                                    (fn [cls])))}))
+            """
+            )
+
+        def test_deftype_must_implement_interface_classmethod(
+            self, class_interface: Var
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithCls])
+                  """
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [:cls]
+                [x y z]))
+              """,
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls :arg2]
+                [x y z]))
+              """,
+            ],
+        )
+        def test_deftype_classmethod_args_are_syms(
+            self, class_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_deftype_classmethod_may_not_reference_fields(
+            self, class_interface: Var
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod create [cls]
+                    [x y z]))"""
+                )
+
+        def test_deftype_classmethod_args_includes_cls(self, class_interface: Var):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod create []))
+                    """
+                )
+
+        def test_deftype_classmethod_allows_recur(self, class_interface: Var):
+            lcompile(
+                """
+            (deftype* Point [x]
+              :implements [WithCls]
+              (^:classmethod create [cls]
+                (recur)))
+            """
+            )
+
+        def test_deftype_can_have_classmethod(self, class_interface: Var):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls x y z]
+                (cls x y z))
+              (__eq__ [this other]
+                (operator/eq
+                 [x y z] 
+                 [(.-x other) (.-y other) (.-z other)])))"""
+            )
+            assert Point(1, 2, 3) == Point.create(1, 2, 3)
+
+        def test_deftype_symboltable_is_restored_after_classmethod(
+            self, class_interface: Var
+        ):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls x y z]
+                (cls x y z))
+              (__str__ [this]
+                (builtins/str [x y z])))"""
+            )
+            pt = Point.create(1, 2, 3)
+            assert "[1 2 3]" == str(pt)
+
+        def test_deftype_empty_classmethod_body(self, class_interface: Var):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls]))"""
+            )
+            assert None is Point.create()
+
     class TestDefTypeMethod:
         def test_deftype_fields_and_methods(self, ns: runtime.Namespace):
             Point = lcompile(
@@ -894,7 +1014,7 @@ class TestDefType:
                              #py {"dostatic"
                                   (builtins/staticmethod
                                    (abc/abstractmethod
-                                    (fn [self])))}))
+                                    (fn [])))}))
             """
             )
 
@@ -920,7 +1040,7 @@ class TestDefType:
               """,
                 """
             (deftype* Point [x y z]
-              :implements [WithProp]
+              :implements [WithStatic]
               (^:staticmethod dostatic [arg1 :arg2]
                 [x y z]))
               """,
@@ -954,16 +1074,15 @@ class TestDefType:
             )
             assert None is Point.dostatic()
 
-        def test_deftype_staticmethod_allows_recur(self, ns: runtime.Namespace):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(
-                    """
-                (deftype* Point [x]
-                  :implements [WithStatic]
-                  (^:staticmethod dostatic []
-                    (recur)))
+        def test_deftype_staticmethod_allows_recur(self, static_interface: Var):
+            lcompile(
                 """
-                )
+            (deftype* Point [x]
+              :implements [WithStatic]
+              (^:staticmethod dostatic []
+                (recur)))
+                """
+            )
 
         def test_deftype_can_have_staticmethod(self, static_interface: Var):
             Point = lcompile(
