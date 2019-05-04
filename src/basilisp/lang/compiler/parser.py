@@ -112,7 +112,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
-from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType
+from basilisp.lang.interfaces import IMeta, ISeq
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm, ReaderForm
 from basilisp.lang.util import count, genname, munge
@@ -2268,9 +2268,7 @@ _CONST_NODE_TYPES: Mapping[Type, ConstType] = {
     llist.List: ConstType.SEQ,
     lmap.Map: ConstType.MAP,
     lset.Set: ConstType.SET,
-    IRecord: ConstType.RECORD,
     ISeq: ConstType.SEQ,
-    IType: ConstType.TYPE,
     type(re.compile("")): ConstType.REGEX,
     set: ConstType.PY_SET,
     sym.Symbol: ConstType.SYMBOL,
@@ -2302,8 +2300,6 @@ def _const_node(ctx: ParserContext, form: ReaderForm) -> Const:
                 float,
                 Fraction,
                 int,
-                IRecord,
-                IType,
                 kw.Keyword,
                 list,
                 Pattern,
@@ -2318,12 +2314,8 @@ def _const_node(ctx: ParserContext, form: ReaderForm) -> Const:
 
     node_type = _CONST_NODE_TYPES.get(type(form), ConstType.UNKNOWN)
     if node_type == ConstType.UNKNOWN:
-        if isinstance(form, IRecord):
-            node_type = ConstType.RECORD
-        elif isinstance(form, ISeq):
+        if isinstance(form, ISeq):
             node_type = ConstType.SEQ
-        elif isinstance(form, IType):
-            node_type = ConstType.TYPE
     assert node_type != ConstType.UNKNOWN, "Only allow known constant types"
 
     descriptor = Const(
@@ -2383,8 +2375,6 @@ def _parse_ast(  # pylint: disable=too-many-branches
             float,
             Fraction,
             int,
-            IRecord,
-            IType,
             kw.Keyword,
             Pattern,
             sym.Symbol,

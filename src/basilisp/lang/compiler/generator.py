@@ -91,7 +91,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
-from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType
+from basilisp.lang.interfaces import IMeta, ISeq
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
@@ -2409,34 +2409,6 @@ def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAS
     )
 
 
-def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPyAST:
-    assert isinstance(form, ISeq), "IRecord types should also be ISeq"
-
-    tp = type(form)
-    assert hasattr(tp, "create") and callable(
-        tp.create
-    ), "IRecord and IType must declare a .create class method"
-
-    keys, vals = [], []
-    for k, v in runtime.to_seq(form):
-        assert isinstance(k, kw.Keyword)
-        keys.append(_kw_to_py_ast(ctx, k))
-
-    return GeneratedPyAST(
-        node=ast.Call(
-            func=_load_attr(f"{tp.__qualname__}.create"),
-            args=[
-                ast.Call(
-                    func=_NEW_MAP_FN_NAME,
-                    args=[ast.Dict(keys=[], values=[])],
-                    keywords=[],
-                )
-            ],
-            keywords=[],
-        )
-    )
-
-
 def _const_seq_to_py_ast(
     ctx: GeneratorContext, form: Union[llist.List, ISeq]
 ) -> GeneratedPyAST:
@@ -2457,10 +2429,6 @@ def _const_seq_to_py_ast(
             chain(elem_deps, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
         ),
     )
-
-
-def _const_type_to_py_ast(ctx: GeneratorContext, form: IType) -> GeneratedPyAST:
-    pass
 
 
 def _const_vec_to_py_ast(ctx: GeneratorContext, form: vec.Vector) -> GeneratedPyAST:
@@ -2495,9 +2463,7 @@ _CONST_VALUE_HANDLERS: Mapping[Type, SimplePyASTGenerator] = {  # type: ignore
     llist.List: _const_seq_to_py_ast,
     lmap.Map: _const_map_to_py_ast,
     lset.Set: _const_set_to_py_ast,
-    IRecord: None,
     ISeq: _const_seq_to_py_ast,
-    IType: None,
     type(re.compile("")): _regex_to_py_ast,
     set: _const_py_set_to_py_ast,
     sym.Symbol: _const_sym_to_py_ast,
@@ -2517,13 +2483,8 @@ def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAS
     nested elements. For top-level :const Lisp AST nodes, see
     `_const_node_to_py_ast`."""
     handle_value = _CONST_VALUE_HANDLERS.get(type(form))
-    if handle_value is None:
-        if isinstance(form, ISeq):
-            handle_value = _const_seq_to_py_ast  # type: ignore
-        elif isinstance(form, IRecord):
-            handle_value = None
-        elif isinstance(form, IType):
-            handle_value = None
+    if handle_value is None and isinstance(form, ISeq):
+        handle_value = _const_seq_to_py_ast  # type: ignore
     assert handle_value is not None, "A type handler must be defined for constants"
     return handle_value(ctx, form)
 
