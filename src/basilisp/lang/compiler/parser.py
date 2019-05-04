@@ -1091,7 +1091,7 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
                 "deftype* definition missing interface members for interface "
                 f"{interface.form}: {missing_methods}"
             )
-        elif not interface_property_names.issubset(field_names):
+        elif not interface_property_names.issubset(field_names.union(member_names)):
             missing_fields = ", ".join(interface_property_names - field_names)
             raise ParserException(
                 "deftype* definition missing interface properties for interface "
