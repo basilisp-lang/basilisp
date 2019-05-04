@@ -1766,17 +1766,11 @@ def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branc
         for child in node.statements:
             _assert_no_recur(child)
         _assert_recur_is_tail(node.ret)
-    elif node.op == NodeOp.METHOD:
-        assert isinstance(node, PropertyMethod)
+    elif node.op in {NodeOp.CLASS_METHOD, NodeOp.PROPERTY_METHOD, NodeOp.STATIC_METHOD}:
+        assert isinstance(node, (ClassMethod, PropertyMethod, StaticMethod))
         node.visit(_assert_no_recur)
-    elif node.op in {
-        NodeOp.CLASS_METHOD,
-        NodeOp.FN,
-        NodeOp.FN_METHOD,
-        NodeOp.METHOD,
-        NodeOp.STATIC_METHOD,
-    }:
-        assert isinstance(node, (ClassMethod, Fn, FnMethod, Method, StaticMethod))
+    elif node.op in {NodeOp.FN, NodeOp.FN_METHOD, NodeOp.METHOD}:
+        assert isinstance(node, (Fn, FnMethod, Method))
         node.visit(_assert_recur_is_tail)
     elif node.op == NodeOp.IF:
         assert isinstance(node, If)
