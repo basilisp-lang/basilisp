@@ -105,6 +105,7 @@ OBJECT_DUNDER_METHODS = frozenset(
         "__rdivmod__",
         "__reduce__",
         "__reduce_ex__",
+        "__repr__",
         "__rfloordiv__",
         "__rlshift__",
         "__rmatmul__",

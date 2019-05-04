@@ -413,6 +413,23 @@ class ParserContext:
             yield st
             self._st.pop()
 
+    @contextlib.contextmanager
+    def hide_parent_symbol_table(self):
+        """Hide the immediate parent symbol table by temporarily popping
+        it off the stack.
+
+        Obviously doing this could have serious adverse consequences if another
+        new symbol table is added to the stack during this operation, so it
+        should essentially NEVER be used.
+
+        Right now, it is being used to hide fields and `this` symbol from
+        static and class methods."""
+        old_st = self._st.pop()
+        try:
+            yield self.symbol_table
+        finally:
+            self._st.append(old_st)
+
     def get_node_env(self):
         return NodeEnv(ns=self.current_ns, file=self.filename)
 
@@ -723,56 +740,57 @@ def __deftype_classmethod(
     args: vec.Vector,
 ) -> ClassMethod:
     """Emit a node for a :classmethod member of a deftype* form."""
-    try:
-        cls_arg = args[0]
-    except IndexError:
-        raise ParserException(
-            f"deftype* class method must include 'cls' argument", form=args
-        )
-    else:
-        if not isinstance(cls_arg, sym.Symbol):
+    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
+        try:
+            cls_arg = args[0]
+        except IndexError:
             raise ParserException(
-                f"deftype* method 'cls' argument must be a symbol", form=args
+                f"deftype* class method must include 'cls' argument", form=args
             )
-        this_binding = Binding(
-            form=cls_arg,
-            name=cls_arg.name,
-            local=LocalType.THIS,
-            env=ctx.get_node_env(),
-        )
-        ctx.put_new_symbol(cls_arg, this_binding)
-
-    params = args[1:]
-    has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
-
-    loop_id = genname(method_name)
-    with ctx.new_recur_point(loop_id, param_nodes):
-        body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
-        if body:
-            *stmts, ret = body
         else:
-            stmts, ret = [], _const_node(ctx, None)
-
-        method = ClassMethod(
-            form=form,
-            name=method_name,
-            params=vec.vector(param_nodes),
-            body=Do(
-                form=form.rest,
-                statements=vec.vector(stmts),
-                ret=ret,
-                is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
+            if not isinstance(cls_arg, sym.Symbol):
+                raise ParserException(
+                    f"deftype* method 'cls' argument must be a symbol", form=args
+                )
+            this_binding = Binding(
+                form=cls_arg,
+                name=cls_arg.name,
+                local=LocalType.THIS,
                 env=ctx.get_node_env(),
-            ),
-            env=ctx.get_node_env(),
-            class_local=this_binding,
-            loop_id=loop_id,
-            is_variadic=has_vargs,
-        )
-        method.visit(_assert_recur_is_tail)
-        return method
+            )
+            ctx.put_new_symbol(cls_arg, this_binding)
+
+        params = args[1:]
+        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+
+        loop_id = genname(method_name)
+        with ctx.new_recur_point(loop_id, param_nodes):
+            body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
+            if body:
+                *stmts, ret = body
+            else:
+                stmts, ret = [], _const_node(ctx, None)
+
+            method = ClassMethod(
+                form=form,
+                name=method_name,
+                params=vec.vector(param_nodes),
+                body=Do(
+                    form=form.rest,
+                    statements=vec.vector(stmts),
+                    ret=ret,
+                    is_body=True,
+                    # Use the argument vector or first body statement, whichever
+                    # exists, for metadata.
+                    env=ctx.get_node_env(),
+                ),
+                env=ctx.get_node_env(),
+                class_local=this_binding,
+                loop_id=loop_id,
+                is_variadic=has_vargs,
+            )
+            method.visit(_assert_recur_is_tail)
+            return method
 
 
 def __deftype_method(
@@ -782,56 +800,57 @@ def __deftype_method(
     args: vec.Vector,
 ) -> Method:
     """Emit a node for a method member of a deftype* form."""
-    try:
-        this_arg = args[0]
-    except IndexError:
-        raise ParserException(
-            f"deftype* method must include 'this' or 'self' argument", form=args
-        )
-    else:
-        if not isinstance(this_arg, sym.Symbol):
+    with ctx.new_symbol_table(method_name):
+        try:
+            this_arg = args[0]
+        except IndexError:
             raise ParserException(
-                f"deftype* method 'this' argument must be a symbol", form=args
+                f"deftype* method must include 'this' or 'self' argument", form=args
             )
-        this_binding = Binding(
-            form=this_arg,
-            name=this_arg.name,
-            local=LocalType.THIS,
-            env=ctx.get_node_env(),
-        )
-        ctx.put_new_symbol(this_arg, this_binding)
-
-    params = args[1:]
-    has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
-
-    loop_id = genname(method_name)
-    with ctx.new_recur_point(loop_id, param_nodes):
-        body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
-        if body:
-            *stmts, ret = body
         else:
-            stmts, ret = [], _const_node(ctx, None)
-
-        method = Method(
-            form=form,
-            name=method_name,
-            this_local=this_binding,
-            params=vec.vector(param_nodes),
-            is_variadic=has_vargs,
-            body=Do(
-                form=form.rest,
-                statements=vec.vector(stmts),
-                ret=ret,
-                is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
+            if not isinstance(this_arg, sym.Symbol):
+                raise ParserException(
+                    f"deftype* method 'this' argument must be a symbol", form=args
+                )
+            this_binding = Binding(
+                form=this_arg,
+                name=this_arg.name,
+                local=LocalType.THIS,
                 env=ctx.get_node_env(),
-            ),
-            loop_id=loop_id,
-            env=ctx.get_node_env(),
-        )
-        method.visit(_assert_recur_is_tail)
-        return method
+            )
+            ctx.put_new_symbol(this_arg, this_binding)
+
+        params = args[1:]
+        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+
+        loop_id = genname(method_name)
+        with ctx.new_recur_point(loop_id, param_nodes):
+            body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
+            if body:
+                *stmts, ret = body
+            else:
+                stmts, ret = [], _const_node(ctx, None)
+
+            method = Method(
+                form=form,
+                name=method_name,
+                this_local=this_binding,
+                params=vec.vector(param_nodes),
+                is_variadic=has_vargs,
+                body=Do(
+                    form=form.rest,
+                    statements=vec.vector(stmts),
+                    ret=ret,
+                    is_body=True,
+                    # Use the argument vector or first body statement, whichever
+                    # exists, for metadata.
+                    env=ctx.get_node_env(),
+                ),
+                loop_id=loop_id,
+                env=ctx.get_node_env(),
+            )
+            method.visit(_assert_recur_is_tail)
+            return method
 
 
 def __deftype_property(
@@ -841,81 +860,46 @@ def __deftype_property(
     args: vec.Vector,
 ) -> PropertyMethod:
     """Emit a node for a :property member of a deftype* form."""
-    try:
-        this_arg = args[0]
-    except IndexError:
-        raise ParserException(
-            f"deftype* method must include 'this' or 'self' argument", form=args
-        )
-    else:
-        if not isinstance(this_arg, sym.Symbol):
+    with ctx.new_symbol_table(method_name):
+        try:
+            this_arg = args[0]
+        except IndexError:
             raise ParserException(
-                f"deftype* method 'this' argument must be a symbol", form=args
+                f"deftype* method must include 'this' or 'self' argument", form=args
             )
-        this_binding = Binding(
-            form=this_arg,
-            name=this_arg.name,
-            local=LocalType.THIS,
-            env=ctx.get_node_env(),
-        )
-        ctx.put_new_symbol(this_arg, this_binding)
+        else:
+            if not isinstance(this_arg, sym.Symbol):
+                raise ParserException(
+                    f"deftype* method 'this' argument must be a symbol", form=args
+                )
+            this_binding = Binding(
+                form=this_arg,
+                name=this_arg.name,
+                local=LocalType.THIS,
+                env=ctx.get_node_env(),
+            )
+            ctx.put_new_symbol(this_arg, this_binding)
 
-    params = args[1:]
-    has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+        params = args[1:]
+        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
 
-    if len(param_nodes) > 0:
-        raise ParserException(
-            "deftype* properties may not specify arguments", form=form
-        )
+        if len(param_nodes) > 0:
+            raise ParserException(
+                "deftype* properties may not specify arguments", form=form
+            )
 
-    assert not has_vargs, "deftype* properties may not have arguments"
+        assert not has_vargs, "deftype* properties may not have arguments"
 
-    body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
-    if body:
-        *stmts, ret = body
-    else:
-        stmts, ret = [], _const_node(ctx, None)
-
-    prop = PropertyMethod(
-        form=form,
-        name=method_name,
-        this_local=this_binding,
-        params=vec.vector(param_nodes),
-        body=Do(
-            form=form.rest,
-            statements=vec.vector(stmts),
-            ret=ret,
-            is_body=True,
-            # Use the argument vector or first body statement, whichever
-            # exists, for metadata.
-            env=ctx.get_node_env(),
-        ),
-        env=ctx.get_node_env(),
-    )
-    prop.visit(_assert_no_recur)
-    return prop
-
-
-def __deftype_staticmethod(
-    ctx: ParserContext,
-    form: Union[llist.List, ISeq],
-    method_name: str,
-    args: vec.Vector,
-) -> StaticMethod:
-    """Emit a node for a :staticmethod member of a deftype* form."""
-    has_vargs, param_nodes = __deftype_method_param_bindings(ctx, args)
-
-    loop_id = genname(method_name)
-    with ctx.new_recur_point(loop_id, param_nodes):
         body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
         if body:
             *stmts, ret = body
         else:
             stmts, ret = [], _const_node(ctx, None)
 
-        method = StaticMethod(
+        prop = PropertyMethod(
             form=form,
             name=method_name,
+            this_local=this_binding,
             params=vec.vector(param_nodes),
             body=Do(
                 form=form.rest,
@@ -927,11 +911,48 @@ def __deftype_staticmethod(
                 env=ctx.get_node_env(),
             ),
             env=ctx.get_node_env(),
-            loop_id=loop_id,
-            is_variadic=has_vargs,
         )
-        method.visit(_assert_recur_is_tail)
-        return method
+        prop.visit(_assert_no_recur)
+        return prop
+
+
+def __deftype_staticmethod(
+    ctx: ParserContext,
+    form: Union[llist.List, ISeq],
+    method_name: str,
+    args: vec.Vector,
+) -> StaticMethod:
+    """Emit a node for a :staticmethod member of a deftype* form."""
+    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
+        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, args)
+
+        loop_id = genname(method_name)
+        with ctx.new_recur_point(loop_id, param_nodes):
+            body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
+            if body:
+                *stmts, ret = body
+            else:
+                stmts, ret = [], _const_node(ctx, None)
+
+            method = StaticMethod(
+                form=form,
+                name=method_name,
+                params=vec.vector(param_nodes),
+                body=Do(
+                    form=form.rest,
+                    statements=vec.vector(stmts),
+                    ret=ret,
+                    is_body=True,
+                    # Use the argument vector or first body statement, whichever
+                    # exists, for metadata.
+                    env=ctx.get_node_env(),
+                ),
+                env=ctx.get_node_env(),
+                loop_id=loop_id,
+                is_variadic=has_vargs,
+            )
+            method.visit(_assert_recur_is_tail)
+            return method
 
 
 def __deftype_member(  # pylint: disable=too-many-branches,too-many-locals

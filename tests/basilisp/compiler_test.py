@@ -578,7 +578,7 @@ class TestDefType:
             """
         (deftype* Point [x y z]
           :implements [builtins/object]
-          (__str__ [this] 
+          (__str__ [this]
             (builtins/repr #py ("Point" x y z))))
         """
         )
@@ -723,7 +723,7 @@ class TestDefType:
             (import* collections.abc)
             (deftype* Point [x y z]
               :implements [collections.abc/Callable]
-              (--call-- [this i j k] 
+              (--call-- [this i j k]
                 (Point i j k)))
             """
             )
@@ -814,7 +814,7 @@ class TestDefType:
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (deftype* Point [x y z] 
+                (deftype* Point [x y z]
                   :implements [WithProp])
                   """
                 )
@@ -823,7 +823,7 @@ class TestDefType:
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (deftype* Point [x y z] 
+                (deftype* Point [x y z]
                   :implements [WithProp]
                   (^:property prop [] [x y z]))
                   """
@@ -833,7 +833,7 @@ class TestDefType:
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                    (deftype* Point [x y z] 
+                    (deftype* Point [x y z]
                       :implements [WithProp]
                       (^:property prop [:this] [x y z]))
                       """
@@ -843,7 +843,7 @@ class TestDefType:
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (deftype* Point [x y z] 
+                (deftype* Point [x y z]
                   :implements [WithProp]
                   (^:property prop [this and-that] [x y z]))
                   """
@@ -855,7 +855,7 @@ class TestDefType:
                     """
                 (deftype* Point [x]
                   :implements [WithProp]
-                  (^:property prop [this] 
+                  (^:property prop [this]
                     (recur)))
                 """
                 )
@@ -867,7 +867,7 @@ class TestDefType:
         def test_deftype_can_have_property(self, property_interface: Var):
             Point = lcompile(
                 """
-            (deftype* Point [x y z] 
+            (deftype* Point [x y z]
               :implements [WithProp]
               (^:property prop [this] [x y z]))"""
             )
@@ -876,7 +876,7 @@ class TestDefType:
         def test_deftype_empty_property_body(self, property_interface: Var):
             Point = lcompile(
                 """
-            (deftype* Point [x y z] 
+            (deftype* Point [x y z]
               :implements [WithProp]
               (^:property prop [this]))"""
             )
@@ -904,7 +904,7 @@ class TestDefType:
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (deftype* Point [x y z] 
+                (deftype* Point [x y z]
                   :implements [WithStatic])
                   """
                 )
@@ -913,15 +913,15 @@ class TestDefType:
             "code",
             [
                 """
-            (deftype* Point [x y z] 
+            (deftype* Point [x y z]
               :implements [WithStatic]
-              (^:staticmethod dostatic [:arg] 
+              (^:staticmethod dostatic [:arg]
                 [x y z]))
               """,
                 """
-            (deftype* Point [x y z] 
+            (deftype* Point [x y z]
               :implements [WithProp]
-              (^:staticmethod dostatic [arg1 :arg2] 
+              (^:staticmethod dostatic [arg1 :arg2]
                 [x y z]))
               """,
             ],
@@ -932,10 +932,22 @@ class TestDefType:
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
+        def test_deftype_staticmethod_may_not_reference_fields(
+            self, static_interface: Var
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithStatic]
+                  (^:staticmethod dostatic []
+                    [x y z]))"""
+                )
+
         def test_deftype_staticmethod_may_have_no_args(self, static_interface: Var):
             Point = lcompile(
                 """
-            (deftype* Point [x y z] 
+            (deftype* Point [x y z]
               :implements [WithStatic]
               (^:staticmethod dostatic []))
               """
@@ -948,7 +960,7 @@ class TestDefType:
                     """
                 (deftype* Point [x]
                   :implements [WithStatic]
-                  (^:staticmethod dostatic [] 
+                  (^:staticmethod dostatic []
                     (recur)))
                 """
                 )
@@ -956,17 +968,32 @@ class TestDefType:
         def test_deftype_can_have_staticmethod(self, static_interface: Var):
             Point = lcompile(
                 """
-            (deftype* Point [x y z] 
+            (deftype* Point [x y z]
               :implements [WithStatic]
-              (^:staticmethod dostatic [x y z] 
+              (^:staticmethod dostatic [x y z]
                 [x y z]))"""
             )
             assert vec.v(1, 2, 3) == Point.dostatic(1, 2, 3)
 
+        def test_deftype_symboltable_is_restored_after_staticmethod(
+            self, static_interface: Var
+        ):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod dostatic [x y z]
+                [x y z])
+              (__str__ [this]
+                (builtins/str [x y z])))"""
+            )
+            assert vec.v(1, 2, 3) == Point.dostatic(1, 2, 3)
+            assert "[1 2 3]" == str(Point(1, 2, 3))
+
         def test_deftype_empty_staticmethod_body(self, static_interface: Var):
             Point = lcompile(
                 """
-            (deftype* Point [x y z] 
+            (deftype* Point [x y z]
               :implements [WithStatic]
               (^:staticmethod dostatic [arg1 arg2]))"""
             )
@@ -2121,7 +2148,7 @@ class TestRecur:
     def test_multi_arity_recur(self, ns: runtime.Namespace):
         code = """
         (def +++
-          (fn +++ 
+          (fn +++
             ([] 0)
             ([x] x)
             ([x & args]
