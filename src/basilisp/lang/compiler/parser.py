@@ -10,7 +10,6 @@ from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
 from functools import partial, wraps
-from itertools import chain
 from typing import (
     Any,
     Callable,
@@ -24,6 +23,7 @@ from typing import (
     MutableSet,
     Optional,
     Pattern,
+    Set,
     Tuple,
     Type,
     Union,
@@ -50,11 +50,15 @@ from basilisp.lang.compiler.constants import (
     LINE_KW,
     NAME_KW,
     NS_KW,
+    OBJECT_DUNDER_METHODS,
     SYM_ASYNC_META_KEY,
+    SYM_CLASSMETHOD_META_KEY,
     SYM_DYNAMIC_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
+    SYM_PROPERTY_META_KEY,
+    SYM_STATICMETHOD_META_KEY,
     SpecialForm,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
@@ -63,11 +67,13 @@ from basilisp.lang.compiler.nodes import (
     Await,
     Binding,
     Catch,
+    ClassMethod,
     Const,
     ConstType,
     Def,
     DefType,
     DefTypeBase,
+    DefTypeMember,
     Do,
     Fn,
     FnMethod,
@@ -89,6 +95,7 @@ from basilisp.lang.compiler.nodes import (
     Node,
     NodeEnv,
     NodeOp,
+    PropertyMethod,
     PyDict,
     PyList,
     PySet,
@@ -98,13 +105,14 @@ from basilisp.lang.compiler.nodes import (
     Set as SetNode,
     SetBang,
     SpecialFormNode,
+    StaticMethod,
     Throw,
     Try,
     VarRef,
     Vector as VectorNode,
     WithMeta,
 )
-from basilisp.lang.interfaces import IMeta, ISeq
+from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm, ReaderForm
 from basilisp.lang.util import count, genname, munge
@@ -128,6 +136,7 @@ FINALLY = kw.keyword("finally")
 
 # Constants used in parsing
 AS = kw.keyword("as")
+IMPLEMENTS = kw.keyword("implements")
 _BUILTINS_NS = "builtins"
 
 # Symbols to be ignored for unused symbol warnings
@@ -408,25 +417,27 @@ class ParserContext:
         return NodeEnv(ns=self.current_ns, file=self.filename)
 
 
-def _is_async(o: IMeta) -> bool:
-    """Return True if the meta contains :async keyword."""
-    return (  # type: ignore
-        Maybe(o.meta)
-        .map(lambda m: m.entry(SYM_ASYNC_META_KEY, None))
-        .or_else_get(False)
-    )
-
-
-def _is_macro(v: Var) -> bool:
-    """Return True if the Var holds a macro function."""
-    return (
-        Maybe(v.meta)
-        .map(lambda m: m.entry(SYM_MACRO_META_KEY, None))  # type: ignore
-        .or_else_get(False)
-    )
-
-
+MetaGetter = Callable[[Union[IMeta, Var]], bool]
 ParseFunction = Callable[[ParserContext, Union[LispForm, ISeq]], Node]
+
+
+def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
+    """Return a function which checks an object with metadata for a boolean
+    value by meta_kw."""
+
+    def has_meta_prop(o: Union[IMeta, Var]) -> bool:
+        return (  # type: ignore
+            Maybe(o.meta).map(lambda m: m.entry(meta_kw, None)).or_else_get(False)
+        )
+
+    return has_meta_prop
+
+
+_is_async = _meta_getter(SYM_ASYNC_META_KEY)
+_is_py_classmethod = _meta_getter(SYM_CLASSMETHOD_META_KEY)
+_is_py_property = _meta_getter(SYM_PROPERTY_META_KEY)
+_is_py_staticmethod = _meta_getter(SYM_STATICMETHOD_META_KEY)
+_is_macro = _meta_getter(SYM_MACRO_META_KEY)
 
 
 def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
@@ -645,42 +656,14 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     )
 
 
-def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: ParserContext, form: Union[llist.List, ISeq], interface: DefTypeBase
-) -> Method:
-    if not isinstance(form.first, sym.Symbol):
-        raise ParserException(
-            "deftype* method must be named by symbol: (name [& args] & body)",
-            form=form.first,
-        )
-    method_name = form.first.name
+def __deftype_method_param_bindings(
+    ctx: ParserContext, params: vec.Vector
+) -> Tuple[bool, List[Binding]]:
+    """Generate parameter bindings for deftype* methods.
 
-    args = runtime.nth(form, 1)
-    if not isinstance(args, vec.Vector):
-        raise ParserException(
-            f"deftype* method arguments must be vector, not {type(args)}", form=args
-        )
-
-    try:
-        this_arg = args[0]
-    except IndexError:
-        raise ParserException(
-            f"deftype* method must include 'this' or 'self' argument", form=args
-        )
-    else:
-        if not isinstance(this_arg, sym.Symbol):
-            raise ParserException(
-                f"deftype* method 'this' argument must be a symbol", form=args
-            )
-        this_binding = Binding(
-            form=this_arg,
-            name=this_arg.name,
-            local=LocalType.THIS,
-            env=ctx.get_node_env(),
-        )
-        ctx.put_new_symbol(this_arg, this_binding)
-
-    params = args[1:]
+    Special cases for class and static methods must be handled by their
+    respective handlers. This method will only produce vanilla ARG type
+    bindings."""
     has_vargs, vargs_idx = False, 0
     param_nodes = []
     for i, s in enumerate(params):
@@ -730,6 +713,97 @@ def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
                 "Expected variadic argument name after '&'", form=params
             ) from None
 
+    return has_vargs, param_nodes
+
+
+def __deftype_classmethod(
+    ctx: ParserContext,
+    form: Union[llist.List, ISeq],
+    method_name: str,
+    args: vec.Vector,
+) -> ClassMethod:
+    """Emit a node for a :classmethod member of a deftype* form."""
+    try:
+        cls_arg = args[0]
+    except IndexError:
+        raise ParserException(
+            f"deftype* class method must include 'cls' argument", form=args
+        )
+    else:
+        if not isinstance(cls_arg, sym.Symbol):
+            raise ParserException(
+                f"deftype* method 'cls' argument must be a symbol", form=args
+            )
+        this_binding = Binding(
+            form=cls_arg,
+            name=cls_arg.name,
+            local=LocalType.THIS,
+            env=ctx.get_node_env(),
+        )
+        ctx.put_new_symbol(cls_arg, this_binding)
+
+    params = args[1:]
+    has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+
+    loop_id = genname(method_name)
+    with ctx.new_recur_point(loop_id, param_nodes):
+        body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
+        if body:
+            *stmts, ret = body
+        else:
+            stmts, ret = [], _const_node(ctx, None)
+
+        method = ClassMethod(
+            form=form,
+            name=method_name,
+            params=vec.vector(param_nodes),
+            body=Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                # Use the argument vector or first body statement, whichever
+                # exists, for metadata.
+                env=ctx.get_node_env(),
+            ),
+            env=ctx.get_node_env(),
+            class_local=this_binding,
+            loop_id=loop_id,
+            is_variadic=has_vargs,
+        )
+        method.visit(_assert_recur_is_tail)
+        return method
+
+
+def __deftype_method(
+    ctx: ParserContext,
+    form: Union[llist.List, ISeq],
+    method_name: str,
+    args: vec.Vector,
+) -> Method:
+    """Emit a node for a method member of a deftype* form."""
+    try:
+        this_arg = args[0]
+    except IndexError:
+        raise ParserException(
+            f"deftype* method must include 'this' or 'self' argument", form=args
+        )
+    else:
+        if not isinstance(this_arg, sym.Symbol):
+            raise ParserException(
+                f"deftype* method 'this' argument must be a symbol", form=args
+            )
+        this_binding = Binding(
+            form=this_arg,
+            name=this_arg.name,
+            local=LocalType.THIS,
+            env=ctx.get_node_env(),
+        )
+        ctx.put_new_symbol(this_arg, this_binding)
+
+    params = args[1:]
+    has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+
     loop_id = genname(method_name)
     with ctx.new_recur_point(loop_id, param_nodes):
         body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
@@ -741,7 +815,6 @@ def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
         method = Method(
             form=form,
             name=method_name,
-            interface=interface,
             this_local=this_binding,
             params=vec.vector(param_nodes),
             is_variadic=has_vargs,
@@ -761,75 +834,233 @@ def __deftype_method(  # pylint: disable=too-many-branches,too-many-locals
         return method
 
 
+def __deftype_property(
+    ctx: ParserContext,
+    form: Union[llist.List, ISeq],
+    method_name: str,
+    args: vec.Vector,
+) -> PropertyMethod:
+    """Emit a node for a :property member of a deftype* form."""
+    try:
+        this_arg = args[0]
+    except IndexError:
+        raise ParserException(
+            f"deftype* method must include 'this' or 'self' argument", form=args
+        )
+    else:
+        if not isinstance(this_arg, sym.Symbol):
+            raise ParserException(
+                f"deftype* method 'this' argument must be a symbol", form=args
+            )
+        this_binding = Binding(
+            form=this_arg,
+            name=this_arg.name,
+            local=LocalType.THIS,
+            env=ctx.get_node_env(),
+        )
+        ctx.put_new_symbol(this_arg, this_binding)
+
+    params = args[1:]
+    has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+
+    if len(param_nodes) > 0:
+        raise ParserException(
+            "deftype* properties may not specify arguments", form=form
+        )
+
+    assert not has_vargs, "deftype* properties may not have arguments"
+
+    body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
+    if body:
+        *stmts, ret = body
+    else:
+        stmts, ret = [], _const_node(ctx, None)
+
+    prop = PropertyMethod(
+        form=form,
+        name=method_name,
+        this_local=this_binding,
+        params=vec.vector(param_nodes),
+        body=Do(
+            form=form.rest,
+            statements=vec.vector(stmts),
+            ret=ret,
+            is_body=True,
+            # Use the argument vector or first body statement, whichever
+            # exists, for metadata.
+            env=ctx.get_node_env(),
+        ),
+        env=ctx.get_node_env(),
+    )
+    prop.visit(_assert_no_recur)
+    return prop
+
+
+def __deftype_staticmethod(
+    ctx: ParserContext,
+    form: Union[llist.List, ISeq],
+    method_name: str,
+    args: vec.Vector,
+) -> StaticMethod:
+    """Emit a node for a :staticmethod member of a deftype* form."""
+    has_vargs, param_nodes = __deftype_method_param_bindings(ctx, args)
+
+    loop_id = genname(method_name)
+    with ctx.new_recur_point(loop_id, param_nodes):
+        body = list(map(partial(_parse_ast, ctx), runtime.nthrest(form, 2)))
+        if body:
+            *stmts, ret = body
+        else:
+            stmts, ret = [], _const_node(ctx, None)
+
+        method = StaticMethod(
+            form=form,
+            name=method_name,
+            params=vec.vector(param_nodes),
+            body=Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                # Use the argument vector or first body statement, whichever
+                # exists, for metadata.
+                env=ctx.get_node_env(),
+            ),
+            env=ctx.get_node_env(),
+            loop_id=loop_id,
+            is_variadic=has_vargs,
+        )
+        method.visit(_assert_recur_is_tail)
+        return method
+
+
+def __deftype_member(  # pylint: disable=too-many-branches,too-many-locals
+    ctx: ParserContext, form: Union[llist.List, ISeq]
+) -> DefTypeMember:
+    """Emit a member node for a deftype* form.
+
+    Member nodes are determined by the presence or absence of certain
+    metadata elements on the input form (or the form's first member,
+    typically a symbol naming that member)."""
+
+    if not isinstance(form.first, sym.Symbol):
+        raise ParserException(
+            "deftype* method must be named by symbol: (name [& args] & body)",
+            form=form.first,
+        )
+    method_name = form.first.name
+
+    is_classmethod = _is_py_classmethod(form.first) or (
+        isinstance(form, IMeta) and _is_py_classmethod(form)
+    )
+    is_property = _is_py_property(form.first) or (
+        isinstance(form, IMeta) and _is_py_property(form)
+    )
+    is_staticmethod = _is_py_staticmethod(form.first) or (
+        isinstance(form, IMeta) and _is_py_staticmethod(form)
+    )
+
+    if not sum([is_classmethod, is_property, is_staticmethod]) in {0, 1}:
+        raise ParserException(
+            "deftype* member may be only one of: :classmethod, :property, or :staticmethod",
+            form=form,
+        )
+
+    args = runtime.nth(form, 1)
+    if not isinstance(args, vec.Vector):
+        raise ParserException(
+            f"deftype* member arguments must be vector, not {type(args)}", form=args
+        )
+
+    if is_classmethod:
+        return __deftype_classmethod(ctx, form, method_name, args)
+    elif is_property:
+        return __deftype_property(ctx, form, method_name, args)
+    elif is_staticmethod:
+        return __deftype_staticmethod(ctx, form, method_name, args)
+    else:
+        return __deftype_method(ctx, form, method_name, args)
+
+
 def __deftype_impls(  # pylint: disable=too-many-branches
     ctx: ParserContext, form: ISeq
-) -> Tuple[List[DefTypeBase], List[Method]]:
+) -> Tuple[List[DefTypeBase], List[DefTypeMember]]:
     """Roll up deftype* declared bases and method implementations."""
-    current_interface_sym: Optional[sym.Symbol] = None
-    current_interface: Optional[DefTypeBase] = None
+    interface_names: MutableSet[sym.Symbol] = set()
     interfaces = []
-    methods: List[Method] = []
-    interface_methods: MutableMapping[sym.Symbol, List[Method]] = {}
-    for elem in form:
-        if isinstance(elem, sym.Symbol):
-            if current_interface is not None:
-                if current_interface_sym in interface_methods:
-                    raise ParserException(
-                        f"deftype* forms may only implement an interface once",
-                        form=elem,
-                    )
-                assert (
-                    current_interface_sym is not None
-                ), "Symbol must be defined with interface"
-                interface_methods[current_interface_sym] = methods
+    methods: List[DefTypeMember] = []
 
-            current_interface_sym = elem
-            current_interface = _parse_ast(ctx, elem)
-            methods = []
+    if runtime.to_seq(form) is None:
+        return [], []
 
-            if not isinstance(current_interface, (MaybeClass, MaybeHostForm, VarRef)):
-                raise ParserException(
-                    f"deftype* interface implementation must be an existing interface",
-                    form=elem,
-                )
-            interfaces.append(current_interface)
-        elif isinstance(elem, ISeq):
-            if current_interface is None:
-                raise ParserException(
-                    f"deftype* method cannot be declared without interface", form=elem
-                )
-            methods.append(__deftype_method(ctx, elem, current_interface))
+    if form.first != IMPLEMENTS:
+        raise ParserException(
+            f"deftype* forms must declare which interfaces they implement", form=form
+        )
+
+    implements = runtime.nth(form, 1)
+    if not isinstance(implements, vec.Vector):
+        raise ParserException(
+            "deftype* interfaces must be declared as :implements [Interface1 Interface2 ...]",
+            form=implements,
+        )
+
+    for iface in implements:
+        if not isinstance(iface, sym.Symbol):
+            raise ParserException("deftype* interfaces must be symbols", form=iface)
+
+        if iface in interface_names:
+            raise ParserException(
+                "deftype* interfaces may only appear once in :implements vector",
+                form=iface,
+            )
+        interface_names.add(iface)
+
+        current_interface = _parse_ast(ctx, iface)
+        if not isinstance(current_interface, (MaybeClass, MaybeHostForm, VarRef)):
+            raise ParserException(
+                f"deftype* interface implementation must be an existing interface",
+                form=iface,
+            )
+        interfaces.append(current_interface)
+
+    for elem in runtime.nthrest(form, 2):
+        if isinstance(elem, ISeq):
+            methods.append(__deftype_member(ctx, elem))
         else:
             raise ParserException(
                 f"deftype* must consist of interface or protocol names and methods",
                 form=elem,
             )
 
-    if current_interface is not None:
-        if len(methods) > 0:
-            if current_interface_sym in interface_methods:
-                raise ParserException(
-                    f"deftype* forms may only implement an interface once",
-                    form=current_interface_sym,
-                )
-            assert (
-                current_interface_sym is not None
-            ), "Symbol must be defined with interface"
-            interface_methods[current_interface_sym] = methods
-        else:
-            raise ParserException(
-                f"deftype* may not declare interface without at least one method",
-                form=current_interface_sym,
-            )
+    return interfaces, list(methods)
 
-    return interfaces, list(chain.from_iterable(interface_methods.values()))
+
+def __is_abstract(tp: Type) -> bool:
+    """Return True if tp is an abstract class.
+
+    The builtin inspect.isabstract returns False for marker abstract classes
+    which do not define any abstract members."""
+    if inspect.isabstract(tp):
+        return True
+    elif (
+        inspect.isclass(tp)
+        and hasattr(tp, "__abstractmethods__")
+        and tp.__abstractmethods__ == frozenset()
+    ):
+        return True
+    else:
+        return False
 
 
 def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
-    fields: Iterable[str], interfaces: Iterable[DefTypeBase], methods: Iterable[Method]
+    fields: Iterable[str],
+    interfaces: Iterable[DefTypeBase],
+    members: Iterable[DefTypeMember],
 ) -> None:
     field_names = frozenset(fields)
-    method_names = frozenset(munge(method.name) for method in methods)
+    member_names = frozenset(munge(member.name) for member in members)
+    all_interface_methods: Set[str] = set()
     for interface in interfaces:
         if isinstance(interface, (MaybeClass, MaybeHostForm)):
             interface_type = interface.target
@@ -841,7 +1072,7 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
         if interface_type is object:
             continue
 
-        if not inspect.isabstract(interface_type):
+        if not __is_abstract(interface_type):
             raise ParserException(
                 "deftype* interface must be Python abstract class or object",
                 form=interface.form,
@@ -855,10 +1086,10 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
             if isinstance(getattr(interface_type, method), property)
         )
         interface_method_names = interface_names - interface_property_names
-        if not interface_method_names.issubset(method_names):
-            missing_methods = ", ".join(interface_method_names - method_names)
+        if not interface_method_names.issubset(member_names):
+            missing_methods = ", ".join(interface_method_names - member_names)
             raise ParserException(
-                "deftype* definition missing interface methods for interface "
+                "deftype* definition missing interface members for interface "
                 f"{interface.form}: {missing_methods}"
             )
         elif not interface_property_names.issubset(field_names):
@@ -868,15 +1099,15 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches
                 f"{interface.form}: {missing_fields}"
             )
 
-        defined_interface_methods = frozenset(
-            munge(method.name) for method in methods if method.interface == interface
+        all_interface_methods.update(interface_names)
+
+    extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
+    if extra_methods:
+        extra_method_str = ", ".join(extra_methods)
+        raise ParserException(
+            "deftype* definition for interface includes members not part of "
+            f"defined interfaces: {extra_method_str}"
         )
-        if defined_interface_methods - interface_names:
-            extra_methods = ", ".join(defined_interface_methods - interface_names)
-            raise ParserException(
-                "deftype* definition for interface includes methods not part of "
-                f"{interface.form}: {extra_methods}"
-            )
 
 
 def _deftype_ast(  # pylint: disable=too-many-branches
@@ -935,16 +1166,16 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             param_nodes.append(binding)
             ctx.put_new_symbol(field, binding, warn_if_unused=False)
 
-        interfaces, methods = __deftype_impls(ctx, runtime.nthrest(form, 3))
+        interfaces, members = __deftype_impls(ctx, runtime.nthrest(form, 3))
         __assert_deftype_impls_are_abstract(
-            map(lambda f: f.name, fields), interfaces, methods
+            map(lambda f: f.name, fields), interfaces, members
         )
         return DefType(
             form=form,
             name=name.name,
             interfaces=vec.vector(interfaces),
             fields=vec.vector(param_nodes),
-            methods=vec.vector(methods),
+            members=vec.vector(members),
             is_frozen=is_frozen,
             env=ctx.get_node_env(),
         )
@@ -1522,8 +1753,17 @@ def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branc
         for child in node.statements:
             _assert_no_recur(child)
         _assert_recur_is_tail(node.ret)
-    elif node.op in {NodeOp.FN, NodeOp.FN_METHOD, NodeOp.METHOD}:
-        assert isinstance(node, (Fn, FnMethod, Method))
+    elif node.op == NodeOp.METHOD:
+        assert isinstance(node, PropertyMethod)
+        node.visit(_assert_no_recur)
+    elif node.op in {
+        NodeOp.CLASS_METHOD,
+        NodeOp.FN,
+        NodeOp.FN_METHOD,
+        NodeOp.METHOD,
+        NodeOp.STATIC_METHOD,
+    }:
+        assert isinstance(node, (ClassMethod, Fn, FnMethod, Method, StaticMethod))
         node.visit(_assert_recur_is_tail)
     elif node.op == NodeOp.IF:
         assert isinstance(node, If)
@@ -2028,7 +2268,9 @@ _CONST_NODE_TYPES: Mapping[Type, ConstType] = {
     llist.List: ConstType.SEQ,
     lmap.Map: ConstType.MAP,
     lset.Set: ConstType.SET,
+    IRecord: ConstType.RECORD,
     ISeq: ConstType.SEQ,
+    IType: ConstType.TYPE,
     type(re.compile("")): ConstType.REGEX,
     set: ConstType.PY_SET,
     sym.Symbol: ConstType.SYMBOL,
@@ -2060,6 +2302,8 @@ def _const_node(ctx: ParserContext, form: ReaderForm) -> Const:
                 float,
                 Fraction,
                 int,
+                IRecord,
+                IType,
                 kw.Keyword,
                 list,
                 Pattern,
@@ -2073,7 +2317,15 @@ def _const_node(ctx: ParserContext, form: ReaderForm) -> Const:
     )
 
     node_type = _CONST_NODE_TYPES.get(type(form), ConstType.UNKNOWN)
+    if node_type == ConstType.UNKNOWN:
+        if isinstance(form, IRecord):
+            node_type = ConstType.RECORD
+        elif isinstance(form, ISeq):
+            node_type = ConstType.SEQ
+        elif isinstance(form, IType):
+            node_type = ConstType.TYPE
     assert node_type != ConstType.UNKNOWN, "Only allow known constant types"
+
     descriptor = Const(
         form=form,
         is_literal=True,
@@ -2131,6 +2383,8 @@ def _parse_ast(  # pylint: disable=too-many-branches
             float,
             Fraction,
             int,
+            IRecord,
+            IType,
             kw.Keyword,
             Pattern,
             sym.Symbol,
