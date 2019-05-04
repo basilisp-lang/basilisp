@@ -752,13 +752,13 @@ def __deftype_classmethod(
                 raise ParserException(
                     f"deftype* method 'cls' argument must be a symbol", form=args
                 )
-            this_binding = Binding(
+            cls_binding = Binding(
                 form=cls_arg,
                 name=cls_arg.name,
-                local=LocalType.THIS,
+                local=LocalType.ARG,
                 env=ctx.get_node_env(),
             )
-            ctx.put_new_symbol(cls_arg, this_binding)
+            ctx.put_new_symbol(cls_arg, cls_binding)
 
         params = args[1:]
         has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
@@ -783,7 +783,7 @@ def __deftype_classmethod(
                 env=ctx.get_node_env(),
             ),
             env=ctx.get_node_env(),
-            class_local=this_binding,
+            class_local=cls_binding,
             is_variadic=has_vargs,
         )
         method.visit(_assert_no_recur)

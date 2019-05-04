@@ -115,7 +115,6 @@ _IF_TEST_PREFIX = "if_test"
 _MULTI_ARITY_ARG_NAME = "multi_arity_args"
 _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
-_TYPE_CLASS_FACTORY_METHOD = "create_from_map"
 _NS_VAR = "__NS"
 
 
@@ -722,30 +721,27 @@ def __deftype_classmethod_to_py_ast(
     with ctx.new_symbol_table(node.name):
         class_name = genname(munge(node.class_local.name))
         class_sym = sym.symbol(node.class_local.name)
-        ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.THIS)
+        ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.ARG)
 
-        with ctx.new_this(class_sym):
-            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
-                ctx, node.params, node.body
-            )
-            return GeneratedPyAST(
-                node=ast.FunctionDef(
-                    name=method_name,
-                    args=ast.arguments(
-                        args=list(
-                            chain([ast.arg(arg=class_name, annotation=None)], fn_args)
-                        ),
-                        kwarg=None,
-                        vararg=varg,
-                        kwonlyargs=[],
-                        defaults=[],
-                        kw_defaults=[],
+        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
+        return GeneratedPyAST(
+            node=ast.FunctionDef(
+                name=method_name,
+                args=ast.arguments(
+                    args=list(
+                        chain([ast.arg(arg=class_name, annotation=None)], fn_args)
                     ),
-                    body=fn_body_ast,
-                    decorator_list=[_PY_CLASSMETHOD_FN_NAME],
-                    returns=None,
-                )
+                    kwarg=None,
+                    vararg=varg,
+                    kwonlyargs=[],
+                    defaults=[],
+                    kw_defaults=[],
+                ),
+                body=fn_body_ast,
+                decorator_list=[_PY_CLASSMETHOD_FN_NAME],
+                returns=None,
             )
+        )
 
 
 @_with_ast_loc
