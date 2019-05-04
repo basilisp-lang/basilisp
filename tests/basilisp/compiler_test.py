@@ -651,6 +651,36 @@ class TestDefType:
                 """
                 )
 
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (^:property ^:staticmethod __call__ [this]
+                    [x y z]))
+                """,
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  collections.abc/Callable
+                  (^:classmethod ^:property __call__ [this]
+                  [x y z]))
+                """,
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  collections.abc/Callable
+                  (^:classmethod ^:staticmethod __call__ [this]
+                  [x y z]))
+                """,
+            ],
+        )
+        def test_deftype_member_may_not_be_multiple_tyeps(self, ns: runtime.Namespace, code: str):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
     class TestDefTypeClassMethod:
         @pytest.fixture
         def class_interface(self, ns: runtime.Namespace):
