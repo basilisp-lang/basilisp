@@ -942,7 +942,6 @@ def __deftype_member(  # pylint: disable=too-many-branches,too-many-locals
     Member nodes are determined by the presence or absence of certain
     metadata elements on the input form (or the form's first member,
     typically a symbol naming that member)."""
-
     if not isinstance(form.first, sym.Symbol):
         raise ParserException(
             "deftype* method must be named by symbol: (name [& args] & body)",
@@ -993,7 +992,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
     if runtime.to_seq(form) is None:
         return [], []
 
-    if form.first != IMPLEMENTS:
+    if not isinstance(form.first, kw.Keyword) or form.first != IMPLEMENTS:
         raise ParserException(
             f"deftype* forms must declare which interfaces they implement", form=form
         )
