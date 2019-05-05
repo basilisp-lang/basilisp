@@ -2884,6 +2884,32 @@
   (->> (apply hash-map kwargs)
        (apply-kw attr/evolve rec)))
 
+(defn ^:private validate-record-fields
+  "Validate that record fields do not contain any reserved entries and
+  are not declared as mutable."
+  [fields field-kws]
+  (when (some #(#{:meta :_recmap} %) field-kws)
+    (throw
+     (ex-info "Reserved fields cannot be used for Record field names"
+              {:fields (.intersection #{:meta :_recmap} (set field-kws))})))
+
+  (when (some #(:mutable (meta %)) fields)
+    (throw
+     (ex-info "Mutable fields not permitted in Record types"
+              {:fields (filter #(:mutable (meta %)) fields)}))))
+
+(defn ^:private validate-record-methods
+  "Validate that record methods are not declared as class methods,
+  properties, or static methods."
+  [methods]
+  (when (->> methods
+             (mapcat (fn [method]
+                       [(meta method) (meta (first method))]))
+             (some #(or (:classmethod %) (:property %) (:staticmethod %))))
+    (throw
+     (ex-info "Record methods may not be class methods, properties, or static methods"
+              {:methods methods}))))
+
 (defmacro defrecord
   "Define a new Basilisp record.
 
@@ -2939,15 +2965,8 @@
         map-gs   (gensym "m")
         key-gs   (gensym "k")]
 
-    (when (some #(#{:meta :_recmap} %) field-kws)
-      (throw
-       (ex-info "Reserved fields cannot be used for Record field names"
-                {:fields (.intersection #{:meta :_recmap} field-kw-set)})))
-
-    (when (some #(:mutable (meta %)) fields)
-      (throw
-       (ex-info "Mutable fields not permitted in Record types"
-                {:fields (filter #(:mutable (meta %)) fields)})))
+    (validate-record-fields fields field-kws)
+    (validate-record-methods methods)
 
     `(do
        (deftype* ~type-name ~record-fields
