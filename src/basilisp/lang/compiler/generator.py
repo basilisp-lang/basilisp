@@ -713,67 +713,24 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
 
 
 @_with_ast_loc
-def __deftype_classmethod_to_py_ast(  # pylint: disable=too-many-branches
+def __deftype_classmethod_to_py_ast(
     ctx: GeneratorContext, node: ClassMethod
 ) -> GeneratedPyAST:
     assert node.op == NodeOp.CLASS_METHOD
     method_name = munge(node.name)
 
-    with ctx.new_symbol_table(node.name), ctx.new_recur_point(
-        node.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
-    ):
+    with ctx.new_symbol_table(node.name):
         class_name = genname(munge(node.class_local.name))
         class_sym = sym.symbol(node.class_local.name)
-        ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.THIS)
+        ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.ARG)
 
-        with ctx.new_this(class_sym):
-            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
-                ctx, node.params, node.body
-            )
-            return GeneratedPyAST(
-                node=ast.FunctionDef(
-                    name=method_name,
-                    args=ast.arguments(
-                        args=list(
-                            chain([ast.arg(arg=class_name, annotation=None)], fn_args)
-                        ),
-                        kwarg=None,
-                        vararg=varg,
-                        kwonlyargs=[],
-                        defaults=[],
-                        kw_defaults=[],
-                    ),
-                    body=fn_body_ast,
-                    decorator_list=list(
-                        chain(
-                            [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
-                            [_PY_CLASSMETHOD_FN_NAME],
-                        )
-                    ),
-                    returns=None,
-                )
-            )
-
-
-@_with_ast_loc
-def __deftype_property_to_py_ast(  # pylint: disable=too-many-branches
-    ctx: GeneratorContext, node: PropertyMethod
-) -> GeneratedPyAST:
-    assert node.op == NodeOp.PROPERTY_METHOD
-    method_name = munge(node.name)
-
-    this_name = genname(munge(node.this_local.name))
-    this_sym = sym.symbol(node.this_local.name)
-    ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
-
-    with ctx.new_this(this_sym):
         fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
         return GeneratedPyAST(
             node=ast.FunctionDef(
                 name=method_name,
                 args=ast.arguments(
                     args=list(
-                        chain([ast.arg(arg=this_name, annotation=None)], fn_args)
+                        chain([ast.arg(arg=class_name, annotation=None)], fn_args)
                     ),
                     kwarg=None,
                     vararg=varg,
@@ -782,16 +739,50 @@ def __deftype_property_to_py_ast(  # pylint: disable=too-many-branches
                     kw_defaults=[],
                 ),
                 body=fn_body_ast,
-                decorator_list=[_PY_PROPERTY_FN_NAME],
+                decorator_list=[_PY_CLASSMETHOD_FN_NAME],
                 returns=None,
             )
         )
 
 
 @_with_ast_loc
-def __deftype_method_to_py_ast(  # pylint: disable=too-many-branches
-    ctx: GeneratorContext, node: Method
+def __deftype_property_to_py_ast(
+    ctx: GeneratorContext, node: PropertyMethod
 ) -> GeneratedPyAST:
+    assert node.op == NodeOp.PROPERTY_METHOD
+    method_name = munge(node.name)
+
+    with ctx.new_symbol_table(node.name):
+        this_name = genname(munge(node.this_local.name))
+        this_sym = sym.symbol(node.this_local.name)
+        ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
+
+        with ctx.new_this(this_sym):
+            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+                ctx, node.params, node.body
+            )
+            return GeneratedPyAST(
+                node=ast.FunctionDef(
+                    name=method_name,
+                    args=ast.arguments(
+                        args=list(
+                            chain([ast.arg(arg=this_name, annotation=None)], fn_args)
+                        ),
+                        kwarg=None,
+                        vararg=varg,
+                        kwonlyargs=[],
+                        defaults=[],
+                        kw_defaults=[],
+                    ),
+                    body=fn_body_ast,
+                    decorator_list=[_PY_PROPERTY_FN_NAME],
+                    returns=None,
+                )
+            )
+
+
+@_with_ast_loc
+def __deftype_method_to_py_ast(ctx: GeneratorContext, node: Method) -> GeneratedPyAST:
     assert node.op == NodeOp.METHOD
     method_name = munge(node.name)
 
@@ -829,15 +820,13 @@ def __deftype_method_to_py_ast(  # pylint: disable=too-many-branches
 
 
 @_with_ast_loc
-def __deftype_staticmethod_to_py_ast(  # pylint: disable=too-many-branches
+def __deftype_staticmethod_to_py_ast(
     ctx: GeneratorContext, node: StaticMethod
 ) -> GeneratedPyAST:
     assert node.op == NodeOp.STATIC_METHOD
     method_name = munge(node.name)
 
-    with ctx.new_symbol_table(node.name), ctx.new_recur_point(
-        node.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
-    ):
+    with ctx.new_symbol_table(node.name):
         fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
         return GeneratedPyAST(
             node=ast.FunctionDef(
@@ -851,12 +840,7 @@ def __deftype_staticmethod_to_py_ast(  # pylint: disable=too-many-branches
                     kw_defaults=[],
                 ),
                 body=fn_body_ast,
-                decorator_list=list(
-                    chain(
-                        [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
-                        [_PY_STATICMETHOD_FN_NAME],
-                    )
-                ),
+                decorator_list=[_PY_STATICMETHOD_FN_NAME],
                 returns=None,
             )
         )
