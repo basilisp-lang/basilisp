@@ -156,22 +156,14 @@
 
 (deftest defrecord-with-methods
   (let [c  (->Circle 1)
-        c1 (assoc c :name "Kurt")
-        c2 (assoc c1 :radius 3)]
+        c1 (assoc c :name "Kurt")]
 
     (testing "defrecord method"
       (is (= 3.14 (.area c))))
 
-    (testing "record?"
-      (is (record? c))
-      (is (record? c1))
-      (is (record? c2))
-      (is (map? (dissoc c :radius))))
-
-    (testing "hash"
-      (is (= (hash [1 {}]) (hash c)))
-      (is (= (hash [1 {:name "Kurt"}]) (hash c1)))
-      (is (= (hash [3 {:name "Kurt"}]) (hash c2))))
+    (testing "is a Shape"
+      (is (instance? Shape c))
+      (is (instance? Shape c1)))
 
     (testing "repr"
       (is (= "#tests.basilisp.defrecord-test.Circle{:radius 1}"
@@ -192,7 +184,8 @@
       (is (= p (eval (read-string (str p)))))
       (is (= p1 (eval (read-string (str p1)))))
       (is (= p2 (eval (read-string (str p2)))))
-      (is (= p3 (eval (read-string (str p3)))))))
+      (is (= p3 (eval (read-string (str p3)))))
+      (is (= p #tests.basilisp.defrecord-test.Point[1 2 3]))))
 
   (testing "record with methods"
     (let [c  (->Circle 1)
@@ -200,4 +193,11 @@
           c2 (assoc c1 :radius 3)]
       (is (= c (eval (read-string (str c)))))
       (is (= c1 (eval (read-string (str c1)))))
-      (is (= c2 (eval (read-string (str c2))))))))
+      (is (= c2 (eval (read-string (str c2)))))
+      (is (= c #tests.basilisp.defrecord-test.Circle[1]))))
+
+  (testing "illegal other forms"
+    (is (thrown? basilisp.lang.reader/SyntaxError
+                 (read-string "#tests.basilisp.defrecord-test.Circle#{1}")))
+    (is (thrown? basilisp.lang.reader/SyntaxError
+                 (read-string "#tests.basilisp.defrecord-test.Point(1 2 3)")))))
