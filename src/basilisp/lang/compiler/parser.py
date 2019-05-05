@@ -1130,7 +1130,9 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
 __DEFTYPE_DEFAULT_SENTINEL = object()
 
 
-def _deftype_ast(ctx: ParserContext, form: ISeq) -> DefType:
+def _deftype_ast(  # pylint: disable=too-many-branches
+    ctx: ParserContext, form: ISeq
+) -> DefType:
     assert form.first == SpecialForm.DEFTYPE
 
     nelems = count(form)
@@ -1159,6 +1161,7 @@ def _deftype_ast(ctx: ParserContext, form: ISeq) -> DefType:
             f"deftype* fields must be vector, not {type(fields)}", form=fields
         )
 
+    has_defaults = False
     with ctx.new_symbol_table(name.name):
         is_frozen = True
         param_nodes = []
@@ -1175,6 +1178,14 @@ def _deftype_ast(ctx: ParserContext, form: ISeq) -> DefType:
                 )
                 .value
             )
+            if not has_defaults and field_default is not __DEFTYPE_DEFAULT_SENTINEL:
+                has_defaults = True
+            elif has_defaults and field_default is __DEFTYPE_DEFAULT_SENTINEL:
+                raise ParserException(
+                    "deftype* fields without defaults may not appear after fields "
+                    "without defaults",
+                    form=field,
+                )
 
             is_mutable = _is_mutable(field)
             if is_mutable:

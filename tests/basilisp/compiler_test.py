@@ -618,6 +618,28 @@ class TestDefType:
                 """
                 )
 
+        def test_deftype_allow_default_fields(self, ns: runtime.Namespace):
+            Point = lcompile("(deftype* Point [x ^{:default 2} y ^{:default 3} z])")
+            pt = Point(1)
+            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
+            pt1 = Point(1, 4)
+            assert (1, 4, 3) == (pt1.x, pt1.y, pt1.z)
+            pt2 = Point(1, 4, 5)
+            assert (1, 4, 5) == (pt2.x, pt2.y, pt2.z)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                "(deftype* Point [^{:default 1} x y z])",
+                "(deftype* Point [x ^{:default 2} y z])",
+            ],
+        )
+        def test_deftype_disallow_non_default_fields_after_default(
+            self, ns: runtime.Namespace, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
     class TestDefTypeMember:
         @pytest.mark.parametrize(
             "code",
