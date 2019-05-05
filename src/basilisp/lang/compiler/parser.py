@@ -1130,7 +1130,9 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
 __DEFTYPE_DEFAULT_SENTINEL = object()
 
 
-def _deftype_ast(ctx: ParserContext, form: ISeq) -> DefType:
+def _deftype_ast(  # pylint: disable=too-many-branches
+    ctx: ParserContext, form: ISeq
+) -> DefType:
     assert form.first == SpecialForm.DEFTYPE
 
     nelems = count(form)

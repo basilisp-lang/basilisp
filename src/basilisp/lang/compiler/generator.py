@@ -91,7 +91,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
-from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
+from basilisp.lang.interfaces import IMeta, ISeq
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
