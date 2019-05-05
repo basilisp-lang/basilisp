@@ -91,7 +91,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
-from basilisp.lang.interfaces import IMeta, ISeq
+from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
@@ -893,17 +893,29 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
 
     with ctx.new_symbol_table(node.name):
         type_nodes = []
+        type_deps: List[ast.AST] = []
         for field in node.fields:
             safe_field = munge(field.name)
+
+            if field.init is not None:
+                default_nodes = gen_py_ast(ctx, field.init)
+                type_deps.extend(default_nodes.dependencies)
+                attr_default_kws = [
+                    ast.keyword(arg="default", value=default_nodes.node)
+                ]
+            else:
+                attr_default_kws = []
+
             type_nodes.append(
                 ast.Assign(
                     targets=[ast.Name(id=safe_field, ctx=ast.Store())],
-                    value=ast.Call(func=_ATTRIB_FIELD_FN_NAME, args=[], keywords=[]),
+                    value=ast.Call(
+                        func=_ATTRIB_FIELD_FN_NAME, args=[], keywords=attr_default_kws
+                    ),
                 )
             )
             ctx.symbol_table.new_symbol(sym.symbol(field.name), safe_field, field.local)
 
-        type_deps: List[ast.AST] = []
         for member in node.members:
             type_ast = __deftype_member_to_py_ast(ctx, member)
             type_nodes.append(type_ast.node)  # type: ignore

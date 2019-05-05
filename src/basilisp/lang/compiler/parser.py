@@ -53,6 +53,7 @@ from basilisp.lang.compiler.constants import (
     OBJECT_DUNDER_METHODS,
     SYM_ASYNC_META_KEY,
     SYM_CLASSMETHOD_META_KEY,
+    SYM_DEFAULT_META_KEY,
     SYM_DYNAMIC_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
@@ -451,6 +452,7 @@ def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
 
 
 _is_async = _meta_getter(SYM_ASYNC_META_KEY)
+_is_mutable = _meta_getter(SYM_MUTABLE_META_KEY)
 _is_py_classmethod = _meta_getter(SYM_CLASSMETHOD_META_KEY)
 _is_py_property = _meta_getter(SYM_PROPERTY_META_KEY)
 _is_py_staticmethod = _meta_getter(SYM_STATICMETHOD_META_KEY)
@@ -1125,6 +1127,9 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
         )
 
 
+__DEFTYPE_DEFAULT_SENTINEL = object()
+
+
 def _deftype_ast(ctx: ParserContext, form: ISeq) -> DefType:
     assert form.first == SpecialForm.DEFTYPE
 
@@ -1154,6 +1159,7 @@ def _deftype_ast(ctx: ParserContext, form: ISeq) -> DefType:
             f"deftype* fields must be vector, not {type(fields)}", form=fields
         )
 
+    has_defaults = False
     with ctx.new_symbol_table(name.name):
         is_frozen = True
         param_nodes = []
@@ -1161,11 +1167,25 @@ def _deftype_ast(ctx: ParserContext, form: ISeq) -> DefType:
             if not isinstance(field, sym.Symbol):
                 raise ParserException(f"deftype* fields must be symbols", form=field)
 
-            is_mutable = (
+            field_default = (
                 Maybe(field.meta)
-                .map(lambda m: m.entry(SYM_MUTABLE_META_KEY))  # type: ignore
-                .or_else_get(False)
+                .map(
+                    lambda m: m.entry(  # type: ignore
+                        SYM_DEFAULT_META_KEY, __DEFTYPE_DEFAULT_SENTINEL
+                    )
+                )
+                .value
             )
+            if not has_defaults and field_default is not __DEFTYPE_DEFAULT_SENTINEL:
+                has_defaults = True
+            elif has_defaults and field_default is __DEFTYPE_DEFAULT_SENTINEL:
+                raise ParserException(
+                    "deftype* fields without defaults may not appear after fields "
+                    "without defaults",
+                    form=field,
+                )
+
+            is_mutable = _is_mutable(field)
             if is_mutable:
                 is_frozen = False
 
@@ -1175,6 +1195,9 @@ def _deftype_ast(ctx: ParserContext, form: ISeq) -> DefType:
                 local=LocalType.FIELD,
                 is_assignable=is_mutable,
                 env=ctx.get_node_env(),
+                init=parse_ast(ctx, field_default)
+                if field_default is not __DEFTYPE_DEFAULT_SENTINEL
+                else None,
             )
             param_nodes.append(binding)
             ctx.put_new_symbol(field, binding, warn_if_unused=False)
