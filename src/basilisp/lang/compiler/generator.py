@@ -893,17 +893,29 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
 
     with ctx.new_symbol_table(node.name):
         type_nodes = []
+        type_deps: List[ast.AST] = []
         for field in node.fields:
             safe_field = munge(field.name)
+
+            if field.init is not None:
+                default_nodes = gen_py_ast(ctx, field.init)
+                type_deps.extend(default_nodes.dependencies)
+                attr_default_kws = [
+                    ast.keyword(arg="default", value=default_nodes.node)
+                ]
+            else:
+                attr_default_kws = []
+
             type_nodes.append(
                 ast.Assign(
                     targets=[ast.Name(id=safe_field, ctx=ast.Store())],
-                    value=ast.Call(func=_ATTRIB_FIELD_FN_NAME, args=[], keywords=[]),
+                    value=ast.Call(
+                        func=_ATTRIB_FIELD_FN_NAME, args=[], keywords=attr_default_kws
+                    ),
                 )
             )
             ctx.symbol_table.new_symbol(sym.symbol(field.name), safe_field, field.local)
 
-        type_deps: List[ast.AST] = []
         for member in node.members:
             type_ast = __deftype_member_to_py_ast(ctx, member)
             type_nodes.append(type_ast.node)  # type: ignore
@@ -2407,7 +2419,9 @@ def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPy
         assert isinstance(k, kw.Keyword), "Record key in seq must be keyword"
         key_nodes = _kw_to_py_ast(ctx, k)
         keys.append(key_nodes.node)
-        assert len(key_nodes.dependencies) == 0, "Simple AST generators must emit no dependencies"
+        assert (
+            len(key_nodes.dependencies) == 0
+        ), "Simple AST generators must emit no dependencies"
 
         val_nodes = _const_val_to_py_ast(ctx, v)
         vals.append(val_nodes.node)

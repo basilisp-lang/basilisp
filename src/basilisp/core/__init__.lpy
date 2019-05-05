@@ -2885,8 +2885,8 @@
        (apply-kw attr/evolve rec)))
 
 (defn ^:private validate-record-fields
-  "Validate that record fields do not contain any reserved entries and
-  are not declared as mutable."
+  "Validate that record fields do not contain any reserved entries,
+  are not declared as mutable, and do not declare any default values."
   [fields field-kws]
   (when (some #(#{:meta :_recmap} %) field-kws)
     (throw
@@ -2896,7 +2896,12 @@
   (when (some #(:mutable (meta %)) fields)
     (throw
      (ex-info "Mutable fields not permitted in Record types"
-              {:fields (filter #(:mutable (meta %)) fields)}))))
+              {:fields (filter #(:mutable (meta %)) fields)})))
+
+  (when (some #(contains? (meta %) :default) fields)
+    (throw
+     (ex-info "Record fields may not specify defaults"
+              {:fields (filter #(contains? (meta %) :default) fields)}))))
 
 (defn ^:private validate-record-methods
   "Validate that record methods are not declared as class methods,
@@ -2946,7 +2951,9 @@
                         (symbol (str "map->" (name type-name)))
                         (meta type-name))
 
-        record-fields (vec (concat ['meta '_recmap] fields))
+        record-fields (vec (concat fields
+                                   ['^{:default nil} meta
+                                    '^{:default {}} _recmap]))
         field-kws     (->> fields (map (comp keyword name)))
         field-kw-set  (set field-kws)
 
