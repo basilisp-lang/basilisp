@@ -2919,6 +2919,7 @@
         map-ctor      (with-meta
                         (symbol (str "map->" (name type-name)))
                         (meta type-name))
+
         record-fields (vec (concat ['meta '_recmap] fields))
         field-kws     (->> fields (map (comp keyword name)))
         field-kw-set  (set field-kws)
@@ -3065,11 +3066,14 @@
                     `(get ~map-gs ~field-kw))
                   field-kws)))
          (~'_record_lrepr [~this-gs py-kwargs#]
-          (let [{print-meta :print_meta} (py->lisp py-kwargs#)]
+          (let [{print-meta :print_meta} (py->lisp py-kwargs#)
+
+                ns-name   (name *ns*)
+                qual-name (.- ~type-name ~'__qualname__)]
             (cond->> (->> (mapcat identity ~this-gs)
                           (apply hash-map)
                           (repr)
-                          (str "#" ~type-name))
+                          (str "#" ns-name "." qual-name))
               print-meta (str "^" (repr (meta ~this-gs)) " "))))
 
          ;; object
