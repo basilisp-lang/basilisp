@@ -1951,10 +1951,14 @@ class TestLet:
         with pytest.raises(compiler.CompilerException):
             lcompile("(let*)")
 
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(let* [a :kw])")
+    def test_let_may_have_empty_bindings(self, ns: runtime.Namespace):
+        assert None is lcompile("(let* [])")
+        assert kw.keyword("kw") == lcompile("(let* [] :kw)")
 
     def test_let_bindings_must_be_vector(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let* () :kw)")
+
         with pytest.raises(compiler.CompilerException):
             lcompile("(let* (a kw) a)")
 
@@ -1976,9 +1980,9 @@ class TestLet:
         with pytest.raises(compiler.CompilerException):
             lcompile("(let* [a 'sym] c)")
 
-    def test_let_must_have_bindings(self, ns: runtime.Namespace):
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(let* [] "string")')
+    def test_let_may_have_empty_body(self, ns: runtime.Namespace):
+        assert None is lcompile("(let* [])")
+        assert None is lcompile("(let* [a :kw])")
 
     def test_let(self, ns: runtime.Namespace):
         assert lcompile("(let* [a 1] a)") == 1
@@ -2118,8 +2122,9 @@ class TestLoop:
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop*)")
 
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(loop* [a :kw])")
+    def test_loop_may_have_empty_bindings(self, ns: runtime.Namespace):
+        assert None is lcompile("(loop* [])")
+        assert kw.keyword("kw") == lcompile("(loop* [] :kw)")
 
     def test_loop_bindings_must_be_vector(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
@@ -2145,6 +2150,10 @@ class TestLoop:
     def test_let_name_does_not_resolve(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop* [a 'sym] c)")
+
+    def test_loop_may_have_empty_body(self, ns: runtime.Namespace):
+        assert None is lcompile("(loop* [])")
+        assert None is lcompile("(loop* [a :kw])")
 
     def test_loop_without_recur(self, ns: runtime.Namespace):
         assert 1 == lcompile("(loop* [a 1] a)")
