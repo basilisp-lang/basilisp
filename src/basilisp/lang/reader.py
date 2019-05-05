@@ -924,7 +924,7 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
         raise SyntaxError(f"Unrecognized regex pattern syntax: {s}")
 
 
-def _load_record(s: symbol.Symbol, v: LispReaderForm) -> Union[IRecord, IType]:
+def _load_record_or_type(s: symbol.Symbol, v: LispReaderForm) -> Union[IRecord, IType]:
     """Attempt to load the constructor named by `s` and construct a new
     record or type instance from the vector or map following name."""
     assert s.ns is None, "Record reader macro cannot have namespace"
@@ -988,7 +988,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
             f = ctx.data_readers[s]
             return f(v)
         elif s.ns is None and "." in s.name:
-            return _load_record(s, v)
+            return _load_record_or_type(s, v)
         else:
             raise SyntaxError(f"No data reader found for tag #{s}")
 
