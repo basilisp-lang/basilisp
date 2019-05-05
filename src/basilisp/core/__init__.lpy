@@ -3086,11 +3086,11 @@
          ;; IRecord
          (~' ^:classmethod create [cls# ~map-gs]
           (cls#
-           nil
-           (dissoc ~map-gs ~@field-kws)
            ~@(map (fn [field-kw]
                     `(get ~map-gs ~field-kw))
-                  field-kws)))
+                  field-kws)
+           nil
+           (dissoc ~map-gs ~@field-kws)))
          (~'_record_lrepr [~this-gs py-kwargs#]
           (let [{print-meta :print_meta} (py->lisp py-kwargs#)
 
@@ -3121,7 +3121,7 @@
          ~(str
            "Create a new instance of the record " type-name ".")
          ~fields
-         (~type-name nil {} ~@fields))
+         (~type-name ~@fields nil {}))
 
        (defn ~map-ctor
          ~(str
