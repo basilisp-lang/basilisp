@@ -2539,9 +2539,9 @@ def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAS
         if isinstance(form, ISeq):
             handle_value = _const_seq_to_py_ast  # type: ignore
         elif isinstance(form, IRecord):
-            handle_value = None
+            handle_value = _const_record_to_py_ast
         elif isinstance(form, IType):
-            handle_value = None
+            handle_value = _const_type_to_py_ast
     assert handle_value is not None, "A type handler must be defined for constants"
     return handle_value(ctx, form)
 
