@@ -1,4 +1,5 @@
 (ns tests.basilisp.defrecord-test
+  (:import abc)
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
@@ -201,3 +202,61 @@
                  (read-string "#tests.basilisp.defrecord-test.Circle#{1}")))
     (is (thrown? basilisp.lang.reader/SyntaxError
                  (read-string "#tests.basilisp.defrecord-test.Point(1 2 3)")))))
+
+(deftest defrecord-field-restrictions
+  (testing "reserved fields"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a b meta]))))
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a b _recmap])))))
+
+  (testing "mutable fields"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [^:mutable a b])))))
+
+  (testing "fields defaults"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a ^{:default "b"} b]))))))
+
+(def ^:private WithCls
+  (builtins/type "WithCls"
+                 #py (abc/ABC)
+                 #py {"create" (builtins/classmethod
+                                (abc/abstractmethod
+                                 (fn [cls])))}))
+
+(def ^:private WithProp
+  (builtins/type "WithProp"
+                 #py (abc/ABC)
+                 #py { "prop" (builtins/property
+                               (abc/abstractmethod
+                                (fn [self])))}))
+
+(def ^:private WithStatic
+  (builtins/type "WithStatic"
+                 #py (abc/ABC)
+                 #py {"dostatic" (builtins/staticmethod
+                                  (abc/abstractmethod
+                                   (fn [])))}))
+
+(deftest defrecord-method-restrictions
+  (testing "class methods"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a b]
+                          WithCls
+                          (^:classmethod create [cls]
+                           (cls 1 2)))))))
+
+  (testing "mutable fields"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a b]
+                          WithProp
+                          (^:property prop [this]
+                           (+ 1 2)))))))
+
+  (testing "fields defaults"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a b]
+                          WithStatic
+                          (^:staticmethod dostatic []
+                           (+ 1 2))))))))
