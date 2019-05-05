@@ -1,4 +1,4 @@
-(ns basilisp.defrecord-test
+(ns tests.basilisp.defrecord-test
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
@@ -130,19 +130,19 @@
       (is (= {:tag Point} (meta (with-meta p {:tag Point})))))
 
     (testing "repr"
-      (is (contains? #{"#basilisp.defrecord-test.Point{:x 1 :y 2 :z 3}"
-                       "#basilisp.defrecord-test.Point{:y 2 :z 3 :x 1}"
-                       "#basilisp.defrecord-test.Point{:z 3 :x 1 :y 2}"
-                       "#basilisp.defrecord-test.Point{:y 2 :x 1 :z 3}"
-                       "#basilisp.defrecord-test.Point{:x 1 :z 3 :y 2}"
-                       "#basilisp.defrecord-test.Point{:z 3 :y 2 :x 1}"}
+      (is (contains? #{"#tests.basilisp.defrecord-test.Point{:x 1 :y 2 :z 3}"
+                       "#tests.basilisp.defrecord-test.Point{:y 2 :z 3 :x 1}"
+                       "#tests.basilisp.defrecord-test.Point{:z 3 :x 1 :y 2}"
+                       "#tests.basilisp.defrecord-test.Point{:y 2 :x 1 :z 3}"
+                       "#tests.basilisp.defrecord-test.Point{:x 1 :z 3 :y 2}"
+                       "#tests.basilisp.defrecord-test.Point{:z 3 :y 2 :x 1}"}
                      (str p)))
-      (is (contains? #{"^{:interesting :yes} #basilisp.defrecord-test.Point{:x 1 :y 2 :z 3}"
-                       "^{:interesting :yes} #basilisp.defrecord-test.Point{:y 2 :z 3 :x 1}"
-                       "^{:interesting :yes} #basilisp.defrecord-test.Point{:z 3 :x 1 :y 2}"
-                       "^{:interesting :yes} #basilisp.defrecord-test.Point{:y 2 :x 1 :z 3}"
-                       "^{:interesting :yes} #basilisp.defrecord-test.Point{:x 1 :z 3 :y 2}"
-                       "^{:interesting :yes} #basilisp.defrecord-test.Point{:z 3 :y 2 :x 1}"}
+      (is (contains? #{"^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:x 1 :y 2 :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:y 2 :z 3 :x 1}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:z 3 :x 1 :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:y 2 :x 1 :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:x 1 :z 3 :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:z 3 :y 2 :x 1}"}
                      (binding [*print-meta* true]
                        (str (with-meta p {:interesting :yes}))))))))
 
@@ -156,17 +156,48 @@
 
 (deftest defrecord-with-methods
   (let [c  (->Circle 1)
-        c1 (assoc c :name "Kurt")]
+        c1 (assoc c :name "Kurt")
+        c2 (assoc c1 :radius 3)]
 
     (testing "defrecord method"
       (is (= 3.14 (.area c))))
 
+    (testing "record?"
+      (is (record? c))
+      (is (record? c1))
+      (is (record? c2))
+      (is (map? (dissoc c :radius))))
+
+    (testing "hash"
+      (is (= (hash [1 {}]) (hash c)))
+      (is (= (hash [1 {:name "Kurt"}]) (hash c1)))
+      (is (= (hash [3 {:name "Kurt"}]) (hash c2))))
+
     (testing "repr"
-      (is (= "#basilisp.defrecord-test.Circle{:radius 1}"
+      (is (= "#tests.basilisp.defrecord-test.Circle{:radius 1}"
              (str c)))
-      (is (= "^{:interesting :yes} #basilisp.defrecord-test.Circle{:radius 1}"
+      (is (= "^{:interesting :yes} #tests.basilisp.defrecord-test.Circle{:radius 1}"
              (binding [*print-meta* true]
                (str (with-meta c {:interesting :yes})))))
-      (is (contains? #{"#basilisp.defrecord-test.Circle{:radius 1 :name \"Kurt\"}"
-                       "#basilisp.defrecord-test.Circle{:name \"Kurt\" :radius 1}"}
+      (is (contains? #{"#tests.basilisp.defrecord-test.Circle{:radius 1 :name \"Kurt\"}"
+                       "#tests.basilisp.defrecord-test.Circle{:name \"Kurt\" :radius 1}"}
                      (str c1))))))
+
+(deftest defrecord-reader-form
+  (testing "record without methods"
+    (let [p  (->Point 1 2 3)
+          p1 (assoc p :w 0)
+          p2 (assoc p1 :new-key "some-value")
+          p3 (dissoc p :y)]
+      (is (= p (eval (read-string (str p)))))
+      (is (= p1 (eval (read-string (str p1)))))
+      (is (= p2 (eval (read-string (str p2)))))
+      (is (= p3 (eval (read-string (str p3)))))))
+
+  (testing "record with methods"
+    (let [c  (->Circle 1)
+          c1 (assoc c :name "Kurt")
+          c2 (assoc c1 :radius 3)]
+      (is (= c (eval (read-string (str c)))))
+      (is (= c1 (eval (read-string (str c1)))))
+      (is (= c2 (eval (read-string (str c2))))))))
