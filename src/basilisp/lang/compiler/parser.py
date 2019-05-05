@@ -815,7 +815,7 @@ def __deftype_method(
                 local=LocalType.THIS,
                 env=ctx.get_node_env(),
             )
-            ctx.put_new_symbol(this_arg, this_binding)
+            ctx.put_new_symbol(this_arg, this_binding, warn_if_unused=False)
 
         params = args[1:]
         has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
@@ -875,7 +875,7 @@ def __deftype_property(
                 local=LocalType.THIS,
                 env=ctx.get_node_env(),
             )
-            ctx.put_new_symbol(this_arg, this_binding)
+            ctx.put_new_symbol(this_arg, this_binding, warn_if_unused=False)
 
         params = args[1:]
         has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
