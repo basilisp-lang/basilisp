@@ -20,6 +20,7 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+from basilisp.lang.interfaces import IType
 from basilisp.lang.runtime import Var
 from basilisp.main import init
 from basilisp.util import Maybe
@@ -371,134 +372,146 @@ class TestDef:
 
 
 class TestDefType:
-    def test_deftype_number_of_elems(self, ns: runtime.Namespace):
+    @pytest.mark.parametrize("code", ["(deftype*)", "(deftype* Point)"])
+    def test_deftype_number_of_elems(self, ns: runtime.Namespace, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile("(deftype*)")
+            lcompile(code)
 
+    @pytest.mark.parametrize(
+        "code", ["(deftype* :Point [x y])", '(deftype* "Point" [x y])']
+    )
+    def test_deftype_name_is_sym(self, ns: runtime.Namespace, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile("(deftype* Point)")
-
-    def test_deftype_name_is_sym(self, ns: runtime.Namespace):
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(deftype* :Point [x y])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(deftype* "Point" [x y])')
+            lcompile(code)
 
     def test_deftype_fields_is_vec(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(deftype* Point (x y))")
 
-    def test_deftype_fields_are_syms(self, ns: runtime.Namespace):
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(deftype* Point [:x y])",
+            "(deftype* Point [x :y])",
+            '(deftype* Point [x y "z"])',
+        ],
+    )
+    def test_deftype_fields_are_syms(self, ns: runtime.Namespace, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile("(deftype* Point [:x y])")
+            lcompile(code)
 
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(deftype* Point [x :y])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(deftype* Point [x y "z"])')
-
-    def test_deftype_matching_impls(self, ns: runtime.Namespace):
+    def test_deftype_has_implements_kw(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              collections.abc/Callable)
+            (deftype* Point [x y]
+              [collections.abc/Sized]
+              (__len__ [this] 2))
             """
             )
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (deftype* Point [x y]
+              :implements (collections.abc/Sized)
+              (__len__ [this] 2))
+            """,
+            """
+            (deftype* Point [x y]
+              :implements collections.abc/Sized
+              (__len__ [this] 2))
+            """,
+        ],
+    )
+    def test_deftype_implements_is_vector(self, ns: runtime.Namespace, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
             (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Callable
-              (--call-- [this] [x y z])
-              collections.abc/Sized)
+              :implements [collections.abc/Callable])
+            """,
             """
-            )
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable collections.abc/Sized]
+              (--call-- [this] [x y z]))
+            """,
+            """
             (deftype* Point [x y z]
               (--call-- [this] [x y z]))
-            """
-            )
-
-    def test_deftype_prohibit_duplicate_interface(self, ns: runtime.Namespace):
+            """,
+        ],
+    )
+    def test_deftype_matching_impls(self, ns: runtime.Namespace, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
             (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Callable
+              :implements [collections.abc/Callable collections.abc/Callable]
               (--call-- [this] [x y z])
-              collections.abc/Callable
               (--call-- [this] 1))
+            """,
             """
-            )
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
             (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Callable
+              :implements [collections.abc/Callable collections.abc/Sized collections.abc/Callable]
               (--call-- [this] [x y z])
-              collections.abc/Sized
               (--len-- [this] 1)
-              collections.abc/Callable
               (--call-- [this] 1))
+             """,
             """
-            )
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
             (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Callable
+              :implements [collections.abc/Callable collections.abc/Callable collections.abc/Sized]
               (--call-- [this] [x y z])
-              collections.abc/Callable
               (--call-- [this] 1)
-              collections.abc/Sized
               (--len-- [this] 1))
-            """
-            )
-
-    def test_deftype_impls_must_be_sym_or_list(self, ns: runtime.Namespace):
+            """,
+        ],
+    )
+    def test_deftype_prohibit_duplicate_interface(
+        self, ns: runtime.Namespace, code: str
+    ):
         with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
             (deftype* Point [x y z]
-              :collections.abc/Callable
+              :implements [:collections.abc/Callable]
               (--call-- [this] [x y z]))
+            """,
             """
-            )
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
             (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Callable
+              :implements [collections.abc/Callable]
               [--call-- [this] [x y z]])
+            """,
             """
-            )
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
             (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Callable
-              [--call-- [this] [x y z]]
-              :collections.abc/Sized)
-            """
-            )
+              :implements [collections.abc/Callable :collections.abc/Sized]
+              [--call-- [this] [x y z]])
+             """,
+        ],
+    )
+    def test_deftype_impls_must_be_sym_or_list(self, ns: runtime.Namespace, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
 
     def test_deftype_interface_must_be_host_form(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
@@ -506,7 +519,7 @@ class TestDefType:
                 """
             (let [a :kw]
               (deftype* Point [x y z]
-                a
+                :implements [a]
                 (--call-- [this] [x y z])))
             """
             )
@@ -517,10 +530,19 @@ class TestDefType:
                 """
             (import* collections)
             (deftype* Point [x y z]
-              collections/OrderedDict
+              :implements [collections/OrderedDict]
               (keys [this] [x y z]))
             """
             )
+
+    def test_deftype_allows_empty_abstract_interface(self, ns: runtime.Namespace):
+        Point = lcompile(
+            """
+        (deftype* Point [x y z]
+          :implements [basilisp.lang.interfaces/IType])"""
+        )
+        pt = Point(1, 2, 3)
+        assert isinstance(pt, IType)
 
     def test_deftype_interface_must_implement_all_abstract_methods(
         self, ns: runtime.Namespace
@@ -530,7 +552,7 @@ class TestDefType:
                 """
             (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Collection
+              :implements [collections.abc/Collection]
               (--len-- [this] 3))
             """
             )
@@ -543,7 +565,7 @@ class TestDefType:
                 """
             (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Sized
+              :implements [collections.abc/Sized]
               (--len-- [this] 3)
               (call [this] :called))
             """
@@ -555,181 +577,580 @@ class TestDefType:
         Point = lcompile(
             """
         (deftype* Point [x y z]
-          builtins/object
-          (--str-- [this] 
+          :implements [builtins/object]
+          (__str__ [this]
             (builtins/repr #py ("Point" x y z))))
         """
         )
         pt = Point(1, 2, 3)
         assert "('Point', 1, 2, 3)" == str(pt)
 
-    def test_deftype_fields(self, ns: runtime.Namespace):
-        Point = lcompile("(deftype* Point [x y z])")
-        pt = Point(1, 2, 3)
-        assert (1, 2, 3) == (pt.x, pt.y, pt.z)
+    class TestDefTypeFields:
+        def test_deftype_fields(self, ns: runtime.Namespace):
+            Point = lcompile("(deftype* Point [x y z])")
+            pt = Point(1, 2, 3)
+            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-    def test_deftype_fields_and_impls(self, ns: runtime.Namespace):
-        Point = lcompile(
-            """
-        (import* collections.abc)
-        (deftype* Point [x y z]
-          collections.abc/Sized
-          (--len-- [this] 1)
-          collections.abc/Callable
-          (--call-- [this] [x y z]))
-        """
-        )
-        pt = Point(1, 2, 3)
-        assert 1 == len(pt)
-        assert vec.v(1, 2, 3) == pt()
-        assert (1, 2, 3) == (pt.x, pt.y, pt.z)
-
-    def test_deftype_impl_with_args(self, ns: runtime.Namespace):
-        Point = lcompile(
-            """
-        (import* collections.abc)
-        (deftype* Point [x y z]
-          collections.abc/Callable
-          (--call-- [this i j k] [x i y j z k]))
-        """
-        )
-        pt = Point(1, 2, 3)
-        assert vec.v(1, 4, 2, 5, 3, 6) == pt(4, 5, 6)
-        assert (1, 2, 3) == (pt.x, pt.y, pt.z)
-
-    def test_deftype_can_refer_to_type_within_methods(self, ns: runtime.Namespace):
-        Point = lcompile(
-            """
-        (import* collections.abc)
-        (deftype* Point [x y z]
-          collections.abc/Callable
-          (--call-- [this i j k] 
-            (Point i j k)))
-        """
-        )
-        pt = Point(1, 2, 3)
-        assert (1, 2, 3) == (pt.x, pt.y, pt.z)
-        pt2 = pt(4, 5, 6)
-        assert (4, 5, 6) == (pt2.x, pt2.y, pt2.z)
-
-    def test_deftype_empty_impl_body(self, ns: runtime.Namespace):
-        Point = lcompile(
-            """
-        (import* collections.abc)
-        (deftype* Point [x y z]
-          collections.abc/Callable
-          (--call-- [this]))
-        """
-        )
-        pt = Point(1, 2, 3)
-        assert None is pt()
-        assert (1, 2, 3) == (pt.x, pt.y, pt.z)
-
-    def test_deftype_mutable_field(self, ns: runtime.Namespace):
-        Point = lcompile(
-            """
-        (import* collections.abc)
-        (deftype* Point [^:mutable x y z]
-          collections.abc/Callable
-          (--call-- [this new-x]
-            (set! x new-x)))
-        """
-        )
-        pt = Point(1, 2, 3)
-        assert (1, 2, 3) == (pt.x, pt.y, pt.z)
-        pt(4)
-        assert (4, 2, 3) == (pt.x, pt.y, pt.z)
-
-    def test_deftype_allows_recur(self, ns: runtime.Namespace):
-        Point = lcompile(
-            """
-        (import* collections.abc operator)
-        (deftype* Point [x]
-          collections.abc/Callable
-          (--call-- [this sum start]
-            (if (operator/gt start 0)
-              (recur (operator/add sum start) (operator/sub start 1))
-              (operator/add sum x))))
-        """
-        )
-        pt = Point(7)
-        assert 22 == pt(0, 5)
-
-    def test_deftype_cannot_set_immutable_field(self, ns: runtime.Namespace):
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
+        def test_deftype_mutable_field(self, ns: runtime.Namespace):
+            Point = lcompile(
                 """
             (import* collections.abc)
             (deftype* Point [^:mutable x y z]
-              collections.abc/Callable
-              (--call-- [this new-y]
-                (set! y new-y)))
+              :implements [collections.abc/Callable]
+              (--call-- [this new-x]
+                (set! x new-x)))
+            """
+            )
+            pt = Point(1, 2, 3)
+            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
+            pt(4)
+            assert (4, 2, 3) == (pt.x, pt.y, pt.z)
+
+        def test_deftype_cannot_set_immutable_field(self, ns: runtime.Namespace):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (import* collections.abc)
+                (deftype* Point [^:mutable x y z]
+                  :implements [collections.abc/Callable]
+                  (--call-- [this new-y]
+                    (set! y new-y)))
+                """
+                )
+
+    class TestDefTypeMember:
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (:--call-- [this] [x y z]))
+                """,
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  collections.abc/Callable
+                  (\"--call--\" [this] [x y z]))
+                """,
+            ],
+        )
+        def test_deftype_member_is_named_by_sym(self, ns: runtime.Namespace, code: str):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_deftype_member_args_are_vec(self, ns: runtime.Namespace):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (--call-- (this) [x y z]))
+                """
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (^:property ^:staticmethod __call__ [this]
+                    [x y z]))
+                """,
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  collections.abc/Callable
+                  (^:classmethod ^:property __call__ [this]
+                  [x y z]))
+                """,
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  collections.abc/Callable
+                  (^:classmethod ^:staticmethod __call__ [this]
+                  [x y z]))
+                """,
+            ],
+        )
+        def test_deftype_member_may_not_be_multiple_tyeps(
+            self, ns: runtime.Namespace, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+    class TestDefTypeClassMethod:
+        @pytest.fixture
+        def class_interface(self, ns: runtime.Namespace):
+            return lcompile(
+                """
+            (import* abc)
+            (def WithCls
+              (builtins/type "WithCls"
+                             #py (abc/ABC)
+                             #py {"create"
+                                  (builtins/classmethod
+                                   (abc/abstractmethod
+                                    (fn [cls])))}))
             """
             )
 
-    def test_deftype_impl_method_is_named_by_sym(self, ns: runtime.Namespace):
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
+        def test_deftype_must_implement_interface_classmethod(
+            self, class_interface: Var
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithCls])
+                  """
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [:cls]
+                [x y z]))
+              """,
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls :arg2]
+                [x y z]))
+              """,
+            ],
+        )
+        def test_deftype_classmethod_args_are_syms(
+            self, class_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_deftype_classmethod_may_not_reference_fields(
+            self, class_interface: Var
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod create [cls]
+                    [x y z]))"""
+                )
+
+        def test_deftype_classmethod_args_includes_cls(self, class_interface: Var):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod create []))
+                    """
+                )
+
+        def test_deftype_classmethod_disallows_recur(self, class_interface: Var):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x]
+                  :implements [WithCls]
+                  (^:classmethod create [cls]
+                    (recur)))
+                """
+                )
+
+        def test_deftype_can_have_classmethod(self, class_interface: Var):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls x y z]
+                (cls x y z))
+              (__eq__ [this other]
+                (operator/eq
+                 [x y z] 
+                 [(.-x other) (.-y other) (.-z other)])))"""
+            )
+            assert Point(1, 2, 3) == Point.create(1, 2, 3)
+
+        def test_deftype_symboltable_is_restored_after_classmethod(
+            self, class_interface: Var
+        ):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls x y z]
+                (cls x y z))
+              (__str__ [this]
+                (builtins/str [x y z])))"""
+            )
+            pt = Point.create(1, 2, 3)
+            assert "[1 2 3]" == str(pt)
+
+        def test_deftype_empty_classmethod_body(self, class_interface: Var):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls]))"""
+            )
+            assert None is Point.create()
+
+    class TestDefTypeMethod:
+        def test_deftype_fields_and_methods(self, ns: runtime.Namespace):
+            Point = lcompile(
                 """
             (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Callable
-              (:--call-- [this] [x y z]))
+              :implements [collections.abc/Callable collections.abc/Sized]
+              (--len-- [this] 1)
+              (--call-- [this] [x y z]))
+            """
+            )
+            pt = Point(1, 2, 3)
+            assert 1 == len(pt)
+            assert vec.v(1, 2, 3) == pt()
+            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
+
+        def test_deftype_method_with_args(self, ns: runtime.Namespace):
+            Point = lcompile(
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (--call-- [this i j k] [x i y j z k]))
+            """
+            )
+            pt = Point(1, 2, 3)
+            assert vec.v(1, 4, 2, 5, 3, 6) == pt(4, 5, 6)
+            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (--call-- [this &]))
+            """,
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (--call-- [this & :args]))
+            """,
+            ],
+        )
+        def test_deftype_method_with_varargs_malformed(
+            self, ns: runtime.Namespace, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_deftype_method_with_varargs(self, ns: runtime.Namespace):
+            Mirror = lcompile(
+                """
+            (import* collections.abc)
+            (deftype* Mirror [x]
+              :implements [collections.abc/Callable]
+              (--call-- [this & args] [x args]))
+            """
+            )
+            mirror = Mirror("Beauty is in the eye of the beholder")
+            assert vec.v(
+                "Beauty is in the eye of the beholder", llist.l(1, 2, 3)
+            ) == mirror(1, 2, 3)
+
+        def test_deftype_can_refer_to_type_within_methods(self, ns: runtime.Namespace):
+            Point = lcompile(
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (--call-- [this i j k]
+                (Point i j k)))
+            """
+            )
+            pt = Point(1, 2, 3)
+            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
+            pt2 = pt(4, 5, 6)
+            assert (4, 5, 6) == (pt2.x, pt2.y, pt2.z)
+
+        def test_deftype_empty_method_body(self, ns: runtime.Namespace):
+            Point = lcompile(
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (--call-- [this]))
+            """
+            )
+            pt = Point(1, 2, 3)
+            assert None is pt()
+            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
+
+        def test_deftype_method_allows_recur(self, ns: runtime.Namespace):
+            Point = lcompile(
+                """
+            (import* collections.abc operator)
+            (deftype* Point [x]
+              :implements [collections.abc/Callable]
+              (--call-- [this sum start]
+                (if (operator/gt start 0)
+                  (recur (operator/add sum start) (operator/sub start 1))
+                  (operator/add sum x))))
+            """
+            )
+            pt = Point(7)
+            assert 22 == pt(0, 5)
+
+        def test_deftype_method_args_vec_includes_this(self, ns: runtime.Namespace):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (--call-- [] [x y z]))
+                """
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (--call-- [\"this\"] [x y z]))
+                """,
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (--call-- [this :new] [x y z]))
+                """,
+            ],
+        )
+        def test_deftype_method_args_are_syms(self, ns: runtime.Namespace, code: str):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+    class TestDefTypeProperty:
+        @pytest.fixture
+        def property_interface(self, ns: runtime.Namespace):
+            return lcompile(
+                """
+            (import* abc)
+            (def WithProp
+              (builtins/type "WithProp"
+                             #py (abc/ABC)
+                             #py {"prop"
+                                  (builtins/property
+                                   (abc/abstractmethod
+                                    (fn [self])))}))
             """
             )
 
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
+        def test_deftype_must_implement_interface_property(
+            self, property_interface: Var
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithProp])
+                  """
+                )
+
+        def test_deftype_property_includes_this(self, property_interface: Var):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithProp]
+                  (^:property prop [] [x y z]))
+                  """
+                )
+
+        def test_deftype_property_args_are_syms(self, property_interface: Var):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (deftype* Point [x y z]
+                      :implements [WithProp]
+                      (^:property prop [:this] [x y z]))
+                      """
+                )
+
+        def test_deftype_property_may_not_have_args(self, property_interface: Var):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithProp]
+                  (^:property prop [this and-that] [x y z]))
+                  """
+                )
+
+        def test_deftype_property_disallows_recur(self, ns: runtime.Namespace):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x]
+                  :implements [WithProp]
+                  (^:property prop [this]
+                    (recur)))
                 """
-            (import* collections.abc)
+                )
+
+        def test_deftype_field_can_be_property(self, property_interface: Var):
+            Item = lcompile("(deftype* Item [prop] :implements [WithProp])")
+            assert "prop" == Item("prop").prop
+
+        def test_deftype_can_have_property(self, property_interface: Var):
+            Point = lcompile(
+                """
             (deftype* Point [x y z]
-              collections.abc/Callable
-              (\"--call--\" [this] [x y z]))
+              :implements [WithProp]
+              (^:property prop [this] [x y z]))"""
+            )
+            assert vec.v(1, 2, 3) == Point(1, 2, 3).prop
+
+        def test_deftype_empty_property_body(self, property_interface: Var):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithProp]
+              (^:property prop [this]))"""
+            )
+            assert None is Point(1, 2, 3).prop
+
+    class TestDefTypeStaticMethod:
+        @pytest.fixture
+        def static_interface(self, ns: runtime.Namespace):
+            return lcompile(
+                """
+            (import* abc)
+            (def WithStatic
+              (builtins/type "WithStatic"
+                             #py (abc/ABC)
+                             #py {"dostatic"
+                                  (builtins/staticmethod
+                                   (abc/abstractmethod
+                                    (fn [])))}))
             """
             )
 
-    def test_deftype_impl_method_args_are_vec(self, ns: runtime.Namespace):
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              collections.abc/Callable
-              (--call-- (this) [x y z]))
-            """
-            )
+        def test_deftype_must_implement_interface_staticmethod(
+            self, static_interface: Var
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithStatic])
+                  """
+                )
 
-    def test_deftype_impl_method_args_vec_includes_this(self, ns: runtime.Namespace):
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
+        @pytest.mark.parametrize(
+            "code",
+            [
                 """
-            (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Callable
-              (--call-- [] [x y z]))
-            """
-            )
+              :implements [WithStatic]
+              (^:staticmethod dostatic [:arg]
+                [x y z]))
+              """,
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod dostatic [arg1 :arg2]
+                [x y z]))
+              """,
+            ],
+        )
+        def test_deftype_staticmethod_args_are_syms(
+            self, static_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
 
-    def test_deftype_impl_method_args_are_syms(self, ns: runtime.Namespace):
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              collections.abc/Callable
-              (--call-- [\"this\"] [x y z]))
-            """
-            )
+        def test_deftype_staticmethod_may_not_reference_fields(
+            self, static_interface: Var
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithStatic]
+                  (^:staticmethod dostatic []
+                    [x y z]))"""
+                )
 
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
+        def test_deftype_staticmethod_may_have_no_args(self, static_interface: Var):
+            Point = lcompile(
                 """
-            (import* collections.abc)
             (deftype* Point [x y z]
-              collections.abc/Callable
-              (--call-- [this :new] [x y z]))
-            """
+              :implements [WithStatic]
+              (^:staticmethod dostatic []))
+              """
             )
+            assert None is Point.dostatic()
+
+        def test_deftype_staticmethod_disallows_recur(self, static_interface: Var):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x]
+                  :implements [WithStatic]
+                  (^:staticmethod dostatic []
+                    (recur)))
+                    """
+                )
+
+        def test_deftype_can_have_staticmethod(self, static_interface: Var):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod dostatic [x y z]
+                [x y z]))"""
+            )
+            assert vec.v(1, 2, 3) == Point.dostatic(1, 2, 3)
+
+        def test_deftype_symboltable_is_restored_after_staticmethod(
+            self, static_interface: Var
+        ):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod dostatic [x y z]
+                [x y z])
+              (__str__ [this]
+                (builtins/str [x y z])))"""
+            )
+            assert vec.v(1, 2, 3) == Point.dostatic(1, 2, 3)
+            assert "[1 2 3]" == str(Point(1, 2, 3))
+
+        def test_deftype_empty_staticmethod_body(self, static_interface: Var):
+            Point = lcompile(
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod dostatic [arg1 arg2]))"""
+            )
+            assert None is Point.dostatic("x", "y")
 
 
 def test_do(ns: runtime.Namespace):
@@ -1880,7 +2301,7 @@ class TestRecur:
     def test_multi_arity_recur(self, ns: runtime.Namespace):
         code = """
         (def +++
-          (fn +++ 
+          (fn +++
             ([] 0)
             ([x] x)
             ([x & args]

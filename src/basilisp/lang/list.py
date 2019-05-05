@@ -60,9 +60,9 @@ class List(IMeta, ISeq[T], IPersistentList[T]):  # type: ignore
 
     @property
     def rest(self) -> ISeq:
-        if self._inner.rest is _EMPTY_PLIST:  # type: ignore
+        if self._inner.rest is _EMPTY_PLIST:
             return EMPTY
-        return List(self._inner.rest)  # type: ignore
+        return List(self._inner.rest)
 
     def cons(self, *elems: T) -> "List[T]":
         l = self._inner
