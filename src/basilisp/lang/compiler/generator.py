@@ -115,7 +115,6 @@ _IF_TEST_PREFIX = "if_test"
 _MULTI_ARITY_ARG_NAME = "multi_arity_args"
 _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
-_TYPE_CLASS_FACTORY_METHOD = "create_from_map"
 _NS_VAR = "__NS"
 
 
@@ -2394,17 +2393,22 @@ def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAS
 
 
 def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPyAST:
-    assert isinstance(form, ISeq), "IRecord types should also be ISeq"
+    assert isinstance(form, IRecord) and isinstance(
+        form, ISeq
+    ), "IRecord types should also be ISeq"
 
     tp = type(form)
     assert hasattr(tp, "create") and callable(
         tp.create
     ), "IRecord and IType must declare a .create class method"
 
-    keys, vals = [], []
+    keys, vals, vals_deps = [], [], []
     for k, v in runtime.to_seq(form):
-        assert isinstance(k, kw.Keyword)
+        assert isinstance(k, kw.Keyword), "Record key in seq must be keyword"
         keys.append(_kw_to_py_ast(ctx, k))
+        val_nodes = gen_py_ast(ctx, v)
+        vals.append(val_nodes.node)
+        vals_deps.extend(val_nodes.dependencies)
 
     return GeneratedPyAST(
         node=ast.Call(
@@ -2412,12 +2416,13 @@ def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPy
             args=[
                 ast.Call(
                     func=_NEW_MAP_FN_NAME,
-                    args=[ast.Dict(keys=[], values=[])],
+                    args=[ast.Dict(keys=keys, values=vals)],
                     keywords=[],
                 )
             ],
             keywords=[],
-        )
+        ),
+        dependencies=vals_deps,
     )
 
 
@@ -2444,7 +2449,19 @@ def _const_seq_to_py_ast(
 
 
 def _const_type_to_py_ast(ctx: GeneratorContext, form: IType) -> GeneratedPyAST:
-    pass
+    tp = type(form)
+
+    ctor_args = []
+    ctor_arg_deps: List[ast.AST] = []
+    for field in attr.fields(tp):
+        field_nodes = gen_py_ast(ctx, getattr(form, field.name, None))
+        ctor_args.append(field_nodes.node)
+        ctor_args.extend(field_nodes.dependencies)
+
+    return GeneratedPyAST(
+        node=ast.Call(func=_load_attr(tp.__qualname__), args=ctor_args, keywords=[]),
+        dependencies=ctor_arg_deps,
+    )
 
 
 def _const_vec_to_py_ast(ctx: GeneratorContext, form: vec.Vector) -> GeneratedPyAST:
