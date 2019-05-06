@@ -1238,7 +1238,7 @@ class TestFunctionShadowName:
     ):
         lcompile("(fn [v] (fn [v] v))", opts={compiler.WARN_ON_SHADOWED_NAME: True})
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             "name 'v' shadows name from outer scope",
         ) in caplog.record_tuples
@@ -1251,7 +1251,7 @@ class TestFunctionShadowName:
         """
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             "name 'v' shadows name from outer scope",
         ) in caplog.record_tuples
@@ -1265,7 +1265,7 @@ class TestFunctionShadowName:
         """
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             "name 'unique-bljzndd' shadows def'ed Var from outer scope",
         ) in caplog.record_tuples
@@ -1281,7 +1281,7 @@ class TestFunctionShadowName:
         """
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             "name 'unique-yezddid' shadows def'ed Var from outer scope",
         ) in caplog.record_tuples
@@ -1319,7 +1319,7 @@ class TestFunctionShadowVar:
         """
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             "name 'unique-kuieeid' shadows def'ed Var from outer scope",
         ) in caplog.record_tuples
@@ -1333,7 +1333,7 @@ class TestFunctionShadowVar:
         """
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             "name 'unique-peuudcdf' shadows def'ed Var from outer scope",
         ) in caplog.record_tuples
@@ -1364,7 +1364,7 @@ class TestFunctionWarnUnusedName:
     ):
         lcompile("(fn [v] (fn [v] v))", opts={compiler.WARN_ON_UNUSED_NAMES: True})
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             f"symbol 'v' defined but not used ({ns}: 1)",
         ) in caplog.record_tuples
@@ -1379,7 +1379,7 @@ class TestFunctionWarnUnusedName:
             opts={compiler.WARN_ON_UNUSED_NAMES: True},
         )
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             f"symbol 'v' defined but not used ({ns}: 3)",
         ) in caplog.record_tuples
@@ -2054,7 +2054,7 @@ class TestLetShadowName:
             "(let [m 3] (let [m 4] m))", opts={compiler.WARN_ON_SHADOWED_NAME: True}
         )
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             "name 'm' shadows name from outer scope",
         ) in caplog.record_tuples
@@ -2069,7 +2069,7 @@ class TestLetShadowName:
 
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             "name 'unique-yyenfvhj' shadows def'ed Var from outer scope",
         ) in caplog.record_tuples
@@ -2092,7 +2092,7 @@ class TestLetShadowVar:
         """
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             "name 'unique-uoieyqq' shadows def'ed Var from outer scope",
         ) in caplog.record_tuples
@@ -2102,7 +2102,7 @@ class TestLetUnusedNames:
     def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
         lcompile("(let [v 4] :a)", opts={compiler.WARN_ON_UNUSED_NAMES: True})
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             f"symbol 'v' defined but not used ({ns}: 1)",
         ) in caplog.record_tuples
@@ -2123,7 +2123,7 @@ class TestLetUnusedNames:
             opts={compiler.WARN_ON_UNUSED_NAMES: True},
         )
         assert (
-            "basilisp.lang.compiler.parser",
+            "basilisp.lang.compiler.analyzer",
             logging.WARNING,
             f"symbol 'v' defined but not used ({ns}: 1)",
         ) in caplog.record_tuples

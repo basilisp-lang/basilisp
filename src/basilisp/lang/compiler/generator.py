@@ -2530,7 +2530,7 @@ _CONST_VALUE_HANDLERS: Mapping[Type, SimplePyASTGenerator] = {  # type: ignore
 def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAST:
     """Generate Python AST nodes for constant Lisp forms.
 
-    Nested values in collections for :const nodes are not parsed, so recursive
+    Nested values in collections for :const nodes are not analyzed, so recursive
     structures need to call into this function to generate Python AST nodes for
     nested elements. For top-level :const Lisp AST nodes, see
     `_const_node_to_py_ast`."""
@@ -2586,7 +2586,7 @@ _CONSTANT_HANDLER: Mapping[ConstType, SimplePyASTGenerator] = {  # type: ignore
 def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: Const) -> GeneratedPyAST:
     """Generate Python AST nodes for a :const Lisp AST node.
 
-    Nested values in collections for :const nodes are not parsed. Consequently,
+    Nested values in collections for :const nodes are not analyzed. Consequently,
     this function cannot be called recursively for those nested values. Instead,
     call `_const_val_to_py_ast` on nested values."""
     assert lisp_ast.op == NodeOp.CONST

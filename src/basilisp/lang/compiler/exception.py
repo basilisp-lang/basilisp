@@ -11,7 +11,7 @@ from basilisp.lang.typing import LispForm
 
 
 class CompilerPhase(Enum):
-    PARSING = kw.keyword("parsing")
+    ANALYZING = kw.keyword("analyzing")
     CODE_GENERATION = kw.keyword("code-generation")
     MACROEXPANSION = kw.keyword("macroexpansion")
     COMPILING_PYTHON = kw.keyword("compiling-python")
