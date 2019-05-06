@@ -550,9 +550,10 @@
   ([] true)
   ([& args]
    (if (seq (rest args))
-     `(if ~(first args)
-        (and ~@(rest args))
-        ~(first args))
+     `(let* [expr# ~(first args)]
+        (if expr#
+          (and ~@(rest args))
+          expr#))
      (first args))))
 
 (defmacro or
@@ -562,9 +563,10 @@
   ([] nil)
   ([& args]
    (if (seq (rest args))
-     `(if ~(first args)
-        ~(first args)
-        (or ~@(rest args)))
+     `(let* [expr# ~(first args)]
+        (if expr#
+          expr#
+          (or ~@(rest args))))
      (first args))))
 
 (defmacro cond
@@ -1177,6 +1179,12 @@
   [m & ks]
   (apply (.-dissoc m) ks))
 
+(defn empty
+  "Return an empty collection of the same interface type as coll, or nil."
+  [coll]
+  (when (coll? coll)
+    (.empty coll)))
+
 (defn get
   "Return the entry of m corresponding to k if it exists or nil/default otherwise."
   ([m k]
@@ -1192,9 +1200,17 @@
   (apply basilisp.lang.runtime/update m k f args))
 
 (defn map-entry
-  "Return a map entry containing key and value."
-  [k v]
-  ((.-of basilisp.lang.map/MapEntry) k v))
+  "With one argument, coerce the input to a map entry. With two arguments, return a
+  map entry containing key and value."
+  ([coll]
+   (if (= 2 (count coll))
+     ((.-from-vec basilisp.lang.map/MapEntry) coll)
+     (throw
+      (ex-info "Cannot coerce object to basilisp.lang.map.MapEntry"
+               {:coll coll
+                :type (type coll)}))))
+  ([k v]
+   ((.-of basilisp.lang.map/MapEntry) k v)))
 
 (defn key
   "Return the key from a map entry."
@@ -2731,18 +2747,26 @@
 
   Callers should use `definterface` to generate new interfaces."
   [interface-name methods]
-  (let [methods (reduce (fn [m [method-name args]]
-                          (let [method-args (->> (concat ['self] args)
+  (let [methods (reduce (fn [m [method-name args docstring]]
+                          (let [method-args (->> (concat ['^:no-warn-when-unused self] args)
                                                  (apply vector))
                                 method      (->> (list 'fn* method-name method-args)
                                                  (eval)
                                                  (abc/abstractmethod))]
+                            (when docstring
+                              (set! (.- method __doc__) docstring))
                             (assoc m (munge method-name) method)))
                         {}
                         methods)]
     (builtins/type interface-name
                    #py (abc/ABC)
                    (lisp->py methods))))
+
+;; The behavior described below where `definterface` forms are not permitted
+;; to be used in `deftype` and `defrecord` forms when they are not top-level
+;; is a bug, documented in the following issue:
+;;
+;; https://github.com/chrisrink10/basilisp/issues/376
 
 (defmacro definterface
   "Define a new Python interface (abstract base clase) with the given name
@@ -2759,12 +2783,28 @@
   by a concrete type.
 
   The generated interface will be immediately available after this form has
-  been evaluated and its utility is not limited to compilation."
+  been evaluated _if it is evaluated as a top-level form_. If this form appears
+  within a function and is referred to later in a `deftype` or `defrecord` form,
+  a compilation error will occur since the compiler will be unable to evaluate
+  whether the generated value refers to an abstract class."
   [interface-name & methods]
   (let [name-str    (name interface-name)
         method-sigs (map #(list 'quote %) methods)]
     `(def ~interface-name
        (gen-interface ~name-str [~@method-sigs]))))
+
+(defn ^:private collect-methods
+  "Collect method and interface declarations for `deftype` and `defrecord`
+  into a map containing `:interfaces` and `:methods` keys."
+  [method-impls]
+  (group-by (fn [v]
+              (cond
+                (symbol? v) :interfaces
+                (seq v)     :methods
+                :else       (throw
+                             (ex-info "Expected method definition or interface name"
+                                      {:value v :type (type v)}))))
+            method-impls))
 
 (defmacro deftype
   "Define a new Python concrete type which can implement 0 or more Python
@@ -2810,9 +2850,284 @@
   [type-name fields & method-impls]
   (let [ctor-name (with-meta
                     (symbol (str "->" (name type-name)))
-                    (meta type-name))]
+                    (meta type-name))
+
+        {:keys [interfaces methods]} (collect-methods method-impls)]
     `(do
        (deftype* ~type-name ~fields
-         ~@method-impls)
+         :implements [~@interfaces
+                      ~'basilisp.lang.interfaces/IType
+                      ~'builtins/object]
+         ~@methods)
        (def ~ctor-name ~type-name)
+       ~type-name)))
+
+(import* attr)
+
+(defn record?
+  "Return true if v is a record type."
+  [v]
+  (instance? basilisp.lang.interfaces/IRecord v))
+
+(defmulti ^:private evolve
+  (fn [v & _]
+    (cond
+      (record? v) :record
+      (map? v)    :map)))
+
+(defmethod evolve :map
+  [m & kwargs]
+  (apply assoc m kwargs))
+
+(defmethod evolve :record
+  [rec & kwargs]
+  (->> (apply hash-map kwargs)
+       (apply-kw attr/evolve rec)))
+
+(defn ^:private validate-record-fields
+  "Validate that record fields do not contain any reserved entries,
+  are not declared as mutable, and do not declare any default values."
+  [fields field-kws]
+  (when (some #(#{:meta :_recmap} %) field-kws)
+    (throw
+     (ex-info "Reserved fields cannot be used for Record field names"
+              {:fields (.intersection #{:meta :_recmap} (set field-kws))})))
+
+  (when (some #(:mutable (meta %)) fields)
+    (throw
+     (ex-info "Mutable fields not permitted in Record types"
+              {:fields (filter #(:mutable (meta %)) fields)})))
+
+  (when (some #(contains? (meta %) :default) fields)
+    (throw
+     (ex-info "Record fields may not specify defaults"
+              {:fields (filter #(contains? (meta %) :default) fields)}))))
+
+(defn ^:private validate-record-methods
+  "Validate that record methods are not declared as class methods,
+  properties, or static methods."
+  [methods]
+  (when (->> methods
+             (mapcat (fn [method]
+                       [(meta method) (meta (first method))]))
+             (some #(or (:classmethod %) (:property %) (:staticmethod %))))
+    (throw
+     (ex-info "Record methods may not be class methods, properties, or static methods"
+              {:methods methods}))))
+
+(defmacro defrecord
+  "Define a new Basilisp record.
+
+  The new record will have fields matching the names in `fields`. Fields may
+  be referred to unqualified in the bodies of implemented methods.
+
+  Interface or protocol implementations are declared as the name of the
+  interface or protocol as a symbol, followed by 1 or more method
+  definitions for that interface. Records are not required to declare
+  any interface implementations. Records which do declare interface
+  implementations are required to implement all interface methods. Failing
+  to implement all interface methods is a compile time error. Records
+  implementing `object` are not required to implement all `object` methods.
+
+  Method declarations should appear as:
+
+    (method-name [arg1 arg2 ...] & body)
+
+  Records objects are created with sensible `object` defaults as by `attrs`.
+  New records may override `object` defaults. An `__init__` function is
+  automatically created which takes positional arguments matching the
+  order of definition in `fields`. Additionally, given a name `NewRecord`,
+  a factory function will be created `->NewRecord` which can be used to
+  generate new instances of the record.
+
+  Methods must supply a `this` or `self` parameter. `recur` special forms
+  used in the body of a method should not include that parameter, as it
+  will be supplied automatically."
+  [type-name fields & method-impls]
+  (let [ctor-name     (with-meta
+                        (symbol (str "->" (name type-name)))
+                        (meta type-name))
+        map-ctor      (with-meta
+                        (symbol (str "map->" (name type-name)))
+                        (meta type-name))
+
+        record-fields (vec (concat fields
+                                   ['^{:default nil} meta
+                                    '^{:default {}} _recmap]))
+        field-kws     (->> fields (map (comp keyword name)))
+        field-kw-set  (set field-kws)
+
+        {:keys [interfaces methods]} (collect-methods method-impls)
+
+        interfaces (concat interfaces
+                           '[basilisp.lang.interfaces/IPersistentMap
+                             basilisp.lang.interfaces/IMeta
+                             basilisp.lang.interfaces/IRecord
+                             builtins/object])
+
+        ;; We can use these gensyms repeatedly and interpolate them in
+        ;; multiple layers of syntax quoting, unlike gensyms using # syntax.
+        this-gs  (gensym "this")
+        other-gs (gensym "other")
+        map-gs   (gensym "m")
+        key-gs   (gensym "k")]
+
+    (validate-record-fields fields field-kws)
+    (validate-record-methods methods)
+
+    `(do
+       (deftype* ~type-name ~record-fields
+         :implements [~@interfaces]
+
+         ;; IPersistentMap
+         (~'assoc [~this-gs ~'& args#]
+          (let [{fields# :fields map# :map} (->> (partition 2 args#)
+                                                 (group-by (fn [[k#]]
+                                                             (if (contains? ~field-kw-set k#)
+                                                               :fields
+                                                               :map))))
+
+                new-recmap# (when (seq map#)
+                              ;; Python attrs does not allow the underscore prefixed
+                              ;; field name in the constructor
+                              ["recmap" (->> (mapcat identity map#)
+                                             (apply assoc ~'_recmap))])]
+            (->> fields#
+                 (map (fn [[k# v#]] [(name k#) v#]))
+                 (mapcat identity)
+                 (concat new-recmap#)
+                 (apply evolve ~this-gs))))
+         (~'cons [~this-gs ~'& elems#]
+          (loop [[f# ~'& r#] elems#
+                 new-rec#    ~this-gs]
+            (cond
+              (nil? f#)
+              new-rec#
+
+              (map? f#)
+              (recur r#
+                     (->> (seq f#)
+                          (mapcat identity)
+                          (apply assoc new-rec#)))
+
+              (map-entry? f#)
+              (recur r# (assoc new-rec# (key f#) (val f#)))
+
+              (vector? f#)
+              (recur r# (apply assoc new-rec# f#))
+
+              (py-dict? f#)
+              (recur r#
+                     (->> (seq (.items f#))
+                          (map (fn [[k v]] (map-entry k v)))
+                          (apply conj new-rec#)))
+
+              :else
+              (throw
+               (ex-info "Argument to record conj must be another Map or castable to MapEntry"
+                        {:value f#
+                         :type  (builtins/type f#)})))))
+         (~'empty [~this-gs]
+          (throw
+           (builtins/TypeError
+            ~(str "Cannot create empty " type-name))))
+         (~'seq [~this-gs]
+          (concat
+           [~@(map (fn [field]
+                     (map-entry (keyword (name field)) field))
+                   fields)]
+           (seq ~'_recmap)))
+         (~'dissoc [~this-gs ~'& ks#]
+          (loop [[f# ~'& r#] ks#
+                 new-rec#    ~this-gs]
+            (cond
+              (nil? f#)
+              new-rec#
+
+              (contains? ~field-kw-set f#)
+              (recur r#
+                     (->> (seq new-rec#)
+                          (filter (fn [[k#]]
+                                    (not= k# f#)))
+                          (mapcat identity)
+                          (apply hash-map)))
+
+              (contains? (.- new-rec#  ~'_recmap) f#)
+              (recur r#
+                     (->> (dissoc (.- new-rec# ~'_recmap) f#)
+                          (evolve new-rec# "recmap")))
+
+              :else
+              (recur r# new-rec#))))
+         (~'contains [~this-gs ~key-gs]
+          (or (~field-kw-set ~key-gs)
+              (contains? ~'_recmap ~key-gs)))
+         (~'entry [~this-gs ~key-gs ~'& args#]
+          (let [[default#] args#]
+            (cond
+              (contains? ~field-kw-set ~key-gs)
+              (builtins/getattr ~this-gs (munge ~key-gs))
+
+              (contains? ~'_recmap ~key-gs)
+              (get ~'_recmap ~key-gs default#))))
+         (~'__getitem__ [~this-gs ~key-gs]
+          (. ~this-gs ~'entry ~key-gs))
+         (~'__iter__ [~this-gs]
+          (seq ~this-gs))
+         (~'__len__ [~this-gs]
+          (+ ~(count field-kw-set)
+             (count ~'_recmap)))
+
+         ;; IMeta
+         (~'with-meta [~this-gs new-meta#]
+          (->> (merge (or ~'meta {}) new-meta#)
+               (evolve ~this-gs "meta")))
+
+         ;; IRecord
+         (~' ^:classmethod create [cls# ~map-gs]
+          (cls#
+           ~@(map (fn [field-kw]
+                    `(get ~map-gs ~field-kw))
+                  field-kws)
+           nil
+           (dissoc ~map-gs ~@field-kws)))
+         (~'_record_lrepr [~this-gs py-kwargs#]
+          (let [{print-meta :print_meta} (py->lisp py-kwargs#)
+
+                ns-name   (name *ns*)
+                qual-name (.- ~type-name ~'__qualname__)]
+            (cond->> (->> (mapcat identity ~this-gs)
+                          (apply hash-map)
+                          (repr)
+                          (str "#" ns-name "." qual-name))
+              print-meta (str "^" (repr (meta ~this-gs)) " "))))
+
+         ;; object
+         (~'__eq__ [~this-gs ~other-gs]
+          (or (identical? ~this-gs ~other-gs)
+              (and (instance? (builtins/type ~this-gs) ~other-gs)
+                   (= [~@fields
+                       ~'_recmap]
+                      [~@(map (fn [field]
+                                `(.- ~other-gs ~field))
+                              fields)
+                       (.- ~other-gs ~'_recmap)]))))
+         (~'__hash__ [~this-gs]
+          (hash [~@fields ~'_recmap]))
+
+         ~@methods)
+
+       (defn ~ctor-name
+         ~(str
+           "Create a new instance of the record " type-name ".")
+         ~fields
+         (~type-name ~@fields nil {}))
+
+       (defn ~map-ctor
+         ~(str
+           "Create a new instance of the record " type-name " from a "
+           "map whose keys correspond to the fields of " type-name ".")
+         [m#]
+         ((.- ~type-name ~'create) m#))
+
        ~type-name)))

@@ -1,0 +1,275 @@
+(ns tests.basilisp.defrecord-test
+  (:import abc)
+  (:require
+   [basilisp.test :refer [deftest is testing]]))
+
+(deftype Square [dim]
+  (__eq__ [this other]
+    (and (instance? Square other)
+         (= dim (.-dim other)))))
+
+(deftest deftype-reader-form
+  (testing "type"
+    (is (= (->Square 5) #tests.basilisp.defrecord-test.Square[5])))
+
+  (testing "illegal other forms"
+    (is (thrown? basilisp.lang.reader/SyntaxError
+                 (read-string "#tests.basilisp.defrecord-test.Square{:dim 5}")))))
+
+(defrecord Point [x y z])
+
+(deftest simple-defrecord-test
+  (let [p  (->Point 1 2 3)
+        p1 (assoc p :w 0)
+        p2 (assoc p1 :new-key "some-value")
+        p3 (dissoc p :y)]
+
+    (testing "record?"
+      (is (record? p))
+      (is (record? p1))
+      (is (record? p2))
+      (is (not (record? p3)))
+      (is (map? p3)))
+
+    (testing "field access"
+      (is (= 1 (:x p)))
+      (is (= 2 (:y p)))
+      (is (= 3 (:z p)))
+      (is (nil? (:l p))))
+
+    (testing "field access with recmap"
+      (is (= [0 1 2 3]
+             ((juxt :w :x :y :z) p1)))
+      (is (nil? (:l p1)))
+      (is (nil? (:new-key p1)))
+      (is (= [0 1 2 3 "some-value"]
+             ((juxt :w :x :y :z :new-key) p2)))
+      (is (= [1 nil 3] ((juxt :x :y :z) p3))))
+
+    (testing "assoc"
+      (is (= 4 (:x (assoc p :x 4))))
+      (is (= 5 (:y (assoc p :y 5))))
+      (is (= 6 (:z (assoc p :z 6))))
+      (is (= [1 2 3] ((juxt :x :y :z) p)))
+      (is (nil? (:l p)))
+      (is (= 6 (:w (assoc p1 :w 6))))
+      (is (= [0 1 4 3] ((juxt :w :x :y :z) (assoc p1 :y 4))))
+      (is (= [8 1 4 3] ((juxt :w :x :y :z) (assoc p1 :y 4 :w 8))))
+      (is (= [0 1 2 3 "no-value"]
+             ((juxt :w :x :y :z :new-key)
+              (assoc p2 :new-key "no-value"))))
+      (is (= [0 1 15 3 "no-value"]
+             ((juxt :w :x :y :z :new-key)
+              (assoc p2 :new-key "no-value" :y 15)))))
+
+    (testing "conj"
+      (is (= p1 (conj p [:w 0])))
+      (is (= p1 (conj p (map-entry :w 0))))
+      (is (= p1 (conj p {:w 0})))
+      (is (= p1 (conj p #py {:w 0})))
+      (is (= p2 (conj p [:w 0] [:new-key "some-value"])))
+      (is (= p2 (conj p (map-entry :w 0) (map-entry :new-key "some-value"))))
+      (is (= p2 (conj p {:w 0} {:new-key "some-value"})))
+      (is (= p2 (conj p {:w 0 :new-key "some-value"})))
+      (is (= p2 (conj p #py {:w 0 :new-key "some-value"}))))
+
+    (testing "dissoc"
+      (is (= p (dissoc p :l)))
+      (is (= {} (dissoc p :x :y :z)))
+      (is (= {} (dissoc p :l :x :y :z)))
+      (is (= {:x 1} (dissoc p :y :z)))
+      (is (= p1 (dissoc p2 :new-key)))
+      (is (= p (dissoc p2 :new-key :w))))
+
+    (testing "contains?"
+      (is (contains? p :x))
+      (is (contains? p :y))
+      (is (contains? p :z))
+      (is (not (contains? p :i))))
+
+    (testing "contains? with recmap"
+      (is (contains? p1 :w))
+      (is (contains? p1 :x))
+      (is (contains? p1 :y))
+      (is (contains? p1 :z))
+      (is (not (contains? p1 :i)))
+      (is (contains? p2 :w))
+      (is (contains? p2 :x))
+      (is (contains? p2 :y))
+      (is (contains? p2 :z))
+      (is (not (contains? p2 :i)))
+      (is (contains? p2 :new-key))
+      (is (contains? p3 :x))
+      (is (not (contains? p3 :y)))
+      (is (contains? p3 :z)))
+
+    (testing "count"
+      (is (= 3 (count p)))
+      (is (= 4 (count p1)))
+      (is (= 5 (count p2)))
+      (is (= 2 (count p3))))
+
+    (testing "empty record not supported"
+      (is (thrown? builtins/TypeError
+                   (empty (->Point 1 2 3)))))
+
+    (testing "seq"
+      (is (= #{[:x 1] [:y 2] [:z 3]}
+             (set (seq p))))
+      (is (= #{[:w 0] [:x 1] [:y 2] [:z 3]}
+             (set (seq p1))))
+      (is (= #{[:w 0] [:x 1] [:y 2] [:z 3] [:new-key "some-value"]}
+             (set (seq p2))))
+      (is (= #{[:x 1] [:z 3]}
+             (set (seq p3)))))
+
+    (testing "equals"
+      (is (= (->Point 1 2 3) p))
+      (is (= p1
+             (-> (->Point 1 2 3)
+                 (assoc :w 0))))
+      (is (= p2
+             (-> (->Point 1 2 3)
+                 (assoc :w 0 :new-key "some-value"))))
+      (is (= {:x 1 :z 3} p3)))
+
+    (testing "hash"
+      (is (= (hash [1 2 3 {}]) (hash p)))
+      (is (= (hash [1 2 3 {:w 0}]) (hash p1)))
+      (is (= (hash [1 2 3 {:w 0 :new-key "some-value"}]) (hash p2)))
+      (is (= (hash {:x 1 :z 3}) (hash p3))))
+
+    (testing "meta and with-meta"
+      (is (nil? (meta p)))
+      (is (= {:tag Point} (meta (with-meta p {:tag Point})))))
+
+    (testing "repr"
+      (is (contains? #{"#tests.basilisp.defrecord-test.Point{:x 1 :y 2 :z 3}"
+                       "#tests.basilisp.defrecord-test.Point{:y 2 :z 3 :x 1}"
+                       "#tests.basilisp.defrecord-test.Point{:z 3 :x 1 :y 2}"
+                       "#tests.basilisp.defrecord-test.Point{:y 2 :x 1 :z 3}"
+                       "#tests.basilisp.defrecord-test.Point{:x 1 :z 3 :y 2}"
+                       "#tests.basilisp.defrecord-test.Point{:z 3 :y 2 :x 1}"}
+                     (str p)))
+      (is (contains? #{"^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:x 1 :y 2 :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:y 2 :z 3 :x 1}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:z 3 :x 1 :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:y 2 :x 1 :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:x 1 :z 3 :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:z 3 :y 2 :x 1}"}
+                     (binding [*print-meta* true]
+                       (str (with-meta p {:interesting :yes}))))))))
+
+(definterface Shape
+  (area []))
+
+(defrecord Circle [radius]
+  Shape
+  (area [self]
+    (* 3.14 radius radius)))
+
+(deftest defrecord-with-methods
+  (let [c  (->Circle 1)
+        c1 (assoc c :name "Kurt")]
+
+    (testing "defrecord method"
+      (is (= 3.14 (.area c))))
+
+    (testing "is a Shape"
+      (is (instance? Shape c))
+      (is (instance? Shape c1)))
+
+    (testing "repr"
+      (is (= "#tests.basilisp.defrecord-test.Circle{:radius 1}"
+             (str c)))
+      (is (= "^{:interesting :yes} #tests.basilisp.defrecord-test.Circle{:radius 1}"
+             (binding [*print-meta* true]
+               (str (with-meta c {:interesting :yes})))))
+      (is (contains? #{"#tests.basilisp.defrecord-test.Circle{:radius 1 :name \"Kurt\"}"
+                       "#tests.basilisp.defrecord-test.Circle{:name \"Kurt\" :radius 1}"}
+                     (str c1))))))
+
+(deftest defrecord-reader-form
+  (testing "record without methods"
+    (let [p  (->Point 1 2 3)
+          p1 (assoc p :w 0)
+          p2 (assoc p1 :new-key "some-value")
+          p3 (dissoc p :y)]
+      (is (= p (eval (read-string (str p)))))
+      (is (= p1 (eval (read-string (str p1)))))
+      (is (= p2 (eval (read-string (str p2)))))
+      (is (= p3 (eval (read-string (str p3)))))
+      (is (= p #tests.basilisp.defrecord-test.Point[1 2 3]))))
+
+  (testing "record with methods"
+    (let [c  (->Circle 1)
+          c1 (assoc c :name "Kurt")
+          c2 (assoc c1 :radius 3)]
+      (is (= c (eval (read-string (str c)))))
+      (is (= c1 (eval (read-string (str c1)))))
+      (is (= c2 (eval (read-string (str c2)))))
+      (is (= c #tests.basilisp.defrecord-test.Circle[1]))))
+
+  (testing "illegal other forms"
+    (is (thrown? basilisp.lang.reader/SyntaxError
+                 (read-string "#tests.basilisp.defrecord-test.Circle#{1}")))
+    (is (thrown? basilisp.lang.reader/SyntaxError
+                 (read-string "#tests.basilisp.defrecord-test.Point(1 2 3)")))))
+
+(deftest defrecord-field-restrictions
+  (testing "reserved fields"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a b meta]))))
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a b _recmap])))))
+
+  (testing "mutable fields"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [^:mutable a b])))))
+
+  (testing "fields defaults"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a ^{:default "b"} b]))))))
+
+(def ^:private WithCls
+  (builtins/type "WithCls"
+                 #py (abc/ABC)
+                 #py {"create" (builtins/classmethod
+                                (abc/abstractmethod
+                                 (fn [cls])))}))
+
+(def ^:private WithProp
+  (builtins/type "WithProp"
+                 #py (abc/ABC)
+                 #py { "prop" (builtins/property
+                               (abc/abstractmethod
+                                (fn [self])))}))
+
+(def ^:private WithStatic
+  (builtins/type "WithStatic"
+                 #py (abc/ABC)
+                 #py {"dostatic" (builtins/staticmethod
+                                  (abc/abstractmethod
+                                   (fn [])))}))
+
+(deftest defrecord-method-restrictions
+  (testing "class methods"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a b]
+                          WithCls
+                          (^:classmethod create [cls]
+                           (cls 1 2)))))))
+
+  (testing "mutable fields"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a b]
+                          WithProp
+                          (^:property prop [this]
+                           (+ 1 2)))))))
+
+  (testing "fields defaults"
+    (is (thrown? basilisp.lang.compiler/CompilerException
+                 (eval '(defrecord NewType [a b]
+                          WithStatic
+                          (^:staticmethod dostatic []
+                           (+ 1 2))))))))

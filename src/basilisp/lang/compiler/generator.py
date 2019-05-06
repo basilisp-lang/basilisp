@@ -91,7 +91,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
-from basilisp.lang.interfaces import IMeta, ISeq
+from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
 from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
@@ -2404,6 +2404,45 @@ def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAS
     )
 
 
+def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPyAST:
+    assert isinstance(form, IRecord) and isinstance(
+        form, ISeqable
+    ), "IRecord types should also be ISeq"
+
+    tp = type(form)
+    assert hasattr(tp, "create") and callable(
+        tp.create
+    ), "IRecord and IType must declare a .create class method"
+
+    keys, vals, vals_deps = [], [], []
+    for k, v in runtime.to_seq(form):
+        assert isinstance(k, kw.Keyword), "Record key in seq must be keyword"
+        key_nodes = _kw_to_py_ast(ctx, k)
+        keys.append(key_nodes.node)
+        assert (
+            len(key_nodes.dependencies) == 0
+        ), "Simple AST generators must emit no dependencies"
+
+        val_nodes = _const_val_to_py_ast(ctx, v)
+        vals.append(val_nodes.node)
+        vals_deps.extend(val_nodes.dependencies)
+
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_load_attr(f"{tp.__qualname__}.create"),
+            args=[
+                ast.Call(
+                    func=_NEW_MAP_FN_NAME,
+                    args=[ast.Dict(keys=keys, values=vals)],
+                    keywords=[],
+                )
+            ],
+            keywords=[],
+        ),
+        dependencies=vals_deps,
+    )
+
+
 def _const_seq_to_py_ast(
     ctx: GeneratorContext, form: Union[llist.List, ISeq]
 ) -> GeneratedPyAST:
@@ -2423,6 +2462,22 @@ def _const_seq_to_py_ast(
         dependencies=list(
             chain(elem_deps, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
         ),
+    )
+
+
+def _const_type_to_py_ast(ctx: GeneratorContext, form: IType) -> GeneratedPyAST:
+    tp = type(form)
+
+    ctor_args = []
+    ctor_arg_deps: List[ast.AST] = []
+    for field in attr.fields(tp):
+        field_nodes = _const_val_to_py_ast(ctx, getattr(form, field.name, None))
+        ctor_args.append(field_nodes.node)
+        ctor_args.extend(field_nodes.dependencies)
+
+    return GeneratedPyAST(
+        node=ast.Call(func=_load_attr(tp.__qualname__), args=ctor_args, keywords=[]),
+        dependencies=ctor_arg_deps,
     )
 
 
@@ -2458,7 +2513,9 @@ _CONST_VALUE_HANDLERS: Mapping[Type, SimplePyASTGenerator] = {  # type: ignore
     llist.List: _const_seq_to_py_ast,
     lmap.Map: _const_map_to_py_ast,
     lset.Set: _const_set_to_py_ast,
+    IRecord: _const_record_to_py_ast,
     ISeq: _const_seq_to_py_ast,
+    IType: _const_type_to_py_ast,
     type(re.compile("")): _regex_to_py_ast,
     set: _const_py_set_to_py_ast,
     sym.Symbol: _const_sym_to_py_ast,
@@ -2478,8 +2535,13 @@ def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAS
     nested elements. For top-level :const Lisp AST nodes, see
     `_const_node_to_py_ast`."""
     handle_value = _CONST_VALUE_HANDLERS.get(type(form))
-    if handle_value is None and isinstance(form, ISeq):
-        handle_value = _const_seq_to_py_ast  # type: ignore
+    if handle_value is None:
+        if isinstance(form, ISeq):
+            handle_value = _const_seq_to_py_ast  # type: ignore
+        elif isinstance(form, IRecord):
+            handle_value = _const_record_to_py_ast
+        elif isinstance(form, IType):
+            handle_value = _const_type_to_py_ast
     assert handle_value is not None, "A type handler must be defined for constants"
     return handle_value(ctx, form)
 
@@ -2504,9 +2566,9 @@ _CONSTANT_HANDLER: Mapping[ConstType, SimplePyASTGenerator] = {  # type: ignore
     ConstType.KEYWORD: _kw_to_py_ast,
     ConstType.MAP: _const_map_to_py_ast,
     ConstType.SET: _const_set_to_py_ast,
-    ConstType.RECORD: None,
+    ConstType.RECORD: _const_record_to_py_ast,
     ConstType.SEQ: _const_seq_to_py_ast,
-    ConstType.TYPE: None,
+    ConstType.TYPE: _const_type_to_py_ast,
     ConstType.REGEX: _regex_to_py_ast,
     ConstType.SYMBOL: _const_sym_to_py_ast,
     ConstType.STRING: _str_to_py_ast,

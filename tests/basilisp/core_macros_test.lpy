@@ -1,4 +1,4 @@
-(ns basilisp.core-macros-test
+(ns tests.basilisp.core-macros-test
   (:import inspect)
   (:require
    [basilisp.test :refer [deftest is testing]]))

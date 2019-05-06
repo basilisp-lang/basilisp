@@ -828,7 +828,10 @@ def apply_kw(f, args):
     except TypeError as e:
         logger.debug("Ignored %s: %s", type(e).__name__, e)
 
-    kwargs = to_py(last, lambda kw: munge(kw.name, allow_builtins=True))
+    kwargs = {
+        to_py(k, lambda kw: munge(kw.name, allow_builtins=True)): v
+        for k, v in last.items()
+    }
     return f(*final, **kwargs)
 
 
@@ -981,7 +984,7 @@ def get(m, k, default=None):
     try:
         return m[k]
     except (KeyError, IndexError, TypeError) as e:
-        logger.debug("Ignored %s: %s", type(e).__name__, e)
+        logger.log(TRACE, "Ignored %s: %s", type(e).__name__, e)
         return default
 
 

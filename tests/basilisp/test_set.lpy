@@ -1,4 +1,4 @@
-(ns basilisp.test-set
+(ns tests.basilisp.test-set
   (:require
    [basilisp.set :as set]
    [basilisp.test :refer [deftest is testing]]))
