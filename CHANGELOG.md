@@ -5,8 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.1.dev10] - 2019-05-06
+### Added
+ * Added support for Record data types (#374, #378, and #380)
+ * Lots more useful core library functions (#373)
+
 ### Changed
+ * Refactor core interfaces under `basilisp.lang.interfaces` module (#370)
+ * Organize interface hierarchy to match Clojure's (#372)
  * Compile qualified `basilisp.lang.*` module references down to aliased references (#366)
+ * `let` and `loop` forms may now have empty binding vectors and empty bodies (#382)
 
 ## [v0.1.dev9] - 2019-03-29
 ### Added
@@ -139,6 +148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.dev10]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev9..v0.1.dev10
 [v0.1.dev9]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev8..v0.1.dev9
 [v0.1.dev8]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev7..v0.1.dev8
 [v0.1.dev7]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev6..v0.1.dev7
