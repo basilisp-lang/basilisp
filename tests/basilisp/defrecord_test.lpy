@@ -3,6 +3,19 @@
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
+(deftype Square [dim]
+  (__eq__ [this other]
+    (and (instance? Square other)
+         (= dim (.-dim other)))))
+
+(deftest deftype-reader-form
+  (testing "type"
+    (is (= (->Square 5) #tests.basilisp.defrecord-test.Square[5])))
+
+  (testing "illegal other forms"
+    (is (thrown? basilisp.lang.reader/SyntaxError
+                 (read-string "#tests.basilisp.defrecord-test.Square{:dim 5}")))))
+
 (defrecord Point [x y z])
 
 (deftest simple-defrecord-test

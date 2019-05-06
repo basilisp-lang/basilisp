@@ -2855,10 +2855,10 @@
         {:keys [interfaces methods]} (collect-methods method-impls)]
     `(do
        (deftype* ~type-name ~fields
-         ~@(when methods
-             `[:implements ~(conj interfaces
-                                  basilisp.lang.interfaces/IType)
-               ~@methods]))
+         :implements [~@interfaces
+                      ~'basilisp.lang.interfaces/IType
+                      ~'builtins/object]
+         ~@methods)
        (def ~ctor-name ~type-name)
        ~type-name)))
 
