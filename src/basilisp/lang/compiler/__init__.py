@@ -7,6 +7,13 @@ from typing import Any, Callable, Iterable, List, Mapping, Optional
 from astor import code_gen as codegen
 
 import basilisp.lang.runtime as runtime
+from basilisp.lang.compiler.analyzer import (  # noqa
+    AnalyzerContext,
+    WARN_ON_SHADOWED_NAME,
+    WARN_ON_SHADOWED_VAR,
+    WARN_ON_UNUSED_NAMES,
+    analyze_form,
+)
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
 from basilisp.lang.compiler.generator import (  # noqa
     GeneratedPyAST,
@@ -19,13 +26,6 @@ from basilisp.lang.compiler.generator import (  # noqa
     statementize as _statementize,
 )
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
-from basilisp.lang.compiler.parser import (  # noqa
-    ParserContext,
-    WARN_ON_SHADOWED_NAME,
-    WARN_ON_SHADOWED_VAR,
-    WARN_ON_UNUSED_NAMES,
-    parse_ast,
-)
 from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import genname
 
@@ -42,12 +42,12 @@ BytecodeCollector = Optional[Callable[[types.CodeType], None]]
 
 
 class CompilerContext:
-    __slots__ = ("_filename", "_gctx", "_pctx", "_optimizer")
+    __slots__ = ("_filename", "_actx", "_gctx", "_optimizer")
 
     def __init__(self, filename: str, opts: Optional[Mapping[str, bool]] = None):
         self._filename = filename
+        self._actx = AnalyzerContext(filename=filename, opts=opts)
         self._gctx = GeneratorContext(filename=filename, opts=opts)
-        self._pctx = ParserContext(filename=filename, opts=opts)
         self._optimizer = PythonASTOptimizer()
 
     @property
@@ -55,12 +55,12 @@ class CompilerContext:
         return self._filename
 
     @property
-    def generator_context(self) -> GeneratorContext:
-        return self._gctx
+    def analyzer_context(self) -> AnalyzerContext:
+        return self._actx
 
     @property
-    def parser_context(self) -> ParserContext:
-        return self._pctx
+    def generator_context(self) -> GeneratorContext:
+        return self._gctx
 
     @property
     def py_ast_optimizer(self) -> PythonASTOptimizer:
@@ -104,7 +104,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
 
     final_wrapped_name = genname(wrapped_fn_name)
 
-    lisp_ast = parse_ast(ctx.parser_context, form)
+    lisp_ast = analyze_form(ctx.analyzer_context, form)
     py_ast = gen_py_ast(ctx.generator_context, lisp_ast)
     form_ast = list(
         map(
@@ -191,7 +191,9 @@ def compile_module(
     _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, module)
 
     for form in forms:
-        nodes = gen_py_ast(ctx.generator_context, parse_ast(ctx.parser_context, form))
+        nodes = gen_py_ast(
+            ctx.generator_context, analyze_form(ctx.analyzer_context, form)
+        )
         _incremental_compile_module(
             ctx.py_ast_optimizer,
             nodes,
