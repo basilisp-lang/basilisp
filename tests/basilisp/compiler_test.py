@@ -1174,6 +1174,31 @@ class TestDefType:
             )
             assert None is Point.dostatic("x", "y")
 
+    class TestDefTypeReaderForm:
+        def test_ns_does_not_exist(self, test_ns: str, ns: runtime.Namespace):
+            with pytest.raises(reader.SyntaxError):
+                lcompile(f"#{test_ns}_other.NewType[1 2 3]")
+
+        def test_type_does_not_exist(self, test_ns: str, ns: runtime.Namespace):
+            with pytest.raises(reader.SyntaxError):
+                lcompile(f"#{test_ns}.NewType[1 2 3]")
+
+        def test_type_is_not_itype(self, test_ns: str, ns: runtime.Namespace):
+            # Set the Type in the namespace module manually, because
+            # our repeatedly recycled test namespace module does not
+            # report to contain NewType with standard deftype*
+            setattr(ns.module, "NewType", type("NewType", (object,), {}))
+            with pytest.raises(reader.SyntaxError):
+                lcompile(f"#{test_ns}.NewType[1 2])")
+
+        def test_type_is_not_irecord(self, test_ns: str, ns: runtime.Namespace):
+            # Set the Type in the namespace module manually, because
+            # our repeatedly recycled test namespace module does not
+            # report to contain NewType with standard deftype*
+            setattr(ns.module, "NewType", type("NewType", (IType, object), {}))
+            with pytest.raises(reader.SyntaxError):
+                lcompile(f"#{test_ns}.NewType{{:a 1 :b 2}}")
+
 
 def test_do(ns: runtime.Namespace):
     code = """
