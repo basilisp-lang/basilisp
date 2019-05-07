@@ -1,4 +1,3 @@
-import importlib.machinery
 import importlib.util
 import logging
 import marshal
@@ -6,7 +5,9 @@ import os
 import os.path
 import sys
 import types
+from functools import lru_cache
 from importlib.abc import MetaPathFinder, SourceLoader
+from importlib.machinery import ModuleSpec
 from typing import List, Mapping, MutableMapping, Optional
 
 import basilisp.lang.compiler as compiler
@@ -87,6 +88,40 @@ def _cache_from_source(path: str) -> str:
     return os.path.join(cache_path, filename + ".lpyc")
 
 
+@lru_cache()
+def _is_package(path: str) -> bool:
+    """Return True if"""
+    for _, dirs, files in os.walk(path):
+        for file in files:
+            if file.endswith(".lpy"):
+                return True
+        for dir in dirs:
+            if _is_package(dir):
+                return True
+    return False
+
+
+@lru_cache()
+def _is_namespace_package(path: str) -> bool:
+    """Return True if the current directory is a namespace Basilisp package.
+
+    Basilisp namespace packages are directories containing no __init__.py or
+    __init__.lpy files and at least one other Basilisp code file."""
+    no_inits = True
+    has_basilisp_files = False
+    for _, _, files in os.walk(path):
+        for file in files:
+            if file == "__init__.lpy" or file == "__init__.py":
+                no_inits = False
+            elif file.endswith(".lpy"):
+                has_basilisp_files = True
+
+        # Do not walk into child directories. They only concern us if
+        # code actually tries to import them.
+        break
+    return no_inits and has_basilisp_files
+
+
 class BasilispImporter(MetaPathFinder, SourceLoader):
     """Python import hook to allow directly loading Basilisp code within
     Python."""
@@ -99,24 +134,25 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         fullname: str,
         path,  # Optional[List[str]] # MyPy complains this is incompatible with supertype
         target: types.ModuleType = None,
-    ) -> Optional[importlib.machinery.ModuleSpec]:
+    ) -> Optional[ModuleSpec]:
         """Find the ModuleSpec for the specified Basilisp module.
 
         Returns None if the module is not a Basilisp module to allow import processing to continue."""
         package_components = fullname.split(".")
-        if path is None:
+        if not path:
             path = sys.path
             module_name = package_components
         else:
             module_name = [package_components[-1]]
 
         for entry in path:
+            root_path = os.path.join(entry, *module_name)
             filenames = [
-                f"{os.path.join(entry, *module_name, '__init__')}.lpy",
-                f"{os.path.join(entry, *module_name)}.lpy",
+                f"{os.path.join(root_path, '__init__')}.lpy",
+                f"{root_path}.lpy",
             ]
             for filename in filenames:
-                if os.path.exists(filename):
+                if os.path.isfile(filename):
                     state = {
                         "fullname": fullname,
                         "filename": filename,
@@ -127,8 +163,19 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                     logger.debug(
                         f"Found potential Basilisp module '{fullname}' in file '{filename}'"
                     )
-                    return importlib.machinery.ModuleSpec(
-                        fullname, self, origin=filename, loader_state=state
+                    return ModuleSpec(
+                        fullname,
+                        self,
+                        origin=filename,
+                        loader_state=state,
+                        is_package=filename.endswith("__init__.lpy") or _is_package(root_path),
+                    )
+            if os.path.isdir(root_path):
+                if _is_namespace_package(root_path):
+                    return ModuleSpec(
+                        fullname,
+                        None,
+                        is_package=True,
                     )
         return None
 
@@ -162,7 +209,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         spec = cached["spec"]
         return spec.loader_state.filename
 
-    def create_module(self, spec: importlib.machinery.ModuleSpec):
+    def create_module(self, spec: ModuleSpec):
         logger.debug(f"Creating Basilisp module '{spec.name}''")
         mod = types.ModuleType(spec.name)
         mod.__file__ = spec.loader_state["filename"]
