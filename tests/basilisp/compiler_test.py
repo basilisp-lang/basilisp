@@ -2769,6 +2769,13 @@ class TestSymbolResolution:
         with pytest.raises(compiler.CompilerException):
             lcompile("other.ns/name")
 
+    def test_nested_namespaced_sym_will_resolve(self, ns: runtime.Namespace):
+        assert lmap.MapEntry.of is lcompile("basilisp.lang.map.MapEntry/of")
+
+    def test_nested_bare_sym_will_not_resolve(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("basilisp.lang.map.MapEntry.of")
+
     def test_aliased_var_does_not_resolve(self, ns: runtime.Namespace):
         current_ns: runtime.Namespace = ns
         other_ns_name = sym.symbol("other.ns")
