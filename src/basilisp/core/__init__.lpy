@@ -1204,13 +1204,13 @@
   map entry containing key and value."
   ([coll]
    (if (= 2 (count coll))
-     ((.-from-vec basilisp.lang.map/MapEntry) coll)
+     (basilisp.lang.map.MapEntry/from-vec coll)
      (throw
       (ex-info "Cannot coerce object to basilisp.lang.map.MapEntry"
                {:coll coll
                 :type (type coll)}))))
   ([k v]
-   ((.-of basilisp.lang.map/MapEntry) k v)))
+   (basilisp.lang.map.MapEntry/of k v)))
 
 (defn key
   "Return the key from a map entry."
@@ -1920,7 +1920,7 @@
           attempting to change the root binding of this var will not
           change the default data readers."}
   default-data-readers
-  (.--DATA-READERS basilisp.lang.reader/ReaderContext))
+  basilisp.lang.reader.ReaderContext/_DATA_READERS)
 
 (def
   ^{:doc     "Data readers map which will be merged in to the default data

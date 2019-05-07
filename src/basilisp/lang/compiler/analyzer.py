@@ -2044,9 +2044,28 @@ def _list_node(ctx: AnalyzerContext, form: ISeq) -> Node:
     return _invoke_ast(ctx, form)
 
 
+def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
+    """Resolve an attribute by recursively accessing the parent object
+    as if it were its own namespaced symbol."""
+    assert form.ns is not None
+    assert "." in form.ns
+
+    parent_ns, parent_name = form.ns.rsplit(".", maxsplit=1)
+    parent = sym.symbol(parent_name, ns=parent_ns)
+    parent_node = __resolve_namespaced_symbol(ctx, parent)
+
+    return HostField(
+        form,
+        field=form.name,
+        target=parent_node,
+        is_assignable=True,
+        env=ctx.get_node_env(),
+    )
+
+
 def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[MaybeClass, MaybeHostForm, VarRef]:
+) -> Union[HostField, MaybeClass, MaybeHostForm, VarRef]:
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
     assert form.ns is not None
 
@@ -2129,6 +2148,8 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
                 form=form,
             )
         return VarRef(form=form, var=v, env=ctx.get_node_env())
+    elif "." in form.ns:
+        return _resolve_nested_symbol(ctx, form)
     else:
         raise AnalyzerException(
             f"unable to resolve symbol '{form}' in this context", form=form
@@ -2169,7 +2190,7 @@ def __resolve_bare_symbol(
 
 def _resolve_sym(
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[MaybeClass, MaybeHostForm, VarRef]:
+) -> Union[HostField, MaybeClass, MaybeHostForm, VarRef]:
     """Resolve a Basilisp symbol as a Var or Python name."""
     # Support special class-name syntax to instantiate new classes
     #   (Classname. *args)
@@ -2190,7 +2211,7 @@ def _resolve_sym(
 
 def _symbol_node(
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[Const, Local, MaybeClass, MaybeHostForm, VarRef]:
+) -> Union[Const, HostField, Local, MaybeClass, MaybeHostForm, VarRef]:
     if ctx.is_quoted:
         return _const_node(ctx, form)
 

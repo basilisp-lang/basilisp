@@ -435,8 +435,8 @@ class HostCall(Node[SpecialForm]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class HostField(Node[SpecialForm], Assignable):
-    form: SpecialForm
+class HostField(Node[Union[SpecialForm, sym.Symbol]], Assignable):
+    form: Union[SpecialForm, sym.Symbol]
     field: str
     target: Node
     env: NodeEnv
