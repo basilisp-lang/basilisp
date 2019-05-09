@@ -2,7 +2,7 @@ import importlib
 import os.path
 import sys
 from tempfile import TemporaryDirectory, mkstemp
-from typing import Tuple
+from typing import Optional, Tuple
 from unittest.mock import patch
 
 import pytest
@@ -13,7 +13,7 @@ import basilisp.importer as importer
 import basilisp.lang.keyword as kw
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
-from basilisp.lang.util import demunge
+from basilisp.lang.util import demunge, munge
 
 
 def importer_counter():
@@ -142,123 +142,118 @@ class TestImporter:
             == runtime.Namespace.get(sym.symbol(ns_name)).find(sym.symbol("val")).value
         )
 
-    def test_import_module_with_init(self, module_dir):
-        os.mkdir(os.path.join(module_dir, "core"))
+    @pytest.fixture
+    def cached_module_file(self, do_cache_namespaces, new_module_file):
+        mod = new_module_file()
+        ns_name, mod_name = _ns_and_module(mod.name)
+        mod.write(f"(ns {ns_name}) (def val :basilisp.namespace/invalid-cache)")
+        mod.flush()
 
-        with open(os.path.join(module_dir, "core", "__init__.lpy"), mode="w") as mod:
-            mod.write(f"(ns core) (def val :basilisp.core/init-namespace)")
-            mod.flush()
+        importlib.import_module(mod_name)
+        return ns_name, mod_name, importer._cache_from_source(mod.name)
 
-        with open(os.path.join(module_dir, "core", "sub.lpy"), mode="w") as mod:
-            mod.write(f"(ns core.sub) (def val :basilisp.core.sub/namespace)")
-            mod.flush()
+    def test_import_module_with_invalid_cache_magic_number(
+        self, monkeypatch: MonkeyPatch, module_cache, cached_module_file
+    ):
+        with monkeypatch.context() as mctx:
+            mctx.setattr("sys.modules", module_cache)
+            ns_name, mod_name, cache_filename = cached_module_file
 
-        importlib.import_module("core")
-        importlib.import_module("core.sub")
+            with open(cache_filename, "r+b") as f:
+                f.seek(0)
+                f.write(b"1999")
 
-        assert (
-            kw.keyword("init-namespace", ns="basilisp.core")
-            == runtime.Namespace.get(sym.symbol("core")).find(sym.symbol("val")).value
-        )
-
-        assert (
-            kw.keyword("namespace", ns="basilisp.core.sub")
-            == runtime.Namespace.get(sym.symbol("core.sub"))
-            .find(sym.symbol("val"))
-            .value
-        )
-
-        runtime.Namespace.remove(sym.symbol("core"))
-        runtime.Namespace.remove(sym.symbol("core.sub"))
-
-    def test_import_module_without_init(self, module_dir):
-        os.mkdir(os.path.join(module_dir, "core"))
-
-        with open(os.path.join(module_dir, "core.lpy"), mode="w") as mod:
-            mod.write(f"(ns core) (def val :basilisp.core/standard-namespace)")
-            mod.flush()
-
-        with open(os.path.join(module_dir, "core", "child.lpy"), mode="w") as mod:
-            mod.write(
-                f"(ns core.child) (def val :basilisp.core.child/standard-namespace)"
+            importlib.import_module(mod_name)
+            assert (
+                kw.keyword("invalid-cache", ns="basilisp.namespace")
+                == runtime.Namespace.get(sym.symbol(ns_name))
+                .find(sym.symbol("val"))
+                .value
             )
-            mod.flush()
 
-        importlib.import_module("core")
-        importlib.import_module("core.child")
+    class TestPackageStructure:
+        @pytest.fixture
+        def make_new_module(self, module_dir):
+            """Fixture returning a function which creates a new module and then
+            removes it after the test run."""
+            filenames = []
 
-        assert (
-            kw.keyword("standard-namespace", ns="basilisp.core")
-            == runtime.Namespace.get(sym.symbol("core")).find(sym.symbol("val")).value
-        )
+            def _make_new_module(ns_name: str, *ns_path: str, module_text: Optional[str] = None) -> None:
+                """Generate a new Namespace with a single Var named 'val' which
+                contains the string name of the current namespace."""
+                if ns_path[:-1]:
+                    os.makedirs(os.path.join(module_dir, *ns_path[:-1]), exist_ok=True)
 
-        assert (
-            kw.keyword("standard-namespace", ns="basilisp.core.child")
-            == runtime.Namespace.get(sym.symbol("core.child"))
-            .find(sym.symbol("val"))
-            .value
-        )
+                filename = os.path.join(module_dir, *ns_path)
+                filenames.append(filename)
 
-        runtime.Namespace.remove(sym.symbol("core"))
-        runtime.Namespace.remove(sym.symbol("core.child"))
+                with open(filename, mode="w") as mod:
+                    if module_text is None:
+                        mod.write(f"(ns {ns_name}) (def val (name *ns*))")
+                    else:
+                        mod.write(module_text)
 
-    def test_import_module_with_namespace_only_pkg(self, module_dir):
-        os.mkdir(os.path.join(module_dir, "core"))
-        os.mkdir(os.path.join(module_dir, "core", "nested"))
+            try:
+                yield _make_new_module
+            finally:
+                for filename in filenames:
+                    os.unlink(filename)
 
-        with open(os.path.join(module_dir, "core.lpy"), mode="w") as mod:
-            mod.write(f"(ns core) (def val :basilisp.core/grandparent-namespace)")
-            mod.flush()
+        @pytest.fixture
+        def load_namespace(self):
+            """Fixture returning a function which loads a namespace by name and
+            then removes it after the test run."""
+            namespaces = []
 
-        with open(os.path.join(module_dir, "core", "nested", "child.lpy"), mode="w") as mod:
-            mod.write(
-                f"(ns core.nested.child) (def val :basilisp.core.nested.child/standard-namespace)"
+            def _load_namespace(ns_name: str):
+                """Load the named Namespace and return it."""
+                namespaces.append(ns_name)
+                importlib.import_module(munge(ns_name))
+                return runtime.Namespace.get(sym.symbol(ns_name))
+
+            try:
+                yield _load_namespace
+            finally:
+                for namespace in namespaces:
+                    runtime.Namespace.remove(sym.symbol(namespace))
+
+        def test_import_module_no_child(self, make_new_module, load_namespace):
+            make_new_module("core", "core.lpy")
+
+            core = load_namespace("core")
+
+            assert "core" == core.find(sym.symbol("val")).value
+
+        def test_import_module_with_init(self, make_new_module, load_namespace):
+            make_new_module("core", "core", "__init__.lpy")
+            make_new_module("core.sub", "core", "sub.lpy")
+
+            core = load_namespace("core")
+            core_sub = load_namespace("core.sub")
+
+            assert "core" == core.find(sym.symbol("val")).value
+            assert "core.sub" == core_sub.find(sym.symbol("val")).value
+
+        def test_import_module_without_init(self, make_new_module, load_namespace):
+            make_new_module("core", "core.lpy")
+            make_new_module("core.child", "core", "child.lpy")
+
+            core = load_namespace("core")
+            core_child = load_namespace("core.child")
+
+            assert "core" == core.find(sym.symbol("val")).value
+            assert "core.child" == core_child.find(sym.symbol("val")).value
+
+        def test_import_module_with_namespace_only_pkg(
+            self, make_new_module, load_namespace
+        ):
+            make_new_module("core", "core.lpy")
+            make_new_module("core.nested.child", "core", "nested", "child.lpy")
+
+            core = load_namespace("core")
+            core_nested_child = load_namespace("core.nested.child")
+
+            assert "core" == core.find(sym.symbol("val")).value
+            assert (
+                "core.nested.child" == core_nested_child.find(sym.symbol("val")).value
             )
-            mod.flush()
-
-        importlib.import_module("core")
-        importlib.import_module("core.nested.child")
-
-        assert (
-            kw.keyword("grandparent-namespace", ns="basilisp.core")
-            == runtime.Namespace.get(sym.symbol("core")).find(sym.symbol("val")).value
-        )
-
-        assert (
-            kw.keyword("standard-namespace", ns="basilisp.core.nested.child")
-            == runtime.Namespace.get(sym.symbol("core.nested.child"))
-            .find(sym.symbol("val"))
-            .value
-        )
-
-        runtime.Namespace.remove(sym.symbol("core"))
-        runtime.Namespace.remove(sym.symbol("core.nested.child"))
-
-    # @pytest.fixture
-    # def cached_module_file(self, do_cache_namespaces, new_module_file):
-    #     mod = new_module_file()
-    #     ns_name, mod_name = _ns_and_module(mod.name)
-    #     mod.write(f"(ns {ns_name}) (def val :basilisp.namespace/invalid-cache)")
-    #     mod.flush()
-    #
-    #     importlib.import_module(mod_name)
-    #     return ns_name, mod_name, importer._cache_from_source(mod.name)
-    #
-    # def test_import_module_with_invalid_cache_magic_number(
-    #     self, monkeypatch: MonkeyPatch, module_cache, cached_module_file
-    # ):
-    #     with monkeypatch.context() as mctx:
-    #         mctx.setattr("sys.modules", module_cache)
-    #         ns_name, mod_name, cache_filename = cached_module_file
-    #
-    #         with open(cache_filename, "r+b") as f:
-    #             f.seek(0)
-    #             f.write(b"1999")
-    #
-    #         importlib.import_module(mod_name)
-    #         assert (
-    #             kw.keyword("invalid-cache", ns="basilisp.namespace")
-    #             == runtime.Namespace.get(sym.symbol(ns_name))
-    #             .find(sym.symbol("val"))
-    #             .value
-    #         )

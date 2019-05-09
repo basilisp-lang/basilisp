@@ -90,13 +90,13 @@ def _cache_from_source(path: str) -> str:
 
 @lru_cache()
 def _is_package(path: str) -> bool:
-    """Return True if"""
-    for _, dirs, files in os.walk(path):
+    """Return True if path should be considered a Basilisp (and consequently
+    a Python) package.
+
+    A path would be considered a package if it contains at least """
+    for _, _, files in os.walk(path):
         for file in files:
-            if file.endswith(".lpy"):
-                return True
-        for dir in dirs:
-            if _is_package(dir):
+            if file.endswith(".lpy") or file.endswith(".py"):
                 return True
     return False
 
@@ -109,16 +109,12 @@ def _is_namespace_package(path: str) -> bool:
     __init__.lpy files and at least one other Basilisp code file."""
     no_inits = True
     has_basilisp_files = False
-    for _, _, files in os.walk(path):
-        for file in files:
-            if file == "__init__.lpy" or file == "__init__.py":
-                no_inits = False
-            elif file.endswith(".lpy"):
-                has_basilisp_files = True
-
-        # Do not walk into child directories. They only concern us if
-        # code actually tries to import them.
-        break
+    _, _, files = next(os.walk(path))
+    for file in files:
+        if file == "__init__.lpy" or file == "__init__.py":
+            no_inits = False
+        elif file.endswith(".lpy"):
+            has_basilisp_files = True
     return no_inits and has_basilisp_files
 
 
@@ -168,15 +164,12 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                         self,
                         origin=filename,
                         loader_state=state,
-                        is_package=filename.endswith("__init__.lpy") or _is_package(root_path),
+                        is_package=filename.endswith("__init__.lpy")
+                        or _is_package(root_path),
                     )
             if os.path.isdir(root_path):
                 if _is_namespace_package(root_path):
-                    return ModuleSpec(
-                        fullname,
-                        None,
-                        is_package=True,
-                    )
+                    return ModuleSpec(fullname, None, is_package=True)
         return None
 
     def invalidate_caches(self):
@@ -201,7 +194,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         with open(path, mode="w+b") as f:
             f.write(data)
 
-    def get_filename(self, fullname: str) -> str:
+    def get_filename(self, fullname: str) -> str:  # pragma: no cover
         try:
             cached = self._cache[fullname]
         except KeyError:
