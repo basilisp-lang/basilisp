@@ -93,7 +93,8 @@ def _is_package(path: str) -> bool:
     """Return True if path should be considered a Basilisp (and consequently
     a Python) package.
 
-    A path would be considered a package if it contains at least """
+    A path would be considered a package if it contains at least one Basilisp
+    or Python code file."""
     for _, _, files in os.walk(path):
         for file in files:
             if file.endswith(".lpy") or file.endswith(".py"):
@@ -111,7 +112,7 @@ def _is_namespace_package(path: str) -> bool:
     has_basilisp_files = False
     _, _, files = next(os.walk(path))
     for file in files:
-        if file == "__init__.lpy" or file == "__init__.py":
+        if file in {"__init__.lpy", "__init__.py"}:
             no_inits = False
         elif file.endswith(".lpy"):
             has_basilisp_files = True
@@ -159,14 +160,26 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                     logger.debug(
                         f"Found potential Basilisp module '{fullname}' in file '{filename}'"
                     )
-                    return ModuleSpec(
+                    is_package = filename.endswith("__init__.lpy") or _is_package(
+                        root_path
+                    )
+                    spec = ModuleSpec(
                         fullname,
                         self,
                         origin=filename,
                         loader_state=state,
-                        is_package=filename.endswith("__init__.lpy")
-                        or _is_package(root_path),
+                        is_package=is_package,
                     )
+                    # The Basilisp loader can find packages regardless of
+                    # submodule_search_locations, but the Python loader cannot.
+                    # Set this to the root path to allow the Python loader to
+                    # load submodules of Basilisp "packages".
+                    if is_package:
+                        assert (
+                            spec.submodule_search_locations is not None
+                        ), "Package module spec must have submodule_search_locations list"
+                        spec.submodule_search_locations.append(root_path)
+                    return spec
             if os.path.isdir(root_path):
                 if _is_namespace_package(root_path):
                     return ModuleSpec(fullname, None, is_package=True)

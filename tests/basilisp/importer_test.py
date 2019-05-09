@@ -178,9 +178,17 @@ class TestImporter:
             removes it after the test run."""
             filenames = []
 
-            def _make_new_module(ns_name: str, *ns_path: str, module_text: Optional[str] = None) -> None:
-                """Generate a new Namespace with a single Var named 'val' which
-                contains the string name of the current namespace."""
+            def _make_new_module(
+                *ns_path: str, ns_name: str = "", module_text: Optional[str] = None
+            ) -> None:
+                """Generate a new module. If ns_name is not the empty string, use that
+                name as the name of a Basilisp namespace with a single Var named `val`
+                containing the name of the namespace. Otherwise, if module_text is not
+                None, emit that module text directly to the generated module.
+
+                You may specify only either the ns_name or module_text."""
+                assert ns_name == "" or module_text is None
+
                 if ns_path[:-1]:
                     os.makedirs(os.path.join(module_dir, *ns_path[:-1]), exist_ok=True)
 
@@ -188,7 +196,7 @@ class TestImporter:
                 filenames.append(filename)
 
                 with open(filename, mode="w") as mod:
-                    if module_text is None:
+                    if ns_name != "" and module_text is None:
                         mod.write(f"(ns {ns_name}) (def val (name *ns*))")
                     else:
                         mod.write(module_text)
@@ -218,15 +226,69 @@ class TestImporter:
                     runtime.Namespace.remove(sym.symbol(namespace))
 
         def test_import_module_no_child(self, make_new_module, load_namespace):
-            make_new_module("core", "core.lpy")
+            make_new_module("core.lpy", ns_name="core")
 
             core = load_namespace("core")
 
             assert "core" == core.find(sym.symbol("val")).value
 
-        def test_import_module_with_init(self, make_new_module, load_namespace):
-            make_new_module("core", "core", "__init__.lpy")
-            make_new_module("core.sub", "core", "sub.lpy")
+        def test_import_module_with_non_code_child(
+            self, make_new_module, load_namespace
+        ):
+            make_new_module("core.lpy", ns_name="core")
+            make_new_module("core", "resource.txt", module_text="{}")
+
+            core = load_namespace("core")
+
+            assert "core" == core.find(sym.symbol("val")).value
+
+        def test_import_module_without_init_with_python_child(
+            self, make_new_module, load_namespace
+        ):
+            """Load a Basilisp namespace and a Python submodule of that namespace."""
+            make_new_module("core.lpy", ns_name="core")
+            make_new_module("core", "child.py", module_text="""val = __name__""")
+
+            core = load_namespace("core")
+            core_child = importlib.import_module("core.child")
+
+            assert "core" == core.find(sym.symbol("val")).value
+            assert "core.child" == core_child.val
+
+        def test_import_basilisp_child_with_python_init(
+            self, make_new_module, load_namespace
+        ):
+            """Load a Python package and a Basilisp submodule namespace of that
+            package."""
+            make_new_module("core", "__init__.py", module_text="val = __name__")
+            make_new_module("core", "child.lpy", ns_name="core.child")
+
+            pycore = importlib.import_module("core")
+            core_child = load_namespace("core.child")
+
+            assert "core" == pycore.val
+            assert "core.child" == core_child.find(sym.symbol("val")).value
+
+        def test_import_basilisp_and_python_module_siblings(
+            self, make_new_module, load_namespace
+        ):
+            """Load a Python module and Basilisp namespace which are siblings."""
+            make_new_module("core.lpy", ns_name="core")
+            make_new_module("main.py", module_text="""val = __name__""")
+
+            core = load_namespace("core")
+            pymain = importlib.import_module("main")
+
+            assert "core" == core.find(sym.symbol("val")).value
+            assert "main" == pymain.val
+
+        def test_import_basilisp_child_with_basilisp_init(
+            self, make_new_module, load_namespace
+        ):
+            """Load a Basilisp package namespace setup as a Python package
+            and a child Basilisp namespace of that package."""
+            make_new_module("core", "__init__.lpy", ns_name="core")
+            make_new_module("core", "sub.lpy", ns_name="core.sub")
 
             core = load_namespace("core")
             core_sub = load_namespace("core.sub")
@@ -235,8 +297,10 @@ class TestImporter:
             assert "core.sub" == core_sub.find(sym.symbol("val")).value
 
         def test_import_module_without_init(self, make_new_module, load_namespace):
-            make_new_module("core", "core.lpy")
-            make_new_module("core.child", "core", "child.lpy")
+            """Load a Basilisp namespace and a Basilisp child namespace in the
+            typical Clojure fashion."""
+            make_new_module("core.lpy", ns_name="core")
+            make_new_module("core", "child.lpy", ns_name="core.child")
 
             core = load_namespace("core")
             core_child = load_namespace("core.child")
@@ -247,8 +311,10 @@ class TestImporter:
         def test_import_module_with_namespace_only_pkg(
             self, make_new_module, load_namespace
         ):
-            make_new_module("core", "core.lpy")
-            make_new_module("core.nested.child", "core", "nested", "child.lpy")
+            """Load a Basilisp namespace and another Basilisp namespace using
+            a Python namespace package."""
+            make_new_module("core.lpy", ns_name="core")
+            make_new_module("core", "nested", "child.lpy", ns_name="core.nested.child")
 
             core = load_namespace("core")
             core_nested_child = load_namespace("core.nested.child")
