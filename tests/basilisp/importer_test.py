@@ -1,7 +1,8 @@
 import importlib
 import os.path
 import sys
-from tempfile import TemporaryDirectory, mkstemp
+from multiprocessing import Process
+from tempfile import TemporaryDirectory
 from typing import Optional, Tuple
 from unittest.mock import patch
 
@@ -10,7 +11,6 @@ from _pytest.monkeypatch import MonkeyPatch
 from _pytest.pytester import Testdir
 
 import basilisp.importer as importer
-import basilisp.lang.keyword as kw
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
 from basilisp.lang.util import demunge, munge
@@ -96,135 +96,189 @@ class TestImporter:
             yield tmpdir
 
     @pytest.fixture
-    def new_module_file(self, module_dir):
-        files = {}
+    def make_new_module(self, module_dir):
+        """Fixture returning a function which creates a new module and then
+        removes it after the test run."""
+        filenames = []
 
-        def _new_module_file(mode: str = "w"):
-            fd, filename = mkstemp(
-                suffix=".lpy", prefix="importer", dir=module_dir, text=True
-            )
-            file = open(filename, mode=mode)
-            files[filename] = file
-            return file
+        def _make_new_module(
+            *ns_path: str, ns_name: str = "", module_text: Optional[str] = None
+        ) -> None:
+            """Generate a new module. If ns_name is not the empty string, use that
+            name as the name of a Basilisp namespace with a single Var named `val`
+            containing the name of the namespace. Otherwise, if module_text is not
+            None, emit that module text directly to the generated module.
+
+            You may specify only either the ns_name or module_text.
+
+            This method always cleans up the module and any cached modules that it
+            creates."""
+            assert ns_name == "" or module_text is None
+
+            if ns_path[:-1]:
+                os.makedirs(os.path.join(module_dir, *ns_path[:-1]), exist_ok=True)
+
+            filename = os.path.join(module_dir, *ns_path)
+            filenames.append(filename)
+
+            with open(filename, mode="w") as mod:
+                if ns_name != "" and module_text is None:
+                    mod.write(f"(ns {ns_name}) (def val (name *ns*))")
+                else:
+                    mod.write(module_text)
 
         try:
-            yield _new_module_file
+            yield _make_new_module
         finally:
-            for filename, file in files.items():
-                file.close()
+            for filename in filenames:
                 os.unlink(filename)
 
-    def test_import_module(self, new_module_file):
-        mod = new_module_file()
-        ns_name, mod_name = _ns_and_module(mod.name)
-        mod.write(f"(ns {ns_name}) (def val :basilisp.namespace/not-cached)")
-        mod.flush()
+                try:
+                    os.unlink(importer._cache_from_source(filename))
+                except FileNotFoundError:
+                    pass
 
-        importlib.import_module(mod_name)
+    @pytest.fixture
+    def load_namespace(self):
+        """Fixture returning a function which loads a namespace by name and
+        then removes it after the test run."""
+        namespaces = []
+
+        def _load_namespace(ns_name: str):
+            """Load the named Namespace and return it."""
+            namespaces.append(ns_name)
+            importlib.import_module(munge(ns_name))
+            return runtime.Namespace.get(sym.symbol(ns_name))
+
+        try:
+            yield _load_namespace
+        finally:
+            for namespace in namespaces:
+                runtime.Namespace.remove(sym.symbol(namespace))
+
+    def test_import_module(self, make_new_module, load_namespace):
+        make_new_module(
+            "importer",
+            "namespace",
+            "not_cached.lpy",
+            ns_name="importer.namespace.not-cached",
+        )
+
+        not_cached = load_namespace("importer.namespace.not-cached")
 
         assert (
-            kw.keyword("not-cached", ns="basilisp.namespace")
-            == runtime.Namespace.get(sym.symbol(ns_name)).find(sym.symbol("val")).value
+            "importer.namespace.not-cached" == not_cached.find(sym.symbol("val")).value
         )
 
     def test_import_module_without_cache(
-        self, new_module_file, do_not_cache_namespaces
+        self, do_not_cache_namespaces, make_new_module, load_namespace
     ):
-        mod = new_module_file()
-        ns_name, mod_name = _ns_and_module(mod.name)
-        mod.write(f"(ns {ns_name}) (def val :basilisp.namespace/without-cache)")
-        mod.flush()
+        make_new_module(
+            "importer",
+            "namespace",
+            "without_cache.lpy",
+            ns_name="importer.namespace.without-cache",
+        )
 
-        importlib.import_module(mod_name)
+        not_cached = load_namespace("importer.namespace.without-cache")
 
         assert (
-            kw.keyword("without-cache", ns="basilisp.namespace")
-            == runtime.Namespace.get(sym.symbol(ns_name)).find(sym.symbol("val")).value
+            "importer.namespace.without-cache"
+            == not_cached.find(sym.symbol("val")).value
         )
 
     @pytest.fixture
-    def cached_module_file(self, do_cache_namespaces, new_module_file):
-        mod = new_module_file()
-        ns_name, mod_name = _ns_and_module(mod.name)
-        mod.write(f"(ns {ns_name}) (def val :basilisp.namespace/invalid-cache)")
-        mod.flush()
+    def cached_module_ns(self) -> str:
+        return "importer.namespace.using_cache"
 
-        importlib.import_module(mod_name)
-        return ns_name, mod_name, importer._cache_from_source(mod.name)
+    @pytest.fixture
+    def cached_module_file(
+        self, do_cache_namespaces, cached_module_ns, make_new_module
+    ):
+        file_path = ("importer", "namespace", "using_cache.lpy")
+        make_new_module(*file_path, ns_name=cached_module_ns)
+
+        # Import the module out of the current process to avoid having to
+        # monkeypatch sys.modules
+        p = Process(target=importlib.import_module, args=(munge(cached_module_ns),))
+        p.start()
+        p.join()
+        return os.path.join(*file_path)
+
+    def test_import_module_with_cache(
+        self, module_dir, cached_module_ns, cached_module_file, load_namespace
+    ):
+        using_cache = load_namespace(cached_module_ns)
+        assert cached_module_ns == using_cache.find(sym.symbol("val")).value
 
     def test_import_module_with_invalid_cache_magic_number(
-        self, monkeypatch: MonkeyPatch, module_cache, cached_module_file
+        self, module_dir, cached_module_ns, cached_module_file, load_namespace
     ):
-        with monkeypatch.context() as mctx:
-            mctx.setattr("sys.modules", module_cache)
-            ns_name, mod_name, cache_filename = cached_module_file
+        cache_filename = importer._cache_from_source(
+            os.path.join(module_dir, cached_module_file)
+        )
+        with open(cache_filename, mode="r+b") as f:
+            f.seek(0)
+            f.write(b"1999")
 
-            with open(cache_filename, "r+b") as f:
-                f.seek(0)
-                f.write(b"1999")
+        using_cache = load_namespace(cached_module_ns)
+        assert cached_module_ns == using_cache.find(sym.symbol("val")).value
 
-            importlib.import_module(mod_name)
-            assert (
-                kw.keyword("invalid-cache", ns="basilisp.namespace")
-                == runtime.Namespace.get(sym.symbol(ns_name))
-                .find(sym.symbol("val"))
-                .value
-            )
+    def test_import_module_with_truncated_timestamp(
+        self, module_dir, cached_module_ns, cached_module_file, load_namespace
+    ):
+        cache_filename = importer._cache_from_source(
+            os.path.join(module_dir, cached_module_file)
+        )
+        with open(cache_filename, mode="w+b") as f:
+            f.write(importer.MAGIC_NUMBER)
+            f.write(b"abc")
+
+        using_cache = load_namespace(cached_module_ns)
+        assert cached_module_ns == using_cache.find(sym.symbol("val")).value
+
+    def test_import_module_with_invalid_timestamp(
+        self, module_dir, cached_module_ns, cached_module_file, load_namespace
+    ):
+        cache_filename = importer._cache_from_source(
+            os.path.join(module_dir, cached_module_file)
+        )
+        with open(cache_filename, mode="r+b") as f:
+            f.seek(4)
+            f.write(importer._w_long(7_323_337_733))
+
+        using_cache = load_namespace(cached_module_ns)
+        assert cached_module_ns == using_cache.find(sym.symbol("val")).value
+
+    def test_import_module_with_truncated_rawsize(
+        self, module_dir, cached_module_ns, cached_module_file, load_namespace
+    ):
+        cache_filename = importer._cache_from_source(
+            os.path.join(module_dir, cached_module_file)
+        )
+        stat = os.stat(cache_filename)
+        with open(cache_filename, mode="w+b") as f:
+            f.write(importer.MAGIC_NUMBER)
+            f.write(importer._w_long(stat.st_mtime))
+            f.write(b"abc")
+
+        using_cache = load_namespace(cached_module_ns)
+        assert cached_module_ns == using_cache.find(sym.symbol("val")).value
+
+    def test_import_module_with_invalid_rawsize(
+        self, module_dir, cached_module_ns, cached_module_file, load_namespace
+    ):
+        cache_filename = importer._cache_from_source(
+            os.path.join(module_dir, cached_module_file)
+        )
+        with open(cache_filename, mode="r+b") as f:
+            f.seek(8)
+            f.write(importer._w_long(7733))
+
+        using_cache = load_namespace(cached_module_ns)
+        assert cached_module_ns == using_cache.find(sym.symbol("val")).value
 
     class TestPackageStructure:
-        @pytest.fixture
-        def make_new_module(self, module_dir):
-            """Fixture returning a function which creates a new module and then
-            removes it after the test run."""
-            filenames = []
-
-            def _make_new_module(
-                *ns_path: str, ns_name: str = "", module_text: Optional[str] = None
-            ) -> None:
-                """Generate a new module. If ns_name is not the empty string, use that
-                name as the name of a Basilisp namespace with a single Var named `val`
-                containing the name of the namespace. Otherwise, if module_text is not
-                None, emit that module text directly to the generated module.
-
-                You may specify only either the ns_name or module_text."""
-                assert ns_name == "" or module_text is None
-
-                if ns_path[:-1]:
-                    os.makedirs(os.path.join(module_dir, *ns_path[:-1]), exist_ok=True)
-
-                filename = os.path.join(module_dir, *ns_path)
-                filenames.append(filename)
-
-                with open(filename, mode="w") as mod:
-                    if ns_name != "" and module_text is None:
-                        mod.write(f"(ns {ns_name}) (def val (name *ns*))")
-                    else:
-                        mod.write(module_text)
-
-            try:
-                yield _make_new_module
-            finally:
-                for filename in filenames:
-                    os.unlink(filename)
-
-        @pytest.fixture
-        def load_namespace(self):
-            """Fixture returning a function which loads a namespace by name and
-            then removes it after the test run."""
-            namespaces = []
-
-            def _load_namespace(ns_name: str):
-                """Load the named Namespace and return it."""
-                namespaces.append(ns_name)
-                importlib.import_module(munge(ns_name))
-                return runtime.Namespace.get(sym.symbol(ns_name))
-
-            try:
-                yield _load_namespace
-            finally:
-                for namespace in namespaces:
-                    runtime.Namespace.remove(sym.symbol(namespace))
-
         def test_import_module_no_child(self, make_new_module, load_namespace):
             make_new_module("core.lpy", ns_name="core")
 
