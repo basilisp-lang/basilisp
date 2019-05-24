@@ -471,16 +471,14 @@
   "Macroexpand form one time. Returns the macroexpanded form. The return
   value may still represent a macro. Does not macroexpand child forms."
   [form]
-  (let [ctx (basilisp.lang.compiler.AnalyzerContext. "<Macroexpand>" nil 1)]
-    (basilisp.lang.compiler/macroexpand form ctx)))
+  (basilisp.lang.compiler/macroexpand-1 form))
 
 (defn macroexpand
   "Repeatedly macroexpand form as by macroexpand-1 until form no longer
   represents a macro. Returns the expanded form. Does not macroexpand child
   forms."
   [form]
-  (let [ctx (basilisp.lang.compiler.AnalyzerContext. "<Macroexpand>")]
-    (basilisp.lang.compiler/macroexpand form ctx)))
+  (basilisp.lang.compiler/macroexpand form))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Logical Comparisons & Macros ;;

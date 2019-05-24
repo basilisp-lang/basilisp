@@ -1740,6 +1740,59 @@ def test_macro_expansion(ns: runtime.Namespace):
     assert llist.l(1, 2, 3) == lcompile("((fn [] '(1 2 3)))")
 
 
+class TestMacroexpandFunctions:
+    @pytest.fixture
+    def example_macro(self):
+        lcompile(
+            "(defmacro parent [] `(defmacro ~'child [] (fn [])))",
+            resolver=runtime.resolve_alias,
+        )
+
+    def test_macroexpand_1(self, example_macro):
+        assert llist.l(
+            sym.symbol("defmacro", ns="basilisp.core"),
+            sym.symbol("child"),
+            vec.Vector.empty(),
+            llist.l(sym.symbol("fn", ns="basilisp.core"), vec.Vector.empty()),
+        ) == compiler.macroexpand_1(llist.l(sym.symbol("parent")))
+
+        assert llist.l(
+            sym.symbol("add", ns="operator"), 1, 2
+        ) == compiler.macroexpand_1(llist.l(sym.symbol("add", ns="operator"), 1, 2))
+        assert sym.symbol("map") == compiler.macroexpand_1(sym.symbol("map"))
+        assert llist.l(sym.symbol("map")) == compiler.macroexpand_1(
+            llist.l(sym.symbol("map"))
+        )
+        assert vec.Vector.empty() == compiler.macroexpand_1(vec.Vector.empty())
+
+        with pytest.raises(compiler.CompilerException):
+            compiler.macroexpand_1(sym.symbol("non-existent-symbol"))
+
+    def test_macroexpand(self, example_macro):
+        assert llist.l(
+            sym.symbol("def"),
+            sym.symbol("child"),
+            llist.l(
+                sym.symbol("fn", ns="basilisp.core"),
+                sym.symbol("child"),
+                vec.v(sym.symbol("&env"), sym.symbol("&form")),
+                llist.l(sym.symbol("fn", ns="basilisp.core"), vec.Vector.empty()),
+            ),
+        ) == compiler.macroexpand(llist.l(sym.symbol("parent")))
+
+        assert llist.l(sym.symbol("add", ns="operator"), 1, 2) == compiler.macroexpand(
+            llist.l(sym.symbol("add", ns="operator"), 1, 2)
+        )
+        assert sym.symbol("map") == compiler.macroexpand(sym.symbol("map"))
+        assert llist.l(sym.symbol("map")) == compiler.macroexpand(
+            llist.l(sym.symbol("map"))
+        )
+        assert vec.Vector.empty() == compiler.macroexpand(vec.Vector.empty())
+
+        with pytest.raises(compiler.CompilerException):
+            compiler.macroexpand(sym.symbol("non-existent-symbol"))
+
+
 class TestIf:
     def test_if_number_of_elems(self):
         with pytest.raises(compiler.CompilerException):

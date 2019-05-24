@@ -13,6 +13,8 @@ from basilisp.lang.compiler.analyzer import (  # noqa
     WARN_ON_SHADOWED_VAR,
     WARN_ON_UNUSED_NAMES,
     analyze_form,
+    macroexpand,
+    macroexpand_1,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
 from basilisp.lang.compiler.generator import (  # noqa
@@ -218,8 +220,3 @@ def compile_bytecode(
     _bootstrap_module(gctx, optimizer, module)
     for bytecode in code:
         exec(bytecode, module.__dict__)
-
-
-def macroexpand(form: ReaderForm, ctx: AnalyzerContext) -> ReaderForm:
-    """Return the fully macroexpanded form."""
-    return analyze_form(ctx, form).form
