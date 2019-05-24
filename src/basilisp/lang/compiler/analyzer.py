@@ -281,11 +281,15 @@ class AnalyzerContext:
         "_is_quoted",
         "_opts",
         "_recur_points",
+        "_should_macroexpand",
         "_st",
     )
 
     def __init__(
-        self, filename: Optional[str] = None, opts: Optional[Mapping[str, bool]] = None
+        self,
+        filename: Optional[str] = None,
+        opts: Optional[Mapping[str, bool]] = None,
+        should_macroexpand: bool = True,
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._func_ctx: Deque[bool] = collections.deque([])
@@ -294,6 +298,7 @@ class AnalyzerContext:
             Maybe(opts).map(lmap.map).or_else_get(lmap.Map.empty())  # type: ignore
         )
         self._recur_points: Deque[RecurPoint] = collections.deque([])
+        self._should_macroexpand = should_macroexpand
         self._st = collections.deque([SymbolTable("<Top>")])
 
     @property
@@ -338,6 +343,10 @@ class AnalyzerContext:
         self._is_quoted.append(True)
         yield
         self._is_quoted.pop()
+
+    @property
+    def should_macroexpand(self) -> bool:
+        return self._should_macroexpand
 
     @property
     def is_async_ctx(self) -> bool:
@@ -1614,25 +1623,26 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
 
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
         if _is_macro(fn.var):
-            try:
-                macro_env = ctx.symbol_table.as_env_map()
-                expanded = fn.var.value(macro_env, form, *form.rest)
-                expanded_ast = _analyze_form(ctx, expanded)
+            if ctx.should_macroexpand:
+                try:
+                    macro_env = ctx.symbol_table.as_env_map()
+                    expanded = fn.var.value(macro_env, form, *form.rest)
+                    expanded_ast = _analyze_form(ctx, expanded)
 
-                # Verify that macroexpanded code also does not have any
-                # non-tail recur forms
-                if ctx.recur_point is not None:
-                    _assert_recur_is_tail(expanded_ast)
+                    # Verify that macroexpanded code also does not have any
+                    # non-tail recur forms
+                    if ctx.recur_point is not None:
+                        _assert_recur_is_tail(expanded_ast)
 
-                return expanded_ast.assoc(
-                    raw_forms=cast(vec.Vector, expanded_ast.raw_forms).cons(form)
-                )
-            except Exception as e:
-                raise CompilerException(
-                    "error occurred during macroexpansion",
-                    form=form,
-                    phase=CompilerPhase.MACROEXPANSION,
-                ) from e
+                    return expanded_ast.assoc(
+                        raw_forms=cast(vec.Vector, expanded_ast.raw_forms).cons(form)
+                    )
+                except Exception as e:
+                    raise CompilerException(
+                        "error occurred during macroexpansion",
+                        form=form,
+                        phase=CompilerPhase.MACROEXPANSION,
+                    ) from e
 
     return Invoke(
         form=form,
@@ -2458,3 +2468,27 @@ def analyze_form(ctx: AnalyzerContext, form: ReaderForm) -> Node:
     """Take a Lisp form as an argument and produce a Basilisp syntax
     tree matching the clojure.tools.analyzer AST spec."""
     return _analyze_form(ctx, form).assoc(top_level=True)
+
+
+def macroexpand_1(form: ReaderForm) -> ReaderForm:
+    """Macroexpand form one time. Returns the macroexpanded form. The return
+    value may still represent a macro. Does not macroexpand child forms."""
+    ctx = AnalyzerContext("<Macroexpand>", should_macroexpand=False)
+    maybe_macro = analyze_form(ctx, form)
+    if maybe_macro.op == NodeOp.INVOKE:
+        assert isinstance(maybe_macro, Invoke)
+
+        fn = maybe_macro.fn
+        if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
+            if _is_macro(fn.var):
+                assert isinstance(form, ISeq)
+                macro_env = ctx.symbol_table.as_env_map()
+                return fn.var.value(macro_env, form, *form.rest)
+    return maybe_macro.form
+
+
+def macroexpand(form: ReaderForm) -> ReaderForm:
+    """Repeatedly macroexpand form as by macroexpand-1 until form no longer
+    represents a macro. Returns the expanded form. Does not macroexpand child
+    forms."""
+    return analyze_form(AnalyzerContext("<Macroexpand>"), form).form
