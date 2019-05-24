@@ -13,6 +13,8 @@ from basilisp.lang.compiler.analyzer import (  # noqa
     WARN_ON_SHADOWED_VAR,
     WARN_ON_UNUSED_NAMES,
     analyze_form,
+    macroexpand,
+    macroexpand_1,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
 from basilisp.lang.compiler.generator import (  # noqa
