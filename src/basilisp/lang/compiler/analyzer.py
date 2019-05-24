@@ -2482,7 +2482,6 @@ def macroexpand_1(form: ReaderForm) -> ReaderForm:
         if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
             if _is_macro(fn.var):
                 assert isinstance(form, ISeq)
-                
                 macro_env = ctx.symbol_table.as_env_map()
                 return fn.var.value(macro_env, form, *form.rest)
     return maybe_macro.form
