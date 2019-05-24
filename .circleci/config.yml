@@ -27,10 +27,8 @@ jobs:
             - "/home/pyenv/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
-      - store_artifacts:
-          path: .junit
       - store_test_results:
-          path: .junit
+          path: junit
 
   test-pypy:
     docker:
@@ -53,10 +51,8 @@ jobs:
             - "/home/pyenv/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
-      - store_artifacts:
-          path: .junit
       - store_test_results:
-          path: .junit
+          path: junit
 
 workflows:
   version: 2
