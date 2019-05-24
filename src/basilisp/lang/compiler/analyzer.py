@@ -279,17 +279,24 @@ class AnalyzerContext:
         "_filename",
         "_func_ctx",
         "_is_quoted",
+        "_macroexpand_depth",
         "_opts",
         "_recur_points",
         "_st",
     )
 
     def __init__(
-        self, filename: Optional[str] = None, opts: Optional[Mapping[str, bool]] = None
+        self,
+        filename: Optional[str] = None,
+        opts: Optional[Mapping[str, bool]] = None,
+        macroexpand_depth: Optional[int] = None,
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._func_ctx: Deque[bool] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
+        self._macroexpand_depth = (
+            collections.deque([True] * macroexpand_depth) if macroexpand_depth else None
+        )
         self._opts = (
             Maybe(opts).map(lmap.map).or_else_get(lmap.Map.empty())  # type: ignore
         )
@@ -338,6 +345,19 @@ class AnalyzerContext:
         self._is_quoted.append(True)
         yield
         self._is_quoted.pop()
+
+    @contextlib.contextmanager
+    def macroexpansion(self):
+        if self._macroexpand_depth is None:
+            yield
+        else:
+            self._macroexpand_depth.pop()
+            yield
+            self._macroexpand_depth.append(True)
+
+    @property
+    def should_macroexpand(self) -> bool:
+        return self._macroexpand_depth is None or self._macroexpand_depth
 
     @property
     def is_async_ctx(self) -> bool:
@@ -1614,25 +1634,30 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
 
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
         if _is_macro(fn.var):
-            try:
-                macro_env = ctx.symbol_table.as_env_map()
-                expanded = fn.var.value(macro_env, form, *form.rest)
-                expanded_ast = _analyze_form(ctx, expanded)
+            if ctx.should_macroexpand:
+                with ctx.macroexpansion():
+                    try:
+                        macro_env = ctx.symbol_table.as_env_map()
+                        expanded = fn.var.value(macro_env, form, *form.rest)
+                        expanded_ast = _analyze_form(ctx, expanded)
 
-                # Verify that macroexpanded code also does not have any
-                # non-tail recur forms
-                if ctx.recur_point is not None:
-                    _assert_recur_is_tail(expanded_ast)
+                        # Verify that macroexpanded code also does not have any
+                        # non-tail recur forms
+                        if ctx.recur_point is not None:
+                            _assert_recur_is_tail(expanded_ast)
 
-                return expanded_ast.assoc(
-                    raw_forms=cast(vec.Vector, expanded_ast.raw_forms).cons(form)
-                )
-            except Exception as e:
-                raise CompilerException(
-                    "error occurred during macroexpansion",
-                    form=form,
-                    phase=CompilerPhase.MACROEXPANSION,
-                ) from e
+                        return expanded_ast.assoc(
+                            raw_forms=cast(vec.Vector, expanded_ast.raw_forms).cons(form)
+                        )
+                    except Exception as e:
+                        raise CompilerException(
+                            "error occurred during macroexpansion",
+                            form=form,
+                            phase=CompilerPhase.MACROEXPANSION,
+                        ) from e
+            else:
+                with ctx.quoted():
+                    return _analyze_form(ctx, form)
 
     return Invoke(
         form=form,

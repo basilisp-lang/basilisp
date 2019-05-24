@@ -218,3 +218,8 @@ def compile_bytecode(
     _bootstrap_module(gctx, optimizer, module)
     for bytecode in code:
         exec(bytecode, module.__dict__)
+
+
+def macroexpand(form: ReaderForm, ctx: AnalyzerContext) -> ReaderForm:
+    """Return the fully macroexpanded form."""
+    return analyze_form(ctx, form).form
