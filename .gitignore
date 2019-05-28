@@ -41,6 +41,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache
 .junit
+junit/
 
 # Sphinx documentation
 docs/_build/
