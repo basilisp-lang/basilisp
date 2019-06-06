@@ -15,6 +15,7 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.exception import ExceptionInfo
+from basilisp.lang.interfaces import IExceptionInfo
 from basilisp.main import init
 
 
@@ -919,6 +920,70 @@ def test_is_var():
         runtime.Var.find(sym.symbol("list", ns="basilisp.core"))
     )
     assert False is core.var__Q__(core.list_)
+
+
+class TestExceptionData:
+    def test_ex_cause_for_non_exception(self):
+        assert None is core.ex_cause("a string")
+
+    def test_ex_has_no_cause(self):
+        assert None is core.ex_cause(Exception())
+
+    def test_ex_has_cause(self):
+        try:
+            raise ExceptionInfo("Exception Message", lmap.map({"a": "b"}))
+        except Exception as cause:
+            try:
+                raise Exception("Hi") from cause
+            except Exception as outer:
+                inner = core.ex_cause(outer)
+                assert inner is cause
+                assert isinstance(inner, IExceptionInfo)
+                assert "Exception Message" == inner.message
+                assert lmap.map({"a": "b"}) == inner.data
+
+    def test_ex_has_contextual_cause(self):
+        try:
+            raise ExceptionInfo("Exception Message", lmap.map({"a": "b"}))
+        except Exception as cause:
+            try:
+                raise Exception("Hi")
+            except Exception as outer:
+                inner = core.ex_cause(outer)
+                assert inner is cause
+                assert isinstance(inner, IExceptionInfo)
+                assert "Exception Message" == inner.message
+                assert lmap.map({"a": "b"}) == inner.data
+
+    def test_ex_data_for_non_exception(self):
+        assert None is core.ex_data("a string")
+
+    def test_ex_data_iexceptioninfo(self):
+        try:
+            raise ExceptionInfo("Exception Message", lmap.map({"a": "b"}))
+        except IExceptionInfo as e:
+            assert lmap.map({"a": "b"}) == core.ex_data(e)
+
+    def test_ex_data_standard_exception(self):
+        try:
+            raise Exception("Exception Message")
+        except Exception as e:
+            assert None is core.ex_data(e)
+
+    def test_ex_message_for_non_exception(self):
+        assert None is core.ex_message("a string")
+
+    def test_ex_message_iexceptioninfo(self):
+        try:
+            raise ExceptionInfo("Exception Message", lmap.map({"a": "b"}))
+        except IExceptionInfo as e:
+            assert "Exception Message" == core.ex_message(e)
+
+    def test_ex_message_standard_exception(self):
+        try:
+            raise Exception("Exception Message")
+        except Exception as e:
+            assert None is core.ex_message(e)
 
 
 class TestBitManipulation:

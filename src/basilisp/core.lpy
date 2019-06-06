@@ -1102,6 +1102,48 @@
   [x]
   (= 0 x))
 
+;;;;;;;;;;;;;;;;
+;; Exceptions ;;
+;;;;;;;;;;;;;;;;
+
+(def ^{:doc     "During a REPL session, bound to the most recent value evaluated."
+       :dynamic true}
+  *1
+  nil)
+(def ^{:doc     "During a REPL session, bound to the second most recent value evaluated."
+       :dynamic true}
+  *2
+  nil)
+(def ^{:doc     "During a REPL session, bound to the third most recent value evaluated."
+       :dynamic true}
+  *3
+  nil)
+(def ^{:doc     "During a REPL session, bound to the most recently thrown exception."
+       :dynamic true}
+  *e
+  nil)
+
+(defn ex-cause
+  "Return the cause (another Exception) of ex if it derives from Exception,
+  otherwise it returns nil."
+  [ex]
+  (when (instance? builtins/Exception ex)
+    (or (.- ex __cause__) (.- ex __context__))))
+
+(defn ex-data
+  "Return the data map of ex if is an instance of IExceptionInfo, otherwise
+  it returns nil."
+  [ex]
+  (when (instance? basilisp.lang.interfaces/IExceptionInfo ex)
+    (.-data ex)))
+
+(defn ex-message
+  "Return the message of ex if is an Exception, otherwise
+  it returns nil."
+  [ex]
+  (when (instance? builtins/Exception ex)
+    (builtins/getattr ex "message" (builtins/str ex))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Bit Manipulation Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
