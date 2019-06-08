@@ -714,12 +714,37 @@
       v
       (recur atom v))))
 
+(defn reset-vals!
+  "Reset the value of an atom to v without regard to the previous value.
+  Return a vector containing the new value and the old value in that order."
+  [atom v]
+  (let [current (deref atom)]
+    (if (compare-and-set! atom current v)
+      [v current]
+      (recur atom v))))
+
 (defn swap!
   "Atomically swap the value of an atom to the return value of (apply f
   current-value args). The function f may be called multiple times while
   swapping, so should be free of side effects. Return the new value."
   [atom f & args]
-  (apply basilisp.lang.runtime/swap atom f args))
+  (let [current (deref atom)
+        new-val (apply f current args)]
+    (if (compare-and-set! atom current new-val)
+      new-val
+      (recur atom f args))) )
+
+(defn swap-vals!
+  "Atomically swap the value of an atom to the return value of (apply f
+  current-value args). The function f may be called multiple times while
+  swapping, so should be free of side effects. Return a vector containing
+  the new value and the old value in that order."
+  [atom f & args]
+  (let [current (deref atom)
+        new-val (apply f current args)]
+    (if (compare-and-set! atom current new-val)
+      [new-val current]
+      (recur atom f args))))
 
 (defn atom
   "Return an Atom containing v. The value of an Atom at any point in time

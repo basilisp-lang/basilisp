@@ -270,16 +270,6 @@ def test_deref():
         runtime.deref(vec.Vector.empty())
 
 
-def test_swap():
-    assert 3 == runtime.swap(atom.Atom(1), lambda x, y: x + y, 2)
-    assert vec.v(1) == runtime.swap(
-        atom.Atom(vec.Vector.empty()), lambda v, e: v.cons(e), 1
-    )
-
-    with pytest.raises(AttributeError):
-        runtime.swap(1, lambda x, y: x + y, 2)
-
-
 class TestToPython:
     def test_literal_to_py(self):
         assert None is runtime.to_py(None)
