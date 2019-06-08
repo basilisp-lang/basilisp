@@ -934,13 +934,6 @@ def deref(o, timeout_s=None, timeout_val=None):
     raise TypeError(f"Object of type {type(o)} cannot be dereferenced")
 
 
-def swap(a: Atom, f, *args):
-    """Atomically swap the value of an atom to the return value of (apply f
-    current-value args). The function f may be called multiple times while
-    swapping, so should be free of side effects. Return the new value."""
-    return a.swap(f, *args)
-
-
 def equals(v1, v2) -> bool:
     """Compare two objects by value. Unlike the standard Python equality operator,
     this function does not consider 1 == True or 0 == False. All other equality
