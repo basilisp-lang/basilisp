@@ -46,7 +46,7 @@ class TestREPL:
     def test_other_exception(self):
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["repl"], input='(throw (builtins/Exception "CLI test"))'
+            cli, ["repl"], input='(throw (python/Exception "CLI test"))'
         )
         assert "Exception: CLI test\nuser=> " in result.stdout
 

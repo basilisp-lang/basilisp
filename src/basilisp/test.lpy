@@ -64,12 +64,12 @@
                  :line         (line-no 1)
                  :type         :failure}))
        (catch ~exc-type _ nil)
-       (catch builtins/Exception e#
+       (catch python/Exception e#
          (swap! *test-failures*
                 conj
                 {:test-name    *test-name*
                  :test-section *test-section*
-                 :message      (str "Expected " ~exc-type "; got " (builtins/type e#) " instead")
+                 :message      (str "Expected " ~exc-type "; got " (python/type e#) " instead")
                  :expr         (quote ~expr)
                  :actual       e#
                  :expected     ~exc-type
@@ -98,12 +98,12 @@
   ([expr msg]
    `(try
       ~(gen-assert expr msg)
-      (catch builtins/Exception e#
+      (catch python/Exception e#
         (swap! *test-failures*
                conj
                {:test-name    *test-name*
                 :test-section *test-section*
-                :message      (str "Unexpected exception thrown during test run: " (builtins/repr e#))
+                :message      (str "Unexpected exception thrown during test run: " (python/repr e#))
                 :expr         (quote ~expr)
                 :actual       e#
                 :expected     (quote ~expr)

@@ -138,7 +138,7 @@ FINALLY = kw.keyword("finally")
 # Constants used in analyzing
 AS = kw.keyword("as")
 IMPLEMENTS = kw.keyword("implements")
-_BUILTINS_NS = "builtins"
+_BUILTINS_NS = "python"
 
 # Symbols to be ignored for unused symbol warnings
 _IGNORED_SYM = sym.symbol("_")

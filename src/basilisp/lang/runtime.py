@@ -819,8 +819,8 @@ def apply_kw(f, args):
     The last argument must always be coercible to a Mapping. Intermediate
     arguments are not modified.
     For example:
-        (apply builtins/dict {:a 1} {:b 2})   ;=> #py {:a 1 :b 2}
-        (apply builtins/dict {:a 1} {:a 2})   ;=> #py {:a 2}"""
+        (apply python/dict {:a 1} {:b 2})   ;=> #py {:a 1 :b 2}
+        (apply python/dict {:a 1} {:a 2})   ;=> #py {:a 2}"""
     final = list(args[:-1])
 
     try:

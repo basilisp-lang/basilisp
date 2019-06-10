@@ -105,7 +105,6 @@ USE_VAR_INDIRECTION = "use_var_indirection"
 WARN_ON_VAR_INDIRECTION = "warn_on_var_indirection"
 
 # String constants used in generating code
-_BUILTINS_NS = "builtins"
 _DEFAULT_FN = "__lisp_expr__"
 _DO_PREFIX = "lisp_do"
 _FN_PREFIX = "lisp_fn"
@@ -445,7 +444,6 @@ _VAR_ALIAS = genname("Var")
 _UTIL_ALIAS = genname("langutil")
 
 _MODULE_ALIASES = {
-    "builtins": None,
     "basilisp.lang.atom": _ATOM_ALIAS,
     "basilisp.lang.compiler": _COMPILER_ALIAS,
     "basilisp.core": _CORE_ALIAS,

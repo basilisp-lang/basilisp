@@ -50,7 +50,7 @@
        :arglists '([o])}
   meta
   (fn* meta [o]
-       (if (builtins/hasattr o "meta")
+       (if (python/hasattr o "meta")
          (.-meta o)
          nil)))
 
@@ -86,35 +86,35 @@
     :arglists '([class obj])}
   instance?
   (fn instance? [class obj]
-    (builtins/isinstance obj class)))
+    (python/isinstance obj class)))
 
 (def
   ^{:doc      "Return true if obj is a boolean."
     :arglists '([o])}
   boolean?
   (fn boolean? [o]
-    (instance? builtins/bool o)))
+    (instance? python/bool o)))
 
 (def
   ^{:doc      "Return true if obj is a float."
     :arglists '([o])}
   float?
   (fn float? [o]
-    (instance? builtins/float o)))
+    (instance? python/float o)))
 
 (def
   ^{:doc      "Return true if obj is an integer."
     :arglists '([o])}
   integer?
   (fn integer? [o]
-    (instance? builtins/int o)))
+    (instance? python/int o)))
 
 (def
   ^{:doc      "Return true if obj is a string."
     :arglists '([o])}
   string?
   (fn string? [o]
-    (instance? builtins/str o)))
+    (instance? python/str o)))
 
 (def
   ^{:doc      "Return true if obj is a symbol."
@@ -232,7 +232,7 @@
   count
   (fn count [coll]
     (try
-      (builtins/len coll)
+      (python/len coll)
       (catch TypeError _
         (count (apply vector coll))))))
 
@@ -270,7 +270,7 @@
     (if (symbol? name)
       nil  ;; Do nothing!
       (throw (ex-info "First argument to defn must be a symbol"
-                      {:found name :type (builtins/type name)})))
+                      {:found name :type (python/type name)})))
     (let [body   (concat body)
           doc    (if (string? (first body))
                    (first body)
@@ -615,7 +615,7 @@
 (defn hash
   "Return the hash code for its argument."
   [x]
-  (builtins/hash x))
+  (python/hash x))
 
 (defn identical?
   "Return true if x and y are the same object, otherwise false."
@@ -840,12 +840,12 @@
 (defn min
   "Return the minimum of the arguments."
   [& args]
-  (builtins/min args))
+  (python/min args))
 
 (defn max
   "Return the maximum of the arguments."
   [& args]
-  (builtins/max args))
+  (python/max args))
 
 (defn numerator
   "Return the numerator of a Fraction."
@@ -888,7 +888,7 @@
   true iff x is a Python bytearray. To check if an object is a Python `bytes`,
   use `byte-string?`."
   [x]
-  (instance? builtins/bytearray x))
+  (instance? python/bytearray x))
 
 (defn byte-string?
   "Return true if x is a byte string (the Python `bytes` type).
@@ -896,12 +896,12 @@
   Note that Python supplies byte string and byte array objects in its standard
   library. To check if an object is a Python `bytearray`, use `bytes?`."
   [x]
-  (instance? builtins/bytes x))
+  (instance? python/bytes x))
 
 (defn class?
   "Return true if x names a type."
   [x]
-  (instance? builtins/type x))
+  (instance? python/type x))
 
 (defn coll?
   "Return true if x implements IAssociative."
@@ -911,7 +911,7 @@
 (defn complex?
   "Return true if x is a complex number."
   [x]
-  (instance? builtins/complex x))
+  (instance? python/complex x))
 
 (defn decimal?
   "Return true if x is a Decimal."
@@ -933,9 +933,9 @@
 (defn fn?
   "Return true if x is a function created by `fn` or `fn*`."
   [x]
-  (and (builtins/callable x)
-       (builtins/hasattr x "_basilisp_fn")
-       (builtins/getattr x "_basilisp_fn")))
+  (and (python/callable x)
+       (python/hasattr x "_basilisp_fn")
+       (python/getattr x "_basilisp_fn")))
 
 (defn ident?
   "Return true if x is either a keyword or symbol."
@@ -948,7 +948,7 @@
   Many Basilisp data structures are callable as functions though
   they are not proper function types."
   [x]
-  (builtins/callable x))
+  (python/callable x))
 
 (def ^{:doc "Return true if x is an integer.
 
@@ -1016,27 +1016,27 @@
 (defn py-dict?
   "Return true if x is a Python `dict`."
   [x]
-  (instance? builtins/dict x))
+  (instance? python/dict x))
 
 (defn py-frozenset?
   "Return true if x is a Python `frozenset`."
   [x]
-  (instance? builtins/frozenset x))
+  (instance? python/frozenset x))
 
 (defn py-list?
   "Return true if x is a Python `list`."
   [x]
-  (instance? builtins/list x))
+  (instance? python/list x))
 
 (defn py-set?
   "Return true if x is a Python `set`."
   [x]
-  (instance? builtins/set x))
+  (instance? python/set x))
 
 (defn py-tuple?
   "Return true if x is a Python `tuple`."
   [x]
-  (instance? builtins/tuple x))
+  (instance? python/tuple x))
 
 (defn qualified-ident?
   "Return true if x is either a keyword or symbol with a namespace."
@@ -1113,9 +1113,9 @@
       (or (py-tuple? x)
           (vector? x))  (do (apply-kw uuid/UUID {:fields x}) true)
       :else             false)
-    (catch builtins/AttributeError _ false)
-    (catch builtins/TypeError _ false)
-    (catch builtins/ValueError _ false)))
+    (catch python/AttributeError _ false)
+    (catch python/TypeError _ false)
+    (catch python/ValueError _ false)))
 
 (defn var?
   "Return true if x is a Var."
@@ -1152,7 +1152,7 @@
   "Return the cause (another Exception) of ex if it derives from Exception,
   otherwise it returns nil."
   [ex]
-  (when (instance? builtins/Exception ex)
+  (when (instance? python/Exception ex)
     (or (.- ex __cause__) (.- ex __context__))))
 
 (defn ex-data
@@ -1166,8 +1166,8 @@
   "Return the message of ex if is an Exception, otherwise
   it returns nil."
   [ex]
-  (when (instance? builtins/Exception ex)
-    (builtins/getattr ex "message" (builtins/str ex))))
+  (when (instance? python/Exception ex)
+    (python/getattr ex "message" (python/str ex))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Bit Manipulation Functions ;;
@@ -1702,9 +1702,9 @@
   "Create a new instance of class with args.
 
   New objects may be created as any of:
-    (new builtins/str *args)
-    (new builtins.str *args)
-    (new builtins.str. *args)
+    (new python/str *args)
+    (new python.str *args)
+    (new python.str. *args)
 
   This is compatibility syntax for Clojure, since Python (and therefore
   Basilisp) do not require the new keyword for object instantiation."
@@ -2095,7 +2095,7 @@
     (throw
      (ex-info "Expected a Symbol or a Namespace"
               {:value v
-               :type  (builtins/type v)}))))
+               :type  (python/type v)}))))
 
 (defn create-ns
   "Create a Namespace with the name ns-sym or return the existing one
@@ -2555,7 +2555,7 @@
   [arg]
   (throw
    (ex-info "Invalid destructuring argument type"
-            {:type (builtins/type arg)})))
+            {:type (python/type arg)})))
 
 (defmulti ^:private destructure-binding
   (fn [ddef]
@@ -2808,7 +2808,7 @@
 (defmulti ^:private munge
   "Munge the input value into a Python-safe string. Converts keywords and
   symbols into strings as by `name` prior to munging. Returns a string."
-  builtins/type)
+  python/type)
 
 (defmethod munge basilisp.lang.keyword/Keyword
   [kw]
@@ -2818,7 +2818,7 @@
   [s]
   (basilisp.lang.util/munge (name s)))
 
-(defmethod munge builtins/str
+(defmethod munge python/str
   [s]
   (basilisp.lang.util/munge s))
 
@@ -2838,7 +2838,7 @@
                             (assoc m (munge method-name) method)))
                         {}
                         methods)]
-    (builtins/type interface-name
+    (python/type interface-name
                    #py (abc/ABC)
                    (lisp->py methods))))
 
@@ -2937,7 +2937,7 @@
        (deftype* ~type-name ~fields
          :implements [~@interfaces
                       ~'basilisp.lang.interfaces/IType
-                      ~'builtins/object]
+                      ~'python/object]
          ~@methods)
        (def ~ctor-name ~type-name)
        ~type-name)))
@@ -3043,7 +3043,7 @@
                            '[basilisp.lang.interfaces/IPersistentMap
                              basilisp.lang.interfaces/IMeta
                              basilisp.lang.interfaces/IRecord
-                             builtins/object])
+                             python/object])
 
         ;; We can use these gensyms repeatedly and interpolate them in
         ;; multiple layers of syntax quoting, unlike gensyms using # syntax.
@@ -3106,10 +3106,10 @@
               (throw
                (ex-info "Argument to record conj must be another Map or castable to MapEntry"
                         {:value f#
-                         :type  (builtins/type f#)})))))
+                         :type  (python/type f#)})))))
          (~'empty [~this-gs]
           (throw
-           (builtins/TypeError
+           (python/TypeError
             ~(str "Cannot create empty " type-name))))
          (~'seq [~this-gs]
           (concat
@@ -3146,7 +3146,7 @@
           (let [[default#] args#]
             (cond
               (contains? ~field-kw-set ~key-gs)
-              (builtins/getattr ~this-gs (munge ~key-gs))
+              (python/getattr ~this-gs (munge ~key-gs))
 
               (contains? ~'_recmap ~key-gs)
               (get ~'_recmap ~key-gs default#))))
@@ -3185,7 +3185,7 @@
          ;; object
          (~'__eq__ [~this-gs ~other-gs]
           (or (identical? ~this-gs ~other-gs)
-              (and (instance? (builtins/type ~this-gs) ~other-gs)
+              (and (instance? (python/type ~this-gs) ~other-gs)
                    (= [~@fields
                        ~'_recmap]
                       [~@(map (fn [field]

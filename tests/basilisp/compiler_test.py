@@ -577,9 +577,9 @@ class TestDefType:
         Point = lcompile(
             """
         (deftype* Point [x y z]
-          :implements [builtins/object]
+          :implements [python/object]
           (__str__ [this]
-            (builtins/repr #py ("Point" x y z))))
+            (python/repr #py ("Point" x y z))))
         """
         )
         pt = Point(1, 2, 3)
@@ -712,10 +712,10 @@ class TestDefType:
                 """
             (import* abc)
             (def WithCls
-              (builtins/type "WithCls"
+              (python/type "WithCls"
                              #py (abc/ABC)
                              #py {"create"
-                                  (builtins/classmethod
+                                  (python/classmethod
                                    (abc/abstractmethod
                                     (fn [cls])))}))
             """
@@ -812,7 +812,7 @@ class TestDefType:
               (^:classmethod create [cls x y z]
                 (cls x y z))
               (__str__ [this]
-                (builtins/str [x y z])))"""
+                (python/str [x y z])))"""
             )
             pt = Point.create(1, 2, 3)
             assert "[1 2 3]" == str(pt)
@@ -974,10 +974,10 @@ class TestDefType:
                 """
             (import* abc)
             (def WithProp
-              (builtins/type "WithProp"
+              (python/type "WithProp"
                              #py (abc/ABC)
                              #py {"prop"
-                                  (builtins/property
+                                  (python/property
                                    (abc/abstractmethod
                                     (fn [self])))}))
             """
@@ -1064,10 +1064,10 @@ class TestDefType:
                 """
             (import* abc)
             (def WithStatic
-              (builtins/type "WithStatic"
+              (python/type "WithStatic"
                              #py (abc/ABC)
                              #py {"dostatic"
-                                  (builtins/staticmethod
+                                  (python/staticmethod
                                    (abc/abstractmethod
                                     (fn [])))}))
             """
@@ -1160,7 +1160,7 @@ class TestDefType:
               (^:staticmethod dostatic [x y z]
                 [x y z])
               (__str__ [this]
-                (builtins/str [x y z])))"""
+                (python/str [x y z])))"""
             )
             assert vec.v(1, 2, 3) == Point.dostatic(1, 2, 3)
             assert "[1 2 3]" == str(Point(1, 2, 3))
@@ -1956,9 +1956,19 @@ class TestPythonInterop:
             lcompile("(. :kw 1)")
 
     def test_interop_new(self, ns: runtime.Namespace):
+        assert "hi" == lcompile('(python.str. "hi")')
+        assert "1" == lcompile("(python.str. 1)")
+        assert sym.symbol("hi") == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(python.str "hi")')
+
+    def test_interop_new_with_import(self, ns: runtime.Namespace):
+        import builtins
+
+        ns.add_import(sym.symbol("builtins"), builtins)
         assert "hi" == lcompile('(builtins.str. "hi")')
         assert "1" == lcompile("(builtins.str. 1)")
-        assert sym.symbol("hi") == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
 
         with pytest.raises(compiler.CompilerException):
             lcompile('(builtins.str "hi")')
@@ -2373,8 +2383,8 @@ class TestRecur:
           (fn rev-str [s & args]
             (let [coerce (fn [in out]
                            (if (seq (rest in))
-                             (recur (rest in) (cons (builtins/str (first in)) out))
-                             (cons (builtins/str (first in)) out)))]
+                             (recur (rest in) (cons (python/str (first in)) out))
+                             (cons (python/str (first in)) out)))]
              (.join \"\" (coerce (cons s args) '())))))
          """
 
@@ -2636,13 +2646,13 @@ def test_syntax_quoting(test_ns: str, ns: runtime.Namespace, resolver: reader.Re
 
 def test_throw(ns: runtime.Namespace):
     with pytest.raises(AttributeError):
-        lcompile("(throw (builtins/AttributeError))")
+        lcompile("(throw (python/AttributeError))")
 
     with pytest.raises(TypeError):
-        lcompile("(throw (builtins/TypeError))")
+        lcompile("(throw (python/TypeError))")
 
     with pytest.raises(ValueError):
-        lcompile("(throw (builtins/ValueError))")
+        lcompile("(throw (python/ValueError))")
 
 
 class TestTryCatch:
@@ -2658,7 +2668,7 @@ class TestTryCatch:
         code = """
           (try
             (.fake-lower "UPPER")
-            (catch builtins/AttributeError e (.-args e)))
+            (catch python/AttributeError e (.-args e)))
         """
         assert ("'str' object has no attribute 'fake_lower'",) == lcompile(code)
 
@@ -2680,7 +2690,7 @@ class TestTryCatch:
             (.fake-lower "UPPER")
             (catch TypeError _ "lower")
             (catch AttributeError _ "mIxEd")
-            (finally (builtins/print "neither")))
+            (finally (python/print "neither")))
         """
         assert "mIxEd" == lcompile(code)
         captured = capsys.readouterr()
@@ -2751,7 +2761,7 @@ class TestTryCatch:
                 """
               (try
                 (.lower "UPPER")
-                (finally (builtins/print "mIxEd"))
+                (finally (python/print "mIxEd"))
                 "neither")
             """
             )
@@ -2762,7 +2772,7 @@ class TestTryCatch:
                 """
               (try
                 (.fake-lower "UPPER")
-                (finally (builtins/print "this is bad!"))
+                (finally (python/print "this is bad!"))
                 (catch AttributeError _ "mIxEd"))
             """
             )
@@ -2774,8 +2784,8 @@ class TestTryCatch:
               (try
                 (.fake-lower "UPPER")
                 (catch AttributeError _ "mIxEd")
-                (finally (builtins/print "this is bad!"))
-                (finally (builtins/print "but this is worse")))
+                (finally (python/print "this is bad!"))
+                (finally (python/print "but this is worse")))
             """
             )
 
@@ -2808,11 +2818,11 @@ class TestSymbolResolution:
         assert object is lcompile("object")
 
     def test_builtin_resolves_builtins(self, ns: runtime.Namespace):
-        assert object is lcompile("builtins/object")
+        assert object is lcompile("python/object")
 
     def test_builtins_fails_to_resolve_correctly(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
-            lcompile("builtins/fake")
+            lcompile("python/fake")
 
     def test_namespaced_sym_may_not_contain_period(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
