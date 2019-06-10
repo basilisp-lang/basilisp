@@ -1863,6 +1863,22 @@
     x))
 
 ;;;;;;;;;;;;;;;;;;;;;;
+;; String Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+(import* os)
+
+(defn format
+  "Format a string as by Python's `%` operator."
+  [fmt & args]
+  (if (= 1 (count args))
+    (let [arg (first args)]
+      (if (or (map? arg) (py-dict? arg))
+        (operator/mod fmt (python/dict arg))
+        (operator/mod fmt arg)))
+    (operator/mod fmt (python/tuple args))))
+
+;;;;;;;;;;;;;;;;;;;;;;
 ;; Output Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1881,6 +1897,19 @@
   "Flush the buffer currently bound to *out*."
   []
   (.flush *out*))
+
+(defn newline
+  "Write a platform specific newline to *out*."
+  []
+  (.write *out* os/linesep)
+  nil)
+
+(defmacro with-in-str
+  "Evaluate body with *in* bound to a io.StringIO instance containing the
+  string s."
+  [s & body]
+  `(binding [*in* (io/StringIO s)]
+     ~@body))
 
 (defmacro with-out-str
   "Capture the contents of text sent to *out* and return the contents as a
@@ -1990,6 +2019,13 @@
   [& args]
   (with-out-str
     (apply println args)))
+
+(defn printf
+  "Prints formatted output as per format.
+
+  Does not append a newline."
+  [fmt & args]
+  (print (apply format fmt args)))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; REPL Utilities ;;
@@ -2805,7 +2841,7 @@
 
 (import* abc)
 
-(defmulti ^:private munge
+(defmulti munge
   "Munge the input value into a Python-safe string. Converts keywords and
   symbols into strings as by `name` prior to munging. Returns a string."
   python/type)
@@ -2821,6 +2857,10 @@
 (defmethod munge python/str
   [s]
   (basilisp.lang.util/munge s))
+
+(def namespace-munge
+  "Convert a Basilisp namespace name to a valid Python name."
+  munge)
 
 (defn gen-interface
   "Generate and return a new Python interface (abstract base clase).
