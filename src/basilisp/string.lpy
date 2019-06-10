@@ -31,7 +31,7 @@
   "Returns true if s is nil, empty, or contains only whitespace."
   [s]
   (when s
-    (not (builtins/bool (.strip s)))))
+    (not (python/bool (.strip s)))))
 
 (defn capitalize
   "Return a copy of the string with the first character capitalized
@@ -88,7 +88,7 @@
   "Return the last index of value in s, optionally searching backwards
   from from-index. Returns nil if value is not found in s."
   ([s value]
-   (last-index-of s value (builtins/len s)))
+   (last-index-of s value (python/len s)))
   ([s value from-index]
    (let [idx (.rfind s value 0 from-index)]
      (if (= idx -1)
@@ -110,7 +110,7 @@
 (defn reverse
   "Returns a string which is the reverse of s."
   [s]
-  (operator/getitem s (builtins/slice nil nil -1)))
+  (operator/getitem s (python/slice nil nil -1)))
 
 (defn split
   "Split a string on a regular expression or another string. Caller may
@@ -135,7 +135,7 @@
      (throw
       (ex-info "String split pattern must be a re.Pattern or str"
                {:pattern pattern
-                :type    (builtins/type pattern)})))))
+                :type    (python/type pattern)})))))
 
 (defn split-lines
   "Split s on universal newlines as by Python's str.splitlines."
@@ -182,9 +182,9 @@
   [s match replacement]
   (cond
     (and (instance? typing/Pattern match)
-         (or (string? replacement) (builtins/callable replacement)))
+         (or (string? replacement) (python/callable replacement)))
     (re/sub match
-            (if (builtins/callable replacement)
+            (if (python/callable replacement)
               #(replacement (.group % 0))
               replacement)
             s)
@@ -196,9 +196,9 @@
     (throw
      (ex-info "String replace match/replacement must be: (str and str) or (re.Pattern and (str or function))"
               {:match            match
-               :match-type       (builtins/type match)
+               :match-type       (python/type match)
                :replacement      replacement
-               :replacement-type (builtins/type replacement)}))))
+               :replacement-type (python/type replacement)}))))
 
 (defn replace-first
   "Replace the first instance of match in s with replacement.
@@ -214,9 +214,9 @@
   [s match replacement]
   (cond
     (and (instance? typing/Pattern match)
-         (or (string? replacement) (builtins/callable replacement)))
+         (or (string? replacement) (python/callable replacement)))
     (re/sub match
-            (if (builtins/callable replacement)
+            (if (python/callable replacement)
               #(replacement (.group % 0))
               replacement)
             s
@@ -229,9 +229,9 @@
     (throw
      (ex-info "String replace match/replacement must be: (str and str) or (re.Pattern and (str or function))"
               {:match            match
-               :match-type       (builtins/type match)
+               :match-type       (python/type match)
                :replacement      replacement
-               :replacement-type (builtins/type replacement)}))))
+               :replacement-type (python/type replacement)}))))
 
 (defn trim
   "Trim whitespace off the ends of s."

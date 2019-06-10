@@ -110,7 +110,7 @@
       (is (= 2 (count p3))))
 
     (testing "empty record not supported"
-      (is (thrown? builtins/TypeError
+      (is (thrown? python/TypeError
                    (empty (->Point 1 2 3)))))
 
     (testing "seq"
@@ -232,23 +232,23 @@
                  (eval '(defrecord NewType [a ^{:default "b"} b]))))))
 
 (def ^:private WithCls
-  (builtins/type "WithCls"
+  (python/type "WithCls"
                  #py (abc/ABC)
-                 #py {"create" (builtins/classmethod
+                 #py {"create" (python/classmethod
                                 (abc/abstractmethod
                                  (fn [cls])))}))
 
 (def ^:private WithProp
-  (builtins/type "WithProp"
+  (python/type "WithProp"
                  #py (abc/ABC)
-                 #py { "prop" (builtins/property
+                 #py { "prop" (python/property
                                (abc/abstractmethod
                                 (fn [self])))}))
 
 (def ^:private WithStatic
-  (builtins/type "WithStatic"
+  (python/type "WithStatic"
                  #py (abc/ABC)
-                 #py {"dostatic" (builtins/staticmethod
+                 #py {"dostatic" (python/staticmethod
                                   (abc/abstractmethod
                                    (fn [])))}))
 

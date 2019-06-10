@@ -14,7 +14,7 @@ def test_testrunner(testdir: pytester.Testdir, capsys):
       (is false)
       (is (= "true" false))
       (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (ex-info "Exception" {}))))
-      (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (builtins/Exception))))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (python/Exception))))
       (is (= 4.6 4.6))
       (is (throw (ex-info "Uncaught exception" {}))))
     """
