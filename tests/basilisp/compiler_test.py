@@ -1965,6 +1965,7 @@ class TestPythonInterop:
 
     def test_interop_new_with_import(self, ns: runtime.Namespace):
         import builtins
+
         ns.add_import(sym.symbol("builtins"), builtins)
         assert "hi" == lcompile('(builtins.str. "hi")')
         assert "1" == lcompile("(builtins.str. 1)")

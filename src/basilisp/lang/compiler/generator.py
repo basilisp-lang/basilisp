@@ -444,7 +444,6 @@ _VAR_ALIAS = genname("Var")
 _UTIL_ALIAS = genname("langutil")
 
 _MODULE_ALIASES = {
-    "builtins": None,
     "basilisp.lang.atom": _ATOM_ALIAS,
     "basilisp.lang.compiler": _COMPILER_ALIAS,
     "basilisp.core": _CORE_ALIAS,
