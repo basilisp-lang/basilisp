@@ -1956,9 +1956,18 @@ class TestPythonInterop:
             lcompile("(. :kw 1)")
 
     def test_interop_new(self, ns: runtime.Namespace):
+        assert "hi" == lcompile('(python.str. "hi")')
+        assert "1" == lcompile("(python.str. 1)")
+        assert sym.symbol("hi") == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile('(python.str "hi")')
+
+    def test_interop_new_with_import(self, ns: runtime.Namespace):
+        import builtins
+        ns.add_import(sym.symbol("builtins"), builtins)
         assert "hi" == lcompile('(builtins.str. "hi")')
         assert "1" == lcompile("(builtins.str. 1)")
-        assert sym.symbol("hi") == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
 
         with pytest.raises(compiler.CompilerException):
             lcompile('(builtins.str "hi")')
