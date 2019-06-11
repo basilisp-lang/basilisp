@@ -1228,6 +1228,57 @@ class TestNotAny:
         assert True is core.not_any__Q__(core.odd__Q__, coll)
 
 
+class TestRandom:
+    COLLS = [
+            vec.v("a", "b", "c"),
+            llist.l("a", "b", "c"),
+            lset.s("a", "b", "c"),
+            ["a", "b", "c"],
+            ("a", "b", "c"),
+            {"a", "b", "c"},
+        ]
+
+    @pytest.fixture(scope="class", params=COLLS)
+    def coll(self, request):
+        return request.param
+
+    def test_rand_no_arg(self):
+        x = core.rand()
+        assert isinstance(x, float)
+        assert 0 <= x <= 1
+
+    def test_rand_only_upper(self):
+        x = core.rand(100)
+        assert isinstance(x, float)
+        assert 0 <= x <= 100
+
+    def test_rand_upper_and_lower(self):
+        x = core.rand(10, 100)
+        assert isinstance(x, float)
+        assert 10 <= x <= 100
+
+    def test_rand_int_only_upper(self):
+        i = core.rand_int(100)
+        assert isinstance(i, int)
+        assert 0 <= i <= 100
+
+    def test_rand_int_upper_and_lower(self):
+        i = core.rand_int(10, 100)
+        assert isinstance(i, int)
+        assert 10 <= i <= 100
+
+    def test_rand_nth(self, coll):
+        e = core.rand_nth(coll)
+        assert e in set(coll)
+
+    def test_random_sample(self, coll):
+        coll_elems = set(coll)
+        assert all(e in coll_elems for e in core.random_sample(0.5, coll))
+
+    def test_shuffle(self, coll):
+        assert set(coll) == set(core.shuffle(coll))
+
+
 def test_merge():
     assert None is core.merge()
     assert lmap.Map.empty() == core.merge(lmap.Map.empty())
