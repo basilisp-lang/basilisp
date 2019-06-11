@@ -1230,13 +1230,13 @@ class TestNotAny:
 
 class TestRandom:
     COLLS = [
-            vec.v("a", "b", "c"),
-            llist.l("a", "b", "c"),
-            lset.s("a", "b", "c"),
-            ["a", "b", "c"],
-            ("a", "b", "c"),
-            {"a", "b", "c"},
-        ]
+        vec.v("a", "b", "c"),
+        llist.l("a", "b", "c"),
+        lset.s("a", "b", "c"),
+        ["a", "b", "c"],
+        ("a", "b", "c"),
+        {"a", "b", "c"},
+    ]
 
     @pytest.fixture(scope="class", params=COLLS)
     def coll(self, request):
