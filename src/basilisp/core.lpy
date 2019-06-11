@@ -1908,7 +1908,7 @@
   "Evaluate body with *in* bound to a io.StringIO instance containing the
   string s."
   [s & body]
-  `(binding [*in* (io/StringIO s)]
+  `(binding [*in* (io/StringIO ~s)]
      ~@body))
 
 (defmacro with-out-str
