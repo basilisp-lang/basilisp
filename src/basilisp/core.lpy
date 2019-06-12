@@ -1651,6 +1651,40 @@
             {}
             maps)))
 
+;;;;;;;;;;;;;;;;;;;;;;
+;; Random Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+(import* random)
+
+(defn rand
+  "Return a random real number between lower (default: 0) and upper (default: 1) inclusive."
+  ([] (random/uniform 0 1))
+  ([upper] (random/uniform 0 upper))
+  ([lower upper] (random/uniform lower upper)))
+
+(defn rand-int
+  "Return a random integer between lower (default: 0) and upper inclusive."
+  ([upper]
+   (random/randrange 0 upper))
+  ([lower upper]
+   (random/randrange lower upper)))
+
+(defn rand-nth
+  "Return a random element from coll."
+  [coll]
+  (nth coll (rand-int (count coll))))
+
+(defn random-sample
+  "Return elements from coll with the random probability of prob."
+  [prob coll]
+  (filter (fn [_] (< (rand) prob)) coll))
+
+(defn shuffle
+  "Return a random permutation of coll."
+  [coll]
+  (vec (random/sample (python/list coll) (count coll))))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;; Utility Macros ;;
 ;;;;;;;;;;;;;;;;;;;;
