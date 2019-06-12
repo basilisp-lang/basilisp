@@ -330,6 +330,21 @@
              (:a x)
              (inc x)))))
 
+(deftest with-in-str-test
+  (is (= "Hi I'm a string" (with-in-str "\"Hi I'm a string\"" (read)))))
+
+(deftest with-out-str-test
+  (is (= "Hello, Chris!"
+         (with-out-str
+           (printf "Hello, %s!" "Chris"))))
+  (is (= "Hello, Chris and Rich!"
+         (with-out-str
+           (printf "Hello, %s and %s!" "Chris" "Rich"))))
+  (is (= "Hello, Chris and Rich!"
+         (with-out-str
+           (printf "Hello, %(first)s and %(second)s!"
+                   {"first" "Chris" "second" "Rich"})))))
+
 (deftest fn-sequential-destructuring
   (testing "destructuring first"
     (let [v [:a :b :c :d]

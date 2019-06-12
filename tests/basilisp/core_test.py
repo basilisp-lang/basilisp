@@ -1279,6 +1279,16 @@ class TestRandom:
         assert set(coll) == set(core.shuffle(coll))
 
 
+def test_string_format():
+    assert "Hello, Chris!" == core.format_("Hello, %s!", "Chris")
+    assert "Hello, Chris and Rich!" == core.format_(
+        "Hello, %s and %s!", "Chris", "Rich"
+    )
+    assert "Hello, Chris and Rich!" == core.format_(
+        "Hello, %(first)s and %(second)s!", {"first": "Chris", "second": "Rich"}
+    )
+
+
 def test_merge():
     assert None is core.merge()
     assert lmap.Map.empty() == core.merge(lmap.Map.empty())
