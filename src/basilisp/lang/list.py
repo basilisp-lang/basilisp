@@ -90,7 +90,7 @@ def list(members, meta=None) -> List:  # pylint:disable=redefined-builtin
     )
 
 
-def l(*members, meta=None) -> List:
+def l(*members, meta=None) -> List:  # noqa
     """Creates a new list from members."""
     return List(  # pylint: disable=abstract-class-instantiated
         plist(iterable=members), meta=meta
