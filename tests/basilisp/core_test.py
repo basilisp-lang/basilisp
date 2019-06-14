@@ -1063,6 +1063,59 @@ class TestAssociativeFunctions:
         assert 1 == core.get(vec.v(1, 2, 3), -3)
         assert None is core.get(vec.v(1, 2, 3), -4)
 
+    def test_find(self):
+        assert None is core.find(None, "a")
+        assert core.map_entry("a", 1) == core.find(lmap.map({"a": 1}), "a")
+        assert None is core.find(lmap.map({"a": 1}), "b")
+        assert core.map_entry(0, 1) == core.find(vec.v(1, 2, 3), 0)
+        assert core.map_entry(1, 2) == core.find(vec.v(1, 2, 3), 1)
+        assert core.map_entry(2, 3) == core.find(vec.v(1, 2, 3), 2)
+        assert None is core.find(vec.v(1, 2, 3), 3)
+
+    def test_get_in(self):
+        assert 1 == core.get_in(lmap.map({"a": 1}), vec.v("a"))
+        assert None is core.get_in(lmap.map({"a": 1}), vec.v("b"))
+        assert 2 == core.get_in(lmap.map({"a": 1}), vec.v("b"), 2)
+
+        assert lmap.map({"b": lmap.map({"c": 3})}) == core.get_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}), vec.v("a")
+        )
+        assert lmap.map({"c": 3}) == core.get_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}), vec.v("a", "b")
+        )
+        assert 3 == core.get_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}), vec.v("a", "b", "c")
+        )
+        assert None is core.get_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}), vec.v("a", "b", "f")
+        )
+        assert None is core.get_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}), vec.v("a", "e", "c")
+        )
+        assert "Not Found" == core.get_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}),
+            vec.v("a", "b", "f"),
+            "Not Found",
+        )
+        assert "Not Found" == core.get_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}),
+            vec.v("a", "e", "c"),
+            "Not Found",
+        )
+
+        assert "b" == core.get_in(vec.v("a", "b", "c"), vec.v(1))
+        assert "t" == core.get_in(
+            vec.v("a", vec.v("q", "r", "s", "t"), "c"), vec.v(1, 3)
+        )
+        assert "x" == core.get_in(
+            vec.v("a", vec.v("q", "r", "s", lmap.map({"w": "x"})), "c"),
+            vec.v(1, 3, "w"),
+        )
+        assert None is core.get_in(
+            vec.v("a", vec.v("q", "r", "s", lmap.map({"w": "x"})), "c"),
+            vec.v(1, 3, "v"),
+        )
+
     def test_keys(self):
         assert None is core.keys(lmap.map({}))
         assert llist.l("a") == core.keys(lmap.map({"a": 1}))
