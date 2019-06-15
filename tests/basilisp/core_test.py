@@ -1171,6 +1171,63 @@ class TestAssociativeFunctions:
             vec.v(1, 3, "v"),
         )
 
+    def test_update_in(self):
+        assert lmap.map({"a": 2}) == core.update_in(
+            lmap.map({"a": 1}), vec.v("a"), core.inc
+        )
+        assert lmap.map({"a": 1, "b": lmap.map({"c": 3})}) == core.update_in(
+            lmap.map({"a": 1}), vec.v("b"), core.assoc, "c", 3
+        )
+
+        assert lmap.map({"a": lmap.map({"b": lmap.map({"c": 2})})}) == core.update_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}),
+            vec.v("a", "b", "c"),
+            core.dec,
+        )
+        assert lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}) == core.update_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3, "f": 6})})}),
+            vec.v("a", "b"),
+            core.dissoc,
+            "f",
+        )
+        assert lmap.map(
+            {"a": lmap.map({"b": lmap.map({"c": 3}), "e": lmap.map({"f": 6})})}
+        ) == core.update_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}),
+            vec.v("a"),
+            core.assoc,
+            "e",
+            lmap.map({"f": 6}),
+        )
+
+        assert vec.v(0, 2) == core.update_in(vec.v(1, 2), vec.v(0), core.dec)
+        assert vec.v(1, 3) == core.update_in(vec.v(1, 2), vec.v(1), core.inc)
+        assert vec.v("a", "B", "c") == core.update_in(
+            vec.v("a", "b", "c"), vec.v(1), lambda s: s.upper()
+        )
+
+        assert vec.v("a", vec.v("q", "r", "s", "T"), "c") == core.update_in(
+            vec.v("a", vec.v("q", "r", "s", "t"), "c"), vec.v(1, 3), lambda s: s.upper()
+        )
+        assert vec.v(
+            "a", vec.v("q", "r", "s", lmap.map({"w": "X"})), "c"
+        ) == core.update_in(
+            vec.v("a", vec.v("q", "r", "s", lmap.map({"w": "x"})), "c"),
+            vec.v(1, 3, "w"),
+            lambda s: s.upper(),
+        )
+        assert vec.v(
+            "a",
+            vec.v("q", "r", "s", lmap.map({"w": "x", "v": lmap.map({"t": "u"})})),
+            "c",
+        ) == core.update_in(
+            vec.v("a", vec.v("q", "r", "s", lmap.map({"w": "x"})), "c"),
+            vec.v(1, 3, "v"),
+            core.assoc,
+            "t",
+            "u",
+        )
+
     def test_keys(self):
         assert None is core.keys(lmap.map({}))
         assert llist.l("a") == core.keys(lmap.map({"a": 1}))
