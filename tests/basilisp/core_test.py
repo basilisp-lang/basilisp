@@ -1072,6 +1072,61 @@ class TestAssociativeFunctions:
         assert core.map_entry(2, 3) == core.find(vec.v(1, 2, 3), 2)
         assert None is core.find(vec.v(1, 2, 3), 3)
 
+    def test_assoc_in(self):
+        assert lmap.map({"a": 1}) == core.assoc_in(None, vec.v("a"), 1)
+        assert lmap.map({"a": 8}) == core.assoc_in(lmap.map({"a": 1}), vec.v("a"), 8)
+        assert lmap.map({"a": 1, "b": "string"}) == core.assoc_in(
+            lmap.map({"a": 1}), vec.v("b"), "string"
+        )
+
+        assert lmap.map({"a": lmap.map({"b": 3})}) == core.assoc_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}), vec.v("a", "b"), 3
+        )
+        assert lmap.map({"a": lmap.map({"b": lmap.map({"c": 4})})}) == core.assoc_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}),
+            vec.v("a", "b", "c"),
+            4,
+        )
+        assert lmap.map(
+            {"a": lmap.map({"b": lmap.map({"c": 3, "f": 6})})}
+        ) == core.assoc_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}),
+            vec.v("a", "b", "f"),
+            6,
+        )
+        assert lmap.map(
+            {"a": lmap.map({"b": lmap.map({"c": 3}), "e": lmap.map({"f": 6})})}
+        ) == core.assoc_in(
+            lmap.map({"a": lmap.map({"b": lmap.map({"c": 3})})}),
+            vec.v("a", "e"),
+            lmap.map({"f": 6}),
+        )
+
+        assert vec.v("a") == core.assoc_in(vec.Vector.empty(), vec.v(0), "a")
+        assert vec.v("c", "b") == core.assoc_in(vec.v("a", "b"), vec.v(0), "c")
+        assert vec.v("a", "c") == core.assoc_in(vec.v("a", "b"), vec.v(1), "c")
+        assert vec.v("a", "d", "c") == core.assoc_in(
+            vec.v("a", "b", "c"), vec.v(1), "d"
+        )
+
+        assert vec.v("a", vec.v("q", "r", "s", "w"), "c") == core.assoc_in(
+            vec.v("a", vec.v("q", "r", "s", "t"), "c"), vec.v(1, 3), "w"
+        )
+        assert vec.v(
+            "a", vec.v("q", "r", "s", lmap.map({"w": "y"})), "c"
+        ) == core.assoc_in(
+            vec.v("a", vec.v("q", "r", "s", lmap.map({"w": "x"})), "c"),
+            vec.v(1, 3, "w"),
+            "y",
+        )
+        assert vec.v(
+            "a", vec.v("q", "r", "s", lmap.map({"w": "x", "v": "u"})), "c"
+        ) == core.assoc_in(
+            vec.v("a", vec.v("q", "r", "s", lmap.map({"w": "x"})), "c"),
+            vec.v(1, 3, "v"),
+            "u",
+        )
+
     def test_get_in(self):
         assert 1 == core.get_in(lmap.map({"a": 1}), vec.v("a"))
         assert None is core.get_in(lmap.map({"a": 1}), vec.v("b"))
