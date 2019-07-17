@@ -14,7 +14,9 @@ from typing import (
     Any,
     Callable,
     Dict,
+    FrozenSet,
     Iterable,
+    List,
     Mapping,
     Optional,
     Tuple,
@@ -307,9 +309,24 @@ class Var(IDeref):
         return v
 
 
-Frame = lset.Set[Var]
-FrameStack = vec.Vector[Frame]
-_FRAME: Atom[FrameStack] = Atom(vec.Vector.empty())
+Frame = FrozenSet[Var]
+FrameStack = List[Frame]
+
+
+class _ThreadBindings(threading.local):
+    __slots__ = ("_bindings",)
+
+    def __init__(self):
+        self._bindings: FrameStack = []
+
+    def push_bindings(self, frame: Frame):
+        self._bindings.append(frame)
+
+    def pop_bindings(self):
+        return self._bindings.pop()
+
+
+_THREAD_BINDINGS = _ThreadBindings()
 
 
 AliasMap = lmap.Map[sym.Symbol, sym.Symbol]
@@ -744,21 +761,13 @@ def push_thread_bindings(m: IAssociative[Var, Any]) -> None:
         var.push_bindings(val)
         bindings.add(var)
 
-    _FRAME.swap(conj, lset.set(bindings))
+    _THREAD_BINDINGS.push_bindings(frozenset(bindings))
     return None
 
 
 def pop_thread_bindings() -> None:
     """Pop the thread local bindings set by push_thread_bindings above."""
-    bindings: Optional[vec.Vector] = None
-
-    def pop_bindings(v: vec.Vector) -> vec.Vector:
-        nonlocal bindings
-        bindings = v.peek()
-        return v.pop()
-
-    _FRAME.swap(pop_bindings)
-    assert bindings is not None
+    bindings = _THREAD_BINDINGS.pop_bindings()
     for var in bindings:
         var.pop_bindings()
 
