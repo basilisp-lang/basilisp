@@ -1813,6 +1813,24 @@
                       (str n ".")))]
       `(~s ~@args))))
 
+(defn push-thread-bindings
+  "Takes a map of Var/value pairs and applies the given value to the Var in the
+  current thread.
+
+  This call should be accompanied with a pop-thread-bindings call in a
+  try/finally block.
+
+  This function is a very low level function and its use is discouraged in favor
+  of a higher level construct like the binding macros."
+  [bindings]
+  (basilisp.lang.runtime/push-thread-bindings bindings))
+
+(defn pop-thread-bindings
+  "Pop thread bindings set by a corresponding call to push-thread-bindings. This
+  should not be called without a prior call to push-thread-bindings."
+  []
+  (basilisp.lang.runtime/pop-thread-bindings))
+
 (defmacro binding
   "Establish thread-local bindings for the vars given. The bindings are guaranteed
   to clear once execution passes outside the scope of this block."
@@ -1823,18 +1841,18 @@
     (throw
      (ex-info "Expected an even number of bindings"
               {:bindings bindings})))
-  (let [vvar (first bindings)
-        val  (second bindings)]
+  (let [var-bindings (reduce (fn [v pair]
+                               (let [vvar (first pair)
+                                     vval (second pair)]
+                                 (conj v `(var ~vvar) vval)))
+                             []
+                             (partition 2 bindings))]
     `(try
        (do
-         (. (var ~vvar) (~'push-bindings ~val))
-         ~@(if (nthnext bindings 2)
-             [(concat
-               (list 'binding (vec (nthrest bindings 2)))
-               body)]
-             body))
+         (push-thread-bindings (hash-map ~@var-bindings))
+         ~@body)
        (finally
-         (. (var ~vvar) ~'pop-bindings)))))
+         (pop-thread-bindings)))))
 
 (import* [time :as py-time])
 
@@ -2194,9 +2212,60 @@
                                                   ctx
                                                   module)))
 
+;;;;;;;;;;;;;;;;;;;
+;; Var Utilities ;;
+;;;;;;;;;;;;;;;;;;;
+
+(defn alter-var-root
+  "Atomically alter the Var root by calling (apply f root args) and setting
+  the root as the result."
+  [v f & args]
+  (apply-method v alter-root f args))
+
+(defn find-var
+  "Return the Var named by namespace-qualified sym if it exists, or nil otherwise."
+  [sym]
+  (basilisp.lang.runtime.Var/find sym))
+
+(defn thread-bound?
+  "Return true if vars are thread-bound, which implies that a set! will succeed.
+  Returns true if no vars are given."
+  [& vars]
+  (loop [v (first vars)
+         r (rest vars)]
+    (if-not v
+      true
+      (if (.-is-thread-bound v)
+        (recur (first r) (rest r))
+        false))))
+
+(defn var-get
+  "Return the value inside the Var. Return thread local bindings if they exist,
+  otherwise, return the root binding."
+  [v]
+  @v)
+
+(defn var-set
+  "Set the binding of the Var. Must be thread-local."
+  [v val]
+  (if (thread-bound? v)
+    (set! (.-value v) val)
+    (throw
+     (ex-info "Cannot set non-thread-bound Var binding" {:var v}))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Namespace Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn all-ns
+  "Return a sequence of all namespaces."
+  []
+  (vals @basilisp.lang.runtime.Namespace/-NAMESPACES))
+
+(defn find-ns
+  "Return the namespace named by sym if it exists, or nil otherwise."
+  [sym]
+  (basilisp.lang.runtime.Namespace/get sym))
 
 (defn the-ns
   "If v is a symbol, return the Namespace named by that symbol if it
@@ -2215,11 +2284,35 @@
               {:value v
                :type  (python/type v)}))))
 
+(defn intern
+  "Finds or creates a Var in ns (which is either a namespace or symbol),
+  setting the root binding to val, if provided. The namespace must exist.
+  Return the Var."
+  ([ns name]
+   (let [ns (the-ns ns)
+         v  (basilisp.lang.runtime/Var ns name)]
+     (.intern ns v)))
+  ([ns name val]
+   (let [ns (the-ns ns)
+         v  (basilisp.lang.runtime/Var ns name)]
+     (set! (.-root v) val)
+     (.intern ns v))))
+
 (defn create-ns
   "Create a Namespace with the name ns-sym or return the existing one
   if it already exists."
   [ns-sym]
-  (.get-or-create basilisp.lang.runtime/Namespace ns-sym))
+  (basilisp.lang.runtime.Namespace/get-or-create ns-sym))
+
+(defn remove-ns
+  "Remove the namespace named by the symbol."
+  [ns-sym]
+  (basilisp.lang.runtime.Namespace/remove ns-sym))
+
+(defn ns-name
+  "Return the name of the namespace, a symbol."
+  [ns]
+  (.-name ns))
 
 (defn ns-aliases
   "Return a map of Basilisp namespaces which are aliased in the current
@@ -2232,19 +2325,29 @@
                 m
                 (assoc m alias namespace))))
           {}
-          (.-aliases ns)))
+          (.-aliases (the-ns ns))))
 
 (defn ns-imports
   "Return a set of Python modules which are imported in the current
   namespace."
   [ns]
-  (.-imports ns))
+  (.-imports (the-ns ns)))
 
 (defn ns-interns
   "Return a map of symbols to Vars which are interned in the current
   namespace."
   [ns]
-  (.-interns ns))
+  (.-interns (the-ns ns)))
+
+(defn ns-unalias
+  "Remove the alias for the symbol sym from ns. Return nil."
+  [ns sym]
+  (.remove-alias (the-ns ns) sym))
+
+(defn ns-unmap
+  "Remove the mapping for the symbol sym from ns. Return nil."
+  [ns sym]
+  (.unmap (the-ns ns) sym))
 
 (defn ns-publics
   "Return a map of symbols to public Vars which are interned in the
@@ -2252,7 +2355,7 @@
 
   Public vars are Vars which are declared without :private metadata."
   [ns]
-  (let [interns (ns-interns ns)]
+  (let [interns (ns-interns (the-ns ns))]
     (if-not (seq interns)
       {}
       (reduce (fn [m entry]
@@ -2266,7 +2369,7 @@
   "Return a map of symbols to Vars which are referred in the current
   namespace."
   [ns]
-  (.-refers ns))
+  (.-refers (the-ns ns)))
 
 (defn ns-map
   "Return a map of all the mapped symbols in the namespace.
@@ -2274,14 +2377,15 @@
   Includes the return values of ns-interns and ns-refers in one map."
   ([] (ns-map *ns*))
   ([ns]
-   (merge
-    (ns-interns ns)
-    (ns-refers ns))))
+   (let [resolved-ns (the-ns ns)]
+     (merge
+      (ns-interns resolved-ns)
+      (ns-refers resolved-ns)))))
 
 (defn ns-resolve
   "Return the Var which will be resolved by the symbol in the given namespace."
   [ns sym]
-  (basilisp.lang.runtime/resolve-var sym ns))
+  (basilisp.lang.runtime/resolve-var sym (the-ns ns)))
 
 (defn resolve
   "Return the Var which will be resolved by the symbol in the namespace currently
@@ -2338,6 +2442,14 @@
                            (.add-refer current-ns sym var)
                            (recur (rest refers)))))]
         (do-refer interns)))))
+
+(def refer-basilisp
+  "Refer Vars from basilisp.core using the same filter syntax as refer."
+  (partial refer 'basilisp.core))
+
+(def refer-clojure
+  "Compatibility layer with JVM Clojure, which points to refer-basilisp."
+  refer-basilisp)
 
 (import importlib)
 
@@ -3333,3 +3445,4 @@
          ((.- ~type-name ~'create) m#))
 
        ~type-name)))
+

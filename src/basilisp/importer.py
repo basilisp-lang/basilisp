@@ -40,7 +40,7 @@ def _basilisp_bytecode(
     data = bytearray(MAGIC_NUMBER)
     data.extend(_w_long(mtime))
     data.extend(_w_long(source_size))
-    data.extend(marshal.dumps(code))  # type: ignore
+    data.extend(marshal.dumps(code))
     return data
 
 
@@ -77,7 +77,7 @@ def _get_basilisp_bytecode(
         logger.debug(message)
         raise ImportError(message, **exc_details)  # type: ignore
 
-    return marshal.loads(cache_data[12:])  # type: ignore
+    return marshal.loads(cache_data[12:])
 
 
 def _cache_from_source(path: str) -> str:
