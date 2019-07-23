@@ -773,7 +773,11 @@ def push_thread_bindings(m: IAssociative[Var, Any]) -> None:
 
 def pop_thread_bindings() -> None:
     """Pop the thread local bindings set by push_thread_bindings above."""
-    bindings = _THREAD_BINDINGS.pop_bindings()
+    try:
+        bindings = _THREAD_BINDINGS.pop_bindings()
+    except IndexError:
+        raise RuntimeException("cannot pop thread-local bindings without prior push")
+
     for var in bindings:
         var.pop_bindings()
 
