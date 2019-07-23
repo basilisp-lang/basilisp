@@ -507,7 +507,6 @@ class Namespace:
     def remove_alias(self, alias: sym.Symbol) -> None:
         """Remove the Namespace aliased by Symbol. Return None."""
         self._aliases.swap(lambda m: m.dissoc(alias))
-        return None
 
     def intern(self, sym: sym.Symbol, var: Var, force: bool = False) -> Var:
         """Intern the Var given in this namespace mapped by the given Symbol.
@@ -530,7 +529,6 @@ class Namespace:
 
     def unmap(self, sym: sym.Symbol) -> None:
         self._interns.swap(lambda m: m.dissoc(sym))
-        return None
 
     def find(self, sym: sym.Symbol) -> Optional[Var]:
         """Find Vars mapped by the given Symbol input or None if no Vars are
@@ -771,7 +769,6 @@ def push_thread_bindings(m: IAssociative[Var, Any]) -> None:
         bindings.add(var)
 
     _THREAD_BINDINGS.push_bindings(frozenset(bindings))
-    return None
 
 
 def pop_thread_bindings() -> None:
@@ -779,8 +776,6 @@ def pop_thread_bindings() -> None:
     bindings = _THREAD_BINDINGS.pop_bindings()
     for var in bindings:
         var.pop_bindings()
-
-    return None
 
 
 ###################
