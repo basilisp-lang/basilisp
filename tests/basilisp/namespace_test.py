@@ -111,6 +111,16 @@ def test_gated_import():
         assert sym.symbol("gated-default") in Namespace.DEFAULT_IMPORTS.deref()
 
 
+def test_imports(ns_cache: atom.Atom[NamespaceMap]):
+    ns = Namespace.get_or_create(sym.symbol("ns1"))
+    time = __import__("time")
+    ns.add_import(sym.symbol("time"), time, sym.symbol("py-time"), sym.symbol("py-tm"))
+    assert time == ns.get_import(sym.symbol("time"))
+    assert time == ns.get_import(sym.symbol("py-time"))
+    assert time == ns.get_import(sym.symbol("py-tm"))
+    assert None is ns.get_import(sym.symbol("python-time"))
+
+
 def test_intern_does_not_overwrite(ns_cache: atom.Atom[NamespaceMap]):
     ns = Namespace.get_or_create(sym.symbol("ns1"))
     var_sym = sym.symbol("useful-value")

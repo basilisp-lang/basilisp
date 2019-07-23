@@ -377,6 +377,11 @@ def core_ns():
     yield ns_var.value
 
 
+@pytest.mark.parametrize("form", runtime._SPECIAL_FORMS)
+def test_is_special_form(form: sym.Symbol):
+    assert runtime.is_special_form(form)
+
+
 class TestResolveAlias:
     @pytest.fixture
     def compiler_special_forms(self) -> lset.Set:

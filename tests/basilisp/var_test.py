@@ -306,3 +306,18 @@ def test_find(
     ns_qualified_sym = sym.symbol(var_name.name, ns=ns_sym.name)
     v_in_ns = Var.find(ns_qualified_sym)
     assert v == v_in_ns
+
+
+def test_find_safe(
+    ns_sym: sym.Symbol,
+    var_name: sym.Symbol,
+    intern_val,
+    ns_cache: atom.Atom[NamespaceMap],
+):
+    v = Var.intern(ns_sym, var_name, intern_val)
+    ns_qualified_sym = sym.symbol(var_name.name, ns=ns_sym.name)
+    v_in_ns = Var.find_safe(ns_qualified_sym)
+    assert v == v_in_ns
+
+    with pytest.raises(RuntimeException):
+        Var.find_safe(sym.symbol("some-other-var", ns="doesnt.matter"))
