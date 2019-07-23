@@ -280,8 +280,7 @@
               *dynamic-var*)])
          [:b :c]))
   (is (thrown? basilisp.lang.runtime/RuntimeException
-               (binding [non-dynamic-var :d]
-                 non-dynamic-var))))
+               (push-thread-bindings {#'non-dynamic-var :c}))))
 
 (deftest ->-test
   (is (= :a (-> :a)))
