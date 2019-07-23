@@ -266,6 +266,22 @@
   (is (thrown? basilisp.lang.compiler/CompilerException
                (eval '(when-some [a nil b :something] a)))))
 
+(def non-dynamic-var :b)
+(def ^:dynamic *dynamic-var* :a)
+
+(deftest binding-test
+  (is (= *dynamic-var* :a))
+  (is (= (binding [*dynamic-var* :b]
+           *dynamic-var*)
+         :b))
+  (is (= (binding [*dynamic-var* :b]
+           [*dynamic-var*
+            (binding [*dynamic-var* :c]
+              *dynamic-var*)])
+         [:b :c]))
+  (is (thrown? basilisp.lang.runtime/RuntimeException
+               (push-thread-bindings {#'non-dynamic-var :c}))))
+
 (deftest ->-test
   (is (= :a (-> :a)))
   (is (= 2 (-> 1 inc)))

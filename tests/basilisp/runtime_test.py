@@ -270,6 +270,11 @@ def test_deref():
         runtime.deref(vec.Vector.empty())
 
 
+def test_pop_thread_bindings():
+    with pytest.raises(runtime.RuntimeException):
+        runtime.pop_thread_bindings()
+
+
 class TestToPython:
     def test_literal_to_py(self):
         assert None is runtime.to_py(None)
@@ -375,6 +380,11 @@ def test_trampoline_args():
 def core_ns():
     ns_var = runtime.init_ns_var(which_ns=runtime.CORE_NS)
     yield ns_var.value
+
+
+@pytest.mark.parametrize("form", runtime._SPECIAL_FORMS)
+def test_is_special_form(form: sym.Symbol):
+    assert runtime.is_special_form(form)
 
 
 class TestResolveAlias:

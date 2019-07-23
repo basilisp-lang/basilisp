@@ -14,7 +14,9 @@ from typing import (
     Any,
     Callable,
     Dict,
+    FrozenSet,
     Iterable,
+    List,
     Mapping,
     Optional,
     Tuple,
@@ -130,8 +132,24 @@ class RuntimeException(Exception):
     pass
 
 
-class Var:
-    __slots__ = ("_name", "_ns", "_root", "_dynamic", "_is_bound", "_tl", "_meta")
+class _VarBindings(threading.local):
+    __slots__ = ("bindings",)
+
+    def __init__(self):
+        self.bindings: List = []
+
+
+class Var(IDeref):
+    __slots__ = (
+        "_name",
+        "_ns",
+        "_root",
+        "_dynamic",
+        "_is_bound",
+        "_tl",
+        "_meta",
+        "_lock",
+    )
 
     def __init__(
         self, ns: "Namespace", name: sym.Symbol, dynamic: bool = False, meta=None
@@ -141,11 +159,12 @@ class Var:
         self._root = None
         self._dynamic = dynamic
         self._is_bound = False
-        self._tl = threading.local()
+        self._tl = None
         self._meta = meta
+        self._lock = threading.Lock()
 
         if dynamic:
-            self._tl.bindings = []
+            self._tl = _VarBindings()
 
             # If this var was created with the dynamic keyword argument, then the
             # Var metadata should also specify that the Var is dynamic.
@@ -191,43 +210,58 @@ class Var:
 
     @property
     def is_bound(self) -> bool:
-        return self._is_bound
+        return self._is_bound or self.is_thread_bound
 
     @property
     def root(self):
-        return self._root
+        with self._lock:
+            return self._root
 
     @root.setter
     def root(self, val):
-        self._is_bound = True
-        self._root = val
+        with self._lock:
+            self._is_bound = True
+            self._root = val
+
+    def alter_root(self, f, *args):
+        with self._lock:
+            self._root = f(self._root, *args)
 
     def push_bindings(self, val):
-        if not hasattr(self._tl, "bindings"):
-            self._tl.bindings = []
+        if self._tl is None:
+            raise RuntimeException("Can only push bindings to dynamic Vars")
         self._tl.bindings.append(val)
 
     def pop_bindings(self):
+        if self._tl is None:
+            raise RuntimeException("Can only pop bindings from dynamic Vars")
         return self._tl.bindings.pop()
+
+    def deref(self):
+        return self.value
+
+    @property
+    def is_thread_bound(self):
+        return bool(self._dynamic and self._tl.bindings)
 
     @property
     def value(self):
         if self._dynamic:
-            assert hasattr(self._tl, "bindings")
+            assert self._tl is not None
             if len(self._tl.bindings) > 0:
                 return self._tl.bindings[-1]
-        return self._root
+        return self.root
 
     @value.setter
     def value(self, v):
         if self._dynamic:
-            assert hasattr(self._tl, "bindings")
+            assert self._tl is not None
             if len(self._tl.bindings) > 0:
                 self._tl.bindings[-1] = v
             else:
                 self.push_bindings(v)
             return
-        self._root = v
+        self.root = v
 
     @staticmethod
     def intern(
@@ -282,6 +316,26 @@ class Var:
                 f"Unable to resolve symbol {ns_qualified_sym} in this context"
             )
         return v
+
+
+Frame = FrozenSet[Var]
+FrameStack = List[Frame]
+
+
+class _ThreadBindings(threading.local):
+    __slots__ = ("_bindings",)
+
+    def __init__(self):
+        self._bindings: FrameStack = []
+
+    def push_bindings(self, frame: Frame):
+        self._bindings.append(frame)
+
+    def pop_bindings(self):
+        return self._bindings.pop()
+
+
+_THREAD_BINDINGS = _ThreadBindings()
 
 
 AliasMap = lmap.Map[sym.Symbol, sym.Symbol]
@@ -450,6 +504,10 @@ class Namespace:
         """Get the Namespace aliased by Symbol or None if it does not exist."""
         return self.aliases.entry(alias, None)
 
+    def remove_alias(self, alias: sym.Symbol) -> None:
+        """Remove the Namespace aliased by Symbol. Return None."""
+        self._aliases.swap(lambda m: m.dissoc(alias))
+
     def intern(self, sym: sym.Symbol, var: Var, force: bool = False) -> Var:
         """Intern the Var given in this namespace mapped by the given Symbol.
         If the Symbol already maps to a Var, this method _will not overwrite_
@@ -468,6 +526,9 @@ class Namespace:
         if var is None or force:
             return m.assoc(sym, new_var)
         return m
+
+    def unmap(self, sym: sym.Symbol) -> None:
+        self._interns.swap(lambda m: m.dissoc(sym))
 
     def find(self, sym: sym.Symbol) -> Optional[Var]:
         """Find Vars mapped by the given Symbol input or None if no Vars are
@@ -574,6 +635,8 @@ class Namespace:
         """Remove the namespace bound to the symbol `name` in the global
         namespace cache and return that namespace.
         Return None if the namespace did not exist in the cache."""
+        if name == sym.symbol(CORE_NS):
+            raise ValueError("Cannot remove the Basilisp core namespace")
         while True:
             oldval: lmap.Map = cls._NAMESPACES.deref()
             ns: Optional[Namespace] = oldval.entry(name, None)
@@ -689,6 +752,34 @@ class Namespace:
             )
 
         return results
+
+
+def push_thread_bindings(m: IAssociative[Var, Any]) -> None:
+    """Push thread local bindings for the Var keys in m using the values."""
+    bindings = set()
+
+    for entry in m:
+        var: Var = entry.key  # type: ignore
+        val = entry.value
+        if not var.dynamic:
+            raise RuntimeException(
+                "cannot set thread-local bindings for non-dynamic Var"
+            )
+        var.push_bindings(val)
+        bindings.add(var)
+
+    _THREAD_BINDINGS.push_bindings(frozenset(bindings))
+
+
+def pop_thread_bindings() -> None:
+    """Pop the thread local bindings set by push_thread_bindings above."""
+    try:
+        bindings = _THREAD_BINDINGS.pop_bindings()
+    except IndexError:
+        raise RuntimeException("cannot pop thread-local bindings without prior push")
+
+    for var in bindings:
+        var.pop_bindings()
 
 
 ###################
@@ -1226,7 +1317,7 @@ def _fn_with_meta(f, meta: Optional[lmap.Map]):
 
     else:
 
-        @functools.wraps(f)  # type: ignore
+        @functools.wraps(f)
         def wrapped_f(*args, **kwargs):
             return f(*args, **kwargs)
 
@@ -1381,7 +1472,10 @@ def add_generated_python(
             meta=lmap.map({_PRIVATE_META_KEY: True}),
         )
     )
-    v.value = v.value + generated_python
+    # Accessing the Var root via the property uses a lock, which is the
+    # desired behavior for Basilisp code, but it introduces additional
+    # startup time when there will not realistically be any contention.
+    v._root = v._root + generated_python  # type: ignore
 
 
 def print_generated_python(

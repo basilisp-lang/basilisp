@@ -19,7 +19,7 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):  # type: ignore
+class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):
     __slots__ = ()
 
     def __init__(self, wrapped: "PVector[Union[K, V]]") -> None:
