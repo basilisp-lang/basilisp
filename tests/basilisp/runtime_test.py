@@ -270,6 +270,11 @@ def test_deref():
         runtime.deref(vec.Vector.empty())
 
 
+def test_pop_thread_bindings():
+    with pytest.raises(runtime.RuntimeException):
+        runtime.pop_thread_bindings()
+
+
 class TestToPython:
     def test_literal_to_py(self):
         assert None is runtime.to_py(None)
