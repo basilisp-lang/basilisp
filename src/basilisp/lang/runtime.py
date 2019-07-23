@@ -9,19 +9,6 @@ import re
 import threading
 import types
 from fractions import Fraction
-from typing import (
-    AbstractSet,
-    Any,
-    Callable,
-    Dict,
-    FrozenSet,
-    Iterable,
-    List,
-    Mapping,
-    Optional,
-    Tuple,
-    Union,
-)
 
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
@@ -48,6 +35,19 @@ from basilisp.lang.typing import LispNumber
 from basilisp.lang.util import munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
+from typing import (
+    AbstractSet,
+    Any,
+    Callable,
+    Dict,
+    FrozenSet,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1318,7 +1318,7 @@ def _fn_with_meta(f, meta: Optional[lmap.Map]):
 
     else:
 
-        @functools.wraps(f)  # type: ignore
+        @functools.wraps(f)
         def wrapped_f(*args, **kwargs):
             return f(*args, **kwargs)
 

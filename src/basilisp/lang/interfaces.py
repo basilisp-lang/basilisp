@@ -141,15 +141,7 @@ class IPersistentSet(AbstractSet[T], IPersistentCollection[T]):
         raise NotImplementedError()
 
 
-# MyPy has a lot of trouble dealing with the fact that Vectors are
-# considered as mapping types (from int -> T) and more traditional
-# sequential collections since the Python supertypes signatures conflict.
-# Below, we override the supertype signatures to select the signature
-# we specifically want to appear, but MyPy still complains. For now,
-# we will simply silence MyPy.
-class IPersistentVector(  # type: ignore
-    Sequence[T], IAssociative[int, T], IPersistentStack[T]
-):
+class IPersistentVector(Sequence[T], IAssociative[int, T], IPersistentStack[T]):
     __slots__ = ()
 
     @abstractmethod

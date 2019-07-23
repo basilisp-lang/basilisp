@@ -1,5 +1,3 @@
-from typing import Iterable, Optional, TypeVar
-
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 
 from basilisp.lang.interfaces import (
@@ -11,11 +9,12 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
+from typing import Iterable, Optional, TypeVar
 
 T = TypeVar("T")
 
 
-class Vector(ILispObject, IMeta, IPersistentVector[T]):  # type: ignore
+class Vector(ILispObject, IMeta, IPersistentVector[T]):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""

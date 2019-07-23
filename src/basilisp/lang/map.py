@@ -1,6 +1,4 @@
 from builtins import map as pymap
-from typing import Callable, Dict, Iterable, Mapping, Sequence, TypeVar, Union
-
 from pyrsistent import (  # noqa # pylint: disable=unused-import
     PMap,
     PVector,
@@ -13,13 +11,14 @@ from basilisp.lang.obj import map_lrepr as _map_lrepr
 from basilisp.lang.seq import sequence
 from basilisp.lang.vector import Vector
 from basilisp.util import partition
+from typing import Callable, Dict, Iterable, Mapping, Sequence, TypeVar, Union
 
 T = TypeVar("T")
 K = TypeVar("K")
 V = TypeVar("V")
 
 
-class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):  # type: ignore
+class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):
     __slots__ = ()
 
     def __init__(self, wrapped: "PVector[Union[K, V]]") -> None:
