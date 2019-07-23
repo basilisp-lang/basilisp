@@ -210,7 +210,7 @@ class Var(IDeref):
 
     @property
     def is_bound(self) -> bool:
-        return self._is_bound
+        return self._is_bound or self.is_thread_bound
 
     @property
     def root(self):
@@ -242,7 +242,7 @@ class Var(IDeref):
 
     @property
     def is_thread_bound(self):
-        return bool(self._is_bound and self._dynamic and self._tl.bindings)
+        return bool(self._dynamic and self._tl.bindings)
 
     @property
     def value(self):

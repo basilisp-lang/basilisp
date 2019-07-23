@@ -63,28 +63,40 @@ def test_dynamic_var(
     ns_cache: atom.Atom[NamespaceMap],
 ):
     v = Var.intern(ns_sym, var_name, intern_val, dynamic=True)
+    assert v.is_bound
     assert v.dynamic
+    assert not v.is_thread_bound
     assert intern_val == v.root
     assert intern_val == v.value
+    assert intern_val == v.deref()
 
     new_val = kw.keyword("new-val")
     new_val2 = kw.keyword("other-new-val")
     try:
         v.push_bindings(new_val)
+        assert v.is_bound
         assert v.dynamic
+        assert v.is_thread_bound
         assert intern_val == v.root
         assert new_val == v.value
+        assert new_val == v.deref()
 
         v.value = new_val2
+        assert v.is_bound
         assert v.dynamic
+        assert v.is_thread_bound
         assert intern_val == v.root
         assert new_val2 == v.value
+        assert new_val2 == v.deref()
     finally:
         v.pop_bindings()
 
+    assert v.is_bound
     assert v.dynamic
+    assert not v.is_thread_bound
     assert intern_val == v.root
     assert intern_val == v.value
+    assert intern_val == v.deref()
 
 
 def test_var_bindings_are_noop_for_non_dynamic_var(
@@ -94,30 +106,43 @@ def test_var_bindings_are_noop_for_non_dynamic_var(
     ns_cache: atom.Atom[NamespaceMap],
 ):
     v = Var.intern(ns_sym, var_name, intern_val)
+    assert v.is_bound
     assert not v.dynamic
+    assert not v.is_thread_bound
     assert intern_val == v.root
     assert intern_val == v.value
+    assert intern_val == v.deref()
 
     new_val = kw.keyword("new-val")
     new_val2 = kw.keyword("other-new-val")
     try:
         with pytest.raises(RuntimeException):
             v.push_bindings(new_val)
+
+        assert v.is_bound
         assert not v.dynamic
+        assert not v.is_thread_bound
         assert intern_val == v.root
         assert intern_val == v.value
+        assert intern_val == v.deref()
 
         v.value = new_val2
+        assert v.is_bound
         assert not v.dynamic
+        assert not v.is_thread_bound
         assert new_val2 == v.root
         assert new_val2 == v.value
+        assert new_val2 == v.deref()
     finally:
         with pytest.raises(RuntimeException):
             v.pop_bindings()
 
+    assert v.is_bound
     assert not v.dynamic
+    assert not v.is_thread_bound
     assert new_val2 == v.root
     assert new_val2 == v.value
+    assert new_val2 == v.deref()
 
 
 def test_intern(
@@ -130,9 +155,12 @@ def test_intern(
     assert isinstance(v, Var)
     assert ns_sym.name == v.ns.name
     assert var_name == v.name
+    assert v.is_bound
     assert not v.dynamic
+    assert not v.is_thread_bound
     assert intern_val == v.root
     assert intern_val == v.value
+    assert intern_val == v.deref()
 
     ns = Namespace.get_or_create(ns_sym)
     assert None is not ns
@@ -146,13 +174,115 @@ def test_intern_unbound(
     assert isinstance(v, Var)
     assert ns_sym.name == v.ns.name
     assert var_name == v.name
+    assert not v.is_bound
     assert not v.dynamic
+    assert not v.is_thread_bound
     assert None is v.root
     assert None is v.value
+    assert None is v.deref()
 
     ns = Namespace.get_or_create(ns_sym)
     assert None is not ns
     assert ns.find(var_name) == v
+
+
+def test_dynamic_unbound(
+    ns_sym: sym.Symbol, var_name: sym.Symbol, ns_cache: atom.Atom[NamespaceMap]
+):
+    v = Var.intern_unbound(ns_sym, var_name, dynamic=True)
+    assert isinstance(v, Var)
+    assert ns_sym.name == v.ns.name
+    assert var_name == v.name
+    assert not v.is_bound
+    assert v.dynamic
+    assert not v.is_thread_bound
+    assert None is v.root
+    assert None is v.value
+    assert None is v.deref()
+
+    new_val = kw.keyword("new-val")
+    try:
+        v.push_bindings(new_val)
+        assert v.is_bound
+        assert v.dynamic
+        assert v.is_thread_bound
+        assert None is v.root
+        assert new_val == v.value
+        assert new_val == v.deref()
+    finally:
+        v.pop_bindings()
+
+    assert not v.is_bound
+
+    ns = Namespace.get_or_create(ns_sym)
+    assert None is not ns
+    assert ns.find(var_name) == v
+
+
+def test_alter_var_root(
+    ns_sym: sym.Symbol,
+    var_name: sym.Symbol,
+    intern_val,
+    ns_cache: atom.Atom[NamespaceMap],
+):
+    v = Var.intern(ns_sym, var_name, intern_val)
+
+    new_root = kw.keyword("new-root")
+    alter_args = (1, 2, 3)
+
+    def alter_root(root, *args):
+        assert intern_val == root
+        assert alter_args == args
+        return new_root
+
+    v.alter_root(alter_root, *alter_args)
+
+    assert new_root == v.root
+    assert new_root == v.value
+    assert new_root == v.deref()
+
+
+def test_alter_dynamic_var_root(
+    ns_sym: sym.Symbol,
+    var_name: sym.Symbol,
+    intern_val,
+    ns_cache: atom.Atom[NamespaceMap],
+):
+    v = Var.intern(ns_sym, var_name, intern_val, dynamic=True)
+    assert v.is_bound
+    assert v.dynamic
+    assert not v.is_thread_bound
+    assert intern_val == v.root
+    assert intern_val == v.value
+    assert intern_val == v.deref()
+
+    new_val = kw.keyword("new-val")
+    new_root = kw.keyword("new-root")
+    alter_args = (1, 2, 3)
+
+    def alter_root(root, *args):
+        assert intern_val == root
+        assert alter_args == args
+        return new_root
+
+    try:
+        v.push_bindings(new_val)
+        v.alter_root(alter_root, *alter_args)
+        assert v.is_bound
+        assert v.dynamic
+        assert v.is_thread_bound
+        assert new_root == v.root
+        assert new_val == v.value
+        assert new_val == v.deref()
+    finally:
+        v.pop_bindings()
+
+    assert v.is_bound
+    assert v.dynamic
+    assert not v.is_thread_bound
+    assert new_root == v.root
+    assert new_root == v.value
+    assert new_root == v.deref()
 
 
 def test_find_in_ns(

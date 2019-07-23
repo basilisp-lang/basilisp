@@ -134,6 +134,23 @@ def test_intern_does_not_overwrite(ns_cache: atom.Atom[NamespaceMap]):
     assert var_val2 == ns.find(var_sym).value
 
 
+def test_unmap(ns_cache: atom.Atom[NamespaceMap]):
+    ns = Namespace.get_or_create(sym.symbol("ns1"))
+    var_sym = sym.symbol("useful-value")
+
+    var_val = "cool string"
+    var = Var(ns, var_sym)
+    var.value = var_val
+    ns.intern(var_sym, var)
+
+    assert var is ns.find(var_sym)
+    assert var_val == ns.find(var_sym).value
+
+    ns.unmap(var_sym)
+
+    assert None is ns.find(var_sym)
+
+
 @pytest.fixture
 def core_map() -> sym.Symbol:
     return sym.symbol("map")
@@ -294,6 +311,10 @@ def test_alias(ns_cache: atom.Atom[NamespaceMap]):
 
     assert None is ns1.get_alias(sym.symbol("ns2"))
     assert ns2 is ns1.get_alias(sym.symbol("n2"))
+
+    ns1.remove_alias(sym.symbol("n2"))
+
+    assert None is ns1.get_alias(sym.symbol("n2"))
 
 
 class TestCompletion:
