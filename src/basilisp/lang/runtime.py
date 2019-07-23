@@ -132,6 +132,13 @@ class RuntimeException(Exception):
     pass
 
 
+class _VarBindings(threading.local):
+    __slots__ = ("bindings",)
+
+    def __init__(self):
+        self.bindings: List = []
+
+
 class Var(IDeref):
     __slots__ = (
         "_name",
@@ -152,12 +159,12 @@ class Var(IDeref):
         self._root = None
         self._dynamic = dynamic
         self._is_bound = False
-        self._tl = threading.local()
+        self._tl = None
         self._meta = meta
         self._lock = threading.Lock()
 
         if dynamic:
-            self._tl.bindings = []
+            self._tl = _VarBindings()
 
             # If this var was created with the dynamic keyword argument, then the
             # Var metadata should also specify that the Var is dynamic.
@@ -221,11 +228,13 @@ class Var(IDeref):
             self._root = f(self._root, *args)
 
     def push_bindings(self, val):
-        if not hasattr(self._tl, "bindings"):
-            self._tl.bindings = []
+        if self._tl is None:
+            raise RuntimeException("Can only push bindings to dynamic Vars")
         self._tl.bindings.append(val)
 
     def pop_bindings(self):
+        if self._tl is None:
+            raise RuntimeException("Can only pop bindings from dynamic Vars")
         return self._tl.bindings.pop()
 
     def deref(self):
@@ -238,7 +247,7 @@ class Var(IDeref):
     @property
     def value(self):
         if self._dynamic:
-            assert hasattr(self._tl, "bindings")
+            assert self._tl is not None
             if len(self._tl.bindings) > 0:
                 return self._tl.bindings[-1]
         return self.root
@@ -246,7 +255,7 @@ class Var(IDeref):
     @value.setter
     def value(self, v):
         if self._dynamic:
-            assert hasattr(self._tl, "bindings")
+            assert self._tl is not None
             if len(self._tl.bindings) > 0:
                 self._tl.bindings[-1] = v
             else:

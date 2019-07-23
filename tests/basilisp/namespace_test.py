@@ -49,7 +49,7 @@ def test_create_ns(ns_sym: sym.Symbol, ns_cache: atom.Atom[NamespaceMap]):
 @pytest.fixture
 def ns_cache_with_existing_ns(
     ns_sym: sym.Symbol, core_ns_sym: sym.Symbol, core_ns: Namespace
-) -> patch:
+) -> atom.Atom[NamespaceMap]:
     """Patch the Namespace cache with a test fixture with an existing namespace."""
     with patch(
         "basilisp.lang.runtime.Namespace._NAMESPACES",

@@ -356,9 +356,15 @@ class TestDef:
 
         v: Var = lcompile("(def a-regular-var 1)")
         assert v.dynamic is False
-        lcompile("(.push-bindings #'a-regular-var :hi)")
+
+        with pytest.raises(runtime.RuntimeException):
+            lcompile("(.push-bindings #'a-regular-var :hi)")
+
         assert 1 == lcompile("a-regular-var")
-        assert kw.keyword("hi") == lcompile("(.pop-bindings #'a-regular-var)")
+
+        with pytest.raises(runtime.RuntimeException):
+            assert kw.keyword("hi") == lcompile("(.pop-bindings #'a-regular-var)")
+
         assert 1 == lcompile("a-regular-var")
 
     def test_def_fn_with_meta(self, ns: runtime.Namespace):
