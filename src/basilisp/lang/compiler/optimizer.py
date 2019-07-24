@@ -1,5 +1,6 @@
-import ast
 from typing import Iterable, List, Optional
+
+import basilisp._pyast as ast
 
 
 def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:

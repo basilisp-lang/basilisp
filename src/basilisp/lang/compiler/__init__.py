@@ -1,4 +1,3 @@
-import ast
 import itertools
 import os
 import types
@@ -6,6 +5,7 @@ from typing import Any, Callable, Iterable, List, Mapping, Optional
 
 from astor import code_gen as codegen
 
+import basilisp._pyast as ast
 import basilisp.lang.runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
     AnalyzerContext,

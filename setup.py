@@ -21,7 +21,7 @@ REQUIRES_PYTHON = ">=3.6.0"
 VERSION = None
 
 REQUIRED = [
-    "astor",
+    "astor>=0.8",
     "atomos",
     "attrs",
     "click",

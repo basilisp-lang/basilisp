@@ -5,6 +5,7 @@ name = "pypi"
 
 [dev-packages]
 black = "*"
+docutils = "==0.15"
 pytest-pycharm = "*"
 sphinx = "*"
 sphinx-rtd-theme = "*"
