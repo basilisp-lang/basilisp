@@ -1,5 +1,5 @@
 import sys
-from ast import (  # type: ignore  # pylint: disable=redefined-builtin
+from ast import (  # type: ignore  # noqa
     AST,
     Add,
     And,
