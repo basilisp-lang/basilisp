@@ -1,5 +1,5 @@
 import sys
-from ast import (
+from ast import (  # type: ignore  # pylint: disable=redefined-builtin
     AST,
     Add,
     And,
@@ -24,7 +24,7 @@ from ast import (
     Call,
     ClassDef,
     Compare,
-    Constant,  # type: ignore
+    Constant,
     Continue,
     Del,
     Delete,
