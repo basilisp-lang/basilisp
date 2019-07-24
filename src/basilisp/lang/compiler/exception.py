@@ -1,9 +1,9 @@
-import ast
 from enum import Enum
 from typing import Optional, Union
 
 import attr
 
+import basilisp._pyast as ast
 import basilisp.lang.keyword as kw
 from basilisp.lang.compiler.nodes import Node
 from basilisp.lang.interfaces import ISeq

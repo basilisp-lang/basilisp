@@ -1,5 +1,6 @@
-import ast
 from typing import Iterable, List, Optional
+
+import basilisp._pyast as ast
 
 
 def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:
@@ -31,16 +32,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
     def visit_Expr(self, node: ast.Expr) -> Optional[ast.Expr]:
         """Eliminate no-op constant expressions which are in the tree
         as standalone statements."""
-        if isinstance(
-            node.value,
-            (
-                ast.Constant,  # type: ignore
-                ast.Name,
-                ast.NameConstant,
-                ast.Num,
-                ast.Str,
-            ),
-        ):
+        if isinstance(node.value, (ast.Constant, ast.Name)):
             return None
         return node
 

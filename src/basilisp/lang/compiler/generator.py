@@ -1,4 +1,3 @@
-import ast
 import collections
 import contextlib
 import importlib
@@ -30,6 +29,7 @@ from typing import (
 
 import attr
 
+import basilisp._pyast as ast
 import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
@@ -638,10 +638,12 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         else:
             def_ast = gen_py_ast(ctx, node.init)
     else:
-        def_ast = GeneratedPyAST(node=ast.NameConstant(None))
+        def_ast = GeneratedPyAST(node=ast.Constant(None))
 
     ns_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[_NS_VAR_NAME], keywords=[])
-    def_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[ast.Str(defsym.name)], keywords=[])
+    def_name = ast.Call(
+        func=_NEW_SYM_FN_NAME, args=[ast.Constant(defsym.name)], keywords=[]
+    )
     safe_name = munge(defsym.name)
 
     assert node.meta is not None, "Meta should always be attached to Def nodes"
@@ -652,7 +654,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     # for the generated Python code to set the Var as dynamic
     is_dynamic = def_meta.entry(SYM_DYNAMIC_META_KEY, False)
     dynamic_kwarg = (
-        [ast.keyword(arg="dynamic", value=ast.NameConstant(is_dynamic))]
+        [ast.keyword(arg="dynamic", value=ast.Constant(is_dynamic))]
         if is_dynamic
         else []
     )
@@ -883,9 +885,9 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
         func=_ATTR_CLASS_DECORATOR_NAME,
         args=[],
         keywords=[
-            ast.keyword(arg="cmp", value=ast.NameConstant(False)),
-            ast.keyword(arg="frozen", value=ast.NameConstant(node.is_frozen)),
-            ast.keyword(arg="slots", value=ast.NameConstant(True)),
+            ast.keyword(arg="cmp", value=ast.Constant(False)),
+            ast.keyword(arg="frozen", value=ast.Constant(node.is_frozen)),
+            ast.keyword(arg="slots", value=ast.Constant(True)),
         ],
     )
 
@@ -1140,7 +1142,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
 
     dispatch_keys, dispatch_vals = [], []
     for k, v in arity_map.items():
-        dispatch_keys.append(ast.Num(k))
+        dispatch_keys.append(ast.Constant(k))
         dispatch_vals.append(ast.Name(id=v, ctx=ast.Load()))
 
     # Async functions should return await, otherwise just return
@@ -1171,7 +1173,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
         ),
         ast.If(
             test=ast.Compare(
-                left=ast.NameConstant(None),
+                left=ast.Constant(None),
                 ops=[ast.IsNot()],
                 comparators=[ast.Name(id=method_name, ctx=ast.Load())],
             ),
@@ -1198,7 +1200,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                     test=ast.Compare(
                         left=ast.Name(id=nargs_name, ctx=ast.Load()),
                         ops=[ast.GtE()],
-                        comparators=[ast.Num(max_fixed_arity)],
+                        comparators=[ast.Constant(max_fixed_arity)],
                     ),
                     body=[
                         handle_return(
@@ -1224,7 +1226,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
             exc=ast.Call(
                 func=_load_attr("basilisp.lang.runtime.RuntimeException"),
                 args=[
-                    ast.Str(f"Wrong number of args passed to function: {name}"),
+                    ast.Constant(f"Wrong number of args passed to function: {name}"),
                     ast.Name(id=nargs_name, ctx=ast.Load()),
                 ],
                 keywords=[],
@@ -1422,12 +1424,12 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
             op=ast.Or(),
             values=[
                 ast.Compare(
-                    left=ast.NameConstant(None),
+                    left=ast.Constant(None),
                     ops=[ast.Is()],
                     comparators=[ast.Name(id=test_name, ctx=ast.Load())],
                 ),
                 ast.Compare(
-                    left=ast.NameConstant(False),
+                    left=ast.Constant(False),
                     ops=[ast.Is()],
                     comparators=[ast.Name(id=test_name, ctx=ast.Load())],
                 ),
@@ -1475,7 +1477,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
                 targets=[ast.Name(id=py_import_alias, ctx=ast.Store())],
                 value=ast.Call(
                     func=_load_attr("builtins.__import__"),
-                    args=[ast.Str(safe_name)],
+                    args=[ast.Constant(safe_name)],
                     keywords=[],
                 ),
             )
@@ -1492,7 +1494,9 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
                 func=_load_attr(f"{_NS_VAR_VALUE}.add_import"),
                 args=[
                     ast.Call(
-                        func=_NEW_SYM_FN_NAME, args=[ast.Str(safe_name)], keywords=[]
+                        func=_NEW_SYM_FN_NAME,
+                        args=[ast.Constant(safe_name)],
+                        keywords=[],
                     ),
                     last,
                 ],
@@ -1605,15 +1609,13 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
                                 targets=[
                                     ast.Name(id=loop_result_name, ctx=ast.Store())
                                 ],
-                                value=ast.NameConstant(None),
+                                value=ast.Constant(None),
                             )
                         ],
                         init_bindings,
                         [
                             ast.While(
-                                test=ast.NameConstant(True),
-                                body=loop_body_ast,
-                                orelse=[],
+                                test=ast.Constant(True), body=loop_body_ast, orelse=[]
                             )
                         ],
                     )
@@ -1643,9 +1645,7 @@ def __fn_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     return GeneratedPyAST(
         node=ast.Call(
             func=_TRAMPOLINE_ARGS_FN_NAME,
-            args=list(
-                chain([ast.NameConstant(ctx.recur_point.is_variadic)], recur_nodes)
-            ),
+            args=list(chain([ast.Constant(ctx.recur_point.is_variadic)], recur_nodes)),
             keywords=[],
         ),
         dependencies=recur_deps,
@@ -1674,7 +1674,7 @@ def __deftype_method_recur_to_py_ast(
             args=list(
                 chain(
                     [
-                        ast.NameConstant(ctx.recur_point.is_variadic),
+                        ast.Constant(ctx.recur_point.is_variadic),
                         ast.Name(id=this_entry.munged, ctx=ast.Load()),
                     ],
                     recur_nodes,
@@ -1712,7 +1712,7 @@ def __loop_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST
         )
     recur_deps.append(ast.Continue())
 
-    return GeneratedPyAST(node=ast.NameConstant(None), dependencies=recur_deps)
+    return GeneratedPyAST(node=ast.Constant(None), dependencies=recur_deps)
 
 
 _RECUR_TYPE_HANDLER = {
@@ -1937,8 +1937,8 @@ def __var_find_to_py_ast(
                 args=[
                     ast.Call(
                         func=_NEW_SYM_FN_NAME,
-                        args=[ast.Str(var_name)],
-                        keywords=[ast.keyword(arg="ns", value=ast.Str(ns_name))],
+                        args=[ast.Constant(var_name)],
+                        keywords=[ast.keyword(arg="ns", value=ast.Constant(ns_name))],
                     )
                 ],
                 keywords=[],
@@ -1978,8 +1978,8 @@ def _var_sym_to_py_ast(
                 args=[
                     ast.Call(
                         func=_NEW_SYM_FN_NAME,
-                        args=[ast.Str(var_name)],
-                        keywords=[ast.keyword(arg="ns", value=ast.Str(ns_name))],
+                        args=[ast.Constant(var_name)],
+                        keywords=[ast.keyword(arg="ns", value=ast.Constant(ns_name))],
                     )
                 ],
                 keywords=[],
@@ -2264,17 +2264,17 @@ def _const_meta_kwargs_ast(  # pylint:disable=inconsistent-return-statements
 
 @_simple_ast_generator
 def _name_const_to_py_ast(_: GeneratorContext, form: Union[bool, None]) -> ast.AST:
-    return ast.NameConstant(form)
+    return ast.Constant(form)
 
 
 @_simple_ast_generator
 def _num_to_py_ast(_: GeneratorContext, form: Union[complex, float, int]) -> ast.AST:
-    return ast.Num(form)
+    return ast.Constant(form)
 
 
 @_simple_ast_generator
 def _str_to_py_ast(_: GeneratorContext, form: str) -> ast.AST:
-    return ast.Str(form)
+    return ast.Constant(form)
 
 
 def _const_sym_to_py_ast(ctx: GeneratorContext, form: sym.Symbol) -> GeneratedPyAST:
@@ -2283,12 +2283,12 @@ def _const_sym_to_py_ast(ctx: GeneratorContext, form: sym.Symbol) -> GeneratedPy
     sym_kwargs = (
         Maybe(form.ns)
         .stream()
-        .map(lambda v: ast.keyword(arg="ns", value=ast.Str(v)))
+        .map(lambda v: ast.keyword(arg="ns", value=ast.Constant(v)))
         .to_list()
     )
     sym_kwargs.extend(Maybe(meta).map(lambda p: [p.node]).or_else_get([]))
     base_sym = ast.Call(
-        func=_NEW_SYM_FN_NAME, args=[ast.Str(form.name)], keywords=sym_kwargs
+        func=_NEW_SYM_FN_NAME, args=[ast.Constant(form.name)], keywords=sym_kwargs
     )
 
     return GeneratedPyAST(
@@ -2302,22 +2302,26 @@ def _kw_to_py_ast(_: GeneratorContext, form: kw.Keyword) -> ast.AST:
     kwarg = (
         Maybe(form.ns)
         .stream()
-        .map(lambda ns: ast.keyword(arg="ns", value=ast.Str(form.ns)))
+        .map(lambda ns: ast.keyword(arg="ns", value=ast.Constant(form.ns)))
         .to_list()
     )
-    return ast.Call(func=_NEW_KW_FN_NAME, args=[ast.Str(form.name)], keywords=kwarg)
+    return ast.Call(
+        func=_NEW_KW_FN_NAME, args=[ast.Constant(form.name)], keywords=kwarg
+    )
 
 
 @_simple_ast_generator
 def _decimal_to_py_ast(_: GeneratorContext, form: Decimal) -> ast.AST:
-    return ast.Call(func=_NEW_DECIMAL_FN_NAME, args=[ast.Str(str(form))], keywords=[])
+    return ast.Call(
+        func=_NEW_DECIMAL_FN_NAME, args=[ast.Constant(str(form))], keywords=[]
+    )
 
 
 @_simple_ast_generator
 def _fraction_to_py_ast(_: GeneratorContext, form: Fraction) -> ast.AST:
     return ast.Call(
         func=_NEW_FRACTION_FN_NAME,
-        args=[ast.Num(form.numerator), ast.Num(form.denominator)],
+        args=[ast.Constant(form.numerator), ast.Constant(form.denominator)],
         keywords=[],
     )
 
@@ -2325,18 +2329,20 @@ def _fraction_to_py_ast(_: GeneratorContext, form: Fraction) -> ast.AST:
 @_simple_ast_generator
 def _inst_to_py_ast(_: GeneratorContext, form: datetime) -> ast.AST:
     return ast.Call(
-        func=_NEW_INST_FN_NAME, args=[ast.Str(form.isoformat())], keywords=[]
+        func=_NEW_INST_FN_NAME, args=[ast.Constant(form.isoformat())], keywords=[]
     )
 
 
 @_simple_ast_generator
 def _regex_to_py_ast(_: GeneratorContext, form: Pattern) -> ast.AST:
-    return ast.Call(func=_NEW_REGEX_FN_NAME, args=[ast.Str(form.pattern)], keywords=[])
+    return ast.Call(
+        func=_NEW_REGEX_FN_NAME, args=[ast.Constant(form.pattern)], keywords=[]
+    )
 
 
 @_simple_ast_generator
 def _uuid_to_py_ast(_: GeneratorContext, form: uuid.UUID) -> ast.AST:
-    return ast.Call(func=_NEW_UUID_FN_NAME, args=[ast.Str(str(form))], keywords=[])
+    return ast.Call(func=_NEW_UUID_FN_NAME, args=[ast.Constant(str(form))], keywords=[])
 
 
 def _const_py_dict_to_py_ast(ctx: GeneratorContext, node: dict) -> GeneratedPyAST:
@@ -2689,8 +2695,8 @@ def _ns_var(
             args=[
                 ast.Call(
                     func=_NEW_SYM_FN_NAME,
-                    args=[ast.Str(lisp_ns_var)],
-                    keywords=[ast.keyword(arg="ns", value=ast.Str(lisp_ns_ns))],
+                    args=[ast.Constant(lisp_ns_var)],
+                    keywords=[ast.keyword(arg="ns", value=ast.Constant(lisp_ns_ns))],
                 )
             ],
             keywords=[],
@@ -2704,4 +2710,4 @@ def py_module_preamble(ctx: GeneratorContext,) -> GeneratedPyAST:
     preamble.extend(_module_imports(ctx))
     preamble.append(_from_module_import())
     preamble.append(_ns_var())
-    return GeneratedPyAST(node=ast.NameConstant(None), dependencies=preamble)
+    return GeneratedPyAST(node=ast.Constant(None), dependencies=preamble)
