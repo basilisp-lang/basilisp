@@ -35,7 +35,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
         if isinstance(
             node.value,
             (
-                ast.Constant,  # type: ignore
+                ast.Constant,
                 ast.Name,
                 ast.NameConstant,
                 ast.Num,

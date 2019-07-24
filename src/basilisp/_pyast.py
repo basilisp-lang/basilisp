@@ -24,7 +24,7 @@ from ast import (
     Call,
     ClassDef,
     Compare,
-    Constant,
+    Constant,  # type: ignore
     Continue,
     Del,
     Delete,
@@ -125,7 +125,7 @@ from ast import (
     stmt,
     unaryop,
     walk,
-    withitem
+    withitem,
 )
 from functools import partial
 
@@ -255,7 +255,7 @@ __all__ = [
     "stmt",
     "unaryop",
     "walk",
-    "withitem"
+    "withitem",
 ]
 
 if sys.version_info >= (3, 8):  # pragma: no cover

@@ -641,7 +641,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         def_ast = GeneratedPyAST(node=ast.Constant(None))
 
     ns_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[_NS_VAR_NAME], keywords=[])
-    def_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[ast.Constant(defsym.name)], keywords=[])
+    def_name = ast.Call(
+        func=_NEW_SYM_FN_NAME, args=[ast.Constant(defsym.name)], keywords=[]
+    )
     safe_name = munge(defsym.name)
 
     assert node.meta is not None, "Meta should always be attached to Def nodes"
@@ -1492,7 +1494,9 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
                 func=_load_attr(f"{_NS_VAR_VALUE}.add_import"),
                 args=[
                     ast.Call(
-                        func=_NEW_SYM_FN_NAME, args=[ast.Constant(safe_name)], keywords=[]
+                        func=_NEW_SYM_FN_NAME,
+                        args=[ast.Constant(safe_name)],
+                        keywords=[],
                     ),
                     last,
                 ],
@@ -1611,9 +1615,7 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
                         init_bindings,
                         [
                             ast.While(
-                                test=ast.Constant(True),
-                                body=loop_body_ast,
-                                orelse=[],
+                                test=ast.Constant(True), body=loop_body_ast, orelse=[]
                             )
                         ],
                     )
@@ -1643,9 +1645,7 @@ def __fn_recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     return GeneratedPyAST(
         node=ast.Call(
             func=_TRAMPOLINE_ARGS_FN_NAME,
-            args=list(
-                chain([ast.Constant(ctx.recur_point.is_variadic)], recur_nodes)
-            ),
+            args=list(chain([ast.Constant(ctx.recur_point.is_variadic)], recur_nodes)),
             keywords=[],
         ),
         dependencies=recur_deps,
@@ -2305,12 +2305,16 @@ def _kw_to_py_ast(_: GeneratorContext, form: kw.Keyword) -> ast.AST:
         .map(lambda ns: ast.keyword(arg="ns", value=ast.Constant(form.ns)))
         .to_list()
     )
-    return ast.Call(func=_NEW_KW_FN_NAME, args=[ast.Constant(form.name)], keywords=kwarg)
+    return ast.Call(
+        func=_NEW_KW_FN_NAME, args=[ast.Constant(form.name)], keywords=kwarg
+    )
 
 
 @_simple_ast_generator
 def _decimal_to_py_ast(_: GeneratorContext, form: Decimal) -> ast.AST:
-    return ast.Call(func=_NEW_DECIMAL_FN_NAME, args=[ast.Constant(str(form))], keywords=[])
+    return ast.Call(
+        func=_NEW_DECIMAL_FN_NAME, args=[ast.Constant(str(form))], keywords=[]
+    )
 
 
 @_simple_ast_generator
@@ -2331,7 +2335,9 @@ def _inst_to_py_ast(_: GeneratorContext, form: datetime) -> ast.AST:
 
 @_simple_ast_generator
 def _regex_to_py_ast(_: GeneratorContext, form: Pattern) -> ast.AST:
-    return ast.Call(func=_NEW_REGEX_FN_NAME, args=[ast.Constant(form.pattern)], keywords=[])
+    return ast.Call(
+        func=_NEW_REGEX_FN_NAME, args=[ast.Constant(form.pattern)], keywords=[]
+    )
 
 
 @_simple_ast_generator
