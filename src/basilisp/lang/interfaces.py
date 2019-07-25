@@ -80,6 +80,14 @@ class ISeqable(Iterable[T]):
         raise NotImplementedError()
 
 
+class ILookup(Generic[K, V]):
+    __slots__ = ()
+
+    @abstractmethod
+    def val_at(self, k: K, default: Optional[V] = None) -> Optional[V]:
+        raise NotImplementedError()
+
+
 class IPersistentCollection(ISeqable[T]):
     __slots__ = ()
 
@@ -93,7 +101,9 @@ class IPersistentCollection(ISeqable[T]):
         raise NotImplementedError()
 
 
-class IAssociative(Mapping[K, V], IPersistentCollection[IMapEntry[K, V]]):
+class IAssociative(
+    Mapping[K, V], ILookup[K, V], IPersistentCollection[IMapEntry[K, V]]
+):
     __slots__ = ()
 
     @abstractmethod
@@ -105,7 +115,7 @@ class IAssociative(Mapping[K, V], IPersistentCollection[IMapEntry[K, V]]):
         raise NotImplementedError()
 
     @abstractmethod
-    def entry(self, k: K, default: Optional[V] = None) -> Optional[V]:
+    def entry(self, k: K) -> Optional[IMapEntry[K, V]]:
         raise NotImplementedError()
 
 

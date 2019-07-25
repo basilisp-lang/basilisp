@@ -1,51 +1,17 @@
 from builtins import map as pymap
-from typing import Callable, Dict, Iterable, Mapping, Sequence, TypeVar, Union
+from typing import Callable, Dict, Iterable, Mapping, TypeVar, Union
 
-from pyrsistent import (  # noqa # pylint: disable=unused-import
-    PMap,
-    PVector,
-    pmap,
-    pvector,
-)
+from pyrsistent import PMap, pmap  # noqa # pylint: disable=unused-import
 
 from basilisp.lang.interfaces import ILispObject, IMapEntry, IMeta, IPersistentMap, ISeq
 from basilisp.lang.obj import map_lrepr as _map_lrepr
 from basilisp.lang.seq import sequence
-from basilisp.lang.vector import Vector
+from basilisp.lang.vector import MapEntry, Vector
 from basilisp.util import partition
 
 T = TypeVar("T")
 K = TypeVar("K")
 V = TypeVar("V")
-
-
-class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):
-    __slots__ = ()
-
-    def __init__(self, wrapped: "PVector[Union[K, V]]") -> None:
-        try:
-            if not len(wrapped) == 2:
-                raise ValueError("Vector arg to map conj must be a pair")
-        except TypeError as e:
-            raise TypeError(f"Cannot make map entry from {type(wrapped)}") from e
-
-        super().__init__(wrapped)
-
-    @property
-    def key(self) -> K:
-        return self[0]
-
-    @property
-    def value(self) -> V:
-        return self[1]
-
-    @staticmethod
-    def of(k: K, v: V) -> "MapEntry[K, V]":
-        return MapEntry(pvector([k, v]))
-
-    @staticmethod
-    def from_vec(v: Sequence[Union[K, V]]) -> "MapEntry[K, V]":
-        return MapEntry(pvector(v))
 
 
 class Map(ILispObject, IMeta, IPersistentMap[K, V]):
@@ -126,7 +92,14 @@ class Map(ILispObject, IMeta, IPersistentMap[K, V]):
                 pass
         return Map(m.persistent())
 
-    def entry(self, k, default=None):
+    def entry(self, k):
+        sentinel = object()
+        v = self._inner.get(k, sentinel)
+        if v is sentinel:
+            return None
+        return MapEntry.of(k, v)
+
+    def val_at(self, k, default=None):
         return self._inner.get(k, default)
 
     def update(self, *maps: Mapping[K, V]) -> "Map":

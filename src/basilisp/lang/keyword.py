@@ -36,7 +36,7 @@ class Keyword(ILispObject):
 
     def __call__(self, m: IAssociative, default=None):
         try:
-            return m.entry(self, default)
+            return m.val_at(self, default)
         except AttributeError:
             return None
 

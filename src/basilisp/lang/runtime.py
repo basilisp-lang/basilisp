@@ -169,7 +169,7 @@ class Var(IDeref):
             # If this var was created with the dynamic keyword argument, then the
             # Var metadata should also specify that the Var is dynamic.
             if isinstance(self._meta, lmap.Map):
-                if not self._meta.entry(_DYNAMIC_META_KEY):
+                if not self._meta.val_at(_DYNAMIC_META_KEY):
                     self._meta = self._meta.assoc(_DYNAMIC_META_KEY, True)
             else:
                 self._meta = lmap.map({_DYNAMIC_META_KEY: True})
@@ -204,7 +204,7 @@ class Var(IDeref):
     @property
     def is_private(self) -> Optional[bool]:
         try:
-            return self.meta.entry(_PRIVATE_META_KEY)
+            return self.meta.val_at(_PRIVATE_META_KEY)
         except AttributeError:
             return False
 
@@ -502,7 +502,7 @@ class Namespace:
 
     def get_alias(self, alias: sym.Symbol) -> "Optional[Namespace]":
         """Get the Namespace aliased by Symbol or None if it does not exist."""
-        return self.aliases.entry(alias, None)
+        return self.aliases.val_at(alias, None)
 
     def remove_alias(self, alias: sym.Symbol) -> None:
         """Remove the Namespace aliased by Symbol. Return None."""
@@ -514,7 +514,7 @@ class Namespace:
         the existing Var mapping unless the force keyword argument is given
         and is True."""
         m: lmap.Map = self._interns.swap(Namespace._intern, sym, var, force=force)
-        return m.entry(sym)
+        return m.val_at(sym)
 
     @staticmethod
     def _intern(
@@ -522,7 +522,7 @@ class Namespace:
     ) -> lmap.Map:
         """Swap function used by intern to atomically intern a new variable in
         the symbol mapping for this Namespace."""
-        var = m.entry(sym, None)
+        var = m.val_at(sym, None)
         if var is None or force:
             return m.assoc(sym, new_var)
         return m
@@ -533,9 +533,9 @@ class Namespace:
     def find(self, sym: sym.Symbol) -> Optional[Var]:
         """Find Vars mapped by the given Symbol input or None if no Vars are
         mapped by that Symbol."""
-        v = self.interns.entry(sym, None)
+        v = self.interns.val_at(sym, None)
         if v is None:
-            return self.refers.entry(sym, None)
+            return self.refers.val_at(sym, None)
         return v
 
     def add_import(
@@ -557,12 +557,12 @@ class Namespace:
 
         First try to resolve a module directly with the given name. If no module
         can be resolved, attempt to resolve the module using import aliases."""
-        mod = self.imports.entry(sym, None)
+        mod = self.imports.val_at(sym, None)
         if mod is None:
             alias = self.import_aliases.get(sym, None)
             if alias is None:
                 return None
-            return self.imports.entry(alias, None)
+            return self.imports.val_at(alias, None)
         return mod
 
     def add_refer(self, sym: sym.Symbol, var: Var) -> None:
@@ -572,7 +572,7 @@ class Namespace:
 
     def get_refer(self, sym: sym.Symbol) -> Optional[Var]:
         """Get the Var referred by Symbol or None if it does not exist."""
-        return self.refers.entry(sym, None)
+        return self.refers.val_at(sym, None)
 
     @classmethod
     def __refer_all(cls, refers: lmap.Map, other_ns_interns: lmap.Map) -> lmap.Map:
@@ -603,12 +603,12 @@ class Namespace:
     ) -> lmap.Map:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
-        ns = ns_cache.entry(name, None)
+        ns = ns_cache.val_at(name, None)
         if ns is not None:
             return ns_cache
         new_ns = Namespace(name, module=module)
         if name.name != core_ns_name:
-            core_ns = ns_cache.entry(sym.symbol(core_ns_name), None)
+            core_ns = ns_cache.val_at(sym.symbol(core_ns_name), None)
             assert core_ns is not None, "Core namespace not loaded yet!"
             new_ns.refer_all(core_ns)
         return ns_cache.assoc(name, new_ns)
@@ -628,7 +628,7 @@ class Namespace:
     def get(cls, name: sym.Symbol) -> "Optional[Namespace]":
         """Get the namespace bound to the symbol `name` in the global namespace
         cache. Return the namespace if it exists or None otherwise.."""
-        return cls._NAMESPACES.deref().entry(name, None)
+        return cls._NAMESPACES.deref().val_at(name, None)
 
     @classmethod
     def remove(cls, name: sym.Symbol) -> Optional["Namespace"]:
@@ -639,7 +639,7 @@ class Namespace:
             raise ValueError("Cannot remove the Basilisp core namespace")
         while True:
             oldval: lmap.Map = cls._NAMESPACES.deref()
-            ns: Optional[Namespace] = oldval.entry(name, None)
+            ns: Optional[Namespace] = oldval.val_at(name, None)
             newval = oldval
             if ns is not None:
                 newval = oldval.dissoc(name)
@@ -687,7 +687,7 @@ class Namespace:
         imports = self.imports
         aliases = lmap.map(
             {
-                alias: imports.entry(import_name)
+                alias: imports.val_at(import_name)
                 for alias, import_name in self.import_aliases
             }
         )
@@ -979,7 +979,7 @@ def update(m, k, f, *args):
     if m is None:
         return lmap.Map.empty().assoc(k, f(None, *args))
     if isinstance(m, IAssociative):
-        old_v = m.entry(k)
+        old_v = m.val_at(k)
         new_v = f(old_v, *args)
         return m.assoc(k, new_v)
     raise TypeError(
@@ -1063,7 +1063,7 @@ def contains(coll, k):
 def get(m, k, default=None):
     """Return the value of k in m. Return default if k not found in m."""
     if isinstance(m, IAssociative):
-        return m.entry(k, default=default)
+        return m.val_at(k, default=default)
 
     try:
         return m[k]

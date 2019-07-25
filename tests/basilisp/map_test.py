@@ -3,6 +3,7 @@ from typing import Mapping
 import pytest
 
 import basilisp.lang.map as lmap
+import basilisp.lang.vector
 from basilisp.lang.interfaces import (
     IAssociative,
     ILispObject,
@@ -13,13 +14,13 @@ from basilisp.lang.interfaces import (
     ISeqable,
 )
 from basilisp.lang.keyword import keyword
-from basilisp.lang.map import MapEntry
 from basilisp.lang.symbol import symbol
+from basilisp.lang.vector import MapEntry
 
 
 def test_map_entry_interface():
-    assert isinstance(lmap.MapEntry.of("a", "b"), IMapEntry)
-    assert issubclass(lmap.MapEntry, IMapEntry)
+    assert isinstance(basilisp.lang.vector.MapEntry.of("a", "b"), IMapEntry)
+    assert issubclass(basilisp.lang.vector.MapEntry, IMapEntry)
 
 
 def test_map_associative_interface():
@@ -89,9 +90,9 @@ def test_dissoc():
 
 
 def test_entry():
-    assert 1 == lmap.map({"a": 1}).entry("a")
-    assert None is lmap.map({"a": 1}).entry("b")
-    assert None is lmap.Map.empty().entry("a")
+    assert 1 == lmap.map({"a": 1}).val_at("a")
+    assert None is lmap.map({"a": 1}).val_at("b")
+    assert None is lmap.Map.empty().val_at("a")
 
 
 def test_map_cons():

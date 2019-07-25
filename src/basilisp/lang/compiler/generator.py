@@ -209,13 +209,13 @@ class GeneratorContext:
     @property
     def use_var_indirection(self) -> bool:
         """If True, compile all variable references using Var.find indirection."""
-        return self._opts.entry(USE_VAR_INDIRECTION, False)
+        return self._opts.val_at(USE_VAR_INDIRECTION, False)
 
     @property
     def warn_on_var_indirection(self) -> bool:
         """If True, warn when a Var reference cannot be direct linked (iff
         use_var_indirection is False).."""
-        return not self.use_var_indirection and self._opts.entry(
+        return not self.use_var_indirection and self._opts.val_at(
             WARN_ON_VAR_INDIRECTION, True
         )
 
@@ -588,7 +588,7 @@ def __should_warn_on_redef(
     ctx: GeneratorContext, defsym: sym.Symbol, safe_name: str, def_meta: lmap.Map
 ) -> bool:
     """Return True if the compiler should emit a warning about this name being redefined."""
-    no_warn_on_redef = def_meta.entry(SYM_NO_WARN_ON_REDEF_META_KEY, False)
+    no_warn_on_redef = def_meta.val_at(SYM_NO_WARN_ON_REDEF_META_KEY, False)
     if no_warn_on_redef:
         return False
     elif safe_name in ctx.current_ns.module.__dict__:
@@ -597,7 +597,7 @@ def __should_warn_on_redef(
         var = ctx.current_ns.find(defsym)
         assert var is not None, f"Var {defsym} cannot be none here"
 
-        if var.meta is not None and var.meta.entry(SYM_REDEF_META_KEY):
+        if var.meta is not None and var.meta.val_at(SYM_REDEF_META_KEY):
             return False
         elif var.is_bound:
             return True
@@ -652,7 +652,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
 
     # If the Var is marked as dynamic, we need to generate a keyword argument
     # for the generated Python code to set the Var as dynamic
-    is_dynamic = def_meta.entry(SYM_DYNAMIC_META_KEY, False)
+    is_dynamic = def_meta.val_at(SYM_DYNAMIC_META_KEY, False)
     dynamic_kwarg = (
         [ast.keyword(arg="dynamic", value=ast.Constant(is_dynamic))]
         if is_dynamic
