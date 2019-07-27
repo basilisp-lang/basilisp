@@ -6,6 +6,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.1.dev11] - 2019-07-27
+### Added
+ * `macroexpand` and `macroexpand-1` functions (#394)
+ * `reset-vals!` and `swap-vals!` Atom functions (#399)
+ * `format`, `printf`, and a few other formatting functions (#401)
+ * `rand`, `rand-int`, and a few other basic random functions (#402)
+ * `assoc-in`, `update-in`, and a few other associative utility functions (#404)
+ * Several namespace utility functions (#405)
+ * Preliminary support for Python 3.8 (#406 and #407)
+ * Added the `ILookup` interface to `IAssociative` (#410)
+ * Support for Reader Conditional syntax (#409)
+
+### Changed
+ * Python builtins may now be accessed using the `python` namespace from within Basilisp code, rather than `builtins` (#400)
+ * Basilisp code files can now be named and organized more like Clojure projects. `__init__` files are not necessary, though they may still be used. Folders can bear the same name as a namespace file, which will allow nesting. (#393)
+ * Renamed Basilisp's parser module to analyzer, to more accurately reflect it's purpose (#390)
+ * Changed `binding` behavior to use `push-thread-bindings` and `pop-thread-bindings`, which use a thread-local for bindings, to more closely emulate Clojure (#405)
+ * Internal `IAsssociative.entry` usages have been changed to `ILookup.val_at` (#410)
+
+### Fixed
+ * Allow direct code references to static methods and fields (#392)
+
 ## [v0.1.dev10] - 2019-05-06
 ### Added
  * Added support for Record data types (#374, #378, and #380)
@@ -148,6 +170,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.dev11]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev10..v0.1.dev11
 [v0.1.dev10]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev9..v0.1.dev10
 [v0.1.dev9]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev8..v0.1.dev9
 [v0.1.dev8]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev7..v0.1.dev8
