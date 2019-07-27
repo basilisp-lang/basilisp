@@ -398,7 +398,7 @@ class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
     def _lrepr(self, **kwargs) -> str:
         return _seq_lrepr(
             chain.from_iterable(self._feature_vec),
-            "#?@" if self.is_splicing else "#?",
+            "#?@(" if self.is_splicing else "#?(",
             ")",
             **kwargs,
         )

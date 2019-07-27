@@ -877,6 +877,7 @@ class TestReaderConditional:
         assert llist.l(
             kw.keyword("clj"), 1, kw.keyword("lpy"), 2, kw.keyword("default"), 3
         ) == c.val_at(reader.READER_COND_FORM_KW)
+        assert "#?(:clj 1 :lpy 2 :default 3)" == c.lrepr()
 
     @pytest.mark.parametrize(
         "v",
@@ -909,6 +910,23 @@ class TestReaderConditional:
     def test_splicing_form_syntax(self, v: str):
         with pytest.raises(reader.SyntaxError):
             read_str_first(v)
+
+    def test_splicing_form_preserving(self):
+        c = read_str_first(
+            "#?@(:clj [1 2 3] :lpy [4 5 6] :default [7 8 9])", process_reader_cond=False
+        )
+        assert isinstance(c, reader.ReaderConditional)
+        assert c.is_splicing
+        assert True is c.val_at(reader.READER_COND_SPLICING_KW)
+        assert llist.l(
+            kw.keyword("clj"),
+            vec.v(1, 2, 3),
+            kw.keyword("lpy"),
+            vec.v(4, 5, 6),
+            kw.keyword("default"),
+            vec.v(7, 8, 9),
+        ) == c.val_at(reader.READER_COND_FORM_KW)
+        assert "#?@(:clj [1 2 3] :lpy [4 5 6] :default [7 8 9])" == c.lrepr()
 
     def test_splicing_form(self):
         assert llist.l(1, 3, 5, 7) == read_str_first(
