@@ -239,7 +239,6 @@ class ReaderContext:
         "_reader",
         "_resolve",
         "_in_anon_fn",
-        "_in_coll",
         "_syntax_quoted",
         "_gensym_env",
         "_eof",
@@ -270,7 +269,6 @@ class ReaderContext:
         self._reader = reader
         self._resolve = Maybe(resolver).or_else_get(lambda x: x)
         self._in_anon_fn: Deque[bool] = collections.deque([])
-        self._in_coll: Deque[bool] = collections.deque([])
         self._syntax_quoted: Deque[bool] = collections.deque([])
         self._gensym_env: Deque[GenSymEnvironment] = collections.deque([])
         self._eof = eof
@@ -308,19 +306,6 @@ class ReaderContext:
     def is_in_anon_fn(self) -> bool:
         try:
             return self._in_anon_fn[-1] is True
-        except IndexError:
-            return False
-
-    @contextlib.contextmanager
-    def in_coll(self, in_coll: bool = True):
-        self._in_coll.append(in_coll)
-        yield
-        self._in_coll.pop()
-
-    @property
-    def is_in_coll(self) -> bool:
-        try:
-            return self._in_coll[-1] is True
         except IndexError:
             return False
 
@@ -381,7 +366,7 @@ class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
                     )
                 found_features.add(k)
                 feature_list.append((k, v))
-        except IndexError:
+        except ValueError:
             raise SyntaxError(
                 "Reader conditionals must contain an even number of forms"
             )
@@ -489,23 +474,37 @@ def _read_coll(
 ):
     """Read a collection from the input stream and create the
     collection using f."""
-    with ctx.in_coll(True):
-        coll: List = []
-        reader = ctx.reader
-        while True:
-            token = reader.peek()
-            if token == "":
-                raise SyntaxError(f"Unexpected EOF in {coll_name}")
-            if whitespace_chars.match(token):
-                reader.advance()
+    coll: List = []
+    reader = ctx.reader
+    while True:
+        token = reader.peek()
+        if token == "":
+            raise SyntaxError(f"Unexpected EOF in {coll_name}")
+        if whitespace_chars.match(token):
+            reader.advance()
+            continue
+        if token == end_token:
+            reader.next_token()
+            return f(coll)
+        elem = _read_next(ctx)
+        if elem is COMMENT:
+            continue
+        if _should_splice_reader_conditional(ctx, elem):
+            selected_feature = elem.select_feature(ctx.reader_features)
+            if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
                 continue
-            if token == end_token:
-                reader.next_token()
-                return f(coll)
-            with ctx.in_coll(False):
-                elem = _read_next(ctx)
-            if elem is COMMENT:
-                continue
+            elif isinstance(selected_feature, vector.Vector):
+                coll.extend(selected_feature)
+            else:
+                raise SyntaxError(
+                    "Expecting Vector for splicing reader conditional "
+                    f"form; got {type(selected_feature)}"
+                )
+        else:
+            assert (
+                not isinstance(elem, ReaderConditional)
+                or not ctx.should_process_reader_cond
+            ), "Reader conditionals must be processed if specified"
             coll.append(elem)
 
 
@@ -545,34 +544,52 @@ def _read_set(ctx: ReaderContext) -> lset.Set:
     return _read_coll(ctx, set_if_valid, "}", "set")
 
 
+def __read_map_elems(ctx: ReaderContext) -> Iterable[ReaderForm]:
+    """Return an iterable of map contents, potentially splicing in values from
+    reader conditionals."""
+    reader = ctx.reader
+    while True:
+        if reader.peek() == "}":
+            reader.next_token()
+            return
+        v = _read_next(ctx)
+        if v is COMMENT:
+            continue
+        elif _should_splice_reader_conditional(ctx, v):
+            assert isinstance(v, ReaderConditional)
+            selected_feature = v.select_feature(ctx.reader_features)
+            if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
+                continue
+            elif isinstance(selected_feature, vector.Vector):
+                yield from selected_feature
+            else:
+                raise SyntaxError(
+                    "Expecting Vector for splicing reader conditional "
+                    f"form; got {type(selected_feature)}"
+                )
+        else:
+            assert (
+                not isinstance(v, ReaderConditional)
+                or not ctx.should_process_reader_cond
+            ), "Reader conditionals must be processed if specified"
+            yield v
+
+
 @_with_loc
 def _read_map(ctx: ReaderContext) -> lmap.Map:
     """Return a map from the input stream."""
-    with ctx.in_coll(True):
-        reader = ctx.reader
-        start = reader.advance()
-        assert start == "{"
-        d: MutableMapping[Any, Any] = {}
-        while True:
-            if reader.peek() == "}":
-                reader.next_token()
-                break
-            with ctx.in_coll(False):
-                k = _read_next(ctx)
-            if k is COMMENT:
-                continue
-            while True:
-                if reader.peek() == "}":
-                    raise SyntaxError("Unexpected token '}'; expected map value")
-                with ctx.in_coll(False):
-                    v = _read_next(ctx)
-                if v is COMMENT:
-                    continue
-                if k in d:
-                    raise SyntaxError(f"Duplicate key '{k}' in map literal")
-                break
+    reader = ctx.reader
+    start = reader.advance()
+    assert start == "{"
+    d: MutableMapping[Any, Any] = {}
+    try:
+        for k, v in partition(list(__read_map_elems(ctx)), 2):
+            if k in d:
+                raise SyntaxError(f"Duplicate key '{k}' in map literal")
             d[k] = v
-
+    except ValueError:
+        raise SyntaxError("Unexpected token '}'; expected map value")
+    else:
         return lmap.map(d)
 
 
@@ -1043,6 +1060,16 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
         raise SyntaxError(f"Unrecognized regex pattern syntax: {s}")
 
 
+def _should_splice_reader_conditional(ctx: ReaderContext, form: ReaderForm) -> bool:
+    """Return True if and only if form is a ReaderConditional which should be spliced
+    into a surrounding collection context."""
+    return (
+        isinstance(form, ReaderConditional)
+        and ctx.should_process_reader_cond
+        and form.is_splicing
+    )
+
+
 def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional:
     """Read a reader conditional form and return the unprocessed reader
     conditional object."""
@@ -1072,36 +1099,22 @@ def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional
 def _read_reader_conditional(
     ctx: ReaderContext
 ) -> Union[ReaderForm, ReaderConditional]:
-    """Read a reader conditional form and either return it (if the reader is
-    set to preserve reader conditionals) or process it and return the resulting
-    form."""
-    reader_cond = _read_reader_conditional_preserving(ctx)
-    if ctx.should_process_reader_cond:
-        form = reader_cond.select_feature(ctx.reader_features)
-        if form is ReaderConditional.FEATURE_NOT_PRESENT:
-            raise SyntaxError(
-                f"No feature matching {ctx.reader_features} in reader conditional"
-            )
+    """Read a reader conditional form and either return it or process it and
+    return the resulting form.
 
-        if reader_cond.is_splicing:
-            lconcat = lambda v: llist.list(v).cons(_CONCAT)
-            if isinstance(form, llist.List):
-                return llist.l(_SEQ, lconcat(_expand_syntax_quote(ctx, form)))
-            elif isinstance(form, vector.Vector):
-                return llist.l(
-                    _APPLY, _VECTOR, lconcat(_expand_syntax_quote(ctx, form))
-                )
-            elif isinstance(form, lset.Set):
-                return llist.l(
-                    _APPLY, _HASH_SET, lconcat(_expand_syntax_quote(ctx, form))
-                )
-            elif isinstance(form, lmap.Map):
-                flat_kvs = seq(form.items()).flatten().to_list()
-                return llist.l(
-                    _APPLY, _HASH_MAP, lconcat(_expand_syntax_quote(ctx, flat_kvs))
-                )
-        else:
-            return form
+    If the reader is not set to process the reader conditional, it will always
+    be returned as a ReaderConditional object.
+
+    If the reader is set to process reader conditionals, only non-splicing reader
+    conditionals are processed here. If no matching feature is found in a
+    non-splicing reader conditional, a comment will be emitted (which is ultimately
+    discarded downstream in the reader).
+
+    Splicing reader conditionals are processed in the respective collection readers."""
+    reader_cond = _read_reader_conditional_preserving(ctx)
+    if ctx.should_process_reader_cond and not reader_cond.is_splicing:
+        form = reader_cond.select_feature(ctx.reader_features)
+        return COMMENT if form is ReaderConditional.FEATURE_NOT_PRESENT else form
     else:
         return reader_cond
 
@@ -1280,6 +1293,10 @@ def read(
             return
         if expr is COMMENT or isinstance(expr, Comment):
             continue
+        assert (
+            not isinstance(expr, ReaderConditional)
+            or not ctx.should_process_reader_cond
+        ), "Reader conditionals must be processed if specified"
         yield expr
 
 
