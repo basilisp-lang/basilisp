@@ -101,7 +101,8 @@ class Comment:
 
 COMMENT = Comment()
 
-LispReaderForm = Union[ReaderForm, Comment]
+LispReaderForm = Union[ReaderForm, Comment, "ReaderConditional"]
+RawReaderForm = Union[ReaderForm, "ReaderConditional"]
 
 
 class SyntaxError(Exception):  # pylint:disable=redefined-builtin
@@ -244,7 +245,7 @@ class ReaderContext:
         "_eof",
     )
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         reader: StreamReader,
         resolver: Resolver = None,
@@ -344,7 +345,7 @@ class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
 
     def __init__(
         self,
-        form: IPersistentList[Tuple[keyword.Keyword, ReaderForm]],
+        form: llist.List[Tuple[keyword.Keyword, ReaderForm]],
         is_splicing: bool = False,
     ):
         self._form = form
@@ -378,10 +379,12 @@ class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
     def val_at(
         self, k: keyword.Keyword, default: Optional[ReaderForm] = None
     ) -> Optional[ReaderForm]:
-        return {
-            READER_COND_FORM_KW: self._form,
-            READER_COND_SPLICING_KW: self._is_splicing,
-        }.get(k)
+        if k == READER_COND_FORM_KW:
+            return self._form
+        elif k == READER_COND_SPLICING_KW:
+            return self._is_splicing
+        else:
+            return default
 
     @property
     def is_splicing(self):
@@ -490,9 +493,10 @@ def _read_coll(
             reader.next_token()
             return f(coll)
         elem = _read_next(ctx)
-        if elem is COMMENT:
+        if elem is COMMENT or isinstance(elem, Comment):
             continue
-        if _should_splice_reader_conditional(ctx, elem):
+        elif _should_splice_reader_conditional(ctx, elem):
+            assert isinstance(elem, ReaderConditional)
             selected_feature = elem.select_feature(ctx.reader_features)
             if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
                 continue
@@ -547,7 +551,7 @@ def _read_set(ctx: ReaderContext) -> lset.Set:
     return _read_coll(ctx, set_if_valid, "}", "set")
 
 
-def __read_map_elems(ctx: ReaderContext) -> Iterable[ReaderForm]:
+def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
     """Return an iterable of map contents, potentially splicing in values from
     reader conditionals."""
     reader = ctx.reader
@@ -556,7 +560,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[ReaderForm]:
             reader.next_token()
             return
         v = _read_next(ctx)
-        if v is COMMENT:
+        if v is COMMENT or isinstance(v, Comment):
             continue
         elif v is ctx.eof:
             raise SyntaxError(f"Unexpected EOF in map")
@@ -860,7 +864,7 @@ def _read_quoted(ctx: ReaderContext) -> llist.List:
     return llist.l(_QUOTE, next_form)
 
 
-def _is_unquote(form: ReaderForm) -> bool:
+def _is_unquote(form: RawReaderForm) -> bool:
     """Return True if this form is unquote."""
     try:
         return form.first == _UNQUOTE  # type: ignore
@@ -868,7 +872,7 @@ def _is_unquote(form: ReaderForm) -> bool:
         return False
 
 
-def _is_unquote_splicing(form: ReaderForm) -> bool:
+def _is_unquote_splicing(form: RawReaderForm) -> bool:
     """Return True if this form is unquote-splicing."""
     try:
         return form.first == _UNQUOTE_SPLICING  # type: ignore
@@ -903,7 +907,9 @@ def _expand_syntax_quote(
     return expanded
 
 
-def _process_syntax_quoted_form(ctx: ReaderContext, form: ReaderForm) -> ReaderForm:
+def _process_syntax_quoted_form(
+    ctx: ReaderContext, form: RawReaderForm
+) -> RawReaderForm:
     """Post-process syntax quoted forms to generate forms that can be assembled
     into the correct types at runtime.
 
@@ -958,7 +964,7 @@ def _process_syntax_quoted_form(ctx: ReaderContext, form: ReaderForm) -> ReaderF
         return form
 
 
-def _read_syntax_quoted(ctx: ReaderContext) -> ReaderForm:
+def _read_syntax_quoted(ctx: ReaderContext) -> RawReaderForm:
     """Read a syntax-quote and set the syntax-quoting state in the reader."""
     start = ctx.reader.advance()
     assert start == "`"
@@ -1065,7 +1071,7 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
         raise SyntaxError(f"Unrecognized regex pattern syntax: {s}")
 
 
-def _should_splice_reader_conditional(ctx: ReaderContext, form: ReaderForm) -> bool:
+def _should_splice_reader_conditional(ctx: ReaderContext, form: LispReaderForm) -> bool:
     """Return True if and only if form is a ReaderConditional which should be spliced
     into a surrounding collection context."""
     return (
@@ -1105,9 +1111,7 @@ def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional
     return ReaderConditional(feature_list, is_splicing=is_splicing)
 
 
-def _read_reader_conditional(
-    ctx: ReaderContext
-) -> Union[ReaderForm, ReaderConditional]:
+def _read_reader_conditional(ctx: ReaderContext) -> LispReaderForm:
     """Read a reader conditional form and either return it or process it and
     return the resulting form.
 
@@ -1123,7 +1127,10 @@ def _read_reader_conditional(
     reader_cond = _read_reader_conditional_preserving(ctx)
     if ctx.should_process_reader_cond and not reader_cond.is_splicing:
         form = reader_cond.select_feature(ctx.reader_features)
-        return COMMENT if form is ReaderConditional.FEATURE_NOT_PRESENT else form
+        return cast(
+            LispReaderForm,
+            COMMENT if form is ReaderConditional.FEATURE_NOT_PRESENT else form,
+        )
     else:
         return reader_cond
 
@@ -1217,7 +1224,7 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
         reader.advance()
 
 
-def _read_next_consuming_comment(ctx: ReaderContext) -> ReaderForm:
+def _read_next_consuming_comment(ctx: ReaderContext) -> RawReaderForm:
     """Read the next full form from the input stream, consuming any
     reader comments completely."""
     while True:
@@ -1229,7 +1236,7 @@ def _read_next_consuming_comment(ctx: ReaderContext) -> ReaderForm:
         return v
 
 
-def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
+def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
     """Read the next full form from the input stream."""
     reader = ctx.reader
     token = reader.peek()
@@ -1272,7 +1279,7 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
         raise SyntaxError("Unexpected token '{token}'".format(token=token))
 
 
-def read(
+def read(  # pylint: disable=too-many-arguments
     stream,
     resolver: Resolver = None,
     data_readers: DataReaders = None,
@@ -1280,7 +1287,7 @@ def read(
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[keyword.Keyword]] = None,
     process_reader_cond: bool = True,
-) -> Iterable[ReaderForm]:
+) -> Iterable[RawReaderForm]:
     """Read the contents of a stream as a Lisp expression.
 
     Callers may optionally specify a namespace resolver, which will be used
@@ -1325,7 +1332,7 @@ def read(
         yield expr
 
 
-def read_str(
+def read_str(  # pylint: disable=too-many-arguments
     s: str,
     resolver: Resolver = None,
     data_readers: DataReaders = None,
@@ -1333,7 +1340,7 @@ def read_str(
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[keyword.Keyword]] = None,
     process_reader_cond: bool = True,
-) -> Iterable[ReaderForm]:
+) -> Iterable[RawReaderForm]:
     """Read the contents of a string as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
@@ -1350,7 +1357,7 @@ def read_str(
         )
 
 
-def read_file(
+def read_file(  # pylint: disable=too-many-arguments
     filename: str,
     resolver: Resolver = None,
     data_readers: DataReaders = None,
@@ -1358,7 +1365,7 @@ def read_file(
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[keyword.Keyword]] = None,
     process_reader_cond: bool = True,
-) -> Iterable[ReaderForm]:
+) -> Iterable[RawReaderForm]:
     """Read the contents of a file as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
