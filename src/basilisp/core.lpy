@@ -3376,7 +3376,14 @@
          (~'contains [~this-gs ~key-gs]
           (or (~field-kw-set ~key-gs)
               (contains? ~'_recmap ~key-gs)))
-         (~'entry [~this-gs ~key-gs ~'& args#]
+         (~'entry [~this-gs ~key-gs]
+          (cond
+            (contains? ~field-kw-set ~key-gs)
+            (map-entry ~key-gs (python/getattr ~this-gs (munge ~key-gs)))
+
+            (contains? ~'_recmap ~key-gs)
+            (map-entry ~key-gs (get ~'_recmap ~key-gs))))
+         (~'val-at [~this-gs ~key-gs ~'& args#]
           (let [[default#] args#]
             (cond
               (contains? ~field-kw-set ~key-gs)

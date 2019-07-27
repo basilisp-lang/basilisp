@@ -7,7 +7,7 @@ from basilisp.lang.obj import LispObject as _LispObject, seq_lrepr
 T = TypeVar("T")
 
 
-class IDeref(Generic[T]):
+class IDeref(Generic[T], ABC):
     __slots__ = ()
 
     @abstractmethod
@@ -29,7 +29,7 @@ class IBlockingDeref(IDeref[T]):
 # Python 3.6 and 3.7, which affects a few simple test assertions.
 # Since there is little benefit to this type being Generic, I'm leaving
 # it as is for now.
-class IExceptionInfo(Exception):
+class IExceptionInfo(Exception, ABC):
     __slots__ = ()
 
     @property
@@ -42,7 +42,7 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class IMapEntry(Generic[K, V]):
+class IMapEntry(Generic[K, V], ABC):
     __slots__ = ()
 
     @property
@@ -80,7 +80,7 @@ class ISeqable(Iterable[T]):
         raise NotImplementedError()
 
 
-class ILookup(Generic[K, V]):
+class ILookup(Generic[K, V], ABC):
     __slots__ = ()
 
     @abstractmethod
@@ -102,7 +102,7 @@ class IPersistentCollection(ISeqable[T]):
 
 
 class IAssociative(
-    Mapping[K, V], ILookup[K, V], IPersistentCollection[IMapEntry[K, V]]
+    ILookup[K, V], Mapping[K, V], IPersistentCollection[IMapEntry[K, V]]
 ):
     __slots__ = ()
 
