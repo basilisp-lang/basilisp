@@ -8,11 +8,12 @@ import types
 from functools import lru_cache
 from importlib.abc import MetaPathFinder, SourceLoader
 from importlib.machinery import ModuleSpec
-from typing import List, Mapping, MutableMapping, Optional
+from typing import Iterable, List, Mapping, MutableMapping, Optional, cast
 
 import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
+from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import demunge
 from basilisp.util import timed
 
@@ -278,7 +279,13 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 all_bytecode.append(bytecode)
 
             logger.debug(f"Reading and compiling Basilisp module '{fullname}'")
-            forms = reader.read_file(filename, resolver=runtime.resolve_alias)
+            # Cast to basic ReaderForm since the reader can never return a reader conditional
+            # form unprocessed in internal usage. There are reader settings which permit
+            # callers to leave unprocessed reader conditionals in the stream, however.
+            forms = cast(
+                Iterable[ReaderForm],
+                reader.read_file(filename, resolver=runtime.resolve_alias),
+            )
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
                 forms,
                 compiler.CompilerContext(filename=filename),

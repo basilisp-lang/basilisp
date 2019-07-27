@@ -56,6 +56,7 @@ def eval_file(filename: str, ctx: compiler.CompilerContext, module: types.Module
     """Evaluate a file with the given name into a Python module AST node."""
     last = None
     for form in reader.read_file(filename, resolver=runtime.resolve_alias):
+        assert not isinstance(form, reader.ReaderConditional)
         last = compiler.compile_and_exec_form(form, ctx, module)
     return last
 
@@ -64,6 +65,7 @@ def eval_stream(stream, ctx: compiler.CompilerContext, module: types.ModuleType)
     """Evaluate the forms in stdin into a Python module AST node."""
     last = None
     for form in reader.read(stream, resolver=runtime.resolve_alias):
+        assert not isinstance(form, reader.ReaderConditional)
         last = compiler.compile_and_exec_form(form, ctx, module)
     return last
 
@@ -72,6 +74,7 @@ def eval_str(s: str, ctx: compiler.CompilerContext, module: types.ModuleType, eo
     """Evaluate the forms in a string into a Python module AST node."""
     last = eof
     for form in reader.read_str(s, resolver=runtime.resolve_alias, eof=eof):
+        assert not isinstance(form, reader.ReaderConditional)
         last = compiler.compile_and_exec_form(form, ctx, module)
     return last
 

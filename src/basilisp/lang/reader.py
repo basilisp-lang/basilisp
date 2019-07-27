@@ -7,6 +7,7 @@ import re
 import uuid
 from datetime import datetime
 from fractions import Fraction
+from itertools import chain
 from typing import (
     Any,
     Callable,
@@ -17,6 +18,7 @@ from typing import (
     MutableMapping,
     Optional,
     Pattern,
+    Set,
     Tuple,
     TypeVar,
     Union,
@@ -33,11 +35,20 @@ import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vector
 import basilisp.walker as walk
-from basilisp.lang.interfaces import IMeta, IRecord, IType
+from basilisp.lang.interfaces import (
+    ILispObject,
+    ILookup,
+    IMeta,
+    IPersistentList,
+    IPersistentSet,
+    IRecord,
+    IType,
+)
+from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.runtime import Namespace, Var
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
-from basilisp.util import Maybe
+from basilisp.util import Maybe, partition
 
 ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|\.")
 alphanumeric_chars = re.compile(r"\w")
@@ -56,6 +67,14 @@ W = TypeVar("W", bound=LispReaderFn)
 
 READER_LINE_KW = keyword.keyword("line", ns="basilisp.lang.reader")
 READER_COL_KW = keyword.keyword("col", ns="basilisp.lang.reader")
+
+READER_COND_BASILISP_FEATURE_KW = keyword.keyword("lpy")
+READER_COND_DEFAULT_FEATURE_KW = keyword.keyword("default")
+READER_COND_DEFAULT_FEATURE_SET = lset.s(
+    READER_COND_BASILISP_FEATURE_KW, READER_COND_DEFAULT_FEATURE_KW
+)
+READER_COND_FORM_KW = keyword.keyword("form")
+READER_COND_SPLICING_KW = keyword.keyword("splicing?")
 
 _AMPERSAND = symbol.symbol("&")
 _FN = symbol.symbol("fn*")
@@ -82,7 +101,8 @@ class Comment:
 
 COMMENT = Comment()
 
-LispReaderForm = Union[ReaderForm, Comment]
+LispReaderForm = Union[ReaderForm, Comment, "ReaderConditional"]
+RawReaderForm = Union[ReaderForm, "ReaderConditional"]
 
 
 class SyntaxError(Exception):  # pylint:disable=redefined-builtin
@@ -215,6 +235,8 @@ class ReaderContext:
 
     __slots__ = (
         "_data_readers",
+        "_features",
+        "_process_reader_cond",
         "_reader",
         "_resolve",
         "_in_anon_fn",
@@ -223,12 +245,14 @@ class ReaderContext:
         "_eof",
     )
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         reader: StreamReader,
         resolver: Resolver = None,
         data_readers: DataReaders = None,
         eof: Any = None,
+        features: Optional[IPersistentSet[keyword.Keyword]] = None,
+        process_reader_cond: bool = True,
     ) -> None:
         data_readers = Maybe(data_readers).or_else_get(lmap.Map.empty())
         for entry in data_readers:
@@ -241,6 +265,10 @@ class ReaderContext:
             lambda l, r: l,  # Do not allow callers to overwrite existing builtin readers
             data_readers,
         )
+        self._features = (
+            features if features is not None else READER_COND_DEFAULT_FEATURE_SET
+        )
+        self._process_reader_cond = process_reader_cond
         self._reader = reader
         self._resolve = Maybe(resolver).or_else_get(lambda x: x)
         self._in_anon_fn: Deque[bool] = collections.deque([])
@@ -255,6 +283,14 @@ class ReaderContext:
     @property
     def eof(self) -> Any:
         return self._eof
+
+    @property
+    def reader_features(self) -> IPersistentSet[keyword.Keyword]:
+        return self._features
+
+    @property
+    def should_process_reader_cond(self) -> bool:
+        return self._process_reader_cond
 
     @property
     def reader(self) -> StreamReader:
@@ -302,7 +338,76 @@ class ReaderContext:
             return False
 
 
-EOF = "EOF"
+class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
+    FEATURE_NOT_PRESENT = object()
+
+    __slots__ = ("_form", "_feature_vec", "_is_splicing")
+
+    def __init__(
+        self,
+        form: llist.List[Tuple[keyword.Keyword, ReaderForm]],
+        is_splicing: bool = False,
+    ):
+        self._form = form
+        self._feature_vec = self._compile_feature_vec(form)
+        self._is_splicing = is_splicing
+
+    @staticmethod
+    def _compile_feature_vec(form: IPersistentList[Tuple[keyword.Keyword, ReaderForm]]):
+        found_features: Set[keyword.Keyword] = set()
+        feature_list: List[Tuple[keyword.Keyword, ReaderForm]] = []
+
+        try:
+            for k, v in partition(form, 2):
+                if not isinstance(k, keyword.Keyword):
+                    raise SyntaxError(
+                        f"Reader conditional features must be keywords, not {type(k)}"
+                    )
+                if k in found_features:
+                    raise SyntaxError(
+                        f"Duplicate feature '{k}' in reader conditional literal"
+                    )
+                found_features.add(k)
+                feature_list.append((k, v))
+        except ValueError:
+            raise SyntaxError(
+                "Reader conditionals must contain an even number of forms"
+            )
+
+        return vector.vector(feature_list)
+
+    def val_at(
+        self, k: keyword.Keyword, default: Optional[ReaderForm] = None
+    ) -> Optional[ReaderForm]:
+        if k == READER_COND_FORM_KW:
+            return self._form
+        elif k == READER_COND_SPLICING_KW:
+            return self._is_splicing
+        else:
+            return default
+
+    @property
+    def is_splicing(self):
+        return self._is_splicing
+
+    def select_feature(
+        self, features: IPersistentSet[keyword.Keyword]
+    ) -> Union[ReaderForm, object]:
+        for k, form in self._feature_vec:
+            if k in features:
+                return form
+        return self.FEATURE_NOT_PRESENT
+
+    def _lrepr(self, **kwargs) -> str:
+        return _seq_lrepr(
+            chain.from_iterable(self._feature_vec),
+            "#?@(" if self.is_splicing else "#?(",
+            ")",
+            **kwargs,
+        )
+
+
+EOF = object()
 
 
 def _with_loc(f: W) -> W:
@@ -388,9 +493,26 @@ def _read_coll(
             reader.next_token()
             return f(coll)
         elem = _read_next(ctx)
-        if elem is COMMENT:
+        if elem is COMMENT or isinstance(elem, Comment):
             continue
-        coll.append(elem)
+        elif _should_splice_reader_conditional(ctx, elem):
+            assert isinstance(elem, ReaderConditional)
+            selected_feature = elem.select_feature(ctx.reader_features)
+            if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
+                continue
+            elif isinstance(selected_feature, vector.Vector):
+                coll.extend(selected_feature)
+            else:
+                raise SyntaxError(
+                    "Expecting Vector for splicing reader conditional "
+                    f"form; got {type(selected_feature)}"
+                )
+        else:
+            assert (
+                not isinstance(elem, ReaderConditional)
+                or not ctx.should_process_reader_cond
+            ), "Reader conditionals must be processed if specified"
+            coll.append(elem)
 
 
 def _consume_whitespace(reader: StreamReader) -> None:
@@ -429,6 +551,39 @@ def _read_set(ctx: ReaderContext) -> lset.Set:
     return _read_coll(ctx, set_if_valid, "}", "set")
 
 
+def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
+    """Return an iterable of map contents, potentially splicing in values from
+    reader conditionals."""
+    reader = ctx.reader
+    while True:
+        if reader.peek() == "}":
+            reader.next_token()
+            return
+        v = _read_next(ctx)
+        if v is COMMENT or isinstance(v, Comment):
+            continue
+        elif v is ctx.eof:
+            raise SyntaxError(f"Unexpected EOF in map")
+        elif _should_splice_reader_conditional(ctx, v):
+            assert isinstance(v, ReaderConditional)
+            selected_feature = v.select_feature(ctx.reader_features)
+            if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
+                continue
+            elif isinstance(selected_feature, vector.Vector):
+                yield from selected_feature
+            else:
+                raise SyntaxError(
+                    "Expecting Vector for splicing reader conditional "
+                    f"form; got {type(selected_feature)}"
+                )
+        else:
+            assert (
+                not isinstance(v, ReaderConditional)
+                or not ctx.should_process_reader_cond
+            ), "Reader conditionals must be processed if specified"
+            yield v
+
+
 @_with_loc
 def _read_map(ctx: ReaderContext) -> lmap.Map:
     """Return a map from the input stream."""
@@ -436,25 +591,15 @@ def _read_map(ctx: ReaderContext) -> lmap.Map:
     start = reader.advance()
     assert start == "{"
     d: MutableMapping[Any, Any] = {}
-    while True:
-        if reader.peek() == "}":
-            reader.next_token()
-            break
-        k = _read_next(ctx)
-        if k is COMMENT:
-            continue
-        while True:
-            if reader.peek() == "}":
-                raise SyntaxError("Unexpected token '}'; expected map value")
-            v = _read_next(ctx)
-            if v is COMMENT:
-                continue
+    try:
+        for k, v in partition(list(__read_map_elems(ctx)), 2):
             if k in d:
                 raise SyntaxError(f"Duplicate key '{k}' in map literal")
-            break
-        d[k] = v
-
-    return lmap.map(d)
+            d[k] = v
+    except ValueError:
+        raise SyntaxError("Unexpected token '}'; expected map value")
+    else:
+        return lmap.map(d)
 
 
 # Due to some ambiguities that arise in parsing symbols, numbers, and the
@@ -719,7 +864,7 @@ def _read_quoted(ctx: ReaderContext) -> llist.List:
     return llist.l(_QUOTE, next_form)
 
 
-def _is_unquote(form: ReaderForm) -> bool:
+def _is_unquote(form: RawReaderForm) -> bool:
     """Return True if this form is unquote."""
     try:
         return form.first == _UNQUOTE  # type: ignore
@@ -727,7 +872,7 @@ def _is_unquote(form: ReaderForm) -> bool:
         return False
 
 
-def _is_unquote_splicing(form: ReaderForm) -> bool:
+def _is_unquote_splicing(form: RawReaderForm) -> bool:
     """Return True if this form is unquote-splicing."""
     try:
         return form.first == _UNQUOTE_SPLICING  # type: ignore
@@ -762,7 +907,9 @@ def _expand_syntax_quote(
     return expanded
 
 
-def _process_syntax_quoted_form(ctx: ReaderContext, form: ReaderForm) -> ReaderForm:
+def _process_syntax_quoted_form(
+    ctx: ReaderContext, form: RawReaderForm
+) -> RawReaderForm:
     """Post-process syntax quoted forms to generate forms that can be assembled
     into the correct types at runtime.
 
@@ -817,7 +964,7 @@ def _process_syntax_quoted_form(ctx: ReaderContext, form: ReaderForm) -> ReaderF
         return form
 
 
-def _read_syntax_quoted(ctx: ReaderContext) -> ReaderForm:
+def _read_syntax_quoted(ctx: ReaderContext) -> RawReaderForm:
     """Read a syntax-quote and set the syntax-quoting state in the reader."""
     start = ctx.reader.advance()
     assert start == "`"
@@ -924,6 +1071,70 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
         raise SyntaxError(f"Unrecognized regex pattern syntax: {s}")
 
 
+def _should_splice_reader_conditional(ctx: ReaderContext, form: LispReaderForm) -> bool:
+    """Return True if and only if form is a ReaderConditional which should be spliced
+    into a surrounding collection context."""
+    return (
+        isinstance(form, ReaderConditional)
+        and ctx.should_process_reader_cond
+        and form.is_splicing
+    )
+
+
+def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional:
+    """Read a reader conditional form and return the unprocessed reader
+    conditional object."""
+    reader = ctx.reader
+    start = reader.advance()
+    assert start == "?"
+    token = reader.peek()
+
+    if token == "@":
+        is_splicing = True
+        ctx.reader.advance()
+    elif token == "(":
+        is_splicing = False
+    else:
+        raise SyntaxError(
+            f"Unexpected token '{token}'; expected opening "
+            "'(' for reader conditional"
+        )
+
+    open_token = reader.advance()
+    if open_token != "(":
+        raise SyntaxError(
+            f"Expected opening '(' for reader conditional; got '{open_token}'"
+        )
+
+    feature_list = _read_coll(ctx, llist.list, ")", "reader conditional")
+    assert isinstance(feature_list, llist.List)
+    return ReaderConditional(feature_list, is_splicing=is_splicing)
+
+
+def _read_reader_conditional(ctx: ReaderContext) -> LispReaderForm:
+    """Read a reader conditional form and either return it or process it and
+    return the resulting form.
+
+    If the reader is not set to process the reader conditional, it will always
+    be returned as a ReaderConditional object.
+
+    If the reader is set to process reader conditionals, only non-splicing reader
+    conditionals are processed here. If no matching feature is found in a
+    non-splicing reader conditional, a comment will be emitted (which is ultimately
+    discarded downstream in the reader).
+
+    Splicing reader conditionals are processed in the respective collection readers."""
+    reader_cond = _read_reader_conditional_preserving(ctx)
+    if ctx.should_process_reader_cond and not reader_cond.is_splicing:
+        form = reader_cond.select_feature(ctx.reader_features)
+        return cast(
+            LispReaderForm,
+            COMMENT if form is ReaderConditional.FEATURE_NOT_PRESENT else form,
+        )
+    else:
+        return reader_cond
+
+
 def _load_record_or_type(s: symbol.Symbol, v: LispReaderForm) -> Union[IRecord, IType]:
     """Attempt to load the constructor named by `s` and construct a new
     record or type instance from the vector or map following name."""
@@ -980,6 +1191,8 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
         ctx.reader.advance()
         _read_next(ctx)  # Ignore the entire next form
         return COMMENT
+    elif token == "?":
+        return _read_reader_conditional(ctx)
     elif ns_name_chars.match(token):
         s = _read_sym(ctx)
         assert isinstance(s, symbol.Symbol)
@@ -1011,7 +1224,7 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
         reader.advance()
 
 
-def _read_next_consuming_comment(ctx: ReaderContext) -> ReaderForm:
+def _read_next_consuming_comment(ctx: ReaderContext) -> RawReaderForm:
     """Read the next full form from the input stream, consuming any
     reader comments completely."""
     while True:
@@ -1023,7 +1236,7 @@ def _read_next_consuming_comment(ctx: ReaderContext) -> ReaderForm:
         return v
 
 
-def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
+def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
     """Read the next full form from the input stream."""
     reader = ctx.reader
     token = reader.peek()
@@ -1066,13 +1279,15 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901
         raise SyntaxError("Unexpected token '{token}'".format(token=token))
 
 
-def read(
+def read(  # pylint: disable=too-many-arguments
     stream,
     resolver: Resolver = None,
     data_readers: DataReaders = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
-) -> Iterable[ReaderForm]:
+    features: Optional[IPersistentSet[keyword.Keyword]] = None,
+    process_reader_cond: bool = True,
+) -> Iterable[RawReaderForm]:
     """Read the contents of a stream as a Lisp expression.
 
     Callers may optionally specify a namespace resolver, which will be used
@@ -1085,9 +1300,23 @@ def read(
     reserved by the reader. Data reader functions must be functions taking
     one argument and returning a value.
 
+    Callers may specify whether or not reader conditional forms are processed
+    or passed through raw (default: processed). Callers may provide a set of
+    keyword "features" which the reader will use to determine which branches
+    of reader conditional forms to read if reader conditionals are to be
+    processed. If none are specified, then the `:default` and `:lpy` features
+    are provided.
+
     The caller is responsible for closing the input stream."""
     reader = StreamReader(stream)
-    ctx = ReaderContext(reader, resolver=resolver, data_readers=data_readers, eof=eof)
+    ctx = ReaderContext(
+        reader,
+        resolver=resolver,
+        data_readers=data_readers,
+        eof=eof,
+        features=features,
+        process_reader_cond=process_reader_cond,
+    )
     while True:
         expr = _read_next(ctx)
         if expr is ctx.eof:
@@ -1096,16 +1325,22 @@ def read(
             return
         if expr is COMMENT or isinstance(expr, Comment):
             continue
+        assert (
+            not isinstance(expr, ReaderConditional)
+            or not ctx.should_process_reader_cond
+        ), "Reader conditionals must be processed if specified"
         yield expr
 
 
-def read_str(
+def read_str(  # pylint: disable=too-many-arguments
     s: str,
     resolver: Resolver = None,
     data_readers: DataReaders = None,
-    eof: Any = None,
+    eof: Any = EOF,
     is_eof_error: bool = False,
-) -> Iterable[ReaderForm]:
+    features: Optional[IPersistentSet[keyword.Keyword]] = None,
+    process_reader_cond: bool = True,
+) -> Iterable[RawReaderForm]:
     """Read the contents of a string as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
@@ -1117,16 +1352,20 @@ def read_str(
             data_readers=data_readers,
             eof=eof,
             is_eof_error=is_eof_error,
+            features=features,
+            process_reader_cond=process_reader_cond,
         )
 
 
-def read_file(
+def read_file(  # pylint: disable=too-many-arguments
     filename: str,
     resolver: Resolver = None,
     data_readers: DataReaders = None,
-    eof: Any = None,
+    eof: Any = EOF,
     is_eof_error: bool = False,
-) -> Iterable[ReaderForm]:
+    features: Optional[IPersistentSet[keyword.Keyword]] = None,
+    process_reader_cond: bool = True,
+) -> Iterable[RawReaderForm]:
     """Read the contents of a file as a Lisp expression.
 
     Keyword arguments to this function have the same meanings as those of
@@ -1138,4 +1377,6 @@ def read_file(
             data_readers=data_readers,
             eof=eof,
             is_eof_error=is_eof_error,
+            features=features,
+            process_reader_cond=process_reader_cond,
         )
