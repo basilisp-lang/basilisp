@@ -1,4 +1,5 @@
 import io
+from typing import Optional
 
 import pytest
 
@@ -11,6 +12,7 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vec
+from basilisp.lang.interfaces import IPersistentSet
 
 
 @pytest.fixture
@@ -30,6 +32,8 @@ def read_str_first(
     resolver: reader.Resolver = None,
     data_readers=None,
     is_eof_error: bool = False,
+    features: Optional[IPersistentSet[kw.Keyword]] = None,
+    process_reader_cond: bool = True,
 ):
     """Read the first form from the input string. If no form
     is found, return None."""
@@ -40,6 +44,8 @@ def read_str_first(
                 resolver=resolver,
                 data_readers=data_readers,
                 is_eof_error=is_eof_error,
+                features=features,
+                process_reader_cond=process_reader_cond,
             )
         )
     except StopIteration:

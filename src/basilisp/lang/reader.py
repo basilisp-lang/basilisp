@@ -250,7 +250,7 @@ class ReaderContext:
         resolver: Resolver = None,
         data_readers: DataReaders = None,
         eof: Any = None,
-        features: IPersistentSet[keyword.Keyword] = READER_COND_DEFAULT_FEATURE_SET,
+        features: Optional[IPersistentSet[keyword.Keyword]] = None,
         process_reader_cond: bool = True,
     ) -> None:
         data_readers = Maybe(data_readers).or_else_get(lmap.Map.empty())
@@ -264,7 +264,9 @@ class ReaderContext:
             lambda l, r: l,  # Do not allow callers to overwrite existing builtin readers
             data_readers,
         )
-        self._features = features
+        self._features = (
+            features if features is not None else READER_COND_DEFAULT_FEATURE_SET
+        )
         self._process_reader_cond = process_reader_cond
         self._reader = reader
         self._resolve = Maybe(resolver).or_else_get(lambda x: x)
@@ -1269,6 +1271,8 @@ def read(
     data_readers: DataReaders = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
+    features: Optional[IPersistentSet[keyword.Keyword]] = None,
+    process_reader_cond: bool = True,
 ) -> Iterable[ReaderForm]:
     """Read the contents of a stream as a Lisp expression.
 
@@ -1282,9 +1286,23 @@ def read(
     reserved by the reader. Data reader functions must be functions taking
     one argument and returning a value.
 
+    Callers may specify whether or not reader conditional forms are processed
+    or passed through raw (default: processed). Callers may provide a set of
+    keyword "features" which the reader will use to determine which branches
+    of reader conditional forms to read if reader conditionals are to be
+    processed. If none are specified, then the `:default` and `:lpy` features
+    are provided.
+
     The caller is responsible for closing the input stream."""
     reader = StreamReader(stream)
-    ctx = ReaderContext(reader, resolver=resolver, data_readers=data_readers, eof=eof)
+    ctx = ReaderContext(
+        reader,
+        resolver=resolver,
+        data_readers=data_readers,
+        eof=eof,
+        features=features,
+        process_reader_cond=process_reader_cond,
+    )
     while True:
         expr = _read_next(ctx)
         if expr is ctx.eof:
@@ -1306,6 +1324,8 @@ def read_str(
     data_readers: DataReaders = None,
     eof: Any = None,
     is_eof_error: bool = False,
+    features: Optional[IPersistentSet[keyword.Keyword]] = None,
+    process_reader_cond: bool = True,
 ) -> Iterable[ReaderForm]:
     """Read the contents of a string as a Lisp expression.
 
@@ -1318,6 +1338,8 @@ def read_str(
             data_readers=data_readers,
             eof=eof,
             is_eof_error=is_eof_error,
+            features=features,
+            process_reader_cond=process_reader_cond,
         )
 
 
@@ -1327,6 +1349,8 @@ def read_file(
     data_readers: DataReaders = None,
     eof: Any = None,
     is_eof_error: bool = False,
+    features: Optional[IPersistentSet[keyword.Keyword]] = None,
+    process_reader_cond: bool = True,
 ) -> Iterable[ReaderForm]:
     """Read the contents of a file as a Lisp expression.
 
@@ -1339,4 +1363,6 @@ def read_file(
             data_readers=data_readers,
             eof=eof,
             is_eof_error=is_eof_error,
+            features=features,
+            process_reader_cond=process_reader_cond,
         )

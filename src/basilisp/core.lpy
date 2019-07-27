@@ -2172,7 +2172,11 @@
                                          (:eof opts)
                                          (if (= (:eof opts) :eofthrow)
                                            true
-                                           false)))))
+                                           false)
+                                         (:features opts)
+                                         (if (= :preserve (:read-cond opts))
+                                           false
+                                           true)))))
 
 (defn read
   "Read the next form from the stream. If no stream is specified, uses
@@ -2195,7 +2199,11 @@
                                      (:eof opts)
                                      (if (= (:eof opts) :eofthrow)
                                        true
-                                       false))))
+                                       false)
+                                     (:features opts)
+                                     (if (= :preserve (:read-cond opts))
+                                       false
+                                       true))))
   ([stream eof-error? eof-value]
    (first (basilisp.lang.reader/read stream
                                      *resolver*
