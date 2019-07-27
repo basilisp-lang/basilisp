@@ -843,14 +843,24 @@ class TestReaderConditional:
     @pytest.mark.parametrize(
         "v",
         [
+            # Keyword feature
+            "#?(:clj 1 :lpy 2 default 3)",
+            "#?(:clj 1 lpy 2 :default 3)",
+            "#?(clj 1 :lpy 2 :default 3)",
+            # Duplicate feature
+            "#?(:clj 1 :clj 2 :default 3)",
+            "#?(:clj 1 :lpy 2 :clj 3)",
+            # Invalid collection
             "#?[:clj 1 :lpy 2 :default 3]",
             "#?(:clj 1 :lpy 2 :default 3",
             "#?(:clj 1 :lpy 2 :default 3]",
-            "#?@[:clj 1 :lpy 2 :default 3]",
-            "#?@(:clj 1 :lpy 2 :default 3",
+            # Even number of forms
+            "#?(:clj)",
+            "#?(:clj 1 lpy)",
+            "#?(clj 1 :lpy 2 :default)",
         ],
     )
-    def test_syntax(self, v: str):
+    def test_basic_form_syntax(self, v: str):
         with pytest.raises(reader.SyntaxError):
             read_str_first(v)
 
@@ -867,6 +877,62 @@ class TestReaderConditional:
         assert llist.l(
             kw.keyword("clj"), 1, kw.keyword("lpy"), 2, kw.keyword("default"), 3
         ) == c.val_at(reader.READER_COND_FORM_KW)
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            # Invalid splice collection
+            "(#?@(:clj (1 2) :lpy (3 4)))",
+            "(#?@(:clj #{1 2} :lpy #{3 4}))",
+            "[#?@(:clj (1 2) :lpy (3 4))]",
+            "[#?@(:clj #{1 2} :lpy #{3 4})]",
+            "#{#?@(:clj (1 2) :lpy (3 4))}",
+            "#{#?@(:clj #{1 2} :lpy #{3 4})}",
+            "{#?@(:clj (1 2) :lpy (3 4))}",
+            "{#?@(:clj #{1 2} :lpy #{3 4})}",
+            # Invalid container collection
+            "#?@[:clj 1 :lpy 2 :default 3]",
+            "#?@(:clj 1 :lpy 2 :default 3",
+            # Keyword feature
+            "#?@(:clj [1] :lpy [2] default [3])",
+            "#?@(:clj [1] lpy [2] :default [3])",
+            "#?@(clj [1] :lpy [2] :default [3])",
+            # Duplicate feature
+            "#?@(:clj [1] :clj [2] :default [3])",
+            "#?@(:clj [1] :lpy [2] :clj [3])",
+            # Even number of forms
+            "#?@(:clj)",
+            "#?@(:clj [1] lpy)",
+            "#?@(clj [1] :lpy [2] :default)",
+        ],
+    )
+    def test_splicing_form_syntax(self, v: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(v)
+
+    def test_splicing_form(self):
+        assert llist.l(1, 3, 5, 7) == read_str_first(
+            "(1 #?@(:clj [2 4 6] :lpy [3 5 7]))"
+        )
+        assert vec.v(1, 3, 5, 7) == read_str_first("[1 #?@(:clj [2 4 6] :lpy [3 5 7])]")
+        assert lset.s(1, 3, 5, 7) == read_str_first(
+            "#{1 #?@(:clj [2 4 6] :lpy [3 5 7])}"
+        )
+        assert llist.l(1) == read_str_first("(1 #?@(:clj [2 4 6]))")
+        assert vec.v(1) == read_str_first("[1 #?@(:clj [2 4 6])]")
+        assert lset.s(1) == read_str_first("#{1 #?@(:clj [2 4 6])}")
+
+    def test_splicing_form_in_maps(self):
+        assert lmap.Map.empty() == read_str_first("{#?@(:clj [:a 1])}")
+        assert lmap.map({kw.keyword("b"): 2}) == read_str_first(
+            "{#?@(:clj [:a 1] :lpy [:b 2])}"
+        )
+        assert lmap.map({kw.keyword("a"): 3, kw.keyword("c"): 4}) == read_str_first(
+            "{:a #?@(:clj [1 :b 2] :lpy [3 :c 4])}"
+        )
+        assert lmap.map({kw.keyword("a"): 2, kw.keyword("e"): 5}) == read_str_first(
+            "{#?@(:clj [:a 1 :b] :lpy [:a 2 :e]) 5}"
+        )
 
 
 def test_function_reader_macro():
