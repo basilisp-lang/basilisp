@@ -400,10 +400,11 @@ class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
             chain.from_iterable(self._feature_vec),
             "#?@" if self.is_splicing else "#?",
             ")",
+            **kwargs,
         )
 
 
-EOF = "EOF"
+EOF = object()
 
 
 def _with_loc(f: W) -> W:
@@ -557,6 +558,8 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[ReaderForm]:
         v = _read_next(ctx)
         if v is COMMENT:
             continue
+        elif v is ctx.eof:
+            raise SyntaxError(f"Unexpected EOF in map")
         elif _should_splice_reader_conditional(ctx, v):
             assert isinstance(v, ReaderConditional)
             selected_feature = v.select_feature(ctx.reader_features)
@@ -1092,7 +1095,11 @@ def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional
         )
 
     open_token = reader.advance()
-    assert open_token == "("
+    if open_token != "(":
+        raise SyntaxError(
+            f"Expected opening '(' for reader conditional; got '{open_token}'"
+        )
+
     feature_list = _read_coll(ctx, llist.list, ")", "reader conditional")
     assert isinstance(feature_list, llist.List)
     return ReaderConditional(feature_list, is_splicing=is_splicing)
@@ -1322,7 +1329,7 @@ def read_str(
     s: str,
     resolver: Resolver = None,
     data_readers: DataReaders = None,
-    eof: Any = None,
+    eof: Any = EOF,
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[keyword.Keyword]] = None,
     process_reader_cond: bool = True,
@@ -1347,7 +1354,7 @@ def read_file(
     filename: str,
     resolver: Resolver = None,
     data_readers: DataReaders = None,
-    eof: Any = None,
+    eof: Any = EOF,
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[keyword.Keyword]] = None,
     process_reader_cond: bool = True,

@@ -863,7 +863,7 @@ class TestReaderConditional:
         c = read_str_first("#?(:clj 1 :lpy 2 :default 3)", process_reader_cond=False)
         assert isinstance(c, reader.ReaderConditional)
         assert not c.is_splicing
-        assert False is c.val_at(reader.READER_COND_FORM_KW)
+        assert False is c.val_at(reader.READER_COND_SPLICING_KW)
         assert llist.l(
             kw.keyword("clj"), 1, kw.keyword("lpy"), 2, kw.keyword("default"), 3
         ) == c.val_at(reader.READER_COND_FORM_KW)
