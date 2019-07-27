@@ -7,7 +7,7 @@ from basilisp.lang.obj import LispObject as _LispObject, seq_lrepr
 T = TypeVar("T")
 
 
-class IDeref(Generic[T]):
+class IDeref(Generic[T], ABC):
     __slots__ = ()
 
     @abstractmethod
@@ -29,7 +29,7 @@ class IBlockingDeref(IDeref[T]):
 # Python 3.6 and 3.7, which affects a few simple test assertions.
 # Since there is little benefit to this type being Generic, I'm leaving
 # it as is for now.
-class IExceptionInfo(Exception):
+class IExceptionInfo(Exception, ABC):
     __slots__ = ()
 
     @property
@@ -42,7 +42,7 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class IMapEntry(Generic[K, V]):
+class IMapEntry(Generic[K, V], ABC):
     __slots__ = ()
 
     @property
@@ -80,6 +80,14 @@ class ISeqable(Iterable[T]):
         raise NotImplementedError()
 
 
+class ILookup(Generic[K, V], ABC):
+    __slots__ = ()
+
+    @abstractmethod
+    def val_at(self, k: K, default: Optional[V] = None) -> Optional[V]:
+        raise NotImplementedError()
+
+
 class IPersistentCollection(ISeqable[T]):
     __slots__ = ()
 
@@ -93,7 +101,9 @@ class IPersistentCollection(ISeqable[T]):
         raise NotImplementedError()
 
 
-class IAssociative(Mapping[K, V], IPersistentCollection[IMapEntry[K, V]]):
+class IAssociative(
+    ILookup[K, V], Mapping[K, V], IPersistentCollection[IMapEntry[K, V]]
+):
     __slots__ = ()
 
     @abstractmethod
@@ -105,7 +115,7 @@ class IAssociative(Mapping[K, V], IPersistentCollection[IMapEntry[K, V]]):
         raise NotImplementedError()
 
     @abstractmethod
-    def entry(self, k: K, default: Optional[V] = None) -> Optional[V]:
+    def entry(self, k: K) -> Optional[IMapEntry[K, V]]:
         raise NotImplementedError()
 
 

@@ -272,7 +272,7 @@ class TestDef:
         )
         assert lcompile("z") == kw.keyword("some-val")
         var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("z"))
-        assert "this is a docstring" == var.meta.entry(kw.keyword("doc"))
+        assert "this is a docstring" == var.meta.val_at(kw.keyword("doc"))
 
     def test_def_unbound(self, ns: runtime.Namespace):
         lcompile("(def a)")
@@ -302,12 +302,12 @@ class TestDef:
         var = ns.find(sym.symbol("unique-oeuene"))
         meta = var.meta
 
-        assert 1 == meta.entry(kw.keyword("line"))
-        assert COMPILER_FILE_PATH == meta.entry(kw.keyword("file"))
-        assert 1 == meta.entry(kw.keyword("col"))
-        assert sym.symbol("unique-oeuene") == meta.entry(kw.keyword("name"))
-        assert ns == meta.entry(kw.keyword("ns"))
-        assert "Super cool docstring" == meta.entry(kw.keyword("doc"))
+        assert 1 == meta.val_at(kw.keyword("line"))
+        assert COMPILER_FILE_PATH == meta.val_at(kw.keyword("file"))
+        assert 1 == meta.val_at(kw.keyword("col"))
+        assert sym.symbol("unique-oeuene") == meta.val_at(kw.keyword("name"))
+        assert ns == meta.val_at(kw.keyword("ns"))
+        assert "Super cool docstring" == meta.val_at(kw.keyword("doc"))
 
     def test_no_warn_on_redef_meta(self, ns: runtime.Namespace, caplog):
         lcompile(

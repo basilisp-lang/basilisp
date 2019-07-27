@@ -149,7 +149,7 @@ class BasilispTestItem(pytest.Item):
         test failures. PyTest will invoke self.repr_failure to display
         the failures to the user."""
         results: lmap.Map = self._run_test()
-        failures: Optional[vec.Vector] = results.entry(_FAILURES_KW)
+        failures: Optional[vec.Vector] = results.val_at(_FAILURES_KW)
         if runtime.to_seq(failures):
             raise TestFailuresInfo("Test failures", lmap.map(results))
 
@@ -158,16 +158,16 @@ class BasilispTestItem(pytest.Item):
         exception."""
         if isinstance(excinfo.value, TestFailuresInfo):
             exc = excinfo.value
-            failures = exc.data.entry(_FAILURES_KW)
+            failures = exc.data.val_at(_FAILURES_KW)
             messages = []
 
             for details in failures:
-                type_ = details.entry(_TYPE_KW)
+                type_ = details.val_at(_TYPE_KW)
                 if type_ == _FAILURE_KW:
                     messages.append(self._failure_msg(details))
                 elif type_ == _ERROR_KW:
-                    exc = details.entry(_ACTUAL_KW)
-                    line = details.entry(_LINE_KW)
+                    exc = details.val_at(_ACTUAL_KW)
+                    line = details.val_at(_LINE_KW)
                     messages.append(self._error_msg(exc, line=line))
                 else:
                     assert False, "Test failure type must be in #{:error :failure}"
@@ -188,14 +188,14 @@ class BasilispTestItem(pytest.Item):
         return "".join(messages)
 
     def _failure_msg(self, details: lmap.Map) -> str:
-        assert details.entry(_TYPE_KW) == _FAILURE_KW
-        msg: str = details.entry(_MESSAGE_KW)
+        assert details.val_at(_TYPE_KW) == _FAILURE_KW
+        msg: str = details.val_at(_MESSAGE_KW)
 
-        actual = details.entry(_ACTUAL_KW)
-        expected = details.entry(_EXPECTED_KW)
+        actual = details.val_at(_ACTUAL_KW)
+        expected = details.val_at(_EXPECTED_KW)
 
-        test_section = details.entry(_TEST_SECTION_KW)
-        line = details.entry(_LINE_KW)
+        test_section = details.val_at(_TEST_SECTION_KW)
+        line = details.val_at(_LINE_KW)
         section_msg = Maybe(test_section).map(lambda s: f" {s} :: ").or_else_get("")
 
         return "\n".join(

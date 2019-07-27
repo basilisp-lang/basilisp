@@ -1,9 +1,10 @@
-from typing import Iterable, Optional, TypeVar
+from typing import Iterable, Optional, Sequence, TypeVar, Union
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 
 from basilisp.lang.interfaces import (
     ILispObject,
+    IMapEntry,
     IMeta,
     IPersistentMap,
     IPersistentVector,
@@ -71,7 +72,13 @@ class Vector(ILispObject, IMeta, IPersistentVector[T]):
     def contains(self, k):
         return 0 <= k < len(self._inner)
 
-    def entry(self, k, default=None):
+    def entry(self, k):
+        try:
+            return MapEntry.of(k, self._inner[k])
+        except IndexError:
+            return None
+
+    def val_at(self, k, default=None):
         try:
             return self._inner[k]
         except IndexError:
@@ -93,6 +100,39 @@ class Vector(ILispObject, IMeta, IPersistentVector[T]):
         if len(self) == 0:
             raise IndexError("Cannot pop an empty vector")
         return self[:-1]
+
+
+K = TypeVar("K")
+V = TypeVar("V")
+
+
+class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):
+    __slots__ = ()
+
+    def __init__(self, wrapped: "PVector[Union[K, V]]") -> None:
+        try:
+            if not len(wrapped) == 2:
+                raise ValueError("Vector arg to map conj must be a pair")
+        except TypeError as e:
+            raise TypeError(f"Cannot make map entry from {type(wrapped)}") from e
+
+        super().__init__(wrapped)
+
+    @property
+    def key(self) -> K:
+        return self[0]
+
+    @property
+    def value(self) -> V:
+        return self[1]
+
+    @staticmethod
+    def of(k: K, v: V) -> "MapEntry[K, V]":
+        return MapEntry(pvector([k, v]))
+
+    @staticmethod
+    def from_vec(v: Sequence[Union[K, V]]) -> "MapEntry[K, V]":
+        return MapEntry(pvector(v))
 
 
 def vector(members: Iterable[T], meta: Optional[IPersistentMap] = None) -> Vector[T]:

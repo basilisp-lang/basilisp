@@ -90,13 +90,13 @@ def test_vector_cons():
 
 
 def test_entry():
-    assert "a" == vector.v("a").entry(0)
-    assert "b" == vector.v("a", "b").entry(1)
-    assert None is vector.v("a", "b").entry(2)
-    assert "b" == vector.v("a", "b").entry(-1)
-    assert None is vector.Vector.empty().entry(0)
-    assert None is vector.Vector.empty().entry(1)
-    assert None is vector.Vector.empty().entry(-1)
+    assert "a" == vector.v("a").val_at(0)
+    assert "b" == vector.v("a", "b").val_at(1)
+    assert None is vector.v("a", "b").val_at(2)
+    assert "b" == vector.v("a", "b").val_at(-1)
+    assert None is vector.Vector.empty().val_at(0)
+    assert None is vector.Vector.empty().val_at(1)
+    assert None is vector.Vector.empty().val_at(-1)
 
 
 def test_peek():

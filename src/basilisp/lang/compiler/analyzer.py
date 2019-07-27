@@ -236,7 +236,7 @@ class SymbolTable:
                 code_loc = (
                     Maybe(entry.symbol.meta)
                     .map(
-                        lambda m: f": {m.entry(reader.READER_LINE_KW)}"  # type: ignore
+                        lambda m: f": {m.val_at(reader.READER_LINE_KW)}"  # type: ignore
                     )
                     .or_else_get("")
                 )
@@ -312,14 +312,14 @@ class AnalyzerContext:
     @property
     def warn_on_unused_names(self) -> bool:
         """If True, warn when local names are unused."""
-        return self._opts.entry(WARN_ON_UNUSED_NAMES, True)
+        return self._opts.val_at(WARN_ON_UNUSED_NAMES, True)
 
     @property
     def warn_on_shadowed_name(self) -> bool:
         """If True, warn when a name is shadowed in an inner scope.
 
         Implies warn_on_shadowed_var."""
-        return self._opts.entry(WARN_ON_SHADOWED_NAME, False)
+        return self._opts.val_at(WARN_ON_SHADOWED_NAME, False)
 
     @property
     def warn_on_shadowed_var(self) -> bool:
@@ -327,7 +327,7 @@ class AnalyzerContext:
 
         Implied by warn_on_shadowed_name. The value of warn_on_shadowed_name
         supersedes the value of this flag."""
-        return self.warn_on_shadowed_name or self._opts.entry(
+        return self.warn_on_shadowed_name or self._opts.val_at(
             WARN_ON_SHADOWED_VAR, False
         )
 
@@ -411,7 +411,7 @@ class AnalyzerContext:
         ) and self.warn_on_shadowed_var:
             if self.current_ns.find(s) is not None:
                 logger.warning(f"name '{s}' shadows def'ed Var from outer scope")
-        if s.meta is not None and s.meta.entry(SYM_NO_WARN_WHEN_UNUSED_META_KEY, None):
+        if s.meta is not None and s.meta.val_at(SYM_NO_WARN_WHEN_UNUSED_META_KEY, None):
             warn_if_unused = False
         st.new_symbol(s, binding, warn_if_unused=warn_if_unused)
 
@@ -454,7 +454,7 @@ def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
 
     def has_meta_prop(o: Union[IMeta, Var]) -> bool:
         return (  # type: ignore
-            Maybe(o.meta).map(lambda m: m.entry(meta_kw, None)).or_else_get(False)
+            Maybe(o.meta).map(lambda m: m.val_at(meta_kw, None)).or_else_get(False)
         )
 
     return has_meta_prop
@@ -632,7 +632,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     # where we directly set the Var meta for the running Basilisp instance
     # this causes problems since we'll end up getting something like
     # `(quote ([] [v]))` rather than simply `([] [v])`.
-    arglists_meta = def_meta.entry(ARGLISTS_KW)  # type: ignore
+    arglists_meta = def_meta.val_at(ARGLISTS_KW)  # type: ignore
     if isinstance(arglists_meta, llist.List):
         assert arglists_meta.first == SpecialForm.QUOTE
         var_meta = def_meta.update(  # type: ignore
@@ -649,7 +649,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     var = Var.intern_unbound(
         ns_sym,
         bare_name,
-        dynamic=def_meta.entry(SYM_DYNAMIC_META_KEY, False),  # type: ignore
+        dynamic=def_meta.val_at(SYM_DYNAMIC_META_KEY, False),  # type: ignore
         meta=var_meta,
     )
     descriptor = Def(
@@ -1176,7 +1176,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             field_default = (
                 Maybe(field.meta)
                 .map(
-                    lambda m: m.entry(  # type: ignore
+                    lambda m: m.val_at(  # type: ignore
                         SYM_DEFAULT_META_KEY, __DEFTYPE_DEFAULT_SENTINEL
                     )
                 )
@@ -1594,12 +1594,12 @@ def _import_ast(  # pylint: disable=too-many-branches
                 raise AnalyzerException(
                     "import alias must take the form: [module :as alias]", form=f
                 )
-            module_name = f.entry(0)
+            module_name = f.val_at(0)
             if not isinstance(module_name, sym.Symbol):
                 raise AnalyzerException("Python module name must be a symbol", form=f)
-            if not AS == f.entry(1):
+            if not AS == f.val_at(1):
                 raise AnalyzerException("expected :as alias for Python import", form=f)
-            module_alias_sym = f.entry(2)
+            module_alias_sym = f.val_at(2)
             if not isinstance(module_alias_sym, sym.Symbol):
                 raise AnalyzerException("Python module alias must be a symbol", form=f)
             module_alias = module_alias_sym.name

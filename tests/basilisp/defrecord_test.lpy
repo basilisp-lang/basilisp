@@ -37,9 +37,17 @@
       (is (= 3 (:z p)))
       (is (nil? (:l p))))
 
+    (testing "field access"
+      (is (= (map-entry :x 1) (.entry p :x)))
+      (is (= (map-entry :y 2) (.entry p :y)))
+      (is (= (map-entry :z 3) (.entry p :z)))
+      (is (nil? (.entry p :l))))
+
     (testing "field access with recmap"
       (is (= [0 1 2 3]
              ((juxt :w :x :y :z) p1)))
+      (is (= (map-entry :w 0) (.entry p1 :w)))
+      (is (nil? (.entry p1 :u)))
       (is (nil? (:l p1)))
       (is (nil? (:new-key p1)))
       (is (= [0 1 2 3 "some-value"]

@@ -26,8 +26,8 @@ class MultiFunction(Generic[T]):
     def __call__(self, *args, **kwargs):
         key = self._dispatch(*args, **kwargs)
         method_cache = self.methods
-        method: Optional[Method] = Maybe(method_cache.entry(key, None)).or_else(
-            lambda: method_cache.entry(self._default, None)  # type: ignore
+        method: Optional[Method] = Maybe(method_cache.val_at(key, None)).or_else(
+            lambda: method_cache.val_at(self._default, None)  # type: ignore
         )
         if method:
             return method(*args, **kwargs)
@@ -49,8 +49,8 @@ class MultiFunction(Generic[T]):
         method_cache = self.methods
         # The 'type: ignore' comment below silences a spurious MyPy error
         # about having a return statement in a method which does not return.
-        return Maybe(method_cache.entry(key, None)).or_else(
-            lambda: method_cache.entry(self._default, None)  # type: ignore
+        return Maybe(method_cache.val_at(key, None)).or_else(
+            lambda: method_cache.val_at(self._default, None)  # type: ignore
         )
 
     @staticmethod
@@ -60,7 +60,7 @@ class MultiFunction(Generic[T]):
 
     def remove_method(self, key: T) -> Optional[Method]:
         """Remove the method defined for this key and return it."""
-        method = self.methods.entry(key, None)
+        method = self.methods.val_at(key, None)
         if method:
             self._methods.swap(MultiFunction.__remove_method, key)
         return method
