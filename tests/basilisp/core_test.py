@@ -13,7 +13,6 @@ import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
-import basilisp.lang.vector
 import basilisp.lang.vector as vec
 from basilisp.lang.exception import ExceptionInfo
 from basilisp.lang.interfaces import IExceptionInfo
@@ -625,7 +624,7 @@ class TestIsIdent:
 
 
 def test_is_map_entry():
-    assert True is core.map_entry__Q__(basilisp.lang.vector.MapEntry.of("a", "b"))
+    assert True is core.map_entry__Q__(lmap.MapEntry.of("a", "b"))
     assert False is core.map_entry__Q__(vec.Vector.empty())
     assert False is core.map_entry__Q__(vec.v("a", "b"))
     assert False is core.map_entry__Q__(vec.v("a", "b", "c"))
