@@ -19,7 +19,6 @@ import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
-import basilisp.lang.vector
 import basilisp.lang.vector as vec
 from basilisp.lang.interfaces import IType
 from basilisp.lang.runtime import Var
@@ -2840,7 +2839,7 @@ class TestSymbolResolution:
             lcompile("other.ns/name")
 
     def test_nested_namespaced_sym_will_resolve(self, ns: runtime.Namespace):
-        assert basilisp.lang.vector.MapEntry.of is lcompile(
+        assert lmap.MapEntry.of is lcompile(
             "basilisp.lang.map.MapEntry/of"
         )
 

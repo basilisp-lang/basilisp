@@ -3,7 +3,6 @@ from typing import Mapping
 import pytest
 
 import basilisp.lang.map as lmap
-import basilisp.lang.vector
 from basilisp.lang.interfaces import (
     IAssociative,
     ILispObject,
@@ -19,8 +18,8 @@ from basilisp.lang.vector import MapEntry
 
 
 def test_map_entry_interface():
-    assert isinstance(basilisp.lang.vector.MapEntry.of("a", "b"), IMapEntry)
-    assert issubclass(basilisp.lang.vector.MapEntry, IMapEntry)
+    assert isinstance(lmap.MapEntry.of("a", "b"), IMapEntry)
+    assert issubclass(lmap.MapEntry, IMapEntry)
 
 
 def test_map_associative_interface():
