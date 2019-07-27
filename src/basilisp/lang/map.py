@@ -14,6 +14,9 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
+_ENTRY_SENTINEL = object()
+
+
 class Map(ILispObject, IMeta, IPersistentMap[K, V]):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
     Do not instantiate directly. Instead use the m() and map() factory
@@ -93,9 +96,8 @@ class Map(ILispObject, IMeta, IPersistentMap[K, V]):
         return Map(m.persistent())
 
     def entry(self, k):
-        sentinel = object()
-        v = self._inner.get(k, sentinel)
-        if v is sentinel:
+        v = self._inner.get(k, _ENTRY_SENTINEL)
+        if v is _ENTRY_SENTINEL:
             return None
         return MapEntry.of(k, v)
 

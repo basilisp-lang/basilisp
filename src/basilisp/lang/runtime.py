@@ -36,6 +36,7 @@ from basilisp.lang.interfaces import (
     IAssociative,
     IBlockingDeref,
     IDeref,
+    ILookup,
     IPersistentCollection,
     IPersistentList,
     IPersistentMap,
@@ -1062,7 +1063,7 @@ def contains(coll, k):
 
 def get(m, k, default=None):
     """Return the value of k in m. Return default if k not found in m."""
-    if isinstance(m, IAssociative):
+    if isinstance(m, ILookup):
         return m.val_at(k, default=default)
 
     try:
