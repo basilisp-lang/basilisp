@@ -124,10 +124,10 @@
         },
         "pyparsing": {
             "hashes": [
-                "sha256:530d8bf8cc93a34019d08142593cf4d78a05c890da8cf87ffa3120af53772238",
-                "sha256:f78e99616b6f1a4745c0580e170251ef1bbafc0d0513e270c4bd281bf29d2800"
+                "sha256:09b60ec311af02f93c66ab2cb65e3ca92c5cb5de5445894982ce9f0928b116f5",
+                "sha256:38181feb3a1278f464b7e1d0d647760f7ab08d93f654f886ff528946450adbab"
             ],
-            "version": "==2.4.1"
+            "version": "==2.4.2a1"
         },
         "pyrsistent": {
             "hashes": [
@@ -181,10 +181,10 @@
         },
         "virtualenv": {
             "hashes": [
-                "sha256:50e062b385b6e5fc6e5644ffe14e226550109a4c65e725b47ae7e3b978d320b5",
-                "sha256:fb528e20ecfce349de1dc2c8cbb394d1189b3f9507aea7273fbfb1c2167a4a4e"
+                "sha256:6cb2e4c18d22dbbe283d0a0c31bb7d90771a606b2cb3415323eea008eaee6a9d",
+                "sha256:909fe0d3f7c9151b2df0a2cb53e55bdb7b0d61469353ff7a49fd47b0f0ab9285"
             ],
-            "version": "==16.7.0"
+            "version": "==16.7.2"
         },
         "wcwidth": {
             "hashes": [
@@ -395,10 +395,10 @@
         },
         "pyparsing": {
             "hashes": [
-                "sha256:530d8bf8cc93a34019d08142593cf4d78a05c890da8cf87ffa3120af53772238",
-                "sha256:f78e99616b6f1a4745c0580e170251ef1bbafc0d0513e270c4bd281bf29d2800"
+                "sha256:09b60ec311af02f93c66ab2cb65e3ca92c5cb5de5445894982ce9f0928b116f5",
+                "sha256:38181feb3a1278f464b7e1d0d647760f7ab08d93f654f886ff528946450adbab"
             ],
-            "version": "==2.4.1"
+            "version": "==2.4.2a1"
         },
         "pytest": {
             "hashes": [
@@ -562,10 +562,10 @@
         },
         "virtualenv": {
             "hashes": [
-                "sha256:50e062b385b6e5fc6e5644ffe14e226550109a4c65e725b47ae7e3b978d320b5",
-                "sha256:fb528e20ecfce349de1dc2c8cbb394d1189b3f9507aea7273fbfb1c2167a4a4e"
+                "sha256:6cb2e4c18d22dbbe283d0a0c31bb7d90771a606b2cb3415323eea008eaee6a9d",
+                "sha256:909fe0d3f7c9151b2df0a2cb53e55bdb7b0d61469353ff7a49fd47b0f0ab9285"
             ],
-            "version": "==16.7.0"
+            "version": "==16.7.2"
         },
         "wcwidth": {
             "hashes": [
