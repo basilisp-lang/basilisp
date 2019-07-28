@@ -194,6 +194,20 @@
     (is (= {:meta-kw true :other-kw true}
            (meta ^:meta-kw ^:other-kw (fn ([]) ([a] a)))))))
 
+(deftest case-test
+  (is (= "yes" (case :a :b "nope" :c "mega nope" :a "yes" "nerp")))
+  (is (= "nope" (case :b :b "nope" :c "mega nope" :a "yes" "nerp")))
+  (is (= "mega nope" (case :c :b "nope" :c "mega nope" :a "yes" "nerp")))
+  (is (= "nerp" (case "da" :b "nope" :c "mega nope" :a "yes" "nerp")))
+  (is (= "duh" (case "yes" :a "no" b "also no" "duh")))
+  (is (= "also no" (case 'b :a "no" b "also no" "duh")))
+  (is (= "also no" (case 'b :a "no" (b c d) "also no" "duh")))
+  (is (= "also no" (case 'c :a "no" (b c d) "also no" "duh")))
+  (is (= "also no" (case 'd :a "no" (b c d) "also no" "duh")))
+  (is (= "duh" (case 'e :a "no" (b c d) "also no" "duh")))
+  (is (thrown? python/ValueError
+               (case "da" :b "nope" :c "mega nope" :a "yes"))))
+
 (deftest condp-test
   (testing "condp result value"
     (is (= :a (condp = "a" :a)))
@@ -255,6 +269,19 @@
   (is (thrown? basilisp.lang.compiler/CompilerException
                (eval '(when-let [a nil b :something] a)))))
 
+(deftest when-first-test
+  (is (= :a (when-first [a [:a false nil]] a)))
+  (is (= 2 (when-first [a [1 false nil]] (inc a))))
+  (is (nil? (when-first [a []] a)))
+  (is (nil? (when-first [a (map odd? [2 3 5])] a)))
+
+  ;; ExceptionInfo is thrown and wrapped in a CompilerException
+  ;; during macroexpansion
+  (is (thrown? basilisp.lang.compiler/CompilerException
+               (eval '(when-first [a [:a :b :c]
+                                   b (map odd? [1 2 3])]
+                        a)))))
+
 (deftest when-some-test
   (is (= :a (when-some [a :a] a)))
   (is (= 2 (when-some [a 1] (inc a))))
@@ -265,6 +292,18 @@
   ;; during macroexpansion
   (is (thrown? basilisp.lang.compiler/CompilerException
                (eval '(when-some [a nil b :something] a)))))
+
+(deftest dotimes-test
+  (let [a (atom [])]
+    (is (nil? (dotimes [n 5]
+                (swap! a conj n))))
+    (is (= [0 1 2 3 4] @a))))
+
+(deftest while-test
+  (let [a (atom 0)]
+    (is (nil? (while (<= @a 10)
+                (swap! a inc))))
+    (is (= 11 @a))))
 
 (def non-dynamic-var :b)
 (def ^:dynamic *dynamic-var* :a)
@@ -345,6 +384,14 @@
              {:a x :c 0}
              (:a x)
              (inc x)))))
+
+(deftest doto-test
+  (is (= #py [] (doto #py [])))
+  (is (= #py [1 2 3]
+         (doto #py []
+           (.append 1)
+           (.append 2)
+           (.append 3)))))
 
 (deftest with-in-str-test
   (is (= "Hi I'm a string" (with-in-str "\"Hi I'm a string\"" (read)))))
