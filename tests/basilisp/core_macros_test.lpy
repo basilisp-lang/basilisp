@@ -232,6 +232,12 @@
   (is (= nil (comment 1)))
   (is (= nil (comment [1 2 3]))))
 
+(deftest double-dot-test
+  (is (= "abc" (.. "abc")))
+  (is (= "ABC" (.. "abc" (upper))))
+  (is (not (.. "abc" (upper) (islower))))
+  (is (= #py ["A" "B" "C"] (.. "a,b,c" upper (split ",")))))
+
 (deftest if-let-test
   (is (= :a (if-let [a :a] a :b)))
   (is (= 2 (if-let [a 1] (inc a) :b)))

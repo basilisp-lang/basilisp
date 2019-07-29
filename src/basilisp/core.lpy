@@ -1947,9 +1947,23 @@
 
 (defmacro ..
   "Expand into nested method calls on the returned objects from previous
-  method calls."
+  method calls.
+
+  Successive method invocations are represented as successive lists:
+
+    (.. \"abc\" (lower))              ;=> (. \"abc\" lower)
+    (.. \"abc\" lower (split \",\"))  ;=> (. (. \"abc\" lower) split \",\")
+
+  Methods invoked without arguments may be supplied as bare symbols."
   [x & method-calls]
-  )
+  (if (seq method-calls)
+    (let [joining (first method-calls)]
+      `(..
+        ~(if (seq? joining)
+           (apply list '. x joining)
+           (list '. x joining))
+        ~@(rest method-calls)))
+    x))
 
 (defmacro new
   "Create a new instance of class with args.

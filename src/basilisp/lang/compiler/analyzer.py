@@ -138,6 +138,7 @@ FINALLY = kw.keyword("finally")
 # Constants used in analyzing
 AS = kw.keyword("as")
 IMPLEMENTS = kw.keyword("implements")
+ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$")
 _BUILTINS_NS = "python"
 
 # Symbols to be ignored for unused symbol warnings
@@ -2048,7 +2049,7 @@ def _list_node(ctx: AnalyzerContext, form: ISeq) -> Node:
             return handle_special_form(ctx, form)
         elif s.name.startswith(".-"):
             return _host_prop_ast(ctx, form)
-        elif s.name.startswith("."):
+        elif s.name.startswith(".") and reader.name_chars.match(s.name[1:]):
             return _host_call_ast(ctx, form)
 
     return _invoke_ast(ctx, form)
@@ -2094,7 +2095,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             form=form, class_=class_, target=target, env=ctx.get_node_env()
         )
 
-    if "." in form.name:
+    if "." in form.name and form.name != "..":
         raise AnalyzerException(
             "symbol names may not contain the '.' operator", form=form
         )
@@ -2206,7 +2207,7 @@ def _resolve_sym(
     #   (Classname. *args)
     #   (aliased.Classname. *args)
     #   (fully.qualified.Classname. *args)
-    if form.ns is None and form.name.endswith("."):
+    if form.ns is None and form.name.endswith(".") and form.name != "..":
         try:
             ns, name = form.name[:-1].rsplit(".", maxsplit=1)
             form = sym.symbol(name, ns=ns)
