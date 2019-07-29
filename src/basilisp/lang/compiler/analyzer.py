@@ -138,7 +138,7 @@ FINALLY = kw.keyword("finally")
 # Constants used in analyzing
 AS = kw.keyword("as")
 IMPLEMENTS = kw.keyword("implements")
-ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$")
+_DOUBLE_DOT_MACRO_NAME = ".."
 _BUILTINS_NS = "python"
 
 # Symbols to be ignored for unused symbol warnings
@@ -2095,7 +2095,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             form=form, class_=class_, target=target, env=ctx.get_node_env()
         )
 
-    if "." in form.name and form.name != "..":
+    if "." in form.name and form.name != _DOUBLE_DOT_MACRO_NAME:
         raise AnalyzerException(
             "symbol names may not contain the '.' operator", form=form
         )
@@ -2207,7 +2207,7 @@ def _resolve_sym(
     #   (Classname. *args)
     #   (aliased.Classname. *args)
     #   (fully.qualified.Classname. *args)
-    if form.ns is None and form.name.endswith(".") and form.name != "..":
+    if form.ns is None and form.name.endswith(".") and form.name != _DOUBLE_DOT_MACRO_NAME:
         try:
             ns, name = form.name[:-1].rsplit(".", maxsplit=1)
             form = sym.symbol(name, ns=ns)
