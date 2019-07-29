@@ -2049,7 +2049,7 @@ def _list_node(ctx: AnalyzerContext, form: ISeq) -> Node:
             return handle_special_form(ctx, form)
         elif s.name.startswith(".-"):
             return _host_prop_ast(ctx, form)
-        elif s.name.startswith(".") and reader.name_chars.match(s.name[1:]):
+        elif s.name.startswith(".") and s.name != _DOUBLE_DOT_MACRO_NAME:
             return _host_call_ast(ctx, form)
 
     return _invoke_ast(ctx, form)
@@ -2207,7 +2207,11 @@ def _resolve_sym(
     #   (Classname. *args)
     #   (aliased.Classname. *args)
     #   (fully.qualified.Classname. *args)
-    if form.ns is None and form.name.endswith(".") and form.name != _DOUBLE_DOT_MACRO_NAME:
+    if (
+        form.ns is None
+        and form.name.endswith(".")
+        and form.name != _DOUBLE_DOT_MACRO_NAME
+    ):
         try:
             ns, name = form.name[:-1].rsplit(".", maxsplit=1)
             form = sym.symbol(name, ns=ns)

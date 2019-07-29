@@ -51,7 +51,6 @@ from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
 
 ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|\.")
-name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$")
 alphanumeric_chars = re.compile(r"\w")
 begin_num_chars = re.compile(r"[0-9\-]")
 num_chars = re.compile("[0-9]")
