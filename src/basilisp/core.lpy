@@ -2020,7 +2020,10 @@
              nil
              (throw e#)))))))
 
-(def with-open with)
+(def ^{:doc   "Evaluate body within a try/except expression, binding the named expressions
+               as per Python's context manager protocol spec (Python's with blocks)."
+       :macro true}
+  with-open with)
 
 (defn push-thread-bindings
   "Takes a map of Var/value pairs and applies the given value to the Var in the
