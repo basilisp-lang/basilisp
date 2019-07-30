@@ -1,5 +1,5 @@
 (ns tests.basilisp.core-macros-test
-  (:import inspect)
+  (:import inspect os tempfile)
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
@@ -194,6 +194,20 @@
     (is (= {:meta-kw true :other-kw true}
            (meta ^:meta-kw ^:other-kw (fn ([]) ([a] a)))))))
 
+(deftest case-test
+  (is (= "yes" (case :a :b "nope" :c "mega nope" :a "yes" "nerp")))
+  (is (= "nope" (case :b :b "nope" :c "mega nope" :a "yes" "nerp")))
+  (is (= "mega nope" (case :c :b "nope" :c "mega nope" :a "yes" "nerp")))
+  (is (= "nerp" (case "da" :b "nope" :c "mega nope" :a "yes" "nerp")))
+  (is (= "duh" (case "yes" :a "no" b "also no" "duh")))
+  (is (= "also no" (case 'b :a "no" b "also no" "duh")))
+  (is (= "also no" (case 'b :a "no" (b c d) "also no" "duh")))
+  (is (= "also no" (case 'c :a "no" (b c d) "also no" "duh")))
+  (is (= "also no" (case 'd :a "no" (b c d) "also no" "duh")))
+  (is (= "duh" (case 'e :a "no" (b c d) "also no" "duh")))
+  (is (thrown? python/ValueError
+               (case "da" :b "nope" :c "mega nope" :a "yes"))))
+
 (deftest condp-test
   (testing "condp result value"
     (is (= :a (condp = "a" :a)))
@@ -214,9 +228,90 @@
                #{1 3 5} :>> dec
                :a)))))
 
+(deftest for-test
+  (testing "basic for comprehensions"
+    (is (= [1 2 3 4] (for [x [1 2 3 4]] x)))
+
+    (testing "for comprehension with :let modifier"
+      (is (= [[0 1] [1 2] [2 3] [3 4] [4 5]]
+             (for [x    (range 5)
+                   :let [y (inc x)]]
+               [x y]))))
+
+    (testing "for comprehension with :when modifier"
+      (is (= [1 3 5]
+             (for [x     (range 6)
+                   :when (odd? x)]
+               x))))
+
+    (testing "for comprehension with :while modifier"
+      (is (= [1 3 5]
+             (for [x      [1 3 5 6 8 10]
+                   :while (odd? x)]
+               x)))))
+
+  (testing "nested for comprehension"
+    (is (= [[0 :a] [0 :b] [0 :c]
+            [1 :a] [1 :b] [1 :c]
+            [2 :a] [2 :b] [2 :c]]
+           (for [x (range 3)
+                 y [:a :b :c]]
+             [x y])))
+
+    (testing "for comprehension with :let modifier"
+      (is (= [[0 :a 0] [0 :b 0] [0 :c 0]
+              [1 :a 2] [1 :b 2] [1 :c 2]
+              [2 :a 4] [2 :b 4] [2 :c 4]]
+             (for [x    (range 3)
+                   :let [z (* 2 x)]
+                   y    [:a :b :c]]
+               [x y z]))))
+
+    (testing "for comprehension with :when modifier"
+      (is (= [[0 :a] [0 :b] [0 :c]
+              [2 :a] [2 :b] [2 :c]]
+             (for [x     (range 3)
+                   y     [:a :b :c]
+                   :when (even? x)]
+               [x y])))
+      (is (= [[0 :b] [1 :b] [2 :b]]
+             (for [x     (range 3)
+                   y     [:a :b :c]
+                   :when (= y :b)]
+               [x y]))))
+
+    (testing "for comprehension with :while modifier"
+      (is (= [[0 :a] [0 :b] [0 :c]]
+             (for [x      (range 3)
+                   y      [:a :b :c]
+                   :while (even? x)]
+               [x y])))
+      (is (= []
+             (for [x      (range 3)
+                   y      [:a :b :c]
+                   :while (= y :b)]
+               [x y]))))))
+
 (deftest comment-test
   (is (= nil (comment 1)))
   (is (= nil (comment [1 2 3]))))
+
+(deftest double-dot-test
+  (is (= "abc" (.. "abc")))
+  (is (= "ABC" (.. "abc" (upper))))
+  (is (not (.. "abc" (upper) (islower))))
+  (is (= #py ["A" "B" "C"] (.. "a,b,c" upper (split ",")))))
+
+(deftest with-test
+  (let [[_ filename] (tempfile/mkstemp)]
+    (try
+      (do
+        (with-open [file (python/open filename "w")]
+          (.write file "Testing text"))
+        (with-open [file (python/open filename)]
+          (is (= "Testing text" (.read file)))))
+      (finally
+        (os/unlink filename)))))
 
 (deftest if-let-test
   (is (= :a (if-let [a :a] a :b)))
@@ -255,6 +350,19 @@
   (is (thrown? basilisp.lang.compiler/CompilerException
                (eval '(when-let [a nil b :something] a)))))
 
+(deftest when-first-test
+  (is (= :a (when-first [a [:a false nil]] a)))
+  (is (= 2 (when-first [a [1 false nil]] (inc a))))
+  (is (nil? (when-first [a []] a)))
+  (is (nil? (when-first [a (map odd? [2 3 5])] a)))
+
+  ;; ExceptionInfo is thrown and wrapped in a CompilerException
+  ;; during macroexpansion
+  (is (thrown? basilisp.lang.compiler/CompilerException
+               (eval '(when-first [a [:a :b :c]
+                                   b (map odd? [1 2 3])]
+                        a)))))
+
 (deftest when-some-test
   (is (= :a (when-some [a :a] a)))
   (is (= 2 (when-some [a 1] (inc a))))
@@ -265,6 +373,18 @@
   ;; during macroexpansion
   (is (thrown? basilisp.lang.compiler/CompilerException
                (eval '(when-some [a nil b :something] a)))))
+
+(deftest dotimes-test
+  (let [a (atom [])]
+    (is (nil? (dotimes [n 5]
+                (swap! a conj n))))
+    (is (= [0 1 2 3 4] @a))))
+
+(deftest while-test
+  (let [a (atom 0)]
+    (is (nil? (while (<= @a 10)
+                (swap! a inc))))
+    (is (= 11 @a))))
 
 (def non-dynamic-var :b)
 (def ^:dynamic *dynamic-var* :a)
@@ -345,6 +465,14 @@
              {:a x :c 0}
              (:a x)
              (inc x)))))
+
+(deftest doto-test
+  (is (= #py [] (doto #py [])))
+  (is (= #py [1 2 3]
+         (doto #py []
+           (.append 1)
+           (.append 2)
+           (.append 3)))))
 
 (deftest with-in-str-test
   (is (= "Hi I'm a string" (with-in-str "\"Hi I'm a string\"" (read)))))

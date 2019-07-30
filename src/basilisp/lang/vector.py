@@ -33,7 +33,10 @@ class Vector(ILispObject, IMeta, IPersistentVector[T]):
     def __eq__(self, other):
         if hasattr(other, "__len__"):
             return self._inner == other
-        return all(e1 == e2 for e1, e2 in zip(self._inner, other))
+        try:
+            return all(e1 == e2 for e1, e2 in zip(self._inner, other))
+        except TypeError:
+            return False
 
     def __getitem__(self, item):
         if isinstance(item, slice):

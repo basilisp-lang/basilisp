@@ -541,6 +541,21 @@
      (do ~@body)
      nil))
 
+(defmacro when-first
+  "Evaluate the binding as with let, binding the given name for use in the
+  true expression iff the binding expression is not nil. Return nil otherwise."
+  [binding & body]
+  (if (operator/ne 2 (count binding))
+    (throw
+     (ex-info "bindings take the form [name expr]"
+              {:bindings binding}))
+    nil)
+  `(let* [expr# (first ~(second binding))]
+     (if expr#
+       (let [~(first binding) expr#]
+         ~@body)
+       nil)))
+
 (defmacro when-some
   "Evaluate the binding as with let, binding the given name for use in the
   true expression iff the binding expression is not nil. Return nil otherwise."
@@ -595,6 +610,30 @@
              (ex-info "cond requires an even number of forms"
                       {:first (first clauses)})))
           (cons 'basilisp.core/cond (nthrest clauses 2)))))
+
+(defmacro dotimes
+  "Repeatedly execute body (likely for side effects) while the binding name is
+  repeatedly rebound from 0 to the binding value, n, minus 1. Returns nil."
+  [binding & body]
+  (if (operator/ne 2 (count binding))
+    (throw
+     (ex-info "bindings take the form [name expr]"
+              {:bindings binding}))
+    nil)
+  (let [nm (first binding)]
+    `(loop [~nm 0]
+       (when (< ~nm ~(second binding))
+         ~@body
+         (recur (inc ~nm))))))
+
+(defmacro while
+  "Execute body repeatedly (likely for side effects) until cond returns false.
+  Return nil."
+  [cond & body]
+  `(loop []
+     (when ~cond
+       ~@body
+       (recur))))
 
 (defn not
   "Return the logical negation of expr."
@@ -1372,6 +1411,39 @@
   (list 'basilisp.lang.seq/LazySeq
         (concat '(fn* []) body)))
 
+(defn dorun
+  "Force a lazy sequence be fully realized. Returns nil.
+
+  This is often useful when you have a lazy sequence whose function also
+  performs side effects.
+
+  Realizing an entire lazy sequence will force that sequence to exist
+  fully in memory."
+  ([coll]
+   (loop [ptr coll]
+     (when (seq ptr)
+       (recur (rest ptr)))))
+  ([n coll]
+   (loop [ptr coll
+          i   n]
+     (when (and (seq ptr) (> i 0))
+       (recur (rest ptr) (dec i))))))
+
+(defn doall
+  "Force a lazy sequence be fully realized. Returns the head of the sequence.
+
+  This is often useful when you have a lazy sequence whose function also
+  performs side effects.
+
+  Realizing an entire lazy sequence will force that sequence to exist
+  fully in memory."
+  ([coll]
+   (dorun coll)
+   coll)
+  ([n coll]
+   (dorun n coll)
+   coll))
+
 (defn iterate
   "Returns a lazy sequence of (f x), (f (f x)) and so on."
   [f x]
@@ -1737,6 +1809,28 @@
 ;; Utility Macros ;;
 ;;;;;;;;;;;;;;;;;;;;
 
+(defn gensym
+  "Generate a unique symbol name of the form prefix_#. If no prefix is
+  given, then v_ will be used."
+  ([]
+   (gensym "v_"))
+  ([prefix]
+   (symbol (basilisp.lang.util/genname prefix))))
+
+(def ^:dynamic *assert* true)
+
+(defmacro assert
+  "Evaluate expr and if it returns logical false, throw an AssertionError.
+
+  This macro does not emit an assertion if the dynamic Var *assert* is set
+  to a logical false value."
+  ([expr]
+   `(assert ~expr (str "Assert failed: " ~(str expr))))
+  ([expr message]
+   (when *assert*
+     `(when-not ~expr
+        (throw (python/AssertionError ~message))))))
+
 (defmacro apply-method
   "Apply arguments to a method call. Equivalent to (apply (.-method o) args)."
   [o method & args]
@@ -1746,6 +1840,42 @@
   "Ignore all the forms passed, returning nil."
   [& ^:no-warn-when-unused forms]
   nil)
+
+(defmacro case
+  "Switch on expr to return a matching clause from the set of input clauses.
+
+  The input expression may be any valid Basilisp expression.
+
+  The clauses are pairs of a matching value and a return value. The matching
+  values are not evaluated and must be compile-time constants. Symbols will not
+  be resolved. Lists may be passed to match multiple compile time values to a
+  single return value."
+  [expr & clauses]
+  (when (< (count clauses) 2)
+    (throw (ex-info "case expression must have at least one clause"
+                    {:clauses clauses})))
+  (let [default (if (odd? (count clauses))
+                  (last clauses)
+                  :basilisp.core.case/no-default)
+        pairs   (mapcat identity
+                        (mapcat (fn [pair]
+                                  (let [binding (first pair)
+                                        expr    (second pair)]
+                                    (if (list? binding)
+                                      (map #(vector (list 'quote %) expr) binding)
+                                      [[(list 'quote binding) expr]])))
+                                (partition 2
+                                           (if (= default :basilisp.core.case/no-default)
+                                             clauses
+                                             (drop-last clauses)))))
+        expr-gs (gensym "expr")]
+    `(let [~expr-gs ~expr
+           m#       ~(apply hash-map pairs)]
+       (if-not (contains? m# ~expr-gs)
+         ~(if (= default :basilisp.core.case/no-default)
+            `(throw (python/ValueError (str "No case clause matches " ~expr-gs)))
+            `~default)
+         (get m# ~expr-gs)))))
 
 (defmacro condp
   "Take a predicate and an expression and a series of clauses, call
@@ -1780,6 +1910,175 @@
                                      {:test test-expr}))))
         test-expr))))
 
+(defmacro for
+  "Produce a list comprehension from 1 or more input sequences, subject to
+  optional modifiers.
+
+  For comprehensions consist of a vector of bindings, with optional modifiers,
+  and a user specified body in an implicit do.
+
+  Symbol bindings look like standard let bindings without destructuring.
+  Values bound to symbols should be sequences or otherwise seqable. The body
+  of the for comprehension will be executed with the given symbol bound to
+  successive values of the sequence. If multiple sequences are bound to symbols,
+  iteration will proceed in a nested fashion with latest sequences iterated
+  first and earlier sequences iterated later (as nested for loops in procedural
+  languages).
+
+  For example, a simple non-nested for comprehension will yield:
+
+    (for [x [1 2 3 4]] x) ;;=> [1 2 3 4]
+
+  However, a nested comprehension will yield a longer sequence:
+
+    (for [x (range 3)
+          y [:a :b :c]]
+      [x y])
+    ;;=> ([0 :a] [0 :b] [0 :c]
+          [1 :a] [1 :b] [1 :c]
+          [2 :a] [2 :b] [2 :c])
+
+  Each set of symbol bindings may be modified by applying trailing bindings
+  denoted with keywords. The keyword modifiers are:
+
+    :let [sym val] - :let bindings work like any standard let bindings;
+                     destructuring is permitted; may refer to any previous
+                     bindings in other :let modifiers or normal symbol
+                     bindings. Multiple pairs of bindings may appear in
+                     :let bindings.
+    :when expr - :when bindings are applied to the sequence roughly like in
+                 the core filter function; the expression is evaluated and
+                 if it is not falsey, yield the next value. As with :let
+                 bindings, the expression may refer to any previously
+                 bound names.
+    :while expr - :while bindings terminate the current sequence at the
+                  first point when expr returns a falsey value. :while
+                  bindings may refer to any previous bound names.
+
+  Multiple keyword modifiers may be applied to the previous binding. Their
+  effects will be applied at the point they appear in the bindings vector."
+  [bindings & body]
+  (cond
+    (< (count bindings) 2)
+    (throw (ex-info "for expression must have at least one pair of bindings"
+                    {:bindings bindings}))
+
+    (not (even? (count bindings)))
+    (throw (ex-info "for expression must have an even number of bindings"
+                    {:bindings bindings}))
+
+    (not (symbol? (first bindings)))
+    (throw (ex-info "for expression bindings must start with symbol binding"
+                    {:bindings bindings})))
+
+  (let [;; Generate the body of a for binding iterator, applying any relevant
+        ;; modifier clauses.
+        ;;
+        ;;   pairs      - pairs of modifiers/modifier binding values
+        ;;   for-iter   - the gensym'ed name for the current lazy-seq function
+        ;;   seq-arg    - the gensym'ed name of the seq arg input to the
+        ;;                lazy-seq function
+        ;;   inner-body - either: the body of the for comprehension specified
+        ;;                by the user, or another nested lazy-seq function
+        ;;   inner-body-is-seq? - if true, inner-body is nested lazy-seq function
+        gen-iter-body (fn gen-iter-body
+                        [pairs for-iter seq-arg inner-body inner-body-is-seq?]
+                        (if (seq pairs)
+                          (let [pair     (first pairs)
+                                binding  (first pair)
+                                val      (second pair)
+                                mod-body (gen-iter-body (rest pairs) for-iter seq-arg inner-body inner-body-is-seq?)]
+                            (cond
+                              (= :when binding)
+                              `(if ~val
+                                 ~mod-body
+                                 (recur (rest ~seq-arg)))
+
+                              (= :while binding)
+                              `(when ~val
+                                 ~mod-body)
+
+                              (= :let binding)
+                              `(let [~@val]
+                                 ~mod-body)
+
+                              :else
+                              (throw
+                               (ex-info "invalid for modifier; use one of :let, :when, or :while"
+                                        {:modifier binding}))))
+                          ;; If the inner body is another sequence (presumably
+                          ;; generated by gen-iter), concatenate it rather than
+                          ;; cons, to ensure the output is flattened in the
+                          ;; final output sequence.
+                          (if inner-body-is-seq?
+                            `(concat ~inner-body (~for-iter (rest ~seq-arg)))
+                            `(cons ~inner-body (~for-iter (rest ~seq-arg))))))
+
+        ;; Generate the outer function body of a for loop symbol binding lazy seq.
+        ;;
+        ;; Each symbol binding generates an anonymous lazy sequence function which
+        ;; contains blocks for any modifier bindings which follow the initial
+        ;; symbol binding.
+        ;;
+        ;; Additional symbol bindings are generated as inner bodies (which contain)
+        ;; the ultimate inner body given by the user. Modifiers are handled by
+        ;; gen-iter-body and applied to the body of the current lazy seq.
+        ;;
+        ;;  pairs - pairs of bindings; either symbol/seq pairs or modifier pairs
+        gen-iter (fn gen-iter [pairs]
+                   (if (seq pairs)
+                     (let [for-iter (gensym "for")
+                           seq-arg  (gensym "seq")
+                           pair     (first pairs)
+                           binding  (first pair)
+                           val      (second pair)
+
+                           ;; Split the remaining binding pairs into modifiers
+                           ;; (which will be applied to this iterator) and additional
+                           ;; bindings (which will be generated as new, inner iterators).
+                           groups        (split-with (fn [pair]
+                                                       (not (symbol? (first pair))))
+                                                     (rest pairs))
+                           mods          (first groups)
+                           rest-bindings (second groups)
+
+                           seq-body (gen-iter-body mods for-iter seq-arg (gen-iter rest-bindings) (seq rest-bindings))]
+                       `(let [iter# (fn ~for-iter [seq#]
+                                      (lazy-seq
+                                       (loop [~seq-arg seq#]
+                                         (when (seq ~seq-arg)
+                                           (let [~binding (first ~seq-arg)]
+                                             ~seq-body)))))]
+                          (iter# ~val)))
+                     `(do ~@body)))]
+    (gen-iter (partition 2 bindings))))
+
+(defmacro doseq
+  "Repeatedly run the body (likely for side effects) with bindings as described
+  in the for macro. Returns nil."
+  [bindings & body]
+  `(dorun (for ~bindings ~@body)))
+
+(defmacro ..
+  "Expand into nested method calls on the returned objects from previous
+  method calls.
+
+  Successive method invocations are represented as successive lists:
+
+    (.. \"abc\" (lower))              ;=> (. \"abc\" lower)
+    (.. \"abc\" lower (split \",\"))  ;=> (. (. \"abc\" lower) split \",\")
+
+  Methods invoked without arguments may be supplied as bare symbols."
+  [x & method-calls]
+  (if (seq method-calls)
+    (let [joining (first method-calls)]
+      `(..
+        ~(if (seq? joining)
+           (apply list '. x joining)
+           (list '. x joining))
+        ~@(rest method-calls)))
+    x))
+
 (defmacro new
   "Create a new instance of class with args.
 
@@ -1812,6 +2111,33 @@
                       n
                       (str n ".")))]
       `(~s ~@args))))
+
+(defmacro with
+  "Evaluate body within a try/except expression, binding the named expressions
+  as per Python's context manager protocol spec (Python's with blocks)."
+  [bindings & body]
+  (let [binding (first bindings)
+        expr    (second bindings)]
+    `(let [obj#     ~expr
+           ~binding (. obj# ~'__enter__)]
+       (try
+         (do
+           ~@(if (nthnext bindings 2)
+               [(concat
+                 (list 'with (vec (nthrest bindings 2)))
+                 body)]
+               body)
+           (. ~binding (~'__exit__ nil nil nil))
+           nil)
+         (catch python/Exception e#
+           (if (. ~binding (~'__exit__ (python/type e#) e# (. e# ~'__traceback__)))
+             nil
+             (throw e#)))))))
+
+(def ^{:doc   "Evaluate body within a try/except expression, binding the named expressions
+               as per Python's context manager protocol spec (Python's with blocks)."
+       :macro true}
+  with-open with)
 
 (defn push-thread-bindings
   "Takes a map of Var/value pairs and applies the given value to the Var in the
@@ -1961,6 +2287,17 @@
          ~name
        ~@(next forms))
     x))
+
+(defmacro doto
+  "Bind x to name and thread it through the forms, replacing instances of name
+  in forms with the threaded expression."
+  [x & forms]
+  (let [obj-gs (gensym "obj")]
+    `(let [~obj-gs ~x]
+       ~@(map (fn [form]
+                (apply list (first form) obj-gs (rest form)))
+              forms)
+       ~obj-gs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; String Functions ;;
@@ -2690,14 +3027,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Destructuring Support ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn gensym
-  "Generate a unique symbol name of the form prefix_#. If no prefix is
-  given, then v_ will be used."
-  ([]
-   (gensym "v_"))
-  ([prefix]
-   (symbol (basilisp.lang.util/genname prefix))))
 
 (defmulti ^:private destructure-def
   (fn [arg]
