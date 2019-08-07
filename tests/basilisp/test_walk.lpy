@@ -1,0 +1,112 @@
+(ns tests.basilisp.walk-test
+  (:require
+   [basilisp.test :refer [deftest are is testing]]
+   [basilisp.walk :as walk]))
+
+(deftest postwalk-replace-test
+  (is (= [:c :d] (walk/postwalk-replace {:a 1 :b 2} [:c :d])))
+  (is (= [1 2] (walk/postwalk-replace {:a 1 :b 2} [:a :b])))
+  (is (= [1 2 :c] (walk/postwalk-replace {:a 1 :b 2} [:a :b :c])))
+  (is (= [1 2 [1 2] :c] (walk/postwalk-replace {:a 1 :b 2} [:a :b [:a :b] :c])))
+  (is (= {:NIL 4, :a 1, :b :NIL, :c 3}
+         (walk/postwalk-replace {nil :NIL} {:a 1, :b nil, :c 3, nil 4}))))
+
+(deftest prewalk-replace-test
+  (is (= [:c :d] (walk/prewalk-replace {:a 1 :b 2} [:c :d])))
+  (is (= [1 2] (walk/prewalk-replace {:a 1 :b 2} [:a :b])))
+  (is (= [1 2 :c] (walk/prewalk-replace {:a 1 :b 2} [:a :b :c])))
+  (is (= [1 2 [1 2] :c] (walk/prewalk-replace {:a 1 :b 2} [:a :b [:a :b] :c])))
+  (is (= {:NIL 4, :a 1, :b :NIL, :c 3}
+         (walk/postwalk-replace {nil :NIL} {:a 1, :b nil, :c 3, nil 4}))))
+
+(deftest keywordize-keys-test
+  (testing "maps and nested maps"
+    (is (= {} (walk/keywordize-keys {})))
+    (is (= {:a 1 :b 2} (walk/keywordize-keys {"a" 1 "b" 2})))
+    (is (= {:a 1 :b 2 :c 3} (walk/keywordize-keys {"a" 1 "b" 2 :c 3})))
+    (is (= {:a 1 :c 3 4 :d}
+           (walk/keywordize-keys {"a" 1 :c 3 4 :d})))
+    (is (= {:a 1 :c 3 4 :d :nested {:e 5 'b 6}}
+           (walk/keywordize-keys {"a" 1 :c 3 4 :d "nested" {"e" 5 'b 6}}))))
+
+  (testing "maps in lists and seqs"
+    (is (= '({:a 1 :b 2}) (walk/keywordize-keys '({"a" 1 "b" 2}))))
+    (is (= '({:a 1 :b 2 :c 3}) (walk/keywordize-keys '({"a" 1 "b" 2 :c 3}))))
+    (is (= '({:a 1 :c 3 4 :d})
+           (walk/keywordize-keys '({"a" 1 :c 3 4 :d}))))
+    (is (= '({:a 1 :c 3 4 :d :nested {:e 5 'b 6}})
+           (walk/keywordize-keys '({"a" 1 :c 3 4 :d "nested" {"e" 5 'b 6}}))))
+    (is (= '({:a 1} {:a 2} {:a 3})
+           (walk/keywordize-keys (map #(hash-map "a" %) (range 1 4))))))
+
+  (testing "maps in sets"
+    (is (= #{{:a 1 :b 2}} (walk/keywordize-keys #{{"a" 1 "b" 2}})))
+    (is (= #{{:a 1 :b 2 :c 3}} (walk/keywordize-keys #{{"a" 1 "b" 2 :c 3}})))
+    (is (= #{{:a 1 :c 3 4 :d}}
+           (walk/keywordize-keys #{{"a" 1 :c 3 4 :d}})))
+    (is (= #{{:a 1 :c 3 4 :d :nested {:e 5 'b 6}}}
+           (walk/keywordize-keys #{{"a" 1 :c 3 4 :d "nested" {"e" 5 'b 6}}}))))
+
+  (testing "maps in vectors"
+    (is (= [{:a 1 :b 2}] (walk/keywordize-keys [{"a" 1 "b" 2}])))
+    (is (= [{:a 1 :b 2 :c 3}] (walk/keywordize-keys [{"a" 1 "b" 2 :c 3}])))
+    (is (= [{:a 1 :c 3 4 :d}]
+           (walk/keywordize-keys [{"a" 1 :c 3 4 :d}])))
+    (is (= [{:a 1 :c 3 4 :d :nested {:e 5 'b 6}}]
+           (walk/keywordize-keys [{"a" 1 :c 3 4 :d "nested" {"e" 5 'b 6}}])))))
+
+(deftest stringify-keys-test
+  (testing "maps and nested maps"
+    (is (= {} (walk/stringify-keys {})))
+    (is (= {"a" 1 "b" 2} (walk/stringify-keys {:a 1 :b 2})))
+    (is (= {"a" 1 "b" 2 "c" 3} (walk/stringify-keys {"a" 1 "b" 2 :c 3})))
+    (is (= {"a" 1 "c" 3 4 :d}
+           (walk/stringify-keys {"a" 1 :c 3 4 :d})))
+    (is (= {"a" 1 "c" 3 4 :d "nested" {"e" 5 'b 6}}
+           (walk/stringify-keys {"a" 1 :c 3 4 :d "nested" {:e 5 'b 6}}))))
+
+  (testing "maps in lists and seqs"
+    (is (= '({"a" 1 "b" 2}) (walk/stringify-keys '({:a 1 :b 2}))))
+    (is (= '({"a" 1 "b" 2 "c" 3}) (walk/stringify-keys '({"a" 1 "b" 2 :c 3}))))
+    (is (= '({"a" 1 "c" 3 4 :d})
+           (walk/stringify-keys '({"a" 1 :c 3 4 :d}))))
+    (is (= '({"a" 1 "c" 3 4 :d "nested" {"e" 5 'b 6}})
+           (walk/stringify-keys '({"a" 1 :c 3 4 :d "nested" {:e 5 'b 6}}))))
+    (is (= '({"a" 1} {"a" 2} {"a" 3})
+           (walk/stringify-keys (map #(hash-map :a %) (range 1 4))))))
+
+  (testing "maps in sets"
+    (is (= #{{"a" 1 "b" 2}} (walk/stringify-keys #{{:a 1 :b 2}})))
+    (is (= #{{"a" 1 "b" 2 "c" 3}} (walk/stringify-keys #{{"a" 1 "b" 2 :c 3}})))
+    (is (= #{{"a" 1 "c" 3 4 :d}}
+           (walk/stringify-keys #{{"a" 1 :c 3 4 :d}})))
+    (is (= #{{"a" 1 "c" 3 4 :d "nested" {"e" 5 'b 6}}}
+           (walk/stringify-keys #{{"a" 1 :c 3 4 :d "nested" {:e 5 'b 6}}}))))
+
+  (testing "maps in vectors"
+    (is (= [{"a" 1 "b" 2}] (walk/stringify-keys [{:a 1 :b 2}])))
+    (is (= [{"a" 1 "b" 2 "c" 3}] (walk/stringify-keys [{"a" 1 "b" 2 :c 3}])))
+    (is (= [{"a" 1 "c" 3 4 :d}]
+           (walk/stringify-keys [{"a" 1 :c 3 4 :d}])))
+    (is (= [{"a" 1 "c" 3 4 :d "nested" {"e" 5 'b 6}}]
+           (walk/stringify-keys [{"a" 1 :c 3 4 :d "nested" {:e 5 'b 6}}])))))
+
+(defmacro plus [n1 n2]
+  `(+ ~n1 ~n2))
+
+(defmacro pl [p1 p2]
+  `(plus ~p1 ~p2))
+
+(defmacro minus [m1 m2]
+  `(- ~m1 ~m2))
+
+(defmacro calc [c1 c2]
+  `(pl ~c1 (minus ~c1 ~c2)))
+
+(deftest macroexpand-all-test
+  (is (= '(tests.basilisp.walk-test/pl 20 (tests.basilisp.walk-test/minus 20 30))
+         (macroexpand-1 '(calc 20 30))))
+  (is (= '(basilisp.core/+ 20 (tests.basilisp.walk-test/minus 20 30))
+         (macroexpand '(calc 20 30))))
+  (is (= '(basilisp.core/+ 20 (basilisp.core/- 20 30))
+         (walk/macroexpand-all '(calc 20 30)))))

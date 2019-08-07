@@ -1,0 +1,28 @@
+(ns basilisp.core.template)
+
+(defmacro do-template
+  "Given a template expression expr and bindings, produce a do expression with
+  the repeated templated expressions replacing names in argv with elements from
+  args.
+
+  For example:
+
+    (macroexpand '(do-template [x y] (= x y)
+                    1 (dec 2)
+                    2 (inc 1)))
+
+  produces
+
+    (do
+      (= 1 (dec 2))
+      (= 2 (inc 1)))"
+  [argv expr & args]
+  (let [n             (count argv)
+        arg-groups    (partition n args)
+        template-expr (fn [arg-group]
+                        (as-> arg-group $
+                          (interleave argv $)
+                          (apply hash-map $)
+                          (replace $ expr)))]
+    `(do
+       ~@(map template-expr arg-groups))) )

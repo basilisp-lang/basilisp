@@ -1,0 +1,64 @@
+(ns tests.basilisp.core-fns-test
+  (:require
+   [basilisp.test :refer [deftest are is testing]]))
+
+(deftest reduce-kv-test
+  (testing "reduce-kv does not execute f if no elems in coll"
+    (let [a (atom false)]
+      (is (= {:init true}
+             (reduce-kv (fn [_ _ _]
+                          (reset! a true))
+                        {:init true}
+                        [])))))
+
+  (testing "reduce-kv"
+    (is (= {1 :a, 2 :b, 3 :c}
+           (reduce-kv #(assoc %1 %3 %2) {} {:a 1 :b 2 :c 3})))))
+
+#_(deftest every-pred-test
+  (is (= true ((every-pred odd?) 3)))
+  (is (= true ((every-pred odd? int?) 3)))
+  (is (= false ((every-pred odd? int? neg?) 3)))
+  (is (= false ((every-pred odd? int? neg?) 4)))
+  (is (= false ((every-pred odd? int? neg?) -4))))
+
+#_(deftest some-fn-test
+    (is (= true ((some-fn odd?) 3)))
+    (is (= true ((some-fn odd? int?) 3)))
+    (is (= false ((some-fn odd? int? neg?) 3)))
+    (is (= false ((some-fn odd? int? neg?) 4)))
+    (is (= false ((some-fn odd? int? neg?) -4))))
+
+(deftest keep-test
+  (is (= '() (keep identity [])))
+  (is (= '(:a :b :c) (keep identity [:a :b :c])))
+  (is (= '(:a :b :c) (keep identity [:a :b nil :c])))
+  (is (= '(:a :b :c) (keep identity [:a :b nil nil :c])))
+  (is (= '(:a :b :c :d) (keep identity [:a :b nil :c nil nil :d]))))
+
+(deftest keep-indexed-test
+  (let [f (fn [i v] v)]
+    (is (= '() (keep-indexed f [])))
+    (is (= '(:a :b :c) (keep-indexed f [:a :b :c])))
+    (is (= '(:a :b :c) (keep-indexed f [:a :b nil :c])))
+    (is (= '(:a :b :c) (keep-indexed f [:a :b nil nil :c])))
+    (is (= '(:a :b :c :d) (keep-indexed f [:a :b nil :c nil nil :d])))))
+
+(deftest interleave-test
+  (is (= '() (interleave)))
+  (is (= '(1 2 3) (interleave [1 2 3])))
+  (is (= '(1 :a 2 :b 3 :c) (interleave [1 2 3] [:a :b :c])))
+  (is (= '(1 :a d 2 :b e 3 :c f)
+         (interleave [1 2 3] [:a :b :c] ['d 'e 'f])))
+  (is (= '(1 :a d 2 :b e)
+         (interleave [1 2 3] [:a :b] ['d 'e 'f]))))
+
+(deftest replace-test
+  (is (= '(This is the code ZERO ONE TWO ZERO)
+         (replace '{0 ZERO, 1 ONE, 2 TWO} '(This is the code 0 1 2 0))))
+  (is (= [:four :two :four :two]
+         (replace {2 :two, 4 :four} [4 2 3 4 5 6 2])))
+  (is (= [10 8 6]
+         (replace [10 9 8 7 6] [0 2 4])))
+  (is (= [:zeroth :second :fourth :zeroth]
+         (replace [:zeroth :first :second :third :fourth] [0 2 4 0]))))

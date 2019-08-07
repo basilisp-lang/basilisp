@@ -1511,6 +1511,29 @@
        (reduce-coll val coll)
        (f val)))))
 
+(defn reduce-kv
+  "Reduce an associative coll by f. f must be a function of 3
+  arguments: the initially supplied value (in later invocations, the
+  the return from previous invocations), the key of an entry of
+  coll, and the value of an entry of coll.
+
+  If coll has no elements, init is returned and f is not called.
+
+  reduce-kv may reduce vectors in addition to maps. Vectors have
+  non-negative integer keys."
+  [f init coll]
+  (if (seq coll)
+    (loop [in-coll    coll
+           assoc-coll init]
+      (let [entry (first in-coll)
+            k     (key entry)
+            v     (val entry)
+            rem   (rest in-coll)]
+        (if (seq rem)
+          (recur rem (f assoc-coll k v))
+          (f assoc-coll k v))))
+    init))
+
 (defn comp
   "Return a function which is the composition of all the functions
   given as arguments. Note that, as in mathematical function composition,
@@ -1550,6 +1573,34 @@
     (pred (first coll)) (recur pred (rest coll))
     :else               false))
 
+(defn every-pred
+  "Return a predicate composed of all of the input predicates, which returns
+  true if all input predicates return true for a value, otherwise returns false.
+  The returned predicate returns false on the first failing predicate and will
+  not execute any remaining predicates."
+  ([pred] pred)
+  ([pred & preds]
+   (reduce (fn [f g]
+             (fn [v]
+               (if (and (f v) (g v))
+                 true
+                 false)))
+           pred
+           preds)))
+
+(defn some-fn
+  "Return a predicate composed of all of the input functions, which returns
+  the first truthy return value from one of the inputs, otherwise returns nil.
+  The returned predicate returns the first truthy value it encounters and will
+  not execute any remaining functions."
+  ([f] f)
+  ([f & fs]
+   (reduce (fn [f g]
+             (fn [v]
+               (or (f v) (g v))))
+           f
+           fs)))
+
 (def
   ^{:doc "Return true if not every element in coll satisfies pred."}
   not-every?
@@ -1568,7 +1619,12 @@
   (comp not some))
 
 (defn map
-  "Return a lazy sequence of (f elem) for elements in coll."
+  "Return a lazy sequence of (f elem) for elements in coll. More than one
+  collection may be supplied. If more than one collection is supplied, the
+  function f will be passed sequential elements from each collection on each
+  invocation and must be able to accept as many arguments as there are
+  collections. The sequence will terminate when at least one input collection
+  is exhausted."
   ([f coll]
    (lazy-seq
     (when (seq coll)
@@ -1578,6 +1634,14 @@
     (when (and (seq coll) (every? seq colls))
       (cons (apply f (first coll) (map first colls))
             (apply map f (rest coll) (map rest colls)))))))
+
+(def ^{:doc "Return a vector of (f elem) for elements in coll. More than one
+             collection may be supplied. If more than one collection is supplied, the
+             function f will be passed sequential elements from each collection on each
+             invocation and must be able to accept as many arguments as there are
+             collections. The sequence will terminate when at least one input collection
+             is exhausted."}
+  mapv (comp vec map))
 
 (defn map-indexed
   "Return a lazy sequence of (f idx elem) for elements in coll. The
@@ -1592,13 +1656,17 @@
   (apply concat (apply map f colls)))
 
 (defn filter
-  "Return elements from coll where (pred elem) returns true."
+  "Return a lazy sequence of elements from coll where (pred elem) returns true."
   [pred coll]
   (lazy-seq
    (when (seq coll)
      (if (pred (first coll))
        (cons (first coll) (filter pred (rest coll)))
        (filter pred (rest coll))))))
+
+(def ^{:doc "Return a lazy sequence of elements from coll where (pred elem)
+             returns true."}
+  filterv (comp vec filter))
 
 (defn remove
   "Return elements from coll where (pred elem) returns false."
@@ -1608,6 +1676,31 @@
      (if (not (pred (first coll)))
        (cons (first coll) (remove pred (rest coll)))
        (remove pred (rest coll))))))
+
+(defn keep
+  "Return a lazy sequence of non-nil results of (f elem) for elements in coll."
+  [f coll]
+  (lazy-seq
+   (when (seq coll)
+     (let [elem (first coll)]
+       (if-not (nil? (f elem))
+         (cons elem (keep f (rest coll)))
+         (keep f (rest coll)))))))
+
+(defn keep-indexed
+  "Return a lazy-sequence of non-nil results of (f index elem) for elements
+  in coll."
+  [f coll]
+  (let [keep-idx (fn keep-idx
+                   [rng coll]
+                   (lazy-seq
+                    (when (seq coll)
+                      (let [idx  (first rng)
+                            elem (first coll)]
+                        (if-not (nil? (f idx elem))
+                          (cons elem (keep-idx (rest rng) (rest coll)))
+                          (keep-idx (rest rng) (rest coll)))))))]
+    (keep-idx (range) coll)))
 
 (defn take
   "Return the first n elements of coll."
@@ -1688,6 +1781,17 @@
              (cons sep (interpose sep (rest coll))))
        (cons (first coll) nil)))))
 
+(defn interleave
+  "Return a lazy sequence consisting of the first element of coll, then the
+  first element of the following coll, etc. until the shortest input collection
+  is exhausted."
+  ([] '())
+  ([coll] (seq coll))
+  ([coll & colls]
+   (lazy-seq
+    (when (seq coll)
+      (cons (first coll) (apply interleave (concat colls [(rest coll)])))))))
+
 (defn cycle
   "Cycle the items in coll infinitely."
   [coll]
@@ -1734,13 +1838,16 @@
   of step elements. If step is not given, steps of size n will be used
   and there will be no overlap between partitions. If pad is given,
   partition will pull elements from pad until the final sequence is
-  equal to size n."
+  equal to size n. If there are fewer than n leftover elements in coll,
+  they will not be returned as a partial partition."
   ([n coll]
    (partition n n coll))
   ([n step coll]
    (lazy-seq
     (when (seq coll)
-      (cons (take n coll) (partition n step (drop step coll))))))
+      (let [s (take n coll)]
+        (when (= n (count s))
+          (cons s (partition n step (drop step coll))))))))
   ([n step pad coll]
    (lazy-seq
     (when (seq coll)
@@ -1750,6 +1857,19 @@
                  (concat s (take (- n ns) pad))
                  s)]
         (cons s (partition n step pad (drop step coll))))))))
+
+(defn partition-all
+  "Return a lazy sequence of partitions of coll of size n at offsets
+  of step elements. If step is not given, steps of size n will be used
+  and there will be no overlap between partitions. If there are leftover
+  elements from coll which do not fill a full partition, then a partial
+  partition will be returned, unlike partition."
+  ([n coll]
+   (partition-all n n coll))
+  ([n step coll]
+   (lazy-seq
+    (when (seq coll)
+      (cons (take n coll) (partition-all n step (drop step coll)))))))
 
 (defn partition-by
   "Return a lazy sequence of partitions, splitting coll each time f
@@ -1762,6 +1882,35 @@
            run   (cons elem (take-while #(= felem (f %)) (next coll)))]
        (cons run (partition-by f (seq (drop (count run) coll))))))))
 
+(defn min-key
+  "Return the arg for which (k arg) is the smallest number.
+  If multiple values return the same number, return the last."
+  [k & args]
+  (reduce (fn [cur nxt]
+            (if (<= (k nxt) (k cur))
+              nxt
+              cur))
+          (first args)
+          (rest args)))
+
+(defn max-key
+  "Return the arg for which (k arg) is the largest number.
+  If multiple values return the same number, return the last."
+  [k & args]
+  (reduce (fn [cur nxt]
+            (if (>= (k nxt) (k cur))
+              nxt
+              cur))
+          (first args)
+          (rest args)))
+
+(defn sort-by
+  "Return a sorted sequence of the elements from coll."
+  ([keyfn coll]
+   (basilisp.lang.runtime/sort-by keyfn coll))
+  ([keyfn cmp coll]
+   (basilisp.lang.runtime/sort-by keyfn coll cmp)))
+
 (defn merge
   "Merge maps together from left to right as by conj. If a duplicate key
   appears in a map, the rightmost map's value for that key will be taken."
@@ -1770,6 +1919,16 @@
     (reduce #(conj %1 %2)
             {}
             maps)))
+
+(defn trampoline
+  "Trampoline f with starting arguments. If f returns an fn, call its return
+  value with no arguments, repeating that process until the return value is not
+  a fn."
+  [f & args]
+  (loop [ret (apply f args)]
+    (if (fn? ret)
+      (recur (ret))
+      ret)))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Random Functions ;;
@@ -3011,6 +3170,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Associative Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn replace
+  "Replace elements of the vector/seq coll with matching elements from the
+  associative collection smap, if they exist."
+  [smap coll]
+  (if (vector? coll)
+    (reduce (fn [res v]
+              (if-let [newv (get smap v)]
+                (conj res newv)
+                res))
+            []
+            coll)
+    (map (fn [v]
+           (if-let [newv (get smap v)]
+             newv
+             v))
+         coll)))
 
 (defn select-keys
   "Return a map with only the keys of m which are in ks."

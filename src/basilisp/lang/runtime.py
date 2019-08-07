@@ -1054,6 +1054,40 @@ def sort(coll, f=None) -> Optional[ISeq]:
     return to_seq(sorted(coll, key=Maybe(f).map(functools.cmp_to_key).value))
 
 
+def sort_by(keyfn, coll, cmp=None) -> Optional[ISeq]:
+    """Return a sorted sequence of the elements in coll. If a comparator
+    function f is provided, compare elements in coll using f."""
+    if cmp is not None:
+
+        class key:
+            __slots__ = ("obj",)
+
+            def __init__(self, obj):
+                self.obj = obj
+
+            def __lt__(self, other):
+                return cmp(keyfn(self.obj), keyfn(other.obj)) < 0
+
+            def __gt__(self, other):
+                return cmp(keyfn(self.obj), keyfn(other.obj)) > 0
+
+            def __eq__(self, other):
+                return cmp(keyfn(self.obj), keyfn(other.obj)) == 0
+
+            def __le__(self, other):
+                return cmp(keyfn(self.obj), keyfn(other.obj)) <= 0
+
+            def __ge__(self, other):
+                return cmp(keyfn(self.obj), keyfn(other.obj)) >= 0
+
+            __hash__ = None
+
+    else:
+        key = keyfn
+
+    return to_seq(sorted(coll, key=key))
+
+
 def contains(coll, k):
     """Return true if o contains the key k."""
     if isinstance(coll, IAssociative):
