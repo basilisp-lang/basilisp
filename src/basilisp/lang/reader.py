@@ -34,13 +34,14 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as symbol
 import basilisp.lang.util as langutil
 import basilisp.lang.vector as vector
-import basilisp.walker as walk
 from basilisp.lang.interfaces import (
     ILispObject,
     ILookup,
     IMeta,
     IPersistentList,
+    IPersistentMap,
     IPersistentSet,
+    IPersistentVector,
     IRecord,
     IType,
 )
@@ -808,6 +809,28 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
         )
 
 
+def _walk(inner_f, outer_f, form):
+    """Walk an arbitrary, possibly nested data structure, applying inner_f to each
+    element of form and then applying outer_f to the resulting form."""
+    if isinstance(form, IPersistentList):
+        return outer_f(llist.list(map(inner_f, form)))
+    elif isinstance(form, IPersistentVector):
+        return outer_f(vector.vector(map(inner_f, form)))
+    elif isinstance(form, IPersistentMap):
+        return outer_f(lmap.from_entries(map(inner_f, form)))
+    elif isinstance(form, IPersistentSet):
+        return outer_f(lset.set(map(inner_f, form)))
+    else:
+        return outer_f(form)
+
+
+def _postwalk(f, form):
+    """"Walk form using depth-first, post-order traversal, applying f to each form
+    and replacing form with its result."""
+    inner_f = functools.partial(_postwalk, f)
+    return _walk(inner_f, f, form)
+
+
 @_with_loc
 def _read_function(ctx: ReaderContext) -> llist.List:
     """Read a function reader macro from the input stream."""
@@ -841,7 +864,7 @@ def _read_function(ctx: ReaderContext) -> llist.List:
                     return sym_replacement(arg_num)
         return f
 
-    body = walk.postwalk(identify_and_replace, form) if len(form) > 0 else None
+    body = _postwalk(identify_and_replace, form) if len(form) > 0 else None
 
     arg_list: List[symbol.Symbol] = []
     numbered_args = sorted(map(int, filter(lambda k: k != "rest", arg_set)))
