@@ -1,0 +1,116 @@
+(ns basilisp.walk)
+
+(defn walk
+  "Walk an arbitrary, possibly nested data structure, applying inner to each
+  element of form and then applying outer to the resulting form.
+
+  All built in data structures are supported.
+
+  Lazy sequences will be completely consumed (and thus may not be infinite)."
+  [inner outer form]
+  (cond
+    (list? form)
+    (outer (apply list (map inner form)))
+
+    (map-entry? form)
+    (outer (map-entry (inner (key form)) (inner (val form))))
+
+    (seq? form)
+    (outer (doall (map inner form)))
+
+    (vector? form)
+    (outer (apply vector (map inner form)))
+
+    (map? form)
+    (outer (apply hash-map (mapcat inner form)))
+
+    (set? form)
+    (outer (apply hash-set (map inner form)))
+
+    (record? form)
+    (outer (reduce (fn [rec field]
+                     (conj rec (inner field)))
+                   form
+                   form))
+
+    :else
+    (outer form)))
+
+(defn postwalk
+  "Walk form using depth-first, post-order traversal, applying f to each form
+  and replacing form with its result.
+
+  All built in data structures are supported.
+
+  Lazy sequences will be completely consumed (and thus may not be infinite)."
+  [f form]
+  (walk (partial postwalk f) f form))
+
+(defn prewalk
+  "Walk form using depth-first, pre-order traversal, applying f to each form
+  and replacing form with its result.
+
+  All built in data structures are supported.
+
+  Lazy sequences will be completely consumed (and thus may not be infinite)."
+  [f form]
+  (walk (partial prewalk f) identity (f form)))
+
+(defn postwalk-replace
+  "Recursively walk through form as by postwalk, replacing elements appearing
+  as keys in replacements with the corresponding values."
+  [replacements form]
+  (postwalk #(if-let [newv (get replacements %)]
+               newv
+               %)
+            form))
+
+(defn prewalk-replace
+  "Recursively walk through form as by prewalk, replacing elements appearing
+  as keys in replacements with the corresponding values."
+  [replacements form]
+  (prewalk #(if-let [newv (get replacements %)]
+              newv
+              %)
+           form))
+
+(defn postwalk-demo
+  "Print each element as it is walked as by postwalk."
+  [form]
+  (postwalk #(do (println (str "Walked: " %)) %) form))
+
+(defn prewalk-demo
+  "Print each element as it is walked as by postwalk."
+  [form]
+  (prewalk #(do (println (str "Walked: " %)) %) form))
+
+(defn keywordize-keys
+  "Recursively walk form, transforming string keys into keywords in any maps."
+  [form]
+  (postwalk (fn [v]
+              (if (map? v)
+                (->> v
+                     (mapcat (fn [[k v]] [(cond-> k (string? k) (keyword)) v]))
+                     (apply hash-map))
+                v))
+            form))
+
+(defn stringify-keys
+  "Recursively walk form, transforming keyword keys into strings in any maps."
+  [form]
+  (postwalk (fn [v]
+              (if (map? v)
+                (->> v
+                     (mapcat (fn [[k v]] [(cond-> k (keyword? k) (name)) v]))
+                     (apply hash-map))
+                v))
+            form))
+
+(defn macroexpand-all
+  "Recursively macroexpand all eligible forms contained in form."
+  [form]
+  (prewalk (fn [v]
+             (if (seq? v)
+               (macroexpand v)
+               v))
+           form))
