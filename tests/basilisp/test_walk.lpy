@@ -1,6 +1,6 @@
 (ns tests.basilisp.walk-test
   (:require
-   [basilisp.test :refer [deftest are is testing]]
+   [basilisp.test :refer [deftest is testing]]
    [basilisp.walk :as walk]))
 
 (deftest postwalk-replace-test
