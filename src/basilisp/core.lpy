@@ -1788,9 +1788,15 @@
   ([] '())
   ([coll] (seq coll))
   ([coll & colls]
-   (lazy-seq
-    (when (seq coll)
-      (cons (first coll) (apply interleave (concat colls [(rest coll)])))))))
+   (let [coll-firsts (fn coll-firsts
+                       [& colls]
+                       (lazy-seq
+                        (when (seq colls)
+                          (cons (ffirst colls) (apply coll-firsts (rest colls))))))]
+     (lazy-seq
+      (when (and (seq coll) (every? seq colls))
+        (concat (apply coll-firsts coll colls)
+                (apply interleave (rest coll) (map rest colls))))))))
 
 (defn cycle
   "Cycle the items in coll infinitely."

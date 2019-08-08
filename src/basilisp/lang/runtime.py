@@ -1051,7 +1051,7 @@ def quotient(num, div) -> LispNumber:
 def sort(coll, f=None) -> Optional[ISeq]:
     """Return a sorted sequence of the elements in coll. If a comparator
     function f is provided, compare elements in coll using f."""
-    return to_seq(sorted(coll, key=Maybe(f).map(functools.cmp_to_key).value))
+    return lseq.sequence(sorted(coll, key=Maybe(f).map(functools.cmp_to_key).value))
 
 
 def sort_by(keyfn, coll, cmp=None) -> Optional[ISeq]:
@@ -1085,7 +1085,7 @@ def sort_by(keyfn, coll, cmp=None) -> Optional[ISeq]:
     else:
         key = keyfn
 
-    return to_seq(sorted(coll, key=key))
+    return lseq.sequence(sorted(coll, key=key))
 
 
 def contains(coll, k):
