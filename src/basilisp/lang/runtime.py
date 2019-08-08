@@ -1080,10 +1080,10 @@ def sort_by(keyfn, coll, cmp=None) -> Optional[ISeq]:
             def __ge__(self, other):
                 return cmp(keyfn(self.obj), keyfn(other.obj)) >= 0
 
-            __hash__ = None
+            __hash__ = None  # type: ignore
 
     else:
-        key = keyfn
+        key = keyfn  # type: ignore
 
     return lseq.sequence(sorted(coll, key=key))
 
