@@ -1771,8 +1771,9 @@ class TestMacroexpandFunctions:
         )
         assert vec.Vector.empty() == compiler.macroexpand_1(vec.Vector.empty())
 
-        with pytest.raises(compiler.CompilerException):
-            compiler.macroexpand_1(sym.symbol("non-existent-symbol"))
+        assert sym.symbol("non-existent-symbol") == compiler.macroexpand_1(
+            sym.symbol("non-existent-symbol")
+        )
 
     def test_macroexpand(self, example_macro):
         assert llist.l(
@@ -1795,8 +1796,9 @@ class TestMacroexpandFunctions:
         )
         assert vec.Vector.empty() == compiler.macroexpand(vec.Vector.empty())
 
-        with pytest.raises(compiler.CompilerException):
-            compiler.macroexpand(sym.symbol("non-existent-symbol"))
+        assert sym.symbol("non-existent-symbol") == compiler.macroexpand(
+            sym.symbol("non-existent-symbol")
+        )
 
 
 class TestIf:
