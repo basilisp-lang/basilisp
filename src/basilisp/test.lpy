@@ -1,6 +1,8 @@
 (ns basilisp.test
   (:import
-   inspect))
+   inspect)
+  (:require
+   [basilisp.core.template :refer [do-template]]))
 
 (def ^:private collected-tests
   (atom []))
@@ -109,6 +111,11 @@
                 :expected     (quote ~expr)
                 :line         (line-no 1)
                 :type         :error})))))
+
+(defmacro are
+  "Assert that expr is true. Must appear inside of a deftest form."
+  [argv expr & args]
+  `(do-template ~argv (is ~expr) ~@args))
 
 (defmacro testing
   "Wrapper for test cases to provide additional messaging and context

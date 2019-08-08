@@ -277,6 +277,7 @@ class SymbolTable:
 
 class AnalyzerContext:
     __slots__ = (
+        "_allow_unresolved_symbols",
         "_filename",
         "_func_ctx",
         "_is_quoted",
@@ -291,7 +292,9 @@ class AnalyzerContext:
         filename: Optional[str] = None,
         opts: Optional[Mapping[str, bool]] = None,
         should_macroexpand: bool = True,
+        allow_unresolved_symbols: bool = False,
     ) -> None:
+        self._allow_unresolved_symbols = allow_unresolved_symbols
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._func_ctx: Deque[bool] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
@@ -344,6 +347,14 @@ class AnalyzerContext:
         self._is_quoted.append(True)
         yield
         self._is_quoted.pop()
+
+    @property
+    def should_allow_unresolved_symbols(self) -> bool:
+        """If True, the analyzer will allow unresolved symbols. This is primarily
+        useful for contexts by the `macroexpand` and `macroexpand-1` core
+        functions. This would not be a good setting to use for normal compiler
+        scenarios."""
+        return self._allow_unresolved_symbols
 
     @property
     def should_macroexpand(self) -> bool:
@@ -2076,7 +2087,7 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
 
 def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[HostField, MaybeClass, MaybeHostForm, VarRef]:
+) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
     assert form.ns is not None
 
@@ -2161,6 +2172,8 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
         return VarRef(form=form, var=v, env=ctx.get_node_env())
     elif "." in form.ns:
         return _resolve_nested_symbol(ctx, form)
+    elif ctx.should_allow_unresolved_symbols:
+        return _const_node(ctx, form)
     else:
         raise AnalyzerException(
             f"unable to resolve symbol '{form}' in this context", form=form
@@ -2169,7 +2182,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
 
 def __resolve_bare_symbol(
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[MaybeClass, VarRef]:
+) -> Union[Const, MaybeClass, VarRef]:
     """Resolve a non-namespaced symbol into a Python name or a local
     Basilisp Var."""
     assert form.ns is None
@@ -2193,6 +2206,9 @@ def __resolve_bare_symbol(
             env=ctx.get_node_env(),
         )
 
+    if ctx.should_allow_unresolved_symbols:
+        return _const_node(ctx, form)
+
     assert munged not in vars(ctx.current_ns.module)
     raise AnalyzerException(
         f"unable to resolve symbol '{form}' in this context", form=form
@@ -2201,7 +2217,7 @@ def __resolve_bare_symbol(
 
 def _resolve_sym(
     ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[HostField, MaybeClass, MaybeHostForm, VarRef]:
+) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
     """Resolve a Basilisp symbol as a Var or Python name."""
     # Support special class-name syntax to instantiate new classes
     #   (Classname. *args)
@@ -2345,6 +2361,7 @@ def _const_node(ctx: AnalyzerContext, form: ReaderForm) -> Const:
                 form, (sym.Symbol, vec.Vector, llist.List, lmap.Map, lset.Set, ISeq)
             )
         )
+        or (ctx.should_allow_unresolved_symbols and isinstance(form, sym.Symbol))
         or (isinstance(form, (llist.List, ISeq)) and form.is_empty)
         or isinstance(
             form,
@@ -2478,7 +2495,9 @@ def analyze_form(ctx: AnalyzerContext, form: ReaderForm) -> Node:
 def macroexpand_1(form: ReaderForm) -> ReaderForm:
     """Macroexpand form one time. Returns the macroexpanded form. The return
     value may still represent a macro. Does not macroexpand child forms."""
-    ctx = AnalyzerContext("<Macroexpand>", should_macroexpand=False)
+    ctx = AnalyzerContext(
+        "<Macroexpand>", should_macroexpand=False, allow_unresolved_symbols=True
+    )
     maybe_macro = analyze_form(ctx, form)
     if maybe_macro.op == NodeOp.INVOKE:
         assert isinstance(maybe_macro, Invoke)
@@ -2496,4 +2515,6 @@ def macroexpand(form: ReaderForm) -> ReaderForm:
     """Repeatedly macroexpand form as by macroexpand-1 until form no longer
     represents a macro. Returns the expanded form. Does not macroexpand child
     forms."""
-    return analyze_form(AnalyzerContext("<Macroexpand>"), form).form
+    return analyze_form(
+        AnalyzerContext("<Macroexpand>", allow_unresolved_symbols=True), form
+    ).form
