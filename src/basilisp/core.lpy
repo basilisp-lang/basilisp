@@ -1578,28 +1578,19 @@
   true if all input predicates return true for a value, otherwise returns false.
   The returned predicate returns false on the first failing predicate and will
   not execute any remaining predicates."
-  ([pred] pred)
+  ([pred]
+   (fn [& args]
+     (every? pred args)))
   ([pred & preds]
-   (reduce (fn [f g]
-             (fn [v]
-               (if (and (f v) (g v))
-                 true
-                 false)))
-           pred
-           preds)))
-
-(defn some-fn
-  "Return a predicate composed of all of the input functions, which returns
-  the first truthy return value from one of the inputs, otherwise returns nil.
-  The returned predicate returns the first truthy value it encounters and will
-  not execute any remaining functions."
-  ([f] f)
-  ([f & fs]
-   (reduce (fn [f g]
-             (fn [v]
-               (or (f v) (g v))))
-           f
-           fs)))
+   (let [comp-pred (reduce (fn [f g]
+                             (fn [v]
+                               (if (and (f v) (g v))
+                                 true
+                                 false)))
+                           pred
+                           preds)]
+     (fn [& args]
+       (every? comp-pred args)))))
 
 (def
   ^{:doc "Return true if not every element in coll satisfies pred."}
@@ -1612,6 +1603,23 @@
   (when (seq coll)
     (or (pred (first coll))
         (recur pred (rest coll)))))
+
+(defn some-fn
+  "Return a predicate composed of all of the input functions, which returns
+  the first truthy return value from one of the inputs, otherwise returns nil.
+  The returned predicate returns the first truthy value it encounters and will
+  not execute any remaining functions."
+  ([f]
+   (fn [& args]
+     (some f args)))
+  ([f & fs]
+   (let [comp-f (reduce (fn [f g]
+                          (fn [v]
+                            (or (f v) (g v))))
+                        f
+                        fs)]
+     (fn [& args]
+       (some comp-f args)))))
 
 (def
   ^{:doc "Return true if no element in coll satisfies pred."}
