@@ -281,6 +281,7 @@ class AnalyzerContext:
         "_filename",
         "_func_ctx",
         "_is_quoted",
+        "_macro_ns",
         "_opts",
         "_recur_points",
         "_should_macroexpand",
@@ -298,6 +299,7 @@ class AnalyzerContext:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._func_ctx: Deque[bool] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
+        self._macro_ns: Deque[Optional[runtime.Namespace]] = collections.deque([])
         self._opts = (
             Maybe(opts).map(lmap.map).or_else_get(lmap.Map.empty())  # type: ignore
         )
@@ -347,6 +349,35 @@ class AnalyzerContext:
         self._is_quoted.append(True)
         yield
         self._is_quoted.pop()
+
+    @property
+    def current_macro_ns(self) -> Optional[runtime.Namespace]:
+        """Return the current transient namespace available during macroexpansion.
+
+        If None, the analyzer should only use the current namespace for symbol
+        resolution."""
+        try:
+            return self._macro_ns[-1]
+        except IndexError:
+            return None
+
+    @contextlib.contextmanager
+    def macro_ns(self, ns: Optional[runtime.Namespace]):
+        """Set the transient namespace which is available to the analyer during a
+        macroexpansion phase.
+
+        If set to None, prohibit the analyzer from using another namespace for symbol
+        resolution.
+
+        During macroexpansion, new forms referenced from the macro namespace would
+        be unavailable to the namespace containing the original macro invocation.
+        The macro namespace is a temporary override pointing to the namespace of the
+        macro definition which can be used to resolve these transient references."""
+        self._macro_ns.append(ns)
+        try:
+            yield
+        finally:
+            self._macro_ns.pop()
 
     @property
     def should_allow_unresolved_symbols(self) -> bool:
@@ -1639,7 +1670,10 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
                 try:
                     macro_env = ctx.symbol_table.as_env_map()
                     expanded = fn.var.value(macro_env, form, *form.rest)
-                    expanded_ast = _analyze_form(ctx, expanded)
+                    with ctx.macro_ns(
+                        fn.var.ns if fn.var.ns is not ctx.current_ns else None
+                    ):
+                        expanded_ast = _analyze_form(ctx, expanded)
 
                     # Verify that macroexpanded code also does not have any
                     # non-tail recur forms
@@ -2085,34 +2119,13 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
     )
 
 
-def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
-    ctx: AnalyzerContext, form: sym.Symbol
-) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
-    """Resolve a namespaced symbol into a Python name or Basilisp Var."""
-    assert form.ns is not None
-
-    if form.ns == ctx.current_ns.name:
-        v = ctx.current_ns.find(sym.symbol(form.name))
-        if v is not None:
-            return VarRef(form=form, var=v, env=ctx.get_node_env())
-    elif form.ns == _BUILTINS_NS:
-        class_ = munge(form.name, allow_builtins=True)
-        target = getattr(builtins, class_, None)
-        if target is None:
-            raise AnalyzerException(
-                f"cannot resolve builtin function '{class_}'", form=form
-            )
-        return MaybeClass(
-            form=form, class_=class_, target=target, env=ctx.get_node_env()
-        )
-
-    if "." in form.name and form.name != _DOUBLE_DOT_MACRO_NAME:
-        raise AnalyzerException(
-            "symbol names may not contain the '.' operator", form=form
-        )
-
-    ns_sym = sym.symbol(form.ns)
-    if ns_sym in ctx.current_ns.imports or ns_sym in ctx.current_ns.import_aliases:
+def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
+    ctx: AnalyzerContext,
+    which_ns: runtime.Namespace,
+    form: sym.Symbol,
+    ns_sym: sym.Symbol,
+) -> Optional[Union[MaybeHostForm, VarRef]]:
+    if ns_sym in which_ns.imports or ns_sym in which_ns.import_aliases:
         # We still import Basilisp code, so we'll want to make sure
         # that the symbol isn't referring to a Basilisp Var first
         v = Var.find(form)
@@ -2123,8 +2136,8 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
         # We don't need this for actually generating the link later, but
         # we _do_ need it for fetching a reference to the module to check
         # for membership.
-        if ns_sym in ctx.current_ns.import_aliases:
-            ns = ctx.current_ns.import_aliases[ns_sym]
+        if ns_sym in which_ns.import_aliases:
+            ns = which_ns.import_aliases[ns_sym]
             assert ns is not None
             ns_name = ns.name
         else:
@@ -2161,8 +2174,8 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             target=vars(ns_module)[safe_name],
             env=ctx.get_node_env(),
         )
-    elif ns_sym in ctx.current_ns.aliases:
-        aliased_ns: runtime.Namespace = ctx.current_ns.aliases[ns_sym]
+    elif ns_sym in which_ns.aliases:
+        aliased_ns: runtime.Namespace = which_ns.aliases[ns_sym]
         v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
         if v is None:
             raise AnalyzerException(
@@ -2170,7 +2183,46 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
                 form=form,
             )
         return VarRef(form=form, var=v, env=ctx.get_node_env())
-    elif "." in form.ns:
+    else:
+        return None
+
+
+def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
+    ctx: AnalyzerContext, form: sym.Symbol
+) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
+    """Resolve a namespaced symbol into a Python name or Basilisp Var."""
+    assert form.ns is not None
+
+    if form.ns == ctx.current_ns.name:
+        v = ctx.current_ns.find(sym.symbol(form.name))
+        if v is not None:
+            return VarRef(form=form, var=v, env=ctx.get_node_env())
+    elif form.ns == _BUILTINS_NS:
+        class_ = munge(form.name, allow_builtins=True)
+        target = getattr(builtins, class_, None)
+        if target is None:
+            raise AnalyzerException(
+                f"cannot resolve builtin function '{class_}'", form=form
+            )
+        return MaybeClass(
+            form=form, class_=class_, target=target, env=ctx.get_node_env()
+        )
+
+    if "." in form.name and form.name != _DOUBLE_DOT_MACRO_NAME:
+        raise AnalyzerException(
+            "symbol names may not contain the '.' operator", form=form
+        )
+
+    ns_sym = sym.symbol(form.ns)
+    resolved = __resolve_namespaced_symbol_in_ns(ctx, ctx.current_ns, form, ns_sym)
+    if resolved is not None:
+        return resolved
+    elif ctx.current_macro_ns is not None:
+        resolved = __resolve_namespaced_symbol_in_ns(ctx, ctx.current_macro_ns, form, ns_sym)
+        if resolved is not None:
+            return resolved
+
+    if "." in form.ns:
         return _resolve_nested_symbol(ctx, form)
     elif ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
@@ -2191,6 +2243,12 @@ def __resolve_bare_symbol(
     v = ctx.current_ns.find(form)
     if v is not None:
         return VarRef(form=form, var=v, env=ctx.get_node_env())
+
+    # Look up the symbol in the current macro namespace, if one
+    if ctx.current_macro_ns is not None:
+        v = ctx.current_macro_ns.find(form)
+        if v is not None:
+            return VarRef(form=form, var=v, env=ctx.get_node_env())
 
     if "." in form.name:
         raise AnalyzerException(
