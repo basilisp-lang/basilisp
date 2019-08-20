@@ -2218,7 +2218,9 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     if resolved is not None:
         return resolved
     elif ctx.current_macro_ns is not None:
-        resolved = __resolve_namespaced_symbol_in_ns(ctx, ctx.current_macro_ns, form, ns_sym)
+        resolved = __resolve_namespaced_symbol_in_ns(
+            ctx, ctx.current_macro_ns, form, ns_sym
+        )
         if resolved is not None:
             return resolved
 
