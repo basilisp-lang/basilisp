@@ -2878,8 +2878,8 @@ class TestSymbolResolution:
             runtime.Namespace.remove(other_ns_name)
 
     def test_cross_ns_macro_symbol_resolution(self, ns: runtime.Namespace):
-        """Ensure that a macro symbol, a, delegating to another macro, named
-        by the symbol b, in a namespace directly required by a's namespace
+        """Ensure that a macro symbol, `a`, delegating to another macro, named
+        by the symbol `b`, in a namespace directly required by `a`'s namespace
         (and which will not be required by downstream namespaces) is still
         properly resolved when used by the final consumer."""
         current_ns: runtime.Namespace = ns
@@ -2893,20 +2893,63 @@ class TestSymbolResolution:
             other_ns.add_alias(third_ns_name, third_ns)
 
             with runtime.ns_bindings(third_ns_name.name):
-                lcompile("(def ^:macro t (fn* [&env &form v] `(name ~v)))")
+                lcompile(
+                    "(def ^:macro t (fn* [&env &form v] `(name ~v)))",
+                    resolver=runtime.resolve_alias,
+                )
 
             with runtime.ns_bindings(other_ns_name.name):
-                lcompile("(def ^:macro o (fn* [&env &form v] `(third.ns/t ~v)))")
+                lcompile(
+                    "(def ^:macro o (fn* [&env &form v] `(third.ns/t ~v)))",
+                    resolver=runtime.resolve_alias,
+                )
 
             with runtime.ns_bindings(current_ns.name):
-                assert "z" == lcompile("(other.ns/o :z)")
+                assert "z" == lcompile(
+                    "(other.ns/o :z)", resolver=runtime.resolve_alias
+                )
+        finally:
+            runtime.Namespace.remove(other_ns_name)
+            runtime.Namespace.remove(third_ns_name)
+
+    def test_cross_ns_macro_symbol_resolution_with_aliases(self, ns: runtime.Namespace):
+        """Ensure that `a` macro symbol, a, delegating to another macro, named
+        by the symbol `b`, which is referenced by `a`'s namespace (and which will
+        not be referred by downstream namespaces) is still properly resolved
+        when used by the final consumer."""
+        current_ns: runtime.Namespace = ns
+        other_ns_name = sym.symbol("other.ns")
+        third_ns_name = sym.symbol("third.ns")
+        try:
+            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            current_ns.add_alias(other_ns_name, other_ns)
+
+            third_ns = runtime.Namespace.get_or_create(third_ns_name)
+            other_ns.add_alias(sym.symbol("third"), third_ns)
+
+            with runtime.ns_bindings(third_ns_name.name):
+                lcompile(
+                    "(def ^:macro t (fn* [&env &form v] `(name ~v)))",
+                    resolver=runtime.resolve_alias,
+                )
+
+            with runtime.ns_bindings(other_ns_name.name):
+                lcompile(
+                    "(def ^:macro o (fn* [&env &form v] `(third/t ~v)))",
+                    resolver=runtime.resolve_alias,
+                )
+
+            with runtime.ns_bindings(current_ns.name):
+                assert "z" == lcompile(
+                    "(other.ns/o :z)", resolver=runtime.resolve_alias
+                )
         finally:
             runtime.Namespace.remove(other_ns_name)
             runtime.Namespace.remove(third_ns_name)
 
     def test_cross_ns_macro_symbol_resolution_with_refers(self, ns: runtime.Namespace):
-        """Ensure that a macro symbol, a, delegating to another macro, named
-        by the symbol b, which is referred by a's namespace (and which will
+        """Ensure that a macro symbol, `a`, delegating to another macro, named
+        by the symbol `b`, which is referred by `a`'s namespace (and which will
         not be referred by downstream namespaces) is still properly resolved
         when used by the final consumer."""
         current_ns: runtime.Namespace = ns
@@ -2919,15 +2962,23 @@ class TestSymbolResolution:
             third_ns = runtime.Namespace.get_or_create(third_ns_name)
 
             with runtime.ns_bindings(third_ns_name.name):
-                lcompile("(def ^:macro t (fn* [&env &form v] `(name ~v)))")
+                lcompile(
+                    "(def ^:macro t (fn* [&env &form v] `(name ~v)))",
+                    resolver=runtime.resolve_alias,
+                )
 
             other_ns.add_refer(sym.symbol("t"), third_ns.find(sym.symbol("t")))
 
             with runtime.ns_bindings(other_ns_name.name):
-                lcompile("(def ^:macro o (fn* [&env &form v] `(t ~v)))")
+                lcompile(
+                    "(def ^:macro o (fn* [&env &form v] `(t ~v)))",
+                    resolver=runtime.resolve_alias,
+                )
 
             with runtime.ns_bindings(current_ns.name):
-                assert "z" == lcompile("(other.ns/o :z)")
+                assert "z" == lcompile(
+                    "(other.ns/o :z)", resolver=runtime.resolve_alias
+                )
         finally:
             runtime.Namespace.remove(other_ns_name)
             runtime.Namespace.remove(third_ns_name)
