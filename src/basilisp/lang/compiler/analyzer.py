@@ -2119,12 +2119,53 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
     )
 
 
+def __fuzzy_resolve_namespace_reference(
+    ctx: AnalyzerContext, which_ns: runtime.Namespace, form: sym.Symbol
+) -> Optional[VarRef]:
+    """Resolve a symbol within `which_ns` based on any namespaces required or otherwise
+    referenced within `which_ns` (e.g. by a :refer).
+
+    When a required or resolved symbol is read by the reader in the context of a syntax
+    quote, the reader will fully resolve the symbol, so a symbol like `set/union` would be
+    expanded to `basilisp.set/union`. However, the namespace still does not maintain a
+    direct mapping of the symbol `basilisp.set` to the namespace it names, since the
+    namespace was required as `[basilisp.set :as set]`.
+
+    During macroexpansion, the Analyzer needs to resolve these transitive requirements,
+    so we 'fuzzy' resolve against any namespaces known to the current macro namespace."""
+
+    def fuzzy_match(ns_map: Mapping[str, runtime.Namespace]) -> Optional[VarRef]:
+        match: Optional[runtime.Namespace] = ns_map.get(form.ns)
+        if match is not None:
+            v = match.find(sym.symbol(form.name))
+            if v is not None:
+                return VarRef(form=form, var=v, env=ctx.get_node_env())
+        return None
+
+    # Try to match a required namespace
+    required_namespaces = {ns.name: ns for ns in which_ns.aliases.values()}
+    match = fuzzy_match(required_namespaces)
+    if match is not None:
+        return match
+
+    # Try to match a referred namespace
+    referred_namespaces = {
+        ns.name: ns for ns in {var.ns for var in which_ns.refers.values()}
+    }
+    return fuzzy_match(referred_namespaces)
+
+
 def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext,
     which_ns: runtime.Namespace,
     form: sym.Symbol,
-    ns_sym: sym.Symbol,
+    allow_fuzzy_macroexpansion_matching: bool = False,
 ) -> Optional[Union[MaybeHostForm, VarRef]]:
+    """Resolve the symbol `form` in the context of the Namespace `which_ns`. If
+    `allow_fuzzy_macroexpansion_matching` is True and no match is made on existing
+    imports, import aliases, or namespace aliases, then attempt to match the
+    namespace portion"""
+    ns_sym = sym.symbol(form.ns)
     if ns_sym in which_ns.imports or ns_sym in which_ns.import_aliases:
         # We still import Basilisp code, so we'll want to make sure
         # that the symbol isn't referring to a Basilisp Var first
@@ -2183,8 +2224,10 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
                 form=form,
             )
         return VarRef(form=form, var=v, env=ctx.get_node_env())
-    else:
-        return None
+    elif allow_fuzzy_macroexpansion_matching:
+        return __fuzzy_resolve_namespace_reference(ctx, which_ns, form)
+
+    return None
 
 
 def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
@@ -2213,13 +2256,12 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             "symbol names may not contain the '.' operator", form=form
         )
 
-    ns_sym = sym.symbol(form.ns)
-    resolved = __resolve_namespaced_symbol_in_ns(ctx, ctx.current_ns, form, ns_sym)
+    resolved = __resolve_namespaced_symbol_in_ns(ctx, ctx.current_ns, form)
     if resolved is not None:
         return resolved
     elif ctx.current_macro_ns is not None:
         resolved = __resolve_namespaced_symbol_in_ns(
-            ctx, ctx.current_macro_ns, form, ns_sym
+            ctx, ctx.current_macro_ns, form, allow_fuzzy_macroexpansion_matching=True
         )
         if resolved is not None:
             return resolved
