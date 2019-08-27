@@ -223,6 +223,9 @@ class ISeq(ILispObject, ISeqable[T]):
                 return False
         return True
 
+    def __hash__(self):
+        return hash(tuple(self))
+
     def __iter__(self):
         o = self
         if o:

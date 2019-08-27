@@ -1,4 +1,6 @@
-(ns basilisp.core.template)
+(ns basilisp.core.template
+  (:require
+   [basilisp.walk :refer [postwalk-replace]]))
 
 (defmacro do-template
   "Given a template expression expr and bindings, produce a do expression with
@@ -23,6 +25,6 @@
                         (as-> arg-group $
                           (interleave argv $)
                           (apply hash-map $)
-                          (replace $ expr)))]
+                          (postwalk-replace $ expr)))]
     `(do
        ~@(map template-expr arg-groups))) )

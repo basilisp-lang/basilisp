@@ -153,7 +153,7 @@ class BasilispTestItem(pytest.Item):
         if runtime.to_seq(failures):
             raise TestFailuresInfo("Test failures", lmap.map(results))
 
-    def repr_failure(self, excinfo):
+    def repr_failure(self, excinfo, style=None):  # pylint: disable=unused-argument
         """Representation function called when self.runtest() raises an
         exception."""
         if isinstance(excinfo.value, TestFailuresInfo):

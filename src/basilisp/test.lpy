@@ -2,7 +2,7 @@
   (:import
    inspect)
   (:require
-   [basilisp.core.template :refer [do-template]]))
+   [basilisp.core.template :as template]))
 
 (def ^:private collected-tests
   (atom []))
@@ -115,7 +115,7 @@
 (defmacro are
   "Assert that expr is true. Must appear inside of a deftest form."
   [argv expr & args]
-  `(do-template ~argv (is ~expr) ~@args))
+  `(template/do-template ~argv (is ~expr) ~@args))
 
 (defmacro testing
   "Wrapper for test cases to provide additional messaging and context
