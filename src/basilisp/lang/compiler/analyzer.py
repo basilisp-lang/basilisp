@@ -2133,9 +2133,13 @@ def __fuzzy_resolve_namespace_reference(
 
     During macroexpansion, the Analyzer needs to resolve these transitive requirements,
     so we 'fuzzy' resolve against any namespaces known to the current macro namespace."""
+    assert form.ns is not None
+    ns_name = form.ns
 
-    def fuzzy_match(ns_map: Mapping[str, runtime.Namespace]) -> Optional[VarRef]:
-        match: Optional[runtime.Namespace] = ns_map.get(form.ns)
+    def resolve_ns_reference(
+        ns_map: Mapping[str, runtime.Namespace]
+    ) -> Optional[VarRef]:
+        match: Optional[runtime.Namespace] = ns_map.get(ns_name)
         if match is not None:
             v = match.find(sym.symbol(form.name))
             if v is not None:
@@ -2144,7 +2148,7 @@ def __fuzzy_resolve_namespace_reference(
 
     # Try to match a required namespace
     required_namespaces = {ns.name: ns for ns in which_ns.aliases.values()}
-    match = fuzzy_match(required_namespaces)
+    match = resolve_ns_reference(required_namespaces)
     if match is not None:
         return match
 
@@ -2152,7 +2156,7 @@ def __fuzzy_resolve_namespace_reference(
     referred_namespaces = {
         ns.name: ns for ns in {var.ns for var in which_ns.refers.values()}
     }
-    return fuzzy_match(referred_namespaces)
+    return resolve_ns_reference(referred_namespaces)
 
 
 def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
@@ -2165,6 +2169,8 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
     `allow_fuzzy_macroexpansion_matching` is True and no match is made on existing
     imports, import aliases, or namespace aliases, then attempt to match the
     namespace portion"""
+    assert form.ns is not None
+
     ns_sym = sym.symbol(form.ns)
     if ns_sym in which_ns.imports or ns_sym in which_ns.import_aliases:
         # We still import Basilisp code, so we'll want to make sure
