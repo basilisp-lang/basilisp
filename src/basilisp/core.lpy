@@ -337,6 +337,16 @@
   [coll i]
   (basilisp.lang.runtime/nthrest coll i))
 
+(defn nfirst
+  "Return the result of calling (next (first v))."
+  [v]
+  (next (first v)))
+
+(defn nnext
+  "Return the result of calling (next (next v))."
+  [v]
+  (next (next v)))
+
 (defn last
   "Return the last item in a seq, or nil if the seq is empty."
   [s]
@@ -1399,9 +1409,9 @@
   [m]
   (seq (.values m)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Higher Order Functions ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Higher Order and Collection Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmacro lazy-seq
   "Takes a body of expressions which will produce a seq or nil. When
@@ -1533,6 +1543,14 @@
           (recur rem (f assoc-coll k v))
           (f assoc-coll k v))))
     init))
+
+(defn into
+  "Return a new collection created by adding all of the elements of from
+  to the existing to collection, as by conj."
+  ([] [])
+  ([to] to)
+  ([to from]
+   (reduce conj to from)))
 
 (defn comp
   "Return a function which is the composition of all the functions
@@ -1751,6 +1769,11 @@
   ([n coll]
    (map (comp first vector) coll (drop n coll))))
 
+(defn butlast
+  "Return all but the last element in a sequence in linear time."
+  [coll]
+  (drop-last coll))
+
 (defn split-at
   "Split a collection at the nth item. Returns a vector of
   [(take n coll) (drop n coll)]."
@@ -1895,6 +1918,59 @@
            felem (f elem)
            run   (cons elem (take-while #(= felem (f %)) (next coll)))]
        (cons run (partition-by f (seq (drop (count run) coll))))))))
+
+(defn dedupe
+  "Return a lazy sequence of the elements of coll, removing duplicates."
+  [coll]
+  (let [coll-dedupe (fn coll-dedupe
+                      [coll found]
+                      (lazy-seq
+                       (when (seq coll)
+                         (let [e (first coll)]
+                           (if-not (contains? found e)
+                             (cons e (coll-dedupe (rest coll) (conj found e)))
+                             (coll-dedupe (rest coll) found))))))]
+    (coll-dedupe coll #{})))
+
+(defn flatten
+  "Flatten any combination of nested sequences (such as lists or vectors)
+  into a single lazy sequence. Calling flattening on non-sequential values
+  returns an empty sequence."
+  [v]
+  (lazy-seq
+   (when (and (or (seq? v) (seqable? v)) (seq v))
+     (let [e (first v)
+           r (rest v)]
+       (if (or (seq? e) (seqable? e))
+         (concat (flatten e) (flatten r))
+         (cons e (flatten r)))))))
+
+(defn reverse
+  "Return a seq containing the elements in coll in reverse order. The
+  returned sequence is not lazy."
+  [coll]
+  (let [do-reverse (fn do-reverse
+                     [in out]
+                     (if (seq in)
+                       (recur (rest in) (cons (first in) out))
+                       out))]
+    (do-reverse coll '())))
+
+(defn subvec
+  "Return a vector of elements consisting of the elements of v from the index 'start'
+  (inclusive) to index 'end' exclusive, or the end of the vector if no 'end' is
+  supplied."
+  ([v start]
+   (subvec v start nil))
+  ([v start end]
+   (when (> start (count v))
+     (throw (python/IndexError "Start index out of range")))
+   (when-not (nil? end)
+     (when (> end (count v))
+       (throw (python/IndexError "End index out of range")))
+     (when (> start end)
+       (throw (python/IndexError "Start index must be less than or equal to end index"))))
+   (operator/getitem v (python/slice start end))))
 
 (defn min-key
   "Return the arg for which (k arg) is the smallest number.
@@ -2487,6 +2563,21 @@
         (operator/mod fmt (python/dict arg))
         (operator/mod fmt arg)))
     (operator/mod fmt (python/tuple args))))
+
+(defn subs
+  "Return a substring of s from the index 'start' (inclusive) to index 'end'
+  exclusive, or the end of the string if no 'end' is supplied."
+  ([s start]
+   (subs s start nil))
+  ([s start end]
+   (when (> start (count s))
+     (throw (python/IndexError "Start index out of range")))
+   (when-not (nil? end)
+     (when (> end (count s))
+       (throw (python/IndexError "End index out of range")))
+     (when (> start end)
+       (throw (python/IndexError "Start index must be less than or equal to end index"))))
+   (operator/getitem s (python/slice start end))))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Output Utilities ;;

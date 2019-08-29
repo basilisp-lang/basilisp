@@ -54,6 +54,41 @@
   (is (= '(1 :a d 2 :b e)
          (interleave [1 2 3] [:a :b] ['d 'e 'f]))))
 
+(deftest dedupe-test
+  (are [x y] (= x (dedupe y))
+    '() []
+    '(:a :b :c) [:a :b :c]
+    '(:a :b :c) [:a :a :a :b :c]
+    '(:a :b :c) [:a :a :a :b :c :a]))
+
+(deftest flatten-test
+  (are [x y] (= x (flatten y))
+    '() 1
+    '() :a
+    '() ""
+    '() "a string"
+    '(1) [1]
+    '(1) [[1]]
+    '(1) [[[1]]]
+    '(1 2 3) [[[1]] 2 [3]]))
+
+(deftest reverse-test
+  (are [x y] (= x (reverse y))
+    '() []
+    '(1) [1]
+    '(2 1) [1 2]
+    '(1 2 3 4 5) [5 4 3 2 1]
+    '(4 3 2 1) (range 1 5)))
+
+(deftest subvec-test
+  (is (= [] (subvec [] 0)))
+  (is (thrown? python/IndexError (subvec [] 3)))
+  (is (thrown? python/IndexError (subvec [1 2 3 4 5] 6)))
+  (is (= [:l :o :w :o :r :l :d] (subvec [:h :e :l :l :o :w :o :r :l :d] 3)))
+  (is (thrown? python/IndexError (subvec [:h :e :l :l :o :w :o :r :l :d] 3 12)))
+  (is (= [:l :o :w :o] (subvec [:h :e :l :l :o :w :o :r :l :d] 3 7)))
+  (is (thrown? python/IndexError (subvec [:h :e :l :l :o :w :o :r :l :d] 12 3))))
+
 (deftest min-key-test
   (is (= "dsd" (max-key count "asd" "bsd" "dsd")))
   (is (= "long word" (max-key count "asd" "bsd" "dsd" "long word")))
@@ -94,3 +129,12 @@
          (replace [10 9 8 7 6] [0 2 4])))
   (is (= [:zeroth :second :fourth :zeroth]
          (replace [:zeroth :first :second :third :fourth] [0 2 4 0]))))
+
+(deftest subs-test
+  (is (= "" (subs "" 0)))
+  (is (thrown? python/IndexError (subs "" 3)))
+  (is (thrown? python/IndexError (subs "hello" 6)))
+  (is (= "lo world" (subs "hello world" 3)))
+  (is (thrown? python/IndexError (subs "hello world" 3 12)))
+  (is (= "lo w" (subs "hello world" 3 7)))
+  (is (thrown? python/IndexError (subs "hello world" 12 3))))
