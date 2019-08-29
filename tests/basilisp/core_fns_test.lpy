@@ -111,6 +111,17 @@
       (is (= '([1 2 3] [5 5] [:a])
              (sort-by count cmp [[1 2 3] [:a] [5 5]]))))))
 
+(deftest zipmap-test
+  (are [x y z] (= x (zipmap y z))
+    {} [] []
+    {} [:a] []
+    {} [] [1]
+    {:a 1} [:a] [1]
+    {:a 1 :b 2} [:a :b] [1 2]
+    {:a 1 :b 2} [:a :b :c] [1 2]
+    {:a 1 :b 2} [:a :b] [1 2]
+    {:a 0 :b 1} [:a :b] (range)))
+
 (deftest trampoline-test
   (let [a (atom [])]
     (trampoline (fn [v]

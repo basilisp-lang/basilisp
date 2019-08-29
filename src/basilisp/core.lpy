@@ -2001,6 +2001,12 @@
   ([keyfn cmp coll]
    (basilisp.lang.runtime/sort-by keyfn coll cmp)))
 
+(defn zipmap
+  "Return a map with the keys mapped to their corresponding indexed value
+  in vals."
+  [keys vals]
+  (apply hash-map (interleave keys vals)))
+
 (defn merge
   "Merge maps together from left to right as by conj. If a duplicate key
   appears in a map, the rightmost map's value for that key will be taken."
