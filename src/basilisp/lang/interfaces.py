@@ -25,6 +25,10 @@ class IBlockingDeref(IDeref[T]):
         raise NotImplementedError()
 
 
+class ICounted(ABC):
+    __slots__ = ()
+
+
 # Making this interface Generic causes the __repr__ to differ between
 # Python 3.6 and 3.7, which affects a few simple test assertions.
 # Since there is little benefit to this type being Generic, I'm leaving
@@ -231,6 +235,10 @@ class ISeq(ILispObject, ISeqable[T]):
         if o:
             yield o.first
             yield from o.rest
+
+
+class ISequential(ABC):
+    __slots__ = ()
 
 
 class IType(ABC):

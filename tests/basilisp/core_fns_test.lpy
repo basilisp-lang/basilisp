@@ -2,6 +2,60 @@
   (:require
    [basilisp.test :refer [deftest are is testing]]))
 
+(deftest bounded-count-test
+  (are [x n y] (= x (bounded-count n y))
+    0 5 []
+    0 5 '()
+    0 5 {}
+    0 5 #{}
+
+    1 5 [:a]
+    1 5 '(:a)
+    1 5 {:a 1}
+    1 5 #{:a}
+    5 5 (range 5)
+
+    4 2 [:a :b :c :d]
+    2 2 '(:a :b :c :d)
+    4 2 {:a 1 :b 2 :c 3 :d 4}
+    4 2 #{:a :b :c :d}
+    2 2 (range 5)))
+
+(deftest not-empty-test
+  (are [x] (nil? (not-empty x))
+    []
+    '()
+    #{}
+    {})
+  (are [x] (= x (not-empty x))
+    [:a]
+    [:a :b :c]
+    '(:a)
+    '(:a :b :c)
+    #{:a}
+    #{:a :b :c}
+    {:a 1}
+    {:a 1 :b 2 :c :3}))
+
+(deftest peek-test
+  (are [x] (nil? (peek x))
+    []
+    '())
+  (are [x y] (= x (peek y))
+    :a '(:a)
+    :a '(:a :b :c)
+    :a [:a]
+    :c [:a :b :c]))
+
+(deftest pop-test
+  (is (thrown? python/IndexError (pop '())))
+  (is (thrown? python/IndexError (pop [])))
+  (are [x y] (= x (pop y))
+    '() '(:a)
+    '(:b :c) '(:a :b :c)
+    [] [:a]
+    [:a :b] [:a :b :c]))
+
 (deftest reduce-kv-test
   (testing "reduce-kv does not execute f if no elems in coll"
     (let [a (atom false)]
@@ -44,6 +98,17 @@
     (is (= '(:a :b :c) (keep-indexed f [:a :b nil :c])))
     (is (= '(:a :b :c) (keep-indexed f [:a :b nil nil :c])))
     (is (= '(:a :b :c :d) (keep-indexed f [:a :b nil :c nil nil :d])))))
+
+(deftest frequencies-test
+  (are [x y] (= x (frequencies y))
+    {} '()
+    {} []
+    {:a 1} '(:a)
+    {:a 1} [:a]
+    {:a 3 :b 1} '(:a :a :a :b)
+    {:a 3 :b 1} [:a :a :a :b]
+    {:a 4 :b 1 :c 2} '(:a :a :a :b :c :c :a)
+    {:a 4 :b 1 :c 2} [:a :a :a :b :c :c :a]))
 
 (deftest interleave-test
   (is (= '() (interleave)))

@@ -3,7 +3,14 @@ from typing import Callable, Dict, Iterable, Mapping, TypeVar, Union
 
 from pyrsistent import PMap, pmap  # noqa # pylint: disable=unused-import
 
-from basilisp.lang.interfaces import ILispObject, IMapEntry, IMeta, IPersistentMap, ISeq
+from basilisp.lang.interfaces import (
+    ICounted,
+    ILispObject,
+    IMapEntry,
+    IMeta,
+    IPersistentMap,
+    ISeq,
+)
 from basilisp.lang.obj import map_lrepr as _map_lrepr
 from basilisp.lang.seq import sequence
 from basilisp.lang.vector import MapEntry, Vector
@@ -17,7 +24,7 @@ V = TypeVar("V")
 _ENTRY_SENTINEL = object()
 
 
-class Map(ILispObject, IMeta, IPersistentMap[K, V]):
+class Map(ICounted, ILispObject, IMeta, IPersistentMap[K, V]):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""

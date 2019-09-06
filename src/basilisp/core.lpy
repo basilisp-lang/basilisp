@@ -962,10 +962,22 @@
   [x]
   (instance? python/complex x))
 
+(defn counted?
+  "Return true if x can be counted in constant time."
+  [x]
+  (instance? basilisp.lang.interfaces/ICounted x))
+
 (defn decimal?
   "Return true if x is a Decimal."
   [x]
   (instance? decimal/Decimal x))
+
+(defn empty?
+  "Return true if coll is empty (as by '(not (seq coll))).
+
+  Typically, you should prefer the idiom (seq coll) to (not (empty? coll))."
+  [coll]
+  (not (seq coll)))
 
 (defn even?
   "Return true if x is even."
@@ -1121,6 +1133,11 @@
   "Return true if an ISeq can be produced from x."
   [x]
   (instance? basilisp.lang.interfaces/ISeqable x))
+
+(defn sequential?
+  "Return true if x implements ISequential."
+  [x]
+  (instance? basilisp.lang.interfaces/ISequential x))
 
 (defn simple-keyword?
   "Return true if x is a keyword with no namespace."
@@ -1285,6 +1302,79 @@
   [x n]
   (bit-and (bit-shift-right x n) 1))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Collection Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn bounded-count
+  [n coll]
+  (if (counted? coll)
+    (count coll)
+    (let [counter (fn counter
+                    [coll cur]
+                    (cond
+                      (>= cur n)       n
+                      (not (seq coll)) cur
+                      :else            (recur (rest coll) (inc cur))))]
+      (counter coll 0))))
+
+(defn empty
+  "Return an empty collection of the same interface type as coll, or nil."
+  [coll]
+  (when (coll? coll)
+    (.empty coll)))
+
+(defn not-empty
+  "Return coll when coll is not empty, otherwise return nil."
+  [coll]
+  (when (seq coll)
+    coll))
+
+(defn peek
+  "For a list or a queue, return the first element.
+
+  For a vector, return the last element (more efficiently than by last).
+
+  For empty collections, returns nil."
+  [coll]
+  (.peek coll))
+
+(defn pop
+  "For a list or a queue, return a new list without the first element.
+
+  For a vector, return a new vector without the last element.
+
+  If coll is empty, throw an exception."
+  [coll]
+  (.pop coll))
+
+(defn reverse
+  "Return a seq containing the elements in coll in reverse order. The
+  returned sequence is not lazy."
+  [coll]
+  (let [do-reverse (fn do-reverse
+                     [in out]
+                     (if (seq in)
+                       (recur (rest in) (cons (first in) out))
+                       out))]
+    (do-reverse coll '())))
+
+(defn subvec
+  "Return a vector of elements consisting of the elements of v from the index 'start'
+  (inclusive) to index 'end' exclusive, or the end of the vector if no 'end' is
+  supplied."
+  ([v start]
+   (subvec v start nil))
+  ([v start end]
+   (when (> start (count v))
+     (throw (python/IndexError "Start index out of range")))
+   (when-not (nil? end)
+     (when (> end (count v))
+       (throw (python/IndexError "End index out of range")))
+     (when (> start end)
+       (throw (python/IndexError "Start index must be less than or equal to end index"))))
+   (operator/getitem v (python/slice start end))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Associative Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1307,12 +1397,6 @@
   don't exist in m, they are ignored."
   [m & ks]
   (apply (.-dissoc m) ks))
-
-(defn empty
-  "Return an empty collection of the same interface type as coll, or nil."
-  [coll]
-  (when (coll? coll)
-    (.empty coll)))
 
 (defn get
   "Return the entry of m corresponding to k if it exists or nil/default otherwise."
@@ -1786,6 +1870,19 @@
   [pred coll]
   [(take-while pred coll) (drop-while pred coll)])
 
+(defn frequencies
+  "Return a map whose keys are the elements of coll and whose values are
+  the counts for the number of times the key appears in coll."
+  [coll]
+  (if-not (seq coll)
+    {}
+    (reduce (fn [m v]
+              (if (contains? m v)
+                (update m v inc)
+                (assoc m v 1)))
+            {}
+            coll)))
+
 (defn group-by
   "Return a map whose keys are the result of calling f on each element
   in coll and whose values are vectors of the values which produced the
@@ -1959,33 +2056,6 @@
        (if (or (seq? e) (seqable? e))
          (concat (flatten e) (flatten r))
          (cons e (flatten r)))))))
-
-(defn reverse
-  "Return a seq containing the elements in coll in reverse order. The
-  returned sequence is not lazy."
-  [coll]
-  (let [do-reverse (fn do-reverse
-                     [in out]
-                     (if (seq in)
-                       (recur (rest in) (cons (first in) out))
-                       out))]
-    (do-reverse coll '())))
-
-(defn subvec
-  "Return a vector of elements consisting of the elements of v from the index 'start'
-  (inclusive) to index 'end' exclusive, or the end of the vector if no 'end' is
-  supplied."
-  ([v start]
-   (subvec v start nil))
-  ([v start end]
-   (when (> start (count v))
-     (throw (python/IndexError "Start index out of range")))
-   (when-not (nil? end)
-     (when (> end (count v))
-       (throw (python/IndexError "End index out of range")))
-     (when (> start end)
-       (throw (python/IndexError "Start index must be less than or equal to end index"))))
-   (operator/getitem v (python/slice start end))))
 
 (defn min-key
   "Return the arg for which (k arg) is the smallest number.
