@@ -54,12 +54,24 @@
   (is (= '(1 :a d 2 :b e)
          (interleave [1 2 3] [:a :b] ['d 'e 'f]))))
 
-(deftest dedupe-test
-  (are [x y] (= x (dedupe y))
+(deftest distinct-test
+  (are [x y] (= x (distinct y))
     '() []
+    '(:a) [:a]
+    '(:a :b) [:a :b]
     '(:a :b :c) [:a :b :c]
     '(:a :b :c) [:a :a :a :b :c]
     '(:a :b :c) [:a :a :a :b :c :a]))
+
+(deftest dedupe-test
+  (are [x y] (= x (dedupe y))
+    '() []
+    '(:a) [:a]
+    '(:a :b) [:a :b]
+    '(:a :b :c) [:a :b :c]
+    '(:a :b :c) [:a :a :a :b :c]
+    '(:a :b :c :a) [:a :a :a :b :c :a]
+    '(:a :b :c :a) [:a :a :a :b :c :c :a]))
 
 (deftest flatten-test
   (are [x y] (= x (flatten y))

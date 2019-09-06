@@ -1919,18 +1919,33 @@
            run   (cons elem (take-while #(= felem (f %)) (next coll)))]
        (cons run (partition-by f (seq (drop (count run) coll))))))))
 
-(defn dedupe
+(defn distinct
   "Return a lazy sequence of the elements of coll, removing duplicates."
   [coll]
+  (let [coll-distinct (fn coll-distinct
+                        [coll found]
+                        (lazy-seq
+                         (when (seq coll)
+                           (let [e (first coll)]
+                             (if-not (contains? found e)
+                               (cons e (coll-distinct (rest coll) (conj found e)))
+                               (coll-distinct (rest coll) found))))))]
+    (coll-distinct coll #{})))
+
+(defn dedupe
+  "Return a lazy sequence of the elements of coll, removing consecutive duplicates."
+  [coll]
   (let [coll-dedupe (fn coll-dedupe
-                      [coll found]
+                      [coll prev]
                       (lazy-seq
                        (when (seq coll)
                          (let [e (first coll)]
-                           (if-not (contains? found e)
-                             (cons e (coll-dedupe (rest coll) (conj found e)))
-                             (coll-dedupe (rest coll) found))))))]
-    (coll-dedupe coll #{})))
+                           (if-not (= e prev)
+                             (cons e (coll-dedupe (rest coll) e))
+                             (coll-dedupe (rest coll) prev))))))]
+    (lazy-seq
+     (when-let [e (first coll)]
+       (cons e (coll-dedupe (rest coll) e))))))
 
 (defn flatten
   "Flatten any combination of nested sequences (such as lists or vectors)
