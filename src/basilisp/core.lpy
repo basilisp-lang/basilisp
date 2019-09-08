@@ -1129,6 +1129,11 @@
   [x]
   (or (integer? x) (float? x)))
 
+(defn reversible?
+  "Return true if x implements IReversible."
+  [x]
+  (instance? basilisp.lang.interfaces/IReversible x))
+
 (defn seqable?
   "Return true if an ISeq can be produced from x."
   [x]
@@ -1358,6 +1363,19 @@
                        (recur (rest in) (cons (first in) out))
                        out))]
     (do-reverse coll '())))
+
+(defn rseq
+  "Return a sequence of the elements of coll in reverse order in constant
+  time. Only Vectors support this operation."
+  [coll]
+  (.rseq coll))
+
+(defn sequence
+  "Coerces coll to a possibly empty sequence."
+  [coll]
+  (if (seq? coll)
+    coll
+    (or (seq coll) '())))
 
 (defn subvec
   "Return a vector of elements consisting of the elements of v from the index 'start'

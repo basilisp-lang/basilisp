@@ -157,6 +157,43 @@
     '(1 2 3 4 5) [5 4 3 2 1]
     '(4 3 2 1) (range 1 5)))
 
+(deftest reversible?-test
+  (is (reversible? []))
+  (is (reversible? [1 2 3 4]))
+  (are [x] (not (reversible? x))
+    '()
+    '(1 2 3 4)
+    #{}
+    #{1 2 3 4}
+    {}
+    {:a 1 :b 2}))
+
+(deftest rseq-test
+  (are [x] (thrown? python/AttributeError (rseq x))
+    '()
+    '(1 2 3 4)
+    #{}
+    #{1 2 3 4}
+    {}
+    {:a 1 :b 2})
+  (are [x y] (= x (rseq y))
+    '() []
+    '(1) [1]
+    '(2 1) [1 2]
+    '(3 2 1) [1 2 3]
+    '(4 3 2 1) [1 2 3 4]
+    '(:d :c :b :a) [:a :b :c :d]))
+
+(deftest sequence-test
+  (are [x y] (= x (sequence y))
+    '() '()
+    '() []
+    '() #{}
+    '() {}
+    '(0 1 2 3) [0 1 2 3]
+    '(0 1 2 3) '(0 1 2 3)
+    '(0 1 2 3) (range 4)))
+
 (deftest subvec-test
   (is (= [] (subvec [] 0)))
   (is (thrown? python/IndexError (subvec [] 3)))

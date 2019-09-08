@@ -76,6 +76,14 @@ class IMeta(ABC):
 ILispObject = _LispObject
 
 
+class IReversible(Generic[T]):
+    __slots__ = ()
+
+    @abstractmethod
+    def rseq(self) -> "ISeq[T]":  # type: ignore
+        raise NotImplementedError()
+
+
 class ISeqable(Iterable[T]):
     __slots__ = ()
 
