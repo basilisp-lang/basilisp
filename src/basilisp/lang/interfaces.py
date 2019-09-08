@@ -80,7 +80,7 @@ class IReversible(Generic[T]):
     __slots__ = ()
 
     @abstractmethod
-    def rseq(self) -> "ISeq[T]":  # type: ignore
+    def rseq(self) -> "ISeq[T]":
         raise NotImplementedError()
 
 
