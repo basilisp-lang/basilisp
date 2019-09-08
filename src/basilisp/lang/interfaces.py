@@ -25,6 +25,10 @@ class IBlockingDeref(IDeref[T]):
         raise NotImplementedError()
 
 
+class ICounted(ABC):
+    __slots__ = ()
+
+
 # Making this interface Generic causes the __repr__ to differ between
 # Python 3.6 and 3.7, which affects a few simple test assertions.
 # Since there is little benefit to this type being Generic, I'm leaving
@@ -72,12 +76,24 @@ class IMeta(ABC):
 ILispObject = _LispObject
 
 
+class IReversible(Generic[T]):
+    __slots__ = ()
+
+    @abstractmethod
+    def rseq(self) -> "ISeq[T]":
+        raise NotImplementedError()
+
+
 class ISeqable(Iterable[T]):
     __slots__ = ()
 
     @abstractmethod
     def seq(self) -> "ISeq[T]":
         raise NotImplementedError()
+
+
+class ISequential(ABC):
+    __slots__ = ()
 
 
 class ILookup(Generic[K, V], ABC):
@@ -131,11 +147,11 @@ class IPersistentStack(IPersistentCollection[T]):
         raise NotImplementedError()
 
 
-class IPersistentList(IPersistentStack[T]):
+class IPersistentList(ISequential, IPersistentStack[T]):
     __slots__ = ()
 
 
-class IPersistentMap(IAssociative[K, V]):
+class IPersistentMap(ICounted, IAssociative[K, V]):
     __slots__ = ()
 
     @abstractmethod
@@ -143,7 +159,7 @@ class IPersistentMap(IAssociative[K, V]):
         raise NotImplementedError()
 
 
-class IPersistentSet(AbstractSet[T], IPersistentCollection[T]):
+class IPersistentSet(AbstractSet[T], ICounted, IPersistentCollection[T]):
     __slots__ = ()
 
     @abstractmethod
@@ -151,7 +167,14 @@ class IPersistentSet(AbstractSet[T], IPersistentCollection[T]):
         raise NotImplementedError()
 
 
-class IPersistentVector(Sequence[T], IAssociative[int, T], IPersistentStack[T]):
+class IPersistentVector(
+    Sequence[T],
+    IAssociative[int, T],
+    ICounted,
+    IReversible[T],
+    ISequential,
+    IPersistentStack[T],
+):
     __slots__ = ()
 
     @abstractmethod

@@ -104,6 +104,17 @@ class Vector(ILispObject, IMeta, IPersistentVector[T]):
             raise IndexError("Cannot pop an empty vector")
         return self[:-1]
 
+    def rseq(self) -> ISeq[T]:
+        def _reverse_vec() -> Iterable[T]:
+            l = len(self)
+            for i in range(l - 1, 0, -1):
+                yield self._inner[i]
+
+            if l:
+                yield self._inner[0]
+
+        return sequence(_reverse_vec())
+
 
 K = TypeVar("K")
 V = TypeVar("V")
