@@ -3,7 +3,6 @@ from typing import Iterable, Optional, Sequence, TypeVar, Union
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 
 from basilisp.lang.interfaces import (
-    ICounted,
     ILispObject,
     IMapEntry,
     IMeta,
@@ -17,7 +16,7 @@ from basilisp.lang.seq import sequence
 T = TypeVar("T")
 
 
-class Vector(ICounted, ILispObject, IMeta, IPersistentVector[T]):
+class Vector(ILispObject, IMeta, IPersistentVector[T]):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""

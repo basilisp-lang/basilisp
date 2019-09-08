@@ -151,7 +151,7 @@ class IPersistentList(ISequential, IPersistentStack[T]):
     __slots__ = ()
 
 
-class IPersistentMap(IAssociative[K, V]):
+class IPersistentMap(ICounted, IAssociative[K, V]):
     __slots__ = ()
 
     @abstractmethod
@@ -159,7 +159,7 @@ class IPersistentMap(IAssociative[K, V]):
         raise NotImplementedError()
 
 
-class IPersistentSet(AbstractSet[T], IPersistentCollection[T]):
+class IPersistentSet(AbstractSet[T], ICounted, IPersistentCollection[T]):
     __slots__ = ()
 
     @abstractmethod
@@ -168,7 +168,12 @@ class IPersistentSet(AbstractSet[T], IPersistentCollection[T]):
 
 
 class IPersistentVector(
-    Sequence[T], IAssociative[int, T], IReversible[T], ISequential, IPersistentStack[T]
+    Sequence[T],
+    IAssociative[int, T],
+    ICounted,
+    IReversible[T],
+    ISequential,
+    IPersistentStack[T],
 ):
     __slots__ = ()
 
