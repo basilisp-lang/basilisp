@@ -84,6 +84,10 @@ class ISeqable(Iterable[T]):
         raise NotImplementedError()
 
 
+class ISequential(ABC):
+    __slots__ = ()
+
+
 class ILookup(Generic[K, V], ABC):
     __slots__ = ()
 
@@ -135,7 +139,7 @@ class IPersistentStack(IPersistentCollection[T]):
         raise NotImplementedError()
 
 
-class IPersistentList(IPersistentStack[T]):
+class IPersistentList(ISequential, IPersistentStack[T]):
     __slots__ = ()
 
 
@@ -155,7 +159,9 @@ class IPersistentSet(AbstractSet[T], IPersistentCollection[T]):
         raise NotImplementedError()
 
 
-class IPersistentVector(Sequence[T], IAssociative[int, T], IPersistentStack[T]):
+class IPersistentVector(
+    Sequence[T], IAssociative[int, T], IReversible[T], ISequential, IPersistentStack[T]
+):
     __slots__ = ()
 
     @abstractmethod
@@ -235,10 +241,6 @@ class ISeq(ILispObject, ISeqable[T]):
         if o:
             yield o.first
             yield from o.rest
-
-
-class ISequential(ABC):
-    __slots__ = ()
 
 
 class IType(ABC):

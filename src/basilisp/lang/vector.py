@@ -10,7 +10,6 @@ from basilisp.lang.interfaces import (
     IPersistentMap,
     IPersistentVector,
     ISeq,
-    ISequential,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
@@ -18,7 +17,7 @@ from basilisp.lang.seq import sequence
 T = TypeVar("T")
 
 
-class Vector(ICounted, ILispObject, IMeta, ISequential, IPersistentVector[T]):
+class Vector(ICounted, ILispObject, IMeta, IPersistentVector[T]):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""
