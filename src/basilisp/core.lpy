@@ -821,6 +821,29 @@
   [x]
   (instance? basilisp.lang.delay/Delay x))
 
+(defn force
+  "If x is a Delay, returned the possibly cached value of x. Otherwise, return
+  x."
+  [x]
+  (if (delay? x)
+    @x
+    x))
+
+(defn promise
+  "Return a promise object which can be set exactly once using `deliver`.
+  Readers may block waiting for the value of the promise using `@` or `deref`.
+  If the value has already been realized, then reading the value of the
+  promise will not block. Readers may check if the promise has been delivered
+  using `realized?`."
+  []
+  (basilisp.lang.promise/Promise))
+
+(defn deliver
+  "Deliver the value v to the promise p. If p already has a value, then a
+  subsequent call to `deliver` for p will have no effect."
+  [p v]
+  (.deliver p v))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Arithmetic Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
