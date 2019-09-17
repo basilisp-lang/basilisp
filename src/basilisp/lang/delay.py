@@ -37,7 +37,7 @@ class Delay(IDeref[T]):
             return _DelayState(f=state.f, value=state.f(), computed=True)
 
     def deref(self) -> Optional[T]:
-        return self._state.swap(Delay.__deref).value
+        return self._state.swap(self.__deref).value
 
     @property
     def is_realized(self) -> bool:

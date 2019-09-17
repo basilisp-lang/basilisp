@@ -390,6 +390,7 @@ class Namespace:
                     "basilisp.lang.list",
                     "basilisp.lang.map",
                     "basilisp.lang.multifn",
+                    "basilisp.lang.promise",
                     "basilisp.lang.reader",
                     "basilisp.lang.runtime",
                     "basilisp.lang.seq",
