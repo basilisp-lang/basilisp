@@ -821,6 +821,14 @@
   [x]
   (instance? basilisp.lang.delay/Delay x))
 
+(defn force
+  "If x is a Delay, returned the possibly cached value of x. Otherwise, return
+  x."
+  [x]
+  (if (delay? x)
+    @x
+    x))
+
 (defn promise
   "Return a promise object which can be set exactly once using `deliver`.
   Readers may block waiting for the value of the promise using `@` or `deref`.
