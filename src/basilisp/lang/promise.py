@@ -6,13 +6,14 @@ from basilisp.lang.interfaces import IBlockingDeref
 T = TypeVar("T")
 
 
+# pylint: disable=assigning-non-slot
 class Promise(IBlockingDeref[T]):
-    __slots__ = ("_condition", "_is_delivered", "_state")
+    __slots__ = ("_condition", "_is_delivered", "_value")
 
     def __init__(self) -> None:
         self._condition = threading.Condition()
         self._is_delivered = False
-        self._value = None
+        self._value: Optional[T] = None
 
     def deliver(self, value: T):
         with self._condition:
