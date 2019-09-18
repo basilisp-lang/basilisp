@@ -4,7 +4,7 @@ from concurrent.futures import (
     ThreadPoolExecutor as _ThreadPoolExecutor,
     TimeoutError as _TimeoutError,
 )
-from typing import Optional, TypeVar
+from typing import Callable, Optional, TypeVar
 
 import attr
 
@@ -13,9 +13,9 @@ from basilisp.lang.interfaces import IBlockingDeref
 T = TypeVar("T")
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class Future(IBlockingDeref):
-    _future: _Future
+@attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
+class Future(IBlockingDeref[T]):
+    _future: "_Future[T]"
 
     def cancel(self) -> bool:
         return self._future.cancel()
@@ -40,18 +40,26 @@ class Future(IBlockingDeref):
 
 
 class ProcessPoolExecutor(_ProcessPoolExecutor):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, max_workers: Optional[int] = None):
+        super().__init__(max_workers=max_workers)
 
-    def submit(self, fn, *args, **kwargs) -> Future:
+    def submit(  # type: ignore
+        self, fn: Callable[..., T], *args, **kwargs
+    ) -> "Future[T]":
         fut = super().submit(fn, *args, **kwargs)
         return Future(fut)
 
 
 class ThreadPoolExecutor(_ThreadPoolExecutor):
-    def __init__(self):
-        super().__init__(thread_name_prefix="basilisp-futures")
+    def __init__(
+        self,
+        max_workers: Optional[int] = None,
+        thread_name_prefix: str = "basilisp-futures",
+    ):
+        super().__init__(max_workers=max_workers, thread_name_prefix=thread_name_prefix)
 
-    def submit(self, fn, *args, **kwargs) -> Future:
+    def submit(  # type: ignore
+        self, fn: Callable[..., T], *args, **kwargs
+    ) -> "Future[T]":
         fut = super().submit(fn, *args, **kwargs)
         return Future(fut)

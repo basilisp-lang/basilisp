@@ -854,7 +854,7 @@
 (def ^:dynamic *executor-pool*
   (basilisp.lang.futures/ThreadPoolExecutor))
 
-(atexit/register (.-shutdown executor-pool))
+(atexit/register (.-shutdown *executor-pool*))
 
 (defn future-call
   "Call the no args function f in another thread. Returns a Future object.
