@@ -385,6 +385,7 @@ class Namespace:
                     "basilisp.lang.compiler",
                     "basilisp.lang.delay",
                     "basilisp.lang.exception",
+                    "basilisp.lang.futures",
                     "basilisp.lang.interfaces",
                     "basilisp.lang.keyword",
                     "basilisp.lang.list",
