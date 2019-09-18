@@ -13,9 +13,12 @@ from basilisp.lang.interfaces import IBlockingDeref
 T = TypeVar("T")
 
 
-@attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
+@attr.s(auto_attribs=True, cmp=False, frozen=True, repr=False, slots=True)
 class Future(IBlockingDeref[T]):
     _future: "_Future[T]"
+
+    def __repr__(self):  # pragma: no cover
+        return self._future.__repr__()
 
     def cancel(self) -> bool:
         return self._future.cancel()
@@ -39,15 +42,19 @@ class Future(IBlockingDeref[T]):
         return self.done()
 
 
-class ProcessPoolExecutor(_ProcessPoolExecutor):
+# Basilisp's standard Future executor is the `ThreadPoolExecutor`, but since
+# it is set via a dynamic variable, it can be rebound using the binding macro.
+# Callers may wish to use a process pool if they have CPU bound work.
+
+
+class ProcessPoolExecutor(_ProcessPoolExecutor):  # pragma: no cover
     def __init__(self, max_workers: Optional[int] = None):
         super().__init__(max_workers=max_workers)
 
     def submit(  # type: ignore
         self, fn: Callable[..., T], *args, **kwargs
     ) -> "Future[T]":
-        fut = super().submit(fn, *args, **kwargs)
-        return Future(fut)
+        return Future(super().submit(fn, *args, **kwargs))
 
 
 class ThreadPoolExecutor(_ThreadPoolExecutor):
@@ -61,5 +68,4 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
     def submit(  # type: ignore
         self, fn: Callable[..., T], *args, **kwargs
     ) -> "Future[T]":
-        fut = super().submit(fn, *args, **kwargs)
-        return Future(fut)
+        return Future(super().submit(fn, *args, **kwargs))
