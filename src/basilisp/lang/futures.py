@@ -1,4 +1,4 @@
-from concurrent.futures import (  # pylint: disable=unused-import
+from concurrent.futures import (  # noqa # pylint: disable=unused-import
     Future as _Future,
     ProcessPoolExecutor as _ProcessPoolExecutor,
     ThreadPoolExecutor as _ThreadPoolExecutor,
