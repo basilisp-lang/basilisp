@@ -1021,10 +1021,10 @@ def deref(o, timeout_s=None, timeout_val=None):
     timeout_val are supplied, deref will wait at most timeout_s seconds,
     returning timeout_val if timeout_s seconds elapse and o has not
     returned."""
-    if isinstance(o, IDeref):
-        return o.deref()
-    elif isinstance(o, IBlockingDeref):
+    if isinstance(o, IBlockingDeref):
         return o.deref(timeout_s, timeout_val)
+    elif isinstance(o, IDeref):
+        return o.deref()
     raise TypeError(f"Object of type {type(o)} cannot be dereferenced")
 
 
@@ -1341,7 +1341,7 @@ def _with_attrs(**kwargs):
 
 def _fn_with_meta(f, meta: Optional[lmap.Map]):
     """Return a new function with the given meta. If the function f already
-    has a meta map, then merge the """
+    has a meta map, then merge the new meta with the existing meta."""
 
     if not isinstance(meta, lmap.Map):
         raise TypeError("meta must be a map")
