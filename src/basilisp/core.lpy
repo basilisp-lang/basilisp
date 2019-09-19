@@ -2203,29 +2203,29 @@
       (recur (ret))
       ret)))
 
-(defn pcalls
-  "Return a lazy seq of the result of executing the no arg functions fns,
-  which will be evaluated in parallel."
-  [& fns]
-  (map future-call fns))
-
 (defn pmap
   "Apply f as by map, but in parallel using futures. This may only be
   useful for functions which are mainly blocked on IO, since Python
   threads do not allow parallel computation using threads."
   ([f coll]
-   (map #(future (f %)) coll))
+   (map deref (map #(future (f %)) coll)))
   ([f coll & colls]
-   (apply map #(future (f %)) coll colls)))
+   (map deref (apply map #(future (f %)) coll colls))))
+
+(defn pcalls
+  "Return a lazy seq of the result of executing the no arg functions fns,
+  which will be evaluated in parallel."
+  [& fns]
+  (pmap (fn [f] (f)) fns))
 
 (defmacro pvalues
   "Returns a lazy seq of the result of exprs, which will be evaluated in
   parallel."
   [& exprs]
-  `(map future-call
-        [~@(map (fn [expr]
-                  (concat '(fn* []) [expr]))
-                exprs)]))
+  `(pcalls
+    ~@(map (fn [expr]
+             (concat '(fn* []) [expr]))
+           exprs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Random Functions ;;
