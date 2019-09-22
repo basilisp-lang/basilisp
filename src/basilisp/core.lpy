@@ -2203,14 +2203,53 @@
       (recur (ret))
       ret)))
 
+(import* multiprocessing)
+
+(def ^:private pmap-cpu-count
+  (* 2 (multiprocessing/cpu-count)))
+
 (defn pmap
   "Apply f as by map, but in parallel using futures. This may only be
   useful for functions which are mainly blocked on IO, since Python
   threads do not allow parallel computation using threads."
   ([f coll]
-   (map deref (map #(future (f %)) coll)))
+   (let [csize         pmap-cpu-count
+         chunk-futures (fn chunk-futures [coll]
+                         (loop [n       csize
+                                fut-seq nil
+                                coll    coll]
+                           (cond
+                             (not (seq coll))
+                             fut-seq
+
+                             (pos? n)
+                             (recur (dec n)
+                                    (cons (future (f (first coll))) fut-seq)
+                                    (rest coll))
+
+                             :else
+                             (concat fut-seq (lazy-seq (chunk-futures coll))))))]
+     (map deref (chunk-futures coll))))
   ([f coll & colls]
-   (map deref (apply map #(future (f %)) coll colls))))
+   (let [csize         pmap-cpu-count
+         chunk-futures (fn chunk-futures [coll & colls]
+                         (loop [n       csize
+                                fut-seq nil
+                                coll    coll
+                                colls   colls]
+                           (cond
+                             (and (seq coll) (every? seq colls))
+                             fut-seq
+
+                             (pos? n)
+                             (recur (dec n)
+                                    (cons (future (apply f (first coll) (map first colls))) fut-seq)
+                                    (rest coll)
+                                    (map rest colls))
+
+                             :else
+                             (concat fut-seq (lazy-seq (chunk-futures coll colls))))))]
+     (map deref (apply chunk-futures coll colls)))))
 
 (defn pcalls
   "Return a lazy seq of the result of executing the no arg functions fns,
