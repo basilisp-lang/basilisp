@@ -2205,15 +2205,25 @@
 
 (import* multiprocessing)
 
-(def ^:private pmap-cpu-count
+(def ^:dynamic *pmap-cpu-count*
   (* 2 (multiprocessing/cpu-count)))
 
 (defn pmap
-  "Apply f as by map, but in parallel using futures. This may only be
-  useful for functions which are mainly blocked on IO, since Python
-  threads do not allow parallel computation using threads."
+  "Apply f as by map, but in parallel using futures.
+
+  This may only be useful for functions which are mainly blocked on IO, since
+  Python threads do not allow parallel computation using threads.
+
+  This function is not fully lazy. Chunks of elements from the input collection
+  are grabbed eagerly to spawn Futures of `f`. Elements after the chunk size in
+  the input collection are grabbed lazily. The chunk size is set by
+  `*pmap-cpu-count*` and defaults to 2 times the number of CPU cores on the
+  machine; the value of `*pmap-cpu-count*` is captured when `pmap` is first
+  called, so it should be safe to bind in the initial calling thread. The
+  sequence of futures is fed into a final (fully lazy) sequence to deref the
+  Future and return its final value."
   ([f coll]
-   (let [csize         pmap-cpu-count
+   (let [csize         *pmap-cpu-count*
          chunk-futures (fn chunk-futures [coll]
                          (loop [n       csize
                                 fut-seq nil
@@ -2231,7 +2241,7 @@
                              (concat fut-seq (lazy-seq (chunk-futures coll))))))]
      (map deref (chunk-futures coll))))
   ([f coll & colls]
-   (let [csize         pmap-cpu-count
+   (let [csize         *pmap-cpu-count*
          chunk-futures (fn chunk-futures [coll & colls]
                          (loop [n       csize
                                 fut-seq nil
