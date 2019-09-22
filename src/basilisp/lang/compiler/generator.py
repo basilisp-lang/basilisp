@@ -1595,7 +1595,7 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
         ):
             loop_body_ast: List[ast.AST] = []
             body_ast = _synthetic_do_to_py_ast(ctx, node.body)
-            loop_body_ast.extend(body_ast.dependencies)
+            loop_body_ast.extend(map(statementize, body_ast.dependencies))
             loop_body_ast.append(
                 ast.Assign(
                     targets=[ast.Name(id=loop_result_name, ctx=ast.Store())],
