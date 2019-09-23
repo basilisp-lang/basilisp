@@ -282,3 +282,39 @@
       (is (= false (future-done? fut)))
       ;; can't always cancel a sleep-ed Future
       (future-cancel fut))))
+
+(deftest pmap-test
+  (binding [*pmap-cpu-count* 2]
+    (let [slow (fn slow [x]
+                 (time/sleep 0.5)
+                 (+ x 10))]
+      (is (= [] (vec (pmap slow []))))
+      (is (= [11] (vec (pmap slow [1]))))
+      (is (= [11 12 13 14 15 16 17 18 19]
+             (vec (pmap slow (range 1 10))))))))
+
+(deftest pcalls-test
+  (binding [*pmap-cpu-count* 2]
+    (let [slow (fn slow [x]
+                 (time/sleep 0.5)
+                 (+ x 10))]
+      (is (= [] (vec (pcalls))))
+      (is (= [11] (vec (pcalls #(slow 1)))))
+      (is (= [11 12 13 14]
+             (vec (pcalls #(slow 1)
+                          #(slow 2)
+                          #(slow 3)
+                          #(slow 4))))))))
+
+(deftest pvalues-test
+  (binding [*pmap-cpu-count* 2]
+    (let [slow (fn slow [x]
+                 (time/sleep 0.5)
+                 (+ x 10))]
+      (is (= [] (vec (pvalues))))
+      (is (= [11] (vec (pvalues (slow 1)))))
+      (is (= [11 12 13 14]
+             (vec (pvalues (slow 1)
+                           (slow 2)
+                           (slow 3)
+                           (slow 4))))))))
