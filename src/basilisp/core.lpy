@@ -2226,15 +2226,15 @@
    (let [csize         *pmap-cpu-count*
          chunk-futures (fn chunk-futures [coll]
                          (loop [n       csize
-                                fut-seq nil
+                                fut-seq []
                                 coll    coll]
                            (cond
                              (not (seq coll))
-                             fut-seq
+                             (seq fut-seq)
 
                              (pos? n)
                              (recur (dec n)
-                                    (cons (future (f (first coll))) fut-seq)
+                                    (conj fut-seq (future (f (first coll))))
                                     (rest coll))
 
                              :else
@@ -2244,16 +2244,16 @@
    (let [csize         *pmap-cpu-count*
          chunk-futures (fn chunk-futures [coll & colls]
                          (loop [n       csize
-                                fut-seq nil
+                                fut-seq []
                                 coll    coll
                                 colls   colls]
                            (cond
                              (and (seq coll) (every? seq colls))
-                             fut-seq
+                             (seq fut-seq)
 
                              (pos? n)
                              (recur (dec n)
-                                    (cons (future (apply f (first coll) (map first colls))) fut-seq)
+                                    (conj fut-seq (future (apply f (first coll) (map first colls))))
                                     (rest coll)
                                     (map rest colls))
 
