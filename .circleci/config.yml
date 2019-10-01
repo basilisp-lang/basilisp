@@ -2,7 +2,7 @@ version: 2
 jobs:
   test-cpython:
     docker:
-      - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.5
+      - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.6
         user: pyenv
     steps:
       - checkout
