@@ -1,7 +1,7 @@
 import importlib
 import os.path
 import sys
-from multiprocessing import Process
+from multiprocessing import Process, get_start_method
 from tempfile import TemporaryDirectory
 from typing import Optional, Tuple
 from unittest.mock import patch
@@ -72,6 +72,23 @@ def test_demunged_import(testdir: Testdir):
 def _ns_and_module(filename: str) -> Tuple[str, str]:
     basename = os.path.splitext(os.path.basename(filename))[0]
     return demunge(basename), basename
+
+
+if get_start_method() != "fork":
+
+    # If `multiprocessing` starts a process using a method other than "fork",
+    # the `basilisp.core` namespace will not be loaded in the child process.
+
+    def _import_module(name):
+        """Import a module after initializing `basilisp.core` in the child process."""
+        from basilisp.main import init
+
+        init()
+        importlib.import_module(name)
+
+
+else:
+    _import_module = importlib.import_module
 
 
 class TestImporter:
@@ -200,7 +217,7 @@ class TestImporter:
 
         # Import the module out of the current process to avoid having to
         # monkeypatch sys.modules
-        p = Process(target=importlib.import_module, args=(munge(cached_module_ns),))
+        p = Process(target=_import_module, args=(munge(cached_module_ns),))
         p.start()
         p.join()
         return os.path.join(*file_path)
