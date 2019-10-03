@@ -1,6 +1,15 @@
 import itertools
 from abc import ABC, abstractmethod
-from typing import AbstractSet, Generic, Iterable, Iterator, Mapping, Optional, Sequence, TypeVar
+from typing import (
+    AbstractSet,
+    Generic,
+    Iterable,
+    Iterator,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 from basilisp.lang.obj import LispObject as _LispObject, seq_lrepr
 
