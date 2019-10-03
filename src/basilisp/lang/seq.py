@@ -156,16 +156,6 @@ class LazySeq(ISeq[T]):
     def is_realized(self):
         return self._realized
 
-    def __iter__(self):
-        o = self
-        if o:
-            first = o.first
-            if isinstance(o, LazySeq):
-                if o.is_empty:
-                    return
-            yield first
-            yield from o.rest
-
 
 def sequence(s: Iterable) -> ISeq[Any]:
     """Create a Sequence from Iterable s."""
