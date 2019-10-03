@@ -1260,6 +1260,7 @@ def test_range():
     assert llist.l(1, 2, 3, 4, 5) == core.range_(1, 6)
     assert llist.l(1, 3, 5, 7, 9) == core.range_(1, 11, 2)
     # assert llist.l(1, -1, -3, -5, -7, -9) == core.range_(1, -10, -2)
+    assert 9999 == len(core.vec(core.range_(1, 10000)))
 
 
 def test_constantly():

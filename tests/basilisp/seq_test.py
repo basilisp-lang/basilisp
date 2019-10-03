@@ -1,5 +1,6 @@
 import basilisp.lang.list as llist
 import basilisp.lang.seq as lseq
+import basilisp.lang.vector as vec
 
 
 def test_to_sequence():
@@ -93,3 +94,11 @@ def test_sequence():
     assert 2 == s.rest.first
     assert 3 == s.rest.rest.first
     assert None is s.rest.rest.rest.first
+
+
+def test_seq_iterator():
+    s = lseq.sequence([])
+    assert vec.Vector.empty() == vec.vector(s)
+
+    s = lseq.sequence(range(10000))
+    assert 10000 == len(vec.vector(s))
