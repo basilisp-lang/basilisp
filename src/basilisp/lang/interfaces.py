@@ -1,6 +1,15 @@
 import itertools
 from abc import ABC, abstractmethod
-from typing import AbstractSet, Generic, Iterable, Mapping, Optional, Sequence, TypeVar
+from typing import (
+    AbstractSet,
+    Generic,
+    Iterable,
+    Iterator,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 from basilisp.lang.obj import LispObject as _LispObject, seq_lrepr
 
@@ -212,6 +221,30 @@ class IRecord(ILispObject):
 class ISeq(ILispObject, ISeqable[T]):
     __slots__ = ()
 
+    class _SeqIter(Iterator[T]):
+        """Stateful iterator for sequence types.
+
+        This is primarily useful for avoiding blowing the stack on a long (or infinite)
+        sequence. It is not safe to use `yield` statements to iterate over sequences,
+        since they accrete one Python stack frame per sequence element."""
+
+        __slots__ = ("_cur",)
+
+        def __init__(self, seq: "ISeq[T]"):
+            self._cur = seq
+
+        def __next__(self):
+            if not self._cur:
+                raise StopIteration
+            v = self._cur.first
+            if self._cur.is_empty:
+                raise StopIteration
+            self._cur = self._cur.rest
+            return v
+
+        def __repr__(self):  # pragma: no cover
+            return repr(self._cur)
+
     @property
     @abstractmethod
     def is_empty(self) -> bool:
@@ -250,10 +283,7 @@ class ISeq(ILispObject, ISeqable[T]):
         return hash(tuple(self))
 
     def __iter__(self):
-        o = self
-        if o:
-            yield o.first
-            yield from o.rest
+        return self._SeqIter(self)
 
 
 class IType(ABC):

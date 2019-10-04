@@ -75,7 +75,7 @@ class _Sequence(ISeq[T]):
 
     __slots__ = ("_first", "_seq", "_rest")
 
-    def __init__(self, s: Iterator, first: T) -> None:
+    def __init__(self, s: Iterator[T], first: T) -> None:
         self._seq = s  # pylint:disable=assigning-non-slot
         self._first = first  # pylint:disable=assigning-non-slot
         self._rest: Optional[ISeq] = None  # pylint:disable=assigning-non-slot
@@ -155,16 +155,6 @@ class LazySeq(ISeq[T]):
     @property
     def is_realized(self):
         return self._realized
-
-    def __iter__(self):
-        o = self
-        if o:
-            first = o.first
-            if isinstance(o, LazySeq):
-                if o.is_empty:
-                    return
-            yield first
-            yield from o.rest
 
 
 def sequence(s: Iterable) -> ISeq[Any]:
