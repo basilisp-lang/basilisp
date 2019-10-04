@@ -1,5 +1,5 @@
 import sys
-from ast import (  # type: ignore  # noqa
+from ast import (  # noqa
     AST,
     Add,
     And,

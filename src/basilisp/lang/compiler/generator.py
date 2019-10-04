@@ -2505,31 +2505,31 @@ def _const_vec_to_py_ast(ctx: GeneratorContext, form: vec.Vector) -> GeneratedPy
     )
 
 
-_CONST_VALUE_HANDLERS: Mapping[Type, SimplePyASTGenerator] = {  # type: ignore
+_CONST_VALUE_HANDLERS: Mapping[Type, SimplePyASTGenerator] = {
     bool: _name_const_to_py_ast,
     complex: _num_to_py_ast,
     datetime: _inst_to_py_ast,
     Decimal: _decimal_to_py_ast,
-    dict: _const_py_dict_to_py_ast,
+    dict: _const_py_dict_to_py_ast,  # type: ignore
     float: _num_to_py_ast,
     Fraction: _fraction_to_py_ast,
     int: _num_to_py_ast,
     kw.Keyword: _kw_to_py_ast,
-    list: _const_py_list_to_py_ast,
-    llist.List: _const_seq_to_py_ast,
-    lmap.Map: _const_map_to_py_ast,
-    lset.Set: _const_set_to_py_ast,
-    IRecord: _const_record_to_py_ast,
-    ISeq: _const_seq_to_py_ast,
-    IType: _const_type_to_py_ast,
+    list: _const_py_list_to_py_ast,  # type: ignore
+    llist.List: _const_seq_to_py_ast,  # type: ignore
+    lmap.Map: _const_map_to_py_ast,  # type: ignore
+    lset.Set: _const_set_to_py_ast,  # type: ignore
+    IRecord: _const_record_to_py_ast,  # type: ignore
+    ISeq: _const_seq_to_py_ast,  # type: ignore
+    IType: _const_type_to_py_ast,  # type: ignore
     type(re.compile("")): _regex_to_py_ast,
-    set: _const_py_set_to_py_ast,
-    sym.Symbol: _const_sym_to_py_ast,
+    set: _const_py_set_to_py_ast,  # type: ignore
+    sym.Symbol: _const_sym_to_py_ast,  # type: ignore
     str: _str_to_py_ast,
-    tuple: _const_py_tuple_to_py_ast,
+    tuple: _const_py_tuple_to_py_ast,  # type: ignore
     type(None): _name_const_to_py_ast,
     uuid.UUID: _uuid_to_py_ast,
-    vec.Vector: _const_vec_to_py_ast,
+    vec.Vector: _const_vec_to_py_ast,  # type: ignore
 }
 
 
@@ -2563,28 +2563,28 @@ def _collection_literal_to_py_ast(
     yield from map(partial(_const_val_to_py_ast, ctx), form)
 
 
-_CONSTANT_HANDLER: Mapping[ConstType, SimplePyASTGenerator] = {  # type: ignore
+_CONSTANT_HANDLER: Mapping[ConstType, SimplePyASTGenerator] = {
     ConstType.BOOL: _name_const_to_py_ast,
     ConstType.INST: _inst_to_py_ast,
     ConstType.NUMBER: _num_to_py_ast,
     ConstType.DECIMAL: _decimal_to_py_ast,
     ConstType.FRACTION: _fraction_to_py_ast,
     ConstType.KEYWORD: _kw_to_py_ast,
-    ConstType.MAP: _const_map_to_py_ast,
-    ConstType.SET: _const_set_to_py_ast,
-    ConstType.RECORD: _const_record_to_py_ast,
-    ConstType.SEQ: _const_seq_to_py_ast,
-    ConstType.TYPE: _const_type_to_py_ast,
+    ConstType.MAP: _const_map_to_py_ast,  # type: ignore
+    ConstType.SET: _const_set_to_py_ast,  # type: ignore
+    ConstType.RECORD: _const_record_to_py_ast,  # type: ignore
+    ConstType.SEQ: _const_seq_to_py_ast,  # type: ignore
+    ConstType.TYPE: _const_type_to_py_ast,  # type: ignore
     ConstType.REGEX: _regex_to_py_ast,
-    ConstType.SYMBOL: _const_sym_to_py_ast,
+    ConstType.SYMBOL: _const_sym_to_py_ast,  # type: ignore
     ConstType.STRING: _str_to_py_ast,
     ConstType.NIL: _name_const_to_py_ast,
     ConstType.UUID: _uuid_to_py_ast,
-    ConstType.PY_DICT: _const_py_dict_to_py_ast,
-    ConstType.PY_LIST: _const_py_list_to_py_ast,
-    ConstType.PY_SET: _const_py_set_to_py_ast,
-    ConstType.PY_TUPLE: _const_py_tuple_to_py_ast,
-    ConstType.VECTOR: _const_vec_to_py_ast,
+    ConstType.PY_DICT: _const_py_dict_to_py_ast,  # type: ignore
+    ConstType.PY_LIST: _const_py_list_to_py_ast,  # type: ignore
+    ConstType.PY_SET: _const_py_set_to_py_ast,  # type: ignore
+    ConstType.PY_TUPLE: _const_py_tuple_to_py_ast,  # type: ignore
+    ConstType.VECTOR: _const_vec_to_py_ast,  # type: ignore
 }
 
 
@@ -2603,7 +2603,7 @@ def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: Const) -> GeneratedPy
     return handle_const_node(ctx, node_val)
 
 
-_NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {  # type: ignore
+_NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.AWAIT: _await_to_py_ast,
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,
@@ -2616,7 +2616,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.IMPORT: _import_to_py_ast,
     NodeOp.INVOKE: _invoke_to_py_ast,
     NodeOp.LET: _let_to_py_ast,
-    NodeOp.LETFN: None,
+    NodeOp.LETFN: None,  # type: ignore
     NodeOp.LOCAL: _local_sym_to_py_ast,
     NodeOp.LOOP: _loop_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
@@ -2627,14 +2627,14 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {  # type: ignore
     NodeOp.PY_SET: _py_set_to_py_ast,
     NodeOp.PY_TUPLE: _py_tuple_to_py_ast,
     NodeOp.QUOTE: _quote_to_py_ast,
-    NodeOp.RECUR: _recur_to_py_ast,
+    NodeOp.RECUR: _recur_to_py_ast,  # type: ignore
     NodeOp.SET: _set_to_py_ast,
     NodeOp.SET_BANG: _set_bang_to_py_ast,
     NodeOp.THROW: _throw_to_py_ast,
     NodeOp.TRY: _try_to_py_ast,
     NodeOp.VAR: _var_sym_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
-    NodeOp.WITH_META: _with_meta_to_py_ast,
+    NodeOp.WITH_META: _with_meta_to_py_ast,  # type: ignore
 }
 
 
