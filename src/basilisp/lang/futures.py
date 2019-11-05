@@ -10,10 +10,18 @@ import attr
 
 from basilisp.lang.interfaces import IBlockingDeref
 
+_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
+
 T = TypeVar("T")
 
 
-@attr.s(auto_attribs=True, cmp=False, frozen=True, repr=False, slots=True)
+@attr.s(  # type: ignore
+    auto_attribs=True,
+    **({"eq": True} if _CMP_OFF else {"cmp": False}),
+    frozen=True,
+    repr=False,
+    slots=True,
+)
 class Future(IBlockingDeref[T]):
     _future: "_Future[T]"
 
