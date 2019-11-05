@@ -82,7 +82,7 @@ class TestFailuresInfo(Exception):
         return self._msg
 
 
-TestFunction = Callable[[], Optional[vec.Vector]]
+TestFunction = Callable[[], lmap.Map]
 
 
 class BasilispFile(pytest.File):
