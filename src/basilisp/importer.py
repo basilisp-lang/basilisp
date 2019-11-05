@@ -57,7 +57,8 @@ def _get_basilisp_bytecode(
     raw_size = cache_data[8:12]
     if magic != MAGIC_NUMBER:
         message = (
-            f"Incorrect magic number ({magic}) in {fullname}; expected {MAGIC_NUMBER}"
+            f"Incorrect magic number ({magic!r}) in {fullname}; "
+            f"expected {MAGIC_NUMBER!r}"
         )
         logger.debug(message)
         raise ImportError(message, **exc_details)  # type: ignore

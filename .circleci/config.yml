@@ -2,7 +2,7 @@ version: 2
 jobs:
   test-cpython:
     docker:
-      - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.6
+      - image: chrisrink10/pyenv:3.6-3.7-3.8-0.0.1
         user: pyenv
     steps:
       - checkout
@@ -32,7 +32,7 @@ jobs:
 
   test-pypy:
     docker:
-      - image: pypy:3.6-7.1-slim-stretch
+      - image: pypy:3.6-7.2-slim-stretch
     steps:
       - checkout
       - restore_cache:

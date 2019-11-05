@@ -1,5 +1,5 @@
 from builtins import map as pymap
-from typing import Callable, Dict, Iterable, Mapping, TypeVar, Union
+from typing import Callable, Dict, Iterable, Mapping, TypeVar, Union, cast
 
 from pyrsistent import PMap, pmap  # noqa # pylint: disable=unused-import
 
@@ -96,7 +96,7 @@ class Map(ILispObject, IMeta, IPersistentMap[K, V]):
         return Map(m.persistent())
 
     def entry(self, k):
-        v = self._inner.get(k, _ENTRY_SENTINEL)
+        v = self._inner.get(k, cast("V", _ENTRY_SENTINEL))
         if v is _ENTRY_SENTINEL:
             return None
         return MapEntry.of(k, v)
