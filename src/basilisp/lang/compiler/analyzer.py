@@ -496,7 +496,7 @@ def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
     value by meta_kw."""
 
     def has_meta_prop(o: Union[IMeta, Var]) -> bool:
-        return (  # type: ignore
+        return bool(
             Maybe(o.meta).map(lambda m: m.val_at(meta_kw, None)).or_else_get(False)
         )
 

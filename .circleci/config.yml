@@ -2,12 +2,12 @@ version: 2
 jobs:
   test-cpython:
     docker:
-      - image: chrisrink10/pyenv:3.6-3.7-3.8dev-0.0.6
+      - image: chrisrink10/pyenv:3.6-3.7-3.8-0.0.1
         user: pyenv
     steps:
       - checkout
       - restore_cache:
-          key: deps-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          key: deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: Install tox
           shell: /bin/bash -leo pipefail
@@ -22,7 +22,7 @@ jobs:
           command: |
             tox -p $TOX_NUM_CORES -e py36,py37,py38,coverage,mypy,format,lint,safety
       - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
             - "/home/pyenv/.tox"
             - "/usr/local/bin"
@@ -32,11 +32,11 @@ jobs:
 
   test-pypy:
     docker:
-      - image: pypy:3.6-7.1-slim-stretch
+      - image: pypy:3.6-7.2-slim-stretch
     steps:
       - checkout
       - restore_cache:
-          key: deps-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          key: deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: Install tox
           command: |
@@ -46,7 +46,7 @@ jobs:
           command: |
             tox -e pypy3
       - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
             - "/home/pyenv/.tox"
             - "/usr/local/bin"

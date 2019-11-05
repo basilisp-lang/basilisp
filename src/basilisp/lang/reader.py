@@ -611,7 +611,7 @@ MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
 
 
 def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
-    ctx: ReaderContext
+    ctx: ReaderContext,
 ) -> MaybeNumber:
     """Return a numeric (complex, Decimal, float, int, Fraction) from the input stream."""
     chars: List[str] = []

@@ -25,6 +25,8 @@ from basilisp.lang.runtime import Namespace, Var, to_lisp
 from basilisp.lang.typing import LispForm, ReaderForm as ReaderLispForm, SpecialForm
 from basilisp.lang.util import munge
 
+_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
+
 BODY = kw.keyword("body")
 CLASS = kw.keyword("class")
 LOCAL = kw.keyword("local")
@@ -623,7 +625,12 @@ class StaticMethod(DefTypeMember):
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
-@attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
+@attr.s(  # type: ignore
+    auto_attribs=True,
+    **({"eq": True} if _CMP_OFF else {"cmp": False}),
+    frozen=True,
+    slots=True,
+)
 class PyDict(Node[dict]):
     form: dict
     keys: Iterable[Node]
@@ -635,7 +642,12 @@ class PyDict(Node[dict]):
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
-@attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
+@attr.s(  # type: ignore
+    auto_attribs=True,
+    **({"eq": True} if _CMP_OFF else {"cmp": False}),
+    frozen=True,
+    slots=True,
+)
 class PyList(Node[list]):
     form: list
     items: Iterable[Node]
@@ -646,7 +658,12 @@ class PyList(Node[list]):
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
-@attr.s(auto_attribs=True, cmp=False, frozen=True, slots=True)
+@attr.s(  # type: ignore
+    auto_attribs=True,
+    **({"eq": True} if _CMP_OFF else {"cmp": False}),
+    frozen=True,
+    slots=True,
+)
 class PySet(Node[Union[frozenset, set]]):
     form: Union[frozenset, set]
     items: Iterable[Node]

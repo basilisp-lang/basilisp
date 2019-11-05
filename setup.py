@@ -9,7 +9,7 @@ import os
 import sys
 from shutil import rmtree
 
-from setuptools import setup, Command, find_packages
+from setuptools import Command, find_packages, setup
 
 # Package metadata
 NAME = "basilisp"
@@ -121,6 +121,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Software Development :: Compilers",

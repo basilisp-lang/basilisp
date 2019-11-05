@@ -243,7 +243,7 @@ class Var(IDeref):
 
     @property
     def is_thread_bound(self):
-        return bool(self._dynamic and self._tl.bindings)
+        return bool(self._dynamic and self._tl and self._tl.bindings)
 
     @property
     def value(self):
