@@ -135,7 +135,7 @@ class LazySeq(IWithMeta, ISeq[T]):
     with a function that can either return None or a Seq. If a Seq is returned,
     the LazySeq is a proxy to that Seq."""
 
-    __slots__ = ("_gen", "_realized", "_seq")
+    __slots__ = ("_gen", "_realized", "_seq", "_meta")
 
     # pylint:disable=assigning-non-slot
     def __init__(
