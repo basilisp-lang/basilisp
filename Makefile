@@ -39,4 +39,4 @@ pypy-shell:
 .PHONY: test
 test:
 	@rm -f .coverage*
-	@TOX_SKIP_ENV='pypy3' pipenv run tox -p 4
+	@TOX_SKIP_ENV='pypy3|safety|coverage' pipenv run tox -p 4

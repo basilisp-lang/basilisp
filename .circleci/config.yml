@@ -19,8 +19,9 @@ jobs:
           environment:
             TOX_NUM_CORES: 2
             TOX_SHOW_OUTPUT: "True"
+            TOX_SKIP_ENV: pypy3
           command: |
-            tox -p $TOX_NUM_CORES -e py36,py37,py38,coverage,mypy,format,lint,safety
+            tox -p $TOX_NUM_CORES
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
