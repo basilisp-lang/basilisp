@@ -4,10 +4,10 @@ from pyrsistent import PSet, pset  # noqa # pylint: disable=unused-import
 
 from basilisp.lang.interfaces import (
     ILispObject,
-    IMeta,
     IPersistentMap,
     IPersistentSet,
     ISeq,
+    IWithMeta,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
@@ -15,7 +15,7 @@ from basilisp.lang.seq import sequence
 T = TypeVar("T")
 
 
-class Set(IMeta, ILispObject, IPersistentSet[T]):
+class Set(IWithMeta, ILispObject, IPersistentSet[T]):
     """Basilisp Set. Delegates internally to a pyrsistent.PSet object.
 
     Do not instantiate directly. Instead use the s() and set() factory

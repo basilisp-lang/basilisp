@@ -78,8 +78,12 @@ class IMeta(ABC):
     def meta(self) -> Optional["IPersistentMap"]:
         raise NotImplementedError()
 
+
+class IWithMeta(IMeta):
+    __slots__ = ()
+
     @abstractmethod
-    def with_meta(self, meta: "IPersistentMap") -> "IMeta":
+    def with_meta(self, meta: "IPersistentMap") -> "IWithMeta":
         raise NotImplementedError()
 
 
@@ -87,6 +91,8 @@ ILispObject = _LispObject
 
 
 class IReference(IMeta):
+    __slots__ = ()
+
     @abstractmethod
     def alter_meta(self, f: Callable[..., "IPersistentMap"], *args) -> "IPersistentMap":
         raise NotImplementedError()

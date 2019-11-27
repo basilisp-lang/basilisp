@@ -42,6 +42,7 @@ from basilisp.lang.interfaces import (
     IPersistentMap,
     IPersistentSet,
     IPersistentVector,
+    IReference,
     ISeq,
     ISeqable,
 )
@@ -140,7 +141,7 @@ class _VarBindings(threading.local):
         self.bindings: List = []
 
 
-class Var(IDeref):
+class Var(IDeref, IReference):
     __slots__ = (
         "_name",
         "_ns",
@@ -153,7 +154,11 @@ class Var(IDeref):
     )
 
     def __init__(
-        self, ns: "Namespace", name: sym.Symbol, dynamic: bool = False, meta=None
+        self,
+        ns: "Namespace",
+        name: sym.Symbol,
+        dynamic: bool = False,
+        meta: Optional[IPersistentMap] = None,
     ) -> None:
         self._ns = ns
         self._name = name
@@ -180,11 +185,18 @@ class Var(IDeref):
 
     @property
     def meta(self):
-        return self._meta
+        with self._lock:
+            return self._meta
 
-    @meta.setter
-    def meta(self, meta):
-        self._meta = meta
+    def alter_meta(self, f: Callable[..., IPersistentMap], *args) -> IPersistentMap:
+        with self._lock:
+            self._meta = f(self._meta, *args)
+            return self._meta
+
+    def reset_meta(self, meta: IPersistentMap) -> IPersistentMap:
+        with self._lock:
+            self._meta = meta
+            return meta
 
     @property
     def ns(self) -> "Namespace":
@@ -345,7 +357,7 @@ NamespaceMap = lmap.Map[sym.Symbol, "Namespace"]
 VarMap = lmap.Map[sym.Symbol, Var]
 
 
-class Namespace:
+class Namespace(IReference):
     """Namespaces serve as organizational units in Basilisp code, just as
     they do in Clojure code. Vars are mutable containers for functions and
     data which may be interned in a namespace and referred to by a Symbol.
@@ -409,6 +421,8 @@ class Namespace:
     __slots__ = (
         "_name",
         "_module",
+        "_meta",
+        "_lock",
         "_interns",
         "_refers",
         "_aliases",
@@ -419,6 +433,9 @@ class Namespace:
     def __init__(self, name: sym.Symbol, module: types.ModuleType = None) -> None:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
+
+        self._meta: Optional[IPersistentMap] = None
+        self._lock = threading.Lock()
 
         self._aliases: Atom[NamespaceMap] = Atom(lmap.Map.empty())
         self._imports: Atom[ModuleMap] = Atom(
@@ -460,6 +477,21 @@ class Namespace:
         This should only be done by basilisp.importer code to make sure the
         correct module is generated for `basilisp.core`."""
         self._module = m
+
+    @property
+    def meta(self) -> Optional["IPersistentMap"]:
+        with self._lock:
+            return self._meta
+
+    def alter_meta(self, f: Callable[..., IPersistentMap], *args) -> IPersistentMap:
+        with self._lock:
+            self._meta = f(self._meta, *args)
+            return self._meta
+
+    def reset_meta(self, meta: IPersistentMap) -> IPersistentMap:
+        with self._lock:
+            self._meta = meta
+            return meta
 
     @property
     def aliases(self) -> NamespaceMap:

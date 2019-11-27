@@ -3,14 +3,14 @@ from typing import Optional, TypeVar, cast
 from pyrsistent import PList, plist  # noqa # pylint: disable=unused-import
 from pyrsistent._plist import _EMPTY_PLIST
 
-from basilisp.lang.interfaces import IMeta, IPersistentList, IPersistentMap, ISeq
+from basilisp.lang.interfaces import IPersistentList, IPersistentMap, ISeq, IWithMeta
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import EMPTY
 
 T = TypeVar("T")
 
 
-class List(IMeta, ISeq[T], IPersistentList[T]):
+class List(IWithMeta, ISeq[T], IPersistentList[T]):
     """Basilisp List. Delegates internally to a pyrsistent.PList object.
 
     Do not instantiate directly. Instead use the l() and list() factory
