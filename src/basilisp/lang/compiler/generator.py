@@ -866,6 +866,17 @@ def __deftype_member_to_py_ast(
     return handle_deftype_member(ctx, node)
 
 
+_ATTR_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
+_ATTR_CMP_KWARGS = (
+    [
+        ast.keyword(arg="eq", value=ast.Constant(False)),
+        ast.keyword(arg="order", value=ast.Constant(False)),
+    ]
+    if _ATTR_CMP_OFF
+    else [ast.keyword(arg="cmp", value=ast.Constant(False))]
+)
+
+
 @_with_ast_loc
 def _deftype_to_py_ast(  # pylint: disable=too-many-branches
     ctx: GeneratorContext, node: DefType
@@ -886,8 +897,8 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
     decorator = ast.Call(
         func=_ATTR_CLASS_DECORATOR_NAME,
         args=[],
-        keywords=[
-            ast.keyword(arg="cmp", value=ast.Constant(False)),
+        keywords=_ATTR_CMP_KWARGS
+        + [
             ast.keyword(arg="frozen", value=ast.Constant(node.is_frozen)),
             ast.keyword(arg="slots", value=ast.Constant(True)),
         ],
@@ -1593,7 +1604,7 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
         ):
             loop_body_ast: List[ast.AST] = []
             body_ast = _synthetic_do_to_py_ast(ctx, node.body)
-            loop_body_ast.extend(body_ast.dependencies)
+            loop_body_ast.extend(map(statementize, body_ast.dependencies))
             loop_body_ast.append(
                 ast.Assign(
                     targets=[ast.Name(id=loop_result_name, ctx=ast.Store())],
