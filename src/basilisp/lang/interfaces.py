@@ -2,6 +2,7 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import (
     AbstractSet,
+    Callable,
     Generic,
     Iterable,
     Iterator,
@@ -83,6 +84,16 @@ class IMeta(ABC):
 
 
 ILispObject = _LispObject
+
+
+class IReference(IMeta):
+    @abstractmethod
+    def alter_meta(self, f: Callable[..., "IPersistentMap"], *args) -> "IPersistentMap":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def reset_meta(self, meta: "IPersistentMap") -> "IPersistentMap":
+        raise NotImplementedError()
 
 
 class IReversible(Generic[T]):
