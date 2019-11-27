@@ -4025,7 +4025,7 @@
 
         interfaces (concat interfaces
                            '[basilisp.lang.interfaces/IPersistentMap
-                             basilisp.lang.interfaces/IMeta
+                             basilisp.lang.interfaces/IWithMeta
                              basilisp.lang.interfaces/IRecord
                              python/object])
 
@@ -4149,7 +4149,7 @@
           (+ ~(count field-kw-set)
              (count ~'_recmap)))
 
-         ;; IMeta
+         ;; IWithMeta
          (~'with-meta [~this-gs new-meta#]
           (->> (merge (or ~'meta {}) new-meta#)
                (evolve ~this-gs "meta")))
