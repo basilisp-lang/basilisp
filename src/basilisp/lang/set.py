@@ -99,9 +99,8 @@ class Set(IWithMeta, ILispObject, IPersistentSet[T]):
     def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: IPersistentMap) -> "Set[T]":
-        new_meta = meta if self._meta is None else self._meta.update(meta)
-        return set(self._inner, meta=new_meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "Set[T]":
+        return set(self._inner, meta=meta)
 
     def cons(self, *elems: T) -> "Set[T]":
         e = self._inner.evolver()

@@ -43,9 +43,8 @@ class List(IWithMeta, ISeq[T], IPersistentList[T]):
     def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: IPersistentMap) -> "List":
-        new_meta = meta if self._meta is None else self._meta.update(meta)
-        return list(self._inner, meta=new_meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "List":
+        return list(self._inner, meta=meta)
 
     @property
     def is_empty(self):
@@ -59,7 +58,7 @@ class List(IWithMeta, ISeq[T], IPersistentList[T]):
             return None
 
     @property
-    def rest(self) -> ISeq:
+    def rest(self) -> ISeq[T]:
         if self._inner.rest is _EMPTY_PLIST:
             return EMPTY
         return List(self._inner.rest)
@@ -77,7 +76,7 @@ class List(IWithMeta, ISeq[T], IPersistentList[T]):
     def peek(self):
         return self.first
 
-    def pop(self) -> "List":
+    def pop(self) -> "List[T]":
         if self.is_empty:
             raise IndexError("Cannot pop an empty list")
         return cast(List, self.rest)

@@ -54,7 +54,9 @@
          (.-meta o)
          nil)))
 
-(def ^{:doc      "Return o with the supplied metadata map assoc'ed into its existing metadata."
+(def ^{:doc      "Return an object of the same type and representing the same value as
+                  o with meta as its metadata. Of Basilisp's builtin types, only those
+                  implementing the interface IWithMeta support `with-meta`."
        :arglists '([o meta])}
   with-meta
   (fn* with-meta [o meta]
@@ -180,6 +182,14 @@
   (fn apply [f & args]
     (basilisp.lang.runtime/apply f args)))
 
+(def ^{:doc      "Return an object of the same type and representing the same value as o
+                  (as by `with-meta`) with the new object's metadata set to the value of
+                  `(apply f (meta o) & args)`."
+       :arglists '([o f & args])}
+  vary-meta
+  (fn* vary-meta [o f & args]
+       (with-meta o (apply f (meta o) args))))
+
 (def ^{:doc      "Concatenate the sequences given by seqs into a single Seq."
        :arglists '([& seqs])}
   concat
@@ -282,7 +292,7 @@
                   (first body)
                   nil)
           fname  (if doc
-                   (with-meta name (assoc fmeta :doc doc))
+                   (vary-meta name assoc :doc doc)
                    (with-meta name fmeta))
           body   (if fmeta
                    (rest body)
@@ -296,7 +306,7 @@
                               (conj sigs (ffirst arities)))
                        (apply list sigs)))
                    (list (first body)))
-          fname  (with-meta fname {:arglists (list 'quote fsigs)})
+          fname  (vary-meta fname assoc :arglists (list 'quote fsigs))
           body   (if multi?
                    body
                    (cons
@@ -416,8 +426,8 @@
                    (rest body)
                    body)
           fname  (if doc
-                   (with-meta name (assoc fmeta :doc doc :macro true))
-                   (with-meta name (assoc fmeta :macro true)))
+                   (vary-meta name assoc :doc doc :macro true)
+                   (vary-meta name assoc :macro true))
           multi? (list? (first body))
           fsigs  (if multi?
                    (loop [arities body
@@ -427,7 +437,7 @@
                               (conj sigs (ffirst arities)))
                        `(quote ~(apply list sigs))))
                    `(quote ~(list (first body))))
-          fname  (with-meta fname {:arglists fsigs})
+          fname  (vary-meta fname assoc :arglists fsigs)
 
           add-implicit-args (fn [body]
                               (cons
@@ -2954,6 +2964,23 @@
                                                   module)))
 
 ;;;;;;;;;;;;;;;;;;;
+;; Ref Utilities ;;
+;;;;;;;;;;;;;;;;;;;
+
+(defn alter-meta!
+  "Atomically swap the metadata on reference o to the result of (apply f m args) where
+  m is the current metadata of o. f should be free of side effects. References include
+  atoms, namespaces, and vars."
+  [o f & args]
+  (apply-method o alter-meta f args))
+
+(defn reset-meta!
+  "Atomically swap the metadata on reference o to meta. References include
+  atoms, namespaces, and vars."
+  [o meta]
+  (.reset-meta o meta))
+
+;;;;;;;;;;;;;;;;;;;
 ;; Var Utilities ;;
 ;;;;;;;;;;;;;;;;;;;
 
@@ -4151,8 +4178,7 @@
 
          ;; IWithMeta
          (~'with-meta [~this-gs new-meta#]
-          (->> (merge (or ~'meta {}) new-meta#)
-               (evolve ~this-gs "meta")))
+          (evolve ~this-gs "meta" new-meta#))
 
          ;; IRecord
          (~' ^:classmethod create [cls# ~map-gs]

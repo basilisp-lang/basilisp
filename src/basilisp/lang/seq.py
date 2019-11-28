@@ -14,10 +14,10 @@ class _EmptySequence(IWithMeta, ISeq[T]):
         return False
 
     @property
-    def meta(self):
+    def meta(self) -> Optional[IPersistentMap]:
         return None
 
-    def with_meta(self, meta) -> "Cons":
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "Cons[T]":  # type: ignore
         return Cons(meta=meta)
 
     @property
@@ -32,7 +32,7 @@ class _EmptySequence(IWithMeta, ISeq[T]):
     def rest(self) -> ISeq[T]:
         return self
 
-    def cons(self, elem):
+    def cons(self, elem: T) -> ISeq[T]:
         return Cons(elem, self)
 
 
@@ -68,12 +68,11 @@ class Cons(ISeq[T], IWithMeta):
         return Cons(elem, self)
 
     @property
-    def meta(self):
+    def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta) -> "Cons":
-        new_meta = meta if self._meta is None else self._meta.update(meta)
-        return Cons(first=self._first, seq=self._rest, meta=new_meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "Cons[T]":
+        return Cons(first=self._first, seq=self._rest, meta=meta)
 
 
 class _Sequence(IWithMeta, ISeq[T]):
@@ -97,12 +96,11 @@ class _Sequence(IWithMeta, ISeq[T]):
         self._meta = meta
 
     @property
-    def meta(self) -> Optional["IPersistentMap"]:
+    def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: "IPersistentMap") -> "IWithMeta":
-        new_meta = meta if self._meta is None else self._meta.update(meta)
-        return _Sequence(self._seq, self._first, meta=new_meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "_Sequence[T]":
+        return _Sequence(self._seq, self._first, meta=meta)
 
     @property
     def is_empty(self) -> bool:
@@ -150,12 +148,11 @@ class LazySeq(IWithMeta, ISeq[T]):
         self._meta = meta
 
     @property
-    def meta(self) -> Optional["IPersistentMap"]:
+    def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: "IPersistentMap") -> "IWithMeta":
-        new_meta = meta if self._meta is None else self._meta.update(meta)
-        return LazySeq(self._gen, meta=new_meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "LazySeq[T]":
+        return LazySeq(self._gen, meta=meta)
 
     # pylint:disable=assigning-non-slot
     def _realize(self):
