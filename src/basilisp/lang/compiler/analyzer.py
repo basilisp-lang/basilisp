@@ -113,7 +113,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
-from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType
+from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm, ReaderForm
 from basilisp.lang.util import count, genname, munge
@@ -514,15 +514,16 @@ _is_macro = _meta_getter(SYM_MACRO_META_KEY)
 def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
     """Fetch the location of the form in the original filename from the
     input form, if it has metadata."""
-    try:
-        meta = form.meta  # type: ignore
-        line = meta.get(reader.READER_LINE_KW)  # type: ignore
-        col = meta.get(reader.READER_COL_KW)  # type: ignore
-    except AttributeError:
-        return None
-    else:
-        assert isinstance(line, int) and isinstance(col, int)
-        return line, col
+    # Technically, IMeta is sufficient for fetching `form.meta` but the
+    # reader only applies line and column metadata to IWithMeta instances
+    if isinstance(form, IWithMeta):
+        meta = form.meta
+        if meta is not None:
+            line = meta.get(reader.READER_LINE_KW)
+            col = meta.get(reader.READER_COL_KW)
+            if isinstance(line, int) and isinstance(col, int):
+                return line, col
+    return None
 
 
 def _with_loc(f: AnalyzeFunction):

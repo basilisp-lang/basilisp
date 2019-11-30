@@ -131,30 +131,32 @@ class Map(ILispObject, IWithMeta, IPersistentMap[K, V]):
             Mapping[K, V],
         ],
     ) -> "Map[K, V]":
-        # For now, this definition does not take the generic Mapping[K, V] type
-        # because Vectors are technically Mapping[int, V] types, so this would
-        # require restructuring of the logic.
         e = self._inner.evolver()
         try:
             for elem in elems:
-                if isinstance(elem, IPersistentMap):
+                if isinstance(elem, (IPersistentMap, Mapping)) and not isinstance(
+                    elem, IPersistentVector
+                ):
+                    # Vectors are handled in the final else block, since we
+                    # do not want to treat them as Mapping types for this
+                    # particular usage.
                     for k, v in elem.items():
                         e.set(k, v)
                 elif isinstance(elem, IMapEntry):
                     e.set(elem.key, elem.value)
-                elif isinstance(elem, IPersistentVector):
+                elif elem is None:
+                    continue
+                else:
+                    # This block leniently allows nearly any 2 element sequential
+                    # type including Vectors, Python lists, and Python tuples.
                     entry: IMapEntry[K, V] = MapEntry.from_vec(elem)
                     e.set(entry.key, entry.value)
-                elif isinstance(elem, Mapping):
-                    for k, v in elem.items():
-                        e.set(k, v)  # type: ignore[arg-type]
-                else:
-                    raise TypeError("Invalid map cons type")
-            return Map(e.persistent(), meta=self.meta)
         except (TypeError, ValueError):
             raise ValueError(
                 "Argument to map conj must be another Map or castable to MapEntry"
             )
+        else:
+            return Map(e.persistent(), meta=self.meta)
 
     @staticmethod
     def empty() -> "Map":

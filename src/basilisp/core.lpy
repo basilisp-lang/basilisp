@@ -291,9 +291,12 @@
           fmeta (if (map? (first body))
                   (first body)
                   nil)
+          fname  (if fmeta
+                   (vary-meta name conj fmeta)
+                   name)
           fname  (if doc
-                   (vary-meta name assoc :doc doc)
-                   (with-meta name fmeta))
+                   (vary-meta fname assoc :doc doc)
+                   (vary-meta fname conj fmeta))
           body   (if fmeta
                    (rest body)
                    body)
