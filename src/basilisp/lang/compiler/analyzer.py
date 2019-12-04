@@ -236,9 +236,7 @@ class SymbolTable:
             if entry.warn_if_unused and not entry.used:
                 code_loc = (
                     Maybe(entry.symbol.meta)
-                    .map(
-                        lambda m: f": {m.val_at(reader.READER_LINE_KW)}"  # type: ignore
-                    )
+                    .map(lambda m: f": {m.val_at(reader.READER_LINE_KW)}")
                     .or_else_get("")
                 )
                 logger.warning(
@@ -653,7 +651,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     def_loc = _loc(form)
     def_node_env = ctx.get_node_env()
     def_meta = _clean_meta(
-        name.meta.update(
+        name.meta.update(  # type: ignore [union-attr]
             lmap.map(
                 {
                     COL_KW: def_loc[1] if def_loc is not None else None,
@@ -1220,9 +1218,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             field_default = (
                 Maybe(field.meta)
                 .map(
-                    lambda m: m.val_at(  # type: ignore
-                        SYM_DEFAULT_META_KEY, __DEFTYPE_DEFAULT_SENTINEL
-                    )
+                    lambda m: m.val_at(SYM_DEFAULT_META_KEY, __DEFTYPE_DEFAULT_SENTINEL)
                 )
                 .value
             )
