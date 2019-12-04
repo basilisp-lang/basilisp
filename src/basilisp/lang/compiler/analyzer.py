@@ -648,15 +648,15 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         children = vec.v(INIT)
 
     # Attach metadata relevant for the current process below.
-    def_loc = _loc(form)
+    def_loc = _loc(form) or (None, None)
     def_node_env = ctx.get_node_env()
     def_meta = _clean_meta(
         name.meta.update(  # type: ignore [union-attr]
             lmap.map(
                 {
-                    COL_KW: def_loc[1] if def_loc is not None else None,
+                    COL_KW: def_loc[1],
                     FILE_KW: def_node_env.file,
-                    LINE_KW: def_loc[0] if def_loc is not None else None,
+                    LINE_KW: def_loc[0],
                     NAME_KW: name,
                     NS_KW: ctx.current_ns,
                 }

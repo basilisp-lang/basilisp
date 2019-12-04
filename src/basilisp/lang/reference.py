@@ -17,6 +17,9 @@ else:
 
 
 class ReferenceBase(IReference):
+    """Mixin for IReference classes to define the full IReference interface.
+
+    Consumers must have a `_lock` and `_meta` property defined."""
     _lock: threading.Lock
     _meta: Optional[IPersistentMap]
 
