@@ -1,6 +1,9 @@
 import basilisp.lang.atom as atom
 import basilisp.lang.interfaces
+import basilisp.lang.keyword as kw
 import basilisp.lang.map as lmap
+import basilisp.lang.runtime as runtime
+import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 
 
@@ -21,3 +24,25 @@ def test_atom():
 
     assert vec.v(1, 2) == a.reset(lmap.Map.empty())
     assert lmap.Map.empty() == a.deref()
+
+
+def test_alter_atom_meta():
+    a = atom.Atom(None)
+    assert a.meta is None
+
+    a.alter_meta(runtime.assoc, "type", sym.symbol("str"))
+    assert a.meta == lmap.m(type=sym.symbol("str"))
+
+    a.alter_meta(runtime.assoc, "tag", kw.keyword("async"))
+    assert a.meta == lmap.m(type=sym.symbol("str"), tag=kw.keyword("async"))
+
+
+def test_reset_atom_meta():
+    a = atom.Atom(None)
+    assert a.meta is None
+
+    a.reset_meta(lmap.map({"type": sym.symbol("str")}))
+    assert a.meta == lmap.m(type=sym.symbol("str"))
+
+    a.reset_meta(lmap.m(tag=kw.keyword("async")))
+    assert a.meta == lmap.m(tag=kw.keyword("async"))

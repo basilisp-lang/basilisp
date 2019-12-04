@@ -405,7 +405,7 @@ def _is_dynamic(v: Var) -> bool:
     Var access."""
     return (
         Maybe(v.meta)
-        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))  # type: ignore
+        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))
         .or_else_get(False)
     )
 
@@ -413,9 +413,7 @@ def _is_dynamic(v: Var) -> bool:
 def _is_redefable(v: Var) -> bool:
     """Return True if the Var can be redefined."""
     return (
-        Maybe(v.meta)
-        .map(lambda m: m.get(SYM_REDEF_META_KEY, None))  # type: ignore
-        .or_else_get(False)
+        Maybe(v.meta).map(lambda m: m.get(SYM_REDEF_META_KEY, None)).or_else_get(False)
     )
 
 
