@@ -13,13 +13,14 @@ else:
         def __call__(
             self, meta: Optional[IPersistentMap], *args
         ) -> Optional[IPersistentMap]:
-            ...
+            ...  # pylint: disable=pointless-statement
 
 
 class ReferenceBase(IReference):
     """Mixin for IReference classes to define the full IReference interface.
 
     Consumers must have a `_lock` and `_meta` property defined."""
+
     _lock: threading.Lock
     _meta: Optional[IPersistentMap]
 
