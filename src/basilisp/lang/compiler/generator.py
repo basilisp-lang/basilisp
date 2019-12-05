@@ -591,10 +591,12 @@ def __should_warn_on_redef(
     no_warn_on_redef = def_meta.val_at(SYM_NO_WARN_ON_REDEF_META_KEY, False)
     if no_warn_on_redef:
         return False
-    elif safe_name in ctx.current_ns.module.__dict__:
+
+    current_ns = ctx.current_ns
+    if safe_name in current_ns.module.__dict__:
         return True
-    elif defsym in ctx.current_ns.interns:
-        var = ctx.current_ns.find(defsym)
+    elif defsym in current_ns.interns:
+        var = current_ns.find(defsym)
         assert var is not None, f"Var {defsym} cannot be none here"
 
         if var.meta is not None and var.meta.val_at(SYM_REDEF_META_KEY):
