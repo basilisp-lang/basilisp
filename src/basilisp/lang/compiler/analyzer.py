@@ -648,18 +648,21 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
             raise AnalyzerException("def docstring must be a string", form=doc)
         children = vec.v(INIT)
 
+    # Cache the current namespace
+    current_ns = ctx.current_ns
+
     # Attach metadata relevant for the current process below.
-    def_loc = _loc(form)
+    def_loc = _loc(form) or (None, None)
     def_node_env = ctx.get_node_env()
     def_meta = _clean_meta(
-        name.meta.update(
+        name.meta.update(  # type: ignore [union-attr]
             lmap.map(
                 {
-                    COL_KW: def_loc[1] if def_loc is not None else None,
+                    COL_KW: def_loc[1],
                     FILE_KW: def_node_env.file,
-                    LINE_KW: def_loc[0] if def_loc is not None else None,
+                    LINE_KW: def_loc[0],
                     NAME_KW: name,
-                    NS_KW: ctx.current_ns,
+                    NS_KW: current_ns,
                 }
             )
         )
@@ -688,7 +691,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     # its meta may contain values which fail to compile.
     bare_name = sym.symbol(name.name)
 
-    ns_sym = sym.symbol(ctx.current_ns.name)
+    ns_sym = sym.symbol(current_ns.name)
     var = Var.intern_unbound(
         ns_sym,
         bare_name,
@@ -729,7 +732,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
                         sym.symbol("Namespace", "basilisp.lang.runtime"),
                         sym.symbol("get"),
                     ),
-                    llist.l(SpecialForm.QUOTE, sym.symbol(ctx.current_ns.name)),
+                    llist.l(SpecialForm.QUOTE, sym.symbol(current_ns.name)),
                 ),
             }
         ),
@@ -1448,7 +1451,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 fixed_arities.add(method.fixed_arity)
 
         if fixed_arity_for_variadic is not None and any(
-            [fixed_arity_for_variadic < arity for arity in fixed_arities]
+            fixed_arity_for_variadic < arity for arity in fixed_arities
         ):
             raise AnalyzerException(
                 "variadic arity may not have fewer fixed arity arguments than any other arities",
@@ -2016,7 +2019,7 @@ def _try_ast(  # pylint: disable=too-many-branches
         try_exprs.append(lisp_node)
 
     assert all(
-        [isinstance(node, Catch) for node in catches]
+        isinstance(node, Catch) for node in catches
     ), "All catch statements must be catch ops"
 
     *try_statements, try_ret = try_exprs
@@ -2242,8 +2245,9 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
     assert form.ns is not None
 
-    if form.ns == ctx.current_ns.name:
-        v = ctx.current_ns.find(sym.symbol(form.name))
+    current_ns = ctx.current_ns
+    if form.ns == current_ns.name:
+        v = current_ns.find(sym.symbol(form.name))
         if v is not None:
             return VarRef(form=form, var=v, env=ctx.get_node_env())
     elif form.ns == _BUILTINS_NS:
@@ -2262,7 +2266,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             "symbol names may not contain the '.' operator", form=form
         )
 
-    resolved = __resolve_namespaced_symbol_in_ns(ctx, ctx.current_ns, form)
+    resolved = __resolve_namespaced_symbol_in_ns(ctx, current_ns, form)
     if resolved is not None:
         return resolved
     elif ctx.current_macro_ns is not None:
@@ -2290,7 +2294,8 @@ def __resolve_bare_symbol(
     assert form.ns is None
 
     # Look up the symbol in the namespace mapping of the current namespace.
-    v = ctx.current_ns.find(form)
+    current_ns = ctx.current_ns
+    v = current_ns.find(form)
     if v is not None:
         return VarRef(form=form, var=v, env=ctx.get_node_env())
 
@@ -2317,7 +2322,7 @@ def __resolve_bare_symbol(
     if ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
 
-    assert munged not in vars(ctx.current_ns.module)
+    assert munged not in vars(current_ns.module)
     raise AnalyzerException(
         f"unable to resolve symbol '{form}' in this context", form=form
     )
