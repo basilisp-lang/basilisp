@@ -11,20 +11,22 @@ import dateutil.parser as dateparser
 
 import basilisp.lang.atom as atom
 
-_MUNGE_REPLACEMENTS = {
-    "+": "__PLUS__",
-    "-": "_",
-    "*": "__STAR__",
-    "/": "__DIV__",
-    ">": "__GT__",
-    "<": "__LT__",
-    "!": "__BANG__",
-    "=": "__EQ__",
-    "?": "__Q__",
-    "\\": "__IDIV__",
-    "&": "__AMP__",
-    "$": "__DOLLAR__",
-}
+_MUNGE_REPLACEMENTS = str.maketrans(
+    {
+        "+": "__PLUS__",
+        "-": "_",
+        "*": "__STAR__",
+        "/": "__DIV__",
+        ">": "__GT__",
+        "<": "__LT__",
+        "!": "__BANG__",
+        "=": "__EQ__",
+        "?": "__Q__",
+        "\\": "__IDIV__",
+        "&": "__AMP__",
+        "$": "__DOLLAR__",
+    }
+)
 
 
 def count(seq: Iterable) -> int:
@@ -34,11 +36,7 @@ def count(seq: Iterable) -> int:
 def munge(s: str, allow_builtins: bool = False) -> str:
     """Replace characters which are not valid in Python symbols
     with valid replacement strings."""
-    new_str = []
-    for c in s:
-        new_str.append(_MUNGE_REPLACEMENTS.get(c, c))
-
-    new_s = "".join(new_str)
+    new_s = s.translate(_MUNGE_REPLACEMENTS)
 
     if keyword.iskeyword(new_s):
         return f"{new_s}_"
