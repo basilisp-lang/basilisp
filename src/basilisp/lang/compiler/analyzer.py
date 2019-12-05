@@ -655,7 +655,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     def_loc = _loc(form) or (None, None)
     def_node_env = ctx.get_node_env()
     def_meta = _clean_meta(
-        name.meta.update(  # type: ignore [union-attr]
+        name.meta.update(
             lmap.map(
                 {
                     COL_KW: def_loc[1],
