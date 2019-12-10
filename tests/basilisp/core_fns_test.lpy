@@ -2,6 +2,77 @@
   (:require
    [basilisp.test :refer [deftest are is testing]]))
 
+(deftest vary-meta-test
+  (testing "with lists"
+    (let [l  '(:list)
+          lm (with-meta '(:list) {:list true})]
+      (is (nil? (meta l)))
+      (is (= {:list true} (meta lm)))
+
+      (let [l1 (vary-meta lm assoc :tag list)]
+        (is (= lm l1))
+        (is (= {:list true :tag list} (meta l1)))
+
+        (let [l2 (vary-meta l1 dissoc :list)]
+          (is (= l1 l2))
+          (is (= {:tag list} (meta l2)))))))
+
+  (testing "with maps"
+    (let [m {:map true}
+          mm ^:map {:map true}]
+      (is (nil? (meta m)))
+      (is (= {:map true} (meta mm)))
+
+      (let [m1 (vary-meta mm assoc :tag map)]
+        (is (= mm m1))
+        (is (= {:map true :tag map} (meta m1)))
+
+        (let [m2 (vary-meta m1 dissoc :map)]
+          (is (= m1 m2))
+          (is (= {:tag map} (meta m2)))))))
+
+  (testing "with sets"
+    (let [s  #{:set}
+          sm ^:set #{:set}]
+      (is (nil? (meta s)))
+      (is (= {:set true} (meta sm)))
+
+      (let [s1 (vary-meta sm assoc :tag set)]
+        (is (= sm s1))
+        (is (= {:set true :tag set} (meta s1)))
+
+        (let [s2 (vary-meta s1 dissoc :set)]
+          (is (= s1 s2))
+          (is (= {:tag set} (meta s2)))))))
+
+  (testing "with symbols"
+    (let [s  'sym
+          sm (with-meta 'sym {:symbol true})]
+      (is (nil? (meta s)))
+      (is (= {:symbol true} (meta sm)))
+
+      (let [s1 (vary-meta sm assoc :tag symbol)]
+        (is (= sm s1))
+        (is (= {:symbol true :tag symbol} (meta s1)))
+
+        (let [s2 (vary-meta s1 dissoc :symbol)]
+          (is (= s1 s2))
+          (is (= {:tag symbol} (meta s2)))))))
+
+  (testing "with vectors"
+    (let [v  [:vec]
+          vm ^:vector [:vec]]
+      (is (nil? (meta v)))
+      (is (= {:vector true} (meta vm)))
+
+      (let [v1 (vary-meta vm assoc :tag vector)]
+        (is (= vm v1))
+        (is (= {:tag vector :vector true} (meta v1)))
+
+        (let [v2 (vary-meta v1 dissoc :vector)]
+          (is (= v1 v2))
+          (is (= {:tag vector} (meta v2))))))))
+
 (deftest bounded-count-test
   (are [x n y] (= x (bounded-count n y))
     0 5 []
