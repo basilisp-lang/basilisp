@@ -7,54 +7,36 @@ from basilisp.lang.interfaces import (
     IAssociative,
     ILispObject,
     IMapEntry,
-    IMeta,
     IPersistentCollection,
     IPersistentMap,
     ISeqable,
+    IWithMeta,
 )
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
 from basilisp.lang.vector import MapEntry
 
 
-def test_map_entry_interface():
+def test_map_entry_interface_membership():
     assert isinstance(lmap.MapEntry.of("a", "b"), IMapEntry)
     assert issubclass(lmap.MapEntry, IMapEntry)
 
 
-def test_map_associative_interface():
-    assert isinstance(lmap.m(), IAssociative)
-    assert issubclass(lmap.Map, IAssociative)
-
-
-def test_map_collection_interface():
-    assert isinstance(lmap.m(), IPersistentCollection)
-    assert issubclass(lmap.Map, IPersistentCollection)
-
-
-def test_map_meta_interface():
-    assert isinstance(lmap.m(), IMeta)
-    assert issubclass(lmap.Map, IMeta)
-
-
-def test_map_map_interface():
-    assert isinstance(lmap.m(), IPersistentMap)
-    assert issubclass(lmap.Map, IPersistentMap)
-
-
-def test_map_mapping_interface():
-    assert isinstance(lmap.m(), Mapping)
-    assert issubclass(lmap.Map, Mapping)
-
-
-def test_map_object_interface():
-    assert isinstance(lmap.m(), ILispObject)
-    assert issubclass(lmap.Map, ILispObject)
-
-
-def test_map_seqable_interface():
-    assert isinstance(lmap.m(), ISeqable)
-    assert issubclass(lmap.Map, ISeqable)
+@pytest.mark.parametrize(
+    "interface",
+    [
+        IAssociative,
+        IPersistentCollection,
+        IWithMeta,
+        IPersistentMap,
+        Mapping,
+        ILispObject,
+        ISeqable,
+    ],
+)
+def test_map_interface_membership(interface):
+    assert isinstance(lmap.m(), interface)
+    assert issubclass(lmap.Map, interface)
 
 
 def test_assoc():
@@ -172,13 +154,13 @@ def test_map_with_meta():
     m3 = m2.with_meta(meta2)
     assert m2 is not m3
     assert m2 == m3
-    assert m3.meta == lmap.m(type=symbol("str"), tag=keyword("async"))
+    assert m3.meta == lmap.m(tag=keyword("async"))
 
     meta3 = lmap.m(tag=keyword("macro"))
     m4 = m3.with_meta(meta3)
     assert m3 is not m4
     assert m3 == m4
-    assert m4.meta == lmap.m(type=symbol("str"), tag=keyword("macro"))
+    assert m4.meta == lmap.m(tag=keyword("macro"))
 
 
 def test_map_repr():

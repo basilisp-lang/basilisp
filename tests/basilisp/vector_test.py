@@ -5,43 +5,29 @@ import basilisp.lang.vector as vector
 from basilisp.lang.interfaces import (
     IAssociative,
     ILispObject,
-    IMeta,
     IPersistentCollection,
     IPersistentVector,
     ISeqable,
+    IWithMeta,
 )
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
 
 
-def test_vector_associative_interface():
-    assert isinstance(vector.v(), IAssociative)
-    assert issubclass(vector.Vector, IAssociative)
-
-
-def test_vector_collection_interface():
-    assert isinstance(vector.v(), IPersistentCollection)
-    assert issubclass(vector.Vector, IPersistentCollection)
-
-
-def test_vector_meta_interface():
-    assert isinstance(vector.v(), IMeta)
-    assert issubclass(vector.Vector, IMeta)
-
-
-def test_vector_object_interface():
-    assert isinstance(vector.v(), ILispObject)
-    assert issubclass(vector.Vector, ILispObject)
-
-
-def test_vector_seqable_interface():
-    assert isinstance(vector.v(), ISeqable)
-    assert issubclass(vector.Vector, ISeqable)
-
-
-def test_vector_vector_interface():
-    assert isinstance(vector.v(), IPersistentVector)
-    assert issubclass(vector.Vector, IPersistentVector)
+@pytest.mark.parametrize(
+    "interface",
+    [
+        IAssociative,
+        IPersistentCollection,
+        IWithMeta,
+        ILispObject,
+        ISeqable,
+        IPersistentVector,
+    ],
+)
+def test_vector_interface_membership(interface):
+    assert isinstance(vector.v(), interface)
+    assert issubclass(vector.Vector, interface)
 
 
 def test_vector_slice():
@@ -134,21 +120,22 @@ def test_vector_with_meta():
     vec2 = vec1.with_meta(meta2)
     assert vec1 is not vec2
     assert vec1 == vec2
-    assert vec2.meta == lmap.m(type=symbol("str"), tag=keyword("async"))
+    assert vec2.meta == lmap.m(tag=keyword("async"))
 
     meta3 = lmap.m(tag=keyword("macro"))
     vec3 = vec2.with_meta(meta3)
     assert vec2 is not vec3
     assert vec2 == vec3
-    assert vec3.meta == lmap.m(type=symbol("str"), tag=keyword("macro"))
+    assert vec3.meta == lmap.m(tag=keyword("macro"))
 
 
-def test_vector_repr():
-    v = vector.v()
-    assert repr(v) == "[]"
-
-    v = vector.v(keyword("kw1"))
-    assert repr(v) == "[:kw1]"
-
-    v = vector.v(keyword("kw1"), keyword("kw2"))
-    assert repr(v) == "[:kw1 :kw2]"
+@pytest.mark.parametrize(
+    "l,str_repr",
+    [
+        (vector.v(), "[]"),
+        (vector.v(keyword("kw1")), "[:kw1]"),
+        (vector.v(keyword("kw1"), keyword("kw2")), "[:kw1 :kw2]"),
+    ],
+)
+def test_vector_repr(l: vector.Vector, str_repr: str):
+    assert repr(l) == str_repr

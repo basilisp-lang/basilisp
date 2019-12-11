@@ -113,7 +113,7 @@ from basilisp.lang.compiler.nodes import (
     Vector as VectorNode,
     WithMeta,
 )
-from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType
+from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import LispForm, ReaderForm
 from basilisp.lang.util import count, genname, munge
@@ -236,9 +236,7 @@ class SymbolTable:
             if entry.warn_if_unused and not entry.used:
                 code_loc = (
                     Maybe(entry.symbol.meta)
-                    .map(
-                        lambda m: f": {m.val_at(reader.READER_LINE_KW)}"  # type: ignore
-                    )
+                    .map(lambda m: f": {m.val_at(reader.READER_LINE_KW)}")
                     .or_else_get("")
                 )
                 logger.warning(
@@ -514,15 +512,16 @@ _is_macro = _meta_getter(SYM_MACRO_META_KEY)
 def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
     """Fetch the location of the form in the original filename from the
     input form, if it has metadata."""
-    try:
-        meta = form.meta  # type: ignore
-        line = meta.get(reader.READER_LINE_KW)  # type: ignore
-        col = meta.get(reader.READER_COL_KW)  # type: ignore
-    except AttributeError:
-        return None
-    else:
-        assert isinstance(line, int) and isinstance(col, int)
-        return line, col
+    # Technically, IMeta is sufficient for fetching `form.meta` but the
+    # reader only applies line and column metadata to IWithMeta instances
+    if isinstance(form, IWithMeta):
+        meta = form.meta
+        if meta is not None:
+            line = meta.get(reader.READER_LINE_KW)
+            col = meta.get(reader.READER_COL_KW)
+            if isinstance(line, int) and isinstance(col, int):
+                return line, col
+    return None
 
 
 def _with_loc(f: AnalyzeFunction):
@@ -655,7 +654,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     def_loc = _loc(form) or (None, None)
     def_node_env = ctx.get_node_env()
     def_meta = _clean_meta(
-        name.meta.update(
+        name.meta.update(  # type: ignore [union-attr]
             lmap.map(
                 {
                     COL_KW: def_loc[1],
@@ -1222,9 +1221,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             field_default = (
                 Maybe(field.meta)
                 .map(
-                    lambda m: m.val_at(  # type: ignore
-                        SYM_DEFAULT_META_KEY, __DEFTYPE_DEFAULT_SENTINEL
-                    )
+                    lambda m: m.val_at(SYM_DEFAULT_META_KEY, __DEFTYPE_DEFAULT_SENTINEL)
                 )
                 .value
             )

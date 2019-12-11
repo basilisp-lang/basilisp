@@ -3,14 +3,14 @@ from typing import Optional, TypeVar, cast
 from pyrsistent import PList, plist  # noqa # pylint: disable=unused-import
 from pyrsistent._plist import _EMPTY_PLIST
 
-from basilisp.lang.interfaces import IMeta, IPersistentList, IPersistentMap, ISeq
+from basilisp.lang.interfaces import IPersistentList, IPersistentMap, ISeq, IWithMeta
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import EMPTY
 
 T = TypeVar("T")
 
 
-class List(IMeta, ISeq[T], IPersistentList[T]):
+class List(IWithMeta, ISeq[T], IPersistentList[T]):
     """Basilisp List. Delegates internally to a pyrsistent.PList object.
 
     Do not instantiate directly. Instead use the l() and list() factory
@@ -43,9 +43,8 @@ class List(IMeta, ISeq[T], IPersistentList[T]):
     def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: IPersistentMap) -> "List":
-        new_meta = meta if self._meta is None else self._meta.update(meta)
-        return list(self._inner, meta=new_meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "List":
+        return list(self._inner, meta=meta)
 
     @property
     def is_empty(self):
@@ -59,7 +58,7 @@ class List(IMeta, ISeq[T], IPersistentList[T]):
             return None
 
     @property
-    def rest(self) -> ISeq:
+    def rest(self) -> ISeq[T]:
         if self._inner.rest is _EMPTY_PLIST:
             return EMPTY
         return List(self._inner.rest)
@@ -77,7 +76,7 @@ class List(IMeta, ISeq[T], IPersistentList[T]):
     def peek(self):
         return self.first
 
-    def pop(self) -> "List":
+    def pop(self) -> "List[T]":
         if self.is_empty:
             raise IndexError("Cannot pop an empty list")
         return cast(List, self.rest)

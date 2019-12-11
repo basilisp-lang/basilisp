@@ -45,6 +45,7 @@ from basilisp.lang.interfaces import (
     ISeq,
     ISeqable,
 )
+from basilisp.lang.reference import ReferenceBase
 from basilisp.lang.typing import LispNumber
 from basilisp.lang.util import munge
 from basilisp.logconfig import TRACE
@@ -140,7 +141,7 @@ class _VarBindings(threading.local):
         self.bindings: List = []
 
 
-class Var(IDeref):
+class Var(IDeref, ReferenceBase):
     __slots__ = (
         "_name",
         "_ns",
@@ -153,7 +154,11 @@ class Var(IDeref):
     )
 
     def __init__(
-        self, ns: "Namespace", name: sym.Symbol, dynamic: bool = False, meta=None
+        self,
+        ns: "Namespace",
+        name: sym.Symbol,
+        dynamic: bool = False,
+        meta: Optional[IPersistentMap] = None,
     ) -> None:
         self._ns = ns
         self._name = name
@@ -179,14 +184,6 @@ class Var(IDeref):
         return f"#'{self.ns.name}/{self.name}"
 
     @property
-    def meta(self):
-        return self._meta
-
-    @meta.setter
-    def meta(self, meta):
-        self._meta = meta
-
-    @property
     def ns(self) -> "Namespace":
         return self._ns
 
@@ -204,10 +201,9 @@ class Var(IDeref):
 
     @property
     def is_private(self) -> Optional[bool]:
-        try:
-            return self.meta.val_at(_PRIVATE_META_KEY)
-        except AttributeError:
-            return False
+        if self._meta is not None:
+            return self._meta.val_at(_PRIVATE_META_KEY)
+        return False
 
     @property
     def is_bound(self) -> bool:
@@ -345,7 +341,7 @@ NamespaceMap = lmap.Map[sym.Symbol, "Namespace"]
 VarMap = lmap.Map[sym.Symbol, Var]
 
 
-class Namespace:
+class Namespace(ReferenceBase):
     """Namespaces serve as organizational units in Basilisp code, just as
     they do in Clojure code. Vars are mutable containers for functions and
     data which may be interned in a namespace and referred to by a Symbol.
@@ -409,6 +405,8 @@ class Namespace:
     __slots__ = (
         "_name",
         "_module",
+        "_meta",
+        "_lock",
         "_interns",
         "_refers",
         "_aliases",
@@ -419,6 +417,9 @@ class Namespace:
     def __init__(self, name: sym.Symbol, module: types.ModuleType = None) -> None:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
+
+        self._meta: Optional[IPersistentMap] = None
+        self._lock = threading.Lock()
 
         self._aliases: Atom[NamespaceMap] = Atom(lmap.Map.empty())
         self._imports: Atom[ModuleMap] = Atom(

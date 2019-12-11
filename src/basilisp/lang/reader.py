@@ -44,6 +44,7 @@ from basilisp.lang.interfaces import (
     IPersistentVector,
     IRecord,
     IType,
+    IWithMeta,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.runtime import Namespace, Var
@@ -417,13 +418,15 @@ def _with_loc(f: W) -> W:
 
     @functools.wraps(f)
     def with_lineno_and_col(ctx):
-        meta = lmap.map(
-            {READER_LINE_KW: ctx.reader.line, READER_COL_KW: ctx.reader.col}
-        )
+        line, col = ctx.reader.line, ctx.reader.col
         v = f(ctx)
-        try:
-            return v.with_meta(meta)  # type: ignore
-        except AttributeError:
+        if isinstance(v, IWithMeta):
+            new_meta = lmap.map({READER_LINE_KW: line, READER_COL_KW: col})
+            old_meta = v.meta
+            return v.with_meta(
+                old_meta.cons(new_meta) if old_meta is not None else new_meta
+            )
+        else:
             return v
 
     return cast(W, with_lineno_and_col)
@@ -801,9 +804,14 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
         )
 
     obj_with_meta = _read_next_consuming_comment(ctx)
-    try:
-        return obj_with_meta.with_meta(meta_map)  # type: ignore
-    except AttributeError:
+    if isinstance(obj_with_meta, IWithMeta):
+        new_meta = (
+            obj_with_meta.meta.cons(meta_map)
+            if obj_with_meta.meta is not None
+            else meta_map
+        )
+        return obj_with_meta.with_meta(new_meta)
+    else:
         raise SyntaxError(
             f"Can not attach metadata to object of type {type(obj_with_meta)}"
         )

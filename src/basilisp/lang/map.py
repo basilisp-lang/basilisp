@@ -1,12 +1,19 @@
 from builtins import map as pymap
-from typing import Callable, Dict, Iterable, Mapping, TypeVar, Union, cast
+from typing import Callable, Iterable, Mapping, Optional, TypeVar, Union, cast
 
 from pyrsistent import PMap, pmap  # noqa # pylint: disable=unused-import
 
-from basilisp.lang.interfaces import ILispObject, IMapEntry, IMeta, IPersistentMap, ISeq
+from basilisp.lang.interfaces import (
+    ILispObject,
+    IMapEntry,
+    IPersistentMap,
+    IPersistentVector,
+    ISeq,
+    IWithMeta,
+)
 from basilisp.lang.obj import map_lrepr as _map_lrepr
 from basilisp.lang.seq import sequence
-from basilisp.lang.vector import MapEntry, Vector
+from basilisp.lang.vector import MapEntry
 from basilisp.util import partition
 
 T = TypeVar("T")
@@ -17,14 +24,16 @@ V = TypeVar("V")
 _ENTRY_SENTINEL = object()
 
 
-class Map(ILispObject, IMeta, IPersistentMap[K, V]):
+class Map(ILispObject, IWithMeta, IPersistentMap[K, V]):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""
 
     __slots__ = ("_inner", "_meta")
 
-    def __init__(self, wrapped: "PMap[K, V]", meta=None) -> None:
+    def __init__(
+        self, wrapped: "PMap[K, V]", meta: Optional[IPersistentMap] = None
+    ) -> None:
         self._inner = wrapped
         self._meta = meta
 
@@ -68,12 +77,11 @@ class Map(ILispObject, IMeta, IPersistentMap[K, V]):
         return self._inner.values()
 
     @property
-    def meta(self):
+    def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: "IPersistentMap") -> "Map":
-        new_meta = meta if self._meta is None else self._meta.update(meta)
-        return Map(self._inner, meta=new_meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "Map":
+        return Map(self._inner, meta=meta)
 
     def assoc(self, *kvs):
         m = self._inner.evolver()
@@ -114,32 +122,41 @@ class Map(ILispObject, IMeta, IPersistentMap[K, V]):
         m: PMap = self._inner.update_with(merge_fn, *maps)
         return Map(m)
 
-    def cons(
+    def cons(  # type: ignore[override]
         self,
-        *elems: Union["Map[K, V]", Dict[K, V], IMapEntry[K, V], Vector[Union[K, V]]],
+        *elems: Union[
+            IPersistentMap[K, V],
+            IMapEntry[K, V],
+            IPersistentVector[Union[K, V]],
+            Mapping[K, V],
+        ],
     ) -> "Map[K, V]":
-        # For now, this definition does not take the generic Mapping[K, V] type
-        # because Vectors are technically Mapping[int, V] types, so this would
-        # require restructuring of the logic.
         e = self._inner.evolver()
         try:
             for elem in elems:
-                if isinstance(elem, Map):
-                    for entry in elem:
-                        e.set(entry.key, entry.value)
-                elif isinstance(elem, dict):
+                if isinstance(elem, (IPersistentMap, Mapping)) and not isinstance(
+                    elem, IPersistentVector
+                ):
+                    # Vectors are handled in the final else block, since we
+                    # do not want to treat them as Mapping types for this
+                    # particular usage.
                     for k, v in elem.items():
                         e.set(k, v)
                 elif isinstance(elem, IMapEntry):
                     e.set(elem.key, elem.value)
+                elif elem is None:
+                    continue
                 else:
-                    entry = MapEntry.from_vec(elem)
+                    # This block leniently allows nearly any 2 element sequential
+                    # type including Vectors, Python lists, and Python tuples.
+                    entry: IMapEntry[K, V] = MapEntry.from_vec(elem)
                     e.set(entry.key, entry.value)
-            return Map(e.persistent(), meta=self.meta)
         except (TypeError, ValueError):
             raise ValueError(
                 "Argument to map conj must be another Map or castable to MapEntry"
             )
+        else:
+            return Map(e.persistent(), meta=self.meta)
 
     @staticmethod
     def empty() -> "Map":

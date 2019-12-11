@@ -92,6 +92,32 @@ def test_remove_non_existent_ns(
     assert len(ns_cache_with_existing_ns.deref().keys()) == 2
 
 
+def test_alter_ns_meta(
+    ns_cache: atom.Atom[NamespaceMap], ns_sym: sym.Symbol,
+):
+    ns = Namespace.get_or_create(ns_sym)
+    assert ns.meta is None
+
+    ns.alter_meta(runtime.assoc, "type", sym.symbol("str"))
+    assert ns.meta == lmap.m(type=sym.symbol("str"))
+
+    ns.alter_meta(runtime.assoc, "tag", kw.keyword("async"))
+    assert ns.meta == lmap.m(type=sym.symbol("str"), tag=kw.keyword("async"))
+
+
+def test_reset_ns_meta(
+    ns_cache: atom.Atom[NamespaceMap], ns_sym: sym.Symbol,
+):
+    ns = Namespace.get_or_create(ns_sym)
+    assert ns.meta is None
+
+    ns.reset_meta(lmap.map({"type": sym.symbol("str")}))
+    assert ns.meta == lmap.m(type=sym.symbol("str"))
+
+    ns.reset_meta(lmap.m(tag=kw.keyword("async")))
+    assert ns.meta == lmap.m(tag=kw.keyword("async"))
+
+
 def test_cannot_remove_core(ns_cache: atom.Atom[NamespaceMap]):
     with pytest.raises(ValueError):
         Namespace.remove(sym.symbol("basilisp.core"))
