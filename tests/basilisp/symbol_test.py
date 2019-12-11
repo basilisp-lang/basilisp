@@ -32,13 +32,13 @@ def test_symbol_with_meta():
     sym2 = sym1.with_meta(meta2)
     assert sym1 is not sym2
     assert sym1 == sym2
-    assert sym2.meta == lmap.m(type=symbol("str"), tag=keyword("async"))
+    assert sym2.meta == lmap.m(tag=keyword("async"))
 
     meta3 = lmap.m(tag=keyword("macro"))
     sym3 = sym2.with_meta(meta3)
     assert sym2 is not sym3
     assert sym2 == sym3
-    assert sym3.meta == lmap.m(type=symbol("str"), tag=keyword("macro"))
+    assert sym3.meta == lmap.m(tag=keyword("macro"))
 
 
 def test_symbol_str_and_repr():

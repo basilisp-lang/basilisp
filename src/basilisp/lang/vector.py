@@ -5,10 +5,10 @@ from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 from basilisp.lang.interfaces import (
     ILispObject,
     IMapEntry,
-    IMeta,
     IPersistentMap,
     IPersistentVector,
     ISeq,
+    IWithMeta,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
@@ -16,14 +16,16 @@ from basilisp.lang.seq import sequence
 T = TypeVar("T")
 
 
-class Vector(ILispObject, IMeta, IPersistentVector[T]):
+class Vector(ILispObject, IWithMeta, IPersistentVector[T]):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""
 
     __slots__ = ("_inner", "_meta")
 
-    def __init__(self, wrapped: "PVector[T]", meta=None) -> None:
+    def __init__(
+        self, wrapped: "PVector[T]", meta: Optional[IPersistentMap] = None
+    ) -> None:
         self._inner = wrapped
         self._meta = meta
 
@@ -56,21 +58,20 @@ class Vector(ILispObject, IMeta, IPersistentVector[T]):
         return _seq_lrepr(self._inner, "[", "]", meta=self._meta, **kwargs)
 
     @property
-    def meta(self):
+    def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta) -> "Vector[T]":
-        new_meta = meta if self._meta is None else self._meta.update(meta)
-        return vector(self._inner, meta=new_meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "Vector[T]":
+        return vector(self._inner, meta=meta)
 
-    def cons(self, *elems: T) -> "Vector[T]":  # type: ignore
+    def cons(self, *elems: T) -> "Vector[T]":  # type: ignore[override]
         e = self._inner.evolver()
         for elem in elems:
             e.append(elem)
         return Vector(e.persistent(), meta=self.meta)
 
-    def assoc(self, *kvs: T) -> "Vector[T]":
-        return Vector(self._inner.mset(*kvs))  # type: ignore
+    def assoc(self, *kvs: T) -> "Vector[T]":  # type: ignore[override]
+        return Vector(self._inner.mset(*kvs))  # type: ignore[arg-type]
 
     def contains(self, k):
         return 0 <= k < len(self._inner)
@@ -91,7 +92,7 @@ class Vector(ILispObject, IMeta, IPersistentVector[T]):
     def empty() -> "Vector[T]":
         return v()
 
-    def seq(self) -> ISeq[T]:  # type: ignore
+    def seq(self) -> ISeq[T]:  # type: ignore[override]
         return sequence(self)
 
     def peek(self) -> Optional[T]:

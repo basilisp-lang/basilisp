@@ -4,44 +4,23 @@ import basilisp.lang.list as llist
 import basilisp.lang.map as lmap
 from basilisp.lang.interfaces import (
     ILispObject,
-    IMeta,
     IPersistentCollection,
     IPersistentList,
     ISeq,
     ISeqable,
+    IWithMeta,
 )
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
 
 
-def test_list_collection_interface():
-    assert isinstance(llist.l(), IPersistentCollection)
-    assert issubclass(llist.List, IPersistentCollection)
-
-
-def test_list_list_interface():
-    assert isinstance(llist.l(), IPersistentList)
-    assert issubclass(llist.List, IPersistentList)
-
-
-def test_list_meta_interface():
-    assert isinstance(llist.l(), IMeta)
-    assert issubclass(llist.List, IMeta)
-
-
-def test_map_object_interface():
-    assert isinstance(llist.l(), ILispObject)
-    assert issubclass(llist.List, ILispObject)
-
-
-def test_list_seq_interface():
-    assert isinstance(llist.l(), ISeq)
-    assert issubclass(llist.List, ISeq)
-
-
-def test_list_seqable_interface():
-    assert isinstance(llist.l(), ISeqable)
-    assert issubclass(llist.List, ISeqable)
+@pytest.mark.parametrize(
+    "interface",
+    [IPersistentCollection, IPersistentList, IWithMeta, ILispObject, ISeq, ISeqable,],
+)
+def test_list_interface_membership(interface):
+    assert isinstance(llist.l(), interface)
+    assert issubclass(llist.List, interface)
 
 
 def test_list_slice():
@@ -94,13 +73,13 @@ def test_list_with_meta():
     l3 = l2.with_meta(meta2)
     assert l2 is not l3
     assert l2 == l3
-    assert l3.meta == lmap.m(type=symbol("str"), tag=keyword("async"))
+    assert l3.meta == lmap.m(tag=keyword("async"))
 
     meta3 = lmap.m(tag=keyword("macro"))
     l4 = l3.with_meta(meta3)
     assert l3 is not l4
     assert l3 == l4
-    assert l4.meta == lmap.m(type=symbol("str"), tag=keyword("macro"))
+    assert l4.meta == lmap.m(tag=keyword("macro"))
 
 
 def test_list_first():
@@ -116,12 +95,13 @@ def test_list_rest():
     assert llist.l(keyword("kw1"), keyword("kw2")).rest == llist.l(keyword("kw2"))
 
 
-def test_list_repr():
-    l = llist.l()
-    assert repr(l) == "()"
-
-    l = llist.l(keyword("kw1"))
-    assert repr(l) == "(:kw1)"
-
-    l = llist.l(keyword("kw1"), keyword("kw2"))
-    assert repr(l) == "(:kw1 :kw2)"
+@pytest.mark.parametrize(
+    "l,str_repr",
+    [
+        (llist.l(), "()"),
+        (llist.l(keyword("kw1")), "(:kw1)"),
+        (llist.l(keyword("kw1"), keyword("kw2")), "(:kw1 :kw2)"),
+    ],
+)
+def test_list_repr(l: llist.List, str_repr: str):
+    assert repr(l) == str_repr

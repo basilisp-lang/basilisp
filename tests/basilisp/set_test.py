@@ -1,39 +1,27 @@
+import typing
+
+import pytest
+
 import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 from basilisp.lang.interfaces import (
     ILispObject,
-    IMeta,
     IPersistentCollection,
     IPersistentSet,
     ISeqable,
+    IWithMeta,
 )
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
 
 
-def test_list_collection_interface():
-    assert isinstance(lset.s(), IPersistentCollection)
-    assert issubclass(lset.Set, IPersistentCollection)
-
-
-def test_list_meta_interface():
-    assert isinstance(lset.s(), IMeta)
-    assert issubclass(lset.Set, IMeta)
-
-
-def test_set_object_interface():
-    assert isinstance(lset.s(), ILispObject)
-    assert issubclass(lset.Set, ILispObject)
-
-
-def test_set_seqable_interface():
-    assert isinstance(lset.s(), ISeqable)
-    assert issubclass(lset.Set, ISeqable)
-
-
-def test_set_set_interface():
-    assert isinstance(lset.s(), IPersistentSet)
-    assert issubclass(lset.Set, IPersistentSet)
+@pytest.mark.parametrize(
+    "interface",
+    [IPersistentCollection, IWithMeta, ILispObject, ISeqable, IPersistentSet],
+)
+def test_set_interface_membership(interface):
+    assert isinstance(lset.s(), interface)
+    assert issubclass(lset.Set, interface)
 
 
 def test_set_conj():
@@ -65,21 +53,22 @@ def test_set_with_meta():
     s3 = s2.with_meta(meta2)
     assert s2 is not s3
     assert s2 == s3
-    assert s3.meta == lmap.m(type=symbol("str"), tag=keyword("async"))
+    assert s3.meta == lmap.m(tag=keyword("async"))
 
     meta3 = lmap.m(tag=keyword("macro"))
     s4 = s3.with_meta(meta3)
     assert s3 is not s4
     assert s3 == s4
-    assert s4.meta == lmap.m(type=symbol("str"), tag=keyword("macro"))
+    assert s4.meta == lmap.m(tag=keyword("macro"))
 
 
-def test_set_repr():
-    s = lset.s()
-    assert repr(s) == "#{}"
-
-    s = lset.s(keyword("kw1"))
-    assert repr(s) == "#{:kw1}"
-
-    s = lset.s(keyword("kw1"), keyword("kw2"))
-    assert repr(s) in ["#{:kw1 :kw2}", "#{:kw2 :kw1}"]
+@pytest.mark.parametrize(
+    "l,str_repr",
+    [
+        (lset.s(), {"#{}"}),
+        (lset.s(keyword("kw1")), {"#{:kw1}"}),
+        (lset.s(keyword("kw1"), keyword("kw2")), {"#{:kw1 :kw2}", "#{:kw2 :kw1}"}),
+    ],
+)
+def test_set_repr(l: lset.Set, str_repr: typing.Set[str]):
+    assert repr(l) in str_repr

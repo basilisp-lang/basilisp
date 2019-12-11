@@ -7,7 +7,7 @@ import basilisp.lang.keyword as kw
 import basilisp.lang.map as lmap
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.runtime import Namespace, NamespaceMap, RuntimeException, Var
+from basilisp.lang.runtime import Namespace, NamespaceMap, RuntimeException, Var, assoc
 
 
 @pytest.fixture
@@ -54,6 +54,38 @@ def test_private_var(
         ns_sym, var_name, intern_val, meta=lmap.map({kw.keyword("private"): True})
     )
     assert v.is_private
+
+
+def test_alter_var_meta(
+    ns_cache: atom.Atom[NamespaceMap],
+    ns_sym: sym.Symbol,
+    var_name: sym.Symbol,
+    intern_val,
+):
+    v = Var.intern(ns_sym, var_name, intern_val)
+    assert v.meta is None
+
+    v.alter_meta(assoc, "type", sym.symbol("str"))
+    assert v.meta == lmap.m(type=sym.symbol("str"))
+
+    v.alter_meta(assoc, "tag", kw.keyword("async"))
+    assert v.meta == lmap.m(type=sym.symbol("str"), tag=kw.keyword("async"))
+
+
+def test_reset_var_meta(
+    ns_cache: atom.Atom[NamespaceMap],
+    ns_sym: sym.Symbol,
+    var_name: sym.Symbol,
+    intern_val,
+):
+    v = Var.intern(ns_sym, var_name, intern_val)
+    assert v.meta is None
+
+    v.reset_meta(lmap.map({"type": sym.symbol("str")}))
+    assert v.meta == lmap.m(type=sym.symbol("str"))
+
+    v.reset_meta(lmap.m(tag=kw.keyword("async")))
+    assert v.meta == lmap.m(tag=kw.keyword("async"))
 
 
 def test_dynamic_var(

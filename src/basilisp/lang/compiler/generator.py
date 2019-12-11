@@ -405,7 +405,7 @@ def _is_dynamic(v: Var) -> bool:
     Var access."""
     return (
         Maybe(v.meta)
-        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))  # type: ignore
+        .map(lambda m: m.get(SYM_DYNAMIC_META_KEY, None))
         .or_else_get(False)
     )
 
@@ -413,9 +413,7 @@ def _is_dynamic(v: Var) -> bool:
 def _is_redefable(v: Var) -> bool:
     """Return True if the Var can be redefined."""
     return (
-        Maybe(v.meta)
-        .map(lambda m: m.get(SYM_REDEF_META_KEY, None))  # type: ignore
-        .or_else_get(False)
+        Maybe(v.meta).map(lambda m: m.get(SYM_REDEF_META_KEY, None)).or_else_get(False)
     )
 
 
@@ -595,10 +593,12 @@ def __should_warn_on_redef(
     no_warn_on_redef = def_meta.val_at(SYM_NO_WARN_ON_REDEF_META_KEY, False)
     if no_warn_on_redef:
         return False
-    elif safe_name in ctx.current_ns.module.__dict__:
+
+    current_ns = ctx.current_ns
+    if safe_name in current_ns.module.__dict__:
         return True
-    elif defsym in ctx.current_ns.interns:
-        var = ctx.current_ns.find(defsym)
+    elif defsym in current_ns.interns:
+        var = current_ns.find(defsym)
         assert var is not None, f"Var {defsym} cannot be none here"
 
         if var.meta is not None and var.meta.val_at(SYM_REDEF_META_KEY):

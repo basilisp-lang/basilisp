@@ -197,7 +197,7 @@ class Node(ABC, Generic[T]):
             loc = (self.env.line, self.env.col)
 
         assert loc is not None and all(
-            [e is not None for e in loc]
+            e is not None for e in loc
         ), "Must specify location information"
 
         new_attrs: MutableMapping[str, Union[NodeEnv, Node, Iterable[Node]]] = {
@@ -210,10 +210,9 @@ class Node(ABC, Generic[T]):
             if child_attr.endswith("s"):
                 iter_child: Iterable[Node] = getattr(self, child_attr)
                 assert iter_child is not None, "Listed child must not be none"
-                new_children = []
-                for item in iter_child:
-                    new_children.append(item.fix_missing_locations(start_loc))
-                new_attrs[child_attr] = vec.vector(new_children)
+                new_attrs[child_attr] = vec.vector(
+                    item.fix_missing_locations(start_loc) for item in iter_child
+                )
             else:
                 child: Node = getattr(self, child_attr)
                 assert child is not None, "Listed child must not be none"

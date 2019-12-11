@@ -2,6 +2,7 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import (
     AbstractSet,
+    Callable,
     Generic,
     Iterable,
     Iterator,
@@ -9,6 +10,7 @@ from typing import (
     Optional,
     Sequence,
     TypeVar,
+    Union,
 )
 
 from basilisp.lang.obj import LispObject as _LispObject, seq_lrepr
@@ -77,12 +79,31 @@ class IMeta(ABC):
     def meta(self) -> Optional["IPersistentMap"]:
         raise NotImplementedError()
 
+
+T_with_meta = TypeVar("T_with_meta", bound="IWithMeta")
+
+
+class IWithMeta(IMeta):
+    __slots__ = ()
+
     @abstractmethod
-    def with_meta(self, meta: "IPersistentMap") -> "IMeta":
+    def with_meta(self: T_with_meta, meta: "Optional[IPersistentMap]") -> T_with_meta:
         raise NotImplementedError()
 
 
 ILispObject = _LispObject
+
+
+class IReference(IMeta):
+    __slots__ = ()
+
+    @abstractmethod
+    def alter_meta(self, f: Callable[..., "IPersistentMap"], *args) -> "IPersistentMap":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def reset_meta(self, meta: "IPersistentMap") -> "IPersistentMap":
+        raise NotImplementedError()
 
 
 class IReversible(Generic[T]):
@@ -113,11 +134,14 @@ class ILookup(Generic[K, V], ABC):
         raise NotImplementedError()
 
 
+T_pcoll = TypeVar("T_pcoll", bound="IPersistentCollection", covariant=True)
+
+
 class IPersistentCollection(ISeqable[T]):
     __slots__ = ()
 
     @abstractmethod
-    def cons(self, *elems: T) -> "IPersistentCollection[T]":
+    def cons(self: T_pcoll, *elems: T) -> "T_pcoll":
         raise NotImplementedError()
 
     @staticmethod
@@ -126,13 +150,16 @@ class IPersistentCollection(ISeqable[T]):
         raise NotImplementedError()
 
 
+T_assoc = TypeVar("T_assoc", bound="IAssociative")
+
+
 class IAssociative(
     ILookup[K, V], Mapping[K, V], IPersistentCollection[IMapEntry[K, V]]
 ):
     __slots__ = ()
 
     @abstractmethod
-    def assoc(self, *kvs) -> "IAssociative[K, V]":
+    def assoc(self: T_assoc, *kvs) -> T_assoc:
         raise NotImplementedError()
 
     @abstractmethod
@@ -144,6 +171,9 @@ class IAssociative(
         raise NotImplementedError()
 
 
+T_stack = TypeVar("T_stack", bound="IPersistentStack")
+
+
 class IPersistentStack(IPersistentCollection[T]):
     __slots__ = ()
 
@@ -152,7 +182,7 @@ class IPersistentStack(IPersistentCollection[T]):
         raise NotImplementedError()
 
     @abstractmethod
-    def pop(self) -> "IPersistentStack[T]":
+    def pop(self: T_stack) -> T_stack:
         raise NotImplementedError()
 
 
@@ -160,20 +190,35 @@ class IPersistentList(ISequential, IPersistentStack[T]):
     __slots__ = ()
 
 
+T_map = TypeVar("T_map", bound="IPersistentMap")
+
+
 class IPersistentMap(ICounted, IAssociative[K, V]):
     __slots__ = ()
 
     @abstractmethod
-    def dissoc(self, *ks: K) -> "IPersistentMap[K, V]":
+    def cons(  # type: ignore[override]
+        self: T_map, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]"]
+    ) -> T_map:
         raise NotImplementedError()
+
+    @abstractmethod
+    def dissoc(self: T_map, *ks: K) -> T_map:
+        raise NotImplementedError()
+
+
+T_set = TypeVar("T_set", bound="IPersistentSet")
 
 
 class IPersistentSet(AbstractSet[T], ICounted, IPersistentCollection[T]):
     __slots__ = ()
 
     @abstractmethod
-    def disj(self, *elems: T) -> "IPersistentSet[T]":
+    def disj(self: T_set, *elems: T) -> T_set:
         raise NotImplementedError()
+
+
+T_vec = TypeVar("T_vec", bound="IPersistentVector")
 
 
 class IPersistentVector(
@@ -187,11 +232,15 @@ class IPersistentVector(
     __slots__ = ()
 
     @abstractmethod
-    def cons(self, *elems: T) -> "IPersistentVector[T]":  # type: ignore
+    def assoc(self: T_vec, *kvs) -> T_vec:  # type: ignore[override]
         raise NotImplementedError()
 
     @abstractmethod
-    def seq(self) -> "ISeq[T]":  # type: ignore
+    def cons(self: T_vec, *elems: T) -> T_vec:  # type: ignore[override]
+        raise NotImplementedError()
+
+    @abstractmethod
+    def seq(self) -> "ISeq[T]":  # type: ignore[override]
         raise NotImplementedError()
 
 

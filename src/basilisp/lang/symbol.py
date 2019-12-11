@@ -1,14 +1,16 @@
 from typing import Optional
 
-from basilisp.lang.interfaces import ILispObject, IMeta
+from basilisp.lang.interfaces import ILispObject, IPersistentMap, IWithMeta
 from basilisp.lang.obj import lrepr
 from basilisp.lang.util import munge
 
 
-class Symbol(ILispObject, IMeta):
+class Symbol(ILispObject, IWithMeta):
     __slots__ = ("_name", "_ns", "_meta")
 
-    def __init__(self, name: str, ns: Optional[str] = None, meta=None) -> None:
+    def __init__(
+        self, name: str, ns: Optional[str] = None, meta: Optional[IPersistentMap] = None
+    ) -> None:
         self._name = name
         self._ns = ns
         self._meta = meta
@@ -34,12 +36,11 @@ class Symbol(ILispObject, IMeta):
         return self._ns
 
     @property
-    def meta(self):
+    def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta) -> "Symbol":
-        new_meta = meta if self._meta is None else self._meta.update(meta)
-        return Symbol(self._name, self._ns, meta=new_meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "Symbol":
+        return Symbol(self._name, self._ns, meta=meta)
 
     def as_python_sym(self) -> str:
         if self.ns is not None:
