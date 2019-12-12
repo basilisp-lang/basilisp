@@ -1277,7 +1277,7 @@
     (if (= 1 (python/len b))
       b
       (throw
-       (python/ValueError (str "cannot coerce " x " to byte"))))))
+       (python/ValueError (str "cannot coerce " (python/repr x) " to byte"))))))
 
 (defn boolean
   "Coerce x to a boolean."
@@ -1296,7 +1296,7 @@
     (char? x)                x
     :else                    (throw
                               (python/ValueError
-                               (str "cannot cast " x " to char")))))
+                               (str "cannot cast " (python/repr x) " to char")))))
 
 (defn double
   "Coerce x to a float.
