@@ -651,7 +651,8 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     current_ns = ctx.current_ns
 
     # Attach metadata relevant for the current process below.
-    def_loc = _loc(form) or (None, None)
+    def_loc = _loc(name)
+    assert def_loc is not None, "def line and column meta must be provided"
     def_node_env = ctx.get_node_env()
     def_meta = _clean_meta(
         name.meta.update(  # type: ignore [union-attr]
