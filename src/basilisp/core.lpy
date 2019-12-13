@@ -983,6 +983,12 @@
   [x]
   (instance? python/bytes x))
 
+(defn char?
+  "Return true if x is a string of length 1."
+  [x]
+  (and (instance? python/str x)
+       (= (python/len x) 1)))
+
 (defn class?
   "Return true if x names a type."
   [x]
@@ -1233,6 +1239,96 @@
   "Return true if x is 0."
   [x]
   (= 0 x))
+
+;;;;;;;;;;;;;;;;;;;
+;; Type Coercion ;;
+;;;;;;;;;;;;;;;;;;;
+
+(defn bigdec
+  "Coerce x to a Decimal."
+  [x]
+  (decimal/Decimal x))
+
+(defn bigint
+  "Coerce x to an integer.
+
+  Python's builtin `int` type is arbitrary precision, so there is no difference
+  between `bigint`, `biginteger`, and Python's builtin `int`."
+  [x]
+  (python/int x))
+
+(defn biginteger
+  "Coerce x to an integer.
+
+  Python's builtin `int` type is arbitrary precision, so there is no difference
+  between `bigint`, `biginteger`, and Python's builtin `int`."
+  [x]
+  (python/int x))
+
+(defn boolean
+  "Coerce x to a boolean."
+  [x]
+  (python/bool x))
+
+(defn byte
+  "Coerce x to a byte."
+  [x]
+  (let [b (python/bytes [x])]
+    (if (= 1 (python/len b))
+      b
+      (throw
+       (python/ValueError (str "cannot coerce " (python/repr x) " to byte"))))))
+
+(defn boolean
+  "Coerce x to a boolean."
+  [x]
+  (python/bool x))
+
+(defn char
+  "Coerce x to a string of length 1.
+
+  Natural integers are treated as ordinals and passed to Python's `chr`.
+  Strings of length 1 are returned as such. Other types will result in
+  a `ValueError`."
+  [x]
+  (cond
+    (instance? python/int x) (python/chr x)
+    (char? x)                x
+    :else                    (throw
+                              (python/ValueError
+                               (str "cannot cast " (python/repr x) " to char")))))
+
+(defn double
+  "Coerce x to a float.
+
+  Python does not differentiate between `float` and `double`. Python `float`s are
+  double precision."
+  [x]
+  (python/float x))
+
+(defn float
+  "Coerce x to a float."
+  [x]
+  (python/float x))
+
+(defn int
+  "Coerce x to an integer."
+  [x]
+  (python/int x))
+
+(defn long
+  "Coerce x to an integer.
+
+  Python does not support `long` types, so the value is coerced to an integer."
+  [x]
+  (python/int x))
+
+(defn short
+  "Coerce x to an integer.
+
+  Python does not support `short` types, so the value is coerced to an integer."
+  [x]
+  (python/int x))
 
 ;;;;;;;;;;;;;;;;
 ;; Exceptions ;;
