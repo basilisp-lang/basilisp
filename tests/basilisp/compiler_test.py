@@ -1796,7 +1796,9 @@ class TestMacroexpandFunctions:
         assert llist.l(sym.symbol("map")) == compiler.macroexpand(
             llist.l(sym.symbol("map"), meta=meta)
         )
-        assert vec.Vector.empty() == compiler.macroexpand(vec.Vector.empty().with_meta(meta))
+        assert vec.Vector.empty() == compiler.macroexpand(
+            vec.Vector.empty().with_meta(meta)
+        )
 
         assert sym.symbol("non-existent-symbol") == compiler.macroexpand(
             sym.symbol("non-existent-symbol")

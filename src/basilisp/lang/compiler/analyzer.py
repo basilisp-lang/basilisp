@@ -1682,7 +1682,7 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
                 try:
                     macro_env = ctx.symbol_table.as_env_map()
                     expanded = fn.var.value(macro_env, form, *form.rest)
-                    if isinstance(expanded, IWithMeta):
+                    if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):
                         old_meta = expanded.meta
                         expanded = expanded.with_meta(
                             old_meta.cons(form.meta) if old_meta else form.meta
