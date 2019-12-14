@@ -1776,6 +1776,8 @@ class TestMacroexpandFunctions:
         )
 
     def test_macroexpand(self, example_macro):
+        meta = lmap.map({reader.READER_LINE_KW: 1, reader.READER_COL_KW: 1})
+
         assert llist.l(
             sym.symbol("def"),
             sym.symbol("child"),
@@ -1785,16 +1787,16 @@ class TestMacroexpandFunctions:
                 vec.v(sym.symbol("&env"), sym.symbol("&form")),
                 llist.l(sym.symbol("fn", ns="basilisp.core"), vec.Vector.empty()),
             ),
-        ) == compiler.macroexpand(llist.l(sym.symbol("parent")))
+        ) == compiler.macroexpand(llist.l(sym.symbol("parent"), meta=meta))
 
         assert llist.l(sym.symbol("add", ns="operator"), 1, 2) == compiler.macroexpand(
-            llist.l(sym.symbol("add", ns="operator"), 1, 2)
+            llist.l(sym.symbol("add", ns="operator"), 1, 2, meta=meta)
         )
         assert sym.symbol("map") == compiler.macroexpand(sym.symbol("map"))
         assert llist.l(sym.symbol("map")) == compiler.macroexpand(
-            llist.l(sym.symbol("map"))
+            llist.l(sym.symbol("map"), meta=meta)
         )
-        assert vec.Vector.empty() == compiler.macroexpand(vec.Vector.empty())
+        assert vec.Vector.empty() == compiler.macroexpand(vec.Vector.empty().with_meta(meta))
 
         assert sym.symbol("non-existent-symbol") == compiler.macroexpand(
             sym.symbol("non-existent-symbol")

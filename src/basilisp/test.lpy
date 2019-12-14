@@ -134,7 +134,7 @@
   Tests defined by deftest will be run by default by the PyTest test
   runner using Basilisp's builtin PyTest hook."
   [name-sym & body]
-  (let [test-name-sym (with-meta name-sym {:test true})
+  (let [test-name-sym (vary-meta name-sym assoc :test true)
         test-name-str (name test-name-sym)
         test-ns-name  `(quote ~(symbol (name *ns*)))]
     `(do
