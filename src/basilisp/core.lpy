@@ -1279,11 +1279,6 @@
       (throw
        (python/ValueError (str "cannot coerce " (python/repr x) " to byte"))))))
 
-(defn boolean
-  "Coerce x to a boolean."
-  [x]
-  (python/bool x))
-
 (defn char
   "Coerce x to a string of length 1.
 
