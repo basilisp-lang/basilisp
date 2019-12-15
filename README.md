@@ -32,17 +32,9 @@ documentation there helpful for getting started.
 
 ### Requirements
 
-This project uses [`pipenv`](https://github.com/kennethreitz/pipenv) to
-manage the Python virtual environment and project dependencies. `pipenv`
-can be installed using Homebrew (on OS X) or `pip` otherwise:
-
-```bash
-brew install pipenv
-```
-
-```bash
-pip install --user pipenv
-```
+This project uses [`poetry`](https://github.com/sdispater/poetry/) to manage
+the Python virtual environment and project dependencies. Instructions for
+installing `poetry` are found in that project's `README`.
 
 Additionally, [`pyenv`](https://github.com/pyenv/pyenv) is recommended to 
 manage versions of Python readily on your local development environment.
@@ -51,22 +43,23 @@ the documentation in the repository for more information.
 
 ### Getting Started
 
-To prepare your `pipenv` environment, you need to install dependencies
-and install Basilisp as an editable dependency:
+To prepare your `poetry` environment, you need to install dependencies:
 
 ```bash
-make setup-dev
+poetry install
 ```
+
+If you have more than one version of Python installed and available (using
+`pyenv`), you can switch between environments using `poetry env use [version]`
+and then `poetry install`. In this way, you can test with multiple versions
+of Python seamlessly. Note that `tox` will still run tests on all supported
+versions automatically.
 
 Afterwards, you can start up the REPL for development with a simple:
 
 ```bash
 make repl
 ```
-
-If dependencies are added or changed afterwards, you may need to
-`make setup-dev` again before attempting to start the REPL again or
-run tests.
 
 ### Linting, Running Tests, and Type Checking
 
@@ -81,6 +74,17 @@ make test
 Testing is performed using [PyTest](https://github.com/pytest-dev/pytest/). 
 Type checking is performed by [MyPy](http://mypy-lang.org/). Linting is 
 performed using [Prospector](https://prospector.landscape.io/en/master/).
+
+### PyCharm
+
+PyCharm does not currently support `poetry` for managing Python dependencies,
+so you will need to manually configure PyCharm to use the `poetry` virtual
+environment. The command below will print the location of the `poetry` env,
+which you can use to manually create an interpreter in PyCharm.
+
+```bash
+poetry env info -p
+```
 
 ## License
 

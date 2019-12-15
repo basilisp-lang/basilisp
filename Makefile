@@ -1,30 +1,27 @@
-.PHONY: setup-dev
-setup-dev:
-	@pipenv install --dev
-	@pipenv install -e .
-
-
 .PHONY: release
 release:
 	@rm -rf ./build
 	@rm -rf ./dist
-	@pipenv run python setup.py sdist bdist_wheel --universal
-	@pipenv run twine upload dist/*
+	@poetry build
+	@poetry publish --username chrisrink10
 
 
 .PHONY: docs
 docs:
-	@pipenv run sphinx-build -M html "./docs" "./docs/_build"
+	@poetry run sphinx-build -M html "./docs" "./docs/_build"
 
 
 .PHONY: format
 format:
-	@pipenv run black .
+	@poetry run black .
 
 
 .PHONY: repl
 repl:
-	@BASILISP_USE_DEV_LOGGER=true pipenv run basilisp repl
+	@BASILISP_USE_DEV_LOGGER=true \
+	 BASILISP_LOGGING_LEVEL=DEBUG \
+	 BASILISP_DO_NOT_CACHE_NAMESPACES=true \
+	 poetry run basilisp repl
 
 
 .PHONY: pypy-shell
@@ -39,4 +36,4 @@ pypy-shell:
 .PHONY: test
 test:
 	@rm -f .coverage*
-	@TOX_SKIP_ENV='pypy3|safety|coverage' pipenv run tox -p 4
+	@TOX_SKIP_ENV='pypy3|safety|coverage' poetry run tox -p 4

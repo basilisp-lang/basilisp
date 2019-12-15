@@ -1,3 +1,55 @@
+[tool.poetry]
+name = "basilisp"
+version = "0.1.0"
+description = "A Clojure-like lisp written for Python"
+authors = ["Christopher Rink <chrisrink10@gmail.com>"]
+license = "Eclipse Public License 1.0"
+
+readme = "README.md"
+
+include = ["LICENSE", "README.md", "src/**"]
+
+repository = "https://github.com/basilisp-lang/basilisp/"
+documentation = "https://basilisp.readthedocs.io/"
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Eclipse Public License 1.0 (EPL-1.0)",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Software Development :: Compilers"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.6.0"
+astor = "~0.8.0"
+attrs = "*"
+click = "*"
+pyfunctional = "*"
+pyrsistent = "*"
+pytest = "*"
+python-dateutil = "*"
+
+[tool.poetry.dev-dependencies]
+black = "==19.10b0"
+docutils = "==0.15"
+pytest-pycharm = "*"
+sphinx = "*"
+sphinx-rtd-theme = "*"
+tox = "*"
+tox-pyenv = "*"
+
+[tool.poetry.scripts]
+basilisp = "basilisp.cli:cli"
+
+[tool.poetry.plugins.pytest11]
+basilisp_test_runner = "basilisp.testrunner"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
+
 [tool.black]
 line-length = 88
 target-version = ['py36']
