@@ -865,37 +865,41 @@
   "Sum the arguments together. If no arguments given, returns 0."
   ([] 0)
   ([x] x)
-  ([x & args]
-   (if (seq (rest args))
-     (recur (operator/add x (first args)) (rest args))
-     (operator/add x (first args)))))
+  ([x y] (operator/add x y))
+  ([x y & args]
+   (if (seq args)
+     (recur (operator/add x y) (first args) (rest args))
+     (operator/add x y))))
 
 (defn -
   "Subtract the arguments. If one argument given, returns the negation
   of that argument."
   ([x] (operator/neg x))
-  ([x & args]
-   (if (seq (rest args))
-     (recur (operator/sub x (first args)) (rest args))
-     (operator/sub x (first args)))))
+  ([x y] (operator/sub x y))
+  ([x y & args]
+   (if (seq args)
+     (recur (operator/sub x y) (first args) (rest args))
+     (operator/sub x y))))
 
 (defn *
   "Multiply the arguments. If no arguments given, returns 1."
   ([] 1)
   ([x] x)
-  ([x & args]
-   (if (seq (rest args))
-     (recur (operator/mul x (first args)) (rest args))
-     (operator/mul x (first args)))))
+  ([x y] (operator/mul x y))
+  ([x y & args]
+   (if (seq args)
+     (recur (operator/mul x y) (first args) (rest args))
+     (operator/mul x y))))
 
 (defn /
   "Divide the arguments. If no arguments given, returns the inverse of
   the argument."
   ([x] (basilisp.lang.runtime/divide 1 x))
-  ([x & args]
-   (if (seq (rest args))
-     (recur (basilisp.lang.runtime/divide x (first args)) (rest args))
-     (basilisp.lang.runtime/divide x (first args)))))
+  ([x y] (basilisp.lang.runtime/divide x y))
+  ([x y & args]
+   (if (seq args)
+     (recur (basilisp.lang.runtime/divide x y) (first args) (rest args))
+     (basilisp.lang.runtime/divide x y))))
 
 (defn mod
   "Returns the modulo of num and div."
@@ -1423,10 +1427,20 @@
 (defn unchecked-char
   "Coerce x to a char. Value may be truncated or rounded."
   [x]
-  )
+  (cond
+    (instance? python/int x) (char (mod x sys/maxunicode))
+    :else                    (char x)))
 
-;; unchecked-double
-;; unchecked-float
+(defcopy unchecked-double
+  "Same as 'double. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
+  double)
+(defcopy unchecked-float
+  "Same as 'float. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
+  float)
 
 (defcopy unchecked-int
   "Same as 'int. Python integers are unlimited precision, so unchecked arithmetic
