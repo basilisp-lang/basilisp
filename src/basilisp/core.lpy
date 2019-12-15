@@ -1334,58 +1334,75 @@
 
   Append the given docstring `doc` to the end of the new Var's `doc`."
   ([name var]
-   `(def ~name ~var))
+   `(defcopy ~name nil ~var))
   ([name doc var]
-   `(let [orig-var#      (var ~var)
-          orig-var-meta# (meta orig-var#)
-          var-doc#       (:doc orig-var-meta#)
-          var-arglist#   (:arglists orig-var-meta#)
-          new-doc#       (str var-doc# "\n\n" ~doc)]
-      (def ~name ~var)
-      (.alter-meta ~(list 'var name)
-                   assoc
-                   :doc new-doc#
-                   :arglists var-arglist#)
-      ~name)))
-
-(def ^:private py-unchecked-int-docstring
-  "Python integers are unlimited precision, so unchecked arithmetic is only
-  provided for compatibility with platforms without unlimited precision
-  integers.")
+   (let [orig-var      (basilisp.lang.runtime/resolve-var var *ns*)
+         orig-var-meta (meta orig-var)
+         var-doc       (:doc orig-var-meta)
+         new-doc       (if doc
+                         (str var-doc "\n\n" doc)
+                         var-doc)
+         vname         (vary-meta name
+                                  assoc
+                                  :doc new-doc
+                                  :arglists (list 'quote (:arglists orig-var-meta)))]
+     `(def ~vname ~var))))
 
 (defcopy unchecked-add
-  (str "Same as '+. " py-unchecked-int-docstring)
+  "Same as '+. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   +)
 (defcopy unchecked-add-int
-  (str "Same as '+. " py-unchecked-int-docstring)
+  "Same as '+. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   +)
 (defcopy unchecked-subtract
-  (str "Same as '-. " py-unchecked-int-docstring)
+  "Same as '-. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   -)
 (defcopy unchecked-subtract-int
-  (str "Same as '-. " py-unchecked-int-docstring)
+  "Same as '-. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   -)
 (defcopy unchecked-multiply
-  (str "Same as '*. " py-unchecked-int-docstring)
+  "Same as '*. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   *)
 (defcopy unchecked-multiply-int
-  (str "Same as '*. " py-unchecked-int-docstring)
+  "Same as '*. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   *)
 (defcopy unchecked-divide-int
-  (str "Same as '/. " py-unchecked-int-docstring)
+  "Same as '/. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   /)
 
 (defcopy unchecked-inc
-  (str "Same as 'inc. " py-unchecked-int-docstring)
+  "Same as 'inc. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   inc)
 (defcopy unchecked-inc-int
-  (str "Same as 'inc. " py-unchecked-int-docstring)
+  "Same as 'inc. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   inc)
 (defcopy unchecked-dec
-  (str "Same as 'dec. " py-unchecked-int-docstring)
+  "Same as 'dec. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   dec)
 (defcopy unchecked-dec-int
-  (str "Same as 'dec. " py-unchecked-int-docstring)
+  "Same as 'dec. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   dec)
 
 (defn unchecked-negate
@@ -1412,13 +1429,19 @@
 ;; unchecked-float
 
 (defcopy unchecked-int
-  (str "Same as 'int. " py-unchecked-int-docstring)
+  "Same as 'int. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   int)
 (defcopy unchecked-long
-  (str "Same as 'long. " py-unchecked-int-docstring)
+  "Same as 'long. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   long)
 (defcopy unchecked-short
-  (str "Same as 'short. " py-unchecked-int-docstring)
+  "Same as 'short. Python integers are unlimited precision, so unchecked arithmetic
+  is only provided for compatibility with platforms without unlimited precision
+  integers."
   short)
 
 ;;;;;;;;;;;;;;;;
