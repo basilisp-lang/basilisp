@@ -53,6 +53,7 @@ jobs:
           environment:
             POETRY_VERSION: "1.0.0"
           command: |
+            apt-get update
             apt-get install curl
             curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python
       - run:
