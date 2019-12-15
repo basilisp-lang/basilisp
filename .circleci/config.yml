@@ -7,7 +7,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "poetry.lock" }}
       - run:
           name: Install tox
           shell: /bin/bash -leo pipefail
@@ -23,7 +23,7 @@ jobs:
           command: |
             tox -p $TOX_NUM_CORES
       - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "poetry.lock" }}
           paths:
             - "/home/pyenv/.tox"
             - "/usr/local/bin"
@@ -37,7 +37,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "poetry.lock" }}
       - run:
           name: Install tox
           command: |
@@ -47,7 +47,7 @@ jobs:
           command: |
             tox -e pypy3
       - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "poetry.lock" }}
           paths:
             - "/home/pyenv/.tox"
             - "/usr/local/bin"
