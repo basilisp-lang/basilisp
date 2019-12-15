@@ -28,7 +28,7 @@ jobs:
             TOX_SHOW_OUTPUT: "True"
             TOX_SKIP_ENV: pypy3
           command: |
-            tox -p $TOX_NUM_CORES
+            poetry run tox -p $TOX_NUM_CORES
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "poetry.lock" }}
           paths:
@@ -62,7 +62,7 @@ jobs:
       - run:
           name: Run Tests
           command: |
-            tox -e pypy3
+            poetry run tox -e pypy3
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "poetry.lock" }}
           paths:
