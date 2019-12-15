@@ -24,6 +24,7 @@ classifiers = [
 [tool.poetry.dependencies]
 python = ">=3.6.0"
 astor = "~0.8.0"
+atomos = "*"
 attrs = "*"
 click = "*"
 pyfunctional = "*"
