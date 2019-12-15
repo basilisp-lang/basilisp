@@ -198,7 +198,7 @@ class IPersistentMap(ICounted, IAssociative[K, V]):
 
     @abstractmethod
     def cons(  # type: ignore[override]
-        self: T_map, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]"]
+        self: T_map, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]", None]
     ) -> T_map:
         raise NotImplementedError()
 
