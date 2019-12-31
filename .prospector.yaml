@@ -11,6 +11,7 @@ ignore-paths:
   - .tox
   - build
   - dist
+  - lispcore.py
   - tests
 
 pep8:
