@@ -65,5 +65,6 @@ ENV/
 # Misc
 TODO
 lintout.txt
+lispcore.py
 .idea/
 .envrc
