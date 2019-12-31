@@ -664,7 +664,8 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     # Warn if this symbol is potentially being redefined
     if __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
         logger.warning(
-            f"redefining local Python name '{safe_name}' in module '{ctx.current_ns.module.__name__}'"
+            f"redefining local Python name '{safe_name}' in module "
+            f"'{ctx.current_ns.module.__name__}' ({node.env.ns}:{node.env.line})"
         )
 
     meta_ast = gen_py_ast(ctx, node.meta)
@@ -2020,7 +2021,10 @@ def _var_sym_to_py_ast(
         )
 
     if ctx.warn_on_var_indirection:
-        logger.warning(f"could not resolve a direct link to Var '{var_name}'")
+        logger.warning(
+            f"could not resolve a direct link to Var '{var_name}' "
+            f"({node.env.ns}:{node.env.line})"
+        )
 
     return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
 
