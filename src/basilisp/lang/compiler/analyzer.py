@@ -2291,7 +2291,12 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             return resolved
 
     if "." in form.ns:
-        return _resolve_nested_symbol(ctx, form)
+        try:
+            return _resolve_nested_symbol(ctx, form)
+        except CompilerException:
+            raise AnalyzerException(
+                f"unable to resolve symbol '{form}' in this context", form=form
+            ) from None
     elif ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
     else:
