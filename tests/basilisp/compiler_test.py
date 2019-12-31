@@ -330,7 +330,7 @@ class TestDef:
         assert (
             "basilisp.lang.compiler.generator",
             logging.WARNING,
-            f"redefining local Python name 'unique_djhvyz' in module '{ns.name}'",
+            f"redefining local Python name 'unique_djhvyz' in module '{ns.name}' (test:2)",
         ) in caplog.record_tuples
 
     def test_redef_vars(self, ns: runtime.Namespace, caplog):
@@ -343,7 +343,7 @@ class TestDef:
         """
         )
         assert (
-            f"redefining local Python name 'orig' in module '{ns.name}'"
+            f"redefining local Python name 'orig' in module '{ns.name}' (test:2)"
         ) not in caplog.messages
 
     def test_def_dynamic(self, ns: runtime.Namespace):
@@ -1776,6 +1776,8 @@ class TestMacroexpandFunctions:
         )
 
     def test_macroexpand(self, example_macro):
+        meta = lmap.map({reader.READER_LINE_KW: 1, reader.READER_COL_KW: 1})
+
         assert llist.l(
             sym.symbol("def"),
             sym.symbol("child"),
@@ -1785,16 +1787,18 @@ class TestMacroexpandFunctions:
                 vec.v(sym.symbol("&env"), sym.symbol("&form")),
                 llist.l(sym.symbol("fn", ns="basilisp.core"), vec.Vector.empty()),
             ),
-        ) == compiler.macroexpand(llist.l(sym.symbol("parent")))
+        ) == compiler.macroexpand(llist.l(sym.symbol("parent"), meta=meta))
 
         assert llist.l(sym.symbol("add", ns="operator"), 1, 2) == compiler.macroexpand(
-            llist.l(sym.symbol("add", ns="operator"), 1, 2)
+            llist.l(sym.symbol("add", ns="operator"), 1, 2, meta=meta)
         )
         assert sym.symbol("map") == compiler.macroexpand(sym.symbol("map"))
         assert llist.l(sym.symbol("map")) == compiler.macroexpand(
-            llist.l(sym.symbol("map"))
+            llist.l(sym.symbol("map"), meta=meta)
         )
-        assert vec.Vector.empty() == compiler.macroexpand(vec.Vector.empty())
+        assert vec.Vector.empty() == compiler.macroexpand(
+            vec.Vector.empty().with_meta(meta)
+        )
 
         assert sym.symbol("non-existent-symbol") == compiler.macroexpand(
             sym.symbol("non-existent-symbol")
@@ -3007,7 +3011,7 @@ class TestWarnOnVarIndirection:
         assert (
             "basilisp.lang.compiler.generator",
             logging.WARNING,
-            "could not resolve a direct link to Var 'm'",
+            "could not resolve a direct link to Var 'm' (test:1)",
         ) in caplog.record_tuples
 
     def test_no_warning_for_cross_ns_reference_if_warning_disabled(
@@ -3016,21 +3020,25 @@ class TestWarnOnVarIndirection:
         lcompile(
             "(fn [] (other.ns/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: False}
         )
-        assert ("could not resolve a direct link to Var 'm'") not in caplog.messages
+        assert (
+            "could not resolve a direct link to Var 'm' (test:1)"
+        ) not in caplog.messages
 
     def test_warning_for_cross_ns_alias_reference(self, other_ns, caplog):
         lcompile("(fn [] (other/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: True})
         assert (
             "basilisp.lang.compiler.generator",
             logging.WARNING,
-            "could not resolve a direct link to Var 'm'",
+            "could not resolve a direct link to Var 'm' (test:1)",
         ) in caplog.record_tuples
 
     def test_no_warning_for_cross_ns_alias_reference_if_warning_disabled(
         self, other_ns, caplog
     ):
         lcompile("(fn [] (other/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: False})
-        assert ("could not resolve a direct link to Var 'm'") not in caplog.messages
+        assert (
+            "could not resolve a direct link to Var 'm' (test:1)"
+        ) not in caplog.messages
 
     def test_warning_on_imported_name(self, ns: runtime.Namespace, caplog):
         """Basilisp should be able to directly resolve a link to cross-namespace
@@ -3043,7 +3051,7 @@ class TestWarnOnVarIndirection:
                 opts={compiler.WARN_ON_VAR_INDIRECTION: True},
             )
             assert (
-                "could not resolve a direct link to Python variable 'string/m'"
+                "could not resolve a direct link to Python variable 'string/m' (test:1)"
             ) not in caplog.messages
 
     def test_exception_raised_for_nonexistent_imported_name(

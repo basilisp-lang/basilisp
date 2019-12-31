@@ -651,7 +651,19 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     current_ns = ctx.current_ns
 
     # Attach metadata relevant for the current process below.
-    def_loc = _loc(form) or (None, None)
+    #
+    # The reader line/col metadata will be attached to the form itself in the
+    # happy path case (top-level bare def or top-level def returned from a
+    # macro). Less commonly, we may have to rely on metadata attached to the
+    # def symbol if, for example, the def form is returned by a macro wrapped
+    # in a do or let form. In that case, the macroexpansion process won't have
+    # any metadata to pass along to the expanded form, but the symbol itself
+    # is likely to have metadata. In rare cases, we may not be able to get
+    # any metadata. This may happen if the form and name were both generated
+    # programmatically.
+    def_loc = _loc(form) or _loc(name) or (None, None)
+    if def_loc == (None, None):
+        logger.warning(f"def line and column metadata not provided for Var {name}")
     def_node_env = ctx.get_node_env()
     def_meta = _clean_meta(
         name.meta.update(  # type: ignore [union-attr]
@@ -1670,6 +1682,11 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
                 try:
                     macro_env = ctx.symbol_table.as_env_map()
                     expanded = fn.var.value(macro_env, form, *form.rest)
+                    if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):
+                        old_meta = expanded.meta
+                        expanded = expanded.with_meta(
+                            old_meta.cons(form.meta) if old_meta else form.meta
+                        )
                     with ctx.macro_ns(
                         fn.var.ns if fn.var.ns is not ctx.current_ns else None
                     ):
@@ -2274,7 +2291,12 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             return resolved
 
     if "." in form.ns:
-        return _resolve_nested_symbol(ctx, form)
+        try:
+            return _resolve_nested_symbol(ctx, form)
+        except CompilerException:
+            raise AnalyzerException(
+                f"unable to resolve symbol '{form}' in this context", form=form
+            ) from None
     elif ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
     else:

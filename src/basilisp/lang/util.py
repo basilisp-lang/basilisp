@@ -11,6 +11,9 @@ import dateutil.parser as dateparser
 
 import basilisp.lang.atom as atom
 
+_DOUBLE_DOT = ".."
+_DOUBLE_DOT_REPLACEMENT = "__DOT_DOT__"
+
 _MUNGE_REPLACEMENTS = {
     "+": "__PLUS__",
     "-": "_",
@@ -24,6 +27,7 @@ _MUNGE_REPLACEMENTS = {
     "\\": "__IDIV__",
     "&": "__AMP__",
     "$": "__DOLLAR__",
+    "%": "__PCT__",
 }
 _MUNGE_TRANSLATE_TABLE = str.maketrans(_MUNGE_REPLACEMENTS)
 
@@ -36,6 +40,9 @@ def munge(s: str, allow_builtins: bool = False) -> str:
     """Replace characters which are not valid in Python symbols
     with valid replacement strings."""
     new_s = s.translate(_MUNGE_TRANSLATE_TABLE)
+
+    if new_s == _DOUBLE_DOT:
+        return _DOUBLE_DOT_REPLACEMENT
 
     if keyword.iskeyword(new_s):
         return f"{new_s}_"
