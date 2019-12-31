@@ -22,10 +22,16 @@ format:
 	@pipenv run black .
 
 
-.PHONY: dump-core-lpy
-dump-core-lpy:
-	@BASILISP_DO_NOT_CACHE_NAMESPACES=true pipenv run basilisp run -c '(with [f (python/open "lispcore.py" "w")] (.write f basilisp.core/*generated-python*))'
+lispcore.py:
+	@BASILISP_DO_NOT_CACHE_NAMESPACES=true \
+		pipenv run basilisp run -c \
+		'(with [f (python/open "lispcore.py" "w")] (.write f basilisp.core/*generated-python*))'
 	@pipenv run black lispcore.py
+
+
+.PHONY: clean
+clean:
+	@rm -rf ./lispcore.py
 
 
 .PHONY: repl
