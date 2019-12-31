@@ -61,7 +61,7 @@ def _get_basilisp_bytecode(
             f"expected {MAGIC_NUMBER!r}"
         )
         logger.debug(message)
-        raise ImportError(message, **exc_details)  # type: ignore
+        raise ImportError(message, **exc_details)
     elif len(raw_timestamp) != 4:
         message = f"Reached EOF while reading timestamp in {fullname}"
         logger.debug(message)
@@ -69,7 +69,7 @@ def _get_basilisp_bytecode(
     elif _r_long(raw_timestamp) != mtime:
         message = f"Non-matching timestamp ({_r_long(raw_timestamp)}) in {fullname} bytecode cache; expected {mtime}"
         logger.debug(message)
-        raise ImportError(message, **exc_details)  # type: ignore
+        raise ImportError(message, **exc_details)
     elif len(raw_size) != 4:
         message = f"Reached EOF while reading size of source in {fullname}"
         logger.debug(message)
@@ -77,7 +77,7 @@ def _get_basilisp_bytecode(
     elif _r_long(raw_size) != source_size:
         message = f"Non-matching filesize ({_r_long(raw_size)}) in {fullname} bytecode cache; expected {source_size}"
         logger.debug(message)
-        raise ImportError(message, **exc_details)  # type: ignore
+        raise ImportError(message, **exc_details)
 
     return marshal.loads(cache_data[12:])
 
