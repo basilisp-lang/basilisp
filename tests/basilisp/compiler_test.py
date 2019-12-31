@@ -3020,7 +3020,9 @@ class TestWarnOnVarIndirection:
         lcompile(
             "(fn [] (other.ns/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: False}
         )
-        assert ("could not resolve a direct link to Var 'm' (test:1)") not in caplog.messages
+        assert (
+            "could not resolve a direct link to Var 'm' (test:1)"
+        ) not in caplog.messages
 
     def test_warning_for_cross_ns_alias_reference(self, other_ns, caplog):
         lcompile("(fn [] (other/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: True})
@@ -3034,7 +3036,9 @@ class TestWarnOnVarIndirection:
         self, other_ns, caplog
     ):
         lcompile("(fn [] (other/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: False})
-        assert ("could not resolve a direct link to Var 'm' (test:1)") not in caplog.messages
+        assert (
+            "could not resolve a direct link to Var 'm' (test:1)"
+        ) not in caplog.messages
 
     def test_warning_on_imported_name(self, ns: runtime.Namespace, caplog):
         """Basilisp should be able to directly resolve a link to cross-namespace
