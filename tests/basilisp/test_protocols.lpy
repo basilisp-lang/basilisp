@@ -1,0 +1,3 @@
+(ns tests.basilisp.test-protocols
+  (:require
+   [basilisp.test :refer [deftest is testing]]))

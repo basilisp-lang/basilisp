@@ -3620,6 +3620,9 @@
   [name & body]
   (let [doc         (when (string? (first body))
                       (first body))
+        name        (if doc
+                      (vary-meta name assoc :doc doc)
+                      name)
         body        (if doc
                       (rest body)
                       body)
@@ -4066,7 +4069,9 @@
   Callers should use `definterface` to generate new interfaces."
   [interface-name methods]
   (let [methods (reduce (fn [m [method-name args docstring]]
-                          (let [method-args (->> (concat ['^:no-warn-when-unused self] args)
+                          (let [method-args (->> args
+                                                 (map #(vary-meta % assoc :no-warn-when-unused true))
+                                                 (concat ['^:no-warn-when-unused self])
                                                  (apply vector))
                                 method      (->> (list 'fn* method-name method-args)
                                                  (eval)
@@ -4456,3 +4461,127 @@
 
        ~type-name)))
 
+;;;;;;;;;;;;;;;
+;; Protocols ;;
+;;;;;;;;;;;;;;;
+
+(def ^:private protocols
+  ""
+  (atom {}))
+
+(defn ^:private gen-protocol-multi
+  "Return the `defmulti` and default `defmethod` for a protocol method."
+  [[method-name args docstring]]
+  (let [dotted-method-name (symbol (str "." (name method-name)))
+        has-varargs        (some #(= '& %) args)
+        clean-args         (filter #(not= '& %) args)
+
+        obj-sym (gensym "o")]
+    [`(defmulti ~method-name
+        ~docstring
+        (fn [~obj-sym ~@(map #(vary-meta % assoc :no-warn-when-unused true) args)]
+          (python/type ~obj-sym)))
+     `(defmethod ~method-name :default
+        [~obj-sym ~@args]
+        ~(if has-varargs
+           `(apply-method ~obj-sym ~method-name ~@clean-args)
+           `(~dotted-method-name ~obj-sym ~@clean-args)))]))
+
+(defmacro defprotocol
+  "Define a new protocol.
+
+  Protocols consist of an interface (a Python `ABC`) and a set of generated methods
+  which dispatch to objects implementing the interface."
+  [protocol-name & methods]
+  (let [doc           (when (string? (first methods))
+                        (first methods))
+        methods       (if doc (rest methods) methods)
+        protocol-name (vary-meta
+                       (cond-> protocol-name
+                         doc (vary-meta assoc :doc doc))
+                       assoc :protocol true)]
+    `(do
+       (definterface ~protocol-name ~@methods)
+       ~@(mapcat gen-protocol-multi methods)
+       (->> {:extending-types #{}
+             :interface       ~protocol-name
+             :methods         ~(apply hash-map
+                                      (mapcat #(let [v (first %)]
+                                                 [(keyword (name v)) v])
+                                              methods))}
+            (swap! protocols assoc ~protocol-name))
+       ~protocol-name)))
+
+(defn protocol?
+  "Return true if x is a Protocol."
+  [x]
+  (boolean (get @protocols x)))
+
+(defn extend
+  [target-type & type+methods]
+  (let [proto-map (apply hash-map type+methods)]
+    (swap! protocols (fn [proto-state]
+                       (reduce-kv (fn [m proto method-map]
+                                    (when-not (contains? proto-state proto)
+                                      (throw (ex-info "Invalid protocol type"
+                                                      {:protocol proto})))
+                                    (let [proto-methods (get-in m [proto :methods])]
+                                      (doseq [method-def method-map
+                                              :let [[method-name fn] method-def]]
+                                        (let [mmethod (get proto-methods method-name)]
+                                          (.add-method mmethod target-type fn))))
+                                    (update-in m [proto :extending-types] conj target-type))
+                                  proto-state
+                                  proto-map)))))
+
+(defn extends?
+  "Return true if type extends protocol proto."
+  [proto type]
+  (some-> (get-in @protocols [proto :extending-types])
+          (contains? type)))
+
+(defn satisfies?
+  "Return true if x satisfies protocol proto."
+  [proto x]
+  (or (instance? proto x)
+      (let [types (get-in @protocols [proto :extending-types])]
+        (python/isinstance x (python/tuple types)))))
+
+;;;;;;;;;;;;;;;
+;; Volatiles ;;
+;;;;;;;;;;;;;;;
+
+(defprotocol IVolatile
+  "Protocol for a volatile reference container. Volatile references do not provide
+  atomic semantics, but they may be useful as a mutable reference container in a
+  single-threaded context."
+
+  (vreset!
+    [new-val]
+    "Reset the value of a volatile non-atomically.")
+  (vswap!
+    [f & args]
+    "Swap the value of a volatile non-atomically to the return of
+     (apply f old-val args). Returns the new value of that function
+     call."))
+
+(deftype Volatile [^:mutable val]
+  basilisp.lang.interfaces/IDeref
+  (deref [this] val)
+
+  IVolatile
+  (vreset! [this new-val]
+    (set! val new-val))
+  (vswap! [this f & args]
+    (let [new-val (apply f val args)]
+      (set! val new-val))))
+
+(defn volatile!
+  "Return a Volatile reference container with the initial value v."
+  [v]
+  (Volatile v))
+
+(defn volatile?
+  "Return true if implements IVolatile."
+  [x]
+  (instance? IVolatile x))
