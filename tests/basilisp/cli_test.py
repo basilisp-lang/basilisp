@@ -15,23 +15,23 @@ class TestREPL:
     def test_no_input(self):
         runner = CliRunner()
         result = runner.invoke(cli, ["repl"], input="")
-        assert "user=> " == result.stdout
+        assert "basilisp.user=> " == result.stdout
 
     def test_newline(self):
         runner = CliRunner()
         result = runner.invoke(cli, ["repl"], input="\n")
-        assert "user=> user=> " == result.stdout
+        assert "basilisp.user=> basilisp.user=> " == result.stdout
 
     def test_simple_expression(self):
         runner = CliRunner()
         result = runner.invoke(cli, ["repl"], input="(+ 1 2)")
-        assert "user=> 3\nuser=> " == result.stdout
+        assert "basilisp.user=> 3\nbasilisp.user=> " == result.stdout
 
     def test_syntax_error(self):
         runner = CliRunner()
         result = runner.invoke(cli, ["repl"], input="(+ 1 2")
         assert (
-            "basilisp.lang.reader.SyntaxError: Unexpected EOF in list\nuser=> "
+            "basilisp.lang.reader.SyntaxError: Unexpected EOF in list\nbasilisp.user=> "
             in result.stdout
         )
 
@@ -40,7 +40,7 @@ class TestREPL:
         result = runner.invoke(cli, ["repl"], input="(fn*)")
         assert (
             "basilisp.lang.compiler.exception.CompilerException: fn form "
-            "must match: (fn* name? [arg*] body*) or (fn* name? method*)\nuser=> "
+            "must match: (fn* name? [arg*] body*) or (fn* name? method*)\nbasilisp.user=> "
         ) in result.stdout
 
     def test_other_exception(self):
@@ -48,7 +48,7 @@ class TestREPL:
         result = runner.invoke(
             cli, ["repl"], input='(throw (python/Exception "CLI test"))'
         )
-        assert "Exception: CLI test\nuser=> " in result.stdout
+        assert "Exception: CLI test\nbasilisp.user=> " in result.stdout
 
 
 class TestRun:

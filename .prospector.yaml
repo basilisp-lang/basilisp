@@ -20,10 +20,18 @@ pep8:
   options:
     max-line-length: 120
 
+pyflakes:
+  disable:
+    - F821
+
 pylint:
   disable:
+    - import-outside-toplevel
     - len-as-condition
+    - logging-format-interpolation
     - logging-fstring-interpolation
+    - no-else-continue
+    - no-else-raise
     - no-else-return
     - protected-access
     - unsubscriptable-object

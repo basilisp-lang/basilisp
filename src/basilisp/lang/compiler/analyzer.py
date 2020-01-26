@@ -795,7 +795,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     #        :file "<REPL Input>"
     #        :line 1
     #        :name 'some-name
-    #        :ns   ((.- basilisp.lang.runtime/Namespace get) 'user)}
+    #        :ns   ((.- basilisp.lang.runtime/Namespace get) 'basilisp.user)}
     #       some-name
     #       "some value")
     meta_ast = _analyze_form(
