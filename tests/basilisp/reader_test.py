@@ -839,6 +839,16 @@ def test_comment_line():
     )
 
 
+def test_shebang_line():
+    assert None is read_str_first("#! I'm a little shebang short and stout")
+    assert kw.keyword("kw2") == read_str_first("#!/usr/bin/env basilisp run\n:kw2")
+    assert llist.l(sym.symbol("form"), kw.keyword("keyword")) == read_str_first(
+        """#!/usr/bin/env basilisp run
+        (form :keyword)
+        """
+    )
+
+
 class TestReaderConditional:
     @pytest.mark.parametrize(
         "v",
