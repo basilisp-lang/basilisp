@@ -55,25 +55,28 @@ class PythonASTOptimizer(ast.NodeTransformer):
         """Eliminate dead code from if/elif bodies.
 
         If the new `if` statement `body` is empty after eliminating dead code, replace
-        the body with the `orelse` body and negate the `if` condition."""
+        the body with the `orelse` body and negate the `if` condition.
+
+        If both the `body` and `orelse` body are empty, eliminate the node from the
+        tree."""
         new_node = self.generic_visit(node)
         assert isinstance(new_node, ast.If)
 
         new_body = _filter_dead_code(new_node.body)
         new_orelse = _filter_dead_code(new_node.orelse)
 
-        assert new_body or new_orelse, "If statement must have body or else body"
-
-        if not new_body:
+        if new_body:
+            ifstmt = ast.If(test=new_node.test, body=new_body, orelse=new_orelse,)
+        elif new_orelse:
             ifstmt = ast.If(
                 test=ast.UnaryOp(op=ast.Not(), operand=new_node.test),
                 body=new_orelse,
                 orelse=[],
             )
         else:
-            ifstmt = ast.If(test=new_node.test, body=new_body, orelse=new_orelse,)
+            return None
 
-        return ast.copy_location(ifstmt, new_node,)
+        return ast.copy_location(ifstmt, new_node)
 
     def visit_While(self, node: ast.While) -> Optional[ast.AST]:
         """Eliminate dead code from while bodies."""

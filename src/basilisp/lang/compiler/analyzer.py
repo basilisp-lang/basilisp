@@ -608,7 +608,7 @@ def _body_ast(
         with ctx.stmt_pos():
             body_stmts = list(map(partial(_analyze_form, ctx), stmt_forms))
 
-        with ctx.expr_pos():
+        with ctx.parent_pos():
             body_expr = _analyze_form(ctx, ret_form)
 
         body = body_stmts + [body_expr]
@@ -1748,7 +1748,8 @@ def _import_ast(  # pylint: disable=too-many-branches
 
 
 def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
-    fn = _analyze_form(ctx, form.first)
+    with ctx.expr_pos():
+        fn = _analyze_form(ctx, form.first)
 
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
         if _is_macro(fn.var):
@@ -1763,7 +1764,7 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
                         )
                     with ctx.macro_ns(
                         fn.var.ns if fn.var.ns is not ctx.current_ns else None
-                    ):
+                    ), ctx.expr_pos():
                         expanded_ast = _analyze_form(ctx, expanded)
 
                     # Verify that macroexpanded code also does not have any
@@ -1781,11 +1782,11 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
                         phase=CompilerPhase.MACROEXPANSION,
                     ) from e
 
+    with ctx.expr_pos():
+        args = vec.vector(map(partial(_analyze_form, ctx), form.rest))
+
     return Invoke(
-        form=form,
-        fn=fn,
-        args=vec.vector(map(partial(_analyze_form, ctx), form.rest)),
-        env=ctx.get_node_env(pos=ctx.syntax_position),
+        form=form, fn=fn, args=args, env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
