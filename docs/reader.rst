@@ -24,13 +24,13 @@ Integers
 
 ::
 
-    user=> 1
+    basilisp.user=> 1
     1
-    user=> (builtins/type 1)
+    basilisp.user=> (builtins/type 1)
     <class 'int'>
-    user=> 1N
+    basilisp.user=> 1N
     1
-    user=> (builtins/type 1N)
+    basilisp.user=> (builtins/type 1N)
     <class 'int'>
 
 Integers are represented using numeric ``0-9`` and may be prefixed with any number of negative signs ``-``.
@@ -43,13 +43,13 @@ Floating Point
 
 ::
 
-   user=> 1.0
+   basilisp.user=> 1.0
    1.0
-   user=> (builtins/type 1.0)
+   basilisp.user=> (builtins/type 1.0)
    <class 'float'>
-   user=> 1M
+   basilisp.user=> 1M
    1
-   user=> (builtins/type 1M)
+   basilisp.user=> (builtins/type 1M)
    <class 'decimal.Decimal'>
 
 Floating point values are represented using ``0-9`` and a trailing decimal value, separated by a ``.`` character.
@@ -63,13 +63,13 @@ Complex
 
 ::
 
-    user=> 1J
+    basilisp.user=> 1J
     1J
-    user=> (builtins/type 1J)
+    basilisp.user=> (builtins/type 1J)
     <class 'complex'>
-    user=> 1.0J
+    basilisp.user=> 1.0J
     1J
-    user=> (builtins/type 1.0J)
+    basilisp.user=> (builtins/type 1.0J)
     <class 'complex'>
 
 Basilisp includes support for complex literals to match the Python VM hosts it.
@@ -83,11 +83,11 @@ Strings
 
 ::
 
-    user=> ""
+    basilisp.user=> ""
     ""
-    user=> "this is a string"
+    basilisp.user=> "this is a string"
     "this is a string"
-    user=> (builtins/type "")
+    basilisp.user=> (builtins/type "")
     <class 'str'>
 
 Strings are denoted as a series of characters enclosed by ``"`` quotation marks.
@@ -102,11 +102,11 @@ Character Literals
 
 ::
 
-    user=> \a
+    basilisp.user=> \a
     "a"
-    user=> \u03A9
+    basilisp.user=> \u03A9
     "Ω"
-    user=> \newline
+    basilisp.user=> \newline
     "
     "
 
@@ -126,13 +126,13 @@ Boolean Values
 
 ::
 
-    user=> true
+    basilisp.user=> true
     true
-    user=> (builtins/type true)
+    basilisp.user=> (builtins/type true)
     <class 'bool'>
-    user=> false
+    basilisp.user=> false
     false
-    user=> (builtins/type false)
+    basilisp.user=> (builtins/type false)
     <class 'bool'>
 
 The special values ``true`` and ``false`` correspond to Python's ``True`` and ``False`` respectively.
@@ -144,9 +144,9 @@ nil
 
 ::
 
-    user=> nil
+    basilisp.user=> nil
     nil
-    user=> (builtins/type nil)
+    basilisp.user=> (builtins/type nil)
     <class 'NoneType'>
 
 The special value ``nil`` correspond's to Python's ``None``.
@@ -167,9 +167,9 @@ Symbols
 
 ::
 
-    user=> 'sym
+    basilisp.user=> 'sym
     sym
-    user=> 'namespaced/sym
+    basilisp.user=> 'namespaced/sym
     namespaced/sym
 
 Symbolic identifiers, most often used to refer to a Var or value in Basilisp.
@@ -184,9 +184,9 @@ Keywords
 
 ::
 
-    user=> :keyword
+    basilisp.user=> :keyword
     :keyword
-    user=> :namespaced/keyword
+    basilisp.user=> :namespaced/keyword
     :namespaced/keyword
 
 Keywords are denoted by the ``:`` prefix character.
@@ -204,9 +204,9 @@ Lists
 
 ::
 
-    user=> ()
+    basilisp.user=> ()
     ()
-    user=> '(1 "2" :three)
+    basilisp.user=> '(1 "2" :three)
     (1 "2" :three)
 
 Lists are denoted with the ``()`` characters.
@@ -221,9 +221,9 @@ Vectors
 
 ::
 
-    user=> []
+    basilisp.user=> []
     []
-    user=> [1 "2" :three]
+    basilisp.user=> [1 "2" :three]
     [1 "2" :three]
 
 Vectors are denoted with the ``[]`` characters.
@@ -237,9 +237,9 @@ Maps
 
 ::
 
-    user=> {}
+    basilisp.user=> {}
     {}
-    user=> {1 "2" :three 3}
+    basilisp.user=> {1 "2" :three 3}
     {1 "2" :three 3}
 
 Maps are denoted with the ``{}`` characters.
@@ -253,9 +253,9 @@ Sets
 
 ::
 
-    user=> #{}
+    basilisp.user=> #{}
     #{}
-    user=> #{1 "2" :three}
+    basilisp.user=> #{1 "2" :three}
     #{1 "2" :three}
 
 Sets are denoted with the ``#{}`` characters.
@@ -277,11 +277,11 @@ Metadata
 
 ::
 
-    user=> (meta '^:macro s)
+    basilisp.user=> (meta '^:macro s)
     {:macro true}
-    user=> (meta '^str s)
+    basilisp.user=> (meta '^str s)
     {:tag str}
-    user=> (meta '^{:has-meta true} s)
+    basilisp.user=> (meta '^{:has-meta true} s)
     {:has-meta true}
 
 Metadata can be applied to the following form by specifying metadata before the form as ``^meta form``.
