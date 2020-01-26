@@ -8,7 +8,7 @@ def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:
     statements appearing after `break`, `continue`, and `return` nodes)."""
     new_nodes: List[ast.AST] = []
     for node in nodes:
-        if isinstance(node, (ast.Break, ast.Continue, ast.Return)):
+        if isinstance(node, (ast.Break, ast.Continue, ast.Raise, ast.Return)):
             new_nodes.append(node)
             break
         new_nodes.append(node)
@@ -52,17 +52,28 @@ class PythonASTOptimizer(ast.NodeTransformer):
         )
 
     def visit_If(self, node: ast.If) -> Optional[ast.AST]:
-        """Eliminate dead code from if/elif bodies."""
+        """Eliminate dead code from if/elif bodies.
+
+        If the new `if` statement `body` is empty after eliminating dead code, replace
+        the body with the `orelse` body and negate the `if` condition."""
         new_node = self.generic_visit(node)
         assert isinstance(new_node, ast.If)
-        return ast.copy_location(
-            ast.If(
-                test=new_node.test,
-                body=_filter_dead_code(new_node.body),
-                orelse=_filter_dead_code(new_node.orelse),
-            ),
-            new_node,
-        )
+
+        new_body = _filter_dead_code(new_node.body)
+        new_orelse = _filter_dead_code(new_node.orelse)
+
+        assert new_body or new_orelse, "If statement must have body or else body"
+
+        if not new_body:
+            ifstmt = ast.If(
+                test=ast.UnaryOp(op=ast.Not(), operand=new_node.test),
+                body=new_orelse,
+                orelse=[],
+            )
+        else:
+            ifstmt = ast.If(test=new_node.test, body=new_body, orelse=new_orelse,)
+
+        return ast.copy_location(ifstmt, new_node,)
 
     def visit_While(self, node: ast.While) -> Optional[ast.AST]:
         """Eliminate dead code from while bodies."""
