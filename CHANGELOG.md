@@ -6,6 +6,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.1.dev12] - 2020-01-26
+### Added
+ * Added new control structures: `dotimes`, `while`, `dorun`, `doall`, `case`, `for`, `doseq`, `..`, `with`, `doto` (#431)
+ * Added `basilisp.walk` namespace with generic tree-walker functions (#434)
+ * Added several new higher-order functions (#433)
+ * Added `basilisp.template` namespace with templating utility functions (#433)
+ * Added `basilisp.test/are` for writing multiple similar assertions (#433)
+ * Added many new collection and sequence functions (#439)
+ * Added support for Promises (#440)
+ * Added support for Python 3.8 (#447)
+ * Added `vary-meta`, `alter-meta!`, and `reset-meta!` utility functions (#449)
+ * Added support for the primitive type coercion API (#451)
+ * Added support for the unchecked arithmetic API (#452)
+ * Added a `Makefile` utility for generating the Python code for `basilisp.core` (#456)
+
+### Changed
+ * Compile `attrs` instances internally without `cmp` keyword argument for `attrs` >= 19.2.0 (#448)
+ * Small Python changes in the compiler to remove redundant operations (#450)
+
+### Fixed
+ * Fixed an issue where `macroexpand` and `macroexpand-1` attempted to resolve symbols rather than leaving them unresolved (#433)
+ * Fixed an issue with transient macro namespace symbol resolution in the analyzer (#438)
+ * Fixed a bug where `ISeq` iterators could stack overflow for long sequences (#445)
+ * Fixed the `importer` test suite's use of `multiprocessing` for Python 3.8 (#446)
+ * Correct the `with-meta` interface and replace incorrect usages with `vary-meta` (#449)
+ * Fixed an issue where line/column metadata was not properly being fetched by the analyzer (#454)
+ * Warnings for Basilisp code now indicate namespace and line number of that code (#457)
+ * Errors resolving nested symbols are now much more helpful (#459)
+
 ## [v0.1.dev11] - 2019-07-27
 ### Added
  * `macroexpand` and `macroexpand-1` functions (#394)
@@ -170,6 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.dev12]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev11..v0.1.dev12
 [v0.1.dev11]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev10..v0.1.dev11
 [v0.1.dev10]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev9..v0.1.dev10
 [v0.1.dev9]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev8..v0.1.dev9
