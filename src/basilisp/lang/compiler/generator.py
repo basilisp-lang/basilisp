@@ -1590,16 +1590,21 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
         let_result_name = genname(_LET_RESULT_PREFIX)
         body_ast = _synthetic_do_to_py_ast(ctx, node.body)
         let_body_ast.extend(map(statementize, body_ast.dependencies))
-        let_body_ast.append(
-            ast.Assign(
-                targets=[ast.Name(id=let_result_name, ctx=ast.Store())],
-                value=body_ast.node,
-            )
-        )
 
-        return GeneratedPyAST(
-            node=ast.Name(id=let_result_name, ctx=ast.Load()), dependencies=let_body_ast
-        )
+        if node.env.pos == NodeSyntacticPosition.EXPR:
+            let_body_ast.append(
+                ast.Assign(
+                    targets=[ast.Name(id=let_result_name, ctx=ast.Store())],
+                    value=body_ast.node,
+                )
+            )
+            return GeneratedPyAST(
+                node=ast.Name(id=let_result_name, ctx=ast.Load()),
+                dependencies=let_body_ast,
+            )
+        else:
+            let_body_ast.append(body_ast.node)
+            return GeneratedPyAST(node=_noop_node(), dependencies=let_body_ast)
 
 
 @_with_ast_loc_deps
