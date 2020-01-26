@@ -13,18 +13,18 @@ Once Basilisp is installed, you can enter into the REPL using::
 In Basilisp's REPL, you now have the full power of Basilisp at your disposal.
 It is customary to write a ``Hello, World!`` when starting out in a new language, so we'll do that here::
 
-    user=> (print "Hello, World!")
+    basilisp.user=> (print "Hello, World!")
     Hello, World!
     nil
 
 Or perhaps you'd like to try something a little more exciting, like performing some arithmetic::
 
-    user=> (+ 1 2 3 4 5)
+    basilisp.user=> (+ 1 2 3 4 5)
     15
 
 Sequences are a little more fun than simple arithmetic::
 
-    user=> (filter odd? (map inc (range 1 10)))
+    basilisp.user=> (filter odd? (map inc (range 1 10)))
     (3 5 7 9 11)
 
 There is a ton of great functionality built in to Basilisp, so feel free to poke around.

@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 CORE_NS = "basilisp.core"
 NS_VAR_NAME = "*ns*"
 NS_VAR_NS = CORE_NS
-REPL_DEFAULT_NS = "user"
+REPL_DEFAULT_NS = "basilisp.user"
 
 # Private string constants
 _GENERATED_PYTHON_VAR_NAME = "*generated-python*"
@@ -667,9 +667,7 @@ class Namespace(ReferenceBase):
         """Return an iterable of possible completions matching the given
         prefix from the list of aliased namespaces. If name_in_ns is given,
         further attempt to refine the list to matching names in that namespace."""
-        candidates = filter(
-            Namespace.__completion_matcher(prefix), [(s, n) for s, n in self.aliases]
-        )
+        candidates = filter(Namespace.__completion_matcher(prefix), self.aliases)
         if name_in_ns is not None:
             for _, candidate_ns in candidates:
                 for match in candidate_ns.__complete_interns(
@@ -720,19 +718,14 @@ class Namespace(ReferenceBase):
             def is_match(entry: Tuple[sym.Symbol, Var]) -> bool:
                 return _is_match(entry) and not entry[1].is_private
 
-        return map(
-            lambda entry: f"{entry[0].name}",
-            filter(is_match, [(s, v) for s, v in self.interns]),
-        )
+        return map(lambda entry: f"{entry[0].name}", filter(is_match, self.interns),)
 
     def __complete_refers(self, value: str) -> Iterable[str]:
         """Return an iterable of possible completions matching the given
         prefix from the list of referred Vars."""
         return map(
             lambda entry: f"{entry[0].name}",
-            filter(
-                Namespace.__completion_matcher(value), [(s, v) for s, v in self.refers]
-            ),
+            filter(Namespace.__completion_matcher(value), self.refers),
         )
 
     def complete(self, text: str) -> Iterable[str]:
