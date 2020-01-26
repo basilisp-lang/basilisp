@@ -5,7 +5,8 @@ import basilisp._pyast as ast
 
 def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:
     """Return a list of body nodes, trimming out unreachable code (any
-    statements appearing after `break`, `continue`, and `return` nodes)."""
+    statements appearing after `break`, `continue`, `raise`, and `return`
+    nodes)."""
     new_nodes: List[ast.AST] = []
     for node in nodes:
         if isinstance(node, (ast.Break, ast.Continue, ast.Raise, ast.Return)):
