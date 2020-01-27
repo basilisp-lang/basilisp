@@ -361,7 +361,7 @@ class AnalyzerContext:
 
     @contextlib.contextmanager
     def macro_ns(self, ns: Optional[runtime.Namespace]):
-        """Set the transient namespace which is available to the analyer during a
+        """Set the transient namespace which is available to the analyzer during a
         macroexpansion phase.
 
         If set to None, prohibit the analyzer from using another namespace for symbol

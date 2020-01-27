@@ -1,7 +1,7 @@
 Reader
 ======
 
-In most Lisps, the reader is the component responsible for reading in thet extual representation of the program into memory as data structures.
+In most Lisps, the reader is the component responsible for reading in the textual representation of the program into memory as data structures.
 Lisps are typically referred to as *homoiconic*, since that representation typically matches the syntax tree exactly in memory.
 This is in contrast to a non-homoiconic language such as Java or Python, which typically parses a textual program into an abstract syntax tree which captures the *meaning* of the textual program, but not necessarily the structure.
 
@@ -26,11 +26,11 @@ Integers
 
     basilisp.user=> 1
     1
-    basilisp.user=> (builtins/type 1)
+    basilisp.user=> (python/type 1)
     <class 'int'>
     basilisp.user=> 1N
     1
-    basilisp.user=> (builtins/type 1N)
+    basilisp.user=> (python/type 1N)
     <class 'int'>
 
 Integers are represented using numeric ``0-9`` and may be prefixed with any number of negative signs ``-``.
@@ -45,11 +45,11 @@ Floating Point
 
    basilisp.user=> 1.0
    1.0
-   basilisp.user=> (builtins/type 1.0)
+   basilisp.user=> (python/type 1.0)
    <class 'float'>
    basilisp.user=> 1M
    1
-   basilisp.user=> (builtins/type 1M)
+   basilisp.user=> (python/type 1M)
    <class 'decimal.Decimal'>
 
 Floating point values are represented using ``0-9`` and a trailing decimal value, separated by a ``.`` character.
@@ -65,11 +65,11 @@ Complex
 
     basilisp.user=> 1J
     1J
-    basilisp.user=> (builtins/type 1J)
+    basilisp.user=> (python/type 1J)
     <class 'complex'>
     basilisp.user=> 1.0J
     1J
-    basilisp.user=> (builtins/type 1.0J)
+    basilisp.user=> (python/type 1.0J)
     <class 'complex'>
 
 Basilisp includes support for complex literals to match the Python VM hosts it.
@@ -87,7 +87,7 @@ Strings
     ""
     basilisp.user=> "this is a string"
     "this is a string"
-    basilisp.user=> (builtins/type "")
+    basilisp.user=> (python/type "")
     <class 'str'>
 
 Strings are denoted as a series of characters enclosed by ``"`` quotation marks.
@@ -128,11 +128,11 @@ Boolean Values
 
     basilisp.user=> true
     true
-    basilisp.user=> (builtins/type true)
+    basilisp.user=> (python/type true)
     <class 'bool'>
     basilisp.user=> false
     false
-    basilisp.user=> (builtins/type false)
+    basilisp.user=> (python/type false)
     <class 'bool'>
 
 The special values ``true`` and ``false`` correspond to Python's ``True`` and ``False`` respectively.
@@ -146,7 +146,7 @@ nil
 
     basilisp.user=> nil
     nil
-    basilisp.user=> (builtins/type nil)
+    basilisp.user=> (python/type nil)
     <class 'NoneType'>
 
 The special value ``nil`` correspond's to Python's ``None``.
@@ -270,6 +270,8 @@ Line Comments
 Line comments are specified with the ``;`` character.
 All of the text to the end of the line are ignored.
 
+For a convenience in writing shell scripts with Basilisp, the standard *NIX `shebang <https://en.wikipedia.org/wiki/Shebang_(Unix)>` (``#!``) is also treated as a single-line comment.
+
 .. _metadata:
 
 Metadata
@@ -304,6 +306,7 @@ Reader macros are always dispatched using the ``#`` character.
 
 * ``#'form`` is rewritten as ``(var form)``.
 * ``#_form`` causes the reader to completely ignore ``form``.
+* ``#!form`` is treated as a single-line comment (like ``;form``) as a convenience to support `shebangs <https://en.wikipedia.org/wiki/Shebang_(Unix)>` at the top of Basilisp scripts.
 * ``#"str"`` causes the reader to interpret ``"str"`` as a regex and return a Python `re.pattern <https://docs.python.org/3/library/re.html>`_.
 * ``#(...)`` causes the reader to interpret the contents of the list as an anonymous function. Anonymous functions specified in this way can name arguments using ``%1``, ``%2``, etc. and rest args as ``%&``. For anonymous functions with only one argument, ``%`` can be used in place of ``%1``.
 
@@ -322,6 +325,18 @@ Basilisp supports a few builtin data readers:
 
 * ``#inst "2018-09-14T15:11:20.253-00:00"`` yields a Python `datetime <https://docs.python.org/3/library/datetime.html#datetime-objects>`_ object.
 * ``#uuid "c3598794-20b4-48db-b76e-242f4405743f"`` yields a Python `UUID <https://docs.python.org/3/library/uuid.html#uuid.UUID>`_ object.
+
+One of the benefits of choosing Basilisp is convenient built-in Python language interop.
+However, the immutable data structures of Basilisp may not always play nicely with code written for (and expecting to be used by) other Python code.
+Fortunately, Basilisp includes data readers for reading Python collection literals directly from the REPL or from Basilisp source.
+
+Python literals can be read by prefixing existing Basilisp data structures with a ``#py`` data reader tag.
+Python literals use the matching syntax to the corresponding Python data type, which does not always match the syntax for the same data type in Basilisp.
+
+* ``#py []`` produces a Python `list <https://docs.python.org/3/library/stdtypes.html#list>` type.
+* ``#py ()`` produces a Python `tuple <https://docs.python.org/3/library/stdtypes.html#tuple>` type.
+* ``#py {}`` produces a Python `dict <https://docs.python.org/3/library/stdtypes.html#dict>` type.
+* ``#py #{}`` produces a Python `set <https://docs.python.org/3/library/stdtypes.html#set>` type.
 
 .. _special_chars:
 
