@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * Change the default user namespace to `basilisp.user` (#466)
 
+### Fixed
+ * Fixed a reader bug where no exception was being thrown splicing reader conditional forms appeared outside of valid splicing contexts (#470)
+
 ## [v0.1.dev12] - 2020-01-26
 ### Added
  * Added new control structures: `dotimes`, `while`, `dorun`, `doall`, `case`, `for`, `doseq`, `..`, `with`, `doto` (#431)

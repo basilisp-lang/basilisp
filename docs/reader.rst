@@ -360,4 +360,32 @@ Syntax quoting is a facility primarily used for writing macros in Basilisp.
 Reader Conditionals
 -------------------
 
-Reader conditionals are **not** supported at the moment by Basilisp's reader, though support is planned.
+Reader conditionals are a powerful reader feature which allow Basilisp to read code written for other Clojure-like platforms (such as Clojure JVM or ClojureScript) without experiencing catastrophic errors.
+Platform-specific Clojure code can be wrapped in reader conditionals and the reader will match only forms identified by supported reader "features".
+Features are just standard :ref:`keywords`.
+By default, Basilisp supports the ``:lpy`` feature.
+
+Reader conditionals appear as Basilisp lists prefixed with the ``#?`` characters.
+Like maps, reader conditionals should always contain an even number of forms.
+Each pair should consist of the keyword used to identify the platform feature (such as ``:lpy`` for Basilisp) and the intended form for that feature.
+The reader may emit no forms (much like with the :ref:`reader_macros` ``#_``) if there are no supported features in the reader conditional form.
+
+::
+
+    basilisp.user=> #?(:clj 1 :lpy 2)
+    2
+    basilisp.user=> #?(:clj 1)
+    basilisp.user=>
+    basilisp.user=> [#?@(:lpy [1 2 3])]
+    [1 2 3]
+
+For advanced use cases, reader conditionals may also be written to splice their contents into surrounding forms.
+Splicing reader conditionals are subject to the same rules as splicing unquote in a syntax quoting context.
+Splicing reader conditionals may only appear within other collection literal forms (such as lists, maps, sets, and vectors).
+
+::
+
+    basilisp.user=> [#?@(:lpy [1 2 3])]
+    [1 2 3]
+    basilisp.user=> #?@(:lpy [1 2 3])
+    basilisp.lang.reader.SyntaxError: Unexpected reader conditional
