@@ -576,7 +576,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
         if v is COMMENT or isinstance(v, Comment):
             continue
         elif v is ctx.eof:
-            raise UnexpectedEOFError(f"Unexpected EOF in map")
+            raise UnexpectedEOFError("Unexpected EOF in map")
         elif _should_splice_reader_conditional(ctx, v):
             assert isinstance(v, ReaderConditional)
             selected_feature = v.select_feature(ctx.reader_features)
