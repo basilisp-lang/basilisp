@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for Shebang-style line comments (#469)
+ * Added node syntactic location (statement or expression) to Basilisp AST nodes emitted by the analyzer (#463)
 
 ### Changed
  * Change the default user namespace to `basilisp.user` (#466)
