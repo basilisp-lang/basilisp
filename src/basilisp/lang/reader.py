@@ -567,7 +567,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
         if v is COMMENT or isinstance(v, Comment):
             continue
         elif v is ctx.eof:
-            raise SyntaxError(f"Unexpected EOF in map")
+            raise SyntaxError("Unexpected EOF in map")
         elif _should_splice_reader_conditional(ctx, v):
             assert isinstance(v, ReaderConditional)
             selected_feature = v.select_feature(ctx.reader_features)
@@ -736,7 +736,7 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
             if allow_arbitrary_escapes:
                 s.append("\\")
             else:
-                raise SyntaxError("Unknown escape sequence: \\{token}")
+                raise SyntaxError(f"Unknown escape sequence: \\{token}")
         if token == '"':
             reader.next_token()
             return "".join(s)
@@ -843,7 +843,7 @@ def _postwalk(f, form):
 def _read_function(ctx: ReaderContext) -> llist.List:
     """Read a function reader macro from the input stream."""
     if ctx.is_in_anon_fn:
-        raise SyntaxError(f"Nested #() definitions not allowed")
+        raise SyntaxError("Nested #() definitions not allowed")
 
     with ctx.in_anon_fn():
         form = _read_list(ctx)
@@ -1222,6 +1222,8 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
         ctx.reader.advance()
         _read_next(ctx)  # Ignore the entire next form
         return COMMENT
+    elif token == "!":
+        return _read_comment(ctx)
     elif token == "?":
         return _read_reader_conditional(ctx)
     elif ns_name_chars.match(token):
@@ -1244,7 +1246,7 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
     Return the next form after the next line break."""
     reader = ctx.reader
     start = reader.advance()
-    assert start == ";"
+    assert start in {";", "!"}
     while True:
         token = reader.peek()
         if newline_chars.match(token):
@@ -1307,7 +1309,7 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
     elif token == "":
         return ctx.eof
     else:
-        raise SyntaxError("Unexpected token '{token}'".format(token=token))
+        raise SyntaxError(f"Unexpected token '{token}'")
 
 
 def read(  # pylint: disable=too-many-arguments
@@ -1356,10 +1358,11 @@ def read(  # pylint: disable=too-many-arguments
             return
         if expr is COMMENT or isinstance(expr, Comment):
             continue
-        assert (
-            not isinstance(expr, ReaderConditional)
-            or not ctx.should_process_reader_cond
-        ), "Reader conditionals must be processed if specified"
+        if isinstance(expr, ReaderConditional) and ctx.should_process_reader_cond:
+            raise SyntaxError(
+                f"Unexpected reader conditional '{repr(expr)})'; "
+                "reader is configured to process reader conditionals"
+            )
         yield expr
 
 
