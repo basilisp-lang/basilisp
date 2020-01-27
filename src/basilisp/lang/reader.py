@@ -567,7 +567,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
         if v is COMMENT or isinstance(v, Comment):
             continue
         elif v is ctx.eof:
-            raise SyntaxError(f"Unexpected EOF in map")
+            raise SyntaxError("Unexpected EOF in map")
         elif _should_splice_reader_conditional(ctx, v):
             assert isinstance(v, ReaderConditional)
             selected_feature = v.select_feature(ctx.reader_features)
@@ -736,7 +736,7 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
             if allow_arbitrary_escapes:
                 s.append("\\")
             else:
-                raise SyntaxError("Unknown escape sequence: \\{token}")
+                raise SyntaxError(f"Unknown escape sequence: \\{token}")
         if token == '"':
             reader.next_token()
             return "".join(s)
@@ -1358,10 +1358,11 @@ def read(  # pylint: disable=too-many-arguments
             return
         if expr is COMMENT or isinstance(expr, Comment):
             continue
-        assert (
-            not isinstance(expr, ReaderConditional)
-            or not ctx.should_process_reader_cond
-        ), "Reader conditionals must be processed if specified"
+        if isinstance(expr, ReaderConditional) and ctx.should_process_reader_cond:
+            raise SyntaxError(
+                f"Unexpected reader conditional '{repr(expr)})'; "
+                "reader is configured to process reader conditionals"
+            )
         yield expr
 
 

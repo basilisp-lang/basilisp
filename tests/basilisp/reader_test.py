@@ -892,6 +892,8 @@ class TestReaderConditional:
     @pytest.mark.parametrize(
         "v",
         [
+            # No splice context
+            "#?@(:clj [1 2 3] :lpy [4 5 6] :default [7 8 9])",
             # Invalid splice collection
             "(#?@(:clj (1 2) :lpy (3 4)))",
             "(#?@(:clj #{1 2} :lpy #{3 4}))",
