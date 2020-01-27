@@ -117,7 +117,6 @@ class UnexpectedEOFError(SyntaxError):
 
     Useful for cases such as the REPL reader, where unexpected EOF errors
     likely indicate the user is trying to enter a multiline form."""
-    pass
 
 
 class StreamReader:

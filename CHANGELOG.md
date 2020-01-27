@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for Shebang-style line comments (#469)
+ * Added multiline REPL support using `prompt-toolkit` (#467)
 
 ### Changed
  * Change the default user namespace to `basilisp.user` (#466)
