@@ -87,7 +87,7 @@ class PromptToolkitPrompter(Prompter):
         _eof = object()
 
         @kb.add("enter")
-        def _(event: KeyPressEvent) -> None:
+        def _(event: KeyPressEvent) -> None:  # pragma: no cover
             try:
                 list(
                     reader.read_str(
