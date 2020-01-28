@@ -74,6 +74,7 @@ from basilisp.lang.compiler.nodes import (
     Node,
     NodeEnv,
     NodeOp,
+    NodeSyntacticPosition,
     PropertyMethod,
     PyDict,
     PyList,
@@ -111,7 +112,10 @@ _FN_PREFIX = "lisp_fn"
 _IF_PREFIX = "lisp_if"
 _IF_RESULT_PREFIX = "if_result"
 _IF_TEST_PREFIX = "if_test"
+_LET_RESULT_PREFIX = "let_result"
+_LOOP_RESULT_PREFIX = "loop_result"
 _MULTI_ARITY_ARG_NAME = "multi_arity_args"
+_SET_BANG_TEMP_PREFIX = "set_bang_val"
 _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
 _NS_VAR = "__NS"
@@ -415,6 +419,17 @@ def _is_redefable(v: Var) -> bool:
     return (
         Maybe(v.meta).map(lambda m: m.get(SYM_REDEF_META_KEY, None)).or_else_get(False)
     )
+
+
+def _noop_node() -> ast.AST:
+    """Return a Constant node containing the expression `None`.
+
+    The optimizer filters out constant expressions in the AST as standalone
+    statements, so for generators which generate code for statement nodes,
+    for example, emitting a final `None` expression is a way to effectively
+    skirt the requirement for returning an expression node from every
+    generator."""
+    return ast.Constant(None)
 
 
 #######################
@@ -1378,7 +1393,7 @@ def _fn_to_py_ast(
 
 @_with_ast_loc_deps
 def __if_body_to_py_ast(
-    ctx: GeneratorContext, node: Node, result_name: str
+    ctx: GeneratorContext, node: Node, result_name: Optional[str]
 ) -> GeneratedPyAST:
     """Generate custom `if` nodes to handle `recur` bodies.
 
@@ -1386,7 +1401,10 @@ def __if_body_to_py_ast(
     Recur nodes generate Python `continue` statements, which we would otherwise
     attempt to insert directly into an expression. Python will complain if
     it finds a statement in an expression AST slot, so we special case the
-    recur handling here."""
+    recur handling here.
+
+    If `result_name` is None, then the `if` form is syntactically in a statement
+    position, so there is no need to emit an assignment."""
     if node.op == NodeOp.RECUR and ctx.recur_point.type == RecurType.LOOP:
         assert isinstance(node, Recur)
         return _recur_to_py_ast(ctx, node)
@@ -1396,7 +1414,9 @@ def __if_body_to_py_ast(
         return GeneratedPyAST(
             node=ast.Assign(
                 targets=[ast.Name(id=result_name, ctx=ast.Store())], value=if_body.node
-            ),
+            )
+            if result_name is not None
+            else if_body.node,
             dependencies=list(map(statementize, if_body.dependencies)),
         )
     else:
@@ -1404,7 +1424,9 @@ def __if_body_to_py_ast(
         return GeneratedPyAST(
             node=ast.Assign(
                 targets=[ast.Name(id=result_name, ctx=ast.Store())], value=py_ast.node
-            ),
+            )
+            if result_name is not None
+            else py_ast.node,
             dependencies=py_ast.dependencies,
         )
 
@@ -1425,7 +1447,11 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     assert node.op == NodeOp.IF
 
     test_ast = gen_py_ast(ctx, node.test)
-    result_name = genname(_IF_RESULT_PREFIX)
+    result_name = (
+        genname(_IF_RESULT_PREFIX)
+        if node.env.pos == NodeSyntacticPosition.EXPR
+        else None
+    )
 
     then_ast = __if_body_to_py_ast(ctx, node.then, result_name)
     else_ast = __if_body_to_py_ast(ctx, node.else_, result_name)
@@ -1457,7 +1483,9 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     )
 
     return GeneratedPyAST(
-        node=ast.Name(id=result_name, ctx=ast.Load()),
+        node=ast.Name(id=result_name, ctx=ast.Load())
+        if result_name is not None
+        else _noop_node(),
         dependencies=list(chain(test_ast.dependencies, [test_assign, ifstmt])),
     )
 
@@ -1561,19 +1589,24 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
                 sym.symbol(binding.name), binding_name, LocalType.LET
             )
 
-        let_result_name = genname("let_result")
+        let_result_name = genname(_LET_RESULT_PREFIX)
         body_ast = _synthetic_do_to_py_ast(ctx, node.body)
         let_body_ast.extend(map(statementize, body_ast.dependencies))
-        let_body_ast.append(
-            ast.Assign(
-                targets=[ast.Name(id=let_result_name, ctx=ast.Store())],
-                value=body_ast.node,
-            )
-        )
 
-        return GeneratedPyAST(
-            node=ast.Name(id=let_result_name, ctx=ast.Load()), dependencies=let_body_ast
-        )
+        if node.env.pos == NodeSyntacticPosition.EXPR:
+            let_body_ast.append(
+                ast.Assign(
+                    targets=[ast.Name(id=let_result_name, ctx=ast.Store())],
+                    value=body_ast.node,
+                )
+            )
+            return GeneratedPyAST(
+                node=ast.Name(id=let_result_name, ctx=ast.Load()),
+                dependencies=let_body_ast,
+            )
+        else:
+            let_body_ast.append(body_ast.node)
+            return GeneratedPyAST(node=_noop_node(), dependencies=let_body_ast)
 
 
 @_with_ast_loc_deps
@@ -1601,7 +1634,7 @@ def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
                 sym.symbol(binding.name), binding_name, LocalType.LOOP
             )
 
-        loop_result_name = genname("loop")
+        loop_result_name = genname(_LOOP_RESULT_PREFIX)
         with ctx.new_recur_point(
             node.loop_id, RecurType.LOOP, binding_names=binding_names
         ):
@@ -1763,7 +1796,6 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
     """Return a Python AST Node for a `set!` expression."""
     assert node.op == NodeOp.SET_BANG
 
-    val_temp_name = genname("set_bang_val")
     val_ast = gen_py_ast(ctx, node.val)
 
     target = node.target
@@ -1782,22 +1814,35 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
             f"invalid set! target type {type(target)}", lisp_ast=target
         )
 
-    return GeneratedPyAST(
-        node=ast.Name(id=val_temp_name, ctx=ast.Load()),
-        dependencies=list(
-            chain(
-                val_ast.dependencies,
-                [
-                    ast.Assign(
-                        targets=[ast.Name(id=val_temp_name, ctx=ast.Store())],
-                        value=val_ast.node,
-                    )
-                ],
-                target_ast.dependencies,
-                [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
-            )
-        ),
-    )
+    if node.env.pos == NodeSyntacticPosition.EXPR:
+        val_temp_name = genname(_SET_BANG_TEMP_PREFIX)
+        return GeneratedPyAST(
+            node=ast.Name(id=val_temp_name, ctx=ast.Load()),
+            dependencies=list(
+                chain(
+                    val_ast.dependencies,
+                    [
+                        ast.Assign(
+                            targets=[ast.Name(id=val_temp_name, ctx=ast.Store())],
+                            value=val_ast.node,
+                        )
+                    ],
+                    target_ast.dependencies,
+                    [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
+                )
+            ),
+        )
+    else:
+        return GeneratedPyAST(
+            node=_noop_node(),
+            dependencies=list(
+                chain(
+                    val_ast.dependencies,
+                    target_ast.dependencies,
+                    [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
+                )
+            ),
+        )
 
 
 @_with_ast_loc_deps
@@ -1805,28 +1850,11 @@ def _throw_to_py_ast(ctx: GeneratorContext, node: Throw) -> GeneratedPyAST:
     """Return a Python AST Node for a `throw` expression."""
     assert node.op == NodeOp.THROW
 
-    throw_fn = genname(_THROW_PREFIX)
     exc_ast = gen_py_ast(ctx, node.exception)
     raise_body = ast.Raise(exc=exc_ast.node, cause=None)
 
     return GeneratedPyAST(
-        node=ast.Call(func=ast.Name(id=throw_fn, ctx=ast.Load()), args=[], keywords=[]),
-        dependencies=[
-            ast.FunctionDef(
-                name=throw_fn,
-                args=ast.arguments(
-                    args=[],
-                    kwarg=None,
-                    vararg=None,
-                    kwonlyargs=[],
-                    defaults=[],
-                    kw_defaults=[],
-                ),
-                body=list(chain(exc_ast.dependencies, [raise_body])),
-                decorator_list=[],
-                returns=None,
-            )
-        ],
+        node=_noop_node(), dependencies=list(chain(exc_ast.dependencies, [raise_body])),
     )
 
 

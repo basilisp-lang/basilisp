@@ -96,6 +96,7 @@ from basilisp.lang.compiler.nodes import (
     Node,
     NodeEnv,
     NodeOp,
+    NodeSyntacticPosition,
     PropertyMethod,
     PyDict,
     PyList,
@@ -284,6 +285,7 @@ class AnalyzerContext:
         "_recur_points",
         "_should_macroexpand",
         "_st",
+        "_syntax_pos",
     )
 
     def __init__(
@@ -304,6 +306,7 @@ class AnalyzerContext:
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._should_macroexpand = should_macroexpand
         self._st = collections.deque([SymbolTable("<Top>")])
+        self._syntax_pos = collections.deque([NodeSyntacticPosition.EXPR])
 
     @property
     def current_ns(self) -> runtime.Namespace:
@@ -481,8 +484,47 @@ class AnalyzerContext:
         finally:
             self._st.append(old_st)
 
-    def get_node_env(self):
-        return NodeEnv(ns=self.current_ns, file=self.filename)
+    @contextlib.contextmanager
+    def expr_pos(self):
+        """Context manager which indicates to immediate child nodes that they
+        are in an expression syntactic position."""
+        self._syntax_pos.append(NodeSyntacticPosition.EXPR)
+        try:
+            yield
+        finally:
+            self._syntax_pos.pop()
+
+    @contextlib.contextmanager
+    def stmt_pos(self):
+        """Context manager which indicates to immediate child nodes that they
+        are in a statement syntactic position."""
+        self._syntax_pos.append(NodeSyntacticPosition.STMT)
+        try:
+            yield
+        finally:
+            self._syntax_pos.pop()
+
+    @contextlib.contextmanager
+    def parent_pos(self):
+        """Context manager which indicates to immediate child nodes that they
+        are in an equivalent syntactic position as their parent node.
+
+        This context manager copies the top position and pushes a new value onto
+        the stack, so the parent node's syntax position will not be lost."""
+        self._syntax_pos.append(self.syntax_position)
+        try:
+            yield
+        finally:
+            self._syntax_pos.pop()
+
+    @property
+    def syntax_position(self) -> NodeSyntacticPosition:
+        """Return the syntax position of the current node as indicated by its
+        parent node."""
+        return self._syntax_pos[-1]
+
+    def get_node_env(self, pos: Optional[NodeSyntacticPosition] = None):
+        return NodeEnv(ns=self.current_ns, file=self.filename, pos=pos)
 
 
 MetaGetter = Callable[[Union[IMeta, Var]], bool]
@@ -554,8 +596,25 @@ def _body_ast(
     """Analyze the form and produce a body of statement nodes and a single
     return expression node.
 
-    If the body is empty, return a constant node containing nil."""
-    body = list(map(partial(_analyze_form, ctx), form))
+    If the body is empty, return a constant node containing nil.
+
+    If the parent indicates that it is in a statement syntactic position
+    (and thus that it cannot return a value), the final node will be marked
+    as a statement (rather than an expression) as well."""
+    body_list = list(form)
+    if body_list:
+        *stmt_forms, ret_form = body_list
+
+        with ctx.stmt_pos():
+            body_stmts = list(map(partial(_analyze_form, ctx), stmt_forms))
+
+        with ctx.parent_pos():
+            body_expr = _analyze_form(ctx, ret_form)
+
+        body = body_stmts + [body_expr]
+    else:
+        body = []
+
     if body:
         *stmts, ret = body
     else:
@@ -588,7 +647,10 @@ def _with_meta(gen_node):
                     isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP
                 )
                 return WithMeta(
-                    form=form, meta=meta_ast, expr=descriptor, env=ctx.get_node_env()
+                    form=form,
+                    meta=meta_ast,
+                    expr=descriptor,
+                    env=ctx.get_node_env(pos=ctx.syntax_position),
                 )
 
         return descriptor
@@ -610,8 +672,10 @@ def _await_ast(ctx: AnalyzerContext, form: ISeq) -> Await:
             f"await forms must contain 2 elements, as in: (await expr)", form=form
         )
 
-    expr = _analyze_form(ctx, runtime.nth(form, 1))
-    return Await(form=form, expr=expr, env=ctx.get_node_env())
+    with ctx.expr_pos():
+        expr = _analyze_form(ctx, runtime.nth(form, 1))
+
+    return Await(form=form, expr=expr, env=ctx.get_node_env(pos=ctx.syntax_position),)
 
 
 def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
@@ -637,11 +701,13 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         doc = None
         children: vec.Vector[kw.Keyword] = vec.Vector.empty()
     elif nelems == 3:
-        init = _analyze_form(ctx, runtime.nth(form, 2))
+        with ctx.expr_pos():
+            init = _analyze_form(ctx, runtime.nth(form, 2))
         doc = None
         children = vec.v(INIT)
     else:
-        init = _analyze_form(ctx, runtime.nth(form, 3))
+        with ctx.expr_pos():
+            init = _analyze_form(ctx, runtime.nth(form, 3))
         doc = runtime.nth(form, 2)
         if not isinstance(doc, str):
             raise AnalyzerException("def docstring must be a string", form=doc)
@@ -664,7 +730,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     def_loc = _loc(form) or _loc(name) or (None, None)
     if def_loc == (None, None):
         logger.warning(f"def line and column metadata not provided for Var {name}")
-    def_node_env = ctx.get_node_env()
+    def_node_env = ctx.get_node_env(pos=ctx.syntax_position)
     def_meta = _clean_meta(
         name.meta.update(  # type: ignore [union-attr]
             lmap.map(
@@ -1120,14 +1186,11 @@ def __is_abstract(tp: Type) -> bool:
     which do not define any abstract members."""
     if inspect.isabstract(tp):
         return True
-    elif (
+    return (
         inspect.isclass(tp)
         and hasattr(tp, "__abstractmethods__")
         and tp.__abstractmethods__ == frozenset()
-    ):
-        return True
-    else:
-        return False
+    )
 
 
 def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,too-many-locals
@@ -1274,15 +1337,18 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             fields=vec.vector(param_nodes),
             members=vec.vector(members),
             is_frozen=is_frozen,
-            env=ctx.get_node_env(),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
 
 def _do_ast(ctx: AnalyzerContext, form: ISeq) -> Do:
     assert form.first == SpecialForm.DO
-    *statements, ret = map(partial(_analyze_form, ctx), form.rest)
+    statements, ret = _body_ast(ctx, form.rest)
     return Do(
-        form=form, statements=vec.vector(statements), ret=ret, env=ctx.get_node_env()
+        form=form,
+        statements=vec.vector(statements),
+        ret=ret,
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -1473,7 +1539,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
             max_fixed_arity=max([node.fixed_arity for node in methods]),
             methods=methods,
             local=name_node,
-            env=ctx.get_node_env(),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
             is_async=is_async,
         )
 
@@ -1495,7 +1561,7 @@ def _host_call_ast(ctx: AnalyzerContext, form: ISeq) -> HostCall:
         method=method.name[1:],
         target=_analyze_form(ctx, runtime.nth(form, 1)),
         args=vec.vector(map(partial(_analyze_form, ctx), runtime.nthrest(form, 2))),
-        env=ctx.get_node_env(),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -1533,7 +1599,7 @@ def _host_prop_ast(ctx: AnalyzerContext, form: ISeq) -> HostField:
             field=field.name,
             target=_analyze_form(ctx, runtime.nth(form, 1)),
             is_assignable=True,
-            env=ctx.get_node_env(),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
     else:
         if not nelems == 2:
@@ -1547,7 +1613,7 @@ def _host_prop_ast(ctx: AnalyzerContext, form: ISeq) -> HostField:
             field=field.name[2:],
             target=_analyze_form(ctx, runtime.nth(form, 1)),
             is_assignable=True,
-            env=ctx.get_node_env(),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
 
@@ -1575,7 +1641,7 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
                 field=maybe_m_or_f.name[1:],
                 target=_analyze_form(ctx, runtime.nth(form, 1)),
                 is_assignable=True,
-                env=ctx.get_node_env(),
+                env=ctx.get_node_env(pos=ctx.syntax_position),
             )
         else:
             return HostCall(
@@ -1585,7 +1651,7 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
                 args=vec.vector(
                     map(partial(_analyze_form, ctx), runtime.nthrest(form, 3))
                 ),
-                env=ctx.get_node_env(),
+                env=ctx.get_node_env(pos=ctx.syntax_position),
             )
     elif isinstance(maybe_m_or_f, (llist.List, ISeq)):
         # Likewise, I emit :host-call for forms like (. target (method arg1 ...)).
@@ -1598,7 +1664,7 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
             method=method.name[1:] if method.name.startswith("-") else method.name,
             target=_analyze_form(ctx, runtime.nth(form, 1)),
             args=vec.vector(map(partial(_analyze_form, ctx), maybe_m_or_f.rest)),
-            env=ctx.get_node_env(),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
     else:
         raise AnalyzerException(
@@ -1620,17 +1686,23 @@ def _if_ast(ctx: AnalyzerContext, form: ISeq) -> If:
             form=form,
         )
 
-    if nelems == 4:
-        else_node = _analyze_form(ctx, runtime.nth(form, 3))
-    else:
-        else_node = _const_node(ctx, None)
+    with ctx.expr_pos():
+        test_node = _analyze_form(ctx, runtime.nth(form, 1))
+
+    with ctx.parent_pos():
+        then_node = _analyze_form(ctx, runtime.nth(form, 2))
+
+        if nelems == 4:
+            else_node = _analyze_form(ctx, runtime.nth(form, 3))
+        else:
+            else_node = _const_node(ctx, None)
 
     return If(
         form=form,
-        test=_analyze_form(ctx, runtime.nth(form, 1)),
-        then=_analyze_form(ctx, runtime.nth(form, 2)),
+        test=test_node,
+        then=then_node,
         else_=else_node,
-        env=ctx.get_node_env(),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -1670,11 +1742,14 @@ def _import_ast(  # pylint: disable=too-many-branches
             )
         )
 
-    return Import(form=form, aliases=aliases, env=ctx.get_node_env())
+    return Import(
+        form=form, aliases=aliases, env=ctx.get_node_env(pos=ctx.syntax_position),
+    )
 
 
 def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
-    fn = _analyze_form(ctx, form.first)
+    with ctx.expr_pos():
+        fn = _analyze_form(ctx, form.first)
 
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
         if _is_macro(fn.var):
@@ -1689,7 +1764,7 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
                         )
                     with ctx.macro_ns(
                         fn.var.ns if fn.var.ns is not ctx.current_ns else None
-                    ):
+                    ), ctx.expr_pos():
                         expanded_ast = _analyze_form(ctx, expanded)
 
                     # Verify that macroexpanded code also does not have any
@@ -1707,11 +1782,11 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
                         phase=CompilerPhase.MACROEXPANSION,
                     ) from e
 
+    with ctx.expr_pos():
+        args = vec.vector(map(partial(_analyze_form, ctx), form.rest))
+
     return Invoke(
-        form=form,
-        fn=fn,
-        args=vec.vector(map(partial(_analyze_form, ctx), form.rest)),
-        env=ctx.get_node_env(),
+        form=form, fn=fn, args=args, env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -1761,7 +1836,7 @@ def _let_ast(ctx: AnalyzerContext, form: ISeq) -> Let:
                 is_body=True,
                 env=ctx.get_node_env(),
             ),
-            env=ctx.get_node_env(),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
 
@@ -1813,7 +1888,7 @@ def _loop_ast(ctx: AnalyzerContext, form: ISeq) -> Loop:
                     env=ctx.get_node_env(),
                 ),
                 loop_id=loop_id,
-                env=ctx.get_node_env(),
+                env=ctx.get_node_env(pos=ctx.syntax_position),
             )
             loop_node.visit(_assert_recur_is_tail)
             return loop_node
@@ -1823,9 +1898,15 @@ def _quote_ast(ctx: AnalyzerContext, form: ISeq) -> Quote:
     assert form.first == SpecialForm.QUOTE
 
     with ctx.quoted():
-        expr = _analyze_form(ctx, runtime.nth(form, 1))
+        with ctx.expr_pos():
+            expr = _analyze_form(ctx, runtime.nth(form, 1))
         assert isinstance(expr, Const), "Quoted expressions must yield :const nodes"
-        return Quote(form=form, expr=expr, is_literal=True, env=ctx.get_node_env())
+        return Quote(
+            form=form,
+            expr=expr,
+            is_literal=True,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
 
 
 def _assert_no_recur(node: Node) -> None:
@@ -1895,7 +1976,9 @@ def _recur_ast(ctx: AnalyzerContext, form: ISeq) -> Recur:
             "recur arity does not match last recur point arity", form=form
         )
 
-    exprs = vec.vector(map(partial(_analyze_form, ctx), form.rest))
+    with ctx.expr_pos():
+        exprs = vec.vector(map(partial(_analyze_form, ctx), form.rest))
+
     return Recur(
         form=form, exprs=exprs, loop_id=ctx.recur_point.loop_id, env=ctx.get_node_env()
     )
@@ -1910,7 +1993,9 @@ def _set_bang_ast(ctx: AnalyzerContext, form: ISeq) -> SetBang:
             "set! forms must contain exactly 3 elements: (set! target value)", form=form
         )
 
-    target = _analyze_form(ctx, runtime.nth(form, 1))
+    with ctx.expr_pos():
+        target = _analyze_form(ctx, runtime.nth(form, 1))
+
     if not isinstance(target, Assignable):
         raise AnalyzerException(
             f"cannot set! targets of type {type(target)}", form=target
@@ -1921,20 +2006,23 @@ def _set_bang_ast(ctx: AnalyzerContext, form: ISeq) -> SetBang:
             f"cannot set! target which is not assignable", form=target
         )
 
+    with ctx.expr_pos():
+        val = _analyze_form(ctx, runtime.nth(form, 2))
+
     return SetBang(
         form=form,
         target=target,
-        val=_analyze_form(ctx, runtime.nth(form, 2)),
-        env=ctx.get_node_env(),
+        val=val,
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
 def _throw_ast(ctx: AnalyzerContext, form: ISeq) -> Throw:
     assert form.first == SpecialForm.THROW
+    with ctx.expr_pos():
+        exc = _analyze_form(ctx, runtime.nth(form, 1))
     return Throw(
-        form=form,
-        exception=_analyze_form(ctx, runtime.nth(form, 1)),
-        env=ctx.get_node_env(),
+        form=form, exception=exc, env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -1968,7 +2056,7 @@ def _catch_ast(ctx: AnalyzerContext, form: ISeq) -> Catch:
         ctx.put_new_symbol(local_name, catch_binding)
 
         catch_body = runtime.nthrest(form, 3)
-        *catch_statements, catch_ret = map(partial(_analyze_form, ctx), catch_body)
+        catch_statements, catch_ret = _body_ast(ctx, catch_body)
         return Catch(
             form=form,
             class_=catch_cls,
@@ -2007,15 +2095,17 @@ def _try_ast(  # pylint: disable=too-many-branches
                     raise AnalyzerException(
                         "try forms may not contain multiple finally forms", form=expr
                     )
-                *finally_stmts, finally_ret = map(
-                    partial(_analyze_form, ctx), expr.rest
-                )
+                # Finally values are never returned
+                with ctx.stmt_pos():
+                    *finally_stmts, finally_ret = map(
+                        partial(_analyze_form, ctx), expr.rest
+                    )
                 finally_ = Do(
                     form=expr.rest,
                     statements=vec.vector(finally_stmts),
                     ret=finally_ret,
                     is_body=True,
-                    env=ctx.get_node_env(),
+                    env=ctx.get_node_env(pos=NodeSyntacticPosition.STMT,),
                 )
                 continue
 
@@ -2044,14 +2134,14 @@ def _try_ast(  # pylint: disable=too-many-branches
             statements=vec.vector(try_statements),
             ret=try_ret,
             is_body=True,
-            env=ctx.get_node_env(),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         ),
         catches=vec.vector(catches),
         finally_=finally_,
         children=vec.v(BODY, CATCHES, FINALLY)
         if finally_ is not None
         else vec.v(BODY, CATCHES),
-        env=ctx.get_node_env(),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2076,7 +2166,12 @@ def _var_ast(ctx: AnalyzerContext, form: ISeq) -> VarRef:
     if var is None:
         raise AnalyzerException(f"cannot resolve var {var_sym}", form=form)
 
-    return VarRef(form=var_sym, var=var, return_var=True, env=ctx.get_node_env())
+    return VarRef(
+        form=var_sym,
+        var=var,
+        return_var=True,
+        env=ctx.get_node_env(pos=ctx.syntax_position),
+    )
 
 
 SpecialFormHandler = Callable[[AnalyzerContext, ISeq], SpecialFormNode]
@@ -2132,7 +2227,7 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
         field=form.name,
         target=parent_node,
         is_assignable=True,
-        env=ctx.get_node_env(),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2160,7 +2255,9 @@ def __fuzzy_resolve_namespace_reference(
         if match is not None:
             v = match.find(sym.symbol(form.name))
             if v is not None:
-                return VarRef(form=form, var=v, env=ctx.get_node_env())
+                return VarRef(
+                    form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
+                )
         return None
 
     # Try to match a required namespace
@@ -2194,7 +2291,9 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
         # that the symbol isn't referring to a Basilisp Var first
         v = Var.find(form)
         if v is not None:
-            return VarRef(form=form, var=v, env=ctx.get_node_env())
+            return VarRef(
+                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
+            )
 
         # Fetch the full namespace name for the aliased namespace/module.
         # We don't need this for actually generating the link later, but
@@ -2221,7 +2320,7 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
                 class_=munge(ns_sym.name),
                 field=safe_name,
                 target=vars(ns_module)[safe_name],
-                env=ctx.get_node_env(),
+                env=ctx.get_node_env(pos=ctx.syntax_position),
             )
 
         # Then allow builtins
@@ -2236,7 +2335,7 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
             class_=munge(ns_sym.name),
             field=safe_name,
             target=vars(ns_module)[safe_name],
-            env=ctx.get_node_env(),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
     elif ns_sym in which_ns.aliases:
         aliased_ns: runtime.Namespace = which_ns.aliases[ns_sym]
@@ -2246,7 +2345,7 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
                 f"unable to resolve symbol '{sym.symbol(form.name, ns_sym.name)}' in this context",
                 form=form,
             )
-        return VarRef(form=form, var=v, env=ctx.get_node_env())
+        return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),)
     elif allow_fuzzy_macroexpansion_matching:
         return __fuzzy_resolve_namespace_reference(ctx, which_ns, form)
 
@@ -2263,7 +2362,9 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     if form.ns == current_ns.name:
         v = current_ns.find(sym.symbol(form.name))
         if v is not None:
-            return VarRef(form=form, var=v, env=ctx.get_node_env())
+            return VarRef(
+                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
+            )
     elif form.ns == _BUILTINS_NS:
         class_ = munge(form.name, allow_builtins=True)
         target = getattr(builtins, class_, None)
@@ -2272,7 +2373,10 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
                 f"cannot resolve builtin function '{class_}'", form=form
             )
         return MaybeClass(
-            form=form, class_=class_, target=target, env=ctx.get_node_env()
+            form=form,
+            class_=class_,
+            target=target,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
     if "." in form.name and form.name != _DOUBLE_DOT_MACRO_NAME:
@@ -2316,13 +2420,15 @@ def __resolve_bare_symbol(
     current_ns = ctx.current_ns
     v = current_ns.find(form)
     if v is not None:
-        return VarRef(form=form, var=v, env=ctx.get_node_env())
+        return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),)
 
     # Look up the symbol in the current macro namespace, if one
     if ctx.current_macro_ns is not None:
         v = ctx.current_macro_ns.find(form)
         if v is not None:
-            return VarRef(form=form, var=v, env=ctx.get_node_env())
+            return VarRef(
+                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
+            )
 
     if "." in form.name:
         raise AnalyzerException(
@@ -2335,7 +2441,7 @@ def __resolve_bare_symbol(
             form=form,
             class_=munged,
             target=vars(builtins)[munged],
-            env=ctx.get_node_env(),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
     if ctx.should_allow_unresolved_symbols:
@@ -2386,7 +2492,7 @@ def _symbol_node(
             name=form.name,
             local=sym_entry.context,
             is_assignable=sym_entry.binding.is_assignable,
-            env=ctx.get_node_env(),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
     return _resolve_sym(ctx, form)
@@ -2399,7 +2505,10 @@ def _py_dict_node(ctx: AnalyzerContext, form: dict) -> PyDict:
         vals.append(_analyze_form(ctx, v))
 
     return PyDict(
-        form=form, keys=vec.vector(keys), vals=vec.vector(vals), env=ctx.get_node_env()
+        form=form,
+        keys=vec.vector(keys),
+        vals=vec.vector(vals),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2407,7 +2516,7 @@ def _py_list_node(ctx: AnalyzerContext, form: list) -> PyList:
     return PyList(
         form=form,
         items=vec.vector(map(partial(_analyze_form, ctx), form)),
-        env=ctx.get_node_env(),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2415,7 +2524,7 @@ def _py_set_node(ctx: AnalyzerContext, form: set) -> PySet:
     return PySet(
         form=form,
         items=vec.vector(map(partial(_analyze_form, ctx), form)),
-        env=ctx.get_node_env(),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2423,7 +2532,7 @@ def _py_tuple_node(ctx: AnalyzerContext, form: tuple) -> PyTuple:
     return PyTuple(
         form=form,
         items=vec.vector(map(partial(_analyze_form, ctx), form)),
-        env=ctx.get_node_env(),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2435,7 +2544,10 @@ def _map_node(ctx: AnalyzerContext, form: lmap.Map) -> MapNode:
         vals.append(_analyze_form(ctx, v))
 
     return MapNode(
-        form=form, keys=vec.vector(keys), vals=vec.vector(vals), env=ctx.get_node_env()
+        form=form,
+        keys=vec.vector(keys),
+        vals=vec.vector(vals),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2444,7 +2556,7 @@ def _set_node(ctx: AnalyzerContext, form: lset.Set) -> SetNode:
     return SetNode(
         form=form,
         items=vec.vector(map(partial(_analyze_form, ctx), form)),
-        env=ctx.get_node_env(),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2453,7 +2565,7 @@ def _vector_node(ctx: AnalyzerContext, form: vec.Vector) -> VectorNode:
     return VectorNode(
         form=form,
         items=vec.vector(map(partial(_analyze_form, ctx), form)),
-        env=ctx.get_node_env(),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2535,7 +2647,7 @@ def _const_node(ctx: AnalyzerContext, form: ReaderForm) -> Const:
         is_literal=True,
         type=cast(ConstType, node_type),
         val=form,
-        env=ctx.get_node_env(),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
     if hasattr(form, "meta"):
