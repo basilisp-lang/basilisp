@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for Shebang-style line comments (#469)
  * Added multiline REPL support using `prompt-toolkit` (#467)
  * Added node syntactic location (statement or expression) to Basilisp AST nodes emitted by the analyzer (#463)
+ * Added support for `future`s (#441)
 
 ### Changed
  * Change the default user namespace to `basilisp.user` (#466)
