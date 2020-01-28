@@ -1,10 +1,12 @@
 import platform
 import re
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
 
 from basilisp.cli import cli
+from basilisp.prompt import Prompter
 
 pytestmark = pytest.mark.skipif(
     platform.python_implementation() == "PyPy", reason="CLI tests fail on PyPy 3.6"
@@ -12,6 +14,15 @@ pytestmark = pytest.mark.skipif(
 
 
 class TestREPL:
+    @pytest.fixture(scope="class", autouse=True)
+    def prompter(self):
+        class TestPrompter(Prompter):
+            prompt = staticmethod(input)
+            print = staticmethod(print)
+
+        with patch("basilisp.cli.get_prompter", return_value=TestPrompter()):
+            yield
+
     def test_no_input(self):
         runner = CliRunner()
         result = runner.invoke(cli, ["repl"], input="")
@@ -31,7 +42,7 @@ class TestREPL:
         runner = CliRunner()
         result = runner.invoke(cli, ["repl"], input="(+ 1 2")
         assert (
-            "basilisp.lang.reader.SyntaxError: Unexpected EOF in list\nbasilisp.user=> "
+            "basilisp.lang.reader.UnexpectedEOFError: Unexpected EOF in list\nbasilisp.user=> "
             in result.stdout
         )
 
