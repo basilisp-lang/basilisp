@@ -9,6 +9,11 @@ from prompt_toolkit.keys import Keys
 
 from basilisp.prompt import PromptToolkitPrompter, REPLCompleter, get_prompter
 
+try:
+    import pygments
+except ImportError:
+    pygments = None
+
 
 class TestCompleter:
     @pytest.fixture(scope="class")
@@ -110,16 +115,31 @@ class TestCompleter:
         assert set(c.text for c in completions) == set(expected)
 
 
-def test_prompter():
-    session = MagicMock()
-    with patch("basilisp.prompt.PromptSession", return_value=session) as session_cls:
-        prompter = get_prompter()
+class TestPrompter:
+    @pytest.fixture
+    def session(self):
+        return MagicMock()
+
+    @pytest.fixture(autouse=True)
+    def session_cls(self, session):
+        with patch(
+            "basilisp.prompt.PromptSession", return_value=session
+        ) as session_cls:
+            yield session_cls
+
+    def test_constructor(self, session_cls):
+        get_prompter()
         session_cls.assert_called_once()
 
+    def test_prompt_toolkit_prompt(self, session):
+        prompter = get_prompter()
         prompter.prompt("=>")
         session.prompt.assert_called_once_with("=>")
 
+    @pytest.mark.skipif(pygments is None, reason="Pygments is not installed")
+    def test_pygments_styled_print(self):
         with patch("basilisp.prompt.print_formatted_text") as prn:
+            prompter = get_prompter()
             prompter.print(":a")
             prn.assert_called_once()
 
