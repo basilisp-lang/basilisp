@@ -1,7 +1,7 @@
 Reader
 ======
 
-In most Lisps, the reader is the component responsible for reading in thet extual representation of the program into memory as data structures.
+In most Lisps, the reader is the component responsible for reading in the textual representation of the program into memory as data structures.
 Lisps are typically referred to as *homoiconic*, since that representation typically matches the syntax tree exactly in memory.
 This is in contrast to a non-homoiconic language such as Java or Python, which typically parses a textual program into an abstract syntax tree which captures the *meaning* of the textual program, but not necessarily the structure.
 
@@ -24,13 +24,13 @@ Integers
 
 ::
 
-    user=> 1
+    basilisp.user=> 1
     1
-    user=> (builtins/type 1)
+    basilisp.user=> (python/type 1)
     <class 'int'>
-    user=> 1N
+    basilisp.user=> 1N
     1
-    user=> (builtins/type 1N)
+    basilisp.user=> (python/type 1N)
     <class 'int'>
 
 Integers are represented using numeric ``0-9`` and may be prefixed with any number of negative signs ``-``.
@@ -43,13 +43,13 @@ Floating Point
 
 ::
 
-   user=> 1.0
+   basilisp.user=> 1.0
    1.0
-   user=> (builtins/type 1.0)
+   basilisp.user=> (python/type 1.0)
    <class 'float'>
-   user=> 1M
+   basilisp.user=> 1M
    1
-   user=> (builtins/type 1M)
+   basilisp.user=> (python/type 1M)
    <class 'decimal.Decimal'>
 
 Floating point values are represented using ``0-9`` and a trailing decimal value, separated by a ``.`` character.
@@ -63,13 +63,13 @@ Complex
 
 ::
 
-    user=> 1J
+    basilisp.user=> 1J
     1J
-    user=> (builtins/type 1J)
+    basilisp.user=> (python/type 1J)
     <class 'complex'>
-    user=> 1.0J
+    basilisp.user=> 1.0J
     1J
-    user=> (builtins/type 1.0J)
+    basilisp.user=> (python/type 1.0J)
     <class 'complex'>
 
 Basilisp includes support for complex literals to match the Python VM hosts it.
@@ -83,11 +83,11 @@ Strings
 
 ::
 
-    user=> ""
+    basilisp.user=> ""
     ""
-    user=> "this is a string"
+    basilisp.user=> "this is a string"
     "this is a string"
-    user=> (builtins/type "")
+    basilisp.user=> (python/type "")
     <class 'str'>
 
 Strings are denoted as a series of characters enclosed by ``"`` quotation marks.
@@ -102,11 +102,11 @@ Character Literals
 
 ::
 
-    user=> \a
+    basilisp.user=> \a
     "a"
-    user=> \u03A9
+    basilisp.user=> \u03A9
     "Ω"
-    user=> \newline
+    basilisp.user=> \newline
     "
     "
 
@@ -126,13 +126,13 @@ Boolean Values
 
 ::
 
-    user=> true
+    basilisp.user=> true
     true
-    user=> (builtins/type true)
+    basilisp.user=> (python/type true)
     <class 'bool'>
-    user=> false
+    basilisp.user=> false
     false
-    user=> (builtins/type false)
+    basilisp.user=> (python/type false)
     <class 'bool'>
 
 The special values ``true`` and ``false`` correspond to Python's ``True`` and ``False`` respectively.
@@ -144,9 +144,9 @@ nil
 
 ::
 
-    user=> nil
+    basilisp.user=> nil
     nil
-    user=> (builtins/type nil)
+    basilisp.user=> (python/type nil)
     <class 'NoneType'>
 
 The special value ``nil`` correspond's to Python's ``None``.
@@ -167,9 +167,9 @@ Symbols
 
 ::
 
-    user=> 'sym
+    basilisp.user=> 'sym
     sym
-    user=> 'namespaced/sym
+    basilisp.user=> 'namespaced/sym
     namespaced/sym
 
 Symbolic identifiers, most often used to refer to a Var or value in Basilisp.
@@ -184,9 +184,9 @@ Keywords
 
 ::
 
-    user=> :keyword
+    basilisp.user=> :keyword
     :keyword
-    user=> :namespaced/keyword
+    basilisp.user=> :namespaced/keyword
     :namespaced/keyword
 
 Keywords are denoted by the ``:`` prefix character.
@@ -204,9 +204,9 @@ Lists
 
 ::
 
-    user=> ()
+    basilisp.user=> ()
     ()
-    user=> '(1 "2" :three)
+    basilisp.user=> '(1 "2" :three)
     (1 "2" :three)
 
 Lists are denoted with the ``()`` characters.
@@ -221,9 +221,9 @@ Vectors
 
 ::
 
-    user=> []
+    basilisp.user=> []
     []
-    user=> [1 "2" :three]
+    basilisp.user=> [1 "2" :three]
     [1 "2" :three]
 
 Vectors are denoted with the ``[]`` characters.
@@ -237,9 +237,9 @@ Maps
 
 ::
 
-    user=> {}
+    basilisp.user=> {}
     {}
-    user=> {1 "2" :three 3}
+    basilisp.user=> {1 "2" :three 3}
     {1 "2" :three 3}
 
 Maps are denoted with the ``{}`` characters.
@@ -253,9 +253,9 @@ Sets
 
 ::
 
-    user=> #{}
+    basilisp.user=> #{}
     #{}
-    user=> #{1 "2" :three}
+    basilisp.user=> #{1 "2" :three}
     #{1 "2" :three}
 
 Sets are denoted with the ``#{}`` characters.
@@ -270,6 +270,8 @@ Line Comments
 Line comments are specified with the ``;`` character.
 All of the text to the end of the line are ignored.
 
+For a convenience in writing shell scripts with Basilisp, the standard *NIX `shebang <https://en.wikipedia.org/wiki/Shebang_(Unix)>` (``#!``) is also treated as a single-line comment.
+
 .. _metadata:
 
 Metadata
@@ -277,11 +279,11 @@ Metadata
 
 ::
 
-    user=> (meta '^:macro s)
+    basilisp.user=> (meta '^:macro s)
     {:macro true}
-    user=> (meta '^str s)
+    basilisp.user=> (meta '^str s)
     {:tag str}
-    user=> (meta '^{:has-meta true} s)
+    basilisp.user=> (meta '^{:has-meta true} s)
     {:has-meta true}
 
 Metadata can be applied to the following form by specifying metadata before the form as ``^meta form``.
@@ -304,6 +306,7 @@ Reader macros are always dispatched using the ``#`` character.
 
 * ``#'form`` is rewritten as ``(var form)``.
 * ``#_form`` causes the reader to completely ignore ``form``.
+* ``#!form`` is treated as a single-line comment (like ``;form``) as a convenience to support `shebangs <https://en.wikipedia.org/wiki/Shebang_(Unix)>` at the top of Basilisp scripts.
 * ``#"str"`` causes the reader to interpret ``"str"`` as a regex and return a Python `re.pattern <https://docs.python.org/3/library/re.html>`_.
 * ``#(...)`` causes the reader to interpret the contents of the list as an anonymous function. Anonymous functions specified in this way can name arguments using ``%1``, ``%2``, etc. and rest args as ``%&``. For anonymous functions with only one argument, ``%`` can be used in place of ``%1``.
 
@@ -322,6 +325,18 @@ Basilisp supports a few builtin data readers:
 
 * ``#inst "2018-09-14T15:11:20.253-00:00"`` yields a Python `datetime <https://docs.python.org/3/library/datetime.html#datetime-objects>`_ object.
 * ``#uuid "c3598794-20b4-48db-b76e-242f4405743f"`` yields a Python `UUID <https://docs.python.org/3/library/uuid.html#uuid.UUID>`_ object.
+
+One of the benefits of choosing Basilisp is convenient built-in Python language interop.
+However, the immutable data structures of Basilisp may not always play nicely with code written for (and expecting to be used by) other Python code.
+Fortunately, Basilisp includes data readers for reading Python collection literals directly from the REPL or from Basilisp source.
+
+Python literals can be read by prefixing existing Basilisp data structures with a ``#py`` data reader tag.
+Python literals use the matching syntax to the corresponding Python data type, which does not always match the syntax for the same data type in Basilisp.
+
+* ``#py []`` produces a Python `list <https://docs.python.org/3/library/stdtypes.html#list>` type.
+* ``#py ()`` produces a Python `tuple <https://docs.python.org/3/library/stdtypes.html#tuple>` type.
+* ``#py {}`` produces a Python `dict <https://docs.python.org/3/library/stdtypes.html#dict>` type.
+* ``#py #{}`` produces a Python `set <https://docs.python.org/3/library/stdtypes.html#set>` type.
 
 .. _special_chars:
 
@@ -345,4 +360,32 @@ Syntax quoting is a facility primarily used for writing macros in Basilisp.
 Reader Conditionals
 -------------------
 
-Reader conditionals are **not** supported at the moment by Basilisp's reader, though support is planned.
+Reader conditionals are a powerful reader feature which allow Basilisp to read code written for other Clojure-like platforms (such as Clojure JVM or ClojureScript) without experiencing catastrophic errors.
+Platform-specific Clojure code can be wrapped in reader conditionals and the reader will match only forms identified by supported reader "features".
+Features are just standard :ref:`keywords`.
+By default, Basilisp supports the ``:lpy`` feature.
+
+Reader conditionals appear as Basilisp lists prefixed with the ``#?`` characters.
+Like maps, reader conditionals should always contain an even number of forms.
+Each pair should consist of the keyword used to identify the platform feature (such as ``:lpy`` for Basilisp) and the intended form for that feature.
+The reader may emit no forms (much like with the :ref:`reader_macros` ``#_``) if there are no supported features in the reader conditional form.
+
+::
+
+    basilisp.user=> #?(:clj 1 :lpy 2)
+    2
+    basilisp.user=> #?(:clj 1)
+    basilisp.user=>
+    basilisp.user=> [#?@(:lpy [1 2 3])]
+    [1 2 3]
+
+For advanced use cases, reader conditionals may also be written to splice their contents into surrounding forms.
+Splicing reader conditionals are subject to the same rules as splicing unquote in a syntax quoting context.
+Splicing reader conditionals may only appear within other collection literal forms (such as lists, maps, sets, and vectors).
+
+::
+
+    basilisp.user=> [#?@(:lpy [1 2 3])]
+    [1 2 3]
+    basilisp.user=> #?@(:lpy [1 2 3])
+    basilisp.lang.reader.SyntaxError: Unexpected reader conditional

@@ -361,7 +361,7 @@ class AnalyzerContext:
 
     @contextlib.contextmanager
     def macro_ns(self, ns: Optional[runtime.Namespace]):
-        """Set the transient namespace which is available to the analyer during a
+        """Set the transient namespace which is available to the analyzer during a
         macroexpansion phase.
 
         If set to None, prohibit the analyzer from using another namespace for symbol
@@ -729,7 +729,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     #        :file "<REPL Input>"
     #        :line 1
     #        :name 'some-name
-    #        :ns   ((.- basilisp.lang.runtime/Namespace get) 'user)}
+    #        :ns   ((.- basilisp.lang.runtime/Namespace get) 'basilisp.user)}
     #       some-name
     #       "some value")
     meta_ast = _analyze_form(
