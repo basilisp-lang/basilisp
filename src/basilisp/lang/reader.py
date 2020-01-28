@@ -111,6 +111,14 @@ class SyntaxError(Exception):  # pylint:disable=redefined-builtin
     pass
 
 
+class UnexpectedEOFError(SyntaxError):
+    """Syntax Error type raised when the reader encounters an unexpected EOF
+    reading a form.
+
+    Useful for cases such as the REPL reader, where unexpected EOF errors
+    likely indicate the user is trying to enter a multiline form."""
+
+
 class StreamReader:
     """A simple stream reader with n-character lookahead."""
 
@@ -489,7 +497,7 @@ def _read_coll(
     while True:
         token = reader.peek()
         if token == "":
-            raise SyntaxError(f"Unexpected EOF in {coll_name}")
+            raise UnexpectedEOFError(f"Unexpected EOF in {coll_name}")
         if whitespace_chars.match(token):
             reader.advance()
             continue
@@ -567,7 +575,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
         if v is COMMENT or isinstance(v, Comment):
             continue
         elif v is ctx.eof:
-            raise SyntaxError("Unexpected EOF in map")
+            raise UnexpectedEOFError("Unexpected EOF in map")
         elif _should_splice_reader_conditional(ctx, v):
             assert isinstance(v, ReaderConditional)
             selected_feature = v.select_feature(ctx.reader_features)
@@ -726,7 +734,7 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
     while True:
         token = reader.next_token()
         if token == "":
-            raise SyntaxError("Unexpected EOF in string")
+            raise UnexpectedEOFError("Unexpected EOF in string")
         if token == "\\":
             token = reader.next_token()
             escape_char = _STR_ESCAPE_CHARS.get(token, None)
