@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 CORE_NS = "basilisp.core"
 NS_VAR_NAME = "*ns*"
 NS_VAR_NS = CORE_NS
-REPL_DEFAULT_NS = "user"
+REPL_DEFAULT_NS = "basilisp.user"
 
 # Private string constants
 _GENERATED_PYTHON_VAR_NAME = "*generated-python*"
@@ -661,6 +661,7 @@ class Namespace(ReferenceBase):
 
         return is_match
 
+    # pylint: disable=unnecessary-comprehension
     def __complete_alias(
         self, prefix: str, name_in_ns: Optional[str] = None
     ) -> Iterable[str]:
@@ -668,7 +669,7 @@ class Namespace(ReferenceBase):
         prefix from the list of aliased namespaces. If name_in_ns is given,
         further attempt to refine the list to matching names in that namespace."""
         candidates = filter(
-            Namespace.__completion_matcher(prefix), [(s, n) for s, n in self.aliases]
+            Namespace.__completion_matcher(prefix), ((s, n) for s, n in self.aliases)
         )
         if name_in_ns is not None:
             for _, candidate_ns in candidates:
@@ -707,6 +708,7 @@ class Namespace(ReferenceBase):
             for candidate_name, _ in candidates:
                 yield f"{candidate_name}/"
 
+    # pylint: disable=unnecessary-comprehension
     def __complete_interns(
         self, value: str, include_private_vars: bool = True
     ) -> Iterable[str]:
@@ -722,16 +724,17 @@ class Namespace(ReferenceBase):
 
         return map(
             lambda entry: f"{entry[0].name}",
-            filter(is_match, [(s, v) for s, v in self.interns]),
+            filter(is_match, ((s, v) for s, v in self.interns)),
         )
 
+    # pylint: disable=unnecessary-comprehension
     def __complete_refers(self, value: str) -> Iterable[str]:
         """Return an iterable of possible completions matching the given
         prefix from the list of referred Vars."""
         return map(
             lambda entry: f"{entry[0].name}",
             filter(
-                Namespace.__completion_matcher(value), [(s, v) for s, v in self.refers]
+                Namespace.__completion_matcher(value), ((s, v) for s, v in self.refers)
             ),
         )
 
@@ -1254,18 +1257,16 @@ def lstr(o) -> str:
 __NOT_COMPLETEABLE = re.compile(r"^[0-9].*")
 
 
-def repl_complete(text: str, state: int) -> Optional[str]:
-    """Completer function for Python's readline/libedit implementation."""
+def repl_completions(text: str) -> Iterable[str]:
+    """Return an optional iterable of REPL completions."""
     # Can't complete Keywords, Numerals
     if __NOT_COMPLETEABLE.match(text):
-        return None
+        return ()
     elif text.startswith(":"):
-        completions = kw.complete(text)
+        return kw.complete(text)
     else:
         ns = get_current_ns()
-        completions = ns.complete(text)
-
-    return list(completions)[state] if completions is not None else None
+        return ns.complete(text)
 
 
 ####################

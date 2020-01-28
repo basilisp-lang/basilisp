@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added support for Shebang-style line comments (#469)
+ * Added multiline REPL support using `prompt-toolkit` (#467)
+
+### Changed
+ * Change the default user namespace to `basilisp.user` (#466)
+
+### Fixed
+ * Fixed a reader bug where no exception was being thrown splicing reader conditional forms appeared outside of valid splicing contexts (#470)
 
 ## [v0.1.dev12] - 2020-01-26
 ### Added
