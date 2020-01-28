@@ -2,19 +2,17 @@ import os
 import re
 import traceback
 from functools import partial
+from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Optional, Type
 
-from prompt_toolkit import PromptSession, print_formatted_text
+from prompt_toolkit import PromptSession
 from prompt_toolkit.application import run_in_terminal
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
 from prompt_toolkit.document import Document
-from prompt_toolkit.formatted_text import PygmentsTokens
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
-from prompt_toolkit.lexers import PygmentsLexer
-from prompt_toolkit.styles import style_from_pygments_cls
 
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
@@ -71,7 +69,7 @@ class PromptToolkitPrompter(Prompter):
             completer=REPLCompleter(),
             history=FileHistory(BASILISP_REPL_HISTORY_FILE_PATH),
             key_bindings=self._get_key_bindings(),
-            lexer=self._lexer,
+            lexer=self._prompt_toolkit_lexer,
             multiline=True,
             **self._style_settings,
         )
@@ -114,8 +112,8 @@ class PromptToolkitPrompter(Prompter):
 
         return kb
 
-    _lexer: Optional[PygmentsLexer] = None
-    _style_settings: Mapping[str, Any] = {}
+    _prompt_toolkit_lexer: Optional["PygmentsLexer"] = None
+    _style_settings: Mapping[str, Any] = MappingProxyType({})
 
     def prompt(self, msg: str) -> str:
         return self._session.prompt(msg)
@@ -131,6 +129,11 @@ try:
 except ImportError:  # pragma: no cover
     pass
 else:
+    from prompt_toolkit import print_formatted_text
+    from prompt_toolkit.formatted_text import PygmentsTokens
+    from prompt_toolkit.lexers import PygmentsLexer
+    from prompt_toolkit.styles import style_from_pygments_cls
+
     BASILISP_REPL_PYGMENTS_STYLE_NAME = os.getenv(
         "BASILISP_REPL_PYGMENTS_STYLE_NAME", "emacs"
     )
@@ -139,16 +142,19 @@ else:
         """Prompter class which adds Pygments based terminal styling to the
         PromptToolKit prompt."""
 
-        _lexer = PygmentsLexer(ClojureLexer)
-        _style_settings = {
-            "style": style_from_pygments_cls(
-                get_style_by_name(BASILISP_REPL_PYGMENTS_STYLE_NAME)
-            ),
-            "include_default_pygments_style": False,
-        }
+        _prompt_toolkit_lexer = PygmentsLexer(ClojureLexer)
+        _pygments_lexer = ClojureLexer()
+        _style_settings = MappingProxyType(
+            {
+                "style": style_from_pygments_cls(
+                    get_style_by_name(BASILISP_REPL_PYGMENTS_STYLE_NAME)
+                ),
+                "include_default_pygments_style": False,
+            }
+        )
 
         def print(self, msg: str) -> None:
-            tokens = list(pygments.lex(msg, lexer=self._lexer))
+            tokens = list(pygments.lex(msg, lexer=self._pygments_lexer))
             print_formatted_text(PygmentsTokens(tokens), **self._style_settings)
 
     _DEFAULT_PROMPTER = StyledPromptToolkitPrompter
