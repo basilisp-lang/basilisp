@@ -230,6 +230,11 @@ class Assignable(ABC):
         """True if this Node can be assigned in a set! form, False otherwise."""
 
 
+class NodeSyntacticPosition(Enum):
+    STMT = kw.keyword("stmt")
+    EXPR = kw.keyword("expr")
+
+
 class ConstType(Enum):
     NIL = kw.Keyword("nil")
     MAP = kw.keyword("map")
@@ -279,6 +284,7 @@ class NodeEnv:
     file: str
     line: Optional[int] = None
     col: Optional[int] = None
+    pos: Optional[NodeSyntacticPosition] = None
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
