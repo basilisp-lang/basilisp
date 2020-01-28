@@ -1,11 +1,11 @@
 from typing import Iterable, Tuple
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from prompt_toolkit.completion import CompleteEvent, Completer
 from prompt_toolkit.document import Document
 
-from basilisp.prompt import REPLCompleter
+from basilisp.prompt import REPLCompleter, get_prompter
 
 
 class TestCompleter:
@@ -108,5 +108,15 @@ class TestCompleter:
         assert set(c.text for c in completions) == set(expected)
 
 
-class TestPromptToolkitPrompt:
-    pass
+def test_prompter(capsys):
+    session = MagicMock()
+    with patch("basilisp.prompt.PromptSession", return_value=session) as session_cls:
+        prompter = get_prompter()
+        session_cls.assert_called_once()
+
+        prompter.prompt("=>")
+        session.prompt.assert_called_once_with("=>")
+
+        with patch("basilisp.prompt.print_formatted_text") as prn:
+            prompter.print(":a")
+            prn.assert_called_once()
