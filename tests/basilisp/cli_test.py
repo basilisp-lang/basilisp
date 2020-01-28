@@ -16,11 +16,7 @@ pytestmark = pytest.mark.skipif(
 class TestREPL:
     @pytest.fixture(scope="class", autouse=True)
     def prompter(self):
-        class TestPrompter(Prompter):
-            prompt = staticmethod(input)
-            print = staticmethod(print)
-
-        with patch("basilisp.cli.get_prompter", return_value=TestPrompter()):
+        with patch("basilisp.cli.get_prompter", return_value=Prompter()):
             yield
 
     def test_no_input(self):
