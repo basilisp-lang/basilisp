@@ -1257,18 +1257,16 @@ def lstr(o) -> str:
 __NOT_COMPLETEABLE = re.compile(r"^[0-9].*")
 
 
-def repl_complete(text: str, state: int) -> Optional[str]:
-    """Completer function for Python's readline/libedit implementation."""
+def repl_completions(text: str) -> Iterable[str]:
+    """Return an optional iterable of REPL completions."""
     # Can't complete Keywords, Numerals
     if __NOT_COMPLETEABLE.match(text):
-        return None
+        return ()
     elif text.startswith(":"):
-        completions = kw.complete(text)
+        return kw.complete(text)
     else:
         ns = get_current_ns()
-        completions = ns.complete(text)
-
-    return list(completions)[state] if completions is not None else None
+        return ns.complete(text)
 
 
 ####################

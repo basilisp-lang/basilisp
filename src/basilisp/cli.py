@@ -1,7 +1,4 @@
-import atexit
 import importlib
-import os.path
-import platform
 import traceback
 import types
 from typing import Any
@@ -14,37 +11,12 @@ import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
 import basilisp.main as basilisp
+from basilisp.prompt import get_prompter
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
-BASILISP_REPL_HISTORY_FILE_PATH = os.path.join(
-    os.path.expanduser("~"), ".basilisp_history"
-)
-BASILISP_REPL_HISTORY_LENGTH = 1000
 REPL_INPUT_FILE_PATH = "<REPL Input>"
 STDIN_INPUT_FILE_PATH = "<stdin>"
 STDIN_FILE_NAME = "-"
-
-
-try:
-    import readline
-except ImportError:  # pragma: no cover
-    pass
-else:
-    readline.parse_and_bind("tab: complete")
-    readline.set_completer_delims("()[]{} \n\t")
-    readline.set_completer(runtime.repl_complete)
-
-    try:
-        readline.read_history_file(BASILISP_REPL_HISTORY_FILE_PATH)
-        readline.set_history_length(BASILISP_REPL_HISTORY_LENGTH)
-    except FileNotFoundError:  # pragma: no cover
-        pass
-    except Exception:  # noqa  # pragma: no cover
-        # PyPy 3.6's ncurses implementation throws an error here
-        if platform.python_implementation() != "PyPy":
-            raise
-    else:
-        atexit.register(readline.write_history_file, BASILISP_REPL_HISTORY_FILE_PATH)
 
 
 @click.group()
@@ -144,11 +116,12 @@ def repl(
         },
     )
     ns_var = runtime.set_current_ns(default_ns)
+    prompter = get_prompter()
     eof = object()
     while True:
         ns: runtime.Namespace = ns_var.value
         try:
-            lsrc = input(f"{ns.name}=> ")
+            lsrc = prompter.prompt(f"{ns.name}=> ")
         except EOFError:
             break
         except KeyboardInterrupt:  # pragma: no cover
@@ -162,7 +135,7 @@ def repl(
             result = eval_str(lsrc, ctx, ns.module, eof)
             if result is eof:  # pragma: no cover
                 continue
-            print(runtime.lrepr(result))
+            prompter.print(runtime.lrepr(result))
             repl_module.mark_repl_result(result)  # type: ignore
         except reader.SyntaxError as e:
             traceback.print_exception(reader.SyntaxError, e, e.__traceback__)

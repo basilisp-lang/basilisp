@@ -25,13 +25,14 @@ REQUIRED = [
     "atomos",
     "attrs",
     "click",
+    "prompt-toolkit>=3.0.0",
     "pyfunctional",
     "pyrsistent",
     "pytest",
     "python-dateutil",
 ]
 
-EXTRAS = {}
+EXTRAS = {"pygments": ["pygments"]}
 
 # Copied from the excellent https://github.com/kennethreitz/setup.py
 
