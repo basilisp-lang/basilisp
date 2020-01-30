@@ -855,6 +855,7 @@ SpecialFormNode = Union[
     Import,
     Invoke,
     Let,
+    LetFn,
     Loop,
     Quote,
     Recur,

@@ -86,6 +86,7 @@ _IMPORT = sym.symbol("import*")
 _INTEROP_CALL = sym.symbol(".")
 _INTEROP_PROP = sym.symbol(".-")
 _LET = sym.symbol("let*")
+_LETFN = sym.symbol("letfn*")
 _LOOP = sym.symbol("loop*")
 _QUOTE = sym.symbol("quote")
 _RECUR = sym.symbol("recur")
@@ -106,6 +107,7 @@ _SPECIAL_FORMS = lset.s(
     _INTEROP_CALL,
     _INTEROP_PROP,
     _LET,
+    _LETFN,
     _LOOP,
     _QUOTE,
     _RECUR,
