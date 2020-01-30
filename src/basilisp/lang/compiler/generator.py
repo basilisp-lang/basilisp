@@ -64,6 +64,7 @@ from basilisp.lang.compiler.nodes import (
     Import,
     Invoke,
     Let,
+    LetFn,
     Local,
     LocalType,
     Loop,
@@ -113,6 +114,7 @@ _IF_PREFIX = "lisp_if"
 _IF_RESULT_PREFIX = "if_result"
 _IF_TEST_PREFIX = "if_test"
 _LET_RESULT_PREFIX = "let_result"
+_LETFN_RESULT_PREFIX = "letfn_result"
 _LOOP_RESULT_PREFIX = "loop_result"
 _MULTI_ARITY_ARG_NAME = "multi_arity_args"
 _SET_BANG_TEMP_PREFIX = "set_bang_val"
@@ -1608,6 +1610,53 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
 
 
 @_with_ast_loc_deps
+def _letfn_to_py_ast(ctx: GeneratorContext, node: LetFn) -> GeneratedPyAST:
+    """Return a Python AST Node for a `letfn*` expression."""
+    assert node.op == NodeOp.LETFN
+
+    with ctx.new_symbol_table("letfn"):
+        binding_names = []
+        for binding in node.bindings:
+            binding_name = genname(munge(binding.name))
+            ctx.symbol_table.new_symbol(
+                sym.symbol(binding.name), binding_name, LocalType.LET
+            )
+            binding_names.append((binding_name, binding))
+
+        letfn_body_ast: List[ast.AST] = []
+        for binding_name, binding in binding_names:
+            init_node = binding.init
+            assert init_node is not None
+            init_ast = gen_py_ast(ctx, init_node)
+            letfn_body_ast.extend(init_ast.dependencies)
+            letfn_body_ast.append(
+                ast.Assign(
+                    targets=[ast.Name(id=binding_name, ctx=ast.Store())],
+                    value=init_ast.node,
+                )
+            )
+
+        letfn_result_name = genname(_LETFN_RESULT_PREFIX)
+        body_ast = _synthetic_do_to_py_ast(ctx, node.body)
+        letfn_body_ast.extend(map(statementize, body_ast.dependencies))
+
+        if node.env.pos == NodeSyntacticPosition.EXPR:
+            letfn_body_ast.append(
+                ast.Assign(
+                    targets=[ast.Name(id=letfn_result_name, ctx=ast.Store())],
+                    value=body_ast.node,
+                )
+            )
+            return GeneratedPyAST(
+                node=ast.Name(id=letfn_result_name, ctx=ast.Load()),
+                dependencies=letfn_body_ast,
+            )
+        else:
+            letfn_body_ast.append(body_ast.node)
+            return GeneratedPyAST(node=_noop_node(), dependencies=letfn_body_ast)
+
+
+@_with_ast_loc_deps
 def _loop_to_py_ast(ctx: GeneratorContext, node: Loop) -> GeneratedPyAST:
     """Return a Python AST Node for a `loop*` expression."""
     assert node.op == NodeOp.LOOP
@@ -2659,7 +2708,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.IMPORT: _import_to_py_ast,
     NodeOp.INVOKE: _invoke_to_py_ast,
     NodeOp.LET: _let_to_py_ast,
-    NodeOp.LETFN: None,  # type: ignore
+    NodeOp.LETFN: _letfn_to_py_ast,
     NodeOp.LOCAL: _local_sym_to_py_ast,
     NodeOp.LOOP: _loop_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,

@@ -1840,6 +1840,78 @@ def _let_ast(ctx: AnalyzerContext, form: ISeq) -> Let:
         )
 
 
+def _letfn_ast(ctx: AnalyzerContext, form: ISeq) -> LetFn:
+    assert form.first == SpecialForm.LETFN
+    nelems = count(form)
+
+    if nelems < 2:
+        raise AnalyzerException(
+            "letfn forms must have bindings vector and 0 or more body forms", form=form
+        )
+
+    bindings = runtime.nth(form, 1)
+    if not isinstance(bindings, vec.Vector):
+        raise AnalyzerException("letfn bindings must be a vector", form=bindings)
+
+    with ctx.new_symbol_table("letfn"):
+        empty_binding_nodes = []
+        for fn_def in bindings:
+            if not isinstance(fn_def, llist.List):
+                raise AnalyzerException(
+                    "letfn function definition must be a list", form=fn_def
+                )
+
+            fn_name = fn_def.first
+
+            if not isinstance(fn_name, sym.Symbol):
+                raise AnalyzerException(
+                    "letfn function definition name must be a symbol", form=fn_name
+                )
+
+            # Generate an empty Binding node to put into the symbol table
+            # as a forward declaration. All functions in letfn* forms may
+            # refer to all other functions regardless of order of definition.
+            binding = Binding(
+                form=fn_name,
+                name=fn_name.name,
+                local=LocalType.LET,
+                init=_const_node(ctx, None),
+                children=vec.v(INIT),
+                env=ctx.get_node_env(),
+            )
+            empty_binding_nodes.append((fn_name, fn_def, binding))
+            ctx.put_new_symbol(fn_name, binding)
+
+        # Once we've generated all of the filler Binding nodes, analyze the
+        # function bodies and replace the Binding nodes with full nodes.
+        binding_nodes = []
+        for fn_name, fn_def, binding in empty_binding_nodes:
+            fn_body = _analyze_form(ctx, fn_def.cons(SpecialForm.FN))
+            new_binding = binding.assoc(init=fn_body)
+            binding_nodes.append(new_binding)
+            ctx.put_new_symbol(
+                fn_name,
+                new_binding,
+                warn_on_shadowed_name=False,
+                warn_on_shadowed_var=False,
+            )
+
+        letfn_body = runtime.nthrest(form, 2)
+        stmts, ret = _body_ast(ctx, letfn_body)
+        return LetFn(
+            form=form,
+            bindings=vec.vector(binding_nodes),
+            body=Do(
+                form=letfn_body,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                env=ctx.get_node_env(),
+            ),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
+
+
 def _loop_ast(ctx: AnalyzerContext, form: ISeq) -> Loop:
     assert form.first == SpecialForm.LOOP
     nelems = count(form)
@@ -2185,6 +2257,7 @@ _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.IMPORT: _import_ast,
     SpecialForm.INTEROP_CALL: _host_interop_ast,
     SpecialForm.LET: _let_ast,
+    SpecialForm.LETFN: _letfn_ast,
     SpecialForm.LOOP: _loop_ast,
     SpecialForm.QUOTE: _quote_ast,
     SpecialForm.RECUR: _recur_ast,

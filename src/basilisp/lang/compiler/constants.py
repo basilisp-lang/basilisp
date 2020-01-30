@@ -15,6 +15,7 @@ class SpecialForm:
     INTEROP_CALL = sym.symbol(".")
     INTEROP_PROP = sym.symbol(".-")
     LET = sym.symbol("let*")
+    LETFN = sym.symbol("letfn*")
     LOOP = sym.symbol("loop*")
     QUOTE = sym.symbol("quote")
     RECUR = sym.symbol("recur")

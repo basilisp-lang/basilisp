@@ -2217,6 +2217,65 @@ class TestLetUnusedNames:
         assert f"symbol 'v' defined but not used ({ns}: 1)" not in caplog.messages
 
 
+class TestLetFn:
+    def test_letfn_num_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn*)")
+
+    def test_letfn_may_have_empty_bindings(self, ns: runtime.Namespace):
+        assert None is lcompile("(letfn* [])")
+        assert kw.keyword("kw") == lcompile("(letfn* [] :kw)")
+
+    def test_letfn_bindings_must_be_vector(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* () :kw)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* ((f [])) f)")
+
+    def test_letfn_binding_fns_must_be_list(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [[f []]] f)")
+
+    def test_letfn_binding_name_must_be_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [(:a [])] a)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [(a [] :a) (:b [] :b)] a)")
+
+    def test_letfn_name_does_not_resolve(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [(a [] 'sym)] c)")
+
+    def test_letfn_may_have_empty_body(self, ns: runtime.Namespace):
+        assert None is lcompile("(letfn* [])")
+        assert None is lcompile("(letfn* [(a [])])")
+
+    def test_letfn(self, ns: runtime.Namespace):
+        assert lcompile("(letfn* [(a [] 1)] (a))") == 1
+        assert lcompile("(letfn* [(a [] 1) (b [] 2)] (b))") == 2
+        assert lcompile('(letfn* [(a [] "lower")] (.upper (a)))') == "LOWER"
+        assert lcompile("(letfn* [(a [] :value) (b [] (a))] (b))") == kw.keyword(
+            "value"
+        )
+        assert lcompile("(letfn* [(a [] (b)) (b [] :value)] (b))") == kw.keyword(
+            "value"
+        )
+
+    @pytest.mark.parametrize(
+        "v,exp", [(0, True), (1, False), (2, True), (3, False), (4, True)]
+    )
+    def test_letfn_mutual_recursion(self, ns: runtime.Namespace, v: int, exp: bool):
+        assert exp is lcompile(
+            f"""
+        (letfn* [(neven? [n] (if (zero? n) true (nodd? (dec n))))
+                 (nodd? [n] (if (zero? n) false (neven? (dec n))))]
+          (neven? {v}))
+        """
+        )
+
+
 class TestLoop:
     def test_loop_num_elems(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
