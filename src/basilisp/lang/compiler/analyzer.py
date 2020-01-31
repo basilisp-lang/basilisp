@@ -439,6 +439,13 @@ class AnalyzerContext:
         previously checked case, so this is a simple way of disabling these
         warnings for those cases.
 
+        There are cases where undesired warnings may be triggered non-locally,
+        so the Python keyword arguments cannot be used to suppress unwanted
+        warnings. For these cases, symbols may include the `:no-warn-on-shadow`
+        metadata key to indicate that warnings for shadowing names from outer
+        scopes should be suppressed. It is not currently possible to suppress
+        Var shadowing warnings at the symbol level.
+
         If WARN_ON_SHADOWED_NAME compiler option is active and the
         warn_on_shadowed_name keyword argument is True, then a warning will be
         emitted if a local name is shadowed by another local name. Note that
@@ -1854,15 +1861,17 @@ def __letfn_fn_body(ctx: AnalyzerContext, form: ISeq) -> Fn:
     """Produce an `Fn` node for a `letfn*` special form.
 
     `letfn*` forms use `let*`-like bindings. Each function binding name is
-    added to the symbol table before analyzing the function body as a
-    forward declaration. The function bodies are defined as
+    added to the symbol table as a forward declaration before analyzing the
+    function body. The function bodies are defined as
 
-        (fn* name [...] ...)
+        (fn* name
+          [...]
+          ...)
 
     When the `name` is added to the symbol table for the function, a warning
-    will be produced. This function adds `:no-warn-on-shadow` metadata to
-    the function name symbol to disable the compiler warning.
-    """
+    will be produced because it will previously have been defined in the
+    `letfn*` binding scope. This function adds `:no-warn-on-shadow` metadata to
+    the function name symbol to disable the compiler warning."""
     fn_sym = form.first
 
     fn_name = runtime.nth(form, 1)
