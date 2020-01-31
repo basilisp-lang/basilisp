@@ -57,6 +57,7 @@ from basilisp.lang.compiler.constants import (
     SYM_DYNAMIC_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
+    SYM_NO_WARN_ON_SHADOW_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
     SYM_PROPERTY_META_KEY,
     SYM_STATICMETHOD_META_KEY,
@@ -447,7 +448,16 @@ class AnalyzerContext:
         warn_on_shadowed_var keyword argument is True, then a warning will be
         emitted if a named var is shadowed by a local name."""
         st = self.symbol_table
-        if warn_on_shadowed_name and self.warn_on_shadowed_name:
+        no_warn_on_shadow = (
+            Maybe(s.meta)
+            .map(lambda m: m.val_at(SYM_NO_WARN_ON_SHADOW_META_KEY, False))
+            .or_else_get(False)
+        )
+        if (
+            not no_warn_on_shadow
+            and warn_on_shadowed_name
+            and self.warn_on_shadowed_name
+        ):
             if st.find_symbol(s) is not None:
                 logger.warning(f"name '{s}' shadows name from outer scope")
         if (
@@ -1840,6 +1850,46 @@ def _let_ast(ctx: AnalyzerContext, form: ISeq) -> Let:
         )
 
 
+def __letfn_fn_body(ctx: AnalyzerContext, form: ISeq) -> Fn:
+    """Produce an `Fn` node for a `letfn*` special form.
+
+    `letfn*` forms use `let*`-like bindings. Each function binding name is
+    added to the symbol table before analyzing the function body as a
+    forward declaration. The function bodies are defined as
+
+        (fn* name [...] ...)
+
+    When the `name` is added to the symbol table for the function, a warning
+    will be produced. This function adds `:no-warn-on-shadow` metadata to
+    the function name symbol to disable the compiler warning.
+    """
+    fn_sym = form.first
+
+    fn_name = runtime.nth(form, 1)
+    if not isinstance(fn_name, sym.Symbol):
+        raise AnalyzerException("letfn function name must be a symbol", form=fn_name)
+
+    fn_rest = runtime.nthrest(form, 2)
+
+    fn_body = _analyze_form(
+        ctx,
+        fn_rest.cons(
+            fn_name.with_meta(
+                (fn_name.meta or lmap.Map.empty()).assoc(
+                    SYM_NO_WARN_ON_SHADOW_META_KEY, True
+                )
+            )
+        ).cons(fn_sym),
+    )
+
+    if not isinstance(fn_body, Fn):
+        raise AnalyzerException(
+            "letfn bindings must be functions", form=form, lisp_ast=fn_body
+        )
+
+    return fn_body
+
+
 def _letfn_ast(ctx: AnalyzerContext, form: ISeq) -> LetFn:
     assert form.first == SpecialForm.LETFN
     nelems = count(form)
@@ -1852,41 +1902,45 @@ def _letfn_ast(ctx: AnalyzerContext, form: ISeq) -> LetFn:
     bindings = runtime.nth(form, 1)
     if not isinstance(bindings, vec.Vector):
         raise AnalyzerException("letfn bindings must be a vector", form=bindings)
+    elif len(bindings) % 2 != 0:
+        raise AnalyzerException(
+            "letfn bindings must appear in name-value pairs", form=bindings
+        )
 
     with ctx.new_symbol_table("letfn"):
+        # Generate empty Binding nodes to put into the symbol table
+        # as forward declarations. All functions in letfn* forms may
+        # refer to all other functions regardless of order of definition.
         empty_binding_nodes = []
-        for fn_def in bindings:
-            if not isinstance(fn_def, llist.List):
+        for name, value in partition(bindings, 2):
+            if not isinstance(name, sym.Symbol):
                 raise AnalyzerException(
-                    "letfn function definition must be a list", form=fn_def
+                    "letfn binding name must be a symbol", form=name
                 )
 
-            fn_name = fn_def.first
-
-            if not isinstance(fn_name, sym.Symbol):
+            if not isinstance(value, llist.List):
                 raise AnalyzerException(
-                    "letfn function definition name must be a symbol", form=fn_name
+                    "letfn binding value must be a list", form=value
                 )
 
-            # Generate an empty Binding node to put into the symbol table
-            # as a forward declaration. All functions in letfn* forms may
-            # refer to all other functions regardless of order of definition.
             binding = Binding(
-                form=fn_name,
-                name=fn_name.name,
-                local=LocalType.LET,
+                form=name,
+                name=name.name,
+                local=LocalType.LETFN,
                 init=_const_node(ctx, None),
                 children=vec.v(INIT),
                 env=ctx.get_node_env(),
             )
-            empty_binding_nodes.append((fn_name, fn_def, binding))
-            ctx.put_new_symbol(fn_name, binding)
+            empty_binding_nodes.append((name, value, binding))
+            ctx.put_new_symbol(
+                name, binding,
+            )
 
         # Once we've generated all of the filler Binding nodes, analyze the
         # function bodies and replace the Binding nodes with full nodes.
         binding_nodes = []
         for fn_name, fn_def, binding in empty_binding_nodes:
-            fn_body = _analyze_form(ctx, fn_def.cons(SpecialForm.FN))
+            fn_body = __letfn_fn_body(ctx, fn_def)
             new_binding = binding.assoc(init=fn_body)
             binding_nodes.append(new_binding)
             ctx.put_new_symbol(
