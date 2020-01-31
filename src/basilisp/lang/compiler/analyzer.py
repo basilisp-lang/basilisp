@@ -1890,7 +1890,9 @@ def __letfn_fn_body(ctx: AnalyzerContext, form: ISeq) -> Fn:
     return fn_body
 
 
-def _letfn_ast(ctx: AnalyzerContext, form: ISeq) -> LetFn:
+def _letfn_ast(  # pylint: disable=too-many-locals
+    ctx: AnalyzerContext, form: ISeq
+) -> LetFn:
     assert form.first == SpecialForm.LETFN
     nelems = count(form)
 
