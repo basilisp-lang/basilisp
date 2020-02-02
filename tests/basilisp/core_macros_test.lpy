@@ -979,6 +979,113 @@
                 :orig   [[:a :b] [:c :d]]}
                (g v)))))))
 
+(deftest letfn-associative-destructuring
+  (testing "destructuring simple keys"
+    (let [m {:a "a" :b "b"}]
+      (letfn [(f [{:keys [a]}]
+                [a])
+              (g [{:keys [a] :as m}]
+                [a m])
+              (h [{:keys [a b] :as m}]
+                [a b m])]
+        (is (= ["a"] (f m)))
+        (is (= ["a" m] (g m)))
+        (is (= ["a" "b" m] (h m)))))
+
+    (let [m  {:a "a"}
+          m1 {:a "a" :c "d"}]
+      (letfn [(f [{:keys [a c] :as m :or {c "c"}}]
+                [a c m])]
+        (is (= ["a" "c" m] (f m)))
+        (is (= ["a" "d" m1] (f m1))))))
+
+  (testing "destructuring simple string keys"
+    (let [m {:a 1 :b "b" "a" :a "b" :b}]
+      (letfn [(f [{:strs [a]}]
+                [a])
+              (g [{:strs [a] :as m}]
+                [a m])
+              (h [{:strs [a b] :as m}]
+                [a b m])]
+        (is (= [:a] (f m)))
+        (is (= [:a m] (g m)))
+        (is (= [:a :b m] (h m)))))
+
+    (let [m  {"a" :a}
+          m1 {"a" :a "c" :d}]
+      (letfn [(f [{:strs [a c] :as m :or {c :c}}]
+                [a c m])]
+        (is (= [:a :c m] (f m)))
+        (is (= [:a :d m1] (f m1))))))
+
+  (testing "destructuring simple symbol keys"
+    (let [m {:a 1 :b "b" 'a :a 'b :b}]
+      (letfn [(f [{:syms [a]}]
+                [a])
+              (g [{:syms [a] :as m}]
+                [a m])
+              (h [{:syms [a b] :as m}]
+                [a b m])]
+        (is (= [:a] (f m)))
+        (is (= [:a m] (g m)))
+        (is (= [:a :b m] (h m)))))
+
+    (let [m  {'a :a}
+          m1 {'a :a 'c :d}]
+      (letfn [(f [{:syms [a c] :as m :or {c :c}}]
+                [a c m])]
+        (is (= [:a :c m] (f m)))
+        (is (= [:a :d m1] (f m1))))))
+
+  (testing "destructuring namespaced keys"
+    (let [m {:a   "a"
+             :b   "b"
+             :a/a "aa"
+             :a/b "bb"
+             :c/c "cc"
+             :c/d "dd"}]
+      (letfn [(f [{:a/keys [a b] old-a :a old-b :b}]
+                [old-a old-b a b])
+              (g [{:keys [a b] :c/keys [c d]}]
+                [a b c d])]
+        (is (= ["a" "b" "aa" "bb"] (f m)))
+        (is (= ["a" "b" "cc" "dd"] (g m)))))
+
+    (let [m  {:a "a"}
+          m1 {:a/a "aa" :a "a"}]
+      (letfn [(f [{:a/keys [a] :as m :or {a :c}}]
+                [a m])]
+        (is (= [:c m] (f m)))
+        (is (= ["aa" m1] (f m1))))))
+
+  (testing "destructuring individual keys"
+    (let [m {:a "a" :b "b"}]
+      (letfn [(f [{a :a}]
+                [a])
+              (g [{a :a :as m}]
+                [a m])
+              (h [{a :a b :b :as m}]
+                [a b m])]
+        (is (= ["a"] (f m)))
+        (is (= ["a" m] (g m)))
+        (is (= ["a" "b" m] (h m)))))
+
+    (letfn [(f [{a :a/a}]
+              [a])]
+      (is (= ["aa"] (f {:a/a "aa" :a "a"}))))
+
+    (let [m  {:a "a"}
+          m1 {:a "a" :c "d"}]
+      (letfn [(f [{a :a c :c :as m :or {c :c}}]
+                [a c m])]
+        (is (= ["a" :c m] (f m)))
+        (is (= ["a" "d" m1] (f m1))))))
+
+  (testing "keyword rest arguments"
+    (letfn [(f [a b & {:keys [c]}] [a b c])]
+      (is (= [:a :b "rest arg"] (f :a :b :c "rest arg")))
+      (is (= [:a :b "rest arg"] (f :a :b :d "other" :c "rest arg"))))))
+
 (deftest loop-sequential-destructuring
   (testing "destructuring first"
     (is (= :a (loop [[f] [:a :b :c :d]] f)))
