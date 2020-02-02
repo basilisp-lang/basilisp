@@ -918,6 +918,67 @@
               :b      "b"}
              m)))))
 
+(deftest letfn-sequential-destructuring
+  (testing "destructuring first"
+    (let [v [:a :b :c :d]]
+      (letfn [(f [[f]]
+                {:first f})
+              (g [[f :as all]]
+                {:first f :as all})]
+        (is (= {:first :a}
+               (f v)))
+        (is (= {:first :a :as [:a :b :c :d]}
+               (g v))))))
+
+  (testing "destructuring first and rest"
+    (let [v [:a :b :c :d]]
+      (letfn [(f [[f & r]]
+                {:first f :rest r})
+              (g [[f & r :as all]]
+                {:first f :rest r :as all})]
+        (is (= {:first :a :rest '(:b :c :d)}
+               (f v)))
+        (is (= {:first :a :rest '(:b :c :d) :as [:a :b :c :d]}
+               (g v))))))
+
+  (testing "destructuring first, second, and rest"
+    (let [v [:a :b :c :d]]
+      (letfn [(f [[f s & r]]
+                {:first f :second s :rest r})
+              (g [[f s & r :as all]]
+                {:first f :second s :rest r :as all})]
+        (is (= {:first :a :second :b :rest '(:c :d)}
+               (f v)))
+        (is (= {:first :a :second :b :rest '(:c :d) :as [:a :b :c :d]}
+               (g v))))))
+
+  (testing "destructuring first, second, third, and rest"
+    (let [v [:a :b :c :d]]
+      (letfn [(f [[f s t & r]]
+                {:first f :second s :third t :rest r})
+              (g [[f s t & r :as all]]
+                {:first f :second s :third t :rest r :as all})]
+        (is (= {:first :a :second :b :third :c :rest '(:d)}
+               (f v)))
+        (is (= {:first :a :second :b :third :c :rest '(:d) :as [:a :b :c :d]}
+               (g v))))))
+
+  (testing "nested destructuring"
+    (let [v [[:a :b] [:c :d]]]
+      (letfn [(f [[[k1 v1] [k2 v2]]]
+                [k1 v1 k2 v2])
+              (g [[[k1 v1 :as f] [k2 v2 :as s] :as orig]]
+                {:all    [k1 v1 k2 v2]
+                 :first  f
+                 :second s
+                 :orig   orig})]
+        (is (= [:a :b :c :d] (f v)))
+        (is (= {:all    [:a :b :c :d]
+                :first  [:a :b]
+                :second [:c :d]
+                :orig   [[:a :b] [:c :d]]}
+               (g v)))))))
+
 (deftest loop-sequential-destructuring
   (testing "destructuring first"
     (is (= :a (loop [[f] [:a :b :c :d]] f)))
