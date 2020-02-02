@@ -2217,6 +2217,202 @@ class TestLetUnusedNames:
         assert f"symbol 'v' defined but not used ({ns}: 1)" not in caplog.messages
 
 
+class TestLetFn:
+    def test_letfn_num_elems(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn*)")
+
+    def test_letfn_may_have_empty_bindings(self, ns: runtime.Namespace):
+        assert None is lcompile("(letfn* [])")
+        assert kw.keyword("kw") == lcompile("(letfn* [] :kw)")
+
+    def test_letfn_bindings_must_be_vector(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* () :kw)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* (f (fn* [])) f)")
+
+    def test_let_bindings_must_have_name_and_value(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [a (fn* []) b] a)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [a (fn* [] :kw) b (fn* [] :other-kw) c] a)")
+
+    def test_letfn_binding_fns_must_be_list(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [f [fn* []]] f)")
+
+    def test_letfn_binding_name_must_be_symbol(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [:a (fn* a [])] a)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [a (fn* a [] :a) :b (fn* :b [] :b)] a)")
+
+    def test_letfn_binding_value_must_be_function(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [a :a] a)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [a (fn* a [] :a) b (vector 1 2 3)] a)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [a (fn* a [] :a) b (map odd? [1 2 3])] a)")
+
+    def test_letfn_name_does_not_resolve(self, ns: runtime.Namespace):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(letfn* [a (fn* a [] 'sym)] c)")
+
+    def test_letfn_may_have_empty_body(self, ns: runtime.Namespace):
+        assert None is lcompile("(letfn* [])")
+        assert None is lcompile("(letfn* [a (fn* a [])])")
+
+    def test_letfn(self, ns: runtime.Namespace):
+        assert lcompile("(letfn* [a (fn* a [] 1)] (a))") == 1
+        assert lcompile("(letfn* [a (fn* a [] 1) b (fn* b [] 2)] (b))") == 2
+        assert lcompile('(letfn* [a (fn* a [] "lower")] (.upper (a)))') == "LOWER"
+        assert lcompile(
+            "(letfn* [a (fn* a [] :value) b (fn* b [] (a))] (b))"
+        ) == kw.keyword("value")
+        assert lcompile(
+            "(letfn* [a (fn* a [] (b)) b (fn* b [] :value)] (b))"
+        ) == kw.keyword("value")
+
+    @pytest.mark.parametrize(
+        "v,exp", [(0, True), (1, False), (2, True), (3, False), (4, True)]
+    )
+    def test_letfn_mutual_recursion(self, ns: runtime.Namespace, v: int, exp: bool):
+        assert exp is lcompile(
+            f"""
+        (letfn* [neven? (fn* neven? [n] (if (zero? n) true (nodd? (dec n))))
+                 nodd?  (fn* nodd? [n] (if (zero? n) false (neven? (dec n))))]
+          (neven? {v}))
+        """
+        )
+
+
+class TestLetFnShadowName:
+    def test_no_warning_if_no_shadowing_and_warning_disabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        lcompile("(letfn* [m (fn* m [] 3)] (m))")
+        assert_no_logs(caplog)
+
+    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
+        lcompile(
+            "(letfn* [m (fn* m [] 3)] (letfn* [m (fn* m [] 4)] (m)))",
+            opts={compiler.WARN_ON_UNUSED_NAMES: False},
+        )
+        assert_no_logs(caplog)
+
+    def test_no_warning_if_no_shadowing_and_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        lcompile(
+            "(letfn* [m (fn* m [] 3)] (m))", opts={compiler.WARN_ON_SHADOWED_NAME: True}
+        )
+        assert_no_logs(caplog)
+
+    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+        lcompile(
+            "(letfn* [m (fn* m [] 3)] (letfn* [m (fn* m [] 4)] (m)))",
+            opts={compiler.WARN_ON_SHADOWED_NAME: True},
+        )
+        assert (
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            "name 'm' shadows name from outer scope",
+        ) in caplog.record_tuples
+
+    def test_warning_if_shadowing_var_and_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        code = """
+        (def unique-kdhenne :a)
+        (letfn* [unique-kdhenne (fn* unique-kdhenne [] 3)] (unique-kdhenne))
+        """
+
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_NAME: True})
+        assert (
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            "name 'unique-kdhenne' shadows def'ed Var from outer scope",
+        ) in caplog.record_tuples
+
+
+class TestLetFnShadowVar:
+    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
+        code = """
+        (def unique-qpkdmdkd :a)
+        (letfn* [unique-qpkdmdkd (fn* unique-qpkdmdkd [] 3)] (unique-qpkdmdkd))
+        """
+
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
+        assert_no_logs(caplog)
+
+    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+        code = """
+        (def unique-bdddnda :a)
+        (letfn* [unique-bdddnda (fn* unique-bdddnda [] 3)] (unique-bdddnda))
+        """
+        lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: True})
+        assert (
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            "name 'unique-bdddnda' shadows def'ed Var from outer scope",
+        ) in caplog.record_tuples
+
+
+class TestLetFnUnusedNames:
+    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+        lcompile(
+            "(letfn* [v (fn* v [] 4)] :a)", opts={compiler.WARN_ON_UNUSED_NAMES: True}
+        )
+        assert (
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            f"symbol 'v' defined but not used ({ns}: 1)",
+        ) in caplog.record_tuples
+
+    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
+        lcompile(
+            "(letfn* [v (fn* v [] 4)] :a)", opts={compiler.WARN_ON_UNUSED_NAMES: False}
+        )
+        assert f"symbol 'v' defined but not used ({ns}: 1)" not in caplog.messages
+
+    def test_warning_for_nested_let_if_warning_enabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        lcompile(
+            """
+        (letfn* [v (fn* v [] 4)]
+          (letfn* [v (fn* v [] 5)]
+            (v)))
+        """,
+            opts={compiler.WARN_ON_UNUSED_NAMES: True},
+        )
+        assert (
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            f"symbol 'v' defined but not used ({ns}: 1)",
+        ) in caplog.record_tuples
+
+    def test_no_warning_for_nested_let_if_warning_disabled(
+        self, ns: runtime.Namespace, caplog
+    ):
+        lcompile(
+            """
+        (letfn* [v (fn* v [] 4)]
+          (letfn* [v (fn* v [] 5)]
+            (v)))
+        """,
+            opts={compiler.WARN_ON_UNUSED_NAMES: False},
+        )
+        assert f"symbol 'v' defined but not used ({ns}: 1)" not in caplog.messages
+
+
 class TestLoop:
     def test_loop_num_elems(self, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):

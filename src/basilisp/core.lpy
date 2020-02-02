@@ -3980,6 +3980,22 @@
                  (mapcat destructure))]
      ~@body))
 
+(defmacro letfn
+  "Let form specifically for function definitions.
+
+  Functions are defined as bindings:
+
+    [(plus-two [x] (+ (plus-one x) 1))
+     (plus-one [x] (+ x 1))]
+
+  Functions defined in `letfn` bindings may refer to each other regardless
+  of their order of definition."
+  [bindings & body]
+  `(letfn* [~@(mapcat (fn [fn-body]
+                        [(first fn-body) (cons `fn fn-body)])
+                      bindings)]
+           ~@body))
+
 (defn ^:private loop-with-destructuring
   "Take a loop definition (an binding vector and 0 or more body
   expressions) whose binding vector may or may not require destructuring

@@ -18,6 +18,7 @@ jobs:
           shell: /bin/bash -leo pipefail
           environment:
             TOX_NUM_CORES: 2
+            TOX_PARALLEL_NO_SPINNER: 1
             TOX_SHOW_OUTPUT: "True"
             TOX_SKIP_ENV: pypy3
           command: |
