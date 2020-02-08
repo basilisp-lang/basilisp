@@ -610,16 +610,20 @@ def __should_warn_on_redef(
         return False
 
     current_ns = ctx.current_ns
-    if defsym in current_ns.interns:
+    if safe_name in current_ns.module.__dict__:
+        return True
+    elif defsym in current_ns.interns:
         var = current_ns.find(defsym)
         assert var is not None, f"Var {defsym} cannot be none here"
 
         if var.meta is not None and var.meta.val_at(SYM_REDEF_META_KEY):
             return False
+        elif var.is_bound:
+            return True
         else:
-            return bool(var.is_bound)
+            return False
     else:
-        return safe_name in current_ns.module.__dict__
+        return False
 
 
 @_with_ast_loc
