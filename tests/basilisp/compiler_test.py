@@ -20,6 +20,7 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
+from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
 from basilisp.lang.interfaces import IType
 from basilisp.lang.runtime import Var
 from basilisp.main import init
@@ -3077,6 +3078,48 @@ class TestSymbolResolution:
                 assert kw.keyword("a") == lcompile("(other/m :a)")
         finally:
             runtime.Namespace.remove(other_ns_name)
+
+    def test_fully_namespaced_sym_resolves(self, ns: runtime.Namespace):
+        """Ensure that references to Vars in other Namespaces by a fully Namespace
+        qualified symbol always resolve, regardless of whether the Namespace has
+        been aliased within the current Namespace."""
+        other_ns_name = sym.symbol("other.ns")
+        public_var_sym = sym.symbol("public-var")
+        private_var_sym = sym.symbol("private-var")
+        third_ns_name = sym.symbol("third.ns")
+        try:
+            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            runtime.Namespace.get_or_create(third_ns_name)
+
+            # Intern a public symbol in `other.ns`
+            public_var = Var(other_ns, public_var_sym)
+            public_var.value = kw.keyword("public-var")
+            other_ns.intern(public_var_sym, public_var)
+
+            # Intern a private symbol in `other.ns`
+            private_var = Var(
+                other_ns, private_var_sym, meta=lmap.map({SYM_PRIVATE_META_KEY: True})
+            )
+            private_var.value = kw.keyword("private-var")
+            other_ns.intern(private_var_sym, private_var)
+
+            with runtime.ns_bindings(third_ns_name.name):
+                # Verify that we can refer to `other.ns/public-var` with a fully
+                # namespace qualified symbol
+                assert kw.keyword("public-var") == lcompile(
+                    "other.ns/public-var", resolver=runtime.resolve_alias,
+                )
+
+                # Verify we cannot refer to `other.ns/private-var` because it is
+                # marked private
+                with pytest.raises(compiler.CompilerException):
+                    lcompile(
+                        "other.ns/private-var", resolver=runtime.resolve_alias,
+                    )
+
+        finally:
+            runtime.Namespace.remove(other_ns_name)
+            runtime.Namespace.remove(third_ns_name)
 
     def test_cross_ns_macro_symbol_resolution(self, ns: runtime.Namespace):
         """Ensure that a macro symbol, `a`, delegating to another macro, named

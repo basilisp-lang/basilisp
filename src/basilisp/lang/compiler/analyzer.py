@@ -59,6 +59,7 @@ from basilisp.lang.compiler.constants import (
     SYM_MUTABLE_META_KEY,
     SYM_NO_WARN_ON_SHADOW_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
+    SYM_PRIVATE_META_KEY,
     SYM_PROPERTY_META_KEY,
     SYM_STATICMETHOD_META_KEY,
     SpecialForm,
@@ -2514,6 +2515,24 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             target=target,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
+
+    v = Var.find(form)
+    if v is not None:
+        # Disallow global references to Vars defined with :private metadata
+        #
+        # Global references to private Vars are allowed in macroexpanded code
+        # as long as the macro referencing the private Var is in the same
+        # Namespace as the private Var (via `ctx.current_macro_ns`)
+        if (
+            v.ns != ctx.current_macro_ns
+            and v.meta is not None
+            and v.meta.val_at(SYM_PRIVATE_META_KEY, False)
+        ):
+            raise AnalyzerException(
+                f"cannot resolve private Var {form.name} from namespace {form.ns}",
+                form=form,
+            )
+        return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position))
 
     if "." in form.name and form.name != _DOUBLE_DOT_MACRO_NAME:
         raise AnalyzerException(
