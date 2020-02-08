@@ -24,6 +24,7 @@ from basilisp.lang.interfaces import IType
 from basilisp.lang.runtime import Var
 from basilisp.main import init
 from basilisp.util import Maybe
+from tests.basilisp.helpers import get_or_create_ns
 
 COMPILER_FILE_PATH = "compiler_test"
 
@@ -52,7 +53,7 @@ def test_ns_sym(test_ns: str) -> sym.Symbol:
 @pytest.fixture
 def ns(test_ns: str, test_ns_sym: sym.Symbol) -> runtime.Namespace:
     runtime.init_ns_var(which_ns=runtime.CORE_NS)
-    runtime.Namespace.get_or_create(test_ns_sym)
+    get_or_create_ns(test_ns_sym)
     with runtime.ns_bindings(test_ns) as ns:
         try:
             yield ns
@@ -3051,7 +3052,7 @@ class TestSymbolResolution:
         current_ns: runtime.Namespace = ns
         other_ns_name = sym.symbol("other.ns")
         try:
-            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            other_ns = get_or_create_ns(other_ns_name)
             current_ns.add_alias(other_ns_name, other_ns)
             current_ns.add_alias(sym.symbol("other"), other_ns)
 
@@ -3064,7 +3065,7 @@ class TestSymbolResolution:
         current_ns: runtime.Namespace = ns
         other_ns_name = sym.symbol("other.ns")
         try:
-            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            other_ns = get_or_create_ns(other_ns_name)
             current_ns.add_alias(other_ns_name, other_ns)
             current_ns.add_alias(sym.symbol("other"), other_ns)
 
@@ -3086,10 +3087,10 @@ class TestSymbolResolution:
         other_ns_name = sym.symbol("other.ns")
         third_ns_name = sym.symbol("third.ns")
         try:
-            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            other_ns = get_or_create_ns(other_ns_name)
             current_ns.add_alias(other_ns_name, other_ns)
 
-            third_ns = runtime.Namespace.get_or_create(third_ns_name)
+            third_ns = get_or_create_ns(third_ns_name)
             other_ns.add_alias(third_ns_name, third_ns)
 
             with runtime.ns_bindings(third_ns_name.name):
@@ -3121,10 +3122,10 @@ class TestSymbolResolution:
         other_ns_name = sym.symbol("other.ns")
         third_ns_name = sym.symbol("third.ns")
         try:
-            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            other_ns = get_or_create_ns(other_ns_name)
             current_ns.add_alias(other_ns_name, other_ns)
 
-            third_ns = runtime.Namespace.get_or_create(third_ns_name)
+            third_ns = get_or_create_ns(third_ns_name)
             other_ns.add_alias(sym.symbol("third"), third_ns)
 
             with runtime.ns_bindings(third_ns_name.name):
@@ -3156,10 +3157,10 @@ class TestSymbolResolution:
         other_ns_name = sym.symbol("other.ns")
         third_ns_name = sym.symbol("third.ns")
         try:
-            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            other_ns = get_or_create_ns(other_ns_name)
             current_ns.add_alias(other_ns_name, other_ns)
 
-            third_ns = runtime.Namespace.get_or_create(third_ns_name)
+            third_ns = get_or_create_ns(third_ns_name)
 
             with runtime.ns_bindings(third_ns_name.name):
                 lcompile(
@@ -3190,7 +3191,7 @@ class TestWarnOnVarIndirection:
         current_ns: runtime.Namespace = ns
         other_ns_name = sym.symbol("other.ns")
         try:
-            other_ns = runtime.Namespace.get_or_create(other_ns_name)
+            other_ns = get_or_create_ns(other_ns_name)
             Var.intern(other_ns_name, sym.symbol("m"), lambda x: x)
             current_ns.add_alias(other_ns_name, other_ns)
             current_ns.add_alias(sym.symbol("other"), other_ns)

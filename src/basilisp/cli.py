@@ -15,6 +15,7 @@ from basilisp.prompt import get_prompter
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
 REPL_INPUT_FILE_PATH = "<REPL Input>"
+REPL_NS = "basilisp.repl"
 STDIN_INPUT_FILE_PATH = "<stdin>"
 STDIN_FILE_NAME = "-"
 
@@ -52,13 +53,13 @@ def eval_str(s: str, ctx: compiler.CompilerContext, module: types.ModuleType, eo
 
 
 def bootstrap_repl(which_ns: str) -> types.ModuleType:
-    """Bootstrap the REPL with a few useful vars and returned the
-    bootstrapped module so it's functions can be used by the REPL
-    command."""
-    repl_ns = runtime.Namespace.get_or_create(sym.symbol("basilisp.repl"))
-    ns = runtime.Namespace.get_or_create(sym.symbol(which_ns))
-    repl_module = importlib.import_module("basilisp.repl")
-    ns.add_alias(sym.symbol("basilisp.repl"), repl_ns)
+    """Bootstrap the REPL with a few useful vars and returned the bootstrapped
+    module so it's functions can be used by the REPL command."""
+    repl_ns = runtime.Namespace.create(sym.symbol(REPL_NS))
+    ns = runtime.Namespace.create(sym.symbol(which_ns))
+    ns.refer_all(runtime.Namespace.get(sym.symbol(runtime.CORE_NS)))
+    repl_module = importlib.import_module(REPL_NS)
+    ns.add_alias(sym.symbol(REPL_NS), repl_ns)
     ns.refer_all(repl_ns)
     return repl_module
 

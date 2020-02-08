@@ -13,6 +13,7 @@ from typing import Iterable, List, Mapping, MutableMapping, Optional, cast
 import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
+import basilisp.lang.symbol as sym
 from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import demunge
 from basilisp.util import timed
@@ -319,7 +320,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         # generating, then we will not be able to use advanced compilation features such
         # as direct Python variable access to functions and other def'ed values.
         ns_name = demunge(fullname)
-        ns: runtime.Namespace = runtime.set_current_ns(ns_name).value
+        ns: runtime.Namespace = runtime.Namespace.get_or_create(sym.symbol(ns_name))
         ns.module = module
 
         # Check if a valid, cached version of this Basilisp namespace exists and, if so,

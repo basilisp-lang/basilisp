@@ -2528,6 +2528,14 @@
                                      {:test test-expr}))))
         test-expr))))
 
+(defmacro declare
+  "Declare the given names as Vars with no bindings, as a forward declaration."
+  [& names]
+  `(do
+     ~@(map (fn [nm]
+              `(def ~(vary-meta nm assoc :redef true)))
+            names)))
+
 (defmacro for
   "Produce a list comprehension from 1 or more input sequences, subject to
   optional modifiers.
@@ -3520,6 +3528,7 @@
   Example:
     (ns my.namespace
        \"My namespace with code\"
+       (:refer-basilisp :exclude [get])
        (:require
          [basilisp.string :as str])
        (:import inspect))"
@@ -3541,14 +3550,17 @@
                        {}
                        opts))
 
-        requires (when (:require opts)
-                   `(require ~@(map #(list 'quote %) (:require opts))))
-        imports  (when (:import opts)
-                   (map (fn [v]
-                          `(import ~v))
-                        (:import opts)))]
+        requires    (when (:require opts)
+                      `(require ~@(map #(list 'quote %) (:require opts))))
+        imports     (when (:import opts)
+                      (map (fn [v]
+                             `(import ~v))
+                           (:import opts)))]
     `(do
        (in-ns (quote ~name))
+       (basilisp.core/refer-basilisp
+        ~@(or (:refer-basilisp opts)
+              (:refer-clojure opts)))
        ~requires
        ~@imports)))
 
