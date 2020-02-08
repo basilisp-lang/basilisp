@@ -2511,11 +2511,29 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
+    current_ns = ctx.current_ns
+    if form.ns == current_ns.name:
+        v = current_ns.find(sym.symbol(form.name))
+        if v is not None:
+            return VarRef(
+                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
+            )
+
     v = Var.find(form)
     if v is not None:
-        if v.meta is not None and v.meta.val_at(SYM_PRIVATE_META_KEY, False):
+        # Disallow global references to Vars defined with :private metadata
+        #
+        # Global references to private Vars are allowed in macroexpanded code
+        # as long as the macro referencing the private Var is in the same
+        # Namespace as the private Var (via `ctx.current_macro_ns`)
+        if (
+            v.ns != ctx.current_macro_ns
+            and v.meta is not None
+            and v.meta.val_at(SYM_PRIVATE_META_KEY, False)
+        ):
             raise AnalyzerException(
-                f"cannot resolve private Var from namespace {form.ns}", form=form
+                f"cannot resolve private Var {form.name} from namespace {form.ns}",
+                form=form,
             )
         return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position))
 
@@ -2524,7 +2542,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             "symbol names may not contain the '.' operator", form=form
         )
 
-    resolved = __resolve_namespaced_symbol_in_ns(ctx, ctx.current_ns, form)
+    resolved = __resolve_namespaced_symbol_in_ns(ctx, current_ns, form)
     if resolved is not None:
         return resolved
     elif ctx.current_macro_ns is not None:
