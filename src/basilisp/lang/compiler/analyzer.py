@@ -59,6 +59,7 @@ from basilisp.lang.compiler.constants import (
     SYM_MUTABLE_META_KEY,
     SYM_NO_WARN_ON_SHADOW_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
+    SYM_PRIVATE_META_KEY,
     SYM_PROPERTY_META_KEY,
     SYM_STATICMETHOD_META_KEY,
     SpecialForm,
@@ -2496,14 +2497,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
     assert form.ns is not None
 
-    current_ns = ctx.current_ns
-    if form.ns == current_ns.name:
-        v = current_ns.find(sym.symbol(form.name))
-        if v is not None:
-            return VarRef(
-                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
-            )
-    elif form.ns == _BUILTINS_NS:
+    if form.ns == _BUILTINS_NS:
         class_ = munge(form.name, allow_builtins=True)
         target = getattr(builtins, class_, None)
         if target is None:
@@ -2517,12 +2511,20 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
+    v = Var.find(form)
+    if v is not None:
+        if v.meta is not None and v.meta.val_at(SYM_PRIVATE_META_KEY, False):
+            raise AnalyzerException(
+                f"cannot resolve private Var from namespace {form.ns}", form=form
+            )
+        return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position))
+
     if "." in form.name and form.name != _DOUBLE_DOT_MACRO_NAME:
         raise AnalyzerException(
             "symbol names may not contain the '.' operator", form=form
         )
 
-    resolved = __resolve_namespaced_symbol_in_ns(ctx, current_ns, form)
+    resolved = __resolve_namespaced_symbol_in_ns(ctx, ctx.current_ns, form)
     if resolved is not None:
         return resolved
     elif ctx.current_macro_ns is not None:
