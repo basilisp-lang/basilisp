@@ -496,6 +496,7 @@ _NEW_SYM_FN_NAME = _load_attr(f"{_SYM_ALIAS}.symbol")
 _NEW_UUID_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.uuid_from_str")
 _NEW_VEC_FN_NAME = _load_attr(f"{_VEC_ALIAS}.vector")
 _INTERN_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern")
+_INTERN_UNBOUND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern_unbound")
 _FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
 _ATTR_CLASS_DECORATOR_NAME = _load_attr(f"attr.s")
 _ATTRIB_FIELD_FN_NAME = _load_attr(f"attr.ib")
@@ -610,20 +611,16 @@ def __should_warn_on_redef(
         return False
 
     current_ns = ctx.current_ns
-    if safe_name in current_ns.module.__dict__:
-        return True
-    elif defsym in current_ns.interns:
+    if defsym in current_ns.interns:
         var = current_ns.find(defsym)
         assert var is not None, f"Var {defsym} cannot be none here"
 
         if var.meta is not None and var.meta.val_at(SYM_REDEF_META_KEY):
             return False
-        elif var.is_bound:
-            return True
         else:
-            return False
+            return bool(var.is_bound)
     else:
-        return False
+        return safe_name in current_ns.module.__dict__
 
 
 @_with_ast_loc
@@ -635,6 +632,8 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
 
     defsym = node.name
     is_defn = False
+    is_var_bound = node.var.is_bound
+    is_noop_redef_of_bound_var = is_var_bound and node.init is None
 
     if node.init is not None:
         # Since Python function definitions always take the form `def name(...):`,
@@ -656,6 +655,8 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
             is_defn = True
         else:
             def_ast = gen_py_ast(ctx, node.init)
+    elif is_noop_redef_of_bound_var:
+        def_ast = None
     else:
         def_ast = GeneratedPyAST(node=ast.Constant(None))
 
@@ -678,8 +679,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         else []
     )
 
-    # Warn if this symbol is potentially being redefined
-    if __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
+    # Warn if this symbol is potentially being redefined (if the Var was
+    # previously bound)
+    if is_var_bound and __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
         logger.warning(
             f"redefining local Python name '{safe_name}' in module "
             f"'{ctx.current_ns.module.__name__}' ({node.env.ns}:{node.env.line})"
@@ -699,6 +701,16 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
                 [] if meta_ast is None else meta_ast.dependencies,
             )
         )
+    elif is_noop_redef_of_bound_var:
+        # Re-def-ing previously bound Vars without providing a value is
+        # essentially a no-op, which should not modify the Var root.
+        assert def_ast is None, "def_ast is not defined at this point"
+        def_dependencies = list(
+            chain(
+                [] if node.top_level else [ast.Global(names=[safe_name])],
+                [] if meta_ast is None else meta_ast.dependencies,
+            )
+        )
     else:
         def_dependencies = list(
             chain(
@@ -712,6 +724,23 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
                 ],
                 [] if meta_ast is None else meta_ast.dependencies,
             )
+        )
+
+    if is_noop_redef_of_bound_var:
+        return GeneratedPyAST(
+            node=ast.Call(
+                func=_INTERN_UNBOUND_VAR_FN_NAME,
+                args=[ns_name, def_name],
+                keywords=list(
+                    chain(
+                        dynamic_kwarg,
+                        []
+                        if meta_ast is None
+                        else [ast.keyword(arg="meta", value=meta_ast.node)],
+                    )
+                ),
+            ),
+            dependencies=def_dependencies,
         )
 
     return GeneratedPyAST(
