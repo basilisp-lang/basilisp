@@ -2497,7 +2497,14 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
     assert form.ns is not None
 
-    if form.ns == _BUILTINS_NS:
+    current_ns = ctx.current_ns
+    if form.ns == current_ns.name:
+        v = current_ns.find(sym.symbol(form.name))
+        if v is not None:
+            return VarRef(
+                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
+            )
+    elif form.ns == _BUILTINS_NS:
         class_ = munge(form.name, allow_builtins=True)
         target = getattr(builtins, class_, None)
         if target is None:
@@ -2510,14 +2517,6 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             target=target,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
-
-    current_ns = ctx.current_ns
-    if form.ns == current_ns.name:
-        v = current_ns.find(sym.symbol(form.name))
-        if v is not None:
-            return VarRef(
-                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
-            )
 
     v = Var.find(form)
     if v is not None:
