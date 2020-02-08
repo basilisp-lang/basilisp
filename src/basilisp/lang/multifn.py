@@ -3,6 +3,7 @@ from typing import Any, Callable, Generic, Optional, TypeVar
 
 import basilisp.lang.map as lmap
 import basilisp.lang.symbol as sym
+from basilisp.lang.interfaces import IPersistentMap
 from basilisp.util import Maybe
 
 T = TypeVar("T")
@@ -13,22 +14,20 @@ Method = Callable[..., Any]
 class MultiFunction(Generic[T]):
     __slots__ = ("_name", "_default", "_dispatch", "_lock", "_methods")
 
+    # pylint:disable=assigning-non-slot
     def __init__(
         self, name: sym.Symbol, dispatch: DispatchFunction, default: T
     ) -> None:
-        self._name = name  # pylint:disable=assigning-non-slot
-        self._default = default  # pylint:disable=assigning-non-slot
-        self._dispatch = dispatch  # pylint:disable=assigning-non-slot
-        self._lock = threading.Lock()  # pylint:disable=assigning-non-slot
-        self._methods = lmap.Map.empty()  # pylint:disable=assigning-non-slot
+        self._name = name
+        self._default = default
+        self._dispatch = dispatch
+        self._lock = threading.Lock()
+        self._methods: IPersistentMap[T, Method] = lmap.Map.empty()
 
     def __call__(self, *args, **kwargs):
         key = self._dispatch(*args, **kwargs)
-        method_cache = self._methods
-        method: Optional[Method] = Maybe(method_cache.val_at(key, None)).or_else(
-            lambda: method_cache.val_at(self._default, None)  # type: ignore
-        )
-        if method:
+        method = self.get_method(key)
+        if method is not None:
             return method(*args, **kwargs)
         raise NotImplementedError
 
@@ -66,7 +65,7 @@ class MultiFunction(Generic[T]):
         return self._default
 
     @property
-    def methods(self) -> lmap.Map:
+    def methods(self) -> IPersistentMap[T, Method]:
         return self._methods
 
 

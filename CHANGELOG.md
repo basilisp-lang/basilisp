@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
  * Change the default user namespace to `basilisp.user` (#466)
+ * Changed multi-methods to use a `threading.Lock` internally rather than an Atom (#477)
 
 ### Fixed
  * Fixed a reader bug where no exception was being thrown splicing reader conditional forms appeared outside of valid splicing contexts (#470)
