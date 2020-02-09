@@ -173,6 +173,91 @@
         (is (= "0.1" (:added vmeta)))
         (is (= "another multi-arity docstring" (:doc vmeta)))))))
 
+(deftest defn-private-test
+  (testing "single arity defn-"
+    (testing "simple"
+      (let [fvar  (defn- pf1 [] :kw)
+            vmeta (meta fvar)]
+        (is (= 'pf1 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (= true (:private vmeta)))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "with docstring"
+      (let [fvar  (defn- pf2 "a docstring" [] :kw)
+            vmeta (meta fvar)]
+        (is (= 'pf2 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (= true (:private vmeta)))
+        (is (= "a docstring" (:doc vmeta)))))
+
+    (testing "with attr-map"
+      (let [fvar  (defn- pf3 {:added "0.1"} [] :kw)
+            vmeta (meta fvar)]
+        (is (= 'pf3 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (= true (:private vmeta)))
+        (is (= "0.1" (:added vmeta)))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "attr-map and docstring"
+      (let [fvar  (defn- pf4
+                    "another docstring"
+                    {:added "0.1"}
+                    []
+                    :kw)
+            vmeta (meta fvar)]
+        (is (= 'pf4 (:name vmeta)))
+        (is (= '([]) (:arglists vmeta)))
+        (is (= true (:private vmeta)))
+        (is (= "0.1" (:added vmeta)))
+        (is (= "another docstring" (:doc vmeta))))))
+
+  (testing "multi arity defn"
+    (testing "simple"
+      (let [fvar  (defn- pf5 ([] :kw) ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'pf5 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (= true (:private vmeta)))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "with docstring"
+      (let [fvar  (defn- pf6
+                    "multi-arity docstring"
+                    ([] :kw)
+                    ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'pf6 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (= true (:private vmeta)))
+        (is (= "multi-arity docstring" (:doc vmeta)))))
+
+    (testing "with attr-map"
+      (let [fvar  (defn- pf7
+                    {:added "0.1"}
+                    ([] :kw)
+                    ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'pf7 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (= true (:private vmeta)))
+        (is (= "0.1" (:added vmeta)))
+        (is (not (contains? vmeta :doc)))))
+
+    (testing "attr-map and docstring"
+      (let [fvar  (defn- pf8
+                    "another multi-arity docstring"
+                    {:added "0.1"}
+                    ([] :kw)
+                    ([a] a))
+            vmeta (meta fvar)]
+        (is (= 'pf8 (:name vmeta)))
+        (is (= '([] [a]) (:arglists vmeta)))
+        (is (= true (:private vmeta)))
+        (is (= "0.1" (:added vmeta)))
+        (is (= "another multi-arity docstring" (:doc vmeta)))))))
+
 (deftest fn-meta-test
   (testing "fn has no meta to start"
     (is (nil? (meta (fn* []))))
