@@ -3557,9 +3557,8 @@
                            (:import opts)))]
     `(do
        (in-ns (quote ~name))
-       (basilisp.core/refer-basilisp
-        ~@(or (:refer-basilisp opts)
-              (:refer-clojure opts)))
+       (refer-basilisp ~@(or (:refer-basilisp opts)
+                             (:refer-clojure opts)))
        ~requires
        ~@imports)))
 
