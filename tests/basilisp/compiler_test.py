@@ -378,6 +378,25 @@ class TestDef:
         assert lmap.map({kw.keyword("meta-kw"): True}) == v.value.meta
         assert kw.keyword("fn-with-meta-node") == v.value()
 
+    def test_redef_unbound_var(self, ns: runtime.Namespace):
+        v1: Var = lcompile("(def unbound-var)")
+        assert None is v1.root
+
+        v2: Var = lcompile("(def unbound-var :a)")
+        assert kw.keyword("a") == v2.root
+        assert v2.is_bound
+
+    def test_def_unbound_does_not_clear_var_root(self, ns: runtime.Namespace):
+        v1: Var = lcompile("(def bound-var :a)")
+        assert kw.keyword("a") == v1.root
+        assert v1.is_bound
+
+        v2: Var = lcompile("(def bound-var)")
+        assert kw.keyword("a") == v2.root
+        assert v2.is_bound
+
+        assert v1 == v2
+
 
 class TestDefType:
     @pytest.mark.parametrize("code", ["(deftype*)", "(deftype* Point)"])

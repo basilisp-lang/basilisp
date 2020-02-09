@@ -467,28 +467,18 @@
          ~@body))))
 
 (defmacro defasync
-  "Define a new asynchronous function with an optional docstring."
+  "Define a new asynchronous function as by `defn`.
+
+  Asynchronous functions are compiled as Python `async def`s."
   [name & body]
-  (let [body   (concat body)
-        doc    (if (string? (first body))
-                 (first body)
-                 nil)
-        body   (if doc
-                 (rest body)
-                 body)
-        fmeta (if (map? (first body))
-                (assoc (first body))
-                nil)
-        body   (if fmeta
-                 (rest body)
-                 body)
-        fmeta (apply assoc fmeta (concat [:async true]
-                                         (if doc
-                                           [:doc doc]
-                                           nil)))]
-    `(defn ~name
-       ~fmeta
-       ~@body)))
+  `(defn ~(vary-meta name assoc :async true)
+     ~@body))
+
+(defmacro defn-
+  "Define a new private function as by `defn`."
+  [name & body]
+  `(defn ~(vary-meta name assoc :private true)
+     ~@body))
 
 (defn macroexpand-1
   "Macroexpand form one time. Returns the macroexpanded form. The return
@@ -2535,6 +2525,15 @@
      ~@(map (fn [nm]
               `(def ~(vary-meta nm assoc :redef true)))
             names)))
+
+(defmacro defonce
+  "Define the Var named by `name` with root binding set to `expr` if and only if
+  a `name` is not already defined as a Var in this namespace. `expr` will not be
+  evaluated if the Var already exists."
+  [name expr]
+  `(let [v (def ~name)]
+     (when-not (.-is-bound v)
+       (def ~name ~expr))))
 
 (defmacro for
   "Produce a list comprehension from 1 or more input sequences, subject to
