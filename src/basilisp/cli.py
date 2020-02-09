@@ -57,7 +57,9 @@ def bootstrap_repl(which_ns: str) -> types.ModuleType:
     module so it's functions can be used by the REPL command."""
     repl_ns = runtime.Namespace.create(sym.symbol(REPL_NS))
     ns = runtime.Namespace.create(sym.symbol(which_ns))
-    ns.refer_all(runtime.Namespace.get(sym.symbol(runtime.CORE_NS)))
+    core_ns = runtime.Namespace.get(sym.symbol(runtime.CORE_NS))
+    assert core_ns is not None
+    ns.refer_all(core_ns)
     repl_module = importlib.import_module(REPL_NS)
     ns.add_alias(sym.symbol(REPL_NS), repl_ns)
     ns.refer_all(repl_ns)
