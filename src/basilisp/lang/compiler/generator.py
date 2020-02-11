@@ -3,7 +3,6 @@ import contextlib
 import importlib
 import logging
 import re
-import types
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -257,11 +256,11 @@ class GeneratorContext:
             yield st
             self._st.pop()
 
-    def add_import(self, imp: sym.Symbol, mod: types.ModuleType, *aliases: sym.Symbol):
+    def add_import(self, imp: sym.Symbol, mod: runtime.Module, *aliases: sym.Symbol):
         self.current_ns.add_import(imp, mod, *aliases)
 
     @property
-    def imports(self) -> lmap.Map[sym.Symbol, types.ModuleType]:
+    def imports(self) -> runtime.ModuleMap:
         return self.current_ns.imports
 
     @property
@@ -2790,8 +2789,8 @@ def _module_imports(ctx: GeneratorContext) -> Iterable[ast.Import]:
     # Yield `import basilisp` so code attempting to call fully qualified
     # `basilisp.lang...` modules don't result in compiler errors
     yield ast.Import(names=[ast.alias(name="basilisp", asname=None)])
-    for imp in ctx.imports:
-        name = imp.key.name
+    for s in sorted(ctx.imports.keys(), key=lambda s: s.name):
+        name = s.name
         alias = _MODULE_ALIASES.get(name, None)
         yield ast.Import(names=[ast.alias(name=name, asname=alias)])
 
