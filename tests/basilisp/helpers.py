@@ -9,8 +9,8 @@ def get_or_create_ns(
 ) -> Namespace:
     """Get or create the namespace named by `name`, referring in all of the symbols
     of the namespaced named by `refer`."""
-    ns = get_or_create_ns(name)
+    ns = Namespace.get_or_create(name)
     for refer_name in filter(lambda s: s != name, refer):
-        refer_ns = get_or_create_ns(refer_name)
+        refer_ns = Namespace.get_or_create(refer_name)
         ns.refer_all(refer_ns)
     return ns

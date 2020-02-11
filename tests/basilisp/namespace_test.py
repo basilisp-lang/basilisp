@@ -1,4 +1,3 @@
-from typing import Callable
 from unittest.mock import patch
 
 import pytest
@@ -186,72 +185,6 @@ def test_unmap(ns_cache: atom.Atom[NamespaceMap]):
     ns.unmap(var_sym)
 
     assert None is ns.find(var_sym)
-
-
-@pytest.fixture
-def core_map() -> sym.Symbol:
-    return sym.symbol("map")
-
-
-@pytest.fixture
-def core_map_fn() -> Callable:
-    return map
-
-
-@pytest.fixture
-def core_private() -> sym.Symbol:
-    return sym.symbol("private-var")
-
-
-@pytest.fixture
-def core_private_val() -> str:
-    return "private-string"
-
-
-@pytest.fixture
-def test_ns() -> str:
-    return "test"
-
-
-@pytest.fixture
-def other_ns(
-    core_map: sym.Symbol,
-    core_map_fn: Callable,
-    core_private: sym.Symbol,
-    core_private_val: str,
-    test_ns: str,
-) -> Namespace:
-    runtime.init_ns_var(which_ns=runtime.CORE_NS)
-    core_ns = get_or_create_ns(sym.symbol(runtime.CORE_NS), refer=())
-
-    # Add a public Var
-    map_var = Var(core_ns, core_map)
-    map_var.value = core_map_fn
-    core_ns.intern(core_map, map_var)
-
-    # Add a private Var
-    private_var = Var(
-        core_ns, core_private, meta=lmap.map({kw.keyword("private"): True})
-    )
-    private_var.value = core_private_val
-    core_ns.intern(core_private, private_var)
-
-    with runtime.ns_bindings(test_ns) as ns:
-        yield ns
-
-
-def test_refer_core(
-    core_ns_sym: sym.Symbol,
-    other_ns: Namespace,
-    core_map: sym.Symbol,
-    core_private: sym.Symbol,
-):
-    core_ns = get_or_create_ns(core_ns_sym, refer=())
-
-    assert core_map in core_ns.interns
-    assert core_private in core_ns.interns
-    assert core_map in other_ns.refers
-    assert core_private not in other_ns.refers
 
 
 def test_refer(ns_cache: atom.Atom[NamespaceMap]):

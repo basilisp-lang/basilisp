@@ -28,7 +28,7 @@ from basilisp.lang.compiler.generator import (  # noqa
     statementize as _statementize,
 )
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
-from basilisp.lang.typing import ReaderForm
+from basilisp.lang.typing import BasilispModule, ReaderForm
 from basilisp.lang.util import genname
 
 _DEFAULT_FN = "__lisp_expr__"
@@ -89,7 +89,7 @@ def _emit_ast_string(module: ast.AST) -> None:  # pragma: no cover
 def compile_and_exec_form(  # pylint: disable= too-many-arguments
     form: ReaderForm,
     ctx: CompilerContext,
-    module: types.ModuleType,
+    ns: runtime.Namespace,
     wrapped_fn_name: str = _DEFAULT_FN,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> Any:
@@ -101,8 +101,8 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     if form is None:
         return None
 
-    if not module.__basilisp_bootstrapped__:  # type: ignore
-        _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, module)
+    if not ns.module.__basilisp_bootstrapped__:
+        _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, ns)
 
     final_wrapped_name = genname(wrapped_fn_name)
 
@@ -127,14 +127,14 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     bytecode = compile(ast_module, ctx.filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
-    exec(bytecode, module.__dict__)
-    return getattr(module, final_wrapped_name)()
+    exec(bytecode, ns.module.__dict__)
+    return getattr(ns.module, final_wrapped_name)()
 
 
 def _incremental_compile_module(
     optimizer: PythonASTOptimizer,
     py_ast: GeneratedPyAST,
-    mod: types.ModuleType,
+    mod: BasilispModule,
     source_filename: str,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
@@ -163,24 +163,24 @@ def _incremental_compile_module(
 def _bootstrap_module(
     gctx: GeneratorContext,
     optimizer: PythonASTOptimizer,
-    mod: types.ModuleType,
+    ns: runtime.Namespace,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
     """Bootstrap a new module with imports and other boilerplate."""
     _incremental_compile_module(
         optimizer,
-        py_module_preamble(gctx),
-        mod,
+        py_module_preamble(ns),
+        ns.module,
         source_filename=gctx.filename,
         collect_bytecode=collect_bytecode,
     )
-    mod.__basilisp_bootstrapped__ = True  # type: ignore
+    ns.module.__basilisp_bootstrapped__ = True
 
 
 def compile_module(
     forms: Iterable[ReaderForm],
     ctx: CompilerContext,
-    module: types.ModuleType,
+    ns: runtime.Namespace,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
     """Compile an entire Basilisp module into Python bytecode which can be
@@ -190,7 +190,7 @@ def compile_module(
     Basilisp import machinery, to allow callers to import Basilisp modules from
     Python code.
     """
-    _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, module)
+    _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, ns)
 
     for form in forms:
         nodes = gen_py_ast(
@@ -199,7 +199,7 @@ def compile_module(
         _incremental_compile_module(
             ctx.py_ast_optimizer,
             nodes,
-            module,
+            ns.module,
             source_filename=ctx.filename,
             collect_bytecode=collect_bytecode,
         )
@@ -209,7 +209,7 @@ def compile_bytecode(
     code: List[types.CodeType],
     gctx: GeneratorContext,
     optimizer: PythonASTOptimizer,
-    module: types.ModuleType,
+    ns: runtime.Namespace,
 ) -> None:
     """Compile cached bytecode into the given module.
 
@@ -217,6 +217,6 @@ def compile_bytecode(
     namespaces. When the cached bytecode is reloaded from disk, it needs to be
     compiled within a bootstrapped module. This function bootstraps the module
     and then proceeds to compile a collection of bytecodes into the module."""
-    _bootstrap_module(gctx, optimizer, module)
+    _bootstrap_module(gctx, optimizer, ns)
     for bytecode in code:
-        exec(bytecode, module.__dict__)
+        exec(bytecode, ns.module.__dict__)

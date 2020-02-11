@@ -233,7 +233,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         fullname: str,
         loader_state: Mapping[str, str],
         path_stats: Mapping[str, int],
-        module: types.ModuleType,
+        ns: runtime.Namespace,
     ):
         """Load and execute a cached Basilisp module."""
         filename = loader_state["filename"]
@@ -253,7 +253,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 cached_code,
                 compiler.GeneratorContext(filename=filename),
                 compiler.PythonASTOptimizer(),
-                module,
+                ns,
             )
 
     def _exec_module(
@@ -261,7 +261,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         fullname: str,
         loader_state: Mapping[str, str],
         path_stats: Mapping[str, int],
-        module: types.ModuleType,
+        ns: runtime.Namespace,
     ):
         """Load and execute a non-cached Basilisp module."""
         filename = loader_state["filename"]
@@ -291,7 +291,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
                 forms,
                 compiler.CompilerContext(filename=filename),
-                module,
+                ns,
                 collect_bytecode=add_bytecode,
             )
 
@@ -326,15 +326,13 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         # Check if a valid, cached version of this Basilisp namespace exists and, if so,
         # load it and bypass the expensive compilation process below.
         if os.getenv(_NO_CACHE_ENVVAR, None) == "true":
-            self._exec_module(fullname, spec.loader_state, path_stats, module)
+            self._exec_module(fullname, spec.loader_state, path_stats, ns)
         else:
             try:
-                self._exec_cached_module(
-                    fullname, spec.loader_state, path_stats, module
-                )
+                self._exec_cached_module(fullname, spec.loader_state, path_stats, ns)
             except (EOFError, ImportError, IOError, OSError) as e:
                 logger.debug(f"Failed to load cached Basilisp module: {e}")
-                self._exec_module(fullname, spec.loader_state, path_stats, module)
+                self._exec_module(fullname, spec.loader_state, path_stats, ns)
 
         # Because we want to (by default) add 'basilisp.core into every namespace by default,
         # we want to make sure we don't try to add 'basilisp.core into itself, causing a

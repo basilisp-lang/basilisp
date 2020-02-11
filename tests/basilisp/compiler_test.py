@@ -2,10 +2,9 @@ import asyncio
 import decimal
 import logging
 import re
-import types
 import uuid
 from fractions import Fraction
-from typing import Dict, Optional
+from typing import Any, Callable, Dict, Optional
 from unittest.mock import Mock
 
 import dateutil.parser as dateparser
@@ -24,7 +23,6 @@ from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
 from basilisp.lang.interfaces import IType
 from basilisp.lang.runtime import Var
 from basilisp.main import init
-from basilisp.util import Maybe
 from tests.basilisp.helpers import get_or_create_ns
 
 COMPILER_FILE_PATH = "compiler_test"
@@ -43,7 +41,7 @@ def setup_module():
 
 @pytest.fixture
 def test_ns() -> str:
-    return "test"
+    return "basilisp.compiler_test"
 
 
 @pytest.fixture
@@ -53,7 +51,6 @@ def test_ns_sym(test_ns: str) -> sym.Symbol:
 
 @pytest.fixture
 def ns(test_ns: str, test_ns_sym: sym.Symbol) -> runtime.Namespace:
-    runtime.init_ns_var(which_ns=runtime.CORE_NS)
     get_or_create_ns(test_ns_sym)
     with runtime.ns_bindings(test_ns) as ns:
         try:
@@ -80,34 +77,39 @@ def async_to_sync(asyncf, *args, **kwargs):
     return loop.run_until_complete(asyncf(*args, **kwargs))
 
 
-def lcompile(
-    s: str,
-    resolver: Optional[reader.Resolver] = None,
-    opts: Optional[Dict[str, bool]] = None,
-    mod: Optional[types.ModuleType] = None,
-):
-    """Compile and execute the code in the input string.
+CompileFn = Callable[[str], Any]
 
-    Return the resulting expression."""
-    ctx = compiler.CompilerContext(COMPILER_FILE_PATH, opts=opts)
-    mod = Maybe(mod).or_else(lambda: runtime._new_module(COMPILER_FILE_PATH))
 
-    last = None
-    for form in reader.read_str(s, resolver=resolver):
-        last = compiler.compile_and_exec_form(form, ctx, mod)
+@pytest.fixture
+def lcompile(ns: runtime.Namespace) -> CompileFn:
+    def _lcompile(
+        s: str,
+        resolver: Optional[reader.Resolver] = None,
+        opts: Optional[Dict[str, bool]] = None,
+    ):
+        """Compile and execute the code in the input string.
 
-    return last
+        Return the resulting expression."""
+        ctx = compiler.CompilerContext(COMPILER_FILE_PATH, opts=opts)
+
+        last = None
+        for form in reader.read_str(s, resolver=resolver):
+            last = compiler.compile_and_exec_form(form, ctx, ns)
+
+        return last
+
+    return _lcompile
 
 
 class TestLiterals:
-    def test_nil(self):
+    def test_nil(self, lcompile: CompileFn):
         assert None is lcompile("nil")
 
-    def test_string(self):
+    def test_string(self, lcompile: CompileFn):
         assert lcompile('"some string"') == "some string"
         assert lcompile('""') == ""
 
-    def test_int(self):
+    def test_int(self, lcompile: CompileFn):
         assert 1 == lcompile("1")
         assert 100 == lcompile("100")
         assert 99_927_273 == lcompile("99927273")
@@ -122,7 +124,7 @@ class TestLiterals:
         assert -1 == lcompile("-1N")
         assert -538_282 == lcompile("-538282N")
 
-    def test_decimal(self):
+    def test_decimal(self, lcompile: CompileFn):
         assert decimal.Decimal("0.0") == lcompile("0.0M")
         assert decimal.Decimal("0.09387372") == lcompile("0.09387372M")
         assert decimal.Decimal("1.0") == lcompile("1.0M")
@@ -132,7 +134,7 @@ class TestLiterals:
         assert decimal.Decimal("-0.332") == lcompile("-0.332M")
         assert decimal.Decimal("3.14") == lcompile("3.14M")
 
-    def test_float(self):
+    def test_float(self, lcompile: CompileFn):
         assert lcompile("0.0") == 0.0
         assert lcompile("0.09387372") == 0.093_873_72
         assert lcompile("1.0") == 1.0
@@ -141,77 +143,79 @@ class TestLiterals:
         assert lcompile("-1.0") == -1.0
         assert lcompile("-0.332") == -0.332
 
-    def test_kw(self):
+    def test_kw(self, lcompile: CompileFn):
         assert lcompile(":kw") == kw.keyword("kw")
         assert lcompile(":ns/kw") == kw.keyword("kw", ns="ns")
         assert lcompile(":qualified.ns/kw") == kw.keyword("kw", ns="qualified.ns")
 
-    def test_literals(self):
+    def test_literals(self, lcompile: CompileFn):
         assert lcompile("nil") is None
         assert lcompile("true") is True
         assert lcompile("false") is False
 
-    def test_quoted_symbol(self):
+    def test_quoted_symbol(self, lcompile: CompileFn):
         assert lcompile("'sym") == sym.symbol("sym")
         assert lcompile("'ns/sym") == sym.symbol("sym", ns="ns")
         assert lcompile("'qualified.ns/sym") == sym.symbol("sym", ns="qualified.ns")
 
-    def test_map(self):
+    def test_map(self, lcompile: CompileFn):
         assert lcompile("{}") == lmap.m()
         assert lcompile('{:a "string"}') == lmap.map({kw.keyword("a"): "string"})
         assert lcompile('{:a "string" 45 :my-age}') == lmap.map(
             {kw.keyword("a"): "string", 45: kw.keyword("my-age")}
         )
 
-    def test_set(self):
+    def test_set(self, lcompile: CompileFn):
         assert lcompile("#{}") == lset.s()
         assert lcompile("#{:a}") == lset.s(kw.keyword("a"))
         assert lcompile("#{:a 1}") == lset.s(kw.keyword("a"), 1)
 
-    def test_vec(self):
+    def test_vec(self, lcompile: CompileFn):
         assert lcompile("[]") == vec.v()
         assert lcompile("[:a]") == vec.v(kw.keyword("a"))
         assert lcompile("[:a 1]") == vec.v(kw.keyword("a"), 1)
 
-    def test_fraction(self):
+    def test_fraction(self, lcompile: CompileFn):
         assert Fraction("22/7") == lcompile("22/7")
 
-    def test_inst(self):
+    def test_inst(self, lcompile: CompileFn):
         assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
             '#inst "2018-01-18T03:26:57.296-00:00"'
         )
 
-    def test_regex(self):
+    def test_regex(self, lcompile: CompileFn):
         assert lcompile(r'#"\s"') == re.compile(r"\s")
 
-    def test_uuid(self):
+    def test_uuid(self, lcompile: CompileFn):
         assert uuid.UUID("{0366f074-a8c5-4764-b340-6a5576afd2e8}") == lcompile(
             '#uuid "0366f074-a8c5-4764-b340-6a5576afd2e8"'
         )
 
-    def test_py_dict(self):
+    def test_py_dict(self, lcompile: CompileFn):
         assert isinstance(lcompile("#py {}"), dict)
         assert {} == lcompile("#py {}")
         assert {kw.keyword("a"): 1, "b": "str"} == lcompile('#py {:a 1 "b" "str"}')
 
-    def test_py_list(self):
+    def test_py_list(self, lcompile: CompileFn):
         assert isinstance(lcompile("#py []"), list)
         assert [] == lcompile("#py []")
         assert [1, kw.keyword("a"), "str"] == lcompile('#py [1 :a "str"]')
 
-    def test_py_set(self):
+    def test_py_set(self, lcompile: CompileFn):
         assert isinstance(lcompile("#py #{}"), set)
         assert set() == lcompile("#py #{}")
         assert {1, kw.keyword("a"), "str"} == lcompile('#py #{1 :a "str"}')
 
-    def test_py_tuple(self):
+    def test_py_tuple(self, lcompile: CompileFn):
         assert isinstance(lcompile("#py ()"), tuple)
         assert tuple() == lcompile("#py ()")
         assert (1, kw.keyword("a"), "str") == lcompile('#py (1 :a "str")')
 
 
 class TestAwait:
-    def test_await_must_appear_in_async_def(self, ns: runtime.Namespace):
+    def test_await_must_appear_in_async_def(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn [] (await :a))")
 
@@ -229,14 +233,14 @@ class TestAwait:
         """
         )
 
-    def test_await_number_of_elems(self, ns: runtime.Namespace):
+    def test_await_number_of_elems(self, lcompile: CompileFn, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn ^:async test [] (await))")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn ^:async test [] (await :a :b))")
 
-    def test_await(self, ns: runtime.Namespace):
+    def test_await(self, lcompile: CompileFn, ns: runtime.Namespace):
         awaiter_var: runtime.Var = lcompile(
             """
         (def unique-tywend
@@ -256,7 +260,7 @@ class TestAwait:
 
 
 class TestDef:
-    def test_def(self, ns: runtime.Namespace):
+    def test_def(self, lcompile: CompileFn, ns: runtime.Namespace):
         ns_name = ns.name
         assert lcompile("(def a :some-val)") == Var.find_in_ns(
             sym.symbol(ns_name), sym.symbol("a")
@@ -267,7 +271,7 @@ class TestDef:
         assert lcompile("a") == kw.keyword("some-val")
         assert lcompile("beep") == "a sound a robot makes"
 
-    def test_def_with_docstring(self, ns: runtime.Namespace):
+    def test_def_with_docstring(self, lcompile: CompileFn, ns: runtime.Namespace):
         ns_name = ns.name
         assert lcompile('(def z "this is a docstring" :some-val)') == Var.find_in_ns(
             sym.symbol(ns_name), sym.symbol("z")
@@ -276,29 +280,29 @@ class TestDef:
         var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("z"))
         assert "this is a docstring" == var.meta.val_at(kw.keyword("doc"))
 
-    def test_def_unbound(self, ns: runtime.Namespace):
+    def test_def_unbound(self, lcompile: CompileFn, ns: runtime.Namespace):
         lcompile("(def a)")
         var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("a"))
         assert var.root is None
         # TODO: fix this
         # assert not var.is_bound
 
-    def test_def_number_of_elems(self, ns: runtime.Namespace):
+    def test_def_number_of_elems(self, lcompile: CompileFn, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(def)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile('(def a "docstring" :b :c)')
 
-    def test_def_name_is_symbol(self, ns: runtime.Namespace):
+    def test_def_name_is_symbol(self, lcompile: CompileFn, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(def :a)")
 
-    def test_def_docstring_is_string(self, ns: runtime.Namespace):
+    def test_def_docstring_is_string(self, lcompile: CompileFn, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(def a :not-a-docstring :a)")
 
-    def test_compiler_metadata(self, ns: runtime.Namespace):
+    def test_compiler_metadata(self, lcompile: CompileFn, ns: runtime.Namespace):
         lcompile('(def ^{:doc "Super cool docstring"} unique-oeuene :a)')
 
         var = ns.find(sym.symbol("unique-oeuene"))
@@ -311,7 +315,9 @@ class TestDef:
         assert ns == meta.val_at(kw.keyword("ns"))
         assert "Super cool docstring" == meta.val_at(kw.keyword("doc"))
 
-    def test_no_warn_on_redef_meta(self, ns: runtime.Namespace, caplog):
+    def test_no_warn_on_redef_meta(
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
+    ):
         lcompile(
             """
         (def unique-zhddkd :a)
@@ -321,7 +327,7 @@ class TestDef:
         assert_no_logs(caplog)
 
     def test_warn_on_redef_if_warn_on_redef_meta_missing(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
     ):
         lcompile(
             """
@@ -332,10 +338,10 @@ class TestDef:
         assert (
             "basilisp.lang.compiler.generator",
             logging.WARNING,
-            f"redefining local Python name 'unique_djhvyz' in module '{ns.name}' (test:2)",
+            f"redefining local Python name 'unique_djhvyz' in module '{ns.name}' ({ns.name}:2)",
         ) in caplog.record_tuples
 
-    def test_redef_vars(self, ns: runtime.Namespace, caplog):
+    def test_redef_vars(self, lcompile: CompileFn, ns: runtime.Namespace, caplog):
         assert kw.keyword("b") == lcompile(
             """
         (def ^:redef orig :a)
@@ -345,10 +351,10 @@ class TestDef:
         """
         )
         assert (
-            f"redefining local Python name 'orig' in module '{ns.name}' (test:2)"
+            f"redefining local Python name 'orig' in module '{ns.name}' ({ns.name}:2)"
         ) not in caplog.messages
 
-    def test_def_dynamic(self, ns: runtime.Namespace):
+    def test_def_dynamic(self, lcompile: CompileFn, ns: runtime.Namespace):
         v: Var = lcompile("(def ^:dynamic *a-dynamic-var* 1)")
         assert v.dynamic is True
         lcompile("(.push-bindings #'*a-dynamic-var* :hi)")
@@ -369,7 +375,7 @@ class TestDef:
 
         assert 1 == lcompile("a-regular-var")
 
-    def test_def_fn_with_meta(self, ns: runtime.Namespace):
+    def test_def_fn_with_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
         v: Var = lcompile(
             "(def with-meta-fn-node ^:meta-kw (fn* [] :fn-with-meta-node))"
         )
@@ -378,7 +384,7 @@ class TestDef:
         assert lmap.map({kw.keyword("meta-kw"): True}) == v.value.meta
         assert kw.keyword("fn-with-meta-node") == v.value()
 
-    def test_redef_unbound_var(self, ns: runtime.Namespace):
+    def test_redef_unbound_var(self, lcompile: CompileFn, ns: runtime.Namespace):
         v1: Var = lcompile("(def unbound-var)")
         assert None is v1.root
 
@@ -386,7 +392,9 @@ class TestDef:
         assert kw.keyword("a") == v2.root
         assert v2.is_bound
 
-    def test_def_unbound_does_not_clear_var_root(self, ns: runtime.Namespace):
+    def test_def_unbound_does_not_clear_var_root(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         v1: Var = lcompile("(def bound-var :a)")
         assert kw.keyword("a") == v1.root
         assert v1.is_bound
@@ -400,18 +408,18 @@ class TestDef:
 
 class TestDefType:
     @pytest.mark.parametrize("code", ["(deftype*)", "(deftype* Point)"])
-    def test_deftype_number_of_elems(self, ns: runtime.Namespace, code: str):
+    def test_deftype_number_of_elems(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
     @pytest.mark.parametrize(
         "code", ["(deftype* :Point [x y])", '(deftype* "Point" [x y])']
     )
-    def test_deftype_name_is_sym(self, ns: runtime.Namespace, code: str):
+    def test_deftype_name_is_sym(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
-    def test_deftype_fields_is_vec(self, ns: runtime.Namespace):
+    def test_deftype_fields_is_vec(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(deftype* Point (x y))")
 
@@ -423,11 +431,11 @@ class TestDefType:
             '(deftype* Point [x y "z"])',
         ],
     )
-    def test_deftype_fields_are_syms(self, ns: runtime.Namespace, code: str):
+    def test_deftype_fields_are_syms(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
-    def test_deftype_has_implements_kw(self, ns: runtime.Namespace):
+    def test_deftype_has_implements_kw(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -452,7 +460,7 @@ class TestDefType:
             """,
         ],
     )
-    def test_deftype_implements_is_vector(self, ns: runtime.Namespace, code: str):
+    def test_deftype_implements_is_vector(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
@@ -476,7 +484,7 @@ class TestDefType:
             """,
         ],
     )
-    def test_deftype_matching_impls(self, ns: runtime.Namespace, code: str):
+    def test_deftype_matching_impls(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
@@ -508,9 +516,7 @@ class TestDefType:
             """,
         ],
     )
-    def test_deftype_prohibit_duplicate_interface(
-        self, ns: runtime.Namespace, code: str
-    ):
+    def test_deftype_prohibit_duplicate_interface(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
@@ -536,11 +542,11 @@ class TestDefType:
              """,
         ],
     )
-    def test_deftype_impls_must_be_sym_or_list(self, ns: runtime.Namespace, code: str):
+    def test_deftype_impls_must_be_sym_or_list(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
-    def test_deftype_interface_must_be_host_form(self, ns: runtime.Namespace):
+    def test_deftype_interface_must_be_host_form(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -551,7 +557,7 @@ class TestDefType:
             """
             )
 
-    def test_deftype_interface_must_be_abstract(self, ns: runtime.Namespace):
+    def test_deftype_interface_must_be_abstract(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -562,7 +568,9 @@ class TestDefType:
             """
             )
 
-    def test_deftype_allows_empty_abstract_interface(self, ns: runtime.Namespace):
+    def test_deftype_allows_empty_abstract_interface(
+        self, lcompile: CompileFn,
+    ):
         Point = lcompile(
             """
         (deftype* Point [x y z]
@@ -572,7 +580,7 @@ class TestDefType:
         assert isinstance(pt, IType)
 
     def test_deftype_interface_must_implement_all_abstract_methods(
-        self, ns: runtime.Namespace
+        self, lcompile: CompileFn
     ):
         with pytest.raises(compiler.CompilerException):
             lcompile(
@@ -584,9 +592,7 @@ class TestDefType:
             """
             )
 
-    def test_deftype_may_not_add_extra_methods_to_interface(
-        self, ns: runtime.Namespace
-    ):
+    def test_deftype_may_not_add_extra_methods_to_interface(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -599,7 +605,7 @@ class TestDefType:
             )
 
     def test_deftype_interface_may_implement_only_some_object_methods(
-        self, ns: runtime.Namespace
+        self, lcompile: CompileFn
     ):
         Point = lcompile(
             """
@@ -613,12 +619,14 @@ class TestDefType:
         assert "('Point', 1, 2, 3)" == str(pt)
 
     class TestDefTypeFields:
-        def test_deftype_fields(self, ns: runtime.Namespace):
+        def test_deftype_fields(self, lcompile: CompileFn, ns: runtime.Namespace):
             Point = lcompile("(deftype* Point [x y z])")
             pt = Point(1, 2, 3)
             assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-        def test_deftype_mutable_field(self, ns: runtime.Namespace):
+        def test_deftype_mutable_field(
+            self, lcompile: CompileFn, ns: runtime.Namespace
+        ):
             Point = lcompile(
                 """
             (import* collections.abc)
@@ -633,7 +641,9 @@ class TestDefType:
             pt(4)
             assert (4, 2, 3) == (pt.x, pt.y, pt.z)
 
-        def test_deftype_cannot_set_immutable_field(self, ns: runtime.Namespace):
+        def test_deftype_cannot_set_immutable_field(
+            self, lcompile: CompileFn, ns: runtime.Namespace
+        ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -645,7 +655,9 @@ class TestDefType:
                 """
                 )
 
-        def test_deftype_allow_default_fields(self, ns: runtime.Namespace):
+        def test_deftype_allow_default_fields(
+            self, lcompile: CompileFn, ns: runtime.Namespace
+        ):
             Point = lcompile("(deftype* Point [x ^{:default 2} y ^{:default 3} z])")
             pt = Point(1)
             assert (1, 2, 3) == (pt.x, pt.y, pt.z)
@@ -662,7 +674,7 @@ class TestDefType:
             ],
         )
         def test_deftype_disallow_non_default_fields_after_default(
-            self, ns: runtime.Namespace, code: str
+            self, lcompile: CompileFn, code: str
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
@@ -685,11 +697,13 @@ class TestDefType:
                 """,
             ],
         )
-        def test_deftype_member_is_named_by_sym(self, ns: runtime.Namespace, code: str):
+        def test_deftype_member_is_named_by_sym(self, lcompile: CompileFn, code: str):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
-        def test_deftype_member_args_are_vec(self, ns: runtime.Namespace):
+        def test_deftype_member_args_are_vec(
+            self, lcompile: CompileFn,
+        ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -727,14 +741,14 @@ class TestDefType:
             ],
         )
         def test_deftype_member_may_not_be_multiple_tyeps(
-            self, ns: runtime.Namespace, code: str
+            self, lcompile: CompileFn, code: str
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
     class TestDefTypeClassMethod:
         @pytest.fixture
-        def class_interface(self, ns: runtime.Namespace):
+        def class_interface(self, lcompile: CompileFn):
             return lcompile(
                 """
             (import* abc)
@@ -749,7 +763,7 @@ class TestDefType:
             )
 
         def test_deftype_must_implement_interface_classmethod(
-            self, class_interface: Var
+            self, lcompile: CompileFn, class_interface: Var
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -777,13 +791,13 @@ class TestDefType:
             ],
         )
         def test_deftype_classmethod_args_are_syms(
-            self, class_interface: Var, code: str
+            self, lcompile: CompileFn, class_interface: Var, code: str
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
         def test_deftype_classmethod_may_not_reference_fields(
-            self, class_interface: Var
+            self, lcompile: CompileFn, class_interface: Var
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -794,7 +808,9 @@ class TestDefType:
                     [x y z]))"""
                 )
 
-        def test_deftype_classmethod_args_includes_cls(self, class_interface: Var):
+        def test_deftype_classmethod_args_includes_cls(
+            self, lcompile: CompileFn, class_interface: Var
+        ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -804,7 +820,9 @@ class TestDefType:
                     """
                 )
 
-        def test_deftype_classmethod_disallows_recur(self, class_interface: Var):
+        def test_deftype_classmethod_disallows_recur(
+            self, lcompile: CompileFn, class_interface: Var
+        ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -815,7 +833,9 @@ class TestDefType:
                 """
                 )
 
-        def test_deftype_can_have_classmethod(self, class_interface: Var):
+        def test_deftype_can_have_classmethod(
+            self, lcompile: CompileFn, class_interface: Var
+        ):
             Point = lcompile(
                 """
             (deftype* Point [x y z]
@@ -830,7 +850,7 @@ class TestDefType:
             assert Point(1, 2, 3) == Point.create(1, 2, 3)
 
         def test_deftype_symboltable_is_restored_after_classmethod(
-            self, class_interface: Var
+            self, lcompile: CompileFn, class_interface: Var
         ):
             Point = lcompile(
                 """
@@ -844,7 +864,9 @@ class TestDefType:
             pt = Point.create(1, 2, 3)
             assert "[1 2 3]" == str(pt)
 
-        def test_deftype_empty_classmethod_body(self, class_interface: Var):
+        def test_deftype_empty_classmethod_body(
+            self, lcompile: CompileFn, class_interface: Var
+        ):
             Point = lcompile(
                 """
             (deftype* Point [x y z]
@@ -854,7 +876,7 @@ class TestDefType:
             assert None is Point.create()
 
     class TestDefTypeMethod:
-        def test_deftype_fields_and_methods(self, ns: runtime.Namespace):
+        def test_deftype_fields_and_methods(self, lcompile: CompileFn):
             Point = lcompile(
                 """
             (import* collections.abc)
@@ -869,7 +891,7 @@ class TestDefType:
             assert vec.v(1, 2, 3) == pt()
             assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-        def test_deftype_method_with_args(self, ns: runtime.Namespace):
+        def test_deftype_method_with_args(self, lcompile: CompileFn):
             Point = lcompile(
                 """
             (import* collections.abc)
@@ -900,12 +922,12 @@ class TestDefType:
             ],
         )
         def test_deftype_method_with_varargs_malformed(
-            self, ns: runtime.Namespace, code: str
+            self, lcompile: CompileFn, code: str
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
-        def test_deftype_method_with_varargs(self, ns: runtime.Namespace):
+        def test_deftype_method_with_varargs(self, lcompile: CompileFn):
             Mirror = lcompile(
                 """
             (import* collections.abc)
@@ -919,7 +941,7 @@ class TestDefType:
                 "Beauty is in the eye of the beholder", llist.l(1, 2, 3)
             ) == mirror(1, 2, 3)
 
-        def test_deftype_can_refer_to_type_within_methods(self, ns: runtime.Namespace):
+        def test_deftype_can_refer_to_type_within_methods(self, lcompile: CompileFn):
             Point = lcompile(
                 """
             (import* collections.abc)
@@ -934,7 +956,7 @@ class TestDefType:
             pt2 = pt(4, 5, 6)
             assert (4, 5, 6) == (pt2.x, pt2.y, pt2.z)
 
-        def test_deftype_empty_method_body(self, ns: runtime.Namespace):
+        def test_deftype_empty_method_body(self, lcompile: CompileFn):
             Point = lcompile(
                 """
             (import* collections.abc)
@@ -947,7 +969,7 @@ class TestDefType:
             assert None is pt()
             assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-        def test_deftype_method_allows_recur(self, ns: runtime.Namespace):
+        def test_deftype_method_allows_recur(self, lcompile: CompileFn):
             Point = lcompile(
                 """
             (import* collections.abc operator)
@@ -962,7 +984,7 @@ class TestDefType:
             pt = Point(7)
             assert 22 == pt(0, 5)
 
-        def test_deftype_method_args_vec_includes_this(self, ns: runtime.Namespace):
+        def test_deftype_method_args_vec_includes_this(self, lcompile: CompileFn):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -990,13 +1012,13 @@ class TestDefType:
                 """,
             ],
         )
-        def test_deftype_method_args_are_syms(self, ns: runtime.Namespace, code: str):
+        def test_deftype_method_args_are_syms(self, lcompile: CompileFn, code: str):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
     class TestDefTypeProperty:
         @pytest.fixture
-        def property_interface(self, ns: runtime.Namespace):
+        def property_interface(self, lcompile: CompileFn, ns: runtime.Namespace):
             return lcompile(
                 """
             (import* abc)
@@ -1011,7 +1033,7 @@ class TestDefType:
             )
 
         def test_deftype_must_implement_interface_property(
-            self, property_interface: Var
+            self, lcompile: CompileFn, property_interface: Var
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1021,7 +1043,9 @@ class TestDefType:
                   """
                 )
 
-        def test_deftype_property_includes_this(self, property_interface: Var):
+        def test_deftype_property_includes_this(
+            self, lcompile: CompileFn, property_interface: Var
+        ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -1031,7 +1055,9 @@ class TestDefType:
                   """
                 )
 
-        def test_deftype_property_args_are_syms(self, property_interface: Var):
+        def test_deftype_property_args_are_syms(
+            self, lcompile: CompileFn, property_interface: Var
+        ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -1041,7 +1067,9 @@ class TestDefType:
                       """
                 )
 
-        def test_deftype_property_may_not_have_args(self, property_interface: Var):
+        def test_deftype_property_may_not_have_args(
+            self, lcompile: CompileFn, property_interface: Var
+        ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -1051,7 +1079,9 @@ class TestDefType:
                   """
                 )
 
-        def test_deftype_property_disallows_recur(self, ns: runtime.Namespace):
+        def test_deftype_property_disallows_recur(
+            self, lcompile: CompileFn, ns: runtime.Namespace
+        ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -1062,11 +1092,15 @@ class TestDefType:
                 """
                 )
 
-        def test_deftype_field_can_be_property(self, property_interface: Var):
+        def test_deftype_field_can_be_property(
+            self, lcompile: CompileFn, property_interface: Var
+        ):
             Item = lcompile("(deftype* Item [prop] :implements [WithProp])")
             assert "prop" == Item("prop").prop
 
-        def test_deftype_can_have_property(self, property_interface: Var):
+        def test_deftype_can_have_property(
+            self, lcompile: CompileFn, property_interface: Var
+        ):
             Point = lcompile(
                 """
             (deftype* Point [x y z]
@@ -1075,7 +1109,9 @@ class TestDefType:
             )
             assert vec.v(1, 2, 3) == Point(1, 2, 3).prop
 
-        def test_deftype_empty_property_body(self, property_interface: Var):
+        def test_deftype_empty_property_body(
+            self, lcompile: CompileFn, property_interface: Var
+        ):
             Point = lcompile(
                 """
             (deftype* Point [x y z]
@@ -1086,7 +1122,7 @@ class TestDefType:
 
     class TestDefTypeStaticMethod:
         @pytest.fixture
-        def static_interface(self, ns: runtime.Namespace):
+        def static_interface(self, lcompile: CompileFn, ns: runtime.Namespace):
             return lcompile(
                 """
             (import* abc)
@@ -1101,7 +1137,7 @@ class TestDefType:
             )
 
         def test_deftype_must_implement_interface_staticmethod(
-            self, static_interface: Var
+            self, lcompile: CompileFn, static_interface: Var
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1129,13 +1165,13 @@ class TestDefType:
             ],
         )
         def test_deftype_staticmethod_args_are_syms(
-            self, static_interface: Var, code: str
+            self, lcompile: CompileFn, static_interface: Var, code: str
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
         def test_deftype_staticmethod_may_not_reference_fields(
-            self, static_interface: Var
+            self, lcompile: CompileFn, static_interface: Var
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1146,7 +1182,9 @@ class TestDefType:
                     [x y z]))"""
                 )
 
-        def test_deftype_staticmethod_may_have_no_args(self, static_interface: Var):
+        def test_deftype_staticmethod_may_have_no_args(
+            self, lcompile: CompileFn, static_interface: Var
+        ):
             Point = lcompile(
                 """
             (deftype* Point [x y z]
@@ -1156,7 +1194,9 @@ class TestDefType:
             )
             assert None is Point.dostatic()
 
-        def test_deftype_staticmethod_disallows_recur(self, static_interface: Var):
+        def test_deftype_staticmethod_disallows_recur(
+            self, lcompile: CompileFn, static_interface: Var
+        ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -1167,7 +1207,9 @@ class TestDefType:
                     """
                 )
 
-        def test_deftype_can_have_staticmethod(self, static_interface: Var):
+        def test_deftype_can_have_staticmethod(
+            self, lcompile: CompileFn, static_interface: Var
+        ):
             Point = lcompile(
                 """
             (deftype* Point [x y z]
@@ -1178,7 +1220,7 @@ class TestDefType:
             assert vec.v(1, 2, 3) == Point.dostatic(1, 2, 3)
 
         def test_deftype_symboltable_is_restored_after_staticmethod(
-            self, static_interface: Var
+            self, lcompile: CompileFn, static_interface: Var
         ):
             Point = lcompile(
                 """
@@ -1192,7 +1234,9 @@ class TestDefType:
             assert vec.v(1, 2, 3) == Point.dostatic(1, 2, 3)
             assert "[1 2 3]" == str(Point(1, 2, 3))
 
-        def test_deftype_empty_staticmethod_body(self, static_interface: Var):
+        def test_deftype_empty_staticmethod_body(
+            self, lcompile: CompileFn, static_interface: Var
+        ):
             Point = lcompile(
                 """
             (deftype* Point [x y z]
@@ -1202,15 +1246,17 @@ class TestDefType:
             assert None is Point.dostatic("x", "y")
 
     class TestDefTypeReaderForm:
-        def test_ns_does_not_exist(self, test_ns: str, ns: runtime.Namespace):
+        def test_ns_does_not_exist(self, lcompile: CompileFn, test_ns: str):
             with pytest.raises(reader.SyntaxError):
                 lcompile(f"#{test_ns}_other.NewType[1 2 3]")
 
-        def test_type_does_not_exist(self, test_ns: str, ns: runtime.Namespace):
+        def test_type_does_not_exist(self, lcompile: CompileFn, test_ns: str):
             with pytest.raises(reader.SyntaxError):
                 lcompile(f"#{test_ns}.NewType[1 2 3]")
 
-        def test_type_is_not_itype(self, test_ns: str, ns: runtime.Namespace):
+        def test_type_is_not_itype(
+            self, lcompile: CompileFn, test_ns: str, ns: runtime.Namespace
+        ):
             # Set the Type in the namespace module manually, because
             # our repeatedly recycled test namespace module does not
             # report to contain NewType with standard deftype*
@@ -1218,7 +1264,9 @@ class TestDefType:
             with pytest.raises(reader.SyntaxError):
                 lcompile(f"#{test_ns}.NewType[1 2])")
 
-        def test_type_is_not_irecord(self, test_ns: str, ns: runtime.Namespace):
+        def test_type_is_not_irecord(
+            self, lcompile: CompileFn, test_ns: str, ns: runtime.Namespace
+        ):
             # Set the Type in the namespace module manually, because
             # our repeatedly recycled test namespace module does not
             # report to contain NewType with standard deftype*
@@ -1227,7 +1275,7 @@ class TestDefType:
                 lcompile(f"#{test_ns}.NewType{{:a 1 :b 2}}")
 
 
-def test_do(ns: runtime.Namespace):
+def test_do(lcompile: CompileFn, ns: runtime.Namespace):
     code = """
     (do
       (def first-name :Darth)
@@ -1243,13 +1291,13 @@ def test_do(ns: runtime.Namespace):
 
 class TestFunctionShadowName:
     def test_single_arity_fn_no_log_if_warning_disabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         lcompile("(fn [v] (fn [v] v))")
         assert "name 'v' shadows name from outer scope" not in caplog.messages
 
     def test_multi_arity_fn_no_log_if_warning_disabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         lcompile(
             """
@@ -1260,9 +1308,7 @@ class TestFunctionShadowName:
         )
         assert "name 'v' shadows name from outer scope" not in caplog.messages
 
-    def test_single_arity_fn_log_if_warning_enabled(
-        self, ns: runtime.Namespace, caplog
-    ):
+    def test_single_arity_fn_log_if_warning_enabled(self, lcompile: CompileFn, caplog):
         lcompile("(fn [v] (fn [v] v))", opts={compiler.WARN_ON_SHADOWED_NAME: True})
         assert (
             "basilisp.lang.compiler.analyzer",
@@ -1270,7 +1316,7 @@ class TestFunctionShadowName:
             "name 'v' shadows name from outer scope",
         ) in caplog.record_tuples
 
-    def test_multi_arity_fn_log_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+    def test_multi_arity_fn_log_if_warning_enabled(self, lcompile: CompileFn, caplog):
         code = """
         (fn
           ([] :a)
@@ -1284,7 +1330,7 @@ class TestFunctionShadowName:
         ) in caplog.record_tuples
 
     def test_single_arity_fn_log_shadows_var_if_warning_enabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         code = """
         (def unique-bljzndd :a)
@@ -1298,7 +1344,7 @@ class TestFunctionShadowName:
         ) in caplog.record_tuples
 
     def test_multi_arity_fn_log_shadows_var_if_warning_enabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         code = """
         (def unique-yezddid :a)
@@ -1316,7 +1362,7 @@ class TestFunctionShadowName:
 
 class TestFunctionShadowVar:
     def test_single_arity_fn_no_log_if_warning_disabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         code = """
         (def unique-vfsdhsk :a)
@@ -1326,7 +1372,7 @@ class TestFunctionShadowVar:
         assert_no_logs(caplog)
 
     def test_multi_arity_fn_no_log_if_warning_disabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         code = """
         (def unique-mmndheee :a)
@@ -1337,9 +1383,7 @@ class TestFunctionShadowVar:
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
         assert_no_logs(caplog)
 
-    def test_single_arity_fn_log_if_warning_enabled(
-        self, ns: runtime.Namespace, caplog
-    ):
+    def test_single_arity_fn_log_if_warning_enabled(self, lcompile: CompileFn, caplog):
         code = """
         (def unique-kuieeid :a)
         (fn [unique-kuieeid] unique-kuieeid)
@@ -1351,7 +1395,9 @@ class TestFunctionShadowVar:
             "name 'unique-kuieeid' shadows def'ed Var from outer scope",
         ) in caplog.record_tuples
 
-    def test_multi_arity_fn_log_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+    def test_multi_arity_fn_log_if_warning_enabled(
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
+    ):
         code = """
         (def unique-peuudcdf :a)
         (fn
@@ -1368,13 +1414,13 @@ class TestFunctionShadowVar:
 
 class TestFunctionWarnUnusedName:
     def test_single_arity_fn_no_log_if_warning_disabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         lcompile("(fn [v] (fn [v] v))", opts={compiler.WARN_ON_UNUSED_NAMES: False})
         assert_no_logs(caplog)
 
     def test_multi_arity_fn_no_log_if_warning_disabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         lcompile(
             """
@@ -1387,7 +1433,7 @@ class TestFunctionWarnUnusedName:
         assert_no_logs(caplog)
 
     def test_single_arity_fn_log_if_warning_enabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
     ):
         lcompile("(fn [v] (fn [v] v))", opts={compiler.WARN_ON_UNUSED_NAMES: True})
         assert (
@@ -1396,7 +1442,9 @@ class TestFunctionWarnUnusedName:
             f"symbol 'v' defined but not used ({ns}: 1)",
         ) in caplog.record_tuples
 
-    def test_multi_arity_fn_log_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+    def test_multi_arity_fn_log_if_warning_enabled(
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
+    ):
         lcompile(
             """
         (fn
@@ -1413,15 +1461,15 @@ class TestFunctionWarnUnusedName:
 
 
 class TestFunctionDef:
-    def test_fn_with_no_name_or_args(self, ns: runtime.Namespace):
+    def test_fn_with_no_name_or_args(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn*)")
 
-    def test_fn_with_no_args_throws(self, ns: runtime.Namespace):
+    def test_fn_with_no_args_throws(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* a)")
 
-    def test_fn_with_invalid_name_throws(self, ns: runtime.Namespace):
+    def test_fn_with_invalid_name_throws(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* :a)")
 
@@ -1431,28 +1479,28 @@ class TestFunctionDef:
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* :a ([] :a) ([a] a))")
 
-    def test_variadic_arity_fn_has_variadic_argument(self, ns: runtime.Namespace):
+    def test_variadic_arity_fn_has_variadic_argument(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* [m &] m)")
 
     def test_variadic_arity_fn_method_has_variadic_argument(
-        self, ns: runtime.Namespace
+        self, lcompile: CompileFn,
     ):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* ([] :a) ([m &] m))")
 
-    def test_fn_argument_vector_is_vector(self, ns: runtime.Namespace):
+    def test_fn_argument_vector_is_vector(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* () :a)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* (a) a)")
 
-    def test_fn_method_argument_vector_is_vector(self, ns: runtime.Namespace):
+    def test_fn_method_argument_vector_is_vector(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* (() :a) ((a) a))")
 
-    def test_fn_arg_is_symbol(self, ns: runtime.Namespace):
+    def test_fn_arg_is_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* [:a] :a)")
 
@@ -1462,32 +1510,34 @@ class TestFunctionDef:
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* [a b & :c] :a)")
 
-    def test_fn_method_arg_is_symbol(self, ns: runtime.Namespace):
+    def test_fn_method_arg_is_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* ([a] a) ([a :b] a))")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* ([a] a) ([a & :b] a))")
 
-    def test_fn_has_arity_or_arg(self, ns: runtime.Namespace):
+    def test_fn_has_arity_or_arg(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* a :a)")
 
-    def test_fn_allows_empty_body(self, ns: runtime.Namespace):
+    def test_fn_allows_empty_body(self, lcompile: CompileFn, ns: runtime.Namespace):
         ns_name = ns.name
         fvar = lcompile("(def empty-single (fn* empty-single []))")
         assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("empty-single")) == fvar
         assert callable(fvar.value)
         assert None is fvar.value()
 
-    def test_fn_method_allows_empty_body(self, ns: runtime.Namespace):
+    def test_fn_method_allows_empty_body(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         ns_name = ns.name
         fvar = lcompile("(def empty-single (fn* empty-single ([]) ([a] :a)))")
         assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("empty-single")) == fvar
         assert callable(fvar.value)
         assert None is fvar.value()
 
-    def test_single_arity_fn(self, ns: runtime.Namespace):
+    def test_single_arity_fn(self, lcompile: CompileFn, ns: runtime.Namespace):
         code = """
         (def string-upper (fn* string-upper [s] (.upper s)))
         """
@@ -1515,7 +1565,7 @@ class TestFunctionDef:
         assert callable(fvar.value)
         assert "upper" == fvar.value("UPPER")
 
-    def test_no_fn_method_has_same_fixed_arity(self, ns: runtime.Namespace):
+    def test_no_fn_method_has_same_fixed_arity(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -1548,9 +1598,7 @@ class TestFunctionDef:
                 """
             )
 
-    def test_multi_arity_fn_cannot_have_two_variadic_methods(
-        self, ns: runtime.Namespace
-    ):
+    def test_multi_arity_fn_cannot_have_two_variadic_methods(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -1572,7 +1620,7 @@ class TestFunctionDef:
             )
 
     def test_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
-        self, ns: runtime.Namespace
+        self, lcompile: CompileFn
     ):
         with pytest.raises(compiler.CompilerException):
             lcompile(
@@ -1584,7 +1632,9 @@ class TestFunctionDef:
                 """
             )
 
-    def test_multi_arity_fn_dispatches_properly(self, ns: runtime.Namespace):
+    def test_multi_arity_fn_dispatches_properly(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         code = """
         (def empty-multi-fn
           (fn* empty-multi-fn
@@ -1615,7 +1665,9 @@ class TestFunctionDef:
             kw.keyword("first-arg"), "second-arg", 3
         )
 
-    def test_multi_arity_fn_call_fails_if_no_valid_arity(self, ns: runtime.Namespace):
+    def test_multi_arity_fn_call_fails_if_no_valid_arity(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         with pytest.raises(runtime.RuntimeException):
             fvar = lcompile(
                 """
@@ -1628,7 +1680,7 @@ class TestFunctionDef:
             )
             fvar.value(1, 2, 3)
 
-    def test_async_single_arity(self, ns: runtime.Namespace):
+    def test_async_single_arity(self, lcompile: CompileFn, ns: runtime.Namespace):
         awaiter_var: runtime.Var = lcompile(
             """
         (def unique-kdghii
@@ -1646,7 +1698,7 @@ class TestFunctionDef:
         awaiter = awaiter_var.value
         assert kw.keyword("await-result") == async_to_sync(awaiter)
 
-    def test_async_multi_arity(self, ns: runtime.Namespace):
+    def test_async_multi_arity(self, lcompile: CompileFn, ns: runtime.Namespace):
         awaiter_var: runtime.Var = lcompile(
             """
         (def unique-wywbddd
@@ -1668,19 +1720,19 @@ class TestFunctionDef:
             kw.keyword("await-result-0"), kw.keyword("await-result-1")
         ) == async_to_sync(awaiter)
 
-    def test_fn_with_meta_must_be_map(self, ns: runtime.Namespace):
+    def test_fn_with_meta_must_be_map(self, lcompile: CompileFn, ns: runtime.Namespace):
         f = lcompile("^:meta-kw (fn* [] :super-unique-kw)")
         with pytest.raises(TypeError):
             f.with_meta(None)
 
-    def test_single_arity_meta(self, ns: runtime.Namespace):
+    def test_single_arity_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
         f = lcompile("^:meta-kw (fn* [] :super-unique-kw)")
         assert hasattr(f, "meta")
         assert hasattr(f, "with_meta")
         assert lmap.map({kw.keyword("meta-kw"): True}) == f.meta
         assert kw.keyword("super-unique-kw") == f()
 
-    def test_single_arity_with_meta(self, ns: runtime.Namespace):
+    def test_single_arity_with_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
         f = lcompile(
             """
         (with-meta
@@ -1696,7 +1748,7 @@ class TestFunctionDef:
         )
         assert kw.keyword("super-unique-kw") == f()
 
-    def test_multi_arity_meta(self, ns: runtime.Namespace):
+    def test_multi_arity_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
         f = lcompile(
             """
         ^:meta-kw (fn* ([] :arity-0-kw) ([a] [a :arity-1-kw]))
@@ -1710,7 +1762,7 @@ class TestFunctionDef:
             kw.keyword("jabberwocky")
         )
 
-    def test_multi_arity_with_meta(self, ns: runtime.Namespace):
+    def test_multi_arity_with_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
         f = lcompile(
             """
         (with-meta
@@ -1729,7 +1781,7 @@ class TestFunctionDef:
             kw.keyword("jabberwocky")
         )
 
-    def test_async_with_meta(self, ns: runtime.Namespace):
+    def test_async_with_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
         f = lcompile(
             """
         (with-meta
@@ -1745,7 +1797,7 @@ class TestFunctionDef:
         assert kw.keyword("super-unique-kw") == async_to_sync(f)
 
 
-def test_fn_call(ns: runtime.Namespace):
+def test_fn_call(lcompile: CompileFn):
     code = """
     (def string-upper (fn* [s] (.upper s)))
 
@@ -1763,19 +1815,19 @@ def test_fn_call(ns: runtime.Namespace):
     assert fvar == "bleep"
 
 
-def test_macro_expansion(ns: runtime.Namespace):
+def test_macro_expansion(lcompile: CompileFn):
     assert llist.l(1, 2, 3) == lcompile("((fn [] '(1 2 3)))")
 
 
 class TestMacroexpandFunctions:
     @pytest.fixture
-    def example_macro(self):
+    def example_macro(self, lcompile: CompileFn):
         lcompile(
             "(defmacro parent [] `(defmacro ~'child [] (fn [])))",
             resolver=runtime.resolve_alias,
         )
 
-    def test_macroexpand_1(self, example_macro):
+    def test_macroexpand_1(self, lcompile: CompileFn, example_macro):
         assert llist.l(
             sym.symbol("defmacro", ns="basilisp.core"),
             sym.symbol("child"),
@@ -1796,7 +1848,7 @@ class TestMacroexpandFunctions:
             sym.symbol("non-existent-symbol")
         )
 
-    def test_macroexpand(self, example_macro):
+    def test_macroexpand(self, lcompile: CompileFn, example_macro):
         meta = lmap.map({reader.READER_LINE_KW: 1, reader.READER_COL_KW: 1})
 
         assert llist.l(
@@ -1827,7 +1879,7 @@ class TestMacroexpandFunctions:
 
 
 class TestIf:
-    def test_if_number_of_elems(self):
+    def test_if_number_of_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(if)")
 
@@ -1837,7 +1889,7 @@ class TestIf:
         with pytest.raises(compiler.CompilerException):
             lcompile("(if true :true :false :other)")
 
-    def test_if(self, ns: runtime.Namespace):
+    def test_if(self, lcompile: CompileFn, ns: runtime.Namespace):
         assert lcompile("(if true :a :b)") == kw.keyword("a")
         assert lcompile("(if false :a :b)") == kw.keyword("b")
         assert lcompile("(if nil :a :b)") == kw.keyword("b")
@@ -1850,7 +1902,7 @@ class TestIf:
         """
         assert "YELLING" == lcompile(code)
 
-    def test_truthiness(self):
+    def test_truthiness(self, lcompile: CompileFn):
         # Valid false values
         assert kw.keyword("b") == lcompile("(if false :a :b)")
         assert kw.keyword("b") == lcompile("(if nil :a :b)")
@@ -1896,7 +1948,7 @@ class TestIf:
 
 
 class TestImport:
-    def test_import_module_must_be_symbol(self, ns: runtime.Namespace):
+    def test_import_module_must_be_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(import* :time)")
 
@@ -1909,7 +1961,7 @@ class TestImport:
         with pytest.raises(compiler.CompilerException):
             lcompile('(import* string "time")')
 
-    def test_import_aliased_module_format(self, ns: runtime.Namespace):
+    def test_import_aliased_module_format(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(import* [:time :as py-time])")
 
@@ -1928,11 +1980,11 @@ class TestImport:
         with pytest.raises(compiler.CompilerException):
             lcompile("(import* [time :named py time])")
 
-    def test_import_module_must_exist(self, ns: runtime.Namespace):
+    def test_import_module_must_exist(self, lcompile: CompileFn):
         with pytest.raises(ImportError):
             lcompile("(import* real.fake.module)")
 
-    def test_import_resolves_within_do_block(self, ns: runtime.Namespace):
+    def test_import_resolves_within_do_block(self, lcompile: CompileFn):
         import time
 
         assert time.perf_counter == lcompile("(do (import* time)) time/perf-counter")
@@ -1943,7 +1995,7 @@ class TestImport:
             """
         )
 
-    def test_single_import(self, ns: runtime.Namespace):
+    def test_single_import(self, lcompile: CompileFn):
         import time
 
         assert time.perf_counter == lcompile("(import* time) time/perf-counter")
@@ -1951,7 +2003,7 @@ class TestImport:
             "(import* [time :as py-time]) py-time/perf-counter"
         )
 
-    def test_multi_import(self, ns: runtime.Namespace):
+    def test_multi_import(self, lcompile: CompileFn):
         import string
         import time
 
@@ -1966,7 +2018,7 @@ class TestImport:
             )
         )
 
-    def test_nested_imports_visible_with_parent(self, ns: runtime.Namespace):
+    def test_nested_imports_visible_with_parent(self, lcompile: CompileFn):
         import collections.abc
 
         assert [collections.OrderedDict, collections.abc.Sized] == lcompile(
@@ -1978,7 +2030,7 @@ class TestImport:
 
 
 class TestPythonInterop:
-    def test_interop_is_valid_type(self, ns: runtime.Namespace):
+    def test_interop_is_valid_type(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile('(. :kw "str")')
 
@@ -1988,7 +2040,7 @@ class TestPythonInterop:
         with pytest.raises(compiler.CompilerException):
             lcompile("(. :kw 1)")
 
-    def test_interop_new(self, ns: runtime.Namespace):
+    def test_interop_new(self, lcompile: CompileFn):
         assert "hi" == lcompile('(python.str. "hi")')
         assert "1" == lcompile("(python.str. 1)")
         assert sym.symbol("hi") == lcompile('(basilisp.lang.symbol.Symbol. "hi")')
@@ -1996,7 +2048,7 @@ class TestPythonInterop:
         with pytest.raises(compiler.CompilerException):
             lcompile('(python.str "hi")')
 
-    def test_interop_new_with_import(self, ns: runtime.Namespace):
+    def test_interop_new_with_import(self, lcompile: CompileFn, ns: runtime.Namespace):
         import builtins
 
         ns.add_import(sym.symbol("builtins"), builtins)
@@ -2006,18 +2058,18 @@ class TestPythonInterop:
         with pytest.raises(compiler.CompilerException):
             lcompile('(builtins.str "hi")')
 
-    def test_interop_call_num_elems(self, ns: runtime.Namespace):
+    def test_interop_call_num_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(.upper)")
 
-    def test_interop_prop_method_is_symbol(self, ns: runtime.Namespace):
+    def test_interop_prop_method_is_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile('(. "ALL-UPPER" (:lower))')
 
         with pytest.raises(compiler.CompilerException):
             lcompile('(. "ALL-UPPER" ("lower"))')
 
-    def test_interop_call(self, ns: runtime.Namespace):
+    def test_interop_call(self, lcompile: CompileFn):
         assert "all-upper" == lcompile('(. "ALL-UPPER" lower)')
 
         assert "LOWER-STRING" == lcompile('(.upper "lower-string")')
@@ -2027,14 +2079,14 @@ class TestPythonInterop:
         assert "example" == lcompile('(. "www.example.com" (strip "cmowz."))')
         assert "example" == lcompile('(. "www.example.com" strip "cmowz.")')
 
-    def test_interop_prop_field_is_symbol(self, ns: runtime.Namespace):
+    def test_interop_prop_field_is_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(.- 'some.ns/sym :ns)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile('(.- \'some.ns/sym "ns")')
 
-    def test_interop_prop_num_elems(self, ns: runtime.Namespace):
+    def test_interop_prop_num_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(.- 'some.ns/sym)")
 
@@ -2047,7 +2099,7 @@ class TestPythonInterop:
         with pytest.raises(compiler.CompilerException):
             lcompile("(. 'some.ns/sym -ns :argument)")
 
-    def test_interop_prop(self, ns: runtime.Namespace):
+    def test_interop_prop(self, lcompile: CompileFn):
         assert "some.ns" == lcompile("(.-ns 'some.ns/sym)")
         assert "some.ns" == lcompile("(.- 'some.ns/sym ns)")
         assert "some.ns" == lcompile("(. 'some.ns/sym -ns)")
@@ -2058,7 +2110,7 @@ class TestPythonInterop:
         with pytest.raises(AttributeError):
             lcompile("(.-fake 'some.ns/sym)")
 
-    def test_interop_quoted(self, ns: runtime.Namespace):
+    def test_interop_quoted(self, lcompile: CompileFn):
         assert lcompile("'(.match pattern)") == llist.l(
             sym.symbol(".match"), sym.symbol("pattern")
         )
@@ -2068,44 +2120,44 @@ class TestPythonInterop:
 
 
 class TestLet:
-    def test_let_num_elems(self, ns: runtime.Namespace):
+    def test_let_num_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(let*)")
 
-    def test_let_may_have_empty_bindings(self, ns: runtime.Namespace):
+    def test_let_may_have_empty_bindings(self, lcompile: CompileFn):
         assert None is lcompile("(let* [])")
         assert kw.keyword("kw") == lcompile("(let* [] :kw)")
 
-    def test_let_bindings_must_be_vector(self, ns: runtime.Namespace):
+    def test_let_bindings_must_be_vector(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(let* () :kw)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(let* (a kw) a)")
 
-    def test_let_bindings_must_have_name_and_value(self, ns: runtime.Namespace):
+    def test_let_bindings_must_have_name_and_value(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(let* [a :kw b] a)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(let* [a :kw b :other-kw c] a)")
 
-    def test_let_binding_name_must_be_symbol(self, ns: runtime.Namespace):
+    def test_let_binding_name_must_be_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(let* [:a :kw] a)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(let* [a :kw :b :other-kw] a)")
 
-    def test_let_name_does_not_resolve(self, ns: runtime.Namespace):
+    def test_let_name_does_not_resolve(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(let* [a 'sym] c)")
 
-    def test_let_may_have_empty_body(self, ns: runtime.Namespace):
+    def test_let_may_have_empty_body(self, lcompile: CompileFn):
         assert None is lcompile("(let* [])")
         assert None is lcompile("(let* [a :kw])")
 
-    def test_let(self, ns: runtime.Namespace):
+    def test_let(self, lcompile: CompileFn):
         assert lcompile("(let* [a 1] a)") == 1
         assert lcompile('(let* [a :keyword b "string"] a)') == kw.keyword("keyword")
         assert lcompile("(let* [a :value b a] b)") == kw.keyword("value")
@@ -2115,7 +2167,7 @@ class TestLet:
         assert lcompile("(let* [a 1 b :length c {b a} a 4] a)") == 4
         assert lcompile('(let* [a "lower"] (.upper a))') == "LOWER"
 
-    def test_let_lazy_evaluation(self, ns: runtime.Namespace):
+    def test_let_lazy_evaluation(self, lcompile: CompileFn):
         code = """
         (if false
           (let [n  (.-name :value)
@@ -2128,24 +2180,24 @@ class TestLet:
 
 class TestLetShadowName:
     def test_no_warning_if_no_shadowing_and_warning_disabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         lcompile("(let [m 3] m)")
         assert_no_logs(caplog)
 
-    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
+    def test_no_warning_if_warning_disabled(self, lcompile: CompileFn, caplog):
         lcompile(
             "(let [m 3] (let [m 4] m))", opts={compiler.WARN_ON_UNUSED_NAMES: False}
         )
         assert_no_logs(caplog)
 
     def test_no_warning_if_no_shadowing_and_warning_enabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         lcompile("(let [m 3] m)", opts={compiler.WARN_ON_SHADOWED_NAME: True})
         assert_no_logs(caplog)
 
-    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+    def test_warning_if_warning_enabled(self, lcompile: CompileFn, caplog):
         lcompile(
             "(let [m 3] (let [m 4] m))", opts={compiler.WARN_ON_SHADOWED_NAME: True}
         )
@@ -2156,7 +2208,7 @@ class TestLetShadowName:
         ) in caplog.record_tuples
 
     def test_warning_if_shadowing_var_and_warning_enabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         code = """
         (def unique-yyenfvhj :a)
@@ -2172,7 +2224,7 @@ class TestLetShadowName:
 
 
 class TestLetShadowVar:
-    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
+    def test_no_warning_if_warning_disabled(self, lcompile: CompileFn, caplog):
         code = """
         (def unique-gghdjeeh :a)
         (let [unique-gghdjeeh 3] unique-gghdjeeh)
@@ -2181,7 +2233,7 @@ class TestLetShadowVar:
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
         assert_no_logs(caplog)
 
-    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+    def test_warning_if_warning_enabled(self, lcompile: CompileFn, caplog):
         code = """
         (def unique-uoieyqq :a)
         (let [unique-uoieyqq 3] unique-uoieyqq)
@@ -2195,7 +2247,9 @@ class TestLetShadowVar:
 
 
 class TestLetUnusedNames:
-    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+    def test_warning_if_warning_enabled(
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
+    ):
         lcompile("(let [v 4] :a)", opts={compiler.WARN_ON_UNUSED_NAMES: True})
         assert (
             "basilisp.lang.compiler.analyzer",
@@ -2203,12 +2257,14 @@ class TestLetUnusedNames:
             f"symbol 'v' defined but not used ({ns}: 1)",
         ) in caplog.record_tuples
 
-    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
+    def test_no_warning_if_warning_disabled(
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
+    ):
         lcompile("(let [v 4] :a)", opts={compiler.WARN_ON_UNUSED_NAMES: False})
         assert f"symbol 'v' defined but not used ({ns}: 1)" not in caplog.messages
 
     def test_warning_for_nested_let_if_warning_enabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
     ):
         lcompile(
             """
@@ -2225,7 +2281,7 @@ class TestLetUnusedNames:
         ) in caplog.record_tuples
 
     def test_no_warning_for_nested_let_if_warning_disabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
     ):
         lcompile(
             """
@@ -2239,40 +2295,40 @@ class TestLetUnusedNames:
 
 
 class TestLetFn:
-    def test_letfn_num_elems(self, ns: runtime.Namespace):
+    def test_letfn_num_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn*)")
 
-    def test_letfn_may_have_empty_bindings(self, ns: runtime.Namespace):
+    def test_letfn_may_have_empty_bindings(self, lcompile: CompileFn):
         assert None is lcompile("(letfn* [])")
         assert kw.keyword("kw") == lcompile("(letfn* [] :kw)")
 
-    def test_letfn_bindings_must_be_vector(self, ns: runtime.Namespace):
+    def test_letfn_bindings_must_be_vector(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn* () :kw)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn* (f (fn* [])) f)")
 
-    def test_let_bindings_must_have_name_and_value(self, ns: runtime.Namespace):
+    def test_let_bindings_must_have_name_and_value(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn* [a (fn* []) b] a)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn* [a (fn* [] :kw) b (fn* [] :other-kw) c] a)")
 
-    def test_letfn_binding_fns_must_be_list(self, ns: runtime.Namespace):
+    def test_letfn_binding_fns_must_be_list(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn* [f [fn* []]] f)")
 
-    def test_letfn_binding_name_must_be_symbol(self, ns: runtime.Namespace):
+    def test_letfn_binding_name_must_be_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn* [:a (fn* a [])] a)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn* [a (fn* a [] :a) :b (fn* :b [] :b)] a)")
 
-    def test_letfn_binding_value_must_be_function(self, ns: runtime.Namespace):
+    def test_letfn_binding_value_must_be_function(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn* [a :a] a)")
 
@@ -2282,15 +2338,15 @@ class TestLetFn:
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn* [a (fn* a [] :a) b (map odd? [1 2 3])] a)")
 
-    def test_letfn_name_does_not_resolve(self, ns: runtime.Namespace):
+    def test_letfn_name_does_not_resolve(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(letfn* [a (fn* a [] 'sym)] c)")
 
-    def test_letfn_may_have_empty_body(self, ns: runtime.Namespace):
+    def test_letfn_may_have_empty_body(self, lcompile: CompileFn):
         assert None is lcompile("(letfn* [])")
         assert None is lcompile("(letfn* [a (fn* a [])])")
 
-    def test_letfn(self, ns: runtime.Namespace):
+    def test_letfn(self, lcompile: CompileFn):
         assert lcompile("(letfn* [a (fn* a [] 1)] (a))") == 1
         assert lcompile("(letfn* [a (fn* a [] 1) b (fn* b [] 2)] (b))") == 2
         assert lcompile('(letfn* [a (fn* a [] "lower")] (.upper (a)))') == "LOWER"
@@ -2304,7 +2360,7 @@ class TestLetFn:
     @pytest.mark.parametrize(
         "v,exp", [(0, True), (1, False), (2, True), (3, False), (4, True)]
     )
-    def test_letfn_mutual_recursion(self, ns: runtime.Namespace, v: int, exp: bool):
+    def test_letfn_mutual_recursion(self, lcompile: CompileFn, v: int, exp: bool):
         assert exp is lcompile(
             f"""
         (letfn* [neven? (fn* neven? [n] (if (zero? n) true (nodd? (dec n))))
@@ -2316,12 +2372,12 @@ class TestLetFn:
 
 class TestLetFnShadowName:
     def test_no_warning_if_no_shadowing_and_warning_disabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         lcompile("(letfn* [m (fn* m [] 3)] (m))")
         assert_no_logs(caplog)
 
-    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
+    def test_no_warning_if_warning_disabled(self, lcompile: CompileFn, caplog):
         lcompile(
             "(letfn* [m (fn* m [] 3)] (letfn* [m (fn* m [] 4)] (m)))",
             opts={compiler.WARN_ON_UNUSED_NAMES: False},
@@ -2329,14 +2385,14 @@ class TestLetFnShadowName:
         assert_no_logs(caplog)
 
     def test_no_warning_if_no_shadowing_and_warning_enabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         lcompile(
             "(letfn* [m (fn* m [] 3)] (m))", opts={compiler.WARN_ON_SHADOWED_NAME: True}
         )
         assert_no_logs(caplog)
 
-    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+    def test_warning_if_warning_enabled(self, lcompile: CompileFn, caplog):
         lcompile(
             "(letfn* [m (fn* m [] 3)] (letfn* [m (fn* m [] 4)] (m)))",
             opts={compiler.WARN_ON_SHADOWED_NAME: True},
@@ -2348,7 +2404,7 @@ class TestLetFnShadowName:
         ) in caplog.record_tuples
 
     def test_warning_if_shadowing_var_and_warning_enabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         code = """
         (def unique-kdhenne :a)
@@ -2364,7 +2420,7 @@ class TestLetFnShadowName:
 
 
 class TestLetFnShadowVar:
-    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
+    def test_no_warning_if_warning_disabled(self, lcompile: CompileFn, caplog):
         code = """
         (def unique-qpkdmdkd :a)
         (letfn* [unique-qpkdmdkd (fn* unique-qpkdmdkd [] 3)] (unique-qpkdmdkd))
@@ -2373,7 +2429,7 @@ class TestLetFnShadowVar:
         lcompile(code, opts={compiler.WARN_ON_SHADOWED_VAR: False})
         assert_no_logs(caplog)
 
-    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+    def test_warning_if_warning_enabled(self, lcompile: CompileFn, caplog):
         code = """
         (def unique-bdddnda :a)
         (letfn* [unique-bdddnda (fn* unique-bdddnda [] 3)] (unique-bdddnda))
@@ -2387,7 +2443,9 @@ class TestLetFnShadowVar:
 
 
 class TestLetFnUnusedNames:
-    def test_warning_if_warning_enabled(self, ns: runtime.Namespace, caplog):
+    def test_warning_if_warning_enabled(
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
+    ):
         lcompile(
             "(letfn* [v (fn* v [] 4)] :a)", opts={compiler.WARN_ON_UNUSED_NAMES: True}
         )
@@ -2397,14 +2455,16 @@ class TestLetFnUnusedNames:
             f"symbol 'v' defined but not used ({ns}: 1)",
         ) in caplog.record_tuples
 
-    def test_no_warning_if_warning_disabled(self, ns: runtime.Namespace, caplog):
+    def test_no_warning_if_warning_disabled(
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
+    ):
         lcompile(
             "(letfn* [v (fn* v [] 4)] :a)", opts={compiler.WARN_ON_UNUSED_NAMES: False}
         )
         assert f"symbol 'v' defined but not used ({ns}: 1)" not in caplog.messages
 
     def test_warning_for_nested_let_if_warning_enabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
     ):
         lcompile(
             """
@@ -2421,7 +2481,7 @@ class TestLetFnUnusedNames:
         ) in caplog.record_tuples
 
     def test_no_warning_for_nested_let_if_warning_disabled(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, caplog
     ):
         lcompile(
             """
@@ -2435,44 +2495,44 @@ class TestLetFnUnusedNames:
 
 
 class TestLoop:
-    def test_loop_num_elems(self, ns: runtime.Namespace):
+    def test_loop_num_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop*)")
 
-    def test_loop_may_have_empty_bindings(self, ns: runtime.Namespace):
+    def test_loop_may_have_empty_bindings(self, lcompile: CompileFn):
         assert None is lcompile("(loop* [])")
         assert kw.keyword("kw") == lcompile("(loop* [] :kw)")
 
-    def test_loop_bindings_must_be_vector(self, ns: runtime.Namespace):
+    def test_loop_bindings_must_be_vector(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop* () a)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop* (a kw) a)")
 
-    def test_loop_bindings_must_have_name_and_value(self, ns: runtime.Namespace):
+    def test_loop_bindings_must_have_name_and_value(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop* [a :kw b] a)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop* [a :kw b :other-kw c] a)")
 
-    def test_loop_binding_name_must_be_symbol(self, ns: runtime.Namespace):
+    def test_loop_binding_name_must_be_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop* [:a :kw] a)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop* [a :kw :b :other-kw] a)")
 
-    def test_let_name_does_not_resolve(self, ns: runtime.Namespace):
+    def test_let_name_does_not_resolve(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop* [a 'sym] c)")
 
-    def test_loop_may_have_empty_body(self, ns: runtime.Namespace):
+    def test_loop_may_have_empty_body(self, lcompile: CompileFn):
         assert None is lcompile("(loop* [])")
         assert None is lcompile("(loop* [a :kw])")
 
-    def test_loop_without_recur(self, ns: runtime.Namespace):
+    def test_loop_without_recur(self, lcompile: CompileFn):
         assert 1 == lcompile("(loop* [a 1] a)")
         assert kw.keyword("keyword") == lcompile('(loop* [a :keyword b "string"] a)')
         assert kw.keyword("value") == lcompile("(loop* [a :value b a] b)")
@@ -2483,7 +2543,7 @@ class TestLoop:
         assert "LOWER" == lcompile('(loop* [a "lower"] (.upper a))')
         assert "string" == lcompile('(loop* [] "string")')
 
-    def test_loop_with_recur(self, ns: runtime.Namespace):
+    def test_loop_with_recur(self, lcompile: CompileFn):
         code = """
         (import* io)
         (let* [reader (io/StringIO "string")
@@ -2518,7 +2578,7 @@ class TestLoop:
 
 
 class TestQuote:
-    def test_quoted_list(self):
+    def test_quoted_list(self, lcompile: CompileFn):
         assert lcompile("'()") == llist.l()
         assert lcompile("'(str)") == llist.l(sym.symbol("str"))
         assert lcompile("'(str 3)") == llist.l(sym.symbol("str"), 3)
@@ -2526,56 +2586,56 @@ class TestQuote:
             sym.symbol("str"), 3, kw.keyword("feet-deep")
         )
 
-    def test_quoted_map(self):
+    def test_quoted_map(self, lcompile: CompileFn):
         assert lcompile("'{}") == lmap.Map.empty()
         assert lcompile("'{:a 2}") == lmap.map({kw.keyword("a"): 2})
         assert lcompile('\'{:a 2 "str" s}') == lmap.map(
             {kw.keyword("a"): 2, "str": sym.symbol("s")}
         )
 
-    def test_quoted_set(self):
+    def test_quoted_set(self, lcompile: CompileFn):
         assert lcompile("'#{}") == lset.Set.empty()
         assert lcompile("'#{:a 2}") == lset.s(kw.keyword("a"), 2)
         assert lcompile('\'#{:a 2 "str"}') == lset.s(kw.keyword("a"), 2, "str")
 
-    def test_quoted_inst(self):
+    def test_quoted_inst(self, lcompile: CompileFn):
         assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
             '(quote #inst "2018-01-18T03:26:57.296-00:00")'
         )
 
-    def test_regex(self):
+    def test_regex(self, lcompile: CompileFn):
         assert lcompile(r'(quote #"\s")') == re.compile(r"\s")
 
-    def test_uuid(self):
+    def test_uuid(self, lcompile: CompileFn):
         assert uuid.UUID("{0366f074-a8c5-4764-b340-6a5576afd2e8}") == lcompile(
             '(quote #uuid "0366f074-a8c5-4764-b340-6a5576afd2e8")'
         )
 
-    def test_py_dict(self):
+    def test_py_dict(self, lcompile: CompileFn):
         assert isinstance(lcompile("'#py {}"), dict)
         assert {} == lcompile("'#py {}")
         assert {kw.keyword("a"): 1, "b": "str"} == lcompile(
             '(quote #py {:a 1 "b" "str"})'
         )
 
-    def test_py_list(self):
+    def test_py_list(self, lcompile: CompileFn):
         assert isinstance(lcompile("'#py []"), list)
         assert [] == lcompile("'#py []")
         assert [1, kw.keyword("a"), "str"] == lcompile('(quote #py [1 :a "str"])')
 
-    def test_py_set(self):
+    def test_py_set(self, lcompile: CompileFn):
         assert isinstance(lcompile("'#py #{}"), set)
         assert set() == lcompile("'#py #{}")
         assert {1, kw.keyword("a"), "str"} == lcompile('(quote #py #{1 :a "str"})')
 
-    def test_py_tuple(self):
+    def test_py_tuple(self, lcompile: CompileFn):
         assert isinstance(lcompile("'#py ()"), tuple)
         assert tuple() == lcompile("'#py ()")
         assert (1, kw.keyword("a"), "str") == lcompile('(quote #py (1 :a "str"))')
 
 
 class TestRecur:
-    def test_recur(self, ns: runtime.Namespace):
+    def test_recur(self, lcompile: CompileFn):
         code = """
         (def last
           (fn [s]
@@ -2623,14 +2683,14 @@ class TestRecur:
         assert ":ba" == lcompile('(rev-str "a" :b)')
         assert "3:ba" == lcompile('(rev-str "a" :b 3)')
 
-    def test_recur_arity_must_match_recur_point(self, ns: runtime.Namespace):
+    def test_recur_arity_must_match_recur_point(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn [s] (recur :a :b))")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn [a b] (recur a))")
 
-    def test_single_arity_recur(self, ns: runtime.Namespace):
+    def test_single_arity_recur(self, lcompile: CompileFn):
         code = """
         (def ++
           (fn ++ [x & args]
@@ -2646,7 +2706,7 @@ class TestRecur:
         assert 10 == lcompile("(++ 1 2 3 4)")
         assert 15 == lcompile("(++ 1 2 3 4 5)")
 
-    def test_multi_arity_recur(self, ns: runtime.Namespace):
+    def test_multi_arity_recur(self, lcompile: CompileFn):
         code = """
         (def +++
           (fn +++
@@ -2667,7 +2727,7 @@ class TestRecur:
         assert 10 == lcompile("(+++ 1 2 3 4)")
         assert 15 == lcompile("(+++ 1 2 3 4 5)")
 
-    def test_disallow_recur_in_special_forms(self, ns: runtime.Namespace):
+    def test_disallow_recur_in_special_forms(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile('(fn [a] (def b (recur "a")))')
 
@@ -2686,7 +2746,7 @@ class TestRecur:
         with pytest.raises(compiler.CompilerException):
             lcompile('(fn [a] (var (recur "a"))))')
 
-    def test_disallow_recur_outside_tail(self, ns: runtime.Namespace):
+    def test_disallow_recur_outside_tail(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(recur)")
 
@@ -2744,7 +2804,7 @@ class TestRecur:
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn [a] (try :b (finally (do (recur :a) :c))))")
 
-    def test_single_arity_named_anonymous_fn_recursion(self, ns: runtime.Namespace):
+    def test_single_arity_named_anonymous_fn_recursion(self, lcompile: CompileFn):
         code = """
         (let [compute-sum (fn sum [n]
                             (if (operator/eq 0 n)
@@ -2754,7 +2814,7 @@ class TestRecur:
         """
         assert 15 == lcompile(code)
 
-    def test_multi_arity_named_anonymous_fn_recursion(self, ns: runtime.Namespace):
+    def test_multi_arity_named_anonymous_fn_recursion(self, lcompile: CompileFn):
         code = """
         (let [compute-sum (fn sum
                             ([] 0)
@@ -2768,7 +2828,7 @@ class TestRecur:
 
 
 class TestSetBang:
-    def test_num_elems(self):
+    def test_num_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(set!)")
 
@@ -2778,7 +2838,7 @@ class TestSetBang:
         with pytest.raises(compiler.CompilerException):
             lcompile("(set! target value arg)")
 
-    def test_set_target_must_be_assignable_type(self):
+    def test_set_target_must_be_assignable_type(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile('(set! "a string" "another string")')
 
@@ -2788,19 +2848,19 @@ class TestSetBang:
         with pytest.raises(compiler.CompilerException):
             lcompile("(set! :kw :new-kw)")
 
-    def test_set_cannot_assign_let_local(self):
+    def test_set_cannot_assign_let_local(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(let [a :b] (set! a :c))")
 
-    def test_set_cannot_assign_loop_local(self):
+    def test_set_cannot_assign_loop_local(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(loop [a :b] (set! a :c))")
 
-    def test_set_cannot_assign_fn_arg_local(self):
+    def test_set_cannot_assign_fn_arg_local(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn [a b] (set! a :c))")
 
-    def test_set_cannot_assign_non_dynamic_var(self, ns: runtime.Namespace):
+    def test_set_cannot_assign_non_dynamic_var(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -2809,7 +2869,9 @@ class TestSetBang:
             """
             )
 
-    def test_set_can_assign_dynamic_var(self, ns: runtime.Namespace):
+    def test_set_can_assign_dynamic_var(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         code = """
         (def ^:dynamic *dynamic-var* :kw)
         (set! *dynamic-var* \"instead a string\")
@@ -2820,7 +2882,7 @@ class TestSetBang:
         assert "instead a string" == var.value
         assert kw.keyword("kw") == var.root
 
-    def test_set_can_object_attrs(self, ns: runtime.Namespace):
+    def test_set_can_object_attrs(self, lcompile: CompileFn, ns: runtime.Namespace):
         code = """
         (import* threading)
         (def tl (threading/local))
@@ -2835,7 +2897,7 @@ class TestSetBang:
         assert "now a string" == var.value.some_field
 
 
-def test_syntax_quoting(test_ns: str, ns: runtime.Namespace, resolver: reader.Resolver):
+def test_syntax_quoting(test_ns: str, lcompile: CompileFn, resolver: reader.Resolver):
     code = """
     (def some-val \"some value!\")
 
@@ -2869,11 +2931,11 @@ def test_syntax_quoting(test_ns: str, ns: runtime.Namespace, resolver: reader.Re
     )
 
     assert llist.l(sym.symbol("my-symbol", ns=test_ns)) == lcompile(
-        "`(my-symbol)", resolver
+        "`(my-symbol)", resolver=resolver
     )
 
 
-def test_throw(ns: runtime.Namespace):
+def test_throw(lcompile: CompileFn):
     with pytest.raises(AttributeError):
         lcompile("(throw (python/AttributeError))")
 
@@ -2885,7 +2947,9 @@ def test_throw(ns: runtime.Namespace):
 
 
 class TestTryCatch:
-    def test_single_catch_ignoring_binding(self, capsys, ns: runtime.Namespace):
+    def test_single_catch_ignoring_binding(
+        self, lcompile: CompileFn, capsys,
+    ):
         code = """
           (try
             (.fake-lower "UPPER")
@@ -2893,7 +2957,7 @@ class TestTryCatch:
         """
         assert "lower" == lcompile(code)
 
-    def test_single_catch_with_binding(self, capsys, ns: runtime.Namespace):
+    def test_single_catch_with_binding(self, lcompile: CompileFn, capsys):
         code = """
           (try
             (.fake-lower "UPPER")
@@ -2901,7 +2965,7 @@ class TestTryCatch:
         """
         assert ("'str' object has no attribute 'fake_lower'",) == lcompile(code)
 
-    def test_multiple_catch(self, ns: runtime.Namespace):
+    def test_multiple_catch(self, lcompile: CompileFn):
         code = """
           (try
             (.fake-lower "UPPER")
@@ -2910,7 +2974,7 @@ class TestTryCatch:
         """
         assert "mIxEd" == lcompile(code)
 
-    def test_multiple_catch_with_finally(self, capsys, ns: runtime.Namespace):
+    def test_multiple_catch_with_finally(self, lcompile: CompileFn, capsys):
         # If you hit an error here, do yourself a favor
         # and look in the import code first.
         code = """
@@ -2925,7 +2989,7 @@ class TestTryCatch:
         captured = capsys.readouterr()
         assert "neither\n" == captured.out
 
-    def test_catch_num_elems(self, ns: runtime.Namespace):
+    def test_catch_num_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -2953,7 +3017,7 @@ class TestTryCatch:
             """
             )
 
-    def test_catch_must_name_exception(self, ns: runtime.Namespace):
+    def test_catch_must_name_exception(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -2963,7 +3027,7 @@ class TestTryCatch:
             """
             )
 
-    def test_catch_name_must_be_symbol(self, ns: runtime.Namespace):
+    def test_catch_name_must_be_symbol(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -2973,7 +3037,7 @@ class TestTryCatch:
             """
             )
 
-    def test_body_may_not_appear_after_catch(self, ns: runtime.Namespace):
+    def test_body_may_not_appear_after_catch(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -2984,7 +3048,7 @@ class TestTryCatch:
             """
             )
 
-    def test_body_may_not_appear_after_finally(self, ns: runtime.Namespace):
+    def test_body_may_not_appear_after_finally(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -2995,7 +3059,7 @@ class TestTryCatch:
             """
             )
 
-    def test_catch_may_not_appear_after_finally(self, ns: runtime.Namespace):
+    def test_catch_may_not_appear_after_finally(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -3006,7 +3070,7 @@ class TestTryCatch:
             """
             )
 
-    def test_try_may_not_have_multiple_finallys(self, ns: runtime.Namespace):
+    def test_try_may_not_have_multiple_finallys(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile(
                 """
@@ -3019,7 +3083,7 @@ class TestTryCatch:
             )
 
 
-def test_unquote(ns: runtime.Namespace):
+def test_unquote(lcompile: runtime.Namespace):
     with pytest.raises(compiler.CompilerException):
         lcompile("~s")
 
@@ -3029,7 +3093,7 @@ def test_unquote(ns: runtime.Namespace):
         lcompile("`(~s)")
 
 
-def test_unquote_splicing(ns: runtime.Namespace, resolver: reader.Resolver):
+def test_unquote_splicing(lcompile: CompileFn, resolver: reader.Resolver):
     with pytest.raises(TypeError):
         lcompile("~@[1 2 3]")
 
@@ -3043,32 +3107,34 @@ def test_unquote_splicing(ns: runtime.Namespace, resolver: reader.Resolver):
 
 
 class TestSymbolResolution:
-    def test_bare_sym_resolves_builtins(self, ns: runtime.Namespace):
+    def test_bare_sym_resolves_builtins(self, lcompile: CompileFn):
         assert object is lcompile("object")
 
-    def test_builtin_resolves_builtins(self, ns: runtime.Namespace):
+    def test_builtin_resolves_builtins(self, lcompile: CompileFn):
         assert object is lcompile("python/object")
 
-    def test_builtins_fails_to_resolve_correctly(self, ns: runtime.Namespace):
+    def test_builtins_fails_to_resolve_correctly(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("python/fake")
 
-    def test_namespaced_sym_may_not_contain_period(self, ns: runtime.Namespace):
+    def test_namespaced_sym_may_not_contain_period(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("other.ns/with.sep")
 
-    def test_namespaced_sym_cannot_resolve(self, ns: runtime.Namespace):
+    def test_namespaced_sym_cannot_resolve(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("other.ns/name")
 
-    def test_nested_namespaced_sym_will_resolve(self, ns: runtime.Namespace):
+    def test_nested_namespaced_sym_will_resolve(self, lcompile: CompileFn):
         assert lmap.MapEntry.of is lcompile("basilisp.lang.map.MapEntry/of")
 
-    def test_nested_bare_sym_will_not_resolve(self, ns: runtime.Namespace):
+    def test_nested_bare_sym_will_not_resolve(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("basilisp.lang.map.MapEntry.of")
 
-    def test_aliased_var_does_not_resolve(self, ns: runtime.Namespace):
+    def test_aliased_var_does_not_resolve(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         current_ns: runtime.Namespace = ns
         other_ns_name = sym.symbol("other.ns")
         try:
@@ -3081,7 +3147,9 @@ class TestSymbolResolution:
         finally:
             runtime.Namespace.remove(other_ns_name)
 
-    def test_aliased_macro_symbol_resolution(self, ns: runtime.Namespace):
+    def test_aliased_macro_symbol_resolution(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         current_ns: runtime.Namespace = ns
         other_ns_name = sym.symbol("other.ns")
         try:
@@ -3098,7 +3166,9 @@ class TestSymbolResolution:
         finally:
             runtime.Namespace.remove(other_ns_name)
 
-    def test_fully_namespaced_sym_resolves(self, ns: runtime.Namespace):
+    def test_fully_namespaced_sym_resolves(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         """Ensure that references to Vars in other Namespaces by a fully Namespace
         qualified symbol always resolve, regardless of whether the Namespace has
         been aliased within the current Namespace."""
@@ -3140,7 +3210,9 @@ class TestSymbolResolution:
             runtime.Namespace.remove(other_ns_name)
             runtime.Namespace.remove(third_ns_name)
 
-    def test_cross_ns_macro_symbol_resolution(self, ns: runtime.Namespace):
+    def test_cross_ns_macro_symbol_resolution(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         """Ensure that a macro symbol, `a`, delegating to another macro, named
         by the symbol `b`, in a namespace directly required by `a`'s namespace
         (and which will not be required by downstream namespaces) is still
@@ -3175,7 +3247,9 @@ class TestSymbolResolution:
             runtime.Namespace.remove(other_ns_name)
             runtime.Namespace.remove(third_ns_name)
 
-    def test_cross_ns_macro_symbol_resolution_with_aliases(self, ns: runtime.Namespace):
+    def test_cross_ns_macro_symbol_resolution_with_aliases(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         """Ensure that `a` macro symbol, a, delegating to another macro, named
         by the symbol `b`, which is referenced by `a`'s namespace (and which will
         not be referred by downstream namespaces) is still properly resolved
@@ -3210,7 +3284,9 @@ class TestSymbolResolution:
             runtime.Namespace.remove(other_ns_name)
             runtime.Namespace.remove(third_ns_name)
 
-    def test_cross_ns_macro_symbol_resolution_with_refers(self, ns: runtime.Namespace):
+    def test_cross_ns_macro_symbol_resolution_with_refers(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         """Ensure that a macro symbol, `a`, delegating to another macro, named
         by the symbol `b`, which is referred by `a`'s namespace (and which will
         not be referred by downstream namespaces) is still properly resolved
@@ -3249,7 +3325,7 @@ class TestSymbolResolution:
 
 class TestWarnOnVarIndirection:
     @pytest.fixture
-    def other_ns(self, ns: runtime.Namespace):
+    def other_ns(self, lcompile: CompileFn, ns: runtime.Namespace):
         current_ns: runtime.Namespace = ns
         other_ns_name = sym.symbol("other.ns")
         try:
@@ -3263,43 +3339,49 @@ class TestWarnOnVarIndirection:
         finally:
             runtime.Namespace.remove(other_ns_name)
 
-    def test_warning_for_cross_ns_reference(self, other_ns, caplog):
+    def test_warning_for_cross_ns_reference(
+        self, lcompile: CompileFn, ns: runtime.Namespace, other_ns, caplog
+    ):
         lcompile(
             "(fn [] (other.ns/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: True}
         )
         assert (
             "basilisp.lang.compiler.generator",
             logging.WARNING,
-            "could not resolve a direct link to Var 'm' (test:1)",
+            f"could not resolve a direct link to Var 'm' ({ns}:1)",
         ) in caplog.record_tuples
 
     def test_no_warning_for_cross_ns_reference_if_warning_disabled(
-        self, other_ns, caplog
+        self, lcompile: CompileFn, ns: runtime.Namespace, other_ns, caplog
     ):
         lcompile(
             "(fn [] (other.ns/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: False}
         )
         assert (
-            "could not resolve a direct link to Var 'm' (test:1)"
+            f"could not resolve a direct link to Var 'm' ({ns}:1)"
         ) not in caplog.messages
 
-    def test_warning_for_cross_ns_alias_reference(self, other_ns, caplog):
+    def test_warning_for_cross_ns_alias_reference(
+        self, lcompile: CompileFn, ns: runtime.Namespace, other_ns, caplog
+    ):
         lcompile("(fn [] (other/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: True})
         assert (
             "basilisp.lang.compiler.generator",
             logging.WARNING,
-            "could not resolve a direct link to Var 'm' (test:1)",
+            f"could not resolve a direct link to Var 'm' ({ns}:1)",
         ) in caplog.record_tuples
 
     def test_no_warning_for_cross_ns_alias_reference_if_warning_disabled(
-        self, other_ns, caplog
+        self, lcompile: CompileFn, other_ns, caplog
     ):
         lcompile("(fn [] (other/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: False})
         assert (
             "could not resolve a direct link to Var 'm' (test:1)"
         ) not in caplog.messages
 
-    def test_warning_on_imported_name(self, ns: runtime.Namespace, caplog):
+    def test_warning_on_imported_name(
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
+    ):
         """Basilisp should be able to directly resolve a link to cross-namespace
         imports, so no warning should be raised."""
         ns.add_import(sym.symbol("string"), __import__("string"))
@@ -3314,7 +3396,7 @@ class TestWarnOnVarIndirection:
             ) not in caplog.messages
 
     def test_exception_raised_for_nonexistent_imported_name(
-        self, ns: runtime.Namespace, caplog
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
     ):
         """If a name does not exist, then a CompilerException will be raised."""
         ns.add_import(sym.symbol("string"), __import__("string"))
@@ -3324,39 +3406,39 @@ class TestWarnOnVarIndirection:
                 "(fn [] (string/m :z))", opts={compiler.WARN_ON_VAR_INDIRECTION: True}
             )
 
-    def test_exception_raised_for_nonexistent_var_name(self, ns: runtime.Namespace):
+    def test_exception_raised_for_nonexistent_var_name(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn [] m)", opts={compiler.WARN_ON_VAR_INDIRECTION: True})
 
 
 class TestVar:
-    def test_var_num_elems(self, ns: runtime.Namespace):
+    def test_var_num_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(var)")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(var test/some-var test/other-var)")
 
-    def test_var_does_not_resolve(self, ns: runtime.Namespace):
+    def test_var_does_not_resolve(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(var test/definitely-not-a-var-in-this-namespace)")
 
-    def test_var(self, ns: runtime.Namespace):
-        code = """
+    def test_var(self, lcompile: CompileFn, ns: runtime.Namespace):
+        code = f"""
         (def some-var "a value")
 
-        (var test/some-var)"""
+        (var {ns}/some-var)"""
 
         ns_name = ns.name
         v = lcompile(code)
         assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("some-var"))
         assert v.value == "a value"
 
-    def test_var_reader_literal(self, ns: runtime.Namespace):
-        code = """
+    def test_var_reader_literal(self, lcompile: CompileFn, ns: runtime.Namespace):
+        code = f"""
         (def some-var "a value")
 
-        #'test/some-var"""
+        #'{ns}/some-var"""
 
         ns_name = ns.name
         v = lcompile(code)

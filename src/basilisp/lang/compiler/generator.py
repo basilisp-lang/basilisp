@@ -1,9 +1,7 @@
 import collections
 import contextlib
-import importlib
 import logging
 import re
-import types
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -95,7 +93,7 @@ from basilisp.lang.compiler.nodes import (
 )
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
-from basilisp.lang.typing import LispForm
+from basilisp.lang.typing import BasilispModule, LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
 
@@ -189,7 +187,14 @@ class RecurPoint:
 
 
 class GeneratorContext:
-    __slots__ = ("_filename", "_opts", "_recur_points", "_st", "_this")
+    __slots__ = (
+        "_filename",
+        "_opts",
+        "_recur_points",
+        "_st",
+        "_this",
+        "_var_indirection_override",
+    )
 
     def __init__(
         self, filename: Optional[str] = None, opts: Optional[Mapping[str, bool]] = None
@@ -199,6 +204,7 @@ class GeneratorContext:
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>")])
         self._this: Deque[sym.Symbol] = collections.deque([])
+        self._var_indirection_override: Deque[bool] = collections.deque([])
 
         if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             for k, v in self._opts:
@@ -224,6 +230,19 @@ class GeneratorContext:
         return not self.use_var_indirection and self._opts.val_at(
             WARN_ON_VAR_INDIRECTION, True
         )
+
+    @contextlib.contextmanager
+    def with_var_indirection_override(self, has_override: bool = True):
+        self._var_indirection_override.append(has_override)
+        yield
+        self._var_indirection_override.pop()
+
+    @property
+    def has_var_indirection_override(self) -> bool:
+        try:
+            return self._var_indirection_override[-1]
+        except IndexError:
+            return False
 
     @property
     def recur_point(self):
@@ -257,12 +276,8 @@ class GeneratorContext:
             yield st
             self._st.pop()
 
-    def add_import(self, imp: sym.Symbol, mod: types.ModuleType, *aliases: sym.Symbol):
+    def add_import(self, imp: sym.Symbol, mod: BasilispModule, *aliases: sym.Symbol):
         self.current_ns.add_import(imp, mod, *aliases)
-
-    @property
-    def imports(self) -> lmap.Map[sym.Symbol, types.ModuleType]:
-        return self.current_ns.imports
 
     @property
     def current_this(self):
@@ -1000,6 +1015,21 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
         )
 
 
+def _wrap_do(
+    f: Callable[[GeneratorContext, Do], GeneratedPyAST]
+) -> Callable[[GeneratorContext, Do], GeneratedPyAST]:
+    @wraps(f)
+    def _wrapped_do(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
+        assert node.op == NodeOp.DO
+        if node.top_level:
+            with ctx.with_var_indirection_override():
+                return f(ctx, node)
+        return f(ctx, node)
+
+    return _wrapped_do
+
+
+@_wrap_do
 @_with_ast_loc_deps
 def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     """Return a Python AST Node for a `do` expression."""
@@ -1530,7 +1560,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
         safe_name = munge(alias.name)
 
         try:
-            module = importlib.import_module(safe_name)
+            module = runtime.import_module(safe_name)
             if alias.alias is not None:
                 ctx.add_import(sym.symbol(alias.name), module, sym.symbol(alias.alias))
             else:
@@ -2107,7 +2137,12 @@ def _var_sym_to_py_ast(
         )
 
     # Check if we should use Var indirection
-    if ctx.use_var_indirection or _is_dynamic(var) or _is_redefable(var):
+    if (
+        ctx.has_var_indirection_override
+        or ctx.use_var_indirection
+        or _is_dynamic(var)
+        or _is_redefable(var)
+    ):
         return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
 
     # Otherwise, try to direct-link it like a Python variable
@@ -2729,7 +2764,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,
     NodeOp.DEFTYPE: _deftype_to_py_ast,
-    NodeOp.DO: _do_to_py_ast,
+    NodeOp.DO: _do_to_py_ast,  # type: ignore
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.HOST_CALL: _interop_call_to_py_ast,
     NodeOp.HOST_FIELD: _interop_prop_to_py_ast,
@@ -2784,14 +2819,14 @@ def gen_py_ast(ctx: GeneratorContext, lisp_ast: Node) -> GeneratedPyAST:
 #############################
 
 
-def _module_imports(ctx: GeneratorContext) -> Iterable[ast.Import]:
+def _module_imports(ns: runtime.Namespace) -> Iterable[ast.Import]:
     """Generate the Python Import AST node for importing all required
     language support modules."""
     # Yield `import basilisp` so code attempting to call fully qualified
     # `basilisp.lang...` modules don't result in compiler errors
     yield ast.Import(names=[ast.alias(name="basilisp", asname=None)])
-    for imp in ctx.imports:
-        name = imp.key.name
+    for s in sorted(ns.imports.keys(), key=lambda s: s.name):
+        name = s.name
         alias = _MODULE_ALIASES.get(name, None)
         yield ast.Import(names=[ast.alias(name=name, asname=alias)])
 
@@ -2827,10 +2862,10 @@ def _ns_var(
     )
 
 
-def py_module_preamble(ctx: GeneratorContext,) -> GeneratedPyAST:
+def py_module_preamble(ns: runtime.Namespace,) -> GeneratedPyAST:
     """Bootstrap a new module with imports and other boilerplate."""
     preamble: List[ast.AST] = []
-    preamble.extend(_module_imports(ctx))
+    preamble.extend(_module_imports(ns))
     preamble.append(_from_module_import())
     preamble.append(_ns_var())
     return GeneratedPyAST(node=ast.Constant(None), dependencies=preamble)

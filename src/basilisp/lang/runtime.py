@@ -21,6 +21,7 @@ from typing import (
     Optional,
     Tuple,
     Union,
+    cast,
 )
 
 import basilisp.lang.keyword as kw
@@ -46,7 +47,7 @@ from basilisp.lang.interfaces import (
     ISeqable,
 )
 from basilisp.lang.reference import ReferenceBase
-from basilisp.lang.typing import LispNumber
+from basilisp.lang.typing import BasilispModule, LispNumber
 from basilisp.lang.util import munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
@@ -121,15 +122,19 @@ CompletionMatcher = Callable[[Tuple[sym.Symbol, Any]], bool]
 CompletionTrimmer = Callable[[Tuple[sym.Symbol, Any]], str]
 
 
-def _new_module(name: str, doc=None) -> types.ModuleType:
+def _new_module(name: str, doc=None) -> BasilispModule:
     """Create a new empty Basilisp Python module.
     Modules are created for each Namespace when it is created."""
-    mod = types.ModuleType(name, doc=doc)
+    mod = BasilispModule(name, doc=doc)
     mod.__loader__ = None
     mod.__package__ = None
     mod.__spec__ = None
-    mod.__basilisp_bootstrapped__ = False  # type: ignore
+    mod.__basilisp_bootstrapped__ = False
     return mod
+
+
+def import_module(name: str) -> BasilispModule:
+    return cast(BasilispModule, importlib.import_module(name))
 
 
 class RuntimeException(Exception):
@@ -338,7 +343,7 @@ _THREAD_BINDINGS = _ThreadBindings()
 
 
 AliasMap = lmap.Map[sym.Symbol, sym.Symbol]
-ModuleMap = lmap.Map[sym.Symbol, types.ModuleType]
+ModuleMap = lmap.Map[sym.Symbol, BasilispModule]
 NamespaceMap = lmap.Map[sym.Symbol, "Namespace"]
 VarMap = lmap.Map[sym.Symbol, Var]
 
@@ -416,7 +421,7 @@ class Namespace(ReferenceBase):
         "_import_aliases",
     )
 
-    def __init__(self, name: sym.Symbol, module: types.ModuleType = None) -> None:
+    def __init__(self, name: sym.Symbol, module: BasilispModule = None) -> None:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
@@ -428,7 +433,7 @@ class Namespace(ReferenceBase):
             lmap.map(
                 dict(
                     map(
-                        lambda s: (s, importlib.import_module(s.name)),
+                        lambda s: (s, import_module(s.name)),
                         Namespace.DEFAULT_IMPORTS.deref(),
                     )
                 )
@@ -452,11 +457,11 @@ class Namespace(ReferenceBase):
         return self._name.name
 
     @property
-    def module(self) -> types.ModuleType:
+    def module(self) -> BasilispModule:
         return self._module
 
     @module.setter
-    def module(self, m: types.ModuleType):
+    def module(self, m: BasilispModule):
         """Override the Python module for this Namespace.
 
         ***WARNING**
@@ -556,7 +561,7 @@ class Namespace(ReferenceBase):
                 )
             )
 
-    def get_import(self, sym: sym.Symbol) -> Optional[types.ModuleType]:
+    def get_import(self, sym: sym.Symbol) -> Optional[BasilispModule]:
         """Return the module if a moduled named by sym has been imported into
         this Namespace, None otherwise.
 
@@ -600,27 +605,8 @@ class Namespace(ReferenceBase):
         return cls._NAMESPACES.deref()
 
     @staticmethod
-    def __create(
-        ns_cache: NamespaceMap, name: sym.Symbol, module: types.ModuleType = None,
-    ) -> lmap.Map:
-        """Private swap function used by `create` to atomically create a new
-        Namespace and swap the new namespace map into the global cache."""
-        ns = ns_cache.val_at(name, None)
-        if ns is not None:
-            raise RuntimeException(f"Cannot create existing namespace {name}")
-        new_ns = Namespace(name, module=module)
-        return ns_cache.assoc(name, new_ns)
-
-    @classmethod
-    def create(cls, name: sym.Symbol, module: types.ModuleType = None) -> "Namespace":
-        """Create the namespace bound to the symbol `name` in the global namespace
-        cache, throwing an exception if it already exists.
-        Return the namespace."""
-        return cls._NAMESPACES.swap(Namespace.__create, name, module=module)[name]
-
-    @staticmethod
     def __get_or_create(
-        ns_cache: NamespaceMap, name: sym.Symbol, module: types.ModuleType = None,
+        ns_cache: NamespaceMap, name: sym.Symbol, module: BasilispModule = None,
     ) -> lmap.Map:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
@@ -632,7 +618,7 @@ class Namespace(ReferenceBase):
 
     @classmethod
     def get_or_create(
-        cls, name: sym.Symbol, module: types.ModuleType = None
+        cls, name: sym.Symbol, module: BasilispModule = None
     ) -> "Namespace":
         """Get the namespace bound to the symbol `name` in the global namespace
         cache, creating it if it does not exist.
@@ -1400,7 +1386,7 @@ def _basilisp_fn(f):
 def init_ns_var(which_ns: str = CORE_NS, ns_var_name: str = NS_VAR_NAME) -> Var:
     """Initialize the dynamic `*ns*` variable in the Namespace `which_ns`."""
     core_sym = sym.Symbol(which_ns)
-    core_ns = Namespace.create(core_sym)
+    core_ns = Namespace.get_or_create(core_sym)
     ns_var = Var.intern(core_sym, sym.Symbol(ns_var_name), core_ns, dynamic=True)
     logger.debug(f"Created namespace variable {sym.symbol(ns_var_name, ns=which_ns)}")
     return ns_var
@@ -1408,7 +1394,7 @@ def init_ns_var(which_ns: str = CORE_NS, ns_var_name: str = NS_VAR_NAME) -> Var:
 
 def set_current_ns(
     ns_name: str,
-    module: types.ModuleType = None,
+    module: BasilispModule = None,
     ns_var_name: str = NS_VAR_NAME,
     ns_var_ns: str = NS_VAR_NS,
 ) -> Var:
@@ -1429,7 +1415,7 @@ def set_current_ns(
 @contextlib.contextmanager
 def ns_bindings(
     ns_name: str,
-    module: types.ModuleType = None,
+    module: BasilispModule = None,
     ns_var_name: str = NS_VAR_NAME,
     ns_var_ns: str = NS_VAR_NS,
 ):
