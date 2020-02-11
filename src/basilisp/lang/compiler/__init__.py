@@ -28,7 +28,7 @@ from basilisp.lang.compiler.generator import (  # noqa
     statementize as _statementize,
 )
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
-from basilisp.lang.typing import ReaderForm
+from basilisp.lang.typing import BasilispModule, ReaderForm
 from basilisp.lang.util import genname
 
 _DEFAULT_FN = "__lisp_expr__"
@@ -89,7 +89,7 @@ def _emit_ast_string(module: ast.AST) -> None:  # pragma: no cover
 def compile_and_exec_form(  # pylint: disable= too-many-arguments
     form: ReaderForm,
     ctx: CompilerContext,
-    module: types.ModuleType,
+    module: BasilispModule,
     wrapped_fn_name: str = _DEFAULT_FN,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> Any:
@@ -101,7 +101,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     if form is None:
         return None
 
-    if not module.__basilisp_bootstrapped__:  # type: ignore
+    if not module.__basilisp_bootstrapped__:
         _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, module)
 
     final_wrapped_name = genname(wrapped_fn_name)
@@ -134,7 +134,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
 def _incremental_compile_module(
     optimizer: PythonASTOptimizer,
     py_ast: GeneratedPyAST,
-    mod: types.ModuleType,
+    mod: BasilispModule,
     source_filename: str,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
@@ -163,7 +163,7 @@ def _incremental_compile_module(
 def _bootstrap_module(
     gctx: GeneratorContext,
     optimizer: PythonASTOptimizer,
-    mod: types.ModuleType,
+    mod: BasilispModule,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
     """Bootstrap a new module with imports and other boilerplate."""
@@ -174,13 +174,13 @@ def _bootstrap_module(
         source_filename=gctx.filename,
         collect_bytecode=collect_bytecode,
     )
-    mod.__basilisp_bootstrapped__ = True  # type: ignore
+    mod.__basilisp_bootstrapped__ = True
 
 
 def compile_module(
     forms: Iterable[ReaderForm],
     ctx: CompilerContext,
-    module: types.ModuleType,
+    module: BasilispModule,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
     """Compile an entire Basilisp module into Python bytecode which can be
@@ -209,7 +209,7 @@ def compile_bytecode(
     code: List[types.CodeType],
     gctx: GeneratorContext,
     optimizer: PythonASTOptimizer,
-    module: types.ModuleType,
+    module: BasilispModule,
 ) -> None:
     """Compile cached bytecode into the given module.
 

@@ -11,6 +11,7 @@ import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
 import basilisp.main as basilisp
+from basilisp.lang.typing import BasilispModule
 from basilisp.prompt import get_prompter
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
@@ -24,7 +25,7 @@ def cli():
     """Basilisp is a Lisp dialect inspired by Clojure targeting Python 3."""
 
 
-def eval_file(filename: str, ctx: compiler.CompilerContext, module: types.ModuleType):
+def eval_file(filename: str, ctx: compiler.CompilerContext, module: BasilispModule):
     """Evaluate a file with the given name into a Python module AST node."""
     last = None
     for form in reader.read_file(filename, resolver=runtime.resolve_alias):
@@ -33,7 +34,7 @@ def eval_file(filename: str, ctx: compiler.CompilerContext, module: types.Module
     return last
 
 
-def eval_stream(stream, ctx: compiler.CompilerContext, module: types.ModuleType):
+def eval_stream(stream, ctx: compiler.CompilerContext, module: BasilispModule):
     """Evaluate the forms in stdin into a Python module AST node."""
     last = None
     for form in reader.read(stream, resolver=runtime.resolve_alias):
@@ -42,7 +43,7 @@ def eval_stream(stream, ctx: compiler.CompilerContext, module: types.ModuleType)
     return last
 
 
-def eval_str(s: str, ctx: compiler.CompilerContext, module: types.ModuleType, eof: Any):
+def eval_str(s: str, ctx: compiler.CompilerContext, module: BasilispModule, eof: Any):
     """Evaluate the forms in a string into a Python module AST node."""
     last = eof
     for form in reader.read_str(s, resolver=runtime.resolve_alias, eof=eof):
