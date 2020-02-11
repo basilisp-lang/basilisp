@@ -14,7 +14,7 @@ import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
-from basilisp.lang.typing import ReaderForm
+from basilisp.lang.typing import BasilispModule, ReaderForm
 from basilisp.lang.util import demunge
 from basilisp.util import timed
 
@@ -220,7 +220,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
 
     def create_module(self, spec: ModuleSpec):
         logger.debug(f"Creating Basilisp module '{spec.name}''")
-        mod = types.ModuleType(spec.name)
+        mod = BasilispModule(spec.name)
         mod.__file__ = spec.loader_state["filename"]
         mod.__loader__ = spec.loader
         mod.__package__ = spec.parent
@@ -308,6 +308,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         each form in a module may require code compiled from an earlier form, so
         we incrementally compile a Python module by evaluating a single top-level
         form at a time and inserting the resulting AST nodes into the Pyton module."""
+        assert isinstance(module, BasilispModule)
+
         fullname = module.__name__
         cached = self._cache[fullname]
         cached["module"] = module

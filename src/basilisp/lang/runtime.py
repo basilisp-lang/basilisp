@@ -343,7 +343,8 @@ _THREAD_BINDINGS = _ThreadBindings()
 
 
 AliasMap = lmap.Map[sym.Symbol, sym.Symbol]
-ModuleMap = lmap.Map[sym.Symbol, BasilispModule]
+Module = Union[BasilispModule, types.ModuleType]
+ModuleMap = lmap.Map[sym.Symbol, Module]
 NamespaceMap = lmap.Map[sym.Symbol, "Namespace"]
 VarMap = lmap.Map[sym.Symbol, Var]
 
@@ -548,9 +549,7 @@ class Namespace(ReferenceBase):
             return self.refers.val_at(sym, None)
         return v
 
-    def add_import(
-        self, sym: sym.Symbol, module: types.ModuleType, *aliases: sym.Symbol
-    ) -> None:
+    def add_import(self, sym: sym.Symbol, module: Module, *aliases: sym.Symbol) -> None:
         """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
         the aliases will be applied to the """
         self._imports.swap(lambda m: m.assoc(sym, module))
