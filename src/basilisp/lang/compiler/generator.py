@@ -94,7 +94,7 @@ from basilisp.lang.compiler.nodes import (
 )
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
-from basilisp.lang.typing import BasilispModule, LispForm
+from basilisp.lang.typing import LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
 
@@ -659,7 +659,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         # function name and short-circuiting the default double-declaration.
         if node.init.op == NodeOp.FN:
             assert isinstance(node.init, Fn)
-            def_ast = _fn_to_py_ast(ctx, node.init, def_name=defsym.name)
+            def_ast: Optional[GeneratedPyAST] = _fn_to_py_ast(  # type: ignore[call-arg]
+                ctx, node.init, def_name=defsym.name
+            )
             is_defn = True
         elif (
             node.init.op == NodeOp.WITH_META
@@ -710,6 +712,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     # Python compiler will throw an exception during compilation
     # complaining that we assign the value prior to global declaration.
     if is_defn:
+        assert def_ast is not None, "def_ast must be defined at this point"
         def_dependencies = list(
             chain(
                 [] if node.top_level else [ast.Global(names=[safe_name])],
@@ -728,6 +731,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
             )
         )
     else:
+        assert def_ast is not None, "def_ast must be defined at this point"
         def_dependencies = list(
             chain(
                 def_ast.dependencies,
@@ -1016,21 +1020,38 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
         )
 
 
-def _wrap_do(
-    f: Callable[[GeneratorContext, Do], GeneratedPyAST]
-) -> Callable[[GeneratorContext, Do], GeneratedPyAST]:
+def _wrap_override_var_indirection(f: PyASTGenerator) -> PyASTGenerator:
+    """
+    Wrap a Node generator to apply a special override requiring Var indirection
+    for any Var accesses generated within top-level `do` blocks.
+
+    This is a bit of a hack to account for the `ns` macro, which is the first
+    form in most standard Namespaces. When Basilisp `require`s a Namespace, it
+    (like in Clojure) simply loads the file and lets that Namespace's `ns` macro
+    create the new Namespace and perform any setup. However, the Basilisp
+    compiler desperately tries to emit "smarter" Python code which avoids using
+    `Var.find` whenever the resolved symbol can be safely called directly from
+    the generated Pythom module. Without this hack, the compiler will emit code
+    during macroexpansion to access `basilisp.core` functions used in the `ns`
+    macro directly, even though they will not be available yet in the target
+    Namespace module.
+    """
+
     @wraps(f)
-    def _wrapped_do(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
-        assert node.op == NodeOp.DO
-        if node.top_level:
+    def _wrapped_do(
+        ctx: GeneratorContext, node: Node, *args, **kwargs
+    ) -> GeneratedPyAST:
+        if isinstance(node, Do) and node.top_level:
             with ctx.with_var_indirection_override():
-                return f(ctx, node)
-        return f(ctx, node)
+                return f(ctx, node, *args, **kwargs)  # type: ignore[call-arg]
+        else:
+            with ctx.with_var_indirection_override(False):
+                return f(ctx, node, *args, **kwargs)  # type: ignore[call-arg]
 
     return _wrapped_do
 
 
-@_wrap_do
+@_wrap_override_var_indirection
 @_with_ast_loc_deps
 def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     """Return a Python AST Node for a `do` expression."""
@@ -1432,6 +1453,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     )
 
 
+@_wrap_override_var_indirection
 @_with_ast_loc
 def _fn_to_py_ast(
     ctx: GeneratorContext,
@@ -2765,7 +2787,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,
     NodeOp.DEFTYPE: _deftype_to_py_ast,
-    NodeOp.DO: _do_to_py_ast,  # type: ignore
+    NodeOp.DO: _do_to_py_ast,
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.HOST_CALL: _interop_call_to_py_ast,
     NodeOp.HOST_FIELD: _interop_prop_to_py_ast,
