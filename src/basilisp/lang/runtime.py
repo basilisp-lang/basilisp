@@ -1490,15 +1490,14 @@ def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
 def add_generated_python(
     generated_python: str,
     var_name: str = _GENERATED_PYTHON_VAR_NAME,
-    which_ns: Optional[str] = None,
+    which_ns: Optional[Namespace] = None,
 ) -> None:
     """Add generated Python code to a dynamic variable in which_ns."""
     if which_ns is None:
-        which_ns = get_current_ns().name
-    ns_sym = sym.Symbol(var_name, ns=which_ns)
-    v = Maybe(Var.find(ns_sym)).or_else(
+        which_ns = get_current_ns()
+    v = Maybe(which_ns.find(sym.symbol(var_name))).or_else(
         lambda: Var.intern(
-            sym.symbol(which_ns),  # type: ignore
+            sym.symbol(which_ns.name),  # type: ignore
             sym.symbol(var_name),
             "",
             dynamic=True,

@@ -28,7 +28,7 @@ from basilisp.lang.compiler.generator import (  # noqa
     statementize as _statementize,
 )
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
-from basilisp.lang.typing import BasilispModule, ReaderForm
+from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import genname
 
 _DEFAULT_FN = "__lisp_expr__"
@@ -69,7 +69,9 @@ class CompilerContext:
         return self._optimizer
 
 
-def _emit_ast_string(module: ast.AST) -> None:  # pragma: no cover
+def _emit_ast_string(
+    module: ast.AST, ns: runtime.Namespace
+) -> None:  # pragma: no cover
     """Emit the generated Python AST string either to standard out or to the
     *generated-python* dynamic Var for the current namespace. If the
     BASILISP_EMIT_GENERATED_PYTHON env var is not set True, this method is a
@@ -83,7 +85,7 @@ def _emit_ast_string(module: ast.AST) -> None:  # pragma: no cover
     if runtime.print_generated_python():
         print(to_py_str(module))
     else:
-        runtime.add_generated_python(to_py_str(module))
+        runtime.add_generated_python(to_py_str(module), which_ns=ns)
 
 
 def compile_and_exec_form(  # pylint: disable= too-many-arguments
@@ -122,7 +124,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     ast_module = ctx.py_ast_optimizer.visit(ast_module)
     ast.fix_missing_locations(ast_module)
 
-    _emit_ast_string(ast_module)
+    _emit_ast_string(ast_module, ns)
 
     bytecode = compile(ast_module, ctx.filename, "exec")
     if collect_bytecode:
@@ -134,7 +136,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
 def _incremental_compile_module(
     optimizer: PythonASTOptimizer,
     py_ast: GeneratedPyAST,
-    mod: BasilispModule,
+    ns: runtime.Namespace,
     source_filename: str,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
@@ -152,12 +154,12 @@ def _incremental_compile_module(
     module = optimizer.visit(module)
     ast.fix_missing_locations(module)
 
-    _emit_ast_string(module)
+    _emit_ast_string(module, ns)
 
     bytecode = compile(module, source_filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
-    exec(bytecode, mod.__dict__)
+    exec(bytecode, ns.module.__dict__)
 
 
 def _bootstrap_module(
@@ -170,7 +172,7 @@ def _bootstrap_module(
     _incremental_compile_module(
         optimizer,
         py_module_preamble(ns),
-        ns.module,
+        ns,
         source_filename=gctx.filename,
         collect_bytecode=collect_bytecode,
     )
@@ -199,7 +201,7 @@ def compile_module(
         _incremental_compile_module(
             ctx.py_ast_optimizer,
             nodes,
-            ns.module,
+            ns,
             source_filename=ctx.filename,
             collect_bytecode=collect_bytecode,
         )
