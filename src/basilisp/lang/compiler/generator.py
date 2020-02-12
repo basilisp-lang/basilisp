@@ -1,5 +1,6 @@
 import collections
 import contextlib
+import importlib
 import logging
 import re
 import uuid
@@ -1560,7 +1561,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
         safe_name = munge(alias.name)
 
         try:
-            module = runtime.import_module(safe_name)
+            module = importlib.import_module(safe_name)
             if alias.alias is not None:
                 ctx.add_import(sym.symbol(alias.name), module, sym.symbol(alias.alias))
             else:

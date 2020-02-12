@@ -21,7 +21,6 @@ from typing import (
     Optional,
     Tuple,
     Union,
-    cast,
 )
 
 import basilisp.lang.keyword as kw
@@ -131,10 +130,6 @@ def _new_module(name: str, doc=None) -> BasilispModule:
     mod.__spec__ = None
     mod.__basilisp_bootstrapped__ = False
     return mod
-
-
-def import_module(name: str) -> BasilispModule:
-    return cast(BasilispModule, importlib.import_module(name))
 
 
 class RuntimeException(Exception):
@@ -434,7 +429,7 @@ class Namespace(ReferenceBase):
             lmap.map(
                 dict(
                     map(
-                        lambda s: (s, import_module(s.name)),
+                        lambda s: (s, importlib.import_module(s.name)),
                         Namespace.DEFAULT_IMPORTS.deref(),
                     )
                 )
