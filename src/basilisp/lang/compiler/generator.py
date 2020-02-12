@@ -277,7 +277,7 @@ class GeneratorContext:
             yield st
             self._st.pop()
 
-    def add_import(self, imp: sym.Symbol, mod: BasilispModule, *aliases: sym.Symbol):
+    def add_import(self, imp: sym.Symbol, mod: runtime.Module, *aliases: sym.Symbol):
         self.current_ns.add_import(imp, mod, *aliases)
 
     @property
