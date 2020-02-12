@@ -16,6 +16,7 @@ from typing import (
     Dict,
     FrozenSet,
     Iterable,
+    Iterator,
     List,
     Mapping,
     Optional,
@@ -1412,7 +1413,7 @@ def ns_bindings(
     module: BasilispModule = None,
     ns_var_name: str = NS_VAR_NAME,
     ns_var_ns: str = NS_VAR_NS,
-):
+) -> Iterator[Namespace]:
     """Context manager for temporarily changing the value of basilisp.core/*ns*."""
     symbol = sym.Symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)

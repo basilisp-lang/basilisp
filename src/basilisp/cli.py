@@ -216,7 +216,12 @@ def run(  # pylint: disable=too-many-arguments
     )
     eof = object()
 
+    core_ns = runtime.Namespace.get(sym.symbol(runtime.CORE_NS))
+    assert core_ns is not None
+
     with runtime.ns_bindings(in_ns) as ns:
+        ns.refer_all(core_ns)
+
         if code:
             print(runtime.lrepr(eval_str(file_or_code, ctx, ns, eof)))
         elif file_or_code == STDIN_FILE_NAME:
