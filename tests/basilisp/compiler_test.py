@@ -213,9 +213,7 @@ class TestLiterals:
 
 
 class TestAwait:
-    def test_await_must_appear_in_async_def(
-        self, lcompile: CompileFn, ns: runtime.Namespace
-    ):
+    def test_await_must_appear_in_async_def(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn [] (await :a))")
 
@@ -233,14 +231,14 @@ class TestAwait:
         """
         )
 
-    def test_await_number_of_elems(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_await_number_of_elems(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn ^:async test [] (await))")
 
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn ^:async test [] (await :a :b))")
 
-    def test_await(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_await(self, lcompile: CompileFn):
         awaiter_var: runtime.Var = lcompile(
             """
         (def unique-tywend
@@ -354,7 +352,7 @@ class TestDef:
             f"redefining local Python name 'orig' in module '{ns.name}' ({ns.name}:2)"
         ) not in caplog.messages
 
-    def test_def_dynamic(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_def_dynamic(self, lcompile: CompileFn):
         v: Var = lcompile("(def ^:dynamic *a-dynamic-var* 1)")
         assert v.dynamic is True
         lcompile("(.push-bindings #'*a-dynamic-var* :hi)")
@@ -375,7 +373,7 @@ class TestDef:
 
         assert 1 == lcompile("a-regular-var")
 
-    def test_def_fn_with_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_def_fn_with_meta(self, lcompile: CompileFn):
         v: Var = lcompile(
             "(def with-meta-fn-node ^:meta-kw (fn* [] :fn-with-meta-node))"
         )
@@ -384,7 +382,7 @@ class TestDef:
         assert lmap.map({kw.keyword("meta-kw"): True}) == v.value.meta
         assert kw.keyword("fn-with-meta-node") == v.value()
 
-    def test_redef_unbound_var(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_redef_unbound_var(self, lcompile: CompileFn):
         v1: Var = lcompile("(def unbound-var)")
         assert None is v1.root
 
@@ -392,9 +390,7 @@ class TestDef:
         assert kw.keyword("a") == v2.root
         assert v2.is_bound
 
-    def test_def_unbound_does_not_clear_var_root(
-        self, lcompile: CompileFn, ns: runtime.Namespace
-    ):
+    def test_def_unbound_does_not_clear_var_root(self, lcompile: CompileFn):
         v1: Var = lcompile("(def bound-var :a)")
         assert kw.keyword("a") == v1.root
         assert v1.is_bound
@@ -619,14 +615,12 @@ class TestDefType:
         assert "('Point', 1, 2, 3)" == str(pt)
 
     class TestDefTypeFields:
-        def test_deftype_fields(self, lcompile: CompileFn, ns: runtime.Namespace):
+        def test_deftype_fields(self, lcompile: CompileFn):
             Point = lcompile("(deftype* Point [x y z])")
             pt = Point(1, 2, 3)
             assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-        def test_deftype_mutable_field(
-            self, lcompile: CompileFn, ns: runtime.Namespace
-        ):
+        def test_deftype_mutable_field(self, lcompile: CompileFn):
             Point = lcompile(
                 """
             (import* collections.abc)
@@ -641,9 +635,7 @@ class TestDefType:
             pt(4)
             assert (4, 2, 3) == (pt.x, pt.y, pt.z)
 
-        def test_deftype_cannot_set_immutable_field(
-            self, lcompile: CompileFn, ns: runtime.Namespace
-        ):
+        def test_deftype_cannot_set_immutable_field(self, lcompile: CompileFn):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -655,9 +647,7 @@ class TestDefType:
                 """
                 )
 
-        def test_deftype_allow_default_fields(
-            self, lcompile: CompileFn, ns: runtime.Namespace
-        ):
+        def test_deftype_allow_default_fields(self, lcompile: CompileFn):
             Point = lcompile("(deftype* Point [x ^{:default 2} y ^{:default 3} z])")
             pt = Point(1)
             assert (1, 2, 3) == (pt.x, pt.y, pt.z)
@@ -1018,7 +1008,7 @@ class TestDefType:
 
     class TestDefTypeProperty:
         @pytest.fixture
-        def property_interface(self, lcompile: CompileFn, ns: runtime.Namespace):
+        def property_interface(self, lcompile: CompileFn):
             return lcompile(
                 """
             (import* abc)
@@ -1079,9 +1069,7 @@ class TestDefType:
                   """
                 )
 
-        def test_deftype_property_disallows_recur(
-            self, lcompile: CompileFn, ns: runtime.Namespace
-        ):
+        def test_deftype_property_disallows_recur(self, lcompile: CompileFn):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
@@ -1122,7 +1110,7 @@ class TestDefType:
 
     class TestDefTypeStaticMethod:
         @pytest.fixture
-        def static_interface(self, lcompile: CompileFn, ns: runtime.Namespace):
+        def static_interface(self, lcompile: CompileFn):
             return lcompile(
                 """
             (import* abc)
@@ -1395,9 +1383,7 @@ class TestFunctionShadowVar:
             "name 'unique-kuieeid' shadows def'ed Var from outer scope",
         ) in caplog.record_tuples
 
-    def test_multi_arity_fn_log_if_warning_enabled(
-        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
-    ):
+    def test_multi_arity_fn_log_if_warning_enabled(self, lcompile: CompileFn, caplog):
         code = """
         (def unique-peuudcdf :a)
         (fn
@@ -1665,9 +1651,7 @@ class TestFunctionDef:
             kw.keyword("first-arg"), "second-arg", 3
         )
 
-    def test_multi_arity_fn_call_fails_if_no_valid_arity(
-        self, lcompile: CompileFn, ns: runtime.Namespace
-    ):
+    def test_multi_arity_fn_call_fails_if_no_valid_arity(self, lcompile: CompileFn):
         with pytest.raises(runtime.RuntimeException):
             fvar = lcompile(
                 """
@@ -1680,7 +1664,7 @@ class TestFunctionDef:
             )
             fvar.value(1, 2, 3)
 
-    def test_async_single_arity(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_async_single_arity(self, lcompile: CompileFn):
         awaiter_var: runtime.Var = lcompile(
             """
         (def unique-kdghii
@@ -1698,7 +1682,7 @@ class TestFunctionDef:
         awaiter = awaiter_var.value
         assert kw.keyword("await-result") == async_to_sync(awaiter)
 
-    def test_async_multi_arity(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_async_multi_arity(self, lcompile: CompileFn):
         awaiter_var: runtime.Var = lcompile(
             """
         (def unique-wywbddd
@@ -1720,19 +1704,19 @@ class TestFunctionDef:
             kw.keyword("await-result-0"), kw.keyword("await-result-1")
         ) == async_to_sync(awaiter)
 
-    def test_fn_with_meta_must_be_map(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_fn_with_meta_must_be_map(self, lcompile: CompileFn):
         f = lcompile("^:meta-kw (fn* [] :super-unique-kw)")
         with pytest.raises(TypeError):
             f.with_meta(None)
 
-    def test_single_arity_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_single_arity_meta(self, lcompile: CompileFn):
         f = lcompile("^:meta-kw (fn* [] :super-unique-kw)")
         assert hasattr(f, "meta")
         assert hasattr(f, "with_meta")
         assert lmap.map({kw.keyword("meta-kw"): True}) == f.meta
         assert kw.keyword("super-unique-kw") == f()
 
-    def test_single_arity_with_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_single_arity_with_meta(self, lcompile: CompileFn):
         f = lcompile(
             """
         (with-meta
@@ -1748,7 +1732,7 @@ class TestFunctionDef:
         )
         assert kw.keyword("super-unique-kw") == f()
 
-    def test_multi_arity_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_multi_arity_meta(self, lcompile: CompileFn):
         f = lcompile(
             """
         ^:meta-kw (fn* ([] :arity-0-kw) ([a] [a :arity-1-kw]))
@@ -1762,7 +1746,7 @@ class TestFunctionDef:
             kw.keyword("jabberwocky")
         )
 
-    def test_multi_arity_with_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_multi_arity_with_meta(self, lcompile: CompileFn):
         f = lcompile(
             """
         (with-meta
@@ -1781,7 +1765,7 @@ class TestFunctionDef:
             kw.keyword("jabberwocky")
         )
 
-    def test_async_with_meta(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_async_with_meta(self, lcompile: CompileFn):
         f = lcompile(
             """
         (with-meta
@@ -1889,7 +1873,7 @@ class TestIf:
         with pytest.raises(compiler.CompilerException):
             lcompile("(if true :true :false :other)")
 
-    def test_if(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_if(self, lcompile: CompileFn):
         assert lcompile("(if true :a :b)") == kw.keyword("a")
         assert lcompile("(if false :a :b)") == kw.keyword("b")
         assert lcompile("(if nil :a :b)") == kw.keyword("b")
@@ -3166,9 +3150,7 @@ class TestSymbolResolution:
         finally:
             runtime.Namespace.remove(other_ns_name)
 
-    def test_fully_namespaced_sym_resolves(
-        self, lcompile: CompileFn, ns: runtime.Namespace
-    ):
+    def test_fully_namespaced_sym_resolves(self, lcompile: CompileFn):
         """Ensure that references to Vars in other Namespaces by a fully Namespace
         qualified symbol always resolve, regardless of whether the Namespace has
         been aliased within the current Namespace."""
