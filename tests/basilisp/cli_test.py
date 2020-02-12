@@ -1,5 +1,8 @@
+import os
 import platform
 import re
+import subprocess
+import tempfile
 from unittest.mock import patch
 
 import pytest
@@ -76,6 +79,41 @@ class TestRun:
         runner = CliRunner()
         result = runner.invoke(cli, ["run", "-"], input="(+ 1 2)")
         assert "3\n" == result.stdout
+
+
+class TestRunSubprocess:
+    @pytest.fixture
+    def run(self):
+        def _run(*args, **kwargs):
+            return subprocess.run(
+                ["basilisp", "run", *args],
+                check=True,
+                encoding="utf-8",
+                env={"BASILISP_DO_NOT_CACHE_NAMESPACES": "true"},
+                stdout=subprocess.PIPE,
+                **kwargs,
+            ).stdout
+
+        return _run
+
+    @pytest.fixture
+    def temp_file(self):
+        _, filename = tempfile.mkstemp(".lpy", "test")
+        try:
+            yield filename
+        finally:
+            os.unlink(filename)
+
+    def test_run_code(self, run):
+        assert "3\n" == run("-c", "(+ 1 2)")
+
+    def test_run_file(self, run, temp_file: str):
+        with open(temp_file, mode="w") as f:
+            f.write("(+ 1 2)")
+        assert "3\n" == run(temp_file)
+
+    def test_run_stdin(self, run):
+        assert "3\n" == run("-", input="(+ 1 2)")
 
 
 def test_version():
