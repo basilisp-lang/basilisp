@@ -12,6 +12,13 @@
   "EOF marker if none is supplied."
   (python/object))
 
+(def ^:private special-chars
+  "A mapping of special character names to the characters they represent."
+  {"newline" "\n"
+   "space"   " "
+   "tab"     "\t"
+   "return"  "\r"})
+
 (def ^:private str-escape-chars
   ""
   {"\"" "\""
@@ -274,10 +281,43 @@
         (recur (conj s c))))))
 
 (defmethod read-next :char
-  [reader opts]
+  [reader _]
   (assert-starts reader "\\")
-  ;; TODO: this
-  nil)
+  (let [char-name (loop [s []]
+                    (let [c (.peek reader)]
+                      (if (or (= "" c)
+                              (.match basilisp.lang.reader/whitespace-chars c)
+                              (not (.match basilisp.lang.reader/alphanumeric-chars c)))
+                        (str/join s)
+                        (do
+                          (.advance reader)
+                          (recur (conj s c))))))]
+    (if-let [special-char (get special-chars char-name)]
+      special-char
+      (if-let [match (.match basilisp.lang.reader/unicode-char char-name)]
+        (do
+          (println (.group match 1))
+          (try
+            (as-> (.group match 1) $
+              (str "0x" $)
+              (python/int $ 16)
+              (python/chr $))
+            (catch python/ValueError _
+              (throw
+               (ex-info "Unsupported character"
+                        {:char  char-name
+                         :error :unsupported-char})))
+            (catch python/OverflowError _
+              (throw
+               (ex-info "Unsupported character"
+                        {:char  char-name
+                         :error :unsupported-char})))))
+        (if (not= 1 (count char-name))
+          (throw
+           (ex-info "Unsupported character"
+                    {:char  char-name
+                     :error :unsupported-char}))
+          char-name)))))
 
 (defmethod read-next :dispatch
   [reader opts]
@@ -320,9 +360,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;
 
 (defn read
-  "Read the next object from the input stream.
-
-  If no stream is given, `*in*` is used."
+  "Read the next object from the input stream. If no stream is given, `*in*`
+  is used."
   ([]
    (read *in*))
   ([stream]
@@ -333,6 +372,8 @@
        (read-edn opts))))
 
 (defn read-string
+  "Read the next object from the input string. If nil or the empty string,
+  returns nil."
   ([s]
    (read-string s {}))
   ([s opts]

@@ -1,0 +1,28 @@
+(ns basilisp.test-edn
+  (:require
+   [basilisp.edn :as edn]
+   [basilisp.test :refer [deftest are is testing]]))
+
+(deftest read-string
+  (testing "base cases"
+    (are [s v] (= v (edn/read-string s))
+      nil nil
+      ""  nil))
+
+  (testing "characters"
+    (are [s v] (= v (edn/read-string s))
+      "a" "a"
+      "Ω" "Ω"
+
+      "\\u03A9" "Ω"
+
+      "\\space"   " "
+      "\\newline" "\n"
+      "\\tab"     "\t"
+      "\\return"  "\r")
+
+    (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                      (edn/read-string s))
+      "\\u03A9zzz"
+      "\\uFFFFFFFF"
+      "\\blah")))
