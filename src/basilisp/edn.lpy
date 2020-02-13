@@ -1,4 +1,5 @@
 (ns basilisp.edn
+  (:refer-basilisp :exclude [read read-string])
   (:require [basilisp.string :as str]))
 
 (declare ^:private read-next)
