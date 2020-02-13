@@ -600,27 +600,8 @@ class Namespace(ReferenceBase):
         return cls._NAMESPACES.deref()
 
     @staticmethod
-    def __create(
-        ns_cache: NamespaceMap, name: sym.Symbol, module: types.ModuleType = None,
-    ) -> lmap.Map:
-        """Private swap function used by `create` to atomically create a new
-        Namespace and swap the new namespace map into the global cache."""
-        ns = ns_cache.val_at(name, None)
-        if ns is not None:
-            raise RuntimeException(f"Cannot create existing namespace {name}")
-        new_ns = Namespace(name, module=module)
-        return ns_cache.assoc(name, new_ns)
-
-    @classmethod
-    def create(cls, name: sym.Symbol, module: types.ModuleType = None) -> "Namespace":
-        """Create the namespace bound to the symbol `name` in the global namespace
-        cache, throwing an exception if it already exists.
-        Return the namespace."""
-        return cls._NAMESPACES.swap(Namespace.__create, name, module=module)[name]
-
-    @staticmethod
     def __get_or_create(
-        ns_cache: NamespaceMap, name: sym.Symbol, module: types.ModuleType = None,
+        ns_cache: NamespaceMap, name: sym.Symbol, module: BasilispModule = None,
     ) -> lmap.Map:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
@@ -1400,7 +1381,7 @@ def _basilisp_fn(f):
 def init_ns_var(which_ns: str = CORE_NS, ns_var_name: str = NS_VAR_NAME) -> Var:
     """Initialize the dynamic `*ns*` variable in the Namespace `which_ns`."""
     core_sym = sym.Symbol(which_ns)
-    core_ns = Namespace.create(core_sym)
+    core_ns = Namespace.get_or_create(core_sym)
     ns_var = Var.intern(core_sym, sym.Symbol(ns_var_name), core_ns, dynamic=True)
     logger.debug(f"Created namespace variable {sym.symbol(ns_var_name, ns=which_ns)}")
     return ns_var
