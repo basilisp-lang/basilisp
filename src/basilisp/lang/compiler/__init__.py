@@ -70,7 +70,7 @@ class CompilerContext:
 
 
 def _emit_ast_string(
-    module: ast.AST, ns: runtime.Namespace
+    ns: runtime.Namespace, module: ast.AST,
 ) -> None:  # pragma: no cover
     """Emit the generated Python AST string either to standard out or to the
     *generated-python* dynamic Var for the current namespace. If the
@@ -124,7 +124,7 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     ast_module = ctx.py_ast_optimizer.visit(ast_module)
     ast.fix_missing_locations(ast_module)
 
-    _emit_ast_string(ast_module, ns)
+    _emit_ast_string(ns, ast_module)
 
     bytecode = compile(ast_module, ctx.filename, "exec")
     if collect_bytecode:
@@ -154,7 +154,7 @@ def _incremental_compile_module(
     module = optimizer.visit(module)
     ast.fix_missing_locations(module)
 
-    _emit_ast_string(module, ns)
+    _emit_ast_string(ns, module)
 
     bytecode = compile(module, source_filename, "exec")
     if collect_bytecode:
