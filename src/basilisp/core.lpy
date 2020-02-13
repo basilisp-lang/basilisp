@@ -3191,11 +3191,10 @@
 (defn eval
   "Evaluate a form (not a string) and return its result."
   [form]
-  (let [ctx    (basilisp.lang.compiler.CompilerContext. "<Eval Input>")
-        module (.-module *ns*)]
+  (let [ctx (basilisp.lang.compiler.CompilerContext. "<Eval Input>")]
     (basilisp.lang.compiler/compile-and-exec-form form
                                                   ctx
-                                                  module)))
+                                                  *ns*)))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Ref Utilities ;;
@@ -3557,9 +3556,8 @@
                            (:import opts)))]
     `(do
        (in-ns (quote ~name))
-       (basilisp.core/refer-basilisp
-        ~@(or (:refer-basilisp opts)
-              (:refer-clojure opts)))
+       (refer-basilisp ~@(or (:refer-basilisp opts)
+                             (:refer-clojure opts)))
        ~requires
        ~@imports)))
 

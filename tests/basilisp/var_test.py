@@ -8,6 +8,7 @@ import basilisp.lang.map as lmap
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.runtime import Namespace, NamespaceMap, RuntimeException, Var, assoc
+from tests.basilisp.helpers import get_or_create_ns
 
 
 @pytest.fixture

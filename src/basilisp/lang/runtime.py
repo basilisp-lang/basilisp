@@ -16,6 +16,7 @@ from typing import (
     Dict,
     FrozenSet,
     Iterable,
+    Iterator,
     List,
     Mapping,
     Optional,
@@ -46,7 +47,7 @@ from basilisp.lang.interfaces import (
     ISeqable,
 )
 from basilisp.lang.reference import ReferenceBase
-from basilisp.lang.typing import LispNumber
+from basilisp.lang.typing import BasilispModule, LispNumber
 from basilisp.lang.util import munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
@@ -121,14 +122,14 @@ CompletionMatcher = Callable[[Tuple[sym.Symbol, Any]], bool]
 CompletionTrimmer = Callable[[Tuple[sym.Symbol, Any]], str]
 
 
-def _new_module(name: str, doc=None) -> types.ModuleType:
+def _new_module(name: str, doc=None) -> BasilispModule:
     """Create a new empty Basilisp Python module.
     Modules are created for each Namespace when it is created."""
-    mod = types.ModuleType(name, doc=doc)
+    mod = BasilispModule(name, doc=doc)
     mod.__loader__ = None
     mod.__package__ = None
     mod.__spec__ = None
-    mod.__basilisp_bootstrapped__ = False  # type: ignore
+    mod.__basilisp_bootstrapped__ = False
     return mod
 
 
@@ -338,7 +339,8 @@ _THREAD_BINDINGS = _ThreadBindings()
 
 
 AliasMap = lmap.Map[sym.Symbol, sym.Symbol]
-ModuleMap = lmap.Map[sym.Symbol, types.ModuleType]
+Module = Union[BasilispModule, types.ModuleType]
+ModuleMap = lmap.Map[sym.Symbol, Module]
 NamespaceMap = lmap.Map[sym.Symbol, "Namespace"]
 VarMap = lmap.Map[sym.Symbol, Var]
 
@@ -416,7 +418,7 @@ class Namespace(ReferenceBase):
         "_import_aliases",
     )
 
-    def __init__(self, name: sym.Symbol, module: types.ModuleType = None) -> None:
+    def __init__(self, name: sym.Symbol, module: BasilispModule = None) -> None:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
@@ -452,11 +454,11 @@ class Namespace(ReferenceBase):
         return self._name.name
 
     @property
-    def module(self) -> types.ModuleType:
+    def module(self) -> BasilispModule:
         return self._module
 
     @module.setter
-    def module(self, m: types.ModuleType):
+    def module(self, m: BasilispModule):
         """Override the Python module for this Namespace.
 
         ***WARNING**
@@ -543,9 +545,7 @@ class Namespace(ReferenceBase):
             return self.refers.val_at(sym, None)
         return v
 
-    def add_import(
-        self, sym: sym.Symbol, module: types.ModuleType, *aliases: sym.Symbol
-    ) -> None:
+    def add_import(self, sym: sym.Symbol, module: Module, *aliases: sym.Symbol) -> None:
         """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
         the aliases will be applied to the """
         self._imports.swap(lambda m: m.assoc(sym, module))
@@ -556,7 +556,7 @@ class Namespace(ReferenceBase):
                 )
             )
 
-    def get_import(self, sym: sym.Symbol) -> Optional[types.ModuleType]:
+    def get_import(self, sym: sym.Symbol) -> Optional[BasilispModule]:
         """Return the module if a moduled named by sym has been imported into
         this Namespace, None otherwise.
 
@@ -632,7 +632,7 @@ class Namespace(ReferenceBase):
 
     @classmethod
     def get_or_create(
-        cls, name: sym.Symbol, module: types.ModuleType = None
+        cls, name: sym.Symbol, module: BasilispModule = None
     ) -> "Namespace":
         """Get the namespace bound to the symbol `name` in the global namespace
         cache, creating it if it does not exist.
@@ -1408,7 +1408,7 @@ def init_ns_var(which_ns: str = CORE_NS, ns_var_name: str = NS_VAR_NAME) -> Var:
 
 def set_current_ns(
     ns_name: str,
-    module: types.ModuleType = None,
+    module: BasilispModule = None,
     ns_var_name: str = NS_VAR_NAME,
     ns_var_ns: str = NS_VAR_NS,
 ) -> Var:
@@ -1429,10 +1429,10 @@ def set_current_ns(
 @contextlib.contextmanager
 def ns_bindings(
     ns_name: str,
-    module: types.ModuleType = None,
+    module: BasilispModule = None,
     ns_var_name: str = NS_VAR_NAME,
     ns_var_ns: str = NS_VAR_NS,
-):
+) -> Iterator[Namespace]:
     """Context manager for temporarily changing the value of basilisp.core/*ns*."""
     symbol = sym.Symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
@@ -1509,15 +1509,14 @@ def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
 def add_generated_python(
     generated_python: str,
     var_name: str = _GENERATED_PYTHON_VAR_NAME,
-    which_ns: Optional[str] = None,
+    which_ns: Optional[Namespace] = None,
 ) -> None:
     """Add generated Python code to a dynamic variable in which_ns."""
     if which_ns is None:
-        which_ns = get_current_ns().name
-    ns_sym = sym.Symbol(var_name, ns=which_ns)
-    v = Maybe(Var.find(ns_sym)).or_else(
+        which_ns = get_current_ns()
+    v = Maybe(which_ns.find(sym.symbol(var_name))).or_else(
         lambda: Var.intern(
-            sym.symbol(which_ns),  # type: ignore
+            sym.symbol(which_ns.name),  # type: ignore
             sym.symbol(var_name),
             "",
             dynamic=True,

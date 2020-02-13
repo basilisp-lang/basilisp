@@ -14,7 +14,7 @@ import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
-from basilisp.lang.typing import ReaderForm
+from basilisp.lang.typing import BasilispModule, ReaderForm
 from basilisp.lang.util import demunge
 from basilisp.util import timed
 
@@ -220,7 +220,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
 
     def create_module(self, spec: ModuleSpec):
         logger.debug(f"Creating Basilisp module '{spec.name}''")
-        mod = types.ModuleType(spec.name)
+        mod = BasilispModule(spec.name)
         mod.__file__ = spec.loader_state["filename"]
         mod.__loader__ = spec.loader
         mod.__package__ = spec.parent
@@ -233,7 +233,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         fullname: str,
         loader_state: Mapping[str, str],
         path_stats: Mapping[str, int],
-        module: types.ModuleType,
+        ns: runtime.Namespace,
     ):
         """Load and execute a cached Basilisp module."""
         filename = loader_state["filename"]
@@ -253,7 +253,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 cached_code,
                 compiler.GeneratorContext(filename=filename),
                 compiler.PythonASTOptimizer(),
-                module,
+                ns,
             )
 
     def _exec_module(
@@ -261,7 +261,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         fullname: str,
         loader_state: Mapping[str, str],
         path_stats: Mapping[str, int],
-        module: types.ModuleType,
+        ns: runtime.Namespace,
     ):
         """Load and execute a non-cached Basilisp module."""
         filename = loader_state["filename"]
@@ -291,7 +291,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
                 forms,
                 compiler.CompilerContext(filename=filename),
-                module,
+                ns,
                 collect_bytecode=add_bytecode,
             )
 
@@ -308,6 +308,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         each form in a module may require code compiled from an earlier form, so
         we incrementally compile a Python module by evaluating a single top-level
         form at a time and inserting the resulting AST nodes into the Pyton module."""
+        assert isinstance(module, BasilispModule)
+
         fullname = module.__name__
         cached = self._cache[fullname]
         cached["module"] = module
@@ -326,15 +328,13 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         # Check if a valid, cached version of this Basilisp namespace exists and, if so,
         # load it and bypass the expensive compilation process below.
         if os.getenv(_NO_CACHE_ENVVAR, None) == "true":
-            self._exec_module(fullname, spec.loader_state, path_stats, module)
+            self._exec_module(fullname, spec.loader_state, path_stats, ns)
         else:
             try:
-                self._exec_cached_module(
-                    fullname, spec.loader_state, path_stats, module
-                )
+                self._exec_cached_module(fullname, spec.loader_state, path_stats, ns)
             except (EOFError, ImportError, IOError, OSError) as e:
                 logger.debug(f"Failed to load cached Basilisp module: {e}")
-                self._exec_module(fullname, spec.loader_state, path_stats, module)
+                self._exec_module(fullname, spec.loader_state, path_stats, ns)
 
         # Because we want to (by default) add 'basilisp.core into every namespace by default,
         # we want to make sure we don't try to add 'basilisp.core into itself, causing a

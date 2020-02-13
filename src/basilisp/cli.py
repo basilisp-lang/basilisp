@@ -25,39 +25,41 @@ def cli():
     """Basilisp is a Lisp dialect inspired by Clojure targeting Python 3."""
 
 
-def eval_file(filename: str, ctx: compiler.CompilerContext, module: types.ModuleType):
+def eval_file(filename: str, ctx: compiler.CompilerContext, ns: runtime.Namespace):
     """Evaluate a file with the given name into a Python module AST node."""
     last = None
     for form in reader.read_file(filename, resolver=runtime.resolve_alias):
         assert not isinstance(form, reader.ReaderConditional)
-        last = compiler.compile_and_exec_form(form, ctx, module)
+        last = compiler.compile_and_exec_form(form, ctx, ns)
     return last
 
 
-def eval_stream(stream, ctx: compiler.CompilerContext, module: types.ModuleType):
+def eval_stream(stream, ctx: compiler.CompilerContext, ns: runtime.Namespace):
     """Evaluate the forms in stdin into a Python module AST node."""
     last = None
     for form in reader.read(stream, resolver=runtime.resolve_alias):
         assert not isinstance(form, reader.ReaderConditional)
-        last = compiler.compile_and_exec_form(form, ctx, module)
+        last = compiler.compile_and_exec_form(form, ctx, ns)
     return last
 
 
-def eval_str(s: str, ctx: compiler.CompilerContext, module: types.ModuleType, eof: Any):
+def eval_str(s: str, ctx: compiler.CompilerContext, ns: runtime.Namespace, eof: Any):
     """Evaluate the forms in a string into a Python module AST node."""
     last = eof
     for form in reader.read_str(s, resolver=runtime.resolve_alias, eof=eof):
         assert not isinstance(form, reader.ReaderConditional)
-        last = compiler.compile_and_exec_form(form, ctx, module)
+        last = compiler.compile_and_exec_form(form, ctx, ns)
     return last
 
 
 def bootstrap_repl(which_ns: str) -> types.ModuleType:
     """Bootstrap the REPL with a few useful vars and returned the bootstrapped
     module so it's functions can be used by the REPL command."""
-    repl_ns = runtime.Namespace.create(sym.symbol(REPL_NS))
-    ns = runtime.Namespace.create(sym.symbol(which_ns))
-    ns.refer_all(runtime.Namespace.get(sym.symbol(runtime.CORE_NS)))
+    repl_ns = runtime.Namespace.get_or_create(sym.symbol(REPL_NS))
+    ns = runtime.Namespace.get_or_create(sym.symbol(which_ns))
+    core_ns = runtime.Namespace.get(sym.symbol(runtime.CORE_NS))
+    assert core_ns is not None
+    ns.refer_all(core_ns)
     repl_module = importlib.import_module(REPL_NS)
     ns.add_alias(sym.symbol(REPL_NS), repl_ns)
     ns.refer_all(repl_ns)
@@ -133,7 +135,7 @@ def repl(
             continue
 
         try:
-            result = eval_str(lsrc, ctx, ns.module, eof)
+            result = eval_str(lsrc, ctx, ns, eof)
             if result is eof:  # pragma: no cover
                 continue
             prompter.print(runtime.lrepr(result))
@@ -214,17 +216,18 @@ def run(  # pylint: disable=too-many-arguments
     )
     eof = object()
 
+    core_ns = runtime.Namespace.get(sym.symbol(runtime.CORE_NS))
+    assert core_ns is not None
+
     with runtime.ns_bindings(in_ns) as ns:
+        ns.refer_all(core_ns)
+
         if code:
-            print(runtime.lrepr(eval_str(file_or_code, ctx, ns.module, eof)))
+            print(runtime.lrepr(eval_str(file_or_code, ctx, ns, eof)))
         elif file_or_code == STDIN_FILE_NAME:
-            print(
-                runtime.lrepr(
-                    eval_stream(click.get_text_stream("stdin"), ctx, ns.module)
-                )
-            )
+            print(runtime.lrepr(eval_stream(click.get_text_stream("stdin"), ctx, ns)))
         else:
-            print(runtime.lrepr(eval_file(file_or_code, ctx, ns.module)))
+            print(runtime.lrepr(eval_file(file_or_code, ctx, ns)))
 
 
 @cli.command(short_help="run tests in a Basilisp project")
