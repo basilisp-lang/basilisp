@@ -11,6 +11,7 @@ import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.compiler.constants import SpecialForm
 from basilisp.lang.interfaces import ISeq
+from tests.basilisp.helpers import get_or_create_ns
 
 
 def test_first():
@@ -418,7 +419,7 @@ class TestResolveAlias:
             )
 
             foo_ns_sym = sym.symbol("zux.bar.foo")
-            foo_ns = runtime.Namespace.get_or_create(foo_ns_sym)
+            foo_ns = get_or_create_ns(foo_ns_sym)
             ns.add_alias(sym.symbol("foo"), foo_ns)
             assert sym.symbol(
                 "aliased-var", ns=foo_ns_sym.name

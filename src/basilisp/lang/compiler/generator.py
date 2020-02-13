@@ -188,7 +188,14 @@ class RecurPoint:
 
 
 class GeneratorContext:
-    __slots__ = ("_filename", "_opts", "_recur_points", "_st", "_this")
+    __slots__ = (
+        "_filename",
+        "_opts",
+        "_recur_points",
+        "_st",
+        "_this",
+        "_var_indirection_override",
+    )
 
     def __init__(
         self, filename: Optional[str] = None, opts: Optional[Mapping[str, bool]] = None
@@ -198,6 +205,7 @@ class GeneratorContext:
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>")])
         self._this: Deque[sym.Symbol] = collections.deque([])
+        self._var_indirection_override: Deque[bool] = collections.deque([])
 
         if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             for k, v in self._opts:
@@ -223,6 +231,19 @@ class GeneratorContext:
         return not self.use_var_indirection and self._opts.val_at(
             WARN_ON_VAR_INDIRECTION, True
         )
+
+    @contextlib.contextmanager
+    def with_var_indirection_override(self, has_override: bool = True):
+        self._var_indirection_override.append(has_override)
+        yield
+        self._var_indirection_override.pop()
+
+    @property
+    def has_var_indirection_override(self) -> bool:
+        try:
+            return self._var_indirection_override[-1]
+        except IndexError:
+            return False
 
     @property
     def recur_point(self):
@@ -258,10 +279,6 @@ class GeneratorContext:
 
     def add_import(self, imp: sym.Symbol, mod: runtime.Module, *aliases: sym.Symbol):
         self.current_ns.add_import(imp, mod, *aliases)
-
-    @property
-    def imports(self) -> runtime.ModuleMap:
-        return self.current_ns.imports
 
     @property
     def current_this(self):
@@ -642,7 +659,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         # function name and short-circuiting the default double-declaration.
         if node.init.op == NodeOp.FN:
             assert isinstance(node.init, Fn)
-            def_ast = _fn_to_py_ast(ctx, node.init, def_name=defsym.name)
+            def_ast: Optional[GeneratedPyAST] = _fn_to_py_ast(  # type: ignore[call-arg]
+                ctx, node.init, def_name=defsym.name
+            )
             is_defn = True
         elif (
             node.init.op == NodeOp.WITH_META
@@ -693,6 +712,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     # Python compiler will throw an exception during compilation
     # complaining that we assign the value prior to global declaration.
     if is_defn:
+        assert def_ast is not None, "def_ast must be defined at this point"
         def_dependencies = list(
             chain(
                 [] if node.top_level else [ast.Global(names=[safe_name])],
@@ -711,6 +731,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
             )
         )
     else:
+        assert def_ast is not None, "def_ast must be defined at this point"
         def_dependencies = list(
             chain(
                 def_ast.dependencies,
@@ -999,6 +1020,38 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
         )
 
 
+def _wrap_override_var_indirection(f: PyASTGenerator) -> PyASTGenerator:
+    """
+    Wrap a Node generator to apply a special override requiring Var indirection
+    for any Var accesses generated within top-level `do` blocks.
+
+    This is a bit of a hack to account for the `ns` macro, which is the first
+    form in most standard Namespaces. When Basilisp `require`s a Namespace, it
+    (like in Clojure) simply loads the file and lets that Namespace's `ns` macro
+    create the new Namespace and perform any setup. However, the Basilisp
+    compiler desperately tries to emit "smarter" Python code which avoids using
+    `Var.find` whenever the resolved symbol can be safely called directly from
+    the generated Pythom module. Without this hack, the compiler will emit code
+    during macroexpansion to access `basilisp.core` functions used in the `ns`
+    macro directly, even though they will not be available yet in the target
+    Namespace module.
+    """
+
+    @wraps(f)
+    def _wrapped_do(
+        ctx: GeneratorContext, node: Node, *args, **kwargs
+    ) -> GeneratedPyAST:
+        if isinstance(node, Do) and node.top_level:
+            with ctx.with_var_indirection_override():
+                return f(ctx, node, *args, **kwargs)  # type: ignore[call-arg]
+        else:
+            with ctx.with_var_indirection_override(False):
+                return f(ctx, node, *args, **kwargs)  # type: ignore[call-arg]
+
+    return _wrapped_do
+
+
+@_wrap_override_var_indirection
 @_with_ast_loc_deps
 def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     """Return a Python AST Node for a `do` expression."""
@@ -1400,6 +1453,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     )
 
 
+@_wrap_override_var_indirection
 @_with_ast_loc
 def _fn_to_py_ast(
     ctx: GeneratorContext,
@@ -2106,7 +2160,12 @@ def _var_sym_to_py_ast(
         )
 
     # Check if we should use Var indirection
-    if ctx.use_var_indirection or _is_dynamic(var) or _is_redefable(var):
+    if (
+        ctx.has_var_indirection_override
+        or ctx.use_var_indirection
+        or _is_dynamic(var)
+        or _is_redefable(var)
+    ):
         return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
 
     # Otherwise, try to direct-link it like a Python variable
@@ -2783,13 +2842,13 @@ def gen_py_ast(ctx: GeneratorContext, lisp_ast: Node) -> GeneratedPyAST:
 #############################
 
 
-def _module_imports(ctx: GeneratorContext) -> Iterable[ast.Import]:
+def _module_imports(ns: runtime.Namespace) -> Iterable[ast.Import]:
     """Generate the Python Import AST node for importing all required
     language support modules."""
     # Yield `import basilisp` so code attempting to call fully qualified
     # `basilisp.lang...` modules don't result in compiler errors
     yield ast.Import(names=[ast.alias(name="basilisp", asname=None)])
-    for s in sorted(ctx.imports.keys(), key=lambda s: s.name):
+    for s in sorted(ns.imports.keys(), key=lambda s: s.name):
         name = s.name
         alias = _MODULE_ALIASES.get(name, None)
         yield ast.Import(names=[ast.alias(name=name, asname=alias)])
@@ -2826,10 +2885,10 @@ def _ns_var(
     )
 
 
-def py_module_preamble(ctx: GeneratorContext,) -> GeneratedPyAST:
+def py_module_preamble(ns: runtime.Namespace,) -> GeneratedPyAST:
     """Bootstrap a new module with imports and other boilerplate."""
     preamble: List[ast.AST] = []
-    preamble.extend(_module_imports(ctx))
+    preamble.extend(_module_imports(ns))
     preamble.append(_from_module_import())
     preamble.append(_ns_var())
     return GeneratedPyAST(node=ast.Constant(None), dependencies=preamble)

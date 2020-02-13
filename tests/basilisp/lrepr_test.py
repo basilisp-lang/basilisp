@@ -1,36 +1,63 @@
 import re
 import uuid
 from fractions import Fraction
+from typing import Any, Callable
 
 import dateutil.parser as dateparser
+import pytest
 
 import basilisp.lang.compiler as compiler
 import basilisp.lang.keyword as kw
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
+import basilisp.lang.symbol as sym
+from tests.basilisp.helpers import get_or_create_ns
 
 COMPILER_FILE_PATH = "lrepr_test"
 
 
-def lcompile(s: str):
-    """Compile and execute the code in the input string.
-
-    Return the resulting expression."""
-    ctx = compiler.CompilerContext(COMPILER_FILE_PATH)
-    mod = runtime._new_module(COMPILER_FILE_PATH)
-
-    last = None
-    for form in reader.read_str(s):
-        last = compiler.compile_and_exec_form(form, ctx, mod)
-
-    return last
+@pytest.fixture
+def test_ns() -> str:
+    return "basilisp.lrepr-test"
 
 
-def test_print_dup():
+@pytest.fixture
+def test_ns_sym(test_ns: str) -> sym.Symbol:
+    return sym.symbol(test_ns)
+
+
+CompileFn = Callable[[str], Any]
+
+
+@pytest.fixture
+def lcompile(test_ns: str, test_ns_sym: sym.Symbol) -> CompileFn:
+    get_or_create_ns(test_ns_sym)
+
+    with runtime.ns_bindings(test_ns) as ns:
+
+        def _lcompile(s: str,):
+            """Compile and execute the code in the input string.
+
+            Return the resulting expression."""
+            ctx = compiler.CompilerContext(COMPILER_FILE_PATH)
+
+            last = None
+            for form in reader.read_str(s):
+                last = compiler.compile_and_exec_form(form, ctx, ns)
+
+            return last
+
+        try:
+            yield _lcompile
+        finally:
+            runtime.Namespace.remove(test_ns_sym)
+
+
+def test_print_dup(lcompile: CompileFn):
     assert "1.6M" == lcompile("(binding [*print-dup* true] (pr-str 1.6M))")
 
 
-def test_print_length():
+def test_print_length(lcompile: CompileFn):
     assert "[]" == lcompile("(binding [*print-length* 0] (pr-str []))")
     assert "[]" == lcompile("(binding [*print-length* nil] (pr-str []))")
     assert "[]" == lcompile("(binding [*print-length* 10] (pr-str []))")
@@ -49,7 +76,7 @@ def test_print_length():
     }
 
 
-def test_print_level():
+def test_print_level(lcompile: CompileFn):
     assert "[1 2 3]" == lcompile("(binding [*print-level* 1] (pr-str [1 2 3]))")
     assert "[#]" == lcompile("(binding [*print-level* 1] (pr-str [[1 2 3]]))")
     assert "[#]" == lcompile("(binding [*print-level* 1] (pr-str [[[1 2 3]]]))")
@@ -109,7 +136,7 @@ def test_print_level():
     )
 
 
-def test_print_meta():
+def test_print_meta(lcompile: CompileFn):
     assert "s" == lcompile("(binding [*print-meta* true] (pr-str 's))")
     assert "ns/s" == lcompile("(binding [*print-meta* true] (pr-str 'ns/s))")
     assert "[]" == lcompile("(binding [*print-meta* true] (pr-str []))")
@@ -155,13 +182,13 @@ def test_print_meta():
     )
 
 
-def test_print_readably():
+def test_print_readably(lcompile: CompileFn):
     assert '"Hello\nworld!"' == lcompile(
         '(binding [*print-readably* false] (pr-str "Hello\\nworld!"))'
     )
 
 
-def test_lrepr():
+def test_lrepr(lcompile: CompileFn):
     assert "true" == lcompile("(pr-str true)")
     assert "false" == lcompile("(pr-str false)")
     assert "nil" == lcompile("(pr-str nil)")
@@ -194,7 +221,7 @@ def test_lrepr():
     assert '#py (:a 1 "s")' == lcompile('(pr-str #py (:a 1 "s"))')
 
 
-def test_lrepr_round_trip():
+def test_lrepr_round_trip(lcompile: CompileFn):
     assert True is lcompile("(read-string (pr-str true))")
     assert False is lcompile("(read-string (pr-str false))")
     assert None is lcompile("(read-string (pr-str nil))")
@@ -233,7 +260,7 @@ def test_lrepr_round_trip():
     )
 
 
-def test_lstr():
+def test_lstr(lcompile: CompileFn):
     assert "true" == lcompile("(print-str true)")
     assert "false" == lcompile("(print-str false)")
     assert "nil" == lcompile("(print-str nil)")

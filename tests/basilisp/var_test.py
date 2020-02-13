@@ -8,6 +8,7 @@ import basilisp.lang.map as lmap
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.runtime import Namespace, NamespaceMap, RuntimeException, Var, assoc
+from tests.basilisp.helpers import get_or_create_ns
 
 
 @pytest.fixture
@@ -194,7 +195,7 @@ def test_intern(
     assert intern_val == v.value
     assert intern_val == v.deref()
 
-    ns = Namespace.get_or_create(ns_sym)
+    ns = get_or_create_ns(ns_sym)
     assert None is not ns
     assert ns.find(var_name) == v
 
@@ -213,7 +214,7 @@ def test_intern_unbound(
     assert None is v.value
     assert None is v.deref()
 
-    ns = Namespace.get_or_create(ns_sym)
+    ns = get_or_create_ns(ns_sym)
     assert None is not ns
     assert ns.find(var_name) == v
 
@@ -246,7 +247,7 @@ def test_dynamic_unbound(
 
     assert not v.is_bound
 
-    ns = Namespace.get_or_create(ns_sym)
+    ns = get_or_create_ns(ns_sym)
     assert None is not ns
     assert ns.find(var_name) == v
 

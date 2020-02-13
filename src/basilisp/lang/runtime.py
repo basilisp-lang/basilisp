@@ -16,6 +16,7 @@ from typing import (
     Dict,
     FrozenSet,
     Iterable,
+    Iterator,
     List,
     Mapping,
     Optional,
@@ -600,10 +601,7 @@ class Namespace(ReferenceBase):
 
     @staticmethod
     def __get_or_create(
-        ns_cache: NamespaceMap,
-        name: sym.Symbol,
-        module: BasilispModule = None,
-        core_ns_name=CORE_NS,
+        ns_cache: NamespaceMap, name: sym.Symbol, module: BasilispModule = None,
     ) -> lmap.Map:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
@@ -611,10 +609,6 @@ class Namespace(ReferenceBase):
         if ns is not None:
             return ns_cache
         new_ns = Namespace(name, module=module)
-        if name.name != core_ns_name:
-            core_ns = ns_cache.val_at(sym.symbol(core_ns_name), None)
-            assert core_ns is not None, "Core namespace not loaded yet!"
-            new_ns.refer_all(core_ns)
         return ns_cache.assoc(name, new_ns)
 
     @classmethod
@@ -1419,7 +1413,7 @@ def ns_bindings(
     module: BasilispModule = None,
     ns_var_name: str = NS_VAR_NAME,
     ns_var_ns: str = NS_VAR_NS,
-):
+) -> Iterator[Namespace]:
     """Context manager for temporarily changing the value of basilisp.core/*ns*."""
     symbol = sym.Symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
@@ -1496,15 +1490,14 @@ def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
 def add_generated_python(
     generated_python: str,
     var_name: str = _GENERATED_PYTHON_VAR_NAME,
-    which_ns: Optional[str] = None,
+    which_ns: Optional[Namespace] = None,
 ) -> None:
     """Add generated Python code to a dynamic variable in which_ns."""
     if which_ns is None:
-        which_ns = get_current_ns().name
-    ns_sym = sym.Symbol(var_name, ns=which_ns)
-    v = Maybe(Var.find(ns_sym)).or_else(
+        which_ns = get_current_ns()
+    v = Maybe(which_ns.find(sym.symbol(var_name))).or_else(
         lambda: Var.intern(
-            sym.symbol(which_ns),  # type: ignore
+            sym.symbol(which_ns.name),  # type: ignore
             sym.symbol(var_name),
             "",
             dynamic=True,
@@ -1529,7 +1522,7 @@ def print_generated_python(
     )
 
 
-def bootstrap(ns_var_name: str = NS_VAR_NAME, core_ns_name: str = CORE_NS) -> None:
+def bootstrap_core(ns_var_name: str = NS_VAR_NAME, core_ns_name: str = CORE_NS) -> None:
     """Bootstrap the environment with functions that are are difficult to
     express with the very minimal lisp environment."""
     core_ns_sym = sym.symbol(core_ns_name)
