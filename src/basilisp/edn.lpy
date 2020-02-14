@@ -2,7 +2,8 @@
   (:refer-basilisp :exclude [read read-string])
   (:require [basilisp.string :as str]))
 
-(declare ^:private read-next)
+(declare ^:private read-next
+         ^:private read-sym-or-num)
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; Private Constants ;;
@@ -142,7 +143,6 @@
 
 (defmulti ^:private read-dispatch
   (fn [reader _]
-    (assert-starts reader "#")
     (case (.peek reader)
       "_" :comment
       "{" :set
@@ -160,9 +160,22 @@
   (read-coll reader set "}" "set"))
 
 (defmethod read-dispatch :tag
-  [reader _]
-  ;; TODO: this
-  nil)
+  [reader {readers :readers read-tag-default :default :as opts}]
+  (let [tag (read-sym-or-num reader opts)]
+    (when-not (symbol? tag)
+      (throw
+       (ex-info "Reader tag must be a symbol")))
+    (if-let [tag-reader (get (if (namespace tag)
+                               readers
+                               (dissoc default-data-readers 'py))
+                             tag)]
+      (tag-reader (read-next reader opts))
+      (if default
+        (read-tag-default tag (read-next reader opts))
+        (throw
+         (ex-info (str "No data reader found for tag #" tag)
+                  {:error :no-data-reader-for-tag
+                   :tag   tag}))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Symbol, Number, Boolean, and nil ;;
@@ -401,15 +414,25 @@
 
 (defn read
   "Read the next object from the input stream. If no stream is given, `*in*`
-  is used."
+  is used.
+
+  Several options may be specified in the map argument `opts`:
+
+   :eof     - value to return when an EOF is encountered
+   :readers - a map of tagged data readers to be used for reading data tagged
+              elements; if none is supplied, the `default-data-readers` will
+              be used (without support for the Basilisp `#py` tag)
+   :default - a function of two arguments that will be called with the tag and
+              data element if a tag is not found in `:readers`; default nil"
   ([]
    (read *in*))
   ([stream]
    (read stream {}))
   ([stream opts]
-   (-> stream
-       (basilisp.lang.reader/StreamReader)
-       (read-edn opts))))
+   (let [pushback-depth (:basilisp.edn.reader/pushback-depth opts 5)]
+     (-> stream
+         (basilisp.lang.reader/StreamReader pushback-depth)
+         (read-edn opts)))))
 
 (defn read-string
   "Read the next object from the input string. If nil or the empty string,
