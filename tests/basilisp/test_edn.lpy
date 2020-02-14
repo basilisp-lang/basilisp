@@ -3,26 +3,134 @@
    [basilisp.edn :as edn]
    [basilisp.test :refer [deftest are is testing]]))
 
+(deftest read-base-cases
+  (are [s v] (= v (edn/read-string s))
+    nil  nil
+    ""   nil
+    " "  nil
+    "\t" nil
+    "\n" nil))
+
+(deftest read-symbol
+  (are [s v] (= v (edn/read-string s))
+    "nil"   nil
+    "true"  true
+    "false" false)
+
+  (are [s v] (= v (edn/read-string s))
+    "sym"           'sym
+    "kebab-kw"      'kebab-kw
+    "underscore_kw" 'underscore_kw
+    "kw?"           'kw?
+    "+"             '+
+    "?"             '?
+    "="             '=
+    "!"             '!
+    "-"             '-
+    "*"             '*
+    "/"             '/
+    ">"             '>
+    "->"            '->
+    "->>"           '->>
+    "-->"           '-->
+    "<"             '<
+    "<-"            '<-
+    "<--"           '<--
+    "<body>"        '<body>
+    "*muffs*"       '*muffs*
+    "yay!"          'yay!
+    ".interop"      '.interop
+    "ns.name"       'ns.name
+
+    "ns/sym"                  'ns/sym
+    "qualified.ns/sym"        'qualified.ns/sym
+    "really.qualified.ns/sym" 'really.qualified.ns/sym)
+
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "//"
+    "ns//sym"
+    "some/ns/sym"
+    "ns/sym/"
+    "/sym"
+    ".second.ns/name"
+    "third..ns/name"
+    "ns.second/.interop"))
+
+(deftest read-keyword
+  (are [s v] (= v (edn/read-string s))
+    ":kw"               :kw
+    ":kebab-kw"         :kebab-kw
+    ":underscore_kw"    :underscore_kw
+    ":kw?"              :kw?
+    ":+"                :+
+    ":?"                :?
+    ":="                :=
+    ":!"                :!
+    ":-"                :-
+    ":*"                :*
+    ":/"                :/
+    ":>"                :>
+    ":->"               :->
+    ":->>"              :->>
+    ":-->"              :-->
+    ":--------------->" :--------------->
+    ":<"                :<
+    ":<-"               :<-
+    ":<--"              :<--
+    ":<body>"           :<body>
+    ":*muffs*"          :*muffs*
+    ":yay!"             :yay!
+
+    ":ns/kw"                  :ns/kw
+    ":qualified.ns/kw"        :qualified.ns/kw
+    ":really.qualified.ns/kw" :really.qualified.ns/kw)
+
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "://"
+    ":ns//kw"
+    ":some/ns/kw"
+    ":ns/kw/"
+    ":/kw"
+    ":dotted.kw"))
+
+(deftest read-character
+  (are [s v] (= v (edn/read-string s))
+    "\\a" "a"
+    "\\Ω" "Ω"
+
+    "\\u03A9" "Ω"
+
+    "\\space"   " "
+    "\\newline" "\n"
+    "\\tab"     "\t"
+    "\\return"  "\r")
+
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "\\u03A9zzz"
+    "\\uFFFFFFFF"
+    "\\blah"))
+
 (deftest read-string
-  (testing "base cases"
-    (are [s v] (= v (edn/read-string s))
-      nil nil
-      ""  nil))
+  (are [s v] (= v (edn/read-string s))
+    "\"\\\"\"" "\""
+    "\"\\\\\"" "\\"
+    "\"\\a\""  "\a"
+    "\"\\b\""  "\b"
+    "\"\\f\""  "\f"
+    "\"\\n\""  "\n"
+    "\"\\r\""  "\r"
+    "\"\\t\""  "\t"
+    "\"\\v\""  "\v"
 
-  (testing "characters"
-    (are [s v] (= v (edn/read-string s))
-      "a" "a"
-      "Ω" "Ω"
+    "\"Hello,\\nmy name is\\tChris.\""     "Hello,\nmy name is\tChris."
+    "\"Regular string\""                   "Regular string"
+    "\"String with 'inner string'\""       "String with 'inner string'"
+    "\"String with \\\"inner string\\\"\"" "String with \"inner string\"")
 
-      "\\u03A9" "Ω"
-
-      "\\space"   " "
-      "\\newline" "\n"
-      "\\tab"     "\t"
-      "\\return"  "\r")
-
-    (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
-                      (edn/read-string s))
-      "\\u03A9zzz"
-      "\\uFFFFFFFF"
-      "\\blah")))
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "\"Start of a string"
+    "\"\\q\""))

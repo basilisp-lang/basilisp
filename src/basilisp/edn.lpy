@@ -4,6 +4,10 @@
 
 (declare ^:private read-next)
 
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Private Constants ;;
+;;;;;;;;;;;;;;;;;;;;;;;
+
 (def ^:private comment
   "Generic Python object used as a sentinel value for comments."
   (python/object))
@@ -20,7 +24,8 @@
    "return"  "\r"})
 
 (def ^:private str-escape-chars
-  ""
+  "A mapping of string escape characters to the character that should be
+  produced."
   {"\"" "\""
    "\\" "\\"
    "a"  "\a"
@@ -30,6 +35,24 @@
    "r"  "\r"
    "t"  "\t"
    "v"  "\v"})
+
+(def ^:private alphanumeric-chars
+  basilisp.lang.reader/alphanumeric-chars)
+
+(def ^:private begin-num-chars
+  basilisp.lang.reader/begin-num-chars)
+
+(def ^:private newline-chars
+  basilisp.lang.reader/newline-chars)
+
+(def ^:private ns-name-chars
+  basilisp.lang.reader/ns-name-chars)
+
+(def ^:private unicode-char
+  basilisp.lang.reader/unicode-char)
+
+(def ^:private whitespace-chars
+  basilisp.lang.reader/whitespace-chars)
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utility Functions ;;
@@ -71,7 +94,7 @@
                          :error :unexpected-char}))
               (recur name [] true))))
 
-        (.match basilisp.lang.reader/ns-name-chars c)
+        (re-matches ns-name-chars c)
         (do
           (.next-token reader)
           (recur ns (conj name c) has-ns))
@@ -79,7 +102,9 @@
         :else
         (let [ns-str   (when (seq ns) (str/join ns))
               name-str (str/join name)]
-          (when (and (nil? ns-str) (str/includes? name-str "/"))
+          (when (and (nil? ns-str)
+                     (str/includes? name-str "/")
+                     (not= "/" name-str))
             (throw
              (ex-info "'/' character disallowed in names"
                       {:char  "/"
@@ -98,7 +123,7 @@
          (ex-info (str "Unexpected EOF in " coll-name)
                   {:error :eof}))
 
-        (.match basilisp.lang.reader/whitespace-chars c)
+        (re-matches whitespace-chars c)
         (do
           (.advance reader)
           (recur objs))
@@ -147,13 +172,13 @@
   (fn [reader _]
     (let [c (.peek reader)]
       (cond
-        (.match basilisp.lang.reader/begin-num-chars c)
+        (re-matches begin-num-chars c)
         :numeric
 
-        (.match basilisp.lang.reader/whitespace-chars c)
+        (re-matches whitespace-chars c)
         :whitespace
 
-        (.match basilisp.lang.reader/ns-name-chars c)
+        (re-matches ns-name-chars c)
         :sym-or-singleton
 
         :default
@@ -169,7 +194,7 @@
 
 (defmethod read-sym-or-num :whitespace
   [reader opts]
-  (while (.match basilisp.lang.reader/whitespace-chars (.peek reader))
+  (while (re-matches whitespace-chars (.peek reader))
     (.next-token reader))
   (read-next reader opts))
 
@@ -182,7 +207,22 @@
         "true"  true
         "false" false
         (symbol name))
-      (symbol ns name))))
+      (cond
+        (str/starts-with? name ".")
+        (throw
+         (ex-info "Symbols starting with '.' may not have a namespace"
+                  {:error :dot-in-symbol
+                   :name  name}))
+
+        (some #(zero? (count %)) (str/split ns "."))
+        (throw
+         (ex-info (str "All '.' separated segments of a namespace "
+                       "must contain at least one character.")
+                  {:error :dot-in-symbol
+                   :name  name}))
+
+        :else
+        (symbol ns name)))))
 
 ;;;;;;;;;;;;;
 ;; Readers ;;
@@ -224,7 +264,7 @@
          (ex-info "Unexpected EOF in map"
                   {:error :eof}))
 
-        (.match basilisp.lang.reader/whitespace-chars c)
+        (re-matches whitespace-chars c)
         (do
           (.advance reader)
           (recur objs))
@@ -261,7 +301,8 @@
         (= c "")
         (throw
          (ex-info "Unexpected EOF in string"
-                  {:error :eof}))
+                  {:error  :eof
+                   :string (str/join s)}))
 
         (= c "\\")
         (let [escape-char (.next-token reader)]
@@ -286,19 +327,18 @@
   (let [char-name (loop [s []]
                     (let [c (.peek reader)]
                       (if (or (= "" c)
-                              (.match basilisp.lang.reader/whitespace-chars c)
-                              (not (.match basilisp.lang.reader/alphanumeric-chars c)))
+                              (re-matches whitespace-chars c)
+                              (not (re-matches alphanumeric-chars c)))
                         (str/join s)
                         (do
                           (.advance reader)
                           (recur (conj s c))))))]
     (if-let [special-char (get special-chars char-name)]
       special-char
-      (if-let [match (.match basilisp.lang.reader/unicode-char char-name)]
+      (if-let [[_ uc] (re-matches unicode-char char-name)]
         (do
-          (println (.group match 1))
           (try
-            (as-> (.group match 1) $
+            (as-> uc $
               (str "0x" $)
               (python/int $ 16)
               (python/chr $))
@@ -330,7 +370,7 @@
   (loop []
     (let [c (.peek reader)]
       (cond
-        (.match basilisp.lang.reader/newline-chars c)
+        (re-matches newline-chars c)
         (do
           (.advance reader)
           (read-next reader opts))
