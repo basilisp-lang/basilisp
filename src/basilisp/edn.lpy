@@ -132,7 +132,7 @@
         (= c end-token)
         (do
           (.next-token reader)
-          (f objs))
+          (f (remove #(identical? comment %) objs)))
 
         :else
         (recur (conj objs (read-next reader opts)))))))
@@ -170,7 +170,7 @@
                                (dissoc default-data-readers 'py))
                              tag)]
       (tag-reader (read-next reader opts))
-      (if default
+      (if read-tag-default
         (read-tag-default tag (read-next reader opts))
         (throw
          (ex-info (str "No data reader found for tag #" tag)
@@ -405,8 +405,16 @@
   (read-sym-or-num reader opts))
 
 (defn ^:private read-edn
-  [reader {eof :eof :or {eof eof} :as opts}]
-  (read-next reader opts))
+  [reader opts]
+  (let [raw (read-next reader opts)
+        e   (if (identical? comment raw)
+              (get opts :eof eof)
+              raw)]
+    (if (identical? e eof)
+      (throw
+       (ex-info "Unexpected EOF in stream"
+                {:error :eof}))
+      e)))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Public Interface ;;
@@ -440,5 +448,6 @@
   ([s]
    (read-string s {}))
   ([s opts]
-   (-> (io/StringIO s)
-       (read opts))))
+   (when-not (and (nil? s) (= "" s))
+     (-> (io/StringIO s)
+         (read opts)))))
