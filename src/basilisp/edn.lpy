@@ -49,6 +49,9 @@
 (def ^:private ns-name-chars
   basilisp.lang.reader/ns-name-chars)
 
+(def ^:private num-chars
+  basilisp.lang.reader/num-chars)
+
 (def ^:private unicode-char
   basilisp.lang.reader/unicode-char)
 
@@ -137,6 +140,32 @@
         :else
         (recur (conj objs (read-next reader opts)))))))
 
+(defn ^:private read-sym
+  [reader]
+  (let [[ns name] (read-namespaced reader)]
+    (if (nil? ns)
+      (case name
+        "nil"   nil
+        "true"  true
+        "false" false
+        (symbol name))
+      (cond
+        (str/starts-with? name ".")
+        (throw
+         (ex-info "Symbols starting with '.' may not have a namespace"
+                  {:error :dot-in-symbol
+                   :name  name}))
+
+        (some #(zero? (count %)) (str/split ns "."))
+        (throw
+         (ex-info (str "All '.' separated segments of a namespace "
+                       "must contain at least one character.")
+                  {:error :dot-in-symbol
+                   :name  name}))
+
+        :else
+        (symbol ns name)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Dispatch Readers ;;
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -202,8 +231,44 @@
 
 (defmethod read-sym-or-num :numeric
   [reader _]
-  ;; TODO: this
-  nil)
+  (loop [chars    []
+         is-float false]
+    (let [c (.peek reader)]
+      (cond
+        (= c "-")
+        (let [following-token (.next-token reader)]
+          (if (re-matches begin-num-chars following-token)
+            (do
+              (.pushback reader)
+              (try
+                (doseq [_ chars]
+                  (.pushback reader))
+                (catch python/IndexError _
+                  (throw
+                   (ex-info "Requested to pushback too many characters onto StreamReader"
+                            {:error :exceeded-pushback}))))
+              (read-sym reader))
+            (recur (conj chars c) is-float)))
+
+        (= c ".")
+        (if is-float
+          (throw
+           (ex-info "Found extra '.' in float; expected decimal portion"
+                    {:error :extra-decimal-point-in-float}))
+          (do
+            (.next-token reader)
+            (recur (conj chars c) true)))
+
+        (re-matches num-chars c)
+        (do
+          (.next-token reader)
+          (recur (conj chars c) is-float))
+
+        :else
+        (let [num (str/join chars)]
+          (if is-float
+            (python/float num)
+            (python/int num)))))))
 
 (defmethod read-sym-or-num :whitespace
   [reader opts]
@@ -213,29 +278,7 @@
 
 (defmethod read-sym-or-num :sym-or-singleton
   [reader _]
-  (let [[ns name] (read-namespaced reader)]
-    (if (nil? ns)
-      (case name
-        "nil"   nil
-        "true"  true
-        "false" false
-        (symbol name))
-      (cond
-        (str/starts-with? name ".")
-        (throw
-         (ex-info "Symbols starting with '.' may not have a namespace"
-                  {:error :dot-in-symbol
-                   :name  name}))
-
-        (some #(zero? (count %)) (str/split ns "."))
-        (throw
-         (ex-info (str "All '.' separated segments of a namespace "
-                       "must contain at least one character.")
-                  {:error :dot-in-symbol
-                   :name  name}))
-
-        :else
-        (symbol ns name)))))
+  (read-sym reader))
 
 ;;;;;;;;;;;;;
 ;; Readers ;;
