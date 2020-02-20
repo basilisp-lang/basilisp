@@ -11,6 +11,28 @@
     "\t" nil
     "\n" nil))
 
+(deftest read-numeric
+  (are [s v] (= v (edn/read-string s))
+    "0"        0
+    "1"        1
+    "100"      100
+    "99927273" 99927273
+    "-1"       -1
+    "--1"      1
+    "-538282"  -538282
+
+    "0.0"        0.0
+    "0.09387372" 0.09387372
+    "1.0"        1.0
+    "-1.332"     -1.332
+    "-1.0"       -1.0
+    "-0.332"     -0.332)
+
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "0..11"
+    "0.111.9"))
+
 (deftest read-symbol
   (are [s v] (= v (edn/read-string s))
     "nil"   nil
