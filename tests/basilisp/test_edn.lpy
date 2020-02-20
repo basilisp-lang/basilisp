@@ -9,7 +9,11 @@
     ""   nil
     " "  nil
     "\t" nil
-    "\n" nil))
+    "\n" nil)
+
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "#_[]"))
 
 (deftest read-numeric
   (are [s v] (= v (edn/read-string s))
@@ -156,3 +160,24 @@
                     (edn/read-string s))
     "\"Start of a string"
     "\"\\q\""))
+
+(deftest read-dispatch
+  (are [s v] (= v (edn/read-string s))
+    "#inst \"2018-01-18T03:26:57.296-00:00\""        #inst "2018-01-18T03:26:57.296-00:00"
+    "#uuid \"4ba98ef0-0620-4966-af61-f0f6c2dbf230\"" #uuid "4ba98ef0-0620-4966-af61-f0f6c2dbf230")
+
+  (is (= [:a :b :c] (edn/read-string "#my.ns/passthru [:a :b :c]"
+                                     {:readers {'my.ns/passthru identity}})))
+
+  (is (= ['my.ns/passthru [:a :b :c]] (edn/read-string "#my.ns/passthru [:a :b :c]"
+                                                       {:default (fn [tag v] [tag v])})))
+
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "#inst \"not an instant\""
+    "#uuid \"not a uuid\""
+
+    "#nonexistent-builtin-tag []"
+    "#my.ns/nonexistant-tag []"
+
+    "#:kw []"))

@@ -193,7 +193,8 @@
   (let [tag (read-sym-or-num reader opts)]
     (when-not (symbol? tag)
       (throw
-       (ex-info "Reader tag must be a symbol")))
+       (ex-info "Reader tag must be a symbol"
+                {:error :reader-tag-not-symbol})))
     (if-let [tag-reader (get (if (namespace tag)
                                readers
                                (dissoc default-data-readers 'py))
