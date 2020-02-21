@@ -13,6 +13,20 @@
   "Generic Python object used as a sentinel value for comments."
   (python/object))
 
+(def ^:private default-edn-data-readers
+  "Map of default data readers, which wrap the default readers and convert the
+  SyntaxErrors into standard ExceptionInfo types."
+  (reduce-kv (fn [m k tag-reader]
+               (assoc m k (fn [v]
+                            (try
+                              (tag-reader v)
+                              (catch basilisp.lang.reader/SyntaxError e
+                                (throw
+                                 (ex-info (get (.-args e) 0)
+                                          {:error :tag-reader-error})))))))
+             {}
+             (dissoc default-data-readers 'py)))
+
 (def ^:private eof
   "EOF marker if none is supplied."
   (python/object))
@@ -186,7 +200,22 @@
 (defmethod read-dispatch :set
   [reader opts]
   (assert-starts reader "{")
-  (read-coll reader set "}" "set"))
+  (letfn [(set-if-valid [coll]
+            (let [coll-set (set coll)]
+              (if (not= (count coll) (count coll-set))
+                (throw
+                 (ex-info "Duplicate values in set"
+                          {:error :duplicate-value-in-set
+                           :value (->> coll
+                                       (reduce (fn [m k]
+                                                 (if (contains? m k)
+                                                   (update m k inc)
+                                                   (assoc m k 1)))
+                                               {})
+                                       (filter (fn [[k n]] (> n 1)))
+                                       (ffirst))}))
+                coll-set)))]
+    (read-coll reader opts set-if-valid "}" "set")))
 
 (defmethod read-dispatch :tag
   [reader {readers :readers read-tag-default :default :as opts}]
@@ -197,7 +226,7 @@
                 {:error :reader-tag-not-symbol})))
     (if-let [tag-reader (get (if (namespace tag)
                                readers
-                               (dissoc default-data-readers 'py))
+                               default-edn-data-readers)
                              tag)]
       (tag-reader (read-next reader opts))
       (if read-tag-default
@@ -329,15 +358,18 @@
         (= c "}")
         (do
           (.next-token reader)
-          (apply hash-map objs))
+          (try
+            (->> objs
+                 (remove #(or (identical? comment %)
+                              (identical? eof %)))
+                 (apply hash-map))
+            (catch python/IndexError _
+              (throw
+               (ex-info "Map should contain an even number of forms"
+                        {:error :invalid-map-literal})))))
 
         :else
-        (recur (->> #(read-next reader opts)
-                    (repeatedly)
-                    (remove #(or (identical? comment %)
-                                 (identical? eof %)))
-                    (take 2)
-                    (apply conj objs)))))))
+        (recur (conj objs (read-next reader opts)))))))
 
 (defmethod read-next :keyword
   [reader _]

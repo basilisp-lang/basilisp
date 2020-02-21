@@ -13,7 +13,8 @@
 
   (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
                     (edn/read-string s))
-    "#_[]"))
+    "#_[]"
+    ";;comment"))
 
 (deftest read-numeric
   (are [s v] (= v (edn/read-string s))
@@ -180,3 +181,61 @@
     "#my.ns/nonexistant-tag []"
 
     "#:kw []"))
+
+(deftest read-map
+  (are [s v] (= v (edn/read-string s))
+    "{}"                {}
+    "{:a 1}"            {:a 1}
+    "{:a {:b 1}}"       {:a {:b 1}}
+    "{:a #_{:b :c} :d}" {:a :d}
+    "{#_:a :b :c}"      {:b :c})
+
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "{"
+    "{:a"
+    "{:a}"
+    "{:a 1"
+    "{:a 1 :b}"))
+
+(deftest read-list
+  (are [s v] (= v (edn/read-string s))
+    "()"              '()
+    "(:a)"            '(:a)
+    "([:a])"          '([:a])
+    "(:a :b 3 \"4\")" '(:a :b 3 "4")
+    "(:a #_(:b) :c)"  '(:a :c))
+
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "("
+    "(:a"
+    "(:a :b"))
+
+(deftest read-set
+  (are [s v] (= v (edn/read-string s))
+    "#{}"            #{}
+    "#{:a}"          #{:a}
+    "#{:a :b [:c]}"  #{:a :b [:c]}
+    "#{:a #_#{} :b}" #{:a :b})
+
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "#{"
+    "#{:a"
+    "#{:a :a}"
+    "#{:a :b"
+    "#{:a :a :b :b}"))
+
+(deftest read-vector
+  (are [s v] (= v (edn/read-string s))
+    "[]"             []
+    "[:a]"           [:a]
+    "[:a :a :b :c]"  [:a :a :b :c]
+    "[:a #_[:b] :c]" [:a :c])
+
+  (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
+                    (edn/read-string s))
+    "["
+    "[:a"
+    "[:a :b"))
