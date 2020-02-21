@@ -1,0 +1,529 @@
+(ns basilisp.edn
+  (:refer-basilisp :exclude [read read-string])
+  (:require [basilisp.string :as str]))
+
+(declare ^:private read-next
+         ^:private read-sym-or-num)
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Private Constants ;;
+;;;;;;;;;;;;;;;;;;;;;;;
+
+(def ^:private comment
+  "Generic Python object used as a sentinel value for comments."
+  (python/object))
+
+(def ^:private default-edn-data-readers
+  "Map of default data readers, which wrap the default readers and convert the
+  SyntaxErrors into standard ExceptionInfo types."
+  (reduce-kv (fn [m k tag-reader]
+               (assoc m k (fn [v]
+                            (try
+                              (tag-reader v)
+                              (catch basilisp.lang.reader/SyntaxError e
+                                (throw
+                                 (ex-info (get (.-args e) 0)
+                                          {:error :tag-reader-error})))))))
+             {}
+             (dissoc default-data-readers 'py)))
+
+(def ^:private eof
+  "EOF marker if none is supplied."
+  (python/object))
+
+(def ^:private special-chars
+  "A mapping of special character names to the characters they represent."
+  {"newline" "\n"
+   "space"   " "
+   "tab"     "\t"
+   "return"  "\r"})
+
+(def ^:private str-escape-chars
+  "A mapping of string escape characters to the character that should be
+  produced."
+  {"\"" "\""
+   "\\" "\\"
+   "a"  "\a"
+   "b"  "\b"
+   "f"  "\f"
+   "n"  "\n"
+   "r"  "\r"
+   "t"  "\t"
+   "v"  "\v"})
+
+(def ^:private alphanumeric-chars
+  basilisp.lang.reader/alphanumeric-chars)
+
+(def ^:private begin-num-chars
+  basilisp.lang.reader/begin-num-chars)
+
+(def ^:private newline-chars
+  basilisp.lang.reader/newline-chars)
+
+(def ^:private ns-name-chars
+  basilisp.lang.reader/ns-name-chars)
+
+(def ^:private num-chars
+  basilisp.lang.reader/num-chars)
+
+(def ^:private unicode-char
+  basilisp.lang.reader/unicode-char)
+
+(def ^:private whitespace-chars
+  basilisp.lang.reader/whitespace-chars)
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Utility Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmacro ^:private assert-starts
+  "Advance the reader to the next character and assert that the first character
+  matches the expected first character for the reader function."
+  [reader-sym c]
+  `(let* [start# (. ~reader-sym ~'advance)]
+     (assert (= start# ~c))))
+
+(defn ^:private read-namespaced
+  "Read a namespaced token from the reader."
+  [reader]
+  (loop [ns     []
+         name   []
+         has-ns false]
+    (let [c (.peek reader)]
+      (cond
+        (= c "/")
+        (do
+          (.next-token reader)
+          (cond
+            has-ns
+            (throw
+             (ex-info "Found '/'; expected word char"
+                      {:char  c
+                       :error :unexpected-char}))
+
+            (zero? (count name))
+            (recur ns (conj name "/") has-ns)
+
+            :default
+            (if (some #(= "/" %) name)
+              (throw
+               (ex-info "Found '/' after '/'"
+                        {:char  c
+                         :error :unexpected-char}))
+              (recur name [] true))))
+
+        (re-matches ns-name-chars c)
+        (do
+          (.next-token reader)
+          (recur ns (conj name c) has-ns))
+
+        :else
+        (let [ns-str   (when (seq ns) (str/join ns))
+              name-str (str/join name)]
+          (when (and (nil? ns-str)
+                     (str/includes? name-str "/")
+                     (not= "/" name-str))
+            (throw
+             (ex-info "'/' character disallowed in names"
+                      {:char  "/"
+                       :error :unexpected-char})))
+          [ns-str name-str])))))
+
+(defn ^:private read-coll
+  "Read a sequence of objects from the reader and apply the function f to
+  the resulting sequence."
+  [reader opts f end-token coll-name]
+  (loop [objs []]
+    (let [c (.peek reader)]
+      (cond
+        (= c "")
+        (throw
+         (ex-info (str "Unexpected EOF in " coll-name)
+                  {:error :eof}))
+
+        (re-matches whitespace-chars c)
+        (do
+          (.advance reader)
+          (recur objs))
+
+        (= c end-token)
+        (do
+          (.next-token reader)
+          (f (remove #(identical? comment %) objs)))
+
+        :else
+        (recur (conj objs (read-next reader opts)))))))
+
+(defn ^:private read-sym
+  [reader]
+  (let [[ns name] (read-namespaced reader)]
+    (if (nil? ns)
+      (case name
+        "nil"   nil
+        "true"  true
+        "false" false
+        (symbol name))
+      (cond
+        (str/starts-with? name ".")
+        (throw
+         (ex-info "Symbols starting with '.' may not have a namespace"
+                  {:error :dot-in-symbol
+                   :name  name}))
+
+        (some #(zero? (count %)) (str/split ns "."))
+        (throw
+         (ex-info (str "All '.' separated segments of a namespace "
+                       "must contain at least one character.")
+                  {:error :dot-in-symbol
+                   :name  name}))
+
+        :else
+        (symbol ns name)))))
+
+;;;;;;;;;;;;;;;;;;;;;;
+;; Dispatch Readers ;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+(defmulti ^:private read-dispatch
+  (fn [reader _]
+    (case (.peek reader)
+      "_" :comment
+      "{" :set
+      :tag)))
+
+(defmethod read-dispatch :comment
+  [reader opts]
+  (assert-starts reader "_")
+  (read-next reader opts)
+  comment)
+
+(defmethod read-dispatch :set
+  [reader opts]
+  (assert-starts reader "{")
+  (letfn [(set-if-valid [coll]
+            (let [coll-set (set coll)]
+              (if (not= (count coll) (count coll-set))
+                (throw
+                 (ex-info "Duplicate values in set"
+                          {:error :duplicate-value-in-set
+                           :value (->> coll
+                                       (reduce (fn [m k]
+                                                 (if (contains? m k)
+                                                   (update m k inc)
+                                                   (assoc m k 1)))
+                                               {})
+                                       (filter (fn [[k n]] (> n 1)))
+                                       (ffirst))}))
+                coll-set)))]
+    (read-coll reader opts set-if-valid "}" "set")))
+
+(defmethod read-dispatch :tag
+  [reader {readers :readers read-tag-default :default :as opts}]
+  (let [tag (read-sym-or-num reader opts)]
+    (when-not (symbol? tag)
+      (throw
+       (ex-info "Reader tag must be a symbol"
+                {:error :reader-tag-not-symbol})))
+    (if-let [tag-reader (get (if (namespace tag)
+                               readers
+                               default-edn-data-readers)
+                             tag)]
+      (tag-reader (read-next reader opts))
+      (if read-tag-default
+        (read-tag-default tag (read-next reader opts))
+        (throw
+         (ex-info (str "No data reader found for tag #" tag)
+                  {:error :no-data-reader-for-tag
+                   :tag   tag}))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Symbol, Number, Boolean, and nil ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmulti ^:private read-sym-or-num
+  (fn [reader _]
+    (let [c (.peek reader)]
+      (cond
+        (re-matches begin-num-chars c)
+        :numeric
+
+        (re-matches whitespace-chars c)
+        :whitespace
+
+        (re-matches ns-name-chars c)
+        :sym-or-singleton
+
+        :default
+        (throw
+         (ex-info "Unexpected token"
+                  {:char  c
+                   :error :unexpected-char}))))))
+
+(defmethod read-sym-or-num :numeric
+  [reader _]
+  (loop [chars    []
+         is-float false]
+    (let [c (.peek reader)]
+      (cond
+        (= c "-")
+        (let [following-token (.next-token reader)]
+          (if-not (re-matches begin-num-chars following-token)
+            (do
+              (.pushback reader)
+              (try
+                (doseq [_ chars]
+                  (.pushback reader))
+                (catch python/IndexError _
+                  (throw
+                   (ex-info "Requested to pushback too many characters onto StreamReader"
+                            {:error :exceeded-pushback}))))
+              (read-sym reader))
+            (recur (conj chars c) is-float)))
+
+        (= c ".")
+        (if is-float
+          (throw
+           (ex-info "Found extra '.' in float; expected decimal portion"
+                    {:error :extra-decimal-point-in-float}))
+          (do
+            (.next-token reader)
+            (recur (conj chars c) true)))
+
+        (re-matches num-chars c)
+        (do
+          (.next-token reader)
+          (recur (conj chars c) is-float))
+
+        :else
+        (let [num (str/join chars)]
+          (if is-float
+            (python/float num)
+            (python/int num)))))))
+
+(defmethod read-sym-or-num :whitespace
+  [reader opts]
+  (while (re-matches whitespace-chars (.peek reader))
+    (.next-token reader))
+  (read-next reader opts))
+
+(defmethod read-sym-or-num :sym-or-singleton
+  [reader _]
+  (read-sym reader))
+
+;;;;;;;;;;;;;
+;; Readers ;;
+;;;;;;;;;;;;;
+
+(defmulti ^:private read-next
+  (fn [reader _]
+    (let [c (.peek reader)]
+      (case c
+        "("  :list
+        "["  :vector
+        "{"  :map
+        ":"  :keyword
+        "\"" :string
+        "\\" :char
+        "#"  :dispatch
+        ";"  :comment
+        ""   :eof
+        :sym-or-num))))
+
+(defmethod read-next :list
+  [reader opts]
+  (assert-starts reader "(")
+  (read-coll reader opts #(apply list %) ")" "list"))
+
+(defmethod read-next :vector
+  [reader opts]
+  (assert-starts reader "[")
+  (read-coll reader opts vec "]" "vector"))
+
+(defmethod read-next :map
+  [reader opts]
+  (assert-starts reader "{")
+  (loop [objs []]
+    (let [c (.peek reader)]
+      (cond
+        (= c "")
+        (throw
+         (ex-info "Unexpected EOF in map"
+                  {:error :eof}))
+
+        (re-matches whitespace-chars c)
+        (do
+          (.advance reader)
+          (recur objs))
+
+        (= c "}")
+        (do
+          (.next-token reader)
+          (try
+            (->> objs
+                 (remove #(or (identical? comment %)
+                              (identical? eof %)))
+                 (apply hash-map))
+            (catch python/IndexError _
+              (throw
+               (ex-info "Map should contain an even number of forms"
+                        {:error :invalid-map-literal})))))
+
+        :else
+        (recur (conj objs (read-next reader opts)))))))
+
+(defmethod read-next :keyword
+  [reader _]
+  (assert-starts reader ":")
+  (let [[ns name] (read-namespaced reader)]
+    (when (str/includes? name ".")
+      (throw
+       (ex-info "Found '.' in keyword name"
+                {:error :unexpected-char})))
+    (keyword ns name)))
+
+(defmethod read-next :string
+  [reader _]
+  (assert (= (.peek reader) "\""))  ;; can use assert since peek does not modify reader
+  (loop [s []]
+    (let [c (.next-token reader)]
+      (cond
+        (= c "")
+        (throw
+         (ex-info "Unexpected EOF in string"
+                  {:error  :eof
+                   :string (str/join s)}))
+
+        (= c "\\")
+        (let [escape-char (.next-token reader)]
+          (if-let [replacement (get str-escape-chars escape-char)]
+            (recur (conj s replacement))
+            (throw
+             (ex-info "Invalid escape sequence in string"
+                      {:escape-sequence (str "\\" escape-char)
+                       :error           :invalid-escape-sequence}))))
+
+        (= c "\"")
+        (do
+          (.next-token reader)
+          (str/join s))
+
+        :default
+        (recur (conj s c))))))
+
+(defmethod read-next :char
+  [reader _]
+  (assert-starts reader "\\")
+  (let [char-name (loop [s []]
+                    (let [c (.peek reader)]
+                      (if (or (= "" c)
+                              (re-matches whitespace-chars c)
+                              (not (re-matches alphanumeric-chars c)))
+                        (str/join s)
+                        (do
+                          (.advance reader)
+                          (recur (conj s c))))))]
+    (if-let [special-char (get special-chars char-name)]
+      special-char
+      (if-let [[_ uc] (re-matches unicode-char char-name)]
+        (do
+          (try
+            (as-> uc $
+              (str "0x" $)
+              (python/int $ 16)
+              (python/chr $))
+            (catch python/ValueError _
+              (throw
+               (ex-info "Unsupported character"
+                        {:char  char-name
+                         :error :unsupported-char})))
+            (catch python/OverflowError _
+              (throw
+               (ex-info "Unsupported character"
+                        {:char  char-name
+                         :error :unsupported-char})))))
+        (if (not= 1 (count char-name))
+          (throw
+           (ex-info "Unsupported character"
+                    {:char  char-name
+                     :error :unsupported-char}))
+          char-name)))))
+
+(defmethod read-next :dispatch
+  [reader opts]
+  (assert-starts reader "#")
+  (read-dispatch reader opts))
+
+(defmethod read-next :comment
+  [reader opts]
+  (assert-starts reader ";")
+  (loop []
+    (let [c (.peek reader)]
+      (cond
+        (re-matches newline-chars c)
+        (do
+          (.advance reader)
+          (read-next reader opts))
+
+        (= c "")
+        eof
+
+        :default
+        (do
+          (.advance reader)
+          (recur))))))
+
+(defmethod read-next :eof
+  [_ {eof :eof}]
+  eof)
+
+(defmethod read-next :sym-or-num
+  [reader opts]
+  (read-sym-or-num reader opts))
+
+(defn ^:private read-edn
+  [reader opts]
+  (let [raw (read-next reader opts)
+        e   (if (identical? comment raw)
+              (get opts :eof eof)
+              raw)]
+    (if (identical? e eof)
+      (throw
+       (ex-info "Unexpected EOF in stream"
+                {:error :eof}))
+      e)))
+
+;;;;;;;;;;;;;;;;;;;;;;
+;; Public Interface ;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+(defn read
+  "Read the next object from the input stream. If no stream is given, `*in*`
+  is used.
+
+  Several options may be specified in the map argument `opts`:
+
+   :eof     - value to return when an EOF is encountered
+   :readers - a map of tagged data readers to be used for reading data tagged
+              elements; if none is supplied, the `default-data-readers` will
+              be used (without support for the Basilisp `#py` tag)
+   :default - a function of two arguments that will be called with the tag and
+              data element if a tag is not found in `:readers`; default nil"
+  ([]
+   (read *in*))
+  ([stream]
+   (read stream {}))
+  ([stream opts]
+   (let [pushback-depth (:basilisp.edn.reader/pushback-depth opts 5)]
+     (-> stream
+         (basilisp.lang.reader/StreamReader pushback-depth)
+         (read-edn opts)))))
+
+(defn read-string
+  "Read the next object from the input string. If nil or the empty string,
+  returns nil."
+  ([s]
+   (read-string s {}))
+  ([s opts]
+   (when-not (and (nil? s) (= "" s))
+     (-> (io/StringIO s)
+         (read opts)))))
