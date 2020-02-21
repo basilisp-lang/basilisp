@@ -238,7 +238,7 @@
       (cond
         (= c "-")
         (let [following-token (.next-token reader)]
-          (if (re-matches begin-num-chars following-token)
+          (if-not (re-matches begin-num-chars following-token)
             (do
               (.pushback reader)
               (try
