@@ -2442,6 +2442,10 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
             ns = which_ns.import_aliases[ns_sym]
             assert ns is not None
             ns_name = ns.name
+        elif ns_sym in which_ns.aliases:
+            ns = which_ns.aliases[ns_sym]
+            assert ns is not None
+            ns_name = ns.name
         else:
             ns_name = ns_sym.name
 

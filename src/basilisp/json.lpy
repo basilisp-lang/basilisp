@@ -1,0 +1,81 @@
+(ns basilisp.json
+  (:import json))
+
+;;;;;;;;;;;;;;
+;; Encoders ;;
+;;;;;;;;;;;;;;
+
+(declare ^:private encode-json)
+
+(defn ^:private encode-kw-or-sym
+  [o]
+  (if-let [ns-str (namespace o)]
+    (str ns-str "/" (name o))
+    (name o)))
+
+(defn ^:private encode-map-key
+  [k]
+  (if (keyword? k)
+    (name k)
+    (str k)))
+
+(defn ^:private encode-map
+  [o {:keys [key-fn value-fn] :as opts}]
+  (let [encode-value (or value-fn
+                         (fn [_ v]
+                           (encode-json v opts)))]
+    (->> o
+         (map (fn [[k v]]
+                [(key-fn k) (encode-value k v)]))
+         (python/dict))))
+
+(defn ^:private encode-seq
+  [o opts]
+  (->> o
+       (map #(encode-json % opts))
+       (python/list)))
+
+(defmulti ^:private encode-json
+  (fn [o _]
+    (println (type o))
+    (type o)))
+
+(defmethod encode-json basilisp.lang.list/List
+  [o opts]
+  (encode-seq o opts))
+
+(defmethod encode-json basilisp.lang.map/Map
+  [o opts]
+  (encode-map o opts))
+
+(defmethod encode-json basilisp.lang.set/Set
+  [o opts]
+  (encode-seq o opts))
+
+(defmethod encode-json basilisp.lang.vector/Vector
+  [o opts]
+  (encode-seq o opts))
+
+(defmethod encode-json basilisp.lang.keyword/Keyword
+  [o _]
+  (encode-kw-or-sym o))
+
+(defmethod encode-json basilisp.lang.symbol/Symbol
+  [o _]
+  (encode-kw-or-sym o))
+
+(defmethod encode-json :default
+  [o opts]
+  (cond
+    (map? o)     (encode-map o opts)
+    (seq o)      (encode-seq o opts)
+    (symbol? o)  (encode-kw-or-sym o)
+    (keyword? o) (encode-kw-or-sym o)
+    :else        (throw
+                  (python/TypeError "Object is not JSON serializable"))))
+
+(defn write-str
+  [o & {:keys [key-fn value-fn]}]
+  (apply-kw json/dumps o {:default (fn [o]
+                                     (encode-json o {:key-fn   (or key-fn encode-map-key)
+                                                     :value-fn value-fn}))}))
