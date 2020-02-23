@@ -3116,6 +3116,20 @@ class TestSymbolResolution:
         with pytest.raises(compiler.CompilerException):
             lcompile("basilisp.lang.map.MapEntry.of")
 
+    def test_aliased_namespace_not_hidden_by_python_module(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        import fileinput
+
+        sentinel = object()
+        fileinput_ns = get_or_create_ns(sym.symbol("basilisp.fileinput"))
+        fileinput_ns.add_import(
+            sym.symbol("fileinput"), fileinput, sym.symbol("fileinput")
+        )
+        Var.intern(sym.symbol("basilisp.fileinput"), sym.symbol("some-sym"), sentinel)
+        ns.add_alias(sym.symbol("fileinput"), fileinput_ns)
+        assert sentinel is lcompile("fileinput/some-sym")
+
     def test_aliased_var_does_not_resolve(
         self, lcompile: CompileFn, ns: runtime.Namespace
     ):
