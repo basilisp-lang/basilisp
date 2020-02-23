@@ -1584,14 +1584,18 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
 
         try:
             module = importlib.import_module(safe_name)
-            if alias.alias is not None:
-                ctx.add_import(sym.symbol(alias.name), module, sym.symbol(alias.alias))
-            else:
-                ctx.add_import(sym.symbol(alias.name), module)
         except ModuleNotFoundError as e:
             raise ImportError(
                 f"Python module '{alias.name}' not found", node.form, node
             ) from e
+        else:
+            if not ctx.has_var_indirection_override:
+                if alias.alias is not None:
+                    ctx.add_import(
+                        sym.symbol(alias.name), module, sym.symbol(alias.alias)
+                    )
+                else:
+                    ctx.add_import(sym.symbol(alias.name), module)
 
         py_import_alias = (
             munge(alias.alias)
