@@ -3499,7 +3499,8 @@
   - :as name, which will alias the imported namespace to the symbol name
   - :refer [& syms], which will refer syms in the local namespace directly"
   [& args]
-  (let [current-ns *ns*
+  (let [current-ns     *ns*
+        current-ns-sym (symbol (name current-ns))
 
         do-require (fn [requires]
                      (when (seq requires)
@@ -3507,12 +3508,12 @@
                          (cond
                            (vector? v) (require-vec current-ns v)
                            (symbol? v) (require-sym v)
-                           :else             (throw
-                                              (ex-info "Invalid libspec for require"
-                                                       {:value v}))))
+                           :else       (throw
+                                        (ex-info "Invalid libspec for require"
+                                                 {:value v})))
+                         (in-ns current-ns-sym))
                        (recur (rest requires))))]
     (do-require args)
-    (set! *ns* current-ns)
     nil))
 
 (defmacro ns

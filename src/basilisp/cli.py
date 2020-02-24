@@ -119,6 +119,7 @@ def repl(
         },
     )
     ns_var = runtime.set_current_ns(default_ns)
+    runtime.set_current_compiler_ns(default_ns)
     prompter = get_prompter()
     eof = object()
     while True:

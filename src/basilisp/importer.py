@@ -219,7 +219,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         return spec.loader_state.filename
 
     def create_module(self, spec: ModuleSpec):
-        logger.debug(f"Creating Basilisp module '{spec.name}''")
+        logger.debug(f"Creating Basilisp module '{spec.name}'")
         mod = BasilispModule(spec.name)
         mod.__file__ = spec.loader_state["filename"]
         mod.__loader__ = spec.loader

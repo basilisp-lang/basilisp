@@ -379,7 +379,7 @@ def test_trampoline_args():
 
 @pytest.fixture
 def core_ns():
-    ns_var = runtime.init_ns_var(which_ns=runtime.CORE_NS)
+    ns_var = runtime.init_ns_var()
     yield ns_var.value
 
 

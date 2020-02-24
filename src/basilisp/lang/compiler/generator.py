@@ -213,7 +213,7 @@ class GeneratorContext:
 
     @property
     def current_ns(self) -> runtime.Namespace:
-        return runtime.get_current_ns()
+        return runtime.get_current_compiler_ns()
 
     @property
     def filename(self) -> str:
@@ -1588,14 +1588,11 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
             raise ImportError(
                 f"Python module '{alias.name}' not found", node.form, node
             ) from e
+
+        if alias.alias is not None:
+            ctx.add_import(sym.symbol(alias.name), module, sym.symbol(alias.alias))
         else:
-            if not ctx.has_var_indirection_override:
-                if alias.alias is not None:
-                    ctx.add_import(
-                        sym.symbol(alias.name), module, sym.symbol(alias.alias)
-                    )
-                else:
-                    ctx.add_import(sym.symbol(alias.name), module)
+            ctx.add_import(sym.symbol(alias.name), module)
 
         py_import_alias = (
             munge(alias.alias)

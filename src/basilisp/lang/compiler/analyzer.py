@@ -232,7 +232,7 @@ class SymbolTable:
         assert logger.isEnabledFor(
             logging.WARNING
         ), "Only warn when logger is configured for WARNING level"
-        ns = runtime.get_current_ns()
+        ns = runtime.get_current_compiler_ns()
         for _, entry in self._table.items():
             if entry.symbol in _NO_WARN_UNUSED_SYMS:
                 continue
@@ -312,7 +312,7 @@ class AnalyzerContext:
 
     @property
     def current_ns(self) -> runtime.Namespace:
-        return runtime.get_current_ns()
+        return runtime.get_current_compiler_ns()
 
     @property
     def filename(self) -> str:
@@ -393,6 +393,15 @@ class AnalyzerContext:
     @property
     def should_macroexpand(self) -> bool:
         return self._should_macroexpand
+
+    @property
+    def is_func_ctx(self) -> bool:
+        try:
+            self._func_ctx[-1]
+        except IndexError:
+            return False
+        else:
+            return True
 
     @property
     def is_async_ctx(self) -> bool:
@@ -1765,11 +1774,19 @@ def _import_ast(  # pylint: disable=too-many-branches
     )
 
 
+def __is_in_ns_fn(var: Var) -> bool:
+    """Return True if var refers to the Var `basilisp.core/in-ns`."""
+    return var.ns.name == runtime.CORE_NS and var.name == runtime.IN_NS_SYM
+
+
 def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
     with ctx.expr_pos():
         fn = _analyze_form(ctx, form.first)
 
+    is_in_ns = False
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
+        is_in_ns = __is_in_ns_fn(fn.var)
+
         if _is_macro(fn.var):
             if ctx.should_macroexpand:
                 try:
@@ -1802,6 +1819,12 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
 
     with ctx.expr_pos():
         args = vec.vector(map(partial(_analyze_form, ctx), form.rest))
+
+    if not ctx.is_func_ctx and is_in_ns:
+        if len(args) == 1:
+            quote = args[0]
+            if isinstance(quote, Quote) and isinstance(quote.expr.form, sym.Symbol):
+                runtime.set_current_compiler_ns(quote.expr.form.name)
 
     return Invoke(
         form=form, fn=fn, args=args, env=ctx.get_node_env(pos=ctx.syntax_position),
@@ -2122,6 +2145,13 @@ def _recur_ast(ctx: AnalyzerContext, form: ISeq) -> Recur:
     )
 
 
+def __is_ns_var(var: Var) -> bool:
+    """Return True if var refers to the Var `basilisp.core/*ns*`."""
+    return var.ns.name == runtime.CORE_NS and var.name == sym.symbol(
+        runtime.NS_VAR_NAME
+    )
+
+
 def _set_bang_ast(ctx: AnalyzerContext, form: ISeq) -> SetBang:
     assert form.first == SpecialForm.SET_BANG
     nelems = count(form)
@@ -2146,6 +2176,15 @@ def _set_bang_ast(ctx: AnalyzerContext, form: ISeq) -> SetBang:
 
     with ctx.expr_pos():
         val = _analyze_form(ctx, runtime.nth(form, 2))
+
+    if (
+        ctx.is_func_ctx
+        and isinstance(target, VarRef)
+        and __is_ns_var(target.var)
+        and isinstance(val, Quote)
+        and isinstance(val.expr, sym.Symbol)
+    ):
+        runtime.set_current_compiler_ns(val.expr.name)
 
     return SetBang(
         form=form,
