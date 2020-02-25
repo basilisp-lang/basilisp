@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added `letfn` special form (#473)
  * Added `defn-`, `declare`, and `defonce` macros (#480)
  * Added EDN reader in the `basilisp.edn` namespace (#477)
+ * Added line, column, and file information to reader `SyntaxError`s (#488)
 
 ### Changed
  * Change the default user namespace to `basilisp.user` (#466)
