@@ -109,8 +109,10 @@ LispReaderForm = Union[ReaderForm, Comment, "ReaderConditional"]
 RawReaderForm = Union[ReaderForm, "ReaderConditional"]
 
 
-@attr.s(auto_attribs=True, repr=False, slots=True, str=False)
-class SyntaxError(Exception):  # pylint:disable=redefined-builtin
+@attr.s(  # pylint:disable=redefined-builtin
+    auto_attribs=True, repr=False, slots=True, str=False
+)
+class SyntaxError(Exception):
     message: str
     line: Optional[int] = None
     col: Optional[int] = None
