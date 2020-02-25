@@ -1573,7 +1573,7 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
 
 
 @_with_ast_loc_deps
-def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
+def _import_to_py_ast(_: GeneratorContext, node: Import) -> GeneratedPyAST:
     """Return a Python AST node for a Basilisp `import*` expression."""
     assert node.op == NodeOp.IMPORT
 
@@ -1583,11 +1583,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
         safe_name = munge(alias.name)
 
         try:
-            module = importlib.import_module(safe_name)
-            if alias.alias is not None:
-                ctx.add_import(sym.symbol(alias.name), module, sym.symbol(alias.alias))
-            else:
-                ctx.add_import(sym.symbol(alias.name), module)
+            importlib.import_module(safe_name)
         except ModuleNotFoundError as e:
             raise ImportError(
                 f"Python module '{alias.name}' not found", node.form, node
@@ -1610,22 +1606,30 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
         )
         last = ast.Name(id=py_import_alias, ctx=ast.Load())
 
-        # Note that we add this import to the live running system in the above
-        # calls to `ctx.add_import`, however, since we compile and cache Python
-        # bytecode, we need to generate calls to `add_import` for the running
-        # namespace so when this code is reloaded from the cache, the runtime
-        # is correctly configured.
         deps.append(
             ast.Call(
                 func=_load_attr(f"{_NS_VAR_VALUE}.add_import"),
-                args=[
-                    ast.Call(
-                        func=_NEW_SYM_FN_NAME,
-                        args=[ast.Constant(safe_name)],
-                        keywords=[],
-                    ),
-                    last,
-                ],
+                args=list(
+                    chain(
+                        [
+                            ast.Call(
+                                func=_NEW_SYM_FN_NAME,
+                                args=[ast.Constant(safe_name)],
+                                keywords=[],
+                            ),
+                            last,
+                        ],
+                        [
+                            ast.Call(
+                                func=_NEW_SYM_FN_NAME,
+                                args=[ast.Constant(alias.alias)],
+                                keywords=[],
+                            )
+                        ]
+                        if alias.alias is not None
+                        else [],
+                    )
+                ),
                 keywords=[],
             )
         )

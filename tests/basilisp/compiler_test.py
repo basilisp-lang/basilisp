@@ -1,14 +1,18 @@
 import asyncio
 import decimal
 import logging
+import os
 import re
+import sys
 import uuid
 from fractions import Fraction
+from tempfile import TemporaryDirectory
 from typing import Any, Callable, Dict, Optional
 from unittest.mock import Mock
 
 import dateutil.parser as dateparser
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 
 import basilisp.lang.compiler as compiler
 import basilisp.lang.keyword as kw
@@ -3115,6 +3119,39 @@ class TestSymbolResolution:
     def test_nested_bare_sym_will_not_resolve(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("basilisp.lang.map.MapEntry.of")
+
+    def test_aliased_namespace_not_hidden_by_python_module(
+        self, lcompile: CompileFn, monkeypatch: MonkeyPatch
+    ):
+        with TemporaryDirectory() as tmpdir:
+            monkeypatch.chdir(tmpdir)
+            monkeypatch.syspath_prepend(tmpdir)
+            monkeypatch.setattr(
+                "sys.modules", {name: module for name, module in sys.modules.items()}
+            )
+
+            os.makedirs(os.path.join(tmpdir, "project"), exist_ok=True)
+            module_file_path = os.path.join(tmpdir, "project", "fileinput.lpy")
+
+            with open(module_file_path, mode="w") as f:
+                f.write(
+                    """
+                (ns project.fileinput
+                  (:import fileinput))
+
+                (def some-sym :project.fileinput/test-value)
+                """
+                )
+
+            try:
+                assert kw.keyword("test-value", ns="project.fileinput") == lcompile(
+                    """
+                (require '[project.fileinput :as fileinput])
+                fileinput/some-sym
+                """
+                )
+            finally:
+                os.unlink(module_file_path)
 
     def test_aliased_var_does_not_resolve(
         self, lcompile: CompileFn, ns: runtime.Namespace

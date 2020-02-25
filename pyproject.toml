@@ -15,5 +15,8 @@ exclude = '''
   | buck-out
   | build
   | dist
+  | htmlcov
+  | junit
+  | pip-wheel-metadata
 )/
 '''
