@@ -13,6 +13,7 @@ from typing import (
     Callable,
     Collection,
     Deque,
+    Dict,
     Iterable,
     List,
     MutableMapping,
@@ -122,7 +123,7 @@ class SyntaxError(Exception):  # pylint:disable=redefined-builtin
         )
 
     def __str__(self):
-        keys = {}
+        keys: Dict[str, Union[str, int]] = {}
         if self.filename is not None:
             keys["file"] = self.filename
         if self.line is not None and self.col is not None:
