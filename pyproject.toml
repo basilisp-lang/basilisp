@@ -43,5 +43,7 @@ skip = [
   'dist',
   'docs',
   'lispcore.py',
+  'htmlcov',
+  'junit',
   'pip-wheel-metadata',
 ]
