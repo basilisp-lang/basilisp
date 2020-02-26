@@ -19,7 +19,7 @@ docs:
 
 .PHONY: format
 format:
-	@pipenv run black .
+	@pipenv run sh -c 'isort -rc . && black .'
 
 
 lispcore.py:
