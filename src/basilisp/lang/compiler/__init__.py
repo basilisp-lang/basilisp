@@ -8,20 +8,20 @@ from astor import code_gen as codegen
 import basilisp._pyast as ast
 import basilisp.lang.runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
-    AnalyzerContext,
     WARN_ON_SHADOWED_NAME,
     WARN_ON_SHADOWED_VAR,
     WARN_ON_UNUSED_NAMES,
+    AnalyzerContext,
     analyze_form,
     macroexpand,
     macroexpand_1,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
 from basilisp.lang.compiler.generator import (  # noqa
-    GeneratedPyAST,
-    GeneratorContext,
     USE_VAR_INDIRECTION,
     WARN_ON_VAR_INDIRECTION,
+    GeneratedPyAST,
+    GeneratorContext,
     expressionize as _expressionize,
     gen_py_ast,
     py_module_preamble,

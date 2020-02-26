@@ -1,6 +1,5 @@
 import basilisp.lang.map as lmap
 from basilisp.lang.keyword import keyword
-
 from basilisp.lang.symbol import symbol
 
 
