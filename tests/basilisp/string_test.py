@@ -2,10 +2,11 @@ import re
 
 import basilisp.lang.map as lmap
 import basilisp.lang.vector as vec
-import basilisp.string as lstr
 from basilisp.main import init
 
 init()
+
+import basilisp.string as lstr  # isort:skip
 
 
 def test_alpha__Q__():
