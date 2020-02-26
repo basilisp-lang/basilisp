@@ -1,4 +1,4 @@
-from basilisp.lang.util import demunge, _MUNGE_REPLACEMENTS
+from basilisp.lang.util import _MUNGE_REPLACEMENTS, demunge
 
 
 def test_demunge():
