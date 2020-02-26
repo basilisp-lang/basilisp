@@ -13,6 +13,7 @@ sphinx-rtd-theme = "*"
 tox = "*"
 tox-pyenv = "*"
 twine = "*"
+isort = "*"
 
 [packages]
 astor = "*"

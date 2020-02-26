@@ -15,5 +15,35 @@ exclude = '''
   | buck-out
   | build
   | dist
+  | docs
+  | htmlcov
+  | junit
+  | pip-wheel-metadata
 )/
 '''
+
+[tool.isort]
+known_first_party = 'basilisp'
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 88
+combine_as_imports = true
+skip = [
+  '.env',
+  '.hg',
+  '.git',
+  '.mypy_cache',
+  '.pytest_cache',
+  '.tox',
+  '.venv',
+  'buck-out',
+  'build',
+  'dist',
+  'docs',
+  'lispcore.py',
+  'htmlcov',
+  'junit',
+  'pip-wheel-metadata',
+]

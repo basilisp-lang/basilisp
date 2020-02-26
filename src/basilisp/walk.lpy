@@ -60,8 +60,8 @@
   "Recursively walk through form as by postwalk, replacing elements appearing
   as keys in replacements with the corresponding values."
   [replacements form]
-  (postwalk #(if-let [newv (get replacements %)]
-               newv
+  (postwalk #(if (contains? replacements %)
+               (get replacements %)
                %)
             form))
 
@@ -69,8 +69,8 @@
   "Recursively walk through form as by prewalk, replacing elements appearing
   as keys in replacements with the corresponding values."
   [replacements form]
-  (prewalk #(if-let [newv (get replacements %)]
-              newv
+  (prewalk #(if (contains? replacements %)
+              (get replacements %)
               %)
            form))
 

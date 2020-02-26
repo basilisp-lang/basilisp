@@ -467,28 +467,18 @@
          ~@body))))
 
 (defmacro defasync
-  "Define a new asynchronous function with an optional docstring."
+  "Define a new asynchronous function as by `defn`.
+
+  Asynchronous functions are compiled as Python `async def`s."
   [name & body]
-  (let [body   (concat body)
-        doc    (if (string? (first body))
-                 (first body)
-                 nil)
-        body   (if doc
-                 (rest body)
-                 body)
-        fmeta (if (map? (first body))
-                (assoc (first body))
-                nil)
-        body   (if fmeta
-                 (rest body)
-                 body)
-        fmeta (apply assoc fmeta (concat [:async true]
-                                         (if doc
-                                           [:doc doc]
-                                           nil)))]
-    `(defn ~name
-       ~fmeta
-       ~@body)))
+  `(defn ~(vary-meta name assoc :async true)
+     ~@body))
+
+(defmacro defn-
+  "Define a new private function as by `defn`."
+  [name & body]
+  `(defn ~(vary-meta name assoc :private true)
+     ~@body))
 
 (defn macroexpand-1
   "Macroexpand form one time. Returns the macroexpanded form. The return
@@ -2528,6 +2518,23 @@
                                      {:test test-expr}))))
         test-expr))))
 
+(defmacro declare
+  "Declare the given names as Vars with no bindings, as a forward declaration."
+  [& names]
+  `(do
+     ~@(map (fn [nm]
+              `(def ~(vary-meta nm assoc :redef true)))
+            names)))
+
+(defmacro defonce
+  "Define the Var named by `name` with root binding set to `expr` if and only if
+  a `name` is not already defined as a Var in this namespace. `expr` will not be
+  evaluated if the Var already exists."
+  [name expr]
+  `(let [v (def ~name)]
+     (when-not (.-is-bound v)
+       (def ~name ~expr))))
+
 (defmacro for
   "Produce a list comprehension from 1 or more input sequences, subject to
   optional modifiers.
@@ -3184,11 +3191,10 @@
 (defn eval
   "Evaluate a form (not a string) and return its result."
   [form]
-  (let [ctx    (basilisp.lang.compiler.CompilerContext. "<Eval Input>")
-        module (.-module *ns*)]
+  (let [ctx (basilisp.lang.compiler.CompilerContext. "<Eval Input>")]
     (basilisp.lang.compiler/compile-and-exec-form form
                                                   ctx
-                                                  module)))
+                                                  *ns*)))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Ref Utilities ;;
@@ -3520,6 +3526,7 @@
   Example:
     (ns my.namespace
        \"My namespace with code\"
+       (:refer-basilisp :exclude [get])
        (:require
          [basilisp.string :as str])
        (:import inspect))"
@@ -3541,14 +3548,16 @@
                        {}
                        opts))
 
-        requires (when (:require opts)
-                   `(require ~@(map #(list 'quote %) (:require opts))))
-        imports  (when (:import opts)
-                   (map (fn [v]
-                          `(import ~v))
-                        (:import opts)))]
+        requires    (when (:require opts)
+                      `(require ~@(map #(list 'quote %) (:require opts))))
+        imports     (when (:import opts)
+                      (map (fn [v]
+                             `(import ~v))
+                           (:import opts)))]
     `(do
        (in-ns (quote ~name))
+       (refer-basilisp ~@(or (:refer-basilisp opts)
+                             (:refer-clojure opts)))
        ~requires
        ~@imports)))
 
@@ -3982,6 +3991,22 @@
   `(let* [~@(->> (partition 2 bindings)
                  (mapcat destructure))]
      ~@body))
+
+(defmacro letfn
+  "Let form specifically for function definitions.
+
+  Functions are defined as bindings:
+
+    [(plus-two [x] (+ (plus-one x) 1))
+     (plus-one [x] (+ x 1))]
+
+  Functions defined in `letfn` bindings may refer to each other regardless
+  of their order of definition."
+  [bindings & body]
+  `(letfn* [~@(mapcat (fn [fn-body]
+                        [(first fn-body) (cons `fn fn-body)])
+                      bindings)]
+           ~@body))
 
 (defn ^:private loop-with-destructuring
   "Take a loop definition (an binding vector and 0 or more body

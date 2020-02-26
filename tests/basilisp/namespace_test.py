@@ -1,4 +1,3 @@
-from typing import Callable
 from unittest.mock import patch
 
 import pytest
@@ -10,6 +9,7 @@ import basilisp.lang.runtime as runtime
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 from basilisp.lang.runtime import Namespace, NamespaceMap, Var
+from tests.basilisp.helpers import get_or_create_ns
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def ns_sym() -> sym.Symbol:
 
 def test_create_ns(ns_sym: sym.Symbol, ns_cache: atom.Atom[NamespaceMap]):
     assert len(ns_cache.deref().keys()) == 1
-    ns = Namespace.get_or_create(ns_sym)
+    ns = get_or_create_ns(ns_sym)
     assert isinstance(ns, Namespace)
     assert ns.name == ns_sym.name
     assert len(ns_cache.deref().keys()) == 2
@@ -62,7 +62,7 @@ def test_get_existing_ns(
     ns_sym: sym.Symbol, ns_cache_with_existing_ns: atom.Atom[NamespaceMap]
 ):
     assert len(ns_cache_with_existing_ns.deref().keys()) == 2
-    ns = Namespace.get_or_create(ns_sym)
+    ns = get_or_create_ns(ns_sym)
     assert isinstance(ns, Namespace)
     assert ns.name == ns_sym.name
     assert len(ns_cache_with_existing_ns.deref().keys()) == 2
@@ -95,7 +95,7 @@ def test_remove_non_existent_ns(
 def test_alter_ns_meta(
     ns_cache: atom.Atom[NamespaceMap], ns_sym: sym.Symbol,
 ):
-    ns = Namespace.get_or_create(ns_sym)
+    ns = get_or_create_ns(ns_sym)
     assert ns.meta is None
 
     ns.alter_meta(runtime.assoc, "type", sym.symbol("str"))
@@ -108,7 +108,7 @@ def test_alter_ns_meta(
 def test_reset_ns_meta(
     ns_cache: atom.Atom[NamespaceMap], ns_sym: sym.Symbol,
 ):
-    ns = Namespace.get_or_create(ns_sym)
+    ns = get_or_create_ns(ns_sym)
     assert ns.meta is None
 
     ns.reset_meta(lmap.map({"type": sym.symbol("str")}))
@@ -138,7 +138,7 @@ def test_gated_import():
 
 
 def test_imports(ns_cache: atom.Atom[NamespaceMap]):
-    ns = Namespace.get_or_create(sym.symbol("ns1"))
+    ns = get_or_create_ns(sym.symbol("ns1"))
     time = __import__("time")
     ns.add_import(sym.symbol("time"), time, sym.symbol("py-time"), sym.symbol("py-tm"))
     assert time == ns.get_import(sym.symbol("time"))
@@ -148,7 +148,7 @@ def test_imports(ns_cache: atom.Atom[NamespaceMap]):
 
 
 def test_intern_does_not_overwrite(ns_cache: atom.Atom[NamespaceMap]):
-    ns = Namespace.get_or_create(sym.symbol("ns1"))
+    ns = get_or_create_ns(sym.symbol("ns1"))
     var_sym = sym.symbol("useful-value")
 
     var_val1 = "cool string"
@@ -171,7 +171,7 @@ def test_intern_does_not_overwrite(ns_cache: atom.Atom[NamespaceMap]):
 
 
 def test_unmap(ns_cache: atom.Atom[NamespaceMap]):
-    ns = Namespace.get_or_create(sym.symbol("ns1"))
+    ns = get_or_create_ns(sym.symbol("ns1"))
     var_sym = sym.symbol("useful-value")
 
     var_val = "cool string"
@@ -187,80 +187,14 @@ def test_unmap(ns_cache: atom.Atom[NamespaceMap]):
     assert None is ns.find(var_sym)
 
 
-@pytest.fixture
-def core_map() -> sym.Symbol:
-    return sym.symbol("map")
-
-
-@pytest.fixture
-def core_map_fn() -> Callable:
-    return map
-
-
-@pytest.fixture
-def core_private() -> sym.Symbol:
-    return sym.symbol("private-var")
-
-
-@pytest.fixture
-def core_private_val() -> str:
-    return "private-string"
-
-
-@pytest.fixture
-def test_ns() -> str:
-    return "test"
-
-
-@pytest.fixture
-def other_ns(
-    core_map: sym.Symbol,
-    core_map_fn: Callable,
-    core_private: sym.Symbol,
-    core_private_val: str,
-    test_ns: str,
-) -> Namespace:
-    runtime.init_ns_var(which_ns=runtime.CORE_NS)
-    core_ns = Namespace.get_or_create(sym.symbol(runtime.CORE_NS))
-
-    # Add a public Var
-    map_var = Var(core_ns, core_map)
-    map_var.value = core_map_fn
-    core_ns.intern(core_map, map_var)
-
-    # Add a private Var
-    private_var = Var(
-        core_ns, core_private, meta=lmap.map({kw.keyword("private"): True})
-    )
-    private_var.value = core_private_val
-    core_ns.intern(core_private, private_var)
-
-    with runtime.ns_bindings(test_ns) as ns:
-        yield ns
-
-
-def test_refer_core(
-    core_ns_sym: sym.Symbol,
-    other_ns: Namespace,
-    core_map: sym.Symbol,
-    core_private: sym.Symbol,
-):
-    core_ns = Namespace.get_or_create(core_ns_sym)
-
-    assert core_map in core_ns.interns
-    assert core_private in core_ns.interns
-    assert core_map in other_ns.refers
-    assert core_private not in other_ns.refers
-
-
 def test_refer(ns_cache: atom.Atom[NamespaceMap]):
-    ns1 = Namespace.get_or_create(sym.symbol("ns1"))
+    ns1 = get_or_create_ns(sym.symbol("ns1"))
     var_sym, var_val = sym.symbol("useful-value"), "cool string"
     var = Var(ns1, var_sym)
     var.value = var_val
     ns1.intern(var_sym, var)
 
-    ns2 = Namespace.get_or_create(sym.symbol("ns2"))
+    ns2 = get_or_create_ns(sym.symbol("ns2"))
     ns2.add_refer(var_sym, var)
 
     assert var is ns2.get_refer(var_sym)
@@ -268,13 +202,13 @@ def test_refer(ns_cache: atom.Atom[NamespaceMap]):
 
 
 def test_cannot_refer_private(ns_cache: atom.Atom[NamespaceMap]):
-    ns1 = Namespace.get_or_create(sym.symbol("ns1"))
+    ns1 = get_or_create_ns(sym.symbol("ns1"))
     var_sym, var_val = sym.symbol("useful-value"), "cool string"
     var = Var(ns1, var_sym, meta=lmap.map({kw.keyword("private"): True}))
     var.value = var_val
     ns1.intern(var_sym, var)
 
-    ns2 = Namespace.get_or_create(sym.symbol("ns2"))
+    ns2 = get_or_create_ns(sym.symbol("ns2"))
     ns2.add_refer(var_sym, var)
 
     assert None is ns2.get_refer(var_sym)
@@ -282,7 +216,7 @@ def test_cannot_refer_private(ns_cache: atom.Atom[NamespaceMap]):
 
 
 def test_refer_all(ns_cache: atom.Atom[NamespaceMap]):
-    ns1 = Namespace.get_or_create(sym.symbol("ns1"))
+    ns1 = get_or_create_ns(sym.symbol("ns1"))
 
     var_sym1, var_val1 = sym.symbol("useful-value"), "cool string"
     var1 = Var(ns1, var_sym1)
@@ -299,7 +233,7 @@ def test_refer_all(ns_cache: atom.Atom[NamespaceMap]):
     var3.value = var_val3
     ns1.intern(var_sym3, var3)
 
-    ns2 = Namespace.get_or_create(sym.symbol("ns2"))
+    ns2 = get_or_create_ns(sym.symbol("ns2"))
     var_val4 = "some other value"
     var4 = Var(ns2, var_sym3)
     var4.value = var_val4
@@ -319,7 +253,7 @@ def test_refer_all(ns_cache: atom.Atom[NamespaceMap]):
 
 
 def test_refer_does_not_shadow_intern(ns_cache: atom.Atom[NamespaceMap]):
-    ns1 = Namespace.get_or_create(sym.symbol("ns1"))
+    ns1 = get_or_create_ns(sym.symbol("ns1"))
     var_sym = sym.symbol("useful-value")
 
     var_val1 = "cool string"
@@ -327,7 +261,7 @@ def test_refer_does_not_shadow_intern(ns_cache: atom.Atom[NamespaceMap]):
     var1.value = var_val1
     ns1.intern(var_sym, var1)
 
-    ns2 = Namespace.get_or_create(sym.symbol("ns2"))
+    ns2 = get_or_create_ns(sym.symbol("ns2"))
     var_val2 = "lame string"
     var2 = Var(ns1, var_sym)
     var2.value = var_val2
@@ -340,8 +274,8 @@ def test_refer_does_not_shadow_intern(ns_cache: atom.Atom[NamespaceMap]):
 
 
 def test_alias(ns_cache: atom.Atom[NamespaceMap]):
-    ns1 = Namespace.get_or_create(sym.symbol("ns1"))
-    ns2 = Namespace.get_or_create(sym.symbol("ns2"))
+    ns1 = get_or_create_ns(sym.symbol("ns1"))
+    ns2 = get_or_create_ns(sym.symbol("ns2"))
 
     ns1.add_alias(sym.symbol("n2"), ns2)
 

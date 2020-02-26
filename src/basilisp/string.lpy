@@ -59,14 +59,14 @@
   (.upper s))
 
 (defn ends-with?
-  "Return true if s ends with the substring substr."
+  "Return true if s ends with the substring suffix."
   [s suffix]
   (.endswith s suffix))
 
 (defn starts-with?
-  "Return true if s starts with the substring substr."
-  [s suffix]
-  (.startswith s suffix))
+  "Return true if s starts with the substring prefix."
+  [s prefix]
+  (.startswith s prefix))
 
 (defn includes?
   "Returns true if substr is contained in s."

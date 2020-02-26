@@ -38,8 +38,8 @@ class TestREPL:
         runner = CliRunner()
         result = runner.invoke(cli, ["repl"], input="(+ 1 2")
         assert (
-            "basilisp.lang.reader.UnexpectedEOFError: Unexpected EOF in list\nbasilisp.user=> "
-            in result.stdout
+            "basilisp.lang.reader.UnexpectedEOFError: Unexpected EOF in list "
+            "(line: 1, col: 7)\nbasilisp.user=> " in result.stdout
         )
 
     def test_compiler_error(self):
