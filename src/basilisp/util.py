@@ -1,6 +1,6 @@
 import contextlib
 import time
-from typing import Optional, Callable, TypeVar, Generic
+from typing import Callable, Generic, Optional, TypeVar
 
 from functional import seq
 from functional.pipeline import Sequence

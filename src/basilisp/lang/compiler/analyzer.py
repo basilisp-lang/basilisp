@@ -57,7 +57,9 @@ from basilisp.lang.compiler.constants import (
     SYM_DYNAMIC_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
+    SYM_NO_WARN_ON_SHADOW_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
+    SYM_PRIVATE_META_KEY,
     SYM_PROPERTY_META_KEY,
     SYM_STATICMETHOD_META_KEY,
     SpecialForm,
@@ -438,6 +440,13 @@ class AnalyzerContext:
         previously checked case, so this is a simple way of disabling these
         warnings for those cases.
 
+        There are cases where undesired warnings may be triggered non-locally,
+        so the Python keyword arguments cannot be used to suppress unwanted
+        warnings. For these cases, symbols may include the `:no-warn-on-shadow`
+        metadata key to indicate that warnings for shadowing names from outer
+        scopes should be suppressed. It is not currently possible to suppress
+        Var shadowing warnings at the symbol level.
+
         If WARN_ON_SHADOWED_NAME compiler option is active and the
         warn_on_shadowed_name keyword argument is True, then a warning will be
         emitted if a local name is shadowed by another local name. Note that
@@ -447,7 +456,16 @@ class AnalyzerContext:
         warn_on_shadowed_var keyword argument is True, then a warning will be
         emitted if a named var is shadowed by a local name."""
         st = self.symbol_table
-        if warn_on_shadowed_name and self.warn_on_shadowed_name:
+        no_warn_on_shadow = (
+            Maybe(s.meta)
+            .map(lambda m: m.val_at(SYM_NO_WARN_ON_SHADOW_META_KEY, False))
+            .or_else_get(False)
+        )
+        if (
+            not no_warn_on_shadow
+            and warn_on_shadowed_name
+            and self.warn_on_shadowed_name
+        ):
             if st.find_symbol(s) is not None:
                 logger.warning(f"name '{s}' shadows name from outer scope")
         if (
@@ -1840,6 +1858,126 @@ def _let_ast(ctx: AnalyzerContext, form: ISeq) -> Let:
         )
 
 
+def __letfn_fn_body(ctx: AnalyzerContext, form: ISeq) -> Fn:
+    """Produce an `Fn` node for a `letfn*` special form.
+
+    `letfn*` forms use `let*`-like bindings. Each function binding name is
+    added to the symbol table as a forward declaration before analyzing the
+    function body. The function bodies are defined as
+
+        (fn* name
+          [...]
+          ...)
+
+    When the `name` is added to the symbol table for the function, a warning
+    will be produced because it will previously have been defined in the
+    `letfn*` binding scope. This function adds `:no-warn-on-shadow` metadata to
+    the function name symbol to disable the compiler warning."""
+    fn_sym = form.first
+
+    fn_name = runtime.nth(form, 1)
+    if not isinstance(fn_name, sym.Symbol):
+        raise AnalyzerException("letfn function name must be a symbol", form=fn_name)
+
+    fn_rest = runtime.nthrest(form, 2)
+
+    fn_body = _analyze_form(
+        ctx,
+        fn_rest.cons(
+            fn_name.with_meta(
+                (fn_name.meta or lmap.Map.empty()).assoc(
+                    SYM_NO_WARN_ON_SHADOW_META_KEY, True
+                )
+            )
+        ).cons(fn_sym),
+    )
+
+    if not isinstance(fn_body, Fn):
+        raise AnalyzerException(
+            "letfn bindings must be functions", form=form, lisp_ast=fn_body
+        )
+
+    return fn_body
+
+
+def _letfn_ast(  # pylint: disable=too-many-locals
+    ctx: AnalyzerContext, form: ISeq
+) -> LetFn:
+    assert form.first == SpecialForm.LETFN
+    nelems = count(form)
+
+    if nelems < 2:
+        raise AnalyzerException(
+            "letfn forms must have bindings vector and 0 or more body forms", form=form
+        )
+
+    bindings = runtime.nth(form, 1)
+    if not isinstance(bindings, vec.Vector):
+        raise AnalyzerException("letfn bindings must be a vector", form=bindings)
+    elif len(bindings) % 2 != 0:
+        raise AnalyzerException(
+            "letfn bindings must appear in name-value pairs", form=bindings
+        )
+
+    with ctx.new_symbol_table("letfn"):
+        # Generate empty Binding nodes to put into the symbol table
+        # as forward declarations. All functions in letfn* forms may
+        # refer to all other functions regardless of order of definition.
+        empty_binding_nodes = []
+        for name, value in partition(bindings, 2):
+            if not isinstance(name, sym.Symbol):
+                raise AnalyzerException(
+                    "letfn binding name must be a symbol", form=name
+                )
+
+            if not isinstance(value, llist.List):
+                raise AnalyzerException(
+                    "letfn binding value must be a list", form=value
+                )
+
+            binding = Binding(
+                form=name,
+                name=name.name,
+                local=LocalType.LETFN,
+                init=_const_node(ctx, None),
+                children=vec.v(INIT),
+                env=ctx.get_node_env(),
+            )
+            empty_binding_nodes.append((name, value, binding))
+            ctx.put_new_symbol(
+                name, binding,
+            )
+
+        # Once we've generated all of the filler Binding nodes, analyze the
+        # function bodies and replace the Binding nodes with full nodes.
+        binding_nodes = []
+        for fn_name, fn_def, binding in empty_binding_nodes:
+            fn_body = __letfn_fn_body(ctx, fn_def)
+            new_binding = binding.assoc(init=fn_body)
+            binding_nodes.append(new_binding)
+            ctx.put_new_symbol(
+                fn_name,
+                new_binding,
+                warn_on_shadowed_name=False,
+                warn_on_shadowed_var=False,
+            )
+
+        letfn_body = runtime.nthrest(form, 2)
+        stmts, ret = _body_ast(ctx, letfn_body)
+        return LetFn(
+            form=form,
+            bindings=vec.vector(binding_nodes),
+            body=Do(
+                form=letfn_body,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                env=ctx.get_node_env(),
+            ),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
+
+
 def _loop_ast(ctx: AnalyzerContext, form: ISeq) -> Loop:
     assert form.first == SpecialForm.LOOP
     nelems = count(form)
@@ -2185,6 +2323,7 @@ _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.IMPORT: _import_ast,
     SpecialForm.INTEROP_CALL: _host_interop_ast,
     SpecialForm.LET: _let_ast,
+    SpecialForm.LETFN: _letfn_ast,
     SpecialForm.LOOP: _loop_ast,
     SpecialForm.QUOTE: _quote_ast,
     SpecialForm.RECUR: _recur_ast,
@@ -2378,6 +2517,24 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             target=target,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
+
+    v = Var.find(form)
+    if v is not None:
+        # Disallow global references to Vars defined with :private metadata
+        #
+        # Global references to private Vars are allowed in macroexpanded code
+        # as long as the macro referencing the private Var is in the same
+        # Namespace as the private Var (via `ctx.current_macro_ns`)
+        if (
+            v.ns != ctx.current_macro_ns
+            and v.meta is not None
+            and v.meta.val_at(SYM_PRIVATE_META_KEY, False)
+        ):
+            raise AnalyzerException(
+                f"cannot resolve private Var {form.name} from namespace {form.ns}",
+                form=form,
+            )
+        return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position))
 
     if "." in form.name and form.name != _DOUBLE_DOT_MACRO_NAME:
         raise AnalyzerException(

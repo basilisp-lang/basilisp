@@ -3,7 +3,7 @@ from pyrsistent import PMap, pmap
 
 import basilisp.lang.map as lmap
 from basilisp.lang.atom import Atom
-from basilisp.lang.keyword import Keyword, keyword, complete
+from basilisp.lang.keyword import Keyword, complete, keyword
 
 
 def test_keyword_identity_equals():

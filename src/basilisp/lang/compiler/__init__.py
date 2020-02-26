@@ -8,20 +8,20 @@ from astor import code_gen as codegen
 import basilisp._pyast as ast
 import basilisp.lang.runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
-    AnalyzerContext,
     WARN_ON_SHADOWED_NAME,
     WARN_ON_SHADOWED_VAR,
     WARN_ON_UNUSED_NAMES,
+    AnalyzerContext,
     analyze_form,
     macroexpand,
     macroexpand_1,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
 from basilisp.lang.compiler.generator import (  # noqa
-    GeneratedPyAST,
-    GeneratorContext,
     USE_VAR_INDIRECTION,
     WARN_ON_VAR_INDIRECTION,
+    GeneratedPyAST,
+    GeneratorContext,
     expressionize as _expressionize,
     gen_py_ast,
     py_module_preamble,
@@ -69,7 +69,9 @@ class CompilerContext:
         return self._optimizer
 
 
-def _emit_ast_string(module: ast.AST) -> None:  # pragma: no cover
+def _emit_ast_string(
+    ns: runtime.Namespace, module: ast.AST,
+) -> None:  # pragma: no cover
     """Emit the generated Python AST string either to standard out or to the
     *generated-python* dynamic Var for the current namespace. If the
     BASILISP_EMIT_GENERATED_PYTHON env var is not set True, this method is a
@@ -83,13 +85,13 @@ def _emit_ast_string(module: ast.AST) -> None:  # pragma: no cover
     if runtime.print_generated_python():
         print(to_py_str(module))
     else:
-        runtime.add_generated_python(to_py_str(module))
+        runtime.add_generated_python(to_py_str(module), which_ns=ns)
 
 
 def compile_and_exec_form(  # pylint: disable= too-many-arguments
     form: ReaderForm,
     ctx: CompilerContext,
-    module: types.ModuleType,
+    ns: runtime.Namespace,
     wrapped_fn_name: str = _DEFAULT_FN,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> Any:
@@ -101,8 +103,8 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     if form is None:
         return None
 
-    if not module.__basilisp_bootstrapped__:  # type: ignore
-        _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, module)
+    if not ns.module.__basilisp_bootstrapped__:
+        _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, ns)
 
     final_wrapped_name = genname(wrapped_fn_name)
 
@@ -122,19 +124,19 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     ast_module = ctx.py_ast_optimizer.visit(ast_module)
     ast.fix_missing_locations(ast_module)
 
-    _emit_ast_string(ast_module)
+    _emit_ast_string(ns, ast_module)
 
     bytecode = compile(ast_module, ctx.filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
-    exec(bytecode, module.__dict__)
-    return getattr(module, final_wrapped_name)()
+    exec(bytecode, ns.module.__dict__)
+    return getattr(ns.module, final_wrapped_name)()
 
 
 def _incremental_compile_module(
     optimizer: PythonASTOptimizer,
     py_ast: GeneratedPyAST,
-    mod: types.ModuleType,
+    ns: runtime.Namespace,
     source_filename: str,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
@@ -152,35 +154,35 @@ def _incremental_compile_module(
     module = optimizer.visit(module)
     ast.fix_missing_locations(module)
 
-    _emit_ast_string(module)
+    _emit_ast_string(ns, module)
 
     bytecode = compile(module, source_filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
-    exec(bytecode, mod.__dict__)
+    exec(bytecode, ns.module.__dict__)
 
 
 def _bootstrap_module(
     gctx: GeneratorContext,
     optimizer: PythonASTOptimizer,
-    mod: types.ModuleType,
+    ns: runtime.Namespace,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
     """Bootstrap a new module with imports and other boilerplate."""
     _incremental_compile_module(
         optimizer,
-        py_module_preamble(gctx),
-        mod,
+        py_module_preamble(ns),
+        ns,
         source_filename=gctx.filename,
         collect_bytecode=collect_bytecode,
     )
-    mod.__basilisp_bootstrapped__ = True  # type: ignore
+    ns.module.__basilisp_bootstrapped__ = True
 
 
 def compile_module(
     forms: Iterable[ReaderForm],
     ctx: CompilerContext,
-    module: types.ModuleType,
+    ns: runtime.Namespace,
     collect_bytecode: Optional[BytecodeCollector] = None,
 ) -> None:
     """Compile an entire Basilisp module into Python bytecode which can be
@@ -190,7 +192,7 @@ def compile_module(
     Basilisp import machinery, to allow callers to import Basilisp modules from
     Python code.
     """
-    _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, module)
+    _bootstrap_module(ctx.generator_context, ctx.py_ast_optimizer, ns)
 
     for form in forms:
         nodes = gen_py_ast(
@@ -199,7 +201,7 @@ def compile_module(
         _incremental_compile_module(
             ctx.py_ast_optimizer,
             nodes,
-            module,
+            ns,
             source_filename=ctx.filename,
             collect_bytecode=collect_bytecode,
         )
@@ -209,7 +211,7 @@ def compile_bytecode(
     code: List[types.CodeType],
     gctx: GeneratorContext,
     optimizer: PythonASTOptimizer,
-    module: types.ModuleType,
+    ns: runtime.Namespace,
 ) -> None:
     """Compile cached bytecode into the given module.
 
@@ -217,6 +219,6 @@ def compile_bytecode(
     namespaces. When the cached bytecode is reloaded from disk, it needs to be
     compiled within a bootstrapped module. This function bootstraps the module
     and then proceeds to compile a collection of bytecodes into the module."""
-    _bootstrap_module(gctx, optimizer, module)
+    _bootstrap_module(gctx, optimizer, ns)
     for bytecode in code:
-        exec(bytecode, module.__dict__)
+        exec(bytecode, ns.module.__dict__)

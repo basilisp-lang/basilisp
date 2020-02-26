@@ -3,7 +3,6 @@ import contextlib
 import importlib
 import logging
 import re
-import types
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -64,6 +63,7 @@ from basilisp.lang.compiler.nodes import (
     Import,
     Invoke,
     Let,
+    LetFn,
     Local,
     LocalType,
     Loop,
@@ -113,6 +113,7 @@ _IF_PREFIX = "lisp_if"
 _IF_RESULT_PREFIX = "if_result"
 _IF_TEST_PREFIX = "if_test"
 _LET_RESULT_PREFIX = "let_result"
+_LETFN_RESULT_PREFIX = "letfn_result"
 _LOOP_RESULT_PREFIX = "loop_result"
 _MULTI_ARITY_ARG_NAME = "multi_arity_args"
 _SET_BANG_TEMP_PREFIX = "set_bang_val"
@@ -187,7 +188,14 @@ class RecurPoint:
 
 
 class GeneratorContext:
-    __slots__ = ("_filename", "_opts", "_recur_points", "_st", "_this")
+    __slots__ = (
+        "_filename",
+        "_opts",
+        "_recur_points",
+        "_st",
+        "_this",
+        "_var_indirection_override",
+    )
 
     def __init__(
         self, filename: Optional[str] = None, opts: Optional[Mapping[str, bool]] = None
@@ -197,6 +205,7 @@ class GeneratorContext:
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._st = collections.deque([SymbolTable("<Top>")])
         self._this: Deque[sym.Symbol] = collections.deque([])
+        self._var_indirection_override: Deque[bool] = collections.deque([])
 
         if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             for k, v in self._opts:
@@ -222,6 +231,19 @@ class GeneratorContext:
         return not self.use_var_indirection and self._opts.val_at(
             WARN_ON_VAR_INDIRECTION, True
         )
+
+    @contextlib.contextmanager
+    def with_var_indirection_override(self, has_override: bool = True):
+        self._var_indirection_override.append(has_override)
+        yield
+        self._var_indirection_override.pop()
+
+    @property
+    def has_var_indirection_override(self) -> bool:
+        try:
+            return self._var_indirection_override[-1]
+        except IndexError:
+            return False
 
     @property
     def recur_point(self):
@@ -255,12 +277,8 @@ class GeneratorContext:
             yield st
             self._st.pop()
 
-    def add_import(self, imp: sym.Symbol, mod: types.ModuleType, *aliases: sym.Symbol):
+    def add_import(self, imp: sym.Symbol, mod: runtime.Module, *aliases: sym.Symbol):
         self.current_ns.add_import(imp, mod, *aliases)
-
-    @property
-    def imports(self) -> lmap.Map[sym.Symbol, types.ModuleType]:
-        return self.current_ns.imports
 
     @property
     def current_this(self):
@@ -496,6 +514,7 @@ _NEW_SYM_FN_NAME = _load_attr(f"{_SYM_ALIAS}.symbol")
 _NEW_UUID_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.uuid_from_str")
 _NEW_VEC_FN_NAME = _load_attr(f"{_VEC_ALIAS}.vector")
 _INTERN_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern")
+_INTERN_UNBOUND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern_unbound")
 _FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
 _ATTR_CLASS_DECORATOR_NAME = _load_attr(f"attr.s")
 _ATTRIB_FIELD_FN_NAME = _load_attr(f"attr.ib")
@@ -610,20 +629,16 @@ def __should_warn_on_redef(
         return False
 
     current_ns = ctx.current_ns
-    if safe_name in current_ns.module.__dict__:
-        return True
-    elif defsym in current_ns.interns:
+    if defsym in current_ns.interns:
         var = current_ns.find(defsym)
         assert var is not None, f"Var {defsym} cannot be none here"
 
         if var.meta is not None and var.meta.val_at(SYM_REDEF_META_KEY):
             return False
-        elif var.is_bound:
-            return True
         else:
-            return False
+            return bool(var.is_bound)
     else:
-        return False
+        return safe_name in current_ns.module.__dict__
 
 
 @_with_ast_loc
@@ -635,6 +650,8 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
 
     defsym = node.name
     is_defn = False
+    is_var_bound = node.var.is_bound
+    is_noop_redef_of_bound_var = is_var_bound and node.init is None
 
     if node.init is not None:
         # Since Python function definitions always take the form `def name(...):`,
@@ -644,7 +661,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         # function name and short-circuiting the default double-declaration.
         if node.init.op == NodeOp.FN:
             assert isinstance(node.init, Fn)
-            def_ast = _fn_to_py_ast(ctx, node.init, def_name=defsym.name)
+            def_ast: Optional[GeneratedPyAST] = _fn_to_py_ast(  # type: ignore[call-arg]
+                ctx, node.init, def_name=defsym.name
+            )
             is_defn = True
         elif (
             node.init.op == NodeOp.WITH_META
@@ -656,6 +675,8 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
             is_defn = True
         else:
             def_ast = gen_py_ast(ctx, node.init)
+    elif is_noop_redef_of_bound_var:
+        def_ast = None
     else:
         def_ast = GeneratedPyAST(node=ast.Constant(None))
 
@@ -678,8 +699,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         else []
     )
 
-    # Warn if this symbol is potentially being redefined
-    if __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
+    # Warn if this symbol is potentially being redefined (if the Var was
+    # previously bound)
+    if is_var_bound and __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
         logger.warning(
             f"redefining local Python name '{safe_name}' in module "
             f"'{ctx.current_ns.module.__name__}' ({node.env.ns}:{node.env.line})"
@@ -692,6 +714,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     # Python compiler will throw an exception during compilation
     # complaining that we assign the value prior to global declaration.
     if is_defn:
+        assert def_ast is not None, "def_ast must be defined at this point"
         def_dependencies = list(
             chain(
                 [] if node.top_level else [ast.Global(names=[safe_name])],
@@ -699,7 +722,18 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
                 [] if meta_ast is None else meta_ast.dependencies,
             )
         )
+    elif is_noop_redef_of_bound_var:
+        # Re-def-ing previously bound Vars without providing a value is
+        # essentially a no-op, which should not modify the Var root.
+        assert def_ast is None, "def_ast is not defined at this point"
+        def_dependencies = list(
+            chain(
+                [] if node.top_level else [ast.Global(names=[safe_name])],
+                [] if meta_ast is None else meta_ast.dependencies,
+            )
+        )
     else:
+        assert def_ast is not None, "def_ast must be defined at this point"
         def_dependencies = list(
             chain(
                 def_ast.dependencies,
@@ -712,6 +746,23 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
                 ],
                 [] if meta_ast is None else meta_ast.dependencies,
             )
+        )
+
+    if is_noop_redef_of_bound_var:
+        return GeneratedPyAST(
+            node=ast.Call(
+                func=_INTERN_UNBOUND_VAR_FN_NAME,
+                args=[ns_name, def_name],
+                keywords=list(
+                    chain(
+                        dynamic_kwarg,
+                        []
+                        if meta_ast is None
+                        else [ast.keyword(arg="meta", value=meta_ast.node)],
+                    )
+                ),
+            ),
+            dependencies=def_dependencies,
         )
 
     return GeneratedPyAST(
@@ -971,6 +1022,38 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
         )
 
 
+def _wrap_override_var_indirection(f: PyASTGenerator) -> PyASTGenerator:
+    """
+    Wrap a Node generator to apply a special override requiring Var indirection
+    for any Var accesses generated within top-level `do` blocks.
+
+    This is a bit of a hack to account for the `ns` macro, which is the first
+    form in most standard Namespaces. When Basilisp `require`s a Namespace, it
+    (like in Clojure) simply loads the file and lets that Namespace's `ns` macro
+    create the new Namespace and perform any setup. However, the Basilisp
+    compiler desperately tries to emit "smarter" Python code which avoids using
+    `Var.find` whenever the resolved symbol can be safely called directly from
+    the generated Pythom module. Without this hack, the compiler will emit code
+    during macroexpansion to access `basilisp.core` functions used in the `ns`
+    macro directly, even though they will not be available yet in the target
+    Namespace module.
+    """
+
+    @wraps(f)
+    def _wrapped_do(
+        ctx: GeneratorContext, node: Node, *args, **kwargs
+    ) -> GeneratedPyAST:
+        if isinstance(node, Do) and node.top_level:
+            with ctx.with_var_indirection_override():
+                return f(ctx, node, *args, **kwargs)  # type: ignore[call-arg]
+        else:
+            with ctx.with_var_indirection_override(False):
+                return f(ctx, node, *args, **kwargs)  # type: ignore[call-arg]
+
+    return _wrapped_do
+
+
+@_wrap_override_var_indirection
 @_with_ast_loc_deps
 def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     """Return a Python AST Node for a `do` expression."""
@@ -1372,6 +1455,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     )
 
 
+@_wrap_override_var_indirection
 @_with_ast_loc
 def _fn_to_py_ast(
     ctx: GeneratorContext,
@@ -1607,6 +1691,53 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
         else:
             let_body_ast.append(body_ast.node)
             return GeneratedPyAST(node=_noop_node(), dependencies=let_body_ast)
+
+
+@_with_ast_loc_deps
+def _letfn_to_py_ast(ctx: GeneratorContext, node: LetFn) -> GeneratedPyAST:
+    """Return a Python AST Node for a `letfn*` expression."""
+    assert node.op == NodeOp.LETFN
+
+    with ctx.new_symbol_table("letfn"):
+        binding_names = []
+        for binding in node.bindings:
+            binding_name = genname(munge(binding.name))
+            ctx.symbol_table.new_symbol(
+                sym.symbol(binding.name), binding_name, LocalType.LET
+            )
+            binding_names.append((binding_name, binding))
+
+        letfn_body_ast: List[ast.AST] = []
+        for binding_name, binding in binding_names:
+            init_node = binding.init
+            assert init_node is not None
+            init_ast = gen_py_ast(ctx, init_node)
+            letfn_body_ast.extend(init_ast.dependencies)
+            letfn_body_ast.append(
+                ast.Assign(
+                    targets=[ast.Name(id=binding_name, ctx=ast.Store())],
+                    value=init_ast.node,
+                )
+            )
+
+        letfn_result_name = genname(_LETFN_RESULT_PREFIX)
+        body_ast = _synthetic_do_to_py_ast(ctx, node.body)
+        letfn_body_ast.extend(map(statementize, body_ast.dependencies))
+
+        if node.env.pos == NodeSyntacticPosition.EXPR:
+            letfn_body_ast.append(
+                ast.Assign(
+                    targets=[ast.Name(id=letfn_result_name, ctx=ast.Store())],
+                    value=body_ast.node,
+                )
+            )
+            return GeneratedPyAST(
+                node=ast.Name(id=letfn_result_name, ctx=ast.Load()),
+                dependencies=letfn_body_ast,
+            )
+        else:
+            letfn_body_ast.append(body_ast.node)
+            return GeneratedPyAST(node=_noop_node(), dependencies=letfn_body_ast)
 
 
 @_with_ast_loc_deps
@@ -2031,7 +2162,12 @@ def _var_sym_to_py_ast(
         )
 
     # Check if we should use Var indirection
-    if ctx.use_var_indirection or _is_dynamic(var) or _is_redefable(var):
+    if (
+        ctx.has_var_indirection_override
+        or ctx.use_var_indirection
+        or _is_dynamic(var)
+        or _is_redefable(var)
+    ):
         return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
 
     # Otherwise, try to direct-link it like a Python variable
@@ -2661,7 +2797,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.IMPORT: _import_to_py_ast,
     NodeOp.INVOKE: _invoke_to_py_ast,
     NodeOp.LET: _let_to_py_ast,
-    NodeOp.LETFN: None,  # type: ignore
+    NodeOp.LETFN: _letfn_to_py_ast,
     NodeOp.LOCAL: _local_sym_to_py_ast,
     NodeOp.LOOP: _loop_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
@@ -2708,14 +2844,14 @@ def gen_py_ast(ctx: GeneratorContext, lisp_ast: Node) -> GeneratedPyAST:
 #############################
 
 
-def _module_imports(ctx: GeneratorContext) -> Iterable[ast.Import]:
+def _module_imports(ns: runtime.Namespace) -> Iterable[ast.Import]:
     """Generate the Python Import AST node for importing all required
     language support modules."""
     # Yield `import basilisp` so code attempting to call fully qualified
     # `basilisp.lang...` modules don't result in compiler errors
     yield ast.Import(names=[ast.alias(name="basilisp", asname=None)])
-    for imp in ctx.imports:
-        name = imp.key.name
+    for s in sorted(ns.imports.keys(), key=lambda s: s.name):
+        name = s.name
         alias = _MODULE_ALIASES.get(name, None)
         yield ast.Import(names=[ast.alias(name=name, asname=alias)])
 
@@ -2751,10 +2887,10 @@ def _ns_var(
     )
 
 
-def py_module_preamble(ctx: GeneratorContext,) -> GeneratedPyAST:
+def py_module_preamble(ns: runtime.Namespace,) -> GeneratedPyAST:
     """Bootstrap a new module with imports and other boilerplate."""
     preamble: List[ast.AST] = []
-    preamble.extend(_module_imports(ctx))
+    preamble.extend(_module_imports(ns))
     preamble.append(_from_module_import())
     preamble.append(_ns_var())
     return GeneratedPyAST(node=ast.Constant(None), dependencies=preamble)
