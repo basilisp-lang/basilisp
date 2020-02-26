@@ -94,7 +94,7 @@ from basilisp.lang.compiler.nodes import (
 )
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
 from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
-from basilisp.lang.typing import LispForm
+from basilisp.lang.typing import BasilispModule, LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
 
@@ -2126,8 +2126,18 @@ def __var_find_to_py_ast(
     )
 
 
+def __name_in_module(name: str, module: BasilispModule) -> Optional[str]:
+    """Resolve the name inside of module. If the munged name can be found inside the
+    module, return the munged name. Return None otherwise."""
+    safe_name = munge(name)
+    if safe_name not in module.__dict__:
+        safe_name = munge(name, allow_builtins=True)
+
+    return safe_name if safe_name in module.__dict__ else None
+
+
 @_with_ast_loc
-def _var_sym_to_py_ast(  # pylint: disable=oo-many-branches
+def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
     ctx: GeneratorContext, node: VarRef, is_assigning: bool = False
 ) -> GeneratedPyAST:
     """Generate a Python AST node for accessing a Var.
@@ -2143,7 +2153,6 @@ def _var_sym_to_py_ast(  # pylint: disable=oo-many-branches
     ns = var.ns
     ns_name = ns.name
     ns_module = ns.module
-    safe_ns = munge(ns_name)
     var_name = var.name.name
     py_var_ctx = ast.Store() if is_assigning else ast.Load()
 
@@ -2173,21 +2182,14 @@ def _var_sym_to_py_ast(  # pylint: disable=oo-many-branches
         return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
 
     # Otherwise, try to direct-link it like a Python variable
-    # Try without allowing builtins first
-    safe_ns = munge(ns_name)
-    if safe_ns not in ns_module.__dict__:
-        safe_ns = munge(ns_name, allow_builtins=True)
+    safe_ns = __name_in_module(ns_name, ns_module)
+    safe_name = __name_in_module(var_name, ns_module)
 
-    if safe_ns in ns_module.__dict__:
-        safe_name = munge(var_name)
+    if safe_name is not None:
+        if ns is ctx.current_ns:
+            return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
 
-        if safe_name not in ns_module.__dict__:
-            # Try allowing builtins
-            safe_name = munge(var_name, allow_builtins=True)
-
-        if safe_name in ns_module.__dict__:
-            if ns is ctx.current_ns:
-                return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
+        if safe_ns is not None:
             return GeneratedPyAST(
                 node=_load_attr(
                     f"{_MODULE_ALIASES.get(ns_name, safe_ns)}.{safe_name}",
