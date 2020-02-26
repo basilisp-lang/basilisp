@@ -2127,7 +2127,7 @@ def __var_find_to_py_ast(
 
 
 @_with_ast_loc
-def _var_sym_to_py_ast(
+def _var_sym_to_py_ast(  # pylint: disable=oo-many-branches
     ctx: GeneratorContext, node: VarRef, is_assigning: bool = False
 ) -> GeneratedPyAST:
     """Generate a Python AST node for accessing a Var.
@@ -2174,19 +2174,26 @@ def _var_sym_to_py_ast(
 
     # Otherwise, try to direct-link it like a Python variable
     # Try without allowing builtins first
-    safe_name = munge(var_name)
-    if safe_name not in ns_module.__dict__:
-        # Try allowing builtins
-        safe_name = munge(var_name, allow_builtins=True)
+    safe_ns = munge(ns_name)
+    if safe_ns not in ns_module.__dict__:
+        safe_ns = munge(ns_name, allow_builtins=True)
 
-    if safe_name in ns_module.__dict__:
-        if ns is ctx.current_ns:
-            return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
-        return GeneratedPyAST(
-            node=_load_attr(
-                f"{_MODULE_ALIASES.get(ns_name, safe_ns)}.{safe_name}", ctx=py_var_ctx
+    if safe_ns in ns_module.__dict__:
+        safe_name = munge(var_name)
+
+        if safe_name not in ns_module.__dict__:
+            # Try allowing builtins
+            safe_name = munge(var_name, allow_builtins=True)
+
+        if safe_name in ns_module.__dict__:
+            if ns is ctx.current_ns:
+                return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
+            return GeneratedPyAST(
+                node=_load_attr(
+                    f"{_MODULE_ALIASES.get(ns_name, safe_ns)}.{safe_name}",
+                    ctx=py_var_ctx,
+                )
             )
-        )
 
     if ctx.warn_on_var_indirection:
         logger.warning(
