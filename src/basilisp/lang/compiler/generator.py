@@ -2182,17 +2182,16 @@ def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
         return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
 
     # Otherwise, try to direct-link it like a Python variable
-    safe_ns = __name_in_module(ns_name, ns_module)
     safe_name = __name_in_module(var_name, ns_module)
-
     if safe_name is not None:
         if ns is ctx.current_ns:
             return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
 
-        if safe_ns is not None:
+        var_ns_sym = sym.symbol(ns_name)
+        if var_ns_sym in ctx.current_ns.imports:
             return GeneratedPyAST(
                 node=_load_attr(
-                    f"{_MODULE_ALIASES.get(ns_name, safe_ns)}.{safe_name}",
+                    f"{_MODULE_ALIASES.get(ns_name, ns_name)}.{safe_name}",
                     ctx=py_var_ctx,
                 )
             )

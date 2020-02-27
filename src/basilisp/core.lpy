@@ -3463,30 +3463,31 @@
       (.add-refer to-ns var-sym var)
       (recur to-ns from-ns (rest syms)))))
 
-(defn ^:private require-vec
-  "Process a vector libspec for require."
-  [current-ns v]
-  (let [ns-sym (first v)
-        opts   (apply hash-map (rest v))]
-    (importlib/import-module (name ns-sym))
-    (let [new-ns (the-ns ns-sym)]
-      ;; Add the namespace alias
-      (.add-alias current-ns (or (:as opts) ns-sym) new-ns)
+(defn- require-libspec
+  [req]
+  (cond
+    (vector? req) {:namespace (first req)
+                   :opts      (apply hash-map (rest req))}
+    (symbol? req) {:namespace req}
+    :else         (throw
+                   (ex-info "Invalid libspec for require"
+                            {:value req}))))
 
-      ;; Add refers
-      (cond
-        (= :all (:refer opts))
-        (.refer-all current-ns new-ns)
+(defn- require-lib-with-opts
+  [requiring-ns required-ns-sym opts]
+  (let [new-ns (the-ns required-ns-sym)]
+    ;; Add the namespace alias
+    (.add-alias requiring-ns (or (:as opts) required-ns-sym) new-ns)
 
-        (:refer opts)
-        (add-refers current-ns new-ns (:refer opts))
+    ;; Add refers
+    (cond
+      (= :all (:refer opts))
+      (.refer-all requiring-ns new-ns)
 
-        :else nil))))
+      (:refer opts)
+      (add-refers requiring-ns new-ns (:refer opts))
 
-(defn ^:private require-sym
-  "Process a symbol libspec for require."
-  [s]
-  (importlib/import-module (name s)))
+      :else nil)))
 
 (defn require
   "Load Basilisp libraries and make them accessible in the current namespace.
@@ -3499,21 +3500,42 @@
   - :as name, which will alias the imported namespace to the symbol name
   - :refer [& syms], which will refer syms in the local namespace directly"
   [& args]
-  (let [current-ns *ns*
-
-        do-require (fn [requires]
-                     (when (seq requires)
-                       (let [v (first requires)]
-                         (cond
-                           (vector? v) (require-vec current-ns v)
-                           (symbol? v) (require-sym v)
-                           :else             (throw
-                                              (ex-info "Invalid libspec for require"
-                                                       {:value v}))))
-                       (recur (rest requires))))]
-    (do-require args)
+  (let [current-ns *ns*]
+    (loop [requires args]
+      (when (seq requires)
+        (let [libspec (require-libspec (first requires))
+              ns-sym  (:namespace libspec)]
+          (importlib/import-module (name ns-sym))
+          (when (contains? libspec :opts)
+            (require-lib-with-opts current-ns ns-sym (:opts libspec))))))
     (set! *ns* current-ns)
     nil))
+
+(defmacro ^:private require-for-ns
+  "Require macro for use in the `ns` macro.
+
+  In order to enable direct linking of Vars as Python variables, required namespaces
+  must be `import*`ed into the namespace. This macro is a specific variant of `require`
+  which will perform that import directly in the namespace."
+  [& args]
+  (let [current-ns-gs (gensym "current-ns")
+
+        libspecs (->> args
+                      (map require-libspec)
+                      (map (fn [libspec]
+                             (let [ns-sym (:namespace libspec)
+                                   opts   (get libspec :opts {})]
+                               `(do
+                                  (import* ~ns-sym)
+                                  ~@(if (contains? libspec :opts)
+                                      [`(require-lib-with-opts ~current-ns-gs
+                                                               (the-ns (quote ~ns-sym))
+                                                               (quote ~opts))]
+                                      []))))))]
+    `(let [~current-ns-gs *ns*]
+       ~@libspecs
+       (set! *ns* ~current-ns-gs)
+       nil)))
 
 (defmacro ns
   "Use this namespace pre-amble at the top of every namespace to declare
@@ -3549,7 +3571,7 @@
                        opts))
 
         requires    (when (:require opts)
-                      `(require ~@(map #(list 'quote %) (:require opts))))
+                      `(require-for-ns ~@(:require opts)))
         imports     (when (:import opts)
                       (map (fn [v]
                              `(import ~v))
