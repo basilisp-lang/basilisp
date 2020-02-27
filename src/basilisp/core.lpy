@@ -3505,10 +3505,17 @@
       (when (seq requires)
         (let [libspec (require-libspec (first requires))
               ns-sym  (:namespace libspec)]
-          (importlib/import-module (name ns-sym))
-          (when (contains? libspec :opts)
-            (require-lib-with-opts current-ns ns-sym (:opts libspec))))))
-    (set! *ns* current-ns)
+          ;; In order to enable direct linking of Vars as Python variables, required
+          ;; namespaces must be `import*`ed into the namespace. That's not possible
+          ;; to do without a macro, so we're using this hacky approach to eval the
+          ;; code directly (which will effectively add it to the root namespace module).
+          (eval (list 'basilisp.core/import
+                      (if-let [ns-alias (get-in libspec [:opts :as])]
+                        [ns-sym :as ns-alias]
+                        ns-sym)))
+          (require-lib-with-opts current-ns ns-sym (:opts libspec))
+          (set! *ns* current-ns))
+        (recur (rest requires))))
     nil))
 
 (defmacro ^:private require-for-ns

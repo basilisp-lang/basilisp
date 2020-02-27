@@ -277,9 +277,6 @@ class GeneratorContext:
             yield st
             self._st.pop()
 
-    def add_import(self, imp: sym.Symbol, mod: runtime.Module, *aliases: sym.Symbol):
-        self.current_ns.add_import(imp, mod, *aliases)
-
     @property
     def current_this(self):
         return self._this[-1]
