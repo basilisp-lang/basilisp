@@ -88,6 +88,7 @@ class NodeOp(Enum):
     PY_TUPLE = kw.keyword("py-tuple")
     QUOTE = kw.keyword("quote")
     RECUR = kw.keyword("recur")
+    REQUIRE = kw.keyword("require")
     SET = kw.keyword("set")
     SET_BANG = kw.keyword("set!")
     STATIC_METHOD = kw.keyword("static-method")
@@ -715,6 +716,17 @@ class Recur(Node[SpecialForm]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
+class Require(Node[SpecialForm]):
+    form: SpecialForm
+    aliases: Iterable["ImportAlias"]
+    env: NodeEnv
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
+    op: NodeOp = NodeOp.REQUIRE
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
 class Set(Node[lset.Set]):
     form: lset.Set
     items: Iterable[Node]
@@ -822,6 +834,7 @@ ParentNode = Union[
     PySet,
     PyTuple,
     Quote,
+    Require,
     Set,
     SetBang,
     Throw,
@@ -859,6 +872,7 @@ SpecialFormNode = Union[
     Loop,
     Quote,
     Recur,
+    Require,
     SetBang,
     Throw,
     Try,

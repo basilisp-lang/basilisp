@@ -61,7 +61,7 @@ def bootstrap_repl(which_ns: str) -> types.ModuleType:
     assert core_ns is not None
     ns.refer_all(core_ns)
     repl_module = importlib.import_module(REPL_NS)
-    ns.add_alias(sym.symbol(REPL_NS), repl_ns)
+    ns.add_alias(repl_ns, sym.symbol(REPL_NS))
     ns.refer_all(repl_ns)
     return repl_module
 

@@ -8,6 +8,7 @@ import math
 import re
 import threading
 import types
+from collections import defaultdict
 from fractions import Fraction
 from typing import (
     AbstractSet,
@@ -20,6 +21,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Set,
     Tuple,
     Union,
 )
@@ -91,6 +93,7 @@ _LETFN = sym.symbol("letfn*")
 _LOOP = sym.symbol("loop*")
 _QUOTE = sym.symbol("quote")
 _RECUR = sym.symbol("recur")
+_REQUIRE = sym.symbol("require*")
 _SET_BANG = sym.symbol("set!")
 _THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
@@ -112,6 +115,7 @@ _SPECIAL_FORMS = lset.s(
     _LOOP,
     _QUOTE,
     _RECUR,
+    _REQUIRE,
     _SET_BANG,
     _THROW,
     _TRY,
@@ -379,6 +383,7 @@ class Namespace(ReferenceBase):
                     "attr",
                     "builtins",
                     "io",
+                    "importlib",
                     "operator",
                     "sys",
                     "basilisp.lang.atom",
@@ -503,9 +508,32 @@ class Namespace(ReferenceBase):
     def __hash__(self):
         return hash(self._name)
 
-    def add_alias(self, alias: sym.Symbol, namespace: "Namespace") -> None:
-        """Add a Symbol alias for the given Namespace."""
-        self._aliases.swap(lambda m: m.assoc(alias, namespace))
+    def require(self, ns_name: str, *aliases: sym.Symbol) -> BasilispModule:
+        """Require the Basilisp Namespace named by `ns_name` and add any aliases given
+        to this Namespace."""
+        try:
+            ns_module = importlib.import_module(ns_name)
+        except ModuleNotFoundError as e:
+            raise ImportError(f"Basilisp namespace '{ns_name}' not found",) from e
+        else:
+            assert isinstance(ns_module, BasilispModule)
+            ns_sym = sym.symbol(ns_name)
+            ns = self.get(ns_sym)
+            assert ns is not None, "Namespace must exist after being required"
+            if aliases:
+                self.add_alias(ns, *aliases)
+            return ns_module
+
+    def add_alias(self, namespace: "Namespace", *aliases: sym.Symbol) -> None:
+        """Add Symbol aliases for the given Namespace."""
+
+        def _add_alias(m: AliasMap) -> AliasMap:
+            new_m = m
+            for alias in aliases:
+                new_m = new_m.assoc(alias, namespace)
+            return new_m
+
+        self._aliases.swap(_add_alias)  # type: ignore[arg-type]
 
     def get_alias(self, alias: sym.Symbol) -> "Optional[Namespace]":
         """Get the Namespace aliased by Symbol or None if it does not exist."""
@@ -514,6 +542,15 @@ class Namespace(ReferenceBase):
     def remove_alias(self, alias: sym.Symbol) -> None:
         """Remove the Namespace aliased by Symbol. Return None."""
         self._aliases.swap(lambda m: m.dissoc(alias))
+
+    def get_ns_aliases(self, namespace: "Namespace") -> Optional[Set[sym.Symbol]]:
+        """Get the set of aliases which refer to Namespace `namespace` in the current
+        Namespace. Returns a set of 1 or more symbols if the Namespace is aliased in
+        this Namespace, otherwise returns None."""
+        inverted_aliases: Dict[Namespace, Set[sym.Symbol]] = defaultdict(set)
+        for alias, ns in self.aliases.items():
+            inverted_aliases[ns].add(alias)
+        return inverted_aliases.get(namespace)
 
     def intern(self, sym: sym.Symbol, var: Var, force: bool = False) -> Var:
         """Intern the Var given in this namespace mapped by the given Symbol.

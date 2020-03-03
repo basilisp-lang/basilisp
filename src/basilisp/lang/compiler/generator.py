@@ -1,6 +1,5 @@
 import collections
 import contextlib
-import importlib
 import logging
 import re
 import uuid
@@ -83,6 +82,7 @@ from basilisp.lang.compiler.nodes import (
     Quote,
     ReaderLispForm,
     Recur,
+    Require,
     Set as SetNode,
     SetBang,
     StaticMethod,
@@ -462,6 +462,7 @@ _KW_ALIAS = genname("kw")
 _LIST_ALIAS = genname("llist")
 _MAP_ALIAS = genname("lmap")
 _MULTIFN_ALIAS = genname("multifn")
+_NAMESPACE_ALIAS = genname("Namespace")
 _PROMISE_ALIAS = genname("promise")
 _READER_ALIAS = genname("reader")
 _RUNTIME_ALIAS = genname("runtime")
@@ -508,6 +509,7 @@ _NEW_SET_FN_NAME = _load_attr(f"{_SET_ALIAS}.set")
 _NEW_SYM_FN_NAME = _load_attr(f"{_SYM_ALIAS}.symbol")
 _NEW_UUID_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.uuid_from_str")
 _NEW_VEC_FN_NAME = _load_attr(f"{_VEC_ALIAS}.vector")
+_GET_NAMESPACE_FN_NAME = _load_attr(f"{_NAMESPACE_ALIAS}.get")
 _INTERN_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern")
 _INTERN_UNBOUND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern_unbound")
 _FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
@@ -562,6 +564,7 @@ def statementize(e: ast.AST) -> ast.AST:
             ast.AsyncFunctionDef,
             ast.AsyncFor,
             ast.AsyncWith,
+            ast.Delete,
         ),
     ):
         return e
@@ -1578,14 +1581,6 @@ def _import_to_py_ast(_: GeneratorContext, node: Import) -> GeneratedPyAST:
     deps: List[ast.AST] = []
     for alias in node.aliases:
         safe_name = munge(alias.name)
-
-        try:
-            importlib.import_module(safe_name)
-        except ModuleNotFoundError as e:
-            raise ImportError(
-                f"Python module '{alias.name}' not found", node.form, node
-            ) from e
-
         py_import_alias = (
             munge(alias.alias)
             if alias.alias is not None
@@ -1921,6 +1916,68 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     return handle_recur(ctx, node)
 
 
+@_with_ast_loc_deps
+def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
+    """Return a Python AST node for a Basilisp `require*` expression.
+
+    `require*` needs to be separate of `import*` because the """
+    assert node.op == NodeOp.REQUIRE
+
+    last = None
+    requiring_ns_name = genname("requiring_ns")
+    deps: List[ast.AST] = [
+        # Fetch the requiring namespace first prior to initiating imports
+        # in order to ensure the import is only made into that namespace
+        # (in case the imported module changes the value of *ns*)
+        ast.Assign(
+            targets=[ast.Name(id=requiring_ns_name, ctx=ast.Store())],
+            value=_load_attr(_NS_VAR_VALUE),
+        )
+    ]
+    for alias in node.aliases:
+        safe_name = munge(alias.name)
+        py_require_alias = (
+            munge(alias.alias)
+            if alias.alias is not None
+            else safe_name.split(".", maxsplit=1)[0]
+        )
+        last = ast.Name(id=py_require_alias, ctx=ast.Load())
+        deps.extend(
+            [
+                ast.Assign(
+                    targets=[ast.Name(id=py_require_alias, ctx=ast.Store())],
+                    value=ast.Call(
+                        func=_load_attr(f"{requiring_ns_name}.require"),
+                        args=[
+                            ast.Constant(safe_name),
+                            ast.Call(
+                                func=_NEW_SYM_FN_NAME,
+                                args=[
+                                    ast.Constant(
+                                        alias.alias if alias.alias else alias.name
+                                    )
+                                ],
+                                keywords=[],
+                            ),
+                        ],
+                        keywords=[],
+                    ),
+                ),
+                # Restore the original namespace after each import to ensure that the
+                # following import starts with a clean slate
+                ast.Assign(
+                    targets=[_load_attr(_NS_VAR_VALUE, ctx=ast.Store())],
+                    value=ast.Name(id=requiring_ns_name, ctx=ast.Load()),
+                ),
+            ]
+        )
+
+    deps.append(ast.Delete(targets=[ast.Name(id=requiring_ns_name, ctx=ast.Del())]),)
+
+    assert last is not None, "require* node must have at least one import"
+    return GeneratedPyAST(node=last, dependencies=deps)
+
+
 @_with_ast_loc
 def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
     """Return a Python AST Node for a `set!` expression."""
@@ -2100,6 +2157,61 @@ def _local_sym_to_py_ast(
         )
 
 
+def __name_in_module(name: str, module: BasilispModule) -> Optional[str]:
+    """Resolve the name inside of module. If the munged name can be found inside the
+    module, return the munged name. Return None otherwise."""
+    safe_name = munge(name)
+    if safe_name not in module.__dict__:
+        safe_name = munge(name, allow_builtins=True)
+
+    return safe_name if safe_name in module.__dict__ else None
+
+
+def __var_direct_link_to_py_ast(
+    current_ns: runtime.Namespace, var: runtime.Var, py_var_ctx: ast.AST
+) -> Optional[GeneratedPyAST]:
+    """Attempt to directly link a Var reference to a Python variable in the module of
+    the current Namespace.
+
+    We can direct link a Var if and only if a munged version of the Var name can be
+    found in the Var namespace module.
+
+    If the Var namespace is named as an _import_ in the current Namespace, attempt to"""
+    var_ns = var.ns
+    var_ns_name = var_ns.name
+    var_name = var.name.name
+
+    safe_name = __name_in_module(var_name, var_ns.module)
+    if safe_name is not None:
+        if var_ns is current_ns:
+            return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
+
+        # Generally this will only be useful for
+        var_ns_sym = sym.symbol(var_ns_name)
+        if var_ns_sym in current_ns.imports:
+            assert var_ns_sym == sym.symbol(
+                CORE_NS
+            ), f"{var_ns_sym} cannot be linked as an import"
+            return GeneratedPyAST(
+                node=_load_attr(
+                    f"{_MODULE_ALIASES.get(var_ns_name, var_ns_name)}.{safe_name}",
+                    ctx=py_var_ctx,
+                )
+            )
+
+        ns_aliases = current_ns.get_ns_aliases(var_ns)
+        if ns_aliases is not None:
+            for ns_alias in ns_aliases:
+                aliased_ns_name = __name_in_module(ns_alias.name, current_ns.module)
+                if aliased_ns_name is not None:
+                    return GeneratedPyAST(
+                        node=_load_attr(
+                            f"{aliased_ns_name}.{safe_name}", ctx=py_var_ctx,
+                        )
+                    )
+    return None
+
+
 def __var_find_to_py_ast(
     var_name: str, ns_name: str, py_var_ctx: ast.AST
 ) -> GeneratedPyAST:
@@ -2123,16 +2235,6 @@ def __var_find_to_py_ast(
     )
 
 
-def __name_in_module(name: str, module: BasilispModule) -> Optional[str]:
-    """Resolve the name inside of module. If the munged name can be found inside the
-    module, return the munged name. Return None otherwise."""
-    safe_name = munge(name)
-    if safe_name not in module.__dict__:
-        safe_name = munge(name, allow_builtins=True)
-
-    return safe_name if safe_name in module.__dict__ else None
-
-
 @_with_ast_loc
 def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
     ctx: GeneratorContext, node: VarRef, is_assigning: bool = False
@@ -2147,13 +2249,12 @@ def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
     assert node.op == NodeOp.VAR
 
     var = node.var
-    ns = var.ns
-    ns_name = ns.name
-    ns_module = ns.module
+    var_ns = var.ns
+    var_ns_name = var_ns.name
     var_name = var.name.name
     py_var_ctx = ast.Store() if is_assigning else ast.Load()
 
-    # Return the actual var, rather than its value if requested
+    # Return the actual Var, rather than its value if requested
     if node.return_var:
         return GeneratedPyAST(
             node=ast.Call(
@@ -2162,7 +2263,9 @@ def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
                     ast.Call(
                         func=_NEW_SYM_FN_NAME,
                         args=[ast.Constant(var_name)],
-                        keywords=[ast.keyword(arg="ns", value=ast.Constant(ns_name))],
+                        keywords=[
+                            ast.keyword(arg="ns", value=ast.Constant(var_ns_name))
+                        ],
                     )
                 ],
                 keywords=[],
@@ -2176,22 +2279,12 @@ def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
         or _is_dynamic(var)
         or _is_redefable(var)
     ):
-        return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
+        return __var_find_to_py_ast(var_name, var_ns_name, py_var_ctx)
 
     # Otherwise, try to direct-link it like a Python variable
-    safe_name = __name_in_module(var_name, ns_module)
-    if safe_name is not None:
-        if ns is ctx.current_ns:
-            return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
-
-        var_ns_sym = sym.symbol(ns_name)
-        if var_ns_sym in ctx.current_ns.imports:
-            return GeneratedPyAST(
-                node=_load_attr(
-                    f"{_MODULE_ALIASES.get(ns_name, ns_name)}.{safe_name}",
-                    ctx=py_var_ctx,
-                )
-            )
+    direct_link = __var_direct_link_to_py_ast(ctx.current_ns, var, py_var_ctx)
+    if direct_link is not None:
+        return direct_link
 
     if ctx.warn_on_var_indirection:
         logger.warning(
@@ -2199,7 +2292,8 @@ def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
             f"({node.env.ns}:{node.env.line})"
         )
 
-    return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
+    # If we failed to direct link, we can always fall back on Var indirection
+    return __var_find_to_py_ast(var_name, var_ns_name, py_var_ctx)
 
 
 #################
@@ -2816,6 +2910,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.PY_TUPLE: _py_tuple_to_py_ast,
     NodeOp.QUOTE: _quote_to_py_ast,
     NodeOp.RECUR: _recur_to_py_ast,  # type: ignore
+    NodeOp.REQUIRE: _require_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.SET_BANG: _set_bang_to_py_ast,
     NodeOp.THROW: _throw_to_py_ast,
@@ -2868,7 +2963,10 @@ def _from_module_import() -> ast.ImportFrom:
     language support modules."""
     return ast.ImportFrom(
         module="basilisp.lang.runtime",
-        names=[ast.alias(name="Var", asname=_VAR_ALIAS)],
+        names=[
+            ast.alias(name="Namespace", asname=_NAMESPACE_ALIAS),
+            ast.alias(name="Var", asname=_VAR_ALIAS),
+        ],
         level=0,
     )
 

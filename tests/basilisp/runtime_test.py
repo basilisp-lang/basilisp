@@ -420,7 +420,7 @@ class TestResolveAlias:
 
             foo_ns_sym = sym.symbol("zux.bar.foo")
             foo_ns = get_or_create_ns(foo_ns_sym)
-            ns.add_alias(sym.symbol("foo"), foo_ns)
+            ns.add_alias(foo_ns, sym.symbol("foo"))
             assert sym.symbol(
                 "aliased-var", ns=foo_ns_sym.name
             ) == runtime.resolve_alias(sym.symbol("aliased-var", ns="foo"), ns=ns)
