@@ -1920,7 +1920,8 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
 def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
     """Return a Python AST node for a Basilisp `require*` expression.
 
-    `require*` needs to be separate of `import*` because the """
+    `require*` needs to be separate of `import*` because Basilisp Namespaces should
+    not be included in the `imports` map of the requiring Namespace."""
     assert node.op == NodeOp.REQUIRE
 
     last = None
@@ -1936,11 +1937,7 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
     ]
     for alias in node.aliases:
         safe_name = munge(alias.name)
-        py_require_alias = (
-            munge(alias.alias)
-            if alias.alias is not None
-            else safe_name.split(".", maxsplit=1)[0]
-        )
+        py_require_alias = munge(safe_name.replace(".", "_"))
         last = ast.Name(id=py_require_alias, ctx=ast.Load())
         deps.extend(
             [
@@ -1948,18 +1945,20 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
                     targets=[ast.Name(id=py_require_alias, ctx=ast.Store())],
                     value=ast.Call(
                         func=_load_attr(f"{requiring_ns_name}.require"),
-                        args=[
-                            ast.Constant(safe_name),
-                            ast.Call(
-                                func=_NEW_SYM_FN_NAME,
-                                args=[
-                                    ast.Constant(
-                                        alias.alias if alias.alias else alias.name
+                        args=list(
+                            chain(
+                                [ast.Constant(safe_name)],
+                                [
+                                    ast.Call(
+                                        func=_NEW_SYM_FN_NAME,
+                                        args=[ast.Constant(alias.alias)],
+                                        keywords=[],
                                     )
-                                ],
-                                keywords=[],
-                            ),
-                        ],
+                                ]
+                                if alias.alias is not None
+                                else [],
+                            )
+                        ),
                         keywords=[],
                     ),
                 ),
@@ -2174,11 +2173,8 @@ def __var_direct_link_to_py_ast(
     the current Namespace.
 
     We can direct link a Var if and only if a munged version of the Var name can be
-    found in the Var namespace module.
-
-    If the Var namespace is named as an _import_ in the current Namespace, attempt to"""
+    found in the Var namespace module."""
     var_ns = var.ns
-    var_ns_name = var_ns.name
     var_name = var.name.name
 
     safe_name = __name_in_module(var_name, var_ns.module)
@@ -2186,29 +2182,12 @@ def __var_direct_link_to_py_ast(
         if var_ns is current_ns:
             return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
 
-        # Generally this will only be useful for
-        var_ns_sym = sym.symbol(var_ns_name)
-        if var_ns_sym in current_ns.imports:
-            assert var_ns_sym == sym.symbol(
-                CORE_NS
-            ), f"{var_ns_sym} cannot be linked as an import"
+        safe_ns = munge(var_ns.name.replace(".", "_"))
+        aliased_ns_name = __name_in_module(safe_ns, current_ns.module)
+        if aliased_ns_name is not None:
             return GeneratedPyAST(
-                node=_load_attr(
-                    f"{_MODULE_ALIASES.get(var_ns_name, var_ns_name)}.{safe_name}",
-                    ctx=py_var_ctx,
-                )
+                node=_load_attr(f"{aliased_ns_name}.{safe_name}", ctx=py_var_ctx,)
             )
-
-        ns_aliases = current_ns.get_ns_aliases(var_ns)
-        if ns_aliases is not None:
-            for ns_alias in ns_aliases:
-                aliased_ns_name = __name_in_module(ns_alias.name, current_ns.module)
-                if aliased_ns_name is not None:
-                    return GeneratedPyAST(
-                        node=_load_attr(
-                            f"{aliased_ns_name}.{safe_name}", ctx=py_var_ctx,
-                        )
-                    )
     return None
 
 

@@ -11,9 +11,11 @@ from importlib.machinery import ModuleSpec
 from typing import Iterable, List, Mapping, MutableMapping, Optional, cast
 
 import basilisp.lang.compiler as compiler
+import basilisp.lang.map as lmap
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
+from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
 from basilisp.lang.typing import BasilispModule, ReaderForm
 from basilisp.lang.util import demunge
 from basilisp.util import timed
@@ -277,9 +279,6 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             # will be used to generate an .lpyc file for caching the compiled file.
             all_bytecode = []
 
-            def add_bytecode(bytecode: types.CodeType):
-                all_bytecode.append(bytecode)
-
             logger.debug(f"Reading and compiling Basilisp module '{fullname}'")
             # Cast to basic ReaderForm since the reader can never return a reader conditional
             # form unprocessed in internal usage. There are reader settings which permit
@@ -288,11 +287,19 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 Iterable[ReaderForm],
                 reader.read_file(filename, resolver=runtime.resolve_alias),
             )
+
+            # Create a CompilerContext object and intern it as a private Var in the target
+            # Namespace. This is useful when you need to eval forms directly into the top
+            # level of the current namespace.
+            ctx = compiler.CompilerContext(filename=filename)
+            runtime.Var.intern(
+                sym.symbol(ns.name),
+                sym.symbol("-compiler-context"),
+                ctx,
+                meta=lmap.map({SYM_PRIVATE_META_KEY: True}),
+            )
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
-                forms,
-                compiler.CompilerContext(filename=filename),
-                ns,
-                collect_bytecode=add_bytecode,
+                forms, ctx, ns, collect_bytecode=all_bytecode.append,
             )
 
         # Cache the bytecode that was collected through the compilation run.
@@ -335,14 +342,6 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             except (EOFError, ImportError, IOError, OSError) as e:
                 logger.debug(f"Failed to load cached Basilisp module: {e}")
                 self._exec_module(fullname, spec.loader_state, path_stats, ns)
-
-        # Because we want to (by default) add 'basilisp.core into every namespace by default,
-        # we want to make sure we don't try to add 'basilisp.core into itself, causing a
-        # circular import error.
-        #
-        # Later on, we can probably remove this and just use the 'ns macro to auto-refer
-        # all 'basilisp.core values into the current namespace.
-        runtime.Namespace.add_default_import(ns_name)
 
 
 def hook_imports():

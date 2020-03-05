@@ -6,7 +6,6 @@ import basilisp.lang.atom as atom
 import basilisp.lang.keyword as kw
 import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
-import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 from basilisp.lang.runtime import Namespace, NamespaceMap, Var
 from tests.basilisp.helpers import get_or_create_ns
@@ -121,20 +120,6 @@ def test_reset_ns_meta(
 def test_cannot_remove_core(ns_cache: atom.Atom[NamespaceMap]):
     with pytest.raises(ValueError):
         Namespace.remove(sym.symbol("basilisp.core"))
-
-
-def test_gated_import():
-    with patch(
-        "basilisp.lang.runtime.Namespace.DEFAULT_IMPORTS",
-        new=atom.Atom(lset.set([sym.symbol("default")])),
-    ), patch(
-        "basilisp.lang.runtime.Namespace.GATED_IMPORTS", new=lset.set(["gated-default"])
-    ):
-        Namespace.add_default_import("non-gated-default")
-        assert sym.symbol("non-gated-default") not in Namespace.DEFAULT_IMPORTS.deref()
-
-        Namespace.add_default_import("gated-default")
-        assert sym.symbol("gated-default") in Namespace.DEFAULT_IMPORTS.deref()
 
 
 def test_imports(ns_cache: atom.Atom[NamespaceMap]):
