@@ -13,11 +13,14 @@ import basilisp.main as basilisp
 from basilisp.lang.obj import lrepr
 from basilisp.util import Maybe
 
-basilisp.init()
-importlib.import_module("basilisp.test")
-
 _COLLECTED_TESTS_SYM = sym.symbol("collected-tests", ns="basilisp.test")
 _CURRENT_NS_SYM = sym.symbol("current-ns", ns="basilisp.test")
+
+
+# pylint: disable=unused-argument
+def pytest_configure(config):
+    basilisp.init()
+    importlib.import_module("basilisp.test")
 
 
 def pytest_collect_file(parent, path):

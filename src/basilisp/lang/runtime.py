@@ -425,20 +425,18 @@ class Namespace(ReferenceBase):
         self._meta: Optional[IPersistentMap] = None
         self._lock = threading.Lock()
 
-        self._aliases: Atom[NamespaceMap] = Atom(lmap.Map.empty())
-        self._imports: Atom[ModuleMap] = Atom(
-            lmap.map(
-                dict(
-                    map(
-                        lambda s: (s, importlib.import_module(s.name)),
-                        Namespace.DEFAULT_IMPORTS.deref(),
-                    )
+        self._aliases: NamespaceMap = lmap.Map.empty()
+        self._imports: ModuleMap = lmap.map(
+            dict(
+                map(
+                    lambda s: (s, importlib.import_module(s.name)),
+                    Namespace.DEFAULT_IMPORTS.deref(),
                 )
             )
         )
-        self._import_aliases: Atom[AliasMap] = Atom(lmap.Map.empty())
-        self._interns: Atom[VarMap] = Atom(lmap.Map.empty())
-        self._refers: Atom[VarMap] = Atom(lmap.Map.empty())
+        self._import_aliases: AliasMap = lmap.Map.empty()
+        self._interns: VarMap = lmap.Map.empty()
+        self._refers: VarMap = lmap.Map.empty()
 
     @classmethod
     def add_default_import(cls, module: str):
@@ -470,32 +468,37 @@ class Namespace(ReferenceBase):
     def aliases(self) -> NamespaceMap:
         """A mapping between a symbolic alias and another Namespace. The
         fully qualified name of a namespace is also an alias for itself."""
-        return self._aliases.deref()
+        with self._lock:
+            return self._aliases
 
     @property
     def imports(self) -> ModuleMap:
         """A mapping of names to Python modules imported into the current
         namespace."""
-        return self._imports.deref()
+        with self._lock:
+            return self._imports
 
     @property
     def import_aliases(self) -> AliasMap:
         """A mapping of a symbolic alias and a Python module name."""
-        return self._import_aliases.deref()
+        with self._lock:
+            return self._import_aliases
 
     @property
     def interns(self) -> VarMap:
         """A mapping between a symbolic name and a Var. The Var may point to
         code, data, or nothing, if it is unbound. Vars in `interns` are
         interned in _this_ namespace."""
-        return self._interns.deref()
+        with self._lock:
+            return self._interns
 
     @property
     def refers(self) -> VarMap:
         """A mapping between a symbolic name and a Var. Vars in refers are
         interned in another namespace and are only referred to without an
         alias in this namespace."""
-        return self._refers.deref()
+        with self._lock:
+            return self._refers
 
     def __repr__(self):
         return f"{self._name}"
@@ -505,56 +508,53 @@ class Namespace(ReferenceBase):
 
     def add_alias(self, alias: sym.Symbol, namespace: "Namespace") -> None:
         """Add a Symbol alias for the given Namespace."""
-        self._aliases.swap(lambda m: m.assoc(alias, namespace))
+        with self._lock:
+            self._aliases = self._aliases.assoc(alias, namespace)
 
     def get_alias(self, alias: sym.Symbol) -> "Optional[Namespace]":
         """Get the Namespace aliased by Symbol or None if it does not exist."""
-        return self.aliases.val_at(alias, None)
+        with self._lock:
+            return self._aliases.val_at(alias, None)
 
     def remove_alias(self, alias: sym.Symbol) -> None:
         """Remove the Namespace aliased by Symbol. Return None."""
-        self._aliases.swap(lambda m: m.dissoc(alias))
+        with self._lock:
+            self._aliases = self._aliases.dissoc(alias)
 
     def intern(self, sym: sym.Symbol, var: Var, force: bool = False) -> Var:
         """Intern the Var given in this namespace mapped by the given Symbol.
         If the Symbol already maps to a Var, this method _will not overwrite_
         the existing Var mapping unless the force keyword argument is given
         and is True."""
-        m: lmap.Map = self._interns.swap(Namespace._intern, sym, var, force=force)
-        return m.val_at(sym)
-
-    @staticmethod
-    def _intern(
-        m: lmap.Map, sym: sym.Symbol, new_var: Var, force: bool = False
-    ) -> lmap.Map:
-        """Swap function used by intern to atomically intern a new variable in
-        the symbol mapping for this Namespace."""
-        var = m.val_at(sym, None)
-        if var is None or force:
-            return m.assoc(sym, new_var)
-        return m
+        with self._lock:
+            old_var = self._interns.val_at(sym, None)
+            if old_var is None or force:
+                self._interns = self._interns.assoc(sym, var)
+            return self._interns.val_at(sym)
 
     def unmap(self, sym: sym.Symbol) -> None:
-        self._interns.swap(lambda m: m.dissoc(sym))
+        with self._lock:
+            self._interns = self._interns.dissoc(sym)
 
     def find(self, sym: sym.Symbol) -> Optional[Var]:
         """Find Vars mapped by the given Symbol input or None if no Vars are
         mapped by that Symbol."""
-        v = self.interns.val_at(sym, None)
-        if v is None:
-            return self.refers.val_at(sym, None)
-        return v
+        with self._lock:
+            v = self._interns.val_at(sym, None)
+            if v is None:
+                return self._refers.val_at(sym, None)
+            return v
 
     def add_import(self, sym: sym.Symbol, module: Module, *aliases: sym.Symbol) -> None:
         """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
         the aliases will be applied to the """
-        self._imports.swap(lambda m: m.assoc(sym, module))
-        if aliases:
-            self._import_aliases.swap(
-                lambda m: m.assoc(
-                    *itertools.chain.from_iterable([(alias, sym) for alias in aliases])
-                )
-            )
+        with self._lock:
+            self._imports = self._imports.assoc(sym, module)
+            if aliases:
+                m = self._import_aliases
+                for alias in aliases:
+                    m = m.assoc(alias, sym)
+                self._import_aliases = m
 
     def get_import(self, sym: sym.Symbol) -> Optional[BasilispModule]:
         """Return the module if a moduled named by sym has been imported into
@@ -562,37 +562,36 @@ class Namespace(ReferenceBase):
 
         First try to resolve a module directly with the given name. If no module
         can be resolved, attempt to resolve the module using import aliases."""
-        mod = self.imports.val_at(sym, None)
-        if mod is None:
-            alias = self.import_aliases.get(sym, None)
-            if alias is None:
-                return None
-            return self.imports.val_at(alias, None)
-        return mod
+        with self._lock:
+            mod = self._imports.val_at(sym, None)
+            if mod is None:
+                alias = self._import_aliases.get(sym, None)
+                if alias is None:
+                    return None
+                return self._imports.val_at(alias, None)
+            return mod
 
     def add_refer(self, sym: sym.Symbol, var: Var) -> None:
         """Refer var in this namespace under the name sym."""
         if not var.is_private:
-            self._refers.swap(lambda s: s.assoc(sym, var))
+            with self._lock:
+                self._refers = self._refers.assoc(sym, var)
 
     def get_refer(self, sym: sym.Symbol) -> Optional[Var]:
         """Get the Var referred by Symbol or None if it does not exist."""
-        return self.refers.val_at(sym, None)
+        with self._lock:
+            return self._refers.val_at(sym, None)
 
-    @classmethod
-    def __refer_all(cls, refers: lmap.Map, other_ns_interns: lmap.Map) -> lmap.Map:
-        """Refer all _public_ interns from another namespace."""
-        final_refers = refers
-        for entry in other_ns_interns:
-            s: sym.Symbol = entry.key
-            var: Var = entry.value
-            if not var.is_private:
-                final_refers = final_refers.assoc(s, var)
-        return final_refers
-
-    def refer_all(self, other_ns: "Namespace"):
+    def refer_all(self, other_ns: "Namespace") -> None:
         """Refer all the Vars in the other namespace."""
-        self._refers.swap(Namespace.__refer_all, other_ns.interns)
+        with self._lock:
+            final_refers = self._refers
+            for entry in other_ns.interns:
+                s: sym.Symbol = entry.key
+                var: Var = entry.value
+                if not var.is_private:
+                    final_refers = final_refers.assoc(s, var)
+            self._refers = final_refers
 
     @classmethod
     def ns_cache(cls) -> lmap.Map:

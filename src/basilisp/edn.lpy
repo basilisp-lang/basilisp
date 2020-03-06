@@ -212,7 +212,7 @@
                                                    (update m k inc)
                                                    (assoc m k 1)))
                                                {})
-                                       (filter (fn [[k n]] (> n 1)))
+                                       (filter (fn [[_ n]] (> n 1)))
                                        (ffirst))}))
                 coll-set)))]
     (read-coll reader opts set-if-valid "}" "set")))
