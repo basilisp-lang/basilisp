@@ -54,13 +54,13 @@ class CompilerException(IExceptionInfo):
                 self.form.meta.val_at(READER_LINE_KW),
                 self.form.meta.val_at(READER_COL_KW),
             )
-        if self.lisp_ast is not None:
+        if self.lisp_ast is not None:  # pragma: no cover
             d[_LISP_AST] = self.lisp_ast
             loc = loc or _loc(self.lisp_ast.env.line, self.lisp_ast.env.col)
-        if self.py_ast is not None:
+        if self.py_ast is not None:  # pragma: no cover
             d[_PY_AST] = self.py_ast
             loc = loc or _loc(self.py_ast.lineno, self.py_ast.coloffset)
-        if loc:
+        if loc:  # pragma: no cover
             d[_LINE] = loc.line
             d[_COL] = loc.col
         return lmap.map(d)
