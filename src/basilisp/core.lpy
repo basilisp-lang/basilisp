@@ -3471,7 +3471,7 @@
     (importlib/import-module (name ns-sym))
     (let [new-ns (the-ns ns-sym)]
       ;; Add the namespace alias
-      (.add-alias current-ns (or (:as opts) ns-sym) new-ns)
+      (.add-alias current-ns new-ns (or (:as opts) ns-sym))
 
       ;; Add refers
       (cond

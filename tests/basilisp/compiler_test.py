@@ -3123,8 +3123,8 @@ class TestSymbolResolution:
         other_ns_name = sym.symbol("other.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns_name, other_ns)
-            current_ns.add_alias(sym.symbol("other"), other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
+            current_ns.add_alias(other_ns, sym.symbol("other"))
 
             with pytest.raises(compiler.CompilerException):
                 lcompile("(other/m :arg)")
@@ -3138,8 +3138,8 @@ class TestSymbolResolution:
         other_ns_name = sym.symbol("other.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns_name, other_ns)
-            current_ns.add_alias(sym.symbol("other"), other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
+            current_ns.add_alias(other_ns, sym.symbol("other"))
 
             with runtime.ns_bindings(other_ns_name.name):
                 lcompile("(def ^:macro m (fn* [&env &form v] v))")
@@ -3204,10 +3204,10 @@ class TestSymbolResolution:
         third_ns_name = sym.symbol("third.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns_name, other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
 
             third_ns = get_or_create_ns(third_ns_name)
-            other_ns.add_alias(third_ns_name, third_ns)
+            other_ns.add_alias(third_ns, third_ns_name)
 
             with runtime.ns_bindings(third_ns_name.name):
                 lcompile(
@@ -3241,10 +3241,10 @@ class TestSymbolResolution:
         third_ns_name = sym.symbol("third.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns_name, other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
 
             third_ns = get_or_create_ns(third_ns_name)
-            other_ns.add_alias(sym.symbol("third"), third_ns)
+            other_ns.add_alias(third_ns, sym.symbol("third"))
 
             with runtime.ns_bindings(third_ns_name.name):
                 lcompile(
@@ -3278,7 +3278,7 @@ class TestSymbolResolution:
         third_ns_name = sym.symbol("third.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns_name, other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
 
             third_ns = get_or_create_ns(third_ns_name)
 
@@ -3313,8 +3313,8 @@ class TestWarnOnVarIndirection:
         try:
             other_ns = get_or_create_ns(other_ns_name)
             Var.intern(other_ns_name, sym.symbol("m"), lambda x: x)
-            current_ns.add_alias(other_ns_name, other_ns)
-            current_ns.add_alias(sym.symbol("other"), other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
+            current_ns.add_alias(other_ns, sym.symbol("other"))
 
             with runtime.ns_bindings(current_ns.name):
                 yield
