@@ -506,10 +506,13 @@ class Namespace(ReferenceBase):
     def __hash__(self):
         return hash(self._name)
 
-    def add_alias(self, alias: sym.Symbol, namespace: "Namespace") -> None:
-        """Add a Symbol alias for the given Namespace."""
+    def add_alias(self, namespace: "Namespace", *aliases: sym.Symbol) -> None:
+        """Add Symbol aliases for the given Namespace."""
         with self._lock:
-            self._aliases = self._aliases.assoc(alias, namespace)
+            new_m = self._aliases
+            for alias in aliases:
+                new_m = new_m.assoc(alias, namespace)
+            self._aliases = new_m
 
     def get_alias(self, alias: sym.Symbol) -> "Optional[Namespace]":
         """Get the Namespace aliased by Symbol or None if it does not exist."""

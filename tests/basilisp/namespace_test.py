@@ -277,7 +277,7 @@ def test_alias(ns_cache: atom.Atom[NamespaceMap]):
     ns1 = get_or_create_ns(sym.symbol("ns1"))
     ns2 = get_or_create_ns(sym.symbol("ns2"))
 
-    ns1.add_alias(sym.symbol("n2"), ns2)
+    ns1.add_alias(ns2, sym.symbol("n2"))
 
     assert None is ns1.get_alias(sym.symbol("ns2"))
     assert ns2 is ns1.get_alias(sym.symbol("n2"))
@@ -301,10 +301,10 @@ class TestCompletion:
         str_ns.intern(
             chars_sym, Var(ns, chars_sym, meta=lmap.map({kw.keyword("private"): True}))
         )
-        ns.add_alias(str_ns_alias, str_ns)
+        ns.add_alias(str_ns, str_ns_alias)
 
         str_alias = sym.symbol("str")
-        ns.add_alias(str_alias, Namespace(str_alias))
+        ns.add_alias(Namespace(str_alias), str_alias)
 
         str_sym = sym.symbol("str")
         ns.intern(str_sym, Var(ns, str_sym))
