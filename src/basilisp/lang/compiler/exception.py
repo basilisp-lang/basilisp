@@ -7,7 +7,7 @@ import basilisp._pyast as ast
 import basilisp.lang.keyword as kw
 import basilisp.lang.map as lmap
 from basilisp.lang.compiler.nodes import Node
-from basilisp.lang.interfaces import IExceptionInfo, IPersistentMap, ISeq
+from basilisp.lang.interfaces import IExceptionInfo, IMeta, IPersistentMap, ISeq
 from basilisp.lang.obj import lrepr
 from basilisp.lang.reader import READER_COL_KW, READER_LINE_KW
 from basilisp.lang.typing import LispForm
@@ -50,16 +50,20 @@ class CompilerException(IExceptionInfo):
         loc = None
         if self.form is not None:
             d[_FORM] = self.form
-            loc = self.form.meta and _loc(
-                self.form.meta.val_at(READER_LINE_KW),
-                self.form.meta.val_at(READER_COL_KW),
+            loc = (
+                _loc(
+                    self.form.meta.val_at(READER_LINE_KW),
+                    self.form.meta.val_at(READER_COL_KW),
+                )
+                if isinstance(self.form, IMeta) and self.form.meta
+                else None
             )
         if self.lisp_ast is not None:  # pragma: no cover
             d[_LISP_AST] = self.lisp_ast
             loc = loc or _loc(self.lisp_ast.env.line, self.lisp_ast.env.col)
         if self.py_ast is not None:  # pragma: no cover
             d[_PY_AST] = self.py_ast
-            loc = loc or _loc(self.py_ast.lineno, self.py_ast.coloffset)
+            loc = loc or _loc(self.py_ast.lineno, self.py_ast.col_offset)
         if loc:  # pragma: no cover
             d[_LINE] = loc.line
             d[_COL] = loc.col
