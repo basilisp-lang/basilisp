@@ -14,7 +14,8 @@ import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
-from basilisp.lang.typing import BasilispModule, ReaderForm
+from basilisp.lang.runtime import BasilispModule
+from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import demunge
 from basilisp.util import timed
 
@@ -275,10 +276,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             # During compilation, bytecode objects are added to the list via the closure
             # add_bytecode below, which is passed to the compiler. The collected bytecodes
             # will be used to generate an .lpyc file for caching the compiled file.
-            all_bytecode = []
-
-            def add_bytecode(bytecode: types.CodeType):
-                all_bytecode.append(bytecode)
+            all_bytecode: List[types.CodeType] = []
 
             logger.debug(f"Reading and compiling Basilisp module '{fullname}'")
             # Cast to basic ReaderForm since the reader can never return a reader conditional
@@ -292,7 +290,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 forms,
                 compiler.CompilerContext(filename=filename),
                 ns,
-                collect_bytecode=add_bytecode,
+                collect_bytecode=all_bytecode.append,
             )
 
         # Cache the bytecode that was collected through the compilation run.
@@ -324,6 +322,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         ns_name = demunge(fullname)
         ns: runtime.Namespace = runtime.Namespace.get_or_create(sym.symbol(ns_name))
         ns.module = module
+        module.__basilisp_namespace__ = ns
 
         # Check if a valid, cached version of this Basilisp namespace exists and, if so,
         # load it and bypass the expensive compilation process below.
@@ -351,7 +350,7 @@ def hook_imports():
 
     Once this is called, Basilisp code may be called from within Python code
     using standard `import module.submodule` syntax."""
-    if any([isinstance(o, BasilispImporter) for o in sys.meta_path]):
+    if any(isinstance(o, BasilispImporter) for o in sys.meta_path):
         return
     sys.meta_path.insert(
         0, BasilispImporter()  # pylint:disable=abstract-class-instantiated
