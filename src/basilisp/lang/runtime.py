@@ -47,7 +47,7 @@ from basilisp.lang.interfaces import (
     ISeqable,
 )
 from basilisp.lang.reference import ReferenceBase
-from basilisp.lang.typing import BasilispModule, LispNumber
+from basilisp.lang.typing import LispNumber
 from basilisp.lang.util import munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
@@ -122,6 +122,11 @@ _SPECIAL_FORMS = lset.s(
 
 CompletionMatcher = Callable[[Tuple[sym.Symbol, Any]], bool]
 CompletionTrimmer = Callable[[Tuple[sym.Symbol, Any]], str]
+
+
+class BasilispModule(types.ModuleType):
+    __basilisp_namespace__: "Namespace"
+    __basilisp_bootstrapped__: bool = False
 
 
 def _new_module(name: str, doc=None) -> BasilispModule:

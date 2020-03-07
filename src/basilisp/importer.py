@@ -16,7 +16,8 @@ import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
 from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
-from basilisp.lang.typing import BasilispModule, ReaderForm
+from basilisp.lang.runtime import BasilispModule
+from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import demunge
 from basilisp.util import timed
 
@@ -331,6 +332,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         ns_name = demunge(fullname)
         ns: runtime.Namespace = runtime.Namespace.get_or_create(sym.symbol(ns_name))
         ns.module = module
+        module.__basilisp_namespace__ = ns
 
         # Check if a valid, cached version of this Basilisp namespace exists and, if so,
         # load it and bypass the expensive compilation process below.
@@ -350,7 +352,7 @@ def hook_imports():
 
     Once this is called, Basilisp code may be called from within Python code
     using standard `import module.submodule` syntax."""
-    if any([isinstance(o, BasilispImporter) for o in sys.meta_path]):
+    if any(isinstance(o, BasilispImporter) for o in sys.meta_path):
         return
     sys.meta_path.insert(
         0, BasilispImporter()  # pylint:disable=abstract-class-instantiated
