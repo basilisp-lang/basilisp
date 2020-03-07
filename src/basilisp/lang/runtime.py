@@ -416,7 +416,6 @@ class Namespace(ReferenceBase):
         "_aliases",
         "_imports",
         "_import_aliases",
-        "_require_aliases",
     )
 
     def __init__(self, name: sym.Symbol, module: BasilispModule = None) -> None:
