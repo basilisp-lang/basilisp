@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
-from types import ModuleType
 from typing import Pattern, Union
 
 import basilisp.lang.keyword as kw
@@ -37,7 +36,3 @@ LispForm = Union[
 PyCollectionForm = Union[dict, list, set, tuple]
 ReaderForm = Union[LispForm, IRecord, ISeq, IType, PyCollectionForm]
 SpecialForm = Union[llist.List, ISeq]
-
-
-class BasilispModule(ModuleType):
-    __basilisp_bootstrapped__: bool = False
