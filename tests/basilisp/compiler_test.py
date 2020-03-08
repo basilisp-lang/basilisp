@@ -2562,6 +2562,11 @@ class TestLoop:
 
 
 class TestQuote:
+    @pytest.mark.parametrize("code", ["(quote)", "(quote form other-form)"])
+    def test_quote_num_elems(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
     def test_quoted_list(self, lcompile: CompileFn):
         assert lcompile("'()") == llist.l()
         assert lcompile("'(str)") == llist.l(sym.symbol("str"))
