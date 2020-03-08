@@ -2035,6 +2035,12 @@ def _loop_ast(ctx: AnalyzerContext, form: ISeq) -> Loop:
 
 def _quote_ast(ctx: AnalyzerContext, form: ISeq) -> Quote:
     assert form.first == SpecialForm.QUOTE
+    nelems = count(form)
+
+    if nelems != 2:
+        raise AnalyzerException(
+            "quote forms must have exactly two elements: (quote form)", form=form
+        )
 
     with ctx.quoted():
         with ctx.expr_pos():

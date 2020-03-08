@@ -3601,18 +3601,20 @@
                        {}
                        opts))
 
-        requires    (when (:require opts)
-                      `(require ~@(map #(list 'quote %) (:require opts))))
-        uses        (when (:use opts)
-                      `(use ~@(map #(list 'quote %) (:use opts))))
-        imports     (when (:import opts)
-                      (map (fn [v]
-                             `(import ~v))
-                           (:import opts)))]
+        refer-filters (when-let [filters (or (:refer-basilisp opts)
+                                             (:refer-clojure opts))]
+                        (map #(list 'quote %) filters))
+        requires      (when (:require opts)
+                        `(require ~@(map #(list 'quote %) (:require opts))))
+        uses          (when (:use opts)
+                        `(use ~@(map #(list 'quote %) (:use opts))))
+        imports       (when (:import opts)
+                        (map (fn [v]
+                               `(import ~v))
+                             (:import opts)))]
     `(do
        (in-ns (quote ~name))
-       (refer-basilisp ~@(or (:refer-basilisp opts)
-                             (:refer-clojure opts)))
+       (refer (quote ~'basilisp.core) ~@refer-filters)
        ~requires
        ~uses
        ~@imports)))
