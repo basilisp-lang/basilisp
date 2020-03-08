@@ -11,11 +11,9 @@ from importlib.machinery import ModuleSpec
 from typing import Iterable, List, Mapping, MutableMapping, Optional, cast
 
 import basilisp.lang.compiler as compiler
-import basilisp.lang.map as lmap
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
-from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
 from basilisp.lang.runtime import BasilispModule
 from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import demunge
@@ -293,12 +291,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             # Namespace. This is useful when you need to eval forms directly into the top
             # level of the current namespace.
             ctx = compiler.CompilerContext(filename=filename)
-            runtime.Var.intern(
-                sym.symbol(ns.name),
-                sym.symbol("-compiler-context"),
-                ctx,
-                meta=lmap.map({SYM_PRIVATE_META_KEY: True}),
-            )
+            compiler.set_compiler_context(ns, ctx)
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
                 forms, ctx, ns, collect_bytecode=all_bytecode.append,
             )

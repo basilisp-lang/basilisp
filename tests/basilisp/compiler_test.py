@@ -3354,7 +3354,7 @@ class TestWarnOnVarIndirection:
         other_ns_name = sym.symbol("other.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            Var.intern(other_ns_name, sym.symbol("m"), lambda x: x)
+            Var.intern(other_ns, sym.symbol("m"), lambda x: x)
             current_ns.add_alias(other_ns, other_ns_name)
             current_ns.add_alias(other_ns, sym.symbol("other"))
 
