@@ -273,9 +273,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 f"Loaded Basilisp module '{fullname}' in {duration / 1000000}ms"
             )
         ):
-            # During compilation, bytecode objects are added to the list via the closure
-            # add_bytecode below, which is passed to the compiler. The collected bytecodes
-            # will be used to generate an .lpyc file for caching the compiled file.
+            # During compilation, bytecode objects are added to the list which is
+            # passed to the compiler. The collected bytecodes will be used to generate
+            # an .lpyc file for caching the compiled file.
             all_bytecode: List[types.CodeType] = []
 
             logger.debug(f"Reading and compiling Basilisp module '{fullname}'")
