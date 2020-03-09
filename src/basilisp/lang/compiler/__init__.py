@@ -6,6 +6,7 @@ from typing import Any, Callable, Iterable, List, Mapping, Optional
 from astor import code_gen as codegen
 
 import basilisp._pyast as ast
+import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
     WARN_ON_SHADOWED_NAME,
@@ -16,6 +17,7 @@ from basilisp.lang.compiler.analyzer import (  # noqa
     macroexpand,
     macroexpand_1,
 )
+from basilisp.lang.compiler.constants import COMPILER_CONTEXT, SYM_PRIVATE_META_KEY
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
 from basilisp.lang.compiler.generator import (  # noqa
     USE_VAR_INDIRECTION,
@@ -86,6 +88,13 @@ def _emit_ast_string(
         print(to_py_str(module))
     else:
         runtime.add_generated_python(to_py_str(module), which_ns=ns)
+
+
+def set_compiler_context(ns: runtime.Namespace, ctx: CompilerContext) -> None:
+    """Set the CompilerContext instance in the given Namespace."""
+    runtime.Var.intern(
+        ns, COMPILER_CONTEXT, ctx, meta=lmap.map({SYM_PRIVATE_META_KEY: True}),
+    )
 
 
 def compile_and_exec_form(  # pylint: disable= too-many-arguments

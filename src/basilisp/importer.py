@@ -286,11 +286,14 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 Iterable[ReaderForm],
                 reader.read_file(filename, resolver=runtime.resolve_alias),
             )
+
+            # Create a CompilerContext object and intern it as a private Var in the target
+            # Namespace. This is useful when you need to eval forms directly into the top
+            # level of the current namespace.
+            ctx = compiler.CompilerContext(filename=filename)
+            compiler.set_compiler_context(ns, ctx)
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
-                forms,
-                compiler.CompilerContext(filename=filename),
-                ns,
-                collect_bytecode=all_bytecode.append,
+                forms, ctx, ns, collect_bytecode=all_bytecode.append,
             )
 
         # Cache the bytecode that was collected through the compilation run.
