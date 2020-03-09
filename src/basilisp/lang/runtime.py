@@ -299,12 +299,13 @@ class Var(IDeref, ReferenceBase):
 
     @staticmethod
     def find_in_ns(
-        ns: Union["Namespace", sym.Symbol], name_sym: sym.Symbol
+        ns_or_sym: Union["Namespace", sym.Symbol], name_sym: sym.Symbol
     ) -> "Optional[Var]":
         """Return the value current bound to the name `name_sym` in the namespace
         specified by `ns_sym`."""
-        if isinstance(ns, sym.Symbol):
-            ns = Namespace.get(ns)
+        ns = (
+            Namespace.get(ns_or_sym) if isinstance(ns_or_sym, sym.Symbol) else ns_or_sym
+        )
         if ns is not None:
             return ns.find(name_sym)
         return None

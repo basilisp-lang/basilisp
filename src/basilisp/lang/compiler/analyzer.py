@@ -2531,7 +2531,7 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
         )
     elif ns_sym in which_ns.aliases:
         aliased_ns: runtime.Namespace = which_ns.aliases[ns_sym]
-        v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
+        v = Var.find_in_ns(aliased_ns, sym.symbol(form.name))
         if v is None:
             raise AnalyzerException(
                 f"unable to resolve symbol '{sym.symbol(form.name, ns_sym.name)}' in this context",
