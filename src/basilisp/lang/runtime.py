@@ -270,28 +270,41 @@ class Var(IDeref, ReferenceBase):
 
     @staticmethod
     def intern(
-        ns: sym.Symbol, name: sym.Symbol, val, dynamic: bool = False, meta=None
+        ns: Union["Namespace", sym.Symbol],
+        name: sym.Symbol,
+        val,
+        dynamic: bool = False,
+        meta=None,
     ) -> "Var":
         """Intern the value bound to the symbol `name` in namespace `ns`."""
-        var_ns = Namespace.get_or_create(ns)
-        var = var_ns.intern(name, Var(var_ns, name, dynamic=dynamic, meta=meta))
+        if isinstance(ns, sym.Symbol):
+            ns = Namespace.get_or_create(ns)
+        var = ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
         var.root = val
         return var
 
     @staticmethod
     def intern_unbound(
-        ns: sym.Symbol, name: sym.Symbol, dynamic: bool = False, meta=None
+        ns: Union["Namespace", sym.Symbol],
+        name: sym.Symbol,
+        dynamic: bool = False,
+        meta=None,
     ) -> "Var":
         """Create a new unbound `Var` instance to the symbol `name` in namespace `ns`."""
-        var_ns = Namespace.get_or_create(ns)
-        return var_ns.intern(name, Var(var_ns, name, dynamic=dynamic, meta=meta))
+        if isinstance(ns, sym.Symbol):
+            ns = Namespace.get_or_create(ns)
+        return ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
 
     @staticmethod
-    def find_in_ns(ns_sym: sym.Symbol, name_sym: sym.Symbol) -> "Optional[Var]":
+    def find_in_ns(
+        ns_or_sym: Union["Namespace", sym.Symbol], name_sym: sym.Symbol
+    ) -> "Optional[Var]":
         """Return the value current bound to the name `name_sym` in the namespace
         specified by `ns_sym`."""
-        ns = Namespace.get(ns_sym)
-        if ns:
+        ns = (
+            Namespace.get(ns_or_sym) if isinstance(ns_or_sym, sym.Symbol) else ns_or_sym
+        )
+        if ns is not None:
             return ns.find(name_sym)
         return None
 
@@ -1387,9 +1400,9 @@ def _basilisp_fn(f):
 
 def init_ns_var(which_ns: str = CORE_NS, ns_var_name: str = NS_VAR_NAME) -> Var:
     """Initialize the dynamic `*ns*` variable in the Namespace `which_ns`."""
-    core_sym = sym.Symbol(which_ns)
+    core_sym = sym.symbol(which_ns)
     core_ns = Namespace.get_or_create(core_sym)
-    ns_var = Var.intern(core_sym, sym.Symbol(ns_var_name), core_ns, dynamic=True)
+    ns_var = Var.intern(core_ns, sym.Symbol(ns_var_name), core_ns, dynamic=True)
     logger.debug(f"Created namespace variable {sym.symbol(ns_var_name, ns=which_ns)}")
     return ns_var
 
@@ -1504,7 +1517,7 @@ def add_generated_python(
         which_ns = get_current_ns()
     v = Maybe(which_ns.find(sym.symbol(var_name))).or_else(
         lambda: Var.intern(
-            sym.symbol(which_ns.name),  # type: ignore
+            which_ns,  # type: ignore
             sym.symbol(var_name),
             "",
             dynamic=True,
