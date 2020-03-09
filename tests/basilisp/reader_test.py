@@ -22,7 +22,7 @@ def test_ns() -> str:
 
 @pytest.fixture
 def ns(test_ns: str) -> runtime.Namespace:
-    runtime.init_ns_var(which_ns=runtime.CORE_NS)
+    runtime.init_ns_var()
     with runtime.ns_bindings(test_ns) as ns:
         yield ns
 

@@ -678,7 +678,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     else:
         def_ast = GeneratedPyAST(node=ast.Constant(None))
 
-    ns_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[_NS_VAR_NAME], keywords=[])
+    ns_name = _load_attr(_NS_VAR_VALUE)
     def_name = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Constant(defsym.name)], keywords=[]
     )
