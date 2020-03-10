@@ -3425,7 +3425,7 @@
                    (ex-info "Invalid libspec for require"
                             {:value req}))))
 
-(defn- require-lib-with-libspec
+(defn- require-lib
   "Require the library described by `libspec` into the Namespace `requiring-ns`."
   [requiring-ns libspec]
   (let [required-ns-sym  (:namespace libspec)]
@@ -3468,7 +3468,7 @@
   "Refer Vars into `requiring-ns` as described by `libspec`.
 
   This function assumes the referred-to Namespace has already been loaded by
-  `require-lib-with-libspec`."
+  `require-lib`."
   [requiring-ns libspec]
   (let [referred-ns (the-ns (:namespace libspec))]
     (if-not (some #(contains? libspec %) [:refer :only :exclude :rename])
@@ -3495,7 +3495,7 @@
   [& args]
   (let [current-ns *ns*]
     (doseq [libspec (map require-libspec args)]
-      (require-lib-with-libspec current-ns libspec)
+      (require-lib current-ns libspec)
 
       ;; Add refers
       (let [new-ns    (the-ns (:namespace libspec))
@@ -3528,7 +3528,7 @@
     ;; It is necessary to first require the Namespace directly, otherwise
     ;; when refer attempts to load the Namespace later, it will fail.
     (->> (require-libspec ns-sym)
-         (require-lib-with-libspec current-ns))
+         (require-lib current-ns))
     (->> (apply vector ns-sym filters)
          (require-libspec)
          (refer-lib current-ns))))
@@ -3562,10 +3562,10 @@
   [& args]
   (let [current-ns *ns*]
     (doseq [libspec (map require-libspec args)]
-      ;; Remove the :refer key to avoid having require-lib-with-libspec
+      ;; Remove the :refer key to avoid having require-lib
       ;; perform a full :refer, instead we'll use refer-lib
       (->> (dissoc libspec :refer)
-           (require-lib-with-libspec current-ns))
+           (require-lib current-ns))
       (refer-lib current-ns libspec))
     nil))
 
