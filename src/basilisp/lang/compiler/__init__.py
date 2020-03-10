@@ -16,7 +16,6 @@ from basilisp.lang.compiler.analyzer import (  # noqa
     macroexpand,
     macroexpand_1,
 )
-from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
 from basilisp.lang.compiler.generator import (  # noqa
     USE_VAR_INDIRECTION,
