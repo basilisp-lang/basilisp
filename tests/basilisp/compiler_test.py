@@ -1936,37 +1936,33 @@ class TestIf:
 
 
 class TestImport:
-    def test_import_module_must_be_symbol(self, lcompile: CompileFn):
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(import* :time)",
+            '(import* "time")',
+            "(import* string :time)",
+            '(import* string "time")',
+        ],
+    )
+    def test_import_module_must_be_symbol(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile("(import* :time)")
+            lcompile(code)
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(import* [:time :as py-time])",
+            "(import* [time py-time])",
+            "(import* [time :as :py-time])",
+            "(import* [time :as])",
+            "(import* [time :named py-time])",
+            "(import* [time :named py time])",
+        ],
+    )
+    def test_import_aliased_module_format(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile('(import* "time")')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* string :time)")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(import* string "time")')
-
-    def test_import_aliased_module_format(self, lcompile: CompileFn):
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [:time :as py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :as :py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :as])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :named py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :named py time])")
+            lcompile(code)
 
     def test_import_module_must_exist(self, lcompile: CompileFn):
         with pytest.raises(ImportError):
