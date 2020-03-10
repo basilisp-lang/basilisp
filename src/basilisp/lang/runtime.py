@@ -517,7 +517,9 @@ class Namespace(ReferenceBase):
 
     def require(self, ns_name: str, *aliases: sym.Symbol) -> BasilispModule:
         """Require the Basilisp Namespace named by `ns_name` and add any aliases given
-        to this Namespace."""
+        to this Namespace.
+
+        This method is called in code generated for the `require*` special form."""
         try:
             ns_module = importlib.import_module(munge(ns_name))
         except ModuleNotFoundError as e:

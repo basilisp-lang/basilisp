@@ -452,6 +452,11 @@ def _noop_node() -> ast.AST:
     return ast.Constant(None)
 
 
+def _var_ns_as_python_sym(name: str) -> str:
+    """Return a Var namespace as a valid Python symbol."""
+    return munge(name.replace(".", "_"))
+
+
 #######################
 # Aliases & Attributes
 #######################
@@ -1925,54 +1930,77 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
 def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
     """Return a Python AST node for a Basilisp `require*` expression.
 
-    `require*` needs to be separate of `import*` because Basilisp Namespaces should
-    not be included in the `imports` map of the requiring Namespace."""
+    In Clojure, `require` simply loads the file corresponding to the required
+    Namespace directly. At the time that Namespace is loaded, `*ns*` is set as
+    the _requiring_ Namespace. The `ns` macro, switches `*ns*` using `in-ns` and
+    then begins requiring additional Namespaces (like a depth-first search).
+    All of the Namespace setup work is done by the _required_ Namespace's `ns`
+    macro, rather than any compiler or runtime mandated machinery.
+
+    Prior to the addition of this form, Basilisp worked much more similarly to
+    Python. Most of the import mechanisms were _imposed_ on the required Namespace
+    and Namespaces were set up primarily by the compiler and runtime. However, in
+    order to support all of the features Clojure supports, it was not practical
+    to continue in that direction. The `require*` special form was split from
+    `import*` to allow special semantics for required Namespaces (which are still
+    compiled with Python modules under the hood).
+
+    `require*` delegates to the current Namespace's `require` method to import
+    and alias the required module(s) and manage their own state. Special care is
+    taken to ensure that the value of `*ns*` is preserved between requires, since
+    the Namespaces themselves are otherwise responsible determining its value."""
     assert node.op == NodeOp.REQUIRE
 
     last = None
     requiring_ns_name = genname("requiring_ns")
     deps: List[ast.AST] = [
-        # Fetch the requiring namespace first prior to initiating imports
-        # in order to ensure the import is only made into that namespace
-        # (in case the imported module changes the value of *ns*)
+        # Fetch the requiring namespace first prior to initiating requires
+        # in order to ensure the require is only made into that namespace
+        # (in case the required module changes the value of *ns*)
         ast.Assign(
             targets=[ast.Name(id=requiring_ns_name, ctx=ast.Store())],
             value=_load_attr(_NS_VAR_VALUE),
         )
     ]
     for alias in node.aliases:
-        py_require_alias = munge(alias.name.replace(".", "_"))
+        py_require_alias = _var_ns_as_python_sym(alias.name)
         last = ast.Name(id=py_require_alias, ctx=ast.Load())
-        deps.extend(
-            [
-                ast.Assign(
-                    targets=[ast.Name(id=py_require_alias, ctx=ast.Store())],
-                    value=ast.Call(
-                        func=_load_attr(f"{requiring_ns_name}.require"),
-                        args=list(
-                            chain(
-                                [ast.Constant(alias.name)],
-                                [
-                                    ast.Call(
-                                        func=_NEW_SYM_FN_NAME,
-                                        args=[ast.Constant(alias.alias)],
-                                        keywords=[],
-                                    )
-                                ]
-                                if alias.alias is not None
-                                else [],
-                            )
+        deps.append(
+            ast.Try(
+                body=[
+                    ast.Assign(
+                        targets=[ast.Name(id=py_require_alias, ctx=ast.Store())],
+                        value=ast.Call(
+                            func=_load_attr(f"{requiring_ns_name}.require"),
+                            args=list(
+                                chain(
+                                    [ast.Constant(alias.name)],
+                                    [
+                                        ast.Call(
+                                            func=_NEW_SYM_FN_NAME,
+                                            args=[ast.Constant(alias.alias)],
+                                            keywords=[],
+                                        )
+                                    ]
+                                    if alias.alias is not None
+                                    else [],
+                                )
+                            ),
+                            keywords=[],
                         ),
-                        keywords=[],
+                    )
+                ],
+                handlers=[],
+                orelse=[],
+                finalbody=[
+                    # Restore the original namespace after each require to ensure that the
+                    # following require starts with a clean slate
+                    ast.Assign(
+                        targets=[_load_attr(_NS_VAR_VALUE, ctx=ast.Store())],
+                        value=ast.Name(id=requiring_ns_name, ctx=ast.Load()),
                     ),
-                ),
-                # Restore the original namespace after each import to ensure that the
-                # following import starts with a clean slate
-                ast.Assign(
-                    targets=[_load_attr(_NS_VAR_VALUE, ctx=ast.Store())],
-                    value=ast.Name(id=requiring_ns_name, ctx=ast.Load()),
-                ),
-            ]
+                ],
+            )
         )
 
     deps.append(ast.Delete(targets=[ast.Name(id=requiring_ns_name, ctx=ast.Del())]),)
@@ -2186,7 +2214,7 @@ def __var_direct_link_to_py_ast(
         if var_ns is current_ns:
             return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
 
-        safe_ns = munge(var_ns.name.replace(".", "_"))
+        safe_ns = _var_ns_as_python_sym(var_ns.name)
         aliased_ns_name = __name_in_module(safe_ns, current_ns.module)
         if aliased_ns_name is not None:
             return GeneratedPyAST(

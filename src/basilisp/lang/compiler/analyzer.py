@@ -107,6 +107,7 @@ from basilisp.lang.compiler.nodes import (
     Quote,
     Recur,
     Require,
+    RequireAlias,
     Set as SetNode,
     SetBang,
     SpecialFormNode,
@@ -2161,7 +2162,7 @@ def _require_ast(  # pylint: disable=too-many-branches
             raise AnalyzerException("symbol or vector expected for require*", form=f)
 
         aliases.append(
-            ImportAlias(
+            RequireAlias(
                 form=f,
                 name=module_name.name,
                 alias=module_alias,

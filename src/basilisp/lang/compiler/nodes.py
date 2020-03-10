@@ -89,6 +89,7 @@ class NodeOp(Enum):
     QUOTE = kw.keyword("quote")
     RECUR = kw.keyword("recur")
     REQUIRE = kw.keyword("require")
+    REQUIRE_ALIAS = kw.keyword("require-alias")
     SET = kw.keyword("set")
     SET_BANG = kw.keyword("set!")
     STATIC_METHOD = kw.keyword("static-method")
@@ -716,9 +717,21 @@ class Recur(Node[SpecialForm]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
+class RequireAlias(Node[Union[sym.Symbol, vec.Vector]]):
+    form: Union[sym.Symbol, vec.Vector]
+    name: str
+    alias: Optional[str]
+    env: NodeEnv
+    children: Sequence[kw.Keyword] = vec.Vector.empty()
+    op: NodeOp = NodeOp.REQUIRE_ALIAS
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
 class Require(Node[SpecialForm]):
     form: SpecialForm
-    aliases: Iterable["ImportAlias"]
+    aliases: Iterable[RequireAlias]
     env: NodeEnv
     children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.REQUIRE
