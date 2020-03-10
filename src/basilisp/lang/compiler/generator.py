@@ -1941,8 +1941,7 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
         )
     ]
     for alias in node.aliases:
-        safe_name = munge(alias.name)
-        py_require_alias = munge(safe_name.replace(".", "_"))
+        py_require_alias = munge(alias.name.replace(".", "_"))
         last = ast.Name(id=py_require_alias, ctx=ast.Load())
         deps.extend(
             [
@@ -1952,7 +1951,7 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
                         func=_load_attr(f"{requiring_ns_name}.require"),
                         args=list(
                             chain(
-                                [ast.Constant(safe_name)],
+                                [ast.Constant(alias.name)],
                                 [
                                     ast.Call(
                                         func=_NEW_SYM_FN_NAME,

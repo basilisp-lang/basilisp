@@ -519,7 +519,7 @@ class Namespace(ReferenceBase):
         """Require the Basilisp Namespace named by `ns_name` and add any aliases given
         to this Namespace."""
         try:
-            ns_module = importlib.import_module(ns_name)
+            ns_module = importlib.import_module(munge(ns_name))
         except ModuleNotFoundError as e:
             raise ImportError(f"Basilisp namespace '{ns_name}' not found",) from e
         else:
