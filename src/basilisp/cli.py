@@ -56,7 +56,6 @@ def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.Module
     """Bootstrap the REPL with a few useful vars and returned the bootstrapped
     module so it's functions can be used by the REPL command."""
     ns = runtime.Namespace.get_or_create(sym.symbol(which_ns))
-    compiler.set_compiler_context(ns, ctx)
     eval_str(f"(ns {sym.symbol(which_ns)} (:use basilisp.repl))", ctx, ns, object())
     return importlib.import_module(REPL_NS)
 

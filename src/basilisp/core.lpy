@@ -3191,9 +3191,12 @@
 (defn eval
   "Evaluate a form (not a string) and return its result."
   ([form]
-   (eval form (basilisp.lang.compiler.CompilerContext. "<Eval Input>")))
-  ([form ctx]
-   (basilisp.lang.compiler/compile-and-exec-form form ctx *ns*)))
+   (eval form *ns*))
+  ([form namespace]
+   (let [ctx (basilisp.lang.compiler.CompilerContext. "<Eval Input>")]
+     (basilisp.lang.compiler/compile-and-exec-form form
+                                                   ctx
+                                                   namespace))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Ref Utilities ;;
@@ -3425,8 +3428,7 @@
 (defn- require-lib-with-libspec
   "Require the library described by `libspec` into the Namespace `requiring-ns`."
   [requiring-ns libspec]
-  (let [required-ns-sym  (:namespace libspec)
-        compiler-context (some-> requiring-ns (ns-resolve '-compiler-context) (.-value))]
+  (let [required-ns-sym  (:namespace libspec)]
     ;; In order to enable direct linking of Vars as Python variables, required
     ;; namespaces must be `require*`ed into the namespace. That's not possible
     ;; to do without a macro, so we're using this hacky approach to eval the
@@ -3435,7 +3437,7 @@
                 (if-let [ns-alias (:as libspec)]
                   [required-ns-sym :as ns-alias]
                   required-ns-sym))
-          compiler-context)
+          requiring-ns)
     ;; Reset the namespace to the requiring namespace, since it was likely changed
     ;; during the require process
     (set! *ns* requiring-ns)))

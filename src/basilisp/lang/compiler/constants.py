@@ -27,7 +27,6 @@ class SpecialForm:
 
 
 AMPERSAND = sym.symbol("&")
-COMPILER_CONTEXT = sym.symbol("-compiler-context")
 
 DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
 
