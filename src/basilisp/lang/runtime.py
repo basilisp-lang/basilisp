@@ -56,7 +56,9 @@ logger = logging.getLogger(__name__)
 
 # Public constants
 CORE_NS = "basilisp.core"
+CORE_NS_SYM = sym.symbol(CORE_NS)
 NS_VAR_NAME = "*ns*"
+NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
 
@@ -662,7 +664,7 @@ class Namespace(ReferenceBase):
         """Remove the namespace bound to the symbol `name` in the global
         namespace cache and return that namespace.
         Return None if the namespace did not exist in the cache."""
-        if name == sym.symbol(CORE_NS):
+        if name == CORE_NS_SYM:
             raise ValueError("Cannot remove the Basilisp core namespace")
         while True:
             oldval: lmap.Map = cls._NAMESPACES.deref()
@@ -1254,7 +1256,7 @@ def lrepr(o, human_readable: bool = False) -> str:
     """Produce a string representation of an object. If human_readable is False,
     the string representation of Lisp objects is something that can be read back
     in by the reader as the same object."""
-    core_ns = Namespace.get(sym.symbol(CORE_NS))
+    core_ns = Namespace.get(CORE_NS_SYM)
     assert core_ns is not None
     return lobj.lrepr(
         o,
@@ -1402,92 +1404,9 @@ def _basilisp_fn(f):
     return f
 
 
-#########################
-# Bootstrap the Runtime #
-#########################
-
-
-def init_ns_var(which_ns: str = CORE_NS, ns_var_name: str = NS_VAR_NAME) -> Var:
-    """Initialize the dynamic `*ns*` variable in the Namespace `which_ns`."""
-    core_sym = sym.symbol(which_ns)
-    core_ns = Namespace.get_or_create(core_sym)
-    ns_var = Var.intern(core_ns, sym.Symbol(ns_var_name), core_ns, dynamic=True)
-    logger.debug(f"Created namespace variable {sym.symbol(ns_var_name, ns=which_ns)}")
-    return ns_var
-
-
-def set_current_ns(
-    ns_name: str,
-    module: BasilispModule = None,
-    ns_var_name: str = NS_VAR_NAME,
-    ns_var_ns: str = NS_VAR_NS,
-) -> Var:
-    """Set the value of the dynamic variable `*ns*` in the current thread."""
-    symbol = sym.Symbol(ns_name)
-    ns = Namespace.get_or_create(symbol, module=module)
-    ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns_var = Maybe(Var.find(ns_var_sym)).or_else_raise(
-        lambda: RuntimeException(
-            f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"
-        )
-    )
-    ns_var.push_bindings(ns)
-    logger.debug(f"Setting {ns_var_sym} to {ns}")
-    return ns_var
-
-
-@contextlib.contextmanager
-def ns_bindings(
-    ns_name: str,
-    module: BasilispModule = None,
-    ns_var_name: str = NS_VAR_NAME,
-    ns_var_ns: str = NS_VAR_NS,
-) -> Iterator[Namespace]:
-    """Context manager for temporarily changing the value of basilisp.core/*ns*."""
-    symbol = sym.Symbol(ns_name)
-    ns = Namespace.get_or_create(symbol, module=module)
-    ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns_var = Maybe(Var.find(ns_var_sym)).or_else_raise(
-        lambda: RuntimeException(
-            f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"
-        )
-    )
-
-    try:
-        logger.debug(f"Binding {ns_var_sym} to {ns}")
-        ns_var.push_bindings(ns)
-        yield ns_var.value
-    finally:
-        ns_var.pop_bindings()
-        logger.debug(f"Reset bindings for {ns_var_sym} to {ns_var.value}")
-
-
-@contextlib.contextmanager
-def remove_ns_bindings(ns_var_name: str = NS_VAR_NAME, ns_var_ns: str = NS_VAR_NS):
-    """Context manager to pop the most recent bindings for basilisp.core/*ns* after
-    completion of the code under management."""
-    ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns_var = Maybe(Var.find(ns_var_sym)).or_else_raise(
-        lambda: RuntimeException(
-            f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"
-        )
-    )
-    try:
-        yield
-    finally:
-        ns_var.pop_bindings()
-        logger.debug(f"Reset bindings for {ns_var_sym} to {ns_var.value}")
-
-
-def get_current_ns(
-    ns_var_name: str = NS_VAR_NAME, ns_var_ns: str = NS_VAR_NS
-) -> Namespace:
-    """Get the value of the dynamic variable `*ns*` in the current thread."""
-    ns_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns: Namespace = Maybe(Var.find(ns_sym)).map(lambda v: v.value).or_else_raise(
-        lambda: RuntimeException(f"Dynamic Var {ns_sym} not bound!")
-    )
-    return ns
+###############################
+# Symbol and Alias Resolution #
+###############################
 
 
 def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
@@ -1516,18 +1435,78 @@ def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
     return Var.find(resolve_alias(s, ns))
 
 
+#######################
+# Namespace Utilities #
+#######################
+
+
+@contextlib.contextmanager
+def ns_bindings(ns_name: str, module: BasilispModule = None) -> Iterator[Namespace]:
+    """Context manager for temporarily changing the value of basilisp.core/*ns*."""
+    symbol = sym.Symbol(ns_name)
+    ns = Namespace.get_or_create(symbol, module=module)
+    ns_var = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
+    )
+
+    try:
+        logger.debug(f"Binding {NS_VAR_SYM} to {ns}")
+        ns_var.push_bindings(ns)
+        yield ns_var.value
+    finally:
+        ns_var.pop_bindings()
+        logger.debug(f"Reset bindings for {NS_VAR_SYM} to {ns_var.value}")
+
+
+@contextlib.contextmanager
+def remove_ns_bindings():
+    """Context manager to pop the most recent bindings for basilisp.core/*ns* after
+    completion of the code under management."""
+    ns_var = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
+    )
+    try:
+        yield
+    finally:
+        ns_var.pop_bindings()
+        logger.debug(f"Reset bindings for {NS_VAR_SYM} to {ns_var.value}")
+
+
+def get_current_ns() -> Namespace:
+    """Get the value of the dynamic variable `*ns*` in the current thread."""
+    ns: Namespace = Maybe(Var.find(NS_VAR_SYM)).map(lambda v: v.value).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
+    )
+    return ns
+
+
+def set_current_ns(ns_name: str, module: BasilispModule = None,) -> Var:
+    """Set the value of the dynamic variable `*ns*` in the current thread."""
+    symbol = sym.Symbol(ns_name)
+    ns = Namespace.get_or_create(symbol, module=module)
+    ns_var = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
+    )
+    ns_var.push_bindings(ns)
+    logger.debug(f"Setting {NS_VAR_SYM} to {ns}")
+    return ns_var
+
+
+##############################
+# Emit Generated Python Code #
+##############################
+
+
 def add_generated_python(
-    generated_python: str,
-    var_name: str = _GENERATED_PYTHON_VAR_NAME,
-    which_ns: Optional[Namespace] = None,
+    generated_python: str, which_ns: Optional[Namespace] = None,
 ) -> None:
     """Add generated Python code to a dynamic variable in which_ns."""
     if which_ns is None:
         which_ns = get_current_ns()
-    v = Maybe(which_ns.find(sym.symbol(var_name))).or_else(
+    v = Maybe(which_ns.find(sym.symbol(_GENERATED_PYTHON_VAR_NAME))).or_else(
         lambda: Var.intern(
             which_ns,  # type: ignore
-            sym.symbol(var_name),
+            sym.symbol(_GENERATED_PYTHON_VAR_NAME),
             "",
             dynamic=True,
             meta=lmap.map({_PRIVATE_META_KEY: True}),
@@ -1539,11 +1518,9 @@ def add_generated_python(
     v._root = v._root + generated_python  # type: ignore
 
 
-def print_generated_python(
-    var_name: str = _PRINT_GENERATED_PY_VAR_NAME, core_ns_name: str = CORE_NS
-) -> bool:
+def print_generated_python() -> bool:
     """Return the value of the `*print-generated-python*` dynamic variable."""
-    ns_sym = sym.Symbol(var_name, ns=core_ns_name)
+    ns_sym = sym.Symbol(_PRINT_GENERATED_PY_VAR_NAME, ns=CORE_NS)
     return (
         Maybe(Var.find(ns_sym))
         .map(lambda v: v.value)
@@ -1551,13 +1528,24 @@ def print_generated_python(
     )
 
 
-def bootstrap_core(ns_var_name: str = NS_VAR_NAME, core_ns_name: str = CORE_NS) -> None:
+#########################
+# Bootstrap the Runtime #
+#########################
+
+
+def init_ns_var() -> Var:
+    """Initialize the dynamic `*ns*` variable in the `basilisp.core` Namespace."""
+    core_ns = Namespace.get_or_create(CORE_NS_SYM)
+    ns_var = Var.intern(core_ns, sym.Symbol(NS_VAR_NAME), core_ns, dynamic=True)
+    logger.debug(f"Created namespace variable {NS_VAR_SYM}")
+    return ns_var
+
+
+def bootstrap_core() -> None:
     """Bootstrap the environment with functions that are are difficult to
     express with the very minimal lisp environment."""
-    core_ns_sym = sym.symbol(core_ns_name)
-    ns_var_sym = sym.symbol(ns_var_name, ns=core_ns_name)
-    __NS = Maybe(Var.find(ns_var_sym)).or_else_raise(
-        lambda: RuntimeException(f"Dynamic Var {ns_var_sym} not bound!")
+    __NS = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
     )
 
     def in_ns(s: sym.Symbol):
@@ -1565,20 +1553,20 @@ def bootstrap_core(ns_var_name: str = NS_VAR_NAME, core_ns_name: str = CORE_NS) 
         __NS.value = ns
         return ns
 
-    Var.intern_unbound(core_ns_sym, sym.symbol("unquote"))
-    Var.intern_unbound(core_ns_sym, sym.symbol("unquote-splicing"))
+    Var.intern_unbound(CORE_NS_SYM, sym.symbol("unquote"))
+    Var.intern_unbound(CORE_NS_SYM, sym.symbol("unquote-splicing"))
     Var.intern(
-        core_ns_sym, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
+        CORE_NS_SYM, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
     )
     Var.intern(
-        core_ns_sym,
+        CORE_NS_SYM,
         sym.symbol(_PRINT_GENERATED_PY_VAR_NAME),
         False,
         dynamic=True,
         meta=lmap.map({_PRIVATE_META_KEY: True}),
     )
     Var.intern(
-        core_ns_sym,
+        CORE_NS_SYM,
         sym.symbol(_GENERATED_PYTHON_VAR_NAME),
         "",
         dynamic=True,
@@ -1587,19 +1575,19 @@ def bootstrap_core(ns_var_name: str = NS_VAR_NAME, core_ns_name: str = CORE_NS) 
 
     # Dynamic Vars for controlling printing
     Var.intern(
-        core_ns_sym, sym.symbol(_PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
+        CORE_NS_SYM, sym.symbol(_PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
     )
     Var.intern(
-        core_ns_sym, sym.symbol(_PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
+        CORE_NS_SYM, sym.symbol(_PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
     )
     Var.intern(
-        core_ns_sym, sym.symbol(_PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
+        CORE_NS_SYM, sym.symbol(_PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
     )
     Var.intern(
-        core_ns_sym, sym.symbol(_PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
+        CORE_NS_SYM, sym.symbol(_PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
     )
     Var.intern(
-        core_ns_sym,
+        CORE_NS_SYM,
         sym.symbol(_PRINT_READABLY_VAR_NAME),
         lobj.PRINT_READABLY,
         dynamic=True,

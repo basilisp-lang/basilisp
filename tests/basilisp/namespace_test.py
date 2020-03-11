@@ -13,7 +13,7 @@ from tests.basilisp.helpers import get_or_create_ns
 
 @pytest.fixture
 def core_ns_sym() -> sym.Symbol:
-    return sym.symbol(runtime.CORE_NS)
+    return runtime.CORE_NS_SYM
 
 
 @pytest.fixture

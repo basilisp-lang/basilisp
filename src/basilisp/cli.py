@@ -210,7 +210,7 @@ def run(  # pylint: disable=too-many-arguments
     )
     eof = object()
 
-    core_ns = runtime.Namespace.get(sym.symbol(runtime.CORE_NS))
+    core_ns = runtime.Namespace.get(runtime.CORE_NS_SYM)
     assert core_ns is not None
 
     with runtime.ns_bindings(in_ns) as ns:
