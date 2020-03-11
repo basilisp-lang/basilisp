@@ -472,7 +472,6 @@ _KW_ALIAS = genname("kw")
 _LIST_ALIAS = genname("llist")
 _MAP_ALIAS = genname("lmap")
 _MULTIFN_ALIAS = genname("multifn")
-_NAMESPACE_ALIAS = genname("Namespace")
 _PROMISE_ALIAS = genname("promise")
 _READER_ALIAS = genname("reader")
 _RUNTIME_ALIAS = genname("runtime")
@@ -519,7 +518,6 @@ _NEW_SET_FN_NAME = _load_attr(f"{_SET_ALIAS}.set")
 _NEW_SYM_FN_NAME = _load_attr(f"{_SYM_ALIAS}.symbol")
 _NEW_UUID_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.uuid_from_str")
 _NEW_VEC_FN_NAME = _load_attr(f"{_VEC_ALIAS}.vector")
-_GET_NAMESPACE_FN_NAME = _load_attr(f"{_NAMESPACE_ALIAS}.get")
 _INTERN_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern")
 _INTERN_UNBOUND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern_unbound")
 _FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
@@ -2978,10 +2976,7 @@ def _from_module_import() -> ast.ImportFrom:
     language support modules."""
     return ast.ImportFrom(
         module="basilisp.lang.runtime",
-        names=[
-            ast.alias(name="Namespace", asname=_NAMESPACE_ALIAS),
-            ast.alias(name="Var", asname=_VAR_ALIAS),
-        ],
+        names=[ast.alias(name="Var", asname=_VAR_ALIAS),],
         level=0,
     )
 
