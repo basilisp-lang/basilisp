@@ -1443,7 +1443,7 @@ def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
 @contextlib.contextmanager
 def ns_bindings(ns_name: str, module: BasilispModule = None) -> Iterator[Namespace]:
     """Context manager for temporarily changing the value of basilisp.core/*ns*."""
-    symbol = sym.Symbol(ns_name)
+    symbol = sym.symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
     ns_var = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
         lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
@@ -1482,7 +1482,7 @@ def get_current_ns() -> Namespace:
 
 def set_current_ns(ns_name: str, module: BasilispModule = None,) -> Var:
     """Set the value of the dynamic variable `*ns*` in the current thread."""
-    symbol = sym.Symbol(ns_name)
+    symbol = sym.symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
     ns_var = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
         lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
@@ -1520,7 +1520,7 @@ def add_generated_python(
 
 def print_generated_python() -> bool:
     """Return the value of the `*print-generated-python*` dynamic variable."""
-    ns_sym = sym.Symbol(_PRINT_GENERATED_PY_VAR_NAME, ns=CORE_NS)
+    ns_sym = sym.symbol(_PRINT_GENERATED_PY_VAR_NAME, ns=CORE_NS)
     return (
         Maybe(Var.find(ns_sym))
         .map(lambda v: v.value)
@@ -1536,7 +1536,7 @@ def print_generated_python() -> bool:
 def init_ns_var() -> Var:
     """Initialize the dynamic `*ns*` variable in the `basilisp.core` Namespace."""
     core_ns = Namespace.get_or_create(CORE_NS_SYM)
-    ns_var = Var.intern(core_ns, sym.Symbol(NS_VAR_NAME), core_ns, dynamic=True)
+    ns_var = Var.intern(core_ns, sym.symbol(NS_VAR_NAME), core_ns, dynamic=True)
     logger.debug(f"Created namespace variable {NS_VAR_SYM}")
     return ns_var
 
