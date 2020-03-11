@@ -1,5 +1,6 @@
 import asyncio
 import decimal
+import importlib
 import logging
 import os
 import re
@@ -2850,47 +2851,53 @@ class TestRequire:
         with pytest.raises(ImportError):
             lcompile("(require* real.fake.ns)")
 
-    def test_require_resolves_within_do_block(self, lcompile: CompileFn):
-        import importlib
+    @pytest.fixture
+    def _import_ns(self, ns: runtime.Namespace):
+        def _import_ns_module(name: str):
+            ns_module = importlib.import_module(name)
+            runtime.set_current_ns(ns.name)
+            return ns_module
 
-        string = importlib.import_module("basilisp.string")
+        return _import_ns_module
 
-        assert string.join == lcompile(
+    @pytest.fixture
+    def set_ns(self, _import_ns):
+        return _import_ns("basilisp.set")
+
+    @pytest.fixture
+    def string_ns(self, _import_ns):
+        return _import_ns("basilisp.string")
+
+    def test_require_resolves_within_do_block(self, lcompile: CompileFn, string_ns):
+        assert string_ns.join == lcompile(
             "(do (require* basilisp.string)) basilisp.string/join"
         )
-        assert string.join == lcompile(
+        assert string_ns.join == lcompile(
             """
-            (do (import* [basilisp.string :as str]))
+            (do (require* [basilisp.string :as str]))
             str/join
             """
         )
 
-    def test_single_require(self, lcompile: CompileFn):
-        import importlib
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(require* basilisp.string) basilisp.string/join",
+            "(require* [basilisp.string :as str]) str/join",
+        ],
+    )
+    def test_single_require(self, lcompile: CompileFn, string_ns, code: str):
+        assert string_ns.join == lcompile(code)
 
-        string = importlib.import_module("basilisp.string")
-
-        assert string.join == lcompile(
-            "(require* basilisp.string) basilisp.string/join"
-        )
-        assert string.join == lcompile("(require* [basilisp.string :as str]) str/join")
-
-    def test_multi_require(self, lcompile: CompileFn):
-        import importlib
-
-        set_ = importlib.import_module("basilisp.set")
-        string = importlib.import_module("basilisp.string")
-
-        assert [string.join, set_.union] == list(
-            lcompile(
-                "(require* [basilisp.string :as str] basilisp.set) [str/join basilisp.set/union]"
-            )
-        )
-        assert [string.join, set_.union] == list(
-            lcompile(
-                "(require* basilisp.string [basilisp.set :as set]) [basilisp.set/join set/union]"
-            )
-        )
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(require* [basilisp.string :as str] basilisp.set) [str/join basilisp.set/union]",
+            "(require* basilisp.string [basilisp.set :as set]) [basilisp.string/join set/union]",
+        ],
+    )
+    def test_multi_require(self, lcompile: CompileFn, string_ns, set_ns, code: str):
+        assert [string_ns.join, set_ns.union] == list(lcompile(code))
 
 
 class TestSetBang:
