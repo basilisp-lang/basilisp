@@ -2435,14 +2435,6 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
 
     ns_sym = sym.symbol(form.ns)
     if ns_sym in which_ns.imports or ns_sym in which_ns.import_aliases:
-        # We still import Basilisp code, so we'll want to make sure
-        # that the symbol isn't referring to a Basilisp Var first
-        v = Var.find(form)
-        if v is not None:
-            return VarRef(
-                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
-            )
-
         # Fetch the full namespace name for the aliased namespace/module.
         # We don't need this for actually generating the link later, but
         # we _do_ need it for fetching a reference to the module to check
@@ -2551,10 +2543,6 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     resolved = __resolve_namespaced_symbol_in_ns(ctx, current_ns, form)
     if resolved is not None:
         return resolved
-    elif ctx.current_macro_ns is not None:
-        resolved = __resolve_namespaced_symbol_in_ns(ctx, ctx.current_macro_ns, form,)
-        if resolved is not None:
-            return resolved
 
     if "." in form.ns:
         try:
@@ -2833,8 +2821,6 @@ def _analyze_form(  # pylint: disable=too-many-branches
         if form == llist.List.empty():
             with ctx.quoted():
                 return _const_node(ctx, form)
-        elif ctx.is_quoted:
-            return _const_node(ctx, form)
         else:
             return _list_node(ctx, form)
     elif isinstance(form, vec.Vector):

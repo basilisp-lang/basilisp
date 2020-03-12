@@ -1866,6 +1866,10 @@ class TestMacroexpandFunctions:
             sym.symbol("non-existent-symbol")
         )
 
+        assert sym.symbol(
+            "non-existent-symbol", ns="ns.second"
+        ) == compiler.macroexpand(sym.symbol("non-existent-symbol", ns="ns.second"))
+
 
 class TestIf:
     def test_if_number_of_elems(self, lcompile: CompileFn):
