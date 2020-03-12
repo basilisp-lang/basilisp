@@ -3617,7 +3617,7 @@
                              (:import opts)))]
     `(do
        (in-ns (quote ~name))
-       (refer (quote ~'basilisp.core) ~@refer-filters)
+       (refer-basilisp ~@refer-filters)
        ~requires
        ~uses
        ~@imports)))
