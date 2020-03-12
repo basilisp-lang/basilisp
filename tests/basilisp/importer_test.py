@@ -206,7 +206,7 @@ class TestImporter:
 
     @pytest.fixture
     def cached_module_ns(self) -> str:
-        return "importer.namespace.using_cache"
+        return "importer.namespace.using-cache"
 
     @pytest.fixture
     def cached_module_file(

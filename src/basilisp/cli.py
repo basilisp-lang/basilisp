@@ -52,18 +52,12 @@ def eval_str(s: str, ctx: compiler.CompilerContext, ns: runtime.Namespace, eof: 
     return last
 
 
-def bootstrap_repl(which_ns: str) -> types.ModuleType:
+def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.ModuleType:
     """Bootstrap the REPL with a few useful vars and returned the bootstrapped
     module so it's functions can be used by the REPL command."""
-    repl_ns = runtime.Namespace.get_or_create(sym.symbol(REPL_NS))
     ns = runtime.Namespace.get_or_create(sym.symbol(which_ns))
-    core_ns = runtime.Namespace.get(sym.symbol(runtime.CORE_NS))
-    assert core_ns is not None
-    ns.refer_all(core_ns)
-    repl_module = importlib.import_module(REPL_NS)
-    ns.add_alias(sym.symbol(REPL_NS), repl_ns)
-    ns.refer_all(repl_ns)
-    return repl_module
+    eval_str(f"(ns {sym.symbol(which_ns)} (:use basilisp.repl))", ctx, ns, object())
+    return importlib.import_module(REPL_NS)
 
 
 @cli.command(short_help="start the Basilisp REPL")
@@ -108,7 +102,6 @@ def repl(
     warn_on_var_indirection,
 ):
     basilisp.init()
-    repl_module = bootstrap_repl(default_ns)
     ctx = compiler.CompilerContext(
         filename=REPL_INPUT_FILE_PATH,
         opts={
@@ -118,6 +111,7 @@ def repl(
             compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
         },
     )
+    repl_module = bootstrap_repl(ctx, default_ns)
     ns_var = runtime.set_current_ns(default_ns)
     prompter = get_prompter()
     eof = object()
@@ -216,7 +210,7 @@ def run(  # pylint: disable=too-many-arguments
     )
     eof = object()
 
-    core_ns = runtime.Namespace.get(sym.symbol(runtime.CORE_NS))
+    core_ns = runtime.Namespace.get(runtime.CORE_NS_SYM)
     assert core_ns is not None
 
     with runtime.ns_bindings(in_ns) as ns:
