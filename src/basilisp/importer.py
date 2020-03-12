@@ -335,14 +335,6 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 logger.debug(f"Failed to load cached Basilisp module: {e}")
                 self._exec_module(fullname, spec.loader_state, path_stats, ns)
 
-        # Because we want to (by default) add 'basilisp.core into every namespace by default,
-        # we want to make sure we don't try to add 'basilisp.core into itself, causing a
-        # circular import error.
-        #
-        # Later on, we can probably remove this and just use the 'ns macro to auto-refer
-        # all 'basilisp.core values into the current namespace.
-        runtime.Namespace.add_default_import(ns_name)
-
 
 def hook_imports():
     """Hook into Python's import machinery with a custom Basilisp code

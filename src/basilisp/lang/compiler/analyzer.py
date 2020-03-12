@@ -106,6 +106,8 @@ from basilisp.lang.compiler.nodes import (
     PyTuple,
     Quote,
     Recur,
+    Require,
+    RequireAlias,
     Set as SetNode,
     SetBang,
     SpecialFormNode,
@@ -2128,6 +2130,51 @@ def _recur_ast(ctx: AnalyzerContext, form: ISeq) -> Recur:
     )
 
 
+def _require_ast(  # pylint: disable=too-many-branches
+    ctx: AnalyzerContext, form: ISeq
+) -> Require:
+    assert form.first == SpecialForm.REQUIRE
+
+    aliases = []
+    for f in form.rest:
+        if isinstance(f, sym.Symbol):
+            module_name = f
+            module_alias = None
+        elif isinstance(f, vec.Vector):
+            if len(f) != 3:
+                raise AnalyzerException(
+                    "require alias must take the form: [namespace :as alias]", form=f
+                )
+            module_name = f.val_at(0)
+            if not isinstance(module_name, sym.Symbol):
+                raise AnalyzerException(
+                    "Basilisp namespace name must be a symbol", form=f
+                )
+            if not AS == f.val_at(1):
+                raise AnalyzerException("expected :as alias for Basilisp alias", form=f)
+            module_alias_sym = f.val_at(2)
+            if not isinstance(module_alias_sym, sym.Symbol):
+                raise AnalyzerException(
+                    "Basilisp namespace alias must be a symbol", form=f
+                )
+            module_alias = module_alias_sym.name
+        else:
+            raise AnalyzerException("symbol or vector expected for require*", form=f)
+
+        aliases.append(
+            RequireAlias(
+                form=f,
+                name=module_name.name,
+                alias=module_alias,
+                env=ctx.get_node_env(),
+            )
+        )
+
+    return Require(
+        form=form, aliases=aliases, env=ctx.get_node_env(pos=ctx.syntax_position),
+    )
+
+
 def _set_bang_ast(ctx: AnalyzerContext, form: ISeq) -> SetBang:
     assert form.first == SpecialForm.SET_BANG
     nelems = count(form)
@@ -2333,6 +2380,7 @@ _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.LOOP: _loop_ast,
     SpecialForm.QUOTE: _quote_ast,
     SpecialForm.RECUR: _recur_ast,
+    SpecialForm.REQUIRE: _require_ast,
     SpecialForm.SET_BANG: _set_bang_ast,
     SpecialForm.THROW: _throw_ast,
     SpecialForm.TRY: _try_ast,

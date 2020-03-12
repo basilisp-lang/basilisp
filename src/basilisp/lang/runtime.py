@@ -93,6 +93,7 @@ _LETFN = sym.symbol("letfn*")
 _LOOP = sym.symbol("loop*")
 _QUOTE = sym.symbol("quote")
 _RECUR = sym.symbol("recur")
+_REQUIRE = sym.symbol("require*")
 _SET_BANG = sym.symbol("set!")
 _THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
@@ -114,6 +115,7 @@ _SPECIAL_FORMS = lset.s(
     _LOOP,
     _QUOTE,
     _RECUR,
+    _REQUIRE,
     _SET_BANG,
     _THROW,
     _TRY,
@@ -391,38 +393,36 @@ class Namespace(ReferenceBase):
       to without an alias in this namespace.
     """
 
-    DEFAULT_IMPORTS = Atom(
-        lset.set(
-            map(
-                sym.symbol,
-                [
-                    "attr",
-                    "builtins",
-                    "io",
-                    "operator",
-                    "sys",
-                    "basilisp.lang.atom",
-                    "basilisp.lang.compiler",
-                    "basilisp.lang.delay",
-                    "basilisp.lang.exception",
-                    "basilisp.lang.interfaces",
-                    "basilisp.lang.keyword",
-                    "basilisp.lang.list",
-                    "basilisp.lang.map",
-                    "basilisp.lang.multifn",
-                    "basilisp.lang.promise",
-                    "basilisp.lang.reader",
-                    "basilisp.lang.runtime",
-                    "basilisp.lang.seq",
-                    "basilisp.lang.set",
-                    "basilisp.lang.symbol",
-                    "basilisp.lang.vector",
-                    "basilisp.lang.util",
-                ],
-            )
+    DEFAULT_IMPORTS = lset.set(
+        map(
+            sym.symbol,
+            [
+                "attr",
+                "builtins",
+                "io",
+                "importlib",
+                "operator",
+                "sys",
+                "basilisp.lang.atom",
+                "basilisp.lang.compiler",
+                "basilisp.lang.delay",
+                "basilisp.lang.exception",
+                "basilisp.lang.interfaces",
+                "basilisp.lang.keyword",
+                "basilisp.lang.list",
+                "basilisp.lang.map",
+                "basilisp.lang.multifn",
+                "basilisp.lang.promise",
+                "basilisp.lang.reader",
+                "basilisp.lang.runtime",
+                "basilisp.lang.seq",
+                "basilisp.lang.set",
+                "basilisp.lang.symbol",
+                "basilisp.lang.vector",
+                "basilisp.lang.util",
+            ],
         )
     )
-    GATED_IMPORTS = lset.set(["basilisp.core"])
 
     _NAMESPACES: Atom[NamespaceMap] = Atom(lmap.Map.empty())
 
@@ -450,22 +450,13 @@ class Namespace(ReferenceBase):
             dict(
                 map(
                     lambda s: (s, importlib.import_module(s.name)),
-                    Namespace.DEFAULT_IMPORTS.deref(),
+                    Namespace.DEFAULT_IMPORTS,
                 )
             )
         )
         self._import_aliases: AliasMap = lmap.Map.empty()
         self._interns: VarMap = lmap.Map.empty()
         self._refers: VarMap = lmap.Map.empty()
-
-    @classmethod
-    def add_default_import(cls, module: str):
-        """Add a gated default import to the default imports.
-
-        In particular, we need to avoid importing 'basilisp.core' before we have
-        finished macro-expanding."""
-        if module in cls.GATED_IMPORTS:
-            cls.DEFAULT_IMPORTS.swap(lambda s: s.cons(sym.symbol(module)))
 
     @property
     def name(self) -> str:
@@ -525,6 +516,24 @@ class Namespace(ReferenceBase):
 
     def __hash__(self):
         return hash(self._name)
+
+    def require(self, ns_name: str, *aliases: sym.Symbol) -> BasilispModule:
+        """Require the Basilisp Namespace named by `ns_name` and add any aliases given
+        to this Namespace.
+
+        This method is called in code generated for the `require*` special form."""
+        try:
+            ns_module = importlib.import_module(munge(ns_name))
+        except ModuleNotFoundError as e:
+            raise ImportError(f"Basilisp namespace '{ns_name}' not found",) from e
+        else:
+            assert isinstance(ns_module, BasilispModule)
+            ns_sym = sym.symbol(ns_name)
+            ns = self.get(ns_sym)
+            assert ns is not None, "Namespace must exist after being required"
+            if aliases:
+                self.add_alias(ns, *aliases)
+            return ns_module
 
     def add_alias(self, namespace: "Namespace", *aliases: sym.Symbol) -> None:
         """Add Symbol aliases for the given Namespace."""
