@@ -47,7 +47,7 @@ from basilisp.lang.interfaces import (
     ISeqable,
 )
 from basilisp.lang.reference import ReferenceBase
-from basilisp.lang.typing import BasilispModule, LispNumber
+from basilisp.lang.typing import LispNumber
 from basilisp.lang.util import munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
@@ -56,7 +56,9 @@ logger = logging.getLogger(__name__)
 
 # Public constants
 CORE_NS = "basilisp.core"
+CORE_NS_SYM = sym.symbol(CORE_NS)
 NS_VAR_NAME = "*ns*"
+NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
 
@@ -91,6 +93,7 @@ _LETFN = sym.symbol("letfn*")
 _LOOP = sym.symbol("loop*")
 _QUOTE = sym.symbol("quote")
 _RECUR = sym.symbol("recur")
+_REQUIRE = sym.symbol("require*")
 _SET_BANG = sym.symbol("set!")
 _THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
@@ -112,6 +115,7 @@ _SPECIAL_FORMS = lset.s(
     _LOOP,
     _QUOTE,
     _RECUR,
+    _REQUIRE,
     _SET_BANG,
     _THROW,
     _TRY,
@@ -120,6 +124,11 @@ _SPECIAL_FORMS = lset.s(
 
 CompletionMatcher = Callable[[Tuple[sym.Symbol, Any]], bool]
 CompletionTrimmer = Callable[[Tuple[sym.Symbol, Any]], str]
+
+
+class BasilispModule(types.ModuleType):
+    __basilisp_namespace__: "Namespace"
+    __basilisp_bootstrapped__: bool = False
 
 
 def _new_module(name: str, doc=None) -> BasilispModule:
@@ -265,28 +274,41 @@ class Var(IDeref, ReferenceBase):
 
     @staticmethod
     def intern(
-        ns: sym.Symbol, name: sym.Symbol, val, dynamic: bool = False, meta=None
+        ns: Union["Namespace", sym.Symbol],
+        name: sym.Symbol,
+        val,
+        dynamic: bool = False,
+        meta=None,
     ) -> "Var":
         """Intern the value bound to the symbol `name` in namespace `ns`."""
-        var_ns = Namespace.get_or_create(ns)
-        var = var_ns.intern(name, Var(var_ns, name, dynamic=dynamic, meta=meta))
+        if isinstance(ns, sym.Symbol):
+            ns = Namespace.get_or_create(ns)
+        var = ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
         var.root = val
         return var
 
     @staticmethod
     def intern_unbound(
-        ns: sym.Symbol, name: sym.Symbol, dynamic: bool = False, meta=None
+        ns: Union["Namespace", sym.Symbol],
+        name: sym.Symbol,
+        dynamic: bool = False,
+        meta=None,
     ) -> "Var":
         """Create a new unbound `Var` instance to the symbol `name` in namespace `ns`."""
-        var_ns = Namespace.get_or_create(ns)
-        return var_ns.intern(name, Var(var_ns, name, dynamic=dynamic, meta=meta))
+        if isinstance(ns, sym.Symbol):
+            ns = Namespace.get_or_create(ns)
+        return ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
 
     @staticmethod
-    def find_in_ns(ns_sym: sym.Symbol, name_sym: sym.Symbol) -> "Optional[Var]":
+    def find_in_ns(
+        ns_or_sym: Union["Namespace", sym.Symbol], name_sym: sym.Symbol
+    ) -> "Optional[Var]":
         """Return the value current bound to the name `name_sym` in the namespace
         specified by `ns_sym`."""
-        ns = Namespace.get(ns_sym)
-        if ns:
+        ns = (
+            Namespace.get(ns_or_sym) if isinstance(ns_or_sym, sym.Symbol) else ns_or_sym
+        )
+        if ns is not None:
             return ns.find(name_sym)
         return None
 
@@ -371,39 +393,37 @@ class Namespace(ReferenceBase):
       to without an alias in this namespace.
     """
 
-    DEFAULT_IMPORTS = Atom(
-        lset.set(
-            map(
-                sym.symbol,
-                [
-                    "attr",
-                    "builtins",
-                    "io",
-                    "operator",
-                    "sys",
-                    "basilisp.lang.atom",
-                    "basilisp.lang.compiler",
-                    "basilisp.lang.delay",
-                    "basilisp.lang.exception",
-                    "basilisp.lang.futures",
-                    "basilisp.lang.interfaces",
-                    "basilisp.lang.keyword",
-                    "basilisp.lang.list",
-                    "basilisp.lang.map",
-                    "basilisp.lang.multifn",
-                    "basilisp.lang.promise",
-                    "basilisp.lang.reader",
-                    "basilisp.lang.runtime",
-                    "basilisp.lang.seq",
-                    "basilisp.lang.set",
-                    "basilisp.lang.symbol",
-                    "basilisp.lang.vector",
-                    "basilisp.lang.util",
-                ],
-            )
+    DEFAULT_IMPORTS = lset.set(
+        map(
+            sym.symbol,
+            [
+                "attr",
+                "builtins",
+                "io",
+                "importlib",
+                "operator",
+                "sys",
+                "basilisp.lang.atom",
+                "basilisp.lang.compiler",
+                "basilisp.lang.delay",
+                "basilisp.lang.exception",
+                "basilisp.lang.futures",
+                "basilisp.lang.interfaces",
+                "basilisp.lang.keyword",
+                "basilisp.lang.list",
+                "basilisp.lang.map",
+                "basilisp.lang.multifn",
+                "basilisp.lang.promise",
+                "basilisp.lang.reader",
+                "basilisp.lang.runtime",
+                "basilisp.lang.seq",
+                "basilisp.lang.set",
+                "basilisp.lang.symbol",
+                "basilisp.lang.vector",
+                "basilisp.lang.util",
+            ],
         )
     )
-    GATED_IMPORTS = lset.set(["basilisp.core"])
 
     _NAMESPACES: Atom[NamespaceMap] = Atom(lmap.Map.empty())
 
@@ -426,29 +446,18 @@ class Namespace(ReferenceBase):
         self._meta: Optional[IPersistentMap] = None
         self._lock = threading.Lock()
 
-        self._aliases: Atom[NamespaceMap] = Atom(lmap.Map.empty())
-        self._imports: Atom[ModuleMap] = Atom(
-            lmap.map(
-                dict(
-                    map(
-                        lambda s: (s, importlib.import_module(s.name)),
-                        Namespace.DEFAULT_IMPORTS.deref(),
-                    )
+        self._aliases: NamespaceMap = lmap.Map.empty()
+        self._imports: ModuleMap = lmap.map(
+            dict(
+                map(
+                    lambda s: (s, importlib.import_module(s.name)),
+                    Namespace.DEFAULT_IMPORTS,
                 )
             )
         )
-        self._import_aliases: Atom[AliasMap] = Atom(lmap.Map.empty())
-        self._interns: Atom[VarMap] = Atom(lmap.Map.empty())
-        self._refers: Atom[VarMap] = Atom(lmap.Map.empty())
-
-    @classmethod
-    def add_default_import(cls, module: str):
-        """Add a gated default import to the default imports.
-
-        In particular, we need to avoid importing 'basilisp.core' before we have
-        finished macro-expanding."""
-        if module in cls.GATED_IMPORTS:
-            cls.DEFAULT_IMPORTS.swap(lambda s: s.cons(sym.symbol(module)))
+        self._import_aliases: AliasMap = lmap.Map.empty()
+        self._interns: VarMap = lmap.Map.empty()
+        self._refers: VarMap = lmap.Map.empty()
 
     @property
     def name(self) -> str:
@@ -471,32 +480,37 @@ class Namespace(ReferenceBase):
     def aliases(self) -> NamespaceMap:
         """A mapping between a symbolic alias and another Namespace. The
         fully qualified name of a namespace is also an alias for itself."""
-        return self._aliases.deref()
+        with self._lock:
+            return self._aliases
 
     @property
     def imports(self) -> ModuleMap:
         """A mapping of names to Python modules imported into the current
         namespace."""
-        return self._imports.deref()
+        with self._lock:
+            return self._imports
 
     @property
     def import_aliases(self) -> AliasMap:
         """A mapping of a symbolic alias and a Python module name."""
-        return self._import_aliases.deref()
+        with self._lock:
+            return self._import_aliases
 
     @property
     def interns(self) -> VarMap:
         """A mapping between a symbolic name and a Var. The Var may point to
         code, data, or nothing, if it is unbound. Vars in `interns` are
         interned in _this_ namespace."""
-        return self._interns.deref()
+        with self._lock:
+            return self._interns
 
     @property
     def refers(self) -> VarMap:
         """A mapping between a symbolic name and a Var. Vars in refers are
         interned in another namespace and are only referred to without an
         alias in this namespace."""
-        return self._refers.deref()
+        with self._lock:
+            return self._refers
 
     def __repr__(self):
         return f"{self._name}"
@@ -504,58 +518,76 @@ class Namespace(ReferenceBase):
     def __hash__(self):
         return hash(self._name)
 
-    def add_alias(self, alias: sym.Symbol, namespace: "Namespace") -> None:
-        """Add a Symbol alias for the given Namespace."""
-        self._aliases.swap(lambda m: m.assoc(alias, namespace))
+    def require(self, ns_name: str, *aliases: sym.Symbol) -> BasilispModule:
+        """Require the Basilisp Namespace named by `ns_name` and add any aliases given
+        to this Namespace.
+
+        This method is called in code generated for the `require*` special form."""
+        try:
+            ns_module = importlib.import_module(munge(ns_name))
+        except ModuleNotFoundError as e:
+            raise ImportError(f"Basilisp namespace '{ns_name}' not found",) from e
+        else:
+            assert isinstance(ns_module, BasilispModule)
+            ns_sym = sym.symbol(ns_name)
+            ns = self.get(ns_sym)
+            assert ns is not None, "Namespace must exist after being required"
+            if aliases:
+                self.add_alias(ns, *aliases)
+            return ns_module
+
+    def add_alias(self, namespace: "Namespace", *aliases: sym.Symbol) -> None:
+        """Add Symbol aliases for the given Namespace."""
+        with self._lock:
+            new_m = self._aliases
+            for alias in aliases:
+                new_m = new_m.assoc(alias, namespace)
+            self._aliases = new_m
 
     def get_alias(self, alias: sym.Symbol) -> "Optional[Namespace]":
         """Get the Namespace aliased by Symbol or None if it does not exist."""
-        return self.aliases.val_at(alias, None)
+        with self._lock:
+            return self._aliases.val_at(alias, None)
 
     def remove_alias(self, alias: sym.Symbol) -> None:
         """Remove the Namespace aliased by Symbol. Return None."""
-        self._aliases.swap(lambda m: m.dissoc(alias))
+        with self._lock:
+            self._aliases = self._aliases.dissoc(alias)
 
     def intern(self, sym: sym.Symbol, var: Var, force: bool = False) -> Var:
         """Intern the Var given in this namespace mapped by the given Symbol.
         If the Symbol already maps to a Var, this method _will not overwrite_
         the existing Var mapping unless the force keyword argument is given
         and is True."""
-        m: lmap.Map = self._interns.swap(Namespace._intern, sym, var, force=force)
-        return m.val_at(sym)
-
-    @staticmethod
-    def _intern(
-        m: lmap.Map, sym: sym.Symbol, new_var: Var, force: bool = False
-    ) -> lmap.Map:
-        """Swap function used by intern to atomically intern a new variable in
-        the symbol mapping for this Namespace."""
-        var = m.val_at(sym, None)
-        if var is None or force:
-            return m.assoc(sym, new_var)
-        return m
+        with self._lock:
+            old_var = self._interns.val_at(sym, None)
+            if old_var is None or force:
+                self._interns = self._interns.assoc(sym, var)
+            return self._interns.val_at(sym)
 
     def unmap(self, sym: sym.Symbol) -> None:
-        self._interns.swap(lambda m: m.dissoc(sym))
+        with self._lock:
+            self._interns = self._interns.dissoc(sym)
 
     def find(self, sym: sym.Symbol) -> Optional[Var]:
         """Find Vars mapped by the given Symbol input or None if no Vars are
         mapped by that Symbol."""
-        v = self.interns.val_at(sym, None)
-        if v is None:
-            return self.refers.val_at(sym, None)
-        return v
+        with self._lock:
+            v = self._interns.val_at(sym, None)
+            if v is None:
+                return self._refers.val_at(sym, None)
+            return v
 
     def add_import(self, sym: sym.Symbol, module: Module, *aliases: sym.Symbol) -> None:
         """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
         the aliases will be applied to the """
-        self._imports.swap(lambda m: m.assoc(sym, module))
-        if aliases:
-            self._import_aliases.swap(
-                lambda m: m.assoc(
-                    *itertools.chain.from_iterable([(alias, sym) for alias in aliases])
-                )
-            )
+        with self._lock:
+            self._imports = self._imports.assoc(sym, module)
+            if aliases:
+                m = self._import_aliases
+                for alias in aliases:
+                    m = m.assoc(alias, sym)
+                self._import_aliases = m
 
     def get_import(self, sym: sym.Symbol) -> Optional[BasilispModule]:
         """Return the module if a moduled named by sym has been imported into
@@ -563,37 +595,36 @@ class Namespace(ReferenceBase):
 
         First try to resolve a module directly with the given name. If no module
         can be resolved, attempt to resolve the module using import aliases."""
-        mod = self.imports.val_at(sym, None)
-        if mod is None:
-            alias = self.import_aliases.get(sym, None)
-            if alias is None:
-                return None
-            return self.imports.val_at(alias, None)
-        return mod
+        with self._lock:
+            mod = self._imports.val_at(sym, None)
+            if mod is None:
+                alias = self._import_aliases.get(sym, None)
+                if alias is None:
+                    return None
+                return self._imports.val_at(alias, None)
+            return mod
 
     def add_refer(self, sym: sym.Symbol, var: Var) -> None:
         """Refer var in this namespace under the name sym."""
         if not var.is_private:
-            self._refers.swap(lambda s: s.assoc(sym, var))
+            with self._lock:
+                self._refers = self._refers.assoc(sym, var)
 
     def get_refer(self, sym: sym.Symbol) -> Optional[Var]:
         """Get the Var referred by Symbol or None if it does not exist."""
-        return self.refers.val_at(sym, None)
+        with self._lock:
+            return self._refers.val_at(sym, None)
 
-    @classmethod
-    def __refer_all(cls, refers: lmap.Map, other_ns_interns: lmap.Map) -> lmap.Map:
-        """Refer all _public_ interns from another namespace."""
-        final_refers = refers
-        for entry in other_ns_interns:
-            s: sym.Symbol = entry.key
-            var: Var = entry.value
-            if not var.is_private:
-                final_refers = final_refers.assoc(s, var)
-        return final_refers
-
-    def refer_all(self, other_ns: "Namespace"):
+    def refer_all(self, other_ns: "Namespace") -> None:
         """Refer all the Vars in the other namespace."""
-        self._refers.swap(Namespace.__refer_all, other_ns.interns)
+        with self._lock:
+            final_refers = self._refers
+            for entry in other_ns.interns:
+                s: sym.Symbol = entry.key
+                var: Var = entry.value
+                if not var.is_private:
+                    final_refers = final_refers.assoc(s, var)
+            self._refers = final_refers
 
     @classmethod
     def ns_cache(cls) -> lmap.Map:
@@ -634,7 +665,7 @@ class Namespace(ReferenceBase):
         """Remove the namespace bound to the symbol `name` in the global
         namespace cache and return that namespace.
         Return None if the namespace did not exist in the cache."""
-        if name == sym.symbol(CORE_NS):
+        if name == CORE_NS_SYM:
             raise ValueError("Cannot remove the Basilisp core namespace")
         while True:
             oldval: lmap.Map = cls._NAMESPACES.deref()
@@ -1226,7 +1257,7 @@ def lrepr(o, human_readable: bool = False) -> str:
     """Produce a string representation of an object. If human_readable is False,
     the string representation of Lisp objects is something that can be read back
     in by the reader as the same object."""
-    core_ns = Namespace.get(sym.symbol(CORE_NS))
+    core_ns = Namespace.get(CORE_NS_SYM)
     assert core_ns is not None
     return lobj.lrepr(
         o,
@@ -1374,92 +1405,9 @@ def _basilisp_fn(f):
     return f
 
 
-#########################
-# Bootstrap the Runtime #
-#########################
-
-
-def init_ns_var(which_ns: str = CORE_NS, ns_var_name: str = NS_VAR_NAME) -> Var:
-    """Initialize the dynamic `*ns*` variable in the Namespace `which_ns`."""
-    core_sym = sym.Symbol(which_ns)
-    core_ns = Namespace.get_or_create(core_sym)
-    ns_var = Var.intern(core_sym, sym.Symbol(ns_var_name), core_ns, dynamic=True)
-    logger.debug(f"Created namespace variable {sym.symbol(ns_var_name, ns=which_ns)}")
-    return ns_var
-
-
-def set_current_ns(
-    ns_name: str,
-    module: BasilispModule = None,
-    ns_var_name: str = NS_VAR_NAME,
-    ns_var_ns: str = NS_VAR_NS,
-) -> Var:
-    """Set the value of the dynamic variable `*ns*` in the current thread."""
-    symbol = sym.Symbol(ns_name)
-    ns = Namespace.get_or_create(symbol, module=module)
-    ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns_var = Maybe(Var.find(ns_var_sym)).or_else_raise(
-        lambda: RuntimeException(
-            f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"
-        )
-    )
-    ns_var.push_bindings(ns)
-    logger.debug(f"Setting {ns_var_sym} to {ns}")
-    return ns_var
-
-
-@contextlib.contextmanager
-def ns_bindings(
-    ns_name: str,
-    module: BasilispModule = None,
-    ns_var_name: str = NS_VAR_NAME,
-    ns_var_ns: str = NS_VAR_NS,
-) -> Iterator[Namespace]:
-    """Context manager for temporarily changing the value of basilisp.core/*ns*."""
-    symbol = sym.Symbol(ns_name)
-    ns = Namespace.get_or_create(symbol, module=module)
-    ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns_var = Maybe(Var.find(ns_var_sym)).or_else_raise(
-        lambda: RuntimeException(
-            f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"
-        )
-    )
-
-    try:
-        logger.debug(f"Binding {ns_var_sym} to {ns}")
-        ns_var.push_bindings(ns)
-        yield ns_var.value
-    finally:
-        ns_var.pop_bindings()
-        logger.debug(f"Reset bindings for {ns_var_sym} to {ns_var.value}")
-
-
-@contextlib.contextmanager
-def remove_ns_bindings(ns_var_name: str = NS_VAR_NAME, ns_var_ns: str = NS_VAR_NS):
-    """Context manager to pop the most recent bindings for basilisp.core/*ns* after
-    completion of the code under management."""
-    ns_var_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns_var = Maybe(Var.find(ns_var_sym)).or_else_raise(
-        lambda: RuntimeException(
-            f"Dynamic Var {sym.Symbol(ns_var_name, ns=ns_var_ns)} not bound!"
-        )
-    )
-    try:
-        yield
-    finally:
-        ns_var.pop_bindings()
-        logger.debug(f"Reset bindings for {ns_var_sym} to {ns_var.value}")
-
-
-def get_current_ns(
-    ns_var_name: str = NS_VAR_NAME, ns_var_ns: str = NS_VAR_NS
-) -> Namespace:
-    """Get the value of the dynamic variable `*ns*` in the current thread."""
-    ns_sym = sym.Symbol(ns_var_name, ns=ns_var_ns)
-    ns: Namespace = Maybe(Var.find(ns_sym)).map(lambda v: v.value).or_else_raise(
-        lambda: RuntimeException(f"Dynamic Var {ns_sym} not bound!")
-    )
-    return ns
+###############################
+# Symbol and Alias Resolution #
+###############################
 
 
 def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
@@ -1488,18 +1436,78 @@ def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
     return Var.find(resolve_alias(s, ns))
 
 
+#######################
+# Namespace Utilities #
+#######################
+
+
+@contextlib.contextmanager
+def ns_bindings(ns_name: str, module: BasilispModule = None) -> Iterator[Namespace]:
+    """Context manager for temporarily changing the value of basilisp.core/*ns*."""
+    symbol = sym.symbol(ns_name)
+    ns = Namespace.get_or_create(symbol, module=module)
+    ns_var = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
+    )
+
+    try:
+        logger.debug(f"Binding {NS_VAR_SYM} to {ns}")
+        ns_var.push_bindings(ns)
+        yield ns_var.value
+    finally:
+        ns_var.pop_bindings()
+        logger.debug(f"Reset bindings for {NS_VAR_SYM} to {ns_var.value}")
+
+
+@contextlib.contextmanager
+def remove_ns_bindings():
+    """Context manager to pop the most recent bindings for basilisp.core/*ns* after
+    completion of the code under management."""
+    ns_var = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
+    )
+    try:
+        yield
+    finally:
+        ns_var.pop_bindings()
+        logger.debug(f"Reset bindings for {NS_VAR_SYM} to {ns_var.value}")
+
+
+def get_current_ns() -> Namespace:
+    """Get the value of the dynamic variable `*ns*` in the current thread."""
+    ns: Namespace = Maybe(Var.find(NS_VAR_SYM)).map(lambda v: v.value).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
+    )
+    return ns
+
+
+def set_current_ns(ns_name: str, module: BasilispModule = None,) -> Var:
+    """Set the value of the dynamic variable `*ns*` in the current thread."""
+    symbol = sym.symbol(ns_name)
+    ns = Namespace.get_or_create(symbol, module=module)
+    ns_var = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
+    )
+    ns_var.push_bindings(ns)
+    logger.debug(f"Setting {NS_VAR_SYM} to {ns}")
+    return ns_var
+
+
+##############################
+# Emit Generated Python Code #
+##############################
+
+
 def add_generated_python(
-    generated_python: str,
-    var_name: str = _GENERATED_PYTHON_VAR_NAME,
-    which_ns: Optional[Namespace] = None,
+    generated_python: str, which_ns: Optional[Namespace] = None,
 ) -> None:
     """Add generated Python code to a dynamic variable in which_ns."""
     if which_ns is None:
         which_ns = get_current_ns()
-    v = Maybe(which_ns.find(sym.symbol(var_name))).or_else(
+    v = Maybe(which_ns.find(sym.symbol(_GENERATED_PYTHON_VAR_NAME))).or_else(
         lambda: Var.intern(
-            sym.symbol(which_ns.name),  # type: ignore
-            sym.symbol(var_name),
+            which_ns,  # type: ignore
+            sym.symbol(_GENERATED_PYTHON_VAR_NAME),
             "",
             dynamic=True,
             meta=lmap.map({_PRIVATE_META_KEY: True}),
@@ -1511,11 +1519,9 @@ def add_generated_python(
     v._root = v._root + generated_python  # type: ignore
 
 
-def print_generated_python(
-    var_name: str = _PRINT_GENERATED_PY_VAR_NAME, core_ns_name: str = CORE_NS
-) -> bool:
+def print_generated_python() -> bool:
     """Return the value of the `*print-generated-python*` dynamic variable."""
-    ns_sym = sym.Symbol(var_name, ns=core_ns_name)
+    ns_sym = sym.symbol(_PRINT_GENERATED_PY_VAR_NAME, ns=CORE_NS)
     return (
         Maybe(Var.find(ns_sym))
         .map(lambda v: v.value)
@@ -1523,13 +1529,24 @@ def print_generated_python(
     )
 
 
-def bootstrap_core(ns_var_name: str = NS_VAR_NAME, core_ns_name: str = CORE_NS) -> None:
+#########################
+# Bootstrap the Runtime #
+#########################
+
+
+def init_ns_var() -> Var:
+    """Initialize the dynamic `*ns*` variable in the `basilisp.core` Namespace."""
+    core_ns = Namespace.get_or_create(CORE_NS_SYM)
+    ns_var = Var.intern(core_ns, sym.symbol(NS_VAR_NAME), core_ns, dynamic=True)
+    logger.debug(f"Created namespace variable {NS_VAR_SYM}")
+    return ns_var
+
+
+def bootstrap_core() -> None:
     """Bootstrap the environment with functions that are are difficult to
     express with the very minimal lisp environment."""
-    core_ns_sym = sym.symbol(core_ns_name)
-    ns_var_sym = sym.symbol(ns_var_name, ns=core_ns_name)
-    __NS = Maybe(Var.find(ns_var_sym)).or_else_raise(
-        lambda: RuntimeException(f"Dynamic Var {ns_var_sym} not bound!")
+    __NS = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
+        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
     )
 
     def in_ns(s: sym.Symbol):
@@ -1537,20 +1554,20 @@ def bootstrap_core(ns_var_name: str = NS_VAR_NAME, core_ns_name: str = CORE_NS) 
         __NS.value = ns
         return ns
 
-    Var.intern_unbound(core_ns_sym, sym.symbol("unquote"))
-    Var.intern_unbound(core_ns_sym, sym.symbol("unquote-splicing"))
+    Var.intern_unbound(CORE_NS_SYM, sym.symbol("unquote"))
+    Var.intern_unbound(CORE_NS_SYM, sym.symbol("unquote-splicing"))
     Var.intern(
-        core_ns_sym, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
+        CORE_NS_SYM, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
     )
     Var.intern(
-        core_ns_sym,
+        CORE_NS_SYM,
         sym.symbol(_PRINT_GENERATED_PY_VAR_NAME),
         False,
         dynamic=True,
         meta=lmap.map({_PRIVATE_META_KEY: True}),
     )
     Var.intern(
-        core_ns_sym,
+        CORE_NS_SYM,
         sym.symbol(_GENERATED_PYTHON_VAR_NAME),
         "",
         dynamic=True,
@@ -1559,19 +1576,19 @@ def bootstrap_core(ns_var_name: str = NS_VAR_NAME, core_ns_name: str = CORE_NS) 
 
     # Dynamic Vars for controlling printing
     Var.intern(
-        core_ns_sym, sym.symbol(_PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
+        CORE_NS_SYM, sym.symbol(_PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
     )
     Var.intern(
-        core_ns_sym, sym.symbol(_PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
+        CORE_NS_SYM, sym.symbol(_PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
     )
     Var.intern(
-        core_ns_sym, sym.symbol(_PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
+        CORE_NS_SYM, sym.symbol(_PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
     )
     Var.intern(
-        core_ns_sym, sym.symbol(_PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
+        CORE_NS_SYM, sym.symbol(_PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
     )
     Var.intern(
-        core_ns_sym,
+        CORE_NS_SYM,
         sym.symbol(_PRINT_READABLY_VAR_NAME),
         lobj.PRINT_READABLY,
         dynamic=True,

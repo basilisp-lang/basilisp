@@ -1,14 +1,19 @@
 import asyncio
 import decimal
+import importlib
 import logging
+import os
 import re
+import sys
 import uuid
 from fractions import Fraction
+from tempfile import TemporaryDirectory
 from typing import Any, Callable, Dict, Optional
 from unittest.mock import Mock
 
 import dateutil.parser as dateparser
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 
 import basilisp.lang.compiler as compiler
 import basilisp.lang.keyword as kw
@@ -1861,6 +1866,10 @@ class TestMacroexpandFunctions:
             sym.symbol("non-existent-symbol")
         )
 
+        assert sym.symbol(
+            "non-existent-symbol", ns="ns.second"
+        ) == compiler.macroexpand(sym.symbol("non-existent-symbol", ns="ns.second"))
+
 
 class TestIf:
     def test_if_number_of_elems(self, lcompile: CompileFn):
@@ -1932,37 +1941,33 @@ class TestIf:
 
 
 class TestImport:
-    def test_import_module_must_be_symbol(self, lcompile: CompileFn):
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(import* :time)",
+            '(import* "time")',
+            "(import* string :time)",
+            '(import* string "time")',
+        ],
+    )
+    def test_import_module_must_be_symbol(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile("(import* :time)")
+            lcompile(code)
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(import* [:time :as py-time])",
+            "(import* [time py-time])",
+            "(import* [time :as :py-time])",
+            "(import* [time :as])",
+            "(import* [time :named py-time])",
+            "(import* [time :named py time])",
+        ],
+    )
+    def test_import_aliased_module_format(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile('(import* "time")')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* string :time)")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(import* string "time")')
-
-    def test_import_aliased_module_format(self, lcompile: CompileFn):
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [:time :as py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :as :py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :as])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :named py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :named py time])")
+            lcompile(code)
 
     def test_import_module_must_exist(self, lcompile: CompileFn):
         with pytest.raises(ImportError):
@@ -2562,6 +2567,11 @@ class TestLoop:
 
 
 class TestQuote:
+    @pytest.mark.parametrize("code", ["(quote)", "(quote form other-form)"])
+    def test_quote_num_elems(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
     def test_quoted_list(self, lcompile: CompileFn):
         assert lcompile("'()") == llist.l()
         assert lcompile("'(str)") == llist.l(sym.symbol("str"))
@@ -2809,6 +2819,89 @@ class TestRecur:
           (compute-sum 5))
         """
         assert 15 == lcompile(code)
+
+
+class TestRequire:
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(require* :edn)",
+            "(require* :basilisp/edn)",
+            '(require* "basilisp.edn")',
+            '(require* basilisp.string "basilisp.edn")',
+            "(require* basilisp.string :basilisp/edn)",
+        ],
+    )
+    def test_require_namespace_must_be_symbol(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(require* [:basilisp/edn :as edn])",
+            "(require* [basilisp.edn edn])",
+            "(require* [basilisp.edn :as :edn])",
+            "(require* [basilisp.edn :as])",
+            "(require* [basilisp.edn :named edn])",
+            "(require* [basilisp.edn :as basilisp edn])",
+        ],
+    )
+    def test_require_aliased_namespace_format(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    def test_require_namespace_must_exist(self, lcompile: CompileFn):
+        with pytest.raises(ImportError):
+            lcompile("(require* real.fake.ns)")
+
+    @pytest.fixture
+    def _import_ns(self, ns: runtime.Namespace):
+        def _import_ns_module(name: str):
+            ns_module = importlib.import_module(name)
+            runtime.set_current_ns(ns.name)
+            return ns_module
+
+        return _import_ns_module
+
+    @pytest.fixture
+    def set_ns(self, _import_ns):
+        return _import_ns("basilisp.set")
+
+    @pytest.fixture
+    def string_ns(self, _import_ns):
+        return _import_ns("basilisp.string")
+
+    def test_require_resolves_within_do_block(self, lcompile: CompileFn, string_ns):
+        assert string_ns.join == lcompile(
+            "(do (require* basilisp.string)) basilisp.string/join"
+        )
+        assert string_ns.join == lcompile(
+            """
+            (do (require* [basilisp.string :as str]))
+            str/join
+            """
+        )
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(require* basilisp.string) basilisp.string/join",
+            "(require* [basilisp.string :as str]) str/join",
+        ],
+    )
+    def test_single_require(self, lcompile: CompileFn, string_ns, code: str):
+        assert string_ns.join == lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(require* [basilisp.string :as str] basilisp.set) [str/join basilisp.set/union]",
+            "(require* basilisp.string [basilisp.set :as set]) [basilisp.string/join set/union]",
+        ],
+    )
+    def test_multi_require(self, lcompile: CompileFn, string_ns, set_ns, code: str):
+        assert [string_ns.join, set_ns.union] == list(lcompile(code))
 
 
 class TestSetBang:
@@ -3116,6 +3209,39 @@ class TestSymbolResolution:
         with pytest.raises(compiler.CompilerException):
             lcompile("basilisp.lang.map.MapEntry.of")
 
+    def test_aliased_namespace_not_hidden_by_python_module(
+        self, lcompile: CompileFn, monkeypatch: MonkeyPatch
+    ):
+        with TemporaryDirectory() as tmpdir:
+            monkeypatch.chdir(tmpdir)
+            monkeypatch.syspath_prepend(tmpdir)
+            monkeypatch.setattr(
+                "sys.modules", {name: module for name, module in sys.modules.items()}
+            )
+
+            os.makedirs(os.path.join(tmpdir, "project"), exist_ok=True)
+            module_file_path = os.path.join(tmpdir, "project", "fileinput.lpy")
+
+            with open(module_file_path, mode="w") as f:
+                f.write(
+                    """
+                (ns project.fileinput
+                  (:import fileinput))
+
+                (def some-sym :project.fileinput/test-value)
+                """
+                )
+
+            try:
+                assert kw.keyword("test-value", ns="project.fileinput") == lcompile(
+                    """
+                (require '[project.fileinput :as fileinput])
+                fileinput/some-sym
+                """
+                )
+            finally:
+                os.unlink(module_file_path)
+
     def test_aliased_var_does_not_resolve(
         self, lcompile: CompileFn, ns: runtime.Namespace
     ):
@@ -3123,8 +3249,8 @@ class TestSymbolResolution:
         other_ns_name = sym.symbol("other.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns_name, other_ns)
-            current_ns.add_alias(sym.symbol("other"), other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
+            current_ns.add_alias(other_ns, sym.symbol("other"))
 
             with pytest.raises(compiler.CompilerException):
                 lcompile("(other/m :arg)")
@@ -3138,8 +3264,8 @@ class TestSymbolResolution:
         other_ns_name = sym.symbol("other.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns_name, other_ns)
-            current_ns.add_alias(sym.symbol("other"), other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
+            current_ns.add_alias(other_ns, sym.symbol("other"))
 
             with runtime.ns_bindings(other_ns_name.name):
                 lcompile("(def ^:macro m (fn* [&env &form v] v))")
@@ -3204,10 +3330,10 @@ class TestSymbolResolution:
         third_ns_name = sym.symbol("third.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns_name, other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
 
             third_ns = get_or_create_ns(third_ns_name)
-            other_ns.add_alias(third_ns_name, third_ns)
+            other_ns.add_alias(third_ns, third_ns_name)
 
             with runtime.ns_bindings(third_ns_name.name):
                 lcompile(
@@ -3241,10 +3367,10 @@ class TestSymbolResolution:
         third_ns_name = sym.symbol("third.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns_name, other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
 
             third_ns = get_or_create_ns(third_ns_name)
-            other_ns.add_alias(sym.symbol("third"), third_ns)
+            other_ns.add_alias(third_ns, sym.symbol("third"))
 
             with runtime.ns_bindings(third_ns_name.name):
                 lcompile(
@@ -3278,7 +3404,7 @@ class TestSymbolResolution:
         third_ns_name = sym.symbol("third.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            current_ns.add_alias(other_ns_name, other_ns)
+            current_ns.add_alias(other_ns, other_ns_name)
 
             third_ns = get_or_create_ns(third_ns_name)
 
@@ -3312,9 +3438,9 @@ class TestWarnOnVarIndirection:
         other_ns_name = sym.symbol("other.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            Var.intern(other_ns_name, sym.symbol("m"), lambda x: x)
-            current_ns.add_alias(other_ns_name, other_ns)
-            current_ns.add_alias(sym.symbol("other"), other_ns)
+            Var.intern(other_ns, sym.symbol("m"), lambda x: x)
+            current_ns.add_alias(other_ns, other_ns_name)
+            current_ns.add_alias(other_ns, sym.symbol("other"))
 
             with runtime.ns_bindings(current_ns.name):
                 yield

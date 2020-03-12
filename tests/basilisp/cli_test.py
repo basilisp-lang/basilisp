@@ -47,8 +47,9 @@ class TestREPL:
         result = runner.invoke(cli, ["repl"], input="(fn*)")
         assert (
             "basilisp.lang.compiler.exception.CompilerException: fn form "
-            "must match: (fn* name? [arg*] body*) or (fn* name? method*)\nbasilisp.user=> "
+            "must match: (fn* name? [arg*] body*) or (fn* name? method*)"
         ) in result.stdout
+        assert result.stdout.endswith("\nbasilisp.user=> ")
 
     def test_other_exception(self):
         runner = CliRunner()

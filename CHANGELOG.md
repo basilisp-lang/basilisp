@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added `defn-`, `declare`, and `defonce` macros (#480)
  * Added EDN reader in the `basilisp.edn` namespace (#477)
  * Added line, column, and file information to reader `SyntaxError`s (#488)
+ * Added context information to the `CompilerException` string output (#493)
  * Added support for `future`s (#441)
 
 ### Changed
@@ -20,10 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Changed multi-methods to use a `threading.Lock` internally rather than an Atom (#478)
  * Changed the Basilisp module type from `types.ModuleType` to a custom subtype with support for custom attributes (#482)
  * Basilisp's runtime function `Namespace.get_or_create` no longer refers `basilisp.core` by default, which allows callers to exclude `basilisp.core` names in the `ns` macro (#481)
+ * Namespaces now use a single internal lock rather than putting each property inside of an Atom (#494)
+ * Refactor the testrunner to use fewer `atom`s in `basilisp.test` (#495)
 
 ### Fixed
  * Fixed a reader bug where no exception was being thrown splicing reader conditional forms appeared outside of valid splicing contexts (#470)
  * Fixed a bug where fully Namespace-qualified symbols would not resolve if the current Namespace did not alias the referenced Namespace (#479)
+ * Fixed a bug where the `quote` special form allowed more than one argument and raised an unintended exception when no argument was provided (#497)
 
 ## [v0.1.dev12] - 2020-01-26
 ### Added

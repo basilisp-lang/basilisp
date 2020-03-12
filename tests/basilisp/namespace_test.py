@@ -6,7 +6,6 @@ import basilisp.lang.atom as atom
 import basilisp.lang.keyword as kw
 import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
-import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 from basilisp.lang.runtime import Namespace, NamespaceMap, Var
 from tests.basilisp.helpers import get_or_create_ns
@@ -14,7 +13,7 @@ from tests.basilisp.helpers import get_or_create_ns
 
 @pytest.fixture
 def core_ns_sym() -> sym.Symbol:
-    return sym.symbol(runtime.CORE_NS)
+    return runtime.CORE_NS_SYM
 
 
 @pytest.fixture
@@ -121,20 +120,6 @@ def test_reset_ns_meta(
 def test_cannot_remove_core(ns_cache: atom.Atom[NamespaceMap]):
     with pytest.raises(ValueError):
         Namespace.remove(sym.symbol("basilisp.core"))
-
-
-def test_gated_import():
-    with patch(
-        "basilisp.lang.runtime.Namespace.DEFAULT_IMPORTS",
-        new=atom.Atom(lset.set([sym.symbol("default")])),
-    ), patch(
-        "basilisp.lang.runtime.Namespace.GATED_IMPORTS", new=lset.set(["gated-default"])
-    ):
-        Namespace.add_default_import("non-gated-default")
-        assert sym.symbol("non-gated-default") not in Namespace.DEFAULT_IMPORTS.deref()
-
-        Namespace.add_default_import("gated-default")
-        assert sym.symbol("gated-default") in Namespace.DEFAULT_IMPORTS.deref()
 
 
 def test_imports(ns_cache: atom.Atom[NamespaceMap]):
@@ -277,7 +262,7 @@ def test_alias(ns_cache: atom.Atom[NamespaceMap]):
     ns1 = get_or_create_ns(sym.symbol("ns1"))
     ns2 = get_or_create_ns(sym.symbol("ns2"))
 
-    ns1.add_alias(sym.symbol("n2"), ns2)
+    ns1.add_alias(ns2, sym.symbol("n2"))
 
     assert None is ns1.get_alias(sym.symbol("ns2"))
     assert ns2 is ns1.get_alias(sym.symbol("n2"))
@@ -301,10 +286,10 @@ class TestCompletion:
         str_ns.intern(
             chars_sym, Var(ns, chars_sym, meta=lmap.map({kw.keyword("private"): True}))
         )
-        ns.add_alias(str_ns_alias, str_ns)
+        ns.add_alias(str_ns, str_ns_alias)
 
         str_alias = sym.symbol("str")
-        ns.add_alias(str_alias, Namespace(str_alias))
+        ns.add_alias(Namespace(str_alias), str_alias)
 
         str_sym = sym.symbol("str")
         ns.intern(str_sym, Var(ns, str_sym))

@@ -106,6 +106,8 @@ from basilisp.lang.compiler.nodes import (
     PyTuple,
     Quote,
     Recur,
+    Require,
+    RequireAlias,
     Set as SetNode,
     SetBang,
     SpecialFormNode,
@@ -2034,6 +2036,12 @@ def _loop_ast(ctx: AnalyzerContext, form: ISeq) -> Loop:
 
 def _quote_ast(ctx: AnalyzerContext, form: ISeq) -> Quote:
     assert form.first == SpecialForm.QUOTE
+    nelems = count(form)
+
+    if nelems != 2:
+        raise AnalyzerException(
+            "quote forms must have exactly two elements: (quote form)", form=form
+        )
 
     with ctx.quoted():
         with ctx.expr_pos():
@@ -2119,6 +2127,51 @@ def _recur_ast(ctx: AnalyzerContext, form: ISeq) -> Recur:
 
     return Recur(
         form=form, exprs=exprs, loop_id=ctx.recur_point.loop_id, env=ctx.get_node_env()
+    )
+
+
+def _require_ast(  # pylint: disable=too-many-branches
+    ctx: AnalyzerContext, form: ISeq
+) -> Require:
+    assert form.first == SpecialForm.REQUIRE
+
+    aliases = []
+    for f in form.rest:
+        if isinstance(f, sym.Symbol):
+            module_name = f
+            module_alias = None
+        elif isinstance(f, vec.Vector):
+            if len(f) != 3:
+                raise AnalyzerException(
+                    "require alias must take the form: [namespace :as alias]", form=f
+                )
+            module_name = f.val_at(0)
+            if not isinstance(module_name, sym.Symbol):
+                raise AnalyzerException(
+                    "Basilisp namespace name must be a symbol", form=f
+                )
+            if not AS == f.val_at(1):
+                raise AnalyzerException("expected :as alias for Basilisp alias", form=f)
+            module_alias_sym = f.val_at(2)
+            if not isinstance(module_alias_sym, sym.Symbol):
+                raise AnalyzerException(
+                    "Basilisp namespace alias must be a symbol", form=f
+                )
+            module_alias = module_alias_sym.name
+        else:
+            raise AnalyzerException("symbol or vector expected for require*", form=f)
+
+        aliases.append(
+            RequireAlias(
+                form=f,
+                name=module_name.name,
+                alias=module_alias,
+                env=ctx.get_node_env(),
+            )
+        )
+
+    return Require(
+        form=form, aliases=aliases, env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2327,6 +2380,7 @@ _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.LOOP: _loop_ast,
     SpecialForm.QUOTE: _quote_ast,
     SpecialForm.RECUR: _recur_ast,
+    SpecialForm.REQUIRE: _require_ast,
     SpecialForm.SET_BANG: _set_bang_ast,
     SpecialForm.THROW: _throw_ast,
     SpecialForm.TRY: _try_ast,
@@ -2370,53 +2424,8 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
     )
 
 
-def __fuzzy_resolve_namespace_reference(
-    ctx: AnalyzerContext, which_ns: runtime.Namespace, form: sym.Symbol
-) -> Optional[VarRef]:
-    """Resolve a symbol within `which_ns` based on any namespaces required or otherwise
-    referenced within `which_ns` (e.g. by a :refer).
-
-    When a required or resolved symbol is read by the reader in the context of a syntax
-    quote, the reader will fully resolve the symbol, so a symbol like `set/union` would be
-    expanded to `basilisp.set/union`. However, the namespace still does not maintain a
-    direct mapping of the symbol `basilisp.set` to the namespace it names, since the
-    namespace was required as `[basilisp.set :as set]`.
-
-    During macroexpansion, the Analyzer needs to resolve these transitive requirements,
-    so we 'fuzzy' resolve against any namespaces known to the current macro namespace."""
-    assert form.ns is not None
-    ns_name = form.ns
-
-    def resolve_ns_reference(
-        ns_map: Mapping[str, runtime.Namespace]
-    ) -> Optional[VarRef]:
-        match: Optional[runtime.Namespace] = ns_map.get(ns_name)
-        if match is not None:
-            v = match.find(sym.symbol(form.name))
-            if v is not None:
-                return VarRef(
-                    form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
-                )
-        return None
-
-    # Try to match a required namespace
-    required_namespaces = {ns.name: ns for ns in which_ns.aliases.values()}
-    match = resolve_ns_reference(required_namespaces)
-    if match is not None:
-        return match
-
-    # Try to match a referred namespace
-    referred_namespaces = {
-        ns.name: ns for ns in {var.ns for var in which_ns.refers.values()}
-    }
-    return resolve_ns_reference(referred_namespaces)
-
-
 def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
-    ctx: AnalyzerContext,
-    which_ns: runtime.Namespace,
-    form: sym.Symbol,
-    allow_fuzzy_macroexpansion_matching: bool = False,
+    ctx: AnalyzerContext, which_ns: runtime.Namespace, form: sym.Symbol,
 ) -> Optional[Union[MaybeHostForm, VarRef]]:
     """Resolve the symbol `form` in the context of the Namespace `which_ns`. If
     `allow_fuzzy_macroexpansion_matching` is True and no match is made on existing
@@ -2426,14 +2435,6 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
 
     ns_sym = sym.symbol(form.ns)
     if ns_sym in which_ns.imports or ns_sym in which_ns.import_aliases:
-        # We still import Basilisp code, so we'll want to make sure
-        # that the symbol isn't referring to a Basilisp Var first
-        v = Var.find(form)
-        if v is not None:
-            return VarRef(
-                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
-            )
-
         # Fetch the full namespace name for the aliased namespace/module.
         # We don't need this for actually generating the link later, but
         # we _do_ need it for fetching a reference to the module to check
@@ -2478,15 +2479,13 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
         )
     elif ns_sym in which_ns.aliases:
         aliased_ns: runtime.Namespace = which_ns.aliases[ns_sym]
-        v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
+        v = Var.find_in_ns(aliased_ns, sym.symbol(form.name))
         if v is None:
             raise AnalyzerException(
                 f"unable to resolve symbol '{sym.symbol(form.name, ns_sym.name)}' in this context",
                 form=form,
             )
         return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),)
-    elif allow_fuzzy_macroexpansion_matching:
-        return __fuzzy_resolve_namespace_reference(ctx, which_ns, form)
 
     return None
 
@@ -2544,12 +2543,6 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     resolved = __resolve_namespaced_symbol_in_ns(ctx, current_ns, form)
     if resolved is not None:
         return resolved
-    elif ctx.current_macro_ns is not None:
-        resolved = __resolve_namespaced_symbol_in_ns(
-            ctx, ctx.current_macro_ns, form, allow_fuzzy_macroexpansion_matching=True
-        )
-        if resolved is not None:
-            return resolved
 
     if "." in form.ns:
         try:
@@ -2828,8 +2821,6 @@ def _analyze_form(  # pylint: disable=too-many-branches
         if form == llist.List.empty():
             with ctx.quoted():
                 return _const_node(ctx, form)
-        elif ctx.is_quoted:
-            return _const_node(ctx, form)
         else:
             return _list_node(ctx, form)
     elif isinstance(form, vec.Vector):

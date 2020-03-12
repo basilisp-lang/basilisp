@@ -3314,11 +3314,13 @@
 
 (defn eval
   "Evaluate a form (not a string) and return its result."
-  [form]
-  (let [ctx (basilisp.lang.compiler.CompilerContext. "<Eval Input>")]
-    (basilisp.lang.compiler/compile-and-exec-form form
-                                                  ctx
-                                                  *ns*)))
+  ([form]
+   (eval form *ns*))
+  ([form namespace]
+   (let [ctx (basilisp.lang.compiler.CompilerContext. "<Eval Input>")]
+     (basilisp.lang.compiler/compile-and-exec-form form
+                                                   ctx
+                                                   namespace))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Ref Utilities ;;
@@ -3523,94 +3525,82 @@
   [module]
   `(import* ~module))
 
-(defn refer
-  "Refer Vars from the namespace named by ns-sym, subject to the filters specified.
-
-  Supported filters:
-  - :only [sym1 sym2], to only refer the specified symbols
-  - :exclude [sym1, sym2], to refer all except the specified symbols
-  - :rename {sym1 new-sym1}, to rename all the specified symbols to the given new name"
-  [ns-sym & filters]
-  (let [current-ns *ns*
-        ns         (the-ns ns-sym)
-        filter-map (apply hash-map filters)]
-    (if-not (seq filters)
-      (.refer-all current-ns ns)
-      (let [only    (set (:only filter-map))
-            exclude (set (:exclude filter-map))
-            rename  (or (:rename filter-map) {})
-
-            interns (if (seq only)
-                      (filter (fn [entry]
-                                (contains? only (key entry)))
-                              (ns-interns ns))
-                      (ns-interns ns))
-            interns (if (seq exclude)
-                      (remove (fn [entry]
-                                (contains? exclude (key entry)))
-                              interns)
-                      interns)
-            interns (if (seq rename)
-                      (reduce (fn [m entry]
-                                (if (rename (key entry))
-                                  (assoc m (rename (key entry)) (val entry))
-                                  m))
-                              {}
-                              interns)
-                      interns)
-
-            do-refer (fn [refers]
-                       (when (seq refers)
-                         (let [entry (first (seq refers))
-                               sym   (key entry)
-                               var   (val entry)]
-                           (.add-refer current-ns sym var)
-                           (recur (rest refers)))))]
-        (do-refer interns)))))
-
-(def refer-basilisp
-  "Refer Vars from basilisp.core using the same filter syntax as refer."
-  (partial refer 'basilisp.core))
-
-(def refer-clojure
-  "Compatibility layer with JVM Clojure, which points to refer-basilisp."
-  refer-basilisp)
-
 (import importlib)
 
-(defn ^:private add-refers
-  "Refer all of the Vars named in syms from from-ns to to-ns."
-  [to-ns from-ns syms]
-  (when (seq syms)
-    (let [var-sym (first syms)
-          var     (get (ns-interns from-ns) var-sym)]
-      (.add-refer to-ns var-sym var)
-      (recur to-ns from-ns (rest syms)))))
+(defn- require-libspec
+  "Convert a user-specified require libspec into a map with well-defined keys.
 
-(defn ^:private require-vec
-  "Process a vector libspec for require."
-  [current-ns v]
-  (let [ns-sym (first v)
-        opts   (apply hash-map (rest v))]
-    (importlib/import-module (name ns-sym))
-    (let [new-ns (the-ns ns-sym)]
-      ;; Add the namespace alias
-      (.add-alias current-ns (or (:as opts) ns-sym) new-ns)
+  Required keys:
+  - :namespace ns-sym, a symbol naming the Namespace being required
 
-      ;; Add refers
-      (cond
-        (= :all (:refer opts))
-        (.refer-all current-ns new-ns)
+  Optional keys:
+  - :as ns-alias, a symbol which will alias the Namespace when required (if given)
+  - :refer [sym1, sym2], a sequence of symbols naming Vars to refer
+  - :refer :all, if every Var should be referred
+  - :only [sym1, sym2], a sequence of symbols naming Vars to refer
+  - :exclude [sym1, sym2], to refer all except the specified symbols
+  - :rename {sym1 new-sym1}, to rename all the specified symbols to the given new name"
+  [req]
+  (cond
+    (vector? req) (merge {:namespace (first req)}
+                         (apply hash-map (rest req)))
+    (symbol? req) {:namespace req}
+    :else         (throw
+                   (ex-info "Invalid libspec for require"
+                            {:value req}))))
 
-        (:refer opts)
-        (add-refers current-ns new-ns (:refer opts))
+(defn- require-lib
+  "Require the library described by `libspec` into the Namespace `requiring-ns`."
+  [requiring-ns libspec]
+  (let [required-ns-sym  (:namespace libspec)]
+    ;; In order to enable direct linking of Vars as Python variables, required
+    ;; namespaces must be `require*`ed into the namespace. That's not possible
+    ;; to do without a macro, so we're using this hacky approach to eval the
+    ;; code directly (which will effectively add it to the root namespace module).
+    (eval (list 'require*
+                (if-let [ns-alias (:as libspec)]
+                  [required-ns-sym :as ns-alias]
+                  required-ns-sym))
+          requiring-ns)
+    ;; Reset the namespace to the requiring namespace, since it was likely changed
+    ;; during the require process
+    (set! *ns* requiring-ns)))
 
-        :else nil))))
+(defn- refer-filtered-interns
+  "Return a map of symbols to interned Vars in the Namespace `referred-ns` subject
+  to the filters described in `libspec`."
+  [referred-ns libspec]
+  (when (= :all (:refer libspec))
+    (throw
+     (ex-info "cannot specify :refer :all for refer; use (refer 'ns-sym) instead"
+              {:libspec libspec})))
+  (let [only    (set (or (:refer libspec) (:only libspec)))
+        exclude (set (:exclude libspec))
+        rename  (get libspec :rename {})]
+    (cond->> (ns-interns referred-ns)
+      (seq only)    (filter (fn [entry]
+                              (contains? only (key entry))))
+      (seq exclude) (remove (fn [entry]
+                              (contains? exclude (key entry))))
+      (seq rename)  (reduce (fn [m entry]
+                              (if (rename (key entry))
+                                (assoc m (rename (key entry)) (val entry))
+                                m))
+                            {}))))
 
-(defn ^:private require-sym
-  "Process a symbol libspec for require."
-  [s]
-  (importlib/import-module (name s)))
+(defn- refer-lib
+  "Refer Vars into `requiring-ns` as described by `libspec`.
+
+  This function assumes the referred-to Namespace has already been loaded by
+  `require-lib`."
+  [requiring-ns libspec]
+  (let [referred-ns (the-ns (:namespace libspec))]
+    (if-not (some #(contains? libspec %) [:refer :only :exclude :rename])
+      (.refer-all requiring-ns referred-ns)
+      (doseq [intern-entry (refer-filtered-interns referred-ns libspec)]
+        (let [sym (key intern-entry)
+              var (val intern-entry)]
+          (.add-refer requiring-ns sym var))))))
 
 (defn require
   "Load Basilisp libraries and make them accessible in the current namespace.
@@ -3621,22 +3611,86 @@
 
   Vector libspec arguments must be one of:
   - :as name, which will alias the imported namespace to the symbol name
-  - :refer [& syms], which will refer syms in the local namespace directly"
-  [& args]
-  (let [current-ns *ns*
+  - :refer [& syms], which will refer syms in the local namespace directly
+  - :refer :all, which will refer all symbols from the namespace directly
 
-        do-require (fn [requires]
-                     (when (seq requires)
-                       (let [v (first requires)]
-                         (cond
-                           (vector? v) (require-vec current-ns v)
-                           (symbol? v) (require-sym v)
-                           :else             (throw
-                                              (ex-info "Invalid libspec for require"
-                                                       {:value v}))))
-                       (recur (rest requires))))]
-    (do-require args)
-    (set! *ns* current-ns)
+  Use of `require` directly is discouraged in favor of the `:require` directive in
+  the `ns` macro."
+  [& args]
+  (let [current-ns *ns*]
+    (doseq [libspec (map require-libspec args)]
+      (require-lib current-ns libspec)
+
+      ;; Add refers
+      (let [new-ns    (the-ns (:namespace libspec))
+            refer-opt (:refer libspec)]
+        (cond
+          (= :all refer-opt)
+          (.refer-all current-ns new-ns)
+
+          (seq refer-opt)
+          (let [new-ns-interns (ns-interns new-ns)]
+            (doseq [var-sym refer-opt]
+              (let [var (get new-ns-interns var-sym)]
+                (.add-refer current-ns var-sym var))))
+
+          :else nil)))
+    nil))
+
+(defn refer
+  "Refer Vars from the namespace named by ns-sym, subject to the filters specified.
+
+  Supported filters:
+  - :only [sym1 sym2], to only refer the specified symbols
+  - :exclude [sym1, sym2], to refer all except the specified symbols
+  - :rename {sym1 new-sym1}, to rename all the specified symbols to the given new name
+
+  Use of `refer` directly is discouraged in favor of the `:refer` modifier in the
+  `:require` directive of the `ns` macro or the `:use` directive of the `ns` macro."
+  [ns-sym & filters]
+  (let [current-ns *ns*]
+    ;; It is necessary to first require the Namespace directly, otherwise
+    ;; when refer attempts to load the Namespace later, it will fail.
+    (->> (require-libspec ns-sym)
+         (require-lib current-ns))
+    (->> (apply vector ns-sym filters)
+         (require-libspec)
+         (refer-lib current-ns))))
+
+(def refer-basilisp
+  "Refer Vars from basilisp.core using the same filter syntax as refer."
+  (partial refer 'basilisp.core))
+
+(def refer-clojure
+  "Compatibility layer with JVM Clojure, which points to refer-basilisp."
+  refer-basilisp)
+
+(defn use
+  "Load Basilisp libraries and make them accessible in the current namespace.
+
+  Arguments should be libspecs, which take the following forms:
+  - symbols, which name fully qualified namespaces
+  - vectors, which take the form [namespace-symbol & opts]
+
+  `use` is like `require` which also refers all Vars from the requiring Namespace
+  afterwards. Libspecs passed to `use` may include filters as defined in `refer` to
+  narrow down the referred Vars.
+
+  Supported filters:
+  - :only [sym1 sym2], to only refer the specified symbols
+  - :exclude [sym1, sym2], to refer all except the specified symbols
+  - :rename {sym1 new-sym1}, to rename all the specified symbols to the given new name
+
+  Use of `use` directly is discouraged in favor of the `:use` directive in the `ns`
+  macro."
+  [& args]
+  (let [current-ns *ns*]
+    (doseq [libspec (map require-libspec args)]
+      ;; Remove the :refer key to avoid having require-lib
+      ;; perform a full :refer, instead we'll use refer-lib
+      (->> (dissoc libspec :refer)
+           (require-lib current-ns))
+      (refer-lib current-ns libspec))
     nil))
 
 (defmacro ns
@@ -3653,6 +3707,8 @@
        (:refer-basilisp :exclude [get])
        (:require
          [basilisp.string :as str])
+       (:use
+         [basilisp.set :only [intersection]])
        (:import inspect))"
   [name & opts]
   (when-not (and (symbol? name) (nil? (namespace name)))
@@ -3672,17 +3728,22 @@
                        {}
                        opts))
 
-        requires    (when (:require opts)
-                      `(require ~@(map #(list 'quote %) (:require opts))))
-        imports     (when (:import opts)
-                      (map (fn [v]
-                             `(import ~v))
-                           (:import opts)))]
+        refer-filters (when-let [filters (or (:refer-basilisp opts)
+                                             (:refer-clojure opts))]
+                        (map #(list 'quote %) filters))
+        requires      (when (:require opts)
+                        `(require ~@(map #(list 'quote %) (:require opts))))
+        uses          (when (:use opts)
+                        `(use ~@(map #(list 'quote %) (:use opts))))
+        imports       (when (:import opts)
+                        (map (fn [v]
+                               `(import ~v))
+                             (:import opts)))]
     `(do
        (in-ns (quote ~name))
-       (refer-basilisp ~@(or (:refer-basilisp opts)
-                             (:refer-clojure opts)))
+       (refer-basilisp ~@refer-filters)
        ~requires
+       ~uses
        ~@imports)))
 
 ;;;;;;;;;;;;;;;;;;;;;
