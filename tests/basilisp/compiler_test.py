@@ -1,14 +1,19 @@
 import asyncio
 import decimal
+import importlib
 import logging
+import os
 import re
+import sys
 import uuid
 from fractions import Fraction
+from tempfile import TemporaryDirectory
 from typing import Any, Callable, Dict, Optional
 from unittest.mock import Mock
 
 import dateutil.parser as dateparser
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 
 import basilisp.lang.compiler as compiler
 import basilisp.lang.keyword as kw
@@ -1861,6 +1866,10 @@ class TestMacroexpandFunctions:
             sym.symbol("non-existent-symbol")
         )
 
+        assert sym.symbol(
+            "non-existent-symbol", ns="ns.second"
+        ) == compiler.macroexpand(sym.symbol("non-existent-symbol", ns="ns.second"))
+
 
 class TestIf:
     def test_if_number_of_elems(self, lcompile: CompileFn):
@@ -1932,37 +1941,33 @@ class TestIf:
 
 
 class TestImport:
-    def test_import_module_must_be_symbol(self, lcompile: CompileFn):
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(import* :time)",
+            '(import* "time")',
+            "(import* string :time)",
+            '(import* string "time")',
+        ],
+    )
+    def test_import_module_must_be_symbol(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile("(import* :time)")
+            lcompile(code)
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(import* [:time :as py-time])",
+            "(import* [time py-time])",
+            "(import* [time :as :py-time])",
+            "(import* [time :as])",
+            "(import* [time :named py-time])",
+            "(import* [time :named py time])",
+        ],
+    )
+    def test_import_aliased_module_format(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile('(import* "time")')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* string :time)")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(import* string "time")')
-
-    def test_import_aliased_module_format(self, lcompile: CompileFn):
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [:time :as py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :as :py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :as])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :named py-time])")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(import* [time :named py time])")
+            lcompile(code)
 
     def test_import_module_must_exist(self, lcompile: CompileFn):
         with pytest.raises(ImportError):
@@ -3317,7 +3322,7 @@ class TestWarnOnVarIndirection:
         other_ns_name = sym.symbol("other.ns")
         try:
             other_ns = get_or_create_ns(other_ns_name)
-            Var.intern(other_ns_name, sym.symbol("m"), lambda x: x)
+            Var.intern(other_ns, sym.symbol("m"), lambda x: x)
             current_ns.add_alias(other_ns, other_ns_name)
             current_ns.add_alias(other_ns, sym.symbol("other"))
 

@@ -1,11 +1,11 @@
 from typing import Tuple
 
 import basilisp.lang.symbol as sym
-from basilisp.lang.runtime import CORE_NS, Namespace
+from basilisp.lang.runtime import CORE_NS_SYM, Namespace
 
 
 def get_or_create_ns(
-    name: sym.Symbol, refer: Tuple[sym.Symbol] = (sym.symbol(CORE_NS),)
+    name: sym.Symbol, refer: Tuple[sym.Symbol] = (CORE_NS_SYM,)
 ) -> Namespace:
     """Get or create the namespace named by `name`, referring in all of the symbols
     of the namespaced named by `refer`."""

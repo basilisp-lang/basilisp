@@ -2376,53 +2376,8 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
     )
 
 
-def __fuzzy_resolve_namespace_reference(
-    ctx: AnalyzerContext, which_ns: runtime.Namespace, form: sym.Symbol
-) -> Optional[VarRef]:
-    """Resolve a symbol within `which_ns` based on any namespaces required or otherwise
-    referenced within `which_ns` (e.g. by a :refer).
-
-    When a required or resolved symbol is read by the reader in the context of a syntax
-    quote, the reader will fully resolve the symbol, so a symbol like `set/union` would be
-    expanded to `basilisp.set/union`. However, the namespace still does not maintain a
-    direct mapping of the symbol `basilisp.set` to the namespace it names, since the
-    namespace was required as `[basilisp.set :as set]`.
-
-    During macroexpansion, the Analyzer needs to resolve these transitive requirements,
-    so we 'fuzzy' resolve against any namespaces known to the current macro namespace."""
-    assert form.ns is not None
-    ns_name = form.ns
-
-    def resolve_ns_reference(
-        ns_map: Mapping[str, runtime.Namespace]
-    ) -> Optional[VarRef]:
-        match: Optional[runtime.Namespace] = ns_map.get(ns_name)
-        if match is not None:
-            v = match.find(sym.symbol(form.name))
-            if v is not None:
-                return VarRef(
-                    form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
-                )
-        return None
-
-    # Try to match a required namespace
-    required_namespaces = {ns.name: ns for ns in which_ns.aliases.values()}
-    match = resolve_ns_reference(required_namespaces)
-    if match is not None:
-        return match
-
-    # Try to match a referred namespace
-    referred_namespaces = {
-        ns.name: ns for ns in {var.ns for var in which_ns.refers.values()}
-    }
-    return resolve_ns_reference(referred_namespaces)
-
-
 def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
-    ctx: AnalyzerContext,
-    which_ns: runtime.Namespace,
-    form: sym.Symbol,
-    allow_fuzzy_macroexpansion_matching: bool = False,
+    ctx: AnalyzerContext, which_ns: runtime.Namespace, form: sym.Symbol,
 ) -> Optional[Union[MaybeHostForm, VarRef]]:
     """Resolve the symbol `form` in the context of the Namespace `which_ns`. If
     `allow_fuzzy_macroexpansion_matching` is True and no match is made on existing
@@ -2432,14 +2387,6 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
 
     ns_sym = sym.symbol(form.ns)
     if ns_sym in which_ns.imports or ns_sym in which_ns.import_aliases:
-        # We still import Basilisp code, so we'll want to make sure
-        # that the symbol isn't referring to a Basilisp Var first
-        v = Var.find(form)
-        if v is not None:
-            return VarRef(
-                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
-            )
-
         # Fetch the full namespace name for the aliased namespace/module.
         # We don't need this for actually generating the link later, but
         # we _do_ need it for fetching a reference to the module to check
@@ -2491,8 +2438,6 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
                 form=form,
             )
         return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),)
-    elif allow_fuzzy_macroexpansion_matching:
-        return __fuzzy_resolve_namespace_reference(ctx, which_ns, form)
 
     return None
 
@@ -2550,12 +2495,6 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     resolved = __resolve_namespaced_symbol_in_ns(ctx, current_ns, form)
     if resolved is not None:
         return resolved
-    elif ctx.current_macro_ns is not None:
-        resolved = __resolve_namespaced_symbol_in_ns(
-            ctx, ctx.current_macro_ns, form, allow_fuzzy_macroexpansion_matching=True
-        )
-        if resolved is not None:
-            return resolved
 
     if "." in form.ns:
         try:
@@ -2834,8 +2773,6 @@ def _analyze_form(  # pylint: disable=too-many-branches
         if form == llist.List.empty():
             with ctx.quoted():
                 return _const_node(ctx, form)
-        elif ctx.is_quoted:
-            return _const_node(ctx, form)
         else:
             return _list_node(ctx, form)
     elif isinstance(form, vec.Vector):
