@@ -2599,8 +2599,12 @@ def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPy
         tp.create
     ), "IRecord and IType must declare a .create class method"
 
-    keys, vals, vals_deps = [], [], []
-    for k, v in runtime.to_seq(form):
+    form_seq = runtime.to_seq(form)
+    assert form_seq is not None, "IRecord types must be iterable"
+
+    keys, vals = [], []
+    vals_deps: List[ast.AST] = []
+    for k, v in form_seq:
         assert isinstance(k, kw.Keyword), "Record key in seq must be keyword"
         key_nodes = _kw_to_py_ast(ctx, k)
         keys.append(key_nodes.node)
