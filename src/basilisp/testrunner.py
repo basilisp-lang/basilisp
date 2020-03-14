@@ -4,6 +4,7 @@ from typing import Callable, Iterable, Optional
 
 import pytest
 
+import basilisp.lang.compiler as compiler
 import basilisp.lang.keyword as kw
 import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
@@ -20,7 +21,8 @@ _TEST_NUM_META_KW = kw.keyword("order", "basilisp.test")
 
 # pylint: disable=unused-argument
 def pytest_configure(config):
-    basilisp.init()
+    opts = compiler.compiler_opts()
+    basilisp.init(opts)
     importlib.import_module("basilisp.test")
 
 

@@ -389,3 +389,119 @@
                            (slow 2)
                            (slow 3)
                            (slow 4))))))))
+
+(deftest to-array-test
+  (is (= #py [] (to-array [])))
+  (is (= #py [] (to-array '())))
+  (is (= #py [1] (to-array [1])))
+  (is (= #py [1 2 3] (to-array [1 2 3])))
+  (is (= #py [1] (to-array '(1))))
+  (is (= #py [1 2 3] (to-array '(1 2 3)))))
+
+(deftest to-array-2d-test
+  (is (= #py [] (to-array-2d [])))
+  (is (= #py [] (to-array-2d '())))
+
+  (is (= #py [#py [] #py []] (to-array-2d [[] ()])))
+  (is (= #py [#py [] #py []] (to-array-2d '([] ()))))
+
+  (is (= #py [#py [1 2 3] #py [:a :b :c]]
+         (to-array-2d [[1 2 3] '(:a :b :c)])))
+
+  (is (= #py [#py [1 2 3] #py [:a :b :c]]
+         (to-array-2d '([1 2 3] (:a :b :c)))))
+
+  (is (thrown? python/TypeError)
+      (to-array-2d [[1 2 3] :b])))
+
+(deftest into-array-test
+  (testing "with no type"
+    (is (= #py [] (into-array [])))
+    (is (= #py [] (into-array '())))
+    (is (= #py [1] (into-array [1])))
+    (is (= #py [1 2 3] (into-array [1 2 3])))
+    (is (= #py [1] (into-array '(1))))
+    (is (= #py [1 2 3] (into-array '(1 2 3)))))
+
+  (testing "with (ignored) type argument"
+    (is (= #py [] (into-array nil [])))
+    (is (= #py [] (into-array nil '())))
+    (is (= #py [1] (into-array python/int [1])))
+    (is (= #py [1 2 3] (into-array python/int [1 2 3])))
+    (is (= #py [1] (into-array python/float '(1))))
+    (is (= #py [1 2 3] (into-array python/float '(1 2 3))))))
+
+(deftest make-array-test
+  (testing "with no type"
+    (is (= #py [] (make-array 0)))
+    (is (= #py [nil] (make-array 1)))
+    (is (= #py [nil nil nil] (make-array 3))))
+
+  (testing "with (ignored) type argument"
+    (is (= #py [] (make-array python/int 0)))
+    (is (= #py [nil] (make-array python/int 1)))
+    (is (= #py [nil nil nil] (make-array python/int 3))))
+
+  (testing "multi-dimensional"
+    (is (= #py [#py [] #py []]
+           (make-array python/int 2 0)))
+    (is (= #py [#py [nil nil nil] #py [nil nil nil]]
+           (make-array python/int 2 3)))
+    (is (= #py [#py [#py [nil nil] #py [nil nil]]
+                #py [#py [nil nil] #py [nil nil]]]
+           (make-array python/int 2 2 2)))))
+
+(deftest object-array-tests
+  (testing "only size"
+    (is (= #py [] (object-array 0)))
+    (is (= #py [nil] (object-array 1)))
+    (is (= #py [nil nil nil] (object-array 3))))
+
+  (testing "only seq"
+    (is (= #py [] (object-array [])))
+    (is (= #py [] (object-array '())))
+    (is (= #py [1] (object-array [1])))
+    (is (= #py [1 2 3] (object-array [1 2 3])))
+    (is (= #py [1] (object-array '(1))))
+    (is (= #py [1 2 3] (object-array '(1 2 3)))))
+
+  (testing "size and init val"
+    (is (= #py [] (object-array 0 :a)))
+    (is (= #py [:a] (object-array 1 :a)))
+    (is (= #py [:a :a :a] (object-array 3 :a))))
+
+  (testing "size and seq"
+    (is (= #py [] (object-array 0 (range 1 3))))
+    (is (= #py [1 2 3] (object-array 3 (range 1 4))))
+    (is (= #py [1 2 3 nil nil] (object-array 5 (range 1 4))))))
+
+(deftest aclone-test
+  (is (= #py [] (aclone [])))
+  (is (= #py [] (aclone '())))
+  (is (= #py [1] (aclone [1])))
+  (is (= #py [1 2 3] (aclone [1 2 3])))
+  (is (= #py [1] (aclone '(1))))
+  (is (= #py [1 2 3] (aclone '(1 2 3)))))
+
+(deftest alength-test
+  (is (= 0 (alength #py [])))
+  (is (= 1 (alength #py [1])))
+  (is (= 3 (alength #py [1 2 3]))))
+
+(deftest aget-test
+  (is (thrown? python/IndexError (aget #py [] 1)))
+  (is (thrown? python/IndexError (aget #py [1 2 3] 5)))
+  (is (thrown? python/IndexError (aget #py [#py[1 0 6] 2 3] 0 5)))
+  (is (= 1 (aget #py [1 2 3] 0)))
+  (is (= :d (aget #py [#py [:a :b :c] #py [:d :e :f]] 1 0))))
+
+(deftest aset-test
+  (let [l #py [1 2 3]]
+    (is (= :a (aset l 0 :a)))
+    (is (= #py [:a 2 3] l))
+    (is (thrown? python/IndexError (aset l 5 :f))))
+
+  (let [l #py [#py [:a :b :c] #py [:d :e :f]]]
+    (is (= 5 (aset l 0 2 5)))
+    (is (= #py [#py [:a :b 5] #py [:d :e :f]] l))
+    (is (thrown? python/IndexError (aset l 0 5 :cc)))))

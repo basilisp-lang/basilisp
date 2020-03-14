@@ -252,7 +252,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             )
             compiler.compile_bytecode(
                 cached_code,
-                compiler.GeneratorContext(filename=filename),
+                compiler.GeneratorContext(
+                    filename=filename, opts=runtime.get_compiler_opts()
+                ),
                 compiler.PythonASTOptimizer(),
                 ns,
             )
@@ -288,7 +290,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             )
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
                 forms,
-                compiler.CompilerContext(filename=filename),
+                compiler.CompilerContext(
+                    filename=filename, opts=runtime.get_compiler_opts()
+                ),
                 ns,
                 collect_bytecode=all_bytecode.append,
             )

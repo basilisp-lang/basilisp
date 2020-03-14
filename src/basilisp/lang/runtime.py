@@ -22,6 +22,7 @@ from typing import (
     Optional,
     Tuple,
     Union,
+    cast,
 )
 
 import basilisp.lang.keyword as kw
@@ -47,7 +48,7 @@ from basilisp.lang.interfaces import (
     ISeqable,
 )
 from basilisp.lang.reference import ReferenceBase
-from basilisp.lang.typing import LispNumber
+from basilisp.lang.typing import CompilerOpts, LispNumber
 from basilisp.lang.util import munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
@@ -63,6 +64,7 @@ NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
 
 # Private string constants
+_COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
 _GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 _PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
 _PRINT_DUP_VAR_NAME = "*print-dup*"
@@ -1542,9 +1544,9 @@ def init_ns_var() -> Var:
     return ns_var
 
 
-def bootstrap_core() -> None:
-    """Bootstrap the environment with functions that are are difficult to
-    express with the very minimal lisp environment."""
+def bootstrap_core(compiler_opts: CompilerOpts) -> None:
+    """Bootstrap the environment with functions that are either difficult to express
+    with the very minimal Lisp environment or which are expected by the compiler."""
     __NS = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
         lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
     )
@@ -1554,11 +1556,22 @@ def bootstrap_core() -> None:
         __NS.value = ns
         return ns
 
+    # Vars used in bootstrapping the runtime
     Var.intern_unbound(CORE_NS_SYM, sym.symbol("unquote"))
     Var.intern_unbound(CORE_NS_SYM, sym.symbol("unquote-splicing"))
     Var.intern(
         CORE_NS_SYM, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
     )
+
+    # Dynamic Var examined by the compiler when importing new Namespaces
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(_COMPILER_OPTIONS_VAR_NAME),
+        compiler_opts,
+        dynamic=True,
+    )
+
+    # Dynamic Vars examined by the compiler for generating Python code for debugging
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(_PRINT_GENERATED_PY_VAR_NAME),
@@ -1593,3 +1606,10 @@ def bootstrap_core() -> None:
         lobj.PRINT_READABLY,
         dynamic=True,
     )
+
+
+def get_compiler_opts() -> CompilerOpts:
+    """Return the current compiler options map."""
+    v = Var.find_in_ns(CORE_NS_SYM, sym.symbol(_COMPILER_OPTIONS_VAR_NAME))
+    assert v is not None, "*compiler-options* Var not defined"
+    return cast(CompilerOpts, v.value)
