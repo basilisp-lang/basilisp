@@ -99,7 +99,7 @@ from basilisp.lang.runtime import (
     BasilispModule,
     Var,
 )
-from basilisp.lang.typing import LispForm
+from basilisp.lang.typing import CompilerOpts, LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
 
@@ -107,8 +107,8 @@ from basilisp.util import Maybe
 logger = logging.getLogger(__name__)
 
 # Generator options
-USE_VAR_INDIRECTION = "use_var_indirection"
-WARN_ON_VAR_INDIRECTION = "warn_on_var_indirection"
+USE_VAR_INDIRECTION = kw.keyword("use-var-indirection")
+WARN_ON_VAR_INDIRECTION = kw.keyword("warn-on-var-indirection")
 
 # String constants used in generating code
 _DEFAULT_FN = "__lisp_expr__"
@@ -203,7 +203,7 @@ class GeneratorContext:
     )
 
     def __init__(
-        self, filename: Optional[str] = None, opts: Optional[Mapping[str, bool]] = None
+        self, filename: Optional[str] = None, opts: Optional[CompilerOpts] = None
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())  # type: ignore
@@ -214,7 +214,7 @@ class GeneratorContext:
 
         if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             for k, v in self._opts:
-                logger.debug("Compiler option %s=%s", k, v)
+                logger.debug("Compiler option %s = %s", k, v)
 
     @property
     def current_ns(self) -> runtime.Namespace:
