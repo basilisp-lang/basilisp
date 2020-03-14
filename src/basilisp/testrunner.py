@@ -30,7 +30,10 @@ def pytest_collect_file(parent, path):
     """Primary PyTest hook to identify Basilisp test files."""
     if path.ext == ".lpy":
         if path.basename.startswith("test_") or path.purebasename.endswith("_test"):
-            return BasilispFile(path, parent)
+            if hasattr(BasilispFile, "from_parent"):
+                return BasilispFile.from_parent(parent, fspath=path)
+            else:
+                return BasilispFile(path, parent)
     return None
 
 
