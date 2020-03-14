@@ -27,7 +27,6 @@ import basilisp.lang.vector as vec
 from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
 from basilisp.lang.interfaces import IType
 from basilisp.lang.runtime import Var
-from basilisp.main import init
 from tests.basilisp.helpers import get_or_create_ns
 
 COMPILER_FILE_PATH = "compiler_test"
@@ -37,7 +36,6 @@ COMPILER_FILE_PATH = "compiler_test"
 def setup_module():
     """Disable the `print_generated_python` flag so we can safely capture
     stderr and stdout for tests which require those facilities."""
-    init()
     orig = runtime.print_generated_python
     runtime.print_generated_python = Mock(return_value=False)
     yield

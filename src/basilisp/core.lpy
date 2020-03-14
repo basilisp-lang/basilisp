@@ -1448,6 +1448,142 @@
   integers."
   short)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Arrays (Python List) ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn to-array
+  "Return a Python list with the contents of coll."
+  [coll]
+  (python/list coll))
+
+(defn to-array-2d
+  "Return a two-dimensional Python list from the contents of coll.
+
+  Python lists do not specify a fixed size, so the resulting two-dimensional
+  list may be ragged (in the Java sense of the word) if the inner collections
+  of the input are ragged."
+  [coll]
+  (python/list (python/map python/list coll)))
+
+(defn into-array
+  "Returns a Python list with the values from aseq.
+
+  The type argument is ignored and is provided only for Clojure compatibility."
+  ([aseq]
+   (python/list aseq))
+  ([^:no-warn-when-unused type aseq]
+   (python/list aseq)))
+
+(defn make-array
+  "Create a Python list with initial size. If multiple sizes are provided, produces
+  a multi-dimensional list-of-lists. There is no efficient way to allocate such
+  multi-dimensional lists in Python, so this function will run in polynomial time.
+
+  Python lists do not support pre-allocation by capacity, so this function pre-
+  fills the created list(s) with `nil`.
+
+  The type argument is ignored and is provided only for Clojure compatibility."
+  ([size]
+   (operator/mul #py [nil] size))
+  ([^:no-warn-when-unused type size]
+   (operator/mul #py [nil] size))
+  ([^:no-warn-when-unused type size & more-sizes]
+   (let [final #py []]
+     (loop [size size]
+       (if (pos? size)
+         (do
+           (.append final (apply make-array type more-sizes))
+           (recur (dec size)))
+         final)))))
+
+(defn object-array
+  "Create an array of objects.
+
+  If `init-val-or-seq` and is a `seq` yielding fewer than `size` elements, then the
+  remaining indices of the resulting array will be filled with `nil` values.
+
+  This function does not coerce its argument and is provided for Clojure compatibility."
+  ([size-or-seq]
+   (if (int? size-or-seq)
+     (make-array size-or-seq)
+     (to-array size-or-seq)))
+  ([size init-val-or-seq]
+   (if (and (seqable? init-val-or-seq) (seq init-val-or-seq))
+     (let [final #py []]
+       (loop [arr-seq (seq init-val-or-seq)
+              idx     0]
+         (when (< idx size)
+           (.append final (first arr-seq))
+           (recur (rest arr-seq) (inc idx))))
+       final)
+     (operator/mul #py [init-val-or-seq] size))))
+
+(defn aclone
+  "Return a clone of the Python list."
+  [array]
+  (python/list array))
+
+(defn aget
+  "Return the value of the Python list at the index (or indices)."
+  ([array idx]
+   (operator/getitem array idx))
+  ([array idx & idxs]
+   (if (seq idxs)
+     (recur (operator/getitem array idx) (first idxs) (rest idxs))
+     (operator/getitem array idx))))
+
+(defn aset
+  "Sets the value of the Python list at the index (or indices). Returns val."
+  ([array idx val]
+   (operator/setitem array idx val)
+   val)
+  ([array idx idx2 & idxs]
+   (loop [target (operator/getitem array idx)
+          idx    idx2
+          idx2   (first idxs)
+          idxs   (rest idxs)]
+     (if (seq idxs)
+       (recur (operator/getitem target idx) idx2 (first idxs) (rest idxs))
+       (do
+         (operator/setitem target idx idx2)
+         idx2)))))
+
+(defn alength
+  "Return the length of the Python list."
+  [array]
+  (python/len array))
+
+(defmacro amap
+  "Map `expr` over the Python list `array`, returning a new Python list with
+  the result.
+
+  This macro initially binds the symbol named by `ret` to a clone of `array`.
+  On each iteration, the index (named by `idx`) of `ret` is set to the return
+  value of `expr`."
+  [array idx ret expr]
+  `(let [len# (alength ~array)
+         ~ret (aclone ~array)]
+     (loop [~idx 0]
+       (when (< ~idx len#)
+         (aset ~ret ~idx ~expr)
+         (recur (inc ~idx))))
+     ~ret))
+
+;; (areduce arr idx ret 0 (+ ret (aget arr idx)))
+(defmacro areduce
+  "Reduce the Python list `array` by `expr`, returning the reduced expression.
+
+  This macro initially binds the symbol named by `ret` to `init`. On each
+  iteration, `ret` is rebound to the return value of `expr`."
+  [array idx ret init expr]
+  `(let [len# (alength ~array)]
+     (loop [~ret ~init
+            ~idx 0]
+       (if (< ~idx len#)
+         (recur ~expr (inc ~idx))
+         ~ret))))
+
 ;;;;;;;;;;;;;;;;
 ;; Exceptions ;;
 ;;;;;;;;;;;;;;;;

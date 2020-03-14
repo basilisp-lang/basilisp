@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added EDN reader in the `basilisp.edn` namespace (#477)
  * Added line, column, and file information to reader `SyntaxError`s (#488)
  * Added context information to the `CompilerException` string output (#493)
+ * Added Array (Python list) functions (#504)
  * Added support for Protocols (#460)
  * Added support for Volatiles (#460)
 
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a reader bug where no exception was being thrown splicing reader conditional forms appeared outside of valid splicing contexts (#470)
  * Fixed a bug where fully Namespace-qualified symbols would not resolve if the current Namespace did not alias the referenced Namespace (#479)
  * Fixed a bug where the `quote` special form allowed more than one argument and raised an unintended exception when no argument was provided (#497)
+ * Fixed a bug where compiler options specified via command-line argument or environment variable were not honored by the importer (#???)
 
 ## [v0.1.dev12] - 2020-01-26
 ### Added

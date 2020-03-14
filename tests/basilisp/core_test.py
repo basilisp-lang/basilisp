@@ -16,14 +16,12 @@ import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.exception import ExceptionInfo
 from basilisp.lang.interfaces import IExceptionInfo
-from basilisp.main import init
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_module():
     """Disable the `print_generated_python` flag so we can safely capture
     stderr and stdout for tests which require those facilities."""
-    init()
     orig = runtime.print_generated_python
     runtime.print_generated_python = Mock(return_value=False)
     yield

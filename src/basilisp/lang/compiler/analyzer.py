@@ -120,7 +120,7 @@ from basilisp.lang.compiler.nodes import (
 )
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
-from basilisp.lang.typing import LispForm, ReaderForm
+from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe, partition
 
@@ -128,9 +128,9 @@ from basilisp.util import Maybe, partition
 logger = logging.getLogger(__name__)
 
 # Analyzer options
-WARN_ON_SHADOWED_NAME = "warn_on_shadowed_name"
-WARN_ON_SHADOWED_VAR = "warn_on_shadowed_var"
-WARN_ON_UNUSED_NAMES = "warn_on_unused_names"
+WARN_ON_SHADOWED_NAME = kw.keyword("warn-on-shadowed-name")
+WARN_ON_SHADOWED_VAR = kw.keyword("warn-on-shadowed-var")
+WARN_ON_UNUSED_NAMES = kw.keyword("warn-on-unused-names")
 
 # Lisp AST node keywords
 INIT = kw.keyword("init")
@@ -295,7 +295,7 @@ class AnalyzerContext:
     def __init__(
         self,
         filename: Optional[str] = None,
-        opts: Optional[Mapping[str, bool]] = None,
+        opts: Optional[CompilerOpts] = None,
         should_macroexpand: bool = True,
         allow_unresolved_symbols: bool = False,
     ) -> None:
