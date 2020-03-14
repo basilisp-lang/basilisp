@@ -214,7 +214,7 @@ class GeneratorContext:
 
         if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             for k, v in self._opts:
-                logger.debug("Compiler option %s=%s", k, v)
+                logger.debug("Compiler option %s = %s", k, v)
 
     @property
     def current_ns(self) -> runtime.Namespace:
