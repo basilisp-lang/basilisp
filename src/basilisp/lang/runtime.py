@@ -22,7 +22,6 @@ from typing import (
     Optional,
     Tuple,
     Union,
-    cast,
 )
 
 import basilisp.lang.keyword as kw
@@ -49,7 +48,7 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.reference import ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
-from basilisp.lang.util import munge
+from basilisp.lang.util import demunge, munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
@@ -1566,7 +1565,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(_COMPILER_OPTIONS_VAR_NAME),
-        compiler_opts,
+        lmap.map({kw.keyword(demunge(k)): v for k, v in compiler_opts.items()}),
         dynamic=True,
     )
 
@@ -1611,4 +1610,4 @@ def get_compiler_opts() -> CompilerOpts:
     """Return the current compiler options map."""
     v = Var.find_in_ns(CORE_NS_SYM, sym.symbol(_COMPILER_OPTIONS_VAR_NAME))
     assert v is not None, "*compiler-options* Var not defined"
-    return cast(CompilerOpts, v.value)
+    return lmap.map({munge(k.name): v for k, v in v.value.items()})
