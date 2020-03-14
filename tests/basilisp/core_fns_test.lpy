@@ -427,3 +427,26 @@
   (is (= #py [1 2 3] (aclone [1 2 3])))
   (is (= #py [1] (aclone '(1))))
   (is (= #py [1 2 3] (aclone '(1 2 3)))))
+
+(deftest alength-test
+  (is (= 0 (alength #py [])))
+  (is (= 1 (alength #py [1])))
+  (is (= 3 (alength #py [1 2 3]))))
+
+(deftest aget-test
+  (is (thrown? python/IndexError (aget #py [] 1)))
+  (is (thrown? python/IndexError (aget #py [1 2 3] 5)))
+  (is (thrown? python/IndexError (aget #py [#py[1 0 6] 2 3] 0 5)))
+  (is (= 1 (aget #py [1 2 3] 0)))
+  (is (= :d (aget #py [#py [:a :b :c] #py [:d :e :f]] 1 0))))
+
+(deftest aset-test
+  (let [l #py [1 2 3]]
+    (is (= :a (aset l 0 :a)))
+    (is (= #py [:a 2 3] l))
+    (is (thrown? python/IndexError (aset l 5 :f))))
+
+  (let [l #py [#py [:a :b :c] #py [:d :e :f]]]
+    (is (= 5 (aset l 0 2 5)))
+    (is (= #py [#py [:a :b 5] #py [:d :e :f]] l))
+    (i (thrown? python/IndexError (aset l 0 5 :cc)))))
