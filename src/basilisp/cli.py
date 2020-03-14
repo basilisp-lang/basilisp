@@ -109,12 +109,12 @@ def repl(  # pylint: disable=too-many-arguments,too-many-locals
     use_var_indirection,
     warn_on_var_indirection,
 ):
-    opts = compiler.to_compiler_opts(
-        warn_on_shadowed_name,
-        warn_on_shadowed_var,
-        warn_on_unused_names,
-        use_var_indirection,
-        warn_on_var_indirection,
+    opts = compiler.compiler_opts(
+        warn_on_shadowed_name=warn_on_shadowed_name,
+        warn_on_shadowed_var=warn_on_shadowed_var,
+        warn_on_unused_names=warn_on_unused_names,
+        use_var_indirection=use_var_indirection,
+        warn_on_var_indirection=warn_on_var_indirection,
     )
     basilisp.init(opts)
     ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts=opts)
@@ -209,12 +209,12 @@ def run(  # pylint: disable=too-many-arguments
     warn_on_var_indirection,
 ):
     """Run a Basilisp script or a line of code, if it is provided."""
-    opts = compiler.to_compiler_opts(
-        warn_on_shadowed_name,
-        warn_on_shadowed_var,
-        warn_on_unused_names,
-        use_var_indirection,
-        warn_on_var_indirection,
+    opts = compiler.compiler_opts(
+        warn_on_shadowed_name=warn_on_shadowed_name,
+        warn_on_shadowed_var=warn_on_shadowed_var,
+        warn_on_unused_names=warn_on_unused_names,
+        use_var_indirection=use_var_indirection,
+        warn_on_var_indirection=warn_on_var_indirection,
     )
     basilisp.init(opts)
     ctx = compiler.CompilerContext(

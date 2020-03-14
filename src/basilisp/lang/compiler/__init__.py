@@ -70,7 +70,7 @@ class CompilerContext:
         return self._optimizer
 
 
-def to_compiler_opts(
+def compiler_opts(
     warn_on_shadowed_name: Optional[bool] = None,
     warn_on_shadowed_var: Optional[bool] = None,
     warn_on_unused_names: Optional[bool] = None,

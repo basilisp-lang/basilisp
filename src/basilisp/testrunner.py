@@ -21,7 +21,7 @@ _TEST_NUM_META_KW = kw.keyword("order", "basilisp.test")
 
 # pylint: disable=unused-argument
 def pytest_configure(config):
-    opts = compiler.to_compiler_opts()
+    opts = compiler.compiler_opts()
     basilisp.init(opts)
     importlib.import_module("basilisp.test")
 

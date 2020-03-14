@@ -1608,7 +1608,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
 
 
 def get_compiler_opts() -> CompilerOpts:
-    """Return the current compiler options."""
+    """Return the current compiler options map."""
     v = Var.find_in_ns(CORE_NS_SYM, sym.symbol(_COMPILER_OPTIONS_VAR_NAME))
     assert v is not None, "*compiler-options* Var not defined"
     return cast(CompilerOpts, v.value)
