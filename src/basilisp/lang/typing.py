@@ -12,7 +12,7 @@ import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.interfaces import IPersistentMap, IRecord, ISeq, IType
 
-CompilerOpts = IPersistentMap[str, bool]
+CompilerOpts = IPersistentMap[kw.Keyword, bool]
 
 IterableLispForm = Union[llist.List, lmap.Map, lset.Set, vec.Vector]
 LispNumber = Union[int, float, Fraction]
