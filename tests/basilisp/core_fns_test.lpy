@@ -449,4 +449,4 @@
   (let [l #py [#py [:a :b :c] #py [:d :e :f]]]
     (is (= 5 (aset l 0 2 5)))
     (is (= #py [#py [:a :b 5] #py [:d :e :f]] l))
-    (i (thrown? python/IndexError (aset l 0 5 :cc)))))
+    (is (thrown? python/IndexError (aset l 0 5 :cc)))))

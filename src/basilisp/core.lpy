@@ -1554,7 +1554,6 @@
   [array]
   (python/len array))
 
-;; (amap #py [1 2 3] idx ret (+ idx (aget #py [1 2 3] idx)))
 (defmacro amap
   "Map `expr` over the Python list `array`, returning a new Python list with
   the result.
