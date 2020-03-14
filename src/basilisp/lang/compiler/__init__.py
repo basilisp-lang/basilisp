@@ -1,11 +1,12 @@
 import itertools
 import os
 import types
-from typing import Any, Callable, Iterable, List, Mapping, Optional
+from typing import Any, Callable, Iterable, List, Optional
 
 from astor import code_gen as codegen
 
 import basilisp._pyast as ast
+import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
     WARN_ON_SHADOWED_NAME,
@@ -28,7 +29,7 @@ from basilisp.lang.compiler.generator import (  # noqa
     statementize as _statementize,
 )
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
-from basilisp.lang.typing import ReaderForm
+from basilisp.lang.typing import CompilerOpts, ReaderForm
 from basilisp.lang.util import genname
 
 _DEFAULT_FN = "__lisp_expr__"
@@ -40,13 +41,13 @@ def to_py_str(t: ast.AST) -> str:
     return codegen.to_source(t)
 
 
-BytecodeCollector = Optional[Callable[[types.CodeType], None]]
+BytecodeCollector = Callable[[types.CodeType], None]
 
 
 class CompilerContext:
     __slots__ = ("_filename", "_actx", "_gctx", "_optimizer")
 
-    def __init__(self, filename: str, opts: Optional[Mapping[str, bool]] = None):
+    def __init__(self, filename: str, opts: Optional[CompilerOpts] = None):
         self._filename = filename
         self._actx = AnalyzerContext(filename=filename, opts=opts)
         self._gctx = GeneratorContext(filename=filename, opts=opts)
@@ -67,6 +68,27 @@ class CompilerContext:
     @property
     def py_ast_optimizer(self) -> PythonASTOptimizer:
         return self._optimizer
+
+
+def to_compiler_opts(
+    warn_on_shadowed_name: Optional[bool] = None,
+    warn_on_shadowed_var: Optional[bool] = None,
+    warn_on_unused_names: Optional[bool] = None,
+    use_var_indirection: Optional[bool] = None,
+    warn_on_var_indirection: Optional[bool] = None,
+) -> CompilerOpts:
+    """Return a map of compiler options with defaults applied."""
+    return lmap.map(
+        {
+            # Analyzer options
+            WARN_ON_SHADOWED_NAME: warn_on_shadowed_name or False,
+            WARN_ON_SHADOWED_VAR: warn_on_shadowed_var or False,
+            WARN_ON_UNUSED_NAMES: warn_on_unused_names or True,
+            # Generator options
+            USE_VAR_INDIRECTION: use_var_indirection or False,
+            WARN_ON_VAR_INDIRECTION: warn_on_var_indirection or True,
+        }
+    )
 
 
 def _emit_ast_string(
