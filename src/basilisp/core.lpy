@@ -1570,7 +1570,6 @@
          (recur (inc ~idx))))
      ~ret))
 
-;; (areduce arr idx ret 0 (+ ret (aget arr idx)))
 (defmacro areduce
   "Reduce the Python list `array` by `expr`, returning the reduced expression.
 
