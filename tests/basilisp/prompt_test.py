@@ -58,6 +58,7 @@ class TestCompleter:
                 (
                     "macroexpand",
                     "macroexpand-1",
+                    "make-array",
                     "map",
                     "map-entry",
                     "map-entry?",
@@ -81,6 +82,7 @@ class TestCompleter:
                 (
                     "macroexpand",
                     "macroexpand-1",
+                    "make-array",
                     "map",
                     "map-entry",
                     "map-entry?",
@@ -104,7 +106,7 @@ class TestCompleter:
                     "mapv",
                 ),
             ),
-            ("mak", (),),
+            ("mav", (),),
             ("(map-", ("map-entry", "map-entry?", "map-indexed",),),
         ],
     )

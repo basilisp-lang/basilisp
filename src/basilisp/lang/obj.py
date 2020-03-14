@@ -140,7 +140,6 @@ def seq_lrepr(
     return f"{start}{seq_lrepr}{end}"
 
 
-@singledispatch
 def lrepr(  # pylint: disable=too-many-arguments
     o: Any,
     human_readable: bool = False,
@@ -192,6 +191,7 @@ def lrepr(  # pylint: disable=too-many-arguments
         )
 
 
+@singledispatch
 def _lrepr_fallback(  # pylint: disable=too-many-arguments
     o: Any,
     human_readable: bool = False,
@@ -246,17 +246,17 @@ def _lrepr_fallback(  # pylint: disable=too-many-arguments
         return repr(o)
 
 
-@lrepr.register(bool)
+@_lrepr_fallback.register(bool)
 def _lrepr_bool(o: bool, **_) -> str:
     return repr(o).lower()
 
 
-@lrepr.register(type(None))
+@_lrepr_fallback.register(type(None))
 def _lrepr_nil(_: None, **__) -> str:
     return "nil"
 
 
-@lrepr.register(str)
+@_lrepr_fallback.register(str)
 def _lrepr_str(
     o: str, human_readable: bool = False, print_readably: bool = PRINT_READABLY, **_
 ) -> str:
@@ -267,53 +267,53 @@ def _lrepr_str(
     return f'"{o.encode("unicode_escape").decode("utf-8")}"'
 
 
-@lrepr.register(list)
+@_lrepr_fallback.register(list)
 def _lrepr_py_list(o: list, **kwargs) -> str:
     return f"#py {seq_lrepr(o, '[', ']', **kwargs)}"
 
 
-@lrepr.register(dict)
+@_lrepr_fallback.register(dict)
 def _lrepr_py_dict(o: dict, **kwargs) -> str:
     return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
 
 
-@lrepr.register(set)
+@_lrepr_fallback.register(set)
 def _lrepr_py_set(o: set, **kwargs) -> str:
     return f"#py {seq_lrepr(o, '#{', '}', **kwargs)}"
 
 
-@lrepr.register(tuple)
+@_lrepr_fallback.register(tuple)
 def _lrepr_py_tuple(o: tuple, **kwargs) -> str:
     return f"#py {seq_lrepr(o, '(', ')', **kwargs)}"
 
 
-@lrepr.register(complex)
+@_lrepr_fallback.register(complex)
 def _lrepr_complex(o: complex, **_) -> str:
     return repr(o).upper()
 
 
-@lrepr.register(datetime.datetime)
+@_lrepr_fallback.register(datetime.datetime)
 def _lrepr_datetime(o: datetime.datetime, **_) -> str:
     return f'#inst "{o.isoformat()}"'
 
 
-@lrepr.register(Decimal)
+@_lrepr_fallback.register(Decimal)
 def _lrepr_decimal(o: Decimal, print_dup: bool = PRINT_DUP, **_) -> str:
     if print_dup:
         return f"{str(o)}M"
     return str(o)
 
 
-@lrepr.register(Fraction)
+@_lrepr_fallback.register(Fraction)
 def _lrepr_fraction(o: Fraction, **_) -> str:
     return f"{o.numerator}/{o.denominator}"
 
 
-@lrepr.register(type(re.compile("")))
+@_lrepr_fallback.register(type(re.compile("")))
 def _lrepr_pattern(o: Pattern, **_) -> str:
     return f'#"{o.pattern}"'
 
 
-@lrepr.register(uuid.UUID)
+@_lrepr_fallback.register(uuid.UUID)
 def _lrepr_uuid(o: uuid.UUID, **_) -> str:
     return f'#uuid "{str(o)}"'

@@ -279,6 +279,23 @@
     (is (= {:meta-kw true :other-kw true}
            (meta ^:meta-kw ^:other-kw (fn ([]) ([a] a)))))))
 
+(deftest amap-test
+  (let [l #py []]
+    (is (= #py [] (amap l idx ret (+ idx (aget l idx))))))
+
+  (let [l #py [1 2 3]]
+    (is (= #py [1 3 5] (amap l idx ret (+ idx (aget l idx))))))
+
+  (let [l #py [1 2 3]]
+    (is (= #py [6 11 20] (amap l idx ret (apply + ret))))))
+
+(deftest areduce-test
+  (let [l #py []]
+    (is (= 0 (areduce l idx ret 0 (+ ret (aget l idx))))))
+
+  (let [l #py [1 2 3]]
+    (is (= 6 (areduce l idx ret 0 (+ ret (aget l idx)))))))
+
 (deftest case-test
   (is (= "yes" (case :a :b "nope" :c "mega nope" :a "yes" "nerp")))
   (is (= "nope" (case :b :b "nope" :c "mega nope" :a "yes" "nerp")))
