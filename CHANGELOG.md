@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added EDN reader in the `basilisp.edn` namespace (#477)
  * Added line, column, and file information to reader `SyntaxError`s (#488)
  * Added context information to the `CompilerException` string output (#493)
- * Added Array (Python list) functions (#504)
+ * Added Array (Python list) functions (#504, #509)
 
 ### Changed
  * Change the default user namespace to `basilisp.user` (#466)
