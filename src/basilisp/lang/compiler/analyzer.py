@@ -2485,6 +2485,11 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
                 f"unable to resolve symbol '{sym.symbol(form.name, ns_sym.name)}' in this context",
                 form=form,
             )
+        elif v.meta is not None and v.meta.val_at(SYM_PRIVATE_META_KEY, False):
+            raise AnalyzerException(
+                f"cannot resolve private Var {form.name} from namespace {form.ns}",
+                form=form,
+            )
         return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),)
 
     return None
