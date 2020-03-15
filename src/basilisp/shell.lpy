@@ -1,0 +1,91 @@
+(ns basilisp.shell
+  (:import subprocess))
+
+(def ^:dynamic *sh-dir*
+  "Bind to the value of the working directory to use for calls to `sh` if the `:dir`
+  argument is not provided. Callers may use the `with-sh-dir` macro to bind this
+  value for multiple calls to `sh`.
+
+  Defaults to `nil`, which will use the current working directory of this process."
+  nil)
+
+(def ^:dynamic *sh-env*
+  "Bind to a map of environment variables to use for calls to `sh` if the `:env`
+  argument is not provided. Callers may use the `with-sh-env` macro to bind this
+  value for multiple calls to `sh`.
+
+  Defaults to `nil`, which will use the current process's environment."
+  nil)
+
+(defmacro with-sh-dir
+  "Convenience macro for binding `*sh-dir*` for multiple `sh` invocations."
+  [dir & body]
+  `(binding [*sh-dir* ~dir]
+     ~@body))
+
+(defmacro with-sh-env
+  "Convenience macro for binding `*sh-env*` for multiple `sh` invocations."
+  [env-map & body]
+  `(binding [*sh-env* ~env-map]
+     ~@body))
+
+(defn sh
+  "Execute a shell command as a subprocess of the current process.
+
+  Commands are specified as a series of string arguments split on whitespace:
+
+    (sh \"ls\" \"-la\")
+
+  Following the command, 0 or more keyword/value pairs may be specified to
+  control input and output options to the subprocess. The options are:
+
+   - :in -      a string, byte string, byte array, file descriptor, or file
+                object
+   - :in-enc -  a string value matching one of Python's supported encodings;
+                if the value of `:in` is a string, decode that string to bytes
+                using the encoding named here; if none is specified, `utf-8`
+                will be used; if the value of `:in` is not a string, this value
+                will be ignored
+   - :out-enc - a string value matching on of Python's supported encodings or
+                the special value `:bytes`; if specified as a string, decode the
+                standard out and standard error streams returned by the subprocess
+                using this encoding; if specified as `:bytes`, return the byte
+                string from the output without encoding; if none is specified,
+                `utf-8` will be used
+   - :env -     a mapping of string values to string values which are used as the
+                subprocess's environment; if none is specified and `*sh-env` is
+                not set, the environment of the current process will be used
+   - :dir -     a string indicating the working directory which is to be used for
+                the subprocess; if none is specified and `*sh-dir*` is not set,
+                the working directory of the current process will be used"
+  [& args]
+  (let [[cmd arg-seq] (split-with string? args)
+        sh-args       (apply hash-map arg-seq)
+        out-enc       (:out-enc sh-args "utf-8")
+        [input stdin] (when-let [input-val (:in sh-args)]
+                        (cond
+                          (string? input-val)
+                          [(.encode input-val (:in-enc sh-args "utf-8")) nil]
+
+                          (or (bytes? input-val)
+                              (byte-string? input-val))
+                          [input-val nil]
+
+                          :else
+                          [nil input-val]))
+
+        ;; subprocess.run completely barfs if you even supply the stdin
+        ;; kwarg at the same time as the input kwarg, so we have to do
+        ;; this nonsense to avoid sending them both in
+        opts   (cond-> {:cwd    (:dir sh-args *sh-dir*)
+                        :env    (:env sh-args *sh-env*)
+                        :stdout subprocess/PIPE
+                        :stderr subprocess/PIPE}
+                 input (assoc :input input)
+                 stdin (assoc :stdin stdin))
+        result (apply-kw subprocess/run (python/list cmd) opts)]
+    {:exit (.-returncode result)
+     :out  (cond-> (.-stdout result)
+             (not= out-enc :bytes) (.decode out-enc))
+     :err  (cond-> (.-stderr result)
+             (not= out-enc :bytes) (.decode out-enc))}))

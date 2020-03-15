@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added line, column, and file information to reader `SyntaxError`s (#488)
  * Added context information to the `CompilerException` string output (#493)
  * Added Array (Python list) functions (#504, #509)
+ * Added shell function in `basilisp.shell` namespace (#515)
+ * Added `apply-template` function to `basilisp.core.template` namespace (#516)
  * Added support for `future`s (#441)
 
 ### Changed
