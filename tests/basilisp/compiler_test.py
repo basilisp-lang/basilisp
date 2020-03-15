@@ -3255,6 +3255,27 @@ class TestSymbolResolution:
         finally:
             runtime.Namespace.remove(other_ns_name)
 
+    def test_private_aliased_var_does_not_resolve(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        current_ns: runtime.Namespace = ns
+        other_ns_name = sym.symbol("other.ns")
+        private_var_sym = sym.symbol("m")
+        try:
+            other_ns = get_or_create_ns(other_ns_name)
+            current_ns.add_alias(other_ns, sym.symbol("other"))
+
+            private_var = Var(
+                other_ns, private_var_sym, meta=lmap.map({SYM_PRIVATE_META_KEY: True})
+            )
+            private_var.value = kw.keyword("private-var")
+            other_ns.intern(private_var_sym, private_var)
+
+            with pytest.raises(compiler.CompilerException):
+                lcompile("(other/m :arg)")
+        finally:
+            runtime.Namespace.remove(other_ns_name)
+
     def test_aliased_macro_symbol_resolution(
         self, lcompile: CompileFn, ns: runtime.Namespace
     ):
