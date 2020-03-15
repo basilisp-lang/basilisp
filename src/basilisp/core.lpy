@@ -1570,7 +1570,6 @@
          (recur (inc ~idx))))
      ~ret))
 
-;; (areduce arr idx ret 0 (+ ret (aget arr idx)))
 (defmacro areduce
   "Reduce the Python list `array` by `expr`, returning the reduced expression.
 
@@ -1583,6 +1582,63 @@
        (if (< ~idx len#)
          (recur ~expr (inc ~idx))
          ~ret))))
+
+(defn booleans
+  "Dummy cast to a Python list of booleans.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn bytes
+  "Dummy cast to a Python list of bytes (distinct from Python's `bytarray` and
+  `bytes` types).
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn chars
+  "Dummy cast to a Python list of chars.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn doubles
+  "Dummy cast to a Python list of doubles.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn floats
+  "Dummy cast to a Python list of floats.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn ints
+  "Dummy cast to a Python list of integers.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn longs
+  "Dummy cast to a Python list of longs.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn shorts
+  "Dummy cast to a Python list of shorts.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
 
 ;;;;;;;;;;;;;;;;
 ;; Exceptions ;;
