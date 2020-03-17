@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+ * Added support for `future`s (#441)
+ * Added support for Protocols (#460)
+ * Added support for Volatiles (#460)
+
+## [v0.1.dev13] - 2020-03-16
+### Added
  * Added support for Shebang-style line comments (#469)
  * Added multiline REPL support using `prompt-toolkit` (#467)
  * Added node syntactic location (statement or expression) to Basilisp AST nodes emitted by the analyzer (#463)
@@ -15,8 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added line, column, and file information to reader `SyntaxError`s (#488)
  * Added context information to the `CompilerException` string output (#493)
  * Added Array (Python list) functions (#504, #509)
- * Added support for Protocols (#460)
- * Added support for Volatiles (#460)
+ * Added shell function in `basilisp.shell` namespace (#515)
+ * Added `apply-template` function to `basilisp.core.template` namespace (#516)
 
 ### Changed
  * Change the default user namespace to `basilisp.user` (#466)
@@ -32,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where the `quote` special form allowed more than one argument and raised an unintended exception when no argument was provided (#497)
  * Fixed a bug where compiler options specified via command-line argument or environment variable were not honored by the importer (#507)
  * Fixed a bug where private Vars from other Namespaces could be referenced if the Namespace was aliased when it was required (#514)
+ * Fixed a bug where collections with trailing end tokens separated from the collection only by a comment (#520)
 
 ## [v0.1.dev12] - 2020-01-26
 ### Added
@@ -226,6 +233,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.dev13]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev12..v0.1.dev13
 [v0.1.dev12]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev11..v0.1.dev12
 [v0.1.dev11]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev10..v0.1.dev11
 [v0.1.dev10]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev9..v0.1.dev10
