@@ -51,7 +51,7 @@ class Future(IBlockingDeref[T]):
 
     # Pass `Future.result(timeout=...)` through so `Executor.map(...)` can
     # still work with this Future wrapper.
-    def result(self, timeout: Optional[float] = None) -> bool:
+    def result(self, timeout: Optional[float] = None) -> T:
         return self._future.result(timeout=timeout)
 
 
