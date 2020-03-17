@@ -572,12 +572,6 @@ def _read_coll(
             coll.append(elem)
 
 
-def _consume_whitespace(reader: StreamReader) -> None:
-    token = reader.peek()
-    while whitespace_chars.match(token):
-        token = reader.advance()
-
-
 @_with_loc
 def _read_list(ctx: ReaderContext) -> llist.List:
     """Read a list element from the input stream."""
