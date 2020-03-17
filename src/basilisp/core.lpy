@@ -42,9 +42,9 @@
   ^{:doc      "Creates a new sequence where o is the first element and seq is the rest.
                If seq is nil, return a list containing o. If seq is not a Seq, attempt
                to coerce it to a Seq and then cons o onto the resulting sequence."
-    :arglists '([v seq])}
+    :arglists '([o seq])}
   cons
-  (fn* cons [v seq] (basilisp.lang.runtime/cons v seq)))
+  (fn* cons [o seq] (basilisp.lang.runtime/cons o seq)))
 
 (def ^{:doc      "Return the metadata from o, or nil if there is no metadata."
        :arglists '([o])}
@@ -2642,43 +2642,22 @@
   sequence of futures is fed into a final (fully lazy) sequence to deref the
   Future and return its final value."
   ([f coll]
-   (let [csize         *pmap-cpu-count*
-         chunk-futures (fn chunk-futures [coll]
-                         (loop [n       csize
-                                fut-seq []
-                                coll    coll]
-                           (cond
-                             (not (seq coll))
-                             (seq fut-seq)
-
-                             (pos? n)
-                             (recur (dec n)
-                                    (conj fut-seq (future (f (first coll))))
-                                    (rest coll))
-
-                             :else
-                             (concat fut-seq (lazy-seq (chunk-futures coll))))))]
-     (map deref (chunk-futures coll))))
+   (lazy-seq
+    (when (seq coll)
+      (let [chunk-size *pmap-cpu-count*
+            futs       (mapv #(future (f %)) (take chunk-size coll))]
+        (concat (map deref futs)
+                (pmap f (drop chunk-size coll)))))))
   ([f coll & colls]
-   (let [csize         *pmap-cpu-count*
-         chunk-futures (fn chunk-futures [coll & colls]
-                         (loop [n       csize
-                                fut-seq []
-                                coll    coll
-                                colls   colls]
-                           (cond
-                             (and (seq coll) (every? seq colls))
-                             (seq fut-seq)
-
-                             (pos? n)
-                             (recur (dec n)
-                                    (conj fut-seq (future (apply f (first coll) (map first colls))))
-                                    (rest coll)
-                                    (map rest colls))
-
-                             :else
-                             (concat fut-seq (lazy-seq (chunk-futures coll colls))))))]
-     (map deref (apply chunk-futures coll colls)))))
+   (lazy-seq
+    (when (seq coll)
+      (let [chunk-size *pmap-cpu-count*
+            futs       (apply mapv (fn [& args]
+                                     (future (apply f args)))
+                              (take chunk-size coll)
+                              (map #(take chunk-size %) colls))]
+        (concat (map deref futs)
+                (apply pmap f (drop chunk-size coll) (map #(drop chunk-size %) colls))))))))
 
 (defn pcalls
   "Return a lazy seq of the result of executing the no arg functions fns,

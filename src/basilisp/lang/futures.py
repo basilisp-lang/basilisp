@@ -49,6 +49,11 @@ class Future(IBlockingDeref[T]):
     def is_realized(self) -> bool:
         return self.done()
 
+    # Pass `Future.result(timeout=...)` through so `Executor.map(...)` can
+    # still work with this Future wrapper.
+    def result(self, timeout: Optional[float] = None) -> bool:
+        return self._future.result(timeout=timeout)
+
 
 # Basilisp's standard Future executor is the `ThreadPoolExecutor`, but since
 # it is set via a dynamic variable, it can be rebound using the binding macro.
