@@ -376,6 +376,27 @@ def test_vector():
         1.4, kw.keyword("a"), "string"
     )
 
+    assert read_str_first("[\n]") == vec.Vector.empty()
+    assert read_str_first("[       :a\n :b\n]") == vec.v(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("[:a :b\n]") == vec.v(kw.keyword("a"), kw.keyword("b"))
+    assert read_str_first("[:a :b      ]") == vec.v(kw.keyword("a"), kw.keyword("b"))
+    assert read_str_first("[\n;;comment\n]") == vec.Vector.empty()
+    assert read_str_first("[:a :b\n;;comment\n]") == vec.v(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("[:a \n;;comment\n :b]") == vec.v(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("[\n#_[:a :b]\n]") == vec.Vector.empty()
+    assert read_str_first("[:a :b\n#_[:a :b]\n]") == vec.v(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("[:a \n#_[:a :b]\n :b]") == vec.v(
+        kw.keyword("a"), kw.keyword("b")
+    )
+
 
 def test_list():
     with pytest.raises(reader.SyntaxError):
@@ -393,6 +414,27 @@ def test_list():
     )
     assert read_str_first("(- -1 2)") == llist.l(sym.symbol("-"), -1, 2)
 
+    assert read_str_first("(\n)") == llist.List.empty()
+    assert read_str_first("(       :a\n :b\n)") == llist.l(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("(:a :b\n)") == llist.l(kw.keyword("a"), kw.keyword("b"))
+    assert read_str_first("(:a :b      )") == llist.l(kw.keyword("a"), kw.keyword("b"))
+    assert read_str_first("(\n;;comment\n)") == llist.List.empty()
+    assert read_str_first("(:a :b\n;;comment\n)") == llist.l(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("(:a \n;;comment\n :b)") == llist.l(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("(\n#_[:a :b]\n)") == llist.List.empty()
+    assert read_str_first("(:a :b\n#_[:a :b]\n)") == llist.l(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("(:a \n#_[:a :b]\n :b)") == llist.l(
+        kw.keyword("a"), kw.keyword("b")
+    )
+
 
 def test_set():
     with pytest.raises(reader.SyntaxError):
@@ -408,6 +450,27 @@ def test_set():
         kw.keyword("a"), 1, "some string"
     )
 
+    assert read_str_first("#{\n}") == lset.Set.empty()
+    assert read_str_first("#{       :a\n :b\n}") == lset.s(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("#{:a :b\n}") == lset.s(kw.keyword("a"), kw.keyword("b"))
+    assert read_str_first("#{:a :b      }") == lset.s(kw.keyword("a"), kw.keyword("b"))
+    assert read_str_first("#{\n;;comment\n}") == lset.Set.empty()
+    assert read_str_first("#{:a :b\n;;comment\n}") == lset.s(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("#{:a \n;;comment\n :b}") == lset.s(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("#{\n#_[:a :b]\n}") == lset.Set.empty()
+    assert read_str_first("#{:a :b\n#_[:a :b]\n}") == lset.s(
+        kw.keyword("a"), kw.keyword("b")
+    )
+    assert read_str_first("#{:a \n#_[:a :b]\n :b}") == lset.s(
+        kw.keyword("a"), kw.keyword("b")
+    )
+
     with pytest.raises(reader.SyntaxError):
         read_str_first("#{:a :b :b}")
 
@@ -420,6 +483,29 @@ def test_map():
     assert read_str_first("{:a 1}") == lmap.map({kw.keyword("a"): 1})
     assert read_str_first('{:a 1 :b "string"}') == lmap.map(
         {kw.keyword("a"): 1, kw.keyword("b"): "string"}
+    )
+
+    assert read_str_first("{\n}") == lmap.Map.empty()
+    assert read_str_first("{       :a\n :b\n}") == lmap.map(
+        {kw.keyword("a"): kw.keyword("b")}
+    )
+    assert read_str_first("{:a :b\n}") == lmap.map({kw.keyword("a"): kw.keyword("b")})
+    assert read_str_first("{:a :b      }") == lmap.map(
+        {kw.keyword("a"): kw.keyword("b")}
+    )
+    assert read_str_first("{\n;;comment\n}") == lmap.Map.empty()
+    assert read_str_first("{:a :b\n;;comment\n}") == lmap.map(
+        {kw.keyword("a"): kw.keyword("b")}
+    )
+    assert read_str_first("{:a \n;;comment\n :b}") == lmap.map(
+        {kw.keyword("a"): kw.keyword("b")}
+    )
+    assert read_str_first("{\n#_[:a :b]\n}") == lmap.Map.empty()
+    assert read_str_first("{:a :b\n#_[:a :b]\n}") == lmap.map(
+        {kw.keyword("a"): kw.keyword("b")}
+    )
+    assert read_str_first("{:a \n#_[:a :b]\n :b}") == lmap.map(
+        {kw.keyword("a"): kw.keyword("b")}
     )
 
     with pytest.raises(reader.SyntaxError):
