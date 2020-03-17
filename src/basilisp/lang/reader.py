@@ -572,12 +572,6 @@ def _read_coll(
             coll.append(elem)
 
 
-def _consume_whitespace(reader: StreamReader) -> None:
-    token = reader.peek()
-    while whitespace_chars.match(token):
-        token = reader.advance()
-
-
 @_with_loc
 def _read_list(ctx: ReaderContext) -> llist.List:
     """Read a list element from the input stream."""
@@ -617,14 +611,18 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
     reader conditionals."""
     reader = ctx.reader
     while True:
-        if reader.peek() == "}":
+        token = reader.peek()
+        if token == "":
+            raise ctx.eof_error("Unexpected EOF in map}")
+        if whitespace_chars.match(token):
+            reader.advance()
+            continue
+        if token == "}":
             reader.next_token()
             return
         v = _read_next(ctx)
         if v is COMMENT or isinstance(v, Comment):
             continue
-        elif v is ctx.eof:
-            raise ctx.eof_error("Unexpected EOF in map")
         elif _should_splice_reader_conditional(ctx, v):
             assert isinstance(v, ReaderConditional)
             selected_feature = v.select_feature(ctx.reader_features)
@@ -1315,7 +1313,7 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
         token = reader.peek()
         if newline_chars.match(token):
             reader.advance()
-            return _read_next(ctx)
+            return COMMENT
         if token == "":
             return ctx.eof
         reader.advance()
@@ -1333,6 +1331,15 @@ def _read_next_consuming_comment(ctx: ReaderContext) -> RawReaderForm:
         return v
 
 
+def _read_next_consuming_whitespace(ctx: ReaderContext) -> LispReaderForm:
+    """Read the next full form from the input stream, consuming any whitespace."""
+    reader = ctx.reader
+    token = reader.peek()
+    while whitespace_chars.match(token):
+        token = reader.next_token()
+    return _read_next(ctx)
+
+
 def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
     """Read the next full form from the input stream."""
     reader = ctx.reader
@@ -1346,8 +1353,7 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
     elif begin_num_chars.match(token):
         return _read_num(ctx)
     elif whitespace_chars.match(token):
-        reader.next_token()
-        return _read_next(ctx)
+        return _read_next_consuming_whitespace(ctx)
     elif token == ":":
         return _read_kw(ctx)
     elif token == '"':

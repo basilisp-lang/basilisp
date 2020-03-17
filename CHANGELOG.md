@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where the `quote` special form allowed more than one argument and raised an unintended exception when no argument was provided (#497)
  * Fixed a bug where compiler options specified via command-line argument or environment variable were not honored by the importer (#507)
  * Fixed a bug where private Vars from other Namespaces could be referenced if the Namespace was aliased when it was required (#514)
+ * Fixed a bug where collections with trailing end tokens separated from the collection only by a comment (#520)
 
 ## [v0.1.dev12] - 2020-01-26
 ### Added
