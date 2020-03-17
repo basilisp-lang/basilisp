@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added support for `future`s (#441)
 
 ## [v0.1.dev13] - 2020-03-16
 ### Added
@@ -19,7 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added Array (Python list) functions (#504, #509)
  * Added shell function in `basilisp.shell` namespace (#515)
  * Added `apply-template` function to `basilisp.core.template` namespace (#516)
- * Added support for `future`s (#441)
 
 ### Changed
  * Change the default user namespace to `basilisp.user` (#466)
