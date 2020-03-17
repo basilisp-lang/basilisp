@@ -42,9 +42,9 @@
   ^{:doc      "Creates a new sequence where o is the first element and seq is the rest.
                If seq is nil, return a list containing o. If seq is not a Seq, attempt
                to coerce it to a Seq and then cons o onto the resulting sequence."
-    :arglists '([v seq])}
+    :arglists '([o seq])}
   cons
-  (fn* cons [v seq] (basilisp.lang.runtime/cons v seq)))
+  (fn* cons [o seq] (basilisp.lang.runtime/cons o seq)))
 
 (def ^{:doc      "Return the metadata from o, or nil if there is no metadata."
        :arglists '([o])}
@@ -807,7 +807,8 @@
   (basilisp.lang.atom/Atom v))
 
 (defn realized?
-  "Return true if the delay or lazy sequence has been realized."
+  "Return true if the delay, future, lazy sequence, or promise has been
+  realized."
   [o]
   (.-is-realized o))
 
@@ -846,6 +847,56 @@
   subsequent call to `deliver` for p will have no effect."
   [p v]
   (.deliver p v))
+
+;;;;;;;;;;;;;
+;; Futures ;;
+;;;;;;;;;;;;;
+
+(import* atexit)
+
+(def ^:dynamic *executor-pool*
+  (basilisp.lang.futures/ThreadPoolExecutor))
+
+(atexit/register (.-shutdown *executor-pool*))
+
+(defn future-call
+  "Call the no args function f in another thread. Returns a Future object.
+  The value returned by f can be fetched using `deref` or `@`, though
+  doing so may block unless the `deref` with a timeout argument is used."
+  ([f]
+   (future-call f *executor-pool*))
+  ([f pool]
+   (.submit pool f)))
+
+(defmacro future
+  "Execute the expressions of body in another thread. Returns a Future object.
+  The value returned by the body can be fetched using `deref` or `@`, though
+  doing so may block unless the `deref` with a timeout argument is used."
+  [& body]
+  `(future-call
+    (fn* []
+         ~@body)))
+
+(defn future-cancel
+  "Attempt to cancel the Future fut. If the future can be cancelled, return
+  true. Otherwise, return false."
+  [fut]
+  (.cancel fut))
+
+(defn future?
+  "Return true if x is a future, false otherwise."
+  [x]
+  (instance? basilisp.lang.futures/Future x))
+
+(defn future-cancelled?
+  "Return true if the Future fut has been cancelled, false otherwise."
+  [fut]
+  (.cancelled fut))
+
+(defn future-done?
+  "Return true if the Future fut is done, false otherwise."
+  [fut]
+  (.done fut))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Arithmetic Functions ;;
@@ -2570,6 +2621,58 @@
     (if (fn? ret)
       (recur (ret))
       ret)))
+
+(import* multiprocessing)
+
+(def ^:dynamic *pmap-cpu-count*
+  (* 2 (multiprocessing/cpu-count)))
+
+(defn pmap
+  "Apply f as by map, but in parallel using futures.
+
+  This may only be useful for functions which are mainly blocked on IO, since
+  Python threads do not allow parallel computation using threads.
+
+  This function is not fully lazy. Chunks of elements from the input collection
+  are grabbed eagerly to spawn Futures of `f`. Elements after the chunk size in
+  the input collection are grabbed lazily. The chunk size is set by
+  `*pmap-cpu-count*` and defaults to 2 times the number of CPU cores on the
+  machine; the value of `*pmap-cpu-count*` is captured when `pmap` is first
+  called, so it should be safe to bind in the initial calling thread. The
+  sequence of futures is fed into a final (fully lazy) sequence to deref the
+  Future and return its final value."
+  ([f coll]
+   (lazy-seq
+    (when (seq coll)
+      (let [chunk-size *pmap-cpu-count*
+            futs       (mapv #(future (f %)) (take chunk-size coll))]
+        (concat (map deref futs)
+                (pmap f (drop chunk-size coll)))))))
+  ([f coll & colls]
+   (lazy-seq
+    (when (seq coll)
+      (let [chunk-size *pmap-cpu-count*
+            futs       (apply mapv (fn [& args]
+                                     (future (apply f args)))
+                              (take chunk-size coll)
+                              (map #(take chunk-size %) colls))]
+        (concat (map deref futs)
+                (apply pmap f (drop chunk-size coll) (map #(drop chunk-size %) colls))))))))
+
+(defn pcalls
+  "Return a lazy seq of the result of executing the no arg functions fns,
+  which will be evaluated in parallel."
+  [& fns]
+  (pmap (fn [f] (f)) fns))
+
+(defmacro pvalues
+  "Returns a lazy seq of the result of exprs, which will be evaluated in
+  parallel."
+  [& exprs]
+  `(pcalls
+    ~@(map (fn [expr]
+             (concat '(fn* []) [expr]))
+           exprs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Random Functions ;;

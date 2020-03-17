@@ -467,6 +467,7 @@ _COMPILER_ALIAS = genname("compiler")
 _CORE_ALIAS = genname("core")
 _DELAY_ALIAS = genname("delay")
 _EXC_ALIAS = genname("exc")
+_FUTURES_ALIAS = genname("futures")
 _INTERFACES_ALIAS = genname("interfaces")
 _KW_ALIAS = genname("kw")
 _LIST_ALIAS = genname("llist")
@@ -488,6 +489,7 @@ _MODULE_ALIASES = {
     "basilisp.core": _CORE_ALIAS,
     "basilisp.lang.delay": _DELAY_ALIAS,
     "basilisp.lang.exception": _EXC_ALIAS,
+    "basilisp.lang.futures": _FUTURES_ALIAS,
     "basilisp.lang.interfaces": _INTERFACES_ALIAS,
     "basilisp.lang.keyword": _KW_ALIAS,
     "basilisp.lang.list": _LIST_ALIAS,
