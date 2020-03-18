@@ -4999,7 +4999,34 @@
           methods))
 
 (defmacro extend-protocol
-  ""
+  "Extend a Protocol with implementations for multiple types.
+
+  This convenience macro is useful for extending multiple different types with
+  a single Protocol definition in one call. Note that this macro only supports
+  new function declarations. If you intend to reference an existing function,
+  call `extend` directly.
+
+  For example, this call:
+
+    (extend-protocol SomeProto
+      FirstType
+      (spam [this] ...)
+      (eggs [this arg1 arg2] ...)
+      OtherType
+      (spam [this] ...)
+      (eggs [this arg1 arg2] ...))
+
+  Would be turned into the following `extend` calls:
+
+    (do
+      (extend FirstType
+        SomeProto
+        {:spam (fn spam [this] ...)
+         :eggs (fn [this arg1 arg2] ...)})
+      (extend OtherType
+        SomeProto
+        {:spam (fn spam [this] ...)
+         :eggs (fn [this arg1 arg2] ...)}))"
   [proto & specs]
   `(do ~@(map (fn [[target-type methods]]
                 `(extend ~target-type
@@ -5008,7 +5035,30 @@
               (sym-and-method-groups specs))))
 
 (defmacro extend-type
-  ""
+  "Extend a type with multiple Protocol implementations.
+
+  This convenience macro is useful for extending a single type with multiple
+  different Protocol definitions in one call. Note that this macro only supports
+  new function declarations. If you intend to reference an existing function,
+  call `extend` directly.
+
+  For example, this call:
+
+    (extend-type SomeType
+      FirstProto
+      (spam [this] ...)
+      (eggs [this arg1 arg2] ...)
+      SecondProto
+      (ham [this & args] ...))
+
+  Would be turned into the following `extend` call:
+
+    (extend SomeType
+      FirstProto
+      {:spam (fn spam [this] ...)
+       :eggs (fn eggs [this arg1 arg2] ...)}
+      SecondProto
+      {:ham (fn ham [this & args] ...)})"
   [target-type & specs]
   `(extend ~target-type
      ~@(mapcat (fn [[proto methods]]
