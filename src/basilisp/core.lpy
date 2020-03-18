@@ -4908,13 +4908,52 @@
   (boolean (get @protocols x)))
 
 (defn extend
-  [target-type & type+methods]
-  (let [proto-map (apply hash-map type+methods)]
+  "Extend a type dynamically with one or Protocol implementations. This is useful
+  for types which were defined outside your control or which were not otherwise
+  defined as direct implementors of the named Protocol(s). With `extend`, such
+  types may be extended without modifying the types directly.
+
+  `target-type` should name a type which is to be extended. Virtually any type
+  is permitted, so long as that that type is not also a Protocol.
+
+  `proto+methods` are interleaved Protocol names and maps of Protocol method
+  implementations intended for `target-type`. The keys of each map are keywords
+  corresponding to the names of the Protocol methods (as defined in the
+  `defprotocol`). Each value should be either an existing function (referenced
+  by its Var or name binding) or a new function definition.
+
+  `extend` may be called multiple times for a single `target-type`, so not all
+  implementations need to be known a priori. Successive calls to `extend` on
+  `target-type` with the same Protocol implementations will overwrite previous
+  implementations.
+
+  If you are extending types with explicit function definitions, the
+  `extend-protocol` and `extend-type` macros offer some additional conveniences.
+
+  Returns `nil`.
+
+  Example:
+
+    (extend SomeType
+      FirstProto
+      {:spam spam-fn
+       :eggs (fn [...] ...)}
+      OtherProto
+      {:ham  (fn [...] ...)})"
+  [target-type & proto+methods]
+  (let [proto-map (apply hash-map proto+methods)]
     (swap! protocols (fn [proto-state]
+                       (when (contains? proto-state target-type)
+                         (throw (ex-info "Protocols may not be extended with other Protocols"
+                                         {:target-type target-type})))
                        (reduce-kv (fn [m proto method-map]
                                     (when-not (contains? proto-state proto)
-                                      (throw (ex-info "Invalid protocol type"
+                                      (throw (ex-info "Specified Protocol does not exist"
                                                       {:protocol proto})))
+                                    (when (identical? target-type proto)
+                                      (throw (ex-info "Protocol may not extend itself"
+                                                      {:target-type target-type
+                                                       :proto       proto})))
                                     (let [proto-methods (get-in m [proto :methods])]
                                       (doseq [method-def method-map
                                               :let [[method-name fn] method-def]]
@@ -4922,7 +4961,59 @@
                                           (.add-method mmethod target-type fn))))
                                     (update-in m [proto :extending-types] conj target-type))
                                   proto-state
-                                  proto-map)))))
+                                  proto-map)))
+    nil))
+
+(defn ^:private sym-and-method-groups
+  "Group methods for `extend-protocol` and `extend-type` into a map of interface
+  names to a vector of method bodies."
+  [specs]
+  (loop [iface   (first specs)
+         specs   (rest specs)
+         methods []
+         groups  {}]
+    (cond
+      (not (seq specs))
+      (assoc groups iface methods)
+
+      (list? (first specs))
+      (recur iface
+             (rest specs)
+             (conj methods (first specs))
+             groups)
+
+      (symbol? (first specs))
+      (recur (first specs)
+             (rest specs)
+             []
+             (assoc groups iface methods)))))
+
+(defn ^:private extend-map
+  "Convert a vector of method definitions (as expected by `extend-protocol` and
+  `extend-type`) into a map of method definitions which can be passed to `extend`. "
+  [methods]
+  (reduce (fn [m fn-body]
+            (let [method-name (name (first fn-body))]
+              (assoc m (keyword method-name) (apply list `fn fn-body))))
+          {}
+          methods))
+
+(defmacro extend-protocol
+  ""
+  [proto & specs]
+  `(do ~@(map (fn [[target-type methods]]
+                `(extend ~target-type
+                   ~proto
+                   ~(extend-map methods)))
+              (sym-and-method-groups specs))))
+
+(defmacro extend-type
+  ""
+  [target-type & specs]
+  `(extend ~target-type
+     ~@(mapcat (fn [[proto methods]]
+                 [proto (extend-map methods)])
+               (sym-and-method-groups specs))))
 
 (defn extenders
   "Return a collection of types explicitly extending proto.
