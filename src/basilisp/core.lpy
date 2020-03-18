@@ -4939,7 +4939,7 @@
 
   (vreset!
     [new-val]
-    "Reset the value of a volatile non-atomically.")
+    "Reset the value of a volatile non-atomically. Returns the new value.")
   (vswap!
     [f & args]
     "Swap the value of a volatile non-atomically to the return of

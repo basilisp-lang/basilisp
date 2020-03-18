@@ -336,6 +336,10 @@
   (is (= "lo w" (subs "hello world" 3 7)))
   (is (thrown? python/IndexError (subs "hello world" 12 3))))
 
+;;;;;;;;;;;;;
+;; Futures ;;
+;;;;;;;;;;;;;
+
 (deftest futures-test
   (testing "successful future"
     (let [fut (future 1)]
@@ -389,6 +393,10 @@
                            (slow 2)
                            (slow 3)
                            (slow 4))))))))
+
+;;;;;;;;;;;;
+;; Arrays ;;
+;;;;;;;;;;;;
 
 (deftest to-array-test
   (is (= #py [] (to-array [])))
@@ -505,3 +513,18 @@
     (is (= 5 (aset l 0 2 5)))
     (is (= #py [#py [:a :b 5] #py [:d :e :f]] l))
     (is (thrown? python/IndexError (aset l 0 5 :cc)))))
+
+;;;;;;;;;;;;;;;
+;; Volatiles ;;
+;;;;;;;;;;;;;;;
+
+(deftest volatile-test
+  (let [v (volatile! :a)]
+    (is (not (volatile? :a)))
+    (is (not (volatile? (atom :a))))
+    (is (volatile? v))
+    (is (= :a @v))
+    (is (= :b (vreset! v :b)))
+    (is (= :b @v))
+    (is (= :b/a (vswap! v #(keyword (name %) "a"))))
+    (is (= :b/a @v))))

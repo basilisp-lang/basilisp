@@ -933,7 +933,8 @@ def __deftype_classmethod(
 
         params = args[1:]
         has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
-        stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+        with ctx.expr_pos():
+            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
         method = ClassMethod(
             form=form,
             name=method_name,
@@ -987,7 +988,8 @@ def __deftype_method(
 
         loop_id = genname(method_name)
         with ctx.new_recur_point(loop_id, param_nodes):
-            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+            with ctx.expr_pos():
+                stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
             method = Method(
                 form=form,
                 name=method_name,
@@ -1047,7 +1049,8 @@ def __deftype_property(
 
         assert not has_vargs, "deftype* properties may not have arguments"
 
-        stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+        with ctx.expr_pos():
+            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
         prop = PropertyMethod(
             form=form,
             name=method_name,
@@ -1077,7 +1080,8 @@ def __deftype_staticmethod(
     """Emit a node for a :staticmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
         has_vargs, param_nodes = __deftype_method_param_bindings(ctx, args)
-        stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+        with ctx.expr_pos():
+            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
         method = StaticMethod(
             form=form,
             name=method_name,
@@ -1432,7 +1436,8 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
 
         fn_loop_id = genname("fn_arity" if fnname is None else fnname.name)
         with ctx.new_recur_point(fn_loop_id, param_nodes):
-            stmts, ret = _body_ast(ctx, form.rest)
+            with ctx.expr_pos():
+                stmts, ret = _body_ast(ctx, form.rest)
             method = FnMethod(
                 form=form,
                 loop_id=fn_loop_id,
