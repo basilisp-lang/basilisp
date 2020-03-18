@@ -3698,7 +3698,7 @@
 
 (import importlib)
 
-(defn- require-libspec
+(defn ^:private require-libspec
   "Convert a user-specified require libspec into a map with well-defined keys.
 
   Required keys:
@@ -3720,7 +3720,7 @@
                    (ex-info "Invalid libspec for require"
                             {:value req}))))
 
-(defn- require-lib
+(defn ^:private require-lib
   "Require the library described by `libspec` into the Namespace `requiring-ns`."
   [requiring-ns libspec]
   (let [required-ns-sym  (:namespace libspec)]
@@ -3737,7 +3737,7 @@
     ;; during the require process
     (set! *ns* requiring-ns)))
 
-(defn- refer-filtered-interns
+(defn ^:private refer-filtered-interns
   "Return a map of symbols to interned Vars in the Namespace `referred-ns` subject
   to the filters described in `libspec`."
   [referred-ns libspec]
@@ -3759,7 +3759,7 @@
                                 m))
                             {}))))
 
-(defn- refer-lib
+(defn ^:private refer-lib
   "Refer Vars into `requiring-ns` as described by `libspec`.
 
   This function assumes the referred-to Namespace has already been loaded by
@@ -4847,7 +4847,16 @@
 ;;;;;;;;;;;;;;;
 
 (def ^:private protocols
-  ""
+  "Internal registry of all Protocols.
+
+  The registry is a mapping of Protocol types to a map of details about the
+  protocol. For each protocol, the following keys are defined:
+
+  - :extending-types - a set of types which dynamically extend the Protocol
+                       (e.g. by `extend`)
+  - :interface       - the Python interface type which backs the Protocol
+  - :methods         - a mapping of method names (as Basilisp keywords) to
+                       the multi-method backing the Protocol method"
   (atom {}))
 
 (defn ^:private gen-protocol-multi
@@ -4915,11 +4924,22 @@
                                   proto-state
                                   proto-map)))))
 
+(defn extenders
+  "Return a collection of types explicitly extending proto.
+
+  The returned collection will not include types which extend proto via
+  inheritance (as by `deftype` and `defrecord`). Only types extending
+  proto via `extend` (or `extend-protocol` or `extend-type`) will appear."
+  [proto]
+  (->> (get-in @protocols [proto :extending-types])
+       (apply list)))
+
 (defn extends?
   "Return true if type extends protocol proto."
   [proto type]
-  (some-> (get-in @protocols [proto :extending-types])
-          (contains? type)))
+  (or (python/issubclass type proto)
+      (some-> (get-in @protocols [proto :extending-types])
+              (contains? type))))
 
 (defn satisfies?
   "Return true if x satisfies protocol proto."

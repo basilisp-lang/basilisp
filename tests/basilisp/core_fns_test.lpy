@@ -520,6 +520,8 @@
 
 (deftest volatile-test
   (let [v (volatile! :a)]
+    (is (satisfies? IVolatile v))
+    (is (not (satisfies? IVolatile @v)))
     (is (not (volatile? :a)))
     (is (not (volatile? (atom :a))))
     (is (volatile? v))
