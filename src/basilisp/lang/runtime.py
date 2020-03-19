@@ -1132,7 +1132,7 @@ def contains(coll, k):
 def get(m, k, default=None):
     """Return the value of k in m. Return default if k not found in m."""
     if isinstance(m, ILookup):
-        return m.val_at(k, default=default)
+        return m.val_at(k, default)
 
     try:
         return m[k]

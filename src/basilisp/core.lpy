@@ -4861,14 +4861,15 @@
 
 (defn ^:private gen-protocol-multi
   "Return the `defmulti` and default `defmethod` for a protocol method."
-  [[method-name args docstring]]
-  (let [dotted-method-name (symbol (str "." (name method-name)))
+  [[method-name args :as method-def]]
+  (let [docstring          (nth method-def 2 nil)
+        dotted-method-name (symbol (str "." (name method-name)))
         has-varargs        (some #(= '& %) args)
         clean-args         (filter #(not= '& %) args)
 
         obj-sym (gensym "o")]
     [`(defmulti ~method-name
-        ~docstring
+        ~@(when docstring [docstring])
         (fn [~obj-sym ~@(map #(vary-meta % assoc :no-warn-when-unused true) args)]
           (python/type ~obj-sym)))
      `(defmethod ~method-name :default

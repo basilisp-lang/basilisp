@@ -4,9 +4,7 @@
    [basilisp.test :refer [deftest is testing]]))
 
 (defprotocol Shape
-  (area
-    []
-    "Return the area of the shape."))
+  (area []))
 
 (defprotocol Polygon
   (interior-angle
@@ -23,10 +21,36 @@
   Polygon
   (interior-angle [this] 360))
 
+(defrecord Square [x])
+
+(extend-type Square
+  Shape
+  (area [this]
+    (let [side (get this :x)]
+      (* side side))))
+
+(deftest Shape-area-method-test
+  (is (= math/pi (area (->Circle 1))))
+  (is (= 4 (area (->Rectangle 2 2))))
+  (is (= 9 (area (->Square 3))))
+
+  (is (thrown? python/AttributeError (area :a)))
+  (is (thrown? python/AttributeError (area [4 5]))))
+
+(deftest Polygon-interior-angle-test
+  (is (= 360 (interior-angle (->Rectangle 2 2))))
+
+  (is (thrown? python/AttributeError (interior-angle (->Circle 1))))
+  (is (thrown? python/AttributeError (interior-angle (->Square 3)))))
+
 (deftest protocol?-test
   (is (protocol? Shape))
   (is (not (protocol? Circle)))
   (is (not (protocol? Rectangle))))
+
+(deftest extenders-test
+  (is (= (list Square) (extenders Shape)))
+  (is (not (seq (extenders Polygon)))))
 
 (deftest extends?-test
   (is (extends? Shape Circle))
