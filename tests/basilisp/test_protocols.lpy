@@ -48,6 +48,19 @@
   (is (not (protocol? Circle)))
   (is (not (protocol? Rectangle))))
 
+(deftest extend-test
+  (testing "Protocols cannot extend other Protocols"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (extend Polygon Shape {:area identity}))))
+
+  (testing "Protocol must be defined as by defprotocol"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (extend Square python/str {:area identity}))))
+
+  (testing "Protocols cannot extend themselves"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (extend Shape Shape {:area identity})))))
+
 (deftest extenders-test
   (is (= (list Square) (extenders Shape)))
   (is (not (seq (extenders Polygon)))))
