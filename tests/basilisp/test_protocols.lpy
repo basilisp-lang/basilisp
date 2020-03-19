@@ -1,3 +1,41 @@
 (ns tests.basilisp.test-protocols
+  (:import math)
   (:require
    [basilisp.test :refer [deftest is testing]]))
+
+(defprotocol Shape
+  (area
+    []
+    "Return the area of the shape."))
+
+(defprotocol Polygon
+  (interior-angle
+    []
+    "Return the interior angle of the shape in degrees."))
+
+(defrecord Circle [radius]
+  Shape
+  (area [this] (* math/pi radius radius)))
+
+(defrecord Rectangle [x y]
+  Shape
+  (area [this] (* x y))
+  Polygon
+  (interior-angle [this] 360))
+
+(deftest protocol?-test
+  (is (protocol? Shape))
+  (is (not (protocol? Circle)))
+  (is (not (protocol? Rectangle))))
+
+(deftest extends?-test
+  (is (extends? Shape Circle))
+  (is (extends? Shape Rectangle))
+  (is (not (extends? Polygon Circle)))
+  (is (extends? Polygon Rectangle)))
+
+(deftest satisfies?-test
+  (is (satisfies? Shape (->Circle 1)))
+  (is (satisfies? Shape (->Rectangle 2 2)))
+  (is (not (satisfies? Polygon (->Circle 1))))
+  (is (satisfies? Polygon (->Rectangle 2 2))))
