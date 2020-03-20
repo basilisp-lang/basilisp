@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for Protocols (#460)
  * Added support for Volatiles (#460)
 
+### Fixed
+ * Fixed a bug where the Basilisp AST nodes for return values of `deftype` members could be marked as _statements_ rather than _expressions_, resulting in an incorrect `nil` return (#523)
+
 ## [v0.1.dev13] - 2020-03-16
 ### Added
  * Added support for Shebang-style line comments (#469)
