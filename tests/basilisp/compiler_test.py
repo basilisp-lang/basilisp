@@ -868,6 +868,21 @@ class TestDefType:
             )
             assert None is Point.create()
 
+        def test_deftype_classmethod_returns_value(
+            self, lcompile: CompileFn, class_interface: Var
+        ):
+            Point = lcompile(
+                """
+            (do
+              (def ^:dynamic a nil)
+              (deftype* Point [x]
+                :implements [WithCls]
+                (^:classmethod create [cls x]
+                  (set! a x)))
+              Point)"""
+            )
+            assert kw.keyword("a") is Point.create(kw.keyword("a"))
+
     class TestDefTypeMethod:
         def test_deftype_fields_and_methods(self, lcompile: CompileFn):
             Point = lcompile(
@@ -1009,6 +1024,24 @@ class TestDefType:
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
+        def test_deftype_method_returns_value(
+            self, lcompile: CompileFn,
+        ):
+            Point = lcompile(
+                """
+            (import* collections.abc)
+            (do
+              (deftype* Point [^:mutable x]
+                :implements [collections.abc/Callable]
+                (--call-- [this new-val]
+                  (set! x new-val)))
+              Point)"""
+            )
+            pt = Point(1)
+            assert pt.x == 1
+            assert 5 == pt(5)
+            assert pt.x == 5
+
     class TestDefTypeProperty:
         @pytest.fixture
         def property_interface(self, lcompile: CompileFn):
@@ -1110,6 +1143,25 @@ class TestDefType:
               (^:property prop [this]))"""
             )
             assert None is Point(1, 2, 3).prop
+
+        def test_deftype_property_returns_value(
+            self, lcompile: CompileFn, property_interface: Var
+        ):
+            Point = lcompile(
+                """
+            (do
+              (deftype* Point [^:mutable x]
+                :implements [WithProp]
+                (^:property prop [this]
+                  (set! x (inc x))))
+              Point)"""
+            )
+            pt = Point(1)
+            assert pt.x == 1
+            assert pt.prop == 2
+            assert pt.x == 2
+            assert pt.prop == 3
+            assert pt.x == 3
 
     class TestDefTypeStaticMethod:
         @pytest.fixture
@@ -1235,6 +1287,21 @@ class TestDefType:
               (^:staticmethod dostatic [arg1 arg2]))"""
             )
             assert None is Point.dostatic("x", "y")
+
+        def test_deftype_staticmethod_returns_value(
+            self, lcompile: CompileFn, static_interface: Var
+        ):
+            Point = lcompile(
+                """
+            (do
+              (def ^:dynamic a nil)
+              (deftype* Point [x]
+                :implements [WithStatic]
+                (^:staticmethod dostatic [x]
+                  (set! a x)))
+              Point)"""
+            )
+            assert kw.keyword("a") is Point.dostatic(kw.keyword("a"))
 
     class TestDefTypeReaderForm:
         def test_ns_does_not_exist(self, lcompile: CompileFn, test_ns: str):
