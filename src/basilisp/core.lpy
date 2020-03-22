@@ -4604,7 +4604,7 @@
     (throw (ex-info "Protocols may not be extended with other Protocols"
                     {:target-type target-type}))
 
-    (instance? python/type target-type)
+    (not (instance? python/type target-type))
     (throw (ex-info "extend target-type must be a type"
                     {:target-type target-type})))
 
