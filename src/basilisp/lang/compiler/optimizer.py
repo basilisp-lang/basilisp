@@ -1,6 +1,6 @@
 from collections import deque
 from contextlib import contextmanager
-from typing import Iterable, List, Optional, Set
+from typing import Deque, Iterable, List, Optional, Set
 
 import basilisp._pyast as ast
 
@@ -22,10 +22,11 @@ class PythonASTOptimizer(ast.NodeTransformer):
     __slots__ = ("_global_ctx",)
 
     def __init__(self):
-        self._global_ctx = deque([set()])
+        self._global_ctx: Deque[Set[str]] = deque([set()])
 
     @contextmanager
     def _new_global_context(self):
+        """Context manager which sets a new Python `global` context."""
         self._global_ctx.append(set())
         try:
             yield
@@ -34,6 +35,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
 
     @property
     def _global_context(self) -> Set[str]:
+        """Return the current Python `global` context."""
         return self._global_ctx[-1]
 
     def visit_ExceptHandler(self, node: ast.ExceptHandler) -> Optional[ast.AST]:
@@ -73,7 +75,12 @@ class PythonASTOptimizer(ast.NodeTransformer):
         )
 
     def visit_Global(self, node: ast.Global) -> Optional[ast.Global]:
-        """"""
+        """Eliminate redundant name declarations inside a Python `global` statement.
+
+        Python `global` statements may only refer to a name prior to its declaration.
+        Global contexts track names in prior `global` declarations and eliminate
+        redundant names in `global` declarations. If all of the names in the current
+        `global` statement are redundant, the entire node will be omitted."""
         new_names = set(node.names) - self._global_context
         self._global_context.update(new_names)
         return (

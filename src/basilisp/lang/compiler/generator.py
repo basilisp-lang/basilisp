@@ -657,35 +657,6 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     assert node.op == NodeOp.DEF
 
     defsym = node.name
-    is_defn = False
-    is_var_bound = node.var.is_bound
-    is_binding_def = node.init is not None
-
-    if is_binding_def:
-        # Since Python function definitions always take the form `def name(...):`,
-        # it is redundant to assign them to the their final name after they have
-        # been defined under a private alias. This codepath generates `defn`
-        # declarations by directly generating the Python `def` with the correct
-        # function name and short-circuiting the default double-declaration.
-        if node.init.op == NodeOp.FN:
-            assert isinstance(node.init, Fn)
-            def_ast: Optional[GeneratedPyAST] = _fn_to_py_ast(  # type: ignore[call-arg]
-                ctx, node.init, def_name=defsym.name
-            )
-            is_defn = True
-        elif (
-            node.init.op == NodeOp.WITH_META
-            and isinstance(node.init, WithMeta)
-            and node.init.expr.op == NodeOp.FN
-        ):
-            assert isinstance(node.init, WithMeta)
-            def_ast = _with_meta_to_py_ast(ctx, node.init, def_name=defsym.name)
-            is_defn = True
-        else:
-            def_ast = gen_py_ast(ctx, node.init)
-    else:
-        def_ast = None
-
     ns_name = _load_attr(_NS_VAR_VALUE)
     def_name = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Constant(defsym.name)], keywords=[]
@@ -707,16 +678,37 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
 
     # Warn if this symbol is potentially being redefined (if the Var was
     # previously bound)
-    if is_var_bound and __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
+    if node.var.is_bound and __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
         logger.warning(
             f"redefining local Python name '{safe_name}' in module "
             f"'{ctx.current_ns.module.__name__}' ({node.env.ns}:{node.env.line})"
         )
 
-    meta_ast = gen_py_ast(ctx, node.meta)
+    if node.init is not None:
+        # Since Python function definitions always take the form `def name(...):`,
+        # it is redundant to assign them to the their final name after they have
+        # been defined under a private alias. This codepath generates `defn`
+        # declarations by directly generating the Python `def` with the correct
+        # function name and short-circuiting the default double-declaration.
+        assert node.init is not None  # silence MyPy
+        if node.init.op == NodeOp.FN:
+            assert isinstance(node.init, Fn)
+            def_ast = _fn_to_py_ast(  # type: ignore[call-arg]
+                ctx, node.init, def_name=defsym.name
+            )
+            is_defn = True
+        elif (
+            node.init.op == NodeOp.WITH_META
+            and isinstance(node.init, WithMeta)
+            and node.init.expr.op == NodeOp.FN
+        ):
+            assert isinstance(node.init, WithMeta)
+            def_ast = _with_meta_to_py_ast(ctx, node.init, def_name=defsym.name)
+            is_defn = True
+        else:
+            def_ast = gen_py_ast(ctx, node.init)
+            is_defn = False
 
-    if is_binding_def:
-        assert def_ast is not None, "def_ast must be defined at this point"
         func = _INTERN_VAR_FN_NAME
         extra_args = [ast.Name(id=safe_name, ctx=ast.Load())]
         if is_defn:
@@ -744,13 +736,16 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
                 )
             )
     else:
-        assert def_ast is None, "def_ast is not defined at this point"
-        assert not is_defn, "defn defs must be binding defs"
-        # Re-def-ing previously bound Vars without providing a value is
-        # essentially a no-op, which should not modify the Var root.
+        # Callers can either `(def v)` to declare an unbound Var or they
+        # can redef a bound Var with no init value to fetch a reference
+        # to the var. Re-def-ing previously bound Vars without providing
+        # a value is essentially a no-op, which should not modify the Var
+        # root.
         func = _INTERN_UNBOUND_VAR_FN_NAME
         extra_args = []
         def_dependencies = [ast.Global(names=[safe_name])] if node.in_func_ctx else []
+
+    meta_ast = gen_py_ast(ctx, node.meta)
 
     return GeneratedPyAST(
         node=ast.Call(
