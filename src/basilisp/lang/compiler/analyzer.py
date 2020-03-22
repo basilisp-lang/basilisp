@@ -394,23 +394,45 @@ class AnalyzerContext:
 
     @property
     def should_macroexpand(self) -> bool:
+        """Return True if macros should be expanded."""
         return self._should_macroexpand
 
     @property
     def is_async_ctx(self) -> bool:
+        """If True, the current node appears inside of an async function definition.
+        It is possible that the current function is defined inside other functions,
+        so this does not imply anything about the nesting level of the current node."""
         try:
             return self._func_ctx[-1] is True
         except IndexError:
             return False
 
+    @property
+    def in_func_ctx(self) -> bool:
+        """If True, the current node appears inside of a function definition.
+        It is possible that the current function is defined inside other functions,
+        so this does not imply anything about the nesting level of the current node."""
+        try:
+            self._func_ctx[-1]
+        except IndexError:
+            return False
+        else:
+            return True
+
     @contextlib.contextmanager
     def new_func_ctx(self, is_async: bool = False):
+        """Context manager which can be used to set a function context for child
+        nodes to examine. A new function context is pushed onto the stack each time
+        the Analyzer finds a new function definition, so there may be many nested
+        function contexts."""
         self._func_ctx.append(is_async)
         yield
         self._func_ctx.pop()
 
     @property
     def recur_point(self) -> Optional[RecurPoint]:
+        """Return the current recur point which applies to the current node, if there
+        is one."""
         try:
             return self._recur_points[-1]
         except IndexError:
@@ -418,6 +440,11 @@ class AnalyzerContext:
 
     @contextlib.contextmanager
     def new_recur_point(self, loop_id: str, args: Collection[Any] = ()):
+        """Context manager which can be used to set a recur point for child nodes.
+        A new recur point is pushed onto the stack each time the Analyzer finds a
+        form which supports recursion (such as `fn*` or `loop*`), so there may be
+        many recur points, though only one may be active at any given time for a
+        node."""
         self._recur_points.append(RecurPoint(loop_id, args=args))
         yield
         self._recur_points.pop()
@@ -801,6 +828,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         var=var,
         init=init,
         doc=doc,
+        in_func_ctx=ctx.in_func_ctx,
         children=children,
         env=def_node_env,
     )

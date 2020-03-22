@@ -7,7 +7,14 @@ import basilisp.lang.keyword as kw
 import basilisp.lang.map as lmap
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.runtime import Namespace, NamespaceMap, RuntimeException, Var, assoc
+from basilisp.lang.runtime import (
+    Namespace,
+    NamespaceMap,
+    RuntimeException,
+    Unbound,
+    Var,
+    assoc,
+)
 from tests.basilisp.helpers import get_or_create_ns
 
 
@@ -210,9 +217,9 @@ def test_intern_unbound(
     assert not v.is_bound
     assert not v.dynamic
     assert not v.is_thread_bound
-    assert None is v.root
-    assert None is v.value
-    assert None is v.deref()
+    assert Unbound(v) == v.root
+    assert Unbound(v) == v.value
+    assert Unbound(v) == v.deref()
 
     ns = get_or_create_ns(ns_sym)
     assert None is not ns
@@ -229,9 +236,9 @@ def test_dynamic_unbound(
     assert not v.is_bound
     assert v.dynamic
     assert not v.is_thread_bound
-    assert None is v.root
-    assert None is v.value
-    assert None is v.deref()
+    assert Unbound(v) == v.root
+    assert Unbound(v) == v.value
+    assert Unbound(v) == v.deref()
 
     new_val = kw.keyword("new-val")
     try:
@@ -239,7 +246,7 @@ def test_dynamic_unbound(
         assert v.is_bound
         assert v.dynamic
         assert v.is_thread_bound
-        assert None is v.root
+        assert Unbound(v) == v.root
         assert new_val == v.value
         assert new_val == v.deref()
     finally:

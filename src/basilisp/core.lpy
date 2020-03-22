@@ -2826,8 +2826,8 @@
   a `name` is not already defined as a Var in this namespace. `expr` will not be
   evaluated if the Var already exists."
   [name expr]
-  `(let [v (def ~name)]
-     (when-not (.-is-bound v)
+  `(let [v# (def ~name)]
+     (when-not (.-is-bound v#)
        (def ~name ~expr))))
 
 (defmacro for
@@ -3698,7 +3698,7 @@
 
 (import importlib)
 
-(defn- require-libspec
+(defn ^:private require-libspec
   "Convert a user-specified require libspec into a map with well-defined keys.
 
   Required keys:
@@ -3720,7 +3720,7 @@
                    (ex-info "Invalid libspec for require"
                             {:value req}))))
 
-(defn- require-lib
+(defn ^:private require-lib
   "Require the library described by `libspec` into the Namespace `requiring-ns`."
   [requiring-ns libspec]
   (let [required-ns-sym  (:namespace libspec)]
@@ -3737,7 +3737,7 @@
     ;; during the require process
     (set! *ns* requiring-ns)))
 
-(defn- refer-filtered-interns
+(defn ^:private refer-filtered-interns
   "Return a map of symbols to interned Vars in the Namespace `referred-ns` subject
   to the filters described in `libspec`."
   [referred-ns libspec]
@@ -3759,7 +3759,7 @@
                                 m))
                             {}))))
 
-(defn- refer-lib
+(defn ^:private refer-lib
   "Refer Vars into `requiring-ns` as described by `libspec`.
 
   This function assumes the referred-to Namespace has already been loaded by
@@ -3985,6 +3985,9 @@
   [name & body]
   (let [doc         (when (string? (first body))
                       (first body))
+        name        (if doc
+                      (vary-meta name assoc :doc doc)
+                      name)
         body        (if doc
                       (rest body)
                       body)
@@ -4414,9 +4417,9 @@
   ([o & {:keys [keywordize-keys] :or {keywordize-keys true}}]
    (basilisp.lang.runtime/to-lisp o keywordize-keys)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Data Types & Protocols ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;
+;; Interfaces ;;
+;;;;;;;;;;;;;;;;
 
 (import* abc)
 
@@ -4492,6 +4495,10 @@
     `(def ~interface-name
        (gen-interface ~name-str [~@method-sigs]))))
 
+;;;;;;;;;;;;;;;;
+;; Data Types ;;
+;;;;;;;;;;;;;;;;
+
 (defn ^:private collect-methods
   "Collect method and interface declarations for `deftype` and `defrecord`
   into a map containing `:interfaces` and `:methods` keys."
@@ -4560,6 +4567,10 @@
          ~@methods)
        (def ~ctor-name ~type-name)
        ~type-name)))
+
+;;;;;;;;;;;;;
+;; Records ;;
+;;;;;;;;;;;;;
 
 (import* attr)
 
