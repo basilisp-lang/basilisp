@@ -62,6 +62,7 @@ from basilisp.lang.compiler.constants import (
     SYM_PRIVATE_META_KEY,
     SYM_PROPERTY_META_KEY,
     SYM_STATICMETHOD_META_KEY,
+    VAR_IS_PROTOCOL_META_KEY,
     SpecialForm,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
@@ -143,6 +144,7 @@ FINALLY = kw.keyword("finally")
 # Constants used in analyzing
 AS = kw.keyword("as")
 IMPLEMENTS = kw.keyword("implements")
+INTERFACE = kw.keyword("interface")
 _DOUBLE_DOT_MACRO_NAME = ".."
 _BUILTINS_NS = "python"
 
@@ -1245,6 +1247,9 @@ def __is_abstract(tp: Type) -> bool:
     )
 
 
+_var_is_protocol = _meta_getter(VAR_IS_PROTOCOL_META_KEY)
+
+
 def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,too-many-locals
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
@@ -1258,7 +1263,14 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
         if isinstance(interface, (MaybeClass, MaybeHostForm)):
             interface_type = interface.target
         elif isinstance(interface, VarRef):
-            interface_type = interface.var.value
+            # Protocols are defined as maps, with the interface being simply a member
+            # of the map, denoted by the keyword `:interface`.
+            if _var_is_protocol(interface.var):
+                proto_map = interface.var.value
+                assert isinstance(proto_map, lmap.Map)
+                interface_type = proto_map.val_at(INTERFACE)
+            else:
+                interface_type = interface.var.value
         else:  # pragma: no cover
             assert False, "Interface must be MaybeClass, MaybeHostForm, or VarRef"
 

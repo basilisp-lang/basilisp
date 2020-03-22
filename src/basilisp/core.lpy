@@ -4544,7 +4544,10 @@
                        assoc :protocol true)]
     `(do
        (defonce ~protocol-name {})
-       (alter-meta! (var ~protocol-name) assoc :doc ~doc)
+       (alter-meta! (var ~protocol-name)
+                    assoc
+                    :doc ~doc
+                    :basilisp.core/protocol true)
        ~@(mapcat gen-protocol-multi methods)
        (->> {:impls     #{}
              :interface (gen-interface ~(name protocol-name)
@@ -4603,9 +4606,7 @@
 
     (instance? python/type target-type)
     (throw (ex-info "extend target-type must be a type"
-                    {:target-type target-type}))
-
-    :else nil)
+                    {:target-type target-type})))
 
   (doseq [proto-pair (apply hash-map proto+methods)
           :let       [[proto method-map] proto-pair

@@ -41,6 +41,7 @@ from basilisp.lang.compiler.constants import (
     SYM_DYNAMIC_META_KEY,
     SYM_NO_WARN_ON_REDEF_META_KEY,
     SYM_REDEF_META_KEY,
+    VAR_IS_PROTOCOL_META_KEY,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compiler.nodes import (
@@ -919,6 +920,42 @@ def __deftype_member_to_py_ast(
     return handle_deftype_member(ctx, node)
 
 
+def __deftype_bases_to_py_ast(ctx: GeneratorContext, node: DefType) -> List[ast.AST]:
+    """Return a list of AST nodes for the base classes for a `deftype*`."""
+    bases: List[ast.AST] = []
+    for base in node.interfaces:
+        base_node = gen_py_ast(ctx, base)
+        assert (
+            count(base_node.dependencies) == 0
+        ), "Class and host form nodes do not have dependencies"
+
+        # Protocols are defined as Maps
+        if (
+            isinstance(base, VarRef)
+            and base.var.meta is not None
+            and base.var.meta.val_at(VAR_IS_PROTOCOL_META_KEY)
+        ):
+            bases.append(
+                ast.Call(
+                    func=ast.Attribute(
+                        value=base_node.node, attr="val_at", ctx=ast.Load()
+                    ),
+                    args=[
+                        ast.Call(
+                            func=_NEW_KW_FN_NAME,
+                            args=[ast.Constant("interface")],
+                            keywords=[],
+                        )
+                    ],
+                    keywords=[],
+                )
+            )
+        else:
+            bases.append(base_node.node)
+
+    return bases
+
+
 _ATTR_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
 _ATTR_CMP_KWARGS = (
     [
@@ -939,13 +976,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
     type_name = munge(node.name)
     ctx.symbol_table.new_symbol(sym.symbol(node.name), type_name, LocalType.DEFTYPE)
 
-    bases = []
-    for base in node.interfaces:
-        base_node = gen_py_ast(ctx, base)
-        assert (
-            count(base_node.dependencies) == 0
-        ), "Class and host form nodes do not have dependencies"
-        bases.append(base_node.node)
+    bases = __deftype_bases_to_py_ast(ctx, node)
 
     decorator = ast.Call(
         func=_ATTR_CLASS_DECORATOR_NAME,
