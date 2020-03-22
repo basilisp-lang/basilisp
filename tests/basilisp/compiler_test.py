@@ -285,8 +285,7 @@ class TestDef:
         lcompile("(def a)")
         var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("a"))
         assert var.root is None
-        # TODO: fix this
-        # assert not var.is_bound
+        assert not var.is_bound
 
     def test_def_number_of_elems(self, lcompile: CompileFn, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):

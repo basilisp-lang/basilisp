@@ -659,9 +659,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     defsym = node.name
     is_defn = False
     is_var_bound = node.var.is_bound
-    is_noop_redef_of_bound_var = is_var_bound and node.init is None
+    is_binding_def = node.init is not None
 
-    if node.init is not None:
+    if is_binding_def:
         # Since Python function definitions always take the form `def name(...):`,
         # it is redundant to assign them to the their final name after they have
         # been defined under a private alias. This codepath generates `defn`
@@ -683,10 +683,8 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
             is_defn = True
         else:
             def_ast = gen_py_ast(ctx, node.init)
-    elif is_noop_redef_of_bound_var:
-        def_ast = None
     else:
-        def_ast = GeneratedPyAST(node=ast.Constant(None))
+        def_ast = None
 
     ns_name = _load_attr(_NS_VAR_VALUE)
     def_name = ast.Call(
@@ -717,67 +715,47 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
 
     meta_ast = gen_py_ast(ctx, node.meta)
 
-    # For defn style def generation, we specifically need to generate the
-    # global declaration prior to emitting the Python `def` otherwise the
-    # Python compiler will throw an exception during compilation
-    # complaining that we assign the value prior to global declaration.
-    should_emit_global_decl = bool(node.top_level and not node.in_func_ctx)
-    if is_defn:
+    if is_binding_def:
         assert def_ast is not None, "def_ast must be defined at this point"
-        def_dependencies = list(
-            chain(
-                [ast.Global(names=[safe_name])] if should_emit_global_decl else [],
-                def_ast.dependencies,
-                [] if meta_ast is None else meta_ast.dependencies,
+        func = _INTERN_VAR_FN_NAME
+        extra_args = [ast.Name(id=safe_name, ctx=ast.Load())]
+        if is_defn:
+            # For defn style def generation, we specifically need to generate
+            # the global declaration prior to emitting the Python `def` otherwise
+            # the Python compiler will throw an exception during compilation
+            # complaining that we assign the value prior to global declaration.
+            def_dependencies = list(
+                chain(
+                    [ast.Global(names=[safe_name])] if node.in_func_ctx else [],
+                    def_ast.dependencies,
+                )
             )
-        )
-    elif is_noop_redef_of_bound_var:
+        else:
+            def_dependencies = list(
+                chain(
+                    def_ast.dependencies,
+                    [ast.Global(names=[safe_name])] if node.in_func_ctx else [],
+                    [
+                        ast.Assign(
+                            targets=[ast.Name(id=safe_name, ctx=ast.Store())],
+                            value=def_ast.node,
+                        )
+                    ],
+                )
+            )
+    else:
+        assert def_ast is None, "def_ast is not defined at this point"
+        assert not is_defn, "defn defs must be binding defs"
         # Re-def-ing previously bound Vars without providing a value is
         # essentially a no-op, which should not modify the Var root.
-        assert def_ast is None, "def_ast is not defined at this point"
-        def_dependencies = list(
-            chain(
-                [ast.Global(names=[safe_name])] if should_emit_global_decl else [],
-                [] if meta_ast is None else meta_ast.dependencies,
-            )
-        )
-    else:
-        assert def_ast is not None, "def_ast must be defined at this point"
-        def_dependencies = list(
-            chain(
-                def_ast.dependencies,
-                [ast.Global(names=[safe_name])] if should_emit_global_decl else [],
-                [
-                    ast.Assign(
-                        targets=[ast.Name(id=safe_name, ctx=ast.Store())],
-                        value=def_ast.node,
-                    )
-                ],
-                [] if meta_ast is None else meta_ast.dependencies,
-            )
-        )
-
-    if is_noop_redef_of_bound_var:
-        return GeneratedPyAST(
-            node=ast.Call(
-                func=_INTERN_UNBOUND_VAR_FN_NAME,
-                args=[ns_name, def_name],
-                keywords=list(
-                    chain(
-                        dynamic_kwarg,
-                        []
-                        if meta_ast is None
-                        else [ast.keyword(arg="meta", value=meta_ast.node)],
-                    )
-                ),
-            ),
-            dependencies=def_dependencies,
-        )
+        func = _INTERN_UNBOUND_VAR_FN_NAME
+        extra_args = []
+        def_dependencies = [ast.Global(names=[safe_name])] if node.in_func_ctx else []
 
     return GeneratedPyAST(
         node=ast.Call(
-            func=_INTERN_VAR_FN_NAME,
-            args=[ns_name, def_name, ast.Name(id=safe_name, ctx=ast.Load())],
+            func=func,
+            args=list(chain([ns_name, def_name], extra_args)),
             keywords=list(
                 chain(
                     dynamic_kwarg,
@@ -787,7 +765,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
                 )
             ),
         ),
-        dependencies=def_dependencies,
+        dependencies=list(
+            chain(def_dependencies, [] if meta_ast is None else meta_ast.dependencies,)
+        ),
     )
 
 
