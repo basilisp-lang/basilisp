@@ -155,6 +155,19 @@ class _VarBindings(threading.local):
         self.bindings: List = []
 
 
+class Unbound:
+    __slots__ = ("var",)
+
+    def __init__(self, v: "Var"):
+        self.var = v
+
+    def __repr__(self):  # pragma: no cover
+        return f"Unbound(var={self.var})"
+
+    def __eq__(self, other):
+        return isinstance(other, Unbound) and self.var == other.var
+
+
 class Var(IDeref, ReferenceBase):
     __slots__ = (
         "_name",
@@ -176,7 +189,7 @@ class Var(IDeref, ReferenceBase):
     ) -> None:
         self._ns = ns
         self._name = name
-        self._root = None
+        self._root = Unbound(self)
         self._dynamic = dynamic
         self._is_bound = False
         self._tl = None

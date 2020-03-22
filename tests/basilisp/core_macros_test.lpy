@@ -267,7 +267,7 @@
 
   (testing "defonce can bind an unbound Var"
     (def defonce-unbound)
-    (is (nil? defonce-unbound))
+    (is (not (.-is-bound (var defonce-unbound))))
     (defonce defonce-unbound :defonce-bound-now)
     (is (= :defonce-bound-now defonce-unbound)))
 

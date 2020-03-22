@@ -284,7 +284,7 @@ class TestDef:
     def test_def_unbound(self, lcompile: CompileFn, ns: runtime.Namespace):
         lcompile("(def a)")
         var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("a"))
-        assert var.root is None
+        assert var.root == runtime.Unbound(var)
         assert not var.is_bound
 
     def test_def_number_of_elems(self, lcompile: CompileFn, ns: runtime.Namespace):
@@ -386,11 +386,13 @@ class TestDef:
 
     def test_redef_unbound_var(self, lcompile: CompileFn):
         v1: Var = lcompile("(def unbound-var)")
-        assert None is v1.root
+        assert runtime.Unbound(v1) == v1.root
 
         v2: Var = lcompile("(def unbound-var :a)")
         assert kw.keyword("a") == v2.root
         assert v2.is_bound
+
+        assert v1 is v2
 
     def test_def_unbound_does_not_clear_var_root(self, lcompile: CompileFn):
         v1: Var = lcompile("(def bound-var :a)")
@@ -401,7 +403,7 @@ class TestDef:
         assert kw.keyword("a") == v2.root
         assert v2.is_bound
 
-        assert v1 == v2
+        assert v1 is v2
 
 
 class TestDefType:
