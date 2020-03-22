@@ -403,6 +403,15 @@ class AnalyzerContext:
         except IndexError:
             return False
 
+    @property
+    def in_func_ctx(self) -> bool:
+        try:
+            self._func_ctx[-1]
+        except IndexError:
+            return False
+        else:
+            return True
+
     @contextlib.contextmanager
     def new_func_ctx(self, is_async: bool = False):
         self._func_ctx.append(is_async)
@@ -801,6 +810,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         var=var,
         init=init,
         doc=doc,
+        in_func_ctx=ctx.in_func_ctx,
         children=children,
         env=def_node_env,
     )

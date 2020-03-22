@@ -2826,8 +2826,8 @@
   a `name` is not already defined as a Var in this namespace. `expr` will not be
   evaluated if the Var already exists."
   [name expr]
-  `(let [v (def ~name)]
-     (when-not (.-is-bound v)
+  `(let [v# (def ~name)]
+     (when-not (.-is-bound v#)
        (def ~name ~expr))))
 
 (defmacro for
@@ -4417,9 +4417,9 @@
   ([o & {:keys [keywordize-keys] :or {keywordize-keys true}}]
    (basilisp.lang.runtime/to-lisp o keywordize-keys)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Data Types & Protocols ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;
+;; Interfaces ;;
+;;;;;;;;;;;;;;;;
 
 (import* abc)
 
@@ -4497,6 +4497,256 @@
     `(def ~interface-name
        (gen-interface ~name-str [~@method-sigs]))))
 
+;;;;;;;;;;;;;;;
+;; Protocols ;;
+;;;;;;;;;;;;;;;
+
+(defn ^:private gen-protocol-multi
+  "Return the `defmulti` and default `defmethod` for a protocol method."
+  [[method-name args :as method-def]]
+  (let [docstring          (nth method-def 2 nil)
+        dotted-method-name (symbol (str "." (name method-name)))
+        has-varargs        (some #(= '& %) args)
+        clean-args         (filter #(not= '& %) args)
+
+        obj-sym (gensym "o")]
+    [`(defmulti ~method-name
+        ~@(when docstring [docstring])
+        (fn [~obj-sym ~@(map #(vary-meta % assoc :no-warn-when-unused true) args)]
+          (python/type ~obj-sym)))
+     `(defmethod ~method-name :default
+        [~obj-sym ~@args]
+        ~(if has-varargs
+           `(apply-method ~obj-sym ~method-name ~@clean-args)
+           `(~dotted-method-name ~obj-sym ~@clean-args)))]))
+
+;; For each protocol, the following keys are defined:
+;;
+;; - :impls     - a set of types which dynamically extend the Protocol
+;;                (e.g. by `extend`)
+;; - :interface - the Python interface type which backs the Protocol
+;; - :methods   - a mapping of method names (as Basilisp keywords) to the multi-
+;;                method backing the Protocol method
+;; - :var       - a reference to the Var the Protocol is stored in
+
+(defmacro defprotocol
+  "Define a new protocol.
+
+  Protocols consist of an interface (a Python `ABC`) and a set of generated methods
+  which dispatch to objects implementing the interface."
+  [protocol-name & methods]
+  (let [doc           (when (string? (first methods))
+                        (first methods))
+        methods       (if doc (rest methods) methods)
+        protocol-name (vary-meta
+                       (cond-> protocol-name
+                         doc (vary-meta assoc :doc doc))
+                       assoc :protocol true)]
+    `(do
+       (defonce ~protocol-name {})
+       (alter-meta! (var ~protocol-name) assoc :doc ~doc)
+       ~@(mapcat gen-protocol-multi methods)
+       (->> {:impls     #{}
+             :interface (gen-interface ~(name protocol-name)
+                                       [~@(map #(list 'quote %) methods)])
+             :methods   ~(apply hash-map
+                                (mapcat #(let [v (first %)]
+                                           [(keyword (name v)) v])
+                                        methods))
+             :var       (var ~protocol-name)}
+            (alter-var-root (var ~protocol-name) merge ~protocol-name))
+       ~protocol-name)))
+
+(defn ^:private protocol?
+  "Return true if x is a Protocol."
+  [x]
+  (boolean (and (map? x) (:interface x))))
+
+(defn extend
+  "Extend a type dynamically with one or Protocol implementations. This is useful
+  for types which were defined outside your control or which were not otherwise
+  defined as direct implementors of the named Protocol(s). With `extend`, such
+  types may be extended without modifying the types directly.
+
+  `target-type` should name a type which is to be extended. Virtually any type
+  is permitted, so long as that that type is not also a Protocol.
+
+  `proto+methods` are interleaved Protocol names and maps of Protocol method
+  implementations intended for `target-type`. The keys of each map are keywords
+  corresponding to the names of the Protocol methods (as defined in the
+  `defprotocol`). Each value should be either an existing function (referenced
+  by its Var or name binding) or a new function definition.
+
+  `extend` may be called multiple times for a single `target-type`, so not all
+  implementations need to be known a priori. Successive calls to `extend` on
+  `target-type` with the same Protocol implementations will overwrite previous
+  implementations.
+
+  If you are extending types with explicit function definitions, the
+  `extend-protocol` and `extend-type` macros offer some additional conveniences.
+
+  Returns `nil`.
+
+  Example:
+
+    (extend SomeType
+      FirstProto
+      {:spam spam-fn
+       :eggs (fn [...] ...)}
+      OtherProto
+      {:ham  (fn [...] ...)})"
+  [target-type & proto+methods]
+  (cond
+    (protocol? target-type)
+    (throw (ex-info "Protocols may not be extended with other Protocols"
+                    {:target-type target-type}))
+
+    (instance? python/type target-type)
+    (throw (ex-info "extend target-type must be a type"
+                    {:target-type target-type}))
+
+    :else nil)
+
+  (doseq [proto-pair (apply hash-map proto+methods)
+          :let       [[proto method-map] proto-pair
+                      proto-methods      (:methods proto)]]
+    (when (identical? target-type proto)
+      (throw (ex-info "Protocol may not extend itself"
+                      {:target-type target-type
+                       :proto       proto})))
+    (doseq [method-def method-map
+            :let       [[method-name fn] method-def]]
+      (let [mmethod (get proto-methods method-name)]
+        (.add-method mmethod target-type fn)))
+    (alter-var-root update (:var proto) :extending-types conj target-type))
+  nil)
+
+(defn ^:private sym-and-method-groups
+  "Group methods for `extend-protocol` and `extend-type` into a map of interface
+  names to a vector of method bodies."
+  [specs]
+  (loop [iface   (first specs)
+         specs   (rest specs)
+         methods []
+         groups  {}]
+    (cond
+      (not (seq specs))
+      (assoc groups iface methods)
+
+      (list? (first specs))
+      (recur iface
+             (rest specs)
+             (conj methods (first specs))
+             groups)
+
+      (symbol? (first specs))
+      (recur (first specs)
+             (rest specs)
+             []
+             (assoc groups iface methods)))))
+
+(defn ^:private extend-map
+  "Convert a vector of method definitions (as expected by `extend-protocol` and
+  `extend-type`) into a map of method definitions which can be passed to `extend`. "
+  [methods]
+  (reduce (fn [m fn-body]
+            (let [method-name (name (first fn-body))]
+              (assoc m (keyword method-name) (apply list `fn fn-body))))
+          {}
+          methods))
+
+(defmacro extend-protocol
+  "Extend a Protocol with implementations for multiple types.
+
+  This convenience macro is useful for extending multiple different types with
+  a single Protocol definition in one call. Note that this macro only supports
+  new function declarations. If you intend to reference an existing function,
+  call `extend` directly.
+
+  For example, this call:
+
+    (extend-protocol SomeProto
+      FirstType
+      (spam [this] ...)
+      (eggs [this arg1 arg2] ...)
+      OtherType
+      (spam [this] ...)
+      (eggs [this arg1 arg2] ...))
+
+  Would be turned into the following `extend` calls:
+
+    (do
+      (extend FirstType
+        SomeProto
+        {:spam (fn spam [this] ...)
+         :eggs (fn [this arg1 arg2] ...)})
+      (extend OtherType
+        SomeProto
+        {:spam (fn spam [this] ...)
+         :eggs (fn [this arg1 arg2] ...)}))"
+  [proto & specs]
+  `(do ~@(map (fn [[target-type methods]]
+                `(extend ~target-type
+                   ~proto
+                   ~(extend-map methods)))
+              (sym-and-method-groups specs))))
+
+(defmacro extend-type
+  "Extend a type with multiple Protocol implementations.
+
+  This convenience macro is useful for extending a single type with multiple
+  different Protocol definitions in one call. Note that this macro only supports
+  new function declarations. If you intend to reference an existing function,
+  call `extend` directly.
+
+  For example, this call:
+
+    (extend-type SomeType
+      FirstProto
+      (spam [this] ...)
+      (eggs [this arg1 arg2] ...)
+      SecondProto
+      (ham [this & args] ...))
+
+  Would be turned into the following `extend` call:
+
+    (extend SomeType
+      FirstProto
+      {:spam (fn spam [this] ...)
+       :eggs (fn eggs [this arg1 arg2] ...)}
+      SecondProto
+      {:ham (fn ham [this & args] ...)})"
+  [target-type & specs]
+  `(extend ~target-type
+     ~@(mapcat (fn [[proto methods]]
+                 [proto (extend-map methods)])
+               (sym-and-method-groups specs))))
+
+(defn extenders
+  "Return a collection of types explicitly extending proto.
+
+  The returned collection will not include types which extend proto via
+  inheritance (as by `deftype` and `defrecord`). Only types extending
+  proto via `extend` (or `extend-protocol` or `extend-type`) will appear."
+  [{:keys [impls] :as proto}]
+  (apply list impls))
+
+(defn extends?
+  "Return true if type extends protocol proto."
+  [{:keys [interface impls] :as proto} type]
+  (or (python/issubclass type interface)
+      (contains? impls type)))
+
+(defn satisfies?
+  "Return true if x satisfies protocol proto."
+  [{:keys [interface impls] :as proto} x]
+  (or (instance? interface x)
+      (python/isinstance x (python/tuple impls))))
+
+;;;;;;;;;;;;;;;;
+;; Data Types ;;
+;;;;;;;;;;;;;;;;
+
 (defn ^:private collect-methods
   "Collect method and interface declarations for `deftype` and `defrecord`
   into a map containing `:interfaces` and `:methods` keys."
@@ -4565,6 +4815,10 @@
          ~@methods)
        (def ~ctor-name ~type-name)
        ~type-name)))
+
+;;;;;;;;;;;;;
+;; Records ;;
+;;;;;;;;;;;;;
 
 (import* attr)
 
@@ -4841,254 +5095,6 @@
          ((.- ~type-name ~'create) m#))
 
        ~type-name)))
-
-;;;;;;;;;;;;;;;
-;; Protocols ;;
-;;;;;;;;;;;;;;;
-
-(def ^:private protocols
-  "Internal registry of all Protocols.
-
-  The registry is a mapping of Protocol types to a map of details about the
-  protocol. For each protocol, the following keys are defined:
-
-  - :extending-types - a set of types which dynamically extend the Protocol
-                       (e.g. by `extend`)
-  - :interface       - the Python interface type which backs the Protocol
-  - :methods         - a mapping of method names (as Basilisp keywords) to
-                       the multi-method backing the Protocol method"
-  (atom {}))
-
-(defn ^:private gen-protocol-multi
-  "Return the `defmulti` and default `defmethod` for a protocol method."
-  [[method-name args :as method-def]]
-  (let [docstring          (nth method-def 2 nil)
-        dotted-method-name (symbol (str "." (name method-name)))
-        has-varargs        (some #(= '& %) args)
-        clean-args         (filter #(not= '& %) args)
-
-        obj-sym (gensym "o")]
-    [`(defmulti ~method-name
-        ~@(when docstring [docstring])
-        (fn [~obj-sym ~@(map #(vary-meta % assoc :no-warn-when-unused true) args)]
-          (python/type ~obj-sym)))
-     `(defmethod ~method-name :default
-        [~obj-sym ~@args]
-        ~(if has-varargs
-           `(apply-method ~obj-sym ~method-name ~@clean-args)
-           `(~dotted-method-name ~obj-sym ~@clean-args)))]))
-
-(defmacro defprotocol
-  "Define a new protocol.
-
-  Protocols consist of an interface (a Python `ABC`) and a set of generated methods
-  which dispatch to objects implementing the interface."
-  [protocol-name & methods]
-  (let [doc           (when (string? (first methods))
-                        (first methods))
-        methods       (if doc (rest methods) methods)
-        protocol-name (vary-meta
-                       (cond-> protocol-name
-                         doc (vary-meta assoc :doc doc))
-                       assoc :protocol true)]
-    `(do
-       (definterface ~protocol-name ~@methods)
-       ~@(mapcat gen-protocol-multi methods)
-       (->> {:extending-types #{}
-             :interface       ~protocol-name
-             :methods         ~(apply hash-map
-                                      (mapcat #(let [v (first %)]
-                                                 [(keyword (name v)) v])
-                                              methods))}
-            (swap! protocols assoc ~protocol-name))
-       ~protocol-name)))
-
-(defn protocol?
-  "Return true if x is a Protocol."
-  [x]
-  (boolean (get @protocols x)))
-
-(defn extend
-  "Extend a type dynamically with one or Protocol implementations. This is useful
-  for types which were defined outside your control or which were not otherwise
-  defined as direct implementors of the named Protocol(s). With `extend`, such
-  types may be extended without modifying the types directly.
-
-  `target-type` should name a type which is to be extended. Virtually any type
-  is permitted, so long as that that type is not also a Protocol.
-
-  `proto+methods` are interleaved Protocol names and maps of Protocol method
-  implementations intended for `target-type`. The keys of each map are keywords
-  corresponding to the names of the Protocol methods (as defined in the
-  `defprotocol`). Each value should be either an existing function (referenced
-  by its Var or name binding) or a new function definition.
-
-  `extend` may be called multiple times for a single `target-type`, so not all
-  implementations need to be known a priori. Successive calls to `extend` on
-  `target-type` with the same Protocol implementations will overwrite previous
-  implementations.
-
-  If you are extending types with explicit function definitions, the
-  `extend-protocol` and `extend-type` macros offer some additional conveniences.
-
-  Returns `nil`.
-
-  Example:
-
-    (extend SomeType
-      FirstProto
-      {:spam spam-fn
-       :eggs (fn [...] ...)}
-      OtherProto
-      {:ham  (fn [...] ...)})"
-  [target-type & proto+methods]
-  (let [proto-map (apply hash-map proto+methods)]
-    (swap! protocols (fn [proto-state]
-                       (when (contains? proto-state target-type)
-                         (throw (ex-info "Protocols may not be extended with other Protocols"
-                                         {:target-type target-type})))
-                       (reduce-kv (fn [m proto method-map]
-                                    (when-not (contains? proto-state proto)
-                                      (throw (ex-info "Specified Protocol does not exist"
-                                                      {:protocol proto})))
-                                    (when (identical? target-type proto)
-                                      (throw (ex-info "Protocol may not extend itself"
-                                                      {:target-type target-type
-                                                       :proto       proto})))
-                                    (let [proto-methods (get-in m [proto :methods])]
-                                      (doseq [method-def method-map
-                                              :let [[method-name fn] method-def]]
-                                        (let [mmethod (get proto-methods method-name)]
-                                          (.add-method mmethod target-type fn))))
-                                    (update-in m [proto :extending-types] conj target-type))
-                                  proto-state
-                                  proto-map)))
-    nil))
-
-(defn ^:private sym-and-method-groups
-  "Group methods for `extend-protocol` and `extend-type` into a map of interface
-  names to a vector of method bodies."
-  [specs]
-  (loop [iface   (first specs)
-         specs   (rest specs)
-         methods []
-         groups  {}]
-    (cond
-      (not (seq specs))
-      (assoc groups iface methods)
-
-      (list? (first specs))
-      (recur iface
-             (rest specs)
-             (conj methods (first specs))
-             groups)
-
-      (symbol? (first specs))
-      (recur (first specs)
-             (rest specs)
-             []
-             (assoc groups iface methods)))))
-
-(defn ^:private extend-map
-  "Convert a vector of method definitions (as expected by `extend-protocol` and
-  `extend-type`) into a map of method definitions which can be passed to `extend`. "
-  [methods]
-  (reduce (fn [m fn-body]
-            (let [method-name (name (first fn-body))]
-              (assoc m (keyword method-name) (apply list `fn fn-body))))
-          {}
-          methods))
-
-(defmacro extend-protocol
-  "Extend a Protocol with implementations for multiple types.
-
-  This convenience macro is useful for extending multiple different types with
-  a single Protocol definition in one call. Note that this macro only supports
-  new function declarations. If you intend to reference an existing function,
-  call `extend` directly.
-
-  For example, this call:
-
-    (extend-protocol SomeProto
-      FirstType
-      (spam [this] ...)
-      (eggs [this arg1 arg2] ...)
-      OtherType
-      (spam [this] ...)
-      (eggs [this arg1 arg2] ...))
-
-  Would be turned into the following `extend` calls:
-
-    (do
-      (extend FirstType
-        SomeProto
-        {:spam (fn spam [this] ...)
-         :eggs (fn [this arg1 arg2] ...)})
-      (extend OtherType
-        SomeProto
-        {:spam (fn spam [this] ...)
-         :eggs (fn [this arg1 arg2] ...)}))"
-  [proto & specs]
-  `(do ~@(map (fn [[target-type methods]]
-                `(extend ~target-type
-                   ~proto
-                   ~(extend-map methods)))
-              (sym-and-method-groups specs))))
-
-(defmacro extend-type
-  "Extend a type with multiple Protocol implementations.
-
-  This convenience macro is useful for extending a single type with multiple
-  different Protocol definitions in one call. Note that this macro only supports
-  new function declarations. If you intend to reference an existing function,
-  call `extend` directly.
-
-  For example, this call:
-
-    (extend-type SomeType
-      FirstProto
-      (spam [this] ...)
-      (eggs [this arg1 arg2] ...)
-      SecondProto
-      (ham [this & args] ...))
-
-  Would be turned into the following `extend` call:
-
-    (extend SomeType
-      FirstProto
-      {:spam (fn spam [this] ...)
-       :eggs (fn eggs [this arg1 arg2] ...)}
-      SecondProto
-      {:ham (fn ham [this & args] ...)})"
-  [target-type & specs]
-  `(extend ~target-type
-     ~@(mapcat (fn [[proto methods]]
-                 [proto (extend-map methods)])
-               (sym-and-method-groups specs))))
-
-(defn extenders
-  "Return a collection of types explicitly extending proto.
-
-  The returned collection will not include types which extend proto via
-  inheritance (as by `deftype` and `defrecord`). Only types extending
-  proto via `extend` (or `extend-protocol` or `extend-type`) will appear."
-  [proto]
-  (->> (get-in @protocols [proto :extending-types])
-       (apply list)))
-
-(defn extends?
-  "Return true if type extends protocol proto."
-  [proto type]
-  (or (python/issubclass type proto)
-      (some-> (get-in @protocols [proto :extending-types])
-              (contains? type))))
-
-(defn satisfies?
-  "Return true if x satisfies protocol proto."
-  [proto x]
-  (or (instance? proto x)
-      (let [types (get-in @protocols [proto :extending-types])]
-        (python/isinstance x (python/tuple types)))))
 
 ;;;;;;;;;;;;;;;
 ;; Volatiles ;;
