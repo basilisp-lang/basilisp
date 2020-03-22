@@ -1,4 +1,6 @@
-from typing import Iterable, List, Optional
+from collections import deque
+from contextlib import contextmanager
+from typing import Deque, Iterable, List, Optional, Set
 
 import basilisp._pyast as ast
 
@@ -17,6 +19,25 @@ def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:
 
 
 class PythonASTOptimizer(ast.NodeTransformer):
+    __slots__ = ("_global_ctx",)
+
+    def __init__(self):
+        self._global_ctx: Deque[Set[str]] = deque([set()])
+
+    @contextmanager
+    def _new_global_context(self):
+        """Context manager which sets a new Python `global` context."""
+        self._global_ctx.append(set())
+        try:
+            yield
+        finally:
+            self._global_ctx.pop()
+
+    @property
+    def _global_context(self) -> Set[str]:
+        """Return the current Python `global` context."""
+        return self._global_ctx[-1]
+
     def visit_ExceptHandler(self, node: ast.ExceptHandler) -> Optional[ast.AST]:
         """Eliminate dead code from except handler bodies."""
         new_node = self.generic_visit(node)
@@ -39,7 +60,8 @@ class PythonASTOptimizer(ast.NodeTransformer):
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Optional[ast.AST]:
         """Eliminate dead code from function bodies."""
-        new_node = self.generic_visit(node)
+        with self._new_global_context():
+            new_node = self.generic_visit(node)
         assert isinstance(new_node, ast.FunctionDef)
         return ast.copy_location(
             ast.FunctionDef(
@@ -50,6 +72,21 @@ class PythonASTOptimizer(ast.NodeTransformer):
                 returns=new_node.returns,
             ),
             new_node,
+        )
+
+    def visit_Global(self, node: ast.Global) -> Optional[ast.Global]:
+        """Eliminate redundant name declarations inside a Python `global` statement.
+
+        Python `global` statements may only refer to a name prior to its declaration.
+        Global contexts track names in prior `global` declarations and eliminate
+        redundant names in `global` declarations. If all of the names in the current
+        `global` statement are redundant, the entire node will be omitted."""
+        new_names = set(node.names) - self._global_context
+        self._global_context.update(new_names)
+        return (
+            ast.copy_location(ast.Global(names=list(new_names)), node)
+            if new_names
+            else None
         )
 
     def visit_If(self, node: ast.If) -> Optional[ast.AST]:
