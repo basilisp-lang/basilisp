@@ -721,11 +721,12 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     # global declaration prior to emitting the Python `def` otherwise the
     # Python compiler will throw an exception during compilation
     # complaining that we assign the value prior to global declaration.
+    should_emit_global_decl = bool(node.top_level and not node.in_func_ctx)
     if is_defn:
         assert def_ast is not None, "def_ast must be defined at this point"
         def_dependencies = list(
             chain(
-                [] if node.top_level else [ast.Global(names=[safe_name])],
+                [ast.Global(names=[safe_name])] if should_emit_global_decl else [],
                 def_ast.dependencies,
                 [] if meta_ast is None else meta_ast.dependencies,
             )
@@ -736,7 +737,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         assert def_ast is None, "def_ast is not defined at this point"
         def_dependencies = list(
             chain(
-                [] if node.top_level else [ast.Global(names=[safe_name])],
+                [ast.Global(names=[safe_name])] if should_emit_global_decl else [],
                 [] if meta_ast is None else meta_ast.dependencies,
             )
         )
@@ -745,7 +746,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         def_dependencies = list(
             chain(
                 def_ast.dependencies,
-                [] if node.top_level else [ast.Global(names=[safe_name])],
+                [ast.Global(names=[safe_name])] if should_emit_global_decl else [],
                 [
                     ast.Assign(
                         targets=[ast.Name(id=safe_name, ctx=ast.Store())],

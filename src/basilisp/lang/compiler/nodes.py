@@ -351,6 +351,7 @@ class Def(Node[SpecialForm]):
     var: Var
     init: Optional[Node]
     doc: Optional[str]
+    in_func_ctx: bool
     env: NodeEnv
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.Vector.empty()
