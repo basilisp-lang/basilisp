@@ -20,7 +20,7 @@ import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.interfaces import IPersistentVector
+from basilisp.lang.interfaces import IPersistentMap, IPersistentVector
 from basilisp.lang.runtime import Namespace, Var, to_lisp
 from basilisp.lang.typing import LispForm, ReaderForm as ReaderLispForm, SpecialForm
 from basilisp.lang.util import munge
@@ -264,6 +264,7 @@ class ConstType(Enum):
     UNKNOWN = kw.keyword("unknown")
 
 
+KeywordArgs = IPersistentMap[str, Node]
 NodeMeta = Union[None, "Const", "Map"]
 LoopID = str
 
@@ -437,6 +438,7 @@ class HostCall(Node[SpecialForm]):
     method: str
     target: Node
     args: Iterable[Node]
+    kwargs: KeywordArgs
     env: NodeEnv
     children: Sequence[kw.Keyword] = vec.v(TARGET, ARGS)
     op: NodeOp = NodeOp.HOST_CALL
@@ -498,6 +500,7 @@ class Invoke(Node[SpecialForm]):
     form: SpecialForm
     fn: Node
     args: Iterable[Node]
+    kwargs: KeywordArgs
     env: NodeEnv
     children: Sequence[kw.Keyword] = vec.v(FN, ARGS)
     op: NodeOp = NodeOp.INVOKE
