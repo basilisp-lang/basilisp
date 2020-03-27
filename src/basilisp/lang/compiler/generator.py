@@ -62,6 +62,7 @@ from basilisp.lang.compiler.nodes import (
     Import,
     Invoke,
     KeywordArgs,
+    KeywordArgSupport,
     Let,
     LetFn,
     Local,
@@ -364,7 +365,8 @@ def _kwargs_ast(
 ) -> Tuple[PyASTStream, PyASTStream]:
     """Return a tuple of dependency nodes and Python `ast.keyword` nodes from a
     Basilisp `KeywordArgs` Node property."""
-    kwargs_keys, kwargs_deps, kwargs_nodes = [], [], []
+    kwargs_keys, kwargs_nodes = [], []
+    kwargs_deps: List[ast.AST] = []
     for k, v in kwargs.items():
         kwargs_keys.append(k)
         kwarg_ast = gen_py_ast(ctx, v)
@@ -547,6 +549,10 @@ _COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
+_LISP_FN_APPLY_KWARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._lisp_fn_apply_kwargs")
+_LISP_FN_COLLECT_KWARGS_FN_NAME = _load_attr(
+    f"{_RUNTIME_ALIAS}._lisp_fn_collect_kwargs"
+)
 _PY_CLASSMETHOD_FN_NAME = _load_attr("classmethod")
 _PY_PROPERTY_FN_NAME = _load_attr("property")
 _PY_STATICMETHOD_FN_NAME = _load_attr("staticmethod")
@@ -1162,6 +1168,16 @@ def __fn_meta(
         return (), ()
 
 
+def __fn_kwargs_support_decorator(node: Fn) -> Iterable[ast.AST]:
+    if node.kwarg_support is None:
+        return
+
+    yield {
+        KeywordArgSupport.APPLY_KWARGS: _LISP_FN_APPLY_KWARGS_FN_NAME,
+        KeywordArgSupport.COLLECT_KWARGS: _LISP_FN_COLLECT_KWARGS_FN_NAME,
+    }[node.kwarg_support]
+
+
 @_with_ast_loc_deps
 def __single_arity_fn_to_py_ast(
     ctx: GeneratorContext,
@@ -1209,6 +1225,7 @@ def __single_arity_fn_to_py_ast(
                             body=fn_body_ast,
                             decorator_list=list(
                                 chain(
+                                    __fn_kwargs_support_decorator(node),
                                     meta_decorators,
                                     [_BASILISP_FN_FN_NAME],
                                     [_TRAMPOLINE_FN_NAME]
@@ -1434,9 +1451,12 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                         kw_defaults=[],
                     ),
                     body=fn_body_ast,
-                    decorator_list=[_TRAMPOLINE_FN_NAME]
-                    if ctx.recur_point.has_recur
-                    else [],
+                    decorator_list=list(
+                        chain(
+                            __fn_kwargs_support_decorator(node),
+                            [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
+                        )
+                    ),
                     returns=None,
                 )
             )

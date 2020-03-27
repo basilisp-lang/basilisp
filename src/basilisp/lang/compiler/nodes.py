@@ -402,6 +402,11 @@ class Do(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
+class KeywordArgSupport(Enum):
+    APPLY_KWARGS = kw.keyword("apply-kwargs")
+    COLLECT_KWARGS = kw.keyword("collect-kwargs")
+
+
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class Fn(Node[SpecialForm]):
     form: SpecialForm
@@ -411,6 +416,7 @@ class Fn(Node[SpecialForm]):
     local: Optional[Binding] = None
     is_variadic: bool = False
     is_async: bool = False
+    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(METHODS)
     op: NodeOp = NodeOp.FN
     top_level: bool = False
