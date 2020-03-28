@@ -136,8 +136,7 @@ OBJECT_DUNDER_METHODS = frozenset(
 )
 
 SYM_ASYNC_META_KEY = kw.keyword("async")
-SYM_APPLY_KWARGS_META_KEY = kw.keyword("apply-kwargs")
-SYM_COLLECT_KWARGS_META_KEY = kw.keyword("collect-kwargs")
+SYM_KWARGS_META_KEY = kw.keyword("kwargs")
 SYM_PRIVATE_META_KEY = kw.keyword("private")
 SYM_CLASSMETHOD_META_KEY = kw.keyword("classmethod")
 SYM_DEFAULT_META_KEY = kw.keyword("default")

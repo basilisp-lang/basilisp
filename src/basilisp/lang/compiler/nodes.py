@@ -403,8 +403,8 @@ class Do(Node[SpecialForm]):
 
 
 class KeywordArgSupport(Enum):
-    APPLY_KWARGS = kw.keyword("apply-kwargs")
-    COLLECT_KWARGS = kw.keyword("collect-kwargs")
+    APPLY_KWARGS = kw.keyword("apply")
+    COLLECT_KWARGS = kw.keyword("collect")
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)

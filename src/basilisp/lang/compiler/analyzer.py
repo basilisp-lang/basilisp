@@ -51,12 +51,11 @@ from basilisp.lang.compiler.constants import (
     NAME_KW,
     NS_KW,
     OBJECT_DUNDER_METHODS,
-    SYM_APPLY_KWARGS_META_KEY,
     SYM_ASYNC_META_KEY,
     SYM_CLASSMETHOD_META_KEY,
-    SYM_COLLECT_KWARGS_META_KEY,
     SYM_DEFAULT_META_KEY,
     SYM_DYNAMIC_META_KEY,
+    SYM_KWARGS_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
     SYM_NO_WARN_ON_SHADOW_META_KEY,
@@ -596,8 +595,6 @@ def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
 
 
 _is_async = _meta_getter(SYM_ASYNC_META_KEY)
-_should_apply_kwargs = _meta_getter(SYM_APPLY_KWARGS_META_KEY)
-_should_collect_kwargs = _meta_getter(SYM_COLLECT_KWARGS_META_KEY)
 _is_mutable = _meta_getter(SYM_MUTABLE_META_KEY)
 _is_py_classmethod = _meta_getter(SYM_CLASSMETHOD_META_KEY)
 _is_py_property = _meta_getter(SYM_PROPERTY_META_KEY)
@@ -676,7 +673,7 @@ def _body_ast(
     return stmts, ret
 
 
-def _call_args_ast(
+def _call_args_ast(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: ISeq
 ) -> Tuple[Iterable[Node], KeywordArgs]:
     """Return a tuple of positional arguments and keyword arguments, splitting at the
@@ -1543,6 +1540,15 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
             return method
 
 
+def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
+    if o.meta is None:
+        return None
+    try:
+        return KeywordArgSupport(o.meta.val_at(SYM_KWARGS_META_KEY))
+    except ValueError:
+        return None
+
+
 @_with_meta  # noqa: MC0001
 def _fn_ast(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: Union[llist.List, ISeq]
@@ -1566,15 +1572,10 @@ def _fn_ast(  # pylint: disable=too-many-branches
             )
             assert name_node is not None
             is_async = _is_async(name) or isinstance(form, IMeta) and _is_async(form)
-            should_apply_kwargs = (
-                _should_apply_kwargs(name)
+            kwarg_support = (
+                __fn_kwargs_support(name)
                 or isinstance(form, IMeta)
-                and _should_apply_kwargs(form)
-            )
-            should_collect_kwargs = (
-                _should_collect_kwargs(name)
-                or isinstance(form, IMeta)
-                and _should_collect_kwargs(form)
+                and __fn_kwargs_support(form)
             )
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
@@ -1582,27 +1583,12 @@ def _fn_ast(  # pylint: disable=too-many-branches
             name = None
             name_node = None
             is_async = isinstance(form, IMeta) and _is_async(form)
-            should_apply_kwargs = isinstance(form, IMeta) and _should_apply_kwargs(form)
-            should_collect_kwargs = isinstance(form, IMeta) and _should_collect_kwargs(
-                form
-            )
+            kwarg_support = isinstance(form, IMeta) and __fn_kwargs_support(form)
         else:
             raise AnalyzerException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
                 form=form,
             )
-
-        if should_apply_kwargs and should_collect_kwargs:
-            raise AnalyzerException(
-                "functions cannot be annotated with :apply-kwargs and :collect-kwargs",
-                form=form,
-            )
-        elif should_apply_kwargs:
-            kwarg_support: Optional[KeywordArgSupport] = KeywordArgSupport.APPLY_KWARGS
-        elif should_collect_kwargs:
-            kwarg_support = KeywordArgSupport.COLLECT_KWARGS
-        else:
-            kwarg_support = None
 
         try:
             arity_or_args = runtime.nth(form, idx)
@@ -1674,7 +1660,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
             local=name_node,
             env=ctx.get_node_env(pos=ctx.syntax_position),
             is_async=is_async,
-            kwarg_support=kwarg_support,
+            kwarg_support=None if isinstance(kwarg_support, bool) else kwarg_support,
         )
 
 
