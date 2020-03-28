@@ -2188,7 +2188,7 @@
   ([f m]
    (apply-kw basilisp.lang.runtime/partial f m))
   ([f arg & args]
-   (let [m (apply hash-map (cons m args))]
+   (let [m (apply hash-map (cons arg args))]
      (partial-kw f m))))
 
 (defn every?
