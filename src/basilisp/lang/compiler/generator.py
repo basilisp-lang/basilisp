@@ -818,9 +818,7 @@ def __deftype_classmethod_to_py_ast(
                 ),
                 body=fn_body_ast,
                 decorator_list=list(
-                    chain(
-                        [_PY_CLASSMETHOD_FN_NAME], __fn_kwargs_support_decorator(node)
-                    )
+                    chain([_PY_CLASSMETHOD_FN_NAME], __kwargs_support_decorator(node))
                 ),
                 returns=None,
             )
@@ -896,7 +894,7 @@ def __deftype_method_to_py_ast(ctx: GeneratorContext, node: Method) -> Generated
                     decorator_list=list(
                         chain(
                             [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
-                            __fn_kwargs_support_decorator(node),
+                            __kwargs_support_decorator(node),
                         )
                     ),
                     returns=None,
@@ -926,9 +924,7 @@ def __deftype_staticmethod_to_py_ast(
                 ),
                 body=fn_body_ast,
                 decorator_list=list(
-                    chain(
-                        [_PY_STATICMETHOD_FN_NAME], __fn_kwargs_support_decorator(node)
-                    )
+                    chain([_PY_STATICMETHOD_FN_NAME], __kwargs_support_decorator(node))
                 ),
                 returns=None,
             )
@@ -1179,7 +1175,7 @@ def __fn_meta(
         return (), ()
 
 
-def __fn_kwargs_support_decorator(
+def __kwargs_support_decorator(
     node: Union[Fn, ClassMethod, Method, StaticMethod]
 ) -> Iterable[ast.AST]:
     if node.kwarg_support is None:
@@ -1238,7 +1234,7 @@ def __single_arity_fn_to_py_ast(
                             body=fn_body_ast,
                             decorator_list=list(
                                 chain(
-                                    __fn_kwargs_support_decorator(node),
+                                    __kwargs_support_decorator(node),
                                     meta_decorators,
                                     [_BASILISP_FN_FN_NAME],
                                     [_TRAMPOLINE_FN_NAME]
@@ -1466,7 +1462,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                     body=fn_body_ast,
                     decorator_list=list(
                         chain(
-                            __fn_kwargs_support_decorator(node),
+                            __kwargs_support_decorator(node),
                             [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
                         )
                     ),

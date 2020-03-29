@@ -1359,8 +1359,8 @@ def _lisp_fn_apply_kwargs(f):
     Python keyword arguments will be converted into Lisp keyword/argument pairs
     that can be easily understood by Basilisp.
 
-    Lisp functions annotated with the `:apply-kwargs` metadata key will be wrapped
-    with this decorator by the compiler."""
+    Lisp functions annotated with the `:apply` value for the `:kwargs` metadata key
+    will be wrapped with this decorator by the compiler."""
 
     @functools.wraps(f)
     def wrapped_f(*args, **kwargs):
@@ -1380,8 +1380,8 @@ def _lisp_fn_collect_kwargs(f):
     Python keyword arguments will be collected into a single map, which is supplied
     as the final positional argument.
 
-    Lisp functions annotated with the `:collect-kwargs` metadata key will be wrapped
-    with this decorator by the compiler."""
+    Lisp functions annotated with the `:collect` value for the `:kwargs` metadata key
+    will be wrapped with this decorator by the compiler."""
 
     @functools.wraps(f)
     def wrapped_f(*args, **kwargs):
