@@ -49,7 +49,7 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.reference import ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
-from basilisp.lang.util import demunge, munge
+from basilisp.lang.util import munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
