@@ -1,4 +1,6 @@
+import basilisp.lang.keyword as kw
 import basilisp.lang.list as llist
+import basilisp.lang.runtime as runtime
 import basilisp.lang.seq as lseq
 import basilisp.lang.vector as vec
 
@@ -102,3 +104,12 @@ def test_seq_iterator():
 
     s = lseq.sequence(range(10000))
     assert 10000 == len(vec.vector(s))
+
+
+def test_seq_equals():
+    # to_seq should be first to ensure that `ISeq.__eq__` is used
+    assert runtime.to_seq(vec.v(1, 2, 3)) == llist.l(1, 2, 3)
+    assert False is (runtime.to_seq(vec.v(1, 2, 3)) == kw.keyword("abc"))
+
+    assert lseq.sequence(vec.v(1, 2, 3)) == llist.l(1, 2, 3)
+    assert False is (lseq.sequence(vec.v(1, 2, 3)) == kw.keyword("abc"))
