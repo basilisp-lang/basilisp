@@ -699,12 +699,24 @@ def _call_args_ast(  # pylint: disable=too-many-branches
             kw_map = {}
             try:
                 for k, v in partition(kws, 2):
-                    if not isinstance(k, kw.Keyword):
+                    if isinstance(k, kw.Keyword):
+                        munged_k = munge(k.name)
+                    elif isinstance(k, str):
+                        munged_k = munge(k)
+                    else:
                         raise AnalyzerException(
-                            f"keys for keyword arguments must be keywords, not '{type(k)}'",
+                            f"keys for keyword arguments must be keywords or strings, not '{type(k)}'",
                             form=k,
                         )
-                    kw_map[munge(k.name)] = _analyze_form(ctx, v)
+
+                    if munged_k in kw_map:
+                        raise AnalyzerException(
+                            f"duplicate keyword argument key in function or method invocation",
+                            form=k,
+                        )
+
+                    kw_map[munged_k] = _analyze_form(ctx, v)
+
             except ValueError:
                 raise AnalyzerException(
                     "keyword arguments must appear in key/value pairs", form=form

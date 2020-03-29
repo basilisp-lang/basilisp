@@ -2084,6 +2084,94 @@ class TestImport:
         )
 
 
+class TestInvoke:
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            ("(python/dict **)", {}),
+            ("(python/dict ** :value 1.2)", {"value": 1.2}),
+            ('(python/dict ** "value" 1.2)', {"value": 1.2}),
+            (
+                '(python/dict ** :value 1.2 "other-value" "a string")',
+                {"value": 1.2, "other_value": "a string"},
+            ),
+            (
+                '(python/dict ** "value" 1.2 :other-value "a string")',
+                {"value": 1.2, "other_value": "a string"},
+            ),
+        ],
+    )
+    def test_call_with_kwargs(self, lcompile: CompileFn, code: str, v):
+        assert v == lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code,v",
+        [
+            (
+                "(python/dict {:value 3.14} ** :value 82)",
+                {kw.keyword("value"): 3.14, "value": 82},
+            ),
+            ('(python/dict {"value" 3.14} ** :value 82)', {"value": 82}),
+            ('(python/dict {"value" 3.14} ** "value" 82)', {"value": 82}),
+        ],
+    )
+    def test_kwargs_are_always_strings(self, lcompile: CompileFn, code: str, v):
+        assert v == lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(python/dict ** **)",
+            "(python/dict ** :value ** 3.14)",
+            '(python/dict ** :value 3.14 ** :other-value "a string")',
+            '(python/dict ** :value 3.14 :other-value "a string" **)',
+        ],
+    )
+    def test_call_with_multiple_kwarg_markers_fails(
+        self, lcompile: CompileFn, code: str
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            '(python/dict ** :value 3.14 "value" "a string")',
+            '(python/dict ** :value 3.14 :value "a string")',
+            '(python/dict ** :value 3.14 :other-value "a string" :value :some-kw)',
+            '(python/dict ** "value" 3.14 :other-value "a string" "value" :some-kw)',
+        ],
+    )
+    def test_call_with_duplicate_keys_fails(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(python/dict ** :value)",
+            '(python/dict ** "value")',
+            "(python/dict ** :value 3.14 :other-value)",
+            '(python/dict ** "value" :a-keyword :other-key)',
+        ],
+    )
+    def test_call_with_kwargs_and_only_key_fails(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(python/dict ** value 1.2)",
+            '(python/dict ** :value 1.2 other-value "some string")',
+            '(python/dict ** value 1.2 :other-value "some string")',
+        ],
+    )
+    def test_call_with_invalid_key_type_fails(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+
 class TestPythonInterop:
     def test_interop_is_valid_type(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
