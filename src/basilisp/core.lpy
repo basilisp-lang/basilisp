@@ -2198,19 +2198,6 @@
    (let [m (apply hash-map (cons arg args))]
      (partial-kw f m))))
 
-(defn partial-kw
-  "Return a function which is the partial application of f with keyword arguments.
-
-  If a single argument is provided, it will be interpreted as a map of keyword arguments.
-
-  If multiple arguments are given, they are interpreted as key/value pairs and will
-  be converted into a hash-map before being partially applied to the function."
-  ([f m]
-   (apply-kw basilisp.lang.runtime/partial f m))
-  ([f arg & args]
-   (let [m (apply hash-map (cons arg args))]
-     (partial-kw f m))))
-
 (defn every?
   "Return true if every element in coll satisfies pred."
   [pred coll]
