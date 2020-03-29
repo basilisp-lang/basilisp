@@ -988,6 +988,7 @@ def __deftype_classmethod(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
+    kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> ClassMethod:
     """Emit a node for a :classmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
@@ -1000,7 +1001,7 @@ def __deftype_classmethod(
         else:
             if not isinstance(cls_arg, sym.Symbol):
                 raise AnalyzerException(
-                    f"deftype* method 'cls' argument must be a symbol", form=args
+                    f"deftype* class method 'cls' argument must be a symbol", form=args
                 )
             cls_binding = Binding(
                 form=cls_arg,
@@ -1030,6 +1031,7 @@ def __deftype_classmethod(
             env=ctx.get_node_env(),
             class_local=cls_binding,
             is_variadic=has_vargs,
+            kwarg_support=kwarg_support,
         )
         method.visit(_assert_no_recur)
         return method
@@ -1040,6 +1042,7 @@ def __deftype_method(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
+    kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> Method:
     """Emit a node for a method member of a deftype* form."""
     with ctx.new_symbol_table(method_name):
@@ -1075,6 +1078,7 @@ def __deftype_method(
                 this_local=this_binding,
                 params=vec.vector(param_nodes),
                 is_variadic=has_vargs,
+                kwarg_support=kwarg_support,
                 body=Do(
                     form=form.rest,
                     statements=vec.vector(stmts),
@@ -1103,12 +1107,12 @@ def __deftype_property(
             this_arg = args[0]
         except IndexError:
             raise AnalyzerException(
-                f"deftype* method must include 'this' or 'self' argument", form=args
+                f"deftype* property must include 'this' or 'self' argument", form=args
             )
         else:
             if not isinstance(this_arg, sym.Symbol):
                 raise AnalyzerException(
-                    f"deftype* method 'this' argument must be a symbol", form=args
+                    f"deftype* property 'this' argument must be a symbol", form=args
                 )
             this_binding = Binding(
                 form=this_arg,
@@ -1155,6 +1159,7 @@ def __deftype_staticmethod(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
+    kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> StaticMethod:
     """Emit a node for a :staticmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
@@ -1176,6 +1181,7 @@ def __deftype_staticmethod(
             ),
             env=ctx.get_node_env(),
             is_variadic=has_vargs,
+            kwarg_support=kwarg_support,
         )
         method.visit(_assert_no_recur)
         return method
@@ -1218,14 +1224,31 @@ def __deftype_member(
             f"deftype* member arguments must be vector, not {type(args)}", form=args
         )
 
+    kwarg_meta = __fn_kwargs_support(form.first) or (
+        isinstance(form, IMeta) and __fn_kwargs_support(form)
+    )
+    kwarg_support = None if isinstance(kwarg_meta, bool) else kwarg_meta
+
     if is_classmethod:
-        return __deftype_classmethod(ctx, form, method_name, args)
+        return __deftype_classmethod(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
+        )
     elif is_property:
+        if kwarg_support is not None:
+            raise AnalyzerException(
+                f"deftype* properties may not declare keyword argument support",
+                form=form,
+            )
+
         return __deftype_property(ctx, form, method_name, args)
     elif is_staticmethod:
-        return __deftype_staticmethod(ctx, form, method_name, args)
+        return __deftype_staticmethod(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
+        )
     else:
-        return __deftype_method(ctx, form, method_name, args)
+        return __deftype_method(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
+        )
 
 
 def __deftype_impls(  # pylint: disable=too-many-branches
