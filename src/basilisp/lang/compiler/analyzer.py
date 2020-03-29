@@ -86,6 +86,7 @@ from basilisp.lang.compiler.nodes import (
     Import,
     ImportAlias,
     Invoke,
+    KeywordArgs,
     Let,
     LetFn,
     Local,
@@ -143,6 +144,7 @@ FINALLY = kw.keyword("finally")
 # Constants used in analyzing
 AS = kw.keyword("as")
 IMPLEMENTS = kw.keyword("implements")
+STAR_STAR = sym.symbol("**")
 _DOUBLE_DOT_MACRO_NAME = ".."
 _BUILTINS_NS = "python"
 
@@ -667,6 +669,53 @@ def _body_ast(
     else:
         stmts, ret = [], _const_node(ctx, None)
     return stmts, ret
+
+
+def _call_args_ast(  # pylint: disable=too-many-branches
+    ctx: AnalyzerContext, form: ISeq
+) -> Tuple[Iterable[Node], KeywordArgs]:
+    """Return a tuple of positional arguments and keyword arguments, splitting at the
+    keyword argument marker symbol '**'."""
+    with ctx.expr_pos():
+        nmarkers = sum(int(e == STAR_STAR) for e in form)
+        if nmarkers > 1:
+            raise AnalyzerException(
+                "function and method invocations may have at most 1 keyword argument marker '**'",
+                form=form,
+            )
+        elif nmarkers == 1:
+            kwarg_marker = False
+            pos, kws = [], []
+            for arg in form:
+                if arg == STAR_STAR:
+                    kwarg_marker = True
+                    continue
+                if kwarg_marker:
+                    kws.append(arg)
+                else:
+                    pos.append(arg)
+
+            args = vec.vector(map(partial(_analyze_form, ctx), pos))
+            kw_map = {}
+            try:
+                for k, v in partition(kws, 2):
+                    if not isinstance(k, kw.Keyword):
+                        raise AnalyzerException(
+                            f"keys for keyword arguments must be keywords, not '{type(k)}'",
+                            form=k,
+                        )
+                    kw_map[munge(k.name)] = _analyze_form(ctx, v)
+            except ValueError:
+                raise AnalyzerException(
+                    "keyword arguments must appear in key/value pairs", form=form
+                ) from ValueError
+            else:
+                kwargs = lmap.map(kw_map)
+        else:
+            args = vec.vector(map(partial(_analyze_form, ctx), form))
+            kwargs = lmap.Map.empty()
+
+        return args, kwargs
 
 
 def _with_meta(gen_node):
@@ -1609,11 +1658,13 @@ def _host_call_ast(ctx: AnalyzerContext, form: ISeq) -> HostCall:
             "host interop calls must be 2 or more elements long", form=form
         )
 
+    args, kwargs = _call_args_ast(ctx, runtime.nthrest(form, 2))
     return HostCall(
         form=form,
         method=method.name[1:],
         target=_analyze_form(ctx, runtime.nth(form, 1)),
-        args=vec.vector(map(partial(_analyze_form, ctx), runtime.nthrest(form, 2))),
+        args=args,
+        kwargs=kwargs,
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -1697,13 +1748,13 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             )
         else:
+            args, kwargs = _call_args_ast(ctx, runtime.nthrest(form, 3))
             return HostCall(
                 form=form,
                 method=maybe_m_or_f.name,
                 target=_analyze_form(ctx, runtime.nth(form, 1)),
-                args=vec.vector(
-                    map(partial(_analyze_form, ctx), runtime.nthrest(form, 3))
-                ),
+                args=args,
+                kwargs=kwargs,
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             )
     elif isinstance(maybe_m_or_f, (llist.List, ISeq)):
@@ -1712,11 +1763,13 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
         if not isinstance(method, sym.Symbol):
             raise AnalyzerException("host call method must be a symbol", form=method)
 
+        args, kwargs = _call_args_ast(ctx, maybe_m_or_f.rest)
         return HostCall(
             form=form,
             method=method.name[1:] if method.name.startswith("-") else method.name,
             target=_analyze_form(ctx, runtime.nth(form, 1)),
-            args=vec.vector(map(partial(_analyze_form, ctx), maybe_m_or_f.rest)),
+            args=args,
+            kwargs=kwargs,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
     else:
@@ -1835,11 +1888,13 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
                         phase=CompilerPhase.MACROEXPANSION,
                     ) from e
 
-    with ctx.expr_pos():
-        args = vec.vector(map(partial(_analyze_form, ctx), form.rest))
-
+    args, kwargs = _call_args_ast(ctx, form.rest)
     return Invoke(
-        form=form, fn=fn, args=args, env=ctx.get_node_env(pos=ctx.syntax_position),
+        form=form,
+        fn=fn,
+        args=args,
+        kwargs=kwargs,
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 

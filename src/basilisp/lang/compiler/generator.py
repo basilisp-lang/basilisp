@@ -61,6 +61,7 @@ from basilisp.lang.compiler.nodes import (
     If,
     Import,
     Invoke,
+    KeywordArgs,
     Let,
     LetFn,
     Local,
@@ -356,6 +357,24 @@ def _collection_ast(
 ) -> Tuple[PyASTStream, PyASTStream]:
     """Turn a collection of Lisp forms into Python AST nodes."""
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
+
+
+def _kwargs_ast(
+    ctx: GeneratorContext, kwargs: KeywordArgs,
+) -> Tuple[PyASTStream, PyASTStream]:
+    """Return a tuple of dependency nodes and Python `ast.keyword` nodes from a
+    Basilisp `KeywordArgs` Node property."""
+    kwargs_keys, kwargs_nodes = [], []
+    kwargs_deps: List[ast.AST] = []
+    for k, v in kwargs.items():
+        kwargs_keys.append(k)
+        kwarg_ast = gen_py_ast(ctx, v)
+        kwargs_nodes.append(kwarg_ast.node)
+        kwargs_deps.extend(kwarg_ast.dependencies)
+    return (
+        kwargs_deps,
+        [ast.keyword(arg=k, value=v) for k, v in zip(kwargs_keys, kwargs_nodes)],
+    )
 
 
 def _clean_meta(form: IMeta) -> LispForm:
@@ -1623,10 +1642,13 @@ def _invoke_to_py_ast(ctx: GeneratorContext, node: Invoke) -> GeneratedPyAST:
 
     fn_ast = gen_py_ast(ctx, node.fn)
     args_deps, args_nodes = _collection_ast(ctx, node.args)
+    kwargs_deps, kwargs_nodes = _kwargs_ast(ctx, node.kwargs)
 
     return GeneratedPyAST(
-        node=ast.Call(func=fn_ast.node, args=list(args_nodes), keywords=[]),
-        dependencies=list(chain(fn_ast.dependencies, args_deps)),
+        node=ast.Call(
+            func=fn_ast.node, args=list(args_nodes), keywords=list(kwargs_nodes),
+        ),
+        dependencies=list(chain(fn_ast.dependencies, args_deps, kwargs_deps)),
     )
 
 
@@ -2295,6 +2317,7 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: HostCall) -> GeneratedP
 
     target_ast = gen_py_ast(ctx, node.target)
     args_deps, args_nodes = _collection_ast(ctx, node.args)
+    kwargs_deps, kwargs_nodes = _kwargs_ast(ctx, node.kwargs)
 
     return GeneratedPyAST(
         node=ast.Call(
@@ -2304,9 +2327,9 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: HostCall) -> GeneratedP
                 ctx=ast.Load(),
             ),
             args=list(args_nodes),
-            keywords=[],
+            keywords=list(kwargs_nodes),
         ),
-        dependencies=list(chain(target_ast.dependencies, args_deps)),
+        dependencies=list(chain(target_ast.dependencies, args_deps, kwargs_deps)),
     )
 
 
