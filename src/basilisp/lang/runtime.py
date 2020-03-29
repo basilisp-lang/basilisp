@@ -1049,12 +1049,12 @@ def conj(coll, *xs):
     )
 
 
-def partial(f, *args):
-    """Return a function which is the partial application of f with args."""
+def partial(f, *args, **kwargs):
+    """Return a function which is the partial application of f with args and kwargs."""
 
     @functools.wraps(f)
-    def partial_f(*inner_args):
-        return f(*itertools.chain(args, inner_args))
+    def partial_f(*inner_args, **inner_kwargs):
+        return f(*itertools.chain(args, inner_args), **{**kwargs, **inner_kwargs})
 
     return partial_f
 

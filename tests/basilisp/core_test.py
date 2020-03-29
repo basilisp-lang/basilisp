@@ -1320,6 +1320,25 @@ def test_partial():
     assert 10 == core.partial(core.__PLUS__, 3, 4)(3)
 
 
+def test_partial_kw():
+    assert {"value": 3} == core.partial_kw(dict)(value=3)
+    assert {"value": 82} == core.partial_kw(dict, lmap.map({kw.keyword("value"): 3}))(
+        value=82
+    )
+    assert {
+        "value": 82,
+        "other-value": "some string",
+        "other_value": "a string",
+    } == core.partial_kw(
+        dict, lmap.map({kw.keyword("value"): 3, "other-value": "some string"})
+    )(
+        value=82, other_value="a string"
+    )
+    assert {"value": 82, "other_value": "a string",} == core.partial_kw(
+        dict, kw.keyword("value"), 3, kw.keyword("other-value"), "some string"
+    )(value=82, other_value="a string")
+
+
 class TestIsEvery:
     @pytest.mark.parametrize(
         "coll", [vec.Vector.empty(), vec.v(3), vec.v(3, 5, 7, 9, 11)]
