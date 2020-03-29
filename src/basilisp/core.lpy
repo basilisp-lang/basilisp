@@ -1266,10 +1266,10 @@
     (cond
       (uuid? x)         true
       (string? x)       (do (uuid/UUID x) true)
-      (int? x)          (do (apply-kw uuid/UUID {:int x}) true)
-      (byte-string? x)  (do (apply-kw uuid/UUID {:bytes x}) true)
+      (int? x)          (do (uuid/UUID ** :int x) true)
+      (byte-string? x)  (do (uuid/UUID ** :bytes x) true)
       (or (py-tuple? x)
-          (vector? x))  (do (apply-kw uuid/UUID {:fields x}) true)
+          (vector? x))  (do (uuid/UUID ** :fields x) true)
       :else             false)
     (catch python/AttributeError _ false)
     (catch python/TypeError _ false)
@@ -2175,8 +2175,9 @@
 
 (defn partial
   "Return a function which is the partial application of f with args."
-  [f & args]
-  (apply basilisp.lang.runtime/partial f args))
+  ([f] f)
+  ([f & args]
+   (apply basilisp.lang.runtime/partial f args)))
 
 (defn partial-kw
   "Return a function which is the partial application of f with keyword arguments.
@@ -2185,6 +2186,7 @@
 
   If multiple arguments are given, they are interpreted as key/value pairs and will
   be converted into a hash-map before being partially applied to the function."
+  ([f] f)
   ([f m]
    (apply-kw basilisp.lang.runtime/partial f m))
   ([f arg & args]

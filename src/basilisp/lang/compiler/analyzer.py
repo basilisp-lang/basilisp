@@ -700,9 +700,9 @@ def _call_args_ast(  # pylint: disable=too-many-branches
             try:
                 for k, v in partition(kws, 2):
                     if isinstance(k, kw.Keyword):
-                        munged_k = munge(k.name)
+                        munged_k = munge(k.name, allow_builtins=True)
                     elif isinstance(k, str):
-                        munged_k = munge(k)
+                        munged_k = munge(k, allow_builtins=True)
                     else:
                         raise AnalyzerException(
                             f"keys for keyword arguments must be keywords or strings, not '{type(k)}'",
