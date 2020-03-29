@@ -2185,7 +2185,12 @@
   If a single argument is provided, it will be interpreted as a map of keyword arguments.
 
   If multiple arguments are given, they are interpreted as key/value pairs and will
-  be converted into a hash-map before being partially applied to the function."
+  be converted into a hash-map before being partially applied to the function.
+
+  This function applies keyword arguments via `apply-kw`. As a consequence, Lisp keywords
+  will be converted to munged Python strings (via `name`), meaning namespaces will be lost
+  and identifiers which are not valid Python syntax will be converted to safe Python
+  identifiers."
   ([f] f)
   ([f m]
    (apply-kw basilisp.lang.runtime/partial f m))
