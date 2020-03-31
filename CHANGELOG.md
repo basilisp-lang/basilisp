@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where the Basilisp AST nodes for return values of `deftype` members could be marked as _statements_ rather than _expressions_, resulting in an incorrect `nil` return (#523)
  * Fixed a bug where `defonce` would throw a Python SyntaxError due to a superfluous `global` statement in the generated Python (#525)
  * Fixed a bug where Basilisp would throw an exception when comparing seqs by `=` to non-seqable values (#530)
+ * Fixed a bug where aliased Python submodule imports referred to the top-level module rather than the submodule (#533)
 
 ## [v0.1.dev13] - 2020-03-16
 ### Added
