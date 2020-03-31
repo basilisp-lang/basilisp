@@ -2083,6 +2083,11 @@ class TestImport:
         """
         )
 
+    def test_aliased_nested_import_refers_to_child(self, lcompile: CompileFn):
+        import os.path
+
+        assert os.path.exists is lcompile("(import [os.path :as path]) path/exists")
+
 
 class TestInvoke:
     @pytest.mark.parametrize(
