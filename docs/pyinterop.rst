@@ -5,7 +5,7 @@ Python Interop
 
 Basilisp features myriad options for interfacing with host Python code.
 
-.. contents:: Python Interop
+.. contents::
    :depth: 2
 
 .. _name_munging:
@@ -13,7 +13,7 @@ Basilisp features myriad options for interfacing with host Python code.
 Name Munging
 ------------
 
-Per Python's `PEP 8 naming conventions <https://www.python.org/dev/peps/pep-0008/#naming-conventions>`, Python method and function names frequently use ``snake_case``.
+Per Python's `PEP 8 naming conventions <https://www.python.org/dev/peps/pep-0008/#naming-conventions>`_, Python method and function names frequently use ``snake_case``.
 Basilisp is certainly capable of reading ``snake_case`` names without any special affordance.
 However, Basilisp code (like many Lisps) tends to prefer ``kebab-case`` for word separation.
 
@@ -30,7 +30,7 @@ When compiled, a ``kebab-case`` identifier always becomes a ``snake_case`` ident
 Python Builtins
 ---------------
 
-Python features a collection of `builtin <https://docs.python.org/3.8/library/functions.html>` functions which are available by default without module qualification in all Python scripts.
+Python features a collection of `builtin <https://docs.python.org/3.8/library/functions.html>`_ functions which are available by default without module qualification in all Python scripts.
 Python builtins are available in all Basilisp code as qualified symbols with the ``python`` namespace portion.
 It is not required to import anything to enable this functionality.
 
@@ -48,7 +48,7 @@ As in standard Python, it is possible to import any module importable in native 
 Submodules may be imported using the standard Python ``.`` separator: ``(import module.sub)``.
 
 Upon import, top-level (unqualified) Python modules may be referred to using the full module name as the namespace portion of the symbol and the desired module member.
-**Unlike in Python,** Submodules will be available under the name of *first* dot-separated name segment (which is usually the top-most module in the hierarchy).
+Submodules will be available under the full, dot-separated name.
 
 To avoid name clashes from the above, you may alias imports (as in native Python code) using the same syntax as ``require``.
 Both top-level modules and submodules may be aliased: ``(import [module.sub :as sm])``.
@@ -122,11 +122,16 @@ As with methods, Basilisp features a convenience syntax for accessing properties
 Though Basilisp generally eschews mutability, we live in a mutable world.
 Many Python frameworks and libraries rely on mutable objects as part of their public API.
 Methods may potentially always mutate their associated instance, but properties are often declared read-only.
-For properties which are explicitly *not* read only, you can mutate their value using the ``set!`` :ref:`special_forms`.
+For properties which are explicitly *not* read only, you can mutate their value using the ``set!`` :ref:`special form <special_forms>`.
 
 .. code-block:: clojure
 
     (set! (.-property o) :new-value)  ;;=> :new-value
+
+.. note::
+
+   In most cases, Basilisp's method and property access features should be sufficient.
+   However, in case it is not, Python's :ref:`builtins <python_builtins>` such as `getattr` and `setattr` are still available and can supplement Basilisp's interoperability features.
 
 .. _keyword_arguments:
 
