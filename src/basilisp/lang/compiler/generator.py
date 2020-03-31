@@ -548,6 +548,8 @@ _COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
+_BUILTINS_IMPORT_FN_NAME = _load_attr("builtins.__import__")
+_IMPORTLIB_IMPORT_MODULE_FN_NAME = _load_attr("importlib.import_module")
 _PY_CLASSMETHOD_FN_NAME = _load_attr("classmethod")
 _PY_PROPERTY_FN_NAME = _load_attr("property")
 _PY_STATICMETHOD_FN_NAME = _load_attr("staticmethod")
@@ -1586,18 +1588,23 @@ def _import_to_py_ast(_: GeneratorContext, node: Import) -> GeneratedPyAST:
     deps: List[ast.AST] = []
     for alias in node.aliases:
         safe_name = munge(alias.name)
-        py_import_alias = (
-            munge(alias.alias)
-            if alias.alias is not None
-            else safe_name.split(".", maxsplit=1)[0]
-        )
+
+        # Always use builtins.__import__ and assign to the first name component
+        # if there's no alias. Otherwise, we could potentially overwrite a parent
+        # import if parent and child are both imported:
+        #   (import* collections collections.abc)
+        if alias.alias is not None:
+            py_import_alias = munge(alias.alias)
+            import_func = _IMPORTLIB_IMPORT_MODULE_FN_NAME
+        else:
+            py_import_alias = safe_name.split(".", maxsplit=1)[0]
+            import_func = _BUILTINS_IMPORT_FN_NAME
+
         deps.append(
             ast.Assign(
                 targets=[ast.Name(id=py_import_alias, ctx=ast.Store())],
                 value=ast.Call(
-                    func=_load_attr("builtins.__import__"),
-                    args=[ast.Constant(safe_name)],
-                    keywords=[],
+                    func=import_func, args=[ast.Constant(safe_name)], keywords=[],
                 ),
             )
         )
