@@ -1199,7 +1199,7 @@ def __deftype_staticmethod(
         return method
 
 
-def __deftype_member(
+def __deftype_member(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: Union[llist.List, ISeq]
 ) -> DefTypeMember:
     """Emit a member node for a deftype* form.
