@@ -20,7 +20,7 @@ import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.interfaces import IPersistentVector
+from basilisp.lang.interfaces import IPersistentMap, IPersistentVector
 from basilisp.lang.runtime import Namespace, Var, to_lisp
 from basilisp.lang.typing import LispForm, ReaderForm as ReaderLispForm, SpecialForm
 from basilisp.lang.util import munge
@@ -264,8 +264,14 @@ class ConstType(Enum):
     UNKNOWN = kw.keyword("unknown")
 
 
+KeywordArgs = IPersistentMap[str, Node]
 NodeMeta = Union[None, "Const", "Map"]
 LoopID = str
+
+
+class KeywordArgSupport(Enum):
+    APPLY_KWARGS = kw.keyword("apply")
+    COLLECT_KWARGS = kw.keyword("collect")
 
 
 class LocalType(Enum):
@@ -410,6 +416,7 @@ class Fn(Node[SpecialForm]):
     local: Optional[Binding] = None
     is_variadic: bool = False
     is_async: bool = False
+    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(METHODS)
     op: NodeOp = NodeOp.FN
     top_level: bool = False
@@ -437,6 +444,7 @@ class HostCall(Node[SpecialForm]):
     method: str
     target: Node
     args: Iterable[Node]
+    kwargs: KeywordArgs
     env: NodeEnv
     children: Sequence[kw.Keyword] = vec.v(TARGET, ARGS)
     op: NodeOp = NodeOp.HOST_CALL
@@ -498,6 +506,7 @@ class Invoke(Node[SpecialForm]):
     form: SpecialForm
     fn: Node
     args: Iterable[Node]
+    kwargs: KeywordArgs
     env: NodeEnv
     children: Sequence[kw.Keyword] = vec.v(FN, ARGS)
     op: NodeOp = NodeOp.INVOKE
@@ -599,6 +608,7 @@ class Method(DefTypeMember):
     this_local: Binding
     loop_id: LoopID
     is_variadic: bool
+    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
     op: NodeOp = NodeOp.METHOD
     top_level: bool = False
@@ -609,6 +619,7 @@ class Method(DefTypeMember):
 class ClassMethod(DefTypeMember):
     class_local: Binding
     is_variadic: bool
+    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(CLASS_LOCAL, PARAMS, BODY)
     op: NodeOp = NodeOp.CLASS_METHOD
     top_level: bool = False
@@ -627,6 +638,7 @@ class PropertyMethod(DefTypeMember):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class StaticMethod(DefTypeMember):
     is_variadic: bool
+    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
     op: NodeOp = NodeOp.STATIC_METHOD
     top_level: bool = False

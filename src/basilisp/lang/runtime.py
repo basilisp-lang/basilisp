@@ -49,7 +49,7 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.reference import ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
-from basilisp.lang.util import munge
+from basilisp.lang.util import demunge, munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
@@ -1049,12 +1049,12 @@ def conj(coll, *xs):
     )
 
 
-def partial(f, *args):
-    """Return a function which is the partial application of f with args."""
+def partial(f, *args, **kwargs):
+    """Return a function which is the partial application of f with args and kwargs."""
 
     @functools.wraps(f)
-    def partial_f(*inner_args):
-        return f(*itertools.chain(args, inner_args))
+    def partial_f(*inner_args, **inner_kwargs):
+        return f(*itertools.chain(args, inner_args), **{**kwargs, **inner_kwargs})
 
     return partial_f
 
@@ -1351,6 +1351,45 @@ class _TrampolineArgs:
     @property
     def kwargs(self) -> Dict:
         return self._kwargs
+
+
+def _lisp_fn_apply_kwargs(f):
+    """Convert a Python function into a Lisp function.
+
+    Python keyword arguments will be converted into Lisp keyword/argument pairs
+    that can be easily understood by Basilisp.
+
+    Lisp functions annotated with the `:apply` value for the `:kwargs` metadata key
+    will be wrapped with this decorator by the compiler."""
+
+    @functools.wraps(f)
+    def wrapped_f(*args, **kwargs):
+        return f(
+            *args,
+            *itertools.chain.from_iterable(
+                (kw.keyword(demunge(k)), v) for k, v in kwargs.items()
+            ),
+        )
+
+    return wrapped_f
+
+
+def _lisp_fn_collect_kwargs(f):
+    """Convert a Python function into a Lisp function.
+
+    Python keyword arguments will be collected into a single map, which is supplied
+    as the final positional argument.
+
+    Lisp functions annotated with the `:collect` value for the `:kwargs` metadata key
+    will be wrapped with this decorator by the compiler."""
+
+    @functools.wraps(f)
+    def wrapped_f(*args, **kwargs):
+        return f(
+            *args, lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
+        )
+
+    return wrapped_f
 
 
 def _trampoline(f):

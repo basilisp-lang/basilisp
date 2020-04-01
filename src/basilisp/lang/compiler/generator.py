@@ -62,6 +62,8 @@ from basilisp.lang.compiler.nodes import (
     If,
     Import,
     Invoke,
+    KeywordArgs,
+    KeywordArgSupport,
     Let,
     LetFn,
     Local,
@@ -359,6 +361,24 @@ def _collection_ast(
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
 
 
+def _kwargs_ast(
+    ctx: GeneratorContext, kwargs: KeywordArgs,
+) -> Tuple[PyASTStream, PyASTStream]:
+    """Return a tuple of dependency nodes and Python `ast.keyword` nodes from a
+    Basilisp `KeywordArgs` Node property."""
+    kwargs_keys, kwargs_nodes = [], []
+    kwargs_deps: List[ast.AST] = []
+    for k, v in kwargs.items():
+        kwargs_keys.append(k)
+        kwarg_ast = gen_py_ast(ctx, v)
+        kwargs_nodes.append(kwarg_ast.node)
+        kwargs_deps.extend(kwarg_ast.dependencies)
+    return (
+        kwargs_deps,
+        [ast.keyword(arg=k, value=v) for k, v in zip(kwargs_keys, kwargs_nodes)],
+    )
+
+
 def _clean_meta(form: IMeta) -> LispForm:
     """Remove reader metadata from the form's meta map."""
     assert form.meta is not None, "Form must have non-null 'meta' attribute"
@@ -530,6 +550,12 @@ _COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
+_BUILTINS_IMPORT_FN_NAME = _load_attr("builtins.__import__")
+_IMPORTLIB_IMPORT_MODULE_FN_NAME = _load_attr("importlib.import_module")
+_LISP_FN_APPLY_KWARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._lisp_fn_apply_kwargs")
+_LISP_FN_COLLECT_KWARGS_FN_NAME = _load_attr(
+    f"{_RUNTIME_ALIAS}._lisp_fn_collect_kwargs"
+)
 _PY_CLASSMETHOD_FN_NAME = _load_attr("classmethod")
 _PY_PROPERTY_FN_NAME = _load_attr("property")
 _PY_STATICMETHOD_FN_NAME = _load_attr("staticmethod")
@@ -794,7 +820,9 @@ def __deftype_classmethod_to_py_ast(
                     kw_defaults=[],
                 ),
                 body=fn_body_ast,
-                decorator_list=[_PY_CLASSMETHOD_FN_NAME],
+                decorator_list=list(
+                    chain([_PY_CLASSMETHOD_FN_NAME], __kwargs_support_decorator(node))
+                ),
                 returns=None,
             )
         )
@@ -866,9 +894,12 @@ def __deftype_method_to_py_ast(ctx: GeneratorContext, node: Method) -> Generated
                         kw_defaults=[],
                     ),
                     body=fn_body_ast,
-                    decorator_list=[_TRAMPOLINE_FN_NAME]
-                    if ctx.recur_point.has_recur
-                    else [],
+                    decorator_list=list(
+                        chain(
+                            [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
+                            __kwargs_support_decorator(node),
+                        )
+                    ),
                     returns=None,
                 )
             )
@@ -895,7 +926,9 @@ def __deftype_staticmethod_to_py_ast(
                     kw_defaults=[],
                 ),
                 body=fn_body_ast,
-                decorator_list=[_PY_STATICMETHOD_FN_NAME],
+                decorator_list=list(
+                    chain([_PY_STATICMETHOD_FN_NAME], __kwargs_support_decorator(node))
+                ),
                 returns=None,
             )
         )
@@ -1175,6 +1208,18 @@ def __fn_meta(
         return (), ()
 
 
+def __kwargs_support_decorator(
+    node: Union[Fn, ClassMethod, Method, StaticMethod]
+) -> Iterable[ast.AST]:
+    if node.kwarg_support is None:
+        return
+
+    yield {
+        KeywordArgSupport.APPLY_KWARGS: _LISP_FN_APPLY_KWARGS_FN_NAME,
+        KeywordArgSupport.COLLECT_KWARGS: _LISP_FN_COLLECT_KWARGS_FN_NAME,
+    }[node.kwarg_support]
+
+
 @_with_ast_loc_deps
 def __single_arity_fn_to_py_ast(
     ctx: GeneratorContext,
@@ -1222,6 +1267,7 @@ def __single_arity_fn_to_py_ast(
                             body=fn_body_ast,
                             decorator_list=list(
                                 chain(
+                                    __kwargs_support_decorator(node),
                                     meta_decorators,
                                     [_BASILISP_FN_FN_NAME],
                                     [_TRAMPOLINE_FN_NAME]
@@ -1407,6 +1453,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     """Return a Python AST node for a function with multiple arities."""
     assert node.op == NodeOp.FN
     assert all([method.op == NodeOp.FN_METHOD for method in methods])
+    assert node.kwarg_support is None, "multi-arity functions may not support kwargs"
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
@@ -1598,18 +1645,23 @@ def _import_to_py_ast(_: GeneratorContext, node: Import) -> GeneratedPyAST:
     deps: List[ast.AST] = []
     for alias in node.aliases:
         safe_name = munge(alias.name)
-        py_import_alias = (
-            munge(alias.alias)
-            if alias.alias is not None
-            else safe_name.split(".", maxsplit=1)[0]
-        )
+
+        # Always use builtins.__import__ and assign to the first name component
+        # if there's no alias. Otherwise, we could potentially overwrite a parent
+        # import if parent and child are both imported:
+        #   (import* collections collections.abc)
+        if alias.alias is not None:
+            py_import_alias = munge(alias.alias)
+            import_func = _IMPORTLIB_IMPORT_MODULE_FN_NAME
+        else:
+            py_import_alias = safe_name.split(".", maxsplit=1)[0]
+            import_func = _BUILTINS_IMPORT_FN_NAME
+
         deps.append(
             ast.Assign(
                 targets=[ast.Name(id=py_import_alias, ctx=ast.Store())],
                 value=ast.Call(
-                    func=_load_attr("builtins.__import__"),
-                    args=[ast.Constant(safe_name)],
-                    keywords=[],
+                    func=import_func, args=[ast.Constant(safe_name)], keywords=[],
                 ),
             )
         )
@@ -1654,10 +1706,13 @@ def _invoke_to_py_ast(ctx: GeneratorContext, node: Invoke) -> GeneratedPyAST:
 
     fn_ast = gen_py_ast(ctx, node.fn)
     args_deps, args_nodes = _collection_ast(ctx, node.args)
+    kwargs_deps, kwargs_nodes = _kwargs_ast(ctx, node.kwargs)
 
     return GeneratedPyAST(
-        node=ast.Call(func=fn_ast.node, args=list(args_nodes), keywords=[]),
-        dependencies=list(chain(fn_ast.dependencies, args_deps)),
+        node=ast.Call(
+            func=fn_ast.node, args=list(args_nodes), keywords=list(kwargs_nodes),
+        ),
+        dependencies=list(chain(fn_ast.dependencies, args_deps, kwargs_deps)),
     )
 
 
@@ -2326,6 +2381,7 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: HostCall) -> GeneratedP
 
     target_ast = gen_py_ast(ctx, node.target)
     args_deps, args_nodes = _collection_ast(ctx, node.args)
+    kwargs_deps, kwargs_nodes = _kwargs_ast(ctx, node.kwargs)
 
     return GeneratedPyAST(
         node=ast.Call(
@@ -2335,9 +2391,9 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: HostCall) -> GeneratedP
                 ctx=ast.Load(),
             ),
             args=list(args_nodes),
-            keywords=[],
+            keywords=list(kwargs_nodes),
         ),
-        dependencies=list(chain(target_ast.dependencies, args_deps)),
+        dependencies=list(chain(target_ast.dependencies, args_deps, kwargs_deps)),
     )
 
 

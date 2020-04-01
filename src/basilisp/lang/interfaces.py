@@ -321,12 +321,16 @@ class ISeq(ILispObject, ISeqable[T]):
 
     def __eq__(self, other):
         sentinel = object()
-        for e1, e2 in itertools.zip_longest(self, other, fillvalue=sentinel):
-            if bool(e1 is sentinel) or bool(e2 is sentinel):
-                return False
-            if e1 != e2:
-                return False
-        return True
+        try:
+            for e1, e2 in itertools.zip_longest(self, other, fillvalue=sentinel):
+                if bool(e1 is sentinel) or bool(e2 is sentinel):
+                    return False
+                if e1 != e2:
+                    return False
+        except TypeError:
+            return False
+        else:
+            return True
 
     def __hash__(self):
         return hash(tuple(self))
