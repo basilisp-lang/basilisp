@@ -1422,6 +1422,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     """Return a Python AST node for a function with multiple arities."""
     assert node.op == NodeOp.FN
     assert all([method.op == NodeOp.FN_METHOD for method in methods])
+    assert node.kwarg_support is None, "multi-arity functions may not support kwargs"
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
@@ -1462,12 +1463,9 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                         kw_defaults=[],
                     ),
                     body=fn_body_ast,
-                    decorator_list=list(
-                        chain(
-                            __kwargs_support_decorator(node),
-                            [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
-                        )
-                    ),
+                    decorator_list=[_TRAMPOLINE_FN_NAME]
+                    if ctx.recur_point.has_recur
+                    else [],
                     returns=None,
                 )
             )

@@ -1578,10 +1578,18 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
 def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
     if o.meta is None:
         return None
-    try:
-        return KeywordArgSupport(o.meta.val_at(SYM_KWARGS_META_KEY))
-    except ValueError:
+
+    kwarg_support = o.meta.val_at(SYM_KWARGS_META_KEY)
+    if kwarg_support is None:
         return None
+
+    try:
+        return KeywordArgSupport(kwarg_support)
+    except ValueError:
+        raise AnalyzerException(
+            "fn keyword argument support metadata :kwarg must be one of: #{:apply :collect}",
+            form=kwarg_support,
+        )
 
 
 @_with_meta  # noqa: MC0001
@@ -1651,7 +1659,14 @@ def _fn_ast(  # pylint: disable=too-many-branches
                     form=form,
                 )
 
-        assert count(methods) > 0, "fn must have at least one arity"
+        nmethods = count(methods)
+        assert nmethods > 0, "fn must have at least one arity"
+
+        if kwarg_support is not None and nmethods > 1:
+            raise AnalyzerException(
+                "multi-arity functions may not declare support for keyword arguments",
+                form=form,
+            )
 
         fixed_arities: MutableSet[int] = set()
         fixed_arity_for_variadic: Optional[int] = None

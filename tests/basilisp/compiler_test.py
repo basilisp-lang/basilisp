@@ -27,6 +27,7 @@ import basilisp.lang.vector as vec
 from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
 from basilisp.lang.interfaces import IType
 from basilisp.lang.runtime import Var
+from basilisp.lang.util import demunge
 from tests.basilisp.helpers import get_or_create_ns
 
 COMPILER_FILE_PATH = "compiler_test"
@@ -1621,6 +1622,39 @@ class TestFunctionDef:
         assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-lower")) == fvar
         assert callable(fvar.value)
         assert "upper" == fvar.value("UPPER")
+
+    class TestFunctionKeywordArgSupport:
+        def test_only_valid_kwarg_support_strategy(self, lcompile: CompileFn):
+            with pytest.raises(compiler.CompilerException):
+                lcompile("^{:kwargs :kwarg-it} (fn* [& args] args)")
+
+        def test_single_arity_apply_kwargs(self, lcompile: CompileFn):
+            f = lcompile("^{:kwargs :apply} (fn* [& args] args)")
+
+            kwargs = {"some_value": 32, "value": "a string"}
+            assert lmap.map(
+                {kw.keyword(demunge(k)): v for k, v in kwargs.items()}
+            ) == lmap.hash_map(*f(**kwargs))
+
+        def test_single_arity_collect_kwargs(self, lcompile: CompileFn):
+            f = lcompile("^{:kwargs :collect} (fn* [a b c kwargs] [a b c kwargs])")
+
+            kwargs = {"some_value": 32, "value": "a string"}
+            assert vec.v(
+                1,
+                "2",
+                kw.keyword("three"),
+                lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
+            ) == f(1, "2", kw.keyword("three"), **kwargs)
+
+        @pytest.mark.parametrize("kwarg_support", [":apply", ":collect"])
+        def test_multi_arity_fns_do_not_support_kwargs(
+            self, lcompile: CompileFn, kwarg_support: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    f"^{{:kwargs {kwarg_support}}} (fn* ([arg] arg) ([arg kwargs] [arg kwargs]))"
+                )
 
     def test_no_fn_method_has_same_fixed_arity(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):

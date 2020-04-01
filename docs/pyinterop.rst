@@ -165,8 +165,9 @@ Basilisp Functions with Keyword Arguments
 
 In rare circumstances (such as supplying a callback function), it may be necessary for a Basilisp function to support being called with Python keyword arguments.
 Basilisp can generate functions which can receive these keyword arguments and translate them into idiomatic Basilisp.
-Functions can declare support for Python keyword arguments with the ``:kwargs`` metadata key.
-Two strategies are supported for generating these functions: ``:apply`` and ``:collect``.
+Single-arity functions and ``deftype`` methods can declare support for Python keyword arguments with the ``:kwargs`` metadata key.
+Multi-arity functions and ``deftype`` methods do not support Python keyword arguments.
+For functions which do support keywrd arguments, two strategies are supported for generating these functions: ``:apply`` and ``:collect``.
 
 .. note::
 
