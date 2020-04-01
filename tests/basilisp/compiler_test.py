@@ -1257,6 +1257,18 @@ class TestDefType:
             assert pt.prop == 3
             assert pt.x == 3
 
+        @pytest.mark.parametrize("kwarg_support", [":apply", ":collect", ":kwarg-it"])
+        def test_deftype_property_does_not_support_kwargs(
+            self, lcompile: CompileFn, property_interface: Var, kwarg_support: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    f"""
+                (deftype* Point [x y z]
+                  :implements [WithProp]
+                  (^:property ^{{:kwargs {kwarg_support}}} prop [this]))"""
+                )
+
     class TestDefTypeStaticMethod:
         @pytest.fixture
         def static_interface(self, lcompile: CompileFn):
