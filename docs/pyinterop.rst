@@ -186,7 +186,7 @@ As you can see in the example above, this strategy fits neatly with the existing
 
 .. warning::
 
-   With the ``:apply`` strategy, the Basilisp compiler cannot verify that the number of positional arguments matches the number defined on the receiving function.
+   With the ``:apply`` strategy, the Basilisp compiler cannot verify that the number of positional arguments matches the number defined on the receiving function, so use this strategy with caution.
 
 .. code-block:: clojure
 
