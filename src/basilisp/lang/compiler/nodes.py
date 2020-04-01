@@ -269,6 +269,11 @@ NodeMeta = Union[None, "Const", "Map"]
 LoopID = str
 
 
+class KeywordArgSupport(Enum):
+    APPLY_KWARGS = kw.keyword("apply")
+    COLLECT_KWARGS = kw.keyword("collect")
+
+
 class LocalType(Enum):
     ARG = kw.keyword("arg")
     CATCH = kw.keyword("catch")
@@ -411,6 +416,7 @@ class Fn(Node[SpecialForm]):
     local: Optional[Binding] = None
     is_variadic: bool = False
     is_async: bool = False
+    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(METHODS)
     op: NodeOp = NodeOp.FN
     top_level: bool = False
@@ -602,6 +608,7 @@ class Method(DefTypeMember):
     this_local: Binding
     loop_id: LoopID
     is_variadic: bool
+    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
     op: NodeOp = NodeOp.METHOD
     top_level: bool = False
@@ -612,6 +619,7 @@ class Method(DefTypeMember):
 class ClassMethod(DefTypeMember):
     class_local: Binding
     is_variadic: bool
+    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(CLASS_LOCAL, PARAMS, BODY)
     op: NodeOp = NodeOp.CLASS_METHOD
     top_level: bool = False
@@ -630,6 +638,7 @@ class PropertyMethod(DefTypeMember):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class StaticMethod(DefTypeMember):
     is_variadic: bool
+    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
     op: NodeOp = NodeOp.STATIC_METHOD
     top_level: bool = False

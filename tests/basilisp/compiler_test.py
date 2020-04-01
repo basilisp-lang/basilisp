@@ -27,6 +27,7 @@ import basilisp.lang.vector as vec
 from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
 from basilisp.lang.interfaces import IType
 from basilisp.lang.runtime import Var
+from basilisp.lang.util import demunge
 from tests.basilisp.helpers import get_or_create_ns
 
 COMPILER_FILE_PATH = "compiler_test"
@@ -884,6 +885,48 @@ class TestDefType:
             )
             assert kw.keyword("a") is Point.create(kw.keyword("a"))
 
+        def test_deftype_classmethod_only_support_valid_kwarg_strategies(
+            self, lcompile: CompileFn, class_interface: Var
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod ^{:kwargs :kwarg-it} create [cls]))"""
+                )
+
+        def test_deftype_classmethod_apply_kwargs(
+            self, lcompile: CompileFn, class_interface: Var
+        ):
+            Point = lcompile(
+                """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod ^{:kwargs :apply} create
+                    [cls & args]
+                    (let [m (apply hash-map args)]
+                      (cls (:x m) (:y m) (:z m)))))"""
+            )
+
+            pt = Point.create(x=1, y=2, z=3)
+            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
+
+        def test_deftype_classmethod_collect_kwargs(
+            self, lcompile: CompileFn, class_interface: Var
+        ):
+            Point = lcompile(
+                """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod ^{:kwargs :collect} create
+                    [cls x y m]
+                    (cls x y (:z m))))"""
+            )
+
+            pt = Point.create(1, 2, z=3)
+            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
+
     class TestDefTypeMethod:
         def test_deftype_fields_and_methods(self, lcompile: CompileFn):
             Point = lcompile(
@@ -1043,6 +1086,56 @@ class TestDefType:
             assert 5 == pt(5)
             assert pt.x == 5
 
+        def test_deftype_method_only_support_valid_kwarg_strategies(
+            self, lcompile: CompileFn
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (import* collections.abc)
+                (do
+                  (deftype* Point [x y z]
+                    :implements [collections.abc/Callable]
+                    (^{:kwargs :kwarg-it} --call-- [this]))
+                  Point)"""
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (do
+                  (deftype* Point [x y z]
+                    :implements [collections.abc/Callable]
+                    (^{:kwargs :apply} --call--
+                      [this & args]
+                      (merge {:x x :y y :z z} (apply hash-map args))))
+                  Point)""",
+                """
+                (import* collections.abc)
+                (do
+                  (deftype* Point [x y z]
+                    :implements [collections.abc/Callable]
+                    (^{:kwargs :collect} --call--
+                      [this kwargs]
+                      (merge {:x x :y y :z z} kwargs)))
+                  Point)""",
+            ],
+        )
+        def test_deftype_method_kwargs(self, lcompile: CompileFn, code: str):
+            Point = lcompile(code)
+
+            pt = Point(1, 2, 3)
+            assert lmap.map(
+                {
+                    kw.keyword("w"): 2,
+                    kw.keyword("x"): 1,
+                    kw.keyword("y"): 4,
+                    kw.keyword("z"): 3,
+                }
+            ) == pt(w=2, y=4)
+
     class TestDefTypeProperty:
         @pytest.fixture
         def property_interface(self, lcompile: CompileFn):
@@ -1163,6 +1256,18 @@ class TestDefType:
             assert pt.x == 2
             assert pt.prop == 3
             assert pt.x == 3
+
+        @pytest.mark.parametrize("kwarg_support", [":apply", ":collect", ":kwarg-it"])
+        def test_deftype_property_does_not_support_kwargs(
+            self, lcompile: CompileFn, property_interface: Var, kwarg_support: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    f"""
+                (deftype* Point [x y z]
+                  :implements [WithProp]
+                  (^:property ^{{:kwargs {kwarg_support}}} prop [this]))"""
+                )
 
     class TestDefTypeStaticMethod:
         @pytest.fixture
@@ -1303,6 +1408,42 @@ class TestDefType:
               Point)"""
             )
             assert kw.keyword("a") is Point.dostatic(kw.keyword("a"))
+
+        def test_deftype_staticmethod_only_support_valid_kwarg_strategies(
+            self, lcompile: CompileFn, static_interface: Var
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x y z]
+                  :implements [WithStatic]
+                  (^:staticmethod ^{:kwargs :kwarg-it} dostatic [cls]))"""
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod ^{:kwargs :apply} dostatic
+                [& args]
+                (apply hash-map args)))""",
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod ^{:kwargs :collect} dostatic
+                [m]
+                m))""",
+            ],
+        )
+        def test_deftype_staticmethod_kwargs(
+            self, lcompile: CompileFn, static_interface: Var, code: str,
+        ):
+            Point = lcompile(code)
+            assert lmap.map(
+                {kw.keyword("x"): 1, kw.keyword("y"): 2, kw.keyword("z"): 3}
+            ) == Point.dostatic(x=1, y=2, z=3)
 
     class TestDefTypeReaderForm:
         def test_ns_does_not_exist(self, lcompile: CompileFn, test_ns: str):
@@ -1621,6 +1762,39 @@ class TestFunctionDef:
         assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-lower")) == fvar
         assert callable(fvar.value)
         assert "upper" == fvar.value("UPPER")
+
+    class TestFunctionKeywordArgSupport:
+        def test_only_valid_kwarg_support_strategy(self, lcompile: CompileFn):
+            with pytest.raises(compiler.CompilerException):
+                lcompile("^{:kwargs :kwarg-it} (fn* [& args] args)")
+
+        def test_single_arity_apply_kwargs(self, lcompile: CompileFn):
+            f = lcompile("^{:kwargs :apply} (fn* [& args] args)")
+
+            kwargs = {"some_value": 32, "value": "a string"}
+            assert lmap.map(
+                {kw.keyword(demunge(k)): v for k, v in kwargs.items()}
+            ) == lmap.hash_map(*f(**kwargs))
+
+        def test_single_arity_collect_kwargs(self, lcompile: CompileFn):
+            f = lcompile("^{:kwargs :collect} (fn* [a b c kwargs] [a b c kwargs])")
+
+            kwargs = {"some_value": 32, "value": "a string"}
+            assert vec.v(
+                1,
+                "2",
+                kw.keyword("three"),
+                lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
+            ) == f(1, "2", kw.keyword("three"), **kwargs)
+
+        @pytest.mark.parametrize("kwarg_support", [":apply", ":collect"])
+        def test_multi_arity_fns_do_not_support_kwargs(
+            self, lcompile: CompileFn, kwarg_support: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    f"^{{:kwargs {kwarg_support}}} (fn* ([arg] arg) ([arg kwargs] [arg kwargs]))"
+                )
 
     def test_no_fn_method_has_same_fixed_arity(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):

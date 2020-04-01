@@ -62,6 +62,7 @@ from basilisp.lang.compiler.nodes import (
     Import,
     Invoke,
     KeywordArgs,
+    KeywordArgSupport,
     Let,
     LetFn,
     Local,
@@ -550,6 +551,10 @@ _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
 _BUILTINS_IMPORT_FN_NAME = _load_attr("builtins.__import__")
 _IMPORTLIB_IMPORT_MODULE_FN_NAME = _load_attr("importlib.import_module")
+_LISP_FN_APPLY_KWARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._lisp_fn_apply_kwargs")
+_LISP_FN_COLLECT_KWARGS_FN_NAME = _load_attr(
+    f"{_RUNTIME_ALIAS}._lisp_fn_collect_kwargs"
+)
 _PY_CLASSMETHOD_FN_NAME = _load_attr("classmethod")
 _PY_PROPERTY_FN_NAME = _load_attr("property")
 _PY_STATICMETHOD_FN_NAME = _load_attr("staticmethod")
@@ -814,7 +819,9 @@ def __deftype_classmethod_to_py_ast(
                     kw_defaults=[],
                 ),
                 body=fn_body_ast,
-                decorator_list=[_PY_CLASSMETHOD_FN_NAME],
+                decorator_list=list(
+                    chain([_PY_CLASSMETHOD_FN_NAME], __kwargs_support_decorator(node))
+                ),
                 returns=None,
             )
         )
@@ -886,9 +893,12 @@ def __deftype_method_to_py_ast(ctx: GeneratorContext, node: Method) -> Generated
                         kw_defaults=[],
                     ),
                     body=fn_body_ast,
-                    decorator_list=[_TRAMPOLINE_FN_NAME]
-                    if ctx.recur_point.has_recur
-                    else [],
+                    decorator_list=list(
+                        chain(
+                            [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
+                            __kwargs_support_decorator(node),
+                        )
+                    ),
                     returns=None,
                 )
             )
@@ -915,7 +925,9 @@ def __deftype_staticmethod_to_py_ast(
                     kw_defaults=[],
                 ),
                 body=fn_body_ast,
-                decorator_list=[_PY_STATICMETHOD_FN_NAME],
+                decorator_list=list(
+                    chain([_PY_STATICMETHOD_FN_NAME], __kwargs_support_decorator(node))
+                ),
                 returns=None,
             )
         )
@@ -1165,6 +1177,18 @@ def __fn_meta(
         return (), ()
 
 
+def __kwargs_support_decorator(
+    node: Union[Fn, ClassMethod, Method, StaticMethod]
+) -> Iterable[ast.AST]:
+    if node.kwarg_support is None:
+        return
+
+    yield {
+        KeywordArgSupport.APPLY_KWARGS: _LISP_FN_APPLY_KWARGS_FN_NAME,
+        KeywordArgSupport.COLLECT_KWARGS: _LISP_FN_COLLECT_KWARGS_FN_NAME,
+    }[node.kwarg_support]
+
+
 @_with_ast_loc_deps
 def __single_arity_fn_to_py_ast(
     ctx: GeneratorContext,
@@ -1212,6 +1236,7 @@ def __single_arity_fn_to_py_ast(
                             body=fn_body_ast,
                             decorator_list=list(
                                 chain(
+                                    __kwargs_support_decorator(node),
                                     meta_decorators,
                                     [_BASILISP_FN_FN_NAME],
                                     [_TRAMPOLINE_FN_NAME]
@@ -1397,6 +1422,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     """Return a Python AST node for a function with multiple arities."""
     assert node.op == NodeOp.FN
     assert all([method.op == NodeOp.FN_METHOD for method in methods])
+    assert node.kwarg_support is None, "multi-arity functions may not support kwargs"
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)

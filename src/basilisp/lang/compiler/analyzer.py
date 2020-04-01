@@ -55,6 +55,7 @@ from basilisp.lang.compiler.constants import (
     SYM_CLASSMETHOD_META_KEY,
     SYM_DEFAULT_META_KEY,
     SYM_DYNAMIC_META_KEY,
+    SYM_KWARGS_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
     SYM_NO_WARN_ON_SHADOW_META_KEY,
@@ -87,6 +88,7 @@ from basilisp.lang.compiler.nodes import (
     ImportAlias,
     Invoke,
     KeywordArgs,
+    KeywordArgSupport,
     Let,
     LetFn,
     Local,
@@ -998,6 +1000,7 @@ def __deftype_classmethod(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
+    kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> ClassMethod:
     """Emit a node for a :classmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
@@ -1010,7 +1013,7 @@ def __deftype_classmethod(
         else:
             if not isinstance(cls_arg, sym.Symbol):
                 raise AnalyzerException(
-                    f"deftype* method 'cls' argument must be a symbol", form=args
+                    f"deftype* class method 'cls' argument must be a symbol", form=args
                 )
             cls_binding = Binding(
                 form=cls_arg,
@@ -1040,6 +1043,7 @@ def __deftype_classmethod(
             env=ctx.get_node_env(),
             class_local=cls_binding,
             is_variadic=has_vargs,
+            kwarg_support=kwarg_support,
         )
         method.visit(_assert_no_recur)
         return method
@@ -1050,6 +1054,7 @@ def __deftype_method(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
+    kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> Method:
     """Emit a node for a method member of a deftype* form."""
     with ctx.new_symbol_table(method_name):
@@ -1085,6 +1090,7 @@ def __deftype_method(
                 this_local=this_binding,
                 params=vec.vector(param_nodes),
                 is_variadic=has_vargs,
+                kwarg_support=kwarg_support,
                 body=Do(
                     form=form.rest,
                     statements=vec.vector(stmts),
@@ -1113,12 +1119,12 @@ def __deftype_property(
             this_arg = args[0]
         except IndexError:
             raise AnalyzerException(
-                f"deftype* method must include 'this' or 'self' argument", form=args
+                f"deftype* property must include 'this' or 'self' argument", form=args
             )
         else:
             if not isinstance(this_arg, sym.Symbol):
                 raise AnalyzerException(
-                    f"deftype* method 'this' argument must be a symbol", form=args
+                    f"deftype* property 'this' argument must be a symbol", form=args
                 )
             this_binding = Binding(
                 form=this_arg,
@@ -1165,6 +1171,7 @@ def __deftype_staticmethod(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
+    kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> StaticMethod:
     """Emit a node for a :staticmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
@@ -1186,12 +1193,13 @@ def __deftype_staticmethod(
             ),
             env=ctx.get_node_env(),
             is_variadic=has_vargs,
+            kwarg_support=kwarg_support,
         )
         method.visit(_assert_no_recur)
         return method
 
 
-def __deftype_member(
+def __deftype_member(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: Union[llist.List, ISeq]
 ) -> DefTypeMember:
     """Emit a member node for a deftype* form.
@@ -1228,14 +1236,31 @@ def __deftype_member(
             f"deftype* member arguments must be vector, not {type(args)}", form=args
         )
 
+    kwarg_meta = __fn_kwargs_support(form.first) or (
+        isinstance(form, IMeta) and __fn_kwargs_support(form)
+    )
+    kwarg_support = None if isinstance(kwarg_meta, bool) else kwarg_meta
+
     if is_classmethod:
-        return __deftype_classmethod(ctx, form, method_name, args)
+        return __deftype_classmethod(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
+        )
     elif is_property:
+        if kwarg_support is not None:
+            raise AnalyzerException(
+                f"deftype* properties may not declare keyword argument support",
+                form=form,
+            )
+
         return __deftype_property(ctx, form, method_name, args)
     elif is_staticmethod:
-        return __deftype_staticmethod(ctx, form, method_name, args)
+        return __deftype_staticmethod(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
+        )
     else:
-        return __deftype_method(ctx, form, method_name, args)
+        return __deftype_method(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
+        )
 
 
 def __deftype_impls(  # pylint: disable=too-many-branches
@@ -1550,6 +1575,23 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
             return method
 
 
+def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
+    if o.meta is None:
+        return None
+
+    kwarg_support = o.meta.val_at(SYM_KWARGS_META_KEY)
+    if kwarg_support is None:
+        return None
+
+    try:
+        return KeywordArgSupport(kwarg_support)
+    except ValueError:
+        raise AnalyzerException(
+            "fn keyword argument support metadata :kwarg must be one of: #{:apply :collect}",
+            form=kwarg_support,
+        )
+
+
 @_with_meta  # noqa: MC0001
 def _fn_ast(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: Union[llist.List, ISeq]
@@ -1573,12 +1615,18 @@ def _fn_ast(  # pylint: disable=too-many-branches
             )
             assert name_node is not None
             is_async = _is_async(name) or isinstance(form, IMeta) and _is_async(form)
+            kwarg_support = (
+                __fn_kwargs_support(name)
+                or isinstance(form, IMeta)
+                and __fn_kwargs_support(form)
+            )
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
         elif isinstance(name, (llist.List, vec.Vector)):
             name = None
             name_node = None
             is_async = isinstance(form, IMeta) and _is_async(form)
+            kwarg_support = isinstance(form, IMeta) and __fn_kwargs_support(form)
         else:
             raise AnalyzerException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
@@ -1611,7 +1659,14 @@ def _fn_ast(  # pylint: disable=too-many-branches
                     form=form,
                 )
 
-        assert count(methods) > 0, "fn must have at least one arity"
+        nmethods = count(methods)
+        assert nmethods > 0, "fn must have at least one arity"
+
+        if kwarg_support is not None and nmethods > 1:
+            raise AnalyzerException(
+                "multi-arity functions may not declare support for keyword arguments",
+                form=form,
+            )
 
         fixed_arities: MutableSet[int] = set()
         fixed_arity_for_variadic: Optional[int] = None
@@ -1655,6 +1710,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
             local=name_node,
             env=ctx.get_node_env(pos=ctx.syntax_position),
             is_async=is_async,
+            kwarg_support=None if isinstance(kwarg_support, bool) else kwarg_support,
         )
 
 
