@@ -1,0 +1,206 @@
+(ns basilisp.cli-tools
+  (:import
+   argparse
+   sys))
+
+(defn ^:private argument-parser-kwargs
+  [config]
+  {:prog         (:command config)
+   :description  (:description config)
+   :usage        (:usage config)
+   :epilog       (:epilogue config)
+   :add-help     (:include-help config true)
+   :allow-abbrev (:allow-abbrev config true)})
+
+(declare ^:private setup-parser)
+
+(defn ^:private add-cli-sub-parser
+  "Add a new command parser to the subparsers object."
+  [subparsers command]
+  (let [command-parser (->> (argument-parser-kwargs command)
+                            (merge {:title (:title command)})
+                            (apply-method-kw subparsers add-parser))]
+    (setup-parser command-parser command)
+    nil))
+
+(defn ^:private cli-tools-add-action
+  [update-fn]
+  (fn ^:flatten-kwargs action [option-strings dest & args]
+    (fn ^:flatten-kwargs do-action [parser namespace values & {:keys [option-string]}]
+      (if-let [v (python/getattr namespace dest)]
+        (python/setattr namespace dest (update-fn v))
+        (python/setattr )))))
+
+(defn ^:private cli-tools-update-action
+  [update-fn]
+  (fn ^:flatten-kwargs action [option-strings dest & args]
+    (fn ^:flatten-kwargs do-action [parser namespace values & {:keys [option-string]}]
+      (if-let [v (python/getattr namespace dest)]
+        (python/setattr namespace dest (update-fn v))
+        (python/setattr )))))
+
+(defn ^:private add-argument
+  [parser argument]
+  (let [;; ArgumentParser has a "type" function which can convert the string value
+        ;; from the CLI into its final value. We decompose that into a parse and
+        ;; validate step in the argument config and re-compose those steps here.
+        validate-fn (when-let [[f msg] (:validate argument)]
+                      (fn [v]
+                        (if-not (f v)
+                          (throw
+                           (argparse/ArgumentTypeError msg))
+                          v)))
+        type-fn     (if-let [parse-fn (:parse-fn argument)]
+                      (cond->> parse-fn
+                        validate-fn (comp validate-fn))
+                      validate-fn)
+
+        ;; Python's ArgumentParser.add_argument method takes variadic positional
+        ;; arguments _and_ keyword arguments, which is a challenging combination
+        ;; to call via Basilisp, so we create a partial of the method with the
+        ;; kwargs then (apply method args) for the potentially variadic positionals.
+        method (->> {:default  (:default argument)
+                     :action   (if-let [update-fn (:update-fn argument)]
+                                 (cli-tools-action update-fn)
+                                 "store")
+                     :type     type-fn
+                     :metavar  (when-let [metavar (:metavar argument)]
+                                 (cond-> metavar
+                                   (vector? metavar) (python/tuple)))
+                     :help     (:help argument)}
+                    (partial-kw (.-add-argument parser)))
+        name   (:name argument)
+        flags  (:flags argument)]
+    (when (and name flags)
+      (throw
+       (ex-info (str "Arguments may either be positional (via :name) or "
+                     "optional (via :flags), not both")
+                {:name  name
+                 :flags flags})))
+    (if name
+      (method name)
+      (apply method flags))
+    nil))
+
+(defn ^:private setup-parser
+  "Set up the command parser from the configuration map."
+  [parser config]
+  (when-let [commands (:commands config)]
+    (let [subparsers (.add-subparsers parser)]
+      (doseq [command commands]
+        (add-cli-sub-parser subparsers command))))
+  ;; Add arguments to the parser. Arguments can be grouped as
+  (when-let [arguments (:arguments config)]
+    (let [groups (group-by (fn [v]
+                             (condp #(contains? %2 %1) v
+                               :exclusive-group :ex-group
+                               :group           :group
+                               :normal))
+                           arguments)]
+      ;; Mutually-exclusive argument groups
+      (let [ex-groups (group-by :exclusive-group (:ex-group groups))]
+        (doseq [ex-group-pair ex-groups]
+          (let [[_ ex-group] ex-group-pair
+                ex-grouper   (.add-mutually-exclusive-group parser)]
+            (doseq [argument ex-group]
+              (add-argument ex-grouper argument)))))
+      ;; Argument groups
+      (let [display-groups (group-by :group (:group groups))]
+        (doseq [display-group-pair display-groups]
+          (let [[title group] display-group-pair
+                grouper       (.add-argument-group parser (name title))]
+            (doseq [argument group]
+              (add-argument grouper argument)))))
+      ;; All other arguments
+      (doseq [argument (:normal groups)]
+        (add-argument parser argument))))
+  nil)
+
+;; Config map spec
+(comment
+  {;; Primary CLI entrypoint configuration
+
+   ;; Name the command as it appears in the help text. If nil is provided,
+   ;; `sys.argv[0]` is used. Default nil.
+   :command "command"
+
+   ;; The description which appears immediately under the usage text. Optional.
+   :description "This command foos the bars."
+
+   ;; The usage message emitted when invalid arguments are provided or when
+   ;; printing the help text. If nil is provided, the usage message will be
+   ;; calculated automatically by the arguments and commands provided.
+   :usage "%(prog)s [options]"
+
+   ;; The text which appears beneath the generated help message. Optional.
+   :epilogue ""
+
+   ;; If true, include the `-h/--help` commands by default. Default true.
+   :include-help true
+
+   ;; If true, allow abbreviations for unambiguous partial flags. Default true.
+   :allow-abbrev true
+
+   ;; Arguments which apply globally. Default nil.
+   :arguments [{;; The name of a positional argument. Mutually exclusive with
+                ;; the `:flags` key.
+                :name "foo"
+
+                ;; The flags for an optional argument. Mutually exclusive with
+                ;; the `:name` key.
+                :flags ["-f" "--foo"]
+
+                ;; A function of one string argument which returns the intended
+                ;; final value. Default nil.
+                :parse-fn int
+
+                ;; A vector of two elements. The first element is a function
+                ;; which can accept the value from `:parse-fn` (if given) or the
+                ;; string value from the CLI (if `:parse-fn` is not given). If
+                ;; the function returns a falsey value, the value will be
+                ;; rejected. Default nil.
+                :validate [pos? "foo must be positive"]
+
+                ;; A default value which will be supplied if the flag is not
+                ;; given. If the value is a string, it will be subject to the
+                ;; `:parse-fn` and `:validate` rules, if given. Non-string
+                ;; values will be used as-is. Default nil.
+                :default "yes"
+
+                ;; Either a string value or vector of strings used to refer to
+                ;; expected arguments generated help text message.
+                :metavar "FOO"
+
+                ;; A help string which will be shown next to the argument in the
+                ;; CLI help text. Default nil.
+                :help "Add extra foos into the bars."}]
+
+   ;; Subcommands which will be added to the parser. Default nil.
+   :commands []})
+
+(defn cli-parser
+  "Create a CLI argument parser from the configuration map.
+
+  Configuration maps have the following spec"
+  [config]
+  (let [parser (->> (argument-parser-kwargs config)
+                    (apply-kw argparse/ArgumentParser))]
+    (setup-parser parser config)
+    parser))
+
+(defn parse-args
+  "Parse command line arguments using the supplied parser or CLI tools configuration
+  map. If no `args` are given, parse the arguments from Python's `sys/argv`."
+  ([parser-or-config]
+   (parse-args parser-or-config sys/argv))
+  ([parser-or-config args]
+   (let [parser (cond-> parser-or-config
+                  (map? parser-or-config) (cli-parser))]
+     (-> (.parse-args parser args)
+         (python/vars)
+         (py->lisp)))))
+
+(defmacro run-cli
+  [config]
+  `(when (= --name-- "__main__")
+     (parse-args ~config)))
