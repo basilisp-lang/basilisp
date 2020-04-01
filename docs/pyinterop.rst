@@ -167,7 +167,7 @@ In rare circumstances (such as supplying a callback function), it may be necessa
 Basilisp can generate functions which can receive these keyword arguments and translate them into idiomatic Basilisp.
 Single-arity functions and ``deftype`` methods can declare support for Python keyword arguments with the ``:kwargs`` metadata key.
 Multi-arity functions and ``deftype`` methods do not support Python keyword arguments.
-For functions which do support keywrd arguments, two strategies are supported for generating these functions: ``:apply`` and ``:collect``.
+For functions which do support keyword arguments, two strategies are supported for generating these functions: ``:apply`` and ``:collect``.
 
 .. note::
 
@@ -181,7 +181,7 @@ For functions which do support keywrd arguments, two strategies are supported fo
       kwargs)
 
 The ``:apply`` strategy is appropriate in situations where there are few or no positional arguments defined on your function.
-With this strategy, the compiler converts the Python dict of string keys and values into a sequentual stream of de-munged keyword and value pairs which are applied to the function.
+With this strategy, the compiler converts the Python dict of string keys and values into a sequential stream of de-munged keyword and value pairs which are applied to the function.
 As you can see in the example above, this strategy fits neatly with the existing support for destructuring key and value pairs from rest arguments in a function definition.
 
 .. warning::
