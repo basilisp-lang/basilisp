@@ -411,7 +411,7 @@ class Do(Node[SpecialForm]):
 class Fn(Node[SpecialForm]):
     form: SpecialForm
     max_fixed_arity: int
-    methods: IPersistentVector["FnMethod"]
+    arities: IPersistentVector["FnArity"]
     env: NodeEnv
     local: Optional[Binding] = None
     is_variadic: bool = False
@@ -424,7 +424,7 @@ class Fn(Node[SpecialForm]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class FnMethod(Node[SpecialForm]):
+class FnArity(Node[SpecialForm]):
     form: SpecialForm
     loop_id: LoopID
     params: Iterable[Binding]
@@ -873,7 +873,7 @@ ChildOnlyNode = Union[
     Binding,
     ClassMethod,
     Catch,
-    FnMethod,
+    FnArity,
     ImportAlias,
     Local,
     Method,

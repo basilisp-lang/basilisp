@@ -80,7 +80,7 @@ from basilisp.lang.compiler.nodes import (
     DefTypeMember,
     Do,
     Fn,
-    FnMethod,
+    FnArity,
     HostCall,
     HostField,
     If,
@@ -1492,7 +1492,7 @@ def _do_ast(ctx: AnalyzerContext, form: ISeq) -> Do:
 
 def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
     ctx: AnalyzerContext, form: ISeq, fnname: Optional[sym.Symbol] = None
-) -> FnMethod:
+) -> FnArity:
     with ctx.new_symbol_table("fn-method"):
         params = form.first
         if not isinstance(params, vec.Vector):
@@ -1552,7 +1552,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
         with ctx.new_recur_point(fn_loop_id, param_nodes):
             with ctx.expr_pos():
                 stmts, ret = _body_ast(ctx, form.rest)
-            method = FnMethod(
+            method = FnArity(
                 form=form,
                 loop_id=fn_loop_id,
                 params=vec.vector(param_nodes),
@@ -2236,7 +2236,7 @@ def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branc
             _assert_no_recur(child)
         _assert_recur_is_tail(node.ret)
     elif node.op in {NodeOp.FN, NodeOp.FN_METHOD, NodeOp.METHOD}:
-        assert isinstance(node, (Fn, FnMethod, Method))
+        assert isinstance(node, (Fn, FnArity, Method))
         node.visit(_assert_recur_is_tail)
     elif node.op == NodeOp.IF:
         assert isinstance(node, If)

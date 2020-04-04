@@ -55,7 +55,7 @@ from basilisp.lang.compiler.nodes import (
     DefTypeMember,
     Do,
     Fn,
-    FnMethod,
+    FnArity,
     HostCall,
     HostField,
     If,
@@ -1193,7 +1193,7 @@ def __kwargs_support_decorator(
 def __single_arity_fn_to_py_ast(
     ctx: GeneratorContext,
     node: Fn,
-    method: FnMethod,
+    method: FnArity,
     def_name: Optional[str] = None,
     meta_node: Optional[MetaNode] = None,
 ) -> GeneratedPyAST:
@@ -1415,7 +1415,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
 def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext,
     node: Fn,
-    methods: Collection[FnMethod],
+    methods: Collection[FnArity],
     def_name: Optional[str] = None,
     meta_node: Optional[MetaNode] = None,
 ) -> GeneratedPyAST:
@@ -1496,13 +1496,13 @@ def _fn_to_py_ast(
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `fn` expression."""
     assert node.op == NodeOp.FN
-    if len(node.methods) == 1:
+    if len(node.arities) == 1:
         return __single_arity_fn_to_py_ast(
-            ctx, node, next(iter(node.methods)), def_name=def_name, meta_node=meta_node
+            ctx, node, next(iter(node.arities)), def_name=def_name, meta_node=meta_node
         )
     else:
         return __multi_arity_fn_to_py_ast(
-            ctx, node, node.methods, def_name=def_name, meta_node=meta_node
+            ctx, node, node.arities, def_name=def_name, meta_node=meta_node
         )
 
 
