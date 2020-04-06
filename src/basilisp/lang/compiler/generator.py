@@ -47,12 +47,17 @@ from basilisp.lang.compiler.nodes import (
     Await,
     Binding,
     Catch,
-    ClassMethod,
     Const,
     ConstType,
     Def,
     DefType,
+    DefTypeClassMethod,
     DefTypeMember,
+    DefTypeMethod,
+    DefTypeMethodArityBase,
+    DefTypeMethodBase,
+    DefTypeProperty,
+    DefTypeStaticMethod,
     Do,
     Fn,
     FnArity,
@@ -71,12 +76,10 @@ from basilisp.lang.compiler.nodes import (
     Map as MapNode,
     MaybeClass,
     MaybeHostForm,
-    Method,
     Node,
     NodeEnv,
     NodeOp,
     NodeSyntacticPosition,
-    PropertyMethod,
     PyDict,
     PyList,
     PySet,
@@ -87,7 +90,6 @@ from basilisp.lang.compiler.nodes import (
     Require,
     Set as SetNode,
     SetBang,
-    StaticMethod,
     Throw,
     Try,
     VarRef,
@@ -792,46 +794,274 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     )
 
 
+def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments,too-many-locals
+    name: str,
+    arity_map: Mapping[int, str],
+    default_name: Optional[str] = None,
+    max_fixed_arity: Optional[int] = None,
+) -> GeneratedPyAST:
+    """Return the Python AST nodes for an argument-length dispatch method
+    for multi-arity deftype* methods.
+
+    class DefType:
+        def method(self, *args):
+            nargs = len(args)
+            method = __fn_dispatch_map.get(nargs)
+            if method:
+                return method(*args)
+            # Only if default
+            if nargs > max_fixed_arity:
+                return default(*args)
+            raise RuntimeError
+    """
+    dispatch_map_name = f"{name}_dispatch_map"
+
+    dispatch_keys, dispatch_vals = [], []
+    for k, v in arity_map.items():
+        dispatch_keys.append(ast.Constant(k))
+        dispatch_vals.append(ast.Name(id=v, ctx=ast.Load()))
+
+    nargs_name = genname("nargs")
+    method_name = genname("method")
+    body = [
+        ast.Assign(
+            targets=[ast.Name(id=nargs_name, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Name(id="len", ctx=ast.Load()),
+                args=[ast.Name(id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load())],
+                keywords=[],
+            ),
+        ),
+        ast.Assign(
+            targets=[ast.Name(id=method_name, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Name(id=dispatch_map_name, ctx=ast.Load()),
+                    attr="get",
+                    ctx=ast.Load(),
+                ),
+                args=[ast.Name(id=nargs_name, ctx=ast.Load())],
+                keywords=[],
+            ),
+        ),
+        ast.If(
+            test=ast.Compare(
+                left=ast.Constant(None),
+                ops=[ast.IsNot()],
+                comparators=[ast.Name(id=method_name, ctx=ast.Load())],
+            ),
+            body=[
+                ast.Return(
+                    value=ast.Call(
+                        func=ast.Name(id=method_name, ctx=ast.Load()),
+                        args=[
+                            ast.Starred(
+                                value=ast.Name(
+                                    id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
+                                ),
+                                ctx=ast.Load(),
+                            )
+                        ],
+                        keywords=[],
+                    )
+                )
+            ],
+            orelse=[]
+            if default_name is None
+            else [
+                ast.If(
+                    test=ast.Compare(
+                        left=ast.Name(id=nargs_name, ctx=ast.Load()),
+                        ops=[ast.GtE()],
+                        comparators=[ast.Constant(max_fixed_arity)],
+                    ),
+                    body=[
+                        ast.Return(
+                            value=ast.Call(
+                                func=ast.Name(id=default_name, ctx=ast.Load()),
+                                args=[
+                                    ast.Starred(
+                                        value=ast.Name(
+                                            id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
+                                        ),
+                                        ctx=ast.Load(),
+                                    )
+                                ],
+                                keywords=[],
+                            )
+                        )
+                    ],
+                    orelse=[],
+                )
+            ],
+        ),
+        ast.Raise(
+            exc=ast.Call(
+                func=_load_attr("basilisp.lang.runtime.RuntimeException"),
+                args=[
+                    ast.Constant(f"Wrong number of args passed to method: {name}"),
+                    ast.Name(id=nargs_name, ctx=ast.Load()),
+                ],
+                keywords=[],
+            ),
+            cause=None,
+        ),
+    ]
+
+    return GeneratedPyAST(
+        node=ast.Name(id=name, ctx=ast.Load()),
+        dependencies=chain(
+            [
+                ast.Assign(
+                    targets=[ast.Name(id=dispatch_map_name, ctx=ast.Store())],
+                    value=ast.Dict(keys=dispatch_keys, values=dispatch_vals),
+                )
+            ],
+            [
+                ast.FunctionDef(
+                    name=name,
+                    args=ast.arguments(
+                        args=[],
+                        kwarg=None,
+                        vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
+                        kwonlyargs=[],
+                        defaults=[],
+                        kw_defaults=[],
+                    ),
+                    body=body,
+                    decorator_list=[_BASILISP_FN_FN_NAME],
+                    returns=None,
+                )
+            ],
+        ),
+    )
+
+
+@_with_ast_loc_deps
+def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-locals
+    ctx: GeneratorContext,
+    node: DefTypeMethodBase,
+    methods: Collection[DefTypeMethodArityBase],
+) -> GeneratedPyAST:
+    """Return a Python AST node for a function with multiple arities."""
+    assert node.op in {
+        NodeOp.DEFTYPE_METHOD,
+        NodeOp.DEFTYPE_CLASSMETHOD,
+        NodeOp.DEFTYPE_STATICMETHOD,
+    }
+    assert all(method.op == NodeOp.FN_ARITY for method in methods)
+    assert node.kwarg_support is None, "multi-arity methods do not support kwargs"
+
+    py_method_name = genname(f"__{node.name}")
+
+    arity_to_name = {}
+    rest_arity_name: Optional[str] = None
+    fn_defs = []
+    for method in methods:
+        arity_name = f"{py_method_name}__arity{'_rest' if method.is_variadic else method.fixed_arity}"
+        if method.is_variadic:
+            rest_arity_name = arity_name
+        else:
+            arity_to_name[method.fixed_arity] = arity_name
+
+        with ctx.new_symbol_table(arity_name), ctx.new_recur_point(
+            method.loop_id, RecurType.FN, is_variadic=node.is_variadic
+        ):
+            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+                ctx, method.params, method.body
+            )
+            fn_defs.append(
+                ast.FunctionDef(
+                    name=arity_name,
+                    args=ast.arguments(
+                        args=fn_args,
+                        kwarg=None,
+                        vararg=varg,
+                        kwonlyargs=[],
+                        defaults=[],
+                        kw_defaults=[],
+                    ),
+                    body=fn_body_ast,
+                    decorator_list=[_TRAMPOLINE_FN_NAME]
+                    if ctx.recur_point.has_recur
+                    else [],
+                    returns=None,
+                )
+            )
+
+    dispatch_fn_ast = __multi_arity_deftype_dispatch_method(
+        py_method_name,
+        arity_to_name,
+        default_name=rest_arity_name,
+        max_fixed_arity=node.max_fixed_arity,
+    )
+
+    return GeneratedPyAST(
+        node=dispatch_fn_ast.node,
+        dependencies=list(chain(fn_defs, dispatch_fn_ast.dependencies)),
+    )
+
+
+def __single_arity_deftype_method_to_py_ast(
+    ctx: GeneratorContext,
+    arity: DefTypeMethodArityBase,
+    prefix_args: Iterable[ast.arg] = (),
+    decorators: Iterable[ast.AST] = (),
+) -> GeneratedPyAST:
+    """Generate a single arity deftype* method body."""
+    fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, arity.params, arity.body)
+    return GeneratedPyAST(
+        node=ast.FunctionDef(
+            name=munge(arity.name),
+            args=ast.arguments(
+                args=list(chain(prefix_args, fn_args)),
+                kwarg=None,
+                vararg=varg,
+                kwonlyargs=[],
+                defaults=[],
+                kw_defaults=[],
+            ),
+            body=fn_body_ast,
+            decorator_list=list(decorators),
+            returns=None,
+        )
+    )
+
+
 @_with_ast_loc
 def __deftype_classmethod_to_py_ast(
-    ctx: GeneratorContext, node: ClassMethod
+    ctx: GeneratorContext, node: DefTypeClassMethod
 ) -> GeneratedPyAST:
-    assert node.op == NodeOp.CLASS_METHOD
-    method_name = munge(node.name)
+    """Return a Python AST Node for a `deftype*` classmethod."""
+    assert node.op == NodeOp.DEFTYPE_CLASSMETHOD
+    if len(node.arities) == 1:
+        arity = next(iter(node.arities))
 
-    with ctx.new_symbol_table(node.name):
-        class_name = genname(munge(node.class_local.name))
-        class_sym = sym.symbol(node.class_local.name)
-        ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.ARG)
+        assert arity.op == NodeOp.DEFTYPE_CLASSMETHOD_ARITY
+        assert node.name == arity.name
 
-        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
-        return GeneratedPyAST(
-            node=ast.FunctionDef(
-                name=method_name,
-                args=ast.arguments(
-                    args=list(
-                        chain([ast.arg(arg=class_name, annotation=None)], fn_args)
-                    ),
-                    kwarg=None,
-                    vararg=varg,
-                    kwonlyargs=[],
-                    defaults=[],
-                    kw_defaults=[],
+        with ctx.new_symbol_table(node.name):
+            class_name = genname(munge(arity.class_local.name))
+            class_sym = sym.symbol(arity.class_local.name)
+            ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.ARG)
+
+            return __single_arity_deftype_method_to_py_ast(
+                ctx,
+                arity,
+                prefix_args=(ast.arg(arg=class_name, annotation=None),),
+                decorators=list(
+                    chain(_PY_CLASSMETHOD_FN_NAME, __kwargs_support_decorator(node),)
                 ),
-                body=fn_body_ast,
-                decorator_list=list(
-                    chain([_PY_CLASSMETHOD_FN_NAME], __kwargs_support_decorator(node))
-                ),
-                returns=None,
             )
-        )
+    else:
+        return __multi_arity_fn_to_py_ast(ctx, node, node.arities,)
 
 
 @_with_ast_loc
 def __deftype_property_to_py_ast(
-    ctx: GeneratorContext, node: PropertyMethod
+    ctx: GeneratorContext, node: DefTypeProperty
 ) -> GeneratedPyAST:
-    assert node.op == NodeOp.PROPERTY_METHOD
+    assert node.op == NodeOp.DEFTYPE_PROPERTY
     method_name = munge(node.name)
 
     with ctx.new_symbol_table(node.name):
@@ -840,6 +1070,7 @@ def __deftype_property_to_py_ast(
         ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
 
         with ctx.new_this(this_sym):
+
             fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
                 ctx, node.params, node.body
             )
@@ -864,80 +1095,71 @@ def __deftype_property_to_py_ast(
 
 
 @_with_ast_loc
-def __deftype_method_to_py_ast(ctx: GeneratorContext, node: Method) -> GeneratedPyAST:
-    assert node.op == NodeOp.METHOD
-    method_name = munge(node.name)
+def __deftype_method_to_py_ast(
+    ctx: GeneratorContext, node: DefTypeMethod
+) -> GeneratedPyAST:
+    """Return a Python AST Node for a `deftype*` method."""
+    assert node.op == NodeOp.DEFTYPE_METHOD
 
-    with ctx.new_symbol_table(node.name), ctx.new_recur_point(
-        node.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
-    ):
-        this_name = genname(munge(node.this_local.name))
-        this_sym = sym.symbol(node.this_local.name)
-        ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
+    if len(node.arities) == 1:
+        arity = next(iter(node.arities))
 
-        with ctx.new_this(this_sym):
-            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
-                ctx, node.params, node.body
-            )
-            return GeneratedPyAST(
-                node=ast.FunctionDef(
-                    name=method_name,
-                    args=ast.arguments(
-                        args=list(
-                            chain([ast.arg(arg=this_name, annotation=None)], fn_args)
-                        ),
-                        kwarg=None,
-                        vararg=varg,
-                        kwonlyargs=[],
-                        defaults=[],
-                        kw_defaults=[],
-                    ),
-                    body=fn_body_ast,
-                    decorator_list=list(
+        assert arity.op == NodeOp.DEFTYPE_METHOD_ARITY
+        assert node.name == arity.name
+
+        with ctx.new_symbol_table(node.name), ctx.new_recur_point(
+            arity.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
+        ):
+            this_name = genname(munge(arity.this_local.name))
+            this_sym = sym.symbol(arity.this_local.name)
+            ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
+
+            with ctx.new_this(this_sym):
+                return __single_arity_deftype_method_to_py_ast(
+                    ctx,
+                    arity,
+                    prefix_args=(ast.arg(arg=this_name, annotation=None),),
+                    decorators=list(
                         chain(
                             [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
                             __kwargs_support_decorator(node),
                         )
                     ),
-                    returns=None,
                 )
-            )
+    else:
+        return __multi_arity_fn_to_py_ast(ctx, node, node.arities,)
 
 
 @_with_ast_loc
 def __deftype_staticmethod_to_py_ast(
-    ctx: GeneratorContext, node: StaticMethod
+    ctx: GeneratorContext, node: DefTypeStaticMethod
 ) -> GeneratedPyAST:
-    assert node.op == NodeOp.STATIC_METHOD
-    method_name = munge(node.name)
+    """Return a Python AST Node for a `deftype*` staticmethod."""
+    assert node.op == NodeOp.DEFTYPE_METHOD
 
-    with ctx.new_symbol_table(node.name):
-        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
-        return GeneratedPyAST(
-            node=ast.FunctionDef(
-                name=method_name,
-                args=ast.arguments(
-                    args=list(fn_args),
-                    kwarg=None,
-                    vararg=varg,
-                    kwonlyargs=[],
-                    defaults=[],
-                    kw_defaults=[],
+    if len(node.arities) == 1:
+        arity = next(iter(node.arities))
+
+        assert arity.op == NodeOp.DEFTYPE_STATICMETHOD_ARITY
+        assert node.name == arity.name
+
+        with ctx.new_symbol_table(node.name):
+            return __single_arity_deftype_method_to_py_ast(
+                ctx,
+                arity,
+                decorators=list(
+                    chain(_PY_STATICMETHOD_FN_NAME, __kwargs_support_decorator(node))
                 ),
-                body=fn_body_ast,
-                decorator_list=list(
-                    chain([_PY_STATICMETHOD_FN_NAME], __kwargs_support_decorator(node))
-                ),
-                returns=None,
             )
-        )
+    else:
+        return __multi_arity_fn_to_py_ast(ctx, node, node.arities)
 
 
 _DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, PyASTGenerator] = {
-    NodeOp.CLASS_METHOD: __deftype_classmethod_to_py_ast,
-    NodeOp.METHOD: __deftype_method_to_py_ast,
-    NodeOp.PROPERTY_METHOD: __deftype_property_to_py_ast,
-    NodeOp.STATIC_METHOD: __deftype_staticmethod_to_py_ast,
+    NodeOp.DEFTYPE_CLASSMETHOD: __deftype_classmethod_to_py_ast,
+    NodeOp.DEFTYPE_METHOD: __deftype_method_to_py_ast,
+    NodeOp.DEFTYPE_PROPERTY: __deftype_property_to_py_ast,
+    NodeOp.DEFTYPE_STATICMETHOD: __deftype_staticmethod_to_py_ast,
 }
 
 
@@ -1178,7 +1400,7 @@ def __fn_meta(
 
 
 def __kwargs_support_decorator(
-    node: Union[Fn, ClassMethod, Method, StaticMethod]
+    node: Union[Fn, DefTypeClassMethod, DefTypeMethod, DefTypeStaticMethod]
 ) -> Iterable[ast.AST]:
     if node.kwarg_support is None:
         return
@@ -1199,7 +1421,7 @@ def __single_arity_fn_to_py_ast(
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with a single arity."""
     assert node.op == NodeOp.FN
-    assert method.op == NodeOp.FN_METHOD
+    assert method.op == NodeOp.FN_ARITY
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
@@ -1274,9 +1496,9 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
 
     def fn(*args):
         nargs = len(args)
-        method = __fn_dispatch_map.get(nargs)
-        if method:
-            return method(*args)
+        arity = __fn_dispatch_map.get(nargs)
+        if arity:
+            return arity(*args)
         # Only if default
         if nargs > max_fixed_arity:
             return default(*args)
@@ -1293,7 +1515,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     handle_return = __handle_async_return if is_async else __handle_return
 
     nargs_name = genname("nargs")
-    method_name = genname("method")
+    arity_name = genname("arity")
     body = [
         ast.Assign(
             targets=[ast.Name(id=nargs_name, ctx=ast.Store())],
@@ -1304,7 +1526,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
             ),
         ),
         ast.Assign(
-            targets=[ast.Name(id=method_name, ctx=ast.Store())],
+            targets=[ast.Name(id=arity_name, ctx=ast.Store())],
             value=ast.Call(
                 func=ast.Attribute(
                     value=ast.Name(id=dispatch_map_name, ctx=ast.Load()),
@@ -1319,12 +1541,12 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
             test=ast.Compare(
                 left=ast.Constant(None),
                 ops=[ast.IsNot()],
-                comparators=[ast.Name(id=method_name, ctx=ast.Load())],
+                comparators=[ast.Name(id=arity_name, ctx=ast.Load())],
             ),
             body=[
                 handle_return(
                     ast.Call(
-                        func=ast.Name(id=method_name, ctx=ast.Load()),
+                        func=ast.Name(id=arity_name, ctx=ast.Load()),
                         args=[
                             ast.Starred(
                                 value=ast.Name(
@@ -1415,14 +1637,14 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
 def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext,
     node: Fn,
-    methods: Collection[FnArity],
+    arities: Collection[FnArity],
     def_name: Optional[str] = None,
     meta_node: Optional[MetaNode] = None,
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with multiple arities."""
     assert node.op == NodeOp.FN
-    assert all([method.op == NodeOp.FN_METHOD for method in methods])
-    assert node.kwarg_support is None, "multi-arity functions may not support kwargs"
+    assert all(arity.op == NodeOp.FN_ARITY for arity in arities)
+    assert node.kwarg_support is None, "multi-arity functions do not support kwargs"
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
@@ -1432,15 +1654,17 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     arity_to_name = {}
     rest_arity_name: Optional[str] = None
     fn_defs = []
-    for method in methods:
-        arity_name = f"{py_fn_name}__arity{'_rest' if method.is_variadic else method.fixed_arity}"
-        if method.is_variadic:
+    for arity in arities:
+        arity_name = (
+            f"{py_fn_name}__arity{'_rest' if arity.is_variadic else arity.fixed_arity}"
+        )
+        if arity.is_variadic:
             rest_arity_name = arity_name
         else:
-            arity_to_name[method.fixed_arity] = arity_name
+            arity_to_name[arity.fixed_arity] = arity_name
 
         with ctx.new_symbol_table(arity_name), ctx.new_recur_point(
-            method.loop_id, RecurType.FN, is_variadic=node.is_variadic
+            arity.loop_id, RecurType.FN, is_variadic=node.is_variadic
         ):
             # Allow named anonymous functions to recursively call themselves
             if lisp_fn_name is not None:
@@ -1449,7 +1673,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                 )
 
             fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
-                ctx, method.params, method.body
+                ctx, arity.params, arity.body
             )
             fn_defs.append(
                 py_fn_node(

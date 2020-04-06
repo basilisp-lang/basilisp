@@ -71,13 +71,21 @@ from basilisp.lang.compiler.nodes import (
     Await,
     Binding,
     Catch,
-    ClassMethod,
     Const,
     ConstType,
     Def,
     DefType,
     DefTypeBase,
+    DefTypeClassMethod,
+    DefTypeClassMethodArity,
     DefTypeMember,
+    DefTypeMethod,
+    DefTypeMethodArity,
+    DefTypeMethodArityBase,
+    DefTypeMethodBase,
+    DefTypeProperty,
+    DefTypeStaticMethod,
+    DefTypeStaticMethodArity,
     Do,
     Fn,
     FnArity,
@@ -97,12 +105,10 @@ from basilisp.lang.compiler.nodes import (
     Map as MapNode,
     MaybeClass,
     MaybeHostForm,
-    Method,
     Node,
     NodeEnv,
     NodeOp,
     NodeSyntacticPosition,
-    PropertyMethod,
     PyDict,
     PyList,
     PySet,
@@ -114,7 +120,6 @@ from basilisp.lang.compiler.nodes import (
     Set as SetNode,
     SetBang,
     SpecialFormNode,
-    StaticMethod,
     Throw,
     Try,
     VarRef,
@@ -937,10 +942,14 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
 
 def __deftype_method_param_bindings(
     ctx: AnalyzerContext, params: vec.Vector
-) -> Tuple[bool, List[Binding]]:
+) -> Tuple[bool, int, List[Binding]]:
     """Generate parameter bindings for deftype* methods.
 
-    Special cases for class and static methods must be handled by their
+    Return a tuple containing a boolean, indicating if the parameter bindings
+    contain a variadic binding, an integer indicating the fixed arity of the
+    parameter bindings, and the list of parameter bindings.
+
+    Special cases for individual method types must be handled by their
     respective handlers. This method will only produce vanilla ARG type
     bindings."""
     has_vargs, vargs_idx = False, 0
@@ -967,6 +976,8 @@ def __deftype_method_param_bindings(
         param_nodes.append(binding)
         ctx.put_new_symbol(s, binding)
 
+    fixed_arity = len(param_nodes)
+
     if has_vargs:
         try:
             vargs_sym = params[vargs_idx + 1]
@@ -992,7 +1003,7 @@ def __deftype_method_param_bindings(
                 "Expected variadic argument name after '&'", form=params
             ) from None
 
-    return has_vargs, param_nodes
+    return has_vargs, fixed_arity, param_nodes
 
 
 def __deftype_classmethod(
@@ -1001,7 +1012,7 @@ def __deftype_classmethod(
     method_name: str,
     args: vec.Vector,
     kwarg_support: Optional[KeywordArgSupport] = None,
-) -> ClassMethod:
+) -> DefTypeClassMethodArity:
     """Emit a node for a :classmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
         try:
@@ -1024,13 +1035,18 @@ def __deftype_classmethod(
             ctx.put_new_symbol(cls_arg, cls_binding)
 
         params = args[1:]
-        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+        has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
+            ctx, params
+        )
         with ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        method = ClassMethod(
+        method = DefTypeClassMethodArity(
             form=form,
             name=method_name,
             params=vec.vector(param_nodes),
+            fixed_arity=fixed_arity,
+            is_variadic=has_vargs,
+            kwarg_support=kwarg_support,
             body=Do(
                 form=form.rest,
                 statements=vec.vector(stmts),
@@ -1040,10 +1056,8 @@ def __deftype_classmethod(
                 # exists, for metadata.
                 env=ctx.get_node_env(),
             ),
-            env=ctx.get_node_env(),
             class_local=cls_binding,
-            is_variadic=has_vargs,
-            kwarg_support=kwarg_support,
+            env=ctx.get_node_env(),
         )
         method.visit(_assert_no_recur)
         return method
@@ -1055,7 +1069,7 @@ def __deftype_method(
     method_name: str,
     args: vec.Vector,
     kwarg_support: Optional[KeywordArgSupport] = None,
-) -> Method:
+) -> DefTypeMethodArity:
     """Emit a node for a method member of a deftype* form."""
     with ctx.new_symbol_table(method_name):
         try:
@@ -1078,17 +1092,20 @@ def __deftype_method(
             ctx.put_new_symbol(this_arg, this_binding, warn_if_unused=False)
 
         params = args[1:]
-        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+        has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
+            ctx, params
+        )
 
         loop_id = genname(method_name)
         with ctx.new_recur_point(loop_id, param_nodes):
             with ctx.expr_pos():
                 stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-            method = Method(
+            method = DefTypeMethodArity(
                 form=form,
                 name=method_name,
                 this_local=this_binding,
                 params=vec.vector(param_nodes),
+                fixed_arity=fixed_arity,
                 is_variadic=has_vargs,
                 kwarg_support=kwarg_support,
                 body=Do(
@@ -1112,7 +1129,7 @@ def __deftype_property(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
-) -> PropertyMethod:
+) -> DefTypeProperty:
     """Emit a node for a :property member of a deftype* form."""
     with ctx.new_symbol_table(method_name):
         try:
@@ -1135,7 +1152,7 @@ def __deftype_property(
             ctx.put_new_symbol(this_arg, this_binding, warn_if_unused=False)
 
         params = args[1:]
-        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+        has_vargs, _, param_nodes = __deftype_method_param_bindings(ctx, params)
 
         if len(param_nodes) > 0:
             raise AnalyzerException(
@@ -1146,7 +1163,7 @@ def __deftype_property(
 
         with ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        prop = PropertyMethod(
+        prop = DefTypeProperty(
             form=form,
             name=method_name,
             this_local=this_binding,
@@ -1172,16 +1189,19 @@ def __deftype_staticmethod(
     method_name: str,
     args: vec.Vector,
     kwarg_support: Optional[KeywordArgSupport] = None,
-) -> StaticMethod:
+) -> DefTypeStaticMethodArity:
     """Emit a node for a :staticmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
-        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, args)
+        has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(ctx, args)
         with ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        method = StaticMethod(
+        method = DefTypeStaticMethodArity(
             form=form,
             name=method_name,
             params=vec.vector(param_nodes),
+            fixed_arity=fixed_arity,
+            is_variadic=has_vargs,
+            kwarg_support=kwarg_support,
             body=Do(
                 form=form.rest,
                 statements=vec.vector(stmts),
@@ -1192,21 +1212,24 @@ def __deftype_staticmethod(
                 env=ctx.get_node_env(),
             ),
             env=ctx.get_node_env(),
-            is_variadic=has_vargs,
-            kwarg_support=kwarg_support,
         )
         method.visit(_assert_no_recur)
         return method
 
 
-def __deftype_member(  # pylint: disable=too-many-branches
+def __deftype_prop_or_method_arity(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: Union[llist.List, ISeq]
-) -> DefTypeMember:
-    """Emit a member node for a deftype* form.
+) -> Union[DefTypeMethodArityBase, DefTypeProperty]:
+    """Emit either a `deftype*` property node or an arity of a `deftype*` method.
 
-    Member nodes are determined by the presence or absence of certain
-    metadata elements on the input form (or the form's first member,
-    typically a symbol naming that member)."""
+    Unlike standard `fn*` definitions, multiple arities for a single method are
+    not defined within some containing node. As such, we can only emit either a
+    full property node (since properties may not be multi-arity) or the single
+    arity of a method, classmethod, or staticmethod.
+
+    The type of the member node is determined by the presence or absence of certain
+    metadata elements on the input form (or the form's first member, typically a
+    symbol naming that member)."""
     if not isinstance(form.first, sym.Symbol):
         raise AnalyzerException(
             "deftype* method must be named by symbol: (name [& args] & body)",
@@ -1263,14 +1286,95 @@ def __deftype_member(  # pylint: disable=too-many-branches
         )
 
 
+def __deftype_method_node_from_arities(
+    ctx: AnalyzerContext,
+    form: Union[llist.List, ISeq],
+    arities: List[DefTypeMethodArityBase],
+) -> DefTypeMethodBase:
+    """Roll all of the collected arities up into a single method node."""
+    fixed_arities: MutableSet[int] = set()
+    fixed_arity_for_variadic: Optional[int] = None
+    num_variadic = 0
+    for arity in arities:
+        if fixed_arity_for_variadic is not None:
+            if arity.fixed_arity >= fixed_arity_for_variadic:
+                raise AnalyzerException(
+                    "deftype method may not have a method with fixed arity greater "
+                    "than fixed arity of variadic function",
+                    form=arity.form,
+                )
+        if arity.is_variadic:
+            if num_variadic > 0:
+                raise AnalyzerException(
+                    "deftype method may have at most 1 variadic arity", form=arity.form
+                )
+            fixed_arity_for_variadic = arity.fixed_arity
+            num_variadic += 1
+        else:
+            if arity.fixed_arity in fixed_arities:
+                raise AnalyzerException(
+                    "deftype may not have multiple methods with the same fixed arity",
+                    form=arity.form,
+                )
+            fixed_arities.add(arity.fixed_arity)
+
+    if fixed_arity_for_variadic is not None and any(
+        fixed_arity_for_variadic < arity for arity in fixed_arities
+    ):
+        raise AnalyzerException(
+            "variadic arity may not have fewer fixed arity arguments than any other arities",
+            form=form,
+        )
+
+    assert (
+        len(set(arity.name for arity in arities)) <= 1
+    ), "arities must have the same name defined"
+
+    if len(arities) > 1 and any(arity.kwarg_support is not None for arity in arities):
+        raise AnalyzerException(
+            "multi-arity deftype* methods may not declare support for keyword arguments",
+            form=form,
+        )
+
+    if all(isinstance(e, DefTypeMethodArity) for e in arities):
+        return DefTypeMethod(
+            form=form,
+            name=arities[0].name,
+            max_fixed_arity=max(fixed_arities),
+            arities=vec.vector(arities),  # type: ignore[arg-type]
+            is_variadic=num_variadic == 1,
+            env=ctx.get_node_env(),
+        )
+    elif all(isinstance(e, DefTypeClassMethodArity) for e in arities):
+        return DefTypeClassMethod(
+            form=form,
+            name=arities[0].name,
+            max_fixed_arity=max(fixed_arities),
+            arities=vec.vector(arities),  # type: ignore[arg-type]
+            is_variadic=num_variadic == 1,
+            env=ctx.get_node_env(),
+        )
+    elif all(isinstance(e, DefTypeStaticMethodArity) for e in arities):
+        return DefTypeStaticMethod(
+            form=form,
+            name=arities[0].name,
+            max_fixed_arity=max(fixed_arities),
+            arities=vec.vector(arities),  # type: ignore[arg-type]
+            is_variadic=num_variadic == 1,
+            env=ctx.get_node_env(),
+        )
+    else:
+        raise AnalyzerException(
+            "deftype* method arities must all be declared one of :classmethod, "
+            ":property, :staticmethod, or none (for a standard method)",
+            form=form,
+        )
+
+
 def __deftype_impls(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: ISeq
 ) -> Tuple[List[DefTypeBase], List[DefTypeMember]]:
     """Roll up deftype* declared bases and method implementations."""
-    interface_names: MutableSet[sym.Symbol] = set()
-    interfaces = []
-    methods: List[DefTypeMember] = []
-
     if runtime.to_seq(form) is None:
         return [], []
 
@@ -1286,6 +1390,8 @@ def __deftype_impls(  # pylint: disable=too-many-branches
             form=implements,
         )
 
+    interface_names: MutableSet[sym.Symbol] = set()
+    interfaces = []
     for iface in implements:
         if not isinstance(iface, sym.Symbol):
             raise AnalyzerException("deftype* interfaces must be symbols", form=iface)
@@ -1305,16 +1411,34 @@ def __deftype_impls(  # pylint: disable=too-many-branches
             )
         interfaces.append(current_interface)
 
+    methods: MutableMapping[
+        str, List[DefTypeMethodArityBase]
+    ] = collections.defaultdict(list)
+    props: MutableMapping[str, DefTypeProperty] = {}
     for elem in runtime.nthrest(form, 2):
-        if isinstance(elem, ISeq):
-            methods.append(__deftype_member(ctx, elem))
-        else:
+        if not isinstance(elem, ISeq):
             raise AnalyzerException(
                 f"deftype* must consist of interface or protocol names and methods",
                 form=elem,
             )
 
-    return interfaces, list(methods)
+        member = __deftype_prop_or_method_arity(ctx, elem)
+        if isinstance(member, DefTypeProperty):
+            if member.name in props:
+                raise AnalyzerException(
+                    f"deftype* property may only have one arity defined",
+                    form=elem,
+                    lisp_ast=member,
+                )
+            props[member.name] = member
+        else:
+            methods[member.name].append(member)
+
+    members: List[DefTypeMember] = []
+    for method_name, arities in methods.items():
+        members.append(__deftype_method_node_from_arities(ctx, form, arities))
+
+    return interfaces, list(members)
 
 
 def __is_abstract(tp: Type) -> bool:
@@ -1643,14 +1767,14 @@ def _fn_ast(  # pylint: disable=too-many-branches
 
         with ctx.new_func_ctx(is_async=is_async):
             if isinstance(arity_or_args, llist.List):
-                methods = vec.vector(
+                arities = vec.vector(
                     map(
                         partial(__fn_method_ast, ctx, fnname=name),
                         runtime.nthrest(form, idx),
                     )
                 )
             elif isinstance(arity_or_args, vec.Vector):
-                methods = vec.v(
+                arities = vec.v(
                     __fn_method_ast(ctx, runtime.nthrest(form, idx), fnname=name)
                 )
             else:
@@ -1659,7 +1783,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
                     form=form,
                 )
 
-        nmethods = count(methods)
+        nmethods = count(arities)
         assert nmethods > 0, "fn must have at least one arity"
 
         if kwarg_support is not None and nmethods > 1:
@@ -1671,28 +1795,28 @@ def _fn_ast(  # pylint: disable=too-many-branches
         fixed_arities: MutableSet[int] = set()
         fixed_arity_for_variadic: Optional[int] = None
         num_variadic = 0
-        for method in methods:
+        for arity in arities:
             if fixed_arity_for_variadic is not None:
-                if method.fixed_arity >= fixed_arity_for_variadic:
+                if arity.fixed_arity >= fixed_arity_for_variadic:
                     raise AnalyzerException(
                         "fn may not have a method with fixed arity greater than "
                         "fixed arity of variadic function",
-                        form=method.form,
+                        form=arity.form,
                     )
-            if method.is_variadic:
+            if arity.is_variadic:
                 if num_variadic > 0:
                     raise AnalyzerException(
-                        "fn may have at most 1 variadic arity", form=method.form
+                        "fn may have at most 1 variadic arity", form=arity.form
                     )
-                fixed_arity_for_variadic = method.fixed_arity
+                fixed_arity_for_variadic = arity.fixed_arity
                 num_variadic += 1
             else:
-                if method.fixed_arity in fixed_arities:
+                if arity.fixed_arity in fixed_arities:
                     raise AnalyzerException(
                         "fn may not have multiple methods with the same fixed arity",
-                        form=method.form,
+                        form=arity.form,
                     )
-                fixed_arities.add(method.fixed_arity)
+                fixed_arities.add(arity.fixed_arity)
 
         if fixed_arity_for_variadic is not None and any(
             fixed_arity_for_variadic < arity for arity in fixed_arities
@@ -1705,8 +1829,8 @@ def _fn_ast(  # pylint: disable=too-many-branches
         return Fn(
             form=form,
             is_variadic=num_variadic == 1,
-            max_fixed_arity=max([node.fixed_arity for node in methods]),
-            methods=methods,
+            max_fixed_arity=max(node.fixed_arity for node in arities),
+            arities=arities,
             local=name_node,
             env=ctx.get_node_env(pos=ctx.syntax_position),
             is_async=is_async,
@@ -2235,8 +2359,13 @@ def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branc
         for child in node.statements:
             _assert_no_recur(child)
         _assert_recur_is_tail(node.ret)
-    elif node.op in {NodeOp.FN, NodeOp.FN_METHOD, NodeOp.METHOD}:
-        assert isinstance(node, (Fn, FnArity, Method))
+    elif node.op in {
+        NodeOp.FN,
+        NodeOp.FN_ARITY,
+        NodeOp.DEFTYPE_METHOD,
+        NodeOp.DEFTYPE_METHOD_ARITY,
+    }:
+        assert isinstance(node, (Fn, FnArity, DefTypeMethod, DefTypeMethodArity))
         node.visit(_assert_recur_is_tail)
     elif node.op == NodeOp.IF:
         assert isinstance(node, If)
