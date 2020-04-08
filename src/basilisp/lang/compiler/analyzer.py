@@ -1286,7 +1286,7 @@ def __deftype_prop_or_method_arity(  # pylint: disable=too-many-branches
         )
 
 
-def __deftype_method_node_from_arities(
+def __deftype_method_node_from_arities(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext,
     form: Union[llist.List, ISeq],
     arities: List[DefTypeMethodArityBase],
@@ -1435,7 +1435,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
             methods[member.name].append(member)
 
     members: List[DefTypeMember] = []
-    for method_name, arities in methods.items():
+    for _, arities in methods.items():
         members.append(__deftype_method_node_from_arities(ctx, form, arities))
 
     return interfaces, list(members)
