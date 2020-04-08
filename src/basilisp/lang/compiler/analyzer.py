@@ -1336,11 +1336,13 @@ def __deftype_method_node_from_arities(  # pylint: disable=too-many-branches
             form=form,
         )
 
+    max_fixed_arity = max(arity.fixed_arity for arity in arities)
+
     if all(isinstance(e, DefTypeMethodArity) for e in arities):
         return DefTypeMethod(
             form=form,
             name=arities[0].name,
-            max_fixed_arity=max(fixed_arities),
+            max_fixed_arity=max_fixed_arity,
             arities=vec.vector(arities),  # type: ignore[arg-type]
             is_variadic=num_variadic == 1,
             env=ctx.get_node_env(),
@@ -1349,7 +1351,7 @@ def __deftype_method_node_from_arities(  # pylint: disable=too-many-branches
         return DefTypeClassMethod(
             form=form,
             name=arities[0].name,
-            max_fixed_arity=max(fixed_arities),
+            max_fixed_arity=max_fixed_arity,
             arities=vec.vector(arities),  # type: ignore[arg-type]
             is_variadic=num_variadic == 1,
             env=ctx.get_node_env(),
@@ -1358,7 +1360,7 @@ def __deftype_method_node_from_arities(  # pylint: disable=too-many-branches
         return DefTypeStaticMethod(
             form=form,
             name=arities[0].name,
-            max_fixed_arity=max(fixed_arities),
+            max_fixed_arity=max_fixed_arity,
             arities=vec.vector(arities),  # type: ignore[arg-type]
             is_variadic=num_variadic == 1,
             env=ctx.get_node_env(),
