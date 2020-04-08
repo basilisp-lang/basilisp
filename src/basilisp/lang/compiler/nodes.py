@@ -409,7 +409,13 @@ class DefTypeProperty(DefTypeMember):
 T_DefTypeMethodArity = TypeVar("T_DefTypeMethodArity", bound="DefTypeMethodArityBase")
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+# Use attrs `these` for now as there is an open bug around slotted
+# generic classes: https://github.com/python-attrs/attrs/issues/313
+@attr.s(
+    auto_attribs=True,
+    frozen=True,
+    these={"max_fixed_arity": attr.ib(), "arities": attr.ib()},
+)
 class DefTypeMethodBase(DefTypeMember, Generic[T_DefTypeMethodArity]):
     max_fixed_arity: int
     arities: IPersistentVector[T_DefTypeMethodArity]
