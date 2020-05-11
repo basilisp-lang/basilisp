@@ -1194,7 +1194,7 @@ def __deftype_staticmethod_to_py_ast(
     ctx: GeneratorContext, node: DefTypeStaticMethod
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` staticmethod."""
-    assert node.op == NodeOp.DEFTYPE_METHOD
+    assert node.op == NodeOp.DEFTYPE_STATICMETHOD
 
     if len(node.arities) == 1:
         return __deftype_staticmethod_arity_to_py_ast(
