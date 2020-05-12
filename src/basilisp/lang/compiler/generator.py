@@ -1136,16 +1136,20 @@ def __deftype_method_arity_to_py_ast(
         ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
 
         with ctx.new_this(this_sym):
+            # This is a very bad hack to allow us to evaluate the context
+            # recur point after the body has been read and the recur point
+            # has been set
+            def _should_trampoline() -> Iterable[ast.AST]:
+                if ctx.recur_point.has_recur:
+                    yield _TRAMPOLINE_FN_NAME
+
             return __single_arity_deftype_method_to_py_ast(
                 ctx,
                 arity,
                 method_name=method_name,
                 prefix_args=(ast.arg(arg=this_name, annotation=None),),
-                decorators=list(
-                    chain(
-                        [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
-                        __kwargs_support_decorator(arity),
-                    )
+                decorators=chain(
+                    _should_trampoline(), __kwargs_support_decorator(arity),
                 ),
             )
 
