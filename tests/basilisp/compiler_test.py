@@ -994,15 +994,15 @@ class TestDefType:
                 lcompile(code)
 
         def test_deftype_classmethod_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
-            self, lcompile: CompileFn
+            self, lcompile: CompileFn, class_interface: Var,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
                     (deftype* Point [x y z]
                       :implements [WithCls]
-                      (^:classmethod create [cls s & args]
-                        (concat [s] args))
+                      (^:classmethod create [cls a b]
+                        [a b])
                       (^:classmethod create [cls & args]
                         (concat [:no-starter] args)))
                     """

@@ -1454,7 +1454,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
             methods[member.name].append(member)
 
     members: List[DefTypeMember] = []
-    for member_name in member_order.keys():
+    for member_name in member_order:
         arities = methods.get(member_name)
         if arities is not None:
             members.append(__deftype_method_node_from_arities(ctx, form, arities))
