@@ -927,6 +927,133 @@ class TestDefType:
             pt = Point.create(1, 2, z=3)
             assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod create [cls]
+                    :no-args)
+                  (^:classmethod create [cls]
+                    :also-no-args))
+            """,
+                """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod create [cls s]
+                    :one-arg)
+                  (^:classmethod create [cls s]
+                    :also-one-arg))
+            """,
+                """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod create [cls]
+                    :no-args)
+                  (^:classmethod create [cls s]
+                    :one-arg)
+                  (^:classmethod create [cls a b]
+                    [a b])
+                  (^:classmethod create [cls s3]
+                    :also-one-arg))
+            """,
+            ],
+        )
+        def test_no_deftype_classmethod_arity_has_same_fixed_arity(
+            self, lcompile: CompileFn, class_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls & args]
+                (concat [:no-starter] args))
+              (^:classmethod create  [cls s & args]
+                (concat [s] args)))
+            """,
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls s & args]
+                (concat [s] args))
+              (^:classmethod create [cls & args]
+                (concat [:no-starter] args)))
+            """,
+            ],
+        )
+        def test_deftype_classmethod_cannot_have_two_variadic_arities(
+            self, lcompile: CompileFn, class_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_deftype_classmethod_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
+            self, lcompile: CompileFn
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (deftype* Point [x y z]
+                      :implements [WithCls]
+                      (^:classmethod create [cls s & args]
+                        (concat [s] args))
+                      (^:classmethod create [cls & args]
+                        (concat [:no-starter] args)))
+                    """
+                )
+
+        def test_multi_arity_deftype_classmethod_dispatches_properly(
+            self, lcompile: CompileFn, ns: runtime.Namespace, class_interface: Var
+        ):
+            code = """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls] cls)
+              (^:classmethod create [cls s] cls))
+            """
+            Point = lcompile(code)
+            assert callable(Point.create)
+            assert Point is Point.create()
+            assert Point is Point.create("STRING")
+
+            code = """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls] :no-args)
+              (^:classmethod create [cls s] s)
+              (^:classmethod create [cls s & args] s
+                (concat [s] args)))
+            """
+            Point = lcompile(code)
+            assert callable(Point.create)
+            assert Point.create() == kw.keyword("no-args")
+            assert Point.create("STRING") == "STRING"
+            assert Point.create(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
+                kw.keyword("first-arg"), "second-arg", 3
+            )
+
+        def test_multi_arity_fn_call_fails_if_no_valid_arity(
+            self, lcompile: CompileFn, class_interface: Var
+        ):
+            Point = lcompile(
+                """
+                (deftype* Point [x y z]
+                  :implements [WithCls]
+                  (^:classmethod create [cls] :send-me-an-arg!)
+                  (^:classmethod create [cls i] i)
+                  (^:classmethod create [cls i j] (concat [i] [j])))
+                """
+            )
+
+            with pytest.raises(runtime.RuntimeException):
+                Point.create(1, 2, 3)
+
     class TestDefTypeMethod:
         def test_deftype_fields_and_methods(self, lcompile: CompileFn):
             Point = lcompile(
@@ -1796,59 +1923,57 @@ class TestFunctionDef:
                     f"^{{:kwargs {kwarg_support}}} (fn* ([arg] arg) ([arg kwargs] [arg kwargs]))"
                 )
 
-    def test_no_fn_method_has_same_fixed_arity(self, lcompile: CompileFn):
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+        (def f
+          (fn* f
+            ([] :no-args)
+            ([] :also-no-args)))
+        """,
+            """
+        (def f
+          (fn* f
+            ([s] :one-arg)
+            ([s] :also-one-arg)))
+        """,
+            """
+        (def f
+          (fn* f
+            ([] :no-args)
+            ([s] :one-arg)
+            ([a b] [a b])
+            ([s3] :also-one-arg)))
+        """,
+        ],
+    )
+    def test_no_fn_method_has_same_fixed_arity(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
-                (def f
-                  (fn* f
-                    ([] :no-args)
-                    ([] :also-no-args)))
-                """
-            )
+            lcompile(code)
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+        (def f
+          (fn* f
+            ([& args] (concat [:no-starter] args))
+            ([s & args] (concat [s] args))))
+        """,
+            """
+        (def f
+          (fn* f
+            ([s & args] (concat [s] args))
+            ([& args] (concat [:no-starter] args))))
+        """,
+        ],
+    )
+    def test_multi_arity_fn_cannot_have_two_variadic_methods(
+        self, lcompile: CompileFn, code: str
+    ):
         with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
-                (def f
-                  (fn* f
-                    ([s] :one-arg)
-                    ([s] :also-one-arg)))
-                """
-            )
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
-                (def f
-                  (fn* f
-                    ([] :no-args)
-                    ([s] :one-arg)
-                    ([a b] [a b])
-                    ([s3] :also-one-arg)))
-                """
-            )
-
-    def test_multi_arity_fn_cannot_have_two_variadic_methods(self, lcompile: CompileFn):
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
-                (def f
-                  (fn* f
-                    ([& args] (concat [:no-starter] args))
-                    ([s & args] (concat [s] args))))
-                """
-            )
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
-                (def f
-                  (fn* f
-                    ([s & args] (concat [s] args))
-                    ([& args] (concat [:no-starter] args))))
-                """
-            )
+            lcompile(code)
 
     def test_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
         self, lcompile: CompileFn
@@ -1897,16 +2022,16 @@ class TestFunctionDef:
         )
 
     def test_multi_arity_fn_call_fails_if_no_valid_arity(self, lcompile: CompileFn):
+        fvar = lcompile(
+            """
+            (def angry-multi-fn
+              (fn* angry-multi-fn
+                ([] :send-me-an-arg!)
+                ([i] i)
+                ([i j] (concat [i] [j]))))
+            """
+        )
         with pytest.raises(runtime.RuntimeException):
-            fvar = lcompile(
-                """
-                (def angry-multi-fn
-                  (fn* angry-multi-fn
-                    ([] :send-me-an-arg!)
-                    ([i] i)
-                    ([i j] (concat [i] [j]))))
-                """
-            )
             fvar.value(1, 2, 3)
 
     def test_async_single_arity(self, lcompile: CompileFn):

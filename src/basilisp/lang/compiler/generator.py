@@ -950,25 +950,26 @@ def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments
     ]
 
     return GeneratedPyAST(
-        node=ast.Name(id=name, ctx=ast.Load()),
-        dependencies=[
-            ast.FunctionDef(
-                name=name,
-                args=ast.arguments(
-                    args=[]
-                    if instance_or_class_name is None
-                    else [ast.arg(arg=instance_or_class_name, annotation=None)],
-                    kwarg=None,
-                    vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
-                    kwonlyargs=[],
-                    defaults=[],
-                    kw_defaults=[],
-                ),
-                body=body,
-                decorator_list=list(decorators),
-                returns=None,
-            )
-        ],
+        # This is a pretty unusual case where we actually want to return the statement
+        # node itself, rather than a name or expression. We're injecting all of these
+        # nodes directly into the generated class body and Python does not like the
+        # empty ast.Name in the class body definition (and also its unnecessary).
+        node=ast.FunctionDef(
+            name=name,
+            args=ast.arguments(
+                args=[]
+                if instance_or_class_name is None
+                else [ast.arg(arg=instance_or_class_name, annotation=None)],
+                kwarg=None,
+                vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
+                kwonlyargs=[],
+                defaults=[],
+                kw_defaults=[],
+            ),
+            body=body,
+            decorator_list=list(decorators),
+            returns=None,
+        ),
     )
 
 
@@ -1004,7 +1005,8 @@ def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-locals
         )
     )
 
-    py_method_arity_name = genname(f"__{node.name}")
+    safe_name = munge(node.name)
+    py_method_arity_name = genname(f"__{safe_name}")
 
     arity_to_name = {}
     rest_arity_name: Optional[str] = None
@@ -1023,18 +1025,18 @@ def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-locals
         fn_defs.append(fn_def.node)
 
     dispatch_fn_ast = __multi_arity_deftype_dispatch_method(
-        py_method_arity_name,
+        safe_name,
         arity_to_name,
         default_name=rest_arity_name,
         max_fixed_arity=node.max_fixed_arity,
         instance_or_class_name=instance_or_class_name,
         decorators=decorators,
     )
+    assert (
+        not dispatch_fn_ast.dependencies
+    ), "dispatch function should have no dependencies"
 
-    return GeneratedPyAST(
-        node=dispatch_fn_ast.node,
-        dependencies=list(chain(fn_defs, dispatch_fn_ast.dependencies)),
-    )
+    return GeneratedPyAST(node=dispatch_fn_ast.node, dependencies=fn_defs,)
 
 
 def __deftype_classmethod_arity_to_py_ast(
@@ -1136,7 +1138,7 @@ def __deftype_method_arity_to_py_ast(
         ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
 
         with ctx.new_this(this_sym):
-            # This is a very bad hack to allow us to evaluate the context
+            # This is a Very Bad Hack (tm) to allow us to evaluate the context
             # recur point after the body has been read and the recur point
             # has been set
             def _should_trampoline() -> Iterable[ast.AST]:
@@ -1297,7 +1299,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
         for member in node.members:
             type_ast = __deftype_member_to_py_ast(ctx, member)
             type_nodes.append(type_ast.node)  # type: ignore
-            type_deps.extend(type_ast.dependencies)
+            type_nodes.extend(type_ast.dependencies)
 
         return GeneratedPyAST(
             node=ast.Name(id=type_name, ctx=ast.Load()),
