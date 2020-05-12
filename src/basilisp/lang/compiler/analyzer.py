@@ -1373,7 +1373,7 @@ def __deftype_method_node_from_arities(  # pylint: disable=too-many-branches
         )
 
 
-def __deftype_impls(  # pylint: disable=too-many-branches
+def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noqa: MC0001
     ctx: AnalyzerContext, form: ISeq
 ) -> Tuple[List[DefTypeBase], List[DefTypeMember]]:
     """Roll up deftype* declared bases and method implementations."""
@@ -1413,6 +1413,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
             )
         interfaces.append(current_interface)
 
+    member_order = []
     methods: MutableMapping[
         str, List[DefTypeMethodArityBase]
     ] = collections.defaultdict(list)
@@ -1425,6 +1426,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
             )
 
         member = __deftype_prop_or_method_arity(ctx, elem)
+        member_order.append(member.name)
         if isinstance(member, DefTypeProperty):
             if member.name in props:
                 raise AnalyzerException(
@@ -1432,15 +1434,37 @@ def __deftype_impls(  # pylint: disable=too-many-branches
                     form=elem,
                     lisp_ast=member,
                 )
+            elif member.name in methods:
+                raise AnalyzerException(
+                    "deftype* property name already defined as a method",
+                    form=elem,
+                    lisp=member,
+                )
             props[member.name] = member
         else:
+            if member.name in props:
+                raise AnalyzerException(
+                    "deftype* method name already defined as a property",
+                    form=elem,
+                    lisp_ast=member,
+                )
             methods[member.name].append(member)
 
     members: List[DefTypeMember] = []
-    for _, arities in methods.items():
-        members.append(__deftype_method_node_from_arities(ctx, form, arities))
+    for member_name in member_order:
+        arities = methods.get(member_name)
+        if arities is not None:
+            members.append(__deftype_method_node_from_arities(ctx, form, arities))
+            continue
 
-    return interfaces, list(members)
+        prop = props.get(member_name)
+        if prop is not None:
+            members.append(prop)
+            continue
+
+        assert False, "Member must be a method or property"
+
+    return interfaces, members
 
 
 def __is_abstract(tp: Type) -> bool:
