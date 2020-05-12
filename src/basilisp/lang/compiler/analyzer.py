@@ -1413,7 +1413,10 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
             )
         interfaces.append(current_interface)
 
-    member_order = []
+    # Use the insertion-order preserving capabilities of a dictionary with 'True'
+    # keys to act as an ordered set of members we've seen. We don't want to register
+    # duplicates.
+    member_order = {}
     methods: MutableMapping[
         str, List[DefTypeMethodArityBase]
     ] = collections.defaultdict(list)
@@ -1426,7 +1429,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
             )
 
         member = __deftype_prop_or_method_arity(ctx, elem)
-        member_order.append(member.name)
+        member_order[member.name] = True
         if isinstance(member, DefTypeProperty):
             if member.name in props:
                 raise AnalyzerException(
@@ -1451,7 +1454,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
             methods[member.name].append(member)
 
     members: List[DefTypeMember] = []
-    for member_name in member_order:
+    for member_name in member_order.keys():
         arities = methods.get(member_name)
         if arities is not None:
             members.append(__deftype_method_node_from_arities(ctx, form, arities))

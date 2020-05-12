@@ -919,7 +919,11 @@ def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments
                     body=[
                         ast.Return(
                             value=ast.Call(
-                                func=ast.Name(id=default_name, ctx=ast.Load()),
+                                func=_load_attr(
+                                    default_name
+                                    if instance_or_class_name is None
+                                    else f"{instance_or_class_name}.{default_name}"
+                                ),
                                 args=[
                                     ast.Starred(
                                         value=ast.Name(
@@ -1272,7 +1276,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
     )
 
     with ctx.new_symbol_table(node.name):
-        type_nodes = []
+        type_nodes: List[ast.AST] = []
         type_deps: List[ast.AST] = []
         for field in node.fields:
             safe_field = munge(field.name)
@@ -1298,7 +1302,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
 
         for member in node.members:
             type_ast = __deftype_member_to_py_ast(ctx, member)
-            type_nodes.append(type_ast.node)  # type: ignore
+            type_nodes.append(type_ast.node)
             type_nodes.extend(type_ast.dependencies)
 
         return GeneratedPyAST(
