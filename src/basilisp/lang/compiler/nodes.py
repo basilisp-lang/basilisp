@@ -425,16 +425,10 @@ class DefTypeMethodBase(DefTypeMember, Generic[T_DefTypeMethodArity]):
     def is_variadic(self) -> bool:
         raise NotImplementedError
 
-    @property
-    @abstractmethod
-    def kwarg_support(self) -> Optional[KeywordArgSupport]:
-        raise NotImplementedError
-
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class DefTypeMethod(DefTypeMethodBase["DefTypeMethodArity"]):
     is_variadic: bool = False
-    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(ARITIES)
     op: NodeOp = NodeOp.DEFTYPE_METHOD
     top_level: bool = False
@@ -444,7 +438,6 @@ class DefTypeMethod(DefTypeMethodBase["DefTypeMethodArity"]):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class DefTypeClassMethod(DefTypeMethodBase["DefTypeClassMethodArity"]):
     is_variadic: bool = False
-    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(ARITIES)
     op: NodeOp = NodeOp.DEFTYPE_CLASSMETHOD
     top_level: bool = False
@@ -454,7 +447,6 @@ class DefTypeClassMethod(DefTypeMethodBase["DefTypeClassMethodArity"]):
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class DefTypeStaticMethod(DefTypeMethodBase["DefTypeStaticMethodArity"]):
     is_variadic: bool = False
-    kwarg_support: Optional[KeywordArgSupport] = None
     children: Sequence[kw.Keyword] = vec.v(ARITIES)
     op: NodeOp = NodeOp.DEFTYPE_STATICMETHOD
     top_level: bool = False

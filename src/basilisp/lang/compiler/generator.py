@@ -1003,7 +1003,6 @@ def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-locals
             and all(arity.op == NodeOp.DEFTYPE_STATICMETHOD_ARITY for arity in arities)
         )
     )
-    assert node.kwarg_support is None, "multi-arity methods do not support kwargs"
 
     py_method_arity_name = genname(f"__{node.name}")
 
@@ -1058,7 +1057,7 @@ def __deftype_classmethod_arity_to_py_ast(
             method_name=method_name,
             prefix_args=(ast.arg(arg=class_name, annotation=None),),
             decorators=list(
-                chain([_PY_CLASSMETHOD_FN_NAME], __kwargs_support_decorator(node),)
+                chain([_PY_CLASSMETHOD_FN_NAME], __kwargs_support_decorator(arity),)
             ),
         )
 
@@ -1145,7 +1144,7 @@ def __deftype_method_arity_to_py_ast(
                 decorators=list(
                     chain(
                         [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
-                        __kwargs_support_decorator(node),
+                        __kwargs_support_decorator(arity),
                     )
                 ),
             )
@@ -1184,7 +1183,7 @@ def __deftype_staticmethod_arity_to_py_ast(
             arity,
             method_name=method_name,
             decorators=list(
-                chain([_PY_STATICMETHOD_FN_NAME], __kwargs_support_decorator(node))
+                chain([_PY_STATICMETHOD_FN_NAME], __kwargs_support_decorator(arity))
             ),
         )
 
@@ -1454,7 +1453,9 @@ def __fn_meta(
 
 
 def __kwargs_support_decorator(
-    node: Union[Fn, DefTypeClassMethod, DefTypeMethod, DefTypeStaticMethod]
+    node: Union[
+        Fn, DefTypeClassMethodArity, DefTypeMethodArity, DefTypeStaticMethodArity
+    ]
 ) -> Iterable[ast.AST]:
     if node.kwarg_support is None:
         return

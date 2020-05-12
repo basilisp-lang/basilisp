@@ -1382,7 +1382,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
 
     if not isinstance(form.first, kw.Keyword) or form.first != IMPLEMENTS:
         raise AnalyzerException(
-            f"deftype* forms must declare which interfaces they implement", form=form
+            "deftype* forms must declare which interfaces they implement", form=form
         )
 
     implements = runtime.nth(form, 1)
@@ -1408,7 +1408,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
         current_interface = _analyze_form(ctx, iface)
         if not isinstance(current_interface, (MaybeClass, MaybeHostForm, VarRef)):
             raise AnalyzerException(
-                f"deftype* interface implementation must be an existing interface",
+                "deftype* interface implementation must be an existing interface",
                 form=iface,
             )
         interfaces.append(current_interface)
@@ -1420,7 +1420,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
     for elem in runtime.nthrest(form, 2):
         if not isinstance(elem, ISeq):
             raise AnalyzerException(
-                f"deftype* must consist of interface or protocol names and methods",
+                "deftype* must consist of interface or protocol names and methods",
                 form=elem,
             )
 
@@ -1428,7 +1428,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches
         if isinstance(member, DefTypeProperty):
             if member.name in props:
                 raise AnalyzerException(
-                    f"deftype* property may only have one arity defined",
+                    "deftype* property may only have one arity defined",
                     form=elem,
                     lisp_ast=member,
                 )
@@ -1495,13 +1495,17 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
             missing_methods = ", ".join(interface_method_names - member_names)
             raise AnalyzerException(
                 "deftype* definition missing interface members for interface "
-                f"{interface.form}: {missing_methods}"
+                f"{interface.form}: {missing_methods}",
+                form=interface.form,
+                lisp_ast=interface,
             )
         elif not interface_property_names.issubset(all_member_names):
             missing_fields = ", ".join(interface_property_names - field_names)
             raise AnalyzerException(
                 "deftype* definition missing interface properties for interface "
-                f"{interface.form}: {missing_fields}"
+                f"{interface.form}: {missing_fields}",
+                form=interface.form,
+                lisp_ast=interface,
             )
 
         all_interface_methods.update(interface_names)
@@ -1526,7 +1530,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
     nelems = count(form)
     if nelems < 3:
         raise AnalyzerException(
-            f"deftype forms must have 3 or more elements, as in: (deftype* name fields [bases+impls])",
+            "deftype forms must have 3 or more elements, as in: (deftype* name fields [bases+impls])",
             form=form,
         )
 
@@ -1555,7 +1559,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
         param_nodes = []
         for field in fields:
             if not isinstance(field, sym.Symbol):
-                raise AnalyzerException(f"deftype* fields must be symbols", form=field)
+                raise AnalyzerException("deftype* fields must be symbols", form=field)
 
             field_default = (
                 Maybe(field.meta)
