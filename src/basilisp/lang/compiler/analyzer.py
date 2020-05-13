@@ -1461,11 +1461,8 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
             continue
 
         prop = props.get(member_name)
-        if prop is not None:
-            members.append(prop)
-            continue
-
-        assert False, "Member must be a method or property"
+        assert prop is not None, "Member must be a method or property"
+        members.append(prop)
 
     return interfaces, members
 

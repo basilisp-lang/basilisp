@@ -1008,6 +1008,56 @@ class TestDefType:
                     """
                 )
 
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls s]
+                s)
+              (^:classmethod ^{:kwargs :collect} create [cls s kwargs]
+                (concat [s] kwargs)))
+            """,
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod ^{:kwargs :collect} create [cls kwargs]
+                kwargs)
+              (^:classmethod ^{:kwargs :apply} create [cls head & kwargs]
+                (apply hash-map :first head kwargs)))
+            """,
+            ],
+        )
+        def test_deftype_classmethod_does_not_support_kwargs(
+            self, lcompile: CompileFn, class_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (create [cls] cls)
+              (^:classmethod create [cls s] cls))
+            """,
+                """
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls] cls)
+              (^:staticmethod create [s] s))
+            """,
+            ],
+        )
+        def test_deftype_classmethod_arities_must_all_be_annotated_with_classmethod(
+            self, lcompile: CompileFn, class_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
         def test_multi_arity_deftype_classmethod_dispatches_properly(
             self, lcompile: CompileFn, ns: runtime.Namespace, class_interface: Var
         ):
