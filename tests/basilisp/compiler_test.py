@@ -1088,7 +1088,7 @@ class TestDefType:
                 kw.keyword("first-arg"), "second-arg", 3
             )
 
-        def test_multi_arity_fn_call_fails_if_no_valid_arity(
+        def test_multi_arity_deftype_classmethod_call_fails_if_no_valid_arity(
             self, lcompile: CompileFn, class_interface: Var
         ):
             Point = lcompile(
@@ -1621,6 +1621,185 @@ class TestDefType:
             assert lmap.map(
                 {kw.keyword("x"): 1, kw.keyword("y"): 2, kw.keyword("z"): 3}
             ) == Point.dostatic(x=1, y=2, z=3)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (deftype* Point [x y z]
+                  :implements [WithStatic]
+                  (^:staticmethod dostatic []
+                    :no-args)
+                  (^:staticmethod dostatic []
+                    :also-no-args))
+            """,
+                """
+                (deftype* Point [x y z]
+                  :implements [WithStatic]
+                  (^:staticmethod dostatic [s]
+                    :one-arg)
+                  (^:staticmethod dostatic [s]
+                    :also-one-arg))
+            """,
+                """
+                (deftype* Point [x y z]
+                  :implements [WithStatic]
+                  (^:staticmethod dostatic []
+                    :no-args)
+                  (^:staticmethod dostatic [s]
+                    :one-arg)
+                  (^:staticmethod dostatic [a b]
+                    [a b])
+                  (^:staticmethod dostatic [s3]
+                    :also-one-arg))
+            """,
+            ],
+        )
+        def test_no_deftype_staticmethod_arity_has_same_fixed_arity(
+            self, lcompile: CompileFn, static_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod dostatic [& args]
+                (concat [:no-starter] args))
+              (^:staticmethod dostatic [s & args]
+                (concat [s] args)))
+            """,
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod dostatic [s & args]
+                (concat [s] args))
+              (^:staticmethod dostatic [& args]
+                (concat [:no-starter] args)))
+            """,
+            ],
+        )
+        def test_deftype_staticmethod_cannot_have_two_variadic_arities(
+            self, lcompile: CompileFn, static_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_deftype_staticmethod_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
+            self, lcompile: CompileFn, static_interface: Var,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (deftype* Point [x y z]
+                      :implements [WithStatic]
+                      (^:staticmethod dostatic [a b]
+                        [a b])
+                      (^:staticmethod dostatic [& args]
+                        (concat [:no-starter] args)))
+                    """
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod dostatic [s]
+                s)
+              (^:staticmethod ^{:kwargs :collect} dostatic [s kwargs]
+                (concat [s] kwargs)))
+            """,
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod ^{:kwargs :collect} dostatic [kwargs]
+                kwargs)
+              (^:staticmethod ^{:kwargs :apply} dostatic [head & kwargs]
+                (apply hash-map :first head kwargs)))
+            """,
+            ],
+        )
+        def test_deftype_staticmethod_does_not_support_kwargs(
+            self, lcompile: CompileFn, static_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (dostatic [])
+              (^:staticmethod dostatic [s] s))
+            """,
+                """
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:classmethod dostatic [])
+              (^:staticmethod dostatic [s] s))
+            """,
+            ],
+        )
+        def test_deftype_staticmethod_arities_must_all_be_annotated_with_staticmethod(
+            self, lcompile: CompileFn, static_interface: Var, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_multi_arity_deftype_staticmethod_dispatches_properly(
+            self, lcompile: CompileFn, ns: runtime.Namespace, static_interface: Var
+        ):
+            code = """
+                    (deftype* Point [x y z]
+                      :implements [WithStatic]
+                      (^:staticmethod dostatic [] :a)
+                      (^:staticmethod dostatic [s] [:a s]))
+                    """
+            Point = lcompile(code)
+            assert callable(Point.dostatic)
+            assert kw.keyword("a") == Point.dostatic()
+            assert vec.v(kw.keyword("a"), kw.keyword("c")) == Point.dostatic(
+                kw.keyword("c")
+            )
+
+            code = """
+                    (deftype* Point [x y z]
+                      :implements [WithStatic]
+                      (^:staticmethod dostatic [] :no-args)
+                      (^:staticmethod dostatic [s] s)
+                      (^:staticmethod dostatic [s & args] s
+                        (concat [s] args)))
+                    """
+            Point = lcompile(code)
+            assert callable(Point.dostatic)
+            assert Point.dostatic() == kw.keyword("no-args")
+            assert Point.dostatic("STRING") == "STRING"
+            assert Point.dostatic(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
+                kw.keyword("first-arg"), "second-arg", 3
+            )
+
+        def test_multi_arity_deftype_staticmethod_call_fails_if_no_valid_arity(
+            self, lcompile: CompileFn, static_interface: Var
+        ):
+            Point = lcompile(
+                """
+                (deftype* Point [x y z]
+                  :implements [WithStatic]
+                  (^:staticmethod dostatic [] :send-me-an-arg!)
+                  (^:staticmethod dostatic [i] i)
+                  (^:staticmethod dostatic [i j] (concat [i] [j])))
+                """
+            )
+
+            with pytest.raises(runtime.RuntimeException):
+                Point.dostatic(1, 2, 3)
 
     class TestDefTypeReaderForm:
         def test_ns_does_not_exist(self, lcompile: CompileFn, test_ns: str):

@@ -829,11 +829,26 @@ def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments
     arity_map: Mapping[int, str],
     default_name: Optional[str] = None,
     max_fixed_arity: Optional[int] = None,
-    instance_or_class_name: Optional[str] = None,
+    instance_or_class_var_name: Optional[str] = None,
+    class_name: Optional[str] = None,
     decorators: Iterable[ast.AST] = (),
 ) -> GeneratedPyAST:
     """Return the Python AST nodes for an argument-length dispatch method for
     multi-arity deftype* methods.
+
+    The `arity_map` names the mapping of number of arguments to the munged name of the
+    method arity handling that method. `default_name` is the name of the default
+    handler method if no method is found in the `arity_map` and the number of arguments
+    exceeds `max_fixed_arity`. `decorators` are applied to the generated function.
+
+    `instance_or_class_var_name` is used to generate the first argument name and
+    prefixes for class methods and standard methods; this name is not used outside the
+    generated method and no user code exists here, so it can be a unique name that does
+    not match the user's selected 'this' or 'self' name. If no
+    `instance_or_class_var_name` is given, then a `class_name` must be given.
+    `class_name` is used for static methods to ensure we can dispatch to static method
+    arities without a class or self reference. You may *only* provide either a
+    `class_name` or `instance_or_class_var_name`. Providing both is an error.
 
     class DefType:
         def __method_arity_1(self, arg): ...
@@ -853,14 +868,16 @@ def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments
                 return default(*args)
             raise RuntimeError
     """
+    assert instance_or_class_var_name is None or class_name is None
+    method_prefix = instance_or_class_var_name or class_name
+    assert (
+        method_prefix is not None
+    ), "Fully qualified default name must've been specified"
+
     dispatch_keys, dispatch_vals = [], []
     for k, v in arity_map.items():
         dispatch_keys.append(ast.Constant(k))
-        dispatch_vals.append(
-            _load_attr(
-                v if instance_or_class_name is None else f"{instance_or_class_name}.{v}"
-            )
-        )
+        dispatch_vals.append(_load_attr(f"{method_prefix}.{v}"))
 
     nargs_name = genname("nargs")
     method_name = genname("method")
@@ -919,11 +936,7 @@ def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments
                     body=[
                         ast.Return(
                             value=ast.Call(
-                                func=_load_attr(
-                                    default_name
-                                    if instance_or_class_name is None
-                                    else f"{instance_or_class_name}.{default_name}"
-                                ),
+                                func=_load_attr(f"{method_prefix}.{default_name}"),
                                 args=[
                                     ast.Starred(
                                         value=ast.Name(
@@ -962,8 +975,8 @@ def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments
             name=name,
             args=ast.arguments(
                 args=[]
-                if instance_or_class_name is None
-                else [ast.arg(arg=instance_or_class_name, annotation=None)],
+                if instance_or_class_var_name is None
+                else [ast.arg(arg=instance_or_class_var_name, annotation=None)],
                 kwarg=None,
                 vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
                 kwonlyargs=[],
@@ -988,7 +1001,8 @@ def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext,
     node: DefTypeMethodBase,
     create_method_ast: _CreateMethodASTFunction,
-    instance_or_class_name: Optional[str] = None,
+    instance_or_class_var_name: Optional[str] = None,
+    class_name: Optional[str] = None,
     decorators: Iterable[ast.AST] = (),
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with multiple arities."""
@@ -1033,7 +1047,8 @@ def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-locals
         arity_to_name,
         default_name=rest_arity_name,
         max_fixed_arity=node.max_fixed_arity,
-        instance_or_class_name=instance_or_class_name,
+        instance_or_class_var_name=instance_or_class_var_name,
+        class_name=class_name,
         decorators=decorators,
     )
     assert (
@@ -1070,7 +1085,7 @@ def __deftype_classmethod_arity_to_py_ast(
 
 @_with_ast_loc
 def __deftype_classmethod_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeClassMethod
+    ctx: GeneratorContext, node: DefTypeClassMethod, _: DefType,
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` classmethod."""
     assert node.op == NodeOp.DEFTYPE_CLASSMETHOD
@@ -1084,14 +1099,14 @@ def __deftype_classmethod_to_py_ast(
             ctx,
             node,
             cast(_CreateMethodASTFunction, __deftype_classmethod_arity_to_py_ast),
-            instance_or_class_name=genname("cls"),
+            instance_or_class_var_name=genname("cls"),
             decorators=(_PY_CLASSMETHOD_FN_NAME,),
         )
 
 
 @_with_ast_loc
 def __deftype_property_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeProperty
+    ctx: GeneratorContext, node: DefTypeProperty, _: DefType,
 ) -> GeneratedPyAST:
     assert node.op == NodeOp.DEFTYPE_PROPERTY
     method_name = munge(node.name)
@@ -1162,7 +1177,7 @@ def __deftype_method_arity_to_py_ast(
 
 @_with_ast_loc
 def __deftype_method_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeMethod
+    ctx: GeneratorContext, node: DefTypeMethod, _: DefType,
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` method."""
     assert node.op == NodeOp.DEFTYPE_METHOD
@@ -1174,7 +1189,7 @@ def __deftype_method_to_py_ast(
             ctx,
             node,
             cast(_CreateMethodASTFunction, __deftype_method_arity_to_py_ast),
-            instance_or_class_name="self",
+            instance_or_class_var_name=genname("self"),
         )
 
 
@@ -1200,7 +1215,7 @@ def __deftype_staticmethod_arity_to_py_ast(
 
 @_with_ast_loc
 def __deftype_staticmethod_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeStaticMethod
+    ctx: GeneratorContext, node: DefTypeStaticMethod, parent: DefType
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` staticmethod."""
     assert node.op == NodeOp.DEFTYPE_STATICMETHOD
@@ -1214,11 +1229,15 @@ def __deftype_staticmethod_to_py_ast(
             ctx,
             node,
             cast(_CreateMethodASTFunction, __deftype_staticmethod_arity_to_py_ast),
+            class_name=munge(parent.name),
             decorators=(_PY_STATICMETHOD_FN_NAME,),
         )
 
 
-_DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, PyASTGenerator] = {
+DefTypeASTGenerator = Callable[
+    [GeneratorContext, DefTypeMember, DefType], GeneratedPyAST
+]
+_DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, DefTypeASTGenerator] = {
     NodeOp.DEFTYPE_CLASSMETHOD: __deftype_classmethod_to_py_ast,
     NodeOp.DEFTYPE_METHOD: __deftype_method_to_py_ast,
     NodeOp.DEFTYPE_PROPERTY: __deftype_property_to_py_ast,
@@ -1227,14 +1246,14 @@ _DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, PyASTGenerator] = {
 
 
 def __deftype_member_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeMember
+    ctx: GeneratorContext, node: DefTypeMember, parent: DefType,
 ) -> GeneratedPyAST:
     member_type = node.op
     handle_deftype_member = _DEFTYPE_MEMBER_HANDLER.get(member_type)
     assert (
         handle_deftype_member is not None
     ), f"Invalid :const AST type handler for {member_type}"
-    return handle_deftype_member(ctx, node)
+    return handle_deftype_member(ctx, node, parent)
 
 
 _ATTR_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
@@ -1301,7 +1320,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
             ctx.symbol_table.new_symbol(sym.symbol(field.name), safe_field, field.local)
 
         for member in node.members:
-            type_ast = __deftype_member_to_py_ast(ctx, member)
+            type_ast = __deftype_member_to_py_ast(ctx, member, node)
             type_nodes.append(type_ast.node)
             type_nodes.extend(type_ast.dependencies)
 
