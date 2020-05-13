@@ -1305,6 +1305,171 @@ class TestDefType:
                 }
             ) == pt(w=2, y=4)
 
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (--call-- [this]
+                    :no-args)
+                  (--call-- [this]
+                    :also-no-args))
+            """,
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (--call-- [this s]
+                    :one-arg)
+                  (--call-- [this s]
+                    :also-one-arg))
+            """,
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (--call-- [this]
+                    :no-args)
+                  (--call-- [this s]
+                    :one-arg)
+                  (--call-- [this a b]
+                    [a b])
+                  (--call-- [this s3]
+                    :also-one-arg))
+            """,
+            ],
+        )
+        def test_no_deftype_method_arity_has_same_fixed_arity(
+            self, lcompile: CompileFn, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (--call-- [this & args]
+                (concat [:no-starter] args))
+              (--call-- [this s & args]
+                (concat [s] args)))
+            """,
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (--call-- [this s & args]
+                (concat [s] args))
+              (--call-- [this & args]
+                (concat [:no-starter] args)))
+            """,
+            ],
+        )
+        def test_deftype_method_cannot_have_two_variadic_arities(
+            self, lcompile: CompileFn, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_deftype_method_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
+            self, lcompile: CompileFn,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* collections.abc)
+                    (deftype* Point [x y z]
+                      :implements [collections.abc/Callable]
+                      (--call-- [this a b]
+                        [a b])
+                      (--call-- [this & args]
+                        (concat [:no-starter] args)))
+                    """
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (--call-- [this s] s)
+              (^{:kwargs :collect} --call-- [this s kwargs]
+                (concat [s] kwargs)))
+            """,
+                """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (^{:kwargs :collect} --call-- [this kwargs] kwargs)
+              (^{:kwargs :apply} --call-- [thi shead & kwargs]
+                (apply hash-map :first head kwargs)))
+            """,
+            ],
+        )
+        def test_deftype_method_does_not_support_kwargs(
+            self, lcompile: CompileFn, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_multi_arity_deftype_method_dispatches_properly(
+            self, lcompile: CompileFn, ns: runtime.Namespace,
+        ):
+            code = """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (--call-- [this] :a)
+              (--call-- [this s] [:a s]))
+            """
+            Point = lcompile(code)
+            assert callable(Point(1, 2, 3))
+            assert kw.keyword("a") == Point(1, 2, 3)()
+            assert vec.v(kw.keyword("a"), kw.keyword("c")) == Point(1, 2, 3)(
+                kw.keyword("c")
+            )
+
+            code = """
+            (import* collections.abc)
+            (deftype* Point [x y z]
+              :implements [collections.abc/Callable]
+              (--call-- [this] :no-args)
+              (--call-- [this s] s)
+              (--call-- [this s & args]
+                (concat [s] args)))
+            """
+            Point = lcompile(code)
+            assert callable(Point(1, 2, 3))
+            assert Point(1, 2, 3)() == kw.keyword("no-args")
+            assert Point(1, 2, 3)("STRING") == "STRING"
+            assert Point(1, 2, 3)(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
+                kw.keyword("first-arg"), "second-arg", 3
+            )
+
+        def test_multi_arity_deftype_method_call_fails_if_no_valid_arity(
+            self, lcompile: CompileFn,
+        ):
+            Point = lcompile(
+                """
+                (import* collections.abc)
+                (deftype* Point [x y z]
+                  :implements [collections.abc/Callable]
+                  (--call-- [this] :send-me-an-arg!)
+                  (--call-- [this i] i)
+                  (--call-- [this i j] (concat [i] [j])))
+                """
+            )
+
+            with pytest.raises(runtime.RuntimeException):
+                Point(1, 2, 3)(4, 5, 6)
+
     class TestDefTypeProperty:
         @pytest.fixture(autouse=True)
         def property_interface(self, lcompile: CompileFn):
