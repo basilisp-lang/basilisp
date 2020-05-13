@@ -997,7 +997,7 @@ _CreateMethodASTFunction = Callable[
 
 
 @_with_ast_loc_deps
-def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-locals
+def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-arguments,too-many-locals
     ctx: GeneratorContext,
     node: DefTypeMethodBase,
     create_method_ast: _CreateMethodASTFunction,
