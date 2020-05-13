@@ -619,6 +619,48 @@ class TestDefType:
         pt = Point(1, 2, 3)
         assert "('Point', 1, 2, 3)" == str(pt)
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+        (deftype* Point [x y z]
+          :implements [WithProp]
+          (^:property prop [this] [x y z])
+          (^:classmethod prop [cls] cls))
+        """,
+            """
+        (deftype* Point [x y z]
+          :implements [WithProp]
+          (^:classmethod prop [cls] cls)
+          (^:property prop [this] [x y z]))
+        """,
+        ],
+    )
+    def test_deftype_property_and_method_names_cannot_overlap(
+        self, lcompile: CompileFn, code: str
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                f"""
+        (import* abc)
+        (def WithProp
+          (python/type "WithProp"
+                         #py (abc/ABC)
+                         #py {{"prop"
+                              (python/property
+                               (abc/abstractmethod
+                                (fn [self])))}}))
+        (def WithCls
+              (python/type "WithCls"
+                             #py (abc/ABC)
+                             #py {{"prop"
+                                  (python/classmethod
+                                   (abc/abstractmethod
+                                    (fn [cls])))}}))
+        {code}
+        """
+            )
+
     class TestDefTypeFields:
         def test_deftype_fields(self, lcompile: CompileFn):
             Point = lcompile("(deftype* Point [x y z])")
@@ -1601,6 +1643,17 @@ class TestDefType:
                 (deftype* Point [x y z]
                   :implements [WithProp]
                   (^:property ^{{:kwargs {kwarg_support}}} prop [this]))"""
+                )
+
+        def test_deftype_property_may_not_be_multi_arity(self, lcompile: CompileFn):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                (deftype* Point [x]
+                  :implements [WithProp]
+                  (^:property prop [this] :a)
+                  (^:property prop [this] :b))
+                """
                 )
 
     class TestDefTypeStaticMethod:

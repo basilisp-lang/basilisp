@@ -1441,7 +1441,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
                 raise AnalyzerException(
                     "deftype* property name already defined as a method",
                     form=elem,
-                    lisp=member,
+                    lisp_ast=member,
                 )
             props[member.name] = member
         else:
