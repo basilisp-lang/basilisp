@@ -4092,6 +4092,9 @@ class TestSymbolResolution:
 
         assert vec.v(Point, 1, 2, 3) == lcompile("(Point/create 1 2 3)")
 
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(Point/make 1 2 3)")
+
     def test_local_deftype_staticmethod_resolves(self, lcompile: CompileFn):
         Point = lcompile(
             """
@@ -4111,6 +4114,10 @@ class TestSymbolResolution:
         )
 
         assert Point.dostatic is lcompile("Point/dostatic")
+        assert vec.v(kw.keyword("a"), 2) == lcompile("(Point/dostatic :a 2)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(Point/do-non-static 1 2)")
 
     def test_aliased_namespace_not_hidden_by_python_module(
         self, lcompile: CompileFn, monkeypatch: MonkeyPatch

@@ -2881,9 +2881,6 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     if maybe_type_or_class is not None:
         safe_name = munge(form.name)
         member = getattr(maybe_type_or_class.value, safe_name, None)
-        if member is None:
-            safe_name = munge(form.name, allow_builtins=True)
-            member = getattr(maybe_type_or_class.value, safe_name, None)
 
         if member is None:
             raise AnalyzerException(
