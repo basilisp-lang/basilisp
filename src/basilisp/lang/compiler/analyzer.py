@@ -2810,7 +2810,7 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
     return None
 
 
-def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
+def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: MC0001
     ctx: AnalyzerContext, form: sym.Symbol
 ) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
