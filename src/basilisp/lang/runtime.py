@@ -1353,6 +1353,23 @@ class _TrampolineArgs:
         return self._kwargs
 
 
+def _trampoline(f):
+    """Trampoline a function repeatedly until it is finished recurring to help
+    avoid stack growth."""
+
+    @functools.wraps(f)
+    def trampoline(*args, **kwargs):
+        while True:
+            ret = f(*args, **kwargs)
+            if isinstance(ret, _TrampolineArgs):
+                args = ret.args
+                kwargs = ret.kwargs
+                continue
+            return ret
+
+    return trampoline
+
+
 def _lisp_fn_apply_kwargs(f):
     """Convert a Python function into a Lisp function.
 
@@ -1390,23 +1407,6 @@ def _lisp_fn_collect_kwargs(f):
         )
 
     return wrapped_f
-
-
-def _trampoline(f):
-    """Trampoline a function repeatedly until it is finished recurring to help
-    avoid stack growth."""
-
-    @functools.wraps(f)
-    def trampoline(*args, **kwargs):
-        while True:
-            ret = f(*args, **kwargs)
-            if isinstance(ret, _TrampolineArgs):
-                args = ret.args
-                kwargs = ret.kwargs
-                continue
-            return ret
-
-    return trampoline
 
 
 def _with_attrs(**kwargs):
