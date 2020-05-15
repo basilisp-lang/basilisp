@@ -605,6 +605,14 @@ class TestDefType:
             """
             )
 
+    @pytest.mark.parametrize(
+        "code", ["(deftype* Shape [])", "(deftype* Shape [] :implements [])"]
+    )
+    def test_deftype_interface_may_have_no_fields_or_methods(
+        self, lcompile: CompileFn, code: str,
+    ):
+        lcompile(code)
+
     def test_deftype_interface_may_implement_only_some_object_methods(
         self, lcompile: CompileFn
     ):

@@ -1554,7 +1554,8 @@ def _deftype_ast(  # pylint: disable=too-many-branches
     nelems = count(form)
     if nelems < 3:
         raise AnalyzerException(
-            "deftype forms must have 3 or more elements, as in: (deftype* name fields [bases+impls])",
+            "deftype forms must have 3 or more elements, as in: "
+            "(deftype* name fields :implements [bases+impls])",
             form=form,
         )
 
