@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where `defonce` would throw a Python SyntaxError due to a superfluous `global` statement in the generated Python (#525)
  * Fixed a bug where Basilisp would throw an exception when comparing seqs by `=` to non-seqable values (#530)
  * Fixed a bug where aliased Python submodule imports referred to the top-level module rather than the submodule (#533)
+ * Fixed a bug where static methods and class methods on types created by `deftype` could not be referred to directly (defeating the purpose of the static or class method) (#537)
 
 ## [v0.1.dev13] - 2020-03-16
 ### Added

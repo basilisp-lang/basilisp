@@ -2731,7 +2731,7 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
     parent_node = __resolve_namespaced_symbol(ctx, parent)
 
     return HostField(
-        form,
+        form=form,
         field=form.name,
         target=parent_node,
         is_assignable=True,
@@ -2810,7 +2810,7 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
     return None
 
 
-def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
+def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: MC0001
     ctx: AnalyzerContext, form: sym.Symbol
 ) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
@@ -2873,10 +2873,36 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             ) from None
     elif ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
-    else:
-        raise AnalyzerException(
-            f"unable to resolve symbol '{form}' in this context", form=form
+
+    # Static and class methods on types in the current namespace can be referred
+    # to as `Type/static-method`. In these casess, we will try to resolve the
+    # namespace portion of the symbol as a Var within the current namespace.
+    maybe_type_or_class = current_ns.find(sym.symbol(form.ns))
+    if maybe_type_or_class is not None:
+        safe_name = munge(form.name)
+        member = getattr(maybe_type_or_class.value, safe_name, None)
+
+        if member is None:
+            raise AnalyzerException(
+                f"unable to resolve static or class member '{form}' in this context",
+                form=form,
+            )
+
+        return HostField(
+            form=form,
+            field=safe_name,
+            target=VarRef(
+                form=form,
+                var=maybe_type_or_class,
+                env=ctx.get_node_env(pos=ctx.syntax_position),
+            ),
+            is_assignable=False,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
+
+    raise AnalyzerException(
+        f"unable to resolve symbol '{form}' in this context", form=form
+    )
 
 
 def __resolve_bare_symbol(

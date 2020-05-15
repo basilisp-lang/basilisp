@@ -3618,82 +3618,48 @@ class TestRecur:
         assert 10 == lcompile("(+++ 1 2 3 4)")
         assert 15 == lcompile("(+++ 1 2 3 4 5)")
 
-    def test_disallow_recur_in_special_forms(self, lcompile: CompileFn):
+    @pytest.mark.parametrize(
+        "code",
+        [
+            '(fn [a] (def b (recur "a")))',
+            '(fn [a] (import* (recur "a")))',
+            '(fn [a] (.join "" (recur "a")))',
+            '(fn [a] (.-p (recur "a")))',
+            '(fn [a] (throw (recur "a"))))',
+            '(fn [a] (var (recur "a"))))',
+        ],
+    )
+    def test_disallow_recur_in_special_forms(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (def b (recur "a")))')
+            lcompile(code)
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(recur)",
+            "(do (recur))",
+            "(if true (recur) :b)",
+            '(fn [a] (do (recur "a") :b))',
+            '(fn [a] (if (recur "a") :a :b))',
+            '(fn [a] (if (recur "a") :a))',
+            '(fn [a] (let [a (recur "a")] a))',
+            '(fn [a] (let [a (do (recur "a"))] a))',
+            '(fn [a] (let [a (do :b (recur "a"))] a))',
+            '(fn [a] (let [a (do (recur "a") :c)] a))',
+            '(fn [a] (let [a "a"] (recur a) a))',
+            '(fn [a] (loop* [a (recur "a")] a))',
+            '(fn [a] (loop* [a (do (recur "a"))] a))',
+            '(fn [a] (loop* [a (do :b (recur "a"))] a))',
+            '(fn [a] (loop* [a (do (recur "a") :c)] a))',
+            '(fn [a] (loop* [a "a"] (recur a) a))',
+            "(fn [a] (try (do (recur a) :b) (catch AttributeError _ nil)))",
+            "(fn [a] (try :b (catch AttributeError _ (do (recur :a) :c))))",
+            "(fn [a] (try :b (finally (do (recur :a) :c))))",
+        ],
+    )
+    def test_disallow_recur_outside_tail(self, lcompile: CompileFn, code: str):
         with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (import* (recur "a")))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (.join "" (recur "a")))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (.-p (recur "a")))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (throw (recur "a"))))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (var (recur "a"))))')
-
-    def test_disallow_recur_outside_tail(self, lcompile: CompileFn):
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(recur)")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(do (recur))")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(if true (recur) :b)")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (do (recur "a") :b))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (if (recur "a") :a :b))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (if (recur "a") :a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (let [a (recur "a")] a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (let [a (do (recur "a"))] a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (let [a (do :b (recur "a"))] a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (let [a (do (recur "a") :c)] a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (let [a "a"] (recur a) a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (loop* [a (recur "a")] a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (loop* [a (do (recur "a"))] a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (loop* [a (do :b (recur "a"))] a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (loop* [a (do (recur "a") :c)] a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile('(fn [a] (loop* [a "a"] (recur a) a))')
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(fn [a] (try (do (recur a) :b) (catch AttributeError _ nil)))")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(fn [a] (try :b (catch AttributeError _ (do (recur :a) :c))))")
-
-        with pytest.raises(compiler.CompilerException):
-            lcompile("(fn [a] (try :b (finally (do (recur :a) :c))))")
+            lcompile(code)
 
     def test_single_arity_named_anonymous_fn_recursion(self, lcompile: CompileFn):
         code = """
@@ -4105,6 +4071,53 @@ class TestSymbolResolution:
     def test_nested_bare_sym_will_not_resolve(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("basilisp.lang.map.MapEntry.of")
+
+    def test_local_deftype_classmethod_resolves(self, lcompile: CompileFn):
+        Point = lcompile(
+            """
+            (import* abc)
+            (def WithCls
+              (python/type "WithCls"
+                             #py (abc/ABC)
+                             #py {"create"
+                                  (python/classmethod
+                                   (abc/abstractmethod
+                                    (fn [cls])))}))
+            (deftype* Point [x y z]
+              :implements [WithCls]
+              (^:classmethod create [cls x y z]
+                [cls x y z]))
+            """
+        )
+
+        assert vec.v(Point, 1, 2, 3) == lcompile("(Point/create 1 2 3)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(Point/make 1 2 3)")
+
+    def test_local_deftype_staticmethod_resolves(self, lcompile: CompileFn):
+        Point = lcompile(
+            """
+            (import* abc)
+            (def WithStatic
+              (python/type "WithStatic"
+                             #py (abc/ABC)
+                             #py {"dostatic"
+                                  (python/staticmethod
+                                   (abc/abstractmethod
+                                    (fn [])))}))
+            (deftype* Point [x y z]
+              :implements [WithStatic]
+              (^:staticmethod dostatic [arg1 arg2]
+                [arg1 arg2]))
+            """
+        )
+
+        assert Point.dostatic is lcompile("Point/dostatic")
+        assert vec.v(kw.keyword("a"), 2) == lcompile("(Point/dostatic :a 2)")
+
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(Point/do-non-static 1 2)")
 
     def test_aliased_namespace_not_hidden_by_python_module(
         self, lcompile: CompileFn, monkeypatch: MonkeyPatch

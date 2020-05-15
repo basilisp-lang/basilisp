@@ -1336,7 +1336,20 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
                             keywords=[],
                             body=type_nodes,
                             decorator_list=[decorator],
-                        )
+                        ),
+                        ast.Call(
+                            func=_INTERN_VAR_FN_NAME,
+                            args=[
+                                _load_attr(_NS_VAR_VALUE),
+                                ast.Call(
+                                    func=_NEW_SYM_FN_NAME,
+                                    args=[ast.Constant(type_name)],
+                                    keywords=[],
+                                ),
+                                ast.Name(id=type_name, ctx=ast.Load()),
+                            ],
+                            keywords=[],
+                        ),
                     ],
                 )
             ),
