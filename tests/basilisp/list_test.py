@@ -1,3 +1,5 @@
+import pickle
+
 import pytest
 
 import basilisp.lang.list as llist
@@ -93,6 +95,20 @@ def test_list_rest():
     assert llist.l().rest == llist.l()
     assert llist.l(keyword("kw1")).rest == llist.l()
     assert llist.l(keyword("kw1"), keyword("kw2")).rest == llist.l(keyword("kw2"))
+
+
+@pytest.mark.parametrize(
+    "o",
+    [
+        llist.l(),
+        llist.l(keyword("kw1")),
+        llist.l(keyword("kw1"), 2),
+        llist.l(keyword("kw1"), 2, None, "nothingness"),
+        llist.l(keyword("kw1"), llist.l("string", 4)),
+    ],
+)
+def test_list_pickleability(pickle_protocol: int, o: llist.List):
+    assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
 @pytest.mark.parametrize(

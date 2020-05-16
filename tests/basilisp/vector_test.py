@@ -1,3 +1,5 @@
+import pickle
+
 import pytest
 
 import basilisp.lang.map as lmap
@@ -127,6 +129,20 @@ def test_vector_with_meta():
     assert vec2 is not vec3
     assert vec2 == vec3
     assert vec3.meta == lmap.m(tag=keyword("macro"))
+
+
+@pytest.mark.parametrize(
+    "o",
+    [
+        vector.v(),
+        vector.v(keyword("kw1")),
+        vector.v(keyword("kw1"), 2),
+        vector.v(keyword("kw1"), 2, None, "nothingness"),
+        vector.v(keyword("kw1"), vector.v("string", 4)),
+    ],
+)
+def test_vector_pickleability(pickle_protocol: int, o: vector.Vector):
+    assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
 @pytest.mark.parametrize(
