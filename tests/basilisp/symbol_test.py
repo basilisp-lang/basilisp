@@ -1,6 +1,10 @@
+import pickle
+
+import pytest
+
 import basilisp.lang.map as lmap
 from basilisp.lang.keyword import keyword
-from basilisp.lang.symbol import symbol
+from basilisp.lang.symbol import Symbol, symbol
 
 
 def test_symbol_name_and_ns():
@@ -38,6 +42,19 @@ def test_symbol_with_meta():
     assert sym2 is not sym3
     assert sym2 == sym3
     assert sym3.meta == lmap.m(tag=keyword("macro"))
+
+
+@pytest.mark.parametrize(
+    "o",
+    [
+        symbol("kw1"),
+        symbol("very-long-name"),
+        symbol("kw1", ns="namespaced.keyword"),
+        symbol("long-named-kw", ns="also.namespaced.keyword"),
+    ],
+)
+def test_symbol_pickleability(pickle_protocol: int, o: Symbol):
+    assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
 def test_symbol_str_and_repr():

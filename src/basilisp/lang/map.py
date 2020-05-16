@@ -46,9 +46,6 @@ class Map(ILispObject, IWithMeta, IPersistentMap[K, V]):
     def __eq__(self, other):
         return self._inner == other
 
-    def __getattr__(self, item):
-        return getattr(self._inner, item)
-
     def __getitem__(self, item):
         return self._inner[item]
 

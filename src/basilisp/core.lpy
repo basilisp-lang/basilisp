@@ -4467,12 +4467,23 @@
 (defn gen-interface
   "Generate and return a new Python interface (abstract base clase).
 
+  Options may be specified as key-value pairs. The following options are supported:
+  - :name    - the name of the interface as a string; required
+  - :extends - a vector of interfaces the new interface should extend; optional
+  - :methods - an optional vector of method signatures like:
+               [ (method-name [args ...] docstring) ... ]
+
   Callers should use `definterface` to generate new interfaces."
-  [interface-name methods]
-  (let [methods (reduce (fn [m [method-name args docstring]]
-                          (let [method-args (->> args
-                                                 (map #(vary-meta % assoc :no-warn-when-unused true))
-                                                 (concat ['^:no-warn-when-unused self])
+  [& opts]
+  (let [opt-map        (apply hash-map opts)
+        interface-name (:name opt-map)
+        extends        (as-> (:extends opt-map []) $
+                         (remove #(identical? abc/ABC %) $)
+                         (concat $ [abc/ABC])
+                         (python/tuple $))
+
+        methods (reduce (fn [m [method-name args docstring]]
+                          (let [method-args (->> (concat ['^:no-warn-when-unused self] args)
                                                  (apply vector))
                                 method      (->> (list 'fn* method-name method-args)
                                                  (eval)
@@ -4481,10 +4492,10 @@
                               (set! (.- method __doc__) docstring))
                             (assoc m (munge method-name) method)))
                         {}
-                        methods)]
+                        (:methods opt-map))]
     (python/type interface-name
-                   #py (abc/ABC)
-                   (lisp->py methods))))
+                 extends
+                 (lisp->py methods))))
 
 ;; The behavior described below where `definterface` forms are not permitted
 ;; to be used in `deftype` and `defrecord` forms when they are not top-level
@@ -4515,7 +4526,8 @@
   (let [name-str    (name interface-name)
         method-sigs (map #(list 'quote %) methods)]
     `(def ~interface-name
-       (gen-interface ~name-str [~@method-sigs]))))
+       (gen-interface :name ~name-str
+                      :methods [~@method-sigs]))))
 
 ;;;;;;;;;;;;;;;
 ;; Protocols ;;

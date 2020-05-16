@@ -10,4 +10,5 @@ Reference
    specialforms
    compiler
    pyinterop
+   typesandrecords
    cli

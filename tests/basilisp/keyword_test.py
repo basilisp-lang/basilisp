@@ -1,3 +1,5 @@
+import pickle
+
 import pytest
 from pyrsistent import PMap, pmap
 
@@ -45,6 +47,19 @@ def test_keyword_as_function():
     assert 1 == kw(lmap.map({kw: 1}))
     assert "hi" == kw(lmap.map({kw: "hi"}))
     assert None is kw(lmap.map({"hi": kw}))
+
+
+@pytest.mark.parametrize(
+    "o",
+    [
+        keyword("kw1"),
+        keyword("very-long-name"),
+        keyword("kw1", ns="namespaced.keyword"),
+        keyword("long-named-kw", ns="also.namespaced.keyword"),
+    ],
+)
+def test_keyword_pickleability(pickle_protocol: int, o: Keyword):
+    assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
 class TestKeywordCompletion:
