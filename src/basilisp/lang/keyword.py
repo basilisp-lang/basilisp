@@ -29,7 +29,10 @@ class Keyword(ILispObject):
         return ":{name}".format(name=self._name)
 
     def __eq__(self, other):
-        return self is other
+        return self is other or (
+            isinstance(other, Keyword)
+            and (self._name, self._ns) == (other._name, other._ns)
+        )
 
     def __hash__(self):
         return hash((self._name, self._ns))
@@ -39,6 +42,9 @@ class Keyword(ILispObject):
             return m.val_at(self, default)
         except AttributeError:
             return None
+
+    def __reduce__(self):
+        return keyword, (self._name, self._ns)
 
 
 def complete(

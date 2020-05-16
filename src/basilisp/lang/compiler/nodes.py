@@ -27,6 +27,7 @@ from basilisp.lang.util import munge
 
 _CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
 
+ARITIES = kw.keyword("arities")
 BODY = kw.keyword("body")
 CLASS = kw.keyword("class")
 LOCAL = kw.keyword("local")
@@ -35,7 +36,6 @@ RET = kw.keyword("ret")
 CLASS_LOCAL = kw.keyword("class-local")
 THIS_LOCAL = kw.keyword("this-local")
 FIELDS = kw.keyword("fields")
-METHODS = kw.keyword("methods")
 MEMBERS = kw.keyword("members")
 PARAMS = kw.keyword("params")
 TARGET = kw.keyword("target")
@@ -59,13 +59,19 @@ class NodeOp(Enum):
     AWAIT = kw.keyword("await")
     BINDING = kw.keyword("binding")
     CATCH = kw.keyword("catch")
-    CLASS_METHOD = kw.keyword("class-method")
     CONST = kw.keyword("const")
     DEF = kw.keyword("def")
     DEFTYPE = kw.keyword("deftype")
+    DEFTYPE_PROPERTY = kw.keyword("deftype-property")
+    DEFTYPE_METHOD = kw.keyword("deftype-method")
+    DEFTYPE_METHOD_ARITY = kw.keyword("deftype-method-arity")
+    DEFTYPE_CLASSMETHOD = kw.keyword("deftype-classmethod")
+    DEFTYPE_CLASSMETHOD_ARITY = kw.keyword("deftype-classmethod-arity")
+    DEFTYPE_STATICMETHOD = kw.keyword("deftype-staticmethod")
+    DEFTYPE_STATICMETHOD_ARITY = kw.keyword("deftype-staticmethod-arity")
     DO = kw.keyword("do")
     FN = kw.keyword("fn")
-    FN_METHOD = kw.keyword("fn-method")
+    FN_ARITY = kw.keyword("fn-arity")
     HOST_CALL = kw.keyword("host-call")
     HOST_FIELD = kw.keyword("host-field")
     HOST_INTEROP = kw.keyword("host-interop")
@@ -80,8 +86,6 @@ class NodeOp(Enum):
     MAP = kw.keyword("map")
     MAYBE_CLASS = kw.keyword("maybe-class")
     MAYBE_HOST_FORM = kw.keyword("maybe-host-form")
-    METHOD = kw.keyword("method")
-    PROPERTY_METHOD = kw.keyword("property")
     PY_DICT = kw.keyword("py-dict")
     PY_LIST = kw.keyword("py-list")
     PY_SET = kw.keyword("py-set")
@@ -92,7 +96,6 @@ class NodeOp(Enum):
     REQUIRE_ALIAS = kw.keyword("require-alias")
     SET = kw.keyword("set")
     SET_BANG = kw.keyword("set!")
-    STATIC_METHOD = kw.keyword("static-method")
     THROW = kw.keyword("throw")
     TRY = kw.keyword("try")
     VAR = kw.keyword("var")
@@ -389,9 +392,118 @@ class DefType(Node[SpecialForm]):
 class DefTypeMember(Node[SpecialForm]):
     form: SpecialForm
     name: str
+    env: NodeEnv
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeProperty(DefTypeMember):
+    this_local: Binding
     params: Iterable[Binding]
     body: "Do"
+    children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
+    op: NodeOp = NodeOp.DEFTYPE_PROPERTY
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+T_DefTypeMethodArity = TypeVar("T_DefTypeMethodArity", bound="DefTypeMethodArityBase")
+
+
+# Use attrs `these` for now as there is an open bug around slotted
+# generic classes: https://github.com/python-attrs/attrs/issues/313
+@attr.s(
+    auto_attribs=True,
+    frozen=True,
+    these={"max_fixed_arity": attr.ib(), "arities": attr.ib()},
+)
+class DefTypeMethodBase(DefTypeMember, Generic[T_DefTypeMethodArity]):
+    max_fixed_arity: int
+    arities: IPersistentVector[T_DefTypeMethodArity]
+
+    @property
+    @abstractmethod
+    def is_variadic(self) -> bool:
+        raise NotImplementedError
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeMethod(DefTypeMethodBase["DefTypeMethodArity"]):
+    is_variadic: bool = False
+    children: Sequence[kw.Keyword] = vec.v(ARITIES)
+    op: NodeOp = NodeOp.DEFTYPE_METHOD
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeClassMethod(DefTypeMethodBase["DefTypeClassMethodArity"]):
+    is_variadic: bool = False
+    children: Sequence[kw.Keyword] = vec.v(ARITIES)
+    op: NodeOp = NodeOp.DEFTYPE_CLASSMETHOD
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeStaticMethod(DefTypeMethodBase["DefTypeStaticMethodArity"]):
+    is_variadic: bool = False
+    children: Sequence[kw.Keyword] = vec.v(ARITIES)
+    op: NodeOp = NodeOp.DEFTYPE_STATICMETHOD
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeMethodArityBase(Node[SpecialForm]):
+    form: SpecialForm
+    name: str
+    params: Iterable[Binding]
+    fixed_arity: int
+    body: "Do"
     env: NodeEnv
+
+    @property
+    @abstractmethod
+    def is_variadic(self) -> bool:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def kwarg_support(self) -> Optional[KeywordArgSupport]:
+        raise NotImplementedError
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeMethodArity(DefTypeMethodArityBase):
+    this_local: Binding
+    loop_id: LoopID
+    is_variadic: bool = False
+    kwarg_support: Optional[KeywordArgSupport] = None
+    children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
+    op: NodeOp = NodeOp.DEFTYPE_METHOD_ARITY
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeClassMethodArity(DefTypeMethodArityBase):
+    class_local: Binding
+    is_variadic: bool = False
+    kwarg_support: Optional[KeywordArgSupport] = None
+    children: Sequence[kw.Keyword] = vec.v(CLASS_LOCAL, PARAMS, BODY)
+    op: NodeOp = NodeOp.DEFTYPE_CLASSMETHOD_ARITY
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeStaticMethodArity(DefTypeMethodArityBase):
+    is_variadic: bool = False
+    kwarg_support: Optional[KeywordArgSupport] = None
+    children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
+    op: NodeOp = NodeOp.DEFTYPE_STATICMETHOD_ARITY
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -411,20 +523,20 @@ class Do(Node[SpecialForm]):
 class Fn(Node[SpecialForm]):
     form: SpecialForm
     max_fixed_arity: int
-    methods: IPersistentVector["FnMethod"]
+    arities: IPersistentVector["FnArity"]
     env: NodeEnv
     local: Optional[Binding] = None
     is_variadic: bool = False
     is_async: bool = False
     kwarg_support: Optional[KeywordArgSupport] = None
-    children: Sequence[kw.Keyword] = vec.v(METHODS)
+    children: Sequence[kw.Keyword] = vec.v(ARITIES)
     op: NodeOp = NodeOp.FN
     top_level: bool = False
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class FnMethod(Node[SpecialForm]):
+class FnArity(Node[SpecialForm]):
     form: SpecialForm
     loop_id: LoopID
     params: Iterable[Binding]
@@ -433,7 +545,7 @@ class FnMethod(Node[SpecialForm]):
     env: NodeEnv
     is_variadic: bool = False
     children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
-    op: NodeOp = NodeOp.FN_METHOD
+    op: NodeOp = NodeOp.FN_ARITY
     top_level: bool = False
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
@@ -599,48 +711,6 @@ class MaybeHostForm(Node[sym.Symbol]):
     env: NodeEnv
     children: Sequence[kw.Keyword] = vec.Vector.empty()
     op: NodeOp = NodeOp.MAYBE_HOST_FORM
-    top_level: bool = False
-    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
-
-
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class Method(DefTypeMember):
-    this_local: Binding
-    loop_id: LoopID
-    is_variadic: bool
-    kwarg_support: Optional[KeywordArgSupport] = None
-    children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
-    op: NodeOp = NodeOp.METHOD
-    top_level: bool = False
-    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
-
-
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class ClassMethod(DefTypeMember):
-    class_local: Binding
-    is_variadic: bool
-    kwarg_support: Optional[KeywordArgSupport] = None
-    children: Sequence[kw.Keyword] = vec.v(CLASS_LOCAL, PARAMS, BODY)
-    op: NodeOp = NodeOp.CLASS_METHOD
-    top_level: bool = False
-    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
-
-
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class PropertyMethod(DefTypeMember):
-    this_local: Binding
-    children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
-    op: NodeOp = NodeOp.PROPERTY_METHOD
-    top_level: bool = False
-    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
-
-
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class StaticMethod(DefTypeMember):
-    is_variadic: bool
-    kwarg_support: Optional[KeywordArgSupport] = None
-    children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
-    op: NodeOp = NodeOp.STATIC_METHOD
     top_level: bool = False
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
@@ -838,50 +908,6 @@ class WithMeta(Node[LispForm]):
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
-ParentNode = Union[
-    Await,
-    Const,
-    Def,
-    Do,
-    Fn,
-    HostCall,
-    HostField,
-    If,
-    Import,
-    Invoke,
-    Let,
-    LetFn,
-    Loop,
-    Map,
-    MaybeClass,
-    MaybeHostForm,
-    PyDict,
-    PyList,
-    PySet,
-    PyTuple,
-    Quote,
-    Require,
-    Set,
-    SetBang,
-    Throw,
-    Try,
-    VarRef,
-    Vector,
-    WithMeta,
-]
-ChildOnlyNode = Union[
-    Binding,
-    ClassMethod,
-    Catch,
-    FnMethod,
-    ImportAlias,
-    Local,
-    Method,
-    PropertyMethod,
-    Recur,
-    StaticMethod,
-]
-AnyNode = Union[ParentNode, ChildOnlyNode]
 SpecialFormNode = Union[
     Await,
     Def,
