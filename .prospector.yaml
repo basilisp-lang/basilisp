@@ -5,12 +5,18 @@ test-warnings: true
 doc-warnings: false
 
 ignore-paths:
+  - .git
+  - .hg
   - .cache
   - .mypy_cache
   - .pytest_cache
   - .tox
   - build
   - dist
+  - docs
+  - htmlcov
+  - junit
+  - pip-wheel-metadata
   - lispcore.py
   - tests
 

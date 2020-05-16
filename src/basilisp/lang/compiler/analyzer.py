@@ -55,6 +55,7 @@ from basilisp.lang.compiler.constants import (
     SYM_CLASSMETHOD_META_KEY,
     SYM_DEFAULT_META_KEY,
     SYM_DYNAMIC_META_KEY,
+    SYM_KWARGS_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
     SYM_NO_WARN_ON_SHADOW_META_KEY,
@@ -70,22 +71,32 @@ from basilisp.lang.compiler.nodes import (
     Await,
     Binding,
     Catch,
-    ClassMethod,
     Const,
     ConstType,
     Def,
     DefType,
     DefTypeBase,
+    DefTypeClassMethod,
+    DefTypeClassMethodArity,
     DefTypeMember,
+    DefTypeMethod,
+    DefTypeMethodArity,
+    DefTypeMethodArityBase,
+    DefTypeMethodBase,
+    DefTypeProperty,
+    DefTypeStaticMethod,
+    DefTypeStaticMethodArity,
     Do,
     Fn,
-    FnMethod,
+    FnArity,
     HostCall,
     HostField,
     If,
     Import,
     ImportAlias,
     Invoke,
+    KeywordArgs,
+    KeywordArgSupport,
     Let,
     LetFn,
     Local,
@@ -94,22 +105,21 @@ from basilisp.lang.compiler.nodes import (
     Map as MapNode,
     MaybeClass,
     MaybeHostForm,
-    Method,
     Node,
     NodeEnv,
     NodeOp,
     NodeSyntacticPosition,
-    PropertyMethod,
     PyDict,
     PyList,
     PySet,
     PyTuple,
     Quote,
     Recur,
+    Require,
+    RequireAlias,
     Set as SetNode,
     SetBang,
     SpecialFormNode,
-    StaticMethod,
     Throw,
     Try,
     VarRef,
@@ -118,7 +128,7 @@ from basilisp.lang.compiler.nodes import (
 )
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
-from basilisp.lang.typing import LispForm, ReaderForm
+from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe, partition
 
@@ -126,9 +136,9 @@ from basilisp.util import Maybe, partition
 logger = logging.getLogger(__name__)
 
 # Analyzer options
-WARN_ON_SHADOWED_NAME = "warn_on_shadowed_name"
-WARN_ON_SHADOWED_VAR = "warn_on_shadowed_var"
-WARN_ON_UNUSED_NAMES = "warn_on_unused_names"
+WARN_ON_SHADOWED_NAME = kw.keyword("warn-on-shadowed-name")
+WARN_ON_SHADOWED_VAR = kw.keyword("warn-on-shadowed-var")
+WARN_ON_UNUSED_NAMES = kw.keyword("warn-on-unused-names")
 
 # Lisp AST node keywords
 INIT = kw.keyword("init")
@@ -141,6 +151,7 @@ FINALLY = kw.keyword("finally")
 # Constants used in analyzing
 AS = kw.keyword("as")
 IMPLEMENTS = kw.keyword("implements")
+STAR_STAR = sym.symbol("**")
 _DOUBLE_DOT_MACRO_NAME = ".."
 _BUILTINS_NS = "python"
 
@@ -293,7 +304,7 @@ class AnalyzerContext:
     def __init__(
         self,
         filename: Optional[str] = None,
-        opts: Optional[Mapping[str, bool]] = None,
+        opts: Optional[CompilerOpts] = None,
         should_macroexpand: bool = True,
         allow_unresolved_symbols: bool = False,
     ) -> None:
@@ -392,23 +403,45 @@ class AnalyzerContext:
 
     @property
     def should_macroexpand(self) -> bool:
+        """Return True if macros should be expanded."""
         return self._should_macroexpand
 
     @property
     def is_async_ctx(self) -> bool:
+        """If True, the current node appears inside of an async function definition.
+        It is possible that the current function is defined inside other functions,
+        so this does not imply anything about the nesting level of the current node."""
         try:
             return self._func_ctx[-1] is True
         except IndexError:
             return False
 
+    @property
+    def in_func_ctx(self) -> bool:
+        """If True, the current node appears inside of a function definition.
+        It is possible that the current function is defined inside other functions,
+        so this does not imply anything about the nesting level of the current node."""
+        try:
+            self._func_ctx[-1]
+        except IndexError:
+            return False
+        else:
+            return True
+
     @contextlib.contextmanager
     def new_func_ctx(self, is_async: bool = False):
+        """Context manager which can be used to set a function context for child
+        nodes to examine. A new function context is pushed onto the stack each time
+        the Analyzer finds a new function definition, so there may be many nested
+        function contexts."""
         self._func_ctx.append(is_async)
         yield
         self._func_ctx.pop()
 
     @property
     def recur_point(self) -> Optional[RecurPoint]:
+        """Return the current recur point which applies to the current node, if there
+        is one."""
         try:
             return self._recur_points[-1]
         except IndexError:
@@ -416,6 +449,11 @@ class AnalyzerContext:
 
     @contextlib.contextmanager
     def new_recur_point(self, loop_id: str, args: Collection[Any] = ()):
+        """Context manager which can be used to set a recur point for child nodes.
+        A new recur point is pushed onto the stack each time the Analyzer finds a
+        form which supports recursion (such as `fn*` or `loop*`), so there may be
+        many recur points, though only one may be active at any given time for a
+        node."""
         self._recur_points.append(RecurPoint(loop_id, args=args))
         yield
         self._recur_points.pop()
@@ -640,6 +678,65 @@ def _body_ast(
     return stmts, ret
 
 
+def _call_args_ast(  # pylint: disable=too-many-branches
+    ctx: AnalyzerContext, form: ISeq
+) -> Tuple[Iterable[Node], KeywordArgs]:
+    """Return a tuple of positional arguments and keyword arguments, splitting at the
+    keyword argument marker symbol '**'."""
+    with ctx.expr_pos():
+        nmarkers = sum(int(e == STAR_STAR) for e in form)
+        if nmarkers > 1:
+            raise AnalyzerException(
+                "function and method invocations may have at most 1 keyword argument marker '**'",
+                form=form,
+            )
+        elif nmarkers == 1:
+            kwarg_marker = False
+            pos, kws = [], []
+            for arg in form:
+                if arg == STAR_STAR:
+                    kwarg_marker = True
+                    continue
+                if kwarg_marker:
+                    kws.append(arg)
+                else:
+                    pos.append(arg)
+
+            args = vec.vector(map(partial(_analyze_form, ctx), pos))
+            kw_map = {}
+            try:
+                for k, v in partition(kws, 2):
+                    if isinstance(k, kw.Keyword):
+                        munged_k = munge(k.name, allow_builtins=True)
+                    elif isinstance(k, str):
+                        munged_k = munge(k, allow_builtins=True)
+                    else:
+                        raise AnalyzerException(
+                            f"keys for keyword arguments must be keywords or strings, not '{type(k)}'",
+                            form=k,
+                        )
+
+                    if munged_k in kw_map:
+                        raise AnalyzerException(
+                            f"duplicate keyword argument key in function or method invocation",
+                            form=k,
+                        )
+
+                    kw_map[munged_k] = _analyze_form(ctx, v)
+
+            except ValueError:
+                raise AnalyzerException(
+                    "keyword arguments must appear in key/value pairs", form=form
+                ) from ValueError
+            else:
+                kwargs = lmap.map(kw_map)
+        else:
+            args = vec.vector(map(partial(_analyze_form, ctx), form))
+            kwargs = lmap.Map.empty()
+
+        return args, kwargs
+
+
 def _with_meta(gen_node):
     """Wraps the node generated by gen_node in a :with-meta AST node if the
     original form has meta.
@@ -799,6 +896,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         var=var,
         init=init,
         doc=doc,
+        in_func_ctx=ctx.in_func_ctx,
         children=children,
         env=def_node_env,
     )
@@ -844,10 +942,14 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
 
 def __deftype_method_param_bindings(
     ctx: AnalyzerContext, params: vec.Vector
-) -> Tuple[bool, List[Binding]]:
+) -> Tuple[bool, int, List[Binding]]:
     """Generate parameter bindings for deftype* methods.
 
-    Special cases for class and static methods must be handled by their
+    Return a tuple containing a boolean, indicating if the parameter bindings
+    contain a variadic binding, an integer indicating the fixed arity of the
+    parameter bindings, and the list of parameter bindings.
+
+    Special cases for individual method types must be handled by their
     respective handlers. This method will only produce vanilla ARG type
     bindings."""
     has_vargs, vargs_idx = False, 0
@@ -874,6 +976,8 @@ def __deftype_method_param_bindings(
         param_nodes.append(binding)
         ctx.put_new_symbol(s, binding)
 
+    fixed_arity = len(param_nodes)
+
     if has_vargs:
         try:
             vargs_sym = params[vargs_idx + 1]
@@ -899,7 +1003,7 @@ def __deftype_method_param_bindings(
                 "Expected variadic argument name after '&'", form=params
             ) from None
 
-    return has_vargs, param_nodes
+    return has_vargs, fixed_arity, param_nodes
 
 
 def __deftype_classmethod(
@@ -907,7 +1011,8 @@ def __deftype_classmethod(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
-) -> ClassMethod:
+    kwarg_support: Optional[KeywordArgSupport] = None,
+) -> DefTypeClassMethodArity:
     """Emit a node for a :classmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
         try:
@@ -919,7 +1024,7 @@ def __deftype_classmethod(
         else:
             if not isinstance(cls_arg, sym.Symbol):
                 raise AnalyzerException(
-                    f"deftype* method 'cls' argument must be a symbol", form=args
+                    f"deftype* class method 'cls' argument must be a symbol", form=args
                 )
             cls_binding = Binding(
                 form=cls_arg,
@@ -930,12 +1035,18 @@ def __deftype_classmethod(
             ctx.put_new_symbol(cls_arg, cls_binding)
 
         params = args[1:]
-        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
-        stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        method = ClassMethod(
+        has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
+            ctx, params
+        )
+        with ctx.expr_pos():
+            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+        method = DefTypeClassMethodArity(
             form=form,
             name=method_name,
             params=vec.vector(param_nodes),
+            fixed_arity=fixed_arity,
+            is_variadic=has_vargs,
+            kwarg_support=kwarg_support,
             body=Do(
                 form=form.rest,
                 statements=vec.vector(stmts),
@@ -945,9 +1056,8 @@ def __deftype_classmethod(
                 # exists, for metadata.
                 env=ctx.get_node_env(),
             ),
-            env=ctx.get_node_env(),
             class_local=cls_binding,
-            is_variadic=has_vargs,
+            env=ctx.get_node_env(),
         )
         method.visit(_assert_no_recur)
         return method
@@ -958,7 +1068,8 @@ def __deftype_method(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
-) -> Method:
+    kwarg_support: Optional[KeywordArgSupport] = None,
+) -> DefTypeMethodArity:
     """Emit a node for a method member of a deftype* form."""
     with ctx.new_symbol_table(method_name):
         try:
@@ -981,17 +1092,22 @@ def __deftype_method(
             ctx.put_new_symbol(this_arg, this_binding, warn_if_unused=False)
 
         params = args[1:]
-        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+        has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
+            ctx, params
+        )
 
         loop_id = genname(method_name)
         with ctx.new_recur_point(loop_id, param_nodes):
-            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-            method = Method(
+            with ctx.expr_pos():
+                stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+            method = DefTypeMethodArity(
                 form=form,
                 name=method_name,
                 this_local=this_binding,
                 params=vec.vector(param_nodes),
+                fixed_arity=fixed_arity,
                 is_variadic=has_vargs,
+                kwarg_support=kwarg_support,
                 body=Do(
                     form=form.rest,
                     statements=vec.vector(stmts),
@@ -1013,19 +1129,19 @@ def __deftype_property(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
-) -> PropertyMethod:
+) -> DefTypeProperty:
     """Emit a node for a :property member of a deftype* form."""
     with ctx.new_symbol_table(method_name):
         try:
             this_arg = args[0]
         except IndexError:
             raise AnalyzerException(
-                f"deftype* method must include 'this' or 'self' argument", form=args
+                f"deftype* property must include 'this' or 'self' argument", form=args
             )
         else:
             if not isinstance(this_arg, sym.Symbol):
                 raise AnalyzerException(
-                    f"deftype* method 'this' argument must be a symbol", form=args
+                    f"deftype* property 'this' argument must be a symbol", form=args
                 )
             this_binding = Binding(
                 form=this_arg,
@@ -1036,7 +1152,7 @@ def __deftype_property(
             ctx.put_new_symbol(this_arg, this_binding, warn_if_unused=False)
 
         params = args[1:]
-        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, params)
+        has_vargs, _, param_nodes = __deftype_method_param_bindings(ctx, params)
 
         if len(param_nodes) > 0:
             raise AnalyzerException(
@@ -1045,8 +1161,9 @@ def __deftype_property(
 
         assert not has_vargs, "deftype* properties may not have arguments"
 
-        stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        prop = PropertyMethod(
+        with ctx.expr_pos():
+            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+        prop = DefTypeProperty(
             form=form,
             name=method_name,
             this_local=this_binding,
@@ -1071,15 +1188,20 @@ def __deftype_staticmethod(
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
-) -> StaticMethod:
+    kwarg_support: Optional[KeywordArgSupport] = None,
+) -> DefTypeStaticMethodArity:
     """Emit a node for a :staticmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
-        has_vargs, param_nodes = __deftype_method_param_bindings(ctx, args)
-        stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        method = StaticMethod(
+        has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(ctx, args)
+        with ctx.expr_pos():
+            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+        method = DefTypeStaticMethodArity(
             form=form,
             name=method_name,
             params=vec.vector(param_nodes),
+            fixed_arity=fixed_arity,
+            is_variadic=has_vargs,
+            kwarg_support=kwarg_support,
             body=Do(
                 form=form.rest,
                 statements=vec.vector(stmts),
@@ -1090,20 +1212,24 @@ def __deftype_staticmethod(
                 env=ctx.get_node_env(),
             ),
             env=ctx.get_node_env(),
-            is_variadic=has_vargs,
         )
         method.visit(_assert_no_recur)
         return method
 
 
-def __deftype_member(
+def __deftype_prop_or_method_arity(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: Union[llist.List, ISeq]
-) -> DefTypeMember:
-    """Emit a member node for a deftype* form.
+) -> Union[DefTypeMethodArityBase, DefTypeProperty]:
+    """Emit either a `deftype*` property node or an arity of a `deftype*` method.
 
-    Member nodes are determined by the presence or absence of certain
-    metadata elements on the input form (or the form's first member,
-    typically a symbol naming that member)."""
+    Unlike standard `fn*` definitions, multiple arities for a single method are
+    not defined within some containing node. As such, we can only emit either a
+    full property node (since properties may not be multi-arity) or the single
+    arity of a method, classmethod, or staticmethod.
+
+    The type of the member node is determined by the presence or absence of certain
+    metadata elements on the input form (or the form's first member, typically a
+    symbol naming that member)."""
     if not isinstance(form.first, sym.Symbol):
         raise AnalyzerException(
             "deftype* method must be named by symbol: (name [& args] & body)",
@@ -1133,30 +1259,130 @@ def __deftype_member(
             f"deftype* member arguments must be vector, not {type(args)}", form=args
         )
 
+    kwarg_meta = __fn_kwargs_support(form.first) or (
+        isinstance(form, IMeta) and __fn_kwargs_support(form)
+    )
+    kwarg_support = None if isinstance(kwarg_meta, bool) else kwarg_meta
+
     if is_classmethod:
-        return __deftype_classmethod(ctx, form, method_name, args)
+        return __deftype_classmethod(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
+        )
     elif is_property:
+        if kwarg_support is not None:
+            raise AnalyzerException(
+                f"deftype* properties may not declare keyword argument support",
+                form=form,
+            )
+
         return __deftype_property(ctx, form, method_name, args)
     elif is_staticmethod:
-        return __deftype_staticmethod(ctx, form, method_name, args)
+        return __deftype_staticmethod(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
+        )
     else:
-        return __deftype_method(ctx, form, method_name, args)
+        return __deftype_method(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
+        )
 
 
-def __deftype_impls(  # pylint: disable=too-many-branches
+def __deftype_method_node_from_arities(  # pylint: disable=too-many-branches
+    ctx: AnalyzerContext,
+    form: Union[llist.List, ISeq],
+    arities: List[DefTypeMethodArityBase],
+) -> DefTypeMethodBase:
+    """Roll all of the collected arities up into a single method node."""
+    fixed_arities: MutableSet[int] = set()
+    fixed_arity_for_variadic: Optional[int] = None
+    num_variadic = 0
+    for arity in arities:
+        if fixed_arity_for_variadic is not None:
+            if arity.fixed_arity >= fixed_arity_for_variadic:
+                raise AnalyzerException(
+                    "deftype method may not have a method with fixed arity greater "
+                    "than fixed arity of variadic function",
+                    form=arity.form,
+                )
+        if arity.is_variadic:
+            if num_variadic > 0:
+                raise AnalyzerException(
+                    "deftype method may have at most 1 variadic arity", form=arity.form
+                )
+            fixed_arity_for_variadic = arity.fixed_arity
+            num_variadic += 1
+        else:
+            if arity.fixed_arity in fixed_arities:
+                raise AnalyzerException(
+                    "deftype may not have multiple methods with the same fixed arity",
+                    form=arity.form,
+                )
+            fixed_arities.add(arity.fixed_arity)
+
+    if fixed_arity_for_variadic is not None and any(
+        fixed_arity_for_variadic < arity for arity in fixed_arities
+    ):
+        raise AnalyzerException(
+            "variadic arity may not have fewer fixed arity arguments than any other arities",
+            form=form,
+        )
+
+    assert (
+        len(set(arity.name for arity in arities)) <= 1
+    ), "arities must have the same name defined"
+
+    if len(arities) > 1 and any(arity.kwarg_support is not None for arity in arities):
+        raise AnalyzerException(
+            "multi-arity deftype* methods may not declare support for keyword arguments",
+            form=form,
+        )
+
+    max_fixed_arity = max(arity.fixed_arity for arity in arities)
+
+    if all(isinstance(e, DefTypeMethodArity) for e in arities):
+        return DefTypeMethod(
+            form=form,
+            name=arities[0].name,
+            max_fixed_arity=max_fixed_arity,
+            arities=vec.vector(arities),  # type: ignore[arg-type]
+            is_variadic=num_variadic == 1,
+            env=ctx.get_node_env(),
+        )
+    elif all(isinstance(e, DefTypeClassMethodArity) for e in arities):
+        return DefTypeClassMethod(
+            form=form,
+            name=arities[0].name,
+            max_fixed_arity=max_fixed_arity,
+            arities=vec.vector(arities),  # type: ignore[arg-type]
+            is_variadic=num_variadic == 1,
+            env=ctx.get_node_env(),
+        )
+    elif all(isinstance(e, DefTypeStaticMethodArity) for e in arities):
+        return DefTypeStaticMethod(
+            form=form,
+            name=arities[0].name,
+            max_fixed_arity=max_fixed_arity,
+            arities=vec.vector(arities),  # type: ignore[arg-type]
+            is_variadic=num_variadic == 1,
+            env=ctx.get_node_env(),
+        )
+    else:
+        raise AnalyzerException(
+            "deftype* method arities must all be declared one of :classmethod, "
+            ":property, :staticmethod, or none (for a standard method)",
+            form=form,
+        )
+
+
+def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noqa: MC0001
     ctx: AnalyzerContext, form: ISeq
 ) -> Tuple[List[DefTypeBase], List[DefTypeMember]]:
     """Roll up deftype* declared bases and method implementations."""
-    interface_names: MutableSet[sym.Symbol] = set()
-    interfaces = []
-    methods: List[DefTypeMember] = []
-
     if runtime.to_seq(form) is None:
         return [], []
 
     if not isinstance(form.first, kw.Keyword) or form.first != IMPLEMENTS:
         raise AnalyzerException(
-            f"deftype* forms must declare which interfaces they implement", form=form
+            "deftype* forms must declare which interfaces they implement", form=form
         )
 
     implements = runtime.nth(form, 1)
@@ -1166,6 +1392,8 @@ def __deftype_impls(  # pylint: disable=too-many-branches
             form=implements,
         )
 
+    interface_names: MutableSet[sym.Symbol] = set()
+    interfaces = []
     for iface in implements:
         if not isinstance(iface, sym.Symbol):
             raise AnalyzerException("deftype* interfaces must be symbols", form=iface)
@@ -1180,21 +1408,63 @@ def __deftype_impls(  # pylint: disable=too-many-branches
         current_interface = _analyze_form(ctx, iface)
         if not isinstance(current_interface, (MaybeClass, MaybeHostForm, VarRef)):
             raise AnalyzerException(
-                f"deftype* interface implementation must be an existing interface",
+                "deftype* interface implementation must be an existing interface",
                 form=iface,
             )
         interfaces.append(current_interface)
 
+    # Use the insertion-order preserving capabilities of a dictionary with 'True'
+    # keys to act as an ordered set of members we've seen. We don't want to register
+    # duplicates.
+    member_order = {}
+    methods: MutableMapping[
+        str, List[DefTypeMethodArityBase]
+    ] = collections.defaultdict(list)
+    props: MutableMapping[str, DefTypeProperty] = {}
     for elem in runtime.nthrest(form, 2):
-        if isinstance(elem, ISeq):
-            methods.append(__deftype_member(ctx, elem))
-        else:
+        if not isinstance(elem, ISeq):
             raise AnalyzerException(
-                f"deftype* must consist of interface or protocol names and methods",
+                "deftype* must consist of interface or protocol names and methods",
                 form=elem,
             )
 
-    return interfaces, list(methods)
+        member = __deftype_prop_or_method_arity(ctx, elem)
+        member_order[member.name] = True
+        if isinstance(member, DefTypeProperty):
+            if member.name in props:
+                raise AnalyzerException(
+                    "deftype* property may only have one arity defined",
+                    form=elem,
+                    lisp_ast=member,
+                )
+            elif member.name in methods:
+                raise AnalyzerException(
+                    "deftype* property name already defined as a method",
+                    form=elem,
+                    lisp_ast=member,
+                )
+            props[member.name] = member
+        else:
+            if member.name in props:
+                raise AnalyzerException(
+                    "deftype* method name already defined as a property",
+                    form=elem,
+                    lisp_ast=member,
+                )
+            methods[member.name].append(member)
+
+    members: List[DefTypeMember] = []
+    for member_name in member_order:
+        arities = methods.get(member_name)
+        if arities is not None:
+            members.append(__deftype_method_node_from_arities(ctx, form, arities))
+            continue
+
+        prop = props.get(member_name)
+        assert prop is not None, "Member must be a method or property"
+        members.append(prop)
+
+    return interfaces, members
 
 
 def __is_abstract(tp: Type) -> bool:
@@ -1249,13 +1519,17 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
             missing_methods = ", ".join(interface_method_names - member_names)
             raise AnalyzerException(
                 "deftype* definition missing interface members for interface "
-                f"{interface.form}: {missing_methods}"
+                f"{interface.form}: {missing_methods}",
+                form=interface.form,
+                lisp_ast=interface,
             )
         elif not interface_property_names.issubset(all_member_names):
             missing_fields = ", ".join(interface_property_names - field_names)
             raise AnalyzerException(
                 "deftype* definition missing interface properties for interface "
-                f"{interface.form}: {missing_fields}"
+                f"{interface.form}: {missing_fields}",
+                form=interface.form,
+                lisp_ast=interface,
             )
 
         all_interface_methods.update(interface_names)
@@ -1280,7 +1554,8 @@ def _deftype_ast(  # pylint: disable=too-many-branches
     nelems = count(form)
     if nelems < 3:
         raise AnalyzerException(
-            f"deftype forms must have 3 or more elements, as in: (deftype* name fields [bases+impls])",
+            "deftype forms must have 3 or more elements, as in: "
+            "(deftype* name fields :implements [bases+impls])",
             form=form,
         )
 
@@ -1309,7 +1584,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
         param_nodes = []
         for field in fields:
             if not isinstance(field, sym.Symbol):
-                raise AnalyzerException(f"deftype* fields must be symbols", form=field)
+                raise AnalyzerException("deftype* fields must be symbols", form=field)
 
             field_default = (
                 Maybe(field.meta)
@@ -1372,7 +1647,7 @@ def _do_ast(ctx: AnalyzerContext, form: ISeq) -> Do:
 
 def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
     ctx: AnalyzerContext, form: ISeq, fnname: Optional[sym.Symbol] = None
-) -> FnMethod:
+) -> FnArity:
     with ctx.new_symbol_table("fn-method"):
         params = form.first
         if not isinstance(params, vec.Vector):
@@ -1430,8 +1705,9 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
 
         fn_loop_id = genname("fn_arity" if fnname is None else fnname.name)
         with ctx.new_recur_point(fn_loop_id, param_nodes):
-            stmts, ret = _body_ast(ctx, form.rest)
-            method = FnMethod(
+            with ctx.expr_pos():
+                stmts, ret = _body_ast(ctx, form.rest)
+            method = FnArity(
                 form=form,
                 loop_id=fn_loop_id,
                 params=vec.vector(param_nodes),
@@ -1452,6 +1728,23 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
             )
             method.visit(_assert_recur_is_tail)
             return method
+
+
+def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
+    if o.meta is None:
+        return None
+
+    kwarg_support = o.meta.val_at(SYM_KWARGS_META_KEY)
+    if kwarg_support is None:
+        return None
+
+    try:
+        return KeywordArgSupport(kwarg_support)
+    except ValueError:
+        raise AnalyzerException(
+            "fn keyword argument support metadata :kwarg must be one of: #{:apply :collect}",
+            form=kwarg_support,
+        )
 
 
 @_with_meta  # noqa: MC0001
@@ -1477,12 +1770,18 @@ def _fn_ast(  # pylint: disable=too-many-branches
             )
             assert name_node is not None
             is_async = _is_async(name) or isinstance(form, IMeta) and _is_async(form)
+            kwarg_support = (
+                __fn_kwargs_support(name)
+                or isinstance(form, IMeta)
+                and __fn_kwargs_support(form)
+            )
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
         elif isinstance(name, (llist.List, vec.Vector)):
             name = None
             name_node = None
             is_async = isinstance(form, IMeta) and _is_async(form)
+            kwarg_support = isinstance(form, IMeta) and __fn_kwargs_support(form)
         else:
             raise AnalyzerException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
@@ -1499,14 +1798,14 @@ def _fn_ast(  # pylint: disable=too-many-branches
 
         with ctx.new_func_ctx(is_async=is_async):
             if isinstance(arity_or_args, llist.List):
-                methods = vec.vector(
+                arities = vec.vector(
                     map(
                         partial(__fn_method_ast, ctx, fnname=name),
                         runtime.nthrest(form, idx),
                     )
                 )
             elif isinstance(arity_or_args, vec.Vector):
-                methods = vec.v(
+                arities = vec.v(
                     __fn_method_ast(ctx, runtime.nthrest(form, idx), fnname=name)
                 )
             else:
@@ -1515,33 +1814,40 @@ def _fn_ast(  # pylint: disable=too-many-branches
                     form=form,
                 )
 
-        assert count(methods) > 0, "fn must have at least one arity"
+        nmethods = count(arities)
+        assert nmethods > 0, "fn must have at least one arity"
+
+        if kwarg_support is not None and nmethods > 1:
+            raise AnalyzerException(
+                "multi-arity functions may not declare support for keyword arguments",
+                form=form,
+            )
 
         fixed_arities: MutableSet[int] = set()
         fixed_arity_for_variadic: Optional[int] = None
         num_variadic = 0
-        for method in methods:
+        for arity in arities:
             if fixed_arity_for_variadic is not None:
-                if method.fixed_arity >= fixed_arity_for_variadic:
+                if arity.fixed_arity >= fixed_arity_for_variadic:
                     raise AnalyzerException(
                         "fn may not have a method with fixed arity greater than "
                         "fixed arity of variadic function",
-                        form=method.form,
+                        form=arity.form,
                     )
-            if method.is_variadic:
+            if arity.is_variadic:
                 if num_variadic > 0:
                     raise AnalyzerException(
-                        "fn may have at most 1 variadic arity", form=method.form
+                        "fn may have at most 1 variadic arity", form=arity.form
                     )
-                fixed_arity_for_variadic = method.fixed_arity
+                fixed_arity_for_variadic = arity.fixed_arity
                 num_variadic += 1
             else:
-                if method.fixed_arity in fixed_arities:
+                if arity.fixed_arity in fixed_arities:
                     raise AnalyzerException(
                         "fn may not have multiple methods with the same fixed arity",
-                        form=method.form,
+                        form=arity.form,
                     )
-                fixed_arities.add(method.fixed_arity)
+                fixed_arities.add(arity.fixed_arity)
 
         if fixed_arity_for_variadic is not None and any(
             fixed_arity_for_variadic < arity for arity in fixed_arities
@@ -1554,11 +1860,12 @@ def _fn_ast(  # pylint: disable=too-many-branches
         return Fn(
             form=form,
             is_variadic=num_variadic == 1,
-            max_fixed_arity=max([node.fixed_arity for node in methods]),
-            methods=methods,
+            max_fixed_arity=max(node.fixed_arity for node in arities),
+            arities=arities,
             local=name_node,
             env=ctx.get_node_env(pos=ctx.syntax_position),
             is_async=is_async,
+            kwarg_support=None if isinstance(kwarg_support, bool) else kwarg_support,
         )
 
 
@@ -1574,11 +1881,13 @@ def _host_call_ast(ctx: AnalyzerContext, form: ISeq) -> HostCall:
             "host interop calls must be 2 or more elements long", form=form
         )
 
+    args, kwargs = _call_args_ast(ctx, runtime.nthrest(form, 2))
     return HostCall(
         form=form,
         method=method.name[1:],
         target=_analyze_form(ctx, runtime.nth(form, 1)),
-        args=vec.vector(map(partial(_analyze_form, ctx), runtime.nthrest(form, 2))),
+        args=args,
+        kwargs=kwargs,
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -1662,13 +1971,13 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             )
         else:
+            args, kwargs = _call_args_ast(ctx, runtime.nthrest(form, 3))
             return HostCall(
                 form=form,
                 method=maybe_m_or_f.name,
                 target=_analyze_form(ctx, runtime.nth(form, 1)),
-                args=vec.vector(
-                    map(partial(_analyze_form, ctx), runtime.nthrest(form, 3))
-                ),
+                args=args,
+                kwargs=kwargs,
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             )
     elif isinstance(maybe_m_or_f, (llist.List, ISeq)):
@@ -1677,11 +1986,13 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
         if not isinstance(method, sym.Symbol):
             raise AnalyzerException("host call method must be a symbol", form=method)
 
+        args, kwargs = _call_args_ast(ctx, maybe_m_or_f.rest)
         return HostCall(
             form=form,
             method=method.name[1:] if method.name.startswith("-") else method.name,
             target=_analyze_form(ctx, runtime.nth(form, 1)),
-            args=vec.vector(map(partial(_analyze_form, ctx), maybe_m_or_f.rest)),
+            args=args,
+            kwargs=kwargs,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
     else:
@@ -1800,11 +2111,13 @@ def _invoke_ast(ctx: AnalyzerContext, form: Union[llist.List, ISeq]) -> Node:
                         phase=CompilerPhase.MACROEXPANSION,
                     ) from e
 
-    with ctx.expr_pos():
-        args = vec.vector(map(partial(_analyze_form, ctx), form.rest))
-
+    args, kwargs = _call_args_ast(ctx, form.rest)
     return Invoke(
-        form=form, fn=fn, args=args, env=ctx.get_node_env(pos=ctx.syntax_position),
+        form=form,
+        fn=fn,
+        args=args,
+        kwargs=kwargs,
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2034,6 +2347,12 @@ def _loop_ast(ctx: AnalyzerContext, form: ISeq) -> Loop:
 
 def _quote_ast(ctx: AnalyzerContext, form: ISeq) -> Quote:
     assert form.first == SpecialForm.QUOTE
+    nelems = count(form)
+
+    if nelems != 2:
+        raise AnalyzerException(
+            "quote forms must have exactly two elements: (quote form)", form=form
+        )
 
     with ctx.quoted():
         with ctx.expr_pos():
@@ -2071,8 +2390,13 @@ def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branc
         for child in node.statements:
             _assert_no_recur(child)
         _assert_recur_is_tail(node.ret)
-    elif node.op in {NodeOp.FN, NodeOp.FN_METHOD, NodeOp.METHOD}:
-        assert isinstance(node, (Fn, FnMethod, Method))
+    elif node.op in {
+        NodeOp.FN,
+        NodeOp.FN_ARITY,
+        NodeOp.DEFTYPE_METHOD,
+        NodeOp.DEFTYPE_METHOD_ARITY,
+    }:
+        assert isinstance(node, (Fn, FnArity, DefTypeMethod, DefTypeMethodArity))
         node.visit(_assert_recur_is_tail)
     elif node.op == NodeOp.IF:
         assert isinstance(node, If)
@@ -2119,6 +2443,51 @@ def _recur_ast(ctx: AnalyzerContext, form: ISeq) -> Recur:
 
     return Recur(
         form=form, exprs=exprs, loop_id=ctx.recur_point.loop_id, env=ctx.get_node_env()
+    )
+
+
+def _require_ast(  # pylint: disable=too-many-branches
+    ctx: AnalyzerContext, form: ISeq
+) -> Require:
+    assert form.first == SpecialForm.REQUIRE
+
+    aliases = []
+    for f in form.rest:
+        if isinstance(f, sym.Symbol):
+            module_name = f
+            module_alias = None
+        elif isinstance(f, vec.Vector):
+            if len(f) != 3:
+                raise AnalyzerException(
+                    "require alias must take the form: [namespace :as alias]", form=f
+                )
+            module_name = f.val_at(0)
+            if not isinstance(module_name, sym.Symbol):
+                raise AnalyzerException(
+                    "Basilisp namespace name must be a symbol", form=f
+                )
+            if not AS == f.val_at(1):
+                raise AnalyzerException("expected :as alias for Basilisp alias", form=f)
+            module_alias_sym = f.val_at(2)
+            if not isinstance(module_alias_sym, sym.Symbol):
+                raise AnalyzerException(
+                    "Basilisp namespace alias must be a symbol", form=f
+                )
+            module_alias = module_alias_sym.name
+        else:
+            raise AnalyzerException("symbol or vector expected for require*", form=f)
+
+        aliases.append(
+            RequireAlias(
+                form=f,
+                name=module_name.name,
+                alias=module_alias,
+                env=ctx.get_node_env(),
+            )
+        )
+
+    return Require(
+        form=form, aliases=aliases, env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2327,6 +2696,7 @@ _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.LOOP: _loop_ast,
     SpecialForm.QUOTE: _quote_ast,
     SpecialForm.RECUR: _recur_ast,
+    SpecialForm.REQUIRE: _require_ast,
     SpecialForm.SET_BANG: _set_bang_ast,
     SpecialForm.THROW: _throw_ast,
     SpecialForm.TRY: _try_ast,
@@ -2362,7 +2732,7 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
     parent_node = __resolve_namespaced_symbol(ctx, parent)
 
     return HostField(
-        form,
+        form=form,
         field=form.name,
         target=parent_node,
         is_assignable=True,
@@ -2370,53 +2740,8 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
     )
 
 
-def __fuzzy_resolve_namespace_reference(
-    ctx: AnalyzerContext, which_ns: runtime.Namespace, form: sym.Symbol
-) -> Optional[VarRef]:
-    """Resolve a symbol within `which_ns` based on any namespaces required or otherwise
-    referenced within `which_ns` (e.g. by a :refer).
-
-    When a required or resolved symbol is read by the reader in the context of a syntax
-    quote, the reader will fully resolve the symbol, so a symbol like `set/union` would be
-    expanded to `basilisp.set/union`. However, the namespace still does not maintain a
-    direct mapping of the symbol `basilisp.set` to the namespace it names, since the
-    namespace was required as `[basilisp.set :as set]`.
-
-    During macroexpansion, the Analyzer needs to resolve these transitive requirements,
-    so we 'fuzzy' resolve against any namespaces known to the current macro namespace."""
-    assert form.ns is not None
-    ns_name = form.ns
-
-    def resolve_ns_reference(
-        ns_map: Mapping[str, runtime.Namespace]
-    ) -> Optional[VarRef]:
-        match: Optional[runtime.Namespace] = ns_map.get(ns_name)
-        if match is not None:
-            v = match.find(sym.symbol(form.name))
-            if v is not None:
-                return VarRef(
-                    form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
-                )
-        return None
-
-    # Try to match a required namespace
-    required_namespaces = {ns.name: ns for ns in which_ns.aliases.values()}
-    match = resolve_ns_reference(required_namespaces)
-    if match is not None:
-        return match
-
-    # Try to match a referred namespace
-    referred_namespaces = {
-        ns.name: ns for ns in {var.ns for var in which_ns.refers.values()}
-    }
-    return resolve_ns_reference(referred_namespaces)
-
-
 def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
-    ctx: AnalyzerContext,
-    which_ns: runtime.Namespace,
-    form: sym.Symbol,
-    allow_fuzzy_macroexpansion_matching: bool = False,
+    ctx: AnalyzerContext, which_ns: runtime.Namespace, form: sym.Symbol,
 ) -> Optional[Union[MaybeHostForm, VarRef]]:
     """Resolve the symbol `form` in the context of the Namespace `which_ns`. If
     `allow_fuzzy_macroexpansion_matching` is True and no match is made on existing
@@ -2426,14 +2751,6 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
 
     ns_sym = sym.symbol(form.ns)
     if ns_sym in which_ns.imports or ns_sym in which_ns.import_aliases:
-        # We still import Basilisp code, so we'll want to make sure
-        # that the symbol isn't referring to a Basilisp Var first
-        v = Var.find(form)
-        if v is not None:
-            return VarRef(
-                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
-            )
-
         # Fetch the full namespace name for the aliased namespace/module.
         # We don't need this for actually generating the link later, but
         # we _do_ need it for fetching a reference to the module to check
@@ -2482,20 +2799,23 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
         )
     elif ns_sym in which_ns.aliases:
         aliased_ns: runtime.Namespace = which_ns.aliases[ns_sym]
-        v = Var.find(sym.symbol(form.name, ns=aliased_ns.name))
+        v = Var.find_in_ns(aliased_ns, sym.symbol(form.name))
         if v is None:
             raise AnalyzerException(
                 f"unable to resolve symbol '{sym.symbol(form.name, ns_sym.name)}' in this context",
                 form=form,
             )
+        elif v.meta is not None and v.meta.val_at(SYM_PRIVATE_META_KEY, False):
+            raise AnalyzerException(
+                f"cannot resolve private Var {form.name} from namespace {form.ns}",
+                form=form,
+            )
         return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),)
-    elif allow_fuzzy_macroexpansion_matching:
-        return __fuzzy_resolve_namespace_reference(ctx, which_ns, form)
 
     return None
 
 
-def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
+def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: MC0001
     ctx: AnalyzerContext, form: sym.Symbol
 ) -> Union[Const, HostField, MaybeClass, MaybeHostForm, VarRef]:
     """Resolve a namespaced symbol into a Python name or Basilisp Var."""
@@ -2548,12 +2868,6 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
     resolved = __resolve_namespaced_symbol_in_ns(ctx, current_ns, form)
     if resolved is not None:
         return resolved
-    elif ctx.current_macro_ns is not None:
-        resolved = __resolve_namespaced_symbol_in_ns(
-            ctx, ctx.current_macro_ns, form, allow_fuzzy_macroexpansion_matching=True
-        )
-        if resolved is not None:
-            return resolved
 
     if "." in form.ns:
         try:
@@ -2564,10 +2878,36 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches
             ) from None
     elif ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
-    else:
-        raise AnalyzerException(
-            f"unable to resolve symbol '{form}' in this context", form=form
+
+    # Static and class methods on types in the current namespace can be referred
+    # to as `Type/static-method`. In these casess, we will try to resolve the
+    # namespace portion of the symbol as a Var within the current namespace.
+    maybe_type_or_class = current_ns.find(sym.symbol(form.ns))
+    if maybe_type_or_class is not None:
+        safe_name = munge(form.name)
+        member = getattr(maybe_type_or_class.value, safe_name, None)
+
+        if member is None:
+            raise AnalyzerException(
+                f"unable to resolve static or class member '{form}' in this context",
+                form=form,
+            )
+
+        return HostField(
+            form=form,
+            field=safe_name,
+            target=VarRef(
+                form=form,
+                var=maybe_type_or_class,
+                env=ctx.get_node_env(pos=ctx.syntax_position),
+            ),
+            is_assignable=False,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
         )
+
+    raise AnalyzerException(
+        f"unable to resolve symbol '{form}' in this context", form=form
+    )
 
 
 def __resolve_bare_symbol(
@@ -2832,8 +3172,6 @@ def _analyze_form(  # pylint: disable=too-many-branches
         if form == llist.List.empty():
             with ctx.quoted():
                 return _const_node(ctx, form)
-        elif ctx.is_quoted:
-            return _const_node(ctx, form)
         else:
             return _list_node(ctx, form)
     elif isinstance(form, vec.Vector):

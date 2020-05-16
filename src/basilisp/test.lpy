@@ -4,16 +4,8 @@
   (:require
    [basilisp.core.template :as template]))
 
-(def ^:private collected-tests
-  (atom []))
-
-(def ^:private current-ns
-  (atom nil))
-
-(defn ^:private add-test!
-  "Add the test named by test-var to the test suite for ns."
-  [test-var]
-  (swap! collected-tests conj test-var))
+(def ^:private current-test-number
+  (atom 0))
 
 (def ^:dynamic *test-name* nil)
 (def ^:dynamic *test-section* nil)
@@ -134,18 +126,18 @@
   Tests defined by deftest will be run by default by the PyTest test
   runner using Basilisp's builtin PyTest hook."
   [name-sym & body]
-  (let [test-name-sym (vary-meta name-sym assoc :test true)
+  (let [test-num      (swap! current-test-number inc)
+        test-name-sym (vary-meta name-sym
+                                 assoc
+                                 :basilisp.test/test true
+                                 :basilisp.test/order test-num)
         test-name-str (name test-name-sym)
         test-ns-name  `(quote ~(symbol (name *ns*)))]
-    `(do
-       (defn ~test-name-sym
-         []
-         (binding [*ns*            (the-ns ~test-ns-name)
-                   *test-name*     ~test-name-str
-                   *test-section*  nil
-                   *test-failures* (atom [])]
-           ~@body
-           {:failures (deref *test-failures*)}))
-
-       (add-test! (var ~test-name-sym))
-       (reset! current-ns (the-ns ~test-ns-name)))))
+    `(defn ~test-name-sym
+       []
+       (binding [*ns*            (the-ns ~test-ns-name)
+                 *test-name*     ~test-name-str
+                 *test-section*  nil
+                 *test-failures* (atom [])]
+         ~@body
+         {:failures (deref *test-failures*)}))))

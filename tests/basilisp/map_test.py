@@ -1,3 +1,4 @@
+import pickle
 from typing import Mapping
 
 import pytest
@@ -181,3 +182,16 @@ def test_hash_map_creator():
 
     with pytest.raises(IndexError):
         lmap.hash_map(1, 2, 3)
+
+
+@pytest.mark.parametrize(
+    "o",
+    [
+        lmap.m(),
+        lmap.map({"a": 2}),
+        lmap.map({"a": 2, None: "NOTHINGNESS"}),
+        lmap.map({"a": 2, keyword("b"): lmap.map({keyword("c"): "string"})}),
+    ],
+)
+def test_map_pickleability(pickle_protocol: int, o: lmap.Map):
+    assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))

@@ -52,18 +52,12 @@ def eval_str(s: str, ctx: compiler.CompilerContext, ns: runtime.Namespace, eof: 
     return last
 
 
-def bootstrap_repl(which_ns: str) -> types.ModuleType:
+def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.ModuleType:
     """Bootstrap the REPL with a few useful vars and returned the bootstrapped
     module so it's functions can be used by the REPL command."""
-    repl_ns = runtime.Namespace.get_or_create(sym.symbol(REPL_NS))
     ns = runtime.Namespace.get_or_create(sym.symbol(which_ns))
-    core_ns = runtime.Namespace.get(sym.symbol(runtime.CORE_NS))
-    assert core_ns is not None
-    ns.refer_all(core_ns)
-    repl_module = importlib.import_module(REPL_NS)
-    ns.add_alias(sym.symbol(REPL_NS), repl_ns)
-    ns.refer_all(repl_ns)
-    return repl_module
+    eval_str(f"(ns {sym.symbol(which_ns)} (:use basilisp.repl))", ctx, ns, object())
+    return importlib.import_module(REPL_NS)
 
 
 @cli.command(short_help="start the Basilisp REPL")
@@ -73,51 +67,58 @@ def bootstrap_repl(which_ns: str) -> types.ModuleType:
     help="default namespace to use for the REPL",
 )
 @click.option(
-    "--use-var-indirection",
-    default=False,
-    is_flag=True,
-    envvar="BASILISP_USE_VAR_INDIRECTION",
-    help="if provided, all Var accesses will be performed via Var indirection",
-)
-@click.option(
     "--warn-on-shadowed-name",
-    default=False,
+    default=None,
     is_flag=True,
     envvar="BASILISP_WARN_ON_SHADOWED_NAME",
     help="if provided, emit warnings if a local name is shadowed by another local name",
 )
 @click.option(
     "--warn-on-shadowed-var",
-    default=False,
+    default=None,
     is_flag=True,
     envvar="BASILISP_WARN_ON_SHADOWED_VAR",
     help="if provided, emit warnings if a Var name is shadowed by a local name",
 )
 @click.option(
+    "--warn-on-unused-names",
+    default=None,
+    is_flag=True,
+    envvar="BASILISP_WARN_ON_UNUSED_NAMES",
+    help="if provided, emit warnings if a local name is bound and unused",
+)
+@click.option(
+    "--use-var-indirection",
+    default=None,
+    is_flag=True,
+    envvar="BASILISP_USE_VAR_INDIRECTION",
+    help="if provided, all Var accesses will be performed via Var indirection",
+)
+@click.option(
     "--warn-on-var-indirection",
-    default=True,
+    default=None,
     is_flag=True,
     envvar="BASILISP_WARN_ON_VAR_INDIRECTION",
     help="if provided, emit warnings if a Var reference cannot be direct linked",
 )
-def repl(
+def repl(  # pylint: disable=too-many-arguments,too-many-locals
     default_ns,
-    use_var_indirection,
     warn_on_shadowed_name,
     warn_on_shadowed_var,
+    warn_on_unused_names,
+    use_var_indirection,
     warn_on_var_indirection,
 ):
-    basilisp.init()
-    repl_module = bootstrap_repl(default_ns)
-    ctx = compiler.CompilerContext(
-        filename=REPL_INPUT_FILE_PATH,
-        opts={
-            compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
-            compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
-            compiler.USE_VAR_INDIRECTION: use_var_indirection,
-            compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
-        },
+    opts = compiler.compiler_opts(
+        warn_on_shadowed_name=warn_on_shadowed_name,
+        warn_on_shadowed_var=warn_on_shadowed_var,
+        warn_on_unused_names=warn_on_unused_names,
+        use_var_indirection=use_var_indirection,
+        warn_on_var_indirection=warn_on_var_indirection,
     )
+    basilisp.init(opts)
+    ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts=opts)
+    repl_module = bootstrap_repl(ctx, default_ns)
     ns_var = runtime.set_current_ns(default_ns)
     prompter = get_prompter()
     eof = object()
@@ -163,29 +164,36 @@ def repl(
     "--in-ns", default=runtime.REPL_DEFAULT_NS, help="namespace to use for the code"
 )
 @click.option(
-    "--use-var-indirection",
-    default=False,
-    is_flag=True,
-    envvar="BASILISP_USE_VAR_INDIRECTION",
-    help="if provided, all Var accesses will be performed via Var indirection",
-)
-@click.option(
     "--warn-on-shadowed-name",
-    default=False,
+    default=None,
     is_flag=True,
     envvar="BASILISP_WARN_ON_SHADOWED_NAME",
     help="if provided, emit warnings if a local name is shadowed by another local name",
 )
 @click.option(
     "--warn-on-shadowed-var",
-    default=False,
+    default=None,
     is_flag=True,
     envvar="BASILISP_WARN_ON_SHADOWED_VAR",
     help="if provided, emit warnings if a Var name is shadowed by a local name",
 )
 @click.option(
+    "--warn-on-unused-names",
+    default=None,
+    is_flag=True,
+    envvar="BASILISP_WARN_ON_UNUSED_NAMES",
+    help="if provided, emit warnings if a local name is bound and unused",
+)
+@click.option(
+    "--use-var-indirection",
+    default=None,
+    is_flag=True,
+    envvar="BASILISP_USE_VAR_INDIRECTION",
+    help="if provided, all Var accesses will be performed via Var indirection",
+)
+@click.option(
     "--warn-on-var-indirection",
-    default=True,
+    default=None,
     is_flag=True,
     envvar="BASILISP_WARN_ON_VAR_INDIRECTION",
     help="if provided, emit warnings if a Var reference cannot be direct linked",
@@ -194,29 +202,32 @@ def run(  # pylint: disable=too-many-arguments
     file_or_code,
     code,
     in_ns,
-    use_var_indirection,
     warn_on_shadowed_name,
     warn_on_shadowed_var,
+    warn_on_unused_names,
+    use_var_indirection,
     warn_on_var_indirection,
 ):
     """Run a Basilisp script or a line of code, if it is provided."""
-    basilisp.init()
+    opts = compiler.compiler_opts(
+        warn_on_shadowed_name=warn_on_shadowed_name,
+        warn_on_shadowed_var=warn_on_shadowed_var,
+        warn_on_unused_names=warn_on_unused_names,
+        use_var_indirection=use_var_indirection,
+        warn_on_var_indirection=warn_on_var_indirection,
+    )
+    basilisp.init(opts)
     ctx = compiler.CompilerContext(
         filename=CLI_INPUT_FILE_PATH
         if code
         else (
             STDIN_INPUT_FILE_PATH if file_or_code == STDIN_FILE_NAME else file_or_code
         ),
-        opts={
-            compiler.WARN_ON_SHADOWED_NAME: warn_on_shadowed_name,
-            compiler.WARN_ON_SHADOWED_VAR: warn_on_shadowed_var,
-            compiler.USE_VAR_INDIRECTION: use_var_indirection,
-            compiler.WARN_ON_VAR_INDIRECTION: warn_on_var_indirection,
-        },
+        opts=opts,
     )
     eof = object()
 
-    core_ns = runtime.Namespace.get(sym.symbol(runtime.CORE_NS))
+    core_ns = runtime.Namespace.get(runtime.CORE_NS_SYM)
     assert core_ns is not None
 
     with runtime.ns_bindings(in_ns) as ns:

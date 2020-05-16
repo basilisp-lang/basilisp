@@ -6,23 +6,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+ * Added support for `future`s (#441)
+ * Added support for calling Python functions and methods with keyword arguments (#531)
+ * Added support for Lisp functions being called with keyword arguments (#528)
+ * Added support for multi-arity methods on `deftype`s (#534)
+ * Add JSON encoder and decoder in `basilisp.json` namespace (#???)
+
+### Fixed
+ * Fixed a bug where the Basilisp AST nodes for return values of `deftype` members could be marked as _statements_ rather than _expressions_, resulting in an incorrect `nil` return (#523)
+ * Fixed a bug where `defonce` would throw a Python SyntaxError due to a superfluous `global` statement in the generated Python (#525)
+ * Fixed a bug where Basilisp would throw an exception when comparing seqs by `=` to non-seqable values (#530)
+ * Fixed a bug where aliased Python submodule imports referred to the top-level module rather than the submodule (#533)
+ * Fixed a bug where static methods and class methods on types created by `deftype` could not be referred to directly (defeating the purpose of the static or class method) (#537)
+ * Fixed a bug where `defftype` forms could not be declared without at least one field (#540)
+ * Fixed a bug where not all builtin Basilisp types could be pickled (#518)
+
+## [v0.1.dev13] - 2020-03-16
+### Added
  * Added support for Shebang-style line comments (#469)
  * Added multiline REPL support using `prompt-toolkit` (#467)
  * Added node syntactic location (statement or expression) to Basilisp AST nodes emitted by the analyzer (#463)
  * Added `letfn` special form (#473)
  * Added `defn-`, `declare`, and `defonce` macros (#480)
  * Added EDN reader in the `basilisp.edn` namespace (#477)
- * Add JSON encoder and decoder in `basilisp.json` namespace (#???)
+ * Added line, column, and file information to reader `SyntaxError`s (#488)
+ * Added context information to the `CompilerException` string output (#493)
+ * Added Array (Python list) functions (#504, #509)
+ * Added shell function in `basilisp.shell` namespace (#515)
+ * Added `apply-template` function to `basilisp.core.template` namespace (#516)
 
 ### Changed
  * Change the default user namespace to `basilisp.user` (#466)
  * Changed multi-methods to use a `threading.Lock` internally rather than an Atom (#478)
  * Changed the Basilisp module type from `types.ModuleType` to a custom subtype with support for custom attributes (#482)
  * Basilisp's runtime function `Namespace.get_or_create` no longer refers `basilisp.core` by default, which allows callers to exclude `basilisp.core` names in the `ns` macro (#481)
+ * Namespaces now use a single internal lock rather than putting each property inside of an Atom (#494)
+ * Refactor the testrunner to use fewer `atom`s in `basilisp.test` (#495)
 
 ### Fixed
  * Fixed a reader bug where no exception was being thrown splicing reader conditional forms appeared outside of valid splicing contexts (#470)
  * Fixed a bug where fully Namespace-qualified symbols would not resolve if the current Namespace did not alias the referenced Namespace (#479)
+ * Fixed a bug where the `quote` special form allowed more than one argument and raised an unintended exception when no argument was provided (#497)
+ * Fixed a bug where compiler options specified via command-line argument or environment variable were not honored by the importer (#507)
+ * Fixed a bug where private Vars from other Namespaces could be referenced if the Namespace was aliased when it was required (#514)
+ * Fixed a bug where collections with trailing end tokens separated from the collection only by a comment (#520)
 
 ## [v0.1.dev12] - 2020-01-26
 ### Added
@@ -217,6 +244,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.dev13]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev12..v0.1.dev13
 [v0.1.dev12]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev11..v0.1.dev12
 [v0.1.dev11]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev10..v0.1.dev11
 [v0.1.dev10]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev9..v0.1.dev10

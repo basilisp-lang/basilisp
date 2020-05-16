@@ -13,6 +13,7 @@ from typing import (
     Callable,
     Collection,
     Deque,
+    Dict,
     Iterable,
     List,
     MutableMapping,
@@ -25,6 +26,7 @@ from typing import (
     cast,
 )
 
+import attr
 from functional import seq
 
 import basilisp.lang.keyword as keyword
@@ -47,7 +49,7 @@ from basilisp.lang.interfaces import (
     IWithMeta,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
-from basilisp.lang.runtime import Namespace, Var
+from basilisp.lang.runtime import Namespace, Var, lrepr
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
@@ -107,8 +109,33 @@ LispReaderForm = Union[ReaderForm, Comment, "ReaderConditional"]
 RawReaderForm = Union[ReaderForm, "ReaderConditional"]
 
 
-class SyntaxError(Exception):  # pylint:disable=redefined-builtin
-    pass
+@attr.s(  # pylint:disable=redefined-builtin
+    auto_attribs=True, repr=False, slots=True, str=False
+)
+class SyntaxError(Exception):
+    message: str
+    line: Optional[int] = None
+    col: Optional[int] = None
+    filename: Optional[str] = None
+
+    def __repr__(self):
+        return (
+            f"basilisp.lang.reader.SyntaxError({self.message}, {self.line},"
+            f"{self.col}, filename={self.filename})"
+        )
+
+    def __str__(self):
+        keys: Dict[str, Union[str, int]] = {}
+        if self.filename is not None:
+            keys["file"] = self.filename
+        if self.line is not None and self.col is not None:
+            keys["line"] = self.line
+            keys["col"] = self.col
+        if not keys:
+            return self.message
+        else:
+            details = ", ".join(f"{key}: {val}" for key, val in keys.items())
+            return f"{self.message} ({details})"
 
 
 class UnexpectedEOFError(SyntaxError):
@@ -139,15 +166,19 @@ class StreamReader:
             self._update_loc(c)
 
     @property
-    def col(self):
+    def name(self) -> Optional[None]:
+        return getattr(self._stream, "name", None)
+
+    @property
+    def col(self) -> int:
         return self._col[self._idx]
 
     @property
-    def line(self):
+    def line(self) -> int:
         return self._line[self._idx]
 
     @property
-    def loc(self):
+    def loc(self) -> Tuple[int, int]:
         return self.line, self.col
 
     def _update_loc(self, c):
@@ -347,6 +378,20 @@ class ReaderContext:
         except IndexError:
             return False
 
+    def syntax_error(self, msg: str) -> SyntaxError:
+        """Return a SyntaxError with the given message, hydrated with filename, line,
+        and column metadata from the reader if it exists."""
+        return SyntaxError(
+            msg, line=self.reader.line, col=self.reader.col, filename=self.reader.name
+        )
+
+    def eof_error(self, msg: str) -> UnexpectedEOFError:
+        """Return an UnexpectedEOFError with the given message, hydrated with filename,
+        line, and column metadata from the reader if it exists."""
+        return UnexpectedEOFError(
+            msg, line=self.reader.line, col=self.reader.col, filename=self.reader.name
+        )
+
 
 class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
     FEATURE_NOT_PRESENT = object()
@@ -453,12 +498,12 @@ def _read_namespaced(
         if token == "/":
             reader.next_token()
             if has_ns:
-                raise SyntaxError("Found '/'; expected word character")
+                raise ctx.syntax_error("Found '/'; expected word character")
             elif len(name) == 0:
                 name.append("/")
             else:
                 if "/" in name:
-                    raise SyntaxError("Found '/' after '/'")
+                    raise ctx.syntax_error("Found '/' after a previous '/'")
                 has_ns = True
                 ns = name
                 name = []
@@ -477,7 +522,7 @@ def _read_namespaced(
     # A small exception for the symbol '/ used for division
     if ns_str is None:
         if "/" in name_str and name_str != "/":
-            raise SyntaxError("'/' character disallowed in names")
+            raise ctx.syntax_error("'/' character disallowed in names")
 
     assert ns_str is None or len(ns_str) > 0
 
@@ -497,7 +542,7 @@ def _read_coll(
     while True:
         token = reader.peek()
         if token == "":
-            raise UnexpectedEOFError(f"Unexpected EOF in {coll_name}")
+            raise ctx.eof_error(f"Unexpected EOF in {coll_name}")
         if whitespace_chars.match(token):
             reader.advance()
             continue
@@ -515,7 +560,7 @@ def _read_coll(
             elif isinstance(selected_feature, vector.Vector):
                 coll.extend(selected_feature)
             else:
-                raise SyntaxError(
+                raise ctx.syntax_error(
                     "Expecting Vector for splicing reader conditional "
                     f"form; got {type(selected_feature)}"
                 )
@@ -525,12 +570,6 @@ def _read_coll(
                 or not ctx.should_process_reader_cond
             ), "Reader conditionals must be processed if specified"
             coll.append(elem)
-
-
-def _consume_whitespace(reader: StreamReader) -> None:
-    token = reader.peek()
-    while whitespace_chars.match(token):
-        token = reader.advance()
 
 
 @_with_loc
@@ -556,8 +595,12 @@ def _read_set(ctx: ReaderContext) -> lset.Set:
     assert start == "{"
 
     def set_if_valid(s: Collection) -> lset.Set:
-        if len(s) != len(set(s)):
-            raise SyntaxError("Duplicated values in set")
+        coll_set = set(s)
+        if len(s) != len(coll_set):
+            dupes = ", ".join(
+                lrepr(k) for k, v in collections.Counter(s).items() if v > 1
+            )
+            raise ctx.syntax_error(f"Duplicated values in set: {dupes}")
         return lset.set(s)
 
     return _read_coll(ctx, set_if_valid, "}", "set")
@@ -568,14 +611,18 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
     reader conditionals."""
     reader = ctx.reader
     while True:
-        if reader.peek() == "}":
+        token = reader.peek()
+        if token == "":
+            raise ctx.eof_error("Unexpected EOF in map}")
+        if whitespace_chars.match(token):
+            reader.advance()
+            continue
+        if token == "}":
             reader.next_token()
             return
         v = _read_next(ctx)
         if v is COMMENT or isinstance(v, Comment):
             continue
-        elif v is ctx.eof:
-            raise UnexpectedEOFError("Unexpected EOF in map")
         elif _should_splice_reader_conditional(ctx, v):
             assert isinstance(v, ReaderConditional)
             selected_feature = v.select_feature(ctx.reader_features)
@@ -584,7 +631,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
             elif isinstance(selected_feature, vector.Vector):
                 yield from selected_feature
             else:
-                raise SyntaxError(
+                raise ctx.syntax_error(
                     "Expecting Vector for splicing reader conditional "
                     f"form; got {type(selected_feature)}"
                 )
@@ -606,10 +653,10 @@ def _read_map(ctx: ReaderContext) -> lmap.Map:
     try:
         for k, v in partition(list(__read_map_elems(ctx)), 2):
             if k in d:
-                raise SyntaxError(f"Duplicate key '{k}' in map literal")
+                raise ctx.syntax_error(f"Duplicate key '{k}' in map literal")
             d[k] = v
     except ValueError:
-        raise SyntaxError("Unexpected token '}'; expected map value")
+        raise ctx.syntax_error("Unexpected token '}'; expected map value")
     else:
         return lmap.map(d)
 
@@ -643,7 +690,7 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
                     for _ in chars:
                         reader.pushback()
                 except IndexError:
-                    raise SyntaxError(
+                    raise ctx.syntax_error(
                         "Requested to pushback too many characters onto StreamReader"
                     )
                 return _read_sym(ctx)
@@ -651,23 +698,25 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
             continue
         elif token == ".":
             if is_float:
-                raise SyntaxError("Found extra '.' in float; expected decimal portion")
+                raise ctx.syntax_error(
+                    "Found extra '.' in float; expected decimal portion"
+                )
             is_float = True
         elif token == "J":
             if is_complex:
-                raise SyntaxError("Found extra 'J' suffix in complex literal")
+                raise ctx.syntax_error("Found extra 'J' suffix in complex literal")
             is_complex = True
         elif token == "M":
             if is_decimal:
-                raise SyntaxError("Found extra 'M' suffix in decimal literal")
+                raise ctx.syntax_error("Found extra 'M' suffix in decimal literal")
             is_decimal = True
         elif token == "N":
             if is_integer:
-                raise SyntaxError("Found extra 'N' suffix in integer literal")
+                raise ctx.syntax_error("Found extra 'N' suffix in integer literal")
             is_integer = True
         elif token == "/":
             if is_ratio:
-                raise SyntaxError("Found extra '/' in ratio literal")
+                raise ctx.syntax_error("Found extra '/' in ratio literal")
             is_ratio = True
         elif not num_chars.match(token):
             break
@@ -690,7 +739,7 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
         )
         > 1
     ):
-        raise SyntaxError(f"Invalid number format: {s}")
+        raise ctx.syntax_error(f"Invalid number format: {s}")
 
     if is_complex:
         imaginary = float(s[:-1]) if is_float else int(s[:-1])
@@ -699,7 +748,7 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
         try:
             return decimal.Decimal(s[:-1])
         except decimal.InvalidOperation:
-            raise SyntaxError(f"Invalid number format: {s}") from None
+            raise ctx.syntax_error(f"Invalid number format: {s}") from None
     elif is_float:
         return float(s)
     elif is_ratio:
@@ -734,7 +783,7 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
     while True:
         token = reader.next_token()
         if token == "":
-            raise UnexpectedEOFError("Unexpected EOF in string")
+            raise ctx.eof_error("Unexpected EOF in string")
         if token == "\\":
             token = reader.next_token()
             escape_char = _STR_ESCAPE_CHARS.get(token, None)
@@ -744,7 +793,7 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
             if allow_arbitrary_escapes:
                 s.append("\\")
             else:
-                raise SyntaxError(f"Unknown escape sequence: \\{token}")
+                raise ctx.syntax_error(f"Unknown escape sequence: \\{token}")
         if token == '"':
             reader.next_token()
             return "".join(s)
@@ -761,15 +810,15 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
     namespace matching the symbol's namespace."""
     ns, name = _read_namespaced(ctx, allowed_suffix="#")
     if not ctx.is_syntax_quoted and name.endswith("#"):
-        raise SyntaxError("Gensym may not appear outside syntax quote")
+        raise ctx.syntax_error("Gensym may not appear outside syntax quote")
     if ns is not None:
         if any(map(lambda s: len(s) == 0, ns.split("."))):
-            raise SyntaxError(
+            raise ctx.syntax_error(
                 "All '.' separated segments of a namespace "
                 "must contain at least one character."
             )
     if name.startswith(".") and ns is not None:
-        raise SyntaxError("Symbols starting with '.' may not have a namespace")
+        raise ctx.syntax_error("Symbols starting with '.' may not have a namespace")
     if ns is None:
         if name == "nil":
             return None
@@ -788,7 +837,7 @@ def _read_kw(ctx: ReaderContext) -> keyword.Keyword:
     assert start == ":"
     ns, name = _read_namespaced(ctx)
     if "." in name:
-        raise SyntaxError("Found '.' in keyword name")
+        raise ctx.syntax_error("Found '.' in keyword name")
     return keyword.keyword(name, ns=ns)
 
 
@@ -807,7 +856,7 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
     elif isinstance(meta, lmap.Map):
         meta_map = meta
     else:
-        raise SyntaxError(
+        raise ctx.syntax_error(
             f"Expected symbol, keyword, or map for metadata, not {type(meta)}"
         )
 
@@ -820,7 +869,7 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
         )
         return obj_with_meta.with_meta(new_meta)
     else:
-        raise SyntaxError(
+        raise ctx.syntax_error(
             f"Can not attach metadata to object of type {type(obj_with_meta)}"
         )
 
@@ -851,7 +900,7 @@ def _postwalk(f, form):
 def _read_function(ctx: ReaderContext) -> llist.List:
     """Read a function reader macro from the input stream."""
     if ctx.is_in_anon_fn:
-        raise SyntaxError("Nested #() definitions not allowed")
+        raise ctx.syntax_error("Nested #() definitions not allowed")
 
     with ctx.in_anon_fn():
         form = _read_list(ctx)
@@ -978,7 +1027,7 @@ def _process_syntax_quoted_form(
     if _is_unquote(form):
         return form[1]  # type: ignore
     elif _is_unquote_splicing(form):
-        raise SyntaxError("Cannot splice outside collection")
+        raise ctx.syntax_error("Cannot splice outside collection")
     elif isinstance(form, llist.List):
         return llist.l(_SEQ, lconcat(_expand_syntax_quote(ctx, form)))
     elif isinstance(form, vector.Vector):
@@ -1093,10 +1142,10 @@ def _read_character(ctx: ReaderContext) -> str:
         try:
             return chr(int(f"0x{match.group(1)}", 16))
         except (ValueError, OverflowError):
-            raise SyntaxError(f"Unsupported character \\u{char}") from None
+            raise ctx.syntax_error(f"Unsupported character \\u{char}") from None
 
     if len(char) > 1:
-        raise SyntaxError(f"Unsupported character \\{char}")
+        raise ctx.syntax_error(f"Unsupported character \\{char}")
 
     return char
 
@@ -1107,7 +1156,7 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
     try:
         return langutil.regex_from_str(s)
     except re.error:
-        raise SyntaxError(f"Unrecognized regex pattern syntax: {s}")
+        raise ctx.syntax_error(f"Unrecognized regex pattern syntax: {s}")
 
 
 def _should_splice_reader_conditional(ctx: ReaderContext, form: LispReaderForm) -> bool:
@@ -1134,14 +1183,14 @@ def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional
     elif token == "(":
         is_splicing = False
     else:
-        raise SyntaxError(
+        raise ctx.syntax_error(
             f"Unexpected token '{token}'; expected opening "
             "'(' for reader conditional"
         )
 
     open_token = reader.advance()
     if open_token != "(":
-        raise SyntaxError(
+        raise ctx.syntax_error(
             f"Expected opening '(' for reader conditional; got '{open_token}'"
         )
 
@@ -1174,7 +1223,9 @@ def _read_reader_conditional(ctx: ReaderContext) -> LispReaderForm:
         return reader_cond
 
 
-def _load_record_or_type(s: symbol.Symbol, v: LispReaderForm) -> Union[IRecord, IType]:
+def _load_record_or_type(
+    ctx: ReaderContext, s: symbol.Symbol, v: LispReaderForm
+) -> Union[IRecord, IType]:
     """Attempt to load the constructor named by `s` and construct a new
     record or type instance from the vector or map following name."""
     assert s.ns is None, "Record reader macro cannot have namespace"
@@ -1184,11 +1235,11 @@ def _load_record_or_type(s: symbol.Symbol, v: LispReaderForm) -> Union[IRecord, 
     ns_sym = symbol.symbol(ns_name)
     ns = Namespace.get(ns_sym)
     if ns is None:
-        raise SyntaxError(f"Namespace {ns_name} does not exist")
+        raise ctx.syntax_error(f"Namespace {ns_name} does not exist")
 
     rectype = getattr(ns.module, munge(rec), None)
     if rectype is None:
-        raise SyntaxError(f"Record or type {s} does not exist")
+        raise ctx.syntax_error(f"Record or type {s} does not exist")
 
     if isinstance(v, vector.Vector):
         if issubclass(rectype, (IRecord, IType)):
@@ -1198,16 +1249,16 @@ def _load_record_or_type(s: symbol.Symbol, v: LispReaderForm) -> Union[IRecord, 
             ), "Record and Type must have positional factories"
             return posfactory.value(*v)
         else:
-            raise SyntaxError(f"Var {s} is not a Record or Type")
+            raise ctx.syntax_error(f"Var {s} is not a Record or Type")
     elif isinstance(v, lmap.Map):
         if issubclass(rectype, IRecord):
             mapfactory = Var.find_in_ns(ns_sym, symbol.symbol(f"map->{rec}"))
             assert mapfactory is not None, "Record must have map factory"
             return mapfactory.value(v)
         else:
-            raise SyntaxError(f"Var {s} is not a Record type")
+            raise ctx.syntax_error(f"Var {s} is not a Record type")
     else:
-        raise SyntaxError("Records may only be constructed from Vectors and Maps")
+        raise ctx.syntax_error("Records may only be constructed from Vectors and Maps")
 
 
 def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
@@ -1240,13 +1291,16 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
         v = _read_next_consuming_comment(ctx)
         if s in ctx.data_readers:
             f = ctx.data_readers[s]
-            return f(v)
+            try:
+                return f(v)
+            except SyntaxError as e:
+                raise ctx.syntax_error(e.message).with_traceback(e.__traceback__)
         elif s.ns is None and "." in s.name:
-            return _load_record_or_type(s, v)
+            return _load_record_or_type(ctx, s, v)
         else:
-            raise SyntaxError(f"No data reader found for tag #{s}")
+            raise ctx.syntax_error(f"No data reader found for tag #{s}")
 
-    raise SyntaxError(f"Unexpected token '{token}' in reader macro")
+    raise ctx.syntax_error(f"Unexpected token '{token}' in reader macro")
 
 
 def _read_comment(ctx: ReaderContext) -> LispReaderForm:
@@ -1259,7 +1313,7 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
         token = reader.peek()
         if newline_chars.match(token):
             reader.advance()
-            return _read_next(ctx)
+            return COMMENT
         if token == "":
             return ctx.eof
         reader.advance()
@@ -1277,6 +1331,15 @@ def _read_next_consuming_comment(ctx: ReaderContext) -> RawReaderForm:
         return v
 
 
+def _read_next_consuming_whitespace(ctx: ReaderContext) -> LispReaderForm:
+    """Read the next full form from the input stream, consuming any whitespace."""
+    reader = ctx.reader
+    token = reader.peek()
+    while whitespace_chars.match(token):
+        token = reader.next_token()
+    return _read_next(ctx)
+
+
 def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
     """Read the next full form from the input stream."""
     reader = ctx.reader
@@ -1290,8 +1353,7 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
     elif begin_num_chars.match(token):
         return _read_num(ctx)
     elif whitespace_chars.match(token):
-        reader.next_token()
-        return _read_next(ctx)
+        return _read_next_consuming_whitespace(ctx)
     elif token == ":":
         return _read_kw(ctx)
     elif token == '"':
@@ -1317,7 +1379,7 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
     elif token == "":
         return ctx.eof
     else:
-        raise SyntaxError(f"Unexpected token '{token}'")
+        raise ctx.syntax_error(f"Unexpected token '{token}'")
 
 
 def read(  # pylint: disable=too-many-arguments
@@ -1367,7 +1429,7 @@ def read(  # pylint: disable=too-many-arguments
         if expr is COMMENT or isinstance(expr, Comment):
             continue
         if isinstance(expr, ReaderConditional) and ctx.should_process_reader_cond:
-            raise SyntaxError(
+            raise ctx.syntax_error(
                 f"Unexpected reader conditional '{repr(expr)})'; "
                 "reader is configured to process reader conditionals"
             )

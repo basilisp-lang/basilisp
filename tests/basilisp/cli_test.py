@@ -38,8 +38,8 @@ class TestREPL:
         runner = CliRunner()
         result = runner.invoke(cli, ["repl"], input="(+ 1 2")
         assert (
-            "basilisp.lang.reader.UnexpectedEOFError: Unexpected EOF in list\nbasilisp.user=> "
-            in result.stdout
+            "basilisp.lang.reader.UnexpectedEOFError: Unexpected EOF in list "
+            "(line: 1, col: 7)\nbasilisp.user=> " in result.stdout
         )
 
     def test_compiler_error(self):
@@ -47,8 +47,9 @@ class TestREPL:
         result = runner.invoke(cli, ["repl"], input="(fn*)")
         assert (
             "basilisp.lang.compiler.exception.CompilerException: fn form "
-            "must match: (fn* name? [arg*] body*) or (fn* name? method*)\nbasilisp.user=> "
+            "must match: (fn* name? [arg*] body*) or (fn* name? method*)"
         ) in result.stdout
+        assert result.stdout.endswith("\nbasilisp.user=> ")
 
     def test_other_exception(self):
         runner = CliRunner()

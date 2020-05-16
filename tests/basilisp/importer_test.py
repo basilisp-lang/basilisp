@@ -81,9 +81,11 @@ if get_start_method() != "fork":
 
     def _import_module(name):
         """Import a module after initializing `basilisp.core` in the child process."""
+        from basilisp.lang.compiler import compiler_opts
         from basilisp.main import init
 
-        init()
+        opts = compiler_opts()
+        init(opts)
         importlib.import_module(name)
 
 
@@ -206,7 +208,7 @@ class TestImporter:
 
     @pytest.fixture
     def cached_module_ns(self) -> str:
-        return "importer.namespace.using_cache"
+        return "importer.namespace.using-cache"
 
     @pytest.fixture
     def cached_module_file(

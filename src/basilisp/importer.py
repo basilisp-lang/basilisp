@@ -14,7 +14,8 @@ import basilisp.lang.compiler as compiler
 import basilisp.lang.reader as reader
 import basilisp.lang.runtime as runtime
 import basilisp.lang.symbol as sym
-from basilisp.lang.typing import BasilispModule, ReaderForm
+from basilisp.lang.runtime import BasilispModule
+from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import demunge
 from basilisp.util import timed
 
@@ -219,7 +220,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         return spec.loader_state.filename
 
     def create_module(self, spec: ModuleSpec):
-        logger.debug(f"Creating Basilisp module '{spec.name}''")
+        logger.debug(f"Creating Basilisp module '{spec.name}'")
         mod = BasilispModule(spec.name)
         mod.__file__ = spec.loader_state["filename"]
         mod.__loader__ = spec.loader
@@ -251,7 +252,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             )
             compiler.compile_bytecode(
                 cached_code,
-                compiler.GeneratorContext(filename=filename),
+                compiler.GeneratorContext(
+                    filename=filename, opts=runtime.get_compiler_opts()
+                ),
                 compiler.PythonASTOptimizer(),
                 ns,
             )
@@ -272,13 +275,10 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 f"Loaded Basilisp module '{fullname}' in {duration / 1000000}ms"
             )
         ):
-            # During compilation, bytecode objects are added to the list via the closure
-            # add_bytecode below, which is passed to the compiler. The collected bytecodes
-            # will be used to generate an .lpyc file for caching the compiled file.
-            all_bytecode = []
-
-            def add_bytecode(bytecode: types.CodeType):
-                all_bytecode.append(bytecode)
+            # During compilation, bytecode objects are added to the list which is
+            # passed to the compiler. The collected bytecodes will be used to generate
+            # an .lpyc file for caching the compiled file.
+            all_bytecode: List[types.CodeType] = []
 
             logger.debug(f"Reading and compiling Basilisp module '{fullname}'")
             # Cast to basic ReaderForm since the reader can never return a reader conditional
@@ -290,9 +290,11 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
             )
             compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
                 forms,
-                compiler.CompilerContext(filename=filename),
+                compiler.CompilerContext(
+                    filename=filename, opts=runtime.get_compiler_opts()
+                ),
                 ns,
-                collect_bytecode=add_bytecode,
+                collect_bytecode=all_bytecode.append,
             )
 
         # Cache the bytecode that was collected through the compilation run.
@@ -324,6 +326,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         ns_name = demunge(fullname)
         ns: runtime.Namespace = runtime.Namespace.get_or_create(sym.symbol(ns_name))
         ns.module = module
+        module.__basilisp_namespace__ = ns
 
         # Check if a valid, cached version of this Basilisp namespace exists and, if so,
         # load it and bypass the expensive compilation process below.
@@ -336,14 +339,6 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 logger.debug(f"Failed to load cached Basilisp module: {e}")
                 self._exec_module(fullname, spec.loader_state, path_stats, ns)
 
-        # Because we want to (by default) add 'basilisp.core into every namespace by default,
-        # we want to make sure we don't try to add 'basilisp.core into itself, causing a
-        # circular import error.
-        #
-        # Later on, we can probably remove this and just use the 'ns macro to auto-refer
-        # all 'basilisp.core values into the current namespace.
-        runtime.Namespace.add_default_import(ns_name)
-
 
 def hook_imports():
     """Hook into Python's import machinery with a custom Basilisp code
@@ -351,7 +346,7 @@ def hook_imports():
 
     Once this is called, Basilisp code may be called from within Python code
     using standard `import module.submodule` syntax."""
-    if any([isinstance(o, BasilispImporter) for o in sys.meta_path]):
+    if any(isinstance(o, BasilispImporter) for o in sys.meta_path):
         return
     sys.meta_path.insert(
         0, BasilispImporter()  # pylint:disable=abstract-class-instantiated

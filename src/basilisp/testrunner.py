@@ -1,9 +1,10 @@
 import importlib
 import traceback
-from typing import Callable, Optional
+from typing import Callable, Iterable, Optional
 
 import pytest
 
+import basilisp.lang.compiler as compiler
 import basilisp.lang.keyword as kw
 import basilisp.lang.map as lmap
 import basilisp.lang.runtime as runtime
@@ -13,50 +14,27 @@ import basilisp.main as basilisp
 from basilisp.lang.obj import lrepr
 from basilisp.util import Maybe
 
-basilisp.init()
-importlib.import_module("basilisp.test")
-
-_COLLECTED_TESTS_SYM = sym.symbol("collected-tests", ns="basilisp.test")
 _CURRENT_NS_SYM = sym.symbol("current-ns", ns="basilisp.test")
+_TEST_META_KW = kw.keyword("test", "basilisp.test")
+_TEST_NUM_META_KW = kw.keyword("order", "basilisp.test")
+
+
+# pylint: disable=unused-argument
+def pytest_configure(config):
+    opts = compiler.compiler_opts()
+    basilisp.init(opts)
+    importlib.import_module("basilisp.test")
 
 
 def pytest_collect_file(parent, path):
     """Primary PyTest hook to identify Basilisp test files."""
     if path.ext == ".lpy":
         if path.basename.startswith("test_") or path.purebasename.endswith("_test"):
-            return BasilispFile(path, parent)
+            if hasattr(BasilispFile, "from_parent"):
+                return BasilispFile.from_parent(parent, fspath=path)
+            else:
+                return BasilispFile(path, parent)
     return None
-
-
-def _collected_tests() -> Optional[vec.Vector]:
-    """Fetch the collected tests for the namespace ns from
-    basilisp.test/collected-tests atom. If no tests are found, return
-    None."""
-    var = Maybe(runtime.Var.find(_COLLECTED_TESTS_SYM)).or_else_raise(
-        lambda: runtime.RuntimeException(
-            f"Unable to find test Var {_COLLECTED_TESTS_SYM}."
-        )
-    )
-    return var.value.deref()
-
-
-def _current_ns() -> str:
-    """Fetch the current namespace from basilisp.test/current-ns."""
-    var = Maybe(runtime.Var.find(_CURRENT_NS_SYM)).or_else_raise(
-        lambda: runtime.RuntimeException(f"Unable to find test Var {_CURRENT_NS_SYM}.")
-    )
-    ns = var.value.deref()
-    return ns.name
-
-
-def _reset_collected_tests() -> None:
-    """Reset the collected tests."""
-    var = Maybe(runtime.Var.find(_COLLECTED_TESTS_SYM)).or_else_raise(
-        lambda: runtime.RuntimeException(
-            f"Unable to find test Var {_COLLECTED_TESTS_SYM}."
-        )
-    )
-    return var.value.reset(vec.Vector.empty())
 
 
 class TestFailuresInfo(Exception):
@@ -88,21 +66,43 @@ TestFunction = Callable[[], lmap.Map]
 class BasilispFile(pytest.File):
     """Files represent a test module in Python or a test namespace in Basilisp."""
 
+    @staticmethod
+    def _collected_tests(ns: runtime.Namespace) -> Iterable[runtime.Var]:
+        """Return the set of collected tests from the Namespace `ns`.
+
+        Tests defined by `deftest` are annotated with `:basilisp.test/test` metadata
+        and `:basilisp.test/order` is a monotonically increasing integer added by
+        `deftest` at compile-time to run tests in the order they are defined (which
+        matches the default behavior of PyTest)."""
+
+        def _test_num(var: runtime.Var) -> int:
+            assert var.meta is not None
+            order = var.meta.val_at(_TEST_NUM_META_KW)
+            assert isinstance(order, int)
+            return order
+
+        return sorted(
+            (
+                var
+                for _, var in ns.interns.items()
+                if var.meta is not None and var.meta.val_at(_TEST_META_KW)
+            ),
+            key=_test_num,
+        )
+
     def collect(self):
         """Collect all of the tests in the namespace (module) given.
 
         Basilisp's test runner imports the namespace which will (as a side
         effect) collect all of the test functions in a namespace (represented
-        by `deftest` forms in Basilisp) into an atom in `basilisp.test`.
-        BasilispFile.collect fetches those test functions and generates
-        BasilispTestItems for PyTest to run the tests."""
-        _reset_collected_tests()
+        by `deftest` forms in Basilisp). BasilispFile.collect fetches those
+        test functions and generates BasilispTestItems for PyTest to run the
+        tests."""
         filename = self.fspath.basename
-        self.fspath.pyimport()
-        ns = _current_ns()
-        tests = _collected_tests()
-        assert tests is not None, "Must have collected tests"
-        for test in tests:
+        module = self.fspath.pyimport()
+        assert isinstance(module, runtime.BasilispModule)
+        ns = module.__basilisp_namespace__
+        for test in self._collected_tests(ns):
             f: TestFunction = test.value
             yield BasilispTestItem(test.name.name, self, f, ns, filename)
 
@@ -134,7 +134,7 @@ class BasilispTestItem(pytest.Item):
         name: str,
         parent: BasilispFile,
         run_test: TestFunction,
-        namespace: str,
+        namespace: runtime.Namespace,
         filename: str,
     ) -> None:
         super(BasilispTestItem, self).__init__(name, parent)

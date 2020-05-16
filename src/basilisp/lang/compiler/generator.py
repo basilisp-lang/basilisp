@@ -1,6 +1,5 @@
 import collections
 import contextlib
-import importlib
 import logging
 import re
 import uuid
@@ -48,20 +47,30 @@ from basilisp.lang.compiler.nodes import (
     Await,
     Binding,
     Catch,
-    ClassMethod,
     Const,
     ConstType,
     Def,
     DefType,
+    DefTypeClassMethod,
+    DefTypeClassMethodArity,
     DefTypeMember,
+    DefTypeMethod,
+    DefTypeMethodArity,
+    DefTypeMethodArityBase,
+    DefTypeMethodBase,
+    DefTypeProperty,
+    DefTypeStaticMethod,
+    DefTypeStaticMethodArity,
     Do,
     Fn,
-    FnMethod,
+    FnArity,
     HostCall,
     HostField,
     If,
     Import,
     Invoke,
+    KeywordArgs,
+    KeywordArgSupport,
     Let,
     LetFn,
     Local,
@@ -70,12 +79,10 @@ from basilisp.lang.compiler.nodes import (
     Map as MapNode,
     MaybeClass,
     MaybeHostForm,
-    Method,
     Node,
     NodeEnv,
     NodeOp,
     NodeSyntacticPosition,
-    PropertyMethod,
     PyDict,
     PyList,
     PySet,
@@ -83,9 +90,9 @@ from basilisp.lang.compiler.nodes import (
     Quote,
     ReaderLispForm,
     Recur,
+    Require,
     Set as SetNode,
     SetBang,
-    StaticMethod,
     Throw,
     Try,
     VarRef,
@@ -93,8 +100,13 @@ from basilisp.lang.compiler.nodes import (
     WithMeta,
 )
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
-from basilisp.lang.runtime import CORE_NS, NS_VAR_NAME as LISP_NS_VAR, Var
-from basilisp.lang.typing import LispForm
+from basilisp.lang.runtime import (
+    CORE_NS,
+    NS_VAR_NAME as LISP_NS_VAR,
+    BasilispModule,
+    Var,
+)
+from basilisp.lang.typing import CompilerOpts, LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
 
@@ -102,8 +114,8 @@ from basilisp.util import Maybe
 logger = logging.getLogger(__name__)
 
 # Generator options
-USE_VAR_INDIRECTION = "use_var_indirection"
-WARN_ON_VAR_INDIRECTION = "warn_on_var_indirection"
+USE_VAR_INDIRECTION = kw.keyword("use-var-indirection")
+WARN_ON_VAR_INDIRECTION = kw.keyword("warn-on-var-indirection")
 
 # String constants used in generating code
 _DEFAULT_FN = "__lisp_expr__"
@@ -198,7 +210,7 @@ class GeneratorContext:
     )
 
     def __init__(
-        self, filename: Optional[str] = None, opts: Optional[Mapping[str, bool]] = None
+        self, filename: Optional[str] = None, opts: Optional[CompilerOpts] = None
     ) -> None:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())  # type: ignore
@@ -209,7 +221,7 @@ class GeneratorContext:
 
         if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
             for k, v in self._opts:
-                logger.debug("Compiler option %s=%s", k, v)
+                logger.debug("Compiler option %s = %s", k, v)
 
     @property
     def current_ns(self) -> runtime.Namespace:
@@ -276,9 +288,6 @@ class GeneratorContext:
             self._st.append(st)
             yield st
             self._st.pop()
-
-    def add_import(self, imp: sym.Symbol, mod: runtime.Module, *aliases: sym.Symbol):
-        self.current_ns.add_import(imp, mod, *aliases)
 
     @property
     def current_this(self):
@@ -354,6 +363,24 @@ def _collection_ast(
 ) -> Tuple[PyASTStream, PyASTStream]:
     """Turn a collection of Lisp forms into Python AST nodes."""
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
+
+
+def _kwargs_ast(
+    ctx: GeneratorContext, kwargs: KeywordArgs,
+) -> Tuple[PyASTStream, PyASTStream]:
+    """Return a tuple of dependency nodes and Python `ast.keyword` nodes from a
+    Basilisp `KeywordArgs` Node property."""
+    kwargs_keys, kwargs_nodes = [], []
+    kwargs_deps: List[ast.AST] = []
+    for k, v in kwargs.items():
+        kwargs_keys.append(k)
+        kwarg_ast = gen_py_ast(ctx, v)
+        kwargs_nodes.append(kwarg_ast.node)
+        kwargs_deps.extend(kwarg_ast.dependencies)
+    return (
+        kwargs_deps,
+        [ast.keyword(arg=k, value=v) for k, v in zip(kwargs_keys, kwargs_nodes)],
+    )
 
 
 def _clean_meta(form: IMeta) -> LispForm:
@@ -450,6 +477,11 @@ def _noop_node() -> ast.AST:
     return ast.Constant(None)
 
 
+def _var_ns_as_python_sym(name: str) -> str:
+    """Return a Var namespace as a valid Python symbol."""
+    return munge(name.replace(".", "_"))
+
+
 #######################
 # Aliases & Attributes
 #######################
@@ -460,6 +492,7 @@ _COMPILER_ALIAS = genname("compiler")
 _CORE_ALIAS = genname("core")
 _DELAY_ALIAS = genname("delay")
 _EXC_ALIAS = genname("exc")
+_FUTURES_ALIAS = genname("futures")
 _INTERFACES_ALIAS = genname("interfaces")
 _KW_ALIAS = genname("kw")
 _LIST_ALIAS = genname("llist")
@@ -481,6 +514,7 @@ _MODULE_ALIASES = {
     "basilisp.core": _CORE_ALIAS,
     "basilisp.lang.delay": _DELAY_ALIAS,
     "basilisp.lang.exception": _EXC_ALIAS,
+    "basilisp.lang.futures": _FUTURES_ALIAS,
     "basilisp.lang.interfaces": _INTERFACES_ALIAS,
     "basilisp.lang.keyword": _KW_ALIAS,
     "basilisp.lang.list": _LIST_ALIAS,
@@ -520,6 +554,12 @@ _COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
+_BUILTINS_IMPORT_FN_NAME = _load_attr("builtins.__import__")
+_IMPORTLIB_IMPORT_MODULE_FN_NAME = _load_attr("importlib.import_module")
+_LISP_FN_APPLY_KWARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._lisp_fn_apply_kwargs")
+_LISP_FN_COLLECT_KWARGS_FN_NAME = _load_attr(
+    f"{_RUNTIME_ALIAS}._lisp_fn_collect_kwargs"
+)
 _PY_CLASSMETHOD_FN_NAME = _load_attr("classmethod")
 _PY_PROPERTY_FN_NAME = _load_attr("property")
 _PY_STATICMETHOD_FN_NAME = _load_attr("staticmethod")
@@ -565,6 +605,7 @@ def statementize(e: ast.AST) -> ast.AST:
             ast.AsyncFunctionDef,
             ast.AsyncFor,
             ast.AsyncWith,
+            ast.Delete,
         ),
     ):
         return e
@@ -647,38 +688,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
     assert node.op == NodeOp.DEF
 
     defsym = node.name
-    is_defn = False
-    is_var_bound = node.var.is_bound
-    is_noop_redef_of_bound_var = is_var_bound and node.init is None
-
-    if node.init is not None:
-        # Since Python function definitions always take the form `def name(...):`,
-        # it is redundant to assign them to the their final name after they have
-        # been defined under a private alias. This codepath generates `defn`
-        # declarations by directly generating the Python `def` with the correct
-        # function name and short-circuiting the default double-declaration.
-        if node.init.op == NodeOp.FN:
-            assert isinstance(node.init, Fn)
-            def_ast: Optional[GeneratedPyAST] = _fn_to_py_ast(  # type: ignore[call-arg]
-                ctx, node.init, def_name=defsym.name
-            )
-            is_defn = True
-        elif (
-            node.init.op == NodeOp.WITH_META
-            and isinstance(node.init, WithMeta)
-            and node.init.expr.op == NodeOp.FN
-        ):
-            assert isinstance(node.init, WithMeta)
-            def_ast = _with_meta_to_py_ast(ctx, node.init, def_name=defsym.name)
-            is_defn = True
-        else:
-            def_ast = gen_py_ast(ctx, node.init)
-    elif is_noop_redef_of_bound_var:
-        def_ast = None
-    else:
-        def_ast = GeneratedPyAST(node=ast.Constant(None))
-
-    ns_name = ast.Call(func=_NEW_SYM_FN_NAME, args=[_NS_VAR_NAME], keywords=[])
+    ns_name = _load_attr(_NS_VAR_VALUE)
     def_name = ast.Call(
         func=_NEW_SYM_FN_NAME, args=[ast.Constant(defsym.name)], keywords=[]
     )
@@ -699,74 +709,79 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
 
     # Warn if this symbol is potentially being redefined (if the Var was
     # previously bound)
-    if is_var_bound and __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
+    if node.var.is_bound and __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
         logger.warning(
             f"redefining local Python name '{safe_name}' in module "
             f"'{ctx.current_ns.module.__name__}' ({node.env.ns}:{node.env.line})"
         )
 
-    meta_ast = gen_py_ast(ctx, node.meta)
+    if node.init is not None:
+        # Since Python function definitions always take the form `def name(...):`,
+        # it is redundant to assign them to the their final name after they have
+        # been defined under a private alias. This codepath generates `defn`
+        # declarations by directly generating the Python `def` with the correct
+        # function name and short-circuiting the default double-declaration.
+        assert node.init is not None  # silence MyPy
+        if node.init.op == NodeOp.FN:
+            assert isinstance(node.init, Fn)
+            def_ast = _fn_to_py_ast(  # type: ignore[call-arg]
+                ctx, node.init, def_name=defsym.name
+            )
+            is_defn = True
+        elif (
+            node.init.op == NodeOp.WITH_META
+            and isinstance(node.init, WithMeta)
+            and node.init.expr.op == NodeOp.FN
+        ):
+            assert isinstance(node.init, WithMeta)
+            def_ast = _with_meta_to_py_ast(ctx, node.init, def_name=defsym.name)
+            is_defn = True
+        else:
+            def_ast = gen_py_ast(ctx, node.init)
+            is_defn = False
 
-    # For defn style def generation, we specifically need to generate the
-    # global declaration prior to emitting the Python `def` otherwise the
-    # Python compiler will throw an exception during compilation
-    # complaining that we assign the value prior to global declaration.
-    if is_defn:
-        assert def_ast is not None, "def_ast must be defined at this point"
-        def_dependencies = list(
-            chain(
-                [] if node.top_level else [ast.Global(names=[safe_name])],
-                def_ast.dependencies,
-                [] if meta_ast is None else meta_ast.dependencies,
+        func = _INTERN_VAR_FN_NAME
+        extra_args = [ast.Name(id=safe_name, ctx=ast.Load())]
+        if is_defn:
+            # For defn style def generation, we specifically need to generate
+            # the global declaration prior to emitting the Python `def` otherwise
+            # the Python compiler will throw an exception during compilation
+            # complaining that we assign the value prior to global declaration.
+            def_dependencies = list(
+                chain(
+                    [ast.Global(names=[safe_name])] if node.in_func_ctx else [],
+                    def_ast.dependencies,
+                )
             )
-        )
-    elif is_noop_redef_of_bound_var:
-        # Re-def-ing previously bound Vars without providing a value is
-        # essentially a no-op, which should not modify the Var root.
-        assert def_ast is None, "def_ast is not defined at this point"
-        def_dependencies = list(
-            chain(
-                [] if node.top_level else [ast.Global(names=[safe_name])],
-                [] if meta_ast is None else meta_ast.dependencies,
+        else:
+            def_dependencies = list(
+                chain(
+                    def_ast.dependencies,
+                    [ast.Global(names=[safe_name])] if node.in_func_ctx else [],
+                    [
+                        ast.Assign(
+                            targets=[ast.Name(id=safe_name, ctx=ast.Store())],
+                            value=def_ast.node,
+                        )
+                    ],
+                )
             )
-        )
     else:
-        assert def_ast is not None, "def_ast must be defined at this point"
-        def_dependencies = list(
-            chain(
-                def_ast.dependencies,
-                [] if node.top_level else [ast.Global(names=[safe_name])],
-                [
-                    ast.Assign(
-                        targets=[ast.Name(id=safe_name, ctx=ast.Store())],
-                        value=def_ast.node,
-                    )
-                ],
-                [] if meta_ast is None else meta_ast.dependencies,
-            )
-        )
+        # Callers can either `(def v)` to declare an unbound Var or they
+        # can redef a bound Var with no init value to fetch a reference
+        # to the var. Re-def-ing previously bound Vars without providing
+        # a value is essentially a no-op, which should not modify the Var
+        # root.
+        func = _INTERN_UNBOUND_VAR_FN_NAME
+        extra_args = []
+        def_dependencies = [ast.Global(names=[safe_name])] if node.in_func_ctx else []
 
-    if is_noop_redef_of_bound_var:
-        return GeneratedPyAST(
-            node=ast.Call(
-                func=_INTERN_UNBOUND_VAR_FN_NAME,
-                args=[ns_name, def_name],
-                keywords=list(
-                    chain(
-                        dynamic_kwarg,
-                        []
-                        if meta_ast is None
-                        else [ast.keyword(arg="meta", value=meta_ast.node)],
-                    )
-                ),
-            ),
-            dependencies=def_dependencies,
-        )
+    meta_ast = gen_py_ast(ctx, node.meta)
 
     return GeneratedPyAST(
         node=ast.Call(
-            func=_INTERN_VAR_FN_NAME,
-            args=[ns_name, def_name, ast.Name(id=safe_name, ctx=ast.Load())],
+            func=func,
+            args=list(chain([ns_name, def_name], extra_args)),
             keywords=list(
                 chain(
                     dynamic_kwarg,
@@ -776,48 +791,324 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
                 )
             ),
         ),
-        dependencies=def_dependencies,
+        dependencies=list(
+            chain(def_dependencies, [] if meta_ast is None else meta_ast.dependencies,)
+        ),
     )
+
+
+def __single_arity_deftype_method_to_py_ast(
+    ctx: GeneratorContext,
+    arity: DefTypeMethodArityBase,
+    method_name: Optional[str] = None,
+    prefix_args: Iterable[ast.arg] = (),
+    decorators: Iterable[ast.AST] = (),
+) -> GeneratedPyAST:
+    """Generate a single arity deftype* method body."""
+    fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, arity.params, arity.body)
+    return GeneratedPyAST(
+        node=ast.FunctionDef(
+            name=method_name if method_name is not None else munge(arity.name),
+            args=ast.arguments(
+                args=list(chain(prefix_args, fn_args)),
+                kwarg=None,
+                vararg=varg,
+                kwonlyargs=[],
+                defaults=[],
+                kw_defaults=[],
+            ),
+            body=fn_body_ast,
+            decorator_list=list(decorators),
+            returns=None,
+        )
+    )
+
+
+def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments,too-many-locals
+    name: str,
+    arity_map: Mapping[int, str],
+    default_name: Optional[str] = None,
+    max_fixed_arity: Optional[int] = None,
+    instance_or_class_var_name: Optional[str] = None,
+    class_name: Optional[str] = None,
+    decorators: Iterable[ast.AST] = (),
+) -> GeneratedPyAST:
+    """Return the Python AST nodes for an argument-length dispatch method for
+    multi-arity deftype* methods.
+
+    The `arity_map` names the mapping of number of arguments to the munged name of the
+    method arity handling that method. `default_name` is the name of the default
+    handler method if no method is found in the `arity_map` and the number of arguments
+    exceeds `max_fixed_arity`. `decorators` are applied to the generated function.
+
+    `instance_or_class_var_name` is used to generate the first argument name and
+    prefixes for class methods and standard methods; this name is not used outside the
+    generated method and no user code exists here, so it can be a unique name that does
+    not match the user's selected 'this' or 'self' name. If no
+    `instance_or_class_var_name` is given, then a `class_name` must be given.
+    `class_name` is used for static methods to ensure we can dispatch to static method
+    arities without a class or self reference. You may *only* provide either a
+    `class_name` or `instance_or_class_var_name`. Providing both is an error.
+
+    class DefType:
+        def __method_arity_1(self, arg): ...
+
+        def __method_arity_2(self, arg1, arg2): ...
+
+        def method(self, *args):
+            nargs = len(args)
+            method = {
+                1: self.__method_arity_1,
+                2: self.__method_arity_2
+            }.get(nargs)
+            if method:
+                return method(*args)
+            # Only if default
+            if nargs > max_fixed_arity:
+                return default(*args)
+            raise RuntimeError
+    """
+    assert instance_or_class_var_name is None or class_name is None
+    method_prefix = instance_or_class_var_name or class_name
+    assert (
+        method_prefix is not None
+    ), "Fully qualified default name must've been specified"
+
+    dispatch_keys, dispatch_vals = [], []
+    for k, v in arity_map.items():
+        dispatch_keys.append(ast.Constant(k))
+        dispatch_vals.append(_load_attr(f"{method_prefix}.{v}"))
+
+    nargs_name = genname("nargs")
+    method_name = genname("method")
+    body = [
+        ast.Assign(
+            targets=[ast.Name(id=nargs_name, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Name(id="len", ctx=ast.Load()),
+                args=[ast.Name(id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load())],
+                keywords=[],
+            ),
+        ),
+        ast.Assign(
+            targets=[ast.Name(id=method_name, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Dict(keys=dispatch_keys, values=dispatch_vals),
+                    attr="get",
+                    ctx=ast.Load(),
+                ),
+                args=[ast.Name(id=nargs_name, ctx=ast.Load())],
+                keywords=[],
+            ),
+        ),
+        ast.If(
+            test=ast.Compare(
+                left=ast.Constant(None),
+                ops=[ast.IsNot()],
+                comparators=[ast.Name(id=method_name, ctx=ast.Load())],
+            ),
+            body=[
+                ast.Return(
+                    value=ast.Call(
+                        func=ast.Name(id=method_name, ctx=ast.Load()),
+                        args=[
+                            ast.Starred(
+                                value=ast.Name(
+                                    id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
+                                ),
+                                ctx=ast.Load(),
+                            )
+                        ],
+                        keywords=[],
+                    )
+                )
+            ],
+            orelse=[]
+            if default_name is None
+            else [
+                ast.If(
+                    test=ast.Compare(
+                        left=ast.Name(id=nargs_name, ctx=ast.Load()),
+                        ops=[ast.GtE()],
+                        comparators=[ast.Constant(max_fixed_arity)],
+                    ),
+                    body=[
+                        ast.Return(
+                            value=ast.Call(
+                                func=_load_attr(f"{method_prefix}.{default_name}"),
+                                args=[
+                                    ast.Starred(
+                                        value=ast.Name(
+                                            id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
+                                        ),
+                                        ctx=ast.Load(),
+                                    )
+                                ],
+                                keywords=[],
+                            )
+                        )
+                    ],
+                    orelse=[],
+                )
+            ],
+        ),
+        ast.Raise(
+            exc=ast.Call(
+                func=_load_attr("basilisp.lang.runtime.RuntimeException"),
+                args=[
+                    ast.Constant(f"Wrong number of args passed to method: {name}"),
+                    ast.Name(id=nargs_name, ctx=ast.Load()),
+                ],
+                keywords=[],
+            ),
+            cause=None,
+        ),
+    ]
+
+    return GeneratedPyAST(
+        # This is a pretty unusual case where we actually want to return the statement
+        # node itself, rather than a name or expression. We're injecting all of these
+        # nodes directly into the generated class body and Python does not like the
+        # empty ast.Name in the class body definition (and also its unnecessary).
+        node=ast.FunctionDef(
+            name=name,
+            args=ast.arguments(
+                args=[]
+                if instance_or_class_var_name is None
+                else [ast.arg(arg=instance_or_class_var_name, annotation=None)],
+                kwarg=None,
+                vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
+                kwonlyargs=[],
+                defaults=[],
+                kw_defaults=[],
+            ),
+            body=body,
+            decorator_list=list(decorators),
+            returns=None,
+        ),
+    )
+
+
+_CreateMethodASTFunction = Callable[
+    [GeneratorContext, DefTypeMethodBase, DefTypeMethodArityBase, Optional[str]],
+    GeneratedPyAST,
+]
+
+
+@_with_ast_loc_deps
+def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-arguments,too-many-locals
+    ctx: GeneratorContext,
+    node: DefTypeMethodBase,
+    create_method_ast: _CreateMethodASTFunction,
+    instance_or_class_var_name: Optional[str] = None,
+    class_name: Optional[str] = None,
+    decorators: Iterable[ast.AST] = (),
+) -> GeneratedPyAST:
+    """Return a Python AST node for a function with multiple arities."""
+    arities = node.arities
+
+    assert (
+        (
+            node.op == NodeOp.DEFTYPE_METHOD
+            and all(arity.op == NodeOp.DEFTYPE_METHOD_ARITY for arity in arities)
+        )
+        or (
+            node.op == NodeOp.DEFTYPE_CLASSMETHOD
+            and all(arity.op == NodeOp.DEFTYPE_CLASSMETHOD_ARITY for arity in arities)
+        )
+        or (
+            node.op == NodeOp.DEFTYPE_STATICMETHOD
+            and all(arity.op == NodeOp.DEFTYPE_STATICMETHOD_ARITY for arity in arities)
+        )
+    )
+
+    safe_name = munge(node.name)
+    py_method_arity_name = genname(f"__{safe_name}")
+
+    arity_to_name = {}
+    rest_arity_name: Optional[str] = None
+    fn_defs = []
+    for arity in arities:
+        arity_name = f"{py_method_arity_name}__arity{'_rest' if arity.is_variadic else arity.fixed_arity}"
+        if arity.is_variadic:
+            rest_arity_name = arity_name
+        else:
+            arity_to_name[arity.fixed_arity] = arity_name
+
+        fn_def = create_method_ast(ctx, node, arity, arity_name)
+        assert (
+            not fn_def.dependencies
+        ), "deftype* method arities may not have dependency nodes"
+        fn_defs.append(fn_def.node)
+
+    dispatch_fn_ast = __multi_arity_deftype_dispatch_method(
+        safe_name,
+        arity_to_name,
+        default_name=rest_arity_name,
+        max_fixed_arity=node.max_fixed_arity,
+        instance_or_class_var_name=instance_or_class_var_name,
+        class_name=class_name,
+        decorators=decorators,
+    )
+    assert (
+        not dispatch_fn_ast.dependencies
+    ), "dispatch function should have no dependencies"
+
+    return GeneratedPyAST(node=dispatch_fn_ast.node, dependencies=fn_defs,)
+
+
+def __deftype_classmethod_arity_to_py_ast(
+    ctx: GeneratorContext,
+    node: DefTypeClassMethod,
+    arity: DefTypeClassMethodArity,
+    method_name: Optional[str] = None,
+) -> GeneratedPyAST:
+    assert arity.op == NodeOp.DEFTYPE_CLASSMETHOD_ARITY
+    assert node.name == arity.name
+
+    with ctx.new_symbol_table(node.name):
+        class_name = genname(munge(arity.class_local.name))
+        class_sym = sym.symbol(arity.class_local.name)
+        ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.ARG)
+
+        return __single_arity_deftype_method_to_py_ast(
+            ctx,
+            arity,
+            method_name=method_name,
+            prefix_args=(ast.arg(arg=class_name, annotation=None),),
+            decorators=list(
+                chain([_PY_CLASSMETHOD_FN_NAME], __kwargs_support_decorator(arity),)
+            ),
+        )
 
 
 @_with_ast_loc
 def __deftype_classmethod_to_py_ast(
-    ctx: GeneratorContext, node: ClassMethod
+    ctx: GeneratorContext, node: DefTypeClassMethod, _: DefType,
 ) -> GeneratedPyAST:
-    assert node.op == NodeOp.CLASS_METHOD
-    method_name = munge(node.name)
+    """Return a Python AST Node for a `deftype*` classmethod."""
+    assert node.op == NodeOp.DEFTYPE_CLASSMETHOD
 
-    with ctx.new_symbol_table(node.name):
-        class_name = genname(munge(node.class_local.name))
-        class_sym = sym.symbol(node.class_local.name)
-        ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.ARG)
-
-        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
-        return GeneratedPyAST(
-            node=ast.FunctionDef(
-                name=method_name,
-                args=ast.arguments(
-                    args=list(
-                        chain([ast.arg(arg=class_name, annotation=None)], fn_args)
-                    ),
-                    kwarg=None,
-                    vararg=varg,
-                    kwonlyargs=[],
-                    defaults=[],
-                    kw_defaults=[],
-                ),
-                body=fn_body_ast,
-                decorator_list=[_PY_CLASSMETHOD_FN_NAME],
-                returns=None,
-            )
+    if len(node.arities) == 1:
+        return __deftype_classmethod_arity_to_py_ast(
+            ctx, node, next(iter(node.arities))  # type: ignore[arg-type]
+        )
+    else:
+        return __multi_arity_deftype_method_to_py_ast(
+            ctx,
+            node,
+            cast(_CreateMethodASTFunction, __deftype_classmethod_arity_to_py_ast),
+            instance_or_class_var_name=genname("cls"),
+            decorators=(_PY_CLASSMETHOD_FN_NAME,),
         )
 
 
 @_with_ast_loc
 def __deftype_property_to_py_ast(
-    ctx: GeneratorContext, node: PropertyMethod
+    ctx: GeneratorContext, node: DefTypeProperty, _: DefType,
 ) -> GeneratedPyAST:
-    assert node.op == NodeOp.PROPERTY_METHOD
+    assert node.op == NodeOp.DEFTYPE_PROPERTY
     method_name = munge(node.name)
 
     with ctx.new_symbol_table(node.name):
@@ -849,88 +1140,120 @@ def __deftype_property_to_py_ast(
             )
 
 
-@_with_ast_loc
-def __deftype_method_to_py_ast(ctx: GeneratorContext, node: Method) -> GeneratedPyAST:
-    assert node.op == NodeOp.METHOD
-    method_name = munge(node.name)
+def __deftype_method_arity_to_py_ast(
+    ctx: GeneratorContext,
+    node: DefTypeMethod,
+    arity: DefTypeMethodArity,
+    method_name: Optional[str] = None,
+) -> GeneratedPyAST:
+    assert arity.op == NodeOp.DEFTYPE_METHOD_ARITY
+    assert node.name == arity.name
 
     with ctx.new_symbol_table(node.name), ctx.new_recur_point(
-        node.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
+        arity.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
     ):
-        this_name = genname(munge(node.this_local.name))
-        this_sym = sym.symbol(node.this_local.name)
+        this_name = genname(munge(arity.this_local.name))
+        this_sym = sym.symbol(arity.this_local.name)
         ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
 
         with ctx.new_this(this_sym):
-            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
-                ctx, node.params, node.body
+            # This is a Very Bad Hack (tm) to allow us to evaluate the context
+            # recur point after the body has been read and the recur point
+            # has been set
+            def _should_trampoline() -> Iterable[ast.AST]:
+                if ctx.recur_point.has_recur:
+                    yield _TRAMPOLINE_FN_NAME
+
+            return __single_arity_deftype_method_to_py_ast(
+                ctx,
+                arity,
+                method_name=method_name,
+                prefix_args=(ast.arg(arg=this_name, annotation=None),),
+                decorators=chain(
+                    _should_trampoline(), __kwargs_support_decorator(arity),
+                ),
             )
-            return GeneratedPyAST(
-                node=ast.FunctionDef(
-                    name=method_name,
-                    args=ast.arguments(
-                        args=list(
-                            chain([ast.arg(arg=this_name, annotation=None)], fn_args)
-                        ),
-                        kwarg=None,
-                        vararg=varg,
-                        kwonlyargs=[],
-                        defaults=[],
-                        kw_defaults=[],
-                    ),
-                    body=fn_body_ast,
-                    decorator_list=[_TRAMPOLINE_FN_NAME]
-                    if ctx.recur_point.has_recur
-                    else [],
-                    returns=None,
-                )
-            )
+
+
+@_with_ast_loc
+def __deftype_method_to_py_ast(
+    ctx: GeneratorContext, node: DefTypeMethod, _: DefType,
+) -> GeneratedPyAST:
+    """Return a Python AST Node for a `deftype*` method."""
+    assert node.op == NodeOp.DEFTYPE_METHOD
+
+    if len(node.arities) == 1:
+        return __deftype_method_arity_to_py_ast(ctx, node, next(iter(node.arities)))  # type: ignore[arg-type]
+    else:
+        return __multi_arity_deftype_method_to_py_ast(
+            ctx,
+            node,
+            cast(_CreateMethodASTFunction, __deftype_method_arity_to_py_ast),
+            instance_or_class_var_name=genname("self"),
+        )
+
+
+def __deftype_staticmethod_arity_to_py_ast(
+    ctx: GeneratorContext,
+    node: DefTypeStaticMethod,
+    arity: DefTypeStaticMethodArity,
+    method_name: Optional[str] = None,
+) -> GeneratedPyAST:
+    assert arity.op == NodeOp.DEFTYPE_STATICMETHOD_ARITY
+    assert node.name == arity.name
+
+    with ctx.new_symbol_table(node.name):
+        return __single_arity_deftype_method_to_py_ast(
+            ctx,
+            arity,
+            method_name=method_name,
+            decorators=list(
+                chain([_PY_STATICMETHOD_FN_NAME], __kwargs_support_decorator(arity))
+            ),
+        )
 
 
 @_with_ast_loc
 def __deftype_staticmethod_to_py_ast(
-    ctx: GeneratorContext, node: StaticMethod
+    ctx: GeneratorContext, node: DefTypeStaticMethod, parent: DefType
 ) -> GeneratedPyAST:
-    assert node.op == NodeOp.STATIC_METHOD
-    method_name = munge(node.name)
+    """Return a Python AST Node for a `deftype*` staticmethod."""
+    assert node.op == NodeOp.DEFTYPE_STATICMETHOD
 
-    with ctx.new_symbol_table(node.name):
-        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
-        return GeneratedPyAST(
-            node=ast.FunctionDef(
-                name=method_name,
-                args=ast.arguments(
-                    args=list(fn_args),
-                    kwarg=None,
-                    vararg=varg,
-                    kwonlyargs=[],
-                    defaults=[],
-                    kw_defaults=[],
-                ),
-                body=fn_body_ast,
-                decorator_list=[_PY_STATICMETHOD_FN_NAME],
-                returns=None,
-            )
+    if len(node.arities) == 1:
+        return __deftype_staticmethod_arity_to_py_ast(
+            ctx, node, next(iter(node.arities))  # type: ignore[arg-type]
+        )
+    else:
+        return __multi_arity_deftype_method_to_py_ast(
+            ctx,
+            node,
+            cast(_CreateMethodASTFunction, __deftype_staticmethod_arity_to_py_ast),
+            class_name=munge(parent.name),
+            decorators=(_PY_STATICMETHOD_FN_NAME,),
         )
 
 
-_DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, PyASTGenerator] = {
-    NodeOp.CLASS_METHOD: __deftype_classmethod_to_py_ast,
-    NodeOp.METHOD: __deftype_method_to_py_ast,
-    NodeOp.PROPERTY_METHOD: __deftype_property_to_py_ast,
-    NodeOp.STATIC_METHOD: __deftype_staticmethod_to_py_ast,
+DefTypeASTGenerator = Callable[
+    [GeneratorContext, DefTypeMember, DefType], GeneratedPyAST
+]
+_DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, DefTypeASTGenerator] = {
+    NodeOp.DEFTYPE_CLASSMETHOD: __deftype_classmethod_to_py_ast,
+    NodeOp.DEFTYPE_METHOD: __deftype_method_to_py_ast,
+    NodeOp.DEFTYPE_PROPERTY: __deftype_property_to_py_ast,
+    NodeOp.DEFTYPE_STATICMETHOD: __deftype_staticmethod_to_py_ast,
 }
 
 
 def __deftype_member_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeMember
+    ctx: GeneratorContext, node: DefTypeMember, parent: DefType,
 ) -> GeneratedPyAST:
     member_type = node.op
     handle_deftype_member = _DEFTYPE_MEMBER_HANDLER.get(member_type)
     assert (
         handle_deftype_member is not None
     ), f"Invalid :const AST type handler for {member_type}"
-    return handle_deftype_member(ctx, node)
+    return handle_deftype_member(ctx, node, parent)
 
 
 _ATTR_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
@@ -972,7 +1295,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
     )
 
     with ctx.new_symbol_table(node.name):
-        type_nodes = []
+        type_nodes: List[ast.AST] = []
         type_deps: List[ast.AST] = []
         for field in node.fields:
             safe_field = munge(field.name)
@@ -997,9 +1320,9 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
             ctx.symbol_table.new_symbol(sym.symbol(field.name), safe_field, field.local)
 
         for member in node.members:
-            type_ast = __deftype_member_to_py_ast(ctx, member)
-            type_nodes.append(type_ast.node)  # type: ignore
-            type_deps.extend(type_ast.dependencies)
+            type_ast = __deftype_member_to_py_ast(ctx, member, node)
+            type_nodes.append(type_ast.node)
+            type_nodes.extend(type_ast.dependencies)
 
         return GeneratedPyAST(
             node=ast.Name(id=type_name, ctx=ast.Load()),
@@ -1011,9 +1334,22 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
                             name=type_name,
                             bases=bases,
                             keywords=[],
-                            body=type_nodes,
+                            body=type_nodes or [ast.Pass()],
                             decorator_list=[decorator],
-                        )
+                        ),
+                        ast.Call(
+                            func=_INTERN_VAR_FN_NAME,
+                            args=[
+                                _load_attr(_NS_VAR_VALUE),
+                                ast.Call(
+                                    func=_NEW_SYM_FN_NAME,
+                                    args=[ast.Constant(type_name)],
+                                    keywords=[],
+                                ),
+                                ast.Name(id=type_name, ctx=ast.Load()),
+                            ],
+                            keywords=[],
+                        ),
                     ],
                 )
             ),
@@ -1158,17 +1494,31 @@ def __fn_meta(
         return (), ()
 
 
+def __kwargs_support_decorator(
+    node: Union[
+        Fn, DefTypeClassMethodArity, DefTypeMethodArity, DefTypeStaticMethodArity
+    ]
+) -> Iterable[ast.AST]:
+    if node.kwarg_support is None:
+        return
+
+    yield {
+        KeywordArgSupport.APPLY_KWARGS: _LISP_FN_APPLY_KWARGS_FN_NAME,
+        KeywordArgSupport.COLLECT_KWARGS: _LISP_FN_COLLECT_KWARGS_FN_NAME,
+    }[node.kwarg_support]
+
+
 @_with_ast_loc_deps
 def __single_arity_fn_to_py_ast(
     ctx: GeneratorContext,
     node: Fn,
-    method: FnMethod,
+    method: FnArity,
     def_name: Optional[str] = None,
     meta_node: Optional[MetaNode] = None,
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with a single arity."""
     assert node.op == NodeOp.FN
-    assert method.op == NodeOp.FN_METHOD
+    assert method.op == NodeOp.FN_ARITY
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
@@ -1205,6 +1555,7 @@ def __single_arity_fn_to_py_ast(
                             body=fn_body_ast,
                             decorator_list=list(
                                 chain(
+                                    __kwargs_support_decorator(node),
                                     meta_decorators,
                                     [_BASILISP_FN_FN_NAME],
                                     [_TRAMPOLINE_FN_NAME]
@@ -1242,9 +1593,9 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
 
     def fn(*args):
         nargs = len(args)
-        method = __fn_dispatch_map.get(nargs)
-        if method:
-            return method(*args)
+        arity = __fn_dispatch_map.get(nargs)
+        if arity:
+            return arity(*args)
         # Only if default
         if nargs > max_fixed_arity:
             return default(*args)
@@ -1261,7 +1612,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     handle_return = __handle_async_return if is_async else __handle_return
 
     nargs_name = genname("nargs")
-    method_name = genname("method")
+    arity_name = genname("arity")
     body = [
         ast.Assign(
             targets=[ast.Name(id=nargs_name, ctx=ast.Store())],
@@ -1272,7 +1623,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
             ),
         ),
         ast.Assign(
-            targets=[ast.Name(id=method_name, ctx=ast.Store())],
+            targets=[ast.Name(id=arity_name, ctx=ast.Store())],
             value=ast.Call(
                 func=ast.Attribute(
                     value=ast.Name(id=dispatch_map_name, ctx=ast.Load()),
@@ -1287,12 +1638,12 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
             test=ast.Compare(
                 left=ast.Constant(None),
                 ops=[ast.IsNot()],
-                comparators=[ast.Name(id=method_name, ctx=ast.Load())],
+                comparators=[ast.Name(id=arity_name, ctx=ast.Load())],
             ),
             body=[
                 handle_return(
                     ast.Call(
-                        func=ast.Name(id=method_name, ctx=ast.Load()),
+                        func=ast.Name(id=arity_name, ctx=ast.Load()),
                         args=[
                             ast.Starred(
                                 value=ast.Name(
@@ -1383,13 +1734,14 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
 def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext,
     node: Fn,
-    methods: Collection[FnMethod],
+    arities: Collection[FnArity],
     def_name: Optional[str] = None,
     meta_node: Optional[MetaNode] = None,
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with multiple arities."""
     assert node.op == NodeOp.FN
-    assert all([method.op == NodeOp.FN_METHOD for method in methods])
+    assert all(arity.op == NodeOp.FN_ARITY for arity in arities)
+    assert node.kwarg_support is None, "multi-arity functions do not support kwargs"
 
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
@@ -1399,15 +1751,17 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     arity_to_name = {}
     rest_arity_name: Optional[str] = None
     fn_defs = []
-    for method in methods:
-        arity_name = f"{py_fn_name}__arity{'_rest' if method.is_variadic else method.fixed_arity}"
-        if method.is_variadic:
+    for arity in arities:
+        arity_name = (
+            f"{py_fn_name}__arity{'_rest' if arity.is_variadic else arity.fixed_arity}"
+        )
+        if arity.is_variadic:
             rest_arity_name = arity_name
         else:
-            arity_to_name[method.fixed_arity] = arity_name
+            arity_to_name[arity.fixed_arity] = arity_name
 
         with ctx.new_symbol_table(arity_name), ctx.new_recur_point(
-            method.loop_id, RecurType.FN, is_variadic=node.is_variadic
+            arity.loop_id, RecurType.FN, is_variadic=node.is_variadic
         ):
             # Allow named anonymous functions to recursively call themselves
             if lisp_fn_name is not None:
@@ -1416,7 +1770,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                 )
 
             fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
-                ctx, method.params, method.body
+                ctx, arity.params, arity.body
             )
             fn_defs.append(
                 py_fn_node(
@@ -1463,13 +1817,13 @@ def _fn_to_py_ast(
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `fn` expression."""
     assert node.op == NodeOp.FN
-    if len(node.methods) == 1:
+    if len(node.arities) == 1:
         return __single_arity_fn_to_py_ast(
-            ctx, node, next(iter(node.methods)), def_name=def_name, meta_node=meta_node
+            ctx, node, next(iter(node.arities)), def_name=def_name, meta_node=meta_node
         )
     else:
         return __multi_arity_fn_to_py_ast(
-            ctx, node, node.methods, def_name=def_name, meta_node=meta_node
+            ctx, node, node.arities, def_name=def_name, meta_node=meta_node
         )
 
 
@@ -1573,7 +1927,7 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
 
 
 @_with_ast_loc_deps
-def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
+def _import_to_py_ast(_: GeneratorContext, node: Import) -> GeneratedPyAST:
     """Return a Python AST node for a Basilisp `import*` expression."""
     assert node.op == NodeOp.IMPORT
 
@@ -1582,50 +1936,51 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
     for alias in node.aliases:
         safe_name = munge(alias.name)
 
-        try:
-            module = importlib.import_module(safe_name)
-            if alias.alias is not None:
-                ctx.add_import(sym.symbol(alias.name), module, sym.symbol(alias.alias))
-            else:
-                ctx.add_import(sym.symbol(alias.name), module)
-        except ModuleNotFoundError as e:
-            raise ImportError(
-                f"Python module '{alias.name}' not found", node.form, node
-            ) from e
+        # Always use builtins.__import__ and assign to the first name component
+        # if there's no alias. Otherwise, we could potentially overwrite a parent
+        # import if parent and child are both imported:
+        #   (import* collections collections.abc)
+        if alias.alias is not None:
+            py_import_alias = munge(alias.alias)
+            import_func = _IMPORTLIB_IMPORT_MODULE_FN_NAME
+        else:
+            py_import_alias = safe_name.split(".", maxsplit=1)[0]
+            import_func = _BUILTINS_IMPORT_FN_NAME
 
-        py_import_alias = (
-            munge(alias.alias)
-            if alias.alias is not None
-            else safe_name.split(".", maxsplit=1)[0]
-        )
         deps.append(
             ast.Assign(
                 targets=[ast.Name(id=py_import_alias, ctx=ast.Store())],
                 value=ast.Call(
-                    func=_load_attr("builtins.__import__"),
-                    args=[ast.Constant(safe_name)],
-                    keywords=[],
+                    func=import_func, args=[ast.Constant(safe_name)], keywords=[],
                 ),
             )
         )
         last = ast.Name(id=py_import_alias, ctx=ast.Load())
 
-        # Note that we add this import to the live running system in the above
-        # calls to `ctx.add_import`, however, since we compile and cache Python
-        # bytecode, we need to generate calls to `add_import` for the running
-        # namespace so when this code is reloaded from the cache, the runtime
-        # is correctly configured.
         deps.append(
             ast.Call(
                 func=_load_attr(f"{_NS_VAR_VALUE}.add_import"),
-                args=[
-                    ast.Call(
-                        func=_NEW_SYM_FN_NAME,
-                        args=[ast.Constant(safe_name)],
-                        keywords=[],
-                    ),
-                    last,
-                ],
+                args=list(
+                    chain(
+                        [
+                            ast.Call(
+                                func=_NEW_SYM_FN_NAME,
+                                args=[ast.Constant(safe_name)],
+                                keywords=[],
+                            ),
+                            last,
+                        ],
+                        [
+                            ast.Call(
+                                func=_NEW_SYM_FN_NAME,
+                                args=[ast.Constant(alias.alias)],
+                                keywords=[],
+                            )
+                        ]
+                        if alias.alias is not None
+                        else [],
+                    )
+                ),
                 keywords=[],
             )
         )
@@ -1641,10 +1996,13 @@ def _invoke_to_py_ast(ctx: GeneratorContext, node: Invoke) -> GeneratedPyAST:
 
     fn_ast = gen_py_ast(ctx, node.fn)
     args_deps, args_nodes = _collection_ast(ctx, node.args)
+    kwargs_deps, kwargs_nodes = _kwargs_ast(ctx, node.kwargs)
 
     return GeneratedPyAST(
-        node=ast.Call(func=fn_ast.node, args=list(args_nodes), keywords=[]),
-        dependencies=list(chain(fn_ast.dependencies, args_deps)),
+        node=ast.Call(
+            func=fn_ast.node, args=list(args_nodes), keywords=list(kwargs_nodes),
+        ),
+        dependencies=list(chain(fn_ast.dependencies, args_deps, kwargs_deps)),
     )
 
 
@@ -1920,6 +2278,89 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     return handle_recur(ctx, node)
 
 
+@_with_ast_loc_deps
+def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
+    """Return a Python AST node for a Basilisp `require*` expression.
+
+    In Clojure, `require` simply loads the file corresponding to the required
+    Namespace directly. At the time that Namespace is loaded, `*ns*` is set as
+    the _requiring_ Namespace. The `ns` macro, switches `*ns*` using `in-ns` and
+    then begins requiring additional Namespaces (like a depth-first search).
+    All of the Namespace setup work is done by the _required_ Namespace's `ns`
+    macro, rather than any compiler or runtime mandated machinery.
+
+    Prior to the addition of this form, Basilisp worked much more similarly to
+    Python. Most of the import mechanisms were _imposed_ on the required Namespace
+    and Namespaces were set up primarily by the compiler and runtime. However, in
+    order to support all of the features Clojure supports, it was not practical
+    to continue in that direction. The `require*` special form was split from
+    `import*` to allow special semantics for required Namespaces (which are still
+    compiled with Python modules under the hood).
+
+    `require*` delegates to the current Namespace's `require` method to import
+    and alias the required module(s) and manage their own state. Special care is
+    taken to ensure that the value of `*ns*` is preserved between requires, since
+    the Namespaces themselves are otherwise responsible determining its value."""
+    assert node.op == NodeOp.REQUIRE
+
+    last = None
+    requiring_ns_name = genname("requiring_ns")
+    deps: List[ast.AST] = [
+        # Fetch the requiring namespace first prior to initiating requires
+        # in order to ensure the require is only made into that namespace
+        # (in case the required module changes the value of *ns*)
+        ast.Assign(
+            targets=[ast.Name(id=requiring_ns_name, ctx=ast.Store())],
+            value=_load_attr(_NS_VAR_VALUE),
+        )
+    ]
+    for alias in node.aliases:
+        py_require_alias = _var_ns_as_python_sym(alias.name)
+        last = ast.Name(id=py_require_alias, ctx=ast.Load())
+        deps.append(
+            ast.Try(
+                body=[
+                    ast.Assign(
+                        targets=[ast.Name(id=py_require_alias, ctx=ast.Store())],
+                        value=ast.Call(
+                            func=_load_attr(f"{requiring_ns_name}.require"),
+                            args=list(
+                                chain(
+                                    [ast.Constant(alias.name)],
+                                    [
+                                        ast.Call(
+                                            func=_NEW_SYM_FN_NAME,
+                                            args=[ast.Constant(alias.alias)],
+                                            keywords=[],
+                                        )
+                                    ]
+                                    if alias.alias is not None
+                                    else [],
+                                )
+                            ),
+                            keywords=[],
+                        ),
+                    )
+                ],
+                handlers=[],
+                orelse=[],
+                finalbody=[
+                    # Restore the original namespace after each require to ensure that the
+                    # following require starts with a clean slate
+                    ast.Assign(
+                        targets=[_load_attr(_NS_VAR_VALUE, ctx=ast.Store())],
+                        value=ast.Name(id=requiring_ns_name, ctx=ast.Load()),
+                    ),
+                ],
+            )
+        )
+
+    deps.append(ast.Delete(targets=[ast.Name(id=requiring_ns_name, ctx=ast.Del())]),)
+
+    assert last is not None, "require* node must have at least one import"
+    return GeneratedPyAST(node=last, dependencies=deps)
+
+
 @_with_ast_loc
 def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
     """Return a Python AST Node for a `set!` expression."""
@@ -2099,6 +2540,41 @@ def _local_sym_to_py_ast(
         )
 
 
+def __name_in_module(name: str, module: BasilispModule) -> Optional[str]:
+    """Resolve the name inside of module. If the munged name can be found inside the
+    module, return the munged name. Return None otherwise."""
+    safe_name = munge(name)
+    if safe_name not in module.__dict__:
+        safe_name = munge(name, allow_builtins=True)
+
+    return safe_name if safe_name in module.__dict__ else None
+
+
+def __var_direct_link_to_py_ast(
+    current_ns: runtime.Namespace, var: runtime.Var, py_var_ctx: ast.AST
+) -> Optional[GeneratedPyAST]:
+    """Attempt to directly link a Var reference to a Python variable in the module of
+    the current Namespace.
+
+    We can direct link a Var if and only if a munged version of the Var name can be
+    found in the Var namespace module."""
+    var_ns = var.ns
+    var_name = var.name.name
+
+    safe_name = __name_in_module(var_name, var_ns.module)
+    if safe_name is not None:
+        if var_ns is current_ns:
+            return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
+
+        safe_ns = _var_ns_as_python_sym(var_ns.name)
+        aliased_ns_name = __name_in_module(safe_ns, current_ns.module)
+        if aliased_ns_name is not None:
+            return GeneratedPyAST(
+                node=_load_attr(f"{aliased_ns_name}.{safe_name}", ctx=py_var_ctx,)
+            )
+    return None
+
+
 def __var_find_to_py_ast(
     var_name: str, ns_name: str, py_var_ctx: ast.AST
 ) -> GeneratedPyAST:
@@ -2123,7 +2599,7 @@ def __var_find_to_py_ast(
 
 
 @_with_ast_loc
-def _var_sym_to_py_ast(
+def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
     ctx: GeneratorContext, node: VarRef, is_assigning: bool = False
 ) -> GeneratedPyAST:
     """Generate a Python AST node for accessing a Var.
@@ -2136,14 +2612,12 @@ def _var_sym_to_py_ast(
     assert node.op == NodeOp.VAR
 
     var = node.var
-    ns = var.ns
-    ns_name = ns.name
-    ns_module = ns.module
-    safe_ns = munge(ns_name)
+    var_ns = var.ns
+    var_ns_name = var_ns.name
     var_name = var.name.name
     py_var_ctx = ast.Store() if is_assigning else ast.Load()
 
-    # Return the actual var, rather than its value if requested
+    # Return the actual Var, rather than its value if requested
     if node.return_var:
         return GeneratedPyAST(
             node=ast.Call(
@@ -2152,7 +2626,9 @@ def _var_sym_to_py_ast(
                     ast.Call(
                         func=_NEW_SYM_FN_NAME,
                         args=[ast.Constant(var_name)],
-                        keywords=[ast.keyword(arg="ns", value=ast.Constant(ns_name))],
+                        keywords=[
+                            ast.keyword(arg="ns", value=ast.Constant(var_ns_name))
+                        ],
                     )
                 ],
                 keywords=[],
@@ -2166,23 +2642,12 @@ def _var_sym_to_py_ast(
         or _is_dynamic(var)
         or _is_redefable(var)
     ):
-        return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
+        return __var_find_to_py_ast(var_name, var_ns_name, py_var_ctx)
 
     # Otherwise, try to direct-link it like a Python variable
-    # Try without allowing builtins first
-    safe_name = munge(var_name)
-    if safe_name not in ns_module.__dict__:
-        # Try allowing builtins
-        safe_name = munge(var_name, allow_builtins=True)
-
-    if safe_name in ns_module.__dict__:
-        if ns is ctx.current_ns:
-            return GeneratedPyAST(node=ast.Name(id=safe_name, ctx=py_var_ctx))
-        return GeneratedPyAST(
-            node=_load_attr(
-                f"{_MODULE_ALIASES.get(ns_name, safe_ns)}.{safe_name}", ctx=py_var_ctx
-            )
-        )
+    direct_link = __var_direct_link_to_py_ast(ctx.current_ns, var, py_var_ctx)
+    if direct_link is not None:
+        return direct_link
 
     if ctx.warn_on_var_indirection:
         logger.warning(
@@ -2190,7 +2655,8 @@ def _var_sym_to_py_ast(
             f"({node.env.ns}:{node.env.line})"
         )
 
-    return __var_find_to_py_ast(var_name, ns_name, py_var_ctx)
+    # If we failed to direct link, we can always fall back on Var indirection
+    return __var_find_to_py_ast(var_name, var_ns_name, py_var_ctx)
 
 
 #################
@@ -2205,6 +2671,7 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: HostCall) -> GeneratedP
 
     target_ast = gen_py_ast(ctx, node.target)
     args_deps, args_nodes = _collection_ast(ctx, node.args)
+    kwargs_deps, kwargs_nodes = _kwargs_ast(ctx, node.kwargs)
 
     return GeneratedPyAST(
         node=ast.Call(
@@ -2214,9 +2681,9 @@ def _interop_call_to_py_ast(ctx: GeneratorContext, node: HostCall) -> GeneratedP
                 ctx=ast.Load(),
             ),
             args=list(args_nodes),
-            keywords=[],
+            keywords=list(kwargs_nodes),
         ),
-        dependencies=list(chain(target_ast.dependencies, args_deps)),
+        dependencies=list(chain(target_ast.dependencies, args_deps, kwargs_deps)),
     )
 
 
@@ -2599,8 +3066,12 @@ def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPy
         tp.create
     ), "IRecord and IType must declare a .create class method"
 
-    keys, vals, vals_deps = [], [], []
-    for k, v in runtime.to_seq(form):
+    form_seq = runtime.to_seq(form)
+    assert form_seq is not None, "IRecord types must be iterable"
+
+    keys, vals = [], []
+    vals_deps: List[ast.AST] = []
+    for k, v in form_seq:
         assert isinstance(k, kw.Keyword), "Record key in seq must be keyword"
         key_nodes = _kw_to_py_ast(ctx, k)
         keys.append(key_nodes.node)
@@ -2807,6 +3278,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.PY_TUPLE: _py_tuple_to_py_ast,
     NodeOp.QUOTE: _quote_to_py_ast,
     NodeOp.RECUR: _recur_to_py_ast,  # type: ignore
+    NodeOp.REQUIRE: _require_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.SET_BANG: _set_bang_to_py_ast,
     NodeOp.THROW: _throw_to_py_ast,
@@ -2859,7 +3331,7 @@ def _from_module_import() -> ast.ImportFrom:
     language support modules."""
     return ast.ImportFrom(
         module="basilisp.lang.runtime",
-        names=[ast.alias(name="Var", asname=_VAR_ALIAS)],
+        names=[ast.alias(name="Var", asname=_VAR_ALIAS),],
         level=0,
     )
 

@@ -16,21 +16,19 @@ import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.exception import ExceptionInfo
 from basilisp.lang.interfaces import IExceptionInfo
-from basilisp.main import init
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_module():
     """Disable the `print_generated_python` flag so we can safely capture
     stderr and stdout for tests which require those facilities."""
-    init()
     orig = runtime.print_generated_python
     runtime.print_generated_python = Mock(return_value=False)
     yield
     runtime.print_generated_python = orig
 
 
-import basilisp.core as core
+import basilisp.core as core  # isort:skip
 
 TRUTHY_VALUES = [
     True,
@@ -1320,6 +1318,25 @@ def test_partial():
     assert 3 == core.partial(core.__PLUS__)(3)
     assert 6 == core.partial(core.__PLUS__, 3)(3)
     assert 10 == core.partial(core.__PLUS__, 3, 4)(3)
+
+
+def test_partial_kw():
+    assert {"value": 3} == core.partial_kw(dict)(value=3)
+    assert {"value": 82} == core.partial_kw(dict, lmap.map({kw.keyword("value"): 3}))(
+        value=82
+    )
+    assert {
+        "value": 82,
+        "other-value": "some string",
+        "other_value": "a string",
+    } == core.partial_kw(
+        dict, lmap.map({kw.keyword("value"): 3, "other-value": "some string"})
+    )(
+        value=82, other_value="a string"
+    )
+    assert {"value": 82, "other_value": "a string",} == core.partial_kw(
+        dict, kw.keyword("value"), 3, kw.keyword("other-value"), "some string"
+    )(value=82, other_value="a string")
 
 
 class TestIsEvery:

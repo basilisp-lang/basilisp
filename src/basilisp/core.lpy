@@ -42,9 +42,9 @@
   ^{:doc      "Creates a new sequence where o is the first element and seq is the rest.
                If seq is nil, return a list containing o. If seq is not a Seq, attempt
                to coerce it to a Seq and then cons o onto the resulting sequence."
-    :arglists '([v seq])}
+    :arglists '([o seq])}
   cons
-  (fn* cons [v seq] (basilisp.lang.runtime/cons v seq)))
+  (fn* cons [o seq] (basilisp.lang.runtime/cons o seq)))
 
 (def ^{:doc      "Return the metadata from o, or nil if there is no metadata."
        :arglists '([o])}
@@ -807,7 +807,8 @@
   (basilisp.lang.atom/Atom v))
 
 (defn realized?
-  "Return true if the delay or lazy sequence has been realized."
+  "Return true if the delay, future, lazy sequence, or promise has been
+  realized."
   [o]
   (.-is-realized o))
 
@@ -846,6 +847,56 @@
   subsequent call to `deliver` for p will have no effect."
   [p v]
   (.deliver p v))
+
+;;;;;;;;;;;;;
+;; Futures ;;
+;;;;;;;;;;;;;
+
+(import* atexit)
+
+(def ^:dynamic *executor-pool*
+  (basilisp.lang.futures/ThreadPoolExecutor))
+
+(atexit/register (.-shutdown *executor-pool*))
+
+(defn future-call
+  "Call the no args function f in another thread. Returns a Future object.
+  The value returned by f can be fetched using `deref` or `@`, though
+  doing so may block unless the `deref` with a timeout argument is used."
+  ([f]
+   (future-call f *executor-pool*))
+  ([f pool]
+   (.submit pool f)))
+
+(defmacro future
+  "Execute the expressions of body in another thread. Returns a Future object.
+  The value returned by the body can be fetched using `deref` or `@`, though
+  doing so may block unless the `deref` with a timeout argument is used."
+  [& body]
+  `(future-call
+    (fn* []
+         ~@body)))
+
+(defn future-cancel
+  "Attempt to cancel the Future fut. If the future can be cancelled, return
+  true. Otherwise, return false."
+  [fut]
+  (.cancel fut))
+
+(defn future?
+  "Return true if x is a future, false otherwise."
+  [x]
+  (instance? basilisp.lang.futures/Future x))
+
+(defn future-cancelled?
+  "Return true if the Future fut has been cancelled, false otherwise."
+  [fut]
+  (.cancelled fut))
+
+(defn future-done?
+  "Return true if the Future fut is done, false otherwise."
+  [fut]
+  (.done fut))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Arithmetic Functions ;;
@@ -1215,10 +1266,10 @@
     (cond
       (uuid? x)         true
       (string? x)       (do (uuid/UUID x) true)
-      (int? x)          (do (apply-kw uuid/UUID {:int x}) true)
-      (byte-string? x)  (do (apply-kw uuid/UUID {:bytes x}) true)
+      (int? x)          (do (uuid/UUID ** :int x) true)
+      (byte-string? x)  (do (uuid/UUID ** :bytes x) true)
       (or (py-tuple? x)
-          (vector? x))  (do (apply-kw uuid/UUID {:fields x}) true)
+          (vector? x))  (do (uuid/UUID ** :fields x) true)
       :else             false)
     (catch python/AttributeError _ false)
     (catch python/TypeError _ false)
@@ -1447,6 +1498,198 @@
   is only provided for compatibility with platforms without unlimited precision
   integers."
   short)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Arrays (Python List) ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn to-array
+  "Return a Python list with the contents of coll."
+  [coll]
+  (python/list coll))
+
+(defn to-array-2d
+  "Return a two-dimensional Python list from the contents of coll.
+
+  Python lists do not specify a fixed size, so the resulting two-dimensional
+  list may be ragged (in the Java sense of the word) if the inner collections
+  of the input are ragged."
+  [coll]
+  (python/list (python/map python/list coll)))
+
+(defn into-array
+  "Returns a Python list with the values from aseq.
+
+  The type argument is ignored and is provided only for Clojure compatibility."
+  ([aseq]
+   (python/list aseq))
+  ([^:no-warn-when-unused type aseq]
+   (python/list aseq)))
+
+(defn make-array
+  "Create a Python list with initial size. If multiple sizes are provided, produces
+  a multi-dimensional list-of-lists. There is no efficient way to allocate such
+  multi-dimensional lists in Python, so this function will run in polynomial time.
+
+  Python lists do not support pre-allocation by capacity, so this function pre-
+  fills the created list(s) with `nil`.
+
+  The type argument is ignored and is provided only for Clojure compatibility."
+  ([size]
+   (operator/mul #py [nil] size))
+  ([^:no-warn-when-unused type size]
+   (operator/mul #py [nil] size))
+  ([^:no-warn-when-unused type size & more-sizes]
+   (let [final #py []]
+     (loop [size size]
+       (if (pos? size)
+         (do
+           (.append final (apply make-array type more-sizes))
+           (recur (dec size)))
+         final)))))
+
+(defn object-array
+  "Create an array of objects.
+
+  If `init-val-or-seq` and is a `seq` yielding fewer than `size` elements, then the
+  remaining indices of the resulting array will be filled with `nil` values.
+
+  This function does not coerce its argument and is provided for Clojure compatibility."
+  ([size-or-seq]
+   (if (int? size-or-seq)
+     (make-array size-or-seq)
+     (to-array size-or-seq)))
+  ([size init-val-or-seq]
+   (if (and (seqable? init-val-or-seq) (seq init-val-or-seq))
+     (let [final #py []]
+       (loop [arr-seq (seq init-val-or-seq)
+              idx     0]
+         (when (< idx size)
+           (.append final (first arr-seq))
+           (recur (rest arr-seq) (inc idx))))
+       final)
+     (operator/mul #py [init-val-or-seq] size))))
+
+(defn aclone
+  "Return a clone of the Python list."
+  [array]
+  (python/list array))
+
+(defn aget
+  "Return the value of the Python list at the index (or indices)."
+  ([array idx]
+   (operator/getitem array idx))
+  ([array idx & idxs]
+   (if (seq idxs)
+     (recur (operator/getitem array idx) (first idxs) (rest idxs))
+     (operator/getitem array idx))))
+
+(defn aset
+  "Sets the value of the Python list at the index (or indices). Returns val."
+  ([array idx val]
+   (operator/setitem array idx val)
+   val)
+  ([array idx idx2 & idxs]
+   (loop [target (operator/getitem array idx)
+          idx    idx2
+          idx2   (first idxs)
+          idxs   (rest idxs)]
+     (if (seq idxs)
+       (recur (operator/getitem target idx) idx2 (first idxs) (rest idxs))
+       (do
+         (operator/setitem target idx idx2)
+         idx2)))))
+
+(defn alength
+  "Return the length of the Python list."
+  [array]
+  (python/len array))
+
+(defmacro amap
+  "Map `expr` over the Python list `array`, returning a new Python list with
+  the result.
+
+  This macro initially binds the symbol named by `ret` to a clone of `array`.
+  On each iteration, the index (named by `idx`) of `ret` is set to the return
+  value of `expr`."
+  [array idx ret expr]
+  `(let [len# (alength ~array)
+         ~ret (aclone ~array)]
+     (loop [~idx 0]
+       (when (< ~idx len#)
+         (aset ~ret ~idx ~expr)
+         (recur (inc ~idx))))
+     ~ret))
+
+(defmacro areduce
+  "Reduce the Python list `array` by `expr`, returning the reduced expression.
+
+  This macro initially binds the symbol named by `ret` to `init`. On each
+  iteration, `ret` is rebound to the return value of `expr`."
+  [array idx ret init expr]
+  `(let [len# (alength ~array)]
+     (loop [~ret ~init
+            ~idx 0]
+       (if (< ~idx len#)
+         (recur ~expr (inc ~idx))
+         ~ret))))
+
+(defn booleans
+  "Dummy cast to a Python list of booleans.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn bytes
+  "Dummy cast to a Python list of bytes (distinct from Python's `bytarray` and
+  `bytes` types).
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn chars
+  "Dummy cast to a Python list of chars.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn doubles
+  "Dummy cast to a Python list of doubles.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn floats
+  "Dummy cast to a Python list of floats.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn ints
+  "Dummy cast to a Python list of integers.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn longs
+  "Dummy cast to a Python list of longs.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
+
+(defn shorts
+  "Dummy cast to a Python list of shorts.
+
+  This function is provided for Clojure compatibility."
+  [x]
+  x)
 
 ;;;;;;;;;;;;;;;;
 ;; Exceptions ;;
@@ -1932,8 +2175,28 @@
 
 (defn partial
   "Return a function which is the partial application of f with args."
-  [f & args]
-  (apply basilisp.lang.runtime/partial f args))
+  ([f] f)
+  ([f & args]
+   (apply basilisp.lang.runtime/partial f args)))
+
+(defn partial-kw
+  "Return a function which is the partial application of f with keyword arguments.
+
+  If a single argument is provided, it will be interpreted as a map of keyword arguments.
+
+  If multiple arguments are given, they are interpreted as key/value pairs and will
+  be converted into a hash-map before being partially applied to the function.
+
+  This function applies keyword arguments via `apply-kw`. As a consequence, Lisp keywords
+  will be converted to munged Python strings (via `name`), meaning namespaces will be lost
+  and identifiers which are not valid Python syntax will be converted to safe Python
+  identifiers."
+  ([f] f)
+  ([f m]
+   (apply-kw basilisp.lang.runtime/partial f m))
+  ([f arg & args]
+   (let [m (apply hash-map (cons arg args))]
+     (partial-kw f m))))
 
 (defn every?
   "Return true if every element in coll satisfies pred."
@@ -2379,6 +2642,58 @@
       (recur (ret))
       ret)))
 
+(import* multiprocessing)
+
+(def ^:dynamic *pmap-cpu-count*
+  (* 2 (multiprocessing/cpu-count)))
+
+(defn pmap
+  "Apply f as by map, but in parallel using futures.
+
+  This may only be useful for functions which are mainly blocked on IO, since
+  Python threads do not allow parallel computation using threads.
+
+  This function is not fully lazy. Chunks of elements from the input collection
+  are grabbed eagerly to spawn Futures of `f`. Elements after the chunk size in
+  the input collection are grabbed lazily. The chunk size is set by
+  `*pmap-cpu-count*` and defaults to 2 times the number of CPU cores on the
+  machine; the value of `*pmap-cpu-count*` is captured when `pmap` is first
+  called, so it should be safe to bind in the initial calling thread. The
+  sequence of futures is fed into a final (fully lazy) sequence to deref the
+  Future and return its final value."
+  ([f coll]
+   (lazy-seq
+    (when (seq coll)
+      (let [chunk-size *pmap-cpu-count*
+            futs       (mapv #(future (f %)) (take chunk-size coll))]
+        (concat (map deref futs)
+                (pmap f (drop chunk-size coll)))))))
+  ([f coll & colls]
+   (lazy-seq
+    (when (seq coll)
+      (let [chunk-size *pmap-cpu-count*
+            futs       (apply mapv (fn [& args]
+                                     (future (apply f args)))
+                              (take chunk-size coll)
+                              (map #(take chunk-size %) colls))]
+        (concat (map deref futs)
+                (apply pmap f (drop chunk-size coll) (map #(drop chunk-size %) colls))))))))
+
+(defn pcalls
+  "Return a lazy seq of the result of executing the no arg functions fns,
+  which will be evaluated in parallel."
+  [& fns]
+  (pmap (fn [f] (f)) fns))
+
+(defmacro pvalues
+  "Returns a lazy seq of the result of exprs, which will be evaluated in
+  parallel."
+  [& exprs]
+  `(pcalls
+    ~@(map (fn [expr]
+             (concat '(fn* []) [expr]))
+           exprs)))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Random Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -2531,8 +2846,8 @@
   a `name` is not already defined as a Var in this namespace. `expr` will not be
   evaluated if the Var already exists."
   [name expr]
-  `(let [v (def ~name)]
-     (when-not (.-is-bound v)
+  `(let [v# (def ~name)]
+     (when-not (.-is-bound v#)
        (def ~name ~expr))))
 
 (defmacro for
@@ -3190,11 +3505,13 @@
 
 (defn eval
   "Evaluate a form (not a string) and return its result."
-  [form]
-  (let [ctx (basilisp.lang.compiler.CompilerContext. "<Eval Input>")]
-    (basilisp.lang.compiler/compile-and-exec-form form
-                                                  ctx
-                                                  *ns*)))
+  ([form]
+   (eval form *ns*))
+  ([form namespace]
+   (let [ctx (basilisp.lang.compiler.CompilerContext. "<Eval Input>")]
+     (basilisp.lang.compiler/compile-and-exec-form form
+                                                   ctx
+                                                   namespace))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Ref Utilities ;;
@@ -3399,94 +3716,82 @@
   [module]
   `(import* ~module))
 
-(defn refer
-  "Refer Vars from the namespace named by ns-sym, subject to the filters specified.
-
-  Supported filters:
-  - :only [sym1 sym2], to only refer the specified symbols
-  - :exclude [sym1, sym2], to refer all except the specified symbols
-  - :rename {sym1 new-sym1}, to rename all the specified symbols to the given new name"
-  [ns-sym & filters]
-  (let [current-ns *ns*
-        ns         (the-ns ns-sym)
-        filter-map (apply hash-map filters)]
-    (if-not (seq filters)
-      (.refer-all current-ns ns)
-      (let [only    (set (:only filter-map))
-            exclude (set (:exclude filter-map))
-            rename  (or (:rename filter-map) {})
-
-            interns (if (seq only)
-                      (filter (fn [entry]
-                                (contains? only (key entry)))
-                              (ns-interns ns))
-                      (ns-interns ns))
-            interns (if (seq exclude)
-                      (remove (fn [entry]
-                                (contains? exclude (key entry)))
-                              interns)
-                      interns)
-            interns (if (seq rename)
-                      (reduce (fn [m entry]
-                                (if (rename (key entry))
-                                  (assoc m (rename (key entry)) (val entry))
-                                  m))
-                              {}
-                              interns)
-                      interns)
-
-            do-refer (fn [refers]
-                       (when (seq refers)
-                         (let [entry (first (seq refers))
-                               sym   (key entry)
-                               var   (val entry)]
-                           (.add-refer current-ns sym var)
-                           (recur (rest refers)))))]
-        (do-refer interns)))))
-
-(def refer-basilisp
-  "Refer Vars from basilisp.core using the same filter syntax as refer."
-  (partial refer 'basilisp.core))
-
-(def refer-clojure
-  "Compatibility layer with JVM Clojure, which points to refer-basilisp."
-  refer-basilisp)
-
 (import importlib)
 
-(defn ^:private add-refers
-  "Refer all of the Vars named in syms from from-ns to to-ns."
-  [to-ns from-ns syms]
-  (when (seq syms)
-    (let [var-sym (first syms)
-          var     (get (ns-interns from-ns) var-sym)]
-      (.add-refer to-ns var-sym var)
-      (recur to-ns from-ns (rest syms)))))
+(defn ^:private require-libspec
+  "Convert a user-specified require libspec into a map with well-defined keys.
 
-(defn ^:private require-vec
-  "Process a vector libspec for require."
-  [current-ns v]
-  (let [ns-sym (first v)
-        opts   (apply hash-map (rest v))]
-    (importlib/import-module (name ns-sym))
-    (let [new-ns (the-ns ns-sym)]
-      ;; Add the namespace alias
-      (.add-alias current-ns (or (:as opts) ns-sym) new-ns)
+  Required keys:
+  - :namespace ns-sym, a symbol naming the Namespace being required
 
-      ;; Add refers
-      (cond
-        (= :all (:refer opts))
-        (.refer-all current-ns new-ns)
+  Optional keys:
+  - :as ns-alias, a symbol which will alias the Namespace when required (if given)
+  - :refer [sym1, sym2], a sequence of symbols naming Vars to refer
+  - :refer :all, if every Var should be referred
+  - :only [sym1, sym2], a sequence of symbols naming Vars to refer
+  - :exclude [sym1, sym2], to refer all except the specified symbols
+  - :rename {sym1 new-sym1}, to rename all the specified symbols to the given new name"
+  [req]
+  (cond
+    (vector? req) (merge {:namespace (first req)}
+                         (apply hash-map (rest req)))
+    (symbol? req) {:namespace req}
+    :else         (throw
+                   (ex-info "Invalid libspec for require"
+                            {:value req}))))
 
-        (:refer opts)
-        (add-refers current-ns new-ns (:refer opts))
+(defn ^:private require-lib
+  "Require the library described by `libspec` into the Namespace `requiring-ns`."
+  [requiring-ns libspec]
+  (let [required-ns-sym  (:namespace libspec)]
+    ;; In order to enable direct linking of Vars as Python variables, required
+    ;; namespaces must be `require*`ed into the namespace. That's not possible
+    ;; to do without a macro, so we're using this hacky approach to eval the
+    ;; code directly (which will effectively add it to the root namespace module).
+    (eval (list 'require*
+                (if-let [ns-alias (:as libspec)]
+                  [required-ns-sym :as ns-alias]
+                  required-ns-sym))
+          requiring-ns)
+    ;; Reset the namespace to the requiring namespace, since it was likely changed
+    ;; during the require process
+    (set! *ns* requiring-ns)))
 
-        :else nil))))
+(defn ^:private refer-filtered-interns
+  "Return a map of symbols to interned Vars in the Namespace `referred-ns` subject
+  to the filters described in `libspec`."
+  [referred-ns libspec]
+  (when (= :all (:refer libspec))
+    (throw
+     (ex-info "cannot specify :refer :all for refer; use (refer 'ns-sym) instead"
+              {:libspec libspec})))
+  (let [only    (set (or (:refer libspec) (:only libspec)))
+        exclude (set (:exclude libspec))
+        rename  (get libspec :rename {})]
+    (cond->> (ns-interns referred-ns)
+      (seq only)    (filter (fn [entry]
+                              (contains? only (key entry))))
+      (seq exclude) (remove (fn [entry]
+                              (contains? exclude (key entry))))
+      (seq rename)  (reduce (fn [m entry]
+                              (if (rename (key entry))
+                                (assoc m (rename (key entry)) (val entry))
+                                m))
+                            {}))))
 
-(defn ^:private require-sym
-  "Process a symbol libspec for require."
-  [s]
-  (importlib/import-module (name s)))
+(defn ^:private refer-lib
+  "Refer Vars into `requiring-ns` as described by `libspec`.
+
+  This function assumes the referred-to Namespace has already been loaded by
+  `require-lib`."
+  [requiring-ns libspec]
+  (let [referred-ns (the-ns (:namespace libspec))]
+    (if-not (some #(contains? libspec %) [:refer :only :exclude :rename])
+      (.refer-all requiring-ns referred-ns)
+      (doseq [intern-entry (refer-filtered-interns referred-ns libspec)]
+        (let [sym (key intern-entry)
+              var (val intern-entry)]
+          (.add-refer requiring-ns sym var))))))
 
 (defn require
   "Load Basilisp libraries and make them accessible in the current namespace.
@@ -3497,22 +3802,86 @@
 
   Vector libspec arguments must be one of:
   - :as name, which will alias the imported namespace to the symbol name
-  - :refer [& syms], which will refer syms in the local namespace directly"
-  [& args]
-  (let [current-ns *ns*
+  - :refer [& syms], which will refer syms in the local namespace directly
+  - :refer :all, which will refer all symbols from the namespace directly
 
-        do-require (fn [requires]
-                     (when (seq requires)
-                       (let [v (first requires)]
-                         (cond
-                           (vector? v) (require-vec current-ns v)
-                           (symbol? v) (require-sym v)
-                           :else             (throw
-                                              (ex-info "Invalid libspec for require"
-                                                       {:value v}))))
-                       (recur (rest requires))))]
-    (do-require args)
-    (set! *ns* current-ns)
+  Use of `require` directly is discouraged in favor of the `:require` directive in
+  the `ns` macro."
+  [& args]
+  (let [current-ns *ns*]
+    (doseq [libspec (map require-libspec args)]
+      (require-lib current-ns libspec)
+
+      ;; Add refers
+      (let [new-ns    (the-ns (:namespace libspec))
+            refer-opt (:refer libspec)]
+        (cond
+          (= :all refer-opt)
+          (.refer-all current-ns new-ns)
+
+          (seq refer-opt)
+          (let [new-ns-interns (ns-interns new-ns)]
+            (doseq [var-sym refer-opt]
+              (let [var (get new-ns-interns var-sym)]
+                (.add-refer current-ns var-sym var))))
+
+          :else nil)))
+    nil))
+
+(defn refer
+  "Refer Vars from the namespace named by ns-sym, subject to the filters specified.
+
+  Supported filters:
+  - :only [sym1 sym2], to only refer the specified symbols
+  - :exclude [sym1, sym2], to refer all except the specified symbols
+  - :rename {sym1 new-sym1}, to rename all the specified symbols to the given new name
+
+  Use of `refer` directly is discouraged in favor of the `:refer` modifier in the
+  `:require` directive of the `ns` macro or the `:use` directive of the `ns` macro."
+  [ns-sym & filters]
+  (let [current-ns *ns*]
+    ;; It is necessary to first require the Namespace directly, otherwise
+    ;; when refer attempts to load the Namespace later, it will fail.
+    (->> (require-libspec ns-sym)
+         (require-lib current-ns))
+    (->> (apply vector ns-sym filters)
+         (require-libspec)
+         (refer-lib current-ns))))
+
+(def refer-basilisp
+  "Refer Vars from basilisp.core using the same filter syntax as refer."
+  (partial refer 'basilisp.core))
+
+(def refer-clojure
+  "Compatibility layer with JVM Clojure, which points to refer-basilisp."
+  refer-basilisp)
+
+(defn use
+  "Load Basilisp libraries and make them accessible in the current namespace.
+
+  Arguments should be libspecs, which take the following forms:
+  - symbols, which name fully qualified namespaces
+  - vectors, which take the form [namespace-symbol & opts]
+
+  `use` is like `require` which also refers all Vars from the requiring Namespace
+  afterwards. Libspecs passed to `use` may include filters as defined in `refer` to
+  narrow down the referred Vars.
+
+  Supported filters:
+  - :only [sym1 sym2], to only refer the specified symbols
+  - :exclude [sym1, sym2], to refer all except the specified symbols
+  - :rename {sym1 new-sym1}, to rename all the specified symbols to the given new name
+
+  Use of `use` directly is discouraged in favor of the `:use` directive in the `ns`
+  macro."
+  [& args]
+  (let [current-ns *ns*]
+    (doseq [libspec (map require-libspec args)]
+      ;; Remove the :refer key to avoid having require-lib
+      ;; perform a full :refer, instead we'll use refer-lib
+      (->> (dissoc libspec :refer)
+           (require-lib current-ns))
+      (refer-lib current-ns libspec))
     nil))
 
 (defmacro ns
@@ -3529,6 +3898,8 @@
        (:refer-basilisp :exclude [get])
        (:require
          [basilisp.string :as str])
+       (:use
+         [basilisp.set :only [intersection]])
        (:import inspect))"
   [name & opts]
   (when-not (and (symbol? name) (nil? (namespace name)))
@@ -3548,17 +3919,22 @@
                        {}
                        opts))
 
-        requires    (when (:require opts)
-                      `(require ~@(map #(list 'quote %) (:require opts))))
-        imports     (when (:import opts)
-                      (map (fn [v]
-                             `(import ~v))
-                           (:import opts)))]
+        refer-filters (when-let [filters (or (:refer-basilisp opts)
+                                             (:refer-clojure opts))]
+                        (map #(list 'quote %) filters))
+        requires      (when (:require opts)
+                        `(require ~@(map #(list 'quote %) (:require opts))))
+        uses          (when (:use opts)
+                        `(use ~@(map #(list 'quote %) (:use opts))))
+        imports       (when (:import opts)
+                        (map (fn [v]
+                               `(import ~v))
+                             (:import opts)))]
     `(do
        (in-ns (quote ~name))
-       (refer-basilisp ~@(or (:refer-basilisp opts)
-                             (:refer-clojure opts)))
+       (refer-basilisp ~@refer-filters)
        ~requires
+       ~uses
        ~@imports)))
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -3629,6 +4005,9 @@
   [name & body]
   (let [doc         (when (string? (first body))
                       (first body))
+        name        (if doc
+                      (vary-meta name assoc :doc doc)
+                      name)
         body        (if doc
                       (rest body)
                       body)
@@ -4058,9 +4437,9 @@
   ([o & {:keys [keywordize-keys] :or {keywordize-keys true}}]
    (basilisp.lang.runtime/to-lisp o keywordize-keys)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Data Types & Protocols ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;
+;; Interfaces ;;
+;;;;;;;;;;;;;;;;
 
 (import* abc)
 
@@ -4088,9 +4467,22 @@
 (defn gen-interface
   "Generate and return a new Python interface (abstract base clase).
 
+  Options may be specified as key-value pairs. The following options are supported:
+  - :name    - the name of the interface as a string; required
+  - :extends - a vector of interfaces the new interface should extend; optional
+  - :methods - an optional vector of method signatures like:
+               [ (method-name [args ...] docstring) ... ]
+
   Callers should use `definterface` to generate new interfaces."
-  [interface-name methods]
-  (let [methods (reduce (fn [m [method-name args docstring]]
+  [& opts]
+  (let [opt-map        (apply hash-map opts)
+        interface-name (:name opt-map)
+        extends        (as-> (:extends opt-map []) $
+                         (remove #(identical? abc/ABC %) $)
+                         (concat $ [abc/ABC])
+                         (python/tuple $))
+
+        methods (reduce (fn [m [method-name args docstring]]
                           (let [method-args (->> (concat ['^:no-warn-when-unused self] args)
                                                  (apply vector))
                                 method      (->> (list 'fn* method-name method-args)
@@ -4100,10 +4492,10 @@
                               (set! (.- method __doc__) docstring))
                             (assoc m (munge method-name) method)))
                         {}
-                        methods)]
+                        (:methods opt-map))]
     (python/type interface-name
-                   #py (abc/ABC)
-                   (lisp->py methods))))
+                 extends
+                 (lisp->py methods))))
 
 ;; The behavior described below where `definterface` forms are not permitted
 ;; to be used in `deftype` and `defrecord` forms when they are not top-level
@@ -4134,7 +4526,12 @@
   (let [name-str    (name interface-name)
         method-sigs (map #(list 'quote %) methods)]
     `(def ~interface-name
-       (gen-interface ~name-str [~@method-sigs]))))
+       (gen-interface :name ~name-str
+                      :methods [~@method-sigs]))))
+
+;;;;;;;;;;;;;;;;
+;; Data Types ;;
+;;;;;;;;;;;;;;;;
 
 (defn ^:private collect-methods
   "Collect method and interface declarations for `deftype` and `defrecord`
@@ -4204,6 +4601,10 @@
          ~@methods)
        (def ~ctor-name ~type-name)
        ~type-name)))
+
+;;;;;;;;;;;;;
+;; Records ;;
+;;;;;;;;;;;;;
 
 (import* attr)
 

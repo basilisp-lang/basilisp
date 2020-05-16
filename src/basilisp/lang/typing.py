@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
-from types import ModuleType
 from typing import Pattern, Union
 
 import basilisp.lang.keyword as kw
@@ -11,7 +10,9 @@ import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.interfaces import IRecord, ISeq, IType
+from basilisp.lang.interfaces import IPersistentMap, IRecord, ISeq, IType
+
+CompilerOpts = IPersistentMap[kw.Keyword, bool]
 
 IterableLispForm = Union[llist.List, lmap.Map, lset.Set, vec.Vector]
 LispNumber = Union[int, float, Fraction]
@@ -37,7 +38,3 @@ LispForm = Union[
 PyCollectionForm = Union[dict, list, set, tuple]
 ReaderForm = Union[LispForm, IRecord, ISeq, IType, PyCollectionForm]
 SpecialForm = Union[llist.List, ISeq]
-
-
-class BasilispModule(ModuleType):
-    __basilisp_bootstrapped__: bool = False

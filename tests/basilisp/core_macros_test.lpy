@@ -258,6 +258,25 @@
         (is (= "0.1" (:added vmeta)))
         (is (= "another multi-arity docstring" (:doc vmeta)))))))
 
+(deftest defonce-test
+  (testing "defonce will not rebind bound Var"
+    (defonce defonce-value :defonce-value-1)
+    (is (= :defonce-value-1 defonce-value))
+    (defonce defonce-value :defonce-value-2)
+    (is (= :defonce-value-1 defonce-value)))
+
+  (testing "defonce can bind an unbound Var"
+    (def defonce-unbound)
+    (is (not (.-is-bound (var defonce-unbound))))
+    (defonce defonce-unbound :defonce-bound-now)
+    (is (= :defonce-bound-now defonce-unbound)))
+
+  (testing "defonce will not rebind bound Var by regular def"
+    (def defonce-bound :defonce-bound-first)
+    (is (= :defonce-bound-first defonce-bound))
+    (defonce defonce-bound :defounce-rebinding)
+    (is (= :defonce-bound-first defonce-bound))))
+
 (deftest fn-meta-test
   (testing "fn has no meta to start"
     (is (nil? (meta (fn* []))))
@@ -278,6 +297,23 @@
            (meta ^:meta-kw (fn ([]) ([a] a)))))
     (is (= {:meta-kw true :other-kw true}
            (meta ^:meta-kw ^:other-kw (fn ([]) ([a] a)))))))
+
+(deftest amap-test
+  (let [l #py []]
+    (is (= #py [] (amap l idx ret (+ idx (aget l idx))))))
+
+  (let [l #py [1 2 3]]
+    (is (= #py [1 3 5] (amap l idx ret (+ idx (aget l idx))))))
+
+  (let [l #py [1 2 3]]
+    (is (= #py [6 11 20] (amap l idx ret (apply + ret))))))
+
+(deftest areduce-test
+  (let [l #py []]
+    (is (= 0 (areduce l idx ret 0 (+ ret (aget l idx))))))
+
+  (let [l #py [1 2 3]]
+    (is (= 6 (areduce l idx ret 0 (+ ret (aget l idx)))))))
 
 (deftest case-test
   (is (= "yes" (case :a :b "nope" :c "mega nope" :a "yes" "nerp")))
