@@ -1,3 +1,4 @@
+import pickle
 import typing
 
 import pytest
@@ -60,6 +61,20 @@ def test_set_with_meta():
     assert s3 is not s4
     assert s3 == s4
     assert s4.meta == lmap.m(tag=keyword("macro"))
+
+
+@pytest.mark.parametrize(
+    "o",
+    [
+        lset.s(),
+        lset.s(keyword("kw1")),
+        lset.s(keyword("kw1"), 2),
+        lset.s(keyword("kw1"), 2, None, "nothingness"),
+        lset.s(keyword("kw1"), lset.s("string", 4)),
+    ],
+)
+def test_set_pickleability(pickle_protocol: int, o: lset.Set):
+    assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
 @pytest.mark.parametrize(
