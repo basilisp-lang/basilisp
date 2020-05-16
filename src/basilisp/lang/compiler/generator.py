@@ -1334,7 +1334,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
                             name=type_name,
                             bases=bases,
                             keywords=[],
-                            body=type_nodes,
+                            body=type_nodes or [ast.Pass()],
                             decorator_list=[decorator],
                         ),
                         ast.Call(
