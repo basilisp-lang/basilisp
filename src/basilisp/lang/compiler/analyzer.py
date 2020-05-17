@@ -130,6 +130,7 @@ from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
 from basilisp.lang.util import count, genname, munge
+from basilisp.logconfig import TRACE
 from basilisp.util import Maybe, partition
 
 # Analyzer logging
@@ -1467,7 +1468,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
     return interfaces, members
 
 
-def __is_abstract(tp: Type) -> bool:
+def _is_abstract(tp: Type) -> bool:
     """Return True if tp is an abstract class.
 
     The builtin inspect.isabstract returns False for marker abstract classes
@@ -1481,11 +1482,21 @@ def __is_abstract(tp: Type) -> bool:
     )
 
 
-def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,too-many-locals
+def __deftype_impls_are_all_abstract(  # pylint: disable=too-many-branches,too-many-locals
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
     members: Iterable[DefTypeMember],
-) -> None:
+) -> bool:
+    """Return True if all `deftype*` super-types can be verified abstract statically.
+    Return False otherwise.
+
+    In certain cases, such as in macro definitions and potentially inside of functions,
+    the compiler will be unable to resolve the named super-type as an object during
+    compilation and these checks will need to be deferred to runtime. In these cases,
+    the compiler will wrap the emitted class in a decorator that performs the checks
+    when the class is compiled by the Python compiler.
+
+    For normal compile-time errors, an `AnalyzerException` will be raised."""
     field_names = frozenset(fields)
     member_names = frozenset(munge(member.name) for member in members)
     all_member_names = field_names.union(member_names)
@@ -1493,15 +1504,23 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
     for interface in interfaces:
         if isinstance(interface, (MaybeClass, MaybeHostForm)):
             interface_type = interface.target
-        elif isinstance(interface, VarRef):
+        else:
+            assert isinstance(
+                interface, VarRef
+            ), "Interface must be MaybeClass, MaybeHostForm, or VarRef"
+            if not interface.var.is_bound:
+                logger.log(
+                    TRACE,
+                    f"deftype* interface Var '{interface.form}' is not bound and "
+                    "cannot be checked for abstractness; deferring to runtime",
+                )
+                return False
             interface_type = interface.var.value
-        else:  # pragma: no cover
-            assert False, "Interface must be MaybeClass, MaybeHostForm, or VarRef"
 
         if interface_type is object:
             continue
 
-        if not __is_abstract(interface_type):
+        if not _is_abstract(interface_type):
             raise AnalyzerException(
                 "deftype* interface must be Python abstract class or object",
                 form=interface.form,
@@ -1541,6 +1560,8 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
             "deftype* definition for interface includes members not part of "
             f"defined interfaces: {extra_method_str}"
         )
+
+    return True
 
 
 __DEFTYPE_DEFAULT_SENTINEL = object()
@@ -1620,7 +1641,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             ctx.put_new_symbol(field, binding, warn_if_unused=False)
 
         interfaces, members = __deftype_impls(ctx, runtime.nthrest(form, 3))
-        __assert_deftype_impls_are_abstract(
+        verified_abstract = __deftype_impls_are_all_abstract(
             map(lambda f: f.name, fields), interfaces, members
         )
         return DefType(
@@ -1629,6 +1650,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             interfaces=vec.vector(interfaces),
             fields=vec.vector(param_nodes),
             members=vec.vector(members),
+            verified_abstract=verified_abstract,
             is_frozen=is_frozen,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )

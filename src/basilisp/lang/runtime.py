@@ -20,7 +20,9 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Set,
     Tuple,
+    Type,
     Union,
     cast,
 )
@@ -1457,6 +1459,64 @@ def _basilisp_fn(f):
     f.meta = None
     f.with_meta = partial(_fn_with_meta, f)
     return f
+
+
+def _basilisp_type(
+    fields: Iterable[str], interfaces: Iterable[Type], members: Iterable[str],
+):
+    """Check that a Basilisp type (defined by `deftype*`) only declares abstract
+    super-types and that all abstract methods are implemented."""
+
+    from basilisp.lang.compiler.analyzer import _is_abstract
+    from basilisp.lang.compiler.constants import OBJECT_DUNDER_METHODS
+
+    def wrap_class(cls: Type):
+        field_names = frozenset(fields)
+        member_names = frozenset(members)
+        all_member_names = field_names.union(member_names)
+        all_interface_methods: Set[str] = set()
+        for interface in interfaces:
+            if interface is object:
+                continue
+
+            if not _is_abstract(interface):
+                raise RuntimeException(
+                    "deftype* interface must be Python abstract class or object",
+                )
+
+            interface_names: FrozenSet[str] = interface.__abstractmethods__
+            interface_property_names: FrozenSet[str] = frozenset(
+                method
+                for method in interface_names
+                if isinstance(getattr(interface, method), property)
+            )
+            interface_method_names = interface_names - interface_property_names
+            if not interface_method_names.issubset(member_names):
+                missing_methods = ", ".join(interface_method_names - member_names)
+                raise RuntimeException(
+                    "deftype* definition missing interface members for interface "
+                    f"{interface}: {missing_methods}",
+                )
+            elif not interface_property_names.issubset(all_member_names):
+                missing_fields = ", ".join(interface_property_names - field_names)
+                raise RuntimeException(
+                    "deftype* definition missing interface properties for interface "
+                    f"{interface}: {missing_fields}",
+                )
+
+            all_interface_methods.update(interface_names)
+
+        extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
+        if extra_methods:
+            extra_method_str = ", ".join(extra_methods)
+            raise RuntimeException(
+                "deftype* definition for interface includes members not part of "
+                f"defined interfaces: {extra_method_str}"
+            )
+
+        return cls
+
+    return wrap_class
 
 
 ###############################
