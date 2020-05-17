@@ -51,7 +51,7 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.reference import ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
-from basilisp.lang.util import demunge, munge
+from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
@@ -1467,9 +1467,6 @@ def _basilisp_type(
     """Check that a Basilisp type (defined by `deftype*`) only declares abstract
     super-types and that all abstract methods are implemented."""
 
-    from basilisp.lang.compiler.analyzer import _is_abstract
-    from basilisp.lang.compiler.constants import OBJECT_DUNDER_METHODS
-
     def wrap_class(cls: Type):
         field_names = frozenset(fields)
         member_names = frozenset(members)
@@ -1479,7 +1476,7 @@ def _basilisp_type(
             if interface is object:
                 continue
 
-            if not _is_abstract(interface):
+            if not is_abstract(interface):
                 raise RuntimeException(
                     "deftype* interface must be Python abstract class or object",
                 )

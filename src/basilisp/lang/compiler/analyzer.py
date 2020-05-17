@@ -1,7 +1,6 @@
 import builtins
 import collections
 import contextlib
-import inspect
 import logging
 import re
 import sys
@@ -50,7 +49,6 @@ from basilisp.lang.compiler.constants import (
     LINE_KW,
     NAME_KW,
     NS_KW,
-    OBJECT_DUNDER_METHODS,
     SYM_ASYNC_META_KEY,
     SYM_CLASSMETHOD_META_KEY,
     SYM_DEFAULT_META_KEY,
@@ -129,7 +127,7 @@ from basilisp.lang.compiler.nodes import (
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
-from basilisp.lang.util import count, genname, munge
+from basilisp.lang.util import OBJECT_DUNDER_METHODS, count, genname, is_abstract, munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe, partition
 
@@ -1468,20 +1466,6 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
     return interfaces, members
 
 
-def _is_abstract(tp: Type) -> bool:
-    """Return True if tp is an abstract class.
-
-    The builtin inspect.isabstract returns False for marker abstract classes
-    which do not define any abstract members."""
-    if inspect.isabstract(tp):
-        return True
-    return (
-        inspect.isclass(tp)
-        and hasattr(tp, "__abstractmethods__")
-        and tp.__abstractmethods__ == frozenset()
-    )
-
-
 def __deftype_impls_are_all_abstract(  # pylint: disable=too-many-branches,too-many-locals
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
@@ -1520,7 +1504,7 @@ def __deftype_impls_are_all_abstract(  # pylint: disable=too-many-branches,too-m
         if interface_type is object:
             continue
 
-        if not _is_abstract(interface_type):
+        if not is_abstract(interface_type):
             raise AnalyzerException(
                 "deftype* interface must be Python abstract class or object",
                 form=interface.form,

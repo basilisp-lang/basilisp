@@ -1269,7 +1269,7 @@ _ATTR_CMP_KWARGS = (
 
 
 @_with_ast_loc
-def _deftype_to_py_ast(  # pylint: disable=too-many-branches
+def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
     ctx: GeneratorContext, node: DefType
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` expression."""
