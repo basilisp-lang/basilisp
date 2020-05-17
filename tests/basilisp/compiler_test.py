@@ -465,6 +465,15 @@ class TestDefType:
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
+    def test_deftype_must_declare_implements(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (deftype* Point [x y z]
+                  (--call-- [this] [x y z]))
+                """
+            )
+
     @pytest.mark.parametrize(
         "code",
         [
@@ -485,7 +494,9 @@ class TestDefType:
             """,
         ],
     )
-    def test_deftype_matching_impls(self, lcompile: CompileFn, code: str):
+    def test_deftype_impls_must_match_defined_interfaces(
+        self, lcompile: CompileFn, code: str
+    ):
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
@@ -558,52 +569,132 @@ class TestDefType:
             """
             )
 
-    def test_deftype_interface_must_be_abstract(self, lcompile: CompileFn):
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
+    @pytest.mark.parametrize(
+        "code,ExceptionType",
+        [
+            (
                 """
             (import* collections)
             (deftype* Point [x y z]
               :implements [collections/OrderedDict]
-              (keys [this] [x y z]))
-            """
-            )
-
-    def test_deftype_allows_empty_abstract_interface(
-        self, lcompile: CompileFn,
+              (keys [this] [x y z]))""",
+                compiler.CompilerException,
+            ),
+            (
+                """
+            (do
+              (def Shape (python/type "Shape" #py () #py {}))
+              (deftype* Circle [radius]
+                :implements [Shape]))""",
+                runtime.RuntimeException,
+            ),
+        ],
+    )
+    def test_deftype_interface_must_be_abstract(
+        self, lcompile: CompileFn, code: str, ExceptionType
     ):
+        with pytest.raises(ExceptionType):
+            lcompile(code)
+
+    def test_deftype_allows_empty_abstract_interface(self, lcompile: CompileFn):
         Point = lcompile(
             """
-        (deftype* Point [x y z]
-          :implements [basilisp.lang.interfaces/IType])"""
+            (deftype* Point [x y z]
+              :implements [basilisp.lang.interfaces/IType])"""
         )
         pt = Point(1, 2, 3)
         assert isinstance(pt, IType)
 
-    def test_deftype_interface_must_implement_all_abstract_methods(
-        self, lcompile: CompileFn
-    ):
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
+    def test_deftype_allows_empty_dynamic_abstract_interface(self, lcompile: CompileFn):
+        Circle = lcompile(
+            # TODO: it's currently a bug for the `(import* abc)` to appear
+            #       in the same (do ...) block as the rest of this code.
+            """
+            (import* abc)
+            (do
+              (def Shape (python/type "Shape" #py (abc/ABC) #py {}))
+              (deftype* Circle [radius]
+                :implements [Shape]))"""
+        )
+        c = Circle(1)
+        assert c.radius == 1
+
+    @pytest.mark.parametrize(
+        "code,ExceptionType",
+        [
+            (
                 """
             (import* collections.abc)
             (deftype* Point [x y z]
               :implements [collections.abc/Collection]
               (--len-- [this] 3))
-            """
-            )
+            """,
+                compiler.CompilerException,
+            ),
+            (
+                # TODO: it's currently a bug for the `(import* abc)` to appear
+                #       in the same (do ...) block as the rest of this code.
+                """
+            (import* abc)
+            (do
+              (def Shape
+                (python/type "Shape"
+                             #py (abc/ABC)
+                             #py {"area"
+                                   (abc/abstractmethod
+                                    (fn []))}))
+              (deftype* Circle [radius]
+                :implements [Shape]))
+            """,
+                runtime.RuntimeException,
+            ),
+        ],
+    )
+    def test_deftype_interface_must_implement_all_abstract_methods(
+        self, lcompile: CompileFn, code: str, ExceptionType,
+    ):
+        with pytest.raises(ExceptionType):
+            lcompile(code)
 
-    def test_deftype_may_not_add_extra_methods_to_interface(self, lcompile: CompileFn):
-        with pytest.raises(compiler.CompilerException):
-            lcompile(
+    @pytest.mark.parametrize(
+        "code,ExceptionType",
+        [
+            (
                 """
             (import* collections.abc)
             (deftype* Point [x y z]
               :implements [collections.abc/Sized]
               (--len-- [this] 3)
               (call [this] :called))
-            """
-            )
+            """,
+                compiler.CompilerException,
+            ),
+            (
+                # TODO: it's currently a bug for the `(import* abc)` to appear
+                #       in the same (do ...) block as the rest of this code.
+                """
+            (import* abc collections.abc)
+            (do
+              (def Shape
+                (python/type "Shape"
+                             #py (abc/ABC)
+                             #py {"area"
+                                   (abc/abstractmethod
+                                    (fn []))}))
+              (deftype* Circle [radius]
+                :implements [Shape]
+                (area [this] (* 2 radius radius))
+                (call [this] :called)))
+            """,
+                runtime.RuntimeException,
+            ),
+        ],
+    )
+    def test_deftype_may_not_add_extra_methods_to_interface(
+        self, lcompile: CompileFn, code: str, ExceptionType,
+    ):
+        with pytest.raises(ExceptionType):
+            lcompile(code)
 
     @pytest.mark.parametrize(
         "code", ["(deftype* Shape [])", "(deftype* Shape [] :implements [])"]
@@ -613,17 +704,29 @@ class TestDefType:
     ):
         lcompile(code)
 
-    def test_deftype_interface_may_implement_only_some_object_methods(
-        self, lcompile: CompileFn
-    ):
-        Point = lcompile(
+    @pytest.mark.parametrize(
+        "code",
+        [
             """
         (deftype* Point [x y z]
           :implements [python/object]
           (__str__ [this]
             (python/repr #py ("Point" x y z))))
-        """
-        )
+        """,
+            """
+        (do
+          (def PyObject python/object)
+          (deftype* Point [x y z]
+          :implements [PyObject]
+          (__str__ [this]
+            (python/repr #py ("Point" x y z)))))
+        """,
+        ],
+    )
+    def test_deftype_interface_may_implement_only_some_object_methods(
+        self, lcompile: CompileFn, code: str
+    ):
+        Point = lcompile(code)
         pt = Point(1, 2, 3)
         assert "('Point', 1, 2, 3)" == str(pt)
 
@@ -807,16 +910,43 @@ class TestDefType:
             """
             )
 
-        def test_deftype_must_implement_interface_classmethod(
-            self, lcompile: CompileFn,
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(
+        @pytest.mark.parametrize(
+            "code,ExceptionType",
+            [
+                (
                     """
-                (deftype* Point [x y z]
-                  :implements [WithCls])
-                  """
-                )
+                    (deftype* Point [x y z]
+                      :implements [WithCls])
+                    """,
+                    compiler.CompilerException,
+                ),
+                (
+                    # TODO: it's currently a bug for the `(import* abc)` to appear
+                    #       in the same (do ...) block as the rest of this code;
+                    #       but it's still working because `abc` was imported by the
+                    #       auto-used fixture for this class
+                    """
+                    (do
+                      (import* abc)
+                      (def WithClassMethod
+                        (python/type "WithCls"
+                                     #py (abc/ABC)
+                                     #py {"make"
+                                          (python/classmethod
+                                           (abc/abstractmethod
+                                            (fn [cls])))}))
+                      (deftype* Point [x y z]
+                        :implements [WithClassMethod]))
+                    """,
+                    runtime.RuntimeException,
+                ),
+            ],
+        )
+        def test_deftype_must_implement_interface_classmethod(
+            self, lcompile: CompileFn, code: str, ExceptionType
+        ):
+            with pytest.raises(ExceptionType):
+                lcompile(code)
 
         @pytest.mark.parametrize(
             "code",
@@ -1536,16 +1666,43 @@ class TestDefType:
             """
             )
 
-        def test_deftype_must_implement_interface_property(
-            self, lcompile: CompileFn,
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(
+        @pytest.mark.parametrize(
+            "code,ExceptionType",
+            [
+                (
                     """
                 (deftype* Point [x y z]
                   :implements [WithProp])
-                  """
-                )
+                  """,
+                    compiler.CompilerException,
+                ),
+                (
+                    # TODO: it's currently a bug for the `(import* abc)` to appear
+                    #       in the same (do ...) block as the rest of this code;
+                    #       but it's still working because `abc` was imported by the
+                    #       auto-used fixture for this class
+                    """
+                    (do
+                      (import* abc)
+                      (def WithProperty
+                        (python/type "WithProp"
+                                     #py (abc/ABC)
+                                     #py {"a_property"
+                                          (python/property
+                                           (abc/abstractmethod
+                                            (fn [self])))}))
+                      (deftype* Point [x y z]
+                        :implements [WithProperty]))
+                    """,
+                    runtime.RuntimeException,
+                ),
+            ],
+        )
+        def test_deftype_must_implement_interface_property(
+            self, lcompile: CompileFn, code: str, ExceptionType
+        ):
+            with pytest.raises(ExceptionType):
+                lcompile(code)
 
         def test_deftype_property_includes_this(
             self, lcompile: CompileFn,
@@ -1680,16 +1837,43 @@ class TestDefType:
             """
             )
 
-        def test_deftype_must_implement_interface_staticmethod(
-            self, lcompile: CompileFn,
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(
+        @pytest.mark.parametrize(
+            "code,ExceptionType",
+            [
+                (
                     """
-                (deftype* Point [x y z]
-                  :implements [WithStatic])
-                  """
-                )
+                        (deftype* Point [x y z]
+                          :implements [WithCls])
+                        """,
+                    compiler.CompilerException,
+                ),
+                (
+                    # TODO: it's currently a bug for the `(import* abc)` to appear
+                    #       in the same (do ...) block as the rest of this code;
+                    #       but it's still working because `abc` was imported by the
+                    #       auto-used fixture for this class
+                    """
+                        (do
+                          (import* abc)
+                          (def WithStaticMethod
+                            (python/type "WithStatic"
+                                         #py (abc/ABC)
+                                         #py {"do_static_method"
+                                              (python/staticmethod
+                                               (abc/abstractmethod
+                                                (fn [])))}))
+                          (deftype* Point [x y z]
+                            :implements [WithStaticMethod]))
+                        """,
+                    runtime.RuntimeException,
+                ),
+            ],
+        )
+        def test_deftype_must_implement_interface_staticmethod(
+            self, lcompile: CompileFn, code: str, ExceptionType,
+        ):
+            with pytest.raises(ExceptionType):
+                lcompile(code)
 
         @pytest.mark.parametrize(
             "code",

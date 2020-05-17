@@ -554,6 +554,7 @@ _COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
+_BASILISP_TYPE_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_type")
 _BUILTINS_IMPORT_FN_NAME = _load_attr("builtins.__import__")
 _IMPORTLIB_IMPORT_MODULE_FN_NAME = _load_attr("importlib.import_module")
 _LISP_FN_APPLY_KWARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._lisp_fn_apply_kwargs")
@@ -1268,7 +1269,7 @@ _ATTR_CMP_KWARGS = (
 
 
 @_with_ast_loc
-def _deftype_to_py_ast(  # pylint: disable=too-many-branches
+def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
     ctx: GeneratorContext, node: DefType
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` expression."""
@@ -1284,17 +1285,8 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
         ), "Class and host form nodes do not have dependencies"
         bases.append(base_node.node)
 
-    decorator = ast.Call(
-        func=_ATTR_CLASS_DECORATOR_NAME,
-        args=[],
-        keywords=_ATTR_CMP_KWARGS
-        + [
-            ast.keyword(arg="frozen", value=ast.Constant(node.is_frozen)),
-            ast.keyword(arg="slots", value=ast.Constant(True)),
-        ],
-    )
-
     with ctx.new_symbol_table(node.name):
+        fields, members = [], []
         type_nodes: List[ast.AST] = []
         type_deps: List[ast.AST] = []
         for field in node.fields:
@@ -1318,11 +1310,13 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
                 )
             )
             ctx.symbol_table.new_symbol(sym.symbol(field.name), safe_field, field.local)
+            fields.append(safe_field)
 
         for member in node.members:
             type_ast = __deftype_member_to_py_ast(ctx, member, node)
             type_nodes.append(type_ast.node)
             type_nodes.extend(type_ast.dependencies)
+            members.append(munge(member.name))
 
         return GeneratedPyAST(
             node=ast.Name(id=type_name, ctx=ast.Load()),
@@ -1335,7 +1329,64 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches
                             bases=bases,
                             keywords=[],
                             body=type_nodes or [ast.Pass()],
-                            decorator_list=[decorator],
+                            decorator_list=list(
+                                chain(
+                                    []
+                                    if node.verified_abstract
+                                    else [
+                                        ast.Call(
+                                            func=_BASILISP_TYPE_FN_NAME,
+                                            args=[],
+                                            keywords=[
+                                                ast.keyword(
+                                                    arg="fields",
+                                                    value=ast.Tuple(
+                                                        elts=[
+                                                            ast.Constant(e)
+                                                            for e in fields
+                                                        ],
+                                                        ctx=ast.Load(),
+                                                    ),
+                                                ),
+                                                ast.keyword(
+                                                    arg="interfaces",
+                                                    value=ast.Tuple(
+                                                        elts=list(bases),
+                                                        ctx=ast.Load(),
+                                                    ),
+                                                ),
+                                                ast.keyword(
+                                                    arg="members",
+                                                    value=ast.Tuple(
+                                                        elts=[
+                                                            ast.Constant(e)
+                                                            for e in members
+                                                        ],
+                                                        ctx=ast.Load(),
+                                                    ),
+                                                ),
+                                            ],
+                                        )
+                                    ],
+                                    [
+                                        ast.Call(
+                                            func=_ATTR_CLASS_DECORATOR_NAME,
+                                            args=[],
+                                            keywords=_ATTR_CMP_KWARGS
+                                            + [
+                                                ast.keyword(
+                                                    arg="frozen",
+                                                    value=ast.Constant(node.is_frozen),
+                                                ),
+                                                ast.keyword(
+                                                    arg="slots",
+                                                    value=ast.Constant(True),
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                )
+                            ),
                         ),
                         ast.Call(
                             func=_INTERN_VAR_FN_NAME,

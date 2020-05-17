@@ -17,8 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where Basilisp would throw an exception when comparing seqs by `=` to non-seqable values (#530)
  * Fixed a bug where aliased Python submodule imports referred to the top-level module rather than the submodule (#533)
  * Fixed a bug where static methods and class methods on types created by `deftype` could not be referred to directly (defeating the purpose of the static or class method) (#537)
- * Fixed a bug where `defftype` forms could not be declared without at least one field (#540)
+ * Fixed a bug where `deftype` forms could not be declared without at least one field (#540)
  * Fixed a bug where not all builtin Basilisp types could be pickled (#518)
+ * Fixed a bug where `deftype` forms could not be created interfaces declared not at the top-level of a code block in a namespace (#376)
 
 ## [v0.1.dev13] - 2020-03-16
 ### Added

@@ -380,6 +380,7 @@ class DefType(Node[SpecialForm]):
     fields: Iterable[Binding]
     members: Iterable["DefTypeMember"]
     env: NodeEnv
+    verified_abstract: bool = False
     is_frozen: bool = True
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.v(FIELDS, MEMBERS)
