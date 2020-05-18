@@ -407,26 +407,25 @@ class AnalyzerContext:
         return self._should_macroexpand
 
     @property
+    def func_ctx(self) -> Optional[FunctionContext]:
+        try:
+            return self._func_ctx[-1]
+        except IndexError:
+            return None
+
+    @property
     def is_async_ctx(self) -> bool:
         """If True, the current node appears inside of an async function definition.
         It is possible that the current function is defined inside other functions,
         so this does not imply anything about the nesting level of the current node."""
-        try:
-            return self._func_ctx[-1] == FunctionContext.ASYNC_FUNCTION
-        except IndexError:
-            return False
+        return self.func_ctx == FunctionContext.ASYNC_FUNCTION
 
     @property
     def in_func_or_method_ctx(self) -> bool:
         """If True, the current node appears inside of a function or method definition.
         It is possible that the current function is defined inside other functions,
         so this does not imply anything about the nesting level of the current node."""
-        try:
-            self._func_ctx[-1]
-        except IndexError:
-            return False
-        else:
-            return True
+        return self.func_ctx is not None
 
     @contextlib.contextmanager
     def new_func_ctx(self, context_type: FunctionContext):
@@ -580,7 +579,9 @@ class AnalyzerContext:
         return self._syntax_pos[-1]
 
     def get_node_env(self, pos: Optional[NodeSyntacticPosition] = None):
-        return NodeEnv(ns=self.current_ns, file=self.filename, pos=pos)
+        return NodeEnv(
+            ns=self.current_ns, file=self.filename, pos=pos, func_ctx=self.func_ctx
+        )
 
 
 MetaGetter = Callable[[Union[IMeta, Var]], bool]
@@ -897,7 +898,6 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         var=var,
         init=init,
         doc=doc,
-        in_func_ctx=ctx.in_func_or_method_ctx,
         children=children,
         env=def_node_env,
     )

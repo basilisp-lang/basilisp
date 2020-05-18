@@ -750,7 +750,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
             # complaining that we assign the value prior to global declaration.
             def_dependencies = list(
                 chain(
-                    [ast.Global(names=[safe_name])] if node.in_func_ctx else [],
+                    [ast.Global(names=[safe_name])]
+                    if node.env.func_ctx is not None
+                    else [],
                     def_ast.dependencies,
                 )
             )
@@ -758,7 +760,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
             def_dependencies = list(
                 chain(
                     def_ast.dependencies,
-                    [ast.Global(names=[safe_name])] if node.in_func_ctx else [],
+                    [ast.Global(names=[safe_name])]
+                    if node.env.func_ctx is not None
+                    else [],
                     [
                         ast.Assign(
                             targets=[ast.Name(id=safe_name, ctx=ast.Store())],
@@ -775,7 +779,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         # root.
         func = _INTERN_UNBOUND_VAR_FN_NAME
         extra_args = []
-        def_dependencies = [ast.Global(names=[safe_name])] if node.in_func_ctx else []
+        def_dependencies = (
+            [ast.Global(names=[safe_name])] if node.env.func_ctx is not None else []
+        )
 
     meta_ast = gen_py_ast(ctx, node.meta)
 
@@ -2002,6 +2008,8 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
             sym.symbol(alias.alias or alias.name), py_import_alias, LocalType.IMPORT
         )
 
+        if node.env.func_ctx is not None:
+            deps.append(ast.Global(names=[py_import_alias]))
         deps.append(
             ast.Assign(
                 targets=[ast.Name(id=py_import_alias, ctx=ast.Store())],
@@ -2376,6 +2384,8 @@ def _require_to_py_ast(ctx: GeneratorContext, node: Require) -> GeneratedPyAST:
         ctx.symbol_table.new_symbol(
             sym.symbol(alias.alias or alias.name), py_require_alias, LocalType.REQUIRE
         )
+        if node.env.func_ctx is not None:
+            deps.append(ast.Global(names=[py_require_alias]))
         deps.append(
             ast.Try(
                 body=[

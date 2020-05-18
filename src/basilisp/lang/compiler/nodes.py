@@ -307,6 +307,7 @@ class NodeEnv:
     line: Optional[int] = None
     col: Optional[int] = None
     pos: Optional[NodeSyntacticPosition] = None
+    func_ctx: Optional[FunctionContext] = None
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -371,7 +372,6 @@ class Def(Node[SpecialForm]):
     var: Var
     init: Optional[Node]
     doc: Optional[str]
-    in_func_ctx: bool
     env: NodeEnv
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.Vector.empty()
