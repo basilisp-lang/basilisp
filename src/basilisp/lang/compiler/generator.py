@@ -131,7 +131,7 @@ _MULTI_ARITY_ARG_NAME = "multi_arity_args"
 _SET_BANG_TEMP_PREFIX = "set_bang_val"
 _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
-_NS_VAR = "__NS"
+_NS_VAR = "_NS"
 
 
 GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERATION)
