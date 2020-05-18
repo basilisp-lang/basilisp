@@ -272,7 +272,7 @@ NodeMeta = Union[None, "Const", "Map"]
 LoopID = str
 
 
-class FunctionContext:
+class FunctionContext(Enum):
     FUNCTION = kw.keyword("function")
     ASYNC_FUNCTION = kw.keyword("async-function")
     METHOD = kw.keyword("method")
