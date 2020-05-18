@@ -272,6 +272,15 @@ NodeMeta = Union[None, "Const", "Map"]
 LoopID = str
 
 
+class FunctionContext:
+    FUNCTION = kw.keyword("function")
+    ASYNC_FUNCTION = kw.keyword("async-function")
+    METHOD = kw.keyword("method")
+    CLASSMETHOD = kw.keyword("classmethod")
+    STATICMETHOD = kw.keyword("staticmethod")
+    PROPERTY = kw.keyword("property")
+
+
 class KeywordArgSupport(Enum):
     APPLY_KWARGS = kw.keyword("apply")
     COLLECT_KWARGS = kw.keyword("collect")
