@@ -2059,6 +2059,16 @@ def _import_ast(  # pylint: disable=too-many-branches
         if isinstance(f, sym.Symbol):
             module_name = f
             module_alias = None
+
+            ctx.put_new_symbol(
+                module_name,
+                Binding(
+                    form=module_name,
+                    name=module_name.name,
+                    local=LocalType.IMPORT,
+                    env=ctx.get_node_env(),
+                ),
+            )
         elif isinstance(f, vec.Vector):
             if len(f) != 3:
                 raise AnalyzerException(
@@ -2073,6 +2083,16 @@ def _import_ast(  # pylint: disable=too-many-branches
             if not isinstance(module_alias_sym, sym.Symbol):
                 raise AnalyzerException("Python module alias must be a symbol", form=f)
             module_alias = module_alias_sym.name
+
+            ctx.put_new_symbol(
+                module_alias_sym,
+                Binding(
+                    form=module_alias_sym,
+                    name=module_alias,
+                    local=LocalType.IMPORT,
+                    env=ctx.get_node_env(),
+                ),
+            )
         else:
             raise AnalyzerException("symbol or vector expected for import*", form=f)
 
@@ -2889,8 +2909,26 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     elif ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
 
+    # Imports nested in function definitions and `(do ...)` forms are not statically
+    # resolvable, since they haven't necessarily been imported and we want to minimize
+    # side-effecting from the compiler. In these cases, we defer to
+    maybe_import_sym = sym.symbol(form.ns)
+    maybe_import_entry = ctx.symbol_table.find_symbol(maybe_import_sym)
+    if (
+        maybe_import_entry is not None
+        and maybe_import_entry.context == LocalType.IMPORT
+    ):
+        ctx.symbol_table.mark_used(maybe_import_sym)
+        return MaybeHostForm(
+            form=form,
+            class_=munge(form.ns),
+            field=munge(form.name),
+            target=None,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
+
     # Static and class methods on types in the current namespace can be referred
-    # to as `Type/static-method`. In these casess, we will try to resolve the
+    # to as `Type/static-method`. In these cases, we will try to resolve the
     # namespace portion of the symbol as a Var within the current namespace.
     maybe_type_or_class = current_ns.find(sym.symbol(form.ns))
     if maybe_type_or_class is not None:

@@ -292,6 +292,7 @@ class LocalType(Enum):
     DEFTYPE = kw.keyword("deftype")
     FIELD = kw.keyword("field")
     FN = kw.keyword("fn")
+    IMPORT = kw.keyword("import")
     LET = kw.keyword("let")
     LETFN = kw.keyword("letfn")
     LOOP = kw.keyword("loop")
