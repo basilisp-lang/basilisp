@@ -296,6 +296,7 @@ class LocalType(Enum):
     LET = kw.keyword("let")
     LETFN = kw.keyword("letfn")
     LOOP = kw.keyword("loop")
+    REQUIRE = kw.keyword("require")
     THIS = kw.keyword("this")
 
 

@@ -811,10 +811,11 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
             f"def names must be symbols, not {type(name)}", form=name
         )
 
+    children: vec.Vector[kw.Keyword]
     if nelems == 2:
         init = None
         doc = None
-        children: vec.Vector[kw.Keyword] = vec.Vector.empty()
+        children = vec.Vector.empty()
     elif nelems == 3:
         with ctx.expr_pos():
             init = _analyze_form(ctx, runtime.nth(form, 2))
@@ -1776,11 +1777,11 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
+        name_node: Optional[Binding]
         if isinstance(name, sym.Symbol):
-            name_node: Optional[Binding] = Binding(
+            name_node = Binding(
                 form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
-            assert name_node is not None
             is_async = _is_async(name) or isinstance(form, IMeta) and _is_async(form)
             kwarg_support = (
                 __fn_kwargs_support(name)
@@ -2490,6 +2491,16 @@ def _require_ast(  # pylint: disable=too-many-branches
         if isinstance(f, sym.Symbol):
             module_name = f
             module_alias = None
+
+            ctx.put_new_symbol(
+                module_name,
+                Binding(
+                    form=module_name,
+                    name=module_name.name,
+                    local=LocalType.REQUIRE,
+                    env=ctx.get_node_env(),
+                ),
+            )
         elif isinstance(f, vec.Vector):
             if len(f) != 3:
                 raise AnalyzerException(
@@ -2508,6 +2519,16 @@ def _require_ast(  # pylint: disable=too-many-branches
                     "Basilisp namespace alias must be a symbol", form=f
                 )
             module_alias = module_alias_sym.name
+
+            ctx.put_new_symbol(
+                module_alias_sym,
+                Binding(
+                    form=module_alias_sym,
+                    name=module_alias,
+                    local=LocalType.IMPORT,
+                    env=ctx.get_node_env(),
+                ),
+            )
         else:
             raise AnalyzerException("symbol or vector expected for require*", form=f)
 
@@ -2909,23 +2930,25 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     elif ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
 
-    # Imports nested in function definitions and `(do ...)` forms are not statically
-    # resolvable, since they haven't necessarily been imported and we want to minimize
-    # side-effecting from the compiler. In these cases, we defer to
+    # Imports and requires nested in function definitions, method definitions, and
+    # `(do ...)` forms are not statically resolvable, since they haven't necessarily
+    # been imported and we want to minimize side-effecting from the compiler. In these
+    # cases, we merely verify that we've seen the symbol before and defer to runtime
+    # checks by the Python VM to verify that the import or require is legitimate.
     maybe_import_sym = sym.symbol(form.ns)
     maybe_import_entry = ctx.symbol_table.find_symbol(maybe_import_sym)
-    if (
-        maybe_import_entry is not None
-        and maybe_import_entry.context == LocalType.IMPORT
-    ):
-        ctx.symbol_table.mark_used(maybe_import_sym)
-        return MaybeHostForm(
-            form=form,
-            class_=munge(form.ns),
-            field=munge(form.name),
-            target=None,
-            env=ctx.get_node_env(pos=ctx.syntax_position),
-        )
+    if maybe_import_entry is not None:
+        if maybe_import_entry.context == LocalType.IMPORT:
+            ctx.symbol_table.mark_used(maybe_import_sym)
+            return MaybeHostForm(
+                form=form,
+                class_=munge(form.ns),
+                field=munge(form.name),
+                target=None,
+                env=ctx.get_node_env(pos=ctx.syntax_position),
+            )
+        elif maybe_import_entry.context == LocalType.REQUIRE:
+            pass
 
     # Static and class methods on types in the current namespace can be referred
     # to as `Type/static-method`. In these cases, we will try to resolve the

@@ -1994,17 +1994,13 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
         if alias.alias is not None:
             py_import_alias = munge(alias.alias)
             import_func = _IMPORTLIB_IMPORT_MODULE_FN_NAME
-
-            ctx.symbol_table.new_symbol(
-                sym.symbol(alias.alias), py_import_alias, LocalType.IMPORT
-            )
         else:
             py_import_alias = safe_name.split(".", maxsplit=1)[0]
             import_func = _BUILTINS_IMPORT_FN_NAME
 
-            ctx.symbol_table.new_symbol(
-                sym.symbol(alias.name), py_import_alias, LocalType.IMPORT
-            )
+        ctx.symbol_table.new_symbol(
+            sym.symbol(alias.alias or alias.name), py_import_alias, LocalType.IMPORT
+        )
 
         deps.append(
             ast.Assign(
@@ -2338,7 +2334,7 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
 
 
 @_with_ast_loc_deps
-def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
+def _require_to_py_ast(ctx: GeneratorContext, node: Require) -> GeneratedPyAST:
     """Return a Python AST node for a Basilisp `require*` expression.
 
     In Clojure, `require` simply loads the file corresponding to the required
@@ -2376,6 +2372,10 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
     for alias in node.aliases:
         py_require_alias = _var_ns_as_python_sym(alias.name)
         last = ast.Name(id=py_require_alias, ctx=ast.Load())
+
+        ctx.symbol_table.new_symbol(
+            sym.symbol(alias.alias or alias.name), py_require_alias, LocalType.REQUIRE
+        )
         deps.append(
             ast.Try(
                 body=[
