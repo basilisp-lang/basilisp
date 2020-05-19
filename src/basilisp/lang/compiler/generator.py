@@ -188,7 +188,9 @@ class SymbolTable:
         so they do not go out of scope when the table frame is popped."""
         if self._is_context_boundary:
             return self
-        assert self._parent is not None, ""
+        assert (
+            self._parent is not None
+        ), "Top symbol table must always be a context boundary"
         return self._parent.context_boundary
 
 
