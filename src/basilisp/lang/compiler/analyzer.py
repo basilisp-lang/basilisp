@@ -87,6 +87,7 @@ from basilisp.lang.compiler.nodes import (
     Do,
     Fn,
     FnArity,
+    FunctionContext,
     HostCall,
     HostField,
     If,
@@ -309,7 +310,7 @@ class AnalyzerContext:
     ) -> None:
         self._allow_unresolved_symbols = allow_unresolved_symbols
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
-        self._func_ctx: Deque[bool] = collections.deque([])
+        self._func_ctx: Deque[FunctionContext] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
         self._macro_ns: Deque[Optional[runtime.Namespace]] = collections.deque([])
         self._opts = (
@@ -406,34 +407,33 @@ class AnalyzerContext:
         return self._should_macroexpand
 
     @property
-    def is_async_ctx(self) -> bool:
-        """If True, the current node appears inside of an async function definition.
+    def func_ctx(self) -> Optional[FunctionContext]:
+        """Return the current function or method context of the current node, if one.
+        Return None otherwise.
+
         It is possible that the current function is defined inside other functions,
         so this does not imply anything about the nesting level of the current node."""
         try:
-            return self._func_ctx[-1] is True
+            return self._func_ctx[-1]
         except IndexError:
-            return False
+            return None
 
     @property
-    def in_func_ctx(self) -> bool:
-        """If True, the current node appears inside of a function definition.
+    def is_async_ctx(self) -> bool:
+        """Return True if the current node appears inside of an async function
+        definition. Return False otherwise.
+
         It is possible that the current function is defined inside other functions,
         so this does not imply anything about the nesting level of the current node."""
-        try:
-            self._func_ctx[-1]
-        except IndexError:
-            return False
-        else:
-            return True
+        return self.func_ctx == FunctionContext.ASYNC_FUNCTION
 
     @contextlib.contextmanager
-    def new_func_ctx(self, is_async: bool = False):
-        """Context manager which can be used to set a function context for child
-        nodes to examine. A new function context is pushed onto the stack each time
-        the Analyzer finds a new function definition, so there may be many nested
-        function contexts."""
-        self._func_ctx.append(is_async)
+    def new_func_ctx(self, context_type: FunctionContext):
+        """Context manager which can be used to set a function or method context for
+        child nodes to examine. A new function context is pushed onto the stack each
+        time the Analyzer finds a new function or method definition, so there may be
+        many nested function contexts."""
+        self._func_ctx.append(context_type)
         yield
         self._func_ctx.pop()
 
@@ -578,8 +578,14 @@ class AnalyzerContext:
         parent node."""
         return self._syntax_pos[-1]
 
-    def get_node_env(self, pos: Optional[NodeSyntacticPosition] = None):
-        return NodeEnv(ns=self.current_ns, file=self.filename, pos=pos)
+    def get_node_env(self, pos: Optional[NodeSyntacticPosition] = None) -> NodeEnv:
+        """Return the current Node environment.
+
+        If a synax position is given, it will be included in the environment.
+        Otherwise, the position will be set to None."""
+        return NodeEnv(
+            ns=self.current_ns, file=self.filename, pos=pos, func_ctx=self.func_ctx
+        )
 
 
 MetaGetter = Callable[[Union[IMeta, Var]], bool]
@@ -810,10 +816,11 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
             f"def names must be symbols, not {type(name)}", form=name
         )
 
+    children: vec.Vector[kw.Keyword]
     if nelems == 2:
         init = None
         doc = None
-        children: vec.Vector[kw.Keyword] = vec.Vector.empty()
+        children = vec.Vector.empty()
     elif nelems == 3:
         with ctx.expr_pos():
             init = _analyze_form(ctx, runtime.nth(form, 2))
@@ -895,7 +902,6 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         var=var,
         init=init,
         doc=doc,
-        in_func_ctx=ctx.in_func_ctx,
         children=children,
         env=def_node_env,
     )
@@ -1037,29 +1043,30 @@ def __deftype_classmethod(
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
             ctx, params
         )
-        with ctx.expr_pos():
-            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        method = DefTypeClassMethodArity(
-            form=form,
-            name=method_name,
-            params=vec.vector(param_nodes),
-            fixed_arity=fixed_arity,
-            is_variadic=has_vargs,
-            kwarg_support=kwarg_support,
-            body=Do(
-                form=form.rest,
-                statements=vec.vector(stmts),
-                ret=ret,
-                is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
+        with ctx.new_func_ctx(FunctionContext.CLASSMETHOD):
+            with ctx.expr_pos():
+                stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+            method = DefTypeClassMethodArity(
+                form=form,
+                name=method_name,
+                params=vec.vector(param_nodes),
+                fixed_arity=fixed_arity,
+                is_variadic=has_vargs,
+                kwarg_support=kwarg_support,
+                body=Do(
+                    form=form.rest,
+                    statements=vec.vector(stmts),
+                    ret=ret,
+                    is_body=True,
+                    # Use the argument vector or first body statement, whichever
+                    # exists, for metadata.
+                    env=ctx.get_node_env(),
+                ),
+                class_local=cls_binding,
                 env=ctx.get_node_env(),
-            ),
-            class_local=cls_binding,
-            env=ctx.get_node_env(),
-        )
-        method.visit(_assert_no_recur)
-        return method
+            )
+            method.visit(_assert_no_recur)
+            return method
 
 
 def __deftype_method(
@@ -1096,7 +1103,9 @@ def __deftype_method(
         )
 
         loop_id = genname(method_name)
-        with ctx.new_recur_point(loop_id, param_nodes):
+        with ctx.new_func_ctx(FunctionContext.METHOD), ctx.new_recur_point(
+            loop_id, param_nodes
+        ):
             with ctx.expr_pos():
                 stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
             method = DefTypeMethodArity(
@@ -1160,26 +1169,27 @@ def __deftype_property(
 
         assert not has_vargs, "deftype* properties may not have arguments"
 
-        with ctx.expr_pos():
-            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        prop = DefTypeProperty(
-            form=form,
-            name=method_name,
-            this_local=this_binding,
-            params=vec.vector(param_nodes),
-            body=Do(
-                form=form.rest,
-                statements=vec.vector(stmts),
-                ret=ret,
-                is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
+        with ctx.new_func_ctx(FunctionContext.PROPERTY):
+            with ctx.expr_pos():
+                stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+            prop = DefTypeProperty(
+                form=form,
+                name=method_name,
+                this_local=this_binding,
+                params=vec.vector(param_nodes),
+                body=Do(
+                    form=form.rest,
+                    statements=vec.vector(stmts),
+                    ret=ret,
+                    is_body=True,
+                    # Use the argument vector or first body statement, whichever
+                    # exists, for metadata.
+                    env=ctx.get_node_env(),
+                ),
                 env=ctx.get_node_env(),
-            ),
-            env=ctx.get_node_env(),
-        )
-        prop.visit(_assert_no_recur)
-        return prop
+            )
+            prop.visit(_assert_no_recur)
+            return prop
 
 
 def __deftype_staticmethod(
@@ -1192,28 +1202,29 @@ def __deftype_staticmethod(
     """Emit a node for a :staticmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(ctx, args)
-        with ctx.expr_pos():
-            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        method = DefTypeStaticMethodArity(
-            form=form,
-            name=method_name,
-            params=vec.vector(param_nodes),
-            fixed_arity=fixed_arity,
-            is_variadic=has_vargs,
-            kwarg_support=kwarg_support,
-            body=Do(
-                form=form.rest,
-                statements=vec.vector(stmts),
-                ret=ret,
-                is_body=True,
-                # Use the argument vector or first body statement, whichever
-                # exists, for metadata.
+        with ctx.new_func_ctx(FunctionContext.STATICMETHOD):
+            with ctx.expr_pos():
+                stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+            method = DefTypeStaticMethodArity(
+                form=form,
+                name=method_name,
+                params=vec.vector(param_nodes),
+                fixed_arity=fixed_arity,
+                is_variadic=has_vargs,
+                kwarg_support=kwarg_support,
+                body=Do(
+                    form=form.rest,
+                    statements=vec.vector(stmts),
+                    ret=ret,
+                    is_body=True,
+                    # Use the argument vector or first body statement, whichever
+                    # exists, for metadata.
+                    env=ctx.get_node_env(),
+                ),
                 env=ctx.get_node_env(),
-            ),
-            env=ctx.get_node_env(),
-        )
-        method.visit(_assert_no_recur)
-        return method
+            )
+            method.visit(_assert_no_recur)
+            return method
 
 
 def __deftype_prop_or_method_arity(  # pylint: disable=too-many-branches
@@ -1770,11 +1781,11 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
+        name_node: Optional[Binding]
         if isinstance(name, sym.Symbol):
-            name_node: Optional[Binding] = Binding(
+            name_node = Binding(
                 form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
-            assert name_node is not None
             is_async = _is_async(name) or isinstance(form, IMeta) and _is_async(form)
             kwarg_support = (
                 __fn_kwargs_support(name)
@@ -1802,7 +1813,9 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
-        with ctx.new_func_ctx(is_async=is_async):
+        with ctx.new_func_ctx(
+            FunctionContext.ASYNC_FUNCTION if is_async else FunctionContext.FUNCTION
+        ):
             if isinstance(arity_or_args, llist.List):
                 arities = vec.vector(
                     map(

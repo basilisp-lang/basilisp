@@ -272,6 +272,15 @@ NodeMeta = Union[None, "Const", "Map"]
 LoopID = str
 
 
+class FunctionContext(Enum):
+    FUNCTION = kw.keyword("function")
+    ASYNC_FUNCTION = kw.keyword("async-function")
+    METHOD = kw.keyword("method")
+    CLASSMETHOD = kw.keyword("classmethod")
+    STATICMETHOD = kw.keyword("staticmethod")
+    PROPERTY = kw.keyword("property")
+
+
 class KeywordArgSupport(Enum):
     APPLY_KWARGS = kw.keyword("apply")
     COLLECT_KWARGS = kw.keyword("collect")
@@ -296,6 +305,7 @@ class NodeEnv:
     line: Optional[int] = None
     col: Optional[int] = None
     pos: Optional[NodeSyntacticPosition] = None
+    func_ctx: Optional[FunctionContext] = None
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -360,7 +370,6 @@ class Def(Node[SpecialForm]):
     var: Var
     init: Optional[Node]
     doc: Optional[str]
-    in_func_ctx: bool
     env: NodeEnv
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.Vector.empty()

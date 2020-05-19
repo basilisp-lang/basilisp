@@ -131,7 +131,7 @@ _MULTI_ARITY_ARG_NAME = "multi_arity_args"
 _SET_BANG_TEMP_PREFIX = "set_bang_val"
 _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
-_NS_VAR = "__NS"
+_NS_VAR = "_NS"
 
 
 GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERATION)
@@ -750,7 +750,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
             # complaining that we assign the value prior to global declaration.
             def_dependencies = list(
                 chain(
-                    [ast.Global(names=[safe_name])] if node.in_func_ctx else [],
+                    [ast.Global(names=[safe_name])]
+                    if node.env.func_ctx is not None
+                    else [],
                     def_ast.dependencies,
                 )
             )
@@ -758,7 +760,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
             def_dependencies = list(
                 chain(
                     def_ast.dependencies,
-                    [ast.Global(names=[safe_name])] if node.in_func_ctx else [],
+                    [ast.Global(names=[safe_name])]
+                    if node.env.func_ctx is not None
+                    else [],
                     [
                         ast.Assign(
                             targets=[ast.Name(id=safe_name, ctx=ast.Store())],
@@ -775,7 +779,9 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
         # root.
         func = _INTERN_UNBOUND_VAR_FN_NAME
         extra_args = []
-        def_dependencies = [ast.Global(names=[safe_name])] if node.in_func_ctx else []
+        def_dependencies = (
+            [ast.Global(names=[safe_name])] if node.env.func_ctx is not None else []
+        )
 
     meta_ast = gen_py_ast(ctx, node.meta)
 
@@ -2330,7 +2336,7 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
 
 
 @_with_ast_loc_deps
-def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
+def _require_to_py_ast(ctx: GeneratorContext, node: Require) -> GeneratedPyAST:
     """Return a Python AST node for a Basilisp `require*` expression.
 
     In Clojure, `require` simply loads the file corresponding to the required

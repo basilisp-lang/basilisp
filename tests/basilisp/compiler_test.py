@@ -4264,6 +4264,66 @@ class TestSymbolResolution:
         with pytest.raises(compiler.CompilerException):
             lcompile("basilisp.lang.map.MapEntry.of")
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (fn []
+              (def a :a)
+              (var a))""",
+            """
+            (import* collections.abc)
+            (deftype* Definer []
+              :implements [collections.abc/Callable]
+              (--call-- [this] (def a :a) (var a)))
+            (Definer)""",
+        ],
+    )
+    def test_symbol_deffed_in_fn_or_method_will_resolve_in_fn_or_method(
+        self, ns: runtime.Namespace, lcompile: CompileFn, code: str,
+    ):
+        # This behavior is peculiar and perhaps even _wrong_, but it matches how
+        # Clojure treats Vars defined in functions. Of course, generally speaking,
+        # Vars should not be defined like this so I suppose it's not a huge deal.
+        fn = lcompile(code)
+
+        resolved_var = ns.find(sym.symbol("a"))
+        assert not resolved_var.is_bound
+
+        returned_var = fn()
+        assert returned_var is resolved_var
+        assert returned_var.is_bound
+        assert returned_var.value == kw.keyword("a")
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (do
+              (fn [] (def a :a))
+              (var a))""",
+            """
+            (fn [] (def a :a))
+            (var a)""",
+            """
+            (import* collections.abc)
+            (deftype* Definer []
+              :implements [collections.abc/Callable]
+              (--call-- [this] (def a :a)))
+            (var a)""",
+        ],
+    )
+    def test_symbol_deffed_in_fn_or_method_will_resolve_outside_fn_or_method(
+        self, ns: runtime.Namespace, lcompile: CompileFn, code: str
+    ):
+        var = lcompile(code)
+        assert not var.is_bound
+
+        resolved_var = ns.find(sym.symbol("a"))
+        assert not resolved_var.is_bound
+
+        assert var is resolved_var
+
     def test_local_deftype_classmethod_resolves(self, lcompile: CompileFn):
         Point = lcompile(
             """
