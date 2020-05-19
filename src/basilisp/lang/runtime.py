@@ -1656,13 +1656,13 @@ def init_ns_var() -> Var:
 def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     """Bootstrap the environment with functions that are either difficult to express
     with the very minimal Lisp environment or which are expected by the compiler."""
-    __NS = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
+    _NS = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
         lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
     )
 
     def in_ns(s: sym.Symbol):
         ns = Namespace.get_or_create(s)
-        __NS.value = ns
+        _NS.value = ns
         return ns
 
     # Vars used in bootstrapping the runtime
