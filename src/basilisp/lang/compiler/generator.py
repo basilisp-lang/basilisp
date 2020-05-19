@@ -148,9 +148,9 @@ class SymbolTableEntry:
 @attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
     name: str
+    _is_context_boundary: bool = False
     _parent: Optional["SymbolTable"] = None
     _table: MutableMapping[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
-    _children: MutableMapping[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(self, s: sym.Symbol, munged: str, ctx: LocalType) -> "SymbolTable":
         if s in self._table:
@@ -168,20 +168,18 @@ class SymbolTable:
             return None
         return self._parent.find_symbol(s)
 
-    def append_frame(self, name: str, parent: "SymbolTable" = None) -> "SymbolTable":
-        new_frame = SymbolTable(name, parent=parent)
-        self._children[name] = new_frame
-        return new_frame
-
-    def pop_frame(self, name: str) -> None:
-        del self._children[name]
-
     @contextlib.contextmanager
-    def new_frame(self, name):
+    def new_frame(self, name: str, is_context_boundary: bool):
         """Context manager for creating a new stack frame."""
-        new_frame = self.append_frame(name, parent=self)
-        yield new_frame
-        self.pop_frame(name)
+        yield SymbolTable(name, is_context_boundary=is_context_boundary, parent=self)
+
+    @property
+    def context_boundary(self) -> "SymbolTable":
+        """"""
+        if self._is_context_boundary:
+            return self
+        assert self._parent is not None, ""
+        return self._parent.context_boundary
 
 
 class RecurType(Enum):
@@ -215,7 +213,7 @@ class GeneratorContext:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._opts = Maybe(opts).map(lmap.map).or_else_get(lmap.m())  # type: ignore
         self._recur_points: Deque[RecurPoint] = collections.deque([])
-        self._st = collections.deque([SymbolTable("<Top>")])
+        self._st = collections.deque([SymbolTable("<Top>", is_context_boundary=True)])
         self._this: Deque[sym.Symbol] = collections.deque([])
         self._var_indirection_override: Deque[bool] = collections.deque([])
 
@@ -282,9 +280,9 @@ class GeneratorContext:
         return self._st[-1]
 
     @contextlib.contextmanager
-    def new_symbol_table(self, name):
+    def new_symbol_table(self, name: str, is_context_boundary: bool = False):
         old_st = self.symbol_table
-        with old_st.new_frame(name) as st:
+        with old_st.new_frame(name, is_context_boundary) as st:
             self._st.append(st)
             yield st
             self._st.pop()
@@ -1074,7 +1072,7 @@ def __deftype_classmethod_arity_to_py_ast(
     assert arity.op == NodeOp.DEFTYPE_CLASSMETHOD_ARITY
     assert node.name == arity.name
 
-    with ctx.new_symbol_table(node.name):
+    with ctx.new_symbol_table(node.name, is_context_boundary=True):
         class_name = genname(munge(arity.class_local.name))
         class_sym = sym.symbol(arity.class_local.name)
         ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.ARG)
@@ -1118,7 +1116,7 @@ def __deftype_property_to_py_ast(
     assert node.op == NodeOp.DEFTYPE_PROPERTY
     method_name = munge(node.name)
 
-    with ctx.new_symbol_table(node.name):
+    with ctx.new_symbol_table(node.name, is_context_boundary=True):
         this_name = genname(munge(node.this_local.name))
         this_sym = sym.symbol(node.this_local.name)
         ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
@@ -1156,7 +1154,7 @@ def __deftype_method_arity_to_py_ast(
     assert arity.op == NodeOp.DEFTYPE_METHOD_ARITY
     assert node.name == arity.name
 
-    with ctx.new_symbol_table(node.name), ctx.new_recur_point(
+    with ctx.new_symbol_table(node.name, is_context_boundary=True), ctx.new_recur_point(
         arity.loop_id, RecurType.METHOD, is_variadic=node.is_variadic
     ):
         this_name = genname(munge(arity.this_local.name))
@@ -1209,7 +1207,7 @@ def __deftype_staticmethod_arity_to_py_ast(
     assert arity.op == NodeOp.DEFTYPE_STATICMETHOD_ARITY
     assert node.name == arity.name
 
-    with ctx.new_symbol_table(node.name):
+    with ctx.new_symbol_table(node.name, is_context_boundary=True):
         return __single_arity_deftype_method_to_py_ast(
             ctx,
             arity,
@@ -1580,9 +1578,9 @@ def __single_arity_fn_to_py_ast(
     lisp_fn_name = node.local.name if node.local is not None else None
     py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
     py_fn_node = ast.AsyncFunctionDef if node.is_async else ast.FunctionDef
-    with ctx.new_symbol_table(py_fn_name), ctx.new_recur_point(
-        method.loop_id, RecurType.FN, is_variadic=node.is_variadic
-    ):
+    with ctx.new_symbol_table(
+        py_fn_name, is_context_boundary=True
+    ), ctx.new_recur_point(method.loop_id, RecurType.FN, is_variadic=node.is_variadic):
         # Allow named anonymous functions to recursively call themselves
         if lisp_fn_name is not None:
             ctx.symbol_table.new_symbol(
@@ -1817,7 +1815,9 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
         else:
             arity_to_name[arity.fixed_arity] = arity_name
 
-        with ctx.new_symbol_table(arity_name), ctx.new_recur_point(
+        with ctx.new_symbol_table(
+            arity_name, is_context_boundary=True
+        ), ctx.new_recur_point(
             arity.loop_id, RecurType.FN, is_variadic=node.is_variadic
         ):
             # Allow named anonymous functions to recursively call themselves
@@ -2004,7 +2004,7 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
             py_import_alias = safe_name.split(".", maxsplit=1)[0]
             import_func = _BUILTINS_IMPORT_FN_NAME
 
-        ctx.symbol_table.new_symbol(
+        ctx.symbol_table.context_boundary.new_symbol(
             sym.symbol(alias.alias or alias.name), py_import_alias, LocalType.IMPORT
         )
 
@@ -2381,7 +2381,7 @@ def _require_to_py_ast(ctx: GeneratorContext, node: Require) -> GeneratedPyAST:
         py_require_alias = _var_ns_as_python_sym(alias.name)
         last = ast.Name(id=py_require_alias, ctx=ast.Load())
 
-        ctx.symbol_table.new_symbol(
+        ctx.symbol_table.context_boundary.new_symbol(
             sym.symbol(alias.alias or alias.name), py_require_alias, LocalType.REQUIRE
         )
         if node.env.func_ctx is not None:

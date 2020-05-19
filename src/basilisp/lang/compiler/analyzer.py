@@ -190,9 +190,9 @@ class SymbolTableEntry:
 @attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
     name: str
+    _is_context_boundary: bool = False
     _parent: Optional["SymbolTable"] = None
     _table: MutableMapping[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
-    _children: MutableMapping[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(
         self, s: sym.Symbol, binding: Binding, warn_if_unused: bool = True
@@ -257,24 +257,19 @@ class SymbolTable:
                     f"symbol '{entry.symbol}' defined but not used ({ns}{code_loc})"
                 )
 
-    def append_frame(self, name: str, parent: "SymbolTable" = None) -> "SymbolTable":
-        new_frame = SymbolTable(name, parent=parent)
-        self._children[name] = new_frame
-        return new_frame
-
-    def pop_frame(self, name: str) -> None:
-        del self._children[name]
-
     @contextlib.contextmanager
-    def new_frame(self, name, warn_on_unused_names):
+    def new_frame(
+        self, name: str, is_context_boundary: bool, warn_on_unused_names: bool
+    ):
         """Context manager for creating a new stack frame. If warn_on_unused_names is
         True and the logger is enabled for WARNING, call _warn_unused_names() on the
         child SymbolTable before it is popped."""
-        new_frame = self.append_frame(name, parent=self)
+        new_frame = SymbolTable(
+            name, is_context_boundary=is_context_boundary, parent=self
+        )
         yield new_frame
         if warn_on_unused_names and logger.isEnabledFor(logging.WARNING):
             new_frame._warn_unused_names()
-        self.pop_frame(name)
 
     def _as_env_map(self) -> MutableMapping[sym.Symbol, lmap.Map]:
         locals_ = {} if self._parent is None else self._parent._as_env_map()
@@ -285,6 +280,14 @@ class SymbolTable:
         """Return a map of symbols to the local binding objects in the
         local symbol table as of this call."""
         return lmap.map(self._as_env_map())
+
+    @property
+    def context_boundary(self) -> "SymbolTable":
+        """"""
+        if self._is_context_boundary:
+            return self
+        assert self._parent is not None, ""
+        return self._parent.context_boundary
 
 
 class AnalyzerContext:
@@ -318,7 +321,7 @@ class AnalyzerContext:
         )
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._should_macroexpand = should_macroexpand
-        self._st = collections.deque([SymbolTable("<Top>")])
+        self._st = collections.deque([SymbolTable("<Top>", is_context_boundary=True)])
         self._syntax_pos = collections.deque([NodeSyntacticPosition.EXPR])
 
     @property
@@ -468,6 +471,7 @@ class AnalyzerContext:
         warn_on_shadowed_name: bool = True,
         warn_on_shadowed_var: bool = True,
         warn_if_unused: bool = True,
+        symbol_table: Optional[SymbolTable] = None,
     ):
         """Add a new symbol to the symbol table.
 
@@ -492,7 +496,7 @@ class AnalyzerContext:
         If WARN_ON_SHADOWED_VAR compiler option is active and the
         warn_on_shadowed_var keyword argument is True, then a warning will be
         emitted if a named var is shadowed by a local name."""
-        st = self.symbol_table
+        st = symbol_table or self.symbol_table
         no_warn_on_shadow = (
             Maybe(s.meta)
             .map(lambda m: m.val_at(SYM_NO_WARN_ON_SHADOW_META_KEY, False))
@@ -515,9 +519,11 @@ class AnalyzerContext:
         st.new_symbol(s, binding, warn_if_unused=warn_if_unused)
 
     @contextlib.contextmanager
-    def new_symbol_table(self, name):
+    def new_symbol_table(self, name: str, is_context_boundary: bool = False):
         old_st = self.symbol_table
-        with old_st.new_frame(name, self.warn_on_unused_names) as st:
+        with old_st.new_frame(
+            name, is_context_boundary, self.warn_on_unused_names,
+        ) as st:
             self._st.append(st)
             yield st
             self._st.pop()
@@ -1015,7 +1021,9 @@ def __deftype_classmethod(
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeClassMethodArity:
     """Emit a node for a :classmethod member of a deftype* form."""
-    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
+    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
+        method_name, is_context_boundary=True
+    ):
         try:
             cls_arg = args[0]
         except IndexError:
@@ -1073,7 +1081,7 @@ def __deftype_method(
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeMethodArity:
     """Emit a node for a method member of a deftype* form."""
-    with ctx.new_symbol_table(method_name):
+    with ctx.new_symbol_table(method_name, is_context_boundary=True):
         try:
             this_arg = args[0]
         except IndexError:
@@ -1135,7 +1143,7 @@ def __deftype_property(
     args: vec.Vector,
 ) -> DefTypeProperty:
     """Emit a node for a :property member of a deftype* form."""
-    with ctx.new_symbol_table(method_name):
+    with ctx.new_symbol_table(method_name, is_context_boundary=True):
         try:
             this_arg = args[0]
         except IndexError:
@@ -1196,7 +1204,9 @@ def __deftype_staticmethod(
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeStaticMethodArity:
     """Emit a node for a :staticmethod member of a deftype* form."""
-    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
+    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
+        method_name, is_context_boundary=True
+    ):
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(ctx, args)
         with ctx.new_func_ctx(FunctionContext.STATICMETHOD):
             with ctx.expr_pos():
@@ -1661,7 +1671,7 @@ def _do_ast(ctx: AnalyzerContext, form: ISeq) -> Do:
 def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
     ctx: AnalyzerContext, form: ISeq, fnname: Optional[sym.Symbol] = None
 ) -> FnArity:
-    with ctx.new_symbol_table("fn-method"):
+    with ctx.new_symbol_table("fn-method", is_context_boundary=True):
         params = form.first
         if not isinstance(params, vec.Vector):
             raise AnalyzerException(
@@ -1768,7 +1778,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
 
     idx = 1
 
-    with ctx.new_symbol_table("fn"):
+    with ctx.new_symbol_table("fn", is_context_boundary=True):
         try:
             name = runtime.nth(form, idx)
         except IndexError:
@@ -2069,6 +2079,7 @@ def _import_ast(  # pylint: disable=too-many-branches
                     local=LocalType.IMPORT,
                     env=ctx.get_node_env(),
                 ),
+                symbol_table=ctx.symbol_table.context_boundary,
             )
         elif isinstance(f, vec.Vector):
             if len(f) != 3:
@@ -2093,6 +2104,7 @@ def _import_ast(  # pylint: disable=too-many-branches
                     local=LocalType.IMPORT,
                     env=ctx.get_node_env(),
                 ),
+                symbol_table=ctx.symbol_table.context_boundary,
             )
         else:
             raise AnalyzerException("symbol or vector expected for import*", form=f)
@@ -2500,6 +2512,7 @@ def _require_ast(  # pylint: disable=too-many-branches
                     local=LocalType.REQUIRE,
                     env=ctx.get_node_env(),
                 ),
+                symbol_table=ctx.symbol_table.context_boundary,
             )
         elif isinstance(f, vec.Vector):
             if len(f) != 3:
@@ -2528,6 +2541,7 @@ def _require_ast(  # pylint: disable=too-many-branches
                     local=LocalType.IMPORT,
                     env=ctx.get_node_env(),
                 ),
+                symbol_table=ctx.symbol_table.context_boundary,
             )
         else:
             raise AnalyzerException("symbol or vector expected for require*", form=f)
