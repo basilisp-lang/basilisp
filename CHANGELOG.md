@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for calling Python functions and methods with keyword arguments (#531)
  * Added support for Lisp functions being called with keyword arguments (#528)
  * Added support for multi-arity methods on `deftype`s (#534)
- * Added metadata about the function or method context of a Lisp AST node in the `NodeEnv`
+ * Added metadata about the function or method context of a Lisp AST node in the `NodeEnv` (#548)
 
 ### Fixed
  * Fixed a bug where the Basilisp AST nodes for return values of `deftype` members could be marked as _statements_ rather than _expressions_, resulting in an incorrect `nil` return (#523)
