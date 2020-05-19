@@ -283,7 +283,17 @@ class SymbolTable:
 
     @property
     def context_boundary(self) -> "SymbolTable":
-        """"""
+        """Return the nearest context boundary parent symbol table to this one. If the
+        current table is a context boundary, it will be returned directly.
+
+        Context boundary symbol tables are symbol tables defined at the top level for
+        major Python execution boundaries, such as modules (namespaces), functions
+        (sync and async), and methods.
+
+        Certain symbols (such as imports) are globally available in the execution
+        context they are defined in once they have been created, context boundary
+        symbol tables serve as the anchor points where we hoist these global symbols
+        so they do not go out of scope when the table frame is popped."""
         if self._is_context_boundary:
             return self
         assert self._parent is not None, ""
