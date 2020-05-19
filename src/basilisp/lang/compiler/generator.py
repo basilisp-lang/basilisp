@@ -2336,7 +2336,7 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
 
 
 @_with_ast_loc_deps
-def _require_to_py_ast(ctx: GeneratorContext, node: Require) -> GeneratedPyAST:
+def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
     """Return a Python AST node for a Basilisp `require*` expression.
 
     In Clojure, `require` simply loads the file corresponding to the required
