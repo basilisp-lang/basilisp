@@ -1043,30 +1043,29 @@ def __deftype_classmethod(
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
             ctx, params
         )
-        with ctx.new_func_ctx(FunctionContext.CLASSMETHOD):
-            with ctx.expr_pos():
-                stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-            method = DefTypeClassMethodArity(
-                form=form,
-                name=method_name,
-                params=vec.vector(param_nodes),
-                fixed_arity=fixed_arity,
-                is_variadic=has_vargs,
-                kwarg_support=kwarg_support,
-                body=Do(
-                    form=form.rest,
-                    statements=vec.vector(stmts),
-                    ret=ret,
-                    is_body=True,
-                    # Use the argument vector or first body statement, whichever
-                    # exists, for metadata.
-                    env=ctx.get_node_env(),
-                ),
-                class_local=cls_binding,
+        with ctx.new_func_ctx(FunctionContext.CLASSMETHOD), ctx.expr_pos():
+            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+        method = DefTypeClassMethodArity(
+            form=form,
+            name=method_name,
+            params=vec.vector(param_nodes),
+            fixed_arity=fixed_arity,
+            is_variadic=has_vargs,
+            kwarg_support=kwarg_support,
+            body=Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                # Use the argument vector or first body statement, whichever
+                # exists, for metadata.
                 env=ctx.get_node_env(),
-            )
-            method.visit(_assert_no_recur)
-            return method
+            ),
+            class_local=cls_binding,
+            env=ctx.get_node_env(),
+        )
+        method.visit(_assert_no_recur)
+        return method
 
 
 def __deftype_method(
@@ -1103,10 +1102,8 @@ def __deftype_method(
         )
 
         loop_id = genname(method_name)
-        with ctx.new_func_ctx(FunctionContext.METHOD), ctx.new_recur_point(
-            loop_id, param_nodes
-        ):
-            with ctx.expr_pos():
+        with ctx.new_recur_point(loop_id, param_nodes):
+            with ctx.new_func_ctx(FunctionContext.METHOD), ctx.expr_pos():
                 stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
             method = DefTypeMethodArity(
                 form=form,
@@ -1169,27 +1166,26 @@ def __deftype_property(
 
         assert not has_vargs, "deftype* properties may not have arguments"
 
-        with ctx.new_func_ctx(FunctionContext.PROPERTY):
-            with ctx.expr_pos():
-                stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-            prop = DefTypeProperty(
-                form=form,
-                name=method_name,
-                this_local=this_binding,
-                params=vec.vector(param_nodes),
-                body=Do(
-                    form=form.rest,
-                    statements=vec.vector(stmts),
-                    ret=ret,
-                    is_body=True,
-                    # Use the argument vector or first body statement, whichever
-                    # exists, for metadata.
-                    env=ctx.get_node_env(),
-                ),
+        with ctx.new_func_ctx(FunctionContext.PROPERTY), ctx.expr_pos():
+            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+        prop = DefTypeProperty(
+            form=form,
+            name=method_name,
+            this_local=this_binding,
+            params=vec.vector(param_nodes),
+            body=Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                # Use the argument vector or first body statement, whichever
+                # exists, for metadata.
                 env=ctx.get_node_env(),
-            )
-            prop.visit(_assert_no_recur)
-            return prop
+            ),
+            env=ctx.get_node_env(),
+        )
+        prop.visit(_assert_no_recur)
+        return prop
 
 
 def __deftype_staticmethod(
@@ -1202,29 +1198,28 @@ def __deftype_staticmethod(
     """Emit a node for a :staticmethod member of a deftype* form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(ctx, args)
-        with ctx.new_func_ctx(FunctionContext.STATICMETHOD):
-            with ctx.expr_pos():
-                stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-            method = DefTypeStaticMethodArity(
-                form=form,
-                name=method_name,
-                params=vec.vector(param_nodes),
-                fixed_arity=fixed_arity,
-                is_variadic=has_vargs,
-                kwarg_support=kwarg_support,
-                body=Do(
-                    form=form.rest,
-                    statements=vec.vector(stmts),
-                    ret=ret,
-                    is_body=True,
-                    # Use the argument vector or first body statement, whichever
-                    # exists, for metadata.
-                    env=ctx.get_node_env(),
-                ),
+        with ctx.new_func_ctx(FunctionContext.STATICMETHOD), ctx.expr_pos():
+            stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
+        method = DefTypeStaticMethodArity(
+            form=form,
+            name=method_name,
+            params=vec.vector(param_nodes),
+            fixed_arity=fixed_arity,
+            is_variadic=has_vargs,
+            kwarg_support=kwarg_support,
+            body=Do(
+                form=form.rest,
+                statements=vec.vector(stmts),
+                ret=ret,
+                is_body=True,
+                # Use the argument vector or first body statement, whichever
+                # exists, for metadata.
                 env=ctx.get_node_env(),
-            )
-            method.visit(_assert_no_recur)
-            return method
+            ),
+            env=ctx.get_node_env(),
+        )
+        method.visit(_assert_no_recur)
+        return method
 
 
 def __deftype_prop_or_method_arity(  # pylint: disable=too-many-branches
@@ -1663,7 +1658,10 @@ def _do_ast(ctx: AnalyzerContext, form: ISeq) -> Do:
 
 
 def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: AnalyzerContext, form: ISeq, fnname: Optional[sym.Symbol] = None
+    ctx: AnalyzerContext,
+    form: ISeq,
+    fnname: Optional[sym.Symbol] = None,
+    is_async: bool = False,
 ) -> FnArity:
     with ctx.new_symbol_table("fn-method"):
         params = form.first
@@ -1722,7 +1720,9 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
 
         fn_loop_id = genname("fn_arity" if fnname is None else fnname.name)
         with ctx.new_recur_point(fn_loop_id, param_nodes):
-            with ctx.expr_pos():
+            with ctx.new_func_ctx(
+                FunctionContext.ASYNC_FUNCTION if is_async else FunctionContext.FUNCTION
+            ), ctx.expr_pos():
                 stmts, ret = _body_ast(ctx, form.rest)
             method = FnArity(
                 form=form,
@@ -1813,25 +1813,24 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
-        with ctx.new_func_ctx(
-            FunctionContext.ASYNC_FUNCTION if is_async else FunctionContext.FUNCTION
-        ):
-            if isinstance(arity_or_args, llist.List):
-                arities = vec.vector(
-                    map(
-                        partial(__fn_method_ast, ctx, fnname=name),
-                        runtime.nthrest(form, idx),
-                    )
+        if isinstance(arity_or_args, llist.List):
+            arities = vec.vector(
+                map(
+                    partial(__fn_method_ast, ctx, fnname=name, is_async=is_async),
+                    runtime.nthrest(form, idx),
                 )
-            elif isinstance(arity_or_args, vec.Vector):
-                arities = vec.v(
-                    __fn_method_ast(ctx, runtime.nthrest(form, idx), fnname=name)
+            )
+        elif isinstance(arity_or_args, vec.Vector):
+            arities = vec.v(
+                __fn_method_ast(
+                    ctx, runtime.nthrest(form, idx), fnname=name, is_async=is_async
                 )
-            else:
-                raise AnalyzerException(
-                    "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
-                    form=form,
-                )
+            )
+        else:
+            raise AnalyzerException(
+                "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
+                form=form,
+            )
 
         nmethods = count(arities)
         assert nmethods > 0, "fn must have at least one arity"
