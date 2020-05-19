@@ -4270,12 +4270,20 @@ class TestSymbolResolution:
             "(import* abc) abc",
             "(do (import* abc) abc)",
             "((fn [] (import* abc) abc))",
+            "((fn [] (import* abc))) abc",
             """
             (import* collections.abc)
             (deftype* Importer []
               :implements [collections.abc/Callable]
               (--call-- [this] (import* abc) abc))
             ((Importer))""",
+            """
+            (import* collections.abc)
+            (deftype* Importer []
+              :implements [collections.abc/Callable]
+              (--call-- [this] (import* abc)))
+            ((Importer))
+            abc""",
         ],
     )
     def test_imported_module_sym_resolves(self, lcompile: CompileFn, code: str):
@@ -4290,12 +4298,20 @@ class TestSymbolResolution:
             "(import* abc) abc/ABC",
             "(do (import* abc) abc/ABC)",
             "((fn [] (import* abc) abc/ABC))",
+            "((fn [] (import* abc))) abc/ABC",
             """
             (import* collections.abc)
             (deftype* Importer []
               :implements [collections.abc/Callable]
               (--call-- [this] (import* abc) abc/ABC))
             ((Importer))""",
+            """
+            (import* collections.abc)
+            (deftype* Importer []
+              :implements [collections.abc/Callable]
+              (--call-- [this] (import* abc)))
+            ((Importer))
+            abc/ABC""",
         ],
     )
     def test_sym_from_import_resolves(self, lcompile: CompileFn, code: str):

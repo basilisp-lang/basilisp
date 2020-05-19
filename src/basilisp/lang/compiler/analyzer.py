@@ -3016,6 +3016,15 @@ def __resolve_bare_symbol(
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
+    maybe_import = current_ns.get_import(form)
+    if maybe_import is not None:
+        return MaybeClass(
+            form=form,
+            class_=munge(form.name),
+            target=maybe_import,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
+
     if ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
 
