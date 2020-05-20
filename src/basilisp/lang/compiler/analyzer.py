@@ -3045,6 +3045,7 @@ def __resolve_bare_symbol(
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
+    # Allow users to resolve imported module names directly
     maybe_import = current_ns.get_import(form)
     if maybe_import is not None:
         return MaybeClass(
