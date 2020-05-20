@@ -2393,8 +2393,6 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
         py_require_alias = _var_ns_as_python_sym(alias.name)
         last = ast.Name(id=py_require_alias, ctx=ast.Load())
 
-        if node.env.func_ctx is not None:
-            deps.append(ast.Global(names=[py_require_alias]))
         deps.append(
             ast.Try(
                 body=[
