@@ -185,7 +185,7 @@ class SymbolTable:
         Certain symbols (such as imports) are globally available in the execution
         context they are defined in once they have been created, context boundary
         symbol tables serve as the anchor points where we hoist these global symbols
-        so they do not go out of scope when the table frame is popped."""
+        so they do not go out of scope when the local table frame is popped."""
         if self._is_context_boundary:
             return self
         assert (
@@ -2354,7 +2354,7 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
 
 
 @_with_ast_loc_deps
-def _require_to_py_ast(ctx: GeneratorContext, node: Require) -> GeneratedPyAST:
+def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
     """Return a Python AST node for a Basilisp `require*` expression.
 
     In Clojure, `require` simply loads the file corresponding to the required
@@ -2393,9 +2393,6 @@ def _require_to_py_ast(ctx: GeneratorContext, node: Require) -> GeneratedPyAST:
         py_require_alias = _var_ns_as_python_sym(alias.name)
         last = ast.Name(id=py_require_alias, ctx=ast.Load())
 
-        ctx.symbol_table.context_boundary.new_symbol(
-            sym.symbol(alias.alias or alias.name), py_require_alias, LocalType.REQUIRE
-        )
         if node.env.func_ctx is not None:
             deps.append(ast.Global(names=[py_require_alias]))
         deps.append(

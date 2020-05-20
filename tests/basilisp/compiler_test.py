@@ -4321,6 +4321,49 @@ class TestSymbolResolution:
         assert imported_ABC is ABC
 
     @pytest.mark.parametrize(
+        "code,ExceptionType",
+        [
+            ("(do ((fn [] (import* abc))) abc)", compiler.CompilerException),
+            ("(if false (import* abc) nil) abc", NameError),
+            ("(do (if false (import* abc) nil) abc)", NameError),
+            ("(do ((fn [] (import* abc))) abc/ABC)", compiler.CompilerException),
+            ("(if false (import* abc) nil) abc/ABC", NameError),
+            ("(do (if false (import* abc) nil) abc/ABC)", NameError),
+            (
+                """
+            (import* collections.abc)
+            (deftype* Importer []
+              :implements [collections.abc/Callable]
+              (--call-- [this] (import* abc) abc/ABC))
+            (do ((Importer)) abc)""",
+                compiler.CompilerException,
+            ),
+            (
+                """
+            (import* collections.abc)
+            (deftype* Importer []
+              :implements [collections.abc/Callable]
+              (--call-- [this] (import* abc) abc/ABC))
+            (do ((Importer)) abc/ABC)""",
+                compiler.CompilerException,
+            ),
+        ],
+    )
+    def test_unresolvable_imported_symbols(
+        self, lcompile: CompileFn, code: str, ExceptionType
+    ):
+        # Most of these cases are just too dynamic for the compiler to statically
+        # resolve these symbols. I suspect these cases are infrequently or never
+        # applicable, so I'm not going to spend time making them work right now.
+        # If an important use case arises for more complex import resolution,
+        # then we can think about reworking the resolver.
+        #
+        # Perhaps if we can eventually unroll top-level `do` forms into individiual
+        # nodes, the cases not involving branching above can be resolved.
+        with pytest.raises(ExceptionType):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
         "code",
         [
             """

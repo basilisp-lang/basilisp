@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where `deftype` forms could not be declared without at least one field (#540)
  * Fixed a bug where not all builtin Basilisp types could be pickled (#518)
  * Fixed a bug where `deftype` forms could not be created interfaces declared not at the top-level of a code block in a namespace (#376)
- * Fixed multiple bugs relating to symbol resolution of `import`ed and `require`ed symbols in various contexts (#544, #545)
+ * Fixed multiple bugs relating to symbol resolution of `import`ed symbols in various contexts (#544)
 
 ## [v0.1.dev13] - 2020-03-16
 ### Added

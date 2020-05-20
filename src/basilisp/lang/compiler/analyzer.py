@@ -293,7 +293,7 @@ class SymbolTable:
         Certain symbols (such as imports) are globally available in the execution
         context they are defined in once they have been created, context boundary
         symbol tables serve as the anchor points where we hoist these global symbols
-        so they do not go out of scope when the table frame is popped."""
+        so they do not go out of scope when the local table frame is popped."""
         if self._is_context_boundary:
             return self
         assert (
@@ -2518,17 +2518,6 @@ def _require_ast(  # pylint: disable=too-many-branches
         if isinstance(f, sym.Symbol):
             module_name = f
             module_alias = None
-
-            ctx.put_new_symbol(
-                module_name,
-                Binding(
-                    form=module_name,
-                    name=module_name.name,
-                    local=LocalType.REQUIRE,
-                    env=ctx.get_node_env(),
-                ),
-                symbol_table=ctx.symbol_table.context_boundary,
-            )
         elif isinstance(f, vec.Vector):
             if len(f) != 3:
                 raise AnalyzerException(
@@ -2547,17 +2536,6 @@ def _require_ast(  # pylint: disable=too-many-branches
                     "Basilisp namespace alias must be a symbol", form=f
                 )
             module_alias = module_alias_sym.name
-
-            ctx.put_new_symbol(
-                module_alias_sym,
-                Binding(
-                    form=module_alias_sym,
-                    name=module_alias,
-                    local=LocalType.IMPORT,
-                    env=ctx.get_node_env(),
-                ),
-                symbol_table=ctx.symbol_table.context_boundary,
-            )
         else:
             raise AnalyzerException("symbol or vector expected for require*", form=f)
 
@@ -2964,11 +2942,13 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     # been imported and we want to minimize side-effecting from the compiler. In these
     # cases, we merely verify that we've seen the symbol before and defer to runtime
     # checks by the Python VM to verify that the import or require is legitimate.
-    maybe_import_sym = sym.symbol(form.ns)
-    maybe_import_entry = ctx.symbol_table.find_symbol(maybe_import_sym)
-    if maybe_import_entry is not None:
-        if maybe_import_entry.context == LocalType.IMPORT:
-            ctx.symbol_table.mark_used(maybe_import_sym)
+    maybe_import_or_require_sym = sym.symbol(form.ns)
+    maybe_import_or_require_entry = ctx.symbol_table.find_symbol(
+        maybe_import_or_require_sym
+    )
+    if maybe_import_or_require_entry is not None:
+        if maybe_import_or_require_entry.context == LocalType.IMPORT:
+            ctx.symbol_table.mark_used(maybe_import_or_require_sym)
             return MaybeHostForm(
                 form=form,
                 class_=munge(form.ns),
@@ -2976,8 +2956,6 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
                 target=None,
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             )
-        elif maybe_import_entry.context == LocalType.REQUIRE:
-            pass
 
     # Static and class methods on types in the current namespace can be referred
     # to as `Type/static-method`. In these cases, we will try to resolve the
