@@ -190,9 +190,9 @@ class SymbolTableEntry:
 @attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
     name: str
+    _is_context_boundary: bool = False
     _parent: Optional["SymbolTable"] = None
     _table: MutableMapping[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
-    _children: MutableMapping[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(
         self, s: sym.Symbol, binding: Binding, warn_if_unused: bool = True
@@ -257,24 +257,19 @@ class SymbolTable:
                     f"symbol '{entry.symbol}' defined but not used ({ns}{code_loc})"
                 )
 
-    def append_frame(self, name: str, parent: "SymbolTable" = None) -> "SymbolTable":
-        new_frame = SymbolTable(name, parent=parent)
-        self._children[name] = new_frame
-        return new_frame
-
-    def pop_frame(self, name: str) -> None:
-        del self._children[name]
-
     @contextlib.contextmanager
-    def new_frame(self, name, warn_on_unused_names):
+    def new_frame(
+        self, name: str, is_context_boundary: bool, warn_on_unused_names: bool
+    ):
         """Context manager for creating a new stack frame. If warn_on_unused_names is
         True and the logger is enabled for WARNING, call _warn_unused_names() on the
         child SymbolTable before it is popped."""
-        new_frame = self.append_frame(name, parent=self)
+        new_frame = SymbolTable(
+            name, is_context_boundary=is_context_boundary, parent=self
+        )
         yield new_frame
         if warn_on_unused_names and logger.isEnabledFor(logging.WARNING):
             new_frame._warn_unused_names()
-        self.pop_frame(name)
 
     def _as_env_map(self) -> MutableMapping[sym.Symbol, lmap.Map]:
         locals_ = {} if self._parent is None else self._parent._as_env_map()
@@ -285,6 +280,26 @@ class SymbolTable:
         """Return a map of symbols to the local binding objects in the
         local symbol table as of this call."""
         return lmap.map(self._as_env_map())
+
+    @property
+    def context_boundary(self) -> "SymbolTable":
+        """Return the nearest context boundary parent symbol table to this one. If the
+        current table is a context boundary, it will be returned directly.
+
+        Context boundary symbol tables are symbol tables defined at the top level for
+        major Python execution boundaries, such as modules (namespaces), functions
+        (sync and async), and methods.
+
+        Certain symbols (such as imports) are globally available in the execution
+        context they are defined in once they have been created, context boundary
+        symbol tables serve as the anchor points where we hoist these global symbols
+        so they do not go out of scope when the local table frame is popped."""
+        if self._is_context_boundary:
+            return self
+        assert (
+            self._parent is not None
+        ), "Top symbol table must always be a context boundary"
+        return self._parent.context_boundary
 
 
 class AnalyzerContext:
@@ -318,7 +333,7 @@ class AnalyzerContext:
         )
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._should_macroexpand = should_macroexpand
-        self._st = collections.deque([SymbolTable("<Top>")])
+        self._st = collections.deque([SymbolTable("<Top>", is_context_boundary=True)])
         self._syntax_pos = collections.deque([NodeSyntacticPosition.EXPR])
 
     @property
@@ -468,6 +483,7 @@ class AnalyzerContext:
         warn_on_shadowed_name: bool = True,
         warn_on_shadowed_var: bool = True,
         warn_if_unused: bool = True,
+        symbol_table: Optional[SymbolTable] = None,
     ):
         """Add a new symbol to the symbol table.
 
@@ -492,7 +508,7 @@ class AnalyzerContext:
         If WARN_ON_SHADOWED_VAR compiler option is active and the
         warn_on_shadowed_var keyword argument is True, then a warning will be
         emitted if a named var is shadowed by a local name."""
-        st = self.symbol_table
+        st = symbol_table or self.symbol_table
         no_warn_on_shadow = (
             Maybe(s.meta)
             .map(lambda m: m.val_at(SYM_NO_WARN_ON_SHADOW_META_KEY, False))
@@ -515,9 +531,11 @@ class AnalyzerContext:
         st.new_symbol(s, binding, warn_if_unused=warn_if_unused)
 
     @contextlib.contextmanager
-    def new_symbol_table(self, name):
+    def new_symbol_table(self, name: str, is_context_boundary: bool = False):
         old_st = self.symbol_table
-        with old_st.new_frame(name, self.warn_on_unused_names) as st:
+        with old_st.new_frame(
+            name, is_context_boundary, self.warn_on_unused_names,
+        ) as st:
             self._st.append(st)
             yield st
             self._st.pop()
@@ -1019,7 +1037,9 @@ def __deftype_classmethod(
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeClassMethodArity:
     """Emit a node for a :classmethod member of a deftype* form."""
-    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
+    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
+        method_name, is_context_boundary=True
+    ):
         try:
             cls_arg = args[0]
         except IndexError:
@@ -1076,7 +1096,7 @@ def __deftype_method(
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeMethodArity:
     """Emit a node for a method member of a deftype* form."""
-    with ctx.new_symbol_table(method_name):
+    with ctx.new_symbol_table(method_name, is_context_boundary=True):
         try:
             this_arg = args[0]
         except IndexError:
@@ -1136,7 +1156,7 @@ def __deftype_property(
     args: vec.Vector,
 ) -> DefTypeProperty:
     """Emit a node for a :property member of a deftype* form."""
-    with ctx.new_symbol_table(method_name):
+    with ctx.new_symbol_table(method_name, is_context_boundary=True):
         try:
             this_arg = args[0]
         except IndexError:
@@ -1196,7 +1216,9 @@ def __deftype_staticmethod(
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeStaticMethodArity:
     """Emit a node for a :staticmethod member of a deftype* form."""
-    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
+    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
+        method_name, is_context_boundary=True
+    ):
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(ctx, args)
         with ctx.new_func_ctx(FunctionContext.STATICMETHOD), ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
@@ -1663,7 +1685,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
     fnname: Optional[sym.Symbol] = None,
     is_async: bool = False,
 ) -> FnArity:
-    with ctx.new_symbol_table("fn-method"):
+    with ctx.new_symbol_table("fn-method", is_context_boundary=True):
         params = form.first
         if not isinstance(params, vec.Vector):
             raise AnalyzerException(
@@ -1772,7 +1794,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
 
     idx = 1
 
-    with ctx.new_symbol_table("fn"):
+    with ctx.new_symbol_table("fn", is_context_boundary=True):
         try:
             name = runtime.nth(form, idx)
         except IndexError:
@@ -2063,6 +2085,17 @@ def _import_ast(  # pylint: disable=too-many-branches
         if isinstance(f, sym.Symbol):
             module_name = f
             module_alias = None
+
+            ctx.put_new_symbol(
+                module_name,
+                Binding(
+                    form=module_name,
+                    name=module_name.name,
+                    local=LocalType.IMPORT,
+                    env=ctx.get_node_env(),
+                ),
+                symbol_table=ctx.symbol_table.context_boundary,
+            )
         elif isinstance(f, vec.Vector):
             if len(f) != 3:
                 raise AnalyzerException(
@@ -2077,6 +2110,17 @@ def _import_ast(  # pylint: disable=too-many-branches
             if not isinstance(module_alias_sym, sym.Symbol):
                 raise AnalyzerException("Python module alias must be a symbol", form=f)
             module_alias = module_alias_sym.name
+
+            ctx.put_new_symbol(
+                module_alias_sym,
+                Binding(
+                    form=module_alias_sym,
+                    name=module_alias,
+                    local=LocalType.IMPORT,
+                    env=ctx.get_node_env(),
+                ),
+                symbol_table=ctx.symbol_table.context_boundary,
+            )
         else:
             raise AnalyzerException("symbol or vector expected for import*", form=f)
 
@@ -2893,8 +2937,28 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     elif ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
 
+    # Imports and requires nested in function definitions, method definitions, and
+    # `(do ...)` forms are not statically resolvable, since they haven't necessarily
+    # been imported and we want to minimize side-effecting from the compiler. In these
+    # cases, we merely verify that we've seen the symbol before and defer to runtime
+    # checks by the Python VM to verify that the import or require is legitimate.
+    maybe_import_or_require_sym = sym.symbol(form.ns)
+    maybe_import_or_require_entry = ctx.symbol_table.find_symbol(
+        maybe_import_or_require_sym
+    )
+    if maybe_import_or_require_entry is not None:
+        if maybe_import_or_require_entry.context == LocalType.IMPORT:
+            ctx.symbol_table.mark_used(maybe_import_or_require_sym)
+            return MaybeHostForm(
+                form=form,
+                class_=munge(form.ns),
+                field=munge(form.name),
+                target=None,
+                env=ctx.get_node_env(pos=ctx.syntax_position),
+            )
+
     # Static and class methods on types in the current namespace can be referred
-    # to as `Type/static-method`. In these casess, we will try to resolve the
+    # to as `Type/static-method`. In these cases, we will try to resolve the
     # namespace portion of the symbol as a Var within the current namespace.
     maybe_type_or_class = current_ns.find(sym.symbol(form.ns))
     if maybe_type_or_class is not None:
@@ -2956,6 +3020,16 @@ def __resolve_bare_symbol(
             form=form,
             class_=munged,
             target=vars(builtins)[munged],
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
+
+    # Allow users to resolve imported module names directly
+    maybe_import = current_ns.get_import(form)
+    if maybe_import is not None:
+        return MaybeClass(
+            form=form,
+            class_=munge(form.name),
+            target=maybe_import,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 

@@ -3712,9 +3712,19 @@
   (ns-resolve *ns* sym))
 
 (defmacro import
-  "Import a Python module by name."
-  [module]
-  `(import* ~module))
+  "Import Python modules by name.
+
+  Modules may be specified either as symbols naming the full module path or as a
+  vector taking the form `[full.module.path :as alias]`.
+
+  Note that unlike in Python, `import`ed Python module names are always hoisted to
+  the current Namespace, so imported names will be available within a Namespace even
+  if the `import` itself occurs within a function or method.
+
+  Use of `import` directly is discouraged in favor of the `:import` directive in
+  the `ns` macro."
+  [& modules]
+  `(import* ~@modules))
 
 (import importlib)
 
