@@ -90,6 +90,7 @@ from basilisp.lang.compiler.nodes import (
     Quote,
     ReaderLispForm,
     Recur,
+    Reify,
     Require,
     Set as SetNode,
     SetBang,
@@ -821,7 +822,7 @@ def __single_arity_deftype_method_to_py_ast(
     prefix_args: Iterable[ast.arg] = (),
     decorators: Iterable[ast.AST] = (),
 ) -> GeneratedPyAST:
-    """Generate a single arity deftype* method body."""
+    """Generate a single arity `deftype*` or `reify*` method body."""
     fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, arity.params, arity.body)
     return GeneratedPyAST(
         node=ast.FunctionDef(
@@ -851,7 +852,7 @@ def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments
     decorators: Iterable[ast.AST] = (),
 ) -> GeneratedPyAST:
     """Return the Python AST nodes for an argument-length dispatch method for
-    multi-arity deftype* methods.
+    multi-arity `deftype*` or `reify*` methods.
 
     The `arity_map` names the mapping of number of arguments to the munged name of the
     method arity handling that method. `default_name` is the name of the default
@@ -1056,7 +1057,7 @@ def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-argument
         fn_def = create_method_ast(ctx, node, arity, arity_name)
         assert (
             not fn_def.dependencies
-        ), "deftype* method arities may not have dependency nodes"
+        ), "deftype* or reify* method arities may not have dependency nodes"
         fn_defs.append(fn_def.node)
 
     dispatch_fn_ast = __multi_arity_deftype_dispatch_method(
@@ -1102,9 +1103,9 @@ def __deftype_classmethod_arity_to_py_ast(
 
 @_with_ast_loc
 def __deftype_classmethod_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeClassMethod, _: DefType,
+    ctx: GeneratorContext, node: DefTypeClassMethod, _: str,
 ) -> GeneratedPyAST:
-    """Return a Python AST Node for a `deftype*` classmethod."""
+    """Return a Python AST Node for a `deftype*` or `reify*` classmethod."""
     assert node.op == NodeOp.DEFTYPE_CLASSMETHOD
 
     if len(node.arities) == 1:
@@ -1123,7 +1124,7 @@ def __deftype_classmethod_to_py_ast(
 
 @_with_ast_loc
 def __deftype_property_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeProperty, _: DefType,
+    ctx: GeneratorContext, node: DefTypeProperty, _: str,
 ) -> GeneratedPyAST:
     assert node.op == NodeOp.DEFTYPE_PROPERTY
     method_name = munge(node.name)
@@ -1194,9 +1195,9 @@ def __deftype_method_arity_to_py_ast(
 
 @_with_ast_loc
 def __deftype_method_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeMethod, _: DefType,
+    ctx: GeneratorContext, node: DefTypeMethod, _: str,
 ) -> GeneratedPyAST:
-    """Return a Python AST Node for a `deftype*` method."""
+    """Return a Python AST Node for a `deftype*` or `reify*` method."""
     assert node.op == NodeOp.DEFTYPE_METHOD
 
     if len(node.arities) == 1:
@@ -1232,9 +1233,9 @@ def __deftype_staticmethod_arity_to_py_ast(
 
 @_with_ast_loc
 def __deftype_staticmethod_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeStaticMethod, parent: DefType
+    ctx: GeneratorContext, node: DefTypeStaticMethod, class_name: str
 ) -> GeneratedPyAST:
-    """Return a Python AST Node for a `deftype*` staticmethod."""
+    """Return a Python AST Node for a `deftype*` or `reify*` staticmethod."""
     assert node.op == NodeOp.DEFTYPE_STATICMETHOD
 
     if len(node.arities) == 1:
@@ -1246,14 +1247,12 @@ def __deftype_staticmethod_to_py_ast(
             ctx,
             node,
             cast(_CreateMethodASTFunction, __deftype_staticmethod_arity_to_py_ast),
-            class_name=munge(parent.name),
+            class_name=class_name,
             decorators=(_PY_STATICMETHOD_FN_NAME,),
         )
 
 
-DefTypeASTGenerator = Callable[
-    [GeneratorContext, DefTypeMember, DefType], GeneratedPyAST
-]
+DefTypeASTGenerator = Callable[[GeneratorContext, DefTypeMember, str], GeneratedPyAST]
 _DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, DefTypeASTGenerator] = {
     NodeOp.DEFTYPE_CLASSMETHOD: __deftype_classmethod_to_py_ast,
     NodeOp.DEFTYPE_METHOD: __deftype_method_to_py_ast,
@@ -1263,14 +1262,14 @@ _DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, DefTypeASTGenerator] = {
 
 
 def __deftype_member_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeMember, parent: DefType,
+    ctx: GeneratorContext, node: DefTypeMember, class_name: str,
 ) -> GeneratedPyAST:
     member_type = node.op
     handle_deftype_member = _DEFTYPE_MEMBER_HANDLER.get(member_type)
     assert (
         handle_deftype_member is not None
     ), f"Invalid :const AST type handler for {member_type}"
-    return handle_deftype_member(ctx, node, parent)
+    return handle_deftype_member(ctx, node, class_name)
 
 
 _ATTR_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
@@ -1329,7 +1328,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
             fields.append(safe_field)
 
         for member in node.members:
-            type_ast = __deftype_member_to_py_ast(ctx, member, node)
+            type_ast = __deftype_member_to_py_ast(ctx, member, munge(node.name))
             type_nodes.append(type_ast.node)
             type_nodes.extend(type_ast.dependencies)
             members.append(munge(member.name))
@@ -2353,6 +2352,105 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     return handle_recur(ctx, node)
 
 
+@_with_ast_loc
+def _reify_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
+    ctx: GeneratorContext, node: Reify
+) -> GeneratedPyAST:
+    """Return a Python AST Node for a `reify*` expression."""
+    assert node.op == NodeOp.REIFY
+    bases = []
+    for base in node.interfaces:
+        base_node = gen_py_ast(ctx, base)
+        assert (
+            count(base_node.dependencies) == 0
+        ), "Class and host form nodes do not have dependencies"
+        bases.append(base_node.node)
+
+    type_name = munge(genname("ReifiedType"))
+
+    with ctx.new_symbol_table("reify"):
+        members = []
+        type_nodes: List[ast.AST] = []
+        type_deps: List[ast.AST] = []
+
+        for member in node.members:
+            type_ast = __deftype_member_to_py_ast(ctx, member, type_name)
+            type_nodes.append(type_ast.node)
+            type_nodes.extend(type_ast.dependencies)
+            members.append(munge(member.name))
+
+        return GeneratedPyAST(
+            node=ast.Name(id=type_name, ctx=ast.Load()),
+            dependencies=list(
+                chain(
+                    type_deps,
+                    [
+                        ast.ClassDef(
+                            name=type_name,
+                            bases=bases,
+                            keywords=[],
+                            body=type_nodes or [ast.Pass()],
+                            decorator_list=list(
+                                chain(
+                                    []
+                                    if node.verified_abstract
+                                    else [
+                                        ast.Call(
+                                            func=_BASILISP_TYPE_FN_NAME,
+                                            args=[],
+                                            keywords=[
+                                                ast.keyword(
+                                                    arg="fields",
+                                                    value=ast.Tuple(
+                                                        elts=[], ctx=ast.Load(),
+                                                    ),
+                                                ),
+                                                ast.keyword(
+                                                    arg="interfaces",
+                                                    value=ast.Tuple(
+                                                        elts=list(bases),
+                                                        ctx=ast.Load(),
+                                                    ),
+                                                ),
+                                                ast.keyword(
+                                                    arg="members",
+                                                    value=ast.Tuple(
+                                                        elts=[
+                                                            ast.Constant(e)
+                                                            for e in members
+                                                        ],
+                                                        ctx=ast.Load(),
+                                                    ),
+                                                ),
+                                            ],
+                                        )
+                                    ],
+                                    [
+                                        ast.Call(
+                                            func=_ATTR_CLASS_DECORATOR_NAME,
+                                            args=[],
+                                            keywords=_ATTR_CMP_KWARGS
+                                            + [
+                                                ast.keyword(
+                                                    arg="frozen",
+                                                    value=ast.Constant(True),
+                                                ),
+                                                ast.keyword(
+                                                    arg="slots",
+                                                    value=ast.Constant(True),
+                                                ),
+                                            ],
+                                        ),
+                                    ],
+                                )
+                            ),
+                        ),
+                    ],
+                )
+            ),
+        )
+
+
 @_with_ast_loc_deps
 def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
     """Return a Python AST node for a Basilisp `require*` expression.
@@ -3354,6 +3452,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.PY_TUPLE: _py_tuple_to_py_ast,
     NodeOp.QUOTE: _quote_to_py_ast,
     NodeOp.RECUR: _recur_to_py_ast,  # type: ignore
+    NodeOp.REIFY: _reify_to_py_ast,
     NodeOp.REQUIRE: _require_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.SET_BANG: _set_bang_to_py_ast,

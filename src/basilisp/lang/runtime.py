@@ -96,6 +96,7 @@ _LET = sym.symbol("let*")
 _LETFN = sym.symbol("letfn*")
 _LOOP = sym.symbol("loop*")
 _QUOTE = sym.symbol("quote")
+_REIFY = sym.symbol("reify*")
 _RECUR = sym.symbol("recur")
 _REQUIRE = sym.symbol("require*")
 _SET_BANG = sym.symbol("set!")
@@ -119,6 +120,7 @@ _SPECIAL_FORMS = lset.s(
     _LOOP,
     _QUOTE,
     _RECUR,
+    _REIFY,
     _REQUIRE,
     _SET_BANG,
     _THROW,

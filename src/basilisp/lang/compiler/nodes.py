@@ -92,6 +92,7 @@ class NodeOp(Enum):
     PY_TUPLE = kw.keyword("py-tuple")
     QUOTE = kw.keyword("quote")
     RECUR = kw.keyword("recur")
+    REIFY = kw.keyword("reify")
     REQUIRE = kw.keyword("require")
     REQUIRE_ALIAS = kw.keyword("require-alias")
     SET = kw.keyword("set")
@@ -811,6 +812,20 @@ class Recur(Node[SpecialForm]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
+class Reify(Node[SpecialForm]):
+    form: SpecialForm
+    interfaces: Iterable[DefTypeBase]
+    members: Iterable["DefTypeMember"]
+    env: NodeEnv
+    verified_abstract: bool = False
+    meta: NodeMeta = None
+    children: Sequence[kw.Keyword] = vec.v(MEMBERS)
+    op: NodeOp = NodeOp.REIFY
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
 class RequireAlias(Node[Union[sym.Symbol, vec.Vector]]):
     form: Union[sym.Symbol, vec.Vector]
     name: str
@@ -935,6 +950,7 @@ SpecialFormNode = Union[
     Loop,
     Quote,
     Recur,
+    Reify,
     Require,
     SetBang,
     Throw,
