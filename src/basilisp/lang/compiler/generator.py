@@ -2353,9 +2353,7 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
 
 
 @_with_ast_loc
-def _reify_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: GeneratorContext, node: Reify
-) -> GeneratedPyAST:
+def _reify_to_py_ast(ctx: GeneratorContext, node: Reify) -> GeneratedPyAST:
     """Return a Python AST Node for a `reify*` expression."""
     assert node.op == NodeOp.REIFY
     bases = []

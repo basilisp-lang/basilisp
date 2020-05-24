@@ -2558,9 +2558,7 @@ def _recur_ast(ctx: AnalyzerContext, form: ISeq) -> Recur:
     )
 
 
-def _reify_ast(  # pylint: disable=too-many-branches
-    ctx: AnalyzerContext, form: ISeq
-) -> Reify:
+def _reify_ast(ctx: AnalyzerContext, form: ISeq) -> Reify:
     assert form.first == SpecialForm.REIFY
 
     nelems = count(form)
