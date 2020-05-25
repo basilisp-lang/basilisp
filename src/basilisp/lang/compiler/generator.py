@@ -566,6 +566,7 @@ _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
 _BASILISP_TYPE_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_type")
+_BASILISP_WITH_META_INTERFACE_NAME = _load_attr(f"{_INTERFACES_ALIAS}.IWithMeta")
 _BUILTINS_IMPORT_FN_NAME = _load_attr("builtins.__import__")
 _IMPORTLIB_IMPORT_MODULE_FN_NAME = _load_attr("importlib.import_module")
 _LISP_FN_APPLY_KWARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._lisp_fn_apply_kwargs")
@@ -2372,7 +2373,7 @@ def _reify_to_py_ast(
     else:
         meta_ast = None
 
-    bases = [_load_attr(f"{_INTERFACES_ALIAS}.IWithMeta")]
+    bases: List[ast.AST] = [_BASILISP_WITH_META_INTERFACE_NAME]
     for base in node.interfaces:
         base_node = gen_py_ast(ctx, base)
         assert (
@@ -2450,7 +2451,7 @@ def _reify_to_py_ast(
             dependencies=list(
                 chain(
                     type_deps,
-                    meta_ast.dependencies,
+                    [] if meta_ast is None else meta_ast.dependencies,
                     [
                         ast.ClassDef(
                             name=type_name,
