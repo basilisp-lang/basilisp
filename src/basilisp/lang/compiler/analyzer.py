@@ -2558,6 +2558,7 @@ def _recur_ast(ctx: AnalyzerContext, form: ISeq) -> Recur:
     )
 
 
+@_with_meta
 def _reify_ast(ctx: AnalyzerContext, form: ISeq) -> Reify:
     assert form.first == SpecialForm.REIFY
 
@@ -3297,7 +3298,7 @@ def _const_node(ctx: AnalyzerContext, form: ReaderForm) -> Const:
                 uuid.UUID,
             ),
         )
-    )
+    ), "Constant nodes must be composed of constant values"
 
     node_type = _CONST_NODE_TYPES.get(type(form), ConstType.UNKNOWN)
     if node_type == ConstType.UNKNOWN:

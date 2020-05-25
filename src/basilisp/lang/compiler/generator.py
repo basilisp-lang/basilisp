@@ -2352,11 +2352,27 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     return handle_recur(ctx, node)
 
 
+# `attrs` throws an a ValueError for certain small class definitions, so
+# we want to avoid that.
+#
+# https://github.com/python-attrs/attrs/issues/589
+_ATTR_SLOTS_ON = getattr(attr, "__version_info__", (0,)) >= (19, 4)
+
+
 @_with_ast_loc
-def _reify_to_py_ast(ctx: GeneratorContext, node: Reify) -> GeneratedPyAST:
+def _reify_to_py_ast(
+    ctx: GeneratorContext, node: Reify, meta_node: Optional[MetaNode] = None
+) -> GeneratedPyAST:
     """Return a Python AST Node for a `reify*` expression."""
     assert node.op == NodeOp.REIFY
-    bases = []
+
+    meta_ast: Optional[GeneratedPyAST]
+    if meta_node is not None:
+        meta_ast = gen_py_ast(ctx, meta_node)
+    else:
+        meta_ast = None
+
+    bases = [_load_attr(f"{_INTERFACES_ALIAS}.IWithMeta")]
     for base in node.interfaces:
         base_node = gen_py_ast(ctx, base)
         assert (
@@ -2368,7 +2384,55 @@ def _reify_to_py_ast(ctx: GeneratorContext, node: Reify) -> GeneratedPyAST:
 
     with ctx.new_symbol_table("reify"):
         members = []
-        type_nodes: List[ast.AST] = []
+        type_nodes: List[ast.AST] = [
+            ast.Assign(
+                targets=[ast.Name(id="_meta", ctx=ast.Store())],
+                value=ast.Call(
+                    func=_ATTRIB_FIELD_FN_NAME,
+                    args=[],
+                    keywords=[ast.keyword(arg="default", value=ast.Constant(None))],
+                ),
+            ),
+            ast.FunctionDef(
+                name="meta",
+                args=ast.arguments(
+                    args=[ast.arg(arg="self", annotation=None),],
+                    kwarg=None,
+                    vararg=None,
+                    kwonlyargs=[],
+                    defaults=[],
+                    kw_defaults=[],
+                ),
+                body=[ast.Return(value=_load_attr(f"{type_name}._meta"))],
+                decorator_list=[],
+                returns=None,
+            ),
+            ast.FunctionDef(
+                name="with_meta",
+                args=ast.arguments(
+                    args=[
+                        ast.arg(arg="self", annotation=None),
+                        ast.arg(arg="new_meta", annotation=None),
+                    ],
+                    kwarg=None,
+                    vararg=None,
+                    kwonlyargs=[],
+                    defaults=[],
+                    kw_defaults=[],
+                ),
+                body=[
+                    ast.Return(
+                        value=ast.Call(
+                            func=ast.Name(id=type_name, ctx=ast.Load()),
+                            args=[ast.Name(id="new_meta", ctx=ast.Load())],
+                            keywords=[],
+                        )
+                    )
+                ],
+                decorator_list=[],
+                returns=None,
+            ),
+        ]
         type_deps: List[ast.AST] = []
 
         for member in node.members:
@@ -2378,16 +2442,21 @@ def _reify_to_py_ast(ctx: GeneratorContext, node: Reify) -> GeneratedPyAST:
             members.append(munge(member.name))
 
         return GeneratedPyAST(
-            node=ast.Name(id=type_name, ctx=ast.Load()),
+            node=ast.Call(
+                func=ast.Name(id=type_name, ctx=ast.Load()),
+                args=[] if meta_ast is None else [meta_ast.node],
+                keywords=[],
+            ),
             dependencies=list(
                 chain(
                     type_deps,
+                    meta_ast.dependencies,
                     [
                         ast.ClassDef(
                             name=type_name,
                             bases=bases,
                             keywords=[],
-                            body=type_nodes or [ast.Pass()],
+                            body=type_nodes,
                             decorator_list=list(
                                 chain(
                                     []
@@ -2435,7 +2504,7 @@ def _reify_to_py_ast(ctx: GeneratorContext, node: Reify) -> GeneratedPyAST:
                                                 ),
                                                 ast.keyword(
                                                     arg="slots",
-                                                    value=ast.Constant(True),
+                                                    value=ast.Constant(_ATTR_SLOTS_ON),
                                                 ),
                                             ],
                                         ),
@@ -2911,8 +2980,9 @@ def _map_to_py_ast(
 ) -> GeneratedPyAST:
     assert node.op == NodeOp.MAP
 
+    meta_ast: Optional[GeneratedPyAST]
     if meta_node is not None:
-        meta_ast: Optional[GeneratedPyAST] = gen_py_ast(ctx, meta_node)
+        meta_ast = gen_py_ast(ctx, meta_node)
     else:
         meta_ast = None
 
@@ -2942,8 +3012,9 @@ def _set_to_py_ast(
 ) -> GeneratedPyAST:
     assert node.op == NodeOp.SET
 
+    meta_ast: Optional[GeneratedPyAST]
     if meta_node is not None:
-        meta_ast: Optional[GeneratedPyAST] = gen_py_ast(ctx, meta_node)
+        meta_ast = gen_py_ast(ctx, meta_node)
     else:
         meta_ast = None
 
@@ -2970,8 +3041,9 @@ def _vec_to_py_ast(
 ) -> GeneratedPyAST:
     assert node.op == NodeOp.VECTOR
 
+    meta_ast: Optional[GeneratedPyAST]
     if meta_node is not None:
-        meta_ast: Optional[GeneratedPyAST] = gen_py_ast(ctx, meta_node)
+        meta_ast = gen_py_ast(ctx, meta_node)
     else:
         meta_ast = None
 
@@ -3046,6 +3118,7 @@ def _py_tuple_to_py_ast(ctx: GeneratorContext, node: PyTuple) -> GeneratedPyAST:
 _WITH_META_EXPR_HANDLER = {
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
+    NodeOp.REIFY: _reify_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
 }
