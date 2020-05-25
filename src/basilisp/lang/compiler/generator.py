@@ -376,6 +376,85 @@ def _collection_ast(
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
 
 
+# `attrs` throws an a ValueError for certain small class definitions, so
+# we want to avoid that.
+#
+# https://github.com/python-attrs/attrs/issues/589
+_ATTR_SLOTS_ON = getattr(attr, "__version_info__", (0,)) >= (19, 4)
+
+_ATTR_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
+_ATTR_CMP_KWARGS = (
+    [
+        ast.keyword(arg="eq", value=ast.Constant(False)),
+        ast.keyword(arg="order", value=ast.Constant(False)),
+    ]
+    if _ATTR_CMP_OFF
+    else [ast.keyword(arg="cmp", value=ast.Constant(False))]
+)
+
+
+def _class_ast(
+    class_name: str,
+    body: List[ast.AST],
+    bases: Iterable[ast.AST] = (),
+    fields: Iterable[str] = (),
+    members: Iterable[str] = (),
+    verified_abstract: bool = False,
+    is_frozen: bool = True,
+    use_slots: bool = _ATTR_SLOTS_ON,
+) -> ast.ClassDef:
+    """Return a Python class definition for `deftype` and `reify` special forms."""
+    return ast.ClassDef(
+        name=class_name,
+        bases=bases,
+        keywords=[],
+        body=body,
+        decorator_list=list(
+            chain(
+                []
+                if verified_abstract
+                else [
+                    ast.Call(
+                        func=_BASILISP_TYPE_FN_NAME,
+                        args=[],
+                        keywords=[
+                            ast.keyword(
+                                arg="fields",
+                                value=ast.Tuple(
+                                    elts=[ast.Constant(e) for e in fields],
+                                    ctx=ast.Load(),
+                                ),
+                            ),
+                            ast.keyword(
+                                arg="interfaces",
+                                value=ast.Tuple(elts=list(bases), ctx=ast.Load()),
+                            ),
+                            ast.keyword(
+                                arg="members",
+                                value=ast.Tuple(
+                                    elts=[ast.Constant(e) for e in members],
+                                    ctx=ast.Load(),
+                                ),
+                            ),
+                        ],
+                    )
+                ],
+                [
+                    ast.Call(
+                        func=_ATTR_CLASS_DECORATOR_NAME,
+                        args=[],
+                        keywords=_ATTR_CMP_KWARGS
+                        + [
+                            ast.keyword(arg="frozen", value=ast.Constant(is_frozen)),
+                            ast.keyword(arg="slots", value=ast.Constant(use_slots)),
+                        ],
+                    ),
+                ],
+            )
+        ),
+    )
+
+
 def _kwargs_ast(
     ctx: GeneratorContext, kwargs: KeywordArgs,
 ) -> Tuple[PyASTStream, PyASTStream]:
@@ -1273,17 +1352,6 @@ def __deftype_member_to_py_ast(
     return handle_deftype_member(ctx, node, class_name)
 
 
-_ATTR_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
-_ATTR_CMP_KWARGS = (
-    [
-        ast.keyword(arg="eq", value=ast.Constant(False)),
-        ast.keyword(arg="order", value=ast.Constant(False)),
-    ]
-    if _ATTR_CMP_OFF
-    else [ast.keyword(arg="cmp", value=ast.Constant(False))]
-)
-
-
 @_with_ast_loc
 def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
     ctx: GeneratorContext, node: DefType
@@ -1340,69 +1408,15 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
                 chain(
                     type_deps,
                     [
-                        ast.ClassDef(
-                            name=type_name,
+                        _class_ast(
+                            type_name,
+                            type_nodes or [ast.Pass()],
                             bases=bases,
-                            keywords=[],
-                            body=type_nodes or [ast.Pass()],
-                            decorator_list=list(
-                                chain(
-                                    []
-                                    if node.verified_abstract
-                                    else [
-                                        ast.Call(
-                                            func=_BASILISP_TYPE_FN_NAME,
-                                            args=[],
-                                            keywords=[
-                                                ast.keyword(
-                                                    arg="fields",
-                                                    value=ast.Tuple(
-                                                        elts=[
-                                                            ast.Constant(e)
-                                                            for e in fields
-                                                        ],
-                                                        ctx=ast.Load(),
-                                                    ),
-                                                ),
-                                                ast.keyword(
-                                                    arg="interfaces",
-                                                    value=ast.Tuple(
-                                                        elts=list(bases),
-                                                        ctx=ast.Load(),
-                                                    ),
-                                                ),
-                                                ast.keyword(
-                                                    arg="members",
-                                                    value=ast.Tuple(
-                                                        elts=[
-                                                            ast.Constant(e)
-                                                            for e in members
-                                                        ],
-                                                        ctx=ast.Load(),
-                                                    ),
-                                                ),
-                                            ],
-                                        )
-                                    ],
-                                    [
-                                        ast.Call(
-                                            func=_ATTR_CLASS_DECORATOR_NAME,
-                                            args=[],
-                                            keywords=_ATTR_CMP_KWARGS
-                                            + [
-                                                ast.keyword(
-                                                    arg="frozen",
-                                                    value=ast.Constant(node.is_frozen),
-                                                ),
-                                                ast.keyword(
-                                                    arg="slots",
-                                                    value=ast.Constant(True),
-                                                ),
-                                            ],
-                                        ),
-                                    ],
-                                )
-                            ),
+                            fields=fields,
+                            members=members,
+                            verified_abstract=node.verified_abstract,
+                            is_frozen=node.is_frozen,
+                            use_slots=True,
                         ),
                         ast.Call(
                             func=_INTERN_VAR_FN_NAME,
@@ -2353,13 +2367,6 @@ def _recur_to_py_ast(ctx: GeneratorContext, node: Recur) -> GeneratedPyAST:
     return handle_recur(ctx, node)
 
 
-# `attrs` throws an a ValueError for certain small class definitions, so
-# we want to avoid that.
-#
-# https://github.com/python-attrs/attrs/issues/589
-_ATTR_SLOTS_ON = getattr(attr, "__version_info__", (0,)) >= (19, 4)
-
-
 @_with_ast_loc
 def _reify_to_py_ast(
     ctx: GeneratorContext, node: Reify, meta_node: Optional[MetaNode] = None
@@ -2453,66 +2460,15 @@ def _reify_to_py_ast(
                     type_deps,
                     [] if meta_ast is None else meta_ast.dependencies,
                     [
-                        ast.ClassDef(
-                            name=type_name,
+                        _class_ast(
+                            type_name,
+                            type_nodes,
                             bases=bases,
-                            keywords=[],
-                            body=type_nodes,
-                            decorator_list=list(
-                                chain(
-                                    []
-                                    if node.verified_abstract
-                                    else [
-                                        ast.Call(
-                                            func=_BASILISP_TYPE_FN_NAME,
-                                            args=[],
-                                            keywords=[
-                                                ast.keyword(
-                                                    arg="fields",
-                                                    value=ast.Tuple(
-                                                        elts=[], ctx=ast.Load(),
-                                                    ),
-                                                ),
-                                                ast.keyword(
-                                                    arg="interfaces",
-                                                    value=ast.Tuple(
-                                                        elts=list(bases),
-                                                        ctx=ast.Load(),
-                                                    ),
-                                                ),
-                                                ast.keyword(
-                                                    arg="members",
-                                                    value=ast.Tuple(
-                                                        elts=[
-                                                            ast.Constant(e)
-                                                            for e in members
-                                                        ],
-                                                        ctx=ast.Load(),
-                                                    ),
-                                                ),
-                                            ],
-                                        )
-                                    ],
-                                    [
-                                        ast.Call(
-                                            func=_ATTR_CLASS_DECORATOR_NAME,
-                                            args=[],
-                                            keywords=_ATTR_CMP_KWARGS
-                                            + [
-                                                ast.keyword(
-                                                    arg="frozen",
-                                                    value=ast.Constant(True),
-                                                ),
-                                                ast.keyword(
-                                                    arg="slots",
-                                                    value=ast.Constant(_ATTR_SLOTS_ON),
-                                                ),
-                                            ],
-                                        ),
-                                    ],
-                                )
-                            ),
-                        ),
+                            members=members,
+                            verified_abstract=node.verified_abstract,
+                            is_frozen=True,
+                            use_slots=_ATTR_SLOTS_ON,
+                        )
                     ],
                 )
             ),
