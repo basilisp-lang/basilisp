@@ -2391,7 +2391,7 @@ def _reify_to_py_ast(
     type_name = munge(genname("ReifiedType"))
 
     with ctx.new_symbol_table("reify"):
-        members = []
+        members = ["meta", "with_meta"]
         type_nodes: List[ast.AST] = [
             ast.Assign(
                 targets=[ast.Name(id="_meta", ctx=ast.Store())],
