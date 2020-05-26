@@ -4595,11 +4595,11 @@ class TestReify:
         def test_reify_fields_and_methods(self, lcompile: CompileFn):
             make_point = lcompile(
                 """
-            (import* collections.abc)
-            (fn [x y z]
-              (reify* :implements [collections.abc/Callable collections.abc/Sized]
-                (--len-- [this] 1)
-                (--call-- [this] [x y z])))"""
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable collections.abc/Sized]
+                    (--len-- [this] 1)
+                    (--call-- [this] [x y z])))"""
             )
             pt = make_point(1, 2, 3)
             assert 1 == len(pt)
@@ -4609,7 +4609,7 @@ class TestReify:
             make_point = lcompile(
                 """
                 (import* collections.abc)
-                (fn [x y z]
+                (fn* [x y z]
                   (reify* :implements [collections.abc/Callable]
                     (--call-- [this i j k] [x i y j z k])))"""
             )
@@ -4621,12 +4621,12 @@ class TestReify:
             [
                 """
                 (import* collections.abc)
-                (fn [x y z]
+                (fn* [x y z]
                   (reify* :implements [collections.abc/Callable]
                     (--call-- [this &])))""",
                 """
                 (import* collections.abc)
-                (fn [x y z]
+                (fn* [x y z]
                   (reify* :implements [collections.abc/Callable]
                     (--call-- [this & :args])))""",
             ],
@@ -4641,7 +4641,7 @@ class TestReify:
             Mirror = lcompile(
                 """
                 (import* collections.abc)
-                (fn [x]
+                (fn* [x]
                   (reify* :implements [collections.abc/Callable]
                     (--call-- [this & args] [x args])))"""
             )
@@ -4654,7 +4654,7 @@ class TestReify:
             Point = lcompile(
                 """
                 (import* collections.abc)
-                (fn [x y z]
+                (fn* [x y z]
                   (reify* :implements [collections.abc/Callable]
                     (--call-- [this])))"""
             )
@@ -4665,7 +4665,7 @@ class TestReify:
             Point = lcompile(
                 """
                 (import* collections.abc operator)
-                (fn [x]
+                (fn* [x]
                   (reify* :implements [collections.abc/Callable]
                     (--call-- [this sum start]
                       (if (operator/gt start 0)
@@ -4680,8 +4680,9 @@ class TestReify:
                 lcompile(
                     """
                     (import* collections.abc)
-                    (reify* :implements [collections.abc/Callable]
-                      (--call-- [] [x y z]))"""
+                    (fn* [x y z]
+                      (reify* :implements [collections.abc/Callable]
+                        (--call-- [] [x y z])))"""
                 )
 
         @pytest.mark.parametrize(
@@ -4689,12 +4690,14 @@ class TestReify:
             [
                 """
                 (import* collections.abc)
-                (reify* :implements [collections.abc/Callable]
-                  (--call-- [\"this\"] [x y z]))""",
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [\"this\"] [x y z])))""",
                 """
                 (import* collections.abc)
-                (reify* :implements [collections.abc/Callable]
-                  (--call-- [this :new] [x y z]))""",
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this :new] [x y z])))""",
             ],
         )
         def test_reify_method_args_are_syms(self, lcompile: CompileFn, code: str):
@@ -4707,7 +4710,7 @@ class TestReify:
             Point = lcompile(
                 """
                 (import* collections.abc)
-                (fn [x]
+                (fn* [x]
                   (reify* :implements [collections.abc/Callable]
                     (--call-- [this new-val]
                       (* x new-val))))"""
@@ -4731,20 +4734,21 @@ class TestReify:
             [
                 """
                 (import* collections.abc)
-                (fn [x y z]
+                (fn* [x y z]
                   (reify* :implements [collections.abc/Callable]
                     (^ {:kwargs :apply} --call--
                       [this & args]
                       (merge {:x x :y y :z z} (apply hash-map args)))))""",
                 """
                 (import* collections.abc)
-                (reify* :implements [collections.abc/Callable]
-                  (^{:kwargs :collect} --call--
-                    [this kwargs]
-                    (merge {:x x :y y :z z} kwargs)))""",
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (^{:kwargs :collect} --call--
+                      [this kwargs]
+                      (merge {:x x :y y :z z} kwargs))))""",
             ],
         )
-        def test_deftype_method_kwargs(self, lcompile: CompileFn, code: str):
+        def test_reify_method_kwargs(self, lcompile: CompileFn, code: str):
             Point = lcompile(code)
 
             pt = Point(1, 2, 3)
@@ -4762,38 +4766,35 @@ class TestReify:
             [
                 """
                 (import* collections.abc)
-                (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
-                  (--call-- [this]
-                    :no-args)
-                  (--call-- [this]
-                    :also-no-args))
-            """,
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this]
+                      :no-args)
+                    (--call-- [this]
+                      :also-no-args)))""",
                 """
                 (import* collections.abc)
-                (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
-                  (--call-- [this s]
-                    :one-arg)
-                  (--call-- [this s]
-                    :also-one-arg))
-            """,
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this s]
+                      :one-arg)
+                    (--call-- [this s]
+                      :also-one-arg)))""",
                 """
                 (import* collections.abc)
-                (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
-                  (--call-- [this]
-                    :no-args)
-                  (--call-- [this s]
-                    :one-arg)
-                  (--call-- [this a b]
-                    [a b])
-                  (--call-- [this s3]
-                    :also-one-arg))
-            """,
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this]
+                      :no-args)
+                    (--call-- [this s]
+                      :one-arg)
+                    (--call-- [this a b]
+                      [a b])
+                    (--call-- [this s3]
+                      :also-one-arg)))""",
             ],
         )
-        def test_no_deftype_method_arity_has_same_fixed_arity(
+        def test_no_reify_method_arity_has_same_fixed_arity(
             self, lcompile: CompileFn, code: str
         ):
             with pytest.raises(compiler.CompilerException):
@@ -4803,84 +4804,78 @@ class TestReify:
             "code",
             [
                 """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this & args]
-                (concat [:no-starter] args))
-              (--call-- [this s & args]
-                (concat [s] args)))
-            """,
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this & args]
+                      (concat [:no-starter] args))
+                    (--call-- [this s & args]
+                      (concat [s] args))))""",
                 """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this s & args]
-                (concat [s] args))
-              (--call-- [this & args]
-                (concat [:no-starter] args)))
-            """,
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this s & args]
+                      (concat [s] args))
+                    (--call-- [this & args]
+                      (concat [:no-starter] args))))""",
             ],
         )
-        def test_deftype_method_cannot_have_two_variadic_arities(
+        def test_reify_method_cannot_have_two_variadic_arities(
             self, lcompile: CompileFn, code: str
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
-        def test_deftype_method_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
+        def test_reify_method_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
             self, lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
                     (import* collections.abc)
-                    (deftype* Point [x y z]
-                      :implements [collections.abc/Callable]
-                      (--call-- [this a b]
-                        [a b])
-                      (--call-- [this & args]
-                        (concat [:no-starter] args)))
-                    """
+                    (fn* [x y z]
+                      (reify* :implements [collections.abc/Callable]
+                        (--call-- [this a b]
+                          [a b])
+                        (--call-- [this & args]
+                          (concat [:no-starter] args))))"""
                 )
 
         @pytest.mark.parametrize(
             "code",
             [
                 """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this s] s)
-              (^{:kwargs :collect} --call-- [this s kwargs]
-                (concat [s] kwargs)))
-            """,
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this s] s)
+                    (^{:kwargs :collect} --call-- [this s kwargs]
+                       (concat [s] kwargs))))""",
                 """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (^{:kwargs :collect} --call-- [this kwargs] kwargs)
-              (^{:kwargs :apply} --call-- [thi shead & kwargs]
-                (apply hash-map :first head kwargs)))
-            """,
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (^{:kwargs :collect} --call-- [this kwargs] kwargs)
+                    (^{:kwargs :apply} --call-- [thi shead & kwargs]
+                      (apply hash-map :first head kwargs))))""",
             ],
         )
-        def test_deftype_method_does_not_support_kwargs(
+        def test_reify_method_does_not_support_kwargs(
             self, lcompile: CompileFn, code: str
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
-        def test_multi_arity_deftype_method_dispatches_properly(
+        def test_multi_arity_reify_method_dispatches_properly(
             self, lcompile: CompileFn, ns: runtime.Namespace,
         ):
             code = """
             (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this] :a)
-              (--call-- [this s] [:a s]))
-            """
+            (fn* [x y z]
+              (reify* :implements [collections.abc/Callable]
+                (--call-- [this] :a)
+                (--call-- [this s] [:a s])))"""
             Point = lcompile(code)
             assert callable(Point(1, 2, 3))
             assert kw.keyword("a") == Point(1, 2, 3)()
@@ -4890,13 +4885,12 @@ class TestReify:
 
             code = """
             (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this] :no-args)
-              (--call-- [this s] s)
-              (--call-- [this s & args]
-                (concat [s] args)))
-            """
+            (fn* [x y z]
+              (reify* :implements [collections.abc/Callable]
+                (--call-- [this] :no-args)
+                (--call-- [this s] s)
+                (--call-- [this s & args]
+                  (concat [s] args))))"""
             Point = lcompile(code)
             assert callable(Point(1, 2, 3))
             assert Point(1, 2, 3)() == kw.keyword("no-args")
@@ -4905,18 +4899,17 @@ class TestReify:
                 kw.keyword("first-arg"), "second-arg", 3
             )
 
-        def test_multi_arity_deftype_method_call_fails_if_no_valid_arity(
+        def test_multi_arity_reify_method_call_fails_if_no_valid_arity(
             self, lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
                 (import* collections.abc)
-                (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
-                  (--call-- [this] :send-me-an-arg!)
-                  (--call-- [this i] i)
-                  (--call-- [this i j] (concat [i] [j])))
-                """
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this] :send-me-an-arg!)
+                    (--call-- [this i] i)
+                    (--call-- [this i j] (concat [i] [j]))))"""
             )
 
             with pytest.raises(runtime.RuntimeException):
