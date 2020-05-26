@@ -1,7 +1,6 @@
 import builtins
 import collections
 import contextlib
-import inspect
 import logging
 import re
 import sys
@@ -50,7 +49,6 @@ from basilisp.lang.compiler.constants import (
     LINE_KW,
     NAME_KW,
     NS_KW,
-    OBJECT_DUNDER_METHODS,
     SYM_ASYNC_META_KEY,
     SYM_CLASSMETHOD_META_KEY,
     SYM_DEFAULT_META_KEY,
@@ -90,6 +88,7 @@ from basilisp.lang.compiler.nodes import (
     Do,
     Fn,
     FnArity,
+    FunctionContext,
     HostCall,
     HostField,
     If,
@@ -116,6 +115,7 @@ from basilisp.lang.compiler.nodes import (
     PyTuple,
     Quote,
     Recur,
+    Reify,
     Require,
     RequireAlias,
     Set as SetNode,
@@ -130,7 +130,8 @@ from basilisp.lang.compiler.nodes import (
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
-from basilisp.lang.util import count, genname, munge
+from basilisp.lang.util import OBJECT_DUNDER_METHODS, count, genname, is_abstract, munge
+from basilisp.logconfig import TRACE
 from basilisp.util import Maybe, partition
 
 # Analyzer logging
@@ -192,9 +193,9 @@ class SymbolTableEntry:
 @attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
     name: str
+    _is_context_boundary: bool = False
     _parent: Optional["SymbolTable"] = None
     _table: MutableMapping[sym.Symbol, SymbolTableEntry] = attr.ib(factory=dict)
-    _children: MutableMapping[str, "SymbolTable"] = attr.ib(factory=dict)
 
     def new_symbol(
         self, s: sym.Symbol, binding: Binding, warn_if_unused: bool = True
@@ -259,24 +260,19 @@ class SymbolTable:
                     f"symbol '{entry.symbol}' defined but not used ({ns}{code_loc})"
                 )
 
-    def append_frame(self, name: str, parent: "SymbolTable" = None) -> "SymbolTable":
-        new_frame = SymbolTable(name, parent=parent)
-        self._children[name] = new_frame
-        return new_frame
-
-    def pop_frame(self, name: str) -> None:
-        del self._children[name]
-
     @contextlib.contextmanager
-    def new_frame(self, name, warn_on_unused_names):
+    def new_frame(
+        self, name: str, is_context_boundary: bool, warn_on_unused_names: bool
+    ):
         """Context manager for creating a new stack frame. If warn_on_unused_names is
         True and the logger is enabled for WARNING, call _warn_unused_names() on the
         child SymbolTable before it is popped."""
-        new_frame = self.append_frame(name, parent=self)
+        new_frame = SymbolTable(
+            name, is_context_boundary=is_context_boundary, parent=self
+        )
         yield new_frame
         if warn_on_unused_names and logger.isEnabledFor(logging.WARNING):
             new_frame._warn_unused_names()
-        self.pop_frame(name)
 
     def _as_env_map(self) -> MutableMapping[sym.Symbol, lmap.Map]:
         locals_ = {} if self._parent is None else self._parent._as_env_map()
@@ -287,6 +283,26 @@ class SymbolTable:
         """Return a map of symbols to the local binding objects in the
         local symbol table as of this call."""
         return lmap.map(self._as_env_map())
+
+    @property
+    def context_boundary(self) -> "SymbolTable":
+        """Return the nearest context boundary parent symbol table to this one. If the
+        current table is a context boundary, it will be returned directly.
+
+        Context boundary symbol tables are symbol tables defined at the top level for
+        major Python execution boundaries, such as modules (namespaces), functions
+        (sync and async), and methods.
+
+        Certain symbols (such as imports) are globally available in the execution
+        context they are defined in once they have been created, context boundary
+        symbol tables serve as the anchor points where we hoist these global symbols
+        so they do not go out of scope when the local table frame is popped."""
+        if self._is_context_boundary:
+            return self
+        assert (
+            self._parent is not None
+        ), "Top symbol table must always be a context boundary"
+        return self._parent.context_boundary
 
 
 class AnalyzerContext:
@@ -312,7 +328,7 @@ class AnalyzerContext:
     ) -> None:
         self._allow_unresolved_symbols = allow_unresolved_symbols
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
-        self._func_ctx: Deque[bool] = collections.deque([])
+        self._func_ctx: Deque[FunctionContext] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
         self._macro_ns: Deque[Optional[runtime.Namespace]] = collections.deque([])
         self._opts = (
@@ -320,7 +336,7 @@ class AnalyzerContext:
         )
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._should_macroexpand = should_macroexpand
-        self._st = collections.deque([SymbolTable("<Top>")])
+        self._st = collections.deque([SymbolTable("<Top>", is_context_boundary=True)])
         self._syntax_pos = collections.deque([NodeSyntacticPosition.EXPR])
 
     @property
@@ -409,34 +425,33 @@ class AnalyzerContext:
         return self._should_macroexpand
 
     @property
-    def is_async_ctx(self) -> bool:
-        """If True, the current node appears inside of an async function definition.
+    def func_ctx(self) -> Optional[FunctionContext]:
+        """Return the current function or method context of the current node, if one.
+        Return None otherwise.
+
         It is possible that the current function is defined inside other functions,
         so this does not imply anything about the nesting level of the current node."""
         try:
-            return self._func_ctx[-1] is True
+            return self._func_ctx[-1]
         except IndexError:
-            return False
+            return None
 
     @property
-    def in_func_ctx(self) -> bool:
-        """If True, the current node appears inside of a function definition.
+    def is_async_ctx(self) -> bool:
+        """Return True if the current node appears inside of an async function
+        definition. Return False otherwise.
+
         It is possible that the current function is defined inside other functions,
         so this does not imply anything about the nesting level of the current node."""
-        try:
-            self._func_ctx[-1]
-        except IndexError:
-            return False
-        else:
-            return True
+        return self.func_ctx == FunctionContext.ASYNC_FUNCTION
 
     @contextlib.contextmanager
-    def new_func_ctx(self, is_async: bool = False):
-        """Context manager which can be used to set a function context for child
-        nodes to examine. A new function context is pushed onto the stack each time
-        the Analyzer finds a new function definition, so there may be many nested
-        function contexts."""
-        self._func_ctx.append(is_async)
+    def new_func_ctx(self, context_type: FunctionContext):
+        """Context manager which can be used to set a function or method context for
+        child nodes to examine. A new function context is pushed onto the stack each
+        time the Analyzer finds a new function or method definition, so there may be
+        many nested function contexts."""
+        self._func_ctx.append(context_type)
         yield
         self._func_ctx.pop()
 
@@ -471,6 +486,7 @@ class AnalyzerContext:
         warn_on_shadowed_name: bool = True,
         warn_on_shadowed_var: bool = True,
         warn_if_unused: bool = True,
+        symbol_table: Optional[SymbolTable] = None,
     ):
         """Add a new symbol to the symbol table.
 
@@ -495,7 +511,7 @@ class AnalyzerContext:
         If WARN_ON_SHADOWED_VAR compiler option is active and the
         warn_on_shadowed_var keyword argument is True, then a warning will be
         emitted if a named var is shadowed by a local name."""
-        st = self.symbol_table
+        st = symbol_table or self.symbol_table
         no_warn_on_shadow = (
             Maybe(s.meta)
             .map(lambda m: m.val_at(SYM_NO_WARN_ON_SHADOW_META_KEY, False))
@@ -518,9 +534,11 @@ class AnalyzerContext:
         st.new_symbol(s, binding, warn_if_unused=warn_if_unused)
 
     @contextlib.contextmanager
-    def new_symbol_table(self, name):
+    def new_symbol_table(self, name: str, is_context_boundary: bool = False):
         old_st = self.symbol_table
-        with old_st.new_frame(name, self.warn_on_unused_names) as st:
+        with old_st.new_frame(
+            name, is_context_boundary, self.warn_on_unused_names,
+        ) as st:
             self._st.append(st)
             yield st
             self._st.pop()
@@ -581,8 +599,14 @@ class AnalyzerContext:
         parent node."""
         return self._syntax_pos[-1]
 
-    def get_node_env(self, pos: Optional[NodeSyntacticPosition] = None):
-        return NodeEnv(ns=self.current_ns, file=self.filename, pos=pos)
+    def get_node_env(self, pos: Optional[NodeSyntacticPosition] = None) -> NodeEnv:
+        """Return the current Node environment.
+
+        If a synax position is given, it will be included in the environment.
+        Otherwise, the position will be set to None."""
+        return NodeEnv(
+            ns=self.current_ns, file=self.filename, pos=pos, func_ctx=self.func_ctx
+        )
 
 
 MetaGetter = Callable[[Union[IMeta, Var]], bool]
@@ -813,10 +837,11 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
             f"def names must be symbols, not {type(name)}", form=name
         )
 
+    children: vec.Vector[kw.Keyword]
     if nelems == 2:
         init = None
         doc = None
-        children: vec.Vector[kw.Keyword] = vec.Vector.empty()
+        children = vec.Vector.empty()
     elif nelems == 3:
         with ctx.expr_pos():
             init = _analyze_form(ctx, runtime.nth(form, 2))
@@ -898,7 +923,6 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         var=var,
         init=init,
         doc=doc,
-        in_func_ctx=ctx.in_func_ctx,
         children=children,
         env=def_node_env,
     )
@@ -943,9 +967,9 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
 
 
 def __deftype_method_param_bindings(
-    ctx: AnalyzerContext, params: vec.Vector
+    ctx: AnalyzerContext, params: vec.Vector, special_form: sym.Symbol
 ) -> Tuple[bool, int, List[Binding]]:
-    """Generate parameter bindings for deftype* methods.
+    """Generate parameter bindings for `deftype*` or `reify*` methods.
 
     Return a tuple containing a boolean, indicating if the parameter bindings
     contain a variadic binding, an integer indicating the fixed arity of the
@@ -954,12 +978,14 @@ def __deftype_method_param_bindings(
     Special cases for individual method types must be handled by their
     respective handlers. This method will only produce vanilla ARG type
     bindings."""
+    assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
+
     has_vargs, vargs_idx = False, 0
     param_nodes = []
     for i, s in enumerate(params):
         if not isinstance(s, sym.Symbol):
             raise AnalyzerException(
-                "deftype* method parameter name must be a symbol", form=s
+                f"{special_form} method parameter name must be a symbol", form=s
             )
 
         if s == AMPERSAND:
@@ -986,7 +1012,7 @@ def __deftype_method_param_bindings(
 
             if not isinstance(vargs_sym, sym.Symbol):
                 raise AnalyzerException(
-                    "deftype* method rest parameter name must be a symbol",
+                    f"{special_form} method rest parameter name must be a symbol",
                     form=vargs_sym,
                 )
 
@@ -1015,18 +1041,20 @@ def __deftype_classmethod(
     args: vec.Vector,
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeClassMethodArity:
-    """Emit a node for a :classmethod member of a deftype* form."""
-    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
+    """Emit a node for a :classmethod member of a `deftype*` form."""
+    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
+        method_name, is_context_boundary=True
+    ):
         try:
             cls_arg = args[0]
         except IndexError:
             raise AnalyzerException(
-                f"deftype* class method must include 'cls' argument", form=args
+                "deftype* class method must include 'cls' argument", form=args
             )
         else:
             if not isinstance(cls_arg, sym.Symbol):
                 raise AnalyzerException(
-                    f"deftype* class method 'cls' argument must be a symbol", form=args
+                    "deftype* class method 'cls' argument must be a symbol", form=args,
                 )
             cls_binding = Binding(
                 form=cls_arg,
@@ -1038,9 +1066,9 @@ def __deftype_classmethod(
 
         params = args[1:]
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
-            ctx, params
+            ctx, params, SpecialForm.DEFTYPE
         )
-        with ctx.expr_pos():
+        with ctx.new_func_ctx(FunctionContext.CLASSMETHOD), ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
         method = DefTypeClassMethodArity(
             form=form,
@@ -1065,25 +1093,29 @@ def __deftype_classmethod(
         return method
 
 
-def __deftype_method(
+def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-locals
     ctx: AnalyzerContext,
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
+    special_form: sym.Symbol,
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeMethodArity:
-    """Emit a node for a method member of a deftype* form."""
-    with ctx.new_symbol_table(method_name):
+    """Emit a node for a method member of a `deftype*` or `reify*` form."""
+    assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
+
+    with ctx.new_symbol_table(method_name, is_context_boundary=True):
         try:
             this_arg = args[0]
         except IndexError:
             raise AnalyzerException(
-                f"deftype* method must include 'this' or 'self' argument", form=args
+                f"{special_form} method must include 'this' or 'self' argument",
+                form=args,
             )
         else:
             if not isinstance(this_arg, sym.Symbol):
                 raise AnalyzerException(
-                    f"deftype* method 'this' argument must be a symbol", form=args
+                    f"{special_form} method 'this' argument must be a symbol", form=args
                 )
             this_binding = Binding(
                 form=this_arg,
@@ -1095,12 +1127,12 @@ def __deftype_method(
 
         params = args[1:]
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
-            ctx, params
+            ctx, params, special_form
         )
 
         loop_id = genname(method_name)
         with ctx.new_recur_point(loop_id, param_nodes):
-            with ctx.expr_pos():
+            with ctx.new_func_ctx(FunctionContext.METHOD), ctx.expr_pos():
                 stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
             method = DefTypeMethodArity(
                 form=form,
@@ -1126,24 +1158,29 @@ def __deftype_method(
             return method
 
 
-def __deftype_property(
+def __deftype_or_reify_property(
     ctx: AnalyzerContext,
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
+    special_form: sym.Symbol,
 ) -> DefTypeProperty:
-    """Emit a node for a :property member of a deftype* form."""
-    with ctx.new_symbol_table(method_name):
+    """Emit a node for a :property member of a `deftype*` or `reify*` form."""
+    assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
+
+    with ctx.new_symbol_table(method_name, is_context_boundary=True):
         try:
             this_arg = args[0]
         except IndexError:
             raise AnalyzerException(
-                f"deftype* property must include 'this' or 'self' argument", form=args
+                f"{special_form} property must include 'this' or 'self' argument",
+                form=args,
             )
         else:
             if not isinstance(this_arg, sym.Symbol):
                 raise AnalyzerException(
-                    f"deftype* property 'this' argument must be a symbol", form=args
+                    f"{special_form} property 'this' argument must be a symbol",
+                    form=args,
                 )
             this_binding = Binding(
                 form=this_arg,
@@ -1154,16 +1191,18 @@ def __deftype_property(
             ctx.put_new_symbol(this_arg, this_binding, warn_if_unused=False)
 
         params = args[1:]
-        has_vargs, _, param_nodes = __deftype_method_param_bindings(ctx, params)
+        has_vargs, _, param_nodes = __deftype_method_param_bindings(
+            ctx, params, special_form
+        )
 
         if len(param_nodes) > 0:
             raise AnalyzerException(
-                "deftype* properties may not specify arguments", form=form
+                f"{special_form} properties may not specify arguments", form=form
             )
 
-        assert not has_vargs, "deftype* properties may not have arguments"
+        assert not has_vargs, f"{special_form} properties may not have arguments"
 
-        with ctx.expr_pos():
+        with ctx.new_func_ctx(FunctionContext.PROPERTY), ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
         prop = DefTypeProperty(
             form=form,
@@ -1192,10 +1231,14 @@ def __deftype_staticmethod(
     args: vec.Vector,
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeStaticMethodArity:
-    """Emit a node for a :staticmethod member of a deftype* form."""
-    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(method_name):
-        has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(ctx, args)
-        with ctx.expr_pos():
+    """Emit a node for a :staticmethod member of a `deftype*` form."""
+    with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
+        method_name, is_context_boundary=True
+    ):
+        has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
+            ctx, args, SpecialForm.DEFTYPE
+        )
+        with ctx.new_func_ctx(FunctionContext.STATICMETHOD), ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
         method = DefTypeStaticMethodArity(
             form=form,
@@ -1219,10 +1262,11 @@ def __deftype_staticmethod(
         return method
 
 
-def __deftype_prop_or_method_arity(  # pylint: disable=too-many-branches
-    ctx: AnalyzerContext, form: Union[llist.List, ISeq]
+def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branches
+    ctx: AnalyzerContext, form: Union[llist.List, ISeq], special_form: sym.Symbol
 ) -> Union[DefTypeMethodArityBase, DefTypeProperty]:
-    """Emit either a `deftype*` property node or an arity of a `deftype*` method.
+    """Emit either a `deftype*` or `reify*` property node or an arity of a `deftype*`
+    or `reify*` method.
 
     Unlike standard `fn*` definitions, multiple arities for a single method are
     not defined within some containing node. As such, we can only emit either a
@@ -1232,9 +1276,11 @@ def __deftype_prop_or_method_arity(  # pylint: disable=too-many-branches
     The type of the member node is determined by the presence or absence of certain
     metadata elements on the input form (or the form's first member, typically a
     symbol naming that member)."""
+    assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
+
     if not isinstance(form.first, sym.Symbol):
         raise AnalyzerException(
-            "deftype* method must be named by symbol: (name [& args] & body)",
+            f"{special_form} method must be named by symbol: (name [& args] & body)",
             form=form.first,
         )
     method_name = form.first.name
@@ -1249,16 +1295,24 @@ def __deftype_prop_or_method_arity(  # pylint: disable=too-many-branches
         isinstance(form, IMeta) and _is_py_staticmethod(form)
     )
 
+    if special_form == SpecialForm.REIFY and (is_classmethod or is_staticmethod):
+        raise AnalyzerException(
+            f"{special_form} does not support classmethod or staticmethod members",
+            form=form,
+        )
+
     if not sum([is_classmethod, is_property, is_staticmethod]) in {0, 1}:
         raise AnalyzerException(
-            "deftype* member may be only one of: :classmethod, :property, or :staticmethod",
+            f"{special_form} member may be only one of: :classmethod, :property, "
+            "or :staticmethod",
             form=form,
         )
 
     args = runtime.nth(form, 1)
     if not isinstance(args, vec.Vector):
         raise AnalyzerException(
-            f"deftype* member arguments must be vector, not {type(args)}", form=args
+            f"{special_form} member arguments must be vector, not {type(args)}",
+            form=args,
         )
 
     kwarg_meta = __fn_kwargs_support(form.first) or (
@@ -1273,27 +1327,31 @@ def __deftype_prop_or_method_arity(  # pylint: disable=too-many-branches
     elif is_property:
         if kwarg_support is not None:
             raise AnalyzerException(
-                f"deftype* properties may not declare keyword argument support",
+                f"{special_form} properties may not declare keyword argument support",
                 form=form,
             )
 
-        return __deftype_property(ctx, form, method_name, args)
+        return __deftype_or_reify_property(ctx, form, method_name, args, special_form)
     elif is_staticmethod:
         return __deftype_staticmethod(
             ctx, form, method_name, args, kwarg_support=kwarg_support
         )
     else:
-        return __deftype_method(
-            ctx, form, method_name, args, kwarg_support=kwarg_support
+        return __deftype_or_reify_method(
+            ctx, form, method_name, args, special_form, kwarg_support=kwarg_support
         )
 
 
-def __deftype_method_node_from_arities(  # pylint: disable=too-many-branches
+def __deftype_or_reify_method_node_from_arities(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext,
     form: Union[llist.List, ISeq],
     arities: List[DefTypeMethodArityBase],
+    special_form: sym.Symbol,
 ) -> DefTypeMethodBase:
-    """Roll all of the collected arities up into a single method node."""
+    """Roll all of the collected `deftype*` or `reify*` arities up into a single
+    method node."""
+    assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
+
     fixed_arities: MutableSet[int] = set()
     fixed_arity_for_variadic: Optional[int] = None
     num_variadic = 0
@@ -1301,21 +1359,23 @@ def __deftype_method_node_from_arities(  # pylint: disable=too-many-branches
         if fixed_arity_for_variadic is not None:
             if arity.fixed_arity >= fixed_arity_for_variadic:
                 raise AnalyzerException(
-                    "deftype method may not have a method with fixed arity greater "
-                    "than fixed arity of variadic function",
+                    f"{special_form} method may not have a method with fixed arity "
+                    "greater than fixed arity of variadic function",
                     form=arity.form,
                 )
         if arity.is_variadic:
             if num_variadic > 0:
                 raise AnalyzerException(
-                    "deftype method may have at most 1 variadic arity", form=arity.form
+                    f"{special_form} method may have at most 1 variadic arity",
+                    form=arity.form,
                 )
             fixed_arity_for_variadic = arity.fixed_arity
             num_variadic += 1
         else:
             if arity.fixed_arity in fixed_arities:
                 raise AnalyzerException(
-                    "deftype may not have multiple methods with the same fixed arity",
+                    f"{special_form} may not have multiple methods with the same "
+                    "fixed arity",
                     form=arity.form,
                 )
             fixed_arities.add(arity.fixed_arity)
@@ -1334,7 +1394,8 @@ def __deftype_method_node_from_arities(  # pylint: disable=too-many-branches
 
     if len(arities) > 1 and any(arity.kwarg_support is not None for arity in arities):
         raise AnalyzerException(
-            "multi-arity deftype* methods may not declare support for keyword arguments",
+            f"multi-arity {special_form} methods may not declare support for "
+            "keyword arguments",
             form=form,
         )
 
@@ -1375,22 +1436,26 @@ def __deftype_method_node_from_arities(  # pylint: disable=too-many-branches
         )
 
 
-def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noqa: MC0001
-    ctx: AnalyzerContext, form: ISeq
+def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-locals  # noqa: MC0001
+    ctx: AnalyzerContext, form: ISeq, special_form: sym.Symbol,
 ) -> Tuple[List[DefTypeBase], List[DefTypeMember]]:
-    """Roll up deftype* declared bases and method implementations."""
+    """Roll up `deftype*` and `reify*` declared bases and method implementations."""
+    assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
+
     if runtime.to_seq(form) is None:
         return [], []
 
     if not isinstance(form.first, kw.Keyword) or form.first != IMPLEMENTS:
         raise AnalyzerException(
-            "deftype* forms must declare which interfaces they implement", form=form
+            f"{special_form} forms must declare which interfaces they implement",
+            form=form,
         )
 
     implements = runtime.nth(form, 1)
     if not isinstance(implements, vec.Vector):
         raise AnalyzerException(
-            "deftype* interfaces must be declared as :implements [Interface1 Interface2 ...]",
+            f"{special_form} interfaces must be declared as "
+            ":implements [Interface1 Interface2 ...]",
             form=implements,
         )
 
@@ -1398,11 +1463,13 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
     interfaces = []
     for iface in implements:
         if not isinstance(iface, sym.Symbol):
-            raise AnalyzerException("deftype* interfaces must be symbols", form=iface)
+            raise AnalyzerException(
+                f"{special_form} interfaces must be symbols", form=iface
+            )
 
         if iface in interface_names:
             raise AnalyzerException(
-                "deftype* interfaces may only appear once in :implements vector",
+                f"{special_form} interfaces may only appear once in :implements vector",
                 form=iface,
             )
         interface_names.add(iface)
@@ -1410,7 +1477,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
         current_interface = _analyze_form(ctx, iface)
         if not isinstance(current_interface, (MaybeClass, MaybeHostForm, VarRef)):
             raise AnalyzerException(
-                "deftype* interface implementation must be an existing interface",
+                f"{special_form} interface implementation must be an existing interface",
                 form=iface,
             )
         interfaces.append(current_interface)
@@ -1426,22 +1493,22 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
     for elem in runtime.nthrest(form, 2):
         if not isinstance(elem, ISeq):
             raise AnalyzerException(
-                "deftype* must consist of interface or protocol names and methods",
+                f"{special_form} must consist of interface or protocol names and methods",
                 form=elem,
             )
 
-        member = __deftype_prop_or_method_arity(ctx, elem)
+        member = __deftype_or_reify_prop_or_method_arity(ctx, elem, special_form)
         member_order[member.name] = True
         if isinstance(member, DefTypeProperty):
             if member.name in props:
                 raise AnalyzerException(
-                    "deftype* property may only have one arity defined",
+                    f"{special_form} property may only have one arity defined",
                     form=elem,
                     lisp_ast=member,
                 )
             elif member.name in methods:
                 raise AnalyzerException(
-                    "deftype* property name already defined as a method",
+                    f"{special_form} property name already defined as a method",
                     form=elem,
                     lisp_ast=member,
                 )
@@ -1449,7 +1516,7 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
         else:
             if member.name in props:
                 raise AnalyzerException(
-                    "deftype* method name already defined as a property",
+                    f"{special_form} method name already defined as a property",
                     form=elem,
                     lisp_ast=member,
                 )
@@ -1459,7 +1526,11 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
     for member_name in member_order:
         arities = methods.get(member_name)
         if arities is not None:
-            members.append(__deftype_method_node_from_arities(ctx, form, arities))
+            members.append(
+                __deftype_or_reify_method_node_from_arities(
+                    ctx, form, arities, special_form
+                )
+            )
             continue
 
         prop = props.get(member_name)
@@ -1469,28 +1540,27 @@ def __deftype_impls(  # pylint: disable=too-many-branches,too-many-locals  # noq
     return interfaces, members
 
 
-def __is_abstract(tp: Type) -> bool:
-    """Return True if tp is an abstract class.
-
-    The builtin inspect.isabstract returns False for marker abstract classes
-    which do not define any abstract members."""
-    if inspect.isabstract(tp):
-        return True
-    return (
-        inspect.isclass(tp)
-        and hasattr(tp, "__abstractmethods__")
-        and tp.__abstractmethods__ == frozenset()
-    )
-
-
 _var_is_protocol = _meta_getter(VAR_IS_PROTOCOL_META_KEY)
 
 
-def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,too-many-locals
+def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-branches,too-many-locals
+    special_form: sym.Symbol,
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
     members: Iterable[DefTypeMember],
-) -> None:
+) -> bool:
+    """Return True if all `deftype*` or `reify*` super-types can be verified abstract
+    statically. Return False otherwise.
+
+    In certain cases, such as in macro definitions and potentially inside of
+    functions, the compiler will be unable to resolve the named super-type as an
+    object during compilation and these checks will need to be deferred to runtime.
+    In these cases, the compiler will wrap the emitted class in a decorator that
+    performs the checks when the class is compiled by the Python compiler.
+
+    For normal compile-time errors, an `AnalyzerException` will be raised."""
+    assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
+
     field_names = frozenset(fields)
     member_names = frozenset(munge(member.name) for member in members)
     all_member_names = field_names.union(member_names)
@@ -1498,7 +1568,18 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
     for interface in interfaces:
         if isinstance(interface, (MaybeClass, MaybeHostForm)):
             interface_type = interface.target
-        elif isinstance(interface, VarRef):
+        else:
+            assert isinstance(
+                interface, VarRef
+            ), "Interface must be MaybeClass, MaybeHostForm, or VarRef"
+            if not interface.var.is_bound:
+                logger.log(
+                    TRACE,
+                    f"{special_form} interface Var '{interface.form}' is not bound"
+                    "and cannot be checked for abstractness; deferring to runtime",
+                )
+                return False
+
             # Protocols are defined as maps, with the interface being simply a member
             # of the map, denoted by the keyword `:interface`.
             if _var_is_protocol(interface.var):
@@ -1507,15 +1588,13 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
                 interface_type = proto_map.val_at(INTERFACE)
             else:
                 interface_type = interface.var.value
-        else:  # pragma: no cover
-            assert False, "Interface must be MaybeClass, MaybeHostForm, or VarRef"
 
         if interface_type is object:
             continue
 
-        if not __is_abstract(interface_type):
+        if not is_abstract(interface_type):
             raise AnalyzerException(
-                "deftype* interface must be Python abstract class or object",
+                f"{special_form} interface must be Python abstract class or object",
                 form=interface.form,
                 lisp_ast=interface,
             )
@@ -1530,16 +1609,16 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
         if not interface_method_names.issubset(member_names):
             missing_methods = ", ".join(interface_method_names - member_names)
             raise AnalyzerException(
-                "deftype* definition missing interface members for interface "
-                f"{interface.form}: {missing_methods}",
+                f"{special_form} definition missing interface members for "
+                f"interface {interface.form}: {missing_methods}",
                 form=interface.form,
                 lisp_ast=interface,
             )
         elif not interface_property_names.issubset(all_member_names):
             missing_fields = ", ".join(interface_property_names - field_names)
             raise AnalyzerException(
-                "deftype* definition missing interface properties for interface "
-                f"{interface.form}: {missing_fields}",
+                f"{special_form} definition missing interface properties for "
+                f"interface {interface.form}: {missing_fields}",
                 form=interface.form,
                 lisp_ast=interface,
             )
@@ -1550,9 +1629,11 @@ def __assert_deftype_impls_are_abstract(  # pylint: disable=too-many-branches,to
     if extra_methods:
         extra_method_str = ", ".join(extra_methods)
         raise AnalyzerException(
-            "deftype* definition for interface includes members not part of "
-            f"defined interfaces: {extra_method_str}"
+            f"{special_form} definition for interface includes members not "
+            f"part of defined interfaces: {extra_method_str}"
         )
+
+    return True
 
 
 __DEFTYPE_DEFAULT_SENTINEL = object()
@@ -1631,9 +1712,11 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             param_nodes.append(binding)
             ctx.put_new_symbol(field, binding, warn_if_unused=False)
 
-        interfaces, members = __deftype_impls(ctx, runtime.nthrest(form, 3))
-        __assert_deftype_impls_are_abstract(
-            map(lambda f: f.name, fields), interfaces, members
+        interfaces, members = __deftype_or_reify_impls(
+            ctx, runtime.nthrest(form, 3), SpecialForm.DEFTYPE
+        )
+        verified_abstract = __deftype_and_reify_impls_are_all_abstract(
+            SpecialForm.DEFTYPE, map(lambda f: f.name, fields), interfaces, members
         )
         return DefType(
             form=form,
@@ -1641,6 +1724,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             interfaces=vec.vector(interfaces),
             fields=vec.vector(param_nodes),
             members=vec.vector(members),
+            verified_abstract=verified_abstract,
             is_frozen=is_frozen,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
@@ -1658,9 +1742,12 @@ def _do_ast(ctx: AnalyzerContext, form: ISeq) -> Do:
 
 
 def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: AnalyzerContext, form: ISeq, fnname: Optional[sym.Symbol] = None
+    ctx: AnalyzerContext,
+    form: ISeq,
+    fnname: Optional[sym.Symbol] = None,
+    is_async: bool = False,
 ) -> FnArity:
-    with ctx.new_symbol_table("fn-method"):
+    with ctx.new_symbol_table("fn-method", is_context_boundary=True):
         params = form.first
         if not isinstance(params, vec.Vector):
             raise AnalyzerException(
@@ -1717,7 +1804,9 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
 
         fn_loop_id = genname("fn_arity" if fnname is None else fnname.name)
         with ctx.new_recur_point(fn_loop_id, param_nodes):
-            with ctx.expr_pos():
+            with ctx.new_func_ctx(
+                FunctionContext.ASYNC_FUNCTION if is_async else FunctionContext.FUNCTION
+            ), ctx.expr_pos():
                 stmts, ret = _body_ast(ctx, form.rest)
             method = FnArity(
                 form=form,
@@ -1767,7 +1856,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
 
     idx = 1
 
-    with ctx.new_symbol_table("fn"):
+    with ctx.new_symbol_table("fn", is_context_boundary=True):
         try:
             name = runtime.nth(form, idx)
         except IndexError:
@@ -1776,11 +1865,11 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
+        name_node: Optional[Binding]
         if isinstance(name, sym.Symbol):
-            name_node: Optional[Binding] = Binding(
+            name_node = Binding(
                 form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
-            assert name_node is not None
             is_async = _is_async(name) or isinstance(form, IMeta) and _is_async(form)
             kwarg_support = (
                 __fn_kwargs_support(name)
@@ -1808,23 +1897,24 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
-        with ctx.new_func_ctx(is_async=is_async):
-            if isinstance(arity_or_args, llist.List):
-                arities = vec.vector(
-                    map(
-                        partial(__fn_method_ast, ctx, fnname=name),
-                        runtime.nthrest(form, idx),
-                    )
+        if isinstance(arity_or_args, llist.List):
+            arities = vec.vector(
+                map(
+                    partial(__fn_method_ast, ctx, fnname=name, is_async=is_async),
+                    runtime.nthrest(form, idx),
                 )
-            elif isinstance(arity_or_args, vec.Vector):
-                arities = vec.v(
-                    __fn_method_ast(ctx, runtime.nthrest(form, idx), fnname=name)
+            )
+        elif isinstance(arity_or_args, vec.Vector):
+            arities = vec.v(
+                __fn_method_ast(
+                    ctx, runtime.nthrest(form, idx), fnname=name, is_async=is_async
                 )
-            else:
-                raise AnalyzerException(
-                    "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
-                    form=form,
-                )
+            )
+        else:
+            raise AnalyzerException(
+                "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
+                form=form,
+            )
 
         nmethods = count(arities)
         assert nmethods > 0, "fn must have at least one arity"
@@ -2057,6 +2147,17 @@ def _import_ast(  # pylint: disable=too-many-branches
         if isinstance(f, sym.Symbol):
             module_name = f
             module_alias = None
+
+            ctx.put_new_symbol(
+                module_name,
+                Binding(
+                    form=module_name,
+                    name=module_name.name,
+                    local=LocalType.IMPORT,
+                    env=ctx.get_node_env(),
+                ),
+                symbol_table=ctx.symbol_table.context_boundary,
+            )
         elif isinstance(f, vec.Vector):
             if len(f) != 3:
                 raise AnalyzerException(
@@ -2071,6 +2172,17 @@ def _import_ast(  # pylint: disable=too-many-branches
             if not isinstance(module_alias_sym, sym.Symbol):
                 raise AnalyzerException("Python module alias must be a symbol", form=f)
             module_alias = module_alias_sym.name
+
+            ctx.put_new_symbol(
+                module_alias_sym,
+                Binding(
+                    form=module_alias_sym,
+                    name=module_alias,
+                    local=LocalType.IMPORT,
+                    env=ctx.get_node_env(),
+                ),
+                symbol_table=ctx.symbol_table.context_boundary,
+            )
         else:
             raise AnalyzerException("symbol or vector expected for import*", form=f)
 
@@ -2428,6 +2540,10 @@ def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branc
             _assert_no_recur(binding.init)
     elif node.op == NodeOp.RECUR:
         pass
+    elif node.op == NodeOp.REIFY:
+        assert isinstance(node, Reify)
+        for child in node.members:
+            _assert_recur_is_tail(child)
     elif node.op == NodeOp.TRY:
         assert isinstance(node, Try)
         _assert_recur_is_tail(node.body)
@@ -2456,6 +2572,34 @@ def _recur_ast(ctx: AnalyzerContext, form: ISeq) -> Recur:
     return Recur(
         form=form, exprs=exprs, loop_id=ctx.recur_point.loop_id, env=ctx.get_node_env()
     )
+
+
+@_with_meta
+def _reify_ast(ctx: AnalyzerContext, form: ISeq) -> Reify:
+    assert form.first == SpecialForm.REIFY
+
+    nelems = count(form)
+    if nelems < 3:
+        raise AnalyzerException(
+            "reify forms must have 3 or more elements, as in: "
+            "(reify* :implements [bases+impls])",
+            form=form,
+        )
+
+    with ctx.new_symbol_table("reify"):
+        interfaces, members = __deftype_or_reify_impls(
+            ctx, runtime.nthrest(form, 1), SpecialForm.REIFY
+        )
+        verified_abstract = __deftype_and_reify_impls_are_all_abstract(
+            SpecialForm.REIFY, (), interfaces, members
+        )
+        return Reify(
+            form=form,
+            interfaces=vec.vector(interfaces),
+            members=vec.vector(members),
+            verified_abstract=verified_abstract,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
 
 
 def _require_ast(  # pylint: disable=too-many-branches
@@ -2708,6 +2852,7 @@ _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.LOOP: _loop_ast,
     SpecialForm.QUOTE: _quote_ast,
     SpecialForm.RECUR: _recur_ast,
+    SpecialForm.REIFY: _reify_ast,
     SpecialForm.REQUIRE: _require_ast,
     SpecialForm.SET_BANG: _set_bang_ast,
     SpecialForm.THROW: _throw_ast,
@@ -2887,8 +3032,28 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     elif ctx.should_allow_unresolved_symbols:
         return _const_node(ctx, form)
 
+    # Imports and requires nested in function definitions, method definitions, and
+    # `(do ...)` forms are not statically resolvable, since they haven't necessarily
+    # been imported and we want to minimize side-effecting from the compiler. In these
+    # cases, we merely verify that we've seen the symbol before and defer to runtime
+    # checks by the Python VM to verify that the import or require is legitimate.
+    maybe_import_or_require_sym = sym.symbol(form.ns)
+    maybe_import_or_require_entry = ctx.symbol_table.find_symbol(
+        maybe_import_or_require_sym
+    )
+    if maybe_import_or_require_entry is not None:
+        if maybe_import_or_require_entry.context == LocalType.IMPORT:
+            ctx.symbol_table.mark_used(maybe_import_or_require_sym)
+            return MaybeHostForm(
+                form=form,
+                class_=munge(form.ns),
+                field=munge(form.name),
+                target=None,
+                env=ctx.get_node_env(pos=ctx.syntax_position),
+            )
+
     # Static and class methods on types in the current namespace can be referred
-    # to as `Type/static-method`. In these casess, we will try to resolve the
+    # to as `Type/static-method`. In these cases, we will try to resolve the
     # namespace portion of the symbol as a Var within the current namespace.
     maybe_type_or_class = current_ns.find(sym.symbol(form.ns))
     if maybe_type_or_class is not None:
@@ -2950,6 +3115,16 @@ def __resolve_bare_symbol(
             form=form,
             class_=munged,
             target=vars(builtins)[munged],
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
+
+    # Allow users to resolve imported module names directly
+    maybe_import = current_ns.get_import(form)
+    if maybe_import is not None:
+        return MaybeClass(
+            form=form,
+            class_=munge(form.name),
+            target=maybe_import,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
@@ -3139,7 +3314,7 @@ def _const_node(ctx: AnalyzerContext, form: ReaderForm) -> Const:
                 uuid.UUID,
             ),
         )
-    )
+    ), "Constant nodes must be composed of constant values"
 
     node_type = _CONST_NODE_TYPES.get(type(form), ConstType.UNKNOWN)
     if node_type == ConstType.UNKNOWN:

@@ -3712,9 +3712,19 @@
   (ns-resolve *ns* sym))
 
 (defmacro import
-  "Import a Python module by name."
-  [module]
-  `(import* ~module))
+  "Import Python modules by name.
+
+  Modules may be specified either as symbols naming the full module path or as a
+  vector taking the form `[full.module.path :as alias]`.
+
+  Note that unlike in Python, `import`ed Python module names are always hoisted to
+  the current Namespace, so imported names will be available within a Namespace even
+  if the `import` itself occurs within a function or method.
+
+  Use of `import` directly is discouraged in favor of the `:import` directive in
+  the `ns` macro."
+  [& modules]
+  `(import* ~@modules))
 
 (import importlib)
 
@@ -4781,7 +4791,7 @@
 ;;;;;;;;;;;;;;;;
 
 (defn ^:private collect-methods
-  "Collect method and interface declarations for `deftype` and `defrecord`
+  "Collect method and interface declarations for `deftype`, `defrecord`, and `reify`
   into a map containing `:interfaces` and `:methods` keys."
   [method-impls]
   (group-by (fn [v]
@@ -4811,18 +4821,28 @@
 
   Interface or protocol implementations are declared as the name of the
   interface or protocol as a symbol, followed by 1 or more method
-  definitions for that interface. Types are not required to declare
-  any interface implementations. Types which do declare interface
-  implementations are required to implement all interface methods. Failing
-  to implement all interface methods is a compile time error. Types
-  implementing `object` are not required to implement all `object` methods.
+  definitions for that interface. Types are not required to declare any
+  interface implementations. Types which do declare interface implementations
+  are required to implement all interface methods. Failing to implement all
+  interface methods is a compile time error. Types implementing `object` are
+  not required to implement all `object` methods.
 
   Method declarations should appear as:
 
+    (method-name [arg1] & body)
     (method-name [arg1 arg2 ...] & body)
 
-  Unlike in Clojure, interface and protocol methods are permitted to
-  include variadic arguments.
+  Unlike in Clojure, interface and protocol methods are permitted to include
+  variadic arguments. Single-arity methods may also declare support for
+  keyword arguments using either the `:apply` or `:collect` strategy on the
+  `:kwargs` metadata on the method name. Methods may be declared as static
+  (using the `:staticmethod`) or class methods (using the `:classmethod`)
+  metadata on the the name. Both static methods and class methods can be
+  declared with multiple arities or may be defined with a single arity and
+  keyword arguments. Finally, single-arity methods may be declared as Python
+  properties using the `:property` metadata on the method name. These facilities
+  are provided as a means to interoperate with Python code and their use is
+  discouraged in pure Basilisp code.
 
   Type objects are created with sensible `object` defaults as by `attrs`.
   New types may override `object` defaults. An `__init__` function is
@@ -4848,6 +4868,57 @@
          ~@methods)
        (def ~ctor-name ~type-name)
        ~type-name)))
+
+(defmacro reify
+  "Create a new Python object of an anonymous type which implements 0 or more
+  Python interfaces or Basilisp protocols.
+
+  Unlike types created via `deftype`, `reify` returns an object which implements
+  the named interfaces using the implementations provided. You may not provide
+  fields as such to `reify`, though `reify` closes over any local names defined
+  in the same lexical context. These fields may serve as private fields of the
+  created object.
+
+  Interface or protocol implementations are declared as the name of the
+  interface or protocol as a symbol, followed by 1 or more method
+  definitions for that interface. Types are not required to declare any
+  interface implementations. Types which do declare interface implementations
+  are required to implement all interface methods. Failing to implement all
+  interface methods is a compile time error. Types implementing `object` are
+  not required to implement all `object` methods.
+
+  Method declarations should appear as:
+
+    (method-name [arg1] & body)
+    (method-name [arg1 arg2 ...] & body)
+
+  Unlike in Clojure, interface and protocol methods are permitted to
+  include variadic arguments. Single-arity methods may also declare support for
+  keyword arguments using either the `:apply` or `:collect` strategy on the
+  `:kwargs` metadata on the method name. Finally, single-arity methods may be
+  declared as Python properties using the `:property` metadata on the method
+  name. These facilities are provided as a means to interoperate with Python
+  code and their use is discouraged in pure Basilisp code.
+
+  `reify` does not support class method or static method members and attempting
+  to declare `reify` members as class or static members will result in a
+  compile time error.
+
+  Type objects are created with sensible `object` defaults as by `attrs`.
+  New types may override `object` defaults.
+
+  Reified objects always implement `basilisp.lang.interfaces/IWithMeta` and
+  transfer the metadata from the form to the created object.
+
+  Methods must supply a `this` or `self` parameter. `recur` special forms
+  used in the body of a method should not include that parameter, as it
+  will be supplied automatically."
+  [& method-impls]
+  (let [{:keys [interfaces methods]} (collect-methods method-impls)]
+    (with-meta
+      `(reify* :implements [~@interfaces python/object]
+               ~@methods)
+      (meta &form))))
 
 ;;;;;;;;;;;;;
 ;; Records ;;
@@ -4914,14 +4985,15 @@
 
   Interface or protocol implementations are declared as the name of the
   interface or protocol as a symbol, followed by 1 or more method
-  definitions for that interface. Records are not required to declare
-  any interface implementations. Records which do declare interface
-  implementations are required to implement all interface methods. Failing
-  to implement all interface methods is a compile time error. Records
-  implementing `object` are not required to implement all `object` methods.
+  definitions for that interface. Types are not required to declare any
+  interface implementations. Types which do declare interface implementations
+  are required to implement all interface methods. Failing to implement all
+  interface methods is a compile time error. Types implementing `object` are
+  not required to implement all `object` methods.
 
   Method declarations should appear as:
 
+    (method-name [arg1] & body)
     (method-name [arg1 arg2 ...] & body)
 
   Records objects are created with sensible `object` defaults as by `attrs`.

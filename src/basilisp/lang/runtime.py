@@ -20,7 +20,9 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Set,
     Tuple,
+    Type,
     Union,
     cast,
 )
@@ -49,7 +51,7 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.reference import ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
-from basilisp.lang.util import demunge, munge
+from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
 from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
@@ -94,6 +96,7 @@ _LET = sym.symbol("let*")
 _LETFN = sym.symbol("letfn*")
 _LOOP = sym.symbol("loop*")
 _QUOTE = sym.symbol("quote")
+_REIFY = sym.symbol("reify*")
 _RECUR = sym.symbol("recur")
 _REQUIRE = sym.symbol("require*")
 _SET_BANG = sym.symbol("set!")
@@ -117,6 +120,7 @@ _SPECIAL_FORMS = lset.s(
     _LOOP,
     _QUOTE,
     _RECUR,
+    _REIFY,
     _REQUIRE,
     _SET_BANG,
     _THROW,
@@ -1459,6 +1463,61 @@ def _basilisp_fn(f):
     return f
 
 
+def _basilisp_type(
+    fields: Iterable[str], interfaces: Iterable[Type], members: Iterable[str],
+):
+    """Check that a Basilisp type (defined by `deftype*`) only declares abstract
+    super-types and that all abstract methods are implemented."""
+
+    def wrap_class(cls: Type):
+        field_names = frozenset(fields)
+        member_names = frozenset(members)
+        all_member_names = field_names.union(member_names)
+        all_interface_methods: Set[str] = set()
+        for interface in interfaces:
+            if interface is object:
+                continue
+
+            if not is_abstract(interface):
+                raise RuntimeException(
+                    "deftype* interface must be Python abstract class or object",
+                )
+
+            interface_names: FrozenSet[str] = interface.__abstractmethods__
+            interface_property_names: FrozenSet[str] = frozenset(
+                method
+                for method in interface_names
+                if isinstance(getattr(interface, method), property)
+            )
+            interface_method_names = interface_names - interface_property_names
+            if not interface_method_names.issubset(member_names):
+                missing_methods = ", ".join(interface_method_names - member_names)
+                raise RuntimeException(
+                    "deftype* definition missing interface members for interface "
+                    f"{interface}: {missing_methods}",
+                )
+            elif not interface_property_names.issubset(all_member_names):
+                missing_fields = ", ".join(interface_property_names - field_names)
+                raise RuntimeException(
+                    "deftype* definition missing interface properties for interface "
+                    f"{interface}: {missing_fields}",
+                )
+
+            all_interface_methods.update(interface_names)
+
+        extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
+        if extra_methods:
+            extra_method_str = ", ".join(extra_methods)
+            raise RuntimeException(
+                "deftype* definition for interface includes members not part of "
+                f"defined interfaces: {extra_method_str}"
+            )
+
+        return cls
+
+    return wrap_class
+
+
 ###############################
 # Symbol and Alias Resolution #
 ###############################
@@ -1599,13 +1658,13 @@ def init_ns_var() -> Var:
 def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     """Bootstrap the environment with functions that are either difficult to express
     with the very minimal Lisp environment or which are expected by the compiler."""
-    __NS = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
+    _NS = Maybe(Var.find(NS_VAR_SYM)).or_else_raise(
         lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
     )
 
     def in_ns(s: sym.Symbol):
         ns = Namespace.get_or_create(s)
-        __NS.value = ns
+        _NS.value = ns
         return ns
 
     # Vars used in bootstrapping the runtime
