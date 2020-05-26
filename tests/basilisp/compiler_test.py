@@ -25,7 +25,7 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
-from basilisp.lang.interfaces import IType
+from basilisp.lang.interfaces import IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.util import demunge
 from tests.basilisp.helpers import get_or_create_ns
@@ -3874,6 +3874,873 @@ class TestRecur:
           (compute-sum 5))
         """
         assert 15 == lcompile(code)
+
+
+class TestReify:
+    @pytest.mark.parametrize("code", ["(reify*)", "(reify* :implements)"])
+    def test_reify_number_of_elems(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    def test_reify_has_implements_kw(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (reify* [collections.abc/Sized]
+                  (__len__ [this] 2))"""
+            )
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (reify :implements (collections.abc/Sized)
+              (__len__ [this] 2))""",
+            """
+            (reify :implements collections.abc/Sized
+              (__len__ [this] 2))""",
+        ],
+    )
+    def test_reify_implements_is_vector(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    def test_reify_must_declare_implements(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (reify*
+                  (--call-- [this] [1 2 3]))"""
+            )
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (import* collections.abc)
+            (reify :implements [collections.abc/Callable])""",
+            """
+            (import* collections.abc)
+            (reify* :implements [collections.abc/Callable collections.abc/Sized]
+              (--call-- [this] [1 2 3]))""",
+            """
+            (reify*
+              (--call-- [this] [1 2 3]))""",
+        ],
+    )
+    def test_reify_impls_must_match_defined_interfaces(
+        self, lcompile: CompileFn, code: str
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (import* collections.abc)
+            (reify* :implements [collections.abc/Callable collections.abc/Callable]
+              (--call-- [this] [1 2 3])
+              (--call-- [this] 1))""",
+            """
+            (import* collections.abc)
+            (reify*
+              :implements [collections.abc/Callable collections.abc/Sized collections.abc/Callable]
+              (--call-- [this] [1 2 3])
+              (--len-- [this] 1)
+              (--call-- [this] 1))""",
+            """
+            (import* collections.abc)
+            (reify*
+              :implements [collections.abc/Callable collections.abc/Callable collections.abc/Sized]
+              (--call-- [this] [1 2 3])
+              (--call-- [this] 1)
+              (--len-- [this] 1))""",
+        ],
+    )
+    def test_reify_prohibit_duplicate_interface(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (reify*
+              :implements [:collections.abc/Callable]
+              (--call-- [this] [1 2 3]))""",
+            """
+            (import* collections.abc)
+            (reify*
+              :implements [collections.abc/Callable]
+              [--call-- [this] [1 2 3]])""",
+            """
+            (import* collections.abc)
+            (reify*
+              :implements [collections.abc/Callable :collections.abc/Sized]
+              [--call-- [this] [1 2 3]])""",
+        ],
+    )
+    def test_reify_impls_must_be_sym_or_list(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    def test_reify_interface_must_be_host_form(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (let [a :kw]
+                  (reify* :implements [a]
+                    (--call-- [this] [1 2 3])))"""
+            )
+
+    @pytest.mark.parametrize(
+        "code,ExceptionType",
+        [
+            (
+                """
+                (import* collections)
+                (reify* :implements [collections/OrderedDict]
+                  (keys [this] [1 2 3]))""",
+                compiler.CompilerException,
+            ),
+            (
+                """
+                (do
+                  (def Shape (python/type "Shape" #py () #py {}))
+                  (reify* :implements [Shape]))""",
+                runtime.RuntimeException,
+            ),
+        ],
+    )
+    def test_reify_interface_must_be_abstract(
+        self, lcompile: CompileFn, code: str, ExceptionType
+    ):
+        with pytest.raises(ExceptionType):
+            lcompile(code)
+
+    def test_reify_allows_empty_abstract_interface(self, lcompile: CompileFn):
+        reified_obj = lcompile("(reify* :implements [basilisp.lang.interfaces/IType])")
+        assert isinstance(reified_obj, IType)
+
+    def test_reify_allows_empty_dynamic_abstract_interface(self, lcompile: CompileFn):
+        Shape, make_circle = lcompile(
+            """
+            (do
+              (import* abc)
+              (def Shape (python/type "Shape" #py (abc/ABC) #py {}))
+              [Shape (fn [] (reify* :implements [Shape]))])"""
+        )
+        c = make_circle()
+        assert isinstance(Shape, type)
+        assert isinstance(c, Shape)
+
+    @pytest.mark.parametrize(
+        "code,ExceptionType",
+        [
+            (
+                """
+                (import* collections.abc)
+                (reify* :implements [collections.abc/Collection]
+                  (--len-- [this] 3))""",
+                compiler.CompilerException,
+            ),
+            (
+                """
+                (do
+                  (import* abc)
+                  (def Shape
+                  (python/type "Shape"
+                               #py (abc/ABC)
+                               #py {"area"
+                                     (abc/abstractmethod
+                                      (fn []))}))
+                  (reify* :implements [Shape]))""",
+                runtime.RuntimeException,
+            ),
+        ],
+    )
+    def test_reify_interface_must_implement_all_abstract_methods(
+        self, lcompile: CompileFn, code: str, ExceptionType,
+    ):
+        with pytest.raises(ExceptionType):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code,ExceptionType",
+        [
+            (
+                """
+                (import* collections.abc)
+                (reify* :implements [collections.abc/Sized]
+                  (--len-- [this] 3)
+                  (call [this] :called))""",
+                compiler.CompilerException,
+            ),
+            (
+                """
+                (import* abc collections.abc)
+                (do
+                  (def Shape
+                  (python/type "Shape"
+                               #py (abc/ABC)
+                               #py {"area"
+                                     (abc/abstractmethod
+                                      (fn []))}))
+                (reify* :implements [Shape]
+                  (area [this] (* 2 1 1))
+                  (call [this] :called)))""",
+                runtime.RuntimeException,
+            ),
+        ],
+    )
+    def test_reify_may_not_add_extra_methods_to_interface(
+        self, lcompile: CompileFn, code: str, ExceptionType,
+    ):
+        with pytest.raises(ExceptionType):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code", ["(reify* :implements [])", "(reify* :implements [python/object])"]
+    )
+    def test_reify_interface_may_have_no_fields_or_methods(
+        self, lcompile: CompileFn, code: str,
+    ):
+        lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (fn [x y z]
+              (reify* :implements [python/object]
+                (__str__ [this]
+                (python/repr #py ("Point" x y z)))))""",
+            """
+            (do
+              (def PyObject python/object)
+              (fn [x y z]
+                (reify* :implements [PyObject]
+                  (__str__ [this]
+                  (python/repr #py ("Point" x y z))))))""",
+        ],
+    )
+    def test_reify_interface_may_implement_only_some_object_methods(
+        self, lcompile: CompileFn, code: str
+    ):
+        Point = lcompile(code)
+        pt = Point(1, 2, 3)
+        assert "('Point', 1, 2, 3)" == str(pt)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (fn* [x y z]
+              (reify* :implements [WithProp]
+                (^:property prop [this] [x y z])
+                (prop [self] self)))""",
+            """
+            (fn* [x y z]
+              (reify* :implements [WithProp]
+                (prop [self] self)
+                (^:property prop [this] [x y z])))""",
+        ],
+    )
+    def test_reify_property_and_method_names_cannot_overlap(
+        self, lcompile: CompileFn, code: str
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                f"""
+                (import* abc)
+                (def WithProp
+                  (python/type "WithProp"
+                                 #py (abc/ABC)
+                                 #py {{"prop"
+                                      (python/property
+                                       (abc/abstractmethod
+                                        (fn [self])))}}))
+                (def WithMember
+                  (python/type "WithMember"
+                               #py (abc/ABC)
+                               #py {{"prop"
+                                    (abc/abstractmethod
+                                     (fn [cls]))}}))
+                {code}"""
+            )
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+        (import* abc)
+        (def WithCls
+          (python/type "WithCls"
+                       #py (abc/ABC)
+                       #py {"create"
+                            (python/classmethod
+                             (abc/abstractmethod
+                              (fn [self])))}))
+        (reify* :implements [WithProp]
+          (^:classmethod create [cls] cls))""",
+            """
+        (import* abc)
+        (def WithStatic
+          (python/type "WithStatic"
+                       #py (abc/ABC)
+                       #py {"dostatic"
+                            (python/staticmethod
+                             (abc/abstractmethod
+                              (fn [self])))}))
+        (reify* :implements [WithProp]
+          (^:staticmethod dostatic [] :staticboi))""",
+        ],
+    )
+    def test_reify_disallows_class_and_static_members(
+        self, lcompile: CompileFn, code: str
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    def test_reify_transfers_form_meta_to_obj(self, lcompile: CompileFn):
+        make_obj = lcompile(
+            """
+            (fn [x]
+              ^{:passed-through true}
+              (reify* :implements [python/object]
+                (--call-- [this] x)))"""
+        )
+        o = make_obj(kw.keyword("x"))
+        assert isinstance(o, IWithMeta)
+        assert lmap.map({kw.keyword("passed-through"): True}) == o.meta()
+        assert kw.keyword("x") == o()
+
+        new_meta = lmap.map({kw.keyword("replaced"): kw.keyword("yes")})
+        new_o = o.with_meta(new_meta)
+        assert isinstance(o, IWithMeta)
+        assert new_meta == new_o.meta()
+        assert kw.keyword("x") == new_o()
+
+        assert type(o) is type(new_o)
+
+    class TestReifyMember:
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (:--call-- [this] [x y z])))""",
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* collections.abc/Callable
+                    (\"--call--\" [this] [x y z])))""",
+            ],
+        )
+        def test_reify_member_is_named_by_sym(self, lcompile: CompileFn, code: str):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_reify_member_args_are_vec(
+            self, lcompile: CompileFn,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* collections.abc)
+                    (fn [x y z]
+                      (reify* :implements [collections.abc/Callable]
+                        (--call-- (this) [x y z])))"""
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (^:property ^:staticmethod __call__ [this]
+                      [x y z])))""",
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* collections.abc/Callable
+                    (^:classmethod ^:property __call__ [this]
+                      [x y z])))""",
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* collections.abc/Callable
+                    (^:classmethod ^:staticmethod __call__ [this]
+                      [x y z])))""",
+            ],
+        )
+        def test_reify_member_may_not_be_multiple_types(
+            self, lcompile: CompileFn, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+    class TestReifyMethod:
+        def test_reify_fields_and_methods(self, lcompile: CompileFn):
+            make_point = lcompile(
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable collections.abc/Sized]
+                    (--len-- [this] 1)
+                    (--call-- [this] [x y z])))"""
+            )
+            pt = make_point(1, 2, 3)
+            assert 1 == len(pt)
+            assert vec.v(1, 2, 3) == pt()
+
+        def test_reify_method_with_args(self, lcompile: CompileFn):
+            make_point = lcompile(
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this i j k] [x i y j z k])))"""
+            )
+            pt = make_point(1, 2, 3)
+            assert vec.v(1, 4, 2, 5, 3, 6) == pt(4, 5, 6)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this &])))""",
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this & :args])))""",
+            ],
+        )
+        def test_reify_method_with_varargs_malformed(
+            self, lcompile: CompileFn, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_reify_method_with_varargs(self, lcompile: CompileFn):
+            Mirror = lcompile(
+                """
+                (import* collections.abc)
+                (fn* [x]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this & args] [x args])))"""
+            )
+            mirror = Mirror("Beauty is in the eye of the beholder")
+            assert vec.v(
+                "Beauty is in the eye of the beholder", llist.l(1, 2, 3)
+            ) == mirror(1, 2, 3)
+
+        def test_reify_empty_method_body(self, lcompile: CompileFn):
+            Point = lcompile(
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this])))"""
+            )
+            pt = Point(1, 2, 3)
+            assert None is pt()
+
+        def test_reify_method_allows_recur(self, lcompile: CompileFn):
+            Point = lcompile(
+                """
+                (import* collections.abc operator)
+                (fn* [x]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this sum start]
+                      (if (operator/gt start 0)
+                        (recur (operator/add sum start) (operator/sub start 1))
+                        (operator/add sum x)))))"""
+            )
+            pt = Point(7)
+            assert 22 == pt(0, 5)
+
+        def test_reify_method_args_vec_includes_this(self, lcompile: CompileFn):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* collections.abc)
+                    (fn* [x y z]
+                      (reify* :implements [collections.abc/Callable]
+                        (--call-- [] [x y z])))"""
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [\"this\"] [x y z])))""",
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this :new] [x y z])))""",
+            ],
+        )
+        def test_reify_method_args_are_syms(self, lcompile: CompileFn, code: str):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_reify_method_returns_value(
+            self, lcompile: CompileFn,
+        ):
+            Point = lcompile(
+                """
+                (import* collections.abc)
+                (fn* [x]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this new-val]
+                      (* x new-val))))"""
+            )
+            pt = Point(3)
+            assert 15 == pt(5)
+
+        def test_reify_method_only_support_valid_kwarg_strategies(
+            self, lcompile: CompileFn
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* collections.abc)
+                    (reify* :implements [collections.abc/Callable]
+                      (^{:kwargs :kwarg-it} --call-- [this]))"""
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (^ {:kwargs :apply} --call--
+                      [this & args]
+                      (merge {:x x :y y :z z} (apply hash-map args)))))""",
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (^{:kwargs :collect} --call--
+                      [this kwargs]
+                      (merge {:x x :y y :z z} kwargs))))""",
+            ],
+        )
+        def test_reify_method_kwargs(self, lcompile: CompileFn, code: str):
+            Point = lcompile(code)
+
+            pt = Point(1, 2, 3)
+            assert lmap.map(
+                {
+                    kw.keyword("w"): 2,
+                    kw.keyword("x"): 1,
+                    kw.keyword("y"): 4,
+                    kw.keyword("z"): 3,
+                }
+            ) == pt(w=2, y=4)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this]
+                      :no-args)
+                    (--call-- [this]
+                      :also-no-args)))""",
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this s]
+                      :one-arg)
+                    (--call-- [this s]
+                      :also-one-arg)))""",
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this]
+                      :no-args)
+                    (--call-- [this s]
+                      :one-arg)
+                    (--call-- [this a b]
+                      [a b])
+                    (--call-- [this s3]
+                      :also-one-arg)))""",
+            ],
+        )
+        def test_no_reify_method_arity_has_same_fixed_arity(
+            self, lcompile: CompileFn, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this & args]
+                      (concat [:no-starter] args))
+                    (--call-- [this s & args]
+                      (concat [s] args))))""",
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this s & args]
+                      (concat [s] args))
+                    (--call-- [this & args]
+                      (concat [:no-starter] args))))""",
+            ],
+        )
+        def test_reify_method_cannot_have_two_variadic_arities(
+            self, lcompile: CompileFn, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_reify_method_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
+            self, lcompile: CompileFn,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* collections.abc)
+                    (fn* [x y z]
+                      (reify* :implements [collections.abc/Callable]
+                        (--call-- [this a b]
+                          [a b])
+                        (--call-- [this & args]
+                          (concat [:no-starter] args))))"""
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this s] s)
+                    (^{:kwargs :collect} --call-- [this s kwargs]
+                       (concat [s] kwargs))))""",
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (^{:kwargs :collect} --call-- [this kwargs] kwargs)
+                    (^{:kwargs :apply} --call-- [thi shead & kwargs]
+                      (apply hash-map :first head kwargs))))""",
+            ],
+        )
+        def test_reify_method_does_not_support_kwargs(
+            self, lcompile: CompileFn, code: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(code)
+
+        def test_multi_arity_reify_method_dispatches_properly(
+            self, lcompile: CompileFn, ns: runtime.Namespace,
+        ):
+            code = """
+            (import* collections.abc)
+            (fn* [x y z]
+              (reify* :implements [collections.abc/Callable]
+                (--call-- [this] :a)
+                (--call-- [this s] [:a s])))"""
+            Point = lcompile(code)
+            assert callable(Point(1, 2, 3))
+            assert kw.keyword("a") == Point(1, 2, 3)()
+            assert vec.v(kw.keyword("a"), kw.keyword("c")) == Point(1, 2, 3)(
+                kw.keyword("c")
+            )
+
+            code = """
+            (import* collections.abc)
+            (fn* [x y z]
+              (reify* :implements [collections.abc/Callable]
+                (--call-- [this] :no-args)
+                (--call-- [this s] s)
+                (--call-- [this s & args]
+                  (concat [s] args))))"""
+            Point = lcompile(code)
+            assert callable(Point(1, 2, 3))
+            assert Point(1, 2, 3)() == kw.keyword("no-args")
+            assert Point(1, 2, 3)("STRING") == "STRING"
+            assert Point(1, 2, 3)(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
+                kw.keyword("first-arg"), "second-arg", 3
+            )
+
+        def test_multi_arity_reify_method_call_fails_if_no_valid_arity(
+            self, lcompile: CompileFn,
+        ):
+            Point = lcompile(
+                """
+                (import* collections.abc)
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this] :send-me-an-arg!)
+                    (--call-- [this i] i)
+                    (--call-- [this i j] (concat [i] [j]))))"""
+            )
+
+            with pytest.raises(runtime.RuntimeException):
+                Point(1, 2, 3)(4, 5, 6)
+
+    class TestReifyProperty:
+        @pytest.fixture(autouse=True)
+        def property_interface(self, lcompile: CompileFn):
+            return lcompile(
+                """
+                (import* abc)
+                (def WithProp
+                  (python/type "WithProp"
+                                 #py (abc/ABC)
+                                 #py {"prop"
+                                      (python/property
+                                       (abc/abstractmethod
+                                        (fn [self])))}))"""
+            )
+
+        @pytest.mark.parametrize(
+            "code,ExceptionType",
+            [
+                (
+                    """
+                    (fn* [x y z]
+                      (reify* :implements [WithProp]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (do
+                      (import* abc)
+                      (def WithProperty
+                        (python/type "WithProp"
+                                     #py (abc/ABC)
+                                     #py {"a_property"
+                                          (python/property
+                                           (abc/abstractmethod
+                                            (fn [self])))}))
+                      (reify* :implements [WithProperty]))""",
+                    runtime.RuntimeException,
+                ),
+            ],
+        )
+        def test_reify_must_implement_interface_property(
+            self, lcompile: CompileFn, code: str, ExceptionType
+        ):
+            with pytest.raises(ExceptionType):
+                lcompile(code)
+
+        def test_reify_property_includes_this(
+            self, lcompile: CompileFn,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (fn* [x y z]
+                      (reify* :implements [WithProp]
+                        (^:property prop [] [x y z])))"""
+                )
+
+        def test_reify_property_args_are_syms(
+            self, lcompile: CompileFn,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (fn* Point [x y z]
+                      (reify* :implements [WithProp]
+                        (^:property prop [:this] [x y z])))"""
+                )
+
+        def test_reify_property_may_not_have_args(
+            self, lcompile: CompileFn,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (fn* [x y z]
+                      (reify* :implements [WithProp]
+                        (^:property prop [this and-that] [x y z])))"""
+                )
+
+        def test_reify_property_disallows_recur(self, lcompile: CompileFn):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (fn* [x]
+                      (reify* :implements [WithProp]
+                        (^:property prop [this]
+                          (recur))))"""
+                )
+
+        def test_reify_can_have_property(
+            self, lcompile: CompileFn,
+        ):
+            Point = lcompile(
+                """
+                (fn* [x y z]
+                  (reify* :implements [WithProp]
+                    (^:property prop [this] [x y z])))"""
+            )
+            assert vec.v(1, 2, 3) == Point(1, 2, 3).prop
+
+        def test_reify_empty_property_body(
+            self, lcompile: CompileFn,
+        ):
+            Point = lcompile(
+                """
+                (fn* [x y z]
+                  (reify* :implements [WithProp]
+                    (^:property prop [this])))"""
+            )
+            assert None is Point(1, 2, 3).prop
+
+        @pytest.mark.parametrize("kwarg_support", [":apply", ":collect", ":kwarg-it"])
+        def test_reify_property_does_not_support_kwargs(
+            self, lcompile: CompileFn, kwarg_support: str
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    f"""
+                    (fn* [x y z]
+                      (reify* :implements [WithProp]
+                        (^:property ^{{:kwargs {kwarg_support}}} prop [this])))"""
+                )
+
+        def test_reify_property_may_not_be_multi_arity(self, lcompile: CompileFn):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (fn* [x]
+                      (reify* :implements [WithProp]
+                        (^:property prop [this] :a)
+                        (^:property prop [this] :b)))"""
+                )
 
 
 class TestRequire:
