@@ -4920,15 +4920,14 @@ class TestReify:
         def property_interface(self, lcompile: CompileFn):
             return lcompile(
                 """
-            (import* abc)
-            (def WithProp
-              (python/type "WithProp"
-                             #py (abc/ABC)
-                             #py {"prop"
-                                  (python/property
-                                   (abc/abstractmethod
-                                    (fn [self])))}))
-            """
+                (import* abc)
+                (def WithProp
+                  (python/type "WithProp"
+                                 #py (abc/ABC)
+                                 #py {"prop"
+                                      (python/property
+                                       (abc/abstractmethod
+                                        (fn [self])))}))"""
             )
 
         @pytest.mark.parametrize(
@@ -4936,16 +4935,11 @@ class TestReify:
             [
                 (
                     """
-                (deftype* Point [x y z]
-                  :implements [WithProp])
-                  """,
+                    (deftype* Point [x y z]
+                      :implements [WithProp])""",
                     compiler.CompilerException,
                 ),
                 (
-                    # TODO: it's currently a bug for the `(import* abc)` to appear
-                    #       in the same (do ...) block as the rest of this code;
-                    #       but it's still working because `abc` was imported by the
-                    #       auto-used fixture for this class
                     """
                     (do
                       (import* abc)
@@ -4956,134 +4950,102 @@ class TestReify:
                                           (python/property
                                            (abc/abstractmethod
                                             (fn [self])))}))
-                      (deftype* Point [x y z]
-                        :implements [WithProperty]))
-                    """,
+                      (reify* :implements [WithProperty]))""",
                     runtime.RuntimeException,
                 ),
             ],
         )
-        def test_deftype_must_implement_interface_property(
+        def test_reify_must_implement_interface_property(
             self, lcompile: CompileFn, code: str, ExceptionType
         ):
             with pytest.raises(ExceptionType):
                 lcompile(code)
 
-        def test_deftype_property_includes_this(
+        def test_reify_property_includes_this(
             self, lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (deftype* Point [x y z]
-                  :implements [WithProp]
-                  (^:property prop [] [x y z]))
-                  """
+                    (fn* [x y z]
+                      (reify* :implements [WithProp]
+                        (^:property prop [] [x y z])))"""
                 )
 
-        def test_deftype_property_args_are_syms(
+        def test_reify_property_args_are_syms(
             self, lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                    (deftype* Point [x y z]
-                      :implements [WithProp]
-                      (^:property prop [:this] [x y z]))
-                      """
+                    (fn* Point [x y z]
+                      (reify* :implements [WithProp]
+                        (^:property prop [:this] [x y z])))"""
                 )
 
-        def test_deftype_property_may_not_have_args(
+        def test_reify_property_may_not_have_args(
             self, lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (deftype* Point [x y z]
-                  :implements [WithProp]
-                  (^:property prop [this and-that] [x y z]))
-                  """
+                    (fn* [x y z]
+                      (reify* :implements [WithProp]
+                        (^:property prop [this and-that] [x y z])))"""
                 )
 
-        def test_deftype_property_disallows_recur(self, lcompile: CompileFn):
+        def test_reify_property_disallows_recur(self, lcompile: CompileFn):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (deftype* Point [x]
-                  :implements [WithProp]
-                  (^:property prop [this]
-                    (recur)))
-                """
+                    (fn* [x]
+                      (reify* :implements [WithProp]
+                        (^:property prop [this]
+                          (recur))))"""
                 )
 
-        def test_deftype_field_can_be_property(
-            self, lcompile: CompileFn,
-        ):
-            Item = lcompile("(deftype* Item [prop] :implements [WithProp])")
-            assert "prop" == Item("prop").prop
-
-        def test_deftype_can_have_property(
+        def test_reify_can_have_property(
             self, lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
-            (deftype* Point [x y z]
-              :implements [WithProp]
-              (^:property prop [this] [x y z]))"""
+                (fn* [x y z]
+                  (reify* :implements [WithProp]
+                    (^:property prop [this] [x y z])))"""
             )
             assert vec.v(1, 2, 3) == Point(1, 2, 3).prop
 
-        def test_deftype_empty_property_body(
+        def test_reify_empty_property_body(
             self, lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
-            (deftype* Point [x y z]
-              :implements [WithProp]
-              (^:property prop [this]))"""
+                (fn* [x y z]
+                  (reify* :implements [WithProp]
+                    (^:property prop [this])))"""
             )
             assert None is Point(1, 2, 3).prop
 
-        def test_deftype_property_returns_value(
-            self, lcompile: CompileFn,
-        ):
-            Point = lcompile(
-                """
-            (do
-              (deftype* Point [^:mutable x]
-                :implements [WithProp]
-                (^:property prop [this]
-                  (set! x (inc x))))
-              Point)"""
-            )
-            pt = Point(1)
-            assert pt.x == 1
-            assert pt.prop == 2
-            assert pt.x == 2
-            assert pt.prop == 3
-            assert pt.x == 3
-
         @pytest.mark.parametrize("kwarg_support", [":apply", ":collect", ":kwarg-it"])
-        def test_deftype_property_does_not_support_kwargs(
+        def test_reify_property_does_not_support_kwargs(
             self, lcompile: CompileFn, kwarg_support: str
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     f"""
-                (deftype* Point [x y z]
-                  :implements [WithProp]
-                  (^:property ^{{:kwargs {kwarg_support}}} prop [this]))"""
+                    (fn* [x y z]
+                      (reify* :implements [WithProp]
+                        (^:property ^{{:kwargs {kwarg_support}}} prop [this])))"""
                 )
 
-        def test_deftype_property_may_not_be_multi_arity(self, lcompile: CompileFn):
+        def test_reify_property_may_not_be_multi_arity(self, lcompile: CompileFn):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (deftype* Point [x]
-                  :implements [WithProp]
-                  (^:property prop [this] :a)
-                  (^:property prop [this] :b))
-                """
+                    (fn* [x]
+                      (reify* :implements [WithProp]
+                        (^:property prop [this] :a)
+                        (^:property prop [this] :b)))"""
                 )
 
     class TestReifyStaticMethod:
