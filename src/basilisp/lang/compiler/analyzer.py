@@ -1032,7 +1032,7 @@ def __deftype_method_param_bindings(
     return has_vargs, fixed_arity, param_nodes
 
 
-def __deftype_classmethod(  # pylint: disable=too-many-arguments
+def __deftype_classmethod(
     ctx: AnalyzerContext,
     form: Union[llist.List, ISeq],
     method_name: str,
@@ -1222,7 +1222,7 @@ def __deftype_or_reify_property(
         return prop
 
 
-def __deftype_staticmethod(  # pylint: disable=too-many-arguments
+def __deftype_staticmethod(
     ctx: AnalyzerContext,
     form: Union[llist.List, ISeq],
     method_name: str,
