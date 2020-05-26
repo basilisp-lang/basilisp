@@ -4244,10 +4244,6 @@ class TestReify:
             [
                 ("(reify* :implements [WithCls])", compiler.CompilerException,),
                 (
-                    # TODO: it's currently a bug for the `(import* abc)` to appear
-                    #       in the same (do ...) block as the rest of this code;
-                    #       but it's still working because `abc` was imported by the
-                    #       auto-used fixture for this class
                     """
                     (do
                       (import* abc)
@@ -4273,13 +4269,13 @@ class TestReify:
             "code",
             [
                 """
-            (reify* :implements [WithCls]
-              (^:classmethod create [:cls]
-                [x y z]))""",
+                (reify* :implements [WithCls]
+                  (^:classmethod create [:cls]
+                  [x y z]))""",
                 """
-            (reify* :implements [WithCls]
-              (^:classmethod create [cls :arg2]
-                [x y z]))""",
+                (reify* :implements [WithCls]
+                  (^:classmethod create [cls :arg2]
+                  [x y z]))""",
             ],
         )
         def test_reify_classmethod_args_are_syms(self, lcompile: CompileFn, code: str):
@@ -4292,9 +4288,9 @@ class TestReify:
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (reify* :implements [WithCls]
-                  (^:classmethod create [cls]
-                    [x y z]))"""
+                    (reify* :implements [WithCls]
+                      (^:classmethod create [cls]
+                      [x y z]))"""
                 )
 
         def test_reify_classmethod_args_includes_cls(
@@ -4303,8 +4299,8 @@ class TestReify:
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (reify* :implements [WithCls]
-                  (^:classmethod create []))"""
+                    (reify* :implements [WithCls]
+                      (^:classmethod create []))"""
                 )
 
         def test_reify_classmethod_disallows_recur(
@@ -4313,26 +4309,27 @@ class TestReify:
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (reify* :implements [WithCls]
-                  (^:classmethod create [cls]
-                    (recur)))"""
+                    (reify* :implements [WithCls]
+                      (^:classmethod create [cls]
+                      (recur)))"""
                 )
 
         def test_reify_can_have_classmethod(
             self, lcompile: CompileFn,
         ):
-            Point = lcompile(
+            make_point = lcompile(
                 """
-            (deftype* Point [x y z]
-              :implements [WithCls]
-              (^:classmethod create [cls x y z]
-                (cls x y z))
-              (__eq__ [this other]
-                (operator/eq
-                 [x y z] 
-                 [(.-x other) (.-y other) (.-z other)])))"""
+                (fn [x y z]
+                  (reify* :implements [WithCls]
+                    (^:classmethod create [cls x y z]
+                      (cls x y z))
+                    (__eq__ [this other]
+                      (operator/eq
+                        [x y z]
+                        [(.-x other) (.-y other) (.-z other)]))))"""
             )
-            assert Point(1, 2, 3) == Point.create(1, 2, 3)
+            pt = make_point(1, 2, 3)
+            assert pt == pt.create(1, 2, 3)
 
         def test_deftype_symboltable_is_restored_after_classmethod(
             self, lcompile: CompileFn,
@@ -4595,123 +4592,96 @@ class TestReify:
                 Point.create(1, 2, 3)
 
     class TestReifyMethod:
-        def test_deftype_fields_and_methods(self, lcompile: CompileFn):
-            Point = lcompile(
+        def test_reify_fields_and_methods(self, lcompile: CompileFn):
+            make_point = lcompile(
                 """
             (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable collections.abc/Sized]
-              (--len-- [this] 1)
-              (--call-- [this] [x y z]))
-            """
+            (fn [x y z]
+              (reify* :implements [collections.abc/Callable collections.abc/Sized]
+                (--len-- [this] 1)
+                (--call-- [this] [x y z])))"""
             )
-            pt = Point(1, 2, 3)
+            pt = make_point(1, 2, 3)
             assert 1 == len(pt)
             assert vec.v(1, 2, 3) == pt()
-            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-        def test_deftype_method_with_args(self, lcompile: CompileFn):
-            Point = lcompile(
+        def test_reify_method_with_args(self, lcompile: CompileFn):
+            make_point = lcompile(
                 """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this i j k] [x i y j z k]))
-            """
+                (import* collections.abc)
+                (fn [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this i j k] [x i y j z k])))"""
             )
-            pt = Point(1, 2, 3)
+            pt = make_point(1, 2, 3)
             assert vec.v(1, 4, 2, 5, 3, 6) == pt(4, 5, 6)
-            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
         @pytest.mark.parametrize(
             "code",
             [
                 """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this &]))
-            """,
+                (import* collections.abc)
+                (fn [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this &])))""",
                 """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this & :args]))
-            """,
+                (import* collections.abc)
+                (fn [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this & :args])))""",
             ],
         )
-        def test_deftype_method_with_varargs_malformed(
+        def test_reify_method_with_varargs_malformed(
             self, lcompile: CompileFn, code: str
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
-        def test_deftype_method_with_varargs(self, lcompile: CompileFn):
+        def test_reify_method_with_varargs(self, lcompile: CompileFn):
             Mirror = lcompile(
                 """
-            (import* collections.abc)
-            (deftype* Mirror [x]
-              :implements [collections.abc/Callable]
-              (--call-- [this & args] [x args]))
-            """
+                (import* collections.abc)
+                (fn [x]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this & args] [x args])))"""
             )
             mirror = Mirror("Beauty is in the eye of the beholder")
             assert vec.v(
                 "Beauty is in the eye of the beholder", llist.l(1, 2, 3)
             ) == mirror(1, 2, 3)
 
-        def test_deftype_can_refer_to_type_within_methods(self, lcompile: CompileFn):
+        def test_reify_empty_method_body(self, lcompile: CompileFn):
             Point = lcompile(
                 """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this i j k]
-                (Point i j k)))
-            """
-            )
-            pt = Point(1, 2, 3)
-            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
-            pt2 = pt(4, 5, 6)
-            assert (4, 5, 6) == (pt2.x, pt2.y, pt2.z)
-
-        def test_deftype_empty_method_body(self, lcompile: CompileFn):
-            Point = lcompile(
-                """
-            (import* collections.abc)
-            (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this]))
-            """
+                (import* collections.abc)
+                (fn [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this])))"""
             )
             pt = Point(1, 2, 3)
             assert None is pt()
-            assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
-        def test_deftype_method_allows_recur(self, lcompile: CompileFn):
+        def test_reify_method_allows_recur(self, lcompile: CompileFn):
             Point = lcompile(
                 """
-            (import* collections.abc operator)
-            (deftype* Point [x]
-              :implements [collections.abc/Callable]
-              (--call-- [this sum start]
-                (if (operator/gt start 0)
-                  (recur (operator/add sum start) (operator/sub start 1))
-                  (operator/add sum x))))
-            """
+                (import* collections.abc operator)
+                (fn [x]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this sum start]
+                      (if (operator/gt start 0)
+                        (recur (operator/add sum start) (operator/sub start 1))
+                        (operator/add sum x)))))"""
             )
             pt = Point(7)
             assert 22 == pt(0, 5)
 
-        def test_deftype_method_args_vec_includes_this(self, lcompile: CompileFn):
+        def test_reify_method_args_vec_includes_this(self, lcompile: CompileFn):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (import* collections.abc)
-                (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
-                  (--call-- [] [x y z]))
-                """
+                    (import* collections.abc)
+                    (reify* :implements [collections.abc/Callable]
+                      (--call-- [] [x y z]))"""
                 )
 
         @pytest.mark.parametrize(
@@ -4719,48 +4689,41 @@ class TestReify:
             [
                 """
                 (import* collections.abc)
-                (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
-                  (--call-- [\"this\"] [x y z]))
-                """,
+                (reify* :implements [collections.abc/Callable]
+                  (--call-- [\"this\"] [x y z]))""",
                 """
                 (import* collections.abc)
-                (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
-                  (--call-- [this :new] [x y z]))
-                """,
+                (reify* :implements [collections.abc/Callable]
+                  (--call-- [this :new] [x y z]))""",
             ],
         )
-        def test_deftype_method_args_are_syms(self, lcompile: CompileFn, code: str):
+        def test_reify_method_args_are_syms(self, lcompile: CompileFn, code: str):
             with pytest.raises(compiler.CompilerException):
                 lcompile(code)
 
-        def test_deftype_method_returns_value(
+        def test_reify_method_returns_value(
             self, lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
-            (import* collections.abc)
-            (deftype* Point [^:mutable x]
-              :implements [collections.abc/Callable]
-              (--call-- [this new-val]
-                (set! x new-val)))"""
+                (import* collections.abc)
+                (fn [x]
+                  (reify* :implements [collections.abc/Callable]
+                    (--call-- [this new-val]
+                      (* x new-val))))"""
             )
-            pt = Point(1)
-            assert pt.x == 1
-            assert 5 == pt(5)
-            assert pt.x == 5
+            pt = Point(3)
+            assert 15 == pt(5)
 
-        def test_deftype_method_only_support_valid_kwarg_strategies(
+        def test_reify_method_only_support_valid_kwarg_strategies(
             self, lcompile: CompileFn
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (import* collections.abc)
-                (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
-                  (^{:kwargs :kwarg-it} --call-- [this]))"""
+                    (import* collections.abc)
+                    (reify* :implements [collections.abc/Callable]
+                      (^{:kwargs :kwarg-it} --call-- [this]))"""
                 )
 
         @pytest.mark.parametrize(
@@ -4768,15 +4731,14 @@ class TestReify:
             [
                 """
                 (import* collections.abc)
-                (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
-                  (^{:kwargs :apply} --call--
-                    [this & args]
-                    (merge {:x x :y y :z z} (apply hash-map args))))""",
+                (fn [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (^ {:kwargs :apply} --call--
+                      [this & args]
+                      (merge {:x x :y y :z z} (apply hash-map args)))))""",
                 """
                 (import* collections.abc)
-                (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
+                (reify* :implements [collections.abc/Callable]
                   (^{:kwargs :collect} --call--
                     [this kwargs]
                     (merge {:x x :y y :z z} kwargs)))""",

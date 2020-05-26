@@ -2528,6 +2528,10 @@ def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branc
             _assert_no_recur(binding.init)
     elif node.op == NodeOp.RECUR:
         pass
+    elif node.op == NodeOp.REIFY:
+        assert isinstance(node, Reify)
+        for child in node.members:
+            _assert_recur_is_tail(child)
     elif node.op == NodeOp.TRY:
         assert isinstance(node, Try)
         _assert_recur_is_tail(node.body)
