@@ -4175,12 +4175,14 @@ class TestReify:
             [
                 """
                 (import* collections.abc)
-                (reify* :implements [collections.abc/Callable]
-                  (:--call-- [this] [x y z]))""",
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (:--call-- [this] [x y z])))""",
                 """
                 (import* collections.abc)
-                (reify* collections.abc/Callable
-                  (\"--call--\" [this] [x y z]))""",
+                (fn* [x y z]
+                  (reify* collections.abc/Callable
+                    (\"--call--\" [this] [x y z])))""",
             ],
         )
         def test_reify_member_is_named_by_sym(self, lcompile: CompileFn, code: str):
@@ -4193,9 +4195,10 @@ class TestReify:
             with pytest.raises(compiler.CompilerException):
                 lcompile(
                     """
-                (import* collections.abc)
-                (reify* :implements [collections.abc/Callable]
-                  (--call-- (this) [x y z]))"""
+                    (import* collections.abc)
+                    (fn [x y z]
+                      (reify* :implements [collections.abc/Callable]
+                        (--call-- (this) [x y z])))"""
                 )
 
         @pytest.mark.parametrize(
@@ -4203,19 +4206,22 @@ class TestReify:
             [
                 """
                 (import* collections.abc)
-                (reify* :implements [collections.abc/Callable]
-                  (^:property ^:staticmethod __call__ [this]
-                    [x y z]))""",
+                (fn* [x y z]
+                  (reify* :implements [collections.abc/Callable]
+                    (^:property ^:staticmethod __call__ [this]
+                      [x y z])))""",
                 """
                 (import* collections.abc)
-                (reify* collections.abc/Callable
-                  (^:classmethod ^:property __call__ [this]
-                    [x y z]))""",
+                (fn* [x y z]
+                  (reify* collections.abc/Callable
+                    (^:classmethod ^:property __call__ [this]
+                      [x y z])))""",
                 """
                 (import* collections.abc)
-                (reify* collections.abc/Callable
-                  (^:classmethod ^:staticmethod __call__ [this]
-                    [x y z]))""",
+                (fn* [x y z]
+                  (reify* collections.abc/Callable
+                    (^:classmethod ^:staticmethod __call__ [this]
+                      [x y z])))""",
             ],
         )
         def test_reify_member_may_not_be_multiple_types(
