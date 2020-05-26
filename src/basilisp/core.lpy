@@ -4648,14 +4648,14 @@
   Unlike in Clojure, interface and protocol methods are permitted to
   include variadic arguments. Single-arity methods may also declare support for
   keyword arguments using either the `:apply` or `:collect` strategy on the
-  `:kwargs` metadata on the method name. Methods may be declared as static
-  (using the `:staticmethod`) or class methods (using the `:classmethod`)
-  metadata on the the name. Both static methods and class methods can be
-  declared with multiple arities or may be defined with a single arity and
-  keyword arguments. Finally, single-arity methods may be declared as Python
-  properties using the `:property` metadata on the method name. These facilities
-  are provided as a means to interoperate with Python code and their use is
-  discouraged in pure Basilisp code.
+  `:kwargs` metadata on the method name. Finally, single-arity methods may be
+  declared as Python properties using the `:property` metadata on the method
+  name. These facilities are provided as a means to interoperate with Python
+  code and their use is discouraged in pure Basilisp code.
+
+  `reify` does not support class method or static method members and attempting
+  to declare `reify` members as class or static members will result in a
+  compile time error.
 
   Type objects are created with sensible `object` defaults as by `attrs`.
   New types may override `object` defaults.

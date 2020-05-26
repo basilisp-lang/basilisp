@@ -1032,17 +1032,14 @@ def __deftype_method_param_bindings(
     return has_vargs, fixed_arity, param_nodes
 
 
-def __deftype_or_reify_classmethod(  # pylint: disable=too-many-arguments
+def __deftype_classmethod(  # pylint: disable=too-many-arguments
     ctx: AnalyzerContext,
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
-    special_form: sym.Symbol,
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeClassMethodArity:
-    """Emit a node for a :classmethod member of a `deftype*` and `reify*` form."""
-    assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
-
+    """Emit a node for a :classmethod member of a `deftype*` form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
         method_name, is_context_boundary=True
     ):
@@ -1050,13 +1047,12 @@ def __deftype_or_reify_classmethod(  # pylint: disable=too-many-arguments
             cls_arg = args[0]
         except IndexError:
             raise AnalyzerException(
-                f"{special_form} class method must include 'cls' argument", form=args
+                "deftype* class method must include 'cls' argument", form=args
             )
         else:
             if not isinstance(cls_arg, sym.Symbol):
                 raise AnalyzerException(
-                    f"{special_form} class method 'cls' argument must be a symbol",
-                    form=args,
+                    "deftype* class method 'cls' argument must be a symbol", form=args,
                 )
             cls_binding = Binding(
                 form=cls_arg,
@@ -1068,7 +1064,7 @@ def __deftype_or_reify_classmethod(  # pylint: disable=too-many-arguments
 
         params = args[1:]
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
-            ctx, params, special_form
+            ctx, params, SpecialForm.DEFTYPE
         )
         with ctx.new_func_ctx(FunctionContext.CLASSMETHOD), ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
@@ -1226,22 +1222,19 @@ def __deftype_or_reify_property(
         return prop
 
 
-def __deftype_or_reify_staticmethod(  # pylint: disable=too-many-arguments
+def __deftype_staticmethod(  # pylint: disable=too-many-arguments
     ctx: AnalyzerContext,
     form: Union[llist.List, ISeq],
     method_name: str,
     args: vec.Vector,
-    special_form: sym.Symbol,
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeStaticMethodArity:
-    """Emit a node for a :staticmethod member of a `deftype*` or `reify*` form."""
-    assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
-
+    """Emit a node for a :staticmethod member of a `deftype*` form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
         method_name, is_context_boundary=True
     ):
         has_vargs, fixed_arity, param_nodes = __deftype_method_param_bindings(
-            ctx, args, special_form
+            ctx, args, SpecialForm.DEFTYPE
         )
         with ctx.new_func_ctx(FunctionContext.STATICMETHOD), ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
@@ -1300,6 +1293,12 @@ def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branche
         isinstance(form, IMeta) and _is_py_staticmethod(form)
     )
 
+    if special_form == SpecialForm.REIFY and is_classmethod or is_staticmethod:
+        raise AnalyzerException(
+            f"{special_form} does not support classmethod or staticmethod members",
+            form=form,
+        )
+
     if not sum([is_classmethod, is_property, is_staticmethod]) in {0, 1}:
         raise AnalyzerException(
             f"{special_form} member may be only one of: :classmethod, :property, "
@@ -1320,8 +1319,8 @@ def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branche
     kwarg_support = None if isinstance(kwarg_meta, bool) else kwarg_meta
 
     if is_classmethod:
-        return __deftype_or_reify_classmethod(
-            ctx, form, method_name, args, special_form, kwarg_support=kwarg_support
+        return __deftype_classmethod(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
         )
     elif is_property:
         if kwarg_support is not None:
@@ -1332,8 +1331,8 @@ def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branche
 
         return __deftype_or_reify_property(ctx, form, method_name, args, special_form)
     elif is_staticmethod:
-        return __deftype_or_reify_staticmethod(
-            ctx, form, method_name, args, special_form, kwarg_support=kwarg_support
+        return __deftype_staticmethod(
+            ctx, form, method_name, args, kwarg_support=kwarg_support
         )
     else:
         return __deftype_or_reify_method(
