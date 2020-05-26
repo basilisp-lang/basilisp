@@ -1293,7 +1293,7 @@ def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branche
         isinstance(form, IMeta) and _is_py_staticmethod(form)
     )
 
-    if special_form == SpecialForm.REIFY and is_classmethod or is_staticmethod:
+    if special_form == SpecialForm.REIFY and (is_classmethod or is_staticmethod):
         raise AnalyzerException(
             f"{special_form} does not support classmethod or staticmethod members",
             form=form,

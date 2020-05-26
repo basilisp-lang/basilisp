@@ -393,7 +393,7 @@ _ATTR_CMP_KWARGS = (
 )
 
 
-def _class_ast(
+def _class_ast(  # pylint: disable=too-many-arguments
     class_name: str,
     body: List[ast.AST],
     bases: Iterable[ast.AST] = (),
