@@ -2411,7 +2411,7 @@ def _reify_to_py_ast(
                     defaults=[],
                     kw_defaults=[],
                 ),
-                body=[ast.Return(value=_load_attr(f"{type_name}._meta"))],
+                body=[ast.Return(value=_load_attr("self._meta"))],
                 decorator_list=[],
                 returns=None,
             ),

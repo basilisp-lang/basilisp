@@ -25,7 +25,7 @@ import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
 from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
-from basilisp.lang.interfaces import IType
+from basilisp.lang.interfaces import IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.util import demunge
 from tests.basilisp.helpers import get_or_create_ns
@@ -4203,6 +4203,27 @@ class TestReify:
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
+    def test_reify_transfers_form_meta_to_obj(self, lcompile: CompileFn):
+        make_obj = lcompile(
+            """
+            (fn [x]
+              ^{:passed-through true}
+              (reify* :implements [python/object]
+                (--call-- [this] x)))"""
+        )
+        o = make_obj(kw.keyword("x"))
+        assert isinstance(o, IWithMeta)
+        assert lmap.map({kw.keyword("passed-through"): True}) == o.meta()
+        assert kw.keyword("x") == o()
+
+        new_meta = lmap.map({kw.keyword("replaced"): kw.keyword("yes")})
+        new_o = o.with_meta(new_meta)
+        assert isinstance(o, IWithMeta)
+        assert new_meta == new_o.meta()
+        assert kw.keyword("x") == new_o()
+
+        assert type(o) is type(new_o)
+
     class TestReifyMember:
         @pytest.mark.parametrize(
             "code",
@@ -4608,8 +4629,8 @@ class TestReify:
             [
                 (
                     """
-                    (deftype* Point [x y z]
-                      :implements [WithProp])""",
+                    (fn* [x y z]
+                      (reify* :implements [WithProp]))""",
                     compiler.CompilerException,
                 ),
                 (
