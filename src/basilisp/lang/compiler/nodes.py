@@ -227,6 +227,20 @@ class Node(ABC, Generic[T]):
         return self.assoc(**new_attrs)
 
 
+def deftype_or_reify_python_member_names(
+    members: Iterable["DefTypeMember"],
+) -> Iterable[str]:
+    """Yield successive munged Python names for `deftype*` and `reify*` members.
+
+    For multi-arity methods, both the outer dispatch method and each inner arity
+    will be yielded."""
+    for member in members:
+        yield member.python_name
+        if isinstance(member, DefTypeMethodBase):
+            for arity in member.arities:
+                yield arity.python_name
+
+
 class Assignable(ABC):
     __slots__ = ()
 
@@ -399,12 +413,20 @@ class DefType(Node[SpecialForm]):
     top_level: bool = False
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
+    @property
+    def python_member_names(self) -> Iterable[str]:
+        yield from deftype_or_reify_python_member_names(self.members)
+
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
 class DefTypeMember(Node[SpecialForm]):
     form: SpecialForm
     name: str
     env: NodeEnv
+
+    @property
+    def python_name(self) -> str:
+        return munge(self.name)
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -483,6 +505,10 @@ class DefTypeMethodArityBase(Node[SpecialForm]):
     @abstractmethod
     def kwarg_support(self) -> Optional[KeywordArgSupport]:
         raise NotImplementedError
+
+    @property
+    def python_name(self) -> str:
+        return f"_{munge(self.name)}_arity{'_rest' if self.is_variadic else self.fixed_arity}"
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
@@ -823,6 +849,10 @@ class Reify(Node[SpecialForm]):
     op: NodeOp = NodeOp.REIFY
     top_level: bool = False
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+    @property
+    def python_member_names(self) -> Iterable[str]:
+        yield from deftype_or_reify_python_member_names(self.members)
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)

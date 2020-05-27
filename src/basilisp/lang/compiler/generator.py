@@ -1121,14 +1121,11 @@ def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-argument
         )
     )
 
-    safe_name = munge(node.name)
-    py_method_arity_name = genname(f"__{safe_name}")
-
     arity_to_name = {}
     rest_arity_name: Optional[str] = None
     fn_defs = []
     for arity in arities:
-        arity_name = f"{py_method_arity_name}__arity{'_rest' if arity.is_variadic else arity.fixed_arity}"
+        arity_name = arity.python_name
         if arity.is_variadic:
             rest_arity_name = arity_name
         else:
@@ -1141,7 +1138,7 @@ def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-argument
         fn_defs.append(fn_def.node)
 
     dispatch_fn_ast = __multi_arity_deftype_dispatch_method(
-        safe_name,
+        node.python_name,
         arity_to_name,
         default_name=rest_arity_name,
         max_fixed_arity=node.max_fixed_arity,
@@ -1370,7 +1367,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
         bases.append(base_node.node)
 
     with ctx.new_symbol_table(node.name):
-        fields, members = [], []
+        fields = []
         type_nodes: List[ast.AST] = []
         type_deps: List[ast.AST] = []
         for field in node.fields:
@@ -1400,7 +1397,6 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
             type_ast = __deftype_member_to_py_ast(ctx, member, munge(node.name))
             type_nodes.append(type_ast.node)
             type_nodes.extend(type_ast.dependencies)
-            members.append(munge(member.name))
 
         return GeneratedPyAST(
             node=ast.Name(id=type_name, ctx=ast.Load()),
@@ -1413,7 +1409,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
                             type_nodes or [ast.Pass()],
                             bases=bases,
                             fields=fields,
-                            members=members,
+                            members=node.python_member_names,
                             verified_abstract=node.verified_abstract,
                             is_frozen=node.is_frozen,
                             use_slots=True,
@@ -2391,7 +2387,6 @@ def _reify_to_py_ast(
     type_name = munge(genname("ReifiedType"))
 
     with ctx.new_symbol_table("reify"):
-        members = ["meta", "with_meta"]
         type_nodes: List[ast.AST] = [
             ast.Assign(
                 targets=[ast.Name(id="_meta", ctx=ast.Store())],
@@ -2447,7 +2442,6 @@ def _reify_to_py_ast(
             type_ast = __deftype_member_to_py_ast(ctx, member, type_name)
             type_nodes.append(type_ast.node)
             type_nodes.extend(type_ast.dependencies)
-            members.append(munge(member.name))
 
         return GeneratedPyAST(
             node=ast.Call(
@@ -2464,7 +2458,9 @@ def _reify_to_py_ast(
                             type_name,
                             type_nodes,
                             bases=bases,
-                            members=members,
+                            members=chain(
+                                ["meta", "with_meta"], node.python_member_names
+                            ),
                             verified_abstract=node.verified_abstract,
                             is_frozen=True,
                             use_slots=_ATTR_SLOTS_ON,

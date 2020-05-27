@@ -125,6 +125,7 @@ from basilisp.lang.compiler.nodes import (
     VarRef,
     Vector as VectorNode,
     WithMeta,
+    deftype_or_reify_python_member_names,
 )
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
@@ -1557,7 +1558,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
     assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
 
     field_names = frozenset(fields)
-    member_names = frozenset(munge(member.name) for member in members)
+    member_names = frozenset(deftype_or_reify_python_member_names(members))
     all_member_names = field_names.union(member_names)
     all_interface_methods: Set[str] = set()
     for interface in interfaces:
