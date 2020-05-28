@@ -237,8 +237,9 @@ def deftype_or_reify_python_member_names(
     for member in members:
         yield member.python_name
         if isinstance(member, DefTypeMethodBase):
-            for arity in member.arities:
-                yield arity.python_name
+            if len(member.arities) > 1:
+                for arity in member.arities:
+                    yield arity.python_name
 
 
 class Assignable(ABC):
