@@ -4237,49 +4237,69 @@ class TestReify:
             self, lcompile: CompileFn, ns: runtime.Namespace,
         ):
             code = """
-            (import* collections.abc)
+            (import* abc)
+            (def DoubleTrouble
+              (python/type "DoubleTrouble"
+                           #py (abc/ABC)
+                           #py {"_double_up_arity0" (abc/abstractmethod (fn [self]))
+                                "_double_up_arity1" (abc/abstractmethod (fn [self arg1]))
+                                "double_up"         (abc/abstractmethod (fn [& args]))}))
             (fn* [x y z]
-              (reify* :implements [collections.abc/Callable]
-                (--call-- [this] :a)
-                (--call-- [this s] [:a s])))"""
+              (reify* :implements [DoubleTrouble]
+                (double-up [this] :a)
+                (double-up [this s] [:a s])))"""
             Point = lcompile(code)
-            assert callable(Point(1, 2, 3))
-            assert kw.keyword("a") == Point(1, 2, 3)()
-            assert vec.v(kw.keyword("a"), kw.keyword("c")) == Point(1, 2, 3)(
+            assert callable(Point(1, 2, 3).double_up)
+            assert kw.keyword("a") == Point(1, 2, 3).double_up()
+            assert vec.v(kw.keyword("a"), kw.keyword("c")) == Point(1, 2, 3).double_up(
                 kw.keyword("c")
             )
 
             code = """
-            (import* collections.abc)
+            (import* abc)
+            (def InTriplicate
+              (python/type "InTriplicate"
+                           #py (abc/ABC)
+                           #py {"_triple_up_arity0"     (abc/abstractmethod (fn [self]))
+                                "_triple_up_arity1"     (abc/abstractmethod (fn [self arg1]))
+                                "_triple_up_arity_rest" (abc/abstractmethod (fn [self arg1 & args]))
+                                "triple_up"             (abc/abstractmethod (fn [& args]))}))
             (fn* [x y z]
-              (reify* :implements [collections.abc/Callable]
-                (--call-- [this] :no-args)
-                (--call-- [this s] s)
-                (--call-- [this s & args]
+              (reify* :implements [InTriplicate]
+                (triple-up [this] :no-args)
+                (triple-up [this s] s)
+                (triple-up [this s & args]
                   (concat [s] args))))"""
             Point = lcompile(code)
-            assert callable(Point(1, 2, 3))
-            assert Point(1, 2, 3)() == kw.keyword("no-args")
-            assert Point(1, 2, 3)("STRING") == "STRING"
-            assert Point(1, 2, 3)(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
+            assert callable(Point(1, 2, 3).triple_up)
+            assert Point(1, 2, 3).triple_up() == kw.keyword("no-args")
+            assert Point(1, 2, 3).triple_up("STRING") == "STRING"
+            assert Point(1, 2, 3).triple_up(
                 kw.keyword("first-arg"), "second-arg", 3
-            )
+            ) == llist.l(kw.keyword("first-arg"), "second-arg", 3)
 
         def test_multi_arity_reify_method_call_fails_if_no_valid_arity(
             self, lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
-                (import* collections.abc)
+                (import* abc)
+                (def InTriplicate
+                  (python/type "InTriplicate"
+                               #py (abc/ABC)
+                               #py {"_triple_up_arity0" (abc/abstractmethod (fn [self]))
+                                    "_triple_up_arity1" (abc/abstractmethod (fn [self arg1]))
+                                    "_triple_up_arity2" (abc/abstractmethod (fn [self arg1 arg2]))
+                                    "triple_up"         (abc/abstractmethod (fn [& args]))}))
                 (fn* [x y z]
-                  (reify* :implements [collections.abc/Callable]
-                    (--call-- [this] :send-me-an-arg!)
-                    (--call-- [this i] i)
-                    (--call-- [this i j] (concat [i] [j]))))"""
+                  (reify* :implements [InTriplicate]
+                    (triple-up [this] :send-me-an-arg!)
+                    (triple-up [this i] i)
+                    (triple-up [this i j] (concat [i] [j]))))"""
             )
 
             with pytest.raises(runtime.RuntimeException):
-                Point(1, 2, 3)(4, 5, 6)
+                Point(1, 2, 3).triple_up(4, 5, 6)
 
     class TestReifyProperty:
         @pytest.fixture(autouse=True)
