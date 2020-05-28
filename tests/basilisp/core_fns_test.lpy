@@ -511,13 +511,13 @@
   (are [x] (thrown? basilisp.lang.exception/ExceptionInfo x)
     (gen-interface :name "TestInterface"
                    :methods '[(method [thing])
-                             (method [other-thing])])
+                              (method [other-thing])])
     (gen-interface :name "TestInterface"
                    :methods '[(method [thing & args])
-                             (method [& args])])
+                              (method [& args])])
     (gen-interface :name "TestInterface"
                    :methods '[(method [thing1 thing2])
-                             (method [& args])]))
+                              (method [& args])]))
 
   (are [arity-names methods] (let [interface (gen-interface :name "TestInterface"
                                                             :methods methods)]
