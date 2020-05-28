@@ -4493,7 +4493,7 @@
                          (python/tuple $))]
     (->> (:methods opt-map)
          (map (fn [[method-name args docstring]]
-                (let [total-arity  (-> args count inc)
+                (let [total-arity  (count args)
                       is-variadic? (let [[_ [amp rest-arg]] (split-with #(not= '& %) args)]
                                      (and (= '& amp) (not (nil? rest-arg))))
                       fixed-arity  (cond-> total-arity is-variadic? (- 2))]
@@ -4507,7 +4507,9 @@
          (group-by :method-name)
          (mapcat (fn [[method-name arities]]
                    (if (> (count arities) 1)
-                     (let [fixed-arities            (map :fixed-arity arities)
+                     (let [fixed-arities            (->> arities
+                                                         (remove :is-variadic?)
+                                                         (map :fixed-arity))
                            variadic-arities         (filter :is-variadic? arities)
                            fixed-arity-for-variadic (some-> variadic-arities first :fixed-arity)
                            num-variadic             (count variadic-arities)]
@@ -4524,7 +4526,7 @@
                                    {:arities      arities
                                     :num-variadic num-variadic})))
                        (when (and fixed-arity-for-variadic
-                                  (some #(>= % fixed-arity-for-variadic) fixed-arities))
+                                  (some #(< fixed-arity-for-variadic %) fixed-arities))
                          (throw
                           (ex-info (str "Interface methods may not have a fixed arity "
                                         "greater than the arity of a variadic method")
