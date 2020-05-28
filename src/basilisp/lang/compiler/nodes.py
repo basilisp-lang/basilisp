@@ -66,9 +66,7 @@ class NodeOp(Enum):
     DEFTYPE_METHOD = kw.keyword("deftype-method")
     DEFTYPE_METHOD_ARITY = kw.keyword("deftype-method-arity")
     DEFTYPE_CLASSMETHOD = kw.keyword("deftype-classmethod")
-    DEFTYPE_CLASSMETHOD_ARITY = kw.keyword("deftype-classmethod-arity")
     DEFTYPE_STATICMETHOD = kw.keyword("deftype-staticmethod")
-    DEFTYPE_STATICMETHOD_ARITY = kw.keyword("deftype-staticmethod-arity")
     DO = kw.keyword("do")
     FN = kw.keyword("fn")
     FN_ARITY = kw.keyword("fn-arity")
@@ -236,7 +234,7 @@ def deftype_or_reify_python_member_names(
     will be yielded."""
     for member in members:
         yield member.python_name
-        if isinstance(member, DefTypeMethodBase):
+        if isinstance(member, DefTypeMethod):
             if len(member.arities) > 1:
                 for arity in member.arities:
                     yield arity.python_name
@@ -431,6 +429,53 @@ class DefTypeMember(Node[SpecialForm]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeClassMethod(DefTypeMember):
+    class_local: Binding
+    params: Iterable[Binding]
+    fixed_arity: int
+    body: "Do"
+    is_variadic: bool = False
+    kwarg_support: Optional[KeywordArgSupport] = None
+    children: Sequence[kw.Keyword] = vec.v(CLASS_LOCAL, PARAMS, BODY)
+    op: NodeOp = NodeOp.DEFTYPE_CLASSMETHOD
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeMethod(DefTypeMember):
+    max_fixed_arity: int
+    arities: IPersistentVector["DefTypeMethodArity"]
+    is_variadic: bool = False
+    children: Sequence[kw.Keyword] = vec.v(ARITIES)
+    op: NodeOp = NodeOp.DEFTYPE_METHOD
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class DefTypeMethodArity(Node[SpecialForm]):
+    form: SpecialForm
+    name: str
+    params: Iterable[Binding]
+    fixed_arity: int
+    body: "Do"
+    this_local: Binding
+    loop_id: LoopID
+    env: NodeEnv
+    is_variadic: bool = False
+    kwarg_support: Optional[KeywordArgSupport] = None
+    children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
+    op: NodeOp = NodeOp.DEFTYPE_METHOD_ARITY
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+
+    @property
+    def python_name(self) -> str:
+        return f"_{munge(self.name)}_arity{'_rest' if self.is_variadic else self.fixed_arity}"
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
 class DefTypeProperty(DefTypeMember):
     this_local: Binding
     params: Iterable[Binding]
@@ -441,108 +486,20 @@ class DefTypeProperty(DefTypeMember):
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
-T_DefTypeMethodArity = TypeVar("T_DefTypeMethodArity", bound="DefTypeMethodArityBase")
-
-
-# Use attrs `these` for now as there is an open bug around slotted
-# generic classes: https://github.com/python-attrs/attrs/issues/313
-@attr.s(
-    auto_attribs=True,
-    frozen=True,
-    these={"max_fixed_arity": attr.ib(), "arities": attr.ib()},
-)
-class DefTypeMethodBase(DefTypeMember, Generic[T_DefTypeMethodArity]):
-    max_fixed_arity: int
-    arities: IPersistentVector[T_DefTypeMethodArity]
-
-    @property
-    @abstractmethod
-    def is_variadic(self) -> bool:
-        raise NotImplementedError
-
-
 @attr.s(auto_attribs=True, frozen=True, slots=True)
-class DefTypeMethod(DefTypeMethodBase["DefTypeMethodArity"]):
+class DefTypeStaticMethod(DefTypeMember):
+    params: Iterable[Binding]
+    fixed_arity: int
+    body: "Do"
     is_variadic: bool = False
-    children: Sequence[kw.Keyword] = vec.v(ARITIES)
-    op: NodeOp = NodeOp.DEFTYPE_METHOD
-    top_level: bool = False
-    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
-
-
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class DefTypeClassMethod(DefTypeMethodBase["DefTypeClassMethodArity"]):
-    is_variadic: bool = False
-    children: Sequence[kw.Keyword] = vec.v(ARITIES)
-    op: NodeOp = NodeOp.DEFTYPE_CLASSMETHOD
-    top_level: bool = False
-    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
-
-
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class DefTypeStaticMethod(DefTypeMethodBase["DefTypeStaticMethodArity"]):
-    is_variadic: bool = False
-    children: Sequence[kw.Keyword] = vec.v(ARITIES)
+    kwarg_support: Optional[KeywordArgSupport] = None
+    children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
     op: NodeOp = NodeOp.DEFTYPE_STATICMETHOD
     top_level: bool = False
     raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class DefTypeMethodArityBase(Node[SpecialForm]):
-    form: SpecialForm
-    name: str
-    params: Iterable[Binding]
-    fixed_arity: int
-    body: "Do"
-    env: NodeEnv
-
-    @property
-    @abstractmethod
-    def is_variadic(self) -> bool:
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def kwarg_support(self) -> Optional[KeywordArgSupport]:
-        raise NotImplementedError
-
-    @property
-    def python_name(self) -> str:
-        return f"_{munge(self.name)}_arity{'_rest' if self.is_variadic else self.fixed_arity}"
-
-
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class DefTypeMethodArity(DefTypeMethodArityBase):
-    this_local: Binding
-    loop_id: LoopID
-    is_variadic: bool = False
-    kwarg_support: Optional[KeywordArgSupport] = None
-    children: Sequence[kw.Keyword] = vec.v(THIS_LOCAL, PARAMS, BODY)
-    op: NodeOp = NodeOp.DEFTYPE_METHOD_ARITY
-    top_level: bool = False
-    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
-
-
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class DefTypeClassMethodArity(DefTypeMethodArityBase):
-    class_local: Binding
-    is_variadic: bool = False
-    kwarg_support: Optional[KeywordArgSupport] = None
-    children: Sequence[kw.Keyword] = vec.v(CLASS_LOCAL, PARAMS, BODY)
-    op: NodeOp = NodeOp.DEFTYPE_CLASSMETHOD_ARITY
-    top_level: bool = False
-    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
-
-
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class DefTypeStaticMethodArity(DefTypeMethodArityBase):
-    is_variadic: bool = False
-    kwarg_support: Optional[KeywordArgSupport] = None
-    children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
-    op: NodeOp = NodeOp.DEFTYPE_STATICMETHOD_ARITY
-    top_level: bool = False
-    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+DefTypePythonMember = Union[DefTypeClassMethod, DefTypeProperty, DefTypeStaticMethod]
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
