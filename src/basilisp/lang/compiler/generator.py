@@ -1193,10 +1193,12 @@ def __deftype_method_arity_to_py_ast(
                         kw_defaults=[],
                     ),
                     body=fn_body_ast,
-                    decorator_list=list(chain(
-                        [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
-                        __kwargs_support_decorator(arity),
-                    )),
+                    decorator_list=list(
+                        chain(
+                            [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else [],
+                            __kwargs_support_decorator(arity),
+                        )
+                    ),
                     returns=None,
                 )
             )
