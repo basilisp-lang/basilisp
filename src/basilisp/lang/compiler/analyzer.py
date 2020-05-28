@@ -1917,13 +1917,6 @@ def _fn_ast(  # pylint: disable=too-many-branches
         fixed_arity_for_variadic: Optional[int] = None
         num_variadic = 0
         for arity in arities:
-            if fixed_arity_for_variadic is not None:
-                if arity.fixed_arity >= fixed_arity_for_variadic:
-                    raise AnalyzerException(
-                        "fn may not have a method with fixed arity greater than "
-                        "fixed arity of variadic function",
-                        form=arity.form,
-                    )
             if arity.is_variadic:
                 if num_variadic > 0:
                     raise AnalyzerException(

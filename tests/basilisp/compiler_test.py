@@ -2606,18 +2606,26 @@ class TestFunctionDef:
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (def f
+              (fn* f
+                ([s] (concat [s] :one-arg))
+                ([& args] (concat [:rest-params] args))))""",
+            """
+            (def f
+              (fn* f
+                ([& args] (concat [:rest-params] args))
+                ([s] (concat [s] :one-arg))))""",
+        ],
+    )
     def test_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
-        self, lcompile: CompileFn
+        self, lcompile: CompileFn, code: str
     ):
         with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
-                (def f
-                  (fn* f
-                    ([s] (concat [s] :one-arg))
-                    ([& args] (concat [:rest-params] args))))
-                """
-            )
+            lcompile(code)
 
     def test_multi_arity_fn_dispatches_properly(
         self, lcompile: CompileFn, ns: runtime.Namespace
