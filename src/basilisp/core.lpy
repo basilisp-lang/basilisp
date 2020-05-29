@@ -4480,7 +4480,7 @@
   Options may be specified as key-value pairs. The following options are supported:
   - :name    - the name of the interface as a string; required
   - :extends - a vector of interfaces the new interface should extend; optional
-  - :methods - an optional vector of method signatures like:
+  - :methods - an optional vector of method signatures without `self` or `this`, like:
                [ (method-name [args ...] docstring) ... ]
 
   Callers should use `definterface` to generate new interfaces."
@@ -4490,28 +4490,73 @@
         extends        (as-> (:extends opt-map []) $
                          (remove #(identical? abc/ABC %) $)
                          (concat $ [abc/ABC])
-                         (python/tuple $))
-
-        methods (reduce (fn [m [method-name args docstring]]
-                          (let [method-args (->> (concat ['^:no-warn-when-unused self] args)
-                                                 (apply vector))
-                                method      (->> (list 'fn* method-name method-args)
-                                                 (eval)
-                                                 (abc/abstractmethod))]
-                            (when docstring
-                              (set! (.- method __doc__) docstring))
-                            (assoc m (munge method-name) method)))
-                        {}
-                        (:methods opt-map))]
-    (python/type interface-name
-                 extends
-                 (lisp->py methods))))
-
-;; The behavior described below where `definterface` forms are not permitted
-;; to be used in `deftype` and `defrecord` forms when they are not top-level
-;; is a bug, documented in the following issue:
-;;
-;; https://github.com/chrisrink10/basilisp/issues/376
+                         (python/tuple $))]
+    (->> (:methods opt-map)
+         (map (fn [[method-name args docstring]]
+                (let [total-arity  (count args)
+                      is-variadic? (let [[_ [amp rest-arg]] (split-with #(not= '& %) args)]
+                                     (and (= '& amp) (not (nil? rest-arg))))
+                      fixed-arity  (cond-> total-arity is-variadic? (- 2))]
+                  {:method-name  method-name
+                   :args         args
+                   :fixed-arity  fixed-arity
+                   :is-variadic? is-variadic?
+                   :docstring    docstring
+                   :python-name  (->> (if is-variadic? "_rest" fixed-arity)
+                                      (str "_" (munge method-name) "_arity"))})))
+         (group-by :method-name)
+         (mapcat (fn [[method-name arities]]
+                   (if (> (count arities) 1)
+                     (let [fixed-arities            (->> arities
+                                                         (remove :is-variadic?)
+                                                         (map :fixed-arity))
+                           variadic-arities         (filter :is-variadic? arities)
+                           fixed-arity-for-variadic (some-> variadic-arities first :fixed-arity)
+                           num-variadic             (count variadic-arities)]
+                       (when (not= (count (set fixed-arities))
+                                   (count fixed-arities))
+                         (throw
+                          (ex-info (str "Interface methods may not have multiple methods "
+                                        "with the same fixed arity")
+                                   {:arities       arities
+                                    :fixed-arities (vec fixed-arities)})))
+                       (when (> num-variadic 1)
+                         (throw
+                          (ex-info "Interface methods may have at most one variadic arity"
+                                   {:arities      arities
+                                    :num-variadic num-variadic})))
+                       (when (and fixed-arity-for-variadic
+                                  (some #(< fixed-arity-for-variadic %) fixed-arities))
+                         (throw
+                          (ex-info (str "Interface methods may not have a fixed arity "
+                                        "greater than the arity of a variadic method")
+                                   {:arities                  arities
+                                    :fixed-arity-for-variadic fixed-arity-for-variadic
+                                    :fixed-arities            fixed-arities})))
+                       (conj arities
+                             {:method-name method-name
+                              :python-name (munge method-name)
+                              :args        '[& args]
+                              :docstring   (-> arities first :docstring)}))
+                     ;; single arity methods should not have the special arity
+                     ;; python name
+                     (map (fn [{:keys [method-name] :as arity}]
+                            (assoc arity :python-name (munge method-name)))
+                          arities))))
+         (reduce (fn [m {:keys [method-name python-name args docstring]}]
+                   (let [method (->>  args
+                                      (map #(vary-meta % assoc :no-warn-when-unused true))
+                                      (concat ['^:no-warn-when-unused self])
+                                      (apply vector)
+                                      (list 'fn* method-name)
+                                      (eval)
+                                      (abc/abstractmethod))]
+                     (when docstring
+                       (set! (.- method __doc__) docstring))
+                     (assoc m python-name method)))
+                 {})
+         (lisp->py)
+         (python/type interface-name extends))))
 
 (defmacro definterface
   "Define a new Python interface (abstract base clase) with the given name
@@ -4527,11 +4572,8 @@
   definitions are declared as `abc.abstractmethod`s and thus must be implemented
   by a concrete type.
 
-  The generated interface will be immediately available after this form has
-  been evaluated _if it is evaluated as a top-level form_. If this form appears
-  within a function and is referred to later in a `deftype` or `defrecord` form,
-  a compilation error will occur since the compiler will be unable to evaluate
-  whether the generated value refers to an abstract class."
+  Interfaces created by `definterface` cannot be declared as properties, class
+  methods, or static methods, as with `deftype`."
   [interface-name & methods]
   (let [name-str    (name interface-name)
         method-sigs (map #(list 'quote %) methods)]
