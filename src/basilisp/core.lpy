@@ -4705,7 +4705,7 @@
             :let       [[method-name fn] method-def]]
       (let [mmethod (get proto-methods method-name)]
         (.add-method mmethod target-type fn)))
-    (alter-var-root update (:var proto) :extending-types conj target-type))
+    (alter-var-root (:var proto) update :extending-types conj target-type))
   nil)
 
 (defn ^:private sym-and-method-groups
@@ -5282,4 +5282,4 @@
 (defn volatile?
   "Return true if implements IVolatile."
   [x]
-  (instance? IVolatile x))
+  (satisfies? IVolatile x))
