@@ -4493,10 +4493,11 @@
                          (python/tuple $))]
     (->> (:methods opt-map)
          (map (fn [[method-name args docstring]]
-                (let [total-arity  (count args)
-                      is-variadic? (let [[_ [amp rest-arg]] (split-with #(not= '& %) args)]
-                                     (and (= '& amp) (not (nil? rest-arg))))
-                      fixed-arity  (cond-> total-arity is-variadic? (- 2))]
+                (let [includes-self? (contains? #{'self 'this} (first args))
+                      total-arity    (cond-> (count args) includes-self? (dec))
+                      is-variadic?   (let [[_ [amp rest-arg]] (split-with #(not= '& %) args)]
+                                       (and (= '& amp) (not (nil? rest-arg))))
+                      fixed-arity    (cond-> total-arity is-variadic? (- 2))]
                   {:method-name  method-name
                    :args         args
                    :fixed-arity  fixed-arity
@@ -4533,20 +4534,21 @@
                                    {:arities                  arities
                                     :fixed-arity-for-variadic fixed-arity-for-variadic
                                     :fixed-arities            fixed-arities})))
+                       ;; multi-arity methods need to include an outer dispatch method,
+                       ;; which will not be defined by the user and must be defined here
                        (conj arities
                              {:method-name method-name
                               :python-name (munge method-name)
                               :args        '[& args]
                               :docstring   (-> arities first :docstring)}))
-                     ;; single arity methods should not have the special arity
-                     ;; python name
+                     ;; single arity methods should not have a private Python name
+                     ;; since they do not have an outer dispatch method
                      (map (fn [{:keys [method-name] :as arity}]
                             (assoc arity :python-name (munge method-name)))
                           arities))))
          (reduce (fn [m {:keys [method-name python-name args docstring]}]
                    (let [method (->>  args
                                       (map #(vary-meta % assoc :no-warn-when-unused true))
-                                      (concat ['^:no-warn-when-unused self])
                                       (apply vector)
                                       (list 'fn* method-name)
                                       (eval)
@@ -4562,7 +4564,8 @@
   "Define a new Python interface (abstract base clase) with the given name
   and method signatures.
 
-  Method signatures are in the form (method-name [arg1 arg2 ...]).
+  Method signatures are in the form (method-name [arg1 arg2 ...]). `self` or
+  `this` arguments must be omitted from all interfaces.
 
   Interface objects cannot be directly instantiated. Instead, you must create
   a concrete implementation of an interface (perhaps via deftype) and supply
@@ -4576,7 +4579,10 @@
   methods, or static methods, as with `deftype`."
   [interface-name & methods]
   (let [name-str    (name interface-name)
-        method-sigs (map #(list 'quote %) methods)]
+        method-sigs (->> methods
+                         (map (fn [[method-name args docstring]]
+                                [method-name (conj args 'self) docstring]))
+                         (map #(list 'quote %)))]
     `(def ~interface-name
        (gen-interface :name ~name-str
                       :methods [~@method-sigs]))))
@@ -4591,9 +4597,8 @@
   (let [docstring          (nth method-def 2 nil)
         dotted-method-name (symbol (str "." (name method-name)))
         has-varargs        (some #(= '& %) args)
-        clean-args         (filter #(not= '& %) args)
-
-        obj-sym (gensym "o")]
+        [obj-sym & args]   args
+        clean-args         (filter #(not= '& %) args)]
     [`(defmulti ~method-name
         ~@(when docstring [docstring])
         (fn [~obj-sym ~@(map #(vary-meta % assoc :no-warn-when-unused true) args)]
@@ -4616,8 +4621,21 @@
 (defmacro defprotocol
   "Define a new protocol.
 
-  Protocols consist of an interface (a Python `ABC`) and a set of generated methods
-  which dispatch to objects implementing the interface."
+  Protocols are similar to classical programming interfaces. Rather than defining an
+  interface and implementing that interface on different objects, protocols generate
+  a set of functions which dispatch to the correct implementation on the type of their
+  first argument (which is similar to the Python `self` argument).
+
+  Also like interfaces, Protocols do not include implementations for any of their member
+  methods. Instead, implementations can be provided using `deftype`, `defrecord`,
+  `reify`, or `extend` (or any of the `extend-*` macros).
+
+  Despite their differences from interfaces, Protocols do also generate a standard
+  Python interface type (deriving from `abc.ABC`) which is used for efficient dispatch
+  for implementing types.
+
+  Method signatures are in the form (method-name [self arg1 arg2 ...]). Callers must
+  provide the `self` or `this` arguments for each method."
   [protocol-name & methods]
   (let [doc           (when (string? (first methods))
                         (first methods))
@@ -5258,11 +5276,9 @@
   atomic semantics, but they may be useful as a mutable reference container in a
   single-threaded context."
 
-  (vreset!
-    [new-val]
+  (vreset! [this new-val]
     "Reset the value of a volatile non-atomically. Returns the new value.")
-  (vswap!
-    [f & args]
+  (vswap! [this f & args]
     "Swap the value of a volatile non-atomically to the return of
      (apply f old-val args). Returns the new value of that function
      call."))

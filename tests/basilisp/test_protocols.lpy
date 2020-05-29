@@ -4,11 +4,10 @@
    [basilisp.test :refer [deftest is testing]]))
 
 (defprotocol Shape
-  (area []))
+  (area [this]))
 
 (defprotocol Polygon
-  (interior-angle
-    []
+  (interior-angle [this]
     "Return the interior angle of the shape in degrees."))
 
 (defrecord Circle [radius]
