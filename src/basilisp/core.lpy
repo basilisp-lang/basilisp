@@ -4695,17 +4695,21 @@
                     {:target-type target-type})))
 
   (doseq [proto-pair (apply hash-map proto+methods)
-          :let       [[proto method-map] proto-pair
-                      proto-methods      (:methods proto)]]
+          :let       [[proto method-map] proto-pair]]
+    (when-not (protocol? proto)
+      (throw (ex-info "extend protocol must be protocol as defined by defprotocol"
+                      {:target-type target-type
+                       :proto       proto})))
     (when (identical? target-type proto)
       (throw (ex-info "Protocol may not extend itself"
                       {:target-type target-type
                        :proto       proto})))
-    (doseq [method-def method-map
-            :let       [[method-name fn] method-def]]
-      (let [mmethod (get proto-methods method-name)]
-        (.add-method mmethod target-type fn)))
-    (alter-var-root (:var proto) update :extending-types conj target-type))
+    (let [proto-methods (:methods proto)]
+      (doseq [method-def method-map
+              :let       [[method-name fn] method-def]]
+        (let [mmethod (get proto-methods method-name)]
+          (.add-method mmethod target-type fn))))
+    (alter-var-root (:var proto) update :impls conj target-type))
   nil)
 
 (defn ^:private sym-and-method-groups
