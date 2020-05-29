@@ -4634,8 +4634,8 @@
                     :basilisp.core/protocol true)
        ~@(mapcat gen-protocol-multi methods)
        (->> {:impls     #{}
-             :interface (gen-interface ~(name protocol-name)
-                                       [~@(map #(list 'quote %) methods)])
+             :interface (gen-interface :name ~(name protocol-name)
+                                       :methods [~@(map #(list 'quote %) methods)])
              :methods   ~(apply hash-map
                                 (mapcat #(let [v (first %)]
                                            [(keyword (name v)) v])
