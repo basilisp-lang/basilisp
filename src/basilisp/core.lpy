@@ -4625,7 +4625,9 @@
         protocol-name (vary-meta
                        (cond-> protocol-name
                          doc (vary-meta assoc :doc doc))
-                       assoc :protocol true)]
+                       assoc
+                       :protocol true
+                       :redef true)]
     `(do
        (defonce ~protocol-name {})
        (alter-meta! (var ~protocol-name)
