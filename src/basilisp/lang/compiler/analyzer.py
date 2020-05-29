@@ -75,15 +75,12 @@ from basilisp.lang.compiler.nodes import (
     DefType,
     DefTypeBase,
     DefTypeClassMethod,
-    DefTypeClassMethodArity,
     DefTypeMember,
     DefTypeMethod,
     DefTypeMethodArity,
-    DefTypeMethodArityBase,
-    DefTypeMethodBase,
     DefTypeProperty,
+    DefTypePythonMember,
     DefTypeStaticMethod,
-    DefTypeStaticMethodArity,
     Do,
     Fn,
     FnArity,
@@ -125,6 +122,7 @@ from basilisp.lang.compiler.nodes import (
     VarRef,
     Vector as VectorNode,
     WithMeta,
+    deftype_or_reify_python_member_names,
 )
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
@@ -1038,7 +1036,7 @@ def __deftype_classmethod(
     method_name: str,
     args: vec.Vector,
     kwarg_support: Optional[KeywordArgSupport] = None,
-) -> DefTypeClassMethodArity:
+) -> DefTypeClassMethod:
     """Emit a node for a :classmethod member of a `deftype*` form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
         method_name, is_context_boundary=True
@@ -1068,7 +1066,7 @@ def __deftype_classmethod(
         )
         with ctx.new_func_ctx(FunctionContext.CLASSMETHOD), ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        method = DefTypeClassMethodArity(
+        method = DefTypeClassMethod(
             form=form,
             name=method_name,
             params=vec.vector(param_nodes),
@@ -1228,7 +1226,7 @@ def __deftype_staticmethod(
     method_name: str,
     args: vec.Vector,
     kwarg_support: Optional[KeywordArgSupport] = None,
-) -> DefTypeStaticMethodArity:
+) -> DefTypeStaticMethod:
     """Emit a node for a :staticmethod member of a `deftype*` form."""
     with ctx.hide_parent_symbol_table(), ctx.new_symbol_table(
         method_name, is_context_boundary=True
@@ -1238,7 +1236,7 @@ def __deftype_staticmethod(
         )
         with ctx.new_func_ctx(FunctionContext.STATICMETHOD), ctx.expr_pos():
             stmts, ret = _body_ast(ctx, runtime.nthrest(form, 2))
-        method = DefTypeStaticMethodArity(
+        method = DefTypeStaticMethod(
             form=form,
             name=method_name,
             params=vec.vector(param_nodes),
@@ -1262,7 +1260,7 @@ def __deftype_staticmethod(
 
 def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext, form: Union[llist.List, ISeq], special_form: sym.Symbol
-) -> Union[DefTypeMethodArityBase, DefTypeProperty]:
+) -> Union[DefTypeMethodArity, DefTypePythonMember]:
     """Emit either a `deftype*` or `reify*` property node or an arity of a `deftype*`
     or `reify*` method.
 
@@ -1343,9 +1341,9 @@ def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branche
 def __deftype_or_reify_method_node_from_arities(  # pylint: disable=too-many-branches
     ctx: AnalyzerContext,
     form: Union[llist.List, ISeq],
-    arities: List[DefTypeMethodArityBase],
+    arities: List[DefTypeMethodArity],
     special_form: sym.Symbol,
-) -> DefTypeMethodBase:
+) -> DefTypeMember:
     """Roll all of the collected `deftype*` or `reify*` arities up into a single
     method node."""
     assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
@@ -1354,13 +1352,6 @@ def __deftype_or_reify_method_node_from_arities(  # pylint: disable=too-many-bra
     fixed_arity_for_variadic: Optional[int] = None
     num_variadic = 0
     for arity in arities:
-        if fixed_arity_for_variadic is not None:
-            if arity.fixed_arity >= fixed_arity_for_variadic:
-                raise AnalyzerException(
-                    f"{special_form} method may not have a method with fixed arity "
-                    "greater than fixed arity of variadic function",
-                    form=arity.form,
-                )
         if arity.is_variadic:
             if num_variadic > 0:
                 raise AnalyzerException(
@@ -1397,41 +1388,14 @@ def __deftype_or_reify_method_node_from_arities(  # pylint: disable=too-many-bra
             form=form,
         )
 
-    max_fixed_arity = max(arity.fixed_arity for arity in arities)
-
-    if all(isinstance(e, DefTypeMethodArity) for e in arities):
-        return DefTypeMethod(
-            form=form,
-            name=arities[0].name,
-            max_fixed_arity=max_fixed_arity,
-            arities=vec.vector(arities),  # type: ignore[arg-type]
-            is_variadic=num_variadic == 1,
-            env=ctx.get_node_env(),
-        )
-    elif all(isinstance(e, DefTypeClassMethodArity) for e in arities):
-        return DefTypeClassMethod(
-            form=form,
-            name=arities[0].name,
-            max_fixed_arity=max_fixed_arity,
-            arities=vec.vector(arities),  # type: ignore[arg-type]
-            is_variadic=num_variadic == 1,
-            env=ctx.get_node_env(),
-        )
-    elif all(isinstance(e, DefTypeStaticMethodArity) for e in arities):
-        return DefTypeStaticMethod(
-            form=form,
-            name=arities[0].name,
-            max_fixed_arity=max_fixed_arity,
-            arities=vec.vector(arities),  # type: ignore[arg-type]
-            is_variadic=num_variadic == 1,
-            env=ctx.get_node_env(),
-        )
-    else:
-        raise AnalyzerException(
-            "deftype* method arities must all be declared one of :classmethod, "
-            ":property, :staticmethod, or none (for a standard method)",
-            form=form,
-        )
+    return DefTypeMethod(
+        form=form,
+        name=arities[0].name,
+        max_fixed_arity=max(arity.fixed_arity for arity in arities),
+        arities=vec.vector(arities),
+        is_variadic=num_variadic == 1,
+        env=ctx.get_node_env(),
+    )
 
 
 def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-locals  # noqa: MC0001
@@ -1484,10 +1448,10 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
     # keys to act as an ordered set of members we've seen. We don't want to register
     # duplicates.
     member_order = {}
-    methods: MutableMapping[
-        str, List[DefTypeMethodArityBase]
-    ] = collections.defaultdict(list)
-    props: MutableMapping[str, DefTypeProperty] = {}
+    methods: MutableMapping[str, List[DefTypeMethodArity]] = collections.defaultdict(
+        list
+    )
+    py_members: MutableMapping[str, DefTypePythonMember] = {}
     for elem in runtime.nthrest(form, 2):
         if not isinstance(elem, ISeq):
             raise AnalyzerException(
@@ -1497,24 +1461,29 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
 
         member = __deftype_or_reify_prop_or_method_arity(ctx, elem, special_form)
         member_order[member.name] = True
-        if isinstance(member, DefTypeProperty):
-            if member.name in props:
+        if isinstance(
+            member, (DefTypeClassMethod, DefTypeProperty, DefTypeStaticMethod)
+        ):
+            if member.name in py_members:
                 raise AnalyzerException(
-                    f"{special_form} property may only have one arity defined",
+                    f"{special_form} class methods, properties, and static methods "
+                    "may only have one arity defined",
                     form=elem,
                     lisp_ast=member,
                 )
             elif member.name in methods:
                 raise AnalyzerException(
-                    f"{special_form} property name already defined as a method",
+                    f"{special_form} class method, property, or static method name "
+                    "already defined as a method",
                     form=elem,
                     lisp_ast=member,
                 )
-            props[member.name] = member
+            py_members[member.name] = member
         else:
-            if member.name in props:
+            if member.name in py_members:
                 raise AnalyzerException(
-                    f"{special_form} method name already defined as a property",
+                    f"{special_form} method name already defined as a class method, "
+                    "property, or static method",
                     form=elem,
                     lisp_ast=member,
                 )
@@ -1531,9 +1500,9 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
             )
             continue
 
-        prop = props.get(member_name)
-        assert prop is not None, "Member must be a method or property"
-        members.append(prop)
+        py_member = py_members.get(member_name)
+        assert py_member is not None, "Member must be a method or property"
+        members.append(py_member)
 
     return interfaces, members
 
@@ -1557,7 +1526,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
     assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
 
     field_names = frozenset(fields)
-    member_names = frozenset(munge(member.name) for member in members)
+    member_names = frozenset(deftype_or_reify_python_member_names(members))
     all_member_names = field_names.union(member_names)
     all_interface_methods: Set[str] = set()
     for interface in interfaces:
@@ -1916,13 +1885,6 @@ def _fn_ast(  # pylint: disable=too-many-branches
         fixed_arity_for_variadic: Optional[int] = None
         num_variadic = 0
         for arity in arities:
-            if fixed_arity_for_variadic is not None:
-                if arity.fixed_arity >= fixed_arity_for_variadic:
-                    raise AnalyzerException(
-                        "fn may not have a method with fixed arity greater than "
-                        "fixed arity of variadic function",
-                        form=arity.form,
-                    )
             if arity.is_variadic:
                 if num_variadic > 0:
                     raise AnalyzerException(

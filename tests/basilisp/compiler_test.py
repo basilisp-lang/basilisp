@@ -888,7 +888,7 @@ class TestDefType:
                 """,
             ],
         )
-        def test_deftype_member_may_not_be_multiple_tyeps(
+        def test_deftype_member_may_not_be_multiple_types(
             self, lcompile: CompileFn, code: str
         ):
             with pytest.raises(compiler.CompilerException):
@@ -1106,183 +1106,6 @@ class TestDefType:
 
             pt = Point.create(1, 2, z=3)
             assert (1, 2, 3) == (pt.x, pt.y, pt.z)
-
-        @pytest.mark.parametrize(
-            "code",
-            [
-                """
-                (deftype* Point [x y z]
-                  :implements [WithCls]
-                  (^:classmethod create [cls]
-                    :no-args)
-                  (^:classmethod create [cls]
-                    :also-no-args))
-            """,
-                """
-                (deftype* Point [x y z]
-                  :implements [WithCls]
-                  (^:classmethod create [cls s]
-                    :one-arg)
-                  (^:classmethod create [cls s]
-                    :also-one-arg))
-            """,
-                """
-                (deftype* Point [x y z]
-                  :implements [WithCls]
-                  (^:classmethod create [cls]
-                    :no-args)
-                  (^:classmethod create [cls s]
-                    :one-arg)
-                  (^:classmethod create [cls a b]
-                    [a b])
-                  (^:classmethod create [cls s3]
-                    :also-one-arg))
-            """,
-            ],
-        )
-        def test_no_deftype_classmethod_arity_has_same_fixed_arity(
-            self, lcompile: CompileFn, code: str
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(code)
-
-        @pytest.mark.parametrize(
-            "code",
-            [
-                """
-            (deftype* Point [x y z]
-              :implements [WithCls]
-              (^:classmethod create [cls & args]
-                (concat [:no-starter] args))
-              (^:classmethod create  [cls s & args]
-                (concat [s] args)))
-            """,
-                """
-            (deftype* Point [x y z]
-              :implements [WithCls]
-              (^:classmethod create [cls s & args]
-                (concat [s] args))
-              (^:classmethod create [cls & args]
-                (concat [:no-starter] args)))
-            """,
-            ],
-        )
-        def test_deftype_classmethod_cannot_have_two_variadic_arities(
-            self, lcompile: CompileFn, code: str
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(code)
-
-        def test_deftype_classmethod_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
-            self, lcompile: CompileFn,
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(
-                    """
-                    (deftype* Point [x y z]
-                      :implements [WithCls]
-                      (^:classmethod create [cls a b]
-                        [a b])
-                      (^:classmethod create [cls & args]
-                        (concat [:no-starter] args)))
-                    """
-                )
-
-        @pytest.mark.parametrize(
-            "code",
-            [
-                """
-            (deftype* Point [x y z]
-              :implements [WithCls]
-              (^:classmethod create [cls s]
-                s)
-              (^:classmethod ^{:kwargs :collect} create [cls s kwargs]
-                (concat [s] kwargs)))
-            """,
-                """
-            (deftype* Point [x y z]
-              :implements [WithCls]
-              (^:classmethod ^{:kwargs :collect} create [cls kwargs]
-                kwargs)
-              (^:classmethod ^{:kwargs :apply} create [cls head & kwargs]
-                (apply hash-map :first head kwargs)))
-            """,
-            ],
-        )
-        def test_deftype_classmethod_does_not_support_kwargs(
-            self, lcompile: CompileFn, code: str
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(code)
-
-        @pytest.mark.parametrize(
-            "code",
-            [
-                """
-            (deftype* Point [x y z]
-              :implements [WithCls]
-              (create [cls] cls)
-              (^:classmethod create [cls s] cls))
-            """,
-                """
-            (deftype* Point [x y z]
-              :implements [WithCls]
-              (^:classmethod create [cls] cls)
-              (^:staticmethod create [s] s))
-            """,
-            ],
-        )
-        def test_deftype_classmethod_arities_must_all_be_annotated_with_classmethod(
-            self, lcompile: CompileFn, code: str
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(code)
-
-        def test_multi_arity_deftype_classmethod_dispatches_properly(
-            self, lcompile: CompileFn, ns: runtime.Namespace,
-        ):
-            code = """
-            (deftype* Point [x y z]
-              :implements [WithCls]
-              (^:classmethod create [cls] cls)
-              (^:classmethod create [cls s] cls))
-            """
-            Point = lcompile(code)
-            assert callable(Point.create)
-            assert Point is Point.create()
-            assert Point is Point.create("STRING")
-
-            code = """
-            (deftype* Point [x y z]
-              :implements [WithCls]
-              (^:classmethod create [cls] :no-args)
-              (^:classmethod create [cls s] s)
-              (^:classmethod create [cls s & args] s
-                (concat [s] args)))
-            """
-            Point = lcompile(code)
-            assert callable(Point.create)
-            assert Point.create() == kw.keyword("no-args")
-            assert Point.create("STRING") == "STRING"
-            assert Point.create(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
-                kw.keyword("first-arg"), "second-arg", 3
-            )
-
-        def test_multi_arity_deftype_classmethod_call_fails_if_no_valid_arity(
-            self, lcompile: CompileFn,
-        ):
-            Point = lcompile(
-                """
-                (deftype* Point [x y z]
-                  :implements [WithCls]
-                  (^:classmethod create [cls] :send-me-an-arg!)
-                  (^:classmethod create [cls i] i)
-                  (^:classmethod create [cls i j] (concat [i] [j])))
-                """
-            )
-
-            with pytest.raises(runtime.RuntimeException):
-                Point.create(1, 2, 3)
 
     class TestDefTypeMethod:
         def test_deftype_fields_and_methods(self, lcompile: CompileFn):
@@ -1603,52 +1426,72 @@ class TestDefType:
             self, lcompile: CompileFn, ns: runtime.Namespace,
         ):
             code = """
-            (import* collections.abc)
+            (import* abc)
+            (def DoubleTrouble
+              (python/type "DoubleTrouble"
+                           #py (abc/ABC)
+                           #py {"_double_up_arity0" (abc/abstractmethod (fn [self]))
+                                "_double_up_arity1" (abc/abstractmethod (fn [self arg1]))
+                                "double_up"         (abc/abstractmethod (fn [& args]))}))
             (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this] :a)
-              (--call-- [this s] [:a s]))
+              :implements [DoubleTrouble]
+              (double-up [this] :a)
+              (double-up [this s] [:a s]))
             """
             Point = lcompile(code)
-            assert callable(Point(1, 2, 3))
-            assert kw.keyword("a") == Point(1, 2, 3)()
-            assert vec.v(kw.keyword("a"), kw.keyword("c")) == Point(1, 2, 3)(
+            assert callable(Point(1, 2, 3).double_up)
+            assert kw.keyword("a") == Point(1, 2, 3).double_up()
+            assert vec.v(kw.keyword("a"), kw.keyword("c")) == Point(1, 2, 3).double_up(
                 kw.keyword("c")
             )
 
             code = """
-            (import* collections.abc)
+            (import* abc)
+            (def InTriplicate
+              (python/type "InTriplicate"
+                           #py (abc/ABC)
+                           #py {"_triple_up_arity0"     (abc/abstractmethod (fn [self]))
+                                "_triple_up_arity1"     (abc/abstractmethod (fn [self arg1]))
+                                "_triple_up_arity_rest" (abc/abstractmethod (fn [self arg1 & args]))
+                                "triple_up"             (abc/abstractmethod (fn [& args]))}))
             (deftype* Point [x y z]
-              :implements [collections.abc/Callable]
-              (--call-- [this] :no-args)
-              (--call-- [this s] s)
-              (--call-- [this s & args]
+              :implements [InTriplicate]
+              (triple-up [this] :no-args)
+              (triple-up [this s] s)
+              (triple-up [this s & args]
                 (concat [s] args)))
             """
             Point = lcompile(code)
-            assert callable(Point(1, 2, 3))
-            assert Point(1, 2, 3)() == kw.keyword("no-args")
-            assert Point(1, 2, 3)("STRING") == "STRING"
-            assert Point(1, 2, 3)(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
+            assert callable(Point(1, 2, 3).triple_up)
+            assert Point(1, 2, 3).triple_up() == kw.keyword("no-args")
+            assert Point(1, 2, 3).triple_up("STRING") == "STRING"
+            assert Point(1, 2, 3).triple_up(
                 kw.keyword("first-arg"), "second-arg", 3
-            )
+            ) == llist.l(kw.keyword("first-arg"), "second-arg", 3)
 
         def test_multi_arity_deftype_method_call_fails_if_no_valid_arity(
             self, lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
-                (import* collections.abc)
+                (import* abc)
+                (def InTriplicate
+                  (python/type "InTriplicate"
+                               #py (abc/ABC)
+                               #py {"_triple_up_arity0" (abc/abstractmethod (fn [self]))
+                                    "_triple_up_arity1" (abc/abstractmethod (fn [self arg1]))
+                                    "_triple_up_arity2" (abc/abstractmethod (fn [self arg1 arg2]))
+                                    "triple_up"         (abc/abstractmethod (fn [& args]))}))
                 (deftype* Point [x y z]
-                  :implements [collections.abc/Callable]
-                  (--call-- [this] :send-me-an-arg!)
-                  (--call-- [this i] i)
-                  (--call-- [this i j] (concat [i] [j])))
+                  :implements [InTriplicate]
+                  (triple-up [this] :send-me-an-arg!)
+                  (triple-up [this i] i)
+                  (triple-up [this i j] (concat [i] [j])))
                 """
             )
 
             with pytest.raises(runtime.RuntimeException):
-                Point(1, 2, 3)(4, 5, 6)
+                Point(1, 2, 3).triple_up(4, 5, 6)
 
     class TestDefTypeProperty:
         @pytest.fixture(autouse=True)
@@ -2023,185 +1866,6 @@ class TestDefType:
             assert lmap.map(
                 {kw.keyword("x"): 1, kw.keyword("y"): 2, kw.keyword("z"): 3}
             ) == Point.dostatic(x=1, y=2, z=3)
-
-        @pytest.mark.parametrize(
-            "code",
-            [
-                """
-                (deftype* Point [x y z]
-                  :implements [WithStatic]
-                  (^:staticmethod dostatic []
-                    :no-args)
-                  (^:staticmethod dostatic []
-                    :also-no-args))
-            """,
-                """
-                (deftype* Point [x y z]
-                  :implements [WithStatic]
-                  (^:staticmethod dostatic [s]
-                    :one-arg)
-                  (^:staticmethod dostatic [s]
-                    :also-one-arg))
-            """,
-                """
-                (deftype* Point [x y z]
-                  :implements [WithStatic]
-                  (^:staticmethod dostatic []
-                    :no-args)
-                  (^:staticmethod dostatic [s]
-                    :one-arg)
-                  (^:staticmethod dostatic [a b]
-                    [a b])
-                  (^:staticmethod dostatic [s3]
-                    :also-one-arg))
-            """,
-            ],
-        )
-        def test_no_deftype_staticmethod_arity_has_same_fixed_arity(
-            self, lcompile: CompileFn, code: str
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(code)
-
-        @pytest.mark.parametrize(
-            "code",
-            [
-                """
-            (deftype* Point [x y z]
-              :implements [WithStatic]
-              (^:staticmethod dostatic [& args]
-                (concat [:no-starter] args))
-              (^:staticmethod dostatic [s & args]
-                (concat [s] args)))
-            """,
-                """
-            (deftype* Point [x y z]
-              :implements [WithStatic]
-              (^:staticmethod dostatic [s & args]
-                (concat [s] args))
-              (^:staticmethod dostatic [& args]
-                (concat [:no-starter] args)))
-            """,
-            ],
-        )
-        def test_deftype_staticmethod_cannot_have_two_variadic_arities(
-            self, lcompile: CompileFn, code: str
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(code)
-
-        def test_deftype_staticmethod_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
-            self, lcompile: CompileFn,
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(
-                    """
-                    (deftype* Point [x y z]
-                      :implements [WithStatic]
-                      (^:staticmethod dostatic [a b]
-                        [a b])
-                      (^:staticmethod dostatic [& args]
-                        (concat [:no-starter] args)))
-                    """
-                )
-
-        @pytest.mark.parametrize(
-            "code",
-            [
-                """
-            (deftype* Point [x y z]
-              :implements [WithStatic]
-              (^:staticmethod dostatic [s]
-                s)
-              (^:staticmethod ^{:kwargs :collect} dostatic [s kwargs]
-                (concat [s] kwargs)))
-            """,
-                """
-            (deftype* Point [x y z]
-              :implements [WithStatic]
-              (^:staticmethod ^{:kwargs :collect} dostatic [kwargs]
-                kwargs)
-              (^:staticmethod ^{:kwargs :apply} dostatic [head & kwargs]
-                (apply hash-map :first head kwargs)))
-            """,
-            ],
-        )
-        def test_deftype_staticmethod_does_not_support_kwargs(
-            self, lcompile: CompileFn, code: str
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(code)
-
-        @pytest.mark.parametrize(
-            "code",
-            [
-                """
-            (deftype* Point [x y z]
-              :implements [WithStatic]
-              (dostatic [])
-              (^:staticmethod dostatic [s] s))
-            """,
-                """
-            (deftype* Point [x y z]
-              :implements [WithStatic]
-              (^:classmethod dostatic [])
-              (^:staticmethod dostatic [s] s))
-            """,
-            ],
-        )
-        def test_deftype_staticmethod_arities_must_all_be_annotated_with_staticmethod(
-            self, lcompile: CompileFn, code: str
-        ):
-            with pytest.raises(compiler.CompilerException):
-                lcompile(code)
-
-        def test_multi_arity_deftype_staticmethod_dispatches_properly(
-            self, lcompile: CompileFn, ns: runtime.Namespace,
-        ):
-            code = """
-                    (deftype* Point [x y z]
-                      :implements [WithStatic]
-                      (^:staticmethod dostatic [] :a)
-                      (^:staticmethod dostatic [s] [:a s]))
-                    """
-            Point = lcompile(code)
-            assert callable(Point.dostatic)
-            assert kw.keyword("a") == Point.dostatic()
-            assert vec.v(kw.keyword("a"), kw.keyword("c")) == Point.dostatic(
-                kw.keyword("c")
-            )
-
-            code = """
-                    (deftype* Point [x y z]
-                      :implements [WithStatic]
-                      (^:staticmethod dostatic [] :no-args)
-                      (^:staticmethod dostatic [s] s)
-                      (^:staticmethod dostatic [s & args] s
-                        (concat [s] args)))
-                    """
-            Point = lcompile(code)
-            assert callable(Point.dostatic)
-            assert Point.dostatic() == kw.keyword("no-args")
-            assert Point.dostatic("STRING") == "STRING"
-            assert Point.dostatic(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
-                kw.keyword("first-arg"), "second-arg", 3
-            )
-
-        def test_multi_arity_deftype_staticmethod_call_fails_if_no_valid_arity(
-            self, lcompile: CompileFn,
-        ):
-            Point = lcompile(
-                """
-                (deftype* Point [x y z]
-                  :implements [WithStatic]
-                  (^:staticmethod dostatic [] :send-me-an-arg!)
-                  (^:staticmethod dostatic [i] i)
-                  (^:staticmethod dostatic [i j] (concat [i] [j])))
-                """
-            )
-
-            with pytest.raises(runtime.RuntimeException):
-                Point.dostatic(1, 2, 3)
 
     class TestDefTypeReaderForm:
         def test_ns_does_not_exist(self, lcompile: CompileFn, test_ns: str):
@@ -2606,18 +2270,26 @@ class TestFunctionDef:
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+            (def f
+              (fn* f
+                ([s] (concat [s] :one-arg))
+                ([& args] (concat [:rest-params] args))))""",
+            """
+            (def f
+              (fn* f
+                ([& args] (concat [:rest-params] args))
+                ([s] (concat [s] :one-arg))))""",
+        ],
+    )
     def test_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
-        self, lcompile: CompileFn
+        self, lcompile: CompileFn, code: str
     ):
         with pytest.raises(compiler.CompilerException):
-            lcompile(
-                """
-                (def f
-                  (fn* f
-                    ([s] (concat [s] :one-arg))
-                    ([& args] (concat [:rest-params] args))))
-                """
-            )
+            lcompile(code)
 
     def test_multi_arity_fn_dispatches_properly(
         self, lcompile: CompileFn, ns: runtime.Namespace
@@ -4565,49 +4237,69 @@ class TestReify:
             self, lcompile: CompileFn, ns: runtime.Namespace,
         ):
             code = """
-            (import* collections.abc)
+            (import* abc)
+            (def DoubleTrouble
+              (python/type "DoubleTrouble"
+                           #py (abc/ABC)
+                           #py {"_double_up_arity0" (abc/abstractmethod (fn [self]))
+                                "_double_up_arity1" (abc/abstractmethod (fn [self arg1]))
+                                "double_up"         (abc/abstractmethod (fn [& args]))}))
             (fn* [x y z]
-              (reify* :implements [collections.abc/Callable]
-                (--call-- [this] :a)
-                (--call-- [this s] [:a s])))"""
+              (reify* :implements [DoubleTrouble]
+                (double-up [this] :a)
+                (double-up [this s] [:a s])))"""
             Point = lcompile(code)
-            assert callable(Point(1, 2, 3))
-            assert kw.keyword("a") == Point(1, 2, 3)()
-            assert vec.v(kw.keyword("a"), kw.keyword("c")) == Point(1, 2, 3)(
+            assert callable(Point(1, 2, 3).double_up)
+            assert kw.keyword("a") == Point(1, 2, 3).double_up()
+            assert vec.v(kw.keyword("a"), kw.keyword("c")) == Point(1, 2, 3).double_up(
                 kw.keyword("c")
             )
 
             code = """
-            (import* collections.abc)
+            (import* abc)
+            (def InTriplicate
+              (python/type "InTriplicate"
+                           #py (abc/ABC)
+                           #py {"_triple_up_arity0"     (abc/abstractmethod (fn [self]))
+                                "_triple_up_arity1"     (abc/abstractmethod (fn [self arg1]))
+                                "_triple_up_arity_rest" (abc/abstractmethod (fn [self arg1 & args]))
+                                "triple_up"             (abc/abstractmethod (fn [& args]))}))
             (fn* [x y z]
-              (reify* :implements [collections.abc/Callable]
-                (--call-- [this] :no-args)
-                (--call-- [this s] s)
-                (--call-- [this s & args]
+              (reify* :implements [InTriplicate]
+                (triple-up [this] :no-args)
+                (triple-up [this s] s)
+                (triple-up [this s & args]
                   (concat [s] args))))"""
             Point = lcompile(code)
-            assert callable(Point(1, 2, 3))
-            assert Point(1, 2, 3)() == kw.keyword("no-args")
-            assert Point(1, 2, 3)("STRING") == "STRING"
-            assert Point(1, 2, 3)(kw.keyword("first-arg"), "second-arg", 3) == llist.l(
+            assert callable(Point(1, 2, 3).triple_up)
+            assert Point(1, 2, 3).triple_up() == kw.keyword("no-args")
+            assert Point(1, 2, 3).triple_up("STRING") == "STRING"
+            assert Point(1, 2, 3).triple_up(
                 kw.keyword("first-arg"), "second-arg", 3
-            )
+            ) == llist.l(kw.keyword("first-arg"), "second-arg", 3)
 
         def test_multi_arity_reify_method_call_fails_if_no_valid_arity(
             self, lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
-                (import* collections.abc)
+                (import* abc)
+                (def InTriplicate
+                  (python/type "InTriplicate"
+                               #py (abc/ABC)
+                               #py {"_triple_up_arity0" (abc/abstractmethod (fn [self]))
+                                    "_triple_up_arity1" (abc/abstractmethod (fn [self arg1]))
+                                    "_triple_up_arity2" (abc/abstractmethod (fn [self arg1 arg2]))
+                                    "triple_up"         (abc/abstractmethod (fn [& args]))}))
                 (fn* [x y z]
-                  (reify* :implements [collections.abc/Callable]
-                    (--call-- [this] :send-me-an-arg!)
-                    (--call-- [this i] i)
-                    (--call-- [this i j] (concat [i] [j]))))"""
+                  (reify* :implements [InTriplicate]
+                    (triple-up [this] :send-me-an-arg!)
+                    (triple-up [this i] i)
+                    (triple-up [this i j] (concat [i] [j]))))"""
             )
 
             with pytest.raises(runtime.RuntimeException):
-                Point(1, 2, 3)(4, 5, 6)
+                Point(1, 2, 3).triple_up(4, 5, 6)
 
     class TestReifyProperty:
         @pytest.fixture(autouse=True)
