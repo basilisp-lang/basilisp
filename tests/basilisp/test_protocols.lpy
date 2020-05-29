@@ -58,7 +58,11 @@
 
   (testing "Protocols cannot extend themselves"
     (is (thrown? basilisp.lang.exception/ExceptionInfo
-                 (extend Shape Shape {:area identity})))))
+                 (extend Shape Shape {:area identity}))))
+
+  (testing "extended type must implement all Protocol methods"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (extend python/str Shape {})))))
 
 (deftest extenders-test
   (is (= (list Square) (extenders Shape)))

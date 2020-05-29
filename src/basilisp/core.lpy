@@ -4723,6 +4723,13 @@
                       {:target-type target-type
                        :proto       proto})))
     (let [proto-methods (:methods proto)]
+      (let [proto-method-names (set (keys proto-methods))
+            impl-method-names  (set (keys method-map))]
+        (when-not (= proto-method-names impl-method-names)
+          (throw (ex-info "target-type must implement all protocol methods"
+                          {:missing-methods (->> proto-method-names
+                                                 (remove impl-method-names)
+                                                 (set))}))))
       (doseq [method-def method-map
               :let       [[method-name fn] method-def]]
         (let [mmethod (get proto-methods method-name)]
