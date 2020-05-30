@@ -4789,11 +4789,12 @@
   "Convert a vector of method definitions (as expected by `extend-protocol` and
   `extend-type`) into a map of method definitions which can be passed to `extend`. "
   [methods]
-  (reduce (fn [m fn-body]
-            (let [method-name (name (first fn-body))]
-              (assoc m (keyword method-name) (apply list `fn fn-body))))
-          {}
-          methods))
+  (->> (group-by first methods)
+       (reduce (fn [m [method-name arities]]
+                 (->> (map rest arities)
+                      (apply list `fn method-name)
+                      (assoc m (keyword (name method-name)))))
+               {})))
 
 (defmacro extend-protocol
   "Extend a Protocol with implementations for multiple types.
