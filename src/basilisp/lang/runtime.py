@@ -418,6 +418,7 @@ class Namespace(ReferenceBase):
             [
                 "attr",
                 "builtins",
+                "functools",
                 "io",
                 "importlib",
                 "operator",

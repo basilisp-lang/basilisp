@@ -33,14 +33,18 @@
   (is (= 4 (area (->Rectangle 2 2))))
   (is (= 9 (area (->Square 3))))
 
-  (is (thrown? python/AttributeError (area :a)))
-  (is (thrown? python/AttributeError (area [4 5]))))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (area :a)))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (area [4 5]))))
 
 (deftest Polygon-interior-angle-test
   (is (= 360 (interior-angle (->Rectangle 2 2))))
 
-  (is (thrown? python/AttributeError (interior-angle (->Circle 1))))
-  (is (thrown? python/AttributeError (interior-angle (->Square 3)))))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (interior-angle (->Circle 1))))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (interior-angle (->Square 3)))))
 
 (deftest protocol?-test
   (is (protocol? Shape))
