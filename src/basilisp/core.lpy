@@ -4692,6 +4692,9 @@
 
   `target-type` should name a type which is to be extended. Virtually any type
   is permitted, so long as that that type is not also a Protocol. If `target-type`
+  is an interface, objects of types implementing that interface will be extended
+  by the given implementation unless a more concrete implementation is available
+  (by the Python method resolution order of the object's type). If `target-type`
   is `nil`, it will be interpreted as `(python/type nil)`.
 
   `proto+methods` are interleaved Protocol names and maps of Protocol method
@@ -4776,7 +4779,7 @@
              (conj methods (first specs))
              groups)
 
-      (symbol? (first specs))
+      (or (symbol? (first specs)) (nil? (first specs)))
       (recur (first specs)
              (rest specs)
              []
