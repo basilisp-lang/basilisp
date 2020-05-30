@@ -4591,30 +4591,43 @@
 ;; Protocols ;;
 ;;;;;;;;;;;;;;;
 
-(defn ^:private gen-protocol-multi
-  "Return the `defmulti` and default `defmethod` for a protocol method."
-  [[method-name args :as method-def]]
+(import* functools)
+
+(defn ^:private gen-protocol-dispatch
+  "Return the dispatch function for a single protocol method."
+  [protocol-name interface-name [method-name args :as method-def]]
   (let [docstring          (nth method-def 2 nil)
         dotted-method-name (symbol (str "." (name method-name)))
         has-varargs        (some #(= '& %) args)
         [obj-sym & args]   args
         clean-args         (filter #(not= '& %) args)]
-    [`(defmulti ~method-name
-        ~@(when docstring [docstring])
-        (fn [~obj-sym ~@(map #(vary-meta % assoc :no-warn-when-unused true) args)]
-          (python/type ~obj-sym)))
-     `(defmethod ~method-name :default
-        [~obj-sym ~@args]
-        ~(if has-varargs
-           `(apply-method ~obj-sym ~method-name ~@clean-args)
-           `(~dotted-method-name ~obj-sym ~@clean-args)))]))
+    [`(def ~(vary-meta method-name
+                       assoc
+                       :doc docstring
+                       :arglists (list 'quote (vec (concat [obj-sym] args))))
+        (functools/singledispatch
+         (fn ~method-name [~obj-sym ~@(map #(vary-meta % assoc :no-warn-when-unused true) args)]
+           (let [obj-type# (python/type ~obj-sym)]
+             (throw
+              (ex-info (str
+                        ~(str "No implementation of method " method-name " found for type ")
+                        obj-type#)
+                       {:protocol    (var ~protocol-name)
+                        :method      ~method-name
+                        :object-type obj-type#}))))))
+     `(.register ~method-name
+                 ~interface-name
+                 (fn ~method-name [~obj-sym ~@args]
+                   ~(if has-varargs
+                      `(apply-method ~obj-sym ~method-name ~@clean-args)
+                      `(~dotted-method-name ~obj-sym ~@clean-args))))]))
 
 ;; For each protocol, the following keys are defined:
 ;;
 ;; - :impls     - a set of types which dynamically extend the Protocol
 ;;                (e.g. by `extend`)
 ;; - :interface - the Python interface type which backs the Protocol
-;; - :methods   - a mapping of method names (as Basilisp keywords) to the multi-
+;; - :methods   - a mapping of method names (as Basilisp keywords) to the dispatch
 ;;                method backing the Protocol method
 ;; - :var       - a reference to the Var the Protocol is stored in
 
@@ -4645,23 +4658,25 @@
                          doc (vary-meta assoc :doc doc))
                        assoc
                        :protocol true
-                       :redef true)]
+                       :redef true)
+        interface-sym (gensym "interface-name")]
     `(do
        (defonce ~protocol-name {})
        (alter-meta! (var ~protocol-name)
                     assoc
                     :doc ~doc
                     :basilisp.core/protocol true)
-       ~@(mapcat gen-protocol-multi methods)
-       (->> {:impls     #{}
-             :interface (gen-interface :name ~(name protocol-name)
-                                       :methods [~@(map #(list 'quote %) methods)])
-             :methods   ~(apply hash-map
-                                (mapcat #(let [v (first %)]
-                                           [(keyword (name v)) v])
-                                        methods))
-             :var       (var ~protocol-name)}
-            (alter-var-root (var ~protocol-name) merge ~protocol-name))
+       (let [~interface-sym (gen-interface :name ~(name protocol-name)
+                                           :methods [~@(map #(list 'quote %) methods)])]
+         ~@(mapcat #(gen-protocol-dispatch protocol-name interface-sym %) methods)
+         (->> {:impls     #{}
+               :interface ~interface-sym
+               :methods   ~(apply hash-map
+                                  (mapcat #(let [v (first %)]
+                                             [(keyword (name v)) v])
+                                          methods))
+               :var       (var ~protocol-name)}
+              (alter-var-root (var ~protocol-name) merge ~protocol-name)))
        ~protocol-name)))
 
 (defn ^:private protocol?
@@ -4676,7 +4691,8 @@
   types may be extended without modifying the types directly.
 
   `target-type` should name a type which is to be extended. Virtually any type
-  is permitted, so long as that that type is not also a Protocol.
+  is permitted, so long as that that type is not also a Protocol. If `target-type`
+  is `nil`, it will be interpreted as `(python/type nil)`.
 
   `proto+methods` are interleaved Protocol names and maps of Protocol method
   implementations intended for `target-type`. The keys of each map are keywords
@@ -4703,38 +4719,43 @@
       OtherProto
       {:ham  (fn [...] ...)})"
   [target-type & proto+methods]
-  (cond
-    (protocol? target-type)
-    (throw (ex-info "Protocols may not be extended with other Protocols"
-                    {:target-type target-type}))
+  (let [target-type (cond-> target-type (nil? target-type) (python/type))]
+    (cond
+      (protocol? target-type)
+      (throw (ex-info "Protocols may not be extended with other Protocols"
+                      {:target-type target-type}))
 
-    (not (instance? python/type target-type))
-    (throw (ex-info "extend target-type must be a type"
-                    {:target-type target-type})))
+      (not (instance? python/type target-type))
+      (throw (ex-info "extend target-type must be a type"
+                      {:target-type target-type})))
 
-  (doseq [proto-pair (apply hash-map proto+methods)
-          :let       [[proto method-map] proto-pair]]
-    (when-not (protocol? proto)
-      (throw (ex-info "extend protocol must be protocol as defined by defprotocol"
-                      {:target-type target-type
-                       :proto       proto})))
-    (when (identical? target-type proto)
-      (throw (ex-info "Protocol may not extend itself"
-                      {:target-type target-type
-                       :proto       proto})))
-    (let [proto-methods (:methods proto)]
-      (let [proto-method-names (set (keys proto-methods))
-            impl-method-names  (set (keys method-map))]
-        (when-not (= proto-method-names impl-method-names)
-          (throw (ex-info "target-type must implement all protocol methods"
-                          {:missing-methods (->> proto-method-names
-                                                 (remove impl-method-names)
-                                                 (set))}))))
-      (doseq [method-def method-map
-              :let       [[method-name fn] method-def]]
-        (let [mmethod (get proto-methods method-name)]
-          (.add-method mmethod target-type fn))))
-    (alter-var-root (:var proto) update :impls conj target-type))
+    (doseq [proto-pair (apply hash-map proto+methods)
+            :let       [[proto method-map] proto-pair]]
+      (when-not (protocol? proto)
+        (throw (ex-info "extend protocol must be protocol as defined by defprotocol"
+                        {:target-type target-type
+                         :proto       proto})))
+      (when (identical? target-type proto)
+        (throw (ex-info "Protocol may not extend itself"
+                        {:target-type target-type
+                         :proto       proto})))
+
+      (->> (fn [old-root]
+             (let [proto-methods (:methods proto)]
+               (let [proto-method-names (set (keys proto-methods))
+                     impl-method-names  (set (keys method-map))]
+                 (when-not (= proto-method-names impl-method-names)
+                   (throw (ex-info "target-type must implement all protocol methods"
+                                   {:missing-methods (->> proto-method-names
+                                                          (remove impl-method-names)
+                                                          (set))}))))
+               (doseq [method-def method-map
+                       :let       [[method-name fn] method-def]]
+                 (let [dispatch-method (get proto-methods method-name)]
+                   (.register dispatch-method target-type fn))))
+             (update old-root :impls conj target-type))
+           (alter-var-root (:var proto)))))
+
   nil)
 
 (defn ^:private sym-and-method-groups
