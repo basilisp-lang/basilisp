@@ -10,7 +10,7 @@ from basilisp.lang.seq import EMPTY
 T = TypeVar("T")
 
 
-class List(IWithMeta, IPersistentList[T], ISeq[T]):
+class List(IPersistentList[T], ISeq[T], IWithMeta):
     """Basilisp List. Delegates internally to a pyrsistent.PList object.
 
     Do not instantiate directly. Instead use the l() and list() factory
