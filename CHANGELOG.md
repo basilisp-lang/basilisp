@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for Lisp functions being called with keyword arguments (#528)
  * Added support for multi-arity methods on `deftype`s (#534)
  * Added metadata about the function or method context of a Lisp AST node in the `NodeEnv` (#548)
+ * Added `reify*` special form (#425)
+ * Added support for multi-arity methods on `definterface` (#538)
+ * Added support for Protocols (#460)
+ * Added support for Volatiles (#460)
  * Add JSON encoder and decoder in `basilisp.json` namespace (#484)
 
 ### Fixed

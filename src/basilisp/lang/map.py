@@ -24,7 +24,7 @@ V = TypeVar("V")
 _ENTRY_SENTINEL = object()
 
 
-class Map(ILispObject, IWithMeta, IPersistentMap[K, V]):
+class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
     """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""

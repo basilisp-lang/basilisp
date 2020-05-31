@@ -1,0 +1,188 @@
+(ns tests.basilisp.test-protocols
+  (:import math)
+  (:require
+   [basilisp.string :as str]
+   [basilisp.test :refer [deftest is are testing]]))
+
+(defprotocol Shape
+  (area [this]))
+
+(defprotocol Polygon
+  (interior-angle [this]
+    "Return the interior angle of the shape in degrees."))
+
+(defrecord Circle [radius]
+  Shape
+  (area [this] (* math/pi radius radius)))
+
+(defrecord Rectangle [x y]
+  Shape
+  (area [this] (* x y))
+  Polygon
+  (interior-angle [this] 360))
+
+(defrecord Square [x])
+
+(extend-type Square
+  Shape
+  (area [this]
+    (let [side (get this :x)]
+      (* side side))))
+
+(defprotocol Describable
+  (self-name [this] [this upper-case?])
+  (describe-me [this]))
+
+(extend-protocol Describable
+  python/int
+  (self-name [this] "int")
+  (self-name [this upper-case?]
+    (cond-> (self-name this)
+      upper-case? (str/upper-case)))
+  (describe-me [this]
+    (cond
+      (pos? this)  "I am a positive integer."
+      (zero? this) "I am zero."
+      (neg? this)  "I am a negative integer."))
+  python/str
+  (self-name [this] "str")
+  (self-name [this upper-case?]
+    (cond-> (self-name this)
+      upper-case? (str/upper-case)))
+  (describe-me [this] (str "I am a string of length " (count this) "."))
+  nil
+  (self-name [this] "nil")
+  (self-name [this upper-case?]
+    (cond-> (self-name this)
+      upper-case? (str/upper-case)))
+  (describe-me [this] "I am the value nil."))
+
+(deftest Shape-area-method-test
+  (is (= math/pi (area (->Circle 1))))
+  (is (= 4 (area (->Rectangle 2 2))))
+  (is (= 9 (area (->Square 3))))
+
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (area :a)))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (area [4 5]))))
+
+(deftest Polygon-interior-angle-test
+  (is (= 360 (interior-angle (->Rectangle 2 2))))
+
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (interior-angle (->Circle 1))))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (interior-angle (->Square 3)))))
+
+(deftest Describable-self-name-method-test
+  (are [x y] (= x (self-name y))
+    "str" "some-value"
+    "str" ""
+    "nil" nil
+    "int" 1
+    "int" true
+    "int" 0
+    "int" false
+    "int" -1)
+
+  (are [x y] (= x (self-name y true))
+    "STR" "some-value"
+    "STR" ""
+    "NIL" nil
+    "INT" 1
+    "INT" true
+    "INT" 0
+    "INT" false
+    "INT" -1)
+
+  (are [x] (thrown? basilisp.lang.exception/ExceptionInfo (self-name x))
+    -1.5
+    :kw
+    'sym
+    []
+    #{}
+    {}
+    '())
+
+  (are [x] (thrown? basilisp.lang.exception/ExceptionInfo (self-name x true))
+    -1.5
+    :kw
+    'sym
+    []
+    #{}
+    {}
+    '()))
+
+(deftest Describable-describe-me-method-test
+  (are [x y] (= x (describe-me y))
+    "I am a string of length 10." "some-value"
+    "I am the value nil."         nil
+    "I am a positive integer."    1
+    "I am a positive integer."    true
+    "I am zero."                  0
+    nil                           false  ;; (zero? false) => false
+    "I am a negative integer."    -1)
+
+  (are [x] (thrown? basilisp.lang.exception/ExceptionInfo (describe-me x))
+    -1.5
+    :kw
+    'sym
+    []
+    #{}
+    {}
+    '()))
+
+(deftest protocol?-test
+  (is (protocol? Shape))
+  (is (not (protocol? Circle)))
+  (is (not (protocol? Rectangle))))
+
+(deftest extend-test
+  (testing "Protocols cannot extend other Protocols"
+    (are [x] (thrown? basilisp.lang.exception/ExceptionInfo x)
+      (extend Polygon Shape {:area identity})
+      (extend-protocol Polygon
+        Shape
+        (area [this] this))))
+
+  (testing "Protocol must be defined as by defprotocol"
+    (are [x] (thrown? basilisp.lang.exception/ExceptionInfo x)
+      (extend Square python/str {:area identity})
+      (extend-type Square
+        python/str
+        (area [this] this))))
+
+  (testing "Protocols cannot extend themselves"
+    (are [x] (thrown? basilisp.lang.exception/ExceptionInfo x)
+      (extend Shape Shape {:area identity})
+      (extend-protocol Shape
+        Shape
+        (area [this] this)))
+
+  (testing "extended type must implement all Protocol methods"
+    (are [x] (thrown? basilisp.lang.exception/ExceptionInfo x)
+      (extend python/str Shape {})
+      (extend-type python/float
+        Describable
+        (self-name [this] "float"))
+      (extend-type python/float
+        Describable
+        (self-name [this] "float")
+        (describe-me [this] "I am a float."))))))
+
+(deftest extenders-test
+  (is (= (list Square) (extenders Shape)))
+  (is (not (seq (extenders Polygon)))))
+
+(deftest extends?-test
+  (is (extends? Shape Circle))
+  (is (extends? Shape Rectangle))
+  (is (not (extends? Polygon Circle)))
+  (is (extends? Polygon Rectangle)))
+
+(deftest satisfies?-test
+  (is (satisfies? Shape (->Circle 1)))
+  (is (satisfies? Shape (->Rectangle 2 2)))
+  (is (not (satisfies? Polygon (->Circle 1))))
+  (is (satisfies? Polygon (->Rectangle 2 2))))
