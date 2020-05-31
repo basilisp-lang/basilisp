@@ -10,7 +10,8 @@
     "Return an object which can be JSON encoded by Python's default JSONEncoder.
 
      `opts` is a map of options:
-       - `:key-fn`"))
+       - `:key-fn` is a function which will be called for each key in a map.
+       - `:value-fn` is a function called for each value in a map."))
 
 (defn ^:private encode-scalar
   [o _]
