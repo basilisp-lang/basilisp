@@ -16,7 +16,7 @@ from basilisp.lang.seq import sequence
 T = TypeVar("T")
 
 
-class Vector(ILispObject, IWithMeta, IPersistentVector[T]):
+class Vector(IPersistentVector[T], ILispObject, IWithMeta):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
     methods below."""

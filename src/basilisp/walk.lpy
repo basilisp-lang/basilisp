@@ -1,5 +1,46 @@
 (ns basilisp.walk)
 
+(defprotocol IWalkable
+  (walk* [this inner outer]
+    "Walk the data structure applying `inner` to each element of the data structure,
+     if any, and then applying `outer` to the result."))
+
+(extend-protocol IWalkable
+  basilisp.lang.interfaces/IPersistentList
+  (walk* [this inner outer]
+    (outer (apply list (map inner this))))
+
+  basilisp.lang.interfaces/IMapEntry
+  (walk* [this inner outer]
+    (outer (map-entry (inner (key this)) (inner (val this)))))
+
+  basilisp.lang.interfaces/ISeq
+  (walk* [this inner outer]
+    (outer (doall (map inner this))))
+
+  basilisp.lang.interfaces/IPersistentVector
+  (walk* [this inner outer]
+    (outer (apply vector (map inner this))))
+
+  basilisp.lang.interfaces/IPersistentMap
+  (walk* [this inner outer]
+    (outer (apply hash-map (mapcat inner this))))
+
+  basilisp.lang.interfaces/IPersistentSet
+  (walk* [this inner outer]
+    (outer (apply hash-set (map inner this))))
+
+  basilisp.lang.interfaces/IRecord
+  (walk* [this inner outer]
+    (outer (reduce (fn [rec field]
+                     (conj rec (inner field)))
+                   this
+                   this)))
+
+  python/object
+  (walk* [this ^:no-warn-when-unused inner outer]
+    (outer this)))
+
 (defn walk
   "Walk an arbitrary, possibly nested data structure, applying inner to each
   element of form and then applying outer to the resulting form.
@@ -8,33 +49,7 @@
 
   Lazy sequences will be completely consumed (and thus may not be infinite)."
   [inner outer form]
-  (cond
-    (list? form)
-    (outer (apply list (map inner form)))
-
-    (map-entry? form)
-    (outer (map-entry (inner (key form)) (inner (val form))))
-
-    (seq? form)
-    (outer (doall (map inner form)))
-
-    (vector? form)
-    (outer (apply vector (map inner form)))
-
-    (map? form)
-    (outer (apply hash-map (mapcat inner form)))
-
-    (set? form)
-    (outer (apply hash-set (map inner form)))
-
-    (record? form)
-    (outer (reduce (fn [rec field]
-                     (conj rec (inner field)))
-                   form
-                   form))
-
-    :else
-    (outer form)))
+  (walk* form inner outer))
 
 (defn postwalk
   "Walk form using depth-first, post-order traversal, applying f to each form

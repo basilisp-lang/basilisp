@@ -4192,7 +4192,8 @@
   [arg]
   (throw
    (ex-info "Invalid destructuring argument type"
-            {:type (python/type arg)})))
+            {:type (python/type arg)
+             :arg  arg})))
 
 (defmulti ^:private destructure-binding
   (fn [ddef]
@@ -4485,7 +4486,7 @@
   Options may be specified as key-value pairs. The following options are supported:
   - :name    - the name of the interface as a string; required
   - :extends - a vector of interfaces the new interface should extend; optional
-  - :methods - an optional vector of method signatures like:
+  - :methods - an optional vector of method signatures without `self` or `this`, like:
                [ (method-name [args ...] docstring) ... ]
 
   Callers should use `definterface` to generate new interfaces."
@@ -4495,34 +4496,82 @@
         extends        (as-> (:extends opt-map []) $
                          (remove #(identical? abc/ABC %) $)
                          (concat $ [abc/ABC])
-                         (python/tuple $))
-
-        methods (reduce (fn [m [method-name args docstring]]
-                          (let [method-args (->> (concat ['^:no-warn-when-unused self] args)
-                                                 (apply vector))
-                                method      (->> (list 'fn* method-name method-args)
-                                                 (eval)
-                                                 (abc/abstractmethod))]
-                            (when docstring
-                              (set! (.- method __doc__) docstring))
-                            (assoc m (munge method-name) method)))
-                        {}
-                        (:methods opt-map))]
-    (python/type interface-name
-                 extends
-                 (lisp->py methods))))
-
-;; The behavior described below where `definterface` forms are not permitted
-;; to be used in `deftype` and `defrecord` forms when they are not top-level
-;; is a bug, documented in the following issue:
-;;
-;; https://github.com/chrisrink10/basilisp/issues/376
+                         (python/tuple $))]
+    (->> (:methods opt-map)
+         (map (fn [[method-name args docstring]]
+                (let [includes-self? (contains? #{'self 'this} (first args))
+                      total-arity    (cond-> (count args) includes-self? (dec))
+                      is-variadic?   (let [[_ [amp rest-arg]] (split-with #(not= '& %) args)]
+                                       (and (= '& amp) (not (nil? rest-arg))))
+                      fixed-arity    (cond-> total-arity is-variadic? (- 2))]
+                  {:method-name  method-name
+                   :args         args
+                   :fixed-arity  fixed-arity
+                   :is-variadic? is-variadic?
+                   :docstring    docstring
+                   :python-name  (->> (if is-variadic? "_rest" fixed-arity)
+                                      (str "_" (munge method-name) "_arity"))})))
+         (group-by :method-name)
+         (mapcat (fn [[method-name arities]]
+                   (if (> (count arities) 1)
+                     (let [fixed-arities            (->> arities
+                                                         (remove :is-variadic?)
+                                                         (map :fixed-arity))
+                           variadic-arities         (filter :is-variadic? arities)
+                           fixed-arity-for-variadic (some-> variadic-arities first :fixed-arity)
+                           num-variadic             (count variadic-arities)]
+                       (when (not= (count (set fixed-arities))
+                                   (count fixed-arities))
+                         (throw
+                          (ex-info (str "Interface methods may not have multiple methods "
+                                        "with the same fixed arity")
+                                   {:arities       arities
+                                    :fixed-arities (vec fixed-arities)})))
+                       (when (> num-variadic 1)
+                         (throw
+                          (ex-info "Interface methods may have at most one variadic arity"
+                                   {:arities      arities
+                                    :num-variadic num-variadic})))
+                       (when (and fixed-arity-for-variadic
+                                  (some #(< fixed-arity-for-variadic %) fixed-arities))
+                         (throw
+                          (ex-info (str "Interface methods may not have a fixed arity "
+                                        "greater than the arity of a variadic method")
+                                   {:arities                  arities
+                                    :fixed-arity-for-variadic fixed-arity-for-variadic
+                                    :fixed-arities            fixed-arities})))
+                       ;; multi-arity methods need to include an outer dispatch method,
+                       ;; which will not be defined by the user and must be defined here
+                       (conj arities
+                             {:method-name method-name
+                              :python-name (munge method-name)
+                              :args        '[& args]
+                              :docstring   (-> arities first :docstring)}))
+                     ;; single arity methods should not have a private Python name
+                     ;; since they do not have an outer dispatch method
+                     (map (fn [{:keys [method-name] :as arity}]
+                            (assoc arity :python-name (munge method-name)))
+                          arities))))
+         (reduce (fn [m {:keys [method-name python-name args docstring]}]
+                   (let [method (->>  args
+                                      (map #(vary-meta % assoc :no-warn-when-unused true))
+                                      (apply vector)
+                                      (list 'fn* method-name)
+                                      (eval)
+                                      (abc/abstractmethod))]
+                     (when docstring
+                       (set! (.- method __doc__) docstring))
+                     (assoc m python-name method)))
+                 {})
+         (lisp->py)
+         (python/type interface-name extends))))
 
 (defmacro definterface
   "Define a new Python interface (abstract base clase) with the given name
   and method signatures.
 
-  Method signatures are in the form (method-name [arg1 arg2 ...]).
+  Method signatures are in the form (method-name [arg1 arg2 ...]). `self` or
+  `this` arguments must be omitted from all interfaces.
 
   Interface objects cannot be directly instantiated. Instead, you must create
   a concrete implementation of an interface (perhaps via deftype) and supply
@@ -4532,17 +4581,364 @@
   definitions are declared as `abc.abstractmethod`s and thus must be implemented
   by a concrete type.
 
-  The generated interface will be immediately available after this form has
-  been evaluated _if it is evaluated as a top-level form_. If this form appears
-  within a function and is referred to later in a `deftype` or `defrecord` form,
-  a compilation error will occur since the compiler will be unable to evaluate
-  whether the generated value refers to an abstract class."
+  Interfaces created by `definterface` cannot be declared as properties, class
+  methods, or static methods, as with `deftype`."
   [interface-name & methods]
   (let [name-str    (name interface-name)
-        method-sigs (map #(list 'quote %) methods)]
+        method-sigs (->> methods
+                         (map (fn [[method-name args docstring]]
+                                [method-name (conj args 'self) docstring]))
+                         (map #(list 'quote %)))]
     `(def ~interface-name
        (gen-interface :name ~name-str
                       :methods [~@method-sigs]))))
+
+;;;;;;;;;;;;;;;
+;; Protocols ;;
+;;;;;;;;;;;;;;;
+
+(import* functools)
+
+(defn ^:private gen-protocol-dispatch
+  "Return the dispatch function for a single protocol method."
+  [protocol-name interface-name [method-name & args+docstring :as method-def]]
+  (let [[arglists [docstring]] (split-with (complement string?) args+docstring)]
+    [`(def ~(vary-meta method-name
+                       assoc
+                       :doc docstring
+                       :arglists (list 'quote arglists))
+        (functools/singledispatch
+         (fn ~method-name
+           ~@(map (fn [[obj-sym & args]]
+                    (list `[~obj-sym ~@(map #(vary-meta % assoc :no-warn-when-unused true) args)]
+                          `(let [obj-type# (python/type ~obj-sym)]
+                             (throw
+                              (ex-info (str
+                                        ~(str "No implementation of method " method-name " found for type ")
+                                        obj-type#)
+                                       {:protocol    (var ~protocol-name)
+                                        :method      ~method-name
+                                        :object-type obj-type#})))))
+                  arglists))))
+     (let [dotted-method-name (symbol (str "." (name method-name)))]
+       `(.register ~method-name
+                   ~interface-name
+                   (fn ~method-name
+                     ~@(map (fn [[obj-sym & args]]
+                              (let [has-varargs (some #(= '& %) args)
+                                    clean-args  (filter #(not= '& %) args)]
+                                (list `[~obj-sym ~@args]
+                                      (if has-varargs
+                                        `(apply-method ~obj-sym ~method-name ~@clean-args)
+                                        `(~dotted-method-name ~obj-sym ~@clean-args)))))
+                            arglists))))]))
+
+;; For each protocol, the following keys are defined:
+;;
+;; - :impls     - a set of types which dynamically extend the Protocol
+;;                (e.g. by `extend`)
+;; - :interface - the Python interface type which backs the Protocol
+;; - :methods   - a mapping of method names (as Basilisp keywords) to the dispatch
+;;                method backing the Protocol method
+;; - :var       - a reference to the Var the Protocol is stored in
+
+(defmacro defprotocol
+  "Define a new protocol.
+
+  Protocols are similar to classical programming interfaces. Rather than defining an
+  interface and implementing that interface on different objects, protocols generate
+  a set of functions which dispatch to the correct implementation on the type of their
+  first argument (which is similar to the Python `self` argument).
+
+  Also like interfaces, Protocols do not include implementations for any of their member
+  methods. Instead, implementations can be provided using `deftype`, `defrecord`,
+  `reify`, or `extend` (or any of the `extend-*` macros).
+
+  Despite their differences from interfaces, Protocols do also generate a standard
+  Python interface type (deriving from `abc.ABC`) which is used for efficient dispatch
+  for implementing types.
+
+  Method signatures are in the form:
+
+    (method-name [self arg1] [self arg1 arg2] \"This method foos the bars.\")
+
+  Callers must provide the `self` or `this` arguments for each method."
+  [protocol-name & methods]
+  (let [doc           (when (string? (first methods))
+                        (first methods))
+        methods       (if doc (rest methods) methods)
+        protocol-name (vary-meta
+                       (cond-> protocol-name
+                         doc (vary-meta assoc :doc doc))
+                       assoc
+                       :protocol true
+                       :redef true)
+        interface-sym (gensym "interface-name")]
+    `(do
+       (defonce ~protocol-name {})
+       (alter-meta! (var ~protocol-name)
+                    assoc
+                    :doc ~doc
+                    :basilisp.core/protocol true)
+       (let [~interface-sym (gen-interface :name ~(name protocol-name)
+                                           :methods [~@(mapcat
+                                                        (fn [[method-name & args+docstring]]
+                                                          (let [[arglists [docstring]] (split-with
+                                                                                        (complement string?)
+                                                                                        args+docstring)]
+                                                            (map (fn [args]
+                                                                   (list 'quote
+                                                                         `(~method-name
+                                                                           ~args
+                                                                           ~@(when docstring [docstring]))))
+                                                                 arglists)))
+                                                        methods)])]
+         ~@(mapcat #(gen-protocol-dispatch protocol-name interface-sym %) methods)
+         (->> {:impls     #{}
+               :interface ~interface-sym
+               :methods   ~(apply hash-map
+                                  (mapcat #(let [v (first %)]
+                                             [(keyword (name v)) v])
+                                          methods))
+               :var       (var ~protocol-name)}
+              (alter-var-root (var ~protocol-name) merge ~protocol-name)))
+       ~protocol-name)))
+
+(defn ^:private protocol?
+  "Return true if x is a Protocol."
+  [x]
+  (boolean (and (map? x) (:interface x))))
+
+(defn extend
+  "Extend a type dynamically with one or Protocol implementations. This is useful
+  for types which were defined outside your control or which were not otherwise
+  defined as direct implementors of the named Protocol(s). With `extend`, such
+  types may be extended without modifying the types directly.
+
+  `target-type` should name a type which is to be extended. Virtually any type
+  is permitted, so long as that that type is not also a Protocol. If `target-type`
+  is an interface, objects of types implementing that interface will be extended
+  by the given implementation unless a more concrete implementation is available
+  (by the Python method resolution order of the object's type). If `target-type`
+  is `nil`, it will be interpreted as `(python/type nil)`.
+
+  `proto+methods` are interleaved Protocol names and maps of Protocol method
+  implementations intended for `target-type`. The keys of each map are keywords
+  corresponding to the names of the Protocol methods (as defined in the
+  `defprotocol`). Each value should be either an existing function (referenced
+  by its Var or name binding) or a new function definition.
+
+  `extend` may be called multiple times for a single `target-type`, so not all
+  implementations need to be known a priori. Successive calls to `extend` on
+  `target-type` with the same Protocol implementations will overwrite previous
+  implementations.
+
+  If you are extending types with explicit function definitions, the
+  `extend-protocol` and `extend-type` macros offer some additional conveniences.
+
+  Returns `nil`.
+
+  Example:
+
+    (extend SomeType
+      FirstProto
+      {:spam spam-fn
+       :eggs (fn [...] ...)}
+      OtherProto
+      {:ham  (fn [...] ...)})"
+  [target-type & proto+methods]
+  (let [target-type (cond-> target-type (nil? target-type) (python/type))]
+    (cond
+      (protocol? target-type)
+      (throw (ex-info "Protocols may not be extended with other Protocols"
+                      {:target-type target-type}))
+
+      (not (instance? python/type target-type))
+      (throw (ex-info "extend target-type must be a type"
+                      {:target-type target-type})))
+
+    (doseq [proto-pair (apply hash-map proto+methods)
+            :let       [[proto method-map] proto-pair]]
+      (when-not (protocol? proto)
+        (throw (ex-info "extend protocol must be protocol as defined by defprotocol"
+                        {:target-type target-type
+                         :proto       proto})))
+      (when (identical? target-type proto)
+        (throw (ex-info "Protocol may not extend itself"
+                        {:target-type target-type
+                         :proto       proto})))
+
+      (->> (fn [old-root]
+             (let [proto-methods (:methods proto)]
+               (let [proto-method-names (set (keys proto-methods))
+                     impl-method-names  (set (keys method-map))]
+                 (when-not (= proto-method-names impl-method-names)
+                   (throw (ex-info "target-type must implement all protocol methods"
+                                   {:missing-methods (->> proto-method-names
+                                                          (remove impl-method-names)
+                                                          (set))}))))
+               (let [proto-method-arity-map (reduce-kv (fn [m k v]
+                                                         (assoc m k (.-arities v)))
+                                                       {}
+                                                       proto-methods)
+                     impl-method-arity-map  (reduce-kv (fn [m k v]
+                                                         (assoc m k (.-arities v)))
+                                                       {}
+                                                       method-map)]
+                 (doseq [proto-method proto-method-arity-map
+                         :let         [[proto-method-name proto-method-arities] proto-method]]
+                   (let [impl-method-arities (get impl-method-arity-map proto-method-name)]
+                     (when (not= impl-method-arities proto-method-arities)
+                       (throw (ex-info "target-type must implement all protocol method arities"
+                                       {:proto-method    proto-method-name
+                                        :proto-method-arities proto-method-arity-map
+                                        :impl-method-arities impl-method-arity-map
+                                        :missing-arities (->> proto-method-arities
+                                                              (remove impl-method-arities)
+                                                              (set))}))))))
+               (doseq [method-def method-map
+                       :let       [[method-name fn] method-def]]
+                 (let [dispatch-method (get proto-methods method-name)]
+                   (.register dispatch-method target-type fn))))
+             (update old-root :impls conj target-type))
+           (alter-var-root (:var proto)))))
+
+  nil)
+
+(defn ^:private sym-and-method-groups
+  "Group methods for `extend-protocol` and `extend-type` into a map of interface
+  names to a vector of method bodies."
+  [specs]
+  (loop [iface   (first specs)
+         specs   (rest specs)
+         methods []
+         groups  {}]
+    (cond
+      (not (seq specs))
+      (assoc groups iface methods)
+
+      (list? (first specs))
+      (recur iface
+             (rest specs)
+             (conj methods (first specs))
+             groups)
+
+      (or (symbol? (first specs)) (nil? (first specs)))
+      (recur (first specs)
+             (rest specs)
+             []
+             (assoc groups iface methods)))))
+
+(defn ^:private extend-map
+  "Convert a vector of method definitions (as expected by `extend-protocol` and
+  `extend-type`) into a map of method definitions which can be passed to `extend`. "
+  [methods]
+  (->> (group-by first methods)
+       (reduce (fn [m [method-name arities]]
+                 (->> (map rest arities)
+                      (apply list `fn method-name)
+                      (assoc m (keyword (name method-name)))))
+               {})))
+
+(defmacro extend-protocol
+  "Extend a Protocol with implementations for multiple types.
+
+  This convenience macro is useful for extending multiple different types with
+  a single Protocol definition in one call. Note that this macro only supports
+  new function declarations. If you intend to reference an existing function,
+  call `extend` directly.
+
+  For example, this call:
+
+    (extend-protocol SomeProto
+      FirstType
+      (spam
+        ([this] ...)
+        ([this arg] ...))
+      (eggs [this arg1 arg2] ...)
+      OtherType
+      (spam
+        ([this] ...)
+        ([this arg] ...))
+      (eggs [this arg1 arg2] ...))
+
+  Would be turned into the following `extend` calls:
+
+    (do
+      (extend FirstType
+        SomeProto
+        {:spam (fn spam
+                 ([this] ...)
+                 ([this arg] ...))
+         :eggs (fn [this arg1 arg2] ...)})
+      (extend OtherType
+        SomeProto
+        {:spam (fn spam
+                 ([this] ...)
+                 ([this arg] ...))
+         :eggs (fn [this arg1 arg2] ...)}))"
+  [proto & specs]
+  `(do ~@(map (fn [[target-type methods]]
+                `(extend ~target-type
+                   ~proto
+                   ~(extend-map methods)))
+              (sym-and-method-groups specs))))
+
+(defmacro extend-type
+  "Extend a type with multiple Protocol implementations.
+
+  This convenience macro is useful for extending a single type with multiple
+  different Protocol definitions in one call. Note that this macro only supports
+  new function declarations. If you intend to reference an existing function,
+  call `extend` directly.
+
+  For example, this call:
+
+    (extend-type SomeType
+      FirstProto
+      (spam
+        ([this] ...)
+        ([this arg] ...))
+      (eggs [this arg1 arg2] ...)
+      SecondProto
+      (ham [this & args] ...))
+
+  Would be turned into the following `extend` call:
+
+    (extend SomeType
+      FirstProto
+      {:spam (fn spam
+               ([this] ...)
+               ([this arg] ...))
+       :eggs (fn eggs [this arg1 arg2] ...)}
+      SecondProto
+      {:ham (fn ham [this & args] ...)})"
+  [target-type & specs]
+  `(extend ~target-type
+     ~@(mapcat (fn [[proto methods]]
+                 [proto (extend-map methods)])
+               (sym-and-method-groups specs))))
+
+(defn extenders
+  "Return a collection of types explicitly extending proto.
+
+  The returned collection will not include types which extend proto via
+  inheritance (as by `deftype` and `defrecord`). Only types extending
+  proto via `extend` (or `extend-protocol` or `extend-type`) will appear."
+  [{:keys [impls] :as proto}]
+  (apply list impls))
+
+(defn extends?
+  "Return true if type extends protocol proto."
+  [{:keys [interface impls] :as proto} type]
+  (or (python/issubclass type interface)
+      (contains? impls type)))
+
+(defn satisfies?
+  "Return true if x satisfies protocol proto."
+  [{:keys [interface impls] :as proto} x]
+  (or (instance? interface x)
+      (python/isinstance x (python/tuple impls))))
 
 ;;;;;;;;;;;;;;;;
 ;; Data Types ;;
@@ -4959,3 +5355,39 @@
 
        ~type-name)))
 
+;;;;;;;;;;;;;;;
+;; Volatiles ;;
+;;;;;;;;;;;;;;;
+
+(defprotocol IVolatile
+  "Protocol for a volatile reference container. Volatile references do not provide
+  atomic semantics, but they may be useful as a mutable reference container in a
+  single-threaded context."
+
+  (vreset! [this new-val]
+    "Reset the value of a volatile non-atomically. Returns the new value.")
+  (vswap! [this f & args]
+    "Swap the value of a volatile non-atomically to the return of
+     (apply f old-val args). Returns the new value of that function
+     call."))
+
+(deftype Volatile [^:mutable val]
+  basilisp.lang.interfaces/IDeref
+  (deref [this] val)
+
+  IVolatile
+  (vreset! [this new-val]
+    (set! val new-val))
+  (vswap! [this f & args]
+    (let [new-val (apply f val args)]
+      (set! val new-val))))
+
+(defn volatile!
+  "Return a Volatile reference container with the initial value v."
+  [v]
+  (Volatile v))
+
+(defn volatile?
+  "Return true if implements IVolatile."
+  [x]
+  (satisfies? IVolatile x))

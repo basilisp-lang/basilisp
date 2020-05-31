@@ -1,6 +1,7 @@
 (ns tests.basilisp.core-fns-test
   (:import time)
   (:require
+   [basilisp.set :as set]
    [basilisp.test :refer [deftest are is testing]]))
 
 (deftest vary-meta-test
@@ -336,6 +337,10 @@
   (is (= "lo w" (subs "hello world" 3 7)))
   (is (thrown? python/IndexError (subs "hello world" 12 3))))
 
+;;;;;;;;;;;;;
+;; Futures ;;
+;;;;;;;;;;;;;
+
 (deftest futures-test
   (testing "successful future"
     (let [fut (future 1)]
@@ -389,6 +394,10 @@
                            (slow 2)
                            (slow 3)
                            (slow 4))))))))
+
+;;;;;;;;;;;;
+;; Arrays ;;
+;;;;;;;;;;;;
 
 (deftest to-array-test
   (is (= #py [] (to-array [])))
@@ -505,3 +514,52 @@
     (is (= 5 (aset l 0 2 5)))
     (is (= #py [#py [:a :b 5] #py [:d :e :f]] l))
     (is (thrown? python/IndexError (aset l 0 5 :cc)))))
+
+;;;;;;;;;;;;;;;;
+;; Interfaces ;;
+;;;;;;;;;;;;;;;;
+
+(deftest gen-interface-test
+  (are [x] (thrown? basilisp.lang.exception/ExceptionInfo x)
+    (gen-interface :name "TestInterface"
+                   :methods '[(method [thing])
+                              (method [other-thing])])
+    (gen-interface :name "TestInterface"
+                   :methods '[(method [thing & args])
+                              (method [& args])])
+    (gen-interface :name "TestInterface"
+                   :methods '[(method [thing1 thing2])
+                              (method [& args])]))
+
+  (are [arity-names methods] (let [interface (gen-interface :name "TestInterface"
+                                                            :methods methods)]
+                               (set/superset? (set (python/dir interface))
+                                              (set arity-names)))
+    ["method"]
+    '[(method [arg])]
+
+    ["method" "_method_arity1" "_method_arity2"]
+    '[(method [arg]) (method [arg1 arg2])]
+
+    ["method" "other" "_other_arity1" "_other_arity3" "_other_arity_rest"]
+    '[(method [arg])
+      (other [arg])
+      (other [arg1 arg2 arg3])
+      (other [arg1 arg2 arg3 & rest-arg])]))
+
+;;;;;;;;;;;;;;;
+;; Volatiles ;;
+;;;;;;;;;;;;;;;
+
+(deftest volatile-test
+  (let [v (volatile! :a)]
+    (is (satisfies? IVolatile v))
+    (is (not (satisfies? IVolatile @v)))
+    (is (not (volatile? :a)))
+    (is (not (volatile? (atom :a))))
+    (is (volatile? v))
+    (is (= :a @v))
+    (is (= :b (vreset! v :b)))
+    (is (= :b @v))
+    (is (= :b/a (vswap! v #(keyword (name %) "a"))))
+    (is (= :b/a @v))))

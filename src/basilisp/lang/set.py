@@ -15,7 +15,7 @@ from basilisp.lang.seq import sequence
 T = TypeVar("T")
 
 
-class Set(IWithMeta, ILispObject, IPersistentSet[T]):
+class Set(IPersistentSet[T], ILispObject, IWithMeta):
     """Basilisp Set. Delegates internally to a pyrsistent.PSet object.
 
     Do not instantiate directly. Instead use the s() and set() factory
