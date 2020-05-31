@@ -1454,14 +1454,19 @@ def _fn_with_meta(f, meta: Optional[lmap.Map]):
     return wrapped_f
 
 
-def _basilisp_fn(f):
+def _basilisp_fn(arities: Tuple[Union[int, kw.Keyword]]):
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
-    assert not hasattr(f, "meta")
-    f._basilisp_fn = True
-    f.meta = None
-    f.with_meta = partial(_fn_with_meta, f)
-    return f
+
+    def wrap_fn(f):
+        assert not hasattr(f, "meta")
+        f._basilisp_fn = True
+        f.arities = lset.set(arities)
+        f.meta = None
+        f.with_meta = partial(_fn_with_meta, f)
+        return f
+
+    return wrap_fn
 
 
 def _basilisp_type(

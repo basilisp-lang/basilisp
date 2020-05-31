@@ -1,6 +1,7 @@
 (ns tests.basilisp.test-protocols
   (:import math)
   (:require
+   [basilisp.string :as str]
    [basilisp.test :refer [deftest is are testing]]))
 
 (defprotocol Shape
@@ -29,12 +30,15 @@
       (* side side))))
 
 (defprotocol Describable
-  (self-name [this])
+  (self-name [this] [this upper-case?])
   (describe-me [this]))
 
 (extend-protocol Describable
   python/int
   (self-name [this] "int")
+  (self-name [this upper-case?]
+    (cond-> (self-name this)
+      upper-case? (str/upper-case)))
   (describe-me [this]
     (cond
       (pos? this)  "I am a positive integer."
@@ -42,9 +46,15 @@
       (neg? this)  "I am a negative integer."))
   python/str
   (self-name [this] "str")
+  (self-name [this upper-case?]
+    (cond-> (self-name this)
+      upper-case? (str/upper-case)))
   (describe-me [this] (str "I am a string of length " (count this) "."))
   nil
   (self-name [this] "nil")
+  (self-name [this upper-case?]
+    (cond-> (self-name this)
+      upper-case? (str/upper-case)))
   (describe-me [this] "I am the value nil."))
 
 (deftest Shape-area-method-test
@@ -76,7 +86,26 @@
     "int" false
     "int" -1)
 
+  (are [x y] (= x (self-name y true))
+    "STR" "some-value"
+    "STR" ""
+    "NIL" nil
+    "INT" 1
+    "INT" true
+    "INT" 0
+    "INT" false
+    "INT" -1)
+
   (are [x] (thrown? basilisp.lang.exception/ExceptionInfo (self-name x))
+    -1.5
+    :kw
+    'sym
+    []
+    #{}
+    {}
+    '())
+
+  (are [x] (thrown? basilisp.lang.exception/ExceptionInfo (self-name x true))
     -1.5
     :kw
     'sym
@@ -136,7 +165,11 @@
       (extend python/str Shape {})
       (extend-type python/float
         Describable
-        (self-name [this] "float"))))))
+        (self-name [this] "float"))
+      (extend-type python/float
+        Describable
+        (self-name [this] "float")
+        (describe-me [this] "I am a float."))))))
 
 (deftest extenders-test
   (is (= (list Square) (extenders Shape)))

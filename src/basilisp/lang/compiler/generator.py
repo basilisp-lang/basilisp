@@ -1504,6 +1504,35 @@ def __fn_args_to_py_ast(
     return fn_args, varg, fn_body_ast
 
 
+def __fn_decorator(arities: Iterable[int], has_rest_arg: bool = False,) -> ast.Call:
+    return ast.Call(
+        func=_BASILISP_FN_FN_NAME,
+        args=[],
+        keywords=[
+            ast.keyword(
+                arg="arities",
+                value=ast.Tuple(
+                    elts=list(
+                        chain(
+                            map(ast.Constant, arities),
+                            [
+                                ast.Call(
+                                    func=_NEW_KW_FN_NAME,
+                                    args=[ast.Constant("rest")],
+                                    keywords=[],
+                                )
+                            ]
+                            if has_rest_arg
+                            else [],
+                        )
+                    ),
+                    ctx=ast.Load(),
+                ),
+            )
+        ],
+    )
+
+
 def __fn_meta(
     ctx: GeneratorContext, meta_node: Optional[MetaNode] = None
 ) -> Tuple[Iterable[ast.AST], Iterable[ast.AST]]:
@@ -1584,7 +1613,14 @@ def __single_arity_fn_to_py_ast(
                                 chain(
                                     __kwargs_support_decorator(node),
                                     meta_decorators,
-                                    [_BASILISP_FN_FN_NAME],
+                                    [
+                                        __fn_decorator(
+                                            (len(fn_args),)
+                                            if not method.is_variadic
+                                            else (),
+                                            has_rest_arg=method.is_variadic,
+                                        )
+                                    ],
                                     [_TRAMPOLINE_FN_NAME]
                                     if ctx.recur_point.has_recur
                                     else [],
@@ -1749,7 +1785,17 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                         kw_defaults=[],
                     ),
                     body=body,
-                    decorator_list=list(chain(meta_decorators, [_BASILISP_FN_FN_NAME])),
+                    decorator_list=list(
+                        chain(
+                            meta_decorators,
+                            [
+                                __fn_decorator(
+                                    arity_map.keys(),
+                                    has_rest_arg=default_name is not None,
+                                )
+                            ],
+                        )
+                    ),
                     returns=None,
                 )
             ],

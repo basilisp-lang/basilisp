@@ -525,7 +525,7 @@ class TestIsFalse:
 class TestIsFn:
     @pytest.fixture(scope="class")
     def basilisp_fn(self):
-        @runtime._basilisp_fn
+        @runtime._basilisp_fn(arities=(1,))
         def repeat(v):
             while True:
                 yield v
