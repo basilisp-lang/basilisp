@@ -61,6 +61,7 @@ from basilisp.lang.compiler.constants import (
     SYM_PRIVATE_META_KEY,
     SYM_PROPERTY_META_KEY,
     SYM_STATICMETHOD_META_KEY,
+    VAR_IS_PROTOCOL_META_KEY,
     SpecialForm,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
@@ -150,6 +151,7 @@ FINALLY = kw.keyword("finally")
 # Constants used in analyzing
 AS = kw.keyword("as")
 IMPLEMENTS = kw.keyword("implements")
+INTERFACE = kw.keyword("interface")
 STAR_STAR = sym.symbol("**")
 _DOUBLE_DOT_MACRO_NAME = ".."
 _BUILTINS_NS = "python"
@@ -1507,6 +1509,9 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
     return interfaces, members
 
 
+_var_is_protocol = _meta_getter(VAR_IS_PROTOCOL_META_KEY)
+
+
 def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-branches,too-many-locals
     special_form: sym.Symbol,
     fields: Iterable[str],
@@ -1543,7 +1548,15 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
                     "and cannot be checked for abstractness; deferring to runtime",
                 )
                 return False
-            interface_type = interface.var.value
+
+            # Protocols are defined as maps, with the interface being simply a member
+            # of the map, denoted by the keyword `:interface`.
+            if _var_is_protocol(interface.var):
+                proto_map = interface.var.value
+                assert isinstance(proto_map, lmap.Map)
+                interface_type = proto_map.val_at(INTERFACE)
+            else:
+                interface_type = interface.var.value
 
         if interface_type is object:
             continue
