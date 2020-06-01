@@ -1246,9 +1246,9 @@ def _to_py_kw(o: kw.Keyword, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name)
     return keyword_fn(o)
 
 
-@to_py.register(llist.List)
+@to_py.register(IPersistentList)
 @to_py.register(ISeq)
-@to_py.register(vec.Vector)
+@to_py.register(IPersistentVector)
 def _to_py_list(
     o: Union[IPersistentList, ISeq, IPersistentVector],
     keyword_fn: Callable[[kw.Keyword], Any] = _kw_name,
@@ -1256,7 +1256,7 @@ def _to_py_list(
     return list(map(functools.partial(to_py, keyword_fn=keyword_fn), o))
 
 
-@to_py.register(lmap.Map)
+@to_py.register(IPersistentMap)
 def _to_py_map(
     o: IPersistentMap, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
 ) -> dict:
@@ -1266,7 +1266,7 @@ def _to_py_map(
     }
 
 
-@to_py.register(lset.Set)
+@to_py.register(IPersistentSet)
 def _to_py_set(
     o: IPersistentSet, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
 ) -> set:

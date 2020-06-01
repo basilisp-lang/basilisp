@@ -95,3 +95,61 @@
               :default (fn [o]
                          (encode-to-json* o {:key-fn   (or key-fn encode-map-key)
                                              :value-fn value-fn}))))
+
+;;;;;;;;;;;;;;
+;; Decoders ;;
+;;;;;;;;;;;;;;
+
+(defprotocol JSONDecodeable
+  (decode-from-json* [this opts]
+    "Return an object which can be JSON encoded by Python's default JSONEncoder.
+
+     `opts` is a map of options:
+       - `:key-fn` is a function which will be called for each key in a map.
+       - `:value-fn` is a function called for each value in a map."))
+
+(extend-protocol JSONDecodeable
+  python/dict
+  (decode-from-json* [this {:keys [key-fn value-fn] :as opts}]
+    (->> (.items this)
+         (mapcat (fn [[k v]]
+                   (let [new-k (key-fn k)]
+                     [new-k (value-fn new-k v)])))
+         (apply hash-map)))
+
+  python/list
+  (decode-from-json* [this opts]
+    (->> this (map #(decode-from-json* % opts)) (vec))))
+
+(defn ^:private decode-scalar
+  [o _]
+  o)
+
+(extend python/int
+  JSONDecodeable
+  {:decode-from-json* decode-scalar})
+
+(extend python/float
+  JSONDecodeable
+  {:decode-from-json* decode-scalar})
+
+(extend python/str
+  JSONDecodeable
+  {:decode-from-json* decode-scalar})
+
+(extend python/bool
+  JSONDecodeable
+  {:decode-from-json* decode-scalar})
+
+(extend nil
+  JSONDecodeable
+  {:decode-from-json* decode-scalar})
+
+(defn read-str
+  [s & {:keys [key-fn value-fn] :as opts}]
+  (let [opts {:key-fn   (or key-fn identity)
+              :value-fn (or value-fn
+                            (fn [_ v]
+                              (decode-from-json* v opts)))}]
+    (-> (json/loads s)
+        (decode-from-json* opts))))
