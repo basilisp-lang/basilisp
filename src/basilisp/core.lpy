@@ -4831,7 +4831,7 @@
   (->> (group-by first methods)
        (reduce (fn [m [method-name arities]]
                  (->> (map rest arities)
-                      (apply list `fn method-name)
+                      (apply list `fn)
                       (assoc m (keyword (name method-name)))))
                {})))
 

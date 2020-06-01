@@ -17,39 +17,11 @@
   [o _]
   o)
 
-(extend python/str
-  JSONEncodeable
-  {:encode-to-json* encode-scalar})
-
-(extend python/int
-  JSONEncodeable
-  {:encode-to-json* encode-scalar})
-
-(extend python/float
-  JSONEncodeable
-  {:encode-to-json* encode-scalar})
-
-(extend python/bool
-  JSONEncodeable
-  {:encode-to-json* encode-scalar})
-
-(extend nil
-  JSONEncodeable
-  {:encode-to-json* encode-scalar})
-
 (defn ^:private encode-kw-or-sym
   [o _]
   (if-let [ns-str (namespace o)]
     (str ns-str "/" (name o))
     (name o)))
-
-(extend basilisp.lang.keyword/Keyword
-  JSONEncodeable
-  {:encode-to-json* encode-kw-or-sym})
-
-(extend basilisp.lang.symbol/Symbol
-  JSONEncodeable
-  {:encode-to-json* encode-kw-or-sym})
 
 (defn ^:private encode-map-key
   [k]
@@ -67,34 +39,41 @@
                 [(key-fn k) (encode-value k v)]))
          (python/dict))))
 
-(extend basilisp.lang.interfaces/IPersistentMap
-  JSONEncodeable
-  {:encode-to-json* encode-map})
-
 (defn ^:private encode-seq
   [o opts]
   (->> o
        (map #(encode-to-json* % opts))
        (python/list)))
 
-(extend basilisp.lang.interfaces/IPersistentList
-  JSONEncodeable
-  {:encode-to-json* encode-seq})
+(extend python/str   JSONEncodeable {:encode-to-json* encode-scalar})
+(extend python/int   JSONEncodeable {:encode-to-json* encode-scalar})
+(extend python/float JSONEncodeable {:encode-to-json* encode-scalar})
+(extend python/bool  JSONEncodeable {:encode-to-json* encode-scalar})
+(extend nil          JSONEncodeable {:encode-to-json* encode-scalar})
 
-(extend basilisp.lang.interfaces/IPersistentSet
-  JSONEncodeable
-  {:encode-to-json* encode-seq})
+(extend basilisp.lang.keyword/Keyword JSONEncodeable {:encode-to-json* encode-kw-or-sym})
+(extend basilisp.lang.symbol/Symbol   JSONEncodeable {:encode-to-json* encode-kw-or-sym})
 
-(extend basilisp.lang.interfaces/IPersistentVector
-  JSONEncodeable
-  {:encode-to-json* encode-seq})
+(extend basilisp.lang.interfaces/IPersistentMap JSONEncodeable {:encode-to-json* encode-map})
+
+(extend basilisp.lang.interfaces/IPersistentList   JSONEncodeable {:encode-to-json* encode-seq})
+(extend basilisp.lang.interfaces/IPersistentSet    JSONEncodeable {:encode-to-json* encode-seq})
+(extend basilisp.lang.interfaces/IPersistentVector JSONEncodeable {:encode-to-json* encode-seq})
+
+(defn ^:private write-opts
+  [{:keys [key-fn value-fn]}]
+  {:key-fn   (or key-fn encode-map-key)
+   :value-fn value-fn})
+
+(defn write
+  [writer & opts]
+  (let [opts (write-opts opts)]
+    (json/dump writer ** :default #(encode-to-json* % opts))))
 
 (defn write-str
-  [o & {:keys [key-fn value-fn]}]
-  (json/dumps o **
-              :default (fn [o]
-                         (encode-to-json* o {:key-fn   (or key-fn encode-map-key)
-                                             :value-fn value-fn}))))
+  [o & opts]
+  (let [opts (write-opts opts)]
+    (json/dumps o ** :default #(encode-to-json* % opts))))
 
 ;;;;;;;;;;;;;;
 ;; Decoders ;;
@@ -102,20 +81,27 @@
 
 (defprotocol JSONDecodeable
   (decode-from-json* [this opts]
-    "Return an object which can be JSON encoded by Python's default JSONEncoder.
+    "Return a Basilisp object in place of a Python object returrned by Python's
+     default JSONDecoder.
 
      `opts` is a map of options:
-       - `:key-fn` is a function which will be called for each key in a map.
-       - `:value-fn` is a function called for each value in a map."))
+       - `:key-fn` is a function which will be called for each key in a map;
+         default is `identity`
+       - `:value-fn` is a function of two arguments called for each value in a
+         map; the first argument is the key transformed by `:key-fn` and the
+         second is the value from the object."))
 
 (extend-protocol JSONDecodeable
   python/dict
   (decode-from-json* [this {:keys [key-fn value-fn] :as opts}]
-    (->> (.items this)
-         (mapcat (fn [[k v]]
-                   (let [new-k (key-fn k)]
-                     [new-k (value-fn new-k v)])))
-         (apply hash-map)))
+    (let [decode-value (or value-fn
+                           (fn [_ v]
+                             (decode-from-json* v opts)))]
+      (->> (.items this)
+           (mapcat (fn [[k v]]
+                     (let [new-k (key-fn k)]
+                       [new-k (decode-value new-k v)])))
+           (apply hash-map))))
 
   python/list
   (decode-from-json* [this opts]
@@ -125,31 +111,32 @@
   [o _]
   o)
 
-(extend python/int
-  JSONDecodeable
-  {:decode-from-json* decode-scalar})
+(extend python/int   JSONDecodeable {:decode-from-json* decode-scalar})
+(extend python/float JSONDecodeable {:decode-from-json* decode-scalar})
+(extend python/str   JSONDecodeable {:decode-from-json* decode-scalar})
+(extend python/bool  JSONDecodeable {:decode-from-json* decode-scalar})
+(extend nil          JSONDecodeable {:decode-from-json* decode-scalar})
 
-(extend python/float
-  JSONDecodeable
-  {:decode-from-json* decode-scalar})
+(defn ^:private read-opts
+  [{:keys [key-fn value-fn strict?]}]
+  {:key-fn   (or key-fn identity)
+   :value-fn value-fn
+   :strict   (if (or (nil? strict?) (boolean? strict?)) strict? true)})
 
-(extend python/str
-  JSONDecodeable
-  {:decode-from-json* decode-scalar})
+;; Python's builtin `json.load` currently only includes an Object hook; it has
+;; no hook for Array types. Due to this limitation, we have to iteratively
+;; transform the entire parsed object into Basilisp data structures rather than
+;; building the final object iteratively. There is an open bug report with
+;; Python, but it has gotten no traction: https://bugs.python.org/issue36738
 
-(extend python/bool
-  JSONDecodeable
-  {:decode-from-json* decode-scalar})
-
-(extend nil
-  JSONDecodeable
-  {:decode-from-json* decode-scalar})
+(defn read
+  [reader & opts]
+  (let [{:keys [strict?] :as opts} (read-opts opts)]
+    (-> (json/load reader ** :strict strict?)
+        (decode-from-json* opts))))
 
 (defn read-str
-  [s & {:keys [key-fn value-fn] :as opts}]
-  (let [opts {:key-fn   (or key-fn identity)
-              :value-fn (or value-fn
-                            (fn [_ v]
-                              (decode-from-json* v opts)))}]
-    (-> (json/loads s)
+  [s & opts]
+  (let [{:keys [strict?] :as opts} (read-opts opts)]
+    (-> (json/loads s ** :strict strict?)
         (decode-from-json* opts))))
