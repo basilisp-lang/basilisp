@@ -18,7 +18,9 @@
      `opts` is a map of options:
 
        `:key-fn`   - is a function which will be called for each key in a map.
-       `:value-fn` - is a function called for each value in a map."))
+       `:value-fn` - is a function of two arguments called for each value in a
+                     map; the first argument is the key before being transformed
+                     by `:key-fn` and the second is the value from the object"))
 
 (extend-protocol JSONEncodeable
   python/object
@@ -121,23 +123,24 @@
 ;;;;;;;;;;;;;;
 
 (defprotocol JSONDecodeable
-  (decode-from-json* [this opts]
+  (from-decoded-json* [this opts]
     "Return a Basilisp object in place of a Python object returrned by Python's
      default JSONDecoder.
 
      `opts` is a map of options:
-       - `:key-fn` is a function which will be called for each key in a map;
-         default is `identity`
-       - `:value-fn` is a function of two arguments called for each value in a
-         map; the first argument is the key transformed by `:key-fn` and the
-         second is the value from the object."))
+
+       `:key-fn`   - is a function which will be called for each key in a map;
+                     default is `identity`
+       `:value-fn` - is a function of two arguments called for each value in a
+                     map; the first argument is the key transformed by `:key-fn`
+                     and the second is the value from the object"))
 
 (extend-protocol JSONDecodeable
   python/dict
-  (decode-from-json* [this {:keys [key-fn value-fn] :as opts}]
+  (from-decoded-json* [this {:keys [key-fn value-fn] :as opts}]
     (let [decode-value (or value-fn
                            (fn [_ v]
-                             (decode-from-json* v opts)))]
+                             (from-decoded-json* v opts)))]
       (->> (.items this)
            (mapcat (fn [[k v]]
                      (let [new-k (key-fn k)]
@@ -145,18 +148,18 @@
            (apply hash-map))))
 
   python/list
-  (decode-from-json* [this opts]
-    (->> this (map #(decode-from-json* % opts)) (vec))))
+  (from-decoded-json* [this opts]
+    (->> this (map #(from-decoded-json* % opts)) (vec))))
 
 (defn ^:private decode-scalar
   [o _]
   o)
 
-(extend python/int   JSONDecodeable {:decode-from-json* decode-scalar})
-(extend python/float JSONDecodeable {:decode-from-json* decode-scalar})
-(extend python/str   JSONDecodeable {:decode-from-json* decode-scalar})
-(extend python/bool  JSONDecodeable {:decode-from-json* decode-scalar})
-(extend nil          JSONDecodeable {:decode-from-json* decode-scalar})
+(extend python/int   JSONDecodeable {:from-decoded-json* decode-scalar})
+(extend python/float JSONDecodeable {:from-decoded-json* decode-scalar})
+(extend python/str   JSONDecodeable {:from-decoded-json* decode-scalar})
+(extend python/bool  JSONDecodeable {:from-decoded-json* decode-scalar})
+(extend nil          JSONDecodeable {:from-decoded-json* decode-scalar})
 
 (defn ^:private read-opts
   [{:keys [key-fn value-fn strict?]}]
@@ -174,10 +177,10 @@
   [reader & opts]
   (let [{:keys [strict?] :as opts} (read-opts opts)]
     (-> (json/load reader ** :strict strict?)
-        (decode-from-json* opts))))
+        (from-decoded-json* opts))))
 
 (defn read-str
   [s & opts]
   (let [{:keys [strict?] :as opts} (read-opts opts)]
     (-> (json/loads s ** :strict strict?)
-        (decode-from-json* opts))))
+        (from-decoded-json* opts))))
