@@ -1,79 +1,120 @@
 (ns basilisp.json
-  (:import json))
+  (:refer-basilisp :exclude [read])
+  (:import
+   datetime
+   decimal
+   fractions
+   json
+   uuid))
 
 ;;;;;;;;;;;;;;
 ;; Encoders ;;
 ;;;;;;;;;;;;;;
 
 (defprotocol JSONEncodeable
-  (encode-to-json* [this opts]
+  (to-json-encodeable* [this opts]
     "Return an object which can be JSON encoded by Python's default JSONEncoder.
 
      `opts` is a map of options:
-       - `:key-fn` is a function which will be called for each key in a map.
-       - `:value-fn` is a function called for each value in a map."))
 
-(defn ^:private encode-scalar
+       `:key-fn`   - is a function which will be called for each key in a map.
+       `:value-fn` - is a function called for each value in a map."))
+
+(extend-protocol JSONEncodeable
+  python/object
+  (to-json-encodeable* [this _]
+    (throw
+     (python/TypeError
+      (str "Cannot JSON encode objects of type " (python/type this))))))
+
+(defn ^:private encodeable-scalar
   [o _]
   o)
 
-(defn ^:private encode-kw-or-sym
+(defn ^:private stringify-scalar
+  [o _]
+  (python/str o))
+
+(defn ^:private kw-or-sym-to-encodeable
   [o _]
   (if-let [ns-str (namespace o)]
     (str ns-str "/" (name o))
     (name o)))
 
-(defn ^:private encode-map-key
+(defn ^:private map-key-to-encodeable
   [k]
   (if (keyword? k)
     (name k)
     (str k)))
 
-(defn ^:private encode-map
+(defn ^:private map-to-encodeable
   [o {:keys [key-fn value-fn] :as opts}]
   (let [encode-value (or value-fn
                          (fn [_ v]
-                           (encode-to-json* v opts)))]
+                           (to-json-encodeable* v opts)))]
     (->> o
          (map (fn [[k v]]
                 [(key-fn k) (encode-value k v)]))
          (python/dict))))
 
-(defn ^:private encode-seq
+(defn ^:private seq-to-encodeable
   [o opts]
   (->> o
-       (map #(encode-to-json* % opts))
+       (map #(to-json-encodeable* % opts))
        (python/list)))
 
-(extend python/str   JSONEncodeable {:encode-to-json* encode-scalar})
-(extend python/int   JSONEncodeable {:encode-to-json* encode-scalar})
-(extend python/float JSONEncodeable {:encode-to-json* encode-scalar})
-(extend python/bool  JSONEncodeable {:encode-to-json* encode-scalar})
-(extend nil          JSONEncodeable {:encode-to-json* encode-scalar})
+(extend python/str   JSONEncodeable {:to-json-encodeable* encodeable-scalar})
+(extend python/int   JSONEncodeable {:to-json-encodeable* encodeable-scalar})
+(extend python/float JSONEncodeable {:to-json-encodeable* encodeable-scalar})
+(extend python/bool  JSONEncodeable {:to-json-encodeable* encodeable-scalar})
+(extend nil          JSONEncodeable {:to-json-encodeable* encodeable-scalar})
 
-(extend basilisp.lang.keyword/Keyword JSONEncodeable {:encode-to-json* encode-kw-or-sym})
-(extend basilisp.lang.symbol/Symbol   JSONEncodeable {:encode-to-json* encode-kw-or-sym})
+(extend basilisp.lang.keyword/Keyword JSONEncodeable {:to-json-encodeable* kw-or-sym-to-encodeable})
+(extend basilisp.lang.symbol/Symbol   JSONEncodeable {:to-json-encodeable* kw-or-sym-to-encodeable})
 
-(extend basilisp.lang.interfaces/IPersistentMap JSONEncodeable {:encode-to-json* encode-map})
+(extend basilisp.lang.interfaces/IPersistentMap JSONEncodeable {:to-json-encodeable* map-to-encodeable})
 
-(extend basilisp.lang.interfaces/IPersistentList   JSONEncodeable {:encode-to-json* encode-seq})
-(extend basilisp.lang.interfaces/IPersistentSet    JSONEncodeable {:encode-to-json* encode-seq})
-(extend basilisp.lang.interfaces/IPersistentVector JSONEncodeable {:encode-to-json* encode-seq})
+(extend basilisp.lang.interfaces/IPersistentList   JSONEncodeable {:to-json-encodeable* seq-to-encodeable})
+(extend basilisp.lang.interfaces/IPersistentSet    JSONEncodeable {:to-json-encodeable* seq-to-encodeable})
+(extend basilisp.lang.interfaces/IPersistentVector JSONEncodeable {:to-json-encodeable* seq-to-encodeable})
+
+;; Support extended reader types.
+(extend datetime/datetime  JSONEncodeable {:to-json-encodeable* (fn [o _] (.isoformat o))})
+(extend decimal/Decimal    JSONEncodeable {:to-json-encodeable* stringify-scalar})
+(extend fractions/Fraction JSONEncodeable {:to-json-encodeable* stringify-scalar})
+(extend uuid/UUID          JSONEncodeable {:to-json-encodeable* stringify-scalar})
+
+;; Support Python types in case they are embedded in other Basilisp collections.
+(extend python/dict      JSONEncodeable {:to-json-encodeable* (fn [d opts] (map-to-encodeable (.items d) opts))})
+(extend python/list      JSONEncodeable {:to-json-encodeable* seq-to-encodeable})
+(extend python/tuple     JSONEncodeable {:to-json-encodeable* seq-to-encodeable})
+(extend python/set       JSONEncodeable {:to-json-encodeable* seq-to-encodeable})
+(extend python/frozenset JSONEncodeable {:to-json-encodeable* seq-to-encodeable})
 
 (defn ^:private write-opts
   [{:keys [key-fn value-fn]}]
-  {:key-fn   (or key-fn encode-map-key)
+  {:key-fn   (or key-fn map-key-to-encodeable)
    :value-fn value-fn})
 
 (defn write
-  [writer & opts]
+  "Serialize the object `o` as JSON to the writer object `writer` (which must be
+  any file-like object supporting `.write()` method).
+
+  Several options may be specified as key/value pairs as `opts`:
+
+   :key-fn   -
+   :value-fn - "
+  [o writer & opts]
   (let [opts (write-opts opts)]
-    (json/dump writer ** :default #(encode-to-json* % opts))))
+    (json/dump o writer ** :default #(to-json-encodeable* % opts))))
 
 (defn write-str
+  "Serialize the object `o` as JSON and return the serialized object as a string.
+
+  The options for `write-str` are the same as for those of `write`."
   [o & opts]
   (let [opts (write-opts opts)]
-    (json/dumps o ** :default #(encode-to-json* % opts))))
+    (json/dumps o ** :default #(to-json-encodeable* % opts))))
 
 ;;;;;;;;;;;;;;
 ;; Decoders ;;

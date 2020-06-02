@@ -3019,6 +3019,17 @@
         ~@(rest method-calls)))
     x))
 
+(defmacro memfn
+  "Expands into a function that calls the method `name` on the first argument
+  of the resulting function. If `args` are provided, the resulting function will
+  have arguments of these names.
+
+  This is a convenient way of producing a first-class function for a Python
+  method."
+  [name & args]
+  `(fn [t# ~@args]
+     (. t# ~name ~@args)))
+
 (defmacro new
   "Create a new instance of class with args.
 
