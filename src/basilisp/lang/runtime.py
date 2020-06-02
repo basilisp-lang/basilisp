@@ -1165,23 +1165,9 @@ def is_special_form(s: sym.Symbol) -> bool:
 
 
 @functools.singledispatch
-def to_lisp(o, keywordize_keys: bool = True):
+def to_lisp(o, keywordize_keys: bool = True):  # pylint: disable=unused-argument
     """Recursively convert Python collections into Lisp collections."""
-    if not isinstance(o, (dict, frozenset, list, set, tuple)):
-        return o
-    else:  # pragma: no cover
-        return _to_lisp_backup(o, keywordize_keys=keywordize_keys)
-
-
-def _to_lisp_backup(o, keywordize_keys: bool = True):  # pragma: no cover
-    if isinstance(o, Mapping):
-        return _to_lisp_map(o, keywordize_keys=keywordize_keys)
-    elif isinstance(o, AbstractSet):
-        return _to_lisp_set(o, keywordize_keys=keywordize_keys)
-    elif isinstance(o, Iterable):
-        return _to_lisp_vec(o, keywordize_keys=keywordize_keys)
-    else:
-        return o
+    return o
 
 
 @to_lisp.register(list)
@@ -1216,29 +1202,11 @@ def _kw_name(kw: kw.Keyword) -> str:
 
 
 @functools.singledispatch
-def to_py(o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name):
-    """Recursively convert Lisp collections into Python collections."""
-    if isinstance(o, ISeq):
-        return _to_py_list(o, keyword_fn=keyword_fn)
-    elif not isinstance(
-        o, (IPersistentList, IPersistentMap, IPersistentSet, IPersistentVector)
-    ):
-        return o
-    else:  # pragma: no cover
-        return _to_py_backup(o, keyword_fn=keyword_fn)
-
-
-def _to_py_backup(
+def to_py(
     o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
-):  # pragma: no cover
-    if isinstance(o, (IPersistentList, IPersistentVector)):
-        return _to_py_list(o, keyword_fn=keyword_fn)
-    elif isinstance(o, IPersistentMap):
-        return _to_py_map(o, keyword_fn=keyword_fn)
-    elif isinstance(o, IPersistentSet):
-        return _to_py_set(o, keyword_fn=keyword_fn)
-    else:
-        return o
+):  # pylint: disable=unused-argument
+    """Recursively convert Lisp collections into Python collections."""
+    return o
 
 
 @to_py.register(kw.Keyword)
