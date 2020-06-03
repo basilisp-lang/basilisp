@@ -231,22 +231,22 @@ def _py_from_lisp(
     raise SyntaxError(f"Unrecognized Python type: {type(form)}")
 
 
-@_py_from_lisp.register(llist.List)
+@_py_from_lisp.register(IPersistentList)
 def _py_tuple_from_list(form: llist.List) -> tuple:
     return tuple(form)
 
 
-@_py_from_lisp.register(lmap.Map)
+@_py_from_lisp.register(IPersistentMap)
 def _py_dict_from_map(form: lmap.Map) -> dict:
     return dict(form)
 
 
-@_py_from_lisp.register(lset.Set)
+@_py_from_lisp.register(IPersistentSet)
 def _py_set_from_set(form: lset.Set) -> set:
     return set(form)
 
 
-@_py_from_lisp.register(vector.Vector)
+@_py_from_lisp.register(IPersistentVector)
 def _py_list_from_vec(form: vector.Vector) -> list:
     return list(form)
 

@@ -73,6 +73,15 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
     def values(self):
         return self._inner.values()
 
+    def iteritems(self):
+        return self._inner.iteritems()
+
+    def iterkeys(self):
+        return self._inner.iterkeys()
+
+    def itervalues(self):
+        return self._inner.itervalues()
+
     @property
     def meta(self) -> Optional[IPersistentMap]:
         return self._meta

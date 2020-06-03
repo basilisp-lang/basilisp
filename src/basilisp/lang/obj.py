@@ -140,6 +140,8 @@ def seq_lrepr(
     return f"{start}{seq_lrepr}{end}"
 
 
+# pylint: disable=unused-argument
+@singledispatch
 def lrepr(  # pylint: disable=too-many-arguments
     o: Any,
     human_readable: bool = False,
@@ -170,29 +172,11 @@ def lrepr(  # pylint: disable=too-many-arguments
     runtime to the basilisp.core dynamic variables which correspond to each
     of the keyword arguments to this function. To use a version of lrepr
     which does capture those values, call basilisp.lang.runtime.lrepr directly."""
-    if isinstance(o, LispObject):
-        return o._lrepr(
-            human_readable=human_readable,
-            print_dup=print_dup,
-            print_length=print_length,
-            print_level=print_level,
-            print_meta=print_meta,
-            print_readably=print_readably,
-        )
-    else:  # pragma: no cover
-        return _lrepr_fallback(
-            o,
-            human_readable=human_readable,
-            print_dup=print_dup,
-            print_length=print_length,
-            print_level=print_level,
-            print_meta=print_meta,
-            print_readably=print_readably,
-        )
+    return repr(o)
 
 
-@singledispatch
-def _lrepr_fallback(  # pylint: disable=too-many-arguments
+@lrepr.register(LispObject)
+def _lrepr_lisp_obj(  # pylint: disable=too-many-arguments
     o: Any,
     human_readable: bool = False,
     print_dup: bool = PRINT_DUP,
@@ -201,62 +185,27 @@ def _lrepr_fallback(  # pylint: disable=too-many-arguments
     print_meta: bool = PRINT_META,
     print_readably: bool = PRINT_READABLY,
 ) -> str:  # pragma: no cover
-    """Fallback function for lrepr for subclasses of standard types.
-
-    The singledispatch used for standard lrepr dispatches using an exact
-    type match on the first argument, so we will only hit this function
-    for subclasses of common Python types like strings or lists."""
-    kwargs = {
-        "human_readable": human_readable,
-        "print_dup": print_dup,
-        "print_length": print_length,
-        "print_level": print_level,
-        "print_meta": print_meta,
-        "print_readably": print_readably,
-    }
-    if isinstance(o, bool):
-        return _lrepr_bool(o)
-    elif o is None:
-        return _lrepr_nil(o)
-    elif isinstance(o, str):
-        return _lrepr_str(
-            o, human_readable=human_readable, print_readably=print_readably
-        )
-    elif isinstance(o, dict):
-        return _lrepr_py_dict(o, **kwargs)
-    elif isinstance(o, list):
-        return _lrepr_py_list(o, **kwargs)
-    elif isinstance(o, set):
-        return _lrepr_py_set(o, **kwargs)
-    elif isinstance(o, tuple):
-        return _lrepr_py_tuple(o, **kwargs)
-    elif isinstance(o, complex):
-        return _lrepr_complex(o)
-    elif isinstance(o, datetime.datetime):
-        return _lrepr_datetime(o)
-    elif isinstance(o, Decimal):
-        return _lrepr_decimal(o, print_dup=print_dup)
-    elif isinstance(o, Fraction):
-        return _lrepr_fraction(o)
-    elif isinstance(o, Pattern):
-        return _lrepr_pattern(o)
-    elif isinstance(o, uuid.UUID):
-        return _lrepr_uuid(o)
-    else:
-        return repr(o)
+    return o._lrepr(
+        human_readable=human_readable,
+        print_dup=print_dup,
+        print_length=print_length,
+        print_level=print_level,
+        print_meta=print_meta,
+        print_readably=print_readably,
+    )
 
 
-@_lrepr_fallback.register(bool)
+@lrepr.register(bool)
 def _lrepr_bool(o: bool, **_) -> str:
     return repr(o).lower()
 
 
-@_lrepr_fallback.register(type(None))
+@lrepr.register(type(None))
 def _lrepr_nil(_: None, **__) -> str:
     return "nil"
 
 
-@_lrepr_fallback.register(str)
+@lrepr.register(str)
 def _lrepr_str(
     o: str, human_readable: bool = False, print_readably: bool = PRINT_READABLY, **_
 ) -> str:
@@ -267,53 +216,53 @@ def _lrepr_str(
     return f'"{o.encode("unicode_escape").decode("utf-8")}"'
 
 
-@_lrepr_fallback.register(list)
+@lrepr.register(list)
 def _lrepr_py_list(o: list, **kwargs) -> str:
     return f"#py {seq_lrepr(o, '[', ']', **kwargs)}"
 
 
-@_lrepr_fallback.register(dict)
+@lrepr.register(dict)
 def _lrepr_py_dict(o: dict, **kwargs) -> str:
     return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
 
 
-@_lrepr_fallback.register(set)
+@lrepr.register(set)
 def _lrepr_py_set(o: set, **kwargs) -> str:
     return f"#py {seq_lrepr(o, '#{', '}', **kwargs)}"
 
 
-@_lrepr_fallback.register(tuple)
+@lrepr.register(tuple)
 def _lrepr_py_tuple(o: tuple, **kwargs) -> str:
     return f"#py {seq_lrepr(o, '(', ')', **kwargs)}"
 
 
-@_lrepr_fallback.register(complex)
+@lrepr.register(complex)
 def _lrepr_complex(o: complex, **_) -> str:
     return repr(o).upper()
 
 
-@_lrepr_fallback.register(datetime.datetime)
+@lrepr.register(datetime.datetime)
 def _lrepr_datetime(o: datetime.datetime, **_) -> str:
     return f'#inst "{o.isoformat()}"'
 
 
-@_lrepr_fallback.register(Decimal)
+@lrepr.register(Decimal)
 def _lrepr_decimal(o: Decimal, print_dup: bool = PRINT_DUP, **_) -> str:
     if print_dup:
         return f"{str(o)}M"
     return str(o)
 
 
-@_lrepr_fallback.register(Fraction)
+@lrepr.register(Fraction)
 def _lrepr_fraction(o: Fraction, **_) -> str:
     return f"{o.numerator}/{o.denominator}"
 
 
-@_lrepr_fallback.register(type(re.compile("")))
+@lrepr.register(type(re.compile("")))
 def _lrepr_pattern(o: Pattern, **_) -> str:
     return f'#"{o.pattern}"'
 
 
-@_lrepr_fallback.register(uuid.UUID)
+@lrepr.register(uuid.UUID)
 def _lrepr_uuid(o: uuid.UUID, **_) -> str:
     return f'#uuid "{str(o)}"'
