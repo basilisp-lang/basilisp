@@ -1,11 +1,11 @@
+import threading
 from typing import Iterable, Optional
 
-from pyrsistent import PMap, pmap
+import basilisp.lang.map as lmap
+from basilisp.lang.interfaces import IAssociative, ILispObject, IPersistentMap
 
-import basilisp.lang.atom as atom
-from basilisp.lang.interfaces import IAssociative, ILispObject
-
-__INTERN: atom.Atom["PMap[int, Keyword]"] = atom.Atom(pmap())
+_LOCK = threading.Lock()
+_INTERN: lmap.Map[int, "Keyword"] = lmap.Map.empty()
 
 
 class Keyword(ILispObject):
@@ -48,46 +48,43 @@ class Keyword(ILispObject):
 
 
 def complete(
-    text: str, kw_cache: atom.Atom["PMap[int, Keyword]"] = __INTERN
+    text: str, kw_cache: Optional[lmap.Map[int, Keyword]] = None,
 ) -> Iterable[str]:
     """Return an iterable of possible completions for the given text."""
     assert text.startswith(":")
-    interns = kw_cache.deref()
     text = text[1:]
+
+    if kw_cache is None:
+        kw_cache = _INTERN
 
     if "/" in text:
         prefix, suffix = text.split("/", maxsplit=1)
         results = filter(
             lambda kw: (kw.ns is not None and kw.ns == prefix)
             and kw.name.startswith(suffix),
-            interns.itervalues(),
+            kw_cache.itervalues(),
         )
     else:
         results = filter(
             lambda kw: kw.name.startswith(text)
             or (kw.ns is not None and kw.ns.startswith(text)),
-            interns.itervalues(),
+            kw_cache.itervalues(),
         )
 
     return map(str, results)
 
 
-def __get_or_create(
-    kw_cache: "PMap[int, Keyword]", h: int, name: str, ns: Optional[str]
-) -> PMap:
-    """Private swap function used to either get the interned keyword
-    instance from the input string."""
-    if h in kw_cache:
-        return kw_cache
-    kw = Keyword(name, ns=ns)
-    return kw_cache.set(h, kw)
+def keyword(name: str, ns: Optional[str] = None) -> Keyword:
+    """Create a new keyword with name and optional namespace.
 
+    Keywords are stored in a global cache by their hash"""
+    global _INTERN
 
-def keyword(
-    name: str,
-    ns: Optional[str] = None,
-    kw_cache: atom.Atom["PMap[int, Keyword]"] = __INTERN,
-) -> Keyword:
-    """Create a new keyword."""
     h = hash((name, ns))
-    return kw_cache.swap(__get_or_create, h, name, ns)[h]
+    with _LOCK:
+        found = _INTERN.val_at(h)
+        if found:
+            return found
+        kw = Keyword(name, ns=ns)
+        _INTERN = _INTERN.assoc(h, kw)
+        return kw
