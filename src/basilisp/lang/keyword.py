@@ -2,7 +2,7 @@ import threading
 from typing import Iterable, Optional
 
 import basilisp.lang.map as lmap
-from basilisp.lang.interfaces import IAssociative, ILispObject, IPersistentMap
+from basilisp.lang.interfaces import IAssociative, ILispObject
 
 _LOCK = threading.Lock()
 _INTERN: lmap.Map[int, "Keyword"] = lmap.Map.empty()

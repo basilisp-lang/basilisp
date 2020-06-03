@@ -140,8 +140,9 @@ def seq_lrepr(
     return f"{start}{seq_lrepr}{end}"
 
 
+# pylint: disable=unused-argument
 @singledispatch
-def lrepr(  # pylint: disable=too-many-arguments,unused-arguments
+def lrepr(  # pylint: disable=too-many-arguments
     o: Any,
     human_readable: bool = False,
     print_dup: bool = PRINT_DUP,
