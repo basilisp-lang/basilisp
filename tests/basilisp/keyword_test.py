@@ -64,25 +64,25 @@ def test_keyword_pickleability(pickle_protocol: int, o: Keyword):
 
 class TestKeywordCompletion:
     @pytest.fixture
-    def empty_cache(self) -> Atom["PMap[int, Keyword]"]:
-        return Atom(pmap())
+    def empty_cache(self) -> lmap.Map[int, Keyword]:
+        return lmap.Map.empty()
 
-    def test_empty_cache_no_completion(self, empty_cache: Atom["PMap[int, Keyword]"]):
+    def test_empty_cache_no_completion(self, empty_cache: lmap.Map[int, Keyword]):
         assert [] == list(complete(":", kw_cache=empty_cache))
 
     @pytest.fixture
-    def cache(self) -> Atom["PMap[int, Keyword]"]:
+    def cache(self) -> lmap.Map[int, Keyword]:
         values = [Keyword("kw"), Keyword("ns"), Keyword("kw", ns="ns")]
-        return Atom(pmap({hash(v): v for v in values}))
+        return lmap.map({hash(v): v for v in values})
 
-    def test_no_ns_completion(self, cache: Atom["PMap[int, Keyword]"]):
+    def test_no_ns_completion(self, cache: lmap.Map[int, Keyword]):
         assert [] == list(complete(":v", kw_cache=cache))
         assert {":kw", ":ns/kw"} == set(complete(":k", kw_cache=cache))
         assert {":kw", ":ns/kw"} == set(complete(":kw", kw_cache=cache))
         assert {":ns", ":ns/kw"} == set(complete(":n", kw_cache=cache))
         assert {":ns", ":ns/kw"} == set(complete(":ns", kw_cache=cache))
 
-    def test_ns_completion(self, cache: Atom["PMap[int, Keyword]"]):
+    def test_ns_completion(self, cache: lmap.Map[int, Keyword]):
         assert [] == list(complete(":v/", kw_cache=cache))
         assert [] == list(complete(":k/", kw_cache=cache))
         assert [] == list(complete(":kw/", kw_cache=cache))

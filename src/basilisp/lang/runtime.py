@@ -1178,17 +1178,20 @@ def _to_lisp_vec(o: Iterable, keywordize_keys: bool = True) -> vec.Vector:
     )
 
 
+@functools.singledispatch
+def _keywordize_keys(k):
+    return k
+
+
+@_keywordize_keys.register(str)
+def _keywordize_keys_str(k):
+    return kw.keyword(k)
+
+
 @to_lisp.register(dict)
 def _to_lisp_map(o: Mapping, keywordize_keys: bool = True) -> lmap.Map:
-    kvs = {}
-    for k, v in o.items():
-        if isinstance(k, str) and keywordize_keys:
-            processed_key = kw.keyword(k)
-        else:
-            processed_key = to_lisp(k, keywordize_keys=keywordize_keys)
-
-        kvs[processed_key] = to_lisp(v, keywordize_keys=keywordize_keys)
-    return lmap.map(kvs)
+    process_key = _keywordize_keys if keywordize_keys else lambda x: x
+    return lmap.map({process_key(k): v for k, v in o.items()})  # type: ignore[operator]
 
 
 @to_lisp.register(frozenset)
