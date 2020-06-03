@@ -124,7 +124,7 @@
 
 (defprotocol JSONDecodeable
   (from-decoded-json* [this opts]
-    "Return a Basilisp object in place of a Python object returrned by Python's
+    "Return a Basilisp object in place of a Python object returned by Python's
      default JSONDecoder.
 
      `opts` is a map of options:
@@ -165,7 +165,7 @@
   [{:keys [key-fn value-fn strict?]}]
   {:key-fn   (or key-fn identity)
    :value-fn value-fn
-   :strict   (if (or (nil? strict?) (boolean? strict?)) strict? true)})
+   :strict   (if (boolean? strict?) strict? true)})
 
 ;; Python's builtin `json.load` currently only includes an Object hook; it has
 ;; no hook for Array types. Due to this limitation, we have to iteratively
