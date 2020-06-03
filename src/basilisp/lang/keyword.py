@@ -77,7 +77,10 @@ def complete(
 def keyword(name: str, ns: Optional[str] = None) -> Keyword:
     """Create a new keyword with name and optional namespace.
 
-    Keywords are stored in a global cache by their hash"""
+    Keywords are stored in a global cache by their hash. If a keyword with the same
+    hash already exists in the cache, that keyword will be returned. If no keyword
+    exists in the global cache, one will be created, entered into the cache, and then
+    returned."""
     global _INTERN
 
     h = hash((name, ns))
