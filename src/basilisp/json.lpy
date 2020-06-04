@@ -92,6 +92,19 @@
   "Serialize the object `o` as JSON to the writer object `writer` (which must be
   any file-like object supporting `.write()` method).
 
+  All data structures supported by the Basilisp reader are serialized to JSON
+  by default. Maps are serialized as JSON Objects. Lists, sets, and vectors are
+  serialized as JSON arrays. Keywords and symbols are serialized as strings with
+  their namespace (if they have one). Python scalar types are serialized as their
+  corresponding JSON types (string, integer, float, boolean, and `nil`). Instants
+  (Python `datetime`s) are serialized as ISO 8601 date strings. Decimals are
+  serialized as stringified floats. Fractions are serialized as ratios (numerator
+  and denominator). UUIDs are serialized as their canonical hex string format.
+
+  Support for other data structures can be added by extending the `JSONEncodeable`
+  Protocol. That protocol includes one method which must return a Python data type
+  which can be understood by Python's builtin `json` module.
+
   The encoder supports a few options which may be specified as key/value pairs:
 
     `:key-fn`           - is a function which will be called for each key in a map;
@@ -117,6 +130,19 @@
 
 (defn write-str
   "Serialize the object `o` as JSON and return the serialized object as a string.
+
+  All data structures supported by the Basilisp reader are serialized to JSON
+  by default. Maps are serialized as JSON Objects. Lists, sets, and vectors are
+  serialized as JSON arrays. Keywords and symbols are serialized as strings with
+  their namespace (if they have one). Python scalar types are serialized as their
+  corresponding JSON types (string, integer, float, boolean, and `nil`). Instants
+  (Python `datetime`s) are serialized as ISO 8601 date strings. Decimals are
+  serialized as stringified floats. Fractions are serialized as ratios (numerator
+  and denominator). UUIDs are serialized as their canonical hex string format.
+
+  Support for other data structures can be added by extending the `JSONEncodeable`
+  Protocol. That protocol includes one method which must return a Python data type
+  which can be understood by Python's builtin `json` module.
 
   The options for `write-str` are the same as for those of `write`."
   [o & {:as opts}]
