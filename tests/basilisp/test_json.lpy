@@ -33,7 +33,59 @@
          {\"id\": 42, \"name\": \"Carl\", \"is_admin\": true, \"roles\": [\"admin\"]}
        ]"
       [{"id" 35 "name" "Chris" "is_admin" false "roles" ["user"]}
-       {"id" 42 "name" "Carl" "is_admin" true "roles" ["admin"]}])))
+       {"id" 42 "name" "Carl" "is_admin" true "roles" ["admin"]}]))
+
+  (testing "objects"
+    (is (= {"id"        35
+            "name"      "Chris"
+            "title"     nil
+            "phone"     {"type"   "home"
+                         "number" "+15558675309"}
+            "addresses" [{"street_address" "330 W 86th St"
+                          "city"           "New York"
+                          "state"          "NY"
+                          "zip"            "10024"}]
+            "balance"   3800.60
+            "is_admin"  false
+            "roles"     ["user"]}
+           (json/read-str
+            (str
+             "{"
+             "\"id\": 35,"
+             "\"name\": \"Chris\","
+             "\"title\": null,"
+             "\"phone\": {\"type\": \"home\", \"number\":\"+15558675309\"},"
+             "\"addresses\": [{\"street_address\": \"330 W 86th St\", \"city\": \"New York\", \"state\": \"NY\", \"zip\":\"10024\"}],"
+             "\"balance\": 3800.60,"
+             "\"is_admin\": false,"
+             "\"roles\": [\"user\"]"
+             "}"))))
+
+    (is (= {:id        35
+            :name      "Chris"
+            :title     nil
+            :phone     {:type   "home"
+                        :number "+15558675309"}
+            :addresses [{:street_address "330 W 86th St"
+                         :city           "New York"
+                         :state          "NY"
+                         :zip            "10024"}]
+            :balance   3800.60
+            :is_admin  false
+            :roles     ["user"]}
+           (json/read-str
+            (str
+             "{"
+             "\"id\": 35,"
+             "\"name\": \"Chris\","
+             "\"title\": null,"
+             "\"phone\": {\"type\": \"home\", \"number\":\"+15558675309\"},"
+             "\"addresses\": [{\"street_address\": \"330 W 86th St\", \"city\": \"New York\", \"state\": \"NY\", \"zip\":\"10024\"}],"
+             "\"balance\": 3800.60,"
+             "\"is_admin\": false,"
+             "\"roles\": [\"user\"]"
+             "}")
+            :key-fn keyword)))))
 
 (deftest write-str-test
   (testing "primitive-values"
@@ -59,8 +111,10 @@
       '()             "[]"
       []              "[]"
       {}              "{}"
-      ;; (eval '#py #{}) "[]"
-      #py ()          "[]"
-      ;; #py []       "[]"
-      ;; #py {}       "{}"
-      )))
+      #py ()          "[]")
+
+    ;; Mutable Python data types cause issues with the `do-template` used by
+    ;; the `are` macro, so these have to be written as `is` cases.
+    (is (= "[]" (json/write-str #py #{})))
+    (is (= "[]" (json/write-str #py [])))
+    (is (= "{}" (json/write-str #py {})))))

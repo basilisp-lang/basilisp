@@ -106,7 +106,7 @@
 
    :key-fn   -
    :value-fn - "
-  [o writer & opts]
+  [o writer & {:as opts}]
   (let [opts (write-opts opts)]
     (json/dump o writer ** :default #(to-json-encodeable* % opts))))
 
@@ -114,7 +114,7 @@
   "Serialize the object `o` as JSON and return the serialized object as a string.
 
   The options for `write-str` are the same as for those of `write`."
-  [o & opts]
+  [o & {:as opts}]
   (let [opts (write-opts opts)]
     (json/dumps o ** :default #(to-json-encodeable* % opts))))
 
@@ -130,22 +130,14 @@
      `opts` is a map of options:
 
        `:key-fn`   - is a function which will be called for each key in a map;
-                     default is `identity`
-       `:value-fn` - is a function of two arguments called for each value in a
-                     map; the first argument is the key transformed by `:key-fn`
-                     and the second is the value from the object"))
+                     default is `identity`"))
 
 (extend-protocol JSONDecodeable
   python/dict
   (from-decoded-json* [this {:keys [key-fn value-fn] :as opts}]
-    (let [decode-value (or value-fn
-                           (fn [_ v]
-                             (from-decoded-json* v opts)))]
-      (->> (.items this)
-           (mapcat (fn [[k v]]
-                     (let [new-k (key-fn k)]
-                       [new-k (decode-value new-k v)])))
-           (apply hash-map))))
+    (->> (.items this)
+         (mapcat (fn [[k v]] [(key-fn k) v]))
+         (apply hash-map)))
 
   python/list
   (from-decoded-json* [this opts]
@@ -164,7 +156,6 @@
 (defn ^:private read-opts
   [{:keys [key-fn value-fn strict?]}]
   {:key-fn   (or key-fn identity)
-   :value-fn value-fn
    :strict   (if (boolean? strict?) strict? true)})
 
 ;; Python's builtin `json.load` currently only includes an Object hook; it has
@@ -174,13 +165,40 @@
 ;; Python, but it has gotten no traction: https://bugs.python.org/issue36738
 
 (defn read
-  [reader & opts]
+  "Decode the JSON-encoded stream from `reader` (which can be any Python file-like
+  object) into Basilisp data structures.
+
+  JSON Objects will be decoded as Basilisp maps. JSON Arrays will be decoded as
+  as Basilisp vectors. All other JSON data types will be decoded as the
+  corresponding Python types (strings, booleans, integers, floats, and `nil`).
+
+  The decoder supports a few options which may be specified as key/value pairs:
+
+   `:key-fn`   - is a function which will be called for each key in a map;
+                 default is `identity`
+   `:strict?`  - boolean value; if `true`, control characters (characters in
+                 ASCII 0-31 range) will be prohibited inside JSON strings;
+                 default is `true`"
+  [reader & {:as opts}]
   (let [{:keys [strict?] :as opts} (read-opts opts)]
     (-> (json/load reader ** :strict strict?)
         (from-decoded-json* opts))))
 
 (defn read-str
-  [s & opts]
+  "Decode the JSON-encoded string `s` into Basilisp data structures.
+
+  JSON Objects will be decoded as Basilisp maps. JSON Arrays will be decoded as
+  as Basilisp vectors. All other JSON data types will be decoded as the
+  corresponding Python types (strings, booleans, integers, floats, and `nil`).
+
+  The decoder supports a few options which may be specified as key/value pairs:
+
+   `:key-fn`   - is a function which will be called for each key in a map;
+                 default is `identity`
+   `:strict?`  - boolean value; if `true`, control characters (characters in
+                 ASCII 0-31 range) will be prohibited inside JSON strings;
+                 default is `true`"
+  [s & {:as opts}]
   (let [{:keys [strict?] :as opts} (read-opts opts)]
     (-> (json/loads s ** :strict strict?)
         (from-decoded-json* opts))))
