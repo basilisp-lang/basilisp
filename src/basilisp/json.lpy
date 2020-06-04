@@ -113,7 +113,7 @@
                :default #(to-json-encodeable* % opts)
                :ensure-ascii escape-non-ascii
                :indent indent
-               :separator separator)))
+               :separators separator)))
 
 (defn write-str
   "Serialize the object `o` as JSON and return the serialized object as a string.
@@ -125,7 +125,7 @@
                 :default #(to-json-encodeable* % opts)
                 :ensure-ascii escape-non-ascii
                 :indent indent
-                :separator separator)))
+                :separators separator)))
 
 ;;;;;;;;;;;;;;
 ;; Decoders ;;
@@ -145,7 +145,7 @@
   python/dict
   (from-decoded-json* [this {:keys [key-fn value-fn] :as opts}]
     (->> (.items this)
-         (mapcat (fn [[k v]] [(key-fn k) v]))
+         (mapcat (fn [[k v]] [(key-fn k) (from-decoded-json* v opts)]))
          (apply hash-map)))
 
   python/list
