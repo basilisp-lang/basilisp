@@ -15,12 +15,10 @@
   (to-json-encodeable* [this opts]
     "Return an object which can be JSON encoded by Python's default JSONEncoder.
 
-     `opts` is a map of options:
+     `opts` is a map with the following options:
 
-       `:key-fn`   - is a function which will be called for each key in a map.
-       `:value-fn` - is a function of two arguments called for each value in a
-                     map; the first argument is the key before being transformed
-                     by `:key-fn` and the second is the value from the object"))
+       `:key-fn` - is a function which will be called for each key in a map;
+                   default is `name`"))
 
 (extend-protocol JSONEncodeable
   python/object
@@ -43,21 +41,11 @@
     (str ns-str "/" (name o))
     (name o)))
 
-(defn ^:private map-key-to-encodeable
-  [k]
-  (if (keyword? k)
-    (name k)
-    (str k)))
-
 (defn ^:private map-to-encodeable
-  [o {:keys [key-fn value-fn] :as opts}]
-  (let [encode-value (or value-fn
-                         (fn [_ v]
-                           (to-json-encodeable* v opts)))]
-    (->> o
-         (map (fn [[k v]]
-                [(key-fn k) (encode-value k v)]))
-         (python/dict))))
+  [o {:keys [key-fn] :as opts}]
+  (->> o
+       (map (fn [[k v]] [(key-fn k) v]))
+       (python/dict)))
 
 (defn ^:private seq-to-encodeable
   [o opts]
@@ -94,29 +82,50 @@
 (extend python/frozenset JSONEncodeable {:to-json-encodeable* seq-to-encodeable})
 
 (defn ^:private write-opts
-  [{:keys [key-fn value-fn]}]
-  {:key-fn   (or key-fn map-key-to-encodeable)
-   :value-fn value-fn})
+  [{:keys [escape-non-ascii indent item-sep key-fn key-sep]}]
+  {:escape-non-ascii (if (boolean? escape-non-ascii) escape-non-ascii true)
+   :indent           indent
+   :key-fn           (or key-fn name)
+   :separator        #py ((or item-sep ", ") (or key-sep ": "))})
 
 (defn write
   "Serialize the object `o` as JSON to the writer object `writer` (which must be
   any file-like object supporting `.write()` method).
 
-  Several options may be specified as key/value pairs as `opts`:
+  The encoder supports a few options which may be specified as key/value pairs:
 
-   :key-fn   -
-   :value-fn - "
+    `:key-fn`           - is a function which will be called for each key in a map;
+                          default is `name`
+    `:escape-non-ascii` - if `true`, escape non-ASCII characters in the output;
+                          default is `true`
+    `:indent`           - if `nil`, use a compact representation; if a positive
+                          integer, each indent level will be that many spaces; if
+                          zero, a negative integer, or the empty string, newlines
+                          will be inserted without indenting; if a string, that
+                          string value will be used as the indent
+    `:item-sep`         - a string separator between object and array items;
+                          default is ', '
+    `:key-sep`          - a string separator between object key/value pairs;
+                          default is ': '"
   [o writer & {:as opts}]
-  (let [opts (write-opts opts)]
-    (json/dump o writer ** :default #(to-json-encodeable* % opts))))
+  (let [{:keys [escape-non-ascii indent separator] :as opts} (write-opts opts)]
+    (json/dump o writer **
+               :default #(to-json-encodeable* % opts)
+               :ensure-ascii escape-non-ascii
+               :indent indent
+               :separator separator)))
 
 (defn write-str
   "Serialize the object `o` as JSON and return the serialized object as a string.
 
   The options for `write-str` are the same as for those of `write`."
   [o & {:as opts}]
-  (let [opts (write-opts opts)]
-    (json/dumps o ** :default #(to-json-encodeable* % opts))))
+  (let [{:keys [escape-non-ascii indent separator] :as opts} (write-opts opts)]
+    (json/dumps o **
+                :default #(to-json-encodeable* % opts)
+                :ensure-ascii escape-non-ascii
+                :indent indent
+                :separator separator)))
 
 ;;;;;;;;;;;;;;
 ;; Decoders ;;
@@ -127,10 +136,10 @@
     "Return a Basilisp object in place of a Python object returned by Python's
      default JSONDecoder.
 
-     `opts` is a map of options:
+     `opts` is a map with the following options:
 
-       `:key-fn`   - is a function which will be called for each key in a map;
-                     default is `identity`"))
+       `:key-fn` - is a function which will be called for each key in a map;
+                   default is `identity`"))
 
 (extend-protocol JSONDecodeable
   python/dict
@@ -154,7 +163,7 @@
 (extend nil          JSONDecodeable {:from-decoded-json* decode-scalar})
 
 (defn ^:private read-opts
-  [{:keys [key-fn value-fn strict?]}]
+  [{:keys [key-fn strict?]}]
   {:key-fn   (or key-fn identity)
    :strict   (if (boolean? strict?) strict? true)})
 
@@ -191,13 +200,7 @@
   as Basilisp vectors. All other JSON data types will be decoded as the
   corresponding Python types (strings, booleans, integers, floats, and `nil`).
 
-  The decoder supports a few options which may be specified as key/value pairs:
-
-   `:key-fn`   - is a function which will be called for each key in a map;
-                 default is `identity`
-   `:strict?`  - boolean value; if `true`, control characters (characters in
-                 ASCII 0-31 range) will be prohibited inside JSON strings;
-                 default is `true`"
+  The options for `read-str` are the same as for those of `read`."
   [s & {:as opts}]
   (let [{:keys [strict?] :as opts} (read-opts opts)]
     (-> (json/loads s ** :strict strict?)
