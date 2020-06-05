@@ -185,7 +185,7 @@
 
 (extend-protocol JSONDecodeable
   python/dict
-  (from-decoded-json* [this {:keys [key-fn value-fn] :as opts}]
+  (from-decoded-json* [this {:keys [key-fn] :as opts}]
     (->> (.items this)
          (mapcat (fn [[k v]] [(key-fn k) (from-decoded-json* v opts)]))
          (apply hash-map)))
