@@ -3953,6 +3953,8 @@
                              (:import opts)))]
     `(do
        (in-ns (quote ~name))
+       ~(when doc
+          `(alter-meta! (the-ns (quote ~name)) assoc :doc ~doc))
        (refer-basilisp ~@refer-filters)
        ~requires
        ~uses
