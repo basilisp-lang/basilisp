@@ -1,4 +1,5 @@
 (ns tests.basilisp.test-json
+  (:import datetime)
   (:require
    [basilisp.json :as json]
    [basilisp.test :refer [deftest is are testing]]))
@@ -90,28 +91,38 @@
 (deftest write-str-test
   (testing "primitive-values"
     (are [x y] (= y (json/write-str x))
-      nil             "null"
-      true            "true"
-      false           "false"
-      0               "0"
-      1               "1"
-      -1              "-1"
-      0.0             "0.0"
-      1.0             "1.0"
-      -1.0            "-1.0"
-      ""              "\"\""
-      "string"        "\"string\""
-      :kw             "\"kw\""
-      :ns/kw          "\"ns/kw\""
-      :long.ns/kw     "\"long.ns/kw\""
-      'sym            "\"sym\""
-      'ns/sym         "\"ns/sym\""
-      'long.ns/sym    "\"long.ns/sym\""
-      #{}             "[]"
-      '()             "[]"
-      []              "[]"
-      {}              "{}"
-      #py ()          "[]")
+      nil      "null"
+      true     "true"
+      false    "false"
+      0        "0"
+      1        "1"
+      -1       "-1"
+      0.0      "0.0"
+      1.0      "1.0"
+      -1.0     "-1.0"
+      ""       "\"\""
+      "string" "\"string\""
+
+      :kw          "\"kw\""
+      :ns/kw       "\"ns/kw\""
+      :long.ns/kw  "\"long.ns/kw\""
+      'sym         "\"sym\""
+      'ns/sym      "\"ns/sym\""
+      'long.ns/sym "\"long.ns/sym\""
+
+      #{} "[]"
+      '() "[]"
+      []  "[]"
+      {}  "{}"
+
+      #inst "2020-06-04T22:32:29.871744"           "\"2020-06-04T22:32:29.871744\""
+      (datetime/date 2020 6 4)                     "\"2020-06-04\""
+      (datetime/time 22 35 38)                     "\"22:35:38\""
+      3.1415926535M                                "\"3.1415926535\""
+      22/7                                         "\"22/7\""
+      #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc" "\"632ac3d8-fcfd-4d36-a05b-a54277a345bc\""
+
+      #py () "[]")
 
     ;; Mutable Python data types cause issues with the `do-template` used by
     ;; the `are` macro, so these have to be written as `is` cases.

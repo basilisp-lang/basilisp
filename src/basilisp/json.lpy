@@ -35,6 +35,10 @@
   [o _]
   (python/str o))
 
+(defn ^:private encodeable-date-type
+  [o _]
+  (.isoformat o))
+
 (defn ^:private kw-or-sym-to-encodeable
   [o _]
   (if-let [ns-str (namespace o)]
@@ -69,7 +73,9 @@
 (extend basilisp.lang.interfaces/IPersistentVector JSONEncodeable {:to-json-encodeable* seq-to-encodeable})
 
 ;; Support extended reader types.
-(extend datetime/datetime  JSONEncodeable {:to-json-encodeable* (fn [o _] (.isoformat o))})
+(extend datetime/datetime  JSONEncodeable {:to-json-encodeable* encodeable-date-type})
+(extend datetime/date      JSONEncodeable {:to-json-encodeable* encodeable-date-type})
+(extend datetime/time      JSONEncodeable {:to-json-encodeable* encodeable-date-type})
 (extend decimal/Decimal    JSONEncodeable {:to-json-encodeable* stringify-scalar})
 (extend fractions/Fraction JSONEncodeable {:to-json-encodeable* stringify-scalar})
 (extend uuid/UUID          JSONEncodeable {:to-json-encodeable* stringify-scalar})
