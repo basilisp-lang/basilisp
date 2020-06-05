@@ -5,7 +5,7 @@
    [basilisp.test :refer [deftest is are testing]]))
 
 (deftest read-str-test
-  (testing "primitive-values"
+  (testing "primitive values"
     (are [x y] (= y (json/read-str x))
       "null"       nil
       "true"       true
@@ -89,7 +89,7 @@
             :key-fn keyword)))))
 
 (deftest write-str-test
-  (testing "primitive-values"
+  (testing "primitive values"
     (are [x y] (= y (json/write-str x))
       nil      "null"
       true     "true"
@@ -128,4 +128,62 @@
     ;; the `are` macro, so these have to be written as `is` cases.
     (is (= "[]" (json/write-str #py #{})))
     (is (= "[]" (json/write-str #py [])))
-    (is (= "{}" (json/write-str #py {})))))
+    (is (= "{}" (json/write-str #py {}))))
+
+  (testing "to JSON array"
+    (testing "vectors"
+      (are [x y] (= y (json/write-str x))
+        [nil true false 0 1 -1 0.0 1.0 -1.0 "" "string"]
+        "[null, true, false, 0, 1, -1, 0.0, 1.0, -1.0, \"\", \"string\"]"
+
+        [:kw :ns/kw :long.ns/kw 'sym 'ns/sym 'long.ns/sym]
+        "[\"kw\", \"ns/kw\", \"long.ns/kw\", \"sym\", \"ns/sym\", \"long.ns/sym\"]"
+
+        [#inst "2020-06-04T22:32:29.871744"
+         (datetime/date 2020 6 4)
+         (datetime/time 22 35 38)
+         3.1415926535M
+         22/7
+         #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"]
+        "[\"2020-06-04T22:32:29.871744\", \"2020-06-04\", \"22:35:38\", \"3.1415926535\", \"22/7\", \"632ac3d8-fcfd-4d36-a05b-a54277a345bc\"]"
+
+        ;; output key order is not guaranteed, so testing objects is annoying
+        [{:id 35} {:name "Arbuckle"} {:title :title/Administrator} {:roles [:user :system/admin]}]
+        "[{\"id\": 35}, {\"name\": \"Arbuckle\"}, {\"title\": \"title/Administrator\"}, {\"roles\": [\"user\", \"system/admin\"]}]"))
+
+    (testing "list"
+      (are [x y] (= y (json/write-str x))
+        '(nil true false 0 1 -1 0.0 1.0 -1.0 "" "string")
+        "[null, true, false, 0, 1, -1, 0.0, 1.0, -1.0, \"\", \"string\"]"
+
+        '(:kw :ns/kw :long.ns/kw sym ns/sym long.ns/sym)
+        "[\"kw\", \"ns/kw\", \"long.ns/kw\", \"sym\", \"ns/sym\", \"long.ns/sym\"]"
+
+        (list
+         #inst "2020-06-04T22:32:29.871744"
+         (datetime/date 2020 6 4)
+         (datetime/time 22 35 38)
+         3.1415926535M
+         22/7
+         #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc")
+        "[\"2020-06-04T22:32:29.871744\", \"2020-06-04\", \"22:35:38\", \"3.1415926535\", \"22/7\", \"632ac3d8-fcfd-4d36-a05b-a54277a345bc\"]"
+
+        ;; output key order is not guaranteed, so testing objects is annoying
+        '({:id 35} {:name "Arbuckle"} {:title :title/Administrator} {:roles [:user :system/admin]})
+        "[{\"id\": 35}, {\"name\": \"Arbuckle\"}, {\"title\": \"title/Administrator\"}, {\"roles\": [\"user\", \"system/admin\"]}]"))
+
+    (testing "sets"
+      (are [x] (= (set x) (set (json/read-str (json/write-str x))))
+        [nil true false 0 1 -1 0.0 1.0 -1.0 "" "string"])
+
+      (are [x y] (= y (set (json/read-str (json/write-str x))))
+        [:kw :ns/kw :long.ns/kw 'sym 'ns/sym 'long.ns/sym]
+        #{"kw" "ns/kw" "long.ns/kw" "sym" "ns/sym" "long.ns/sym"}
+
+        #{#inst "2020-06-04T22:32:29.871744"
+          (datetime/date 2020 6 4)
+          (datetime/time 22 35 38)
+          3.1415926535M
+          22/7
+          #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"}
+        #{"2020-06-04T22:32:29.871744", "2020-06-04", "22:35:38", "3.1415926535", "22/7", "632ac3d8-fcfd-4d36-a05b-a54277a345bc"}))))
