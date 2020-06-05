@@ -103,9 +103,10 @@
   serialized as JSON arrays. Keywords and symbols are serialized as strings with
   their namespace (if they have one). Python scalar types are serialized as their
   corresponding JSON types (string, integer, float, boolean, and `nil`). Instants
-  (Python `datetime`s) are serialized as ISO 8601 date strings. Decimals are
-  serialized as stringified floats. Fractions are serialized as ratios (numerator
-  and denominator). UUIDs are serialized as their canonical hex string format.
+  (Python `datetime`s) and the related Python `date` and `time` types are
+  serialized as ISO 8601 date strings. Decimals are serialized as stringified
+  floats. Fractions are serialized as stringified ratios (numerator and
+  denominator). UUIDs are serialized as their canonical hex string format.
 
   Support for other data structures can be added by extending the `JSONEncodeable`
   Protocol. That protocol includes one method which must return a Python data type
@@ -142,9 +143,10 @@
   serialized as JSON arrays. Keywords and symbols are serialized as strings with
   their namespace (if they have one). Python scalar types are serialized as their
   corresponding JSON types (string, integer, float, boolean, and `nil`). Instants
-  (Python `datetime`s) are serialized as ISO 8601 date strings. Decimals are
-  serialized as stringified floats. Fractions are serialized as ratios (numerator
-  and denominator). UUIDs are serialized as their canonical hex string format.
+  (Python `datetime`s) and the related Python `date` and `time` types are
+  serialized as ISO 8601 date strings. Decimals are serialized as stringified
+  floats. Fractions are serialized as stringified ratios (numerator and
+  denominator). UUIDs are serialized as their canonical hex string format.
 
   Support for other data structures can be added by extending the `JSONEncodeable`
   Protocol. That protocol includes one method which must return a Python data type
