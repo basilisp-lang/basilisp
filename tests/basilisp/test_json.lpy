@@ -145,11 +145,13 @@
          3.1415926535M
          22/7
          #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"]
-        "[\"2020-06-04T22:32:29.871744\", \"2020-06-04\", \"22:35:38\", \"3.1415926535\", \"22/7\", \"632ac3d8-fcfd-4d36-a05b-a54277a345bc\"]"
+        "[\"2020-06-04T22:32:29.871744\", \"2020-06-04\", \"22:35:38\", \"3.1415926535\", \"22/7\", \"632ac3d8-fcfd-4d36-a05b-a54277a345bc\"]")
 
-        ;; output key order is not guaranteed, so testing objects is annoying
-        [{:id 35} {:name "Arbuckle"} {:title :title/Administrator} {:roles [:user :system/admin]}]
-        "[{\"id\": 35}, {\"name\": \"Arbuckle\"}, {\"title\": \"title/Administrator\"}, {\"roles\": [\"user\", \"system/admin\"]}]"))
+      (are [x y] (= y (json/read-str (json/write-str x)))
+        [{:id 35 :name "Chris" :title nil :roles #{"user"}}
+         {:id 41 :name "Arbuckle" :title :title/Administrator :roles #py ("user", :system/admin)}]
+        [{"id" 35 "name" "Chris" "title" nil "roles" ["user"]}
+         {"id" 41 "name" "Arbuckle" "title" "title/Administrator" "roles" ["user" "system/admin"]}]))
 
     (testing "list"
       (are [x y] (= y (json/write-str x))
@@ -166,11 +168,13 @@
          3.1415926535M
          22/7
          #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc")
-        "[\"2020-06-04T22:32:29.871744\", \"2020-06-04\", \"22:35:38\", \"3.1415926535\", \"22/7\", \"632ac3d8-fcfd-4d36-a05b-a54277a345bc\"]"
+        "[\"2020-06-04T22:32:29.871744\", \"2020-06-04\", \"22:35:38\", \"3.1415926535\", \"22/7\", \"632ac3d8-fcfd-4d36-a05b-a54277a345bc\"]")
 
-        ;; output key order is not guaranteed, so testing objects is annoying
-        '({:id 35} {:name "Arbuckle"} {:title :title/Administrator} {:roles [:user :system/admin]})
-        "[{\"id\": 35}, {\"name\": \"Arbuckle\"}, {\"title\": \"title/Administrator\"}, {\"roles\": [\"user\", \"system/admin\"]}]"))
+      (are [x y] (= y (json/read-str (json/write-str x)))
+        '({:id 35 :name "Chris" :title nil :roles #{"user"}}
+          {:id 41 :name "Arbuckle" :title :title/Administrator :roles #py ("user", :system/admin)})
+        [{"id" 35 "name" "Chris" "title" nil "roles" ["user"]}
+         {"id" 41 "name" "Arbuckle" "title" "title/Administrator" "roles" ["user" "system/admin"]}]))
 
     (testing "sets"
       (are [x] (= (set x) (set (json/read-str (json/write-str x))))
@@ -186,4 +190,33 @@
           3.1415926535M
           22/7
           #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"}
-        #{"2020-06-04T22:32:29.871744", "2020-06-04", "22:35:38", "3.1415926535", "22/7", "632ac3d8-fcfd-4d36-a05b-a54277a345bc"}))))
+        #{"2020-06-04T22:32:29.871744", "2020-06-04", "22:35:38", "3.1415926535", "22/7", "632ac3d8-fcfd-4d36-a05b-a54277a345bc"}))
+
+    (testing "objects"
+      (are [x y] (= y (json/read-str (json/write-str x)))
+        {:id         #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"
+         :name       "Chris"
+         :title      nil
+         :phone      {:type   "home"
+                      :number "+15558675309"}
+         :addresses  [{:street-address "330 W 86th St"
+                       :city           "New York"
+                       :state          "NY"
+                       :zip            "10024"}]
+         :balance    3800.60
+         :is-admin   false
+         :roles      [:user]
+         :last-login #inst "2020-06-04T22:32:29.871744"}
+        {"id"         "632ac3d8-fcfd-4d36-a05b-a54277a345bc"
+         "name"       "Chris"
+         "title"      nil
+         "phone"      {"type"   "home"
+                       "number" "+15558675309"}
+         "addresses"  [{"street-address" "330 W 86th St"
+                        "city"           "New York"
+                        "state"          "NY"
+                        "zip"            "10024"}]
+         "balance"    3800.60
+         "is-admin"   false
+         "roles"      ["user"]
+         "last-login" "2020-06-04T22:32:29.871744"}))))
