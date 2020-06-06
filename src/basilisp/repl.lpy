@@ -17,15 +17,20 @@
 (defn pydoc
   "Print the Python docstring for a function."
   [o]
-  (print (inspect/getdoc o)))
+  (println (inspect/getdoc o)))
 
 (defn print-doc
   "Print the docstring from an interned var."
   [v]
   (let [var-meta (meta v)]
-    (if var-meta
-      (print (:doc var-meta))
-      nil)))
+    (println "------------------------")
+    (println (cond->> (name v)
+               (namespace v) (str (namespace v) "/")))
+    (when var-meta
+      (when-let [arglists (:arglists var-meta)]
+        (println arglists))
+      (when-let [docstring (:doc var-meta)]
+        (println " " docstring)))))
 
 (defmacro doc
   "Print the docstring from an interned Var if found."

@@ -1,0 +1,222 @@
+(ns tests.basilisp.test-json
+  (:import datetime)
+  (:require
+   [basilisp.json :as json]
+   [basilisp.test :refer [deftest is are testing]]))
+
+(deftest read-str-test
+  (testing "primitive values"
+    (are [x y] (= y (json/read-str x))
+      "null"       nil
+      "true"       true
+      "false"      false
+      "0"          0
+      "1"          1
+      "-1"         -1
+      "0.0"        0.0
+      "1.0"        1.0
+      "-1.0"       -1.0
+      "\"\""       ""
+      "\"string\"" "string"
+      "[]"         []
+      "{}"         {}))
+
+  (testing "arrays"
+    (are [x y] (= y (json/read-str x))
+      "[null, true, false, 0, 1, -1, 0.0, 1.0, -1.0, \"\", \"string\", [], {}]"
+      [nil true false 0 1 -1 0.0 1.0 -1.0 "" "string" [] {}]
+
+      "[[null, true, false], [0, 1, -1], [0.0, 1.0, -1.0], [\"\", [\"string\"]], [[]], [{}]]"
+      [[nil true false] [0 1 -1] [0.0 1.0 -1.0] ["" ["string"]] [[]] [{}]]
+
+      "[
+         {\"id\": 35, \"name\": \"Chris\", \"is_admin\": false, \"roles\": [\"user\"]},
+         {\"id\": 42, \"name\": \"Carl\", \"is_admin\": true, \"roles\": [\"admin\"]}
+       ]"
+      [{"id" 35 "name" "Chris" "is_admin" false "roles" ["user"]}
+       {"id" 42 "name" "Carl" "is_admin" true "roles" ["admin"]}]))
+
+  (testing "objects"
+    (is (= {"id"        35
+            "name"      "Chris"
+            "title"     nil
+            "phone"     {"type"   "home"
+                         "number" "+15558675309"}
+            "addresses" [{"street_address" "330 W 86th St"
+                          "city"           "New York"
+                          "state"          "NY"
+                          "zip"            "10024"}]
+            "balance"   3800.60
+            "is_admin"  false
+            "roles"     ["user"]}
+           (json/read-str
+            (str
+             "{"
+             "\"id\": 35,"
+             "\"name\": \"Chris\","
+             "\"title\": null,"
+             "\"phone\": {\"type\": \"home\", \"number\":\"+15558675309\"},"
+             "\"addresses\": [{\"street_address\": \"330 W 86th St\", \"city\": \"New York\", \"state\": \"NY\", \"zip\":\"10024\"}],"
+             "\"balance\": 3800.60,"
+             "\"is_admin\": false,"
+             "\"roles\": [\"user\"]"
+             "}"))))
+
+    (is (= {:id        35
+            :name      "Chris"
+            :title     nil
+            :phone     {:type   "home"
+                        :number "+15558675309"}
+            :addresses [{:street_address "330 W 86th St"
+                         :city           "New York"
+                         :state          "NY"
+                         :zip            "10024"}]
+            :balance   3800.60
+            :is_admin  false
+            :roles     ["user"]}
+           (json/read-str
+            (str
+             "{"
+             "\"id\": 35,"
+             "\"name\": \"Chris\","
+             "\"title\": null,"
+             "\"phone\": {\"type\": \"home\", \"number\":\"+15558675309\"},"
+             "\"addresses\": [{\"street_address\": \"330 W 86th St\", \"city\": \"New York\", \"state\": \"NY\", \"zip\":\"10024\"}],"
+             "\"balance\": 3800.60,"
+             "\"is_admin\": false,"
+             "\"roles\": [\"user\"]"
+             "}")
+            :key-fn keyword)))))
+
+(deftest write-str-test
+  (testing "primitive values"
+    (are [x y] (= y (json/write-str x))
+      nil      "null"
+      true     "true"
+      false    "false"
+      0        "0"
+      1        "1"
+      -1       "-1"
+      0.0      "0.0"
+      1.0      "1.0"
+      -1.0     "-1.0"
+      ""       "\"\""
+      "string" "\"string\""
+
+      :kw          "\"kw\""
+      :ns/kw       "\"ns/kw\""
+      :long.ns/kw  "\"long.ns/kw\""
+      'sym         "\"sym\""
+      'ns/sym      "\"ns/sym\""
+      'long.ns/sym "\"long.ns/sym\""
+
+      #{} "[]"
+      '() "[]"
+      []  "[]"
+      {}  "{}"
+
+      #inst "2020-06-04T22:32:29.871744"           "\"2020-06-04T22:32:29.871744\""
+      (datetime/date 2020 6 4)                     "\"2020-06-04\""
+      (datetime/time 22 35 38)                     "\"22:35:38\""
+      3.1415926535M                                "\"3.1415926535\""
+      22/7                                         "\"22/7\""
+      #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc" "\"632ac3d8-fcfd-4d36-a05b-a54277a345bc\""
+
+      #py () "[]")
+
+    ;; Mutable Python data types cause issues with the `do-template` used by
+    ;; the `are` macro, so these have to be written as `is` cases.
+    (is (= "[]" (json/write-str #py #{})))
+    (is (= "[]" (json/write-str #py [])))
+    (is (= "{}" (json/write-str #py {}))))
+
+  (testing "to JSON array"
+    (testing "vectors"
+      (are [x y] (= y (json/write-str x))
+        [nil true false 0 1 -1 0.0 1.0 -1.0 "" "string"]
+        "[null, true, false, 0, 1, -1, 0.0, 1.0, -1.0, \"\", \"string\"]"
+
+        [:kw :ns/kw :long.ns/kw 'sym 'ns/sym 'long.ns/sym]
+        "[\"kw\", \"ns/kw\", \"long.ns/kw\", \"sym\", \"ns/sym\", \"long.ns/sym\"]"
+
+        [#inst "2020-06-04T22:32:29.871744"
+         (datetime/date 2020 6 4)
+         (datetime/time 22 35 38)
+         3.1415926535M
+         22/7
+         #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"]
+        "[\"2020-06-04T22:32:29.871744\", \"2020-06-04\", \"22:35:38\", \"3.1415926535\", \"22/7\", \"632ac3d8-fcfd-4d36-a05b-a54277a345bc\"]")
+
+      (are [x y] (= y (json/read-str (json/write-str x)))
+        [{:id 35 :name "Chris" :title nil :roles #{"user"}}
+         {:id 41 :name "Arbuckle" :title :title/Administrator :roles #py ("user", :system/admin)}]
+        [{"id" 35 "name" "Chris" "title" nil "roles" ["user"]}
+         {"id" 41 "name" "Arbuckle" "title" "title/Administrator" "roles" ["user" "system/admin"]}]))
+
+    (testing "list"
+      (are [x y] (= y (json/write-str x))
+        '(nil true false 0 1 -1 0.0 1.0 -1.0 "" "string")
+        "[null, true, false, 0, 1, -1, 0.0, 1.0, -1.0, \"\", \"string\"]"
+
+        '(:kw :ns/kw :long.ns/kw sym ns/sym long.ns/sym)
+        "[\"kw\", \"ns/kw\", \"long.ns/kw\", \"sym\", \"ns/sym\", \"long.ns/sym\"]"
+
+        (list
+         #inst "2020-06-04T22:32:29.871744"
+         (datetime/date 2020 6 4)
+         (datetime/time 22 35 38)
+         3.1415926535M
+         22/7
+         #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc")
+        "[\"2020-06-04T22:32:29.871744\", \"2020-06-04\", \"22:35:38\", \"3.1415926535\", \"22/7\", \"632ac3d8-fcfd-4d36-a05b-a54277a345bc\"]")
+
+      (are [x y] (= y (json/read-str (json/write-str x)))
+        '({:id 35 :name "Chris" :title nil :roles #{"user"}}
+          {:id 41 :name "Arbuckle" :title :title/Administrator :roles #py ("user", :system/admin)})
+        [{"id" 35 "name" "Chris" "title" nil "roles" ["user"]}
+         {"id" 41 "name" "Arbuckle" "title" "title/Administrator" "roles" ["user" "system/admin"]}]))
+
+    (testing "sets"
+      (are [x] (= (set x) (set (json/read-str (json/write-str x))))
+        [nil true false 0 1 -1 0.0 1.0 -1.0 "" "string"])
+
+      (are [x y] (= y (set (json/read-str (json/write-str x))))
+        [:kw :ns/kw :long.ns/kw 'sym 'ns/sym 'long.ns/sym]
+        #{"kw" "ns/kw" "long.ns/kw" "sym" "ns/sym" "long.ns/sym"}
+
+        #{#inst "2020-06-04T22:32:29.871744"
+          (datetime/date 2020 6 4)
+          (datetime/time 22 35 38)
+          3.1415926535M
+          22/7
+          #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"}
+        #{"2020-06-04T22:32:29.871744", "2020-06-04", "22:35:38", "3.1415926535", "22/7", "632ac3d8-fcfd-4d36-a05b-a54277a345bc"}))
+
+    (testing "objects"
+      (are [x y] (= y (json/read-str (json/write-str x)))
+        {:id         #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"
+         :name       "Chris"
+         :title      nil
+         :phone      {:type   "home"
+                      :number "+15558675309"}
+         :addresses  [{:street-address "330 W 86th St"
+                       :city           "New York"
+                       :state          "NY"
+                       :zip            "10024"}]
+         :balance    3800.60
+         :is-admin   false
+         :roles      [:user]
+         :last-login #inst "2020-06-04T22:32:29.871744"}
+        {"id"         "632ac3d8-fcfd-4d36-a05b-a54277a345bc"
+         "name"       "Chris"
+         "title"      nil
+         "phone"      {"type"   "home"
+                       "number" "+15558675309"}
+         "addresses"  [{"street-address" "330 W 86th St"
+                        "city"           "New York"
+                        "state"          "NY"
+                        "zip"            "10024"}]
+         "balance"    3800.60
+         "is-admin"   false
+         "roles"      ["user"]
+         "last-login" "2020-06-04T22:32:29.871744"}))))

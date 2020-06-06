@@ -1165,23 +1165,9 @@ def is_special_form(s: sym.Symbol) -> bool:
 
 
 @functools.singledispatch
-def to_lisp(o, keywordize_keys: bool = True):
+def to_lisp(o, keywordize_keys: bool = True):  # pylint: disable=unused-argument
     """Recursively convert Python collections into Lisp collections."""
-    if not isinstance(o, (dict, frozenset, list, set, tuple)):
-        return o
-    else:  # pragma: no cover
-        return _to_lisp_backup(o, keywordize_keys=keywordize_keys)
-
-
-def _to_lisp_backup(o, keywordize_keys: bool = True):  # pragma: no cover
-    if isinstance(o, Mapping):
-        return _to_lisp_map(o, keywordize_keys=keywordize_keys)
-    elif isinstance(o, AbstractSet):
-        return _to_lisp_set(o, keywordize_keys=keywordize_keys)
-    elif isinstance(o, Iterable):
-        return _to_lisp_vec(o, keywordize_keys=keywordize_keys)
-    else:
-        return o
+    return o
 
 
 @to_lisp.register(list)
@@ -1192,17 +1178,20 @@ def _to_lisp_vec(o: Iterable, keywordize_keys: bool = True) -> vec.Vector:
     )
 
 
+@functools.singledispatch
+def _keywordize_keys(k):
+    return k
+
+
+@_keywordize_keys.register(str)
+def _keywordize_keys_str(k):
+    return kw.keyword(k)
+
+
 @to_lisp.register(dict)
 def _to_lisp_map(o: Mapping, keywordize_keys: bool = True) -> lmap.Map:
-    kvs = {}
-    for k, v in o.items():
-        if isinstance(k, str) and keywordize_keys:
-            processed_key = kw.keyword(k)
-        else:
-            processed_key = to_lisp(k, keywordize_keys=keywordize_keys)
-
-        kvs[processed_key] = to_lisp(v, keywordize_keys=keywordize_keys)
-    return lmap.map(kvs)
+    process_key = _keywordize_keys if keywordize_keys else lambda x: x
+    return lmap.map({process_key(k): v for k, v in o.items()})  # type: ignore[operator]
 
 
 @to_lisp.register(frozenset)
@@ -1216,29 +1205,11 @@ def _kw_name(kw: kw.Keyword) -> str:
 
 
 @functools.singledispatch
-def to_py(o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name):
-    """Recursively convert Lisp collections into Python collections."""
-    if isinstance(o, ISeq):
-        return _to_py_list(o, keyword_fn=keyword_fn)
-    elif not isinstance(
-        o, (IPersistentList, IPersistentMap, IPersistentSet, IPersistentVector)
-    ):
-        return o
-    else:  # pragma: no cover
-        return _to_py_backup(o, keyword_fn=keyword_fn)
-
-
-def _to_py_backup(
+def to_py(
     o, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
-):  # pragma: no cover
-    if isinstance(o, (IPersistentList, IPersistentVector)):
-        return _to_py_list(o, keyword_fn=keyword_fn)
-    elif isinstance(o, IPersistentMap):
-        return _to_py_map(o, keyword_fn=keyword_fn)
-    elif isinstance(o, IPersistentSet):
-        return _to_py_set(o, keyword_fn=keyword_fn)
-    else:
-        return o
+):  # pylint: disable=unused-argument
+    """Recursively convert Lisp collections into Python collections."""
+    return o
 
 
 @to_py.register(kw.Keyword)
@@ -1246,9 +1217,9 @@ def _to_py_kw(o: kw.Keyword, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name)
     return keyword_fn(o)
 
 
-@to_py.register(llist.List)
+@to_py.register(IPersistentList)
 @to_py.register(ISeq)
-@to_py.register(vec.Vector)
+@to_py.register(IPersistentVector)
 def _to_py_list(
     o: Union[IPersistentList, ISeq, IPersistentVector],
     keyword_fn: Callable[[kw.Keyword], Any] = _kw_name,
@@ -1256,7 +1227,7 @@ def _to_py_list(
     return list(map(functools.partial(to_py, keyword_fn=keyword_fn), o))
 
 
-@to_py.register(lmap.Map)
+@to_py.register(IPersistentMap)
 def _to_py_map(
     o: IPersistentMap, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
 ) -> dict:
@@ -1266,7 +1237,7 @@ def _to_py_map(
     }
 
 
-@to_py.register(lset.Set)
+@to_py.register(IPersistentSet)
 def _to_py_set(
     o: IPersistentSet, keyword_fn: Callable[[kw.Keyword], Any] = _kw_name
 ) -> set:

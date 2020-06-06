@@ -3024,6 +3024,17 @@
         ~@(rest method-calls)))
     x))
 
+(defmacro memfn
+  "Expands into a function that calls the method `name` on the first argument
+  of the resulting function. If `args` are provided, the resulting function will
+  have arguments of these names.
+
+  This is a convenient way of producing a first-class function for a Python
+  method."
+  [name & args]
+  `(fn [t# ~@args]
+     (. t# ~name ~@args)))
+
 (defmacro new
   "Create a new instance of class with args.
 
@@ -3947,6 +3958,8 @@
                              (:import opts)))]
     `(do
        (in-ns (quote ~name))
+       ~(when doc
+          `(alter-meta! (the-ns (quote ~name)) assoc :doc ~doc))
        (refer-basilisp ~@refer-filters)
        ~requires
        ~uses
@@ -4836,7 +4849,7 @@
   (->> (group-by first methods)
        (reduce (fn [m [method-name arities]]
                  (->> (map rest arities)
-                      (apply list `fn method-name)
+                      (apply list `fn)
                       (assoc m (keyword (name method-name)))))
                {})))
 
