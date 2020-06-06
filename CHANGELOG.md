@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for multi-arity methods on `definterface` (#538)
  * Added support for Protocols (#460)
  * Added support for Volatiles (#460)
+ * Add JSON encoder and decoder in `basilisp.json` namespace (#484)
 
 ### Fixed
  * Fixed a bug where the Basilisp AST nodes for return values of `deftype` members could be marked as _statements_ rather than _expressions_, resulting in an incorrect `nil` return (#523)

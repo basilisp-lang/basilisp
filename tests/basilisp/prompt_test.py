@@ -68,6 +68,7 @@ class TestCompleter:
                     "mapv",
                     "max",
                     "max-key",
+                    "memfn",
                     "merge",
                     "meta",
                     "methods",
