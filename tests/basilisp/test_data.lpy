@@ -1,0 +1,58 @@
+(ns tests.basilisp.test-data
+  (:import datetime)
+  (:require
+   [basilisp.data :refer [diff]]
+   [basilisp.test :refer [deftest are testing]]))
+
+(deftest diff-test
+  (testing "scalar types equal"
+    (are [x] (= [nil nil x] (diff x x))
+      ""
+      "string"
+      -1
+      0
+      1
+      -1.0
+      0.0
+      1.0
+      true
+      false
+      nil
+
+      :kw
+      :ns/kw
+      'sym
+      'ns/sym
+
+      #inst "2020-06-04T22:32:29.871744"
+      (datetime/date 2020 6 4)
+      (datetime/time 22 35 38)
+      3.1415926535M
+      22/7
+      #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"))
+
+  (testing "scalar types unequal"
+    (are [x y] (= [x y nil] (diff x y))
+      ""       "not empty"
+      "string" "not a string"
+      -1       -9327
+      0        3
+      1        1373
+      -1.0     -71.183
+      0.0      1.373
+      1.0      43727272.3
+      true     false
+      false    true
+      nil      :not-nil
+
+      :kw     :other-kw
+      :ns/kw  :other-ns/kw
+      'sym    'other-sym
+      'ns/sym 'other-ns/sym
+
+      #inst "2020-06-04T22:32:29.871744"           #inst "2019-01-03T11:15:30.871744"
+      (datetime/date 2020 6 4)                     (datetime/time 22 35 38)
+      (datetime/time 22 35 38)                     (datetime/date 2020 6 4)
+      3.1415926535M                                2.7182818284M
+      22/7                                         1/2
+      #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc" #uuid "33fef9e5-071c-47e6-886c-f8790bf1d07d")))
