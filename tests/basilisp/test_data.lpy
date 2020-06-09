@@ -5,54 +5,228 @@
    [basilisp.test :refer [deftest are testing]]))
 
 (deftest diff-test
-  (testing "scalar types equal"
-    (are [x] (= [nil nil x] (diff x x))
-      ""
-      "string"
-      -1
-      0
-      1
-      -1.0
-      0.0
-      1.0
-      true
-      false
-      nil
+  (testing "scalar types"
+    (testing "no diff if equal"
+      (are [x] (= [nil nil x] (diff x x))
+        ""
+        "string"
+        -1
+        0
+        1
+        -1.0
+        0.0
+        1.0
+        true
+        false
+        nil
 
-      :kw
-      :ns/kw
-      'sym
-      'ns/sym
+        :kw
+        :ns/kw
+        'sym
+        'ns/sym
 
-      #inst "2020-06-04T22:32:29.871744"
-      (datetime/date 2020 6 4)
-      (datetime/time 22 35 38)
-      3.1415926535M
-      22/7
-      #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"))
+        #inst "2020-06-04T22:32:29.871744"
+        (datetime/date 2020 6 4)
+        (datetime/time 22 35 38)
+        3.1415926535M
+        22/7
+        #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"))
 
-  (testing "scalar types unequal"
-    (are [x y] (= [x y nil] (diff x y))
-      ""       "not empty"
-      "string" "not a string"
-      -1       -9327
-      0        3
-      1        1373
-      -1.0     -71.183
-      0.0      1.373
-      1.0      43727272.3
-      true     false
-      false    true
-      nil      :not-nil
+    (testing "completely different if not equal"
+      (are [x y] (= [x y nil] (diff x y))
+        ""       "not empty"
+        "string" "not a string"
+        -1       -9327
+        0        3
+        1        1373
+        -1.0     -71.183
+        0.0      1.373
+        1.0      43727272.3
+        true     false
+        false    true
+        nil      :not-nil
 
-      :kw     :other-kw
-      :ns/kw  :other-ns/kw
-      'sym    'other-sym
-      'ns/sym 'other-ns/sym
+        :kw     :other-kw
+        :ns/kw  :other-ns/kw
+        'sym    'other-sym
+        'ns/sym 'other-ns/sym
 
-      #inst "2020-06-04T22:32:29.871744"           #inst "2019-01-03T11:15:30.871744"
-      (datetime/date 2020 6 4)                     (datetime/time 22 35 38)
-      (datetime/time 22 35 38)                     (datetime/date 2020 6 4)
-      3.1415926535M                                2.7182818284M
-      22/7                                         1/2
-      #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc" #uuid "33fef9e5-071c-47e6-886c-f8790bf1d07d")))
+        #inst "2020-06-04T22:32:29.871744"           #inst "2019-01-03T11:15:30.871744"
+        (datetime/date 2020 6 4)                     (datetime/time 22 35 38)
+        (datetime/time 22 35 38)                     (datetime/date 2020 6 4)
+        3.1415926535M                                2.7182818284M
+        22/7                                         1/2
+        #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc" #uuid "33fef9e5-071c-47e6-886c-f8790bf1d07d")))
+
+  (testing "set types"
+    (testing "set types never equal to non-set type"
+      (are [x] (= [#{} x nil] (diff #{} x))
+        ""
+        "string"
+        -1
+        0
+        1
+        -1.0
+        0.0
+        1.0
+        true
+        false
+        nil
+
+        :kw
+        :ns/kw
+        'sym
+        'ns/sym
+
+        #inst "2020-06-04T22:32:29.871744"
+        (datetime/date 2020 6 4)
+        (datetime/time 22 35 38)
+        3.1415926535M
+        22/7
+        #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"
+
+        {}
+        []
+        '()))
+
+    (testing "Basilisp set"
+      (are [x y z] (= z (diff x y))
+        #{}      #{}      [nil nil #{}]
+        #{:a}    #{:a}    [nil nil #{:a}]
+        #{:a}    #{:b}    [#{:a} #{:b} nil]
+        #{:a :b} #{:b :c} [#{:a} #{:c} #{:b}]
+
+        ;; no subdiffs
+        #{:a [:b :c]}     #{:a [:c :d]}     [#{[:b :c]} #{[:c :d]} #{:a}]
+        #{:a '(:b :c)}    #{:a '(:c :d)}    [#{'(:b :c)} #{'(:c :d)} #{:a}]
+        #{:a #{:b :c}}    #{:a #{:c :d}}    [#{#{:b :c}} #{#{:c :d}} #{:a}]
+        #{:a {:b 2 :c 3}} #{:a {:c 3 :d 4}} [#{{:b 2 :c 3}} #{{:c 3 :d 4}} #{:a}]))
+
+    #_(testing "mutable Python set"
+      (are [x y z] (= z (diff x y))
+        #py #{}      #py #{}      [nil nil #{}]
+        #py #{:a}    #py #{:a}    [nil nil #{:a}]
+        #py #{:a}    #py #{:b}    [#{:a} #{:b} nil]
+        #py #{:a :b} #py #{:b :c} [#{:a} #{:c} #{:b}]
+
+        ;; no subdiffs
+        #py #{:a [:b :c]}     #py #{:a [:c :d]}     [#{[:b :c]} #{[:c :d]} #{:a}]
+        #py #{:a '(:b :c)}    #py #{:a '(:c :d)}    [#{'(:b :c)} #{'(:c :d)} #{:a}]
+        #py #{:a #{:b :c}}    #py #{:a #{:c :d}}    [#{#{:b :c}} #{#{:c :d}} #{:a}]
+        #py #{:a {:b 2 :c 3}} #py #{:a {:c 3 :d 4}} [#{{:b 2 :c 3}} #{{:c 3 :d 4}} #{:a}]))
+
+    (testing "Python frozenset"
+      (are [x y z] (= z (diff x y))
+        (python/frozenset)         (python/frozenset)         [nil nil #{}]
+        (python/frozenset [:a])    (python/frozenset [:a])    [nil nil #{:a}]
+        (python/frozenset [:a])    (python/frozenset [:b])    [#{:a} #{:b} nil]
+        (python/frozenset [:a :b]) (python/frozenset [:b :c]) [#{:a} #{:c} #{:b}]
+
+        ;; no subdiffs
+        (python/frozenset [:a [:b :c]])     (python/frozenset [:a [:c :d]])     [#{[:b :c]} #{[:c :d]} #{:a}]
+        (python/frozenset [:a '(:b :c)])    (python/frozenset [:a '(:c :d)])    [#{'(:b :c)} #{'(:c :d)} #{:a}]
+        (python/frozenset [:a #{:b :c}])    (python/frozenset [:a #{:c :d}])    [#{#{:b :c}} #{#{:c :d}} #{:a}]
+        (python/frozenset [:a {:b 2 :c 3}]) (python/frozenset [:a {:c 3 :d 4}]) [#{{:b 2 :c 3}} #{{:c 3 :d 4}} #{:a}])))
+
+  (testing "sequential types"
+    (testing "vector types never equal to non-sequential type"
+      (are [x] (= [[] x nil] (diff [] x))
+        ""
+        "string"
+        -1
+        0
+        1
+        -1.0
+        0.0
+        1.0
+        true
+        false
+        nil
+
+        :kw
+        :ns/kw
+        'sym
+        'ns/sym
+
+        #inst "2020-06-04T22:32:29.871744"
+        (datetime/date 2020 6 4)
+        (datetime/time 22 35 38)
+        3.1415926535M
+        22/7
+        #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"
+
+        {}
+        {:a 1}
+        #{}
+        #{:a :b :c}))
+
+    (testing "list types never equal to non-sequential type"
+      (are [x] (= ['() x nil] (diff '() x))
+        ""
+        "string"
+        -1
+        0
+        1
+        -1.0
+        0.0
+        1.0
+        true
+        false
+        nil
+
+        :kw
+        :ns/kw
+        'sym
+        'ns/sym
+
+        #inst "2020-06-04T22:32:29.871744"
+        (datetime/date 2020 6 4)
+        (datetime/time 22 35 38)
+        3.1415926535M
+        22/7
+        #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"
+
+        {}
+        {:a 1}
+        #{}
+        #{:a :b :c})))
+
+  (testing "map types"
+    (testing "map types never equal to non-map type"
+      (are [x] (= [{} x nil] (diff {} x))
+        ""
+        "string"
+        -1
+        0
+        1
+        -1.0
+        0.0
+        1.0
+        true
+        false
+        nil
+
+        :kw
+        :ns/kw
+        'sym
+        'ns/sym
+
+        #inst "2020-06-04T22:32:29.871744"
+        (datetime/date 2020 6 4)
+        (datetime/time 22 35 38)
+        3.1415926535M
+        22/7
+        #uuid "632ac3d8-fcfd-4d36-a05b-a54277a345bc"
+
+        []
+        [:a :b :c]
+        '()
+        '(:a :b :c)
+        #{}
+        #{:a :b :c}))
+
+    (are [x y z] (= z (diff x y))
+      {}     {}     [nil nil {}]
+      {:a 1} {:a 1} [nil nil {:a 1}]
+      {:a 1} {:a 2} [{:a 1} {:a 2} nil]
+      {:a 1} {:b 2} [{:a 1} {:b 2} nil])))
