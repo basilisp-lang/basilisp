@@ -9,7 +9,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    Type,
     TypeVar,
     Union,
 )

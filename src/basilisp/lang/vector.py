@@ -8,7 +8,6 @@ from basilisp.lang.interfaces import (
     IPersistentMap,
     IPersistentVector,
     ISeq,
-    ISequential,
     IWithMeta,
     seq_equals,
 )

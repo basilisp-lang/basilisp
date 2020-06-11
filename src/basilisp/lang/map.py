@@ -1,5 +1,4 @@
 from builtins import map as pymap
-from collections.abc import ItemsView, KeysView, ValuesView
 from typing import Callable, Iterable, Mapping, Optional, TypeVar, Union, cast
 
 from pyrsistent import PMap, pmap  # noqa # pylint: disable=unused-import

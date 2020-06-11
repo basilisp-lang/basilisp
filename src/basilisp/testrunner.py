@@ -104,7 +104,7 @@ class BasilispFile(pytest.File):
         ns = module.__basilisp_namespace__
         for test in self._collected_tests(ns):
             f: TestFunction = test.value
-            yield BasilispTestItem.from_parent(  # type: ignore[call-arg]
+            yield BasilispTestItem.from_parent(
                 self, name=test.name.name, run_test=f, namespace=ns, filename=filename
             )
 
@@ -145,7 +145,7 @@ class BasilispTestItem(pytest.Item):
         self._filename = filename
 
     @classmethod
-    def from_parent(
+    def from_parent(  # pylint: disable=arguments-differ,too-many-arguments
         cls,
         parent: "BasilispFile",
         name: str,
