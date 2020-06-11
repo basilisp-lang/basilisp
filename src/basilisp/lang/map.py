@@ -1,7 +1,7 @@
 from builtins import map as pymap
 from typing import Callable, Iterable, Mapping, Optional, TypeVar, Union, cast
 
-from pyrsistent import PMap, pmap  # noqa # pylint: disable=unused-import
+from immutables import Map as _Map
 
 from basilisp.lang.interfaces import (
     ILispObject,
@@ -25,14 +25,14 @@ _ENTRY_SENTINEL = object()
 
 
 class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
-    """Basilisp Map. Delegates internally to a pyrsistent.PMap object.
+    """Basilisp Map. Delegates internally to a immutables.Map object.
     Do not instantiate directly. Instead use the m() and map() factory
     methods below."""
 
     __slots__ = ("_inner", "_meta")
 
     def __init__(
-        self, wrapped: "PMap[K, V]", meta: Optional[IPersistentMap] = None
+        self, wrapped: "_Map[K, V]", meta: Optional[IPersistentMap] = None
     ) -> None:
         self._inner = wrapped
         self._meta = meta
@@ -50,7 +50,7 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
             return NotImplemented
         if len(self._inner) != len(other):
             return False
-        return dict(self._inner.iteritems()) == dict(other.items())
+        return self._inner == other
 
     def __getitem__(self, item):
         return self._inner[item]
@@ -59,14 +59,14 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         return hash(self._inner)
 
     def __iter__(self):
-        yield from self._inner.iterkeys()
+        yield from self._inner
 
     def __len__(self):
         return len(self._inner)
 
     def _lrepr(self, **kwargs):
         return _map_lrepr(
-            self._inner.iteritems, start="{", end="}", meta=self._meta, **kwargs
+            self._inner.items, start="{", end="}", meta=self._meta, **kwargs
         )
 
     @property
@@ -77,24 +77,22 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         return Map(self._inner, meta=meta)
 
     def assoc(self, *kvs):
-        m = self._inner.evolver()
-        for k, v in partition(kvs, 2):
-            m[k] = v
-        return Map(m.persistent())
+        with self._inner.mutate() as m:
+            for k, v in partition(kvs, 2):
+                m[k] = v
+            return Map(m.finish())
 
     def contains(self, k):
-        if k in self._inner:
-            return True
-        return False
+        return k in self._inner
 
     def dissoc(self, *ks):
-        m = self._inner.evolver()
-        for k in ks:
-            try:
-                del m[k]
-            except KeyError:
-                pass
-        return Map(m.persistent())
+        with self._inner.mutate() as m:
+            for k in ks:
+                try:
+                    del m[k]
+                except KeyError:
+                    pass
+            return Map(m.finish())
 
     def entry(self, k):
         v = self._inner.get(k, cast("V", _ENTRY_SENTINEL))
@@ -106,14 +104,17 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         return self._inner.get(k, default)
 
     def update(self, *maps: Mapping[K, V]) -> "Map":
-        m: PMap = self._inner.update(*maps)
+        m: _Map = self._inner.update(*maps)
         return Map(m)
 
     def update_with(
         self, merge_fn: Callable[[V, V], V], *maps: Mapping[K, V]
     ) -> "Map[K, V]":
-        m: PMap = self._inner.update_with(merge_fn, *maps)
-        return Map(m)
+        with self._inner.mutate() as m:
+            for map in maps:
+                for k, v in map.items():
+                    m.set(k, merge_fn(m[k], v) if k in m else v)
+            return Map(m.finish())
 
     def cons(  # type: ignore[override]
         self,
@@ -124,51 +125,49 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
             Mapping[K, V],
         ],
     ) -> "Map[K, V]":
-        e = self._inner.evolver()
-        try:
-            for elem in elems:
-                if isinstance(elem, (IPersistentMap, Mapping)):
-                    for k, v in elem.items():
-                        e.set(k, v)
-                elif isinstance(elem, IMapEntry):
-                    e.set(elem.key, elem.value)
-                elif elem is None:
-                    continue
-                else:
-                    # This block leniently allows nearly any 2 element sequential
-                    # type including Vectors, Python lists, and Python tuples.
-                    entry: IMapEntry[K, V] = MapEntry.from_vec(elem)
-                    e.set(entry.key, entry.value)
-        except (TypeError, ValueError):
-            raise ValueError(
-                "Argument to map conj must be another Map or castable to MapEntry"
-            )
-        else:
-            return Map(e.persistent(), meta=self.meta)
+        with self._inner.mutate() as m:
+            try:
+                for elem in elems:
+                    if isinstance(elem, (IPersistentMap, Mapping)):
+                        for k, v in elem.items():
+                            m.set(k, v)
+                    elif isinstance(elem, IMapEntry):
+                        m.set(elem.key, elem.value)
+                    elif elem is None:
+                        continue
+                    else:
+                        entry: IMapEntry[K, V] = MapEntry.from_vec(elem)
+                        m.set(entry.key, entry.value)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    "Argument to map conj must be another Map or castable to MapEntry"
+                )
+            else:
+                return Map(m.finish(), meta=self.meta)
 
     @staticmethod
     def empty() -> "Map":
         return m()
 
     def seq(self) -> ISeq[IMapEntry[K, V]]:
-        return sequence(MapEntry.of(k, v) for k, v in self._inner.iteritems())
+        return sequence(MapEntry.of(k, v) for k, v in self._inner.items())
 
 
 def map(kvs: Mapping[K, V], meta=None) -> Map[K, V]:  # pylint:disable=redefined-builtin
     """Creates a new map."""
-    return Map(pmap(initial=kvs), meta=meta)
+    return Map(_Map(kvs), meta=meta)
 
 
 def m(**kvs) -> Map[str, V]:
     """Creates a new map from keyword arguments."""
-    return Map(pmap(initial=kvs))
+    return Map(_Map(kvs))
 
 
 def from_entries(entries: Iterable[MapEntry[K, V]]) -> Map[K, V]:
-    m = pmap().evolver()  # type: ignore
-    for entry in entries:
-        m.set(entry.key, entry.value)
-    return Map(m.persistent())
+    with _Map().mutate() as m:  # type: ignore[var-annotated]
+        for entry in entries:
+            m.set(entry.key, entry.value)
+        return Map(m.finish())
 
 
 def hash_map(*pairs) -> Map:

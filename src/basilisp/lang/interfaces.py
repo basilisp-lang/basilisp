@@ -9,6 +9,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Sized,
     TypeVar,
     Union,
 )
@@ -36,8 +37,26 @@ class IBlockingDeref(IDeref[T]):
         raise NotImplementedError()
 
 
-class ICounted(ABC):
+class ICounted(Sized, ABC):
+    """ICounted types can produce their length in constant time.
+
+    All of the builtin collections are ICountable, except Lists whose length is
+    determined by counting all of the elements in the list in linear time."""
+
     __slots__ = ()
+
+
+class IIndexed(ICounted, Generic[T], ABC):
+    """IIndexed types can be accessed by index.
+
+    Of the builtin collections, only Vectors are IIndexed. IIndexed types respond
+    True to the `indexed?` predicate."""
+
+    __slots__ = ()
+
+    @abstractmethod
+    def __getitem__(self, item) -> T:
+        raise NotImplementedError()
 
 
 # Making this interface Generic causes the __repr__ to differ between
@@ -107,6 +126,12 @@ class IReference(IMeta):
 
 
 class IReversible(Generic[T]):
+    """IReversible types can produce a sequences of their elements in reverse in
+    constant time.
+
+    Of the builtin collections, only Vectors are IReversible. IIndexed types respond
+    True to the `reversible` predicate."""
+
     __slots__ = ()
 
     @abstractmethod
@@ -115,6 +140,11 @@ class IReversible(Generic[T]):
 
 
 class ISeqable(Iterable[T]):
+    """ISeqable types can produce sequences of their elements, but are not ISeqs.
+
+    All of the builtin collections are ISeqable, except Lists which directly
+    implement ISeq. Values of type ISeqable respond True to the `seqable?` predicate."""
+
     __slots__ = ()
 
     @abstractmethod
@@ -123,6 +153,11 @@ class ISeqable(Iterable[T]):
 
 
 class ISequential(ABC):
+    """ISequential is a marker interface for sequential types.
+
+    Lists and Vectors are both considered ISequential and respond True to the
+    `sequential?` predicate."""
+
     __slots__ = ()
 
 
@@ -222,7 +257,7 @@ T_vec = TypeVar("T_vec", bound="IPersistentVector")
 class IPersistentVector(
     Sequence[T],
     IAssociative[int, T],
-    ICounted,
+    IIndexed[T],
     IReversible[T],
     ISequential,
     IPersistentStack[T],
@@ -243,6 +278,10 @@ class IPersistentVector(
 
 
 class IRecord(ILispObject):
+    """IRecord is a marker interface for types def'ed by `defrecord` forms.
+
+    All types created by `defrecord` are automatically marked with IRecord."""
+
     __slots__ = ()
 
     @classmethod
@@ -347,4 +386,8 @@ class ISeq(ILispObject, ISeqable[T]):
 
 
 class IType(ABC):
+    """IType is a marker interface for types def'ed by `deftype` forms.
+
+    All types created by `deftype` are automatically marked with IType."""
+
     __slots__ = ()
