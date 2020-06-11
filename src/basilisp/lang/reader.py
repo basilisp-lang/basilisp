@@ -296,11 +296,11 @@ class ReaderContext:
         process_reader_cond: bool = True,
     ) -> None:
         data_readers = Maybe(data_readers).or_else_get(lmap.Map.empty())
-        for entry in data_readers:
-            if not isinstance(entry.key, symbol.Symbol):
+        for reader_sym in data_readers.keys():
+            if not isinstance(reader_sym, symbol.Symbol):
                 raise TypeError("Expected symbol for data reader tag")
-            if not entry.key.ns:
-                raise ValueError(f"Non-namespaced tags are reserved by the reader")
+            if not reader_sym.ns:
+                raise ValueError("Non-namespaced tags are reserved by the reader")
 
         self._data_readers = ReaderContext._DATA_READERS.update_with(
             lambda l, r: l,  # Do not allow callers to overwrite existing builtin readers

@@ -1,3 +1,6 @@
+from decimal import Decimal
+from fractions import Fraction
+
 import pytest
 
 import basilisp.lang.atom as atom
@@ -25,7 +28,7 @@ def test_first():
 
 
 def test_rest():
-    assert None is runtime.rest(None)
+    assert lseq.EMPTY is runtime.rest(None)
     assert lseq.EMPTY is runtime.rest(llist.l())
     assert lseq.EMPTY is runtime.rest(llist.l(1))
     assert llist.l(2, 3) == runtime.rest(llist.l(1, 2, 3))
@@ -269,6 +272,80 @@ def test_deref():
 
     with pytest.raises(TypeError):
         runtime.deref(vec.Vector.empty())
+
+
+@pytest.mark.parametrize(
+    "v1,v2",
+    [
+        (0, 0),
+        (1, 1),
+        (-1, -1),
+        (0.0, 0.0),
+        (1.0, 1.0),
+        (-1.0, -1.0),
+        (0.0, 0),
+        (1.0, 1),
+        (-1.0, -1),
+        (True, True),
+        (False, False),
+        (None, None),
+        ("", ""),
+        ("not empty", "not empty"),
+        (Fraction("1/2"), Fraction("1/2")),
+        (Decimal("3.14159"), Decimal("3.14159")),
+        (llist.List.empty(), llist.List.empty()),
+        (llist.l(1, 2, 3), llist.l(1, 2, 3)),
+        (lmap.Map.empty(), lmap.Map.empty()),
+        (lmap.map({"a": 1, "b": 2}), lmap.map({"a": 1, "b": 2})),
+        (lset.Set.empty(), lset.Set.empty()),
+        (lset.s(1, 2, 3), lset.s(1, 2, 3)),
+        (vec.Vector.empty(), vec.Vector.empty()),
+        (vec.v(1, 2, 3), vec.v(1, 2, 3)),
+        (lseq.EMPTY, lseq.EMPTY),
+        (lseq.EMPTY.cons(3).cons(2).cons(1), lseq.EMPTY.cons(3).cons(2).cons(1)),
+        (vec.v(1, 2, 3), lseq.EMPTY.cons(3).cons(2).cons(1)),
+        (llist.List.empty(), vec.Vector.empty()),
+        (llist.l(1, 2, 3), vec.v(1, 2, 3)),
+        (lseq.EMPTY, vec.Vector.empty()),
+        (lseq.EMPTY.cons(3).cons(2).cons(1), vec.v(1, 2, 3)),
+        (llist.List.empty(), lseq.EMPTY),
+        (lseq.EMPTY.cons(3).cons(2).cons(1), llist.l(1, 2, 3)),
+    ],
+)
+def test_equals(v1, v2):
+    assert runtime.equals(v1, v2)
+    assert runtime.equals(v2, v1)
+
+
+@pytest.mark.parametrize(
+    "v1,v2",
+    [
+        (1, True),
+        (0, False),
+        ("", "not empty"),
+        (1, -1),
+        (0, 0.00000032),
+        (llist.l(1, 2, 3), llist.l(2, 3, 4)),
+        (llist.l(1, 2, 3), vec.v(2, 3, 4)),
+        (lmap.Map.empty(), llist.List.empty()),
+        (lmap.Map.empty(), vec.Vector.empty()),
+        (lmap.Map.empty(), lseq.EMPTY),
+        (lmap.map({1: "1", 2: "2", 3: "3"}), llist.l(1, 2, 3)),
+        (lmap.map({1: "1", 2: "2", 3: "3"}), vec.v(1, 2, 3)),
+        (lmap.map({1: "1", 2: "2", 3: "3"}), lseq.EMPTY.cons(3).cons(2).cons(1)),
+        (lset.Set.empty(), llist.List.empty()),
+        (lset.Set.empty(), lmap.Map.empty()),
+        (lset.Set.empty(), vec.Vector.empty()),
+        (lset.Set.empty(), lseq.EMPTY),
+        (lset.s(1, 2, 3), llist.l(1, 2, 3)),
+        (lset.s(1, 2, 3), lmap.Map.empty()),
+        (lset.s(1, 2, 3), vec.v(1, 2, 3)),
+        (lset.s(1, 2, 3), lseq.EMPTY.cons(3).cons(2).cons(1)),
+    ],
+)
+def test_not_equals(v1, v2):
+    assert not runtime.equals(v1, v2)
+    assert not runtime.equals(v2, v1)
 
 
 def test_pop_thread_bindings():

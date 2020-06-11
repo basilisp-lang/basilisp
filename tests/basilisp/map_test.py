@@ -6,6 +6,7 @@ import pytest
 import basilisp.lang.map as lmap
 from basilisp.lang.interfaces import (
     IAssociative,
+    ICounted,
     ILispObject,
     IMapEntry,
     IPersistentCollection,
@@ -15,7 +16,7 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import symbol
-from basilisp.lang.vector import MapEntry
+from basilisp.lang.vector import MapEntry, v
 
 
 def test_map_entry_interface_membership():
@@ -27,12 +28,13 @@ def test_map_entry_interface_membership():
     "interface",
     [
         IAssociative,
-        IPersistentCollection,
-        IWithMeta,
-        IPersistentMap,
-        Mapping,
+        ICounted,
         ILispObject,
+        IPersistentCollection,
+        IPersistentMap,
         ISeqable,
+        IWithMeta,
+        Mapping,
     ],
 )
 def test_map_interface_membership(interface):
@@ -72,6 +74,12 @@ def test_dissoc():
 
 
 def test_entry():
+    assert MapEntry.of("a", 1) == lmap.map({"a": 1}).entry("a")
+    assert None is lmap.map({"a": 1}).entry("b")
+    assert None is lmap.Map.empty().entry("a")
+
+
+def test_val_at():
     assert 1 == lmap.map({"a": 1}).val_at("a")
     assert None is lmap.map({"a": 1}).val_at("b")
     assert None is lmap.Map.empty().val_at("a")
@@ -119,7 +127,7 @@ def test_map_cons():
 
     meta = lmap.m(tag="async")
     m1 = lmap.map({"first": "Chris"}, meta=meta)
-    m2 = m1.cons(["last", "Cronk"], ["middle", "L"])
+    m2 = m1.cons(["last", "Cronk"], v("middle", "L"))
     assert m1 is not m2
     assert m1 != m2
     assert len(m2) == 3
