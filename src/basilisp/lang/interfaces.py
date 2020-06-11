@@ -9,7 +9,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    Sized,
     TypeVar,
     Union,
 )
@@ -37,7 +36,7 @@ class IBlockingDeref(IDeref[T]):
         raise NotImplementedError()
 
 
-class ICounted(Sized, ABC):
+class ICounted(ABC):
     """ICounted types can produce their length in constant time.
 
     All of the builtin collections are ICountable, except Lists whose length is
@@ -53,10 +52,6 @@ class IIndexed(ICounted, Generic[T], ABC):
     True to the `indexed?` predicate."""
 
     __slots__ = ()
-
-    @abstractmethod
-    def __getitem__(self, item) -> T:
-        raise NotImplementedError()
 
 
 # Making this interface Generic causes the __repr__ to differ between
