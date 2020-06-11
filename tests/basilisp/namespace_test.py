@@ -38,11 +38,11 @@ def ns_sym() -> sym.Symbol:
 
 
 def test_create_ns(ns_sym: sym.Symbol, ns_cache: atom.Atom[NamespaceMap]):
-    assert len(ns_cache.deref().keys()) == 1
+    assert len(list(ns_cache.deref().keys())) == 1
     ns = get_or_create_ns(ns_sym)
     assert isinstance(ns, Namespace)
     assert ns.name == ns_sym.name
-    assert len(ns_cache.deref().keys()) == 2
+    assert len(list(ns_cache.deref().keys())) == 2
 
 
 @pytest.fixture
@@ -60,21 +60,21 @@ def ns_cache_with_existing_ns(
 def test_get_existing_ns(
     ns_sym: sym.Symbol, ns_cache_with_existing_ns: atom.Atom[NamespaceMap]
 ):
-    assert len(ns_cache_with_existing_ns.deref().keys()) == 2
+    assert len(list(ns_cache_with_existing_ns.deref().keys())) == 2
     ns = get_or_create_ns(ns_sym)
     assert isinstance(ns, Namespace)
     assert ns.name == ns_sym.name
-    assert len(ns_cache_with_existing_ns.deref().keys()) == 2
+    assert len(list(ns_cache_with_existing_ns.deref().keys())) == 2
 
 
 def test_remove_ns(
     ns_sym: sym.Symbol, ns_cache_with_existing_ns: atom.Atom[NamespaceMap]
 ):
-    assert len(ns_cache_with_existing_ns.deref().keys()) == 2
+    assert len(list(ns_cache_with_existing_ns.deref().keys())) == 2
     ns = Namespace.remove(ns_sym)
     assert isinstance(ns, Namespace)
     assert ns.name == ns_sym.name
-    assert len(ns_cache_with_existing_ns.deref().keys()) == 1
+    assert len(list(ns_cache_with_existing_ns.deref().keys())) == 1
 
 
 @pytest.fixture
@@ -85,10 +85,10 @@ def other_ns_sym() -> sym.Symbol:
 def test_remove_non_existent_ns(
     other_ns_sym: sym.Symbol, ns_cache_with_existing_ns: patch
 ):
-    assert len(ns_cache_with_existing_ns.deref().keys()) == 2
+    assert len(list(ns_cache_with_existing_ns.deref().keys())) == 2
     ns = Namespace.remove(other_ns_sym)
     assert ns is None
-    assert len(ns_cache_with_existing_ns.deref().keys()) == 2
+    assert len(list(ns_cache_with_existing_ns.deref().keys())) == 2
 
 
 def test_alter_ns_meta(

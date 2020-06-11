@@ -402,7 +402,8 @@
                [x y]))))
 
     (testing "for comprehension with :while modifier"
-      (is (= [[0 :a] [0 :b] [0 :c]]
+      (is (= [[0 :a] [0 :b] [0 :c]
+              [2 :a] [2 :b] [2 :c]]
              (for [x      (range 3)
                    y      [:a :b :c]
                    :while (even? x)]

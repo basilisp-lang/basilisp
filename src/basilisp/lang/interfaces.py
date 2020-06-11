@@ -9,6 +9,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Type,
     TypeVar,
     Union,
 )
@@ -153,9 +154,7 @@ class IPersistentCollection(ISeqable[T]):
 T_assoc = TypeVar("T_assoc", bound="IAssociative")
 
 
-class IAssociative(
-    ILookup[K, V], Mapping[K, V], IPersistentCollection[IMapEntry[K, V]]
-):
+class IAssociative(ILookup[K, V], IPersistentCollection[IMapEntry[K, V]]):
     __slots__ = ()
 
     @abstractmethod
@@ -193,7 +192,7 @@ class IPersistentList(ISequential, IPersistentStack[T]):
 T_map = TypeVar("T_map", bound="IPersistentMap")
 
 
-class IPersistentMap(ICounted, IAssociative[K, V]):
+class IPersistentMap(ICounted, Mapping[K, V], IAssociative[K, V]):
     __slots__ = ()
 
     @abstractmethod
@@ -267,6 +266,27 @@ class IRecord(ILispObject):
         raise NotImplementedError()
 
 
+def seq_equals(s1, s2) -> bool:
+    """Return True if two sequences contain the exactly the same elements in the
+    same order. Return False if one sequence is shorter than the other."""
+    assert isinstance(s1, (ISeq, ISequential))
+
+    if not isinstance(s2, (ISeq, ISequential)):
+        return NotImplemented
+
+    sentinel = object()
+    try:
+        for e1, e2 in itertools.zip_longest(s1, s2, fillvalue=sentinel):  # type: ignore[arg-type]
+            if bool(e1 is sentinel) or bool(e2 is sentinel):
+                return False
+            if e1 != e2:
+                return False
+    except TypeError:
+        return False
+    else:
+        return True
+
+
 class ISeq(ILispObject, ISeqable[T]):
     __slots__ = ()
 
@@ -320,17 +340,9 @@ class ISeq(ILispObject, ISeqable[T]):
         return seq_lrepr(iter(self), "(", ")", **kwargs)
 
     def __eq__(self, other):
-        sentinel = object()
-        try:
-            for e1, e2 in itertools.zip_longest(self, other, fillvalue=sentinel):
-                if bool(e1 is sentinel) or bool(e2 is sentinel):
-                    return False
-                if e1 != e2:
-                    return False
-        except TypeError:
-            return False
-        else:
+        if self is other:
             return True
+        return seq_equals(self, other)
 
     def __hash__(self):
         return hash(tuple(self))

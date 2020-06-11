@@ -1,4 +1,5 @@
 from builtins import map as pymap
+from collections.abc import ItemsView, KeysView, ValuesView
 from typing import Callable, Iterable, Mapping, Optional, TypeVar, Union, cast
 
 from pyrsistent import PMap, pmap  # noqa # pylint: disable=unused-import
@@ -44,7 +45,13 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         return item in self._inner
 
     def __eq__(self, other):
-        return self._inner == other
+        if self is other:
+            return True
+        if not isinstance(other, Mapping):
+            return NotImplemented
+        if len(self._inner) != len(other):
+            return False
+        return dict(self._inner.iteritems()) == dict(other.items())
 
     def __getitem__(self, item):
         return self._inner[item]
@@ -53,8 +60,7 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         return hash(self._inner)
 
     def __iter__(self):
-        for k, v in self._inner.iteritems():
-            yield MapEntry.of(k, v)
+        yield from self._inner.iterkeys()
 
     def __len__(self):
         return len(self._inner)
@@ -63,24 +69,6 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         return _map_lrepr(
             self._inner.iteritems, start="{", end="}", meta=self._meta, **kwargs
         )
-
-    def items(self):
-        return self._inner.items()
-
-    def keys(self):
-        return self._inner.keys()
-
-    def values(self):
-        return self._inner.values()
-
-    def iteritems(self):
-        return self._inner.iteritems()
-
-    def iterkeys(self):
-        return self._inner.iterkeys()
-
-    def itervalues(self):
-        return self._inner.itervalues()
 
     @property
     def meta(self) -> Optional[IPersistentMap]:
@@ -140,12 +128,7 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         e = self._inner.evolver()
         try:
             for elem in elems:
-                if isinstance(elem, (IPersistentMap, Mapping)) and not isinstance(
-                    elem, IPersistentVector
-                ):
-                    # Vectors are handled in the final else block, since we
-                    # do not want to treat them as Mapping types for this
-                    # particular usage.
+                if isinstance(elem, (IPersistentMap, Mapping)):
                     for k, v in elem.items():
                         e.set(k, v)
                 elif isinstance(elem, IMapEntry):
@@ -169,7 +152,7 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         return m()
 
     def seq(self) -> ISeq[IMapEntry[K, V]]:
-        return sequence(self)
+        return sequence(MapEntry.of(k, v) for k, v in self._inner.iteritems())
 
 
 def map(kvs: Mapping[K, V], meta=None) -> Map[K, V]:  # pylint:disable=redefined-builtin

@@ -104,7 +104,9 @@ class BasilispFile(pytest.File):
         ns = module.__basilisp_namespace__
         for test in self._collected_tests(ns):
             f: TestFunction = test.value
-            yield BasilispTestItem(test.name.name, self, f, ns, filename)
+            yield BasilispTestItem.from_parent(  # type: ignore[call-arg]
+                self, name=test.name.name, run_test=f, namespace=ns, filename=filename
+            )
 
 
 _ACTUAL_KW = kw.keyword("actual")
@@ -141,6 +143,21 @@ class BasilispTestItem(pytest.Item):
         self._run_test = run_test
         self._namespace = namespace
         self._filename = filename
+
+    @classmethod
+    def from_parent(
+        cls,
+        parent: "BasilispFile",
+        name: str,
+        run_test: TestFunction,
+        namespace: runtime.Namespace,
+        filename: str,
+    ):
+        """Create a new BasilispTestItem from the parent Node."""
+        # https://github.com/pytest-dev/pytest/pull/6680
+        return super().from_parent(
+            parent, name=name, run_test=run_test, namespace=namespace, filename=filename
+        )
 
     def runtest(self):
         """Run the tests associated with this test item.

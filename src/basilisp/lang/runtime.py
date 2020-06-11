@@ -639,9 +639,7 @@ class Namespace(ReferenceBase):
         """Refer all the Vars in the other namespace."""
         with self._lock:
             final_refers = self._refers
-            for entry in other_ns.interns:
-                s: sym.Symbol = entry.key
-                var: Var = entry.value
+            for s, var in other_ns.interns.items():
                 if not var.is_private:
                     final_refers = final_refers.assoc(s, var)
             self._refers = final_refers
@@ -716,7 +714,8 @@ class Namespace(ReferenceBase):
         prefix from the list of aliased namespaces. If name_in_ns is given,
         further attempt to refine the list to matching names in that namespace."""
         candidates = filter(
-            Namespace.__completion_matcher(prefix), ((s, n) for s, n in self.aliases)
+            Namespace.__completion_matcher(prefix),
+            ((s, n) for s, n in self.aliases.items()),
         )
         if name_in_ns is not None:
             for _, candidate_ns in candidates:
@@ -739,12 +738,13 @@ class Namespace(ReferenceBase):
         aliases = lmap.map(
             {
                 alias: imports.val_at(import_name)
-                for alias, import_name in self.import_aliases
+                for alias, import_name in self.import_aliases.items()
             }
         )
 
         candidates = filter(
-            Namespace.__completion_matcher(prefix), itertools.chain(aliases, imports)
+            Namespace.__completion_matcher(prefix),
+            itertools.chain(aliases.items(), imports.items()),
         )
         if name_in_module is not None:
             for _, module in candidates:
@@ -771,7 +771,7 @@ class Namespace(ReferenceBase):
 
         return map(
             lambda entry: f"{entry[0].name}",
-            filter(is_match, ((s, v) for s, v in self.interns)),
+            filter(is_match, ((s, v) for s, v in self.interns.items())),
         )
 
     # pylint: disable=unnecessary-comprehension
@@ -781,7 +781,8 @@ class Namespace(ReferenceBase):
         return map(
             lambda entry: f"{entry[0].name}",
             filter(
-                Namespace.__completion_matcher(value), ((s, v) for s, v in self.refers)
+                Namespace.__completion_matcher(value),
+                ((s, v) for s, v in self.refers.items()),
             ),
         )
 
@@ -807,13 +808,11 @@ class Namespace(ReferenceBase):
         return results
 
 
-def push_thread_bindings(m: IAssociative[Var, Any]) -> None:
+def push_thread_bindings(m: IPersistentMap[Var, Any]) -> None:
     """Push thread local bindings for the Var keys in m using the values."""
     bindings = set()
 
-    for entry in m:
-        var: Var = entry.key  # type: ignore
-        val = entry.value
+    for var, val in m.items():
         if not var.dynamic:
             raise RuntimeException(
                 "cannot set thread-local bindings for non-dynamic Var"
@@ -853,11 +852,11 @@ def first(o):
     return s.first
 
 
-def rest(o) -> Optional[ISeq]:
+def rest(o) -> ISeq:
     """If o is a ISeq, return the elements after the first in o. If o is None,
     returns an empty seq. Otherwise, coerces o to a seq and returns the rest."""
     if o is None:
-        return None
+        return lseq.EMPTY
     if isinstance(o, ISeq):
         s = o.rest
         if s is None:
@@ -1233,7 +1232,7 @@ def _to_py_map(
 ) -> dict:
     return {
         to_py(key, keyword_fn=keyword_fn): to_py(value, keyword_fn=keyword_fn)
-        for key, value in o
+        for key, value in o.items()
     }
 
 
