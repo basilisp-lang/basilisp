@@ -6,10 +6,15 @@ import basilisp.lang.map as lmap
 import basilisp.lang.vector as vector
 from basilisp.lang.interfaces import (
     IAssociative,
+    ICounted,
     ILispObject,
+    ILookup,
     IPersistentCollection,
+    IPersistentStack,
     IPersistentVector,
+    IReversible,
     ISeqable,
+    ISequential,
     IWithMeta,
 )
 from basilisp.lang.keyword import keyword
@@ -20,11 +25,16 @@ from basilisp.lang.symbol import symbol
     "interface",
     [
         IAssociative,
-        IPersistentCollection,
-        IWithMeta,
+        ICounted,
         ILispObject,
-        ISeqable,
+        ILookup,
+        IPersistentCollection,
+        IPersistentStack,
         IPersistentVector,
+        IReversible,
+        ISeqable,
+        ISequential,
+        IWithMeta,
     ],
 )
 def test_vector_interface_membership(interface):

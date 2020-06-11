@@ -6,6 +6,7 @@ import pytest
 import basilisp.lang.map as lmap
 from basilisp.lang.interfaces import (
     IAssociative,
+    ICounted,
     ILispObject,
     IMapEntry,
     IPersistentCollection,
@@ -27,12 +28,13 @@ def test_map_entry_interface_membership():
     "interface",
     [
         IAssociative,
-        IPersistentCollection,
-        IWithMeta,
-        IPersistentMap,
-        Mapping,
+        ICounted,
         ILispObject,
+        IPersistentCollection,
+        IPersistentMap,
         ISeqable,
+        IWithMeta,
+        Mapping,
     ],
 )
 def test_map_interface_membership(interface):

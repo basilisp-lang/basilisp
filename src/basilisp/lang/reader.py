@@ -300,7 +300,7 @@ class ReaderContext:
             if not isinstance(reader_sym, symbol.Symbol):
                 raise TypeError("Expected symbol for data reader tag")
             if not reader_sym.ns:
-                raise ValueError(f"Non-namespaced tags are reserved by the reader")
+                raise ValueError("Non-namespaced tags are reserved by the reader")
 
         self._data_readers = ReaderContext._DATA_READERS.update_with(
             lambda l, r: l,  # Do not allow callers to overwrite existing builtin readers
