@@ -274,16 +274,12 @@ def seq_equals(s1, s2) -> bool:
         return NotImplemented
 
     sentinel = object()
-    try:
-        for e1, e2 in itertools.zip_longest(s1, s2, fillvalue=sentinel):  # type: ignore[arg-type]
-            if bool(e1 is sentinel) or bool(e2 is sentinel):
-                return False
-            if e1 != e2:
-                return False
-    except TypeError:
-        return False
-    else:
-        return True
+    for e1, e2 in itertools.zip_longest(s1, s2, fillvalue=sentinel):  # type: ignore[arg-type]
+        if bool(e1 is sentinel) or bool(e2 is sentinel):
+            return False
+        if e1 != e2:
+            return False
+    return True
 
 
 class ISeq(ILispObject, ISeqable[T]):
