@@ -51,6 +51,18 @@
           (recur (rest a-items) a b both))
         [a b both]))))
 
+(defn ^:private collect-rest
+  "Collect the rest of the elements in seq `source` into the vector `target` (if
+  there are any). If every element in the resulting vector is nil, return nil.
+  Otherwise, return the vector."
+  [target source]
+  (let [res (if (seq source)
+              (apply conj target source)
+              target)]
+    (if (every? nil? res)
+      nil
+      res)))
+
 (defn ^:private diff-seq
   [this other]
   (if-not (sequential? other)
@@ -60,8 +72,7 @@
            in-a    []
            in-b    []
            in-both []]
-      (cond
-        (and (seq a) (seq b))
+      (if (and (seq a) (seq b))
         (let [[a-head & a-rest]         a
               [b-head & b-rest]         b
               [a-part b-part both-part] (diff a-head b-head)]
@@ -70,15 +81,7 @@
                  (cond-> in-a a-rest (conj a-part))
                  (cond-> in-b b-rest (conj b-part))
                  (conj in-both both-part)))
-
-        (seq a)
-        [(apply conj in-a a) in-b in-both]
-
-        (seq b)
-        [in-a (apply conj in-b b) in-both]
-
-        :else
-        [in-a in-b in-both]))))
+        [(collect-rest in-a a) (collect-rest in-b b) in-both]))))
 
 (defn ^:private diff-set
   [this other]

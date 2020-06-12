@@ -189,7 +189,15 @@
         {}
         {:a 1}
         #{}
-        #{:a :b :c})))
+        #{:a :b :c}))
+
+    (testing "sequential types equal"
+      (are [x y z] (= z (diff x y))
+        []      []            [nil nil []]
+        [1 2 3] [1 2 3]       [nil nil [1 2 3]]
+        [1 2 3] [1 2 3 4]     [nil [nil nil nil 4] [1 2 3]]
+        [1 2 3] [5 9 3 2 3 7] [[1 2] [5 9 nil 2 3 7] [nil nil 3]]
+        )))
 
   (testing "map types"
     (testing "map types never equal to non-map type"
@@ -226,7 +234,11 @@
         #{:a :b :c}))
 
     (are [x y z] (= z (diff x y))
-      {}     {}     [nil nil {}]
-      {:a 1} {:a 1} [nil nil {:a 1}]
-      {:a 1} {:a 2} [{:a 1} {:a 2} nil]
-      {:a 1} {:b 2} [{:a 1} {:b 2} nil])))
+      {}                       {}                       [nil nil {}]
+      {:a 1}                   {:a 1}                   [nil nil {:a 1}]
+      {:a 1}                   {:a 2}                   [{:a 1} {:a 2} nil]
+      {:a 1}                   {:b 2}                   [{:a 1} {:b 2} nil]
+      {:a #{1 2 3}}            {:a #{2 3 4}}            [{:a #{1}} {:a #{4}} {:a #{3 2}}]
+      {:a 1 :b {:c #{1 2 3}}}  {:a 2 :b {:c #{2 3 4}}}  [{:a 1 :b {:c #{1}}} {:a 2 :b {:c #{4}}} {:b {:c #{2 3}}}]
+      {:a 1 :b {:c 2 :d 3}}    {:a 1 :b {:c 2 :e 5}}    [{:b {:d 3}} {:b {:e 5}} {:a 1 :b {:c 2}}]
+      {:a {:e :f :g :h} :b :c} {:a {:e :z :g :h} :c :d} [{:a {:e :f} :b :c} {:a {:e :z} :c :d} {:a {:g :h}}])))
