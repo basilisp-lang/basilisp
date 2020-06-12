@@ -4,7 +4,8 @@
 
 (defprotocol IDiffable
   (diff* [this other]
-    ""))
+    "Diff `other` against `this`, returning a three element vector containing
+     `[items-in-a items-in-b items-in-both]`."))
 
 (defn diff
   "Diff items `a` and `b`, returning a three element vector containing
@@ -92,5 +93,6 @@
 
 (extend basilisp.lang.interfaces/IPersistentMap    IDiffable {:diff* diff-map})
 (extend basilisp.lang.interfaces/IPersistentSet    IDiffable {:diff* diff-set})
+(extend basilisp.lang.interfaces/IPersistentVector IDiffable {:diff* diff-seq})
+(extend basilisp.lang.interfaces/IPersistentList   IDiffable {:diff* diff-seq})
 (extend basilisp.lang.interfaces/ISeq              IDiffable {:diff* diff-seq})
-(extend basilisp.lang.interfaces/ISeqable          IDiffable {:diff* diff-seq})
