@@ -39,7 +39,7 @@ class IBlockingDeref(IDeref[T]):
 class ICounted(ABC):
     """ICounted types can produce their length in constant time.
 
-    All of the builtin collections are ICountable, except Lists whose length is
+    All of the builtin collections are ICounted, except Lists whose length is
     determined by counting all of the elements in the list in linear time."""
 
     __slots__ = ()
