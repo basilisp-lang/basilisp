@@ -1,5 +1,5 @@
 from builtins import map as pymap
-from typing import Callable, Iterable, Mapping, Optional, TypeVar, Union, cast
+from typing import Callable, Iterable, Mapping, Optional, Tuple, TypeVar, Union, cast
 
 from immutables import Map as _Map
 
@@ -32,9 +32,11 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
     __slots__ = ("_inner", "_meta")
 
     def __init__(
-        self, wrapped: "_Map[K, V]", meta: Optional[IPersistentMap] = None
+        self,
+        members: Union[Mapping[K, V], Iterable[Tuple[K, V]]],
+        meta: Optional[IPersistentMap] = None,
     ) -> None:
-        self._inner = wrapped
+        self._inner = _Map(members)
         self._meta = meta
 
     def __call__(self, key, default=None):
@@ -59,7 +61,7 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         return hash(self._inner)
 
     def __iter__(self):
-        yield from self._inner
+        return iter(self._inner)
 
     def __len__(self):
         return len(self._inner)
@@ -104,7 +106,7 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         return self._inner.get(k, default)
 
     def update(self, *maps: Mapping[K, V]) -> "Map":
-        m: _Map = self._inner.update(*maps)
+        m: _Map = self._inner.update(*(m.items() for m in maps))
         return Map(m)
 
     def update_with(
@@ -155,12 +157,12 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
 
 def map(kvs: Mapping[K, V], meta=None) -> Map[K, V]:  # pylint:disable=redefined-builtin
     """Creates a new map."""
-    return Map(_Map(kvs), meta=meta)
+    return Map(kvs.items(), meta=meta)
 
 
 def m(**kvs) -> Map[str, V]:
     """Creates a new map from keyword arguments."""
-    return Map(_Map(kvs))
+    return Map(kvs)
 
 
 def from_entries(entries: Iterable[MapEntry[K, V]]) -> Map[K, V]:

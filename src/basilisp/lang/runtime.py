@@ -8,6 +8,7 @@ import math
 import re
 import threading
 import types
+from collections.abc import Sequence
 from fractions import Fraction
 from typing import (
     AbstractSet,
@@ -20,9 +21,7 @@ from typing import (
     List,
     Mapping,
     Optional,
-    Sequence,
     Set,
-    Sized,
     Tuple,
     Type,
     TypeVar,
@@ -1018,17 +1017,14 @@ def apply_kw(f, args):
     return f(*final, **kwargs)
 
 
-@functools.singledispatch
 def count(coll) -> int:
     try:
-        return sum(1 for _ in coll)
-    except TypeError:
-        raise TypeError(f"count not supported on object of type {type(coll)}")
-
-
-@count.register(Sized)
-def _count_sized(coll: Sized) -> int:
-    return len(coll)
+        return len(coll)
+    except (AttributeError, TypeError):
+        try:
+            return sum(1 for _ in coll)
+        except TypeError:
+            raise TypeError(f"count not supported on object of type {type(coll)}")
 
 
 __nth_sentinel = object()
