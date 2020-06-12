@@ -52,7 +52,7 @@
 
 (defn ^:private diff-seq
   [this other]
-  (if-not (or (seq? other) (seqable? other))
+  (if-not (sequential? other)
     [this other nil]
     (loop [a       this
            b       other
