@@ -102,31 +102,31 @@
         #{:a #{:b :c}}    #{:a #{:c :d}}    [#{#{:b :c}} #{#{:c :d}} #{:a}]
         #{:a {:b 2 :c 3}} #{:a {:c 3 :d 4}} [#{{:b 2 :c 3}} #{{:c 3 :d 4}} #{:a}]))
 
-    #_(testing "mutable Python set"
-      (are [x y z] (= z (diff x y))
-        #py #{}      #py #{}      [nil nil #{}]
-        #py #{:a}    #py #{:a}    [nil nil #{:a}]
-        #py #{:a}    #py #{:b}    [#{:a} #{:b} nil]
-        #py #{:a :b} #py #{:b :c} [#{:a} #{:c} #{:b}]
+    (testing "mutable Python set"
+      (are [x y z] (= z (diff (python/set x) (python/set y)))
+        []      []      [nil nil #{}]
+        [:a]    [:a]    [nil nil #{:a}]
+        [:a]    [:b]    [#{:a} #{:b} nil]
+        [:a :b] [:b :c] [#{:a} #{:c} #{:b}]
 
         ;; no subdiffs
-        #py #{:a [:b :c]}     #py #{:a [:c :d]}     [#{[:b :c]} #{[:c :d]} #{:a}]
-        #py #{:a '(:b :c)}    #py #{:a '(:c :d)}    [#{'(:b :c)} #{'(:c :d)} #{:a}]
-        #py #{:a #{:b :c}}    #py #{:a #{:c :d}}    [#{#{:b :c}} #{#{:c :d}} #{:a}]
-        #py #{:a {:b 2 :c 3}} #py #{:a {:c 3 :d 4}} [#{{:b 2 :c 3}} #{{:c 3 :d 4}} #{:a}]))
+        [:a [:b :c]]     [:a [:c :d]]     [#{[:b :c]} #{[:c :d]} #{:a}]
+        [:a '(:b :c)]    [:a '(:c :d)]    [#{'(:b :c)} #{'(:c :d)} #{:a}]
+        [:a #{:b :c}]    [:a #{:c :d}]    [#{#{:b :c}} #{#{:c :d}} #{:a}]
+        [:a {:b 2 :c 3}] [:a {:c 3 :d 4}] [#{{:b 2 :c 3}} #{{:c 3 :d 4}} #{:a}]))
 
     (testing "Python frozenset"
-      (are [x y z] (= z (diff x y))
-        (python/frozenset)         (python/frozenset)         [nil nil #{}]
-        (python/frozenset [:a])    (python/frozenset [:a])    [nil nil #{:a}]
-        (python/frozenset [:a])    (python/frozenset [:b])    [#{:a} #{:b} nil]
-        (python/frozenset [:a :b]) (python/frozenset [:b :c]) [#{:a} #{:c} #{:b}]
+      (are [x y z] (= z (diff (python/frozenset x) (python/frozenset y)))
+        []      []      [nil nil #{}]
+        [:a]    [:a]    [nil nil #{:a}]
+        [:a]    [:b]    [#{:a} #{:b} nil]
+        [:a :b] [:b :c] [#{:a} #{:c} #{:b}]
 
         ;; no subdiffs
-        (python/frozenset [:a [:b :c]])     (python/frozenset [:a [:c :d]])     [#{[:b :c]} #{[:c :d]} #{:a}]
-        (python/frozenset [:a '(:b :c)])    (python/frozenset [:a '(:c :d)])    [#{'(:b :c)} #{'(:c :d)} #{:a}]
-        (python/frozenset [:a #{:b :c}])    (python/frozenset [:a #{:c :d}])    [#{#{:b :c}} #{#{:c :d}} #{:a}]
-        (python/frozenset [:a {:b 2 :c 3}]) (python/frozenset [:a {:c 3 :d 4}]) [#{{:b 2 :c 3}} #{{:c 3 :d 4}} #{:a}])))
+        [:a [:b :c]]     [:a [:c :d]]     [#{[:b :c]} #{[:c :d]} #{:a}]
+        [:a '(:b :c)]    [:a '(:c :d)]    [#{'(:b :c)} #{'(:c :d)} #{:a}]
+        [:a #{:b :c}]    [:a #{:c :d}]    [#{#{:b :c}} #{#{:c :d}} #{:a}]
+        [:a {:b 2 :c 3}] [:a {:c 3 :d 4}] [#{{:b 2 :c 3}} #{{:c 3 :d 4}} #{:a}])))
 
   (testing "sequential types"
     (testing "vector types never equal to non-sequential type"
