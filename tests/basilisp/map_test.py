@@ -53,6 +53,14 @@ def test_assoc():
     assert lmap.map({"a": 3, "b": 2}) == m1.assoc("b", 2)
 
 
+def test_map_as_function():
+    assert None is lmap.m()(1)
+    assert None is lmap.m()("abc")
+    assert None is lmap.map({1: True, "2": 2, 3: "string"})("abc")
+    assert "string" == lmap.map({1: True, "2": 2, 3: "string"})(3)
+    assert 2 == lmap.map({1: True, "2": 2, 3: "string"})("2")
+
+
 def test_contains():
     assert True is lmap.map({"a": 1}).contains("a")
     assert False is lmap.map({"a": 1}).contains("b")
