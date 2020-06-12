@@ -26,6 +26,7 @@ pyfunctional = "*"
 pyrsistent = "*"
 python-dateutil = "*"
 pytest = "*"
+immutables = "*"
 
 [requires]
 python_version = "3.6"

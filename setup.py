@@ -25,6 +25,7 @@ REQUIRED = [
     "atomos",
     "attrs",
     "click",
+    "immutables",
     "prompt-toolkit>=3.0.0",
     "pyfunctional",
     "pyrsistent",

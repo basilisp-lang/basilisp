@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for Volatiles (#460)
  * Add JSON encoder and decoder in `basilisp.json` namespace (#484)
 
+### Changed
+ * Basilisp set and map types are now backed by the HAMT provided by `immutables` (#557)
+
 ### Fixed
  * Fixed a bug where the Basilisp AST nodes for return values of `deftype` members could be marked as _statements_ rather than _expressions_, resulting in an incorrect `nil` return (#523)
  * Fixed a bug where `defonce` would throw a Python SyntaxError due to a superfluous `global` statement in the generated Python (#525)
@@ -27,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where not all builtin Basilisp types could be pickled (#518)
  * Fixed a bug where `deftype` forms could not be created interfaces declared not at the top-level of a code block in a namespace (#376)
  * Fixed multiple bugs relating to symbol resolution of `import`ed symbols in various contexts (#544)
+ * Fixed a bug where the `=` function did not respect the equality partition for various builtin collection types (#556)
 
 ## [v0.1.dev13] - 2020-03-16
 ### Added
