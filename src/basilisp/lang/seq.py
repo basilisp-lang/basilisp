@@ -1,12 +1,12 @@
 from typing import Any, Callable, Iterable, Iterator, Optional, TypeVar
 
-from basilisp.lang.interfaces import IPersistentMap, ISeq, IWithMeta
+from basilisp.lang.interfaces import IPersistentMap, ISeq, ISequential, IWithMeta
 from basilisp.util import Maybe
 
 T = TypeVar("T")
 
 
-class _EmptySequence(IWithMeta, ISeq[T]):
+class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
     def __repr__(self):
         return "()"
 
@@ -39,7 +39,7 @@ class _EmptySequence(IWithMeta, ISeq[T]):
 EMPTY: ISeq = _EmptySequence()
 
 
-class Cons(ISeq[T], IWithMeta):
+class Cons(ISeq[T], ISequential, IWithMeta):
     __slots__ = ("_first", "_rest", "_meta")
 
     def __init__(
@@ -75,7 +75,7 @@ class Cons(ISeq[T], IWithMeta):
         return Cons(first=self._first, seq=self._rest, meta=meta)
 
 
-class _Sequence(IWithMeta, ISeq[T]):
+class _Sequence(IWithMeta, ISequential, ISeq[T]):
     """Sequences are a thin wrapper over Python Iterable values so they can
     satisfy the Basilisp `ISeq` interface.
 
@@ -128,7 +128,7 @@ class _Sequence(IWithMeta, ISeq[T]):
         return Cons(elem, self)
 
 
-class LazySeq(IWithMeta, ISeq[T]):
+class LazySeq(IWithMeta, ISequential, ISeq[T]):
     """LazySeqs are wrappers for delaying sequence computation. Create a LazySeq
     with a function that can either return None or a Seq. If a Seq is returned,
     the LazySeq is a proxy to that Seq."""

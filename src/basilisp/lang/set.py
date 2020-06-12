@@ -1,4 +1,5 @@
-from typing import Iterable, Optional, TypeVar
+from collections.abc import Set as _PySet
+from typing import AbstractSet, Iterable, Optional, TypeVar
 
 from pyrsistent import PSet, pset  # noqa # pylint: disable=unused-import
 
@@ -36,7 +37,11 @@ class Set(IPersistentSet[T], ILispObject, IWithMeta):
         return item in self._inner
 
     def __eq__(self, other):
-        return self._inner == other
+        if self is other:
+            return True
+        if not isinstance(other, AbstractSet):
+            return NotImplemented
+        return _PySet.__eq__(self, other)
 
     def __ge__(self, other):
         return self._inner >= other

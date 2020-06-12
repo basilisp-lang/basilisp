@@ -1,10 +1,8 @@
 import pickle
 
 import pytest
-from pyrsistent import PMap, pmap
 
 import basilisp.lang.map as lmap
-from basilisp.lang.atom import Atom
 from basilisp.lang.keyword import Keyword, complete, keyword
 
 

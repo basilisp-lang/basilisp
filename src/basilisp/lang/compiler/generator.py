@@ -228,7 +228,7 @@ class GeneratorContext:
         self._var_indirection_override: Deque[bool] = collections.deque([])
 
         if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            for k, v in self._opts:
+            for k, v in self._opts.items():
                 logger.debug("Compiler option %s = %s", k, v)
 
     @property

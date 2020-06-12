@@ -8,8 +8,10 @@ from basilisp.lang.interfaces import (
     ILispObject,
     IPersistentCollection,
     IPersistentList,
+    IPersistentStack,
     ISeq,
     ISeqable,
+    ISequential,
     IWithMeta,
 )
 from basilisp.lang.keyword import keyword
@@ -18,7 +20,16 @@ from basilisp.lang.symbol import symbol
 
 @pytest.mark.parametrize(
     "interface",
-    [IPersistentCollection, IPersistentList, IWithMeta, ILispObject, ISeq, ISeqable,],
+    [
+        ILispObject,
+        IPersistentCollection,
+        IPersistentList,
+        IPersistentStack,
+        ISeq,
+        ISeqable,
+        ISequential,
+        IWithMeta,
+    ],
 )
 def test_list_interface_membership(interface):
     assert isinstance(llist.l(), interface)
