@@ -45,7 +45,7 @@ class ICounted(ABC):
     __slots__ = ()
 
 
-class IIndexed(ICounted, Generic[T], ABC):
+class IIndexed(ICounted, ABC):
     """IIndexed types can be accessed by index.
 
     Of the builtin collections, only Vectors are IIndexed. IIndexed types respond
@@ -252,7 +252,7 @@ T_vec = TypeVar("T_vec", bound="IPersistentVector")
 class IPersistentVector(
     Sequence[T],
     IAssociative[int, T],
-    IIndexed[T],
+    IIndexed,
     IReversible[T],
     ISequential,
     IPersistentStack[T],
