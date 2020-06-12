@@ -34,6 +34,14 @@ def test_set_interface_membership(interface):
     assert issubclass(lset.Set, interface)
 
 
+def test_set_as_function():
+    assert None is lset.s()(1)
+    assert None is lset.s()("abc")
+    assert None is lset.s(1, 2, 3)("abc")
+    assert 1 == lset.s(1, 2, 3)(1)
+    assert 1 == lset.s(1, 2, 3)(3)
+
+
 def test_set_conj():
     meta = lmap.m(tag="async")
     s1 = lset.s(keyword("kw1"), meta=meta)
