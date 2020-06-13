@@ -67,21 +67,28 @@
   [this other]
   (if-not (sequential? other)
     [this other nil]
-    (loop [a       this
-           b       other
+    (loop [a       (seq this)
+           b       (seq other)
            in-a    []
            in-b    []
            in-both []]
-      (if (and (seq a) (seq b))
+      (if (and a b)
         (let [[a-head & a-rest]         a
               [b-head & b-rest]         b
-              [a-part b-part both-part] (diff a-head b-head)]
-          (recur a-rest
-                 b-rest
-                 (cond-> in-a a-rest (conj a-part))
-                 (cond-> in-b b-rest (conj b-part))
+              [a-part b-part both-part] (diff a-head b-head)
+
+              incl-a-elem? (or (seq a-rest) (and (not (seq a-rest)) (not (nil? a-part))))
+              incl-b-elem? (or (seq b-rest) (and (not (seq b-rest)) (not (nil? b-part))))]
+          (recur (seq a-rest)
+                 (seq b-rest)
+                 (cond-> in-a incl-a-elem? (conj a-part))
+                 (cond-> in-b incl-b-elem? (conj b-part))
                  (conj in-both both-part)))
-        [(collect-rest in-a a) (collect-rest in-b b) in-both]))))
+        [(collect-rest in-a a)
+         (collect-rest in-b b)
+         (if (every? nil? in-both)
+           nil
+           in-both)]))))
 
 (defn ^:private diff-set
   [this other]
