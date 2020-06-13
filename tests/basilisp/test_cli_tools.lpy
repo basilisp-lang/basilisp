@@ -1,0 +1,4 @@
+(ns tests.basilisp.cli-tools-test
+  (:require
+   [basilisp.cli-tools :as cli]
+   [basilisp.test :refer [deftest are is testing]]))

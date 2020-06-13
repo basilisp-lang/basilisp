@@ -201,6 +201,8 @@
          (py->lisp)))))
 
 (defmacro run-cli
+  "Create a new command-line parser using the configuration `config` and run it
+  automatically if this namespace is called as the Python `__main__`."
   [config]
   `(when (= --name-- "__main__")
      (parse-args ~config)))
