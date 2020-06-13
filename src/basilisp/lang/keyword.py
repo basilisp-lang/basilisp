@@ -62,13 +62,13 @@ def complete(
         results = filter(
             lambda kw: (kw.ns is not None and kw.ns == prefix)
             and kw.name.startswith(suffix),
-            kw_cache.itervalues(),
+            kw_cache.values(),
         )
     else:
         results = filter(
             lambda kw: kw.name.startswith(text)
             or (kw.ns is not None and kw.ns.startswith(text)),
-            kw_cache.itervalues(),
+            kw_cache.values(),
         )
 
     return map(str, results)

@@ -1,0 +1,114 @@
+(ns basilisp.data
+  (:require
+   [basilisp.set :as set]))
+
+(defprotocol IDiffable
+  (diff* [this other]
+    "Diff `other` against `this`, returning a three element vector containing
+     `[items-in-a items-in-b items-in-both]`."))
+
+(defn diff
+  "Diff items `a` and `b`, returning a three element vector containing
+  `[items-in-a items-in-b items-in-both]`.
+
+  Items are diffed according to the following heuristics:
+  - Mapping types (for both Basilisp maps and Python dicts) are compared
+    by key and values and are sub-diffed where values differ for the same
+    key. Python dicts will be coerced to Basilisp maps before diffing.
+  - Sequential types (for Basilisp lists and vectors and Python lists and
+    tuples) are compared by value at the corresponding index in the other
+    collection. Values at each index are compared according to the rules
+    in this list. Sequential types are always returned as vectors.
+  - Sets (for both Basilisp and Python set types) are compared by their
+    values, which are never sub-diffed. Python sets and frozensets will
+    be coerced to Basilisp sets before diffing.
+  - All other types are compared for equality as by `=`."
+  [a b]
+  (if (= a b)
+    [nil nil a]
+    (diff* (py->lisp a) (py->lisp b))))
+
+(extend-protocol IDiffable
+  python/object
+  (diff* [this other]
+    [this other nil]))
+
+(defn ^:private diff-map
+  [this other]
+  (if-not (map? other)
+    [this other nil]
+    (loop [[[k] :as a-items] (seq this)
+           a                 this
+           b                 other
+           both              nil]
+      (if (seq a-items)
+        (if (contains? b k)
+          (let [[in-a in-b in-both] (diff (get a k) (get b k))]
+            (recur (rest a-items)
+                   (cond-> (dissoc a k) in-a (assoc k in-a))
+                   (cond-> (dissoc b k) in-b (assoc k in-b))
+                   (cond-> both in-both (assoc k in-both))))
+          (recur (rest a-items) a b both))
+        [a b both]))))
+
+(defn ^:private collect-rest
+  "Collect the rest of the elements in seq `source` into the vector `target` (if
+  there are any). If every element in the resulting vector is nil, return nil.
+  Otherwise, return the vector."
+  [target source]
+  (let [res (if (seq source)
+              (apply conj target source)
+              target)]
+    (if (every? nil? res)
+      nil
+      res)))
+
+(defn ^:priviate include-seq-elem?
+  "Return true if an element should be included in the final diff vector.
+
+  `nil` elements at the end of a diff vector will be excluded."
+  [s elem]
+  (or s (and (not s) (not (nil? elem)))))
+
+(defn ^:private diff-seq
+  [this other]
+  (if-not (sequential? other)
+    [this other nil]
+    (loop [a       (seq this)
+           b       (seq other)
+           in-a    []
+           in-b    []
+           in-both []]
+      (if (and a b)
+        (let [[a-head & a-rest]         a
+              [b-head & b-rest]         b
+              [a-part b-part both-part] (diff a-head b-head)]
+          (recur (seq a-rest)
+                 (seq b-rest)
+                 (cond-> in-a (include-seq-elem? (seq a-rest) a-part) (conj a-part))
+                 (cond-> in-b (include-seq-elem? (seq b-rest) b-part) (conj b-part))
+                 (cond-> in-both
+                   (include-seq-elem? (and (seq a-rest) (seq b-rest)) both-part)
+                   (conj both-part))))
+        [(collect-rest in-a a)
+         (collect-rest in-b b)
+         (if (every? nil? in-both)
+           nil
+           in-both)]))))
+
+(defn ^:private diff-set
+  [this other]
+  (if-not (set? other)
+    [this other nil]
+    (let [shared (set/intersection this other)]
+      (if (seq shared)
+        [(set/difference this shared)
+         (set/difference other shared)
+         shared]
+        [this other nil]))))
+
+(extend basilisp.lang.interfaces/IPersistentMap    IDiffable {:diff* diff-map})
+(extend basilisp.lang.interfaces/IPersistentSet    IDiffable {:diff* diff-set})
+(extend basilisp.lang.interfaces/IPersistentVector IDiffable {:diff* diff-seq})
+(extend basilisp.lang.interfaces/IPersistentList   IDiffable {:diff* diff-seq})
+(extend basilisp.lang.interfaces/ISeq              IDiffable {:diff* diff-seq})

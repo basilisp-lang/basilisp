@@ -8,6 +8,7 @@ import math
 import re
 import threading
 import types
+from collections.abc import Sequence
 from fractions import Fraction
 from typing import (
     AbstractSet,
@@ -23,6 +24,7 @@ from typing import (
     Set,
     Tuple,
     Type,
+    TypeVar,
     Union,
     cast,
 )
@@ -639,9 +641,7 @@ class Namespace(ReferenceBase):
         """Refer all the Vars in the other namespace."""
         with self._lock:
             final_refers = self._refers
-            for entry in other_ns.interns:
-                s: sym.Symbol = entry.key
-                var: Var = entry.value
+            for s, var in other_ns.interns.items():
                 if not var.is_private:
                     final_refers = final_refers.assoc(s, var)
             self._refers = final_refers
@@ -716,7 +716,8 @@ class Namespace(ReferenceBase):
         prefix from the list of aliased namespaces. If name_in_ns is given,
         further attempt to refine the list to matching names in that namespace."""
         candidates = filter(
-            Namespace.__completion_matcher(prefix), ((s, n) for s, n in self.aliases)
+            Namespace.__completion_matcher(prefix),
+            ((s, n) for s, n in self.aliases.items()),
         )
         if name_in_ns is not None:
             for _, candidate_ns in candidates:
@@ -739,12 +740,13 @@ class Namespace(ReferenceBase):
         aliases = lmap.map(
             {
                 alias: imports.val_at(import_name)
-                for alias, import_name in self.import_aliases
+                for alias, import_name in self.import_aliases.items()
             }
         )
 
         candidates = filter(
-            Namespace.__completion_matcher(prefix), itertools.chain(aliases, imports)
+            Namespace.__completion_matcher(prefix),
+            itertools.chain(aliases.items(), imports.items()),
         )
         if name_in_module is not None:
             for _, module in candidates:
@@ -771,7 +773,7 @@ class Namespace(ReferenceBase):
 
         return map(
             lambda entry: f"{entry[0].name}",
-            filter(is_match, ((s, v) for s, v in self.interns)),
+            filter(is_match, ((s, v) for s, v in self.interns.items())),
         )
 
     # pylint: disable=unnecessary-comprehension
@@ -781,7 +783,8 @@ class Namespace(ReferenceBase):
         return map(
             lambda entry: f"{entry[0].name}",
             filter(
-                Namespace.__completion_matcher(value), ((s, v) for s, v in self.refers)
+                Namespace.__completion_matcher(value),
+                ((s, v) for s, v in self.refers.items()),
             ),
         )
 
@@ -807,13 +810,11 @@ class Namespace(ReferenceBase):
         return results
 
 
-def push_thread_bindings(m: IAssociative[Var, Any]) -> None:
+def push_thread_bindings(m: IPersistentMap[Var, Any]) -> None:
     """Push thread local bindings for the Var keys in m using the values."""
     bindings = set()
 
-    for entry in m:
-        var: Var = entry.key  # type: ignore
-        val = entry.value
+    for var, val in m.items():
         if not var.dynamic:
             raise RuntimeException(
                 "cannot set thread-local bindings for non-dynamic Var"
@@ -839,34 +840,50 @@ def pop_thread_bindings() -> None:
 # Runtime Support #
 ###################
 
+T = TypeVar("T")
 
+
+@functools.singledispatch
 def first(o):
     """If o is a ISeq, return the first element from o. If o is None, return
     None. Otherwise, coerces o to a Seq and returns the first."""
-    if o is None:
-        return None
-    if isinstance(o, ISeq):
-        return o.first
     s = to_seq(o)
     if s is None:
         return None
     return s.first
 
 
-def rest(o) -> Optional[ISeq]:
+@first.register(type(None))
+def _first_none(_: None) -> None:
+    return None
+
+
+@first.register(ISeq)
+def _first_iseq(o: ISeq[T]) -> Optional[T]:
+    return o.first
+
+
+@functools.singledispatch
+def rest(o) -> ISeq:
     """If o is a ISeq, return the elements after the first in o. If o is None,
     returns an empty seq. Otherwise, coerces o to a seq and returns the rest."""
-    if o is None:
-        return None
-    if isinstance(o, ISeq):
-        s = o.rest
-        if s is None:
-            return lseq.EMPTY
-        return s
     n = to_seq(o)
     if n is None:
         return lseq.EMPTY
     return n.rest
+
+
+@rest.register(type(None))
+def _rest_none(_: None) -> ISeq:
+    return lseq.EMPTY
+
+
+@rest.register(type(ISeq))
+def _rest_iseq(o: ISeq[T]) -> ISeq:
+    s = o.rest
+    if s is None:
+        return lseq.EMPTY
+    return s
 
 
 def nthrest(coll, i: int):
@@ -900,15 +917,26 @@ def nthnext(coll, i: int) -> Optional[ISeq]:
         coll = next_(coll)
 
 
+@functools.singledispatch
+def _cons(seq, o) -> ISeq:
+    return Maybe(to_seq(seq)).map(lambda s: s.cons(o)).or_else(lambda: llist.l(o))
+
+
+@_cons.register(type(None))
+def _cons_none(_: None, o) -> ISeq:
+    return llist.l(o)
+
+
+@_cons.register(ISeq)
+def _cons_iseq(seq: ISeq, o) -> ISeq:
+    return seq.cons(o)
+
+
 def cons(o, seq) -> ISeq:
     """Creates a new sequence where o is the first element and seq is the rest.
     If seq is None, return a list containing o. If seq is not a ISeq, attempt
     to coerce it to a ISeq and then cons o onto the resulting sequence."""
-    if seq is None:
-        return llist.l(o)
-    if isinstance(seq, ISeq):
-        return seq.cons(o)
-    return Maybe(to_seq(seq)).map(lambda s: s.cons(o)).or_else(lambda: llist.l(o))
+    return _cons(seq, o)
 
 
 def _seq_or_nil(s: ISeq) -> Optional[ISeq]:
@@ -918,15 +946,25 @@ def _seq_or_nil(s: ISeq) -> Optional[ISeq]:
     return s
 
 
+@functools.singledispatch
 def to_seq(o) -> Optional[ISeq]:
     """Coerce the argument o to a ISeq. If o is None, return None."""
-    if o is None:
-        return None
-    if isinstance(o, ISeq):
-        return _seq_or_nil(o)
-    if isinstance(o, ISeqable):
-        return _seq_or_nil(o.seq())
     return _seq_or_nil(lseq.sequence(o))
+
+
+@to_seq.register(type(None))
+def _to_seq_none(_) -> None:
+    return None
+
+
+@to_seq.register(ISeq)
+def _to_seq_iseq(o: ISeq) -> Optional[ISeq]:
+    return _seq_or_nil(o)
+
+
+@to_seq.register(ISeqable)
+def _to_seq_iseqable(o: ISeqable) -> Optional[ISeq]:
+    return _seq_or_nil(o.seq())
 
 
 def concat(*seqs) -> ISeq:
@@ -979,16 +1017,45 @@ def apply_kw(f, args):
     return f(*final, **kwargs)
 
 
+def count(coll) -> int:
+    try:
+        return len(coll)
+    except (AttributeError, TypeError):
+        try:
+            return sum(1 for _ in coll)
+        except TypeError:
+            raise TypeError(f"count not supported on object of type {type(coll)}")
+
+
 __nth_sentinel = object()
 
 
-def nth(coll, i, notfound=__nth_sentinel):
+@functools.singledispatch
+def nth(coll, i: int, notfound=__nth_sentinel):
     """Returns the ith element of coll (0-indexed), if it exists.
     None otherwise. If i is out of bounds, throws an IndexError unless
     notfound is specified."""
-    if coll is None:
-        return None
+    try:
+        for j, e in enumerate(coll):
+            if i == j:
+                return e
+    except TypeError:
+        pass
+    else:
+        if notfound is not __nth_sentinel:
+            return notfound
+        raise IndexError(f"Index {i} out of bounds")
 
+    raise TypeError(f"nth not supported on object of type {type(coll)}")
+
+
+@nth.register(type(None))
+def _nth_none(_: None, i: int, notfound=__nth_sentinel) -> None:
+    return None
+
+
+@nth.register(Sequence)
+def _nth_sequence(coll: Sequence, i: int, notfound=__nth_sentinel):
     try:
         return coll[i]
     except IndexError as ex:
@@ -1000,58 +1067,67 @@ def nth(coll, i, notfound=__nth_sentinel):
         # cases where this exception occurs are not bugs.
         logger.log(TRACE, "Ignored %s: %s", type(ex).__name__, ex)
 
-    try:
-        for j, e in enumerate(coll):
-            if i == j:
-                return e
-        if notfound is not __nth_sentinel:
-            return notfound
-        raise IndexError(f"Index {i} out of bounds")
-    except TypeError:
-        pass
 
-    raise TypeError(f"nth not supported on object of type {type(coll)}")
-
-
+@functools.singledispatch
 def assoc(m, *kvs):
     """Associate keys to values in associative data structure m. If m is None,
     returns a new Map with key-values kvs."""
-    if m is None:
-        return lmap.Map.empty().assoc(*kvs)
-    if isinstance(m, IAssociative):
-        return m.assoc(*kvs)
     raise TypeError(
         f"Object of type {type(m)} does not implement Associative interface"
     )
 
 
+@assoc.register(type(None))
+def _assoc_none(_: None, *kvs) -> lmap.Map:
+    return lmap.Map.empty().assoc(*kvs)
+
+
+@assoc.register(IAssociative)
+def _assoc_iassociative(m: IAssociative, *kvs):
+    return m.assoc(*kvs)
+
+
+@functools.singledispatch
 def update(m, k, f, *args):
     """Updates the value for key k in associative data structure m with the return value from
     calling f(old_v, *args). If m is None, use an empty map. If k is not in m, old_v will be
     None."""
-    if m is None:
-        return lmap.Map.empty().assoc(k, f(None, *args))
-    if isinstance(m, IAssociative):
-        old_v = m.val_at(k)
-        new_v = f(old_v, *args)
-        return m.assoc(k, new_v)
     raise TypeError(
         f"Object of type {type(m)} does not implement Associative interface"
     )
 
 
+@update.register(type(None))
+def _update_none(_: None, k, f, *args) -> lmap.Map:
+    return lmap.Map.empty().assoc(k, f(None, *args))
+
+
+@update.register(IAssociative)
+def _update_iassociative(m: IAssociative, k, f, *args):
+    old_v = m.val_at(k)
+    new_v = f(old_v, *args)
+    return m.assoc(k, new_v)
+
+
+@functools.singledispatch
 def conj(coll, *xs):
     """Conjoin xs to collection. New elements may be added in different positions
     depending on the type of coll. conj returns the same type as coll. If coll
     is None, return a list with xs conjoined."""
-    if coll is None:
-        l = llist.List.empty()
-        return l.cons(*xs)
-    if isinstance(coll, IPersistentCollection):
-        return coll.cons(*xs)
     raise TypeError(
         f"Object of type {type(coll)} does not implement Collection interface"
     )
+
+
+@conj.register(type(None))
+def _conj_none(_: None, *xs):
+    l = llist.List.empty()
+    return l.cons(*xs)
+
+
+@conj.register(IPersistentCollection)
+def _conj_ipersistentcollection(coll: IPersistentCollection, *xs):
+    return coll.cons(*xs)
 
 
 def partial(f, *args, **kwargs):
@@ -1064,6 +1140,7 @@ def partial(f, *args, **kwargs):
     return partial_f
 
 
+@functools.singledispatch
 def deref(o, timeout_s=None, timeout_val=None):
     """Dereference a Deref object and return its contents.
 
@@ -1071,11 +1148,19 @@ def deref(o, timeout_s=None, timeout_val=None):
     timeout_val are supplied, deref will wait at most timeout_s seconds,
     returning timeout_val if timeout_s seconds elapse and o has not
     returned."""
-    if isinstance(o, IBlockingDeref):
-        return o.deref(timeout_s, timeout_val)
-    elif isinstance(o, IDeref):
-        return o.deref()
     raise TypeError(f"Object of type {type(o)} cannot be dereferenced")
+
+
+@deref.register(IBlockingDeref)
+def _deref_blocking(
+    o: IBlockingDeref, timeout_s: Optional[float] = None, timeout_val=None
+):
+    return o.deref(timeout_s, timeout_val)
+
+
+@deref.register(IDeref)
+def _deref(o: IDeref):
+    return o.deref()
 
 
 def equals(v1, v2) -> bool:
@@ -1087,10 +1172,16 @@ def equals(v1, v2) -> bool:
     return v1 == v2
 
 
+@functools.singledispatch
 def divide(x: LispNumber, y: LispNumber) -> LispNumber:
     """Division reducer. If both arguments are integers, return a Fraction.
     Otherwise, return the true division of x and y."""
-    if isinstance(x, int) and isinstance(y, int):
+    return x / y
+
+
+@divide.register(int)
+def _divide_ints(x: int, y: LispNumber) -> LispNumber:
+    if isinstance(y, int):
         return Fraction(x, y)
     return x / y
 
@@ -1140,23 +1231,30 @@ def sort_by(keyfn, coll, cmp=None) -> Optional[ISeq]:
     return lseq.sequence(sorted(coll, key=key))
 
 
+@functools.singledispatch
 def contains(coll, k):
     """Return true if o contains the key k."""
-    if isinstance(coll, IAssociative):
-        return coll.contains(k)
     return k in coll
 
 
+@contains.register(IAssociative)
+def _contains_iassociative(coll, k):
+    return coll.contains(k)
+
+
+@functools.singledispatch
 def get(m, k, default=None):
     """Return the value of k in m. Return default if k not found in m."""
-    if isinstance(m, ILookup):
-        return m.val_at(k, default)
-
     try:
         return m[k]
     except (KeyError, IndexError, TypeError) as e:
         logger.log(TRACE, "Ignored %s: %s", type(e).__name__, e)
         return default
+
+
+@get.register(ILookup)
+def _get_ilookup(m, k, default=None):
+    return m.val_at(k, default)
 
 
 def is_special_form(s: sym.Symbol) -> bool:
@@ -1233,7 +1331,7 @@ def _to_py_map(
 ) -> dict:
     return {
         to_py(key, keyword_fn=keyword_fn): to_py(value, keyword_fn=keyword_fn)
-        for key, value in o
+        for key, value in o.items()
     }
 
 
@@ -1292,11 +1390,15 @@ def repl_completions(text: str) -> Iterable[str]:
 ####################
 
 
+@functools.singledispatch
 def _collect_args(args) -> ISeq:
     """Collect Python starred arguments into a Basilisp list."""
-    if isinstance(args, tuple):
-        return llist.list(args)
     raise TypeError("Python variadic arguments should always be a tuple")
+
+
+@_collect_args.register(tuple)
+def _collect_args_tuple(args: tuple) -> ISeq:
+    return llist.list(args)
 
 
 class _TrampolineArgs:

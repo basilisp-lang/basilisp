@@ -37,6 +37,20 @@ class IBlockingDeref(IDeref[T]):
 
 
 class ICounted(ABC):
+    """ICounted types can produce their length in constant time.
+
+    All of the builtin collections are ICounted, except Lists whose length is
+    determined by counting all of the elements in the list in linear time."""
+
+    __slots__ = ()
+
+
+class IIndexed(ICounted, ABC):
+    """IIndexed types can be accessed by index.
+
+    Of the builtin collections, only Vectors are IIndexed. IIndexed types respond
+    True to the `indexed?` predicate."""
+
     __slots__ = ()
 
 
@@ -107,6 +121,12 @@ class IReference(IMeta):
 
 
 class IReversible(Generic[T]):
+    """IReversible types can produce a sequences of their elements in reverse in
+    constant time.
+
+    Of the builtin collections, only Vectors are IReversible. IIndexed types respond
+    True to the `reversible` predicate."""
+
     __slots__ = ()
 
     @abstractmethod
@@ -115,6 +135,11 @@ class IReversible(Generic[T]):
 
 
 class ISeqable(Iterable[T]):
+    """ISeqable types can produce sequences of their elements, but are not ISeqs.
+
+    All of the builtin collections are ISeqable, except Lists which directly
+    implement ISeq. Values of type ISeqable respond True to the `seqable?` predicate."""
+
     __slots__ = ()
 
     @abstractmethod
@@ -123,6 +148,11 @@ class ISeqable(Iterable[T]):
 
 
 class ISequential(ABC):
+    """ISequential is a marker interface for sequential types.
+
+    Lists and Vectors are both considered ISequential and respond True to the
+    `sequential?` predicate."""
+
     __slots__ = ()
 
 
@@ -153,9 +183,7 @@ class IPersistentCollection(ISeqable[T]):
 T_assoc = TypeVar("T_assoc", bound="IAssociative")
 
 
-class IAssociative(
-    ILookup[K, V], Mapping[K, V], IPersistentCollection[IMapEntry[K, V]]
-):
+class IAssociative(ILookup[K, V], IPersistentCollection[IMapEntry[K, V]]):
     __slots__ = ()
 
     @abstractmethod
@@ -193,7 +221,7 @@ class IPersistentList(ISequential, IPersistentStack[T]):
 T_map = TypeVar("T_map", bound="IPersistentMap")
 
 
-class IPersistentMap(ICounted, IAssociative[K, V]):
+class IPersistentMap(ICounted, Mapping[K, V], IAssociative[K, V]):
     __slots__ = ()
 
     @abstractmethod
@@ -224,7 +252,7 @@ T_vec = TypeVar("T_vec", bound="IPersistentVector")
 class IPersistentVector(
     Sequence[T],
     IAssociative[int, T],
-    ICounted,
+    IIndexed,
     IReversible[T],
     ISequential,
     IPersistentStack[T],
@@ -245,6 +273,10 @@ class IPersistentVector(
 
 
 class IRecord(ILispObject):
+    """IRecord is a marker interface for types def'ed by `defrecord` forms.
+
+    All types created by `defrecord` are automatically marked with IRecord."""
+
     __slots__ = ()
 
     @classmethod
@@ -265,6 +297,23 @@ class IRecord(ILispObject):
         arguments, so this method is called by `_lrepr` with the keyword
         arguments cast to a Python dict."""
         raise NotImplementedError()
+
+
+def seq_equals(s1, s2) -> bool:
+    """Return True if two sequences contain the exactly the same elements in the
+    same order. Return False if one sequence is shorter than the other."""
+    assert isinstance(s1, (ISeq, ISequential))
+
+    if not isinstance(s2, (ISeq, ISequential)):
+        return NotImplemented
+
+    sentinel = object()
+    for e1, e2 in itertools.zip_longest(s1, s2, fillvalue=sentinel):  # type: ignore[arg-type]
+        if bool(e1 is sentinel) or bool(e2 is sentinel):
+            return False
+        if e1 != e2:
+            return False
+    return True
 
 
 class ISeq(ILispObject, ISeqable[T]):
@@ -320,17 +369,9 @@ class ISeq(ILispObject, ISeqable[T]):
         return seq_lrepr(iter(self), "(", ")", **kwargs)
 
     def __eq__(self, other):
-        sentinel = object()
-        try:
-            for e1, e2 in itertools.zip_longest(self, other, fillvalue=sentinel):
-                if bool(e1 is sentinel) or bool(e2 is sentinel):
-                    return False
-                if e1 != e2:
-                    return False
-        except TypeError:
-            return False
-        else:
+        if self is other:
             return True
+        return seq_equals(self, other)
 
     def __hash__(self):
         return hash(tuple(self))
@@ -340,4 +381,8 @@ class ISeq(ILispObject, ISeqable[T]):
 
 
 class IType(ABC):
+    """IType is a marker interface for types def'ed by `deftype` forms.
+
+    All types created by `deftype` are automatically marked with IType."""
+
     __slots__ = ()

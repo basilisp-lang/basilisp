@@ -6,10 +6,15 @@ import basilisp.lang.map as lmap
 import basilisp.lang.vector as vector
 from basilisp.lang.interfaces import (
     IAssociative,
+    ICounted,
     ILispObject,
+    ILookup,
     IPersistentCollection,
+    IPersistentStack,
     IPersistentVector,
+    IReversible,
     ISeqable,
+    ISequential,
     IWithMeta,
 )
 from basilisp.lang.keyword import keyword
@@ -20,11 +25,16 @@ from basilisp.lang.symbol import symbol
     "interface",
     [
         IAssociative,
-        IPersistentCollection,
-        IWithMeta,
+        ICounted,
         ILispObject,
-        ISeqable,
+        ILookup,
+        IPersistentCollection,
+        IPersistentStack,
         IPersistentVector,
+        IReversible,
+        ISeqable,
+        ISequential,
+        IWithMeta,
     ],
 )
 def test_vector_interface_membership(interface):
@@ -78,6 +88,16 @@ def test_vector_cons():
 
 
 def test_entry():
+    assert vector.MapEntry.of(0, "a") == vector.v("a").entry(0)
+    assert vector.MapEntry.of(1, "b") == vector.v("a", "b").entry(1)
+    assert None is vector.v("a", "b").entry(2)
+    assert vector.MapEntry.of(-1, "b") == vector.v("a", "b").entry(-1)
+    assert None is vector.Vector.empty().entry(0)
+    assert None is vector.Vector.empty().entry(1)
+    assert None is vector.Vector.empty().entry(-1)
+
+
+def test_val_at():
     assert "a" == vector.v("a").val_at(0)
     assert "b" == vector.v("a", "b").val_at(1)
     assert None is vector.v("a", "b").val_at(2)

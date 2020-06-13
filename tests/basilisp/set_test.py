@@ -6,6 +6,7 @@ import pytest
 import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 from basilisp.lang.interfaces import (
+    ICounted,
     ILispObject,
     IPersistentCollection,
     IPersistentSet,
@@ -18,11 +19,27 @@ from basilisp.lang.symbol import symbol
 
 @pytest.mark.parametrize(
     "interface",
-    [IPersistentCollection, IWithMeta, ILispObject, ISeqable, IPersistentSet],
+    [
+        typing.AbstractSet,
+        ICounted,
+        ILispObject,
+        IPersistentCollection,
+        IPersistentSet,
+        ISeqable,
+        IWithMeta,
+    ],
 )
 def test_set_interface_membership(interface):
     assert isinstance(lset.s(), interface)
     assert issubclass(lset.Set, interface)
+
+
+def test_set_as_function():
+    assert None is lset.s()(1)
+    assert None is lset.s()("abc")
+    assert None is lset.s(1, 2, 3)("abc")
+    assert 1 == lset.s(1, 2, 3)(1)
+    assert 3 == lset.s(1, 2, 3)(3)
 
 
 def test_set_conj():

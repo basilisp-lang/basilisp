@@ -241,10 +241,7 @@
     :arglists '([coll])}
   count
   (fn count [coll]
-    (try
-      (python/len coll)
-      (catch TypeError _
-        (count (apply vector coll))))))
+    (basilisp.lang.runtime/count coll)))
 
 (def
   ^{:doc      "Returns a basilisp.lang.exception/ExceptionInfo instance with
@@ -1097,6 +1094,11 @@
   they are not proper function types."
   [x]
   (python/callable x))
+
+(defn indexed?
+  "Return true if elements of x can be accessed by index efficiently."
+  [x]
+  (instance? basilisp.lang.interfaces/IIndexed x))
 
 (def ^{:doc "Return true if x is an integer.
 

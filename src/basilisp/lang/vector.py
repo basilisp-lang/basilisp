@@ -9,6 +9,7 @@ from basilisp.lang.interfaces import (
     IPersistentVector,
     ISeq,
     IWithMeta,
+    seq_equals,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
@@ -33,12 +34,11 @@ class Vector(IPersistentVector[T], ILispObject, IWithMeta):
         return item in self._inner
 
     def __eq__(self, other):
-        if hasattr(other, "__len__"):
-            return self._inner == other
-        try:
-            return all(e1 == e2 for e1, e2 in zip(self._inner, other))
-        except TypeError:
+        if self is other:
+            return True
+        if hasattr(other, "__len__") and len(self) != len(other):
             return False
+        return seq_equals(self, other)
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -106,15 +106,7 @@ class Vector(IPersistentVector[T], ILispObject, IWithMeta):
         return self[:-1]
 
     def rseq(self) -> ISeq[T]:
-        def _reverse_vec() -> Iterable[T]:
-            l = len(self)
-            for i in range(l - 1, 0, -1):
-                yield self._inner[i]
-
-            if l:
-                yield self._inner[0]
-
-        return sequence(_reverse_vec())
+        return sequence(reversed(self))
 
 
 K = TypeVar("K")

@@ -22,9 +22,6 @@ class List(IPersistentList[T], ISeq[T], IWithMeta):
         self._inner = wrapped
         self._meta = meta
 
-    def __eq__(self, other):
-        return self._inner == other
-
     def __getitem__(self, item):
         if isinstance(item, slice):
             return List(self._inner[item])
