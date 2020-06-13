@@ -63,6 +63,13 @@
       nil
       res)))
 
+(defn ^:priviate include-seq-elem?
+  "Return true if an element should be included in the final diff vector.
+
+  `nil` elements at the end of a diff vector will be excluded."
+  [s elem]
+  (or s (and (not s) (not (nil? elem)))))
+
 (defn ^:private diff-seq
   [this other]
   (if-not (sequential? other)
@@ -75,15 +82,14 @@
       (if (and a b)
         (let [[a-head & a-rest]         a
               [b-head & b-rest]         b
-              [a-part b-part both-part] (diff a-head b-head)
-
-              incl-a-elem? (or (seq a-rest) (and (not (seq a-rest)) (not (nil? a-part))))
-              incl-b-elem? (or (seq b-rest) (and (not (seq b-rest)) (not (nil? b-part))))]
+              [a-part b-part both-part] (diff a-head b-head)]
           (recur (seq a-rest)
                  (seq b-rest)
-                 (cond-> in-a incl-a-elem? (conj a-part))
-                 (cond-> in-b incl-b-elem? (conj b-part))
-                 (conj in-both both-part)))
+                 (cond-> in-a (include-seq-elem? (seq a-rest) a-part) (conj a-part))
+                 (cond-> in-b (include-seq-elem? (seq b-rest) b-part) (conj b-part))
+                 (cond-> in-both
+                   (include-seq-elem? (and (seq a-rest) (seq b-rest)) both-part)
+                   (conj both-part))))
         [(collect-rest in-a a)
          (collect-rest in-b b)
          (if (every? nil? in-both)

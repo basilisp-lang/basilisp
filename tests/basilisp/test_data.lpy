@@ -193,12 +193,13 @@
 
     (testing "sequential types equal"
       (are [x y z] (= z (diff x y))
-        []                []                [nil nil []]
-        [1 2 3]           [2 3 4]           [[1 2 3] [2 3 4] nil]
-        [1 2 3]           [1 2 3]           [nil nil [1 2 3]]
-        [1 2 3]           [1 2 3 4]         [nil [nil nil nil 4] [1 2 3]]
-        [1 2 3]           [5 9 3 2 3 7]     [[1 2] [5 9 nil 2 3 7] [nil nil 3]]
-        [{:a 1 :b 2} 2 3] [{:a 1 :b 3} 0 3] [[{:b 2} 2] [{:b 3} 0] [{:a 1} nil 3]])))
+        []                []                  [nil nil []]
+        [1 2 3]           [2 3 4]             [[1 2 3] [2 3 4] nil]
+        [1 2 3]           [1 2 3]             [nil nil [1 2 3]]
+        [1 2 3]           [1 2 3 4]           [nil [nil nil nil 4] [1 2 3]]
+        [1 2 3]           [5 9 3 2 3 7]       [[1 2] [5 9 nil 2 3 7] [nil nil 3]]
+        [{:a 1 :b 2} 2 3] [{:a 1 :b 3} 0 3]   [[{:b 2} 2] [{:b 3} 0] [{:a 1} nil 3]]
+        [1 #{:a :b :c} 3] [1 #{:b :c :d} 4 3] [[nil #{:a} 3] [nil #{:d} 4 3] [1 #{:b :c}]])))
 
   (testing "map types"
     (testing "map types never equal to non-map type"
