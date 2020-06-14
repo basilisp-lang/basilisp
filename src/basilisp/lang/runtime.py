@@ -1554,47 +1554,61 @@ def _basilisp_type(
     def wrap_class(cls: Type):
         field_names = frozenset(fields)
         member_names = frozenset(members)
+        artificially_abstract_base_members: Set[str] = set()
         all_member_names = field_names.union(member_names)
         all_interface_methods: Set[str] = set()
         for interface in interfaces:
-            if interface is object or interface in artificially_abstract_bases:
+            if interface is object:
                 continue
 
-            if not is_abstract(interface):
+            if is_abstract(interface):
+                interface_names: FrozenSet[str] = interface.__abstractmethods__
+                interface_property_names: FrozenSet[str] = frozenset(
+                    method
+                    for method in interface_names
+                    if isinstance(getattr(interface, method), property)
+                )
+                interface_method_names = interface_names - interface_property_names
+                if not interface_method_names.issubset(member_names):
+                    missing_methods = ", ".join(interface_method_names - member_names)
+                    raise RuntimeException(
+                        "deftype* definition missing interface members for interface "
+                        f"{interface}: {missing_methods}",
+                    )
+                elif not interface_property_names.issubset(all_member_names):
+                    missing_fields = ", ".join(interface_property_names - field_names)
+                    raise RuntimeException(
+                        "deftype* definition missing interface properties for interface "
+                        f"{interface}: {missing_fields}",
+                    )
+
+                all_interface_methods.update(interface_names)
+            elif interface in artificially_abstract_bases:
+                artificially_abstract_base_members.update(
+                    map(
+                        lambda v: v[0],
+                        inspect.getmembers(
+                            interface,
+                            predicate=lambda v: inspect.isfunction(v)
+                            or isinstance(v, (property, staticmethod))
+                            or inspect.ismethod(v),
+                        ),
+                    )
+                )
+            else:
                 raise RuntimeException(
                     "deftype* interface must be Python abstract class or object",
                 )
 
-            interface_names: FrozenSet[str] = interface.__abstractmethods__
-            interface_property_names: FrozenSet[str] = frozenset(
-                method
-                for method in interface_names
-                if isinstance(getattr(interface, method), property)
+        extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
+        if extra_methods and not extra_methods.issubset(
+            artificially_abstract_base_members
+        ):
+            extra_method_str = ", ".join(extra_methods)
+            raise RuntimeException(
+                "deftype* definition for interface includes members not part of "
+                f"defined interfaces: {extra_method_str}"
             )
-            interface_method_names = interface_names - interface_property_names
-            if not interface_method_names.issubset(member_names):
-                missing_methods = ", ".join(interface_method_names - member_names)
-                raise RuntimeException(
-                    "deftype* definition missing interface members for interface "
-                    f"{interface}: {missing_methods}",
-                )
-            elif not interface_property_names.issubset(all_member_names):
-                missing_fields = ", ".join(interface_property_names - field_names)
-                raise RuntimeException(
-                    "deftype* definition missing interface properties for interface "
-                    f"{interface}: {missing_fields}",
-                )
-
-            all_interface_methods.update(interface_names)
-
-        if not artificially_abstract_bases:
-            extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
-            if extra_methods:
-                extra_method_str = ", ".join(extra_methods)
-                raise RuntimeException(
-                    "deftype* definition for interface includes members not part of "
-                    f"defined interfaces: {extra_method_str}"
-                )
 
         return cls
 

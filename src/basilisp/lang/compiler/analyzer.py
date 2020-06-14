@@ -1,6 +1,7 @@
 import builtins
 import collections
 import contextlib
+import inspect
 import logging
 import re
 import sys
@@ -1545,16 +1546,13 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
 
     unverifiably_abstract = set()
     artificially_abstract = set()
+    artificially_abstract_base_members: Set[str] = set()
 
     field_names = frozenset(fields)
     member_names = frozenset(deftype_or_reify_python_member_names(members))
     all_member_names = field_names.union(member_names)
     all_interface_methods: Set[str] = set()
     for interface in interfaces:
-        if _is_artificially_abstract(interface.form):
-            artificially_abstract.add(interface)
-            continue
-
         if isinstance(interface, (MaybeClass, MaybeHostForm)):
             interface_type = interface.target
         else:
@@ -1582,42 +1580,64 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
         if interface_type is object:
             continue
 
-        if not is_abstract(interface_type):
+        if is_abstract(interface_type):
+            interface_names: FrozenSet[str] = interface_type.__abstractmethods__
+            interface_property_names: FrozenSet[str] = frozenset(
+                method
+                for method in interface_names
+                if isinstance(getattr(interface_type, method), property)
+            )
+            interface_method_names = interface_names - interface_property_names
+            if not interface_method_names.issubset(member_names):
+                missing_methods = ", ".join(interface_method_names - member_names)
+                raise AnalyzerException(
+                    f"{special_form} definition missing interface members for "
+                    f"interface {interface.form}: {missing_methods}",
+                    form=interface.form,
+                    lisp_ast=interface,
+                )
+            elif not interface_property_names.issubset(all_member_names):
+                missing_fields = ", ".join(interface_property_names - field_names)
+                raise AnalyzerException(
+                    f"{special_form} definition missing interface properties for "
+                    f"interface {interface.form}: {missing_fields}",
+                    form=interface.form,
+                    lisp_ast=interface,
+                )
+
+            all_interface_methods.update(interface_names)
+        elif _is_artificially_abstract(interface.form):
+            # Given that artificially abstract bases aren't real `abc.ABC`s and do
+            # not annotate their `abstractmethod`s, we can't assert right now that
+            # any the type will satisfy the artificially abstract base. However,
+            # we can collect any defined methods into a set for artificial bases
+            # and assert that any extra methods are included in that set below.
+            artificially_abstract.add(interface)
+            artificially_abstract_base_members.update(
+                map(
+                    lambda v: v[0],
+                    inspect.getmembers(
+                        interface_type,
+                        predicate=lambda v: inspect.isfunction(v)
+                        or isinstance(v, (property, staticmethod))
+                        or inspect.ismethod(v),
+                    ),
+                )
+            )
+        else:
             raise AnalyzerException(
                 f"{special_form} interface must be Python abstract class or object",
                 form=interface.form,
                 lisp_ast=interface,
             )
 
-        interface_names: FrozenSet[str] = interface_type.__abstractmethods__
-        interface_property_names: FrozenSet[str] = frozenset(
-            method
-            for method in interface_names
-            if isinstance(getattr(interface_type, method), property)
-        )
-        interface_method_names = interface_names - interface_property_names
-        if not interface_method_names.issubset(member_names):
-            missing_methods = ", ".join(interface_method_names - member_names)
-            raise AnalyzerException(
-                f"{special_form} definition missing interface members for "
-                f"interface {interface.form}: {missing_methods}",
-                form=interface.form,
-                lisp_ast=interface,
-            )
-        elif not interface_property_names.issubset(all_member_names):
-            missing_fields = ", ".join(interface_property_names - field_names)
-            raise AnalyzerException(
-                f"{special_form} definition missing interface properties for "
-                f"interface {interface.form}: {missing_fields}",
-                form=interface.form,
-                lisp_ast=interface,
-            )
-
-        all_interface_methods.update(interface_names)
-
-    if artificially_abstract:
+    # We cannot compute if there are extra methods defined if there are any
+    # unverifiably abstract bases, so we just skip this check.
+    if not unverifiably_abstract:
         extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
-        if extra_methods:
+        if extra_methods and not extra_methods.issubset(
+            artificially_abstract_base_members
+        ):
             extra_method_str = ", ".join(extra_methods)
             raise AnalyzerException(
                 f"{special_form} definition for interface includes members not "
