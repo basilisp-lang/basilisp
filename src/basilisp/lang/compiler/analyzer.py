@@ -1515,6 +1515,20 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
 _var_is_protocol = _meta_getter(VAR_IS_PROTOCOL_META_KEY)
 
 
+def __is_deftype_member(mem) -> bool:
+    """Return True if `mem` names a valid `deftype*` member."""
+    return (
+        inspect.isfunction(mem)
+        or isinstance(mem, (property, staticmethod))
+        or inspect.ismethod(mem)
+    )
+
+
+def __is_reify_member(mem) -> bool:
+    """Return True if `mem` names a valid `reify*` member."""
+    return inspect.isfunction(mem) or isinstance(mem, property)
+
+
 def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-branches,too-many-locals
     special_form: sym.Symbol,
     fields: Iterable[str],
@@ -1547,6 +1561,10 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
     unverifiably_abstract = set()
     artificially_abstract = set()
     artificially_abstract_base_members: Set[str] = set()
+    is_member = {
+        SpecialForm.DEFTYPE: __is_deftype_member,
+        SpecialForm.REIFY: __is_reify_member,
+    }[special_form]
 
     field_names = frozenset(fields)
     member_names = frozenset(deftype_or_reify_python_member_names(members))
@@ -1616,12 +1634,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
             artificially_abstract_base_members.update(
                 map(
                     lambda v: v[0],
-                    inspect.getmembers(
-                        interface_type,
-                        predicate=lambda v: inspect.isfunction(v)
-                        or isinstance(v, (property, staticmethod))
-                        or inspect.ismethod(v),
-                    ),
+                    inspect.getmembers(interface_type, predicate=is_member,),
                 )
             )
         else:

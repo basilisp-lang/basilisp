@@ -1,4 +1,4 @@
-(ns tests.basilisp.defrecord-test
+(ns tests.basilisp.test-defrecord
   (:import abc)
   (:require
    [basilisp.test :refer [deftest is testing]]))
