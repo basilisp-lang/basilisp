@@ -49,6 +49,7 @@ from basilisp.lang.compiler.constants import (
     LINE_KW,
     NAME_KW,
     NS_KW,
+    SYM_ABSTRACT_META_KEY,
     SYM_ASYNC_META_KEY,
     SYM_CLASSMETHOD_META_KEY,
     SYM_DEFAULT_META_KEY,
@@ -623,6 +624,7 @@ def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
     return has_meta_prop
 
 
+_is_artificially_abstract = _meta_getter(SYM_ABSTRACT_META_KEY)
 _is_async = _meta_getter(SYM_ASYNC_META_KEY)
 _is_mutable = _meta_getter(SYM_MUTABLE_META_KEY)
 _is_py_classmethod = _meta_getter(SYM_CLASSMETHOD_META_KEY)
@@ -1517,9 +1519,13 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
     members: Iterable[DefTypeMember],
-) -> bool:
-    """Return True if all `deftype*` or `reify*` super-types can be verified abstract
-    statically. Return False otherwise.
+) -> Tuple[bool, lset.Set[DefTypeBase]]:
+    """Return a tuple of two items indicating the abstractness of the `deftype*` or
+    `reify*` super-types. The first element is a boolean value which, if True,
+    indicates that all bases have been statically verified abstract. If False, that
+    value indicates at least one base could not be statically verified. The second
+    element is the set of all super-types which have been marked as artificially
+    abstract.
 
     In certain cases, such as in macro definitions and potentially inside of
     functions, the compiler will be unable to resolve the named super-type as an
@@ -1527,14 +1533,28 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
     In these cases, the compiler will wrap the emitted class in a decorator that
     performs the checks when the class is compiled by the Python compiler.
 
+    The Python ecosystem is much less strict with its use of `abc.ABC` to define
+    interfaces than Java (which has a native `interface` construct), so even in cases
+    where a type may be _in practice_ an interface or ABC, the compiler would not
+    permit you to declare such types as supertypes because they do not themselves
+    inherit from `abc.ABC`. In these cases, users can mark the type as artificially
+    abstract with the `:abstract` metadata key.
+
     For normal compile-time errors, an `AnalyzerException` will be raised."""
     assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
+
+    unverifiably_abstract = set()
+    artificially_abstract = set()
 
     field_names = frozenset(fields)
     member_names = frozenset(deftype_or_reify_python_member_names(members))
     all_member_names = field_names.union(member_names)
     all_interface_methods: Set[str] = set()
     for interface in interfaces:
+        if _is_artificially_abstract(interface.form):
+            artificially_abstract.add(interface)
+            continue
+
         if isinstance(interface, (MaybeClass, MaybeHostForm)):
             interface_type = interface.target
         else:
@@ -1547,7 +1567,8 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
                     f"{special_form} interface Var '{interface.form}' is not bound"
                     "and cannot be checked for abstractness; deferring to runtime",
                 )
-                return False
+                unverifiably_abstract.add(interface)
+                continue
 
             # Protocols are defined as maps, with the interface being simply a member
             # of the map, denoted by the keyword `:interface`.
@@ -1594,15 +1615,16 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
 
         all_interface_methods.update(interface_names)
 
-    extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
-    if extra_methods:
-        extra_method_str = ", ".join(extra_methods)
-        raise AnalyzerException(
-            f"{special_form} definition for interface includes members not "
-            f"part of defined interfaces: {extra_method_str}"
-        )
+    if artificially_abstract:
+        extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
+        if extra_methods:
+            extra_method_str = ", ".join(extra_methods)
+            raise AnalyzerException(
+                f"{special_form} definition for interface includes members not "
+                f"part of defined interfaces: {extra_method_str}"
+            )
 
-    return True
+    return not unverifiably_abstract, lset.set(artificially_abstract)
 
 
 __DEFTYPE_DEFAULT_SENTINEL = object()
@@ -1684,7 +1706,10 @@ def _deftype_ast(  # pylint: disable=too-many-branches
         interfaces, members = __deftype_or_reify_impls(
             ctx, runtime.nthrest(form, 3), SpecialForm.DEFTYPE
         )
-        verified_abstract = __deftype_and_reify_impls_are_all_abstract(
+        (
+            verified_abstract,
+            artificially_abstract,
+        ) = __deftype_and_reify_impls_are_all_abstract(
             SpecialForm.DEFTYPE, map(lambda f: f.name, fields), interfaces, members
         )
         return DefType(
@@ -1694,6 +1719,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches
             fields=vec.vector(param_nodes),
             members=vec.vector(members),
             verified_abstract=verified_abstract,
+            artificially_abstract=artificially_abstract,
             is_frozen=is_frozen,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
@@ -2552,7 +2578,10 @@ def _reify_ast(ctx: AnalyzerContext, form: ISeq) -> Reify:
         interfaces, members = __deftype_or_reify_impls(
             ctx, runtime.nthrest(form, 1), SpecialForm.REIFY
         )
-        verified_abstract = __deftype_and_reify_impls_are_all_abstract(
+        (
+            verified_abstract,
+            artificially_abstract,
+        ) = __deftype_and_reify_impls_are_all_abstract(
             SpecialForm.REIFY, (), interfaces, members
         )
         return Reify(
@@ -2560,6 +2589,7 @@ def _reify_ast(ctx: AnalyzerContext, form: ISeq) -> Reify:
             interfaces=vec.vector(interfaces),
             members=vec.vector(members),
             verified_abstract=verified_abstract,
+            artificially_abstract=artificially_abstract,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 

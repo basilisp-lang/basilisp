@@ -20,7 +20,7 @@ import basilisp.lang.map as lmap
 import basilisp.lang.set as lset
 import basilisp.lang.symbol as sym
 import basilisp.lang.vector as vec
-from basilisp.lang.interfaces import IPersistentMap, IPersistentVector
+from basilisp.lang.interfaces import IPersistentMap, IPersistentSet, IPersistentVector
 from basilisp.lang.runtime import Namespace, Var, to_lisp
 from basilisp.lang.typing import LispForm, ReaderForm as ReaderLispForm, SpecialForm
 from basilisp.lang.util import munge
@@ -405,6 +405,7 @@ class DefType(Node[SpecialForm]):
     members: Iterable["DefTypeMember"]
     env: NodeEnv
     verified_abstract: bool = False
+    artificially_abstract: IPersistentSet[DefTypeBase] = lset.Set.empty()
     is_frozen: bool = True
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.v(FIELDS, MEMBERS)
@@ -802,6 +803,7 @@ class Reify(Node[SpecialForm]):
     members: Iterable["DefTypeMember"]
     env: NodeEnv
     verified_abstract: bool = False
+    artificially_abstract: IPersistentSet[DefTypeBase] = lset.Set.empty()
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.v(MEMBERS)
     op: NodeOp = NodeOp.REIFY

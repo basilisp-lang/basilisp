@@ -1543,7 +1543,10 @@ def _basilisp_fn(arities: Tuple[Union[int, kw.Keyword]]):
 
 
 def _basilisp_type(
-    fields: Iterable[str], interfaces: Iterable[Type], members: Iterable[str],
+    fields: Iterable[str],
+    interfaces: Iterable[Type],
+    artificially_abstract_bases: AbstractSet[Type],
+    members: Iterable[str],
 ):
     """Check that a Basilisp type (defined by `deftype*`) only declares abstract
     super-types and that all abstract methods are implemented."""
@@ -1554,7 +1557,7 @@ def _basilisp_type(
         all_member_names = field_names.union(member_names)
         all_interface_methods: Set[str] = set()
         for interface in interfaces:
-            if interface is object:
+            if interface is object or interface in artificially_abstract_bases:
                 continue
 
             if not is_abstract(interface):
@@ -1584,13 +1587,14 @@ def _basilisp_type(
 
             all_interface_methods.update(interface_names)
 
-        extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
-        if extra_methods:
-            extra_method_str = ", ".join(extra_methods)
-            raise RuntimeException(
-                "deftype* definition for interface includes members not part of "
-                f"defined interfaces: {extra_method_str}"
-            )
+        if not artificially_abstract_bases:
+            extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
+            if extra_methods:
+                extra_method_str = ", ".join(extra_methods)
+                raise RuntimeException(
+                    "deftype* definition for interface includes members not part of "
+                    f"defined interfaces: {extra_method_str}"
+                )
 
         return cls
 
