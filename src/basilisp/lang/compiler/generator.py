@@ -10,7 +10,6 @@ from fractions import Fraction
 from functools import partial, wraps
 from itertools import chain
 from typing import (
-    AbstractSet,
     Callable,
     Collection,
     Deque,

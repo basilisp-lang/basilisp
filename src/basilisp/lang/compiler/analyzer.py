@@ -1630,7 +1630,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
 __DEFTYPE_DEFAULT_SENTINEL = object()
 
 
-def _deftype_ast(  # pylint: disable=too-many-branches
+def _deftype_ast(  # pylint: disable=too-many-branches,too-many-locals
     ctx: AnalyzerContext, form: ISeq
 ) -> DefType:
     assert form.first == SpecialForm.DEFTYPE
