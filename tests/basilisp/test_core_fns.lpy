@@ -1,4 +1,4 @@
-(ns tests.basilisp.core-fns-test
+(ns tests.basilisp.test-core-fns
   (:import time)
   (:require
    [basilisp.set :as set]

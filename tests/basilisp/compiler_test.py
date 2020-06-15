@@ -772,6 +772,92 @@ class TestDefType:
         """
             )
 
+    class TestDefTypeBases:
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* argparse)
+                (deftype* SomeAction []
+                  :implements [^:abstract argparse/Action]
+                  (__call__ [this]))""",
+                """
+                (def AABase
+                  (python/type "AABase" #py () #py {"some_method" (fn [this])}))
+                (deftype* SomeAction []
+                  :implements [^:abstract AABase]
+                  (some-method [this]))""",
+                """
+                (do
+                  (import* argparse)
+                  (deftype* SomeAction []
+                    :implements [^:abstract argparse/Action]
+                    (__call__ [this])))""",
+                """
+                (do
+                  (def AABase
+                    (python/type "AABase" #py () #py {"some_method" (fn [this])}))
+                  (deftype* SomeAction []
+                    :implements [^:abstract AABase]
+                    (some-method [this])))""",
+            ],
+        )
+        def test_deftype_allows_artificially_abstract_super_type(
+            self, lcompile: CompileFn, code: str
+        ):
+            lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code,ExceptionType",
+            [
+                (
+                    """
+                    (import* argparse)
+                    (deftype* SomeAction []
+                      :implements [^:abstract argparse/Action]
+                      (__call__ [this])
+                      (do-action [this]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (def AABase
+                      (python/type "AABase" #py () #py {"some_method" (fn [this])}))
+                    (deftype* SomeAction []
+                      :implements [^:abstract AABase]
+                      (some-method [this])
+                      (other-method [this]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (do
+                      (import* argparse)
+                      (deftype* SomeAction []
+                        :implements [^:abstract argparse/Action]
+                        (__call__ [this])
+                        (do-action [this])))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (do
+                      (def AABase
+                        (python/type "AABase" #py () #py {"some_method" (fn [this])}))
+                      (deftype* SomeAction []
+                        :implements [^:abstract AABase]
+                        (some-method [this])
+                        (other-method [this])))""",
+                    runtime.RuntimeException,
+                ),
+            ],
+        )
+        def test_deftype_disallows_extra_methods_if_not_in_aa_super_type(
+            self, lcompile: CompileFn, code: str, ExceptionType
+        ):
+            with pytest.raises(ExceptionType):
+                lcompile(code)
+
     class TestDefTypeFields:
         def test_deftype_fields(self, lcompile: CompileFn):
             Point = lcompile("(deftype* Point [x y z])")
@@ -3895,6 +3981,84 @@ class TestReify:
         assert kw.keyword("x") == new_o()
 
         assert type(o) is type(new_o)
+
+    class TestReifyBases:
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* argparse)
+                (reify* :implements [^:abstract argparse/Action]
+                  (__call__ [this]))""",
+                """
+                (def AABase
+                  (python/type "AABase" #py () #py {"some_method" (fn [this])}))
+                (reify* :implements [^:abstract AABase]
+                  (some-method [this]))""",
+                """
+                (do
+                  (import* argparse)
+                  (reify* :implements [^:abstract argparse/Action]
+                    (__call__ [this])))""",
+                """
+                (do
+                  (def AABase
+                    (python/type "AABase" #py () #py {"some_method" (fn [this])}))
+                  (reify* :implements [^:abstract AABase]
+                    (some-method [this])))""",
+            ],
+        )
+        def test_reify_allows_artificially_abstract_super_type(
+            self, lcompile: CompileFn, code: str
+        ):
+            lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code,ExceptionType",
+            [
+                (
+                    """
+                    (import* argparse)
+                    (reify* :implements [^:abstract argparse/Action]
+                      (__call__ [this])
+                      (do-action [this]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (def AABase
+                      (python/type "AABase" #py () #py {"some_method" (fn [this])}))
+                    (reify* :implements [^:abstract AABase]
+                      (some-method [this])
+                      (other-method [this]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (do
+                      (import* argparse)
+                      (reify* :implements [^:abstract argparse/Action]
+                        (__call__ [this])
+                        (do-action [this])))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (do
+                      (def AABase
+                        (python/type "AABase" #py () #py {"some_method" (fn [this])}))
+                      (reify* :implements [^:abstract AABase]
+                        (some-method [this])
+                        (other-method [this])))""",
+                    runtime.RuntimeException,
+                ),
+            ],
+        )
+        def test_reify_disallows_extra_methods_if_not_in_aa_super_type(
+            self, lcompile: CompileFn, code: str, ExceptionType
+        ):
+            with pytest.raises(ExceptionType):
+                lcompile(code)
 
     class TestReifyMember:
         @pytest.mark.parametrize(
