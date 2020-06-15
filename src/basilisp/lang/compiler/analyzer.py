@@ -1584,6 +1584,8 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
                     "and cannot be checked for abstractness; deferring to runtime",
                 )
                 unverifiably_abstract.add(interface)
+                if _is_artificially_abstract(interface.form):
+                    artificially_abstract.add(interface)
                 continue
 
             # Protocols are defined as maps, with the interface being simply a member
@@ -1634,7 +1636,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
             artificially_abstract_base_members.update(
                 map(
                     lambda v: v[0],
-                    inspect.getmembers(interface_type, predicate=is_member,),
+                    inspect.getmembers(interface_type, predicate=is_member),
                 )
             )
         else:
