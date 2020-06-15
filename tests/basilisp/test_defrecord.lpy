@@ -10,11 +10,11 @@
 
 (deftest deftype-reader-form
   (testing "type"
-    (is (= (->Square 5) #tests.basilisp.defrecord-test.Square[5])))
+    (is (= (->Square 5) #tests.basilisp.test-defrecord.Square[5])))
 
   (testing "illegal other forms"
     (is (thrown? basilisp.lang.reader/SyntaxError
-                 (read-string "#tests.basilisp.defrecord-test.Square{:dim 5}")))))
+                 (read-string "#tests.basilisp.test-defrecord.Square{:dim 5}")))))
 
 (defrecord Point [x y z])
 
