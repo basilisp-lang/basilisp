@@ -1559,7 +1559,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
     assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
 
     unverifiably_abstract = set()
-    artificially_abstract = set()
+    artificially_abstract: Set[DefTypeBase] = set()
     artificially_abstract_base_members: Set[str] = set()
     is_member = {
         SpecialForm.DEFTYPE: __is_deftype_member,

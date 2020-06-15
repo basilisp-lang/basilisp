@@ -152,19 +152,19 @@
       (is (= {:tag Point} (meta (with-meta p {:tag Point})))))
 
     (testing "repr"
-      (is (contains? #{"#tests.basilisp.defrecord-test.Point{:x 1 :y 2 :z 3}"
-                       "#tests.basilisp.defrecord-test.Point{:y 2 :z 3 :x 1}"
-                       "#tests.basilisp.defrecord-test.Point{:z 3 :x 1 :y 2}"
-                       "#tests.basilisp.defrecord-test.Point{:y 2 :x 1 :z 3}"
-                       "#tests.basilisp.defrecord-test.Point{:x 1 :z 3 :y 2}"
-                       "#tests.basilisp.defrecord-test.Point{:z 3 :y 2 :x 1}"}
+      (is (contains? #{"#tests.basilisp.test-defrecord.Point{:x 1 :y 2 :z 3}"
+                       "#tests.basilisp.test-defrecord.Point{:y 2 :z 3 :x 1}"
+                       "#tests.basilisp.test-defrecord.Point{:z 3 :x 1 :y 2}"
+                       "#tests.basilisp.test-defrecord.Point{:y 2 :x 1 :z 3}"
+                       "#tests.basilisp.test-defrecord.Point{:x 1 :z 3 :y 2}"
+                       "#tests.basilisp.test-defrecord.Point{:z 3 :y 2 :x 1}"}
                      (str p)))
-      (is (contains? #{"^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:x 1 :y 2 :z 3}"
-                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:y 2 :z 3 :x 1}"
-                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:z 3 :x 1 :y 2}"
-                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:y 2 :x 1 :z 3}"
-                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:x 1 :z 3 :y 2}"
-                       "^{:interesting :yes} #tests.basilisp.defrecord-test.Point{:z 3 :y 2 :x 1}"}
+      (is (contains? #{"^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:x 1 :y 2 :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:y 2 :z 3 :x 1}"
+                       "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:z 3 :x 1 :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:y 2 :x 1 :z 3}"
+                       "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:x 1 :z 3 :y 2}"
+                       "^{:interesting :yes} #tests.basilisp.test-defrecord.Point{:z 3 :y 2 :x 1}"}
                      (binding [*print-meta* true]
                        (str (with-meta p {:interesting :yes}))))))))
 
@@ -188,13 +188,13 @@
       (is (instance? Shape c1)))
 
     (testing "repr"
-      (is (= "#tests.basilisp.defrecord-test.Circle{:radius 1}"
+      (is (= "#tests.basilisp.test-defrecord.Circle{:radius 1}"
              (str c)))
-      (is (= "^{:interesting :yes} #tests.basilisp.defrecord-test.Circle{:radius 1}"
+      (is (= "^{:interesting :yes} #tests.basilisp.test-defrecord.Circle{:radius 1}"
              (binding [*print-meta* true]
                (str (with-meta c {:interesting :yes})))))
-      (is (contains? #{"#tests.basilisp.defrecord-test.Circle{:radius 1 :name \"Kurt\"}"
-                       "#tests.basilisp.defrecord-test.Circle{:name \"Kurt\" :radius 1}"}
+      (is (contains? #{"#tests.basilisp.test-defrecord.Circle{:radius 1 :name \"Kurt\"}"
+                       "#tests.basilisp.test-defrecord.Circle{:name \"Kurt\" :radius 1}"}
                      (str c1))))))
 
 (deftest defrecord-reader-form
@@ -207,7 +207,7 @@
       (is (= p1 (eval (read-string (str p1)))))
       (is (= p2 (eval (read-string (str p2)))))
       (is (= p3 (eval (read-string (str p3)))))
-      (is (= p #tests.basilisp.defrecord-test.Point[1 2 3]))))
+      (is (= p #tests.basilisp.test-defrecord.Point[1 2 3]))))
 
   (testing "record with methods"
     (let [c  (->Circle 1)
@@ -216,13 +216,13 @@
       (is (= c (eval (read-string (str c)))))
       (is (= c1 (eval (read-string (str c1)))))
       (is (= c2 (eval (read-string (str c2)))))
-      (is (= c #tests.basilisp.defrecord-test.Circle[1]))))
+      (is (= c #tests.basilisp.test-defrecord.Circle[1]))))
 
   (testing "illegal other forms"
     (is (thrown? basilisp.lang.reader/SyntaxError
-                 (read-string "#tests.basilisp.defrecord-test.Circle#{1}")))
+                 (read-string "#tests.basilisp.test-defrecord.Circle#{1}")))
     (is (thrown? basilisp.lang.reader/SyntaxError
-                 (read-string "#tests.basilisp.defrecord-test.Point(1 2 3)")))))
+                 (read-string "#tests.basilisp.test-defrecord.Point(1 2 3)")))))
 
 (deftest defrecord-field-restrictions
   (testing "reserved fields"
