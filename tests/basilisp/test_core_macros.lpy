@@ -1,4 +1,4 @@
-(ns tests.basilisp.core-macros-test
+(ns tests.basilisp.test-core-macros
   (:import inspect os tempfile)
   (:require
    [basilisp.test :refer [deftest is testing]]))

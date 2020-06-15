@@ -52,6 +52,7 @@ from basilisp.lang.compiler.nodes import (
     ConstType,
     Def,
     DefType,
+    DefTypeBase,
     DefTypeClassMethod,
     DefTypeMember,
     DefTypeMethod,
@@ -397,6 +398,7 @@ def _class_ast(  # pylint: disable=too-many-arguments
     fields: Iterable[str] = (),
     members: Iterable[str] = (),
     verified_abstract: bool = False,
+    artificially_abstract_bases: Iterable[ast.AST] = (),
     is_frozen: bool = True,
     use_slots: bool = _ATTR_SLOTS_ON,
 ) -> ast.ClassDef:
@@ -425,6 +427,10 @@ def _class_ast(  # pylint: disable=too-many-arguments
                             ast.keyword(
                                 arg="interfaces",
                                 value=ast.Tuple(elts=list(bases), ctx=ast.Load()),
+                            ),
+                            ast.keyword(
+                                arg="artificially_abstract_bases",
+                                value=ast.Set(elts=list(artificially_abstract_bases)),
                             ),
                             ast.keyword(
                                 arg="members",
@@ -1268,13 +1274,15 @@ def __deftype_member_to_py_ast(
 
 
 def __deftype_or_reify_bases_to_py_ast(
-    ctx: GeneratorContext, node: Union[DefType, Reify]
+    ctx: GeneratorContext,
+    node: Union[DefType, Reify],
+    interfaces: Iterable[DefTypeBase],
 ) -> List[ast.AST]:
     """Return a list of AST nodes for the base classes for a `deftype*` or `reify*`."""
     assert node.op in {NodeOp.DEFTYPE, NodeOp.REIFY}
 
     bases: List[ast.AST] = []
-    for base in node.interfaces:
+    for base in interfaces:
         base_node = gen_py_ast(ctx, base)
         assert (
             count(base_node.dependencies) == 0
@@ -1316,7 +1324,10 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
     type_name = munge(node.name)
     ctx.symbol_table.new_symbol(sym.symbol(node.name), type_name, LocalType.DEFTYPE)
 
-    bases = __deftype_or_reify_bases_to_py_ast(ctx, node)
+    bases = __deftype_or_reify_bases_to_py_ast(ctx, node, node.interfaces)
+    artificially_abstract_bases = __deftype_or_reify_bases_to_py_ast(
+        ctx, node, node.artificially_abstract
+    )
 
     with ctx.new_symbol_table(node.name):
         fields = []
@@ -1363,6 +1374,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
                             fields=fields,
                             members=node.python_member_names,
                             verified_abstract=node.verified_abstract,
+                            artificially_abstract_bases=artificially_abstract_bases,
                             is_frozen=node.is_frozen,
                             use_slots=True,
                         ),
@@ -2374,8 +2386,11 @@ def _reify_to_py_ast(
 
     bases: List[ast.AST] = [
         _BASILISP_WITH_META_INTERFACE_NAME,
-        *__deftype_or_reify_bases_to_py_ast(ctx, node),
+        *__deftype_or_reify_bases_to_py_ast(ctx, node, node.interfaces),
     ]
+    artificially_abstract_bases = __deftype_or_reify_bases_to_py_ast(
+        ctx, node, node.artificially_abstract
+    )
     type_name = munge(genname("ReifiedType"))
 
     with ctx.new_symbol_table("reify"):
@@ -2454,6 +2469,7 @@ def _reify_to_py_ast(
                                 ["meta", "with_meta"], node.python_member_names
                             ),
                             verified_abstract=node.verified_abstract,
+                            artificially_abstract_bases=artificially_abstract_bases,
                             is_frozen=True,
                             use_slots=_ATTR_SLOTS_ON,
                         )

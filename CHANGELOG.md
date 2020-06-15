@@ -15,7 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for multi-arity methods on `definterface` (#538)
  * Added support for Protocols (#460)
  * Added support for Volatiles (#460)
- * Add JSON encoder and decoder in `basilisp.json` namespace (#484)
+ * Added JSON encoder and decoder in `basilisp.json` namespace (#484)
+ * Added support for generically diffing Basilisp data structures in `basilisp.data` namespace (#555)
+ * Added support for artificially abstract bases classes in `deftype`, `defrecord`, and `reify` types (#565)
 
 ### Changed
  * Basilisp set and map types are now backed by the HAMT provided by `immutables` (#557)
