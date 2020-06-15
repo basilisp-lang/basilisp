@@ -39,6 +39,9 @@ class Map(IPersistentMap[K, V], ILispObject, IWithMeta):
         self._inner = _Map(members)
         self._meta = meta
 
+    def __bool__(self):
+        return True
+
     def __call__(self, key, default=None):
         return self._inner.get(key, default)
 

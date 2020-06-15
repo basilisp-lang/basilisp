@@ -11,7 +11,7 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
         return "()"
 
     def __bool__(self):
-        return False
+        return True
 
     @property
     def meta(self) -> Optional[IPersistentMap]:

@@ -28,6 +28,9 @@ class Set(IPersistentSet[T], ILispObject, IWithMeta):
         self._inner = _Map((m, m) for m in (members or ()))
         self._meta = meta
 
+    def __bool__(self):
+        return True
+
     def __call__(self, key, default=None):
         if key in self:
             return key
