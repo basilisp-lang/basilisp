@@ -53,6 +53,10 @@ def test_assoc():
     assert lmap.map({"a": 3, "b": 2}) == m1.assoc("b", 2)
 
 
+def test_map_bool():
+    assert True is bool(lmap.Map.empty())
+
+
 def test_map_as_function():
     assert None is lmap.m()(1)
     assert None is lmap.m()("abc")

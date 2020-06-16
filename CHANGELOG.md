@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where `deftype` forms could not be created interfaces declared not at the top-level of a code block in a namespace (#376)
  * Fixed multiple bugs relating to symbol resolution of `import`ed symbols in various contexts (#544)
  * Fixed a bug where the `=` function did not respect the equality partition for various builtin collection types (#556)
+ * Fixed a bug where collection types could evaluate as boolean `false` (#566)
+ * Fixed a bug where `reduce` required a 1-arity function for the variant with an initial value, rather than returning that initial value (#567)
 
 ## [v0.1.dev13] - 2020-03-16
 ### Added

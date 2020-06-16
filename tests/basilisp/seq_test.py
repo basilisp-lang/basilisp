@@ -78,6 +78,7 @@ def test_empty_sequence():
     assert empty.rest == empty
     assert llist.l(1) == empty.cons(1)
     assert lseq.EMPTY is empty
+    assert True is bool(lseq.sequence([]))
 
 
 def test_sequence():

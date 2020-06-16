@@ -42,6 +42,10 @@ def test_set_as_function():
     assert 3 == lset.s(1, 2, 3)(3)
 
 
+def test_set_bool():
+    assert True is bool(lset.Set.empty())
+
+
 def test_set_conj():
     meta = lmap.m(tag="async")
     s1 = lset.s(keyword("kw1"), meta=meta)
