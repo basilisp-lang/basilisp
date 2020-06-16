@@ -25,19 +25,23 @@
 
 (defn ^:private cli-tools-add-action
   [update-fn]
-  (fn ^:flatten-kwargs action [option-strings dest & args]
-    (fn ^:flatten-kwargs do-action [parser namespace values & {:keys [option-string]}]
-      (if-let [v (python/getattr namespace dest)]
-        (python/setattr namespace dest (update-fn v))
-        (python/setattr )))))
+  (fn ^{:kwargs :collect} AddAction [_ dest _]
+    (reify
+      ^:abstract argparse/Action
+      (^{:kwargs :collect} __call__ [self _ namespace values _]
+       (if-let [v (python/getattr namespace dest)]
+         (python/setattr namespace dest (update-fn v))
+         (python/setattr ))))))
 
 (defn ^:private cli-tools-update-action
   [update-fn]
-  (fn ^:flatten-kwargs action [option-strings dest & args]
-    (fn ^:flatten-kwargs do-action [parser namespace values & {:keys [option-string]}]
-      (if-let [v (python/getattr namespace dest)]
-        (python/setattr namespace dest (update-fn v))
-        (python/setattr )))))
+  (fn ^{:kwargs :collect} UpdateAction [_ dest _]
+    (reify
+      ^:abstract argparse/Action
+      (^{:kwargs :collect} __call__ [self _ namespace values _]
+       (if-let [v (python/getattr namespace dest)]
+         (python/setattr namespace dest (update-fn v))
+         (python/setattr ))))))
 
 (defn ^:private add-argument
   [parser argument]
@@ -61,7 +65,7 @@
         ;; kwargs then (apply method args) for the potentially variadic positionals.
         method (->> {:default  (:default argument)
                      :action   (if-let [update-fn (:update-fn argument)]
-                                 (cli-tools-action update-fn)
+                                 (cli-tools-update-action update-fn)
                                  "store")
                      :type     type-fn
                      :metavar  (when-let [metavar (:metavar argument)]
