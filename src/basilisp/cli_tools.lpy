@@ -24,16 +24,18 @@
     nil))
 
 (defn ^:private cli-tools-add-action
-  [update-fn]
+  "Create a new CLI Tools Add Action."
+  [assoc-fn]
   (fn ^{:kwargs :collect} AddAction [_ dest _]
     (reify
       ^:abstract argparse/Action
       (^{:kwargs :collect} __call__ [self _ namespace values _]
        (if-let [v (python/getattr namespace dest)]
-         (python/setattr namespace dest (update-fn v))
+         (python/setattr namespace dest (assoc-fn v))
          (python/setattr ))))))
 
 (defn ^:private cli-tools-update-action
+  "Create a new CLI Tools Update Action."
   [update-fn]
   (fn ^{:kwargs :collect} UpdateAction [_ dest _]
     (reify
@@ -42,6 +44,18 @@
        (if-let [v (python/getattr namespace dest)]
          (python/setattr namespace dest (update-fn v))
          (python/setattr ))))))
+
+(defn ^:private cli-tools-action
+  [{:keys [assoc-fn update-fn]}]
+  (when (and assoc-fn update-fn)
+    (throw
+     (ex-info (str "Arguments may only specify either an :assoc-fn or "
+                   "an :update-fn, not both")
+              {:assoc-fn  assoc-fn
+               :update-fn update-fn})))
+  (if update-fn
+    (cli-tools-update-action update-fn)
+    (cli-tools-add-action (or assoc-fn assoc))))
 
 (defn ^:private add-argument
   [parser argument]
@@ -63,15 +77,13 @@
         ;; arguments _and_ keyword arguments, which is a challenging combination
         ;; to call via Basilisp, so we create a partial of the method with the
         ;; kwargs then (apply method args) for the potentially variadic positionals.
-        method (->> {:default  (:default argument)
-                     :action   (if-let [update-fn (:update-fn argument)]
-                                 (cli-tools-update-action update-fn)
-                                 "store")
-                     :type     type-fn
-                     :metavar  (when-let [metavar (:metavar argument)]
-                                 (cond-> metavar
-                                   (vector? metavar) (python/tuple)))
-                     :help     (:help argument)}
+        method (->> {:default (:default argument)
+                     :action  (cli-tools-action argument)
+                     :type    type-fn
+                     :metavar (when-let [metavar (:metavar argument)]
+                                (cond-> metavar
+                                  (vector? metavar) (python/tuple)))
+                     :help    (:help argument)}
                     (partial-kw (.-add-argument parser)))
         name   (:name argument)
         flags  (:flags argument)]
