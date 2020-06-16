@@ -900,10 +900,7 @@ def nthrest(coll, i: int):
 def next_(o) -> Optional[ISeq]:
     """Calls rest on o. If o returns an empty sequence or None, returns None.
     Otherwise, returns the elements after the first in o."""
-    s = rest(o)
-    if not s:
-        return None
-    return s
+    return to_seq(rest(o))
 
 
 def nthnext(coll, i: int) -> Optional[ISeq]:

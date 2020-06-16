@@ -40,6 +40,10 @@ def test_list_slice():
     assert isinstance(llist.l(1, 2, 3)[1:], llist.List)
 
 
+def test_list_bool():
+    assert True is bool(llist.List.empty())
+
+
 def test_list_cons():
     meta = lmap.m(tag="async")
     l1 = llist.l(keyword("kw1"), meta=meta)

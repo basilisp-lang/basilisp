@@ -57,6 +57,10 @@ def test_assoc():
     assert vector.v("a", "b") == v1.assoc(1, "b")
 
 
+def test_vector_bool():
+    assert True is bool(vector.Vector.empty())
+
+
 def test_contains():
     assert True is vector.v("a").contains(0)
     assert True is vector.v("a", "b").contains(1)

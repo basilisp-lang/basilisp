@@ -30,6 +30,9 @@ class Vector(IPersistentVector[T], ILispObject, IWithMeta):
         self._inner = wrapped
         self._meta = meta
 
+    def __bool__(self):
+        return True
+
     def __contains__(self, item):
         return item in self._inner
 
