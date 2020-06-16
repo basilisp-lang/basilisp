@@ -14,6 +14,29 @@
 
 (declare ^:private setup-parser)
 
+(defn ^:private args-namespace
+  "Create a new `argparse.Namespace` object for the argument parser.
+
+  `argparse` uses Namespace objects to collect arguments parsed from the command
+  line. These objects are just bags of attributes, so it needs to be able to
+  call `getattr`, `delattr`, and `setattr`. We store the attributes in a map in
+  a volatile and proxy the gets, deletes, and sets to the map.
+
+  Return the completed map using `deref` on the returned object."
+  []
+  (let [m (volatile! {})]
+    (reify
+      ^:abstract argparse/Namespace
+      (__getattr__ [self name]
+        (get @m name))
+      (__delattr__ [self name]
+        (vswap! m dissoc name))
+      (__setattr__ [self name value]
+        (vswap! m assoc name value))
+      basilisp.lang.interfaces/IDeref
+      (deref [self]
+        @m))))
+
 (defn ^:private add-cli-sub-parser
   "Add a new command parser to the subparsers object."
   [subparsers command]
@@ -41,9 +64,9 @@
     (reify
       ^:abstract argparse/Action
       (^{:kwargs :collect} __call__ [self _ namespace values _]
-       (if-let [v (python/getattr namespace dest)]
-         (python/setattr namespace dest (update-fn v))
-         (python/setattr ))))))
+       (->> (python/getattr namespace dest nil)
+            (update-fn)
+            (python/setattr namespace dest))))))
 
 (defn ^:private cli-tools-action
   [{:keys [assoc-fn update-fn]}]
@@ -212,9 +235,7 @@
   ([parser-or-config args]
    (let [parser (cond-> parser-or-config
                   (map? parser-or-config) (cli-parser))]
-     (-> (.parse-args parser args)
-         (python/vars)
-         (py->lisp)))))
+     @(.parse-args parser args ** :namespace (namespace)))))
 
 (defmacro run-cli
   "Create a new command-line parser using the configuration `config` and run it
