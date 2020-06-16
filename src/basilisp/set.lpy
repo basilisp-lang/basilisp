@@ -19,15 +19,13 @@
   "Given a set of maps, return a mapping of unique selections of keys
   from ks to the set of values which have those mappings."
   [rel ks]
-  (if-not (seq rel)
-    {}
-    (reduce (fn [m v]
-              (let [index-val (select-keys v ks)]
-                (if (contains? m index-val)
-                  (update m index-val conj v)
-                  (assoc m index-val #{v}))))
-            {}
-            rel)))
+  (reduce (fn [m v]
+            (let [index-val (select-keys v ks)]
+              (if (contains? m index-val)
+                (update m index-val conj v)
+                (assoc m index-val #{v}))))
+          {}
+          rel))
 
 (defn intersection
   "Return a new set with only elements in s1 that are in all
@@ -42,12 +40,10 @@
   Duplicate values used as keys will overwrite each other as
   iteration order is non-deterministic."
   [m]
-  (if-not (seq m)
-    m
-    (reduce (fn [m entry]
-              (assoc m (val entry) (key entry)))
-            {}
-            m)))
+  (reduce (fn [m entry]
+            (assoc m (val entry) (key entry)))
+          {}
+          m))
 
 (defn project
   "Given a set of maps, return a set of those maps with only the keys in ks."
@@ -58,18 +54,16 @@
   "Return m with any keys appearing in kmap replaced with the value
   in kmap."
   [m kmap]
-  (if-not (seq m)
-    m
-    (reduce (fn [m entry]
-              (let [orig-k (key entry)
-                    new-k  (val entry)]
-                (if (contains? m orig-k)
-                  (let [v         (get m orig-k)
-                        clean-map (dissoc m orig-k)]
-                    (assoc clean-map new-k v))
-                  m)))
-            m
-            kmap)))
+  (reduce (fn [m entry]
+            (let [orig-k (key entry)
+                  new-k  (val entry)]
+              (if (contains? m orig-k)
+                (let [v         (get m orig-k)
+                      clean-map (dissoc m orig-k)]
+                  (assoc clean-map new-k v))
+                m)))
+          m
+          kmap))
 
 (defn rename
   "Given a set of maps, return a set whose maps have had any keys in kmap
@@ -127,28 +121,24 @@
 
          lindex (index lrel shared)
          rindex (index rrel shared)]
-     (if-not (seq lindex)
-       #{}
-       (reduce (fn [s [k l-indexed]]
-                 (if (contains? rindex k)
-                   (apply conj s (product merge l-indexed (get rindex k)))
-                   s))
-               #{}
-               lindex))))
+     (reduce (fn [s [k l-indexed]]
+               (if (contains? rindex k)
+                 (apply conj s (product merge l-indexed (get rindex k)))
+                 s))
+             #{}
+             lindex)))
   ([lrel rrel keymap]
    (let [[f s ks] (if (<= (count lrel) (count rrel))
                     [lrel rrel (map-invert keymap)]
                     [rrel lrel keymap])
          idx      (index f (vals ks))]
-     (if-not (seq s)
-       #{}
-       (reduce (fn [ret x]
-                 (let [match (idx (rename-keys (select-keys x (keys ks)) ks))]
-                   (if match
-                     (reduce (fn [s v]
-                               (conj s (merge v x)))
-                             ret
-                             match)
-                     ret)))
-               #{}
-               s)))))
+     (reduce (fn [ret x]
+               (let [match (idx (rename-keys (select-keys x (keys ks)) ks))]
+                 (if match
+                   (reduce (fn [s v]
+                             (conj s (merge v x)))
+                           ret
+                           match)
+                   ret)))
+             #{}
+             s))))

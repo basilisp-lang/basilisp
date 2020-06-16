@@ -531,10 +531,14 @@
                    :methods '[(method [thing1 thing2])
                               (method [& args])]))
 
+  (is (not (nil? (gen-interface :name "TestInterface"))))
+
   (are [arity-names methods] (let [interface (gen-interface :name "TestInterface"
                                                             :methods methods)]
                                (set/superset? (set (python/dir interface))
                                               (set arity-names)))
+    [] []
+
     ["method"]
     '[(method [arg])]
 
