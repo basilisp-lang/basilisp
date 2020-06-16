@@ -2087,22 +2087,22 @@
   (fn [& ^:no-warn-when-unused args] x))
 
 (defn reduce
-  "Reduce coll by f.
+  "Reduce `coll` by `f`.
 
-  If val is not supplied and coll has no elements, f will be called
+  If `val` is not supplied and `coll` has no elements, `f` will be called
   with no arguments and the result will be returned.
 
-  If val is not supplied and coll has one element, the result of
-  (f (first val)) is returned.
+  If `val` is not supplied and `coll` has one element, the result of
+  `(f (first val))` is returned.
 
-  If val is not supplied and coll has elements, repeatedly reduce coll
-  by calling f on successive elements in coll.
+  If `val` is not supplied and `coll` has elements, repeatedly reduce `coll`
+  by calling `f` on successive elements in `coll`.
 
-  If val is supplied and coll has no elements, the result of (f val)
-  is returned.
+  If `val` is supplied and `coll` has no elements, return `val` and `f` will
+  not be called.
 
-  If val is supplied and coll has elements, repeatedly reduce coll
-  by calling f on successive elements in coll, starting with val."
+  If `val` is supplied and `coll` has elements, repeatedly reduce coll
+  by calling `f` on successive elements in `coll`, starting with `val`."
   ([f coll]
    (if (seq coll)
      (if (seq (rest coll))
@@ -2116,7 +2116,7 @@
                          out))]
      (if (seq coll)
        (reduce-coll val coll)
-       (f val)))))
+       val))))
 
 (defn reduce-kv
   "Reduce an associative coll by f. f must be a function of 3
@@ -2407,29 +2407,25 @@
   "Return a map whose keys are the elements of coll and whose values are
   the counts for the number of times the key appears in coll."
   [coll]
-  (if-not (seq coll)
-    {}
-    (reduce (fn [m v]
-              (if (contains? m v)
-                (update m v inc)
-                (assoc m v 1)))
-            {}
-            coll)))
+  (reduce (fn [m v]
+            (if (contains? m v)
+              (update m v inc)
+              (assoc m v 1)))
+          {}
+          coll))
 
 (defn group-by
   "Return a map whose keys are the result of calling f on each element
   in coll and whose values are vectors of the values which produced the
   corresponding key, in the order they were added."
   [f coll]
-  (if-not (seq coll)
-    {}
-    (reduce (fn [m v]
-              (let [group (f v)]
-                (if (contains? m group)
-                  (update m group conj v)
-                  (assoc m group [v]))))
-            {}
-            coll)))
+  (reduce (fn [m v]
+            (let [group (f v)]
+              (if (contains? m group)
+                (update m group conj v)
+                (assoc m group [v]))))
+          {}
+          coll))
 
 (defn interpose
   "Return a lazy sequence of elements of coll separated by sep. If
@@ -3686,15 +3682,12 @@
 
   Public vars are Vars which are declared without :private metadata."
   [ns]
-  (let [interns (ns-interns (the-ns ns))]
-    (if-not (seq interns)
-      {}
-      (reduce (fn [m entry]
-                (if (:private (meta (val entry)))
-                  m
-                  (assoc m (key entry) (val entry))))
-              {}
-              interns))))
+  (reduce (fn [m entry]
+            (if (:private (meta (val entry)))
+              m
+              (assoc m (key entry) (val entry))))
+          {}
+          (ns-interns (the-ns ns))))
 
 (defn ns-refers
   "Return a map of symbols to Vars which are referred in the current
@@ -3931,16 +3924,15 @@
   (let [doc  (when (string? (first opts))
                (first opts))
         opts (if doc (rest opts) opts)
-        opts (when (seq opts)
-               (reduce (fn [m opt]
-                         (let [opt-name (first opt)
-                               options  (rest opt)]
-                           (when-not (keyword? opt-name)
-                             (throw (ex-info "Namespace option must be a keyword"
-                                             {:option opt-name})))
-                           (assoc m opt-name (vec options))))
-                       {}
-                       opts))
+        opts (reduce (fn [m opt]
+                       (let [opt-name (first opt)
+                             options  (rest opt)]
+                         (when-not (keyword? opt-name)
+                           (throw (ex-info "Namespace option must be a keyword"
+                                           {:option opt-name})))
+                         (assoc m opt-name (vec options))))
+                     {}
+                     opts)
 
         refer-filters (when-let [filters (or (:refer-basilisp opts)
                                              (:refer-clojure opts))]
@@ -4095,14 +4087,12 @@
 (defn select-keys
   "Return a map with only the keys of m which are in ks."
   [m ks]
-  (if-not (seq ks)
-    {}
-    (reduce (fn [new-map k]
-              (if (contains? m k)
-                (assoc new-map k (get m k))
-                new-map))
-            {}
-            ks)))
+  (reduce (fn [new-map k]
+            (if (contains? m k)
+              (assoc new-map k (get m k))
+              new-map))
+          {}
+          ks))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Destructuring Support ;;
