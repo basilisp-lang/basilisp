@@ -272,6 +272,95 @@ class IPersistentVector(
         raise NotImplementedError()
 
 
+T_tcoll = TypeVar("T_tcoll", bound="ITransientCollection", covariant=True)
+
+# Including ABC as a base seems to cause catastrophic meltdown.
+class IEvolveableCollection(Generic[T_tcoll]):
+    @abstractmethod
+    def to_transient(self) -> T_tcoll:
+        raise NotImplementedError()
+
+
+class ITransientCollection(Generic[T]):
+    __slots__ = ()
+
+    @abstractmethod
+    def cons_transient(self: T_tcoll, *elems: T) -> "T_tcoll":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def to_persistent(self: T_tcoll) -> "IPersistentCollection[T]":
+        raise NotImplementedError()
+
+
+T_tassoc = TypeVar("T_tassoc", bound="ITransientAssociative")
+
+
+class ITransientAssociative(ILookup[K, V], ITransientCollection[IMapEntry[K, V]]):
+    __slots__ = ()
+
+    @abstractmethod
+    def assoc_transient(self: T_tassoc, *kvs) -> T_tassoc:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def contains_transient(self, k: K) -> bool:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def entry_transient(self, k: K) -> Optional[IMapEntry[K, V]]:
+        raise NotImplementedError()
+
+
+T_tmap = TypeVar("T_tmap", bound="ITransientMap")
+
+
+class ITransientMap(ICounted, ITransientAssociative[K, V]):
+    __slots__ = ()
+
+    @abstractmethod
+    def cons_transient(  # type: ignore[override]
+        self: T_tmap, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]", None]
+    ) -> T_tmap:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def dissoc_transient(self: T_tmap, *ks: K) -> T_tmap:
+        raise NotImplementedError()
+
+
+T_tset = TypeVar("T_tset", bound="ITransientSet")
+
+
+class ITransientSet(ICounted, ITransientCollection[T]):
+    __slots__ = ()
+
+    @abstractmethod
+    def disj_transient(self: T_tset, *elems: T) -> T_tset:
+        raise NotImplementedError()
+
+
+T_tvec = TypeVar("T_tvec", bound="ITransientVector")
+
+
+class ITransientVector(
+    ITransientAssociative[int, T], IIndexed,
+):
+    __slots__ = ()
+
+    @abstractmethod
+    def assoc_transient(self: T_tvec, *kvs) -> T_tvec:  # type: ignore[override]
+        raise NotImplementedError()
+
+    @abstractmethod
+    def cons_transient(self: T_tvec, *elems: T) -> T_tvec:  # type: ignore[override]
+        raise NotImplementedError()
+
+    @abstractmethod
+    def pop_transient(self: T_tvec) -> T_tvec:
+        raise NotImplementedError()
+
+
 class IRecord(ILispObject):
     """IRecord is a marker interface for types def'ed by `defrecord` forms.
 

@@ -1070,7 +1070,7 @@ def assoc(m, *kvs):
     """Associate keys to values in associative data structure m. If m is None,
     returns a new Map with key-values kvs."""
     raise TypeError(
-        f"Object of type {type(m)} does not implement Associative interface"
+        f"Object of type {type(m)} does not implement IAssociative interface"
     )
 
 
@@ -1090,7 +1090,7 @@ def update(m, k, f, *args):
     calling f(old_v, *args). If m is None, use an empty map. If k is not in m, old_v will be
     None."""
     raise TypeError(
-        f"Object of type {type(m)} does not implement Associative interface"
+        f"Object of type {type(m)} does not implement IAssociative interface"
     )
 
 
@@ -1112,7 +1112,8 @@ def conj(coll, *xs):
     depending on the type of coll. conj returns the same type as coll. If coll
     is None, return a list with xs conjoined."""
     raise TypeError(
-        f"Object of type {type(coll)} does not implement Collection interface"
+        f"Object of type {type(coll)} does not implement "
+        "IPersistentCollection interface"
     )
 
 

@@ -2006,6 +2006,80 @@
   [m]
   (seq (.values m)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Transient Collections ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn transient
+  "Return a transient copy of persistent collection `coll`.
+
+  Transients can be created from maps, sets, and vectors. Transients allow faster
+  mutations than their persistent counterparts and are useful for performance
+  sensitive code which makes many modifications to these data structures.
+
+  Transient collections can be edited with the transient versions of the familiar
+  collection functions (depending on the type of `coll`): `assoc!`, `conj!`,
+  `disj!`, `dissoc!`, and `pop!`. Transient collections are designed to be used
+  in the same style as the builtin persistent collections, so callers should be
+  sure to use the returned value from prior calls to these collection functions
+  rather than repeatedly modifying the collection in place.
+
+  Once you have completed all of your modifications to the local transient
+  collection, you can call `persistent!` to return a persistent version of that
+  data structure."
+  [coll]
+  (if (instance? basilisp.lang.interfaces/IEvolveableCollection coll)
+    (.to-transient coll)
+    (throw
+     (ex-info (str "Object of type " (type coll) "does not implement "
+                   "IEvolveableCollection interface")
+              {:coll coll
+               :type (type coll)}))))
+
+(defn persistent!
+  "Return a persistent copy of the transient collection `coll` which was created
+  by calling `transient`."
+  [coll]
+  (if (instance? basilisp.lang.interfaces/ITransientCollection coll)
+    (.to-persistent coll)
+    (throw
+     (ex-info (str "Object of type " (type coll) "does not implement "
+                   "ITransientCollection interface")
+              {:coll coll
+               :type (type coll)}))))
+
+(defn assoc!
+  "Associate keys to values in the transient associative data structure `m`."
+  [m & kvs]
+  (apply (.-assoc-transient m) kvs))
+
+(defn conj!
+  "Conjoin xs to the transient collection `coll`. New elements may be added in
+  different positions depending on the type of `coll`. conj returns the same type
+  as `coll`."
+  ([coll] coll)
+  ([coll & xs]
+   (apply (.-cons-transient coll) xs)))
+
+(defn disj!
+  "Return a new version of the transient set `s` without the given elements. If the
+  elements don't exist in `s`, they are ignored."
+  ([s] s)
+  ([s & elems]
+   (apply (.-disj-transient s) elems)))
+
+(defn dissoc!
+  "Return a new version of the transient associative collection `m`` without the
+  given keys. If the keys don't exist in `m`, they are ignored."
+  [m & kvs]
+  (apply (.-dissoc-transient m) kvs))
+
+(defn pop!
+  "Return a new transient vector without the last element of `coll`. If `coll` is
+  empty, throw an exception."
+  [coll]
+  (.-pop-transient coll))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2626,9 +2700,10 @@
   appears in a map, the rightmost map's value for that key will be taken."
   [& maps]
   (when (some identity maps)
-    (reduce #(conj %1 %2)
-            {}
-            maps)))
+    (persistent!
+     (reduce #(conj! %1 %2)
+             (transient {})
+             maps))))
 
 (defn trampoline
   "Trampoline f with starting arguments. If f returns an fn, call its return
@@ -4072,12 +4147,13 @@
   associative collection smap, if they exist."
   [smap coll]
   (if (vector? coll)
-    (reduce (fn [res v]
-              (if-let [newv (get smap v)]
-                (conj res newv)
-                res))
-            []
-            coll)
+    (persistent!
+     (reduce (fn [res v]
+               (if-let [newv (get smap v)]
+                 (conj! res newv)
+                 res))
+             (transient [])
+             coll))
     (map (fn [v]
            (if-let [newv (get smap v)]
              newv
@@ -4087,12 +4163,13 @@
 (defn select-keys
   "Return a map with only the keys of m which are in ks."
   [m ks]
-  (reduce (fn [new-map k]
-            (if (contains? m k)
-              (assoc new-map k (get m k))
-              new-map))
-          {}
-          ks))
+  (persistent!
+   (reduce (fn [new-map k]
+             (if (contains? m k)
+               (assoc! new-map k (get m k))
+               new-map))
+           (transient {})
+           ks)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Destructuring Support ;;
@@ -4837,8 +4914,9 @@
        (reduce (fn [m [method-name arities]]
                  (->> (map rest arities)
                       (apply list `fn)
-                      (assoc m (keyword (name method-name)))))
-               {})))
+                      (assoc! m (keyword (name method-name)))))
+               (transient {}))
+       (persistent!)))
 
 (defmacro extend-protocol
   "Extend a Protocol with implementations for multiple types.

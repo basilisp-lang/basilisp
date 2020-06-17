@@ -40,10 +40,11 @@
   Duplicate values used as keys will overwrite each other as
   iteration order is non-deterministic."
   [m]
-  (reduce (fn [m entry]
-            (assoc m (val entry) (key entry)))
-          {}
-          m))
+  (persistent!
+   (reduce (fn [m entry]
+             (assoc! m (val entry) (key entry)))
+           (transient {})
+           m)))
 
 (defn project
   "Given a set of maps, return a set of those maps with only the keys in ks."
@@ -54,16 +55,19 @@
   "Return m with any keys appearing in kmap replaced with the value
   in kmap."
   [m kmap]
-  (reduce (fn [m entry]
-            (let [orig-k (key entry)
-                  new-k  (val entry)]
-              (if (contains? m orig-k)
-                (let [v         (get m orig-k)
-                      clean-map (dissoc m orig-k)]
-                  (assoc clean-map new-k v))
-                m)))
-          m
-          kmap))
+  (with-meta
+    (persistent!
+     (reduce (fn [m entry]
+               (let [orig-k (key entry)
+                     new-k  (val entry)]
+                 (if (contains? m orig-k)
+                   (let [v         (get m orig-k)
+                         clean-map (dissoc! m orig-k)]
+                     (assoc! clean-map new-k v))
+                   m)))
+             (transient m)
+             kmap))
+    (meta m)))
 
 (defn rename
   "Given a set of maps, return a set whose maps have had any keys in kmap
