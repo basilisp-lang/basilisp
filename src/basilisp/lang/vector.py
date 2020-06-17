@@ -24,7 +24,7 @@ T = TypeVar("T")
 class TransientVector(ITransientVector[T]):
     __slots__ = ("_inner",)
 
-    def __init__(self, wrapped: "PVectorEvolver[T]",) -> None:
+    def __init__(self, wrapped: "PVectorEvolver[T]") -> None:
         self._inner = wrapped
 
     def __bool__(self):

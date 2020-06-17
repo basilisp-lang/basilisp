@@ -36,7 +36,7 @@ class TransientSet(ITransientSet[T]):
     def __call__(self, key, default=None):
         if key in self:
             return key
-        return None
+        return default
 
     def __contains__(self, item):
         return item in self._inner
@@ -92,7 +92,7 @@ class Set(
     def __call__(self, key, default=None):
         if key in self:
             return key
-        return None
+        return default
 
     def __contains__(self, item):
         return item in self._inner

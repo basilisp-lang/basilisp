@@ -2031,7 +2031,7 @@
   (if (instance? basilisp.lang.interfaces/IEvolveableCollection coll)
     (.to-transient coll)
     (throw
-     (ex-info (str "Object of type " (type coll) "does not implement "
+     (ex-info (str "Object of type " (type coll) " does not implement "
                    "IEvolveableCollection interface")
               {:coll coll
                :type (type coll)}))))
@@ -2043,7 +2043,7 @@
   (if (instance? basilisp.lang.interfaces/ITransientCollection coll)
     (.to-persistent coll)
     (throw
-     (ex-info (str "Object of type " (type coll) "does not implement "
+     (ex-info (str "Object of type " (type coll) " does not implement "
                    "ITransientCollection interface")
               {:coll coll
                :type (type coll)}))))
@@ -2078,7 +2078,7 @@
   "Return a new transient vector without the last element of `coll`. If `coll` is
   empty, throw an exception."
   [coll]
-  (.-pop-transient coll))
+  (.pop-transient coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
