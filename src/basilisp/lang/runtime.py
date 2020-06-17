@@ -54,7 +54,6 @@ from basilisp.lang.interfaces import (
 from basilisp.lang.reference import ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
-from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
 logger = logging.getLogger(__name__)
@@ -1242,8 +1241,7 @@ def get(m, k, default=None):
     """Return the value of k in m. Return default if k not found in m."""
     try:
         return m[k]
-    except (KeyError, IndexError, TypeError) as e:
-        logger.log(TRACE, "Ignored %s: %s", type(e).__name__, e)
+    except (KeyError, IndexError):
         return default
 
 
