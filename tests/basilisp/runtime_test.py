@@ -164,12 +164,28 @@ def test_nth():
 
     assert "Z" == runtime.nth(llist.l("h", "e", "l", "l", "o"), 7, "Z")
     assert "Z" == runtime.nth(lseq.sequence(["h", "e", "l", "l", "o"]), 7, "Z")
+    assert "Z" == runtime.nth(vec.v("h", "e", "l", "l", "o"), 7, "Z")
 
     with pytest.raises(IndexError):
         runtime.nth(llist.l("h", "e", "l", "l", "o"), 7)
 
     with pytest.raises(IndexError):
         runtime.nth(lseq.sequence(["h", "e", "l", "l", "o"]), 7)
+
+    with pytest.raises(IndexError):
+        runtime.nth(vec.v("h", "e", "l", "l", "o"), 7)
+
+    with pytest.raises(TypeError):
+        runtime.nth(lmap.Map.empty(), 2)
+
+    with pytest.raises(TypeError):
+        runtime.nth(lmap.map({"a": 1, "b": 2, "c": 3}), 2)
+
+    with pytest.raises(TypeError):
+        runtime.nth(lset.Set.empty(), 2)
+
+    with pytest.raises(TypeError):
+        runtime.nth(lset.s(1, 2, 3), 2)
 
     with pytest.raises(TypeError):
         runtime.nth(3, 1)

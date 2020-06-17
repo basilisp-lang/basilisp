@@ -1580,7 +1580,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
             if not interface.var.is_bound:
                 logger.log(
                     TRACE,
-                    f"{special_form} interface Var '{interface.form}' is not bound"
+                    f"{special_form} interface Var '{interface.form}' is not bound "
                     "and cannot be checked for abstractness; deferring to runtime",
                 )
                 unverifiably_abstract.add(interface)

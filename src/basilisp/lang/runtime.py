@@ -1032,17 +1032,6 @@ def nth(coll, i: int, notfound=__nth_sentinel):
     """Returns the ith element of coll (0-indexed), if it exists.
     None otherwise. If i is out of bounds, throws an IndexError unless
     notfound is specified."""
-    try:
-        for j, e in enumerate(coll):
-            if i == j:
-                return e
-    except TypeError:
-        pass
-    else:
-        if notfound is not __nth_sentinel:
-            return notfound
-        raise IndexError(f"Index {i} out of bounds")
-
     raise TypeError(f"nth not supported on object of type {type(coll)}")
 
 
@@ -1059,10 +1048,18 @@ def _nth_sequence(coll: Sequence, i: int, notfound=__nth_sentinel):
         if notfound is not __nth_sentinel:
             return notfound
         raise ex
-    except TypeError as ex:
-        # Log these at TRACE so they don't gum up the DEBUG logs since most
-        # cases where this exception occurs are not bugs.
-        logger.log(TRACE, "Ignored %s: %s", type(ex).__name__, ex)
+
+
+@nth.register(ISeq)
+def _nth_iseq(coll: ISeq, i: int, notfound=__nth_sentinel):
+    for j, e in enumerate(coll):
+        if i == j:
+            return e
+
+    if notfound is not __nth_sentinel:
+        return notfound
+
+    raise IndexError(f"Index {i} out of bounds")
 
 
 @functools.singledispatch
@@ -1248,6 +1245,11 @@ def get(m, k, default=None):
     except (KeyError, IndexError, TypeError) as e:
         logger.log(TRACE, "Ignored %s: %s", type(e).__name__, e)
         return default
+
+
+@get.register(type(None))
+def _get_none(_: None, k, default=None) -> None:
+    return None
 
 
 @get.register(ILookup)
