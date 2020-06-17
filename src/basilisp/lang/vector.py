@@ -36,9 +36,6 @@ class TransientVector(ITransientVector[T]):
     def __eq__(self, other):
         return self is other
 
-    def __iter__(self):
-        yield from self._inner
-
     def __len__(self):
         return len(self._inner)
 

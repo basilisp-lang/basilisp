@@ -224,7 +224,12 @@
         (is (= src prx))
         (is (not (identical? src prx))))))
 
-  )
+  (testing "get"
+    (are [x y z] (= z (get (transient x) y))
+      {}          :a nil
+      {:a 1 :c 2} :a 1)
+
+    (is (= :e (get (transient {:a 1 :b 2}) :c :e)))))
 
 (deftest transient-set-test
   (testing "always boolean true"
@@ -257,7 +262,14 @@
 
       (let [prx (persistent! trx)]
         (is (= src prx))
-        (is (not (identical? src prx)))))))
+        (is (not (identical? src prx))))))
+
+  (testing "get"
+    (are [x y z] (= z (get (transient x) y))
+      #{}         :a nil
+      #{:a :b :c} :a :a)
+
+    (is (= :e (get (transient #{:a :b :c}) :c :e)))))
 
 (deftest transient-vector-test
   (testing "always boolean true"
@@ -285,7 +297,12 @@
         (is (= src prx))
         (is (not (identical? src prx))))))
 
-  )
+  (testing "get"
+    (are [x y z] (= z (get (transient x) y))
+      []         1  nil
+      [:a :b :c] 1 :b)
+
+    (is (= :e (get (transient [:a :b :c]) 4 :e)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
