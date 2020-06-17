@@ -50,6 +50,7 @@ from basilisp.lang.interfaces import (
     IPersistentVector,
     ISeq,
     ISeqable,
+    ITransientSet,
 )
 from basilisp.lang.reference import ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
@@ -1036,7 +1037,7 @@ def nth(coll, i: int, notfound=__nth_sentinel):
 
 @nth.register(type(None))
 def _nth_none(_: None, i: int, notfound=__nth_sentinel) -> None:
-    return None
+    return notfound if notfound is not __nth_sentinel else None
 
 
 @nth.register(Sequence)
@@ -1059,6 +1060,48 @@ def _nth_iseq(coll: ISeq, i: int, notfound=__nth_sentinel):
         return notfound
 
     raise IndexError(f"Index {i} out of bounds")
+
+
+@functools.singledispatch
+def contains(coll, k):
+    """Return true if o contains the key k."""
+    return k in coll
+
+
+@contains.register(IAssociative)
+def _contains_iassociative(coll, k):
+    return coll.contains(k)
+
+
+@functools.singledispatch
+def get(m, k, default=None):
+    """Return the value of k in m. Return default if k not found in m."""
+    return default
+
+
+@get.register(dict)
+@get.register(list)
+@get.register(str)
+def _get_others(m, k, default=None):
+    try:
+        return m[k]
+    except (KeyError, IndexError):
+        return default
+
+
+@get.register(IPersistentSet)
+@get.register(ITransientSet)
+@get.register(frozenset)
+@get.register(set)
+def _get_settypes(m, k, default=None):
+    if k in m:
+        return k
+    return default
+
+
+@get.register(ILookup)
+def _get_ilookup(m, k, default=None):
+    return m.val_at(k, default)
 
 
 @functools.singledispatch
@@ -1223,36 +1266,6 @@ def sort_by(keyfn, coll, cmp=None) -> Optional[ISeq]:
         key = keyfn  # type: ignore
 
     return lseq.sequence(sorted(coll, key=key))
-
-
-@functools.singledispatch
-def contains(coll, k):
-    """Return true if o contains the key k."""
-    return k in coll
-
-
-@contains.register(IAssociative)
-def _contains_iassociative(coll, k):
-    return coll.contains(k)
-
-
-@functools.singledispatch
-def get(m, k, default=None):
-    """Return the value of k in m. Return default if k not found in m."""
-    try:
-        return m[k]
-    except (KeyError, IndexError):
-        return default
-
-
-@get.register(type(None))
-def _get_none(_: None, k, default=None) -> None:
-    return None
-
-
-@get.register(ILookup)
-def _get_ilookup(m, k, default=None):
-    return m.val_at(k, default)
 
 
 def is_special_form(s: sym.Symbol) -> bool:
