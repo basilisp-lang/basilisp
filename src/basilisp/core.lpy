@@ -254,19 +254,25 @@
 (def
   ^{:doc      "Associate keys to values in associative data structure m. If m is nil,
                returns a new map with key-values kvs."
-    :arglists '([m & kvs])}
+    :arglists '([m k v] [m k v & kvs])}
   assoc
-  (fn assoc [m & kvs]
-    (apply basilisp.lang.runtime/assoc m kvs)))
+  (fn assoc
+    ([m k v]
+     (basilisp.lang.runtime/assoc m k v))
+    ([m k v & kvs]
+     (apply basilisp.lang.runtime/assoc m k v kvs))))
 
 (def
   ^{:doc      "Conjoin xs to collection. New elements may be added in different positions
                depending on the type of coll. conj returns the same type as coll. If coll
                is nil, return a list with xs conjoined."
-    :arglists '([coll & xs])}
+    :arglists '([coll x] [coll x & xs])}
   conj
-  (fn conj [coll & xs]
-    (apply basilisp.lang.runtime/conj coll xs)))
+  (fn conj
+    ([coll x]
+     (basilisp.lang.runtime/conj coll x))
+    ([coll x & xs]
+     (apply basilisp.lang.runtime/conj coll x xs))))
 
 (def
   ^{:macro    true
@@ -2050,13 +2056,16 @@
 
 (defn assoc!
   "Associate keys to values in the transient associative data structure `m`."
-  [m & kvs]
-  (apply (.-assoc-transient m) kvs))
+  ([m k v]
+   (.assoc-transient m k v))
+  ([m k v & kvs]
+   (apply (.-assoc-transient m) k v kvs)))
 
 (defn conj!
   "Conjoin xs to the transient collection `coll`. New elements may be added in
   different positions depending on the type of `coll`. conj returns the same type
   as `coll`."
+  ([] (transient []))
   ([coll] coll)
   ([coll & xs]
    (apply (.-cons-transient coll) xs)))
@@ -2065,14 +2074,17 @@
   "Return a new version of the transient set `s` without the given elements. If the
   elements don't exist in `s`, they are ignored."
   ([s] s)
-  ([s & elems]
-   (apply (.-disj-transient s) elems)))
+  ([s elem]
+   (.disj-transient s elem))
+  ([s elem & elems]
+   (apply (.-disj-transient s) elem elems)))
 
 (defn dissoc!
   "Return a new version of the transient associative collection `m`` without the
   given keys. If the keys don't exist in `m`, they are ignored."
-  [m & kvs]
-  (apply (.-dissoc-transient m) kvs))
+  ([m k] (.dissoc-transient m k))
+  ([m k & ks]
+   (apply (.-dissoc-transient m) k ks)))
 
 (defn pop!
   "Return a new transient vector without the last element of `coll`. If `coll` is

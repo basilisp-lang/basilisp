@@ -313,6 +313,21 @@
   (testing "not seqable"
     (is (thrown? python/TypeError (seq (transient []))))))
 
+(deftest assoc!-test
+  (testing "maps"
+    (let [tm (transient {})]
+      (is (= {:a 1 :b 2 :c 3}
+             (-> (assoc tm :a 1)
+                 (assoc tm :b 2 :c 3)
+                 (persistent!))))))
+
+  (testing "vectors"
+    (let [tv (transient [:a :b :c])]
+      (is (= [:c :a :b]
+             (-> (assoc tv 0 :c)
+                 (assoc tv 1 :a 2 :b)
+                 (persistent!)))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
