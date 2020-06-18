@@ -1073,7 +1073,7 @@ def _contains_iassociative(coll, k):
 
 
 @functools.singledispatch
-def get(m, k, default=None):
+def get(m, k, default=None):  # pylint: disable=unused-argument
     """Return the value of k in m. Return default if k not found in m."""
     return default
 
