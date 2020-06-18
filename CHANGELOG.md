@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.1.dev14] - 2020-06-18
 ### Added
  * Added support for `future`s (#441)
  * Added support for calling Python functions and methods with keyword arguments (#531)
@@ -24,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Basilisp set and map types are now backed by the HAMT provided by `immutables` (#557)
  * `get` now responds `nil` (or its default) for any unsupported types (#570)
  * `nth` now supports only sequential collections (or `nil`) and will throw an exception for any invalid types (#570)
+ * Use `functools.singledispatch` for to achieve higher performance polymorphism on most runtime functions (#552, #559)
+ * Update the keyword cache to use a Python `threading.Lock` rather than an Atom (#552)
+ * `rest` no longer returns `nil`, it always returns an empty sequence (#558)
 
 ### Fixed
  * Fixed a bug where the Basilisp AST nodes for return values of `deftype` members could be marked as _statements_ rather than _expressions_, resulting in an incorrect `nil` return (#523)
@@ -262,6 +267,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.dev14]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev13..v0.1.dev14
 [v0.1.dev13]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev12..v0.1.dev13
 [v0.1.dev12]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev11..v0.1.dev12
 [v0.1.dev11]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev10..v0.1.dev11
