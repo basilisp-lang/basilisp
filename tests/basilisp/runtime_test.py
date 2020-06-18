@@ -234,6 +234,11 @@ def test_get():
     assert None is runtime.get(lset.set({"a", "b", "c"}).to_transient(), "d")
     assert 2 == runtime.get(lset.set({"a", "b", "c"}).to_transient(), "d", 2)
 
+    # lists are "supported" by virtue of the fact that `get`-ing them does not fail
+    assert None is runtime.get(llist.l(1, 2, 3), 0)
+    assert None is runtime.get(llist.l(1, 2, 3), 3)
+    assert "nada" == runtime.get(llist.l(1, 2, 3), 0, "nada")
+
 
 def test_assoc():
     assert lmap.Map.empty() == runtime.assoc(None)

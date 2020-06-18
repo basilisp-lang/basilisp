@@ -327,9 +327,13 @@
               ~@body)))))
 
 (defn nth
-  "Returns the ith element of coll (0-indexed), if it exists.
-  nil otherwise. If i is out of bounds, throws an IndexError unless
-  notfound is specified."
+  "Returns the `i`th element of `coll` (0-indexed), if it exists or `nil`
+  otherwise. If `i` is out of bounds, throws an `IndexError` unless `notfound`
+  is specified.
+
+  `coll` may be any sequential collection type (such as a list or vector), string,
+  or `nil`. If `coll` is not one of the supported types, a `TypeError` will be
+  thrown."
   ([coll i]
    (basilisp.lang.runtime/nth coll i))
   ([coll i notfound]
@@ -1918,7 +1922,11 @@
   (apply (.-dissoc m) ks))
 
 (defn get
-  "Return the entry of m corresponding to k if it exists or nil/default otherwise."
+  "Return the entry of `m` corresponding to `k` if it exists or `nil`/`default`
+  otherwise.
+
+  `m` may be any associative type (such as a vector or map), set type, or string.
+  If `m` is not one of the supported types, `get` always returns `nil`/`default`."
   ([m k]
    (basilisp.lang.runtime/get m k))
   ([m k default]
