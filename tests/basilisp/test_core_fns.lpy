@@ -187,6 +187,202 @@
   (is (= [:l :o :w :o] (subvec [:h :e :l :l :o :w :o :r :l :d] 3 7)))
   (is (thrown? python/IndexError (subvec [:h :e :l :l :o :w :o :r :l :d] 12 3))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Transient Collections ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest transient-map-test
+  (testing "always boolean true"
+    (are [x] (true? (boolean (transient x)))
+      {}
+      {:a 1 :c 2}))
+
+  (testing "callable"
+    (are [x y z] (= z ((transient x) y))
+      {}          :a nil
+      {:a 1 :c 2} :a 1)
+
+    (is (= :e ((transient {:a 1 :b 2}) :c :e))))
+
+  (testing "count"
+    (let [trx (volatile! (transient {:a 1 :b 2 :c 3}))]
+      (is (= 3 (count @trx)))
+      (vswap! trx dissoc! :b)
+      (is (= 2 (count @trx)))
+      (vswap! trx assoc! :e 5 :f 6)
+      (is (= 4 (count @trx)))))
+
+  (testing "equality"
+    (let [src {:a 1 :b 2}
+          trx (transient src)]
+      (is (not (= src trx)))
+      (is (not (= trx src)))
+      (is (not (= trx (transient src))))
+      (is (= trx trx))
+
+      (let [prx (persistent! trx)]
+        (is (= src prx))
+        (is (not (identical? src prx))))))
+
+  (testing "get"
+    (are [x y z] (= z (get (transient x) y))
+      {}          :a nil
+      {:a 1 :c 2} :a 1)
+
+    (is (= :e (get (transient {:a 1 :b 2}) :c :e))))
+
+  (testing "not seqable"
+    (is (thrown? python/TypeError (seq (transient {}))))))
+
+(deftest transient-set-test
+  (testing "always boolean true"
+    (are [x] (true? (boolean (transient x)))
+      #{}
+      #{:a :b :c}))
+
+  (testing "callable"
+    (are [x y z] (= z ((transient x) y))
+      #{}         :a nil
+      #{:a :b :c} :a :a)
+
+    (is (= :e ((transient #{:a :b :c}) :d :e))))
+
+  (testing "count"
+    (let [trx (volatile! (transient #{:a :b :c}))]
+      (is (= 3 (count @trx)))
+      (vswap! trx disj! :b)
+      (is (= 2 (count @trx)))
+      (vswap! trx conj! :e :f)
+      (is (= 4 (count @trx)))))
+
+  (testing "equality"
+    (let [src #{:a :b :c}
+          trx (transient src)]
+      (is (not (= src trx)))
+      (is (not (= trx src)))
+      (is (not (= trx (transient src))))
+      (is (= trx trx))
+
+      (let [prx (persistent! trx)]
+        (is (= src prx))
+        (is (not (identical? src prx))))))
+
+  (testing "get"
+    (are [x y z] (= z (get (transient x) y))
+      #{}         :a nil
+      #{:a :b :c} :a :a)
+
+    (is (= :e (get (transient #{:a :b :c}) :d :e))))
+
+  (testing "not seqable"
+    (is (thrown? python/TypeError (seq (transient #{}))))))
+
+(deftest transient-vector-test
+  (testing "always boolean true"
+    (are [x] (true? (boolean (transient x)))
+      []
+      [:a :b :c]))
+
+  (testing "count"
+    (let [trx (volatile! (transient [:a :b :c]))]
+      (is (= 3 (count @trx)))
+      (vswap! trx pop!)
+      (is (= 2 (count @trx)))
+      (vswap! trx conj! :e :f)
+      (is (= 4 (count @trx)))))
+
+  (testing "equality"
+    (let [src [:a :b :c]
+          trx (transient src)]
+      (is (not (= src trx)))
+      (is (not (= trx src)))
+      (is (not (= trx (transient src))))
+      (is (= trx trx))
+
+      (let [prx (persistent! trx)]
+        (is (= src prx))
+        (is (not (identical? src prx))))))
+
+  (testing "get"
+    (are [x y z] (= z (get (transient x) y))
+      []         1  nil
+      [:a :b :c] 1 :b)
+
+    (is (= :e (get (transient [:a :b :c]) 4 :e))))
+
+  (testing "not seqable"
+    (is (thrown? python/TypeError (seq (transient []))))))
+
+(deftest assoc!-test
+  (testing "maps"
+    (let [tm (transient {})]
+      (is (= {:a 1 :b 2 :c 3}
+             (-> (assoc! tm :a 1)
+                 (assoc! :b 2 :c 3)
+                 (persistent!))))))
+
+  (testing "vectors"
+    (let [tv (transient [:a :b :c])]
+      (is (= [:c :a :b :d]
+             (-> (assoc! tv 0 :c)
+                 (assoc! 1 :a 2 :b)
+                 (assoc! 3 :d)
+                 (persistent!)))))))
+
+(deftest conj!-test
+  (is (= [] (persistent! (conj!))))
+
+  (testing "maps"
+    (let [tm (transient {})]
+      (is (= {:a 1 :b 2 :c 3 :d 4 :e 5}
+             (-> (conj! tm {:a 1})
+                 (conj! {:a 1} #py {:b 2})
+                 (conj! [:c 3] nil (map-entry :d 4))
+                 (conj! #py (:e 5))
+                 (persistent!)))))
+
+    (is (thrown? python/ValueError (conj! (transient {}) :a))))
+
+  (testing "sets"
+    (let [ts (transient #{:a :b :c})]
+      (is (= #{:a :b :c :d :e :f}
+             (-> (conj! ts :a)
+                 (conj! :c :d)
+                 (conj! :e :f)
+                 (persistent!))))))
+
+  (testing "vectors"
+    (let [ts (transient [:a])]
+      (is (= [:a :a :c :d :e :f]
+             (-> (conj! ts :a)
+                 (conj! :c :d)
+                 (conj! :e :f)
+                 (persistent!)))))))
+
+(deftest disj!-test
+  (is (= #{:a} (persistent! (disj! (transient #{:a})))))
+
+  (let [ts (transient #{:a :b :c})]
+    (is (= #{:c} (-> (disj! ts :e)
+                     (disj! :b)
+                     (disj! :a :g)
+                     (persistent!))))))
+
+(deftest dissoc!-test
+  (let [tm (transient {:a 1 :b 2 :c 3})]
+    (is (= {:c 3} (-> (dissoc! tm :e)
+                      (dissoc! :b)
+                      (dissoc! :a :g)
+                      (persistent!))))))
+
+(deftest pop!-test
+  (let [tv (transient [:a :b :c])]
+    (is (= [:a] (-> (pop! tv)
+                    (pop!)
+                    (persistent!)))))
+
+  (is (thrown? python/IndexError (pop! (transient [])))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

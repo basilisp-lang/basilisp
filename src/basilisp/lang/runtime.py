@@ -50,6 +50,7 @@ from basilisp.lang.interfaces import (
     IPersistentVector,
     ISeq,
     ISeqable,
+    ITransientSet,
 )
 from basilisp.lang.reference import ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
@@ -1089,6 +1090,7 @@ def _get_others(m, k, default=None):
 
 
 @get.register(IPersistentSet)
+@get.register(ITransientSet)
 @get.register(frozenset)
 @get.register(set)
 def _get_settypes(m, k, default=None):
