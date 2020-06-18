@@ -156,6 +156,7 @@ def test_apply():
 
 def test_nth():
     assert None is runtime.nth(None, 1)
+    assert "not found" == runtime.nth(None, 4, "not found")
     assert "l" == runtime.nth("hello world", 2)
     assert "l" == runtime.nth(["h", "e", "l", "l", "o"], 2)
     assert "l" == runtime.nth(llist.l("h", "e", "l", "l", "o"), 2)
@@ -164,6 +165,7 @@ def test_nth():
 
     assert "Z" == runtime.nth(llist.l("h", "e", "l", "l", "o"), 7, "Z")
     assert "Z" == runtime.nth(lseq.sequence(["h", "e", "l", "l", "o"]), 7, "Z")
+    assert "Z" == runtime.nth(vec.v("h", "e", "l", "l", "o"), 7, "Z")
 
     with pytest.raises(IndexError):
         runtime.nth(llist.l("h", "e", "l", "l", "o"), 7)
@@ -171,11 +173,71 @@ def test_nth():
     with pytest.raises(IndexError):
         runtime.nth(lseq.sequence(["h", "e", "l", "l", "o"]), 7)
 
+    with pytest.raises(IndexError):
+        runtime.nth(vec.v("h", "e", "l", "l", "o"), 7)
+
+    with pytest.raises(TypeError):
+        runtime.nth(lmap.Map.empty(), 2)
+
+    with pytest.raises(TypeError):
+        runtime.nth(lmap.map({"a": 1, "b": 2, "c": 3}), 2)
+
+    with pytest.raises(TypeError):
+        runtime.nth(lset.Set.empty(), 2)
+
+    with pytest.raises(TypeError):
+        runtime.nth(lset.s(1, 2, 3), 2)
+
     with pytest.raises(TypeError):
         runtime.nth(3, 1)
 
     with pytest.raises(TypeError):
         runtime.nth(3, 1, "Z")
+
+
+def test_get():
+    assert None is runtime.get(None, "a")
+    assert keyword.keyword("nada") is runtime.get(None, "a", keyword.keyword("nada"))
+    assert None is runtime.get(3, "a")
+    assert keyword.keyword("nada") is runtime.get(3, "a", keyword.keyword("nada"))
+    assert 1 == runtime.get(lmap.map({"a": 1}), "a")
+    assert None is runtime.get(lmap.map({"a": 1}), "b")
+    assert 2 == runtime.get(lmap.map({"a": 1}), "b", 2)
+    assert 1 == runtime.get(lmap.map({"a": 1}).to_transient(), "a")
+    assert None is runtime.get(lmap.map({"a": 1}).to_transient(), "b")
+    assert 2 == runtime.get(lmap.map({"a": 1}).to_transient(), "b", 2)
+    assert 1 == runtime.get(vec.v(1, 2, 3), 0)
+    assert None is runtime.get(vec.v(1, 2, 3), 3)
+    assert "nada" == runtime.get(vec.v(1, 2, 3), 3, "nada")
+    assert 1 == runtime.get(vec.v(1, 2, 3).to_transient(), 0)
+    assert None is runtime.get(vec.v(1, 2, 3).to_transient(), 3)
+    assert "nada" == runtime.get(vec.v(1, 2, 3).to_transient(), 3, "nada")
+    assert "l" == runtime.get("hello world", 2)
+    assert None is runtime.get("hello world", 50)
+    assert "nada" == runtime.get("hello world", 50, "nada")
+    assert "l" == runtime.get(["h", "e", "l", "l", "o"], 2)
+    assert None is runtime.get(["h", "e", "l", "l", "o"], 50)
+    assert "nada" == runtime.get(["h", "e", "l", "l", "o"], 50, "nada")
+    assert 1 == runtime.get({"a": 1}, "a")
+    assert None is runtime.get({"a": 1}, "b")
+    assert 2 == runtime.get({"a": 1}, "b", 2)
+    assert "a" == runtime.get({"a", "b", "c"}, "a")
+    assert None is runtime.get({"a", "b", "c"}, "d")
+    assert 2 == runtime.get({"a", "b", "c"}, "d", 2)
+    assert "a" == runtime.get(frozenset({"a", "b", "c"}), "a")
+    assert None is runtime.get(frozenset({"a", "b", "c"}), "d")
+    assert 2 == runtime.get(frozenset({"a", "b", "c"}), "d", 2)
+    assert "a" == runtime.get(lset.set({"a", "b", "c"}), "a")
+    assert None is runtime.get(lset.set({"a", "b", "c"}), "d")
+    assert 2 == runtime.get(lset.set({"a", "b", "c"}), "d", 2)
+    assert "a" == runtime.get(lset.set({"a", "b", "c"}).to_transient(), "a")
+    assert None is runtime.get(lset.set({"a", "b", "c"}).to_transient(), "d")
+    assert 2 == runtime.get(lset.set({"a", "b", "c"}).to_transient(), "d", 2)
+
+    # lists are "supported" by virtue of the fact that `get`-ing them does not fail
+    assert None is runtime.get(llist.l(1, 2, 3), 0)
+    assert None is runtime.get(llist.l(1, 2, 3), 3)
+    assert "nada" == runtime.get(llist.l(1, 2, 3), 0, "nada")
 
 
 def test_assoc():
