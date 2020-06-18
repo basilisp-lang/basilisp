@@ -75,6 +75,10 @@
           (is (= v1 v2))
           (is (= {:tag vector} (meta v2))))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Collection Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (deftest bounded-count-test
   (are [x n y] (= x (bounded-count n y))
     0 5 []
@@ -128,6 +132,64 @@
     '(:b :c) '(:a :b :c)
     [] [:a]
     [:a :b] [:a :b :c]))
+
+(deftest reverse-test
+  (are [x y] (= x (reverse y))
+    '() []
+    '(1) [1]
+    '(2 1) [1 2]
+    '(1 2 3 4 5) [5 4 3 2 1]
+    '(4 3 2 1) (range 1 5)))
+
+(deftest reversible?-test
+  (is (reversible? []))
+  (is (reversible? [1 2 3 4]))
+  (are [x] (not (reversible? x))
+    '()
+    '(1 2 3 4)
+    #{}
+    #{1 2 3 4}
+    {}
+    {:a 1 :b 2}))
+
+(deftest rseq-test
+  (are [x] (thrown? python/AttributeError (rseq x))
+    '()
+    '(1 2 3 4)
+    #{}
+    #{1 2 3 4}
+    {}
+    {:a 1 :b 2})
+  (are [x y] (= x (rseq y))
+    '() []
+    '(1) [1]
+    '(2 1) [1 2]
+    '(3 2 1) [1 2 3]
+    '(4 3 2 1) [1 2 3 4]
+    '(:d :c :b :a) [:a :b :c :d]))
+
+(deftest sequence-test
+  (are [x y] (= x (sequence y))
+    '() '()
+    '() []
+    '() #{}
+    '() {}
+    '(0 1 2 3) [0 1 2 3]
+    '(0 1 2 3) '(0 1 2 3)
+    '(0 1 2 3) (range 4)))
+
+(deftest subvec-test
+  (is (= [] (subvec [] 0)))
+  (is (thrown? python/IndexError (subvec [] 3)))
+  (is (thrown? python/IndexError (subvec [1 2 3 4 5] 6)))
+  (is (= [:l :o :w :o :r :l :d] (subvec [:h :e :l :l :o :w :o :r :l :d] 3)))
+  (is (thrown? python/IndexError (subvec [:h :e :l :l :o :w :o :r :l :d] 3 12)))
+  (is (= [:l :o :w :o] (subvec [:h :e :l :l :o :w :o :r :l :d] 3 7)))
+  (is (thrown? python/IndexError (subvec [:h :e :l :l :o :w :o :r :l :d] 12 3))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Higher Order and Collection Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (deftest reduce-kv-test
   (testing "reduce-kv does not execute f if no elems in coll"
@@ -222,60 +284,6 @@
     '(1) [[[1]]]
     '(1 2 3) [[[1]] 2 [3]]))
 
-(deftest reverse-test
-  (are [x y] (= x (reverse y))
-    '() []
-    '(1) [1]
-    '(2 1) [1 2]
-    '(1 2 3 4 5) [5 4 3 2 1]
-    '(4 3 2 1) (range 1 5)))
-
-(deftest reversible?-test
-  (is (reversible? []))
-  (is (reversible? [1 2 3 4]))
-  (are [x] (not (reversible? x))
-    '()
-    '(1 2 3 4)
-    #{}
-    #{1 2 3 4}
-    {}
-    {:a 1 :b 2}))
-
-(deftest rseq-test
-  (are [x] (thrown? python/AttributeError (rseq x))
-    '()
-    '(1 2 3 4)
-    #{}
-    #{1 2 3 4}
-    {}
-    {:a 1 :b 2})
-  (are [x y] (= x (rseq y))
-    '() []
-    '(1) [1]
-    '(2 1) [1 2]
-    '(3 2 1) [1 2 3]
-    '(4 3 2 1) [1 2 3 4]
-    '(:d :c :b :a) [:a :b :c :d]))
-
-(deftest sequence-test
-  (are [x y] (= x (sequence y))
-    '() '()
-    '() []
-    '() #{}
-    '() {}
-    '(0 1 2 3) [0 1 2 3]
-    '(0 1 2 3) '(0 1 2 3)
-    '(0 1 2 3) (range 4)))
-
-(deftest subvec-test
-  (is (= [] (subvec [] 0)))
-  (is (thrown? python/IndexError (subvec [] 3)))
-  (is (thrown? python/IndexError (subvec [1 2 3 4 5] 6)))
-  (is (= [:l :o :w :o :r :l :d] (subvec [:h :e :l :l :o :w :o :r :l :d] 3)))
-  (is (thrown? python/IndexError (subvec [:h :e :l :l :o :w :o :r :l :d] 3 12)))
-  (is (= [:l :o :w :o] (subvec [:h :e :l :l :o :w :o :r :l :d] 3 7)))
-  (is (thrown? python/IndexError (subvec [:h :e :l :l :o :w :o :r :l :d] 12 3))))
-
 (deftest min-key-test
   (is (= "dsd" (max-key count "asd" "bsd" "dsd")))
   (is (= "long word" (max-key count "asd" "bsd" "dsd" "long word")))
@@ -318,6 +326,10 @@
                 "idiot")
     (is (= [:a :b] @a))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Associative Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (deftest replace-test
   (is (= '(This is the code ZERO ONE TWO ZERO)
          (replace '{0 ZERO, 1 ONE, 2 TWO} '(This is the code 0 1 2 0))))
@@ -327,6 +339,10 @@
          (replace [10 9 8 7 6] [0 2 4])))
   (is (= [:zeroth :second :fourth :zeroth]
          (replace [:zeroth :first :second :third :fourth] [0 2 4 0]))))
+
+;;;;;;;;;;;;;;;;;;;;;;
+;; String Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;
 
 (deftest subs-test
   (is (= "" (subs "" 0)))

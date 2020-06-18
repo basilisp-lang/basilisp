@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
  * Basilisp set and map types are now backed by the HAMT provided by `immutables` (#557)
+ * `get` now responds `nil` (or its default) for any unsupported types (#???)
+ * `nth` now supports only sequential collections (or `nil`) and will throw an exception for any invalid types (#???)
 
 ### Fixed
  * Fixed a bug where the Basilisp AST nodes for return values of `deftype` members could be marked as _statements_ rather than _expressions_, resulting in an incorrect `nil` return (#523)
