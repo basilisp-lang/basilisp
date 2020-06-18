@@ -54,7 +54,6 @@ from basilisp.lang.interfaces import (
 from basilisp.lang.reference import ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
-from basilisp.logconfig import TRACE
 from basilisp.util import Maybe
 
 logger = logging.getLogger(__name__)
@@ -1032,23 +1031,12 @@ def nth(coll, i: int, notfound=__nth_sentinel):
     """Returns the ith element of coll (0-indexed), if it exists.
     None otherwise. If i is out of bounds, throws an IndexError unless
     notfound is specified."""
-    try:
-        for j, e in enumerate(coll):
-            if i == j:
-                return e
-    except TypeError:
-        pass
-    else:
-        if notfound is not __nth_sentinel:
-            return notfound
-        raise IndexError(f"Index {i} out of bounds")
-
     raise TypeError(f"nth not supported on object of type {type(coll)}")
 
 
 @nth.register(type(None))
 def _nth_none(_: None, i: int, notfound=__nth_sentinel) -> None:
-    return None
+    return notfound if notfound is not __nth_sentinel else None
 
 
 @nth.register(Sequence)
@@ -1059,10 +1047,59 @@ def _nth_sequence(coll: Sequence, i: int, notfound=__nth_sentinel):
         if notfound is not __nth_sentinel:
             return notfound
         raise ex
-    except TypeError as ex:
-        # Log these at TRACE so they don't gum up the DEBUG logs since most
-        # cases where this exception occurs are not bugs.
-        logger.log(TRACE, "Ignored %s: %s", type(ex).__name__, ex)
+
+
+@nth.register(ISeq)
+def _nth_iseq(coll: ISeq, i: int, notfound=__nth_sentinel):
+    for j, e in enumerate(coll):
+        if i == j:
+            return e
+
+    if notfound is not __nth_sentinel:
+        return notfound
+
+    raise IndexError(f"Index {i} out of bounds")
+
+
+@functools.singledispatch
+def contains(coll, k):
+    """Return true if o contains the key k."""
+    return k in coll
+
+
+@contains.register(IAssociative)
+def _contains_iassociative(coll, k):
+    return coll.contains(k)
+
+
+@functools.singledispatch
+def get(m, k, default=None):  # pylint: disable=unused-argument
+    """Return the value of k in m. Return default if k not found in m."""
+    return default
+
+
+@get.register(dict)
+@get.register(list)
+@get.register(str)
+def _get_others(m, k, default=None):
+    try:
+        return m[k]
+    except (KeyError, IndexError):
+        return default
+
+
+@get.register(IPersistentSet)
+@get.register(frozenset)
+@get.register(set)
+def _get_settypes(m, k, default=None):
+    if k in m:
+        return k
+    return default
+
+
+@get.register(ILookup)
+def _get_ilookup(m, k, default=None):
+    return m.val_at(k, default)
 
 
 @functools.singledispatch
@@ -1070,7 +1107,7 @@ def assoc(m, *kvs):
     """Associate keys to values in associative data structure m. If m is None,
     returns a new Map with key-values kvs."""
     raise TypeError(
-        f"Object of type {type(m)} does not implement Associative interface"
+        f"Object of type {type(m)} does not implement IAssociative interface"
     )
 
 
@@ -1090,7 +1127,7 @@ def update(m, k, f, *args):
     calling f(old_v, *args). If m is None, use an empty map. If k is not in m, old_v will be
     None."""
     raise TypeError(
-        f"Object of type {type(m)} does not implement Associative interface"
+        f"Object of type {type(m)} does not implement IAssociative interface"
     )
 
 
@@ -1112,7 +1149,8 @@ def conj(coll, *xs):
     depending on the type of coll. conj returns the same type as coll. If coll
     is None, return a list with xs conjoined."""
     raise TypeError(
-        f"Object of type {type(coll)} does not implement Collection interface"
+        f"Object of type {type(coll)} does not implement "
+        "IPersistentCollection interface"
     )
 
 
@@ -1226,32 +1264,6 @@ def sort_by(keyfn, coll, cmp=None) -> Optional[ISeq]:
         key = keyfn  # type: ignore
 
     return lseq.sequence(sorted(coll, key=key))
-
-
-@functools.singledispatch
-def contains(coll, k):
-    """Return true if o contains the key k."""
-    return k in coll
-
-
-@contains.register(IAssociative)
-def _contains_iassociative(coll, k):
-    return coll.contains(k)
-
-
-@functools.singledispatch
-def get(m, k, default=None):
-    """Return the value of k in m. Return default if k not found in m."""
-    try:
-        return m[k]
-    except (KeyError, IndexError, TypeError) as e:
-        logger.log(TRACE, "Ignored %s: %s", type(e).__name__, e)
-        return default
-
-
-@get.register(ILookup)
-def _get_ilookup(m, k, default=None):
-    return m.val_at(k, default)
 
 
 def is_special_form(s: sym.Symbol) -> bool:
