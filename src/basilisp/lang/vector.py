@@ -1,7 +1,7 @@
 from typing import Iterable, Optional, Sequence, TypeVar, Union
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
-from pyrsistent.typing import PVectorEvolver
+from pyrsistent.typing import PVectorEvolver  # pylint:disable=unused-import
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,

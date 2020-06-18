@@ -1,5 +1,5 @@
 from collections.abc import Set as _PySet
-from typing import AbstractSet, Iterable, Optional, TypeVar, cast
+from typing import AbstractSet, Iterable, Optional, TypeVar
 
 from immutables import Map as _Map
 
@@ -16,7 +16,7 @@ from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
 
 try:
-    from immutables._map import MapMutation
+    from immutables._map import MapMutation  # pylint: disable=unused-import
 except ImportError:
     from immutables.map import MapMutation  # type: ignore[misc]
 
@@ -176,9 +176,9 @@ class Set(
         return TransientSet(self._inner.mutate())
 
 
-def set(
+def set(  # pylint:disable=redefined-builtin
     members: Iterable[T], meta: Optional[IPersistentMap] = None
-) -> Set[T]:  # pylint:disable=redefined-builtin
+) -> Set[T]:
     """Creates a new set."""
     return Set.from_iterable(members, meta=meta)
 

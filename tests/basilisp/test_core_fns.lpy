@@ -272,7 +272,7 @@
       #{}         :a nil
       #{:a :b :c} :a :a)
 
-    (is (= :e (get (transient #{:a :b :c}) :c :e))))
+    (is (= :e (get (transient #{:a :b :c}) :d :e))))
 
   (testing "not seqable"
     (is (thrown? python/TypeError (seq (transient #{}))))))
@@ -317,16 +317,71 @@
   (testing "maps"
     (let [tm (transient {})]
       (is (= {:a 1 :b 2 :c 3}
-             (-> (assoc tm :a 1)
-                 (assoc tm :b 2 :c 3)
+             (-> (assoc! tm :a 1)
+                 (assoc! :b 2 :c 3)
                  (persistent!))))))
 
   (testing "vectors"
     (let [tv (transient [:a :b :c])]
-      (is (= [:c :a :b]
-             (-> (assoc tv 0 :c)
-                 (assoc tv 1 :a 2 :b)
+      (is (= [:c :a :b :d]
+             (-> (assoc! tv 0 :c)
+                 (assoc! 1 :a 2 :b)
+                 (assoc! 3 :d)
                  (persistent!)))))))
+
+(deftest conj!-test
+  (is (= [] (persistent! (conj!))))
+
+  (testing "maps"
+    (let [tm (transient {})]
+      (is (= {:a 1 :b 2 :c 3 :d 4 :e 5}
+             (-> (conj! tm {:a 1})
+                 (conj! {:a 1} #py {:b 2})
+                 (conj! [:c 3] nil (map-entry :d 4))
+                 (conj! #py (:e 5))
+                 (persistent!)))))
+
+    (is (thrown? python/ValueError (conj! (transient {}) :a))))
+
+  (testing "sets"
+    (let [ts (transient #{:a :b :c})]
+      (is (= #{:a :b :c :d :e :f}
+             (-> (conj! ts :a)
+                 (conj! :c :d)
+                 (conj! :e :f)
+                 (persistent!))))))
+
+  (testing "vectors"
+    (let [ts (transient [:a])]
+      (is (= [:a :a :c :d :e :f]
+             (-> (conj! ts :a)
+                 (conj! :c :d)
+                 (conj! :e :f)
+                 (persistent!)))))))
+
+(deftest disj!-test
+  (is (= #{:a} (persistent! (disj! (transient #{:a})))))
+
+  (let [ts (transient #{:a :b :c})]
+    (is (= #{:c} (-> (disj! ts :e)
+                     (disj! :b)
+                     (disj! :a :g)
+                     (persistent!))))))
+
+(deftest dissoc!-test
+  (let [tm (transient {:a 1 :b 2 :c 3})]
+    (is (= {:c 3} (-> (dissoc! tm :e)
+                      (dissoc! :b)
+                      (dissoc! :a :g)
+                      (persistent!))))))
+
+(deftest pop!-test
+  (let [tv (transient [:a :b :c])]
+    (is (= [:a] (-> (pop! tv)
+                    (pop!)
+                    (persistent!)))))
+
+  (is (thrown? python/IndexError (pop! (transient [])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;

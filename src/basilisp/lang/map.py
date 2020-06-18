@@ -19,7 +19,7 @@ from basilisp.lang.vector import MapEntry
 from basilisp.util import partition
 
 try:
-    from immutables._map import MapMutation
+    from immutables._map import MapMutation  # pylint: disable=unused-import
 except ImportError:
     from immutables.map import MapMutation  # type: ignore[misc]
 
@@ -253,9 +253,9 @@ class Map(
         return TransientMap(self._inner.mutate())
 
 
-def map(
+def map(  # pylint:disable=redefined-builtin
     kvs: Mapping[K, V], meta: Optional[IPersistentMap] = None
-) -> Map[K, V]:  # pylint:disable=redefined-builtin
+) -> Map[K, V]:
     """Creates a new map."""
     # For some reason, creating a new `immutables.Map` instance from an existing
     # `basilisp.lang.map.Map` instance causes issues because the `__iter__` returns
