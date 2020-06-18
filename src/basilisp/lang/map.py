@@ -50,9 +50,6 @@ class TransientMap(ITransientMap[K, V]):
     def __eq__(self, other):
         return self is other
 
-    def __getitem__(self, item):
-        return self._inner[item]
-
     def __len__(self):
         return len(self._inner)
 

@@ -229,7 +229,10 @@
       {}          :a nil
       {:a 1 :c 2} :a 1)
 
-    (is (= :e (get (transient {:a 1 :b 2}) :c :e)))))
+    (is (= :e (get (transient {:a 1 :b 2}) :c :e))))
+
+  (testing "not seqable"
+    (is (thrown? python/TypeError (seq (transient {}))))))
 
 (deftest transient-set-test
   (testing "always boolean true"
@@ -269,7 +272,10 @@
       #{}         :a nil
       #{:a :b :c} :a :a)
 
-    (is (= :e (get (transient #{:a :b :c}) :c :e)))))
+    (is (= :e (get (transient #{:a :b :c}) :c :e))))
+
+  (testing "not seqable"
+    (is (thrown? python/TypeError (seq (transient #{}))))))
 
 (deftest transient-vector-test
   (testing "always boolean true"
@@ -302,7 +308,10 @@
       []         1  nil
       [:a :b :c] 1 :b)
 
-    (is (= :e (get (transient [:a :b :c]) 4 :e)))))
+    (is (= :e (get (transient [:a :b :c]) 4 :e))))
+
+  (testing "not seqable"
+    (is (thrown? python/TypeError (seq (transient []))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
