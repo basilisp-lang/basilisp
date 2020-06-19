@@ -529,6 +529,74 @@ def test_map():
         read_str_first("{:a 1 :b}")
 
 
+def test_namespaced_map(test_ns: str, ns: runtime.Namespace):
+    assert lmap.map(
+        {
+            kw.keyword("name", ns="member"): "Chris",
+            kw.keyword("gender", ns="person"): "M",
+            kw.keyword("id"): 15,
+        }
+    ) == read_str_first('#:person {:member/name "Chris" :gender "M" :_/id 15}')
+    assert lmap.map(
+        {
+            sym.symbol("name", ns="member"): "Chris",
+            sym.symbol("gender", ns="person"): "M",
+            sym.symbol("id"): 15,
+        }
+    ) == read_str_first('#:person{member/name "Chris" gender "M" _/id 15}')
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first('#:person/thing {member/name "Chris" gender "M" _/id 15}')
+
+    assert lmap.map(
+        {
+            kw.keyword("name", ns="member"): "Chris",
+            kw.keyword("gender", ns=test_ns): "M",
+            kw.keyword("id"): 15,
+        }
+    ) == read_str_first('#:: {:member/name "Chris" :gender "M" :_/id 15}')
+    assert lmap.map(
+        {
+            sym.symbol("name", ns="member"): "Chris",
+            sym.symbol("gender", ns=test_ns): "M",
+            sym.symbol("id"): 15,
+        }
+    ) == read_str_first('#::{member/name "Chris" gender "M" _/id 15}')
+
+    assert lmap.map(
+        {
+            kw.keyword("name", ns="member"): "Chris",
+            kw.keyword("gender", ns="person"): "M",
+            kw.keyword("id"): 15,
+            kw.keyword("address", ns="person"): lmap.map(
+                {kw.keyword("city"): "New York"}
+            ),
+        }
+    ) == read_str_first(
+        """
+        #:person {:member/name "Chris"
+                  :gender "M"
+                  :_/id 15
+                  :address {:city "New York"}}"""
+    )
+    assert lmap.map(
+        {
+            kw.keyword("name", ns="member"): "Chris",
+            kw.keyword("gender", ns="person"): "M",
+            kw.keyword("id"): 15,
+            kw.keyword("address", ns="person"): lmap.map(
+                {kw.keyword("city", ns="address"): "New York"}
+            ),
+        }
+    ) == read_str_first(
+        """
+            #:person {:member/name "Chris"
+                      :gender "M"
+                      :_/id 15
+                      :address #:address{:city "New York"}}"""
+    )
+
+
 def test_quoted():
     assert read_str_first("'a") == llist.l(sym.symbol("quote"), sym.symbol("a"))
     assert read_str_first("'some.ns/sym") == llist.l(

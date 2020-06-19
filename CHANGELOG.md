@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for auto-resolving namespaces for keyword from the current namespace using the `::kw` syntax (#576)
+ * Added support for namespaced map syntax (#577)
 
 ## [v0.1.dev14] - 2020-06-18
 ### Added
