@@ -49,7 +49,7 @@ from basilisp.lang.interfaces import (
     IWithMeta,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
-from basilisp.lang.runtime import Namespace, Var, lrepr
+from basilisp.lang.runtime import Namespace, Var, get_current_ns, lrepr
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
@@ -835,9 +835,28 @@ def _read_kw(ctx: ReaderContext) -> keyword.Keyword:
     """Return a keyword from the input stream."""
     start = ctx.reader.advance()
     assert start == ":"
+    token = ctx.reader.peek()
+    if token == ":":
+        ctx.reader.advance()
+        should_autoresolve = True
+    else:
+        should_autoresolve = False
+
     ns, name = _read_namespaced(ctx)
     if "." in name:
         raise ctx.syntax_error("Found '.' in keyword name")
+
+    if should_autoresolve:
+        current_ns = get_current_ns()
+        if ns is not None:
+            aliased_ns = current_ns.aliases.get(symbol.symbol(ns))
+            if aliased_ns is None:
+                raise ctx.syntax_error(f"Cannot resolve namespace alias '{ns}'")
+            ns = aliased_ns.name
+        else:
+            ns = current_ns.name
+        return keyword.keyword(name, ns=ns)
+
     return keyword.keyword(name, ns=ns)
 
 
@@ -848,7 +867,7 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
     assert start == "^"
     meta = _read_next_consuming_comment(ctx)
 
-    meta_map: Optional[lmap.Map[LispForm, LispForm]] = None
+    meta_map: Optional[lmap.Map[LispForm, LispForm]]
     if isinstance(meta, symbol.Symbol):
         meta_map = lmap.map({keyword.keyword("tag"): meta})
     elif isinstance(meta, keyword.Keyword):
