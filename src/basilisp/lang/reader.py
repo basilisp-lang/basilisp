@@ -49,7 +49,7 @@ from basilisp.lang.interfaces import (
     IWithMeta,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
-from basilisp.lang.runtime import Namespace, Var, get_current_ns, lrepr, nth
+from basilisp.lang.runtime import Namespace, Var, get_current_ns, lrepr
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
