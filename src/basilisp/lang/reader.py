@@ -473,7 +473,7 @@ def _with_loc(f: W) -> W:
     @functools.wraps(f)
     def with_lineno_and_col(ctx, **kwargs):
         line, col = ctx.reader.line, ctx.reader.col
-        v = f(ctx, **kwargs)
+        v = f(ctx, **kwargs)  # type: ignore[call-arg]
         if isinstance(v, IWithMeta):
             new_meta = lmap.map({READER_LINE_KW: line, READER_COL_KW: col})
             old_meta = v.meta
