@@ -245,6 +245,17 @@ def test_kw():
         read_str_first(":dotted.kw")
 
 
+def test_autoresolved_kw(test_ns: str, ns: runtime.Namespace):
+    assert kw.keyword("kw", ns=test_ns) == read_str_first("::kw")
+
+    new_ns = runtime.Namespace(sym.symbol("other.ns"))
+    ns.add_alias(new_ns, sym.symbol("other"))
+    assert kw.keyword("kw", ns="other.ns") == read_str_first("::other/kw")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("::third/kw")
+
+
 def test_literals():
     assert read_str_first("nil") is None
     assert read_str_first("true") is True
