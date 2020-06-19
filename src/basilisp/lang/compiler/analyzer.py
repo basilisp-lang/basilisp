@@ -838,19 +838,18 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
             f"def names must be symbols, not {type(name)}", form=name
         )
 
+    init_idx: Optional[int]
     children: vec.Vector[kw.Keyword]
     if nelems == 2:
-        init = None
+        init_idx = None
         doc = None
         children = vec.Vector.empty()
     elif nelems == 3:
-        with ctx.expr_pos():
-            init = _analyze_form(ctx, runtime.nth(form, 2))
+        init_idx = 2
         doc = None
         children = vec.v(INIT)
     else:
-        with ctx.expr_pos():
-            init = _analyze_form(ctx, runtime.nth(form, 3))
+        init_idx = 3
         doc = runtime.nth(form, 2)
         if not isinstance(doc, str):
             raise AnalyzerException("def docstring must be a string", form=doc)
@@ -918,6 +917,15 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         dynamic=def_meta.val_at(SYM_DYNAMIC_META_KEY, False),  # type: ignore
         meta=var_meta,
     )
+
+    # Set the value after interning the Var so the symbol is available for
+    # recursive definition.
+    if init_idx is not None:
+        with ctx.expr_pos():
+            init = _analyze_form(ctx, runtime.nth(form, init_idx))
+    else:
+        init = None
+
     descriptor = Def(
         form=form,
         name=bare_name,

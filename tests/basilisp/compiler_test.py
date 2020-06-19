@@ -288,6 +288,12 @@ class TestDef:
         assert var.root == runtime.Unbound(var)
         assert not var.is_bound
 
+    def test_recursive_def(self, lcompile: CompileFn, ns: runtime.Namespace):
+        lcompile("(def a a)")
+        var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("a"))
+        assert var.root == runtime.Unbound(var)
+        assert var.is_bound
+
     def test_def_number_of_elems(self, lcompile: CompileFn, ns: runtime.Namespace):
         with pytest.raises(compiler.CompilerException):
             lcompile("(def)")
