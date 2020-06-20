@@ -459,7 +459,7 @@
 (def
   ^{:macro    true
     :doc      "Define a new macro function. The arguments and syntax of `defmacro`
-               are identical to th that of `defn`.
+               are identical to that of `defn`.
 
                When the compiler encounters a new macro function invocation, it
                immediately invokes that function during compilation and substitutes
@@ -472,8 +472,10 @@
                whose names must not appear in your argument list:
 
                 - `&env` is a map of all symbol bindings available to the compiler
-                  at the point the macro is invoked
-                - `&form` is the original form invoking the macro"
+                  at the point the macro is invoked.
+                - `&form` is the original form invoking the macro. This is often
+                  useful for reading and copying metadata attached to the original
+                  form."
     :arglists '([name & body] [name doc? & body] [name doc? attr-map? & body])}
   defmacro
   (fn defmacro [&env &form name & body]
