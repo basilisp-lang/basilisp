@@ -4,6 +4,7 @@ import decimal
 import functools
 import io
 import re
+import sys
 import uuid
 from datetime import datetime
 from fractions import Fraction
@@ -73,10 +74,15 @@ W = TypeVar("W", bound=LispReaderFn)
 READER_LINE_KW = keyword.keyword("line", ns="basilisp.lang.reader")
 READER_COL_KW = keyword.keyword("col", ns="basilisp.lang.reader")
 
+READER_COND_BASILISP_PY_VERSION_FEATURE_KW = keyword.keyword(
+    f"lpy{sys.version_info.major}{sys.version_info.minor}"
+)
 READER_COND_BASILISP_FEATURE_KW = keyword.keyword("lpy")
 READER_COND_DEFAULT_FEATURE_KW = keyword.keyword("default")
 READER_COND_DEFAULT_FEATURE_SET = lset.s(
-    READER_COND_BASILISP_FEATURE_KW, READER_COND_DEFAULT_FEATURE_KW
+    READER_COND_BASILISP_FEATURE_KW,
+    READER_COND_DEFAULT_FEATURE_KW,
+    READER_COND_BASILISP_PY_VERSION_FEATURE_KW,
 )
 READER_COND_FORM_KW = keyword.keyword("form")
 READER_COND_SPLICING_KW = keyword.keyword("splicing?")

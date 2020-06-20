@@ -276,7 +276,40 @@
 
 (def
   ^{:macro    true
-    :doc      "Define a new function with an optional docstring."
+    :doc      "Define a new function with an optional docstring.
+
+               The function will be interned in the current Namespace as a Var using
+               the given `name`.
+
+               After the name, an optional mapping of meta attributes may be provided.
+               Any metadata values given will be attached to the metadata of the
+               interned Var. A few special meta keys change how `defn` emits the
+               final Var and function:
+
+                - `:decorators` is an optional vector of functions which will wrap
+                  the final function emitted by `defn`. Like standard Python decorators
+                  and the `comp` function, decorators are applied to the generated
+                  function from right to left.
+
+               Specify an optional docstring after the metadata map to provide callers
+               with additional details about your function, its arguments, and its
+               return value. If a docstring is provided, it will be attached to the
+               interned Var metadata under the `:doc` key.
+
+               Functions may be defined with 1 or more arities. Functions of a single
+               arity may be defined with a single vector of 0 or more arguments after
+               the optional metadata map. Any forms appearing after the argument
+               vector will be part of the function body. It is legal to define a
+               function with no body. In this case, your function will always return
+               `nil`.
+
+               Functions with multiple arities are defined as a series of lists after
+               the optional metadata map. Each list must contain an argument vector
+               and 0 or more body forms. No arity may share the same number of fixed
+               (non-variadic) arguments. There may be at most one variadic arity
+               defined per function and the number of fixed arguments to that arity
+               must be greater than or equal than the number of fixed arguments of all
+               other arities."
     :arglists '([name & body] [name doc? & body] [name doc? attr-map? & body])}
   defn
   (fn defn [&env &form name & body]
@@ -291,15 +324,15 @@
           body   (if doc
                    (rest body)
                    body)
-          fmeta (if (map? (first body))
-                  (first body)
-                  nil)
+          fmeta  (if (map? (first body))
+                   (first body)
+                   nil)
           fname  (if fmeta
                    (vary-meta name conj fmeta)
                    name)
           fname  (if doc
                    (vary-meta fname assoc :doc doc)
-                   (vary-meta fname conj fmeta))
+                   fname)
           body   (if fmeta
                    (rest body)
                    body)
@@ -321,10 +354,18 @@
                       (throw
                        (ex-info "Expected an argument vector"
                                 {:found (first body)})))
-                    (rest body)))]
-      `(def ~fname
-         (fn ~fname
-              ~@body)))))
+                    (rest body)))
+
+          decorators (:decorators fmeta)
+          fn-body    (if decorators
+                       (loop [wrappers (seq (python/reversed decorators))
+                              final    `(fn ~fname ~@body)]
+                         (if (seq wrappers)
+                           (recur (rest wrappers)
+                                  `(~(first wrappers) ~final))
+                           final))
+                       `(fn ~fname ~@body))]
+      `(def ~fname ~fn-body))))
 
 (defn nth
   "Returns the `i`th element of `coll` (0-indexed), if it exists or `nil`
@@ -417,8 +458,24 @@
 
 (def
   ^{:macro    true
-    :doc      "Define a new macro like defn. Macro functions are available to the
-               compiler during macroexpansion."
+    :doc      "Define a new macro function. The arguments and syntax of `defmacro`
+               are identical to that of `defn`.
+
+               When the compiler encounters a new macro function invocation, it
+               immediately invokes that function during compilation and substitutes
+               the function invocation with the return value of the called macro.
+               Macros must return valid syntax at the point they are invoked,
+               otherwise the compiler will throw an exception and compilation
+               will halt.
+
+               Macros created by `defmacro` have access to two implicit arguments
+               whose names must not appear in your argument list:
+
+                - `&env` is a map of all symbol bindings available to the compiler
+                  at the point the macro is invoked.
+                - `&form` is the original form invoking the macro. This is often
+                  useful for reading and copying metadata attached to the original
+                  form."
     :arglists '([name & body] [name doc? & body] [name doc? attr-map? & body])}
   defmacro
   (fn defmacro [&env &form name & body]
@@ -482,7 +539,10 @@
      ~@body))
 
 (defmacro defn-
-  "Define a new private function as by `defn`."
+  "Define a new private function as by `defn`.
+
+  Private functions are `def`'ed with the `:private` metadata, which makes them
+  ineligible for access outside the namespace using `require` or `refer`."
   [name & body]
   `(defn ~(vary-meta name assoc :private true)
      ~@body))
