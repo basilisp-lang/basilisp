@@ -14,6 +14,7 @@ from typing import (
     Collection,
     Deque,
     Dict,
+    Hashable,
     Iterable,
     List,
     MutableMapping,
@@ -49,7 +50,7 @@ from basilisp.lang.interfaces import (
     IWithMeta,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
-from basilisp.lang.runtime import Namespace, Var, lrepr
+from basilisp.lang.runtime import Namespace, Var, get_current_ns, lrepr
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
@@ -470,9 +471,9 @@ def _with_loc(f: W) -> W:
     information along with relevant forms."""
 
     @functools.wraps(f)
-    def with_lineno_and_col(ctx):
+    def with_lineno_and_col(ctx, **kwargs):
         line, col = ctx.reader.line, ctx.reader.col
-        v = f(ctx)
+        v = f(ctx, **kwargs)  # type: ignore[call-arg]
         if isinstance(v, IWithMeta):
             new_meta = lmap.map({READER_LINE_KW: line, READER_COL_KW: col})
             old_meta = v.meta
@@ -643,15 +644,42 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
             yield v
 
 
+def _map_key_processor(namespace: Optional[str],) -> Callable[[Hashable], Hashable]:
+    """Return a map key processor.
+
+    If no `namespace` is provided, return an identity function. If a `namespace`
+    is given, return a function that can apply namespaces to un-namespaced
+    keyword and symbol values."""
+    if namespace is None:
+        return lambda v: v
+
+    def process_key(k: Any) -> Any:
+        if isinstance(k, keyword.Keyword):
+            if k.ns is None:
+                return keyword.keyword(k.name, ns=namespace)
+            if k.ns == "_":
+                return keyword.keyword(k.name)
+        if isinstance(k, symbol.Symbol):
+            if k.ns is None:
+                return symbol.symbol(k.name, ns=namespace)
+            if k.ns == "_":
+                return symbol.symbol(k.name)
+        return k
+
+    return process_key
+
+
 @_with_loc
-def _read_map(ctx: ReaderContext) -> lmap.Map:
+def _read_map(ctx: ReaderContext, namespace: Optional[str] = None) -> lmap.Map:
     """Return a map from the input stream."""
     reader = ctx.reader
     start = reader.advance()
     assert start == "{"
     d: MutableMapping[Any, Any] = {}
+    process_key = _map_key_processor(namespace)
     try:
         for k, v in partition(list(__read_map_elems(ctx)), 2):
+            k = process_key(k)
             if k in d:
                 raise ctx.syntax_error(f"Duplicate key '{k}' in map literal")
             d[k] = v
@@ -659,6 +687,30 @@ def _read_map(ctx: ReaderContext) -> lmap.Map:
         raise ctx.syntax_error("Unexpected token '}'; expected map value")
     else:
         return lmap.map(d)
+
+
+def _read_namespaced_map(ctx: ReaderContext) -> lmap.Map:
+    """Read a namespaced map from the input stream."""
+    start = ctx.reader.peek()
+    assert start == ":"
+    ctx.reader.advance()
+    if ctx.reader.peek() == ":":
+        ctx.reader.advance()
+        current_ns = get_current_ns()
+        map_ns = current_ns.name
+    else:
+        kw_ns, map_ns = _read_namespaced(ctx)
+        if kw_ns is not None:
+            raise ctx.syntax_error(
+                f"Invalid map namespace '{kw_ns}/{map_ns}'; namespaces for maps must "
+                "be specified as keywords without namespaces"
+            )
+
+    token = ctx.reader.peek()
+    while whitespace_chars.match(token):
+        token = ctx.reader.next_token()
+
+    return _read_map(ctx, namespace=map_ns)
 
 
 # Due to some ambiguities that arise in parsing symbols, numbers, and the
@@ -835,9 +887,27 @@ def _read_kw(ctx: ReaderContext) -> keyword.Keyword:
     """Return a keyword from the input stream."""
     start = ctx.reader.advance()
     assert start == ":"
+    if ctx.reader.peek() == ":":
+        ctx.reader.advance()
+        should_autoresolve = True
+    else:
+        should_autoresolve = False
+
     ns, name = _read_namespaced(ctx)
     if "." in name:
         raise ctx.syntax_error("Found '.' in keyword name")
+
+    if should_autoresolve:
+        current_ns = get_current_ns()
+        if ns is not None:
+            aliased_ns = current_ns.aliases.get(symbol.symbol(ns))
+            if aliased_ns is None:
+                raise ctx.syntax_error(f"Cannot resolve namespace alias '{ns}'")
+            ns = aliased_ns.name
+        else:
+            ns = current_ns.name
+        return keyword.keyword(name, ns=ns)
+
     return keyword.keyword(name, ns=ns)
 
 
@@ -848,7 +918,7 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
     assert start == "^"
     meta = _read_next_consuming_comment(ctx)
 
-    meta_map: Optional[lmap.Map[LispForm, LispForm]] = None
+    meta_map: Optional[lmap.Map[LispForm, LispForm]]
     if isinstance(meta, symbol.Symbol):
         meta_map = lmap.map({keyword.keyword("tag"): meta})
     elif isinstance(meta, keyword.Keyword):
@@ -1271,6 +1341,8 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
         return _read_set(ctx)
     elif token == "(":
         return _read_function(ctx)
+    elif token == ":":
+        return _read_namespaced_map(ctx)
     elif token == "'":
         ctx.reader.advance()
         s = _read_sym(ctx)
