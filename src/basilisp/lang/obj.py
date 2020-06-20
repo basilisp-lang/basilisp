@@ -243,7 +243,7 @@ def _lrepr_complex(o: complex, **_) -> str:
 
 
 @lrepr.register(float)
-def _lrepr_complex(o: float, **_) -> str:
+def _lrepr_float(o: float, **_) -> str:
     if math.isinf(o):
         return "##Inf" if o > 0 else "##-Inf"
     if math.isnan(o):
