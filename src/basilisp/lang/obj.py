@@ -1,4 +1,5 @@
 import datetime
+import math
 import re
 import uuid
 from abc import ABC, abstractmethod
@@ -239,6 +240,15 @@ def _lrepr_py_tuple(o: tuple, **kwargs) -> str:
 @lrepr.register(complex)
 def _lrepr_complex(o: complex, **_) -> str:
     return repr(o).upper()
+
+
+@lrepr.register(float)
+def _lrepr_float(o: float, **_) -> str:
+    if math.isinf(o):
+        return "##Inf" if o > 0 else "##-Inf"
+    if math.isnan(o):
+        return "##NaN"
+    return repr(o)
 
 
 @lrepr.register(datetime.datetime)

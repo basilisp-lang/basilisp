@@ -1229,6 +1229,25 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
         raise ctx.syntax_error(f"Unrecognized regex pattern syntax: {s}")
 
 
+_NUMERIC_CONSTANTS = {
+    "NaN": float("nan"),
+    "Inf": float("inf"),
+    "-Inf": -float("inf"),
+}
+
+
+def _read_numeric_constant(ctx: ReaderContext) -> float:
+    start = ctx.reader.advance()
+    assert start == "#"
+    ns, name = _read_namespaced(ctx)
+    if ns is not None:
+        raise ctx.syntax_error(f"Unrecognized numeric constant: '##{ns}/{name}'")
+    c = _NUMERIC_CONSTANTS.get(name)
+    if c is None:
+        raise ctx.syntax_error(f"Unrecognized numeric constant: '##{name}'")
+    return c
+
+
 def _should_splice_reader_conditional(ctx: ReaderContext, form: LispReaderForm) -> bool:
     """Return True if and only if form is a ReaderConditional which should be spliced
     into a surrounding collection context."""
@@ -1357,6 +1376,8 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
         return _read_comment(ctx)
     elif token == "?":
         return _read_reader_conditional(ctx)
+    elif token == "#":
+        return _read_numeric_constant(ctx)
     elif ns_name_chars.match(token):
         s = _read_sym(ctx)
         assert isinstance(s, symbol.Symbol)

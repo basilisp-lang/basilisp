@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added support for auto-resolving namespaces for keyword from the current namespace using the `::kw` syntax (#576)
  * Added support for namespaced map syntax (#577)
+ * Added support for numeric constant literals for NaN, positive infinity, and negative infinity (#582)
  * Added `*basilisp-version*` and `*python-version*` Vars to `basilisp.core` (#584)
 
 ### Fixed
