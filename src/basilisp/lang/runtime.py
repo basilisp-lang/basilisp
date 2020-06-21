@@ -969,7 +969,7 @@ def _to_seq_iseqable(o: ISeqable) -> Optional[ISeq]:
 
 def concat(*seqs) -> ISeq:
     """Concatenate the sequences given by seqs into a single ISeq."""
-    allseqs = lseq.sequence(itertools.chain(*filter(None, map(to_seq, seqs))))
+    allseqs = lseq.sequence(itertools.chain.from_iterable(filter(None, seqs)))
     if allseqs is None:
         return lseq.EMPTY
     return allseqs
