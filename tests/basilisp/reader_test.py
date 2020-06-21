@@ -1,4 +1,5 @@
 import io
+import math
 from typing import Optional
 
 import pytest
@@ -1263,6 +1264,18 @@ def test_regex_reader_literal():
 
     with pytest.raises(reader.SyntaxError):
         read_str_first(r'#"\y"')
+
+
+def test_numeric_constant_literal():
+    assert math.isnan(read_str_first("##NaN"))
+    assert read_str_first("##Inf") == float("inf")
+    assert read_str_first("##-Inf") == -float("inf")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("##float/NaN")
+
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("##e")
 
 
 def test_uuid_reader_literal():

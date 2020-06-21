@@ -1,3 +1,4 @@
+import math
 import re
 import uuid
 from fractions import Fraction
@@ -198,6 +199,9 @@ def test_lrepr(lcompile: CompileFn):
     assert "0.64" == lcompile("(pr-str 0.64)")
     assert "3.14" == lcompile("(pr-str 3.14M)")
     assert "22/7" == lcompile("(pr-str 22/7)")
+    assert "##NaN" == lcompile("(pr-str ##NaN)")
+    assert "##Inf" == lcompile("(pr-str ##Inf)")
+    assert "##-Inf" == lcompile("(pr-str ##-Inf)")
     assert '"hi"' == lcompile('(pr-str "hi")')
     assert '"Hello\\nworld!"' == lcompile('(pr-str "Hello\nworld!")')
     assert '#uuid "81f35603-0408-4b3d-bbc0-462e3702747f"' == lcompile(
@@ -231,6 +235,9 @@ def test_lrepr_round_trip(lcompile: CompileFn):
     assert 0.64 == lcompile("(read-string (pr-str 0.64))")
     assert 3.14 == lcompile("(read-string (pr-str 3.14M))")
     assert Fraction(22, 7) == lcompile("(read-string (pr-str 22/7))")
+    assert math.isnan(lcompile("(read-string (pr-str ##NaN))"))
+    assert float("inf") == lcompile("(read-string (pr-str ##Inf))")
+    assert -float("inf") == lcompile("(read-string (pr-str ##-Inf))")
     assert "hi" == lcompile('(read-string (pr-str "hi"))')
     assert "Hello\nworld!" == lcompile('(read-string (pr-str "Hello\nworld!"))')
     assert uuid.UUID("81f35603-0408-4b3d-bbc0-462e3702747f") == lcompile(
@@ -271,6 +278,9 @@ def test_lstr(lcompile: CompileFn):
     assert "0.64" == lcompile("(print-str 0.64)")
     assert "3.14" == lcompile("(print-str 3.14M)")
     assert "22/7" == lcompile("(print-str 22/7)")
+    assert "##NaN" == lcompile("(print-str ##NaN)")
+    assert "##Inf" == lcompile("(print-str ##Inf)")
+    assert "##-Inf" == lcompile("(print-str ##-Inf)")
     assert "hi" == lcompile('(print-str "hi")')
     assert "Hello\nworld!" == lcompile('(print-str "Hello\nworld!")')
     assert '#uuid "81f35603-0408-4b3d-bbc0-462e3702747f"' == lcompile(

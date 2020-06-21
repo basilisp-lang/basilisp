@@ -6,6 +6,7 @@ import itertools
 import logging
 import math
 import re
+import sys
 import threading
 import types
 from collections.abc import Sequence
@@ -76,6 +77,8 @@ _PRINT_LENGTH_VAR_NAME = "*print-length*"
 _PRINT_LEVEL_VAR_NAME = "*print-level*"
 _PRINT_META_VAR_NAME = "*print-meta*"
 _PRINT_READABLY_VAR_NAME = "*print-readably*"
+_PYTHON_VERSION = "*python-version*"
+_BASILISP_VERSION = "*basilisp-version*"
 
 # Common meta keys
 _DYNAMIC_META_KEY = kw.keyword("dynamic")
@@ -1824,6 +1827,19 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         sym.symbol(_PRINT_READABLY_VAR_NAME),
         lobj.PRINT_READABLY,
         dynamic=True,
+    )
+
+    # Version info
+    from basilisp.__version__ import VERSION
+
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(_PYTHON_VERSION),
+        vec.vector(sys.version_info),
+        dynamic=True,
+    )
+    Var.intern(
+        CORE_NS_SYM, sym.symbol(_BASILISP_VERSION), vec.vector(VERSION), dynamic=True
     )
 
 
