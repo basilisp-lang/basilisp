@@ -2172,6 +2172,12 @@
   (list 'basilisp.lang.seq/LazySeq
         (concat '(fn* []) body)))
 
+(defmacro lazy-cat
+  "Return a lazy sequence of the concatenation of `colls`. None of the input
+  collections will be evaluated until it is needed."
+  [& colls]
+  `(concat ~@(map (fn [coll] `(lazy-seq ~coll)) colls)))
+
 (defn dorun
   "Force a lazy sequence be fully realized. Returns nil.
 
