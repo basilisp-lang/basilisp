@@ -230,6 +230,21 @@
                 ;; values will be used as-is. Default nil.
                 :default "yes"
 
+                ;; An `assoc`-like function which will be passed the current
+                ;; options map, the relevant destination key, and the parsed
+                ;; option and should return a new options map.
+                ;;
+                ;; If neither `:assoc-fn`, nor `:update-fn` are provided, then
+                ;; a default of `assoc` will be given for `:assoc-fn`. If
+                ;; `:update-fn` is provided, it will be used. If both keys are
+                ;; given, an exception will be thrown.
+                :assoc-fn assoc
+
+                ;; A function of one argument which will receive the current
+                ;; value of the associated option and must return an updated
+                ;; value. Default nil.
+                :update-fn (fnil inc 0)
+
                 ;; Either a string value or vector of strings used to refer to
                 ;; expected arguments generated help text message.
                 :metavar "FOO"

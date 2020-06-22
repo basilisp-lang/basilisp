@@ -2,3 +2,41 @@
   (:require
    [basilisp.cli-tools :as cli]
    [basilisp.test :refer [deftest are is testing]]))
+
+(def ^:private base-parser-config
+  {:command      "command"
+   :description  "This command foos the bars."
+   :allow-abbrev true
+   :arguments    []
+   :commands     []})
+
+(def ^:private base-arg-config
+  {:name     "foo"
+   :parse-fn int
+   :validate [pos? "foo must be positive"]
+   :default  "yes"
+   :metavar  "FOO"
+   :help     "Add extra foos into the bars."})
+
+(def ^:private base-flag-config
+  {:flags    ["-f" "--foo"]
+   :parse-fn int
+   :validate [pos? "foo must be positive"]
+   :default  "yes"
+   :metavar  "FOO"
+   :help     "Add extra foos into the bars."})
+
+(deftest cli-parser-spec-validation
+  (testing "disallow name and flags"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (-> base-arg-config
+                     (assoc :flags ["-f" "--foo"])
+                     (->> (update base-parser-config conj :arguments))
+                     (cli/cli-parser)))))
+
+  (testing "disallow assoc-fn and update-fn"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (-> base-arg-config
+                     (assoc :assoc-fn assoc :update-fn (fnil inc 0))
+                     (->> (update base-parser-config conj :arguments))
+                     (cli/cli-parser))))))
