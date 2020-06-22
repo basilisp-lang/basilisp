@@ -147,10 +147,14 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
 
     # pylint:disable=assigning-non-slot
     def __init__(
-        self, gen: LazySeqGenerator, *, meta: Optional[IPersistentMap] = None,
+        self,
+        gen: Optional[LazySeqGenerator],
+        seq: Optional[ISeq[T]] = None,
+        *,
+        meta: Optional[IPersistentMap] = None,
     ) -> None:
         self._gen: Optional[LazySeqGenerator] = gen
-        self._seq: Optional[ISeq[T]] = None
+        self._seq: Optional[ISeq[T]] = seq
         self._meta = meta
 
     @property
@@ -158,7 +162,7 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         return self._meta
 
     def with_meta(self, meta: Optional[IPersistentMap]) -> "LazySeq[T]":
-        return LazySeq(self._gen, meta=meta)
+        return LazySeq(self._gen, seq=self._seq, meta=meta)
 
     # pylint:disable=assigning-non-slot
     def _realize(self):
