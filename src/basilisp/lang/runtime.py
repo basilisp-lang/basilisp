@@ -50,7 +50,6 @@ from basilisp.lang.interfaces import (
     IPersistentSet,
     IPersistentVector,
     ISeq,
-    ISeqable,
     ITransientSet,
 )
 from basilisp.lang.reference import ReferenceBase
