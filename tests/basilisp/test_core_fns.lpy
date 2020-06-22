@@ -400,6 +400,34 @@
     (is (= {1 :a, 2 :b, 3 :c}
            (reduce-kv #(assoc %1 %3 %2) {} {:a 1 :b 2 :c 3})))))
 
+(deftest fnil-test
+  (let [f (fnil (fn [x] x) :yes)]
+    (is (= :yes (f nil)))
+    (is (= :no (f :no))))
+
+  (let [f (fnil (fn [x y] [x y]) :yes :no)]
+    (is (= [:yes :yes] (f nil :yes)))
+    (is (= [:no :no] (f :no nil)))
+    (is (= [:yes :no] (f nil nil))))
+
+  (let [f (fnil (fn [x y z] [x y z]) :yes :no :maybe)]
+    (is (= [:yes :yes :yes] (f nil :yes :yes)))
+    (is (= [:yes :no :yes] (f nil nil :yes)))
+    (is (= [:no :no :no] (f :no nil :no)))
+    (is (= [:no :no :maybe] (f :no nil nil)))
+    (is (= [:maybe :maybe :maybe] (f :maybe :maybe nil)))
+    (is (= [:yes :maybe :maybe] (f nil :maybe nil)))
+    (is (= [:yes :no :maybe] (f nil nil nil))))
+
+  (let [f (fnil (fn [x & rest] [x rest]) :a)]
+    (is (= [:a '(:b :c)] (f nil :b :c))))
+
+  (let [f (fnil (fn [x y & rest] [x y rest]) :a :b)]
+    (is (= [:a :b '(:c :d)] (f nil nil :c :d))))
+
+  (let [f (fnil (fn [x y z & rest] [x y z rest]) :a :b :c)]
+    (is (= [:a :b :c '(:d :e)] (f nil nil nil :d :e)))))
+
 (deftest every-pred-test
   (is (= true ((every-pred odd?) 3 5 9)))
   (is (= true ((every-pred odd? int?) 3 5 9 17)))
