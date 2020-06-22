@@ -12,9 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added `*basilisp-version*` and `*python-version*` Vars to `basilisp.core` (#584)
  * Added support for function decorators to `defn` (#585)
  * Added the current Python version (`:lpy36`, `:lpy37`, etc.) as a default reader feature for reader conditionals (#585)
+ * Added `lazy-cat` function for lazily concatenating sequences (#588)
+
+### Changed
+ * Moved `basilisp.lang.runtime.to_seq` to `basilisp.lang.seq` so it can be used within that module and by `basilisp.lang.runtime` without circular import (#588)
 
 ### Fixed
  * Fixed a bug where `def` forms did not permit recursive references to the `def`'ed Vars (#578)
+ * Fixed a bug where `concat` could cause a `RecursionEror` if used on a `LazySeq` instance which itself calls `concat` (#588)
 
 ## [v0.1.dev14] - 2020-06-18
 ### Added

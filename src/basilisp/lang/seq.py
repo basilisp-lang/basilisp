@@ -1,6 +1,13 @@
+import functools
 from typing import Any, Callable, Iterable, Iterator, Optional, TypeVar
 
-from basilisp.lang.interfaces import IPersistentMap, ISeq, ISequential, IWithMeta
+from basilisp.lang.interfaces import (
+    IPersistentMap,
+    ISeq,
+    ISeqable,
+    ISequential,
+    IWithMeta,
+)
 from basilisp.util import Maybe
 
 T = TypeVar("T")
@@ -128,23 +135,26 @@ class _Sequence(IWithMeta, ISequential, ISeq[T]):
         return Cons(elem, self)
 
 
+LazySeqGenerator = Callable[[], Optional[ISeq[T]]]
+
+
 class LazySeq(IWithMeta, ISequential, ISeq[T]):
     """LazySeqs are wrappers for delaying sequence computation. Create a LazySeq
     with a function that can either return None or a Seq. If a Seq is returned,
     the LazySeq is a proxy to that Seq."""
 
-    __slots__ = ("_gen", "_realized", "_seq", "_meta")
+    __slots__ = ("_gen", "_seq", "_meta")
 
     # pylint:disable=assigning-non-slot
     def __init__(
         self,
-        gen: Callable[[], Optional[ISeq[T]]],
+        gen: Optional[LazySeqGenerator],
+        seq: Optional[ISeq[T]] = None,
         *,
         meta: Optional[IPersistentMap] = None,
     ) -> None:
-        self._gen = gen
-        self._realized = False
-        self._seq: Optional[ISeq[T]] = None
+        self._gen: Optional[LazySeqGenerator] = gen
+        self._seq: Optional[ISeq[T]] = seq
         self._meta = meta
 
     @property
@@ -152,27 +162,22 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         return self._meta
 
     def with_meta(self, meta: Optional[IPersistentMap]) -> "LazySeq[T]":
-        return LazySeq(self._gen, meta=meta)
+        return LazySeq(self._gen, seq=self._seq, meta=meta)
 
     # pylint:disable=assigning-non-slot
     def _realize(self):
-        if not self._realized:
-            self._seq = self._gen()
-            self._realized = True
+        if self._gen is not None:
+            self._seq = to_seq(self._gen())
+            self._gen = None
 
     @property
     def is_empty(self) -> bool:
-        if not self._realized:
-            self._realize()
-            return self.is_empty
-        if self._seq is None or self._seq.is_empty:
-            return True
-        return False
+        self._realize()
+        return self._seq is None
 
     @property
     def first(self) -> Optional[T]:
-        if not self._realized:
-            self._realize()
+        self._realize()
         try:
             return self._seq.first  # type: ignore
         except AttributeError:
@@ -180,8 +185,7 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
 
     @property
     def rest(self) -> "ISeq[T]":
-        if not self._realized:
-            self._realize()
+        self._realize()
         try:
             return self._seq.rest  # type: ignore
         except AttributeError:
@@ -192,7 +196,7 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
 
     @property
     def is_realized(self):
-        return self._realized
+        return self._gen is None
 
 
 def sequence(s: Iterable) -> ISeq[Any]:
@@ -202,3 +206,31 @@ def sequence(s: Iterable) -> ISeq[Any]:
         return _Sequence(i, next(i))
     except StopIteration:
         return EMPTY
+
+
+def _seq_or_nil(s: ISeq) -> Optional[ISeq]:
+    """Return None if a ISeq is empty, the ISeq otherwise."""
+    if s.is_empty:
+        return None
+    return s
+
+
+@functools.singledispatch
+def to_seq(o) -> Optional[ISeq]:
+    """Coerce the argument o to a ISeq. If o is None, return None."""
+    return _seq_or_nil(sequence(o))
+
+
+@to_seq.register(type(None))
+def _to_seq_none(_) -> None:
+    return None
+
+
+@to_seq.register(ISeq)
+def _to_seq_iseq(o: ISeq) -> Optional[ISeq]:
+    return _seq_or_nil(o)
+
+
+@to_seq.register(ISeqable)
+def _to_seq_iseqable(o: ISeqable) -> Optional[ISeq]:
+    return _seq_or_nil(o.seq())

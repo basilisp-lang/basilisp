@@ -50,7 +50,6 @@ from basilisp.lang.interfaces import (
     IPersistentSet,
     IPersistentVector,
     ISeq,
-    ISeqable,
     ITransientSet,
 )
 from basilisp.lang.reference import ReferenceBase
@@ -939,37 +938,12 @@ def cons(o, seq) -> ISeq:
     return _cons(seq, o)
 
 
-def _seq_or_nil(s: ISeq) -> Optional[ISeq]:
-    """Return None if a ISeq is empty, the ISeq otherwise."""
-    if s.is_empty:
-        return None
-    return s
-
-
-@functools.singledispatch
-def to_seq(o) -> Optional[ISeq]:
-    """Coerce the argument o to a ISeq. If o is None, return None."""
-    return _seq_or_nil(lseq.sequence(o))
-
-
-@to_seq.register(type(None))
-def _to_seq_none(_) -> None:
-    return None
-
-
-@to_seq.register(ISeq)
-def _to_seq_iseq(o: ISeq) -> Optional[ISeq]:
-    return _seq_or_nil(o)
-
-
-@to_seq.register(ISeqable)
-def _to_seq_iseqable(o: ISeqable) -> Optional[ISeq]:
-    return _seq_or_nil(o.seq())
+to_seq = lseq.to_seq
 
 
 def concat(*seqs) -> ISeq:
     """Concatenate the sequences given by seqs into a single ISeq."""
-    allseqs = lseq.sequence(itertools.chain(*filter(None, map(to_seq, seqs))))
+    allseqs = lseq.sequence(itertools.chain.from_iterable(filter(None, seqs)))
     if allseqs is None:
         return lseq.EMPTY
     return allseqs

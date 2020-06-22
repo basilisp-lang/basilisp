@@ -349,7 +349,25 @@
                #{1 3 5} :>> dec
                :a)))))
 
+(deftest lazy-cat-test
+  (is (= '(1 2 3 4 5 6) (lazy-cat [1 2 3] [4 5 6])))
+
+  (testing "laziness"
+    (let [a (atom nil)]
+      (is (= '(1 2 3 4 5)
+             (take 5
+                   (lazy-cat [1 2 3 4 5 6]
+                             (map #(reset! a %) [7 8 9 0])))))
+      (is (nil? @a))
+      (is (= [1 2 3 4 5 6 7 8 9 0]
+             (lazy-cat [1 2 3 4 5]
+                       (map #(reset! a %) [6 7 8 9 0]))))
+      (is (zero? @a)))))
+
 (deftest for-test
+  (testing "no recursion error"
+    (is (= 10000 (count (for [x (range 100), y (range 100)] [x y])))))
+
   (testing "basic for comprehensions"
     (is (= [1 2 3 4] (for [x [1 2 3 4]] x)))
 
