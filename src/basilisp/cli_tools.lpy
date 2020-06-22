@@ -22,6 +22,9 @@
   call `getattr`, `delattr`, and `setattr`. We store the attributes in a map in
   a volatile and proxy the gets, deletes, and sets to the map.
 
+  The returned Namespace object also implements the `IVolatile` interface to
+  trivially support `assoc`-like functionality on the map of options.
+
   Return the completed map using `deref` on the returned object."
   []
   (let [m (volatile! {})]
@@ -33,6 +36,13 @@
         (vswap! m dissoc name))
       (__setattr__ [self name value]
         (vswap! m assoc name value))
+
+      IVolatile
+      (vreset! [this new-val]
+        (vreset! m new-val))
+      (vswap! [this f & args]
+        (apply vswap! m f args))
+
       basilisp.lang.interfaces/IDeref
       (deref [self]
         @m))))
@@ -46,29 +56,43 @@
     (setup-parser command-parser command)
     nil))
 
-(defn ^:private cli-tools-add-action
-  "Create a new CLI Tools Add Action."
+(defn ^:private cli-tools-assoc-action
+  "Create a new CLI Tools Assoc Action.
+
+  Add actions allow users to define actions with `assoc`-like semantics on the
+  parsed options map.
+
+  The provided `assoc-fn` will be passed the entire options map, the relevant
+  destination key, and the parsed option and should return a new options map."
   [assoc-fn]
-  (fn ^{:kwargs :collect} AddAction [_ dest _]
+  (fn ^{:kwargs :collect} AssocAction [_ dest _]
     (reify
       ^:abstract argparse/Action
       (^{:kwargs :collect} __call__ [self _ namespace values _]
-       (if-let [v (python/getattr namespace dest)]
-         (python/setattr namespace dest (assoc-fn v))
-         (python/setattr ))))))
+       (vswap! assoc-fn namespace dest values)))))
 
 (defn ^:private cli-tools-update-action
-  "Create a new CLI Tools Update Action."
+  "Create a new CLI Tools Update Action.
+
+  Update actions allow users to define actions which update the current value
+  stored in the options map.
+
+  The provided `update-fn` will be passed the current value of the given option
+  (or `nil` if no default is provided) and should return a new value for the
+  option."
   [update-fn]
   (fn ^{:kwargs :collect} UpdateAction [_ dest _]
     (reify
       ^:abstract argparse/Action
-      (^{:kwargs :collect} __call__ [self _ namespace values _]
-       (->> (python/getattr namespace dest nil)
-            (update-fn)
-            (python/setattr namespace dest))))))
+      (^{:kwargs :collect} __call__ [self _ namespace _ _]
+       (vswap! namespace update dest update-fn)))))
 
 (defn ^:private cli-tools-action
+  "Return a new Action for the argument definition.
+
+  Users may provide at most one of `:assoc-fn` or `:update-fn`. If both are given,
+  an exception will be thrown. If neither is provided, a default assoc action will
+  be returned using `assoc` as the function."
   [{:keys [assoc-fn update-fn]}]
   (when (and assoc-fn update-fn)
     (throw
@@ -78,7 +102,7 @@
                :update-fn update-fn})))
   (if update-fn
     (cli-tools-update-action update-fn)
-    (cli-tools-add-action (or assoc-fn assoc))))
+    (cli-tools-assoc-action (or assoc-fn assoc))))
 
 (defn ^:private add-argument
   [parser argument]

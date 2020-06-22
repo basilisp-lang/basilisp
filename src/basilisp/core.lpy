@@ -2335,6 +2335,23 @@
             []
             args)))
 
+(defn fnil
+  "Given a function `f`, return a new function which replaces a `nil` first argument
+  with the value `x`. Higher arity variants will replace their corresponding `nil`
+  argument with the provided default value for that argument position.
+
+  The function returned from `fnil` supports any number of arguments greater than or
+  equal to the arity of the `fnil` that is called."
+  ([f x]
+   (fn [a & args]
+     (apply f (or a x) args)))
+  ([f x y]
+   (fn [a b & args]
+     (apply f (or a x) (or b y) args)))
+  ([f x y z]
+   (fn [a b c & args]
+     (apply f (or a x) (or b y) (or c z) args))))
+
 (defn partial
   "Return a function which is the partial application of f with args."
   ([f] f)
