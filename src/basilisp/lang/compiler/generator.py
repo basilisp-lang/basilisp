@@ -132,6 +132,10 @@ _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
 _NS_VAR = "_NS"
 
+# Keyword constants used in generating code
+_INTERFACE_KW = kw.keyword("interface")
+_REST_KW = kw.keyword("rest")
+
 
 GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERATION)
 
@@ -1303,7 +1307,7 @@ def __deftype_or_reify_bases_to_py_ast(
                         ast.Call(
                             func=_NEW_KW_FN_NAME,
                             args=[
-                                ast.Constant(kw.hash_kw("interface")),
+                                ast.Constant(hash(_INTERFACE_KW)),
                                 ast.Constant("interface"),
                             ],
                             keywords=[],
@@ -1534,7 +1538,7 @@ def __fn_decorator(arities: Iterable[int], has_rest_arg: bool = False,) -> ast.C
                                 ast.Call(
                                     func=_NEW_KW_FN_NAME,
                                     args=[
-                                        ast.Constant(kw.hash_kw("rest")),
+                                        ast.Constant(hash(_REST_KW)),
                                         ast.Constant("rest"),
                                     ],
                                     keywords=[],
@@ -3167,7 +3171,7 @@ def _kw_to_py_ast(_: GeneratorContext, form: kw.Keyword) -> ast.AST:
     )
     return ast.Call(
         func=_NEW_KW_FN_NAME,
-        args=[ast.Constant(kw.hash_kw(form.name, form.ns)), ast.Constant(form.name)],
+        args=[ast.Constant(hash(form)), ast.Constant(form.name)],
         keywords=kwarg,
     )
 
