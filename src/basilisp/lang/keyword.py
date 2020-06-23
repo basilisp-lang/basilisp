@@ -9,11 +9,12 @@ _INTERN: lmap.Map[int, "Keyword"] = lmap.Map.empty()
 
 
 class Keyword(ILispObject):
-    __slots__ = ("_name", "_ns")
+    __slots__ = ("_name", "_ns", "_hash")
 
     def __init__(self, name: str, ns: Optional[str] = None) -> None:
         self._name = name
         self._ns = ns
+        self._hash = hash_kw(name, ns)
 
     @property
     def name(self) -> str:
@@ -35,7 +36,7 @@ class Keyword(ILispObject):
         )
 
     def __hash__(self):
-        return hash((self._name, self._ns))
+        return self._hash
 
     def __call__(self, m: IAssociative, default=None):
         try:
@@ -44,7 +45,7 @@ class Keyword(ILispObject):
             return None
 
     def __reduce__(self):
-        return keyword, (self._name, self._ns)
+        return keyword_from_hash, (self._hash, self._name, self._ns)
 
 
 def complete(
@@ -74,20 +75,38 @@ def complete(
     return map(str, results)
 
 
-def keyword(name: str, ns: Optional[str] = None) -> Keyword:
-    """Create a new keyword with name and optional namespace.
+def hash_kw(name: str, ns: Optional[str] = None) -> int:
+    """Return the hash of a potential Keyword instance by its name and namespace."""
+    return hash((name, ns))
+
+
+def keyword_from_hash(kw_hash: int, name: str, ns: Optional[str] = None) -> Keyword:
+    """Return the interned keyword with the hash `kw_hash` or create and intern a new
+    keyword with name `name` and optional namespace `ns`.
 
     Keywords are stored in a global cache by their hash. If a keyword with the same
     hash already exists in the cache, that keyword will be returned. If no keyword
     exists in the global cache, one will be created, entered into the cache, and then
-    returned."""
+    returned.
+
+    This function is an optimization primarily meant for the compiler. Keyword hashes
+    are pre-computed during compilation so repeated lookups for the same keyword do not
+    require recomputing the hash. In some brief testing, this yielded significant
+    performance improvements when creating the same keyword repeatedly."""
     global _INTERN
 
-    h = hash((name, ns))
     with _LOCK:
-        found = _INTERN.val_at(h)
+        found = _INTERN.val_at(kw_hash)
         if found:
             return found
         kw = Keyword(name, ns=ns)
-        _INTERN = _INTERN.assoc(h, kw)
+        _INTERN = _INTERN.assoc(kw_hash, kw)
         return kw
+
+
+def keyword(name: str, ns: Optional[str] = None) -> Keyword:
+    """Return a keyword with name `name` and optional namespace `ns`.
+
+    Keyword instances are interned, so an existing object may be returned if one
+    with the same name and namespace are already interned."""
+    return keyword_from_hash(hash_kw(name, ns), name, ns=ns)
