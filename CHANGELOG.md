@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
  * Moved `basilisp.lang.runtime.to_seq` to `basilisp.lang.seq` so it can be used within that module and by `basilisp.lang.runtime` without circular import (#588)
+ * Keyword hashes are now pre-computed when they are created, so they do not need to be recomputed again to be fetched from the intern cache (#592)
+ * The compiler now uses the pre-computed hash to lookup keywords directly, which should improve lookup time for repeated invocations (#592)
+ * Symbol hashes are now pre-computed when they are created (#592)
 
 ### Fixed
  * Fixed a bug where `def` forms did not permit recursive references to the `def`'ed Vars (#578)
