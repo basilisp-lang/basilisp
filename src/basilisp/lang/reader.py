@@ -29,7 +29,6 @@ from typing import (
 )
 
 import attr
-from functional import seq
 
 import basilisp.lang.keyword as keyword
 import basilisp.lang.list as llist
@@ -1111,8 +1110,8 @@ def _process_syntax_quoted_form(
     elif isinstance(form, lset.Set):
         return llist.l(_APPLY, _HASH_SET, lconcat(_expand_syntax_quote(ctx, form)))
     elif isinstance(form, lmap.Map):
-        flat_kvs = seq(form.items()).flatten().to_list()
-        return llist.l(_APPLY, _HASH_MAP, lconcat(_expand_syntax_quote(ctx, flat_kvs)))
+        flat_kvs = list(chain.from_iterable(form.items()))
+        return llist.l(_APPLY, _HASH_MAP, lconcat(_expand_syntax_quote(ctx, flat_kvs)))  # type: ignore
     elif isinstance(form, symbol.Symbol):
         if form.ns is None and form.name.endswith("#"):
             try:

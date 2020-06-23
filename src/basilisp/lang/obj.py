@@ -8,7 +8,7 @@ from fractions import Fraction
 from functools import singledispatch
 from typing import Any, Callable, Iterable, Pattern, Tuple, Union
 
-from functional import seq
+from basilisp.util import take
 
 PrintCountSetting = Union[bool, int, None]
 
@@ -92,7 +92,7 @@ def map_lrepr(
     print_dup = kwargs["print_dup"]
     print_length = kwargs["print_length"]
     if not print_dup and isinstance(print_length, int):
-        items = seq(entry_reprs()).take(print_length + 1).to_list()
+        items = list(take(entry_reprs(), print_length + 1))
         if len(items) > print_length:
             items.pop()
             trailer.append(SURPASSED_PRINT_LENGTH)
@@ -124,12 +124,12 @@ def seq_lrepr(
     print_dup = kwargs["print_dup"]
     print_length = kwargs["print_length"]
     if not print_dup and isinstance(print_length, int):
-        items = seq(iterable).take(print_length + 1).to_list()
+        items = list(take(iterable, print_length + 1))
         if len(items) > print_length:
             items.pop()
             trailer.append(SURPASSED_PRINT_LENGTH)
     else:
-        items = iterable
+        items = iterable  # type: ignore
 
     items = list(map(lambda o: lrepr(o, **kwargs), items))
     seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
