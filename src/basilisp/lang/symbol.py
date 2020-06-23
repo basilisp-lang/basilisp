@@ -6,7 +6,7 @@ from basilisp.lang.util import munge
 
 
 class Symbol(ILispObject, IWithMeta):
-    __slots__ = ("_name", "_ns", "_meta")
+    __slots__ = ("_name", "_ns", "_meta", "_hash")
 
     def __init__(
         self, name: str, ns: Optional[str] = None, meta: Optional[IPersistentMap] = None
@@ -14,6 +14,7 @@ class Symbol(ILispObject, IWithMeta):
         self._name = name
         self._ns = ns
         self._meta = meta
+        self._hash = hash((ns, name))
 
     def _lrepr(self, **kwargs) -> str:
         print_meta = kwargs["print_meta"]
@@ -53,7 +54,7 @@ class Symbol(ILispObject, IWithMeta):
         return self._ns == other._ns and self._name == other._name
 
     def __hash__(self):
-        return hash((self._ns, self._name))
+        return self._hash
 
 
 def symbol(name: str, ns: Optional[str] = None, meta=None) -> Symbol:
