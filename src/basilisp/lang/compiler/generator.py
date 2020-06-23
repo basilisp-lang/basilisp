@@ -629,7 +629,7 @@ _NS_VAR_NAME = _load_attr(f"{_NS_VAR_VALUE}.name")
 _NEW_DECIMAL_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.decimal_from_str")
 _NEW_FRACTION_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.fraction")
 _NEW_INST_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.inst_from_str")
-_NEW_KW_FN_NAME = _load_attr(f"{_KW_ALIAS}.keyword")
+_NEW_KW_FN_NAME = _load_attr(f"{_KW_ALIAS}.keyword_from_hash")
 _NEW_LIST_FN_NAME = _load_attr(f"{_LIST_ALIAS}.list")
 _EMPTY_LIST_FN_NAME = _load_attr(f"{_LIST_ALIAS}.List.empty")
 _NEW_MAP_FN_NAME = _load_attr(f"{_MAP_ALIAS}.map")
@@ -1302,7 +1302,10 @@ def __deftype_or_reify_bases_to_py_ast(
                     args=[
                         ast.Call(
                             func=_NEW_KW_FN_NAME,
-                            args=[ast.Constant("interface")],
+                            args=[
+                                ast.Constant(kw.hash_kw("interface")),
+                                ast.Constant("interface"),
+                            ],
                             keywords=[],
                         )
                     ],
@@ -1530,7 +1533,10 @@ def __fn_decorator(arities: Iterable[int], has_rest_arg: bool = False,) -> ast.C
                             [
                                 ast.Call(
                                     func=_NEW_KW_FN_NAME,
-                                    args=[ast.Constant("rest")],
+                                    args=[
+                                        ast.Constant(kw.hash_kw("rest")),
+                                        ast.Constant("rest"),
+                                    ],
                                     keywords=[],
                                 )
                             ]
@@ -3160,7 +3166,9 @@ def _kw_to_py_ast(_: GeneratorContext, form: kw.Keyword) -> ast.AST:
         .or_else(list)
     )
     return ast.Call(
-        func=_NEW_KW_FN_NAME, args=[ast.Constant(form.name)], keywords=kwarg
+        func=_NEW_KW_FN_NAME,
+        args=[ast.Constant(kw.hash_kw(form.name, form.ns)), ast.Constant(form.name)],
+        keywords=kwarg,
     )
 
 
