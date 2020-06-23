@@ -27,7 +27,6 @@ REQUIRED = [
     "click",
     "immutables",
     "prompt-toolkit>=3.0.0",
-    "pyfunctional",
     "pyrsistent",
     "pytest",
     "python-dateutil",

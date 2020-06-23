@@ -6,6 +6,7 @@ name = "pypi"
 [dev-packages]
 black = "*"
 docutils = "==0.15"
+isort = "*"
 pygments = "*"
 pytest-pycharm = "*"
 sphinx = "*"
@@ -13,7 +14,6 @@ sphinx-rtd-theme = "*"
 tox = "*"
 tox-pyenv = "*"
 twine = "*"
-isort = "*"
 
 [packages]
 astor = "*"
@@ -21,12 +21,11 @@ atomos = "*"
 attrs = "*"
 basilisp = {editable = true,path = "."}
 click = "*"
+immutables = "*"
 prompt-toolkit = "~=3.0.0"
-pyfunctional = "*"
 pyrsistent = "*"
 python-dateutil = "*"
 pytest = "*"
-immutables = "*"
 
 [requires]
 python_version = "3.6"

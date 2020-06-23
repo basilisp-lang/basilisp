@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where `def` forms did not permit recursive references to the `def`'ed Vars (#578)
  * Fixed a bug where `concat` could cause a `RecursionEror` if used on a `LazySeq` instance which itself calls `concat` (#588)
 
+### Removed
+ * Removed `pyfunctional` dependency in favor of Python standard library functions (#589)
+
 ## [v0.1.dev14] - 2020-06-18
 ### Added
  * Added support for `future`s (#441)

@@ -3134,15 +3134,16 @@ def _str_to_py_ast(_: GeneratorContext, form: str) -> ast.AST:
 def _const_sym_to_py_ast(ctx: GeneratorContext, form: sym.Symbol) -> GeneratedPyAST:
     meta = _const_meta_kwargs_ast(ctx, form)
 
-    sym_kwargs = (
+    sym_kwarg = (
         Maybe(form.ns)
-        .stream()
-        .map(lambda v: ast.keyword(arg="ns", value=ast.Constant(v)))
-        .to_list()
+        .map(lambda v: [ast.keyword(arg="ns", value=ast.Constant(v))])
+        .or_else(list)
     )
-    sym_kwargs.extend(Maybe(meta).map(lambda p: [p.node]).or_else_get([]))
+    meta_kwarg = Maybe(meta).map(lambda p: [p.node]).or_else(list)
     base_sym = ast.Call(
-        func=_NEW_SYM_FN_NAME, args=[ast.Constant(form.name)], keywords=sym_kwargs
+        func=_NEW_SYM_FN_NAME,
+        args=[ast.Constant(form.name)],
+        keywords=list(chain(sym_kwarg, meta_kwarg)),
     )
 
     return GeneratedPyAST(
@@ -3155,9 +3156,8 @@ def _const_sym_to_py_ast(ctx: GeneratorContext, form: sym.Symbol) -> GeneratedPy
 def _kw_to_py_ast(_: GeneratorContext, form: kw.Keyword) -> ast.AST:
     kwarg = (
         Maybe(form.ns)
-        .stream()
-        .map(lambda ns: ast.keyword(arg="ns", value=ast.Constant(form.ns)))
-        .to_list()
+        .map(lambda ns: [ast.keyword(arg="ns", value=ast.Constant(form.ns))])
+        .or_else(list)
     )
     return ast.Call(
         func=_NEW_KW_FN_NAME, args=[ast.Constant(form.name)], keywords=kwarg

@@ -47,10 +47,3 @@ def test_maybe_map():
     assert lmapped.or_else_get("Nothing") == "LOWER"
     assert lmapped.or_else(lambda: "Nothing") == "LOWER"
     assert lmapped.or_else_raise(lambda: ValueError("Nothing!")) == "LOWER"
-
-
-def test_maybe_stream():
-    assert len(Maybe(None).stream().map(lambda v: v.upper()).to_list()) == 0
-    m = Maybe("lower").stream().map(lambda v: v.upper()).to_list()
-    assert len(m) == 1
-    assert m[0] == "LOWER"

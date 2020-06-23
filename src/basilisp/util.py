@@ -1,9 +1,7 @@
 import contextlib
 import time
+from itertools import islice
 from typing import Callable, Generic, Optional, TypeVar
-
-from functional import seq
-from functional.pipeline import Sequence
 
 
 @contextlib.contextmanager
@@ -63,11 +61,6 @@ class Maybe(Generic[T]):
     def value(self) -> Optional[T]:
         return self._inner
 
-    def stream(self) -> Sequence:
-        if self._inner is None:
-            return seq([])
-        return seq([self._inner])
-
     @property
     def is_present(self) -> bool:
         return self._inner is not None
@@ -85,3 +78,9 @@ def partition(coll, n: int):
     if start < len(coll) < stop:
         stop = len(coll)
         yield tuple(e for e in coll[start:stop])
+
+
+def take(coll, n: int):
+    """"""
+    assert n >= 0
+    yield from islice(coll, n)
