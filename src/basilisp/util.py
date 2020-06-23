@@ -81,6 +81,6 @@ def partition(coll, n: int):
 
 
 def take(coll, n: int):
-    """"""
+    """Yield the first n elements of coll."""
     assert n >= 0
     yield from islice(coll, n)
