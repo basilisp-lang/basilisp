@@ -98,7 +98,6 @@ def keyword_from_hash(kw_hash: int, name: str, ns: Optional[str] = None) -> Keyw
     with _LOCK:
         found = _INTERN.val_at(kw_hash)
         if found:
-            assert hash(found) == kw_hash
             return found
         kw = Keyword(name, ns=ns)
         _INTERN = _INTERN.assoc(kw_hash, kw)
