@@ -31,13 +31,13 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: py36-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run_tests:
-          tox_envs: py36,mypy-py36,format,lint,safety
+          tox_envs: py36,py36-mypy,format,lint,safety
       - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: py36-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
-            - "/home/pyenv/.tox"
+            - "/home/circleci/project/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
       - store_test_results:
@@ -49,13 +49,13 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: py37-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run_tests:
-          tox_envs: py37,mypy-py37,safety
+          tox_envs: py37,py37-mypy,safety
       - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: py37-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
-            - "/home/pyenv/.tox"
+            - "/home/circleci/project/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.7/site-packages"
       - store_test_results:
@@ -67,13 +67,13 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: py38-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run_tests:
-          tox_envs: py38,mypy-py38,safety
+          tox_envs: py38,py38-mypy,safety
       - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: py38-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
-            - "/home/pyenv/.tox"
+            - "/home/circleci/project/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.8/site-packages"
       - store_test_results:
