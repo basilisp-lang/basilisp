@@ -32,7 +32,7 @@ jobs:
       - checkout
       - restore_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run-tests:
+      - run_tests:
           tox_envs: py36,mypy-py36,format,lint,safety
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
