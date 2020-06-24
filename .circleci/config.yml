@@ -1,8 +1,11 @@
 version: 2.1
 commands:
-  run_tests:
+  run_cpython_tests:
     description: "Install Tox and run tests."
     parameters:
+      python_version:
+        description: "Required. Python version as `major.minor`."
+        type: string
       tox_envs:
         description: "Required. Set of Tox environments to run on this node."
         type: string
@@ -11,6 +14,11 @@ commands:
         type: integer
         default: 2
     steps:
+      - checkout
+      - run: sudo chown -R circleci:circleci /usr/local/bin
+      - run: sudo chown -R circleci:circleci /usr/local/lib/python3.6/site-packages
+      - restore_cache:
+          key: py<< parameters.python_version >>-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: Install tox
           shell: /bin/bash -leo pipefail
@@ -24,60 +32,38 @@ commands:
             TOX_SHOW_OUTPUT: "True"
           command: |
             tox -p << parameters.tox_parallel >> -e << parameters.tox_envs >>
+      - save_cache:
+          key: py36-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - "/home/circleci/project/.tox"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
+            - store_test_results:
+                path: junit
 jobs:
   test-cpython-36:
     docker:
       - image: circleci/python:3.6-buster
     steps:
-      - checkout
-      - restore_cache:
-          key: py36-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run_tests:
+      - run_cpython_tests:
+          python_version: 3.6
           tox_envs: py36,py36-mypy,format,lint,safety
-      - save_cache:
-          key: py36-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-          paths:
-            - "/home/circleci/project/.tox"
-            - "/usr/local/bin"
-            - "/usr/local/lib/python3.6/site-packages"
-      - store_test_results:
-          path: junit
 
   test-cpython-37:
     docker:
       - image: circleci/python:3.7-buster
     steps:
-      - checkout
-      - restore_cache:
-          key: py37-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run_tests:
+      - run_cpython_tests:
+          python_version: 3.7
           tox_envs: py37,py37-mypy,safety
-      - save_cache:
-          key: py37-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-          paths:
-            - "/home/circleci/project/.tox"
-            - "/usr/local/bin"
-            - "/usr/local/lib/python3.7/site-packages"
-      - store_test_results:
-          path: junit
 
   test-cpython-38:
     docker:
       - image: circleci/python:3.8-buster
     steps:
-      - checkout
-      - restore_cache:
-          key: py38-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run_tests:
+      - run_cpython_tests:
+          python_version: 3.8
           tox_envs: py38,py38-mypy,safety
-      - save_cache:
-          key: py38-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-          paths:
-            - "/home/circleci/project/.tox"
-            - "/usr/local/bin"
-            - "/usr/local/lib/python3.8/site-packages"
-      - store_test_results:
-          path: junit
 
   test-pypy:
     docker:
@@ -85,6 +71,8 @@ jobs:
     parallelism: 3
     steps:
       - checkout
+      - run: sudo chown -R circleci:circleci /usr/local/bin
+      - run: sudo chown -R circleci:circleci /usr/local/lib/python3.6/site-packages
       - restore_cache:
           key: pypy-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
