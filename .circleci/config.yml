@@ -34,7 +34,8 @@ jobs:
 
   test-pypy:
     docker:
-      - image: pypy:3.6-7.2-slim-stretch
+      - image: pypy:3.6-7-slim-buster
+    parallelism: 3
     steps:
       - checkout
       - restore_cache:
@@ -46,7 +47,14 @@ jobs:
       - run:
           name: Run Tests
           command: |
-            tox -e pypy3
+            # Split tests by timing and print out the test files on each node
+            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.py" "tests/**/test_*.py" | circleci tests split --split-by=timings)
+            printf "Test files:\n"
+            echo "$CCI_NODE_TESTS"
+            printf "\n"
+
+            # Run the tests on the subset defined for this node
+            tox -e pypy3 -- $CCI_NODE_TESTS
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:

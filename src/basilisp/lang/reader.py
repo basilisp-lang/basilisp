@@ -4,7 +4,6 @@ import decimal
 import functools
 import io
 import re
-import sys
 import uuid
 from datetime import datetime
 from fractions import Fraction
@@ -50,7 +49,13 @@ from basilisp.lang.interfaces import (
     IWithMeta,
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
-from basilisp.lang.runtime import Namespace, Var, get_current_ns, lrepr
+from basilisp.lang.runtime import (
+    READER_COND_DEFAULT_FEATURE_SET,
+    Namespace,
+    Var,
+    get_current_ns,
+    lrepr,
+)
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
@@ -73,16 +78,6 @@ W = TypeVar("W", bound=LispReaderFn)
 READER_LINE_KW = keyword.keyword("line", ns="basilisp.lang.reader")
 READER_COL_KW = keyword.keyword("col", ns="basilisp.lang.reader")
 
-READER_COND_BASILISP_PY_VERSION_FEATURE_KW = keyword.keyword(
-    f"lpy{sys.version_info.major}{sys.version_info.minor}"
-)
-READER_COND_BASILISP_FEATURE_KW = keyword.keyword("lpy")
-READER_COND_DEFAULT_FEATURE_KW = keyword.keyword("default")
-READER_COND_DEFAULT_FEATURE_SET = lset.s(
-    READER_COND_BASILISP_FEATURE_KW,
-    READER_COND_DEFAULT_FEATURE_KW,
-    READER_COND_BASILISP_PY_VERSION_FEATURE_KW,
-)
 READER_COND_FORM_KW = keyword.keyword("form")
 READER_COND_SPLICING_KW = keyword.keyword("splicing?")
 
