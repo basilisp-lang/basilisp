@@ -1,13 +1,16 @@
-version: 2
-jobs:
-  test-cpython:
-    docker:
-      - image: chrisrink10/pyenv:3.6-3.7-3.8-0.0.1
-        user: pyenv
+version: 2.1
+commands:
+  run_tests:
+    description: "Install Tox and run tests."
+    parameters:
+      tox_envs:
+        description: "Required. Set of Tox environments to run on this node."
+        type: string
+      tox_parallel:
+        description: "Optional. Number of parallel workers spawned by Tox."
+        type: integer
+        default: 2
     steps:
-      - checkout
-      - restore_cache:
-          key: deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: Install tox
           shell: /bin/bash -leo pipefail
@@ -17,18 +20,62 @@ jobs:
           name: Run Tests
           shell: /bin/bash -leo pipefail
           environment:
-            TOX_NUM_CORES: 2
             TOX_PARALLEL_NO_SPINNER: 1
             TOX_SHOW_OUTPUT: "True"
-            TOX_SKIP_ENV: pypy3
           command: |
-            tox -p $TOX_NUM_CORES
+            tox -p $TOX_NUM_CORES -e << parameters.tox_envs >>
+jobs:
+  test-cpython-36:
+    docker:
+      - image: circleci/python:3.6-buster
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+      - run-tests
+          tox_envs: py36,mypy-py36,format,lint,safety
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
             - "/home/pyenv/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
+      - store_test_results:
+          path: junit
+
+  test-cpython-37:
+    docker:
+      - image: circleci/python:3.7-buster
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+      - run_tests
+          tox_envs: py37,mypy-py37,safety
+      - save_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - "/home/pyenv/.tox"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python3.7/site-packages"
+      - store_test_results:
+          path: junit
+
+  test-cpython-38:
+    docker:
+      - image: circleci/python:3.8-buster
+    steps:
+      - checkout
+      - restore_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+      - run_tests
+          tox_envs: py38,mypy-py38,safety
+      - save_cache:
+          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - "/home/pyenv/.tox"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python3.8/site-packages"
       - store_test_results:
           path: junit
 
@@ -39,7 +86,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: Install tox
           command: |
@@ -56,7 +103,7 @@ jobs:
             # Run the tests on the subset defined for this node
             tox -e pypy3 -- $CCI_NODE_TESTS
       - save_cache:
-          key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
             - "/home/pyenv/.tox"
             - "/usr/local/bin"
@@ -68,5 +115,7 @@ workflows:
   version: 2
   test:
     jobs:
-      - test-cpython
+      - test-cpython-36
+      - test-cpython-37
+      - test-cpython-38
       - test-pypy
