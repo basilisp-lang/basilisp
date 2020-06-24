@@ -259,5 +259,5 @@ __all__ = [
 ]
 
 if sys.version_info >= (3, 8):  # pragma: no cover
-    Module = partial(Module, type_ignores=[])
-    arguments = partial(arguments, posonlyargs=[])
+    Module = partial(Module, type_ignores=[])  # type: ignore
+    arguments = partial(arguments, posonlyargs=[])  # type: ignore
