@@ -132,7 +132,7 @@ if sys.version_info >= (3, 8):  # pragma: no cover
 
     class Module(_Module):
         def __init__(self, *args, **kwargs):
-            kwargs["posonlyargs"] = []
+            kwargs["type_ignores"] = []
             super().__init__(*args, **kwargs)
 
     class arguments(_arguments):
