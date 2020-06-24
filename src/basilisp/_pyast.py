@@ -64,7 +64,7 @@ from ast import (  # noqa
     LtE,
     MatMult,
     Mod,
-    Module,
+    Module as _Module,
     Mult,
     Name,
     NameConstant,
@@ -102,7 +102,7 @@ from ast import (  # noqa
     YieldFrom,
     alias,
     arg,
-    arguments,
+    arguments as _arguments,
     boolop,
     cmpop,
     comprehension,
@@ -127,7 +127,24 @@ from ast import (  # noqa
     walk,
     withitem,
 )
-from functools import partial
+
+if sys.version_info >= (3, 8):  # pragma: no cover
+
+    class Module(_Module):
+        def __init__(self, *args, **kwargs):
+            kwargs["posonlyargs"] = []
+            super().__init__(*args, **kwargs)
+
+    class arguments(_arguments):
+        def __init__(self, *args, **kwargs):
+            kwargs["posonlyargs"] = []
+            super().__init__(*args, **kwargs)
+
+
+else:
+    Module = _Module
+    arguments = _arguments
+
 
 __all__ = [
     "AST",
@@ -257,7 +274,3 @@ __all__ = [
     "walk",
     "withitem",
 ]
-
-if sys.version_info >= (3, 8):  # pragma: no cover
-    Module = partial(Module, type_ignores=[])  # type: ignore
-    arguments = partial(arguments, posonlyargs=[])  # type: ignore
