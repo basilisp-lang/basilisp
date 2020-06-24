@@ -41,7 +41,7 @@ commands:
             - "/home/circleci/project/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
-      - store_artifact:
+      - store_artifacts:
           path: coverage
       - store_test_results:
           path: junit
