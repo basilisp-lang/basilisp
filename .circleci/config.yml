@@ -36,7 +36,7 @@ commands:
             mkdir coverage
             mv .coverage "coverage/.coverage.py<< parameters.python_version >>"
       - save_cache:
-          key: py<< parameters.python_version >>-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: py<< parameters.python_version >>-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
             - "/home/circleci/project/.tox"
             - "/usr/local/bin"
@@ -96,7 +96,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: pypy-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: Install tox
           command: |
@@ -104,13 +104,10 @@ jobs:
       - run:
           name: Run Tests
           command: |
-            # Split tests by timing and print out the test files on each node
             CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.py" "tests/**/test_*.py" | circleci tests split --split-by=timings)
             printf "Test files:\n"
             echo "$CCI_NODE_TESTS"
             printf "\n"
-
-            # Run the tests on the subset defined for this node
             tox -e pypy3 -- $CCI_NODE_TESTS
       - save_cache:
           key: pypy-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
