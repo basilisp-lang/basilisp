@@ -32,7 +32,7 @@ jobs:
       - checkout
       - restore_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run-tests
+      - run-tests:
           tox_envs: py36,mypy-py36,format,lint,safety
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
@@ -50,7 +50,7 @@ jobs:
       - checkout
       - restore_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run_tests
+      - run_tests:
           tox_envs: py37,mypy-py37,safety
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
@@ -68,7 +68,7 @@ jobs:
       - checkout
       - restore_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run_tests
+      - run_tests:
           tox_envs: py38,mypy-py38,safety
       - save_cache:
           key: deps9-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
