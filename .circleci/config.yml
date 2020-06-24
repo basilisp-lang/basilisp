@@ -23,7 +23,7 @@ commands:
             TOX_PARALLEL_NO_SPINNER: 1
             TOX_SHOW_OUTPUT: "True"
           command: |
-            tox -p $TOX_NUM_CORES -e << parameters.tox_envs >>
+            tox -p << parameters.tox_parallel >> -e << parameters.tox_envs >>
 jobs:
   test-cpython-36:
     docker:
