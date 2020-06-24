@@ -34,7 +34,7 @@ commands:
           command: |
             tox -p << parameters.tox_parallel >> -e << parameters.tox_envs >>
             mkdir coverage
-            mv .coverage "coverage/.coverage.py<< parameters.python_version >>"
+            mv .coverage.* "coverage/.coverage.py<< parameters.python_version >>"
       - save_cache:
           key: py<< parameters.python_version >>-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
