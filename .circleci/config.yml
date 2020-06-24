@@ -33,12 +33,16 @@ commands:
             TOX_SHOW_OUTPUT: "True"
           command: |
             tox -p << parameters.tox_parallel >> -e << parameters.tox_envs >>
+            mkdir coverage
+            mv .coverage "coverage/.coverage.py<< parameters.python_version >>"
       - save_cache:
-          key: py36-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: py<< parameters.python_version >>-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
             - "/home/circleci/project/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
+      - store_artifact:
+          path: coverage
       - store_test_results:
           path: junit
 
@@ -66,6 +70,24 @@ jobs:
       - run_cpython_tests:
           python_version: "3.8"
           tox_envs: py38,py38-mypy,safety
+
+  report-coverage:
+    docker:
+      - image: circleci/python:3.8-buster
+    steps:
+      - run:
+          name: Install tox
+          shell: /bin/bash -leo pipefail
+          command: |
+            pip install tox
+      - run:
+          name: Report Coverage
+          command: |
+            ARTIFACT_META_URL="https://circleci.com/api/v1.1/project/github/coverahealth/analyzer/$CIRCLE_BUILD_NUM/artifacts?circle-token=$CIRCLECI_API_TOKEN"
+            ARTIFACT_URLS=$(curl "$ARTIFACT_META_URL" | jq -r '.[].url' | sed "s/$/?circle-token=$CIRCLECI_API_TOKEN/")
+            curl -L --remote-name-all $ARTIFACT_URLS
+            for file in .coverage.node-*; do mv $file $(echo $file | cut -d '?' -f 1); done
+            tox -v -e coverage
 
   test-pypy:
     docker:
@@ -107,3 +129,8 @@ workflows:
       - test-cpython-37
       - test-cpython-38
       - test-pypy
+      - report-coverage:
+          requires:
+            - test-cpython-36
+            - test-cpython-37
+            - test-cpython-38
