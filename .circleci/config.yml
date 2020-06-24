@@ -83,7 +83,7 @@ jobs:
       - run:
           name: Report Coverage
           command: |
-            ARTIFACT_META_URL="https://circleci.com/api/v1.1/project/github/coverahealth/analyzer/$CIRCLE_BUILD_NUM/artifacts?circle-token=$CIRCLECI_API_TOKEN"
+            ARTIFACT_META_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/$CIRCLE_BUILD_NUM/artifacts?circle-token=$CIRCLECI_API_TOKEN"
             ARTIFACT_URLS=$(curl "$ARTIFACT_META_URL" | jq -r '.[].url' | sed "s/$/?circle-token=$CIRCLECI_API_TOKEN/")
             curl -L --remote-name-all $ARTIFACT_URLS
             for file in .coverage.node-*; do mv $file $(echo $file | cut -d '?' -f 1); done
