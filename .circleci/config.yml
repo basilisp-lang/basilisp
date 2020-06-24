@@ -1,4 +1,5 @@
 version: 2.1
+
 commands:
   run_cpython_tests:
     description: "Install Tox and run tests."
@@ -38,8 +39,9 @@ commands:
             - "/home/circleci/project/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
-            - store_test_results:
-                path: junit
+      - store_test_results:
+          path: junit
+
 jobs:
   test-cpython-36:
     docker:
