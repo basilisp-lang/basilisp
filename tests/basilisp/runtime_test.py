@@ -1,3 +1,4 @@
+import sys
 from decimal import Decimal
 from fractions import Fraction
 
@@ -15,6 +16,38 @@ import basilisp.lang.vector as vec
 from basilisp.lang.compiler.constants import SpecialForm
 from basilisp.lang.interfaces import ISeq
 from tests.basilisp.helpers import get_or_create_ns
+
+
+def test_is_supported_python_version():
+    v = sys.version_info
+    assert (v.major, v.minor) in runtime.SUPPORTED_PYTHON_VERSIONS
+
+
+@pytest.mark.parametrize(
+    "feature",
+    {
+        (3, 6): frozenset(
+            map(
+                keyword.keyword,
+                ["lpy36", "default", "lpy", "lpy36-", "lpy36+", "lpy37-", "lpy38-"],
+            )
+        ),
+        (3, 7): frozenset(
+            map(
+                keyword.keyword,
+                ["lpy37", "default", "lpy", "lpy37-", "lpy37+", "lpy36+", "lpy38-"],
+            )
+        ),
+        (3, 8): frozenset(
+            map(
+                keyword.keyword,
+                ["lpy38", "default", "lpy", "lpy38-", "lpy38+", "lpy37+", "lpy36+"],
+            )
+        ),
+    }[(sys.version_info.major, sys.version_info.minor)],
+)
+def test_reader_default_featureset(feature):
+    assert feature in runtime.READER_COND_DEFAULT_FEATURE_SET
 
 
 def test_first():

@@ -66,9 +66,11 @@ NS_VAR_NAME = "*ns*"
 NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
+SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 6), (3, 7), (3, 8)})
 
 # Private string constants
 _COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
+_DEFAULT_READER_FEATURES_VAR_NAME = "*default-reader-features*"
 _GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 _PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
 _PRINT_DUP_VAR_NAME = "*print-dup*"
@@ -132,6 +134,41 @@ _SPECIAL_FORMS = lset.s(
     _VAR,
 )
 
+
+# Reader Conditional default features
+def _supported_python_versions_features() -> Iterable[kw.Keyword]:
+    """Yield successive reader features corresponding to the various Python
+    `major`.`minor` versions the current Python VM corresponds to amongst the
+    set of supported Python versions.
+
+    For example, for Python 3.6, we emit:
+     - :lpy36  - to exactly match Basilisp running on Python 3.6
+     - :lpy36+ - to match Basilisp running on Python 3.6 and later versions
+     - :lpy36- - to match Basilisp running on Python 3.6 and earlier versions
+     - :lpy37- - to match Basilisp running on Python 3.7 and earlier versions
+     - :lpy38- - to match Basilisp running on Python 3.8 and earlier versions"""
+    feature_kw = lambda major, minor, suffix="": kw.keyword(
+        f"lpy{major}{minor}{suffix}"
+    )
+
+    yield feature_kw(sys.version_info.major, sys.version_info.minor)
+
+    current = (sys.version_info.major, sys.version_info.minor)
+    for version in SUPPORTED_PYTHON_VERSIONS:
+        if current <= version:
+            yield feature_kw(version[0], version[1], suffix="-")
+        if current >= version:
+            yield feature_kw(version[0], version[1], suffix="+")
+
+
+READER_COND_BASILISP_FEATURE_KW = kw.keyword("lpy")
+READER_COND_DEFAULT_FEATURE_KW = kw.keyword("default")
+READER_COND_DEFAULT_FEATURE_SET = lset.s(
+    READER_COND_BASILISP_FEATURE_KW,
+    READER_COND_DEFAULT_FEATURE_KW,
+    *_supported_python_versions_features(),
+)
+
 CompletionMatcher = Callable[[Tuple[sym.Symbol, Any]], bool]
 CompletionTrimmer = Callable[[Tuple[sym.Symbol, Any]], str]
 
@@ -173,7 +210,7 @@ class Unbound:
         return f"Unbound(var={self.var})"
 
     def __eq__(self, other):
-        return isinstance(other, Unbound) and self.var == other.var
+        return self is other or (isinstance(other, Unbound) and self.var == other.var)
 
 
 class Var(IDeref, ReferenceBase):
@@ -1764,6 +1801,14 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         CORE_NS_SYM,
         sym.symbol(_COMPILER_OPTIONS_VAR_NAME),
         compiler_opts,
+        dynamic=True,
+    )
+
+    # Dynamic Var for introspecting the default reader featureset
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(_DEFAULT_READER_FEATURES_VAR_NAME),
+        READER_COND_DEFAULT_FEATURE_SET,
         dynamic=True,
     )
 
