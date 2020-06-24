@@ -91,7 +91,7 @@ jobs:
             # Run the tests on the subset defined for this node
             tox -e pypy3 -- $CCI_NODE_TESTS
       - save_cache:
-          key: pypy-deps-{{ .Branch }}-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
             - "/home/pyenv/.tox"
             - "/usr/local/bin"
