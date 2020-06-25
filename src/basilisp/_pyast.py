@@ -128,7 +128,7 @@ from ast import (  # noqa
     withitem,
 )
 
-if sys.version_info >= (3, 8):  # pragma: no cover
+if sys.version_info >= (3, 8):
 
     class Module(_Module):
         def __init__(self, *args, **kwargs):
