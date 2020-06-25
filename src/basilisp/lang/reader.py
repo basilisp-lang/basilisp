@@ -111,9 +111,7 @@ RawReaderForm = Union[ReaderForm, "ReaderConditional"]
 
 
 # pylint:disable=redefined-builtin
-@attr.s(
-    auto_attribs=True, repr=False, slots=True, str=False
-)
+@attr.s(auto_attribs=True, repr=False, slots=True, str=False)
 class SyntaxError(Exception):
     message: str
     line: Optional[int] = None
