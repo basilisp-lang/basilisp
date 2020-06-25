@@ -76,6 +76,10 @@ jobs:
       - image: circleci/python:3.8-buster
     steps:
       - checkout
+      - run: sudo chown -R circleci:circleci /usr/local/bin
+      - run: sudo chown -R circleci:circleci /usr/local/lib/python3.8/site-packages
+      - restore_cache:
+          key: report-coverage-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: Install tox
           shell: /bin/bash -leo pipefail
@@ -102,6 +106,12 @@ jobs:
               fi
             done
             tox -v -e coverage
+      - save_cache:
+          key: report-coverage-deps-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - "/home/circleci/project/.tox"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python3.8/site-packages"
 
   test-pypy:
     docker:
