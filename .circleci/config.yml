@@ -87,11 +87,14 @@ jobs:
             RECENT_BUILDS_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/tree/$CIRCLE_BRANCH"
             BUILD_NUMS=$(curl -H "Circle-Token: $CIRCLECI_API_TOKEN" "$RECENT_BUILDS_URL" | \
               jq -r "map(select(.workflows.workflow_id == \"$CIRCLE_WORKFLOW_ID\")) | map(.build_num) | .[]")
+            echo "build url: $RECENT_BUILDS_URL"
+            echo "build nums: $BUILD_NUMS"
 
             # Fetch all of the artifacts for the build numbers
-            ARTIFACT_META_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/$CIRCLE_BUILD_NUM/artifacts"
             for build_num in $BUILD_NUMS
             do
+              ARTIFACT_META_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/$build_num/artifacts"
+              echo "fetching build num: $ARTIFACT_META_URL"
               ARTIFACT_URLS=$(curl -H "Circle-Token: $CIRCLECI_API_TOKEN" "$ARTIFACT_META_URL" | jq -r '.[].url')
               curl -L --remote-name-all $ARTIFACT_URLS
             done
