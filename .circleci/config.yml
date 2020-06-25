@@ -90,7 +90,8 @@ jobs:
 
             # Fetch all of the artifacts for the build numbers
             ARTIFACT_META_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/$CIRCLE_BUILD_NUM/artifacts"
-            for build_num in $BUILD_NUMS;
+            for build_num in $BUILD_NUMS
+            do
               ARTIFACT_URLS=$(curl -H "Circle-Token: $CIRCLECI_API_TOKEN" "$ARTIFACT_META_URL" | jq -r '.[].url')
               curl -L --remote-name-all $ARTIFACT_URLS
             done
