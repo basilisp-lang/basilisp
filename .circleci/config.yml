@@ -149,7 +149,7 @@ jobs:
       - run:
           name: Run Tests
           command: |
-            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.py" "tests/**/test_*.py" | circleci tests split --split-by=timings)
+            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.*py" "tests/**/test_*.*py" | circleci tests split --split-by=timings)
             printf "Test files:\n"
             echo "$CCI_NODE_TESTS"
             printf "\n"
