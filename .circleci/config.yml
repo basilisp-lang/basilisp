@@ -1,6 +1,45 @@
 version: 2.1
 
 commands:
+  setup_tests:
+    description: "Check out code, install Tox, and prepare the test environment."
+    parameters:
+      python_version:
+        description: "Required. Python version as `major.minor`."
+        type: string
+      cache_key_prefix:
+        description: "Required. Prefix used for the CircleCI cache key."
+        type: string
+    steps:
+      - checkout
+      - run: sudo chown -R circleci:circleci /usr/local/bin
+      - run: sudo chown -R circleci:circleci /usr/local/lib/python<< parameters.python_version >>/site-packages
+      - restore_cache:
+          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+      - run:
+          name: Install tox
+          shell: /bin/bash -leo pipefail
+          command: |
+            pip install -U pip
+            pip install tox
+
+  teardown_tests:
+    description: "Store the cache for the current run."
+    parameters:
+      python_version:
+        description: "Required. Python version as `major.minor`."
+        type: string
+      cache_key_prefix:
+        description: "Required. Prefix used for the CircleCI cache key."
+        type: string
+    steps:
+      - save_cache:
+          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - "/home/circleci/project/.tox"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
+
   run_cpython_tests:
     description: "Install Tox and run tests."
     parameters:
@@ -15,16 +54,9 @@ commands:
         type: integer
         default: 2
     steps:
-      - checkout
-      - run: sudo chown -R circleci:circleci /usr/local/bin
-      - run: sudo chown -R circleci:circleci /usr/local/lib/python<< parameters.python_version >>/site-packages
-      - restore_cache:
-          key: py<< parameters.python_version >>-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run:
-          name: Install tox
-          shell: /bin/bash -leo pipefail
-          command: |
-            pip install tox
+      - setup_tests:
+          python_version: << parameters.python_version >>
+          cache_key_prefix: py<< parameters.python_version >>-deps
       - run:
           name: Run Tests
           shell: /bin/bash -leo pipefail
@@ -35,12 +67,9 @@ commands:
             tox -p << parameters.tox_parallel >> -e << parameters.tox_envs >>
             mkdir coverage
             mv .coverage.* "coverage/.coverage.py<< parameters.python_version >>"
-      - save_cache:
-          key: py<< parameters.python_version >>-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-          paths:
-            - "/home/circleci/project/.tox"
-            - "/usr/local/bin"
-            - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
+      - teardown_tests:
+          python_version: << parameters.python_version >>
+          cache_key_prefix: py<< parameters.python_version >>-deps
       - store_artifacts:
           path: coverage
       - store_test_results:
@@ -75,16 +104,9 @@ jobs:
     docker:
       - image: circleci/python:3.8-buster
     steps:
-      - checkout
-      - run: sudo chown -R circleci:circleci /usr/local/bin
-      - run: sudo chown -R circleci:circleci /usr/local/lib/python3.8/site-packages
-      - restore_cache:
-          key: report-coverage-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run:
-          name: Install tox
-          shell: /bin/bash -leo pipefail
-          command: |
-            pip install tox
+      - setup_tests:
+          python_version: "3.8"
+          cache_key_prefix: report-coverage-deps
       - run:
           name: Report Coverage
           command: |
@@ -92,26 +114,24 @@ jobs:
             RECENT_BUILDS_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/tree/$CIRCLE_BRANCH"
             BUILD_NUMS=$(curl -H "Circle-Token: $CIRCLECI_API_TOKEN" "$RECENT_BUILDS_URL" | \
               jq -r "map(select(.workflows.workflow_id == \"$CIRCLE_WORKFLOW_ID\")) | map(.build_num) | .[]")
-            echo "build url: $RECENT_BUILDS_URL"
-            echo "build nums: $BUILD_NUMS"
+            echo "CircleCI build URL: $RECENT_BUILDS_URL"
+            echo "CircleCI build numbers: $(echo "$BUILD_NUMS" | tr '\n' ' ')"
 
             # Fetch all of the artifacts for the build numbers
             for build_num in $BUILD_NUMS
             do
               ARTIFACT_META_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/$build_num/artifacts"
-              echo "fetching build num: $ARTIFACT_META_URL"
+              echo "Fetching artifacts for CircleCI build from: $ARTIFACT_META_URL"
               ARTIFACT_URLS=$(curl -H "Circle-Token: $CIRCLECI_API_TOKEN" "$ARTIFACT_META_URL" | jq -r '.[].url')
               if [ -n "$ARTIFACT_URLS" ]; then
+                echo "Found artifact URLs: $(echo "$ARTIFACT_URLS" | tr '\n' ' ')"
                 curl -L --remote-name-all $ARTIFACT_URLS
               fi
             done
             tox -v -e coverage
-      - save_cache:
-          key: report-coverage-deps-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-          paths:
-            - "/home/circleci/project/.tox"
-            - "/usr/local/bin"
-            - "/usr/local/lib/python3.8/site-packages"
+      - teardown_tests:
+          python_version: "3.8"
+          cache_key_prefix: report-coverage-deps
 
   test-pypy:
     docker:
@@ -120,10 +140,11 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: pypy-deps1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: Install tox
           command: |
+            pip install -U pip
             pip install tox
       - run:
           name: Run Tests
@@ -134,7 +155,7 @@ jobs:
             printf "\n"
             tox -e pypy3 -- $CCI_NODE_TESTS
       - save_cache:
-          key: pypy-deps1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
             - "/root/project/.tox"
             - "/usr/local/bin"
