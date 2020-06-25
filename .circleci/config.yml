@@ -75,6 +75,7 @@ jobs:
     docker:
       - image: circleci/python:3.8-buster
     steps:
+      - checkout
       - run:
           name: Install tox
           shell: /bin/bash -leo pipefail
