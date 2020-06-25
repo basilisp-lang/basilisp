@@ -64,6 +64,7 @@ class ProcessPoolExecutor(_ProcessPoolExecutor):  # pragma: no cover
     def __init__(self, max_workers: Optional[int] = None):
         super().__init__(max_workers=max_workers)
 
+    # pylint: disable=arguments-differ
     def submit(  # type: ignore
         self, fn: Callable[..., T], *args, **kwargs
     ) -> "Future[T]":
@@ -78,6 +79,7 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
     ):
         super().__init__(max_workers=max_workers, thread_name_prefix=thread_name_prefix)
 
+    # pylint: disable=arguments-differ
     def submit(  # type: ignore
         self, fn: Callable[..., T], *args, **kwargs
     ) -> "Future[T]":

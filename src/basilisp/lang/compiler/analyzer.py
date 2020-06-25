@@ -3382,7 +3382,7 @@ def _const_node(ctx: AnalyzerContext, form: ReaderForm) -> Const:
 
 
 @_with_loc  # noqa: MC0001
-def _analyze_form(  # pylint: disable=too-many-branches
+def _analyze_form(  # pylint: disable=too-many-branches  # noqa: MC0001
     ctx: AnalyzerContext, form: Union[ReaderForm, ISeq]
 ) -> Node:
     if isinstance(form, (llist.List, ISeq)):

@@ -29,6 +29,7 @@ class IDeref(Generic[T], ABC):
 class IBlockingDeref(IDeref[T]):
     __slots__ = ()
 
+    # pylint: disable=arguments-differ
     @abstractmethod
     def deref(
         self, timeout: Optional[float] = None, timeout_val: Optional[T] = None
