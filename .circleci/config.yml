@@ -83,10 +83,17 @@ jobs:
       - run:
           name: Report Coverage
           command: |
-            ARTIFACT_META_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/$CIRCLE_BUILD_NUM/artifacts?circle-token=$CIRCLECI_API_TOKEN"
-            ARTIFACT_URLS=$(curl "$ARTIFACT_META_URL" | jq -r '.[].url' | sed "s/$/?circle-token=$CIRCLECI_API_TOKEN/")
-            curl -L --remote-name-all $ARTIFACT_URLS
-            for file in .coverage.node-*; do mv $file $(echo $file | cut -d '?' -f 1); done
+            # Fetch the build numbers for this Workflow UUID
+            RECENT_BUILDS_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/tree/$CIRCLE_BRANCH"
+            BUILD_NUMS=$(curl -H "Circle-Token: $CIRCLECI_API_TOKEN" "$RECENT_BUILDS_URL" | \
+              jq -r "map(select(.workflows.workflow_id == \"$CIRCLE_WORKFLOW_ID\")) | map(.build_num) | .[]")
+
+            # Fetch all of the artifacts for the build numbers
+            ARTIFACT_META_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/$CIRCLE_BUILD_NUM/artifacts"
+            for build_num in $BUILD_NUMS;
+              ARTIFACT_URLS=$(curl -H "Circle-Token: $CIRCLECI_API_TOKEN" "$ARTIFACT_META_URL" | jq -r '.[].url')
+              curl -L --remote-name-all $ARTIFACT_URLS
+            done
             tox -v -e coverage
 
   test-pypy:
@@ -96,7 +103,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          key: pypy-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
           name: Install tox
           command: |
@@ -110,9 +117,9 @@ jobs:
             printf "\n"
             tox -e pypy3 -- $CCI_NODE_TESTS
       - save_cache:
-          key: pypy-deps-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
-            - "/home/pyenv/.tox"
+            - "/root/project/.tox"
             - "/usr/local/bin"
             - "/usr/local/lib/python3.6/site-packages"
       - store_test_results:
