@@ -25,7 +25,7 @@ class TransientVector(ITransientVector[T]):
     __slots__ = ("_inner",)
 
     def __init__(self, wrapped: "PVectorEvolver[T]") -> None:
-        self._inner = wrapped
+        self._inner = wrapped  # pylint: disable=assigning-non-slot
 
     def __bool__(self):
         return True

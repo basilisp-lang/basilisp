@@ -82,7 +82,7 @@ jobs:
     steps:
       - run_cpython_tests:
           python_version: "3.6"
-          tox_envs: py36,py36-mypy,format,lint,safety
+          tox_envs: py36,py36-mypy,py36-lint,safety
 
   test-cpython-37:
     docker:
@@ -90,7 +90,7 @@ jobs:
     steps:
       - run_cpython_tests:
           python_version: "3.7"
-          tox_envs: py37,py37-mypy,safety
+          tox_envs: py37,py37-mypy,py37-lint,safety
 
   test-cpython-38:
     docker:
@@ -98,7 +98,7 @@ jobs:
     steps:
       - run_cpython_tests:
           python_version: "3.8"
-          tox_envs: py38,py38-mypy,safety
+          tox_envs: py38,py38-mypy,py38-lint,format,safety
 
   report-coverage:
     docker:
