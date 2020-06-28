@@ -1,23 +1,246 @@
 (ns tests.basilisp.test-string
   (:require
    [basilisp.string :as str]
-   [basilisp.test :refer [deftest is]]))
+   [basilisp.test :refer [deftest is are testing]]))
 
 (deftest alpha?-test
-  (is (not (str/alpha? "")))
-  (is (not (str/alpha? "?")))
-  (is (not (str/alpha? "1")))
-  (is (str/alpha? "abcdef")))
+  (are [x] (not (str/alpha? x))
+    ""
+    "?"
+    "1")
+
+  (are [x] (str/alpha? x)
+    "abcdef"))
 
 (deftest alphanumeric?-test
-  (is (not (str/alphanumeric? "")))
-  (is (not (str/alphanumeric? "?")))
-  (is (str/alphanumeric? "1"))
-  (is (str/alphanumeric? "abcdef")))
+  (are [x] (not (str/alphanumeric? x))
+    ""
+    "?")
+
+  (are [x] (str/alphanumeric? x)
+    "1"
+    "abcdef"))
 
 (deftest digits?-test
-  (is (not (str/digits? "")))
-  (is (not (str/digits? "?")))
-  (is (not (str/digits? "abcdef")))
-  (is (str/digits? "1"))
-  (is (str/digits? "1375234723984")))
+  (are [x] (not (str/digits? x))
+    ""
+    "?"
+    "abcdef")
+
+  (are [x] (str/digits? x)
+    "1"
+    "1375234723984"))
+
+(deftest blank?-test
+  (are [x] (not (str/blank? x))
+    "rn"
+    "?"
+    "abcdef")
+
+  (are [x] (str/blank? x)
+    ""
+    "                     "
+    "\n\r"
+    "\n")
+
+  (is (nil? (str/blank? nil))))
+
+(deftest capitalize-test
+  (are [x y] (= y (str/capitalize x))
+    ""      ""
+    "chris" "Chris"
+    "Chris" "Chris"
+    "CHRIS" "Chris"))
+
+(deftest title-case-test
+  (are [x y] (= y (str/title-case x))
+    ""      ""
+    "chris" "Chris"
+    "Chris" "Chris"
+    "CHRIS" "Chris"
+    "chris crink" "Chris Crink"
+    "Chris crink" "Chris Crink"
+    "Chris Crink" "Chris Crink"
+    "CHRIS CRINK" "Chris Crink"))
+
+(deftest lower-case-test
+  (are [x y] (= y (str/lower-case x))
+    ""      ""
+    "chris" "chris"
+    "Chris" "chris"
+    "CHRIS" "chris"))
+
+(deftest upper-case-test
+  (are [x y] (= y (str/upper-case x))
+    ""      ""
+    "chris" "CHRIS"
+    "Chris" "CHRIS"
+    "CHRIS" "CHRIS"))
+
+(deftest ends-with?-test
+  (are [s sfx] (not (str/ends-with? s sfx))
+    ""      "something"
+    "Chris" "Joh")
+
+  (are [s sfx] (str/ends-with? s sfx)
+    "Chris" "hris"))
+
+(deftest starts-with?-test
+  (are [s pfx] (not (str/starts-with? s pfx))
+    ""      "something"
+    "Chris" "Joh")
+
+  (are [s pfx] (str/starts-with? s pfx)
+    "Chris" "Chri"))
+
+(deftest includes?-test
+  (are [s sub] (not (str/includes? s sub))
+    ""      "something"
+    "Chris" "oh")
+
+  (are [s sub] (str/includes? s sub)
+    "Chris" "hri"))
+
+(deftest index-of-test
+  (testing "from the beginning"
+    (are [s sub i] (= i (str/index-of s sub))
+      ""      "hi"  nil
+      "Chris" "hri" 1
+      "Chris" "is"  3
+      "Chris" "oh"  nil))
+
+  (testing "from an index"
+    (are [sub start i] (= i (str/index-of "Chris is thrice my favorite" sub start))
+      "hri" 5  10
+      "hri" 15 nil
+      "is"  5  6
+      "is"  15 nil)))
+
+(deftest last-index-of-test
+  (testing "from the beginning"
+    (are [s sub i] (= i (str/last-index-of s sub))
+      ""      "hi"  nil
+      "Chris" "hri" 1
+      "Chris" "is"  3
+      "Chris" "oh"  nil))
+
+  (testing "from an index"
+    (are [sub start i] (= i (str/last-index-of "Chris is thrice my favorite" sub start))
+      "hri" 5  1
+      "hri" 1 nil
+      "is"  5  3
+      "is"  3 nil)))
+
+(deftest join-test
+  (are [coll s] (= s (str/join coll))
+    []      ""
+    ["hi"]  "hi"
+    [1 2 3] "123")
+
+  (are [coll sep s] (str/join sep coll)
+    [1 2 3] ",", "1,2,3"))
+
+(deftest reverse-test
+  (are [s rev] (= rev (str/reverse s))
+    ""         ""
+    "hi"       "ih"
+    "hi there" "ereht ih"))
+
+(deftest split-test
+  (testing "split on regex patterns"
+    (are [s pat coll] (= coll (str/split s (re-pattern pat)))
+      "Basilisp is awesome!" " "    ["Basilisp" "is" "awesome!"]
+      "q1w2e3r4t5y6u7i8o9p0" "\\d+" ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p", ""]
+      " q1w2 "               ""     [" ", "q", "1", "w", "2", " "]
+      "a"                    "b"    ["a"]
+      ""                     "b"    [""]
+      ""                     ""     []
+      "a"                    "a"    ["" ""])
+
+    (is (= ["q", "w", "e", "r", "t5y6u7i8o9p0"]
+           (str/split "q1w2e3r4t5y6u7i8o9p0" (re-pattern "\\d+") 5))))
+
+  (testing "split on strings"
+    (are [s pat coll] (= coll (str/split s pat))
+      "Basilisp is awesome!" " " ["Basilisp" "is" "awesome!"]
+      " q1w2 "               ""  [" ", "q", "1", "w", "2", " "]
+      "a"                    "b" ["a"]
+      ""                     "b" [""]
+      ""                     ""  []
+      "a"                    "a" ["" ""])))
+
+(deftest split-lines-test
+  (are [s coll] (= coll (str/split-lines s))
+    ""                              []
+    "Hello, my name is Chris."      ["Hello, my name is Chris."]
+    "Hello,\n my name is Chris."    ["Hello," " my name is Chris."]
+    "Hello,\n my name \r is Chris." ["Hello," " my name " " is Chris."]))
+
+(deftest lpad-test
+  (testing "default pad"
+    (are [s n ps] (= ps (str/lpad s n))
+      ""      5  "     "
+      "Chris" 5  "Chris"
+      "Chris" 10 "     Chris"))
+
+  (testing "fill char"
+    (are [s n c ps] (= ps (str/lpad s n c))
+      "Chris" 3 "0"  "Chris"
+      "Chris" 10 "0" "00000Chris")))
+
+(deftest rpad-test
+  (testing "default pad"
+    (are [s n ps] (= ps (str/rpad s n))
+      ""      5  "     "
+      "Chris" 5  "Chris"
+      "Chris" 10 "Chris     "))
+
+  (testing "fill char"
+    (are [s n c ps] (= ps (str/rpad s n c))
+      "Chris" 3 "0"  "Chris"
+      "Chris" 10 "0" "Chris00000")))
+
+(deftest replace-test
+  (is (= "The color is red"
+         (str/replace "The color is blue" "blue" "red")))
+  (is (= "The color is red"
+         (str/replace "The color is blue" #"blue" "red")))
+  (is (= "Thee cooloor iis reed"
+         (str/replace "The color is red" #"[aeiou]" #(str % %))))
+  (is (= "1 2 1"
+         (str/replace "a b a" #"[ab]" {"a" "1" "b" "2"})))
+  (is (= "Unchanged"
+         (str/replace "Unchanged" #"Different" "Not the same"))))
+
+(deftest replace-first-test
+  (is (= "The color is red blue"
+         (str/replace-first "The color is blue blue" "blue" "red")))
+  (is (= "The color is red blue"
+         (str/replace-first "The color is blue blue" #"blue" "red")))
+  (is (= "Thee color is red"
+         (str/replace-first "The color is red" #"[aeiou]" #(str % %))))
+  (is (= "1 b a"
+         (str/replace-first "a b a" #"[ab]" {"a" "1" "b" "2"})))
+  (is (= "Unchanged"
+         (str/replace-first "Unchanged" #"Different" "Not the same"))))
+
+(deftest trim-test
+  (are [x y] (= y (str/trim x))
+    ""                           ""
+    "               Chris      " "Chris"))
+
+(deftest ltrim-test
+  (are [x y] (= y (str/ltrim x))
+    ""                           ""
+    "               Chris      " "Chris      "))
+
+(deftest trim-test
+  (are [x y] (= y (str/rtrim x))
+    ""                           ""
+    "               Chris      " "               Chris"))
+
+(deftest trim-newlines
+  (are [x y] (= y (str/trim-newlines x))
+    ""                ""
+    "Chris Crink\t "  "Chris Crink\t "
+    "Chris Crink\n\r" "Chris Crink"))

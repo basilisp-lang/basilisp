@@ -12,17 +12,6 @@ from tests.basilisp.helpers import get_or_create_ns
 
 
 @pytest.fixture
-def core_ns_sym() -> sym.Symbol:
-    return runtime.CORE_NS_SYM
-
-
-@pytest.fixture
-def core_ns(core_ns_sym: sym.Symbol) -> Namespace:
-    ns = Namespace(core_ns_sym)
-    return ns
-
-
-@pytest.fixture
 def ns_cache(core_ns_sym: sym.Symbol, core_ns: Namespace) -> atom.Atom[NamespaceMap]:
     """Patch the Namespace cache with a test fixture."""
     with patch(
