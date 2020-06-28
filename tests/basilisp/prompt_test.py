@@ -7,6 +7,7 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.key_binding.key_bindings import Binding
 from prompt_toolkit.keys import Keys
 
+from basilisp.lang.runtime import Namespace
 from basilisp.prompt import PromptToolkitPrompter, REPLCompleter, get_prompter
 
 try:
@@ -20,7 +21,11 @@ class TestCompleter:
     def completer(self) -> Completer:
         return REPLCompleter()
 
-    @pytest.fixture
+    @pytest.fixture(scope="class")
+    def test_ns(self) -> str:
+        return "basilisp.lrepr-test"
+
+    @pytest.fixture(scope="class")
     def completions(self) -> Iterable[str]:
         return (
             "macroexpand",
@@ -111,7 +116,9 @@ class TestCompleter:
             ("(map-", ("map-entry", "map-entry?", "map-indexed",),),
         ],
     )
-    def test_completer(self, completer: Completer, val: str, expected: Tuple[str]):
+    def test_completer(
+        self, completer: Completer, ns: Namespace, val: str, expected: Tuple[str]
+    ):
         doc = Document(val, len(val))
         completions = list(completer.get_completions(doc, CompleteEvent()))
         assert len(completions) == len(expected)
