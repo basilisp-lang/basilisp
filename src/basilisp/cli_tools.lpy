@@ -51,10 +51,13 @@
   "Add a new command parser to the subparsers object."
   [subparsers command]
   (let [command-parser (->> (argument-parser-kwargs command)
-                            (merge {:title (:title command)})
-                            (apply-method-kw subparsers add-parser))]
+                            (apply-method-kw subparsers add-parser (:command command)))]
     (setup-parser command-parser command)
     nil))
+
+;; Deep inside of argparse, they create actions using the `action_class(**kwargs)`
+;; syntax, so collect all arguments into keyword arguments is the safest option
+;; for faking an Action class.
 
 (defn ^:private cli-tools-assoc-action
   "Create a new CLI Tools Assoc Action.
@@ -65,11 +68,16 @@
   The provided `assoc-fn` will be passed the entire options map, the relevant
   destination key, and the parsed option and should return a new options map."
   [assoc-fn]
-  (fn ^{:kwargs :collect} AssocAction [_ dest _]
-    (reify
-      ^:abstract argparse/Action
-      (^{:kwargs :collect} __call__ [self _ namespace values _]
-       (vswap! assoc-fn namespace dest values)))))
+  (fn ^{:kwargs :collect} AssocAction [{:keys [dest] :as kwargs}]
+    (let [kwargs (->> (get kwargs :option-strings [])
+                      (assoc kwargs :option-strings))]
+      (reify
+        ^:abstract argparse/Action
+        (^{:kwargs :collect} __call__ [self _ namespace values _ _]
+         (println (type namespace) (.mro (type namespace)))
+         (vswap! namespace assoc-fn dest values))
+        (__getattr__ [self name]
+          (get kwargs (keyword (basilisp.lang.util/demunge name))))))))
 
 (defn ^:private cli-tools-update-action
   "Create a new CLI Tools Update Action.
@@ -81,11 +89,16 @@
   (or `nil` if no default is provided) and should return a new value for the
   option."
   [update-fn]
-  (fn ^{:kwargs :collect} UpdateAction [_ dest _]
-    (reify
-      ^:abstract argparse/Action
-      (^{:kwargs :collect} __call__ [self _ namespace _ _]
-       (vswap! namespace update dest update-fn)))))
+  (fn ^{:kwargs :collect} UpdateAction [{:keys [dest] :as kwargs}]
+    (let [kwargs (->> (get kwargs :option-strings [])
+                      (assoc kwargs :option-strings))]
+      (reify
+        ^:abstract argparse/Action
+        (^{:kwargs :collect} __call__ [self _ namespace _ _ _]
+         (println (type namespace))
+         (vswap! namespace update dest update-fn))
+        (__getattr__ [self name]
+          (get kwargs (keyword (basilisp.lang.util/demunge name))))))))
 
 (defn ^:private cli-tools-action
   "Return a new Action for the argument definition.
@@ -294,7 +307,7 @@
   ([parser-or-config args]
    (let [parser (cond-> parser-or-config
                   (map? parser-or-config) (cli-parser))]
-     @(.parse-args parser args ** :namespace (namespace)))))
+     @(.parse-args parser args ** :namespace (args-namespace)))))
 
 (defmacro run-cli
   "Create a new command-line parser using the configuration `config` and run it
