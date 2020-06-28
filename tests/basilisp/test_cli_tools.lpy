@@ -39,4 +39,11 @@
                  (-> base-arg-config
                      (assoc :assoc-fn assoc :update-fn (fnil inc 0))
                      (->> (update base-parser-config :arguments conj))
+                     (cli/cli-parser)))))
+
+  (testing "disallow exclusive-group and group"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (-> base-arg-config
+                     (assoc :group :foos :exclusive-group :bars)
+                     (->> (update base-parser-config :arguments conj))
                      (cli/cli-parser))))))

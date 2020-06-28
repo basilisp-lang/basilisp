@@ -152,14 +152,22 @@
     (let [subparsers (.add-subparsers parser)]
       (doseq [command commands]
         (add-cli-sub-parser subparsers command))))
-  ;; Add arguments to the parser. Arguments can be grouped as
+  ;; Add arguments to the parser. Arguments can be grouped as exclusive groups
+  ;; or as display groups (without mutual exclusion).
   (when-let [arguments (:arguments config)]
-    (let [groups (group-by (fn [v]
-                             (condp #(contains? %2 %1) v
-                               :exclusive-group :ex-group
-                               :group           :group
-                               :normal))
-                           arguments)]
+    (let [groups (->> arguments
+                      (map #(if (and (contains? % :exclusive-group)
+                                     (contains? % :group))
+                              (throw
+                               (ex-info (str "Arguments may be in either a :group "
+                                             "or an :exlusive-group, not both.")
+                                        {:arg %}))
+                              %))
+                      (group-by (fn [v]
+                                  (condp #(contains? %2 %1) v
+                                    :exclusive-group :ex-group
+                                    :group           :group
+                                    :normal))))]
       ;; Mutually-exclusive argument groups
       (let [ex-groups (group-by :exclusive-group (:ex-group groups))]
         (doseq [ex-group-pair ex-groups]
@@ -248,6 +256,18 @@
                 ;; Either a string value or vector of strings used to refer to
                 ;; expected arguments generated help text message.
                 :metavar "FOO"
+
+                ;; Arguments may be specified to be part of an exclusive group,
+                ;; in which case only one argument of the group will be permitted.
+                ;; Arguments may be in either an exclusive group or a display
+                ;; group, but not both. Default nil.
+                :exclusive-group :baz
+
+                ;; Arguments may be grouped into display groups which do not enforce
+                ;; mutual exclusion. These groups will only be used for help text.
+                ;; Arguments may be in either an exclusive group or a display
+                ;; group, but not both. Default nil.
+                :group :bar
 
                 ;; A help string which will be shown next to the argument in the
                 ;; CLI help text. Default nil.
