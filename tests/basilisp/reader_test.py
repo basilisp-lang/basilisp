@@ -18,14 +18,7 @@ from basilisp.lang.interfaces import IPersistentSet
 
 @pytest.fixture
 def test_ns() -> str:
-    return "test"
-
-
-@pytest.fixture
-def ns(test_ns: str) -> runtime.Namespace:
-    runtime.init_ns_var()
-    with runtime.ns_bindings(test_ns) as ns:
-        yield ns
+    return "basilisp.reader-test"
 
 
 def read_str_first(

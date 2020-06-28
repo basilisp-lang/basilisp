@@ -8,7 +8,6 @@ import sys
 import uuid
 from fractions import Fraction
 from tempfile import TemporaryDirectory
-from typing import Any, Callable, Dict, Optional
 from unittest.mock import Mock
 
 import dateutil.parser as dateparser
@@ -28,9 +27,7 @@ from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
 from basilisp.lang.interfaces import IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.util import demunge
-from tests.basilisp.helpers import get_or_create_ns
-
-COMPILER_FILE_PATH = "compiler_test"
+from tests.basilisp.helpers import CompileFn, get_or_create_ns
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -49,18 +46,8 @@ def test_ns() -> str:
 
 
 @pytest.fixture
-def test_ns_sym(test_ns: str) -> sym.Symbol:
-    return sym.symbol(test_ns)
-
-
-@pytest.fixture
-def ns(test_ns: str, test_ns_sym: sym.Symbol) -> runtime.Namespace:
-    get_or_create_ns(test_ns_sym)
-    with runtime.ns_bindings(test_ns) as ns:
-        try:
-            yield ns
-        finally:
-            runtime.Namespace.remove(test_ns_sym)
+def compiler_file_path() -> str:
+    return "compiler_test"
 
 
 @pytest.fixture
@@ -79,30 +66,6 @@ def async_to_sync(asyncf, *args, **kwargs):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     return loop.run_until_complete(asyncf(*args, **kwargs))
-
-
-CompileFn = Callable[[str], Any]
-
-
-@pytest.fixture
-def lcompile(ns: runtime.Namespace) -> CompileFn:
-    def _lcompile(
-        s: str,
-        resolver: Optional[reader.Resolver] = None,
-        opts: Optional[Dict[str, bool]] = None,
-    ):
-        """Compile and execute the code in the input string.
-
-        Return the resulting expression."""
-        ctx = compiler.CompilerContext(COMPILER_FILE_PATH, opts=opts)
-
-        last = None
-        for form in reader.read_str(s, resolver=resolver):
-            last = compiler.compile_and_exec_form(form, ctx, ns)
-
-        return last
-
-    return _lcompile
 
 
 class TestLiterals:
@@ -309,14 +272,16 @@ class TestDef:
         with pytest.raises(compiler.CompilerException):
             lcompile("(def a :not-a-docstring :a)")
 
-    def test_compiler_metadata(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_compiler_metadata(
+        self, lcompile: CompileFn, ns: runtime.Namespace, compiler_file_path: str
+    ):
         lcompile('(def ^{:doc "Super cool docstring"} unique-oeuene :a)')
 
         var = ns.find(sym.symbol("unique-oeuene"))
         meta = var.meta
 
         assert 1 == meta.val_at(kw.keyword("line"))
-        assert COMPILER_FILE_PATH == meta.val_at(kw.keyword("file"))
+        assert compiler_file_path == meta.val_at(kw.keyword("file"))
         assert 1 == meta.val_at(kw.keyword("col"))
         assert sym.symbol("unique-oeuene") == meta.val_at(kw.keyword("name"))
         assert ns == meta.val_at(kw.keyword("ns"))
@@ -3323,7 +3288,7 @@ class TestLetFnUnusedNames:
         ) in caplog.record_tuples
 
     def test_no_warning_for_nested_let_if_warning_disabled(
-        self, lcompile: CompileFn, caplog
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
     ):
         lcompile(
             """

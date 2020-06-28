@@ -549,12 +549,6 @@ def test_trampoline_args():
     assert (1, llist.l(2, 3, 4), 5, 6) == args.args
 
 
-@pytest.fixture
-def core_ns():
-    ns_var = runtime.init_ns_var()
-    yield ns_var.value
-
-
 @pytest.mark.parametrize("form", runtime._SPECIAL_FORMS)
 def test_is_special_form(form: sym.Symbol):
     assert runtime.is_special_form(form)
