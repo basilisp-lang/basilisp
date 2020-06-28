@@ -1,4 +1,4 @@
-(ns tests.basilisp.walk-test
+(ns tests.basilisp.test-walk
   (:require
    [basilisp.test :refer [deftest is testing]]
    [basilisp.walk :as walk]))
