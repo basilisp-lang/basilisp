@@ -74,7 +74,6 @@
       (reify
         ^:abstract argparse/Action
         (^{:kwargs :collect} __call__ [self _ namespace values _ _]
-         (println (type namespace) (.mro (type namespace)))
          (vswap! namespace assoc-fn dest values))
         (__getattr__ [self name]
           (get kwargs (keyword (basilisp.lang.util/demunge name))))))))
@@ -95,7 +94,6 @@
       (reify
         ^:abstract argparse/Action
         (^{:kwargs :collect} __call__ [self _ namespace _ _ _]
-         (println (type namespace))
          (vswap! namespace update dest update-fn))
         (__getattr__ [self name]
           (get kwargs (keyword (basilisp.lang.util/demunge name))))))))
