@@ -14,38 +14,74 @@
 
 (declare ^:private setup-parser)
 
-(defn ^:private args-namespace
-  "Create a new `argparse.Namespace` object for the argument parser.
+(defn wrapped-namespace
+  "Wrap an `argparse.Namespace` object from the argument parser.
 
   `argparse` uses Namespace objects to collect arguments parsed from the command
-  line. These objects are just bags of attributes, so it needs to be able to
-  call `getattr`, `delattr`, and `setattr`. We store the attributes in a map in
-  a volatile and proxy the gets, deletes, and sets to the map.
+  line. These objects are just bags of attributes, so we wrap them with an
+  implementation of `IPersistentMap` to make them easier to integrate with idiomatic
+  Basilisp code."
+  [ns]
+  (reify
+    basilisp.lang.interfaces/IPersistentMap
+    (assoc [this & kvs]
+      (doseq [kv   (partition 2 kvs)
+              :let [[k v] kv]]
+        (python/setattr ns (name k) v))
+      this)
+    (cons [this & elems]
+      (doseq [elem elems]
+        (cond
+          (nil? elem)
+          nil
 
-  The returned Namespace object also implements the `IVolatile` interface to
-  trivially support `assoc`-like functionality on the map of options.
+          (map? elem)
+          (doseq [entry (seq elem)
+                  :let  [[k v] entry]]
+            (python/setattr ns (name k) v))
 
-  Return the completed map using `deref` on the returned object."
-  []
-  (let [m (volatile! {})]
-    (reify
-      ^:abstract argparse/Namespace
-      (__getattr__ [self name]
-        (get @m name))
-      (__delattr__ [self name]
-        (vswap! m dissoc name))
-      (__setattr__ [self name value]
-        (vswap! m assoc name value))
+          (map-entry? elem)
+          (python/setattr ns (name (key elem)) (val elem))
 
-      IVolatile
-      (vreset! [this new-val]
-        (vreset! m new-val))
-      (vswap! [this f & args]
-        (apply vswap! m f args))
+          (vector? elem)
+          (python/setattr ns (name (nth elem 0)) (nth elem 1))
 
-      basilisp.lang.interfaces/IDeref
-      (deref [self]
-        @m))))
+          (py-dict? elem)
+          (doseq [entry (.items elem)
+                  :let  [[k v] entry]]
+            (python/setattr ns (name k) v))
+
+          :else
+          (throw
+           (ex-info "Argument to namespace conj must be another Map or castable to MapEntry"
+                    {:value elem
+                     :type  (python/type elem)}))))
+      this)
+    (contains [this key]
+      (python/hasattr ns (name key)))
+    (dissoc [this & ks]
+      (doseq [k ks]
+        (when (python/hasattr ns (name k))
+          (python/delattr ns (name k))))
+      this)
+    (empty [this]
+      (throw (python/TypeError "Cannot create empty Namespace")))
+    (entry [this key]
+      (when (python/hasattr ns (name key))
+        (map-entry key (python/getattr ns (name key)))))
+    (val-at [this key & args]
+      (let [[default] args]
+        (python/getattr ns (name key) default)))
+    (seq [this]
+      (->> (python/vars ns)
+           (.items)
+           (map (fn [[k v]] (map-entry (keyword k) v)))))
+    (__getitem__ [this key]
+      (python/getattr this (name key)))
+    (__iter__ [this]
+      (python/iter (python/vars this)))
+    (__len__ [this]
+      (python/len (python/vars this)))))
 
 (defn ^:private add-cli-sub-parser
   "Add a new command parser to the subparsers object."
@@ -74,7 +110,8 @@
       (reify
         ^:abstract argparse/Action
         (^{:kwargs :collect} __call__ [self _ namespace values _ _]
-         (vswap! namespace assoc-fn dest values))
+         (-> (wrapped-namespace namespace)
+             (assoc-fn dest values)))
         (__getattr__ [self name]
           (get kwargs (keyword (basilisp.lang.util/demunge name))))))))
 
@@ -94,7 +131,8 @@
       (reify
         ^:abstract argparse/Action
         (^{:kwargs :collect} __call__ [self _ namespace _ _ _]
-         (vswap! namespace update dest update-fn))
+         (-> (wrapped-namespace namespace)
+             (update dest update-fn)))
         (__getattr__ [self name]
           (get kwargs (keyword (basilisp.lang.util/demunge name))))))))
 
@@ -305,7 +343,9 @@
   ([parser-or-config args]
    (let [parser (cond-> parser-or-config
                   (map? parser-or-config) (cli-parser))]
-     @(.parse-args parser args ** :namespace (args-namespace)))))
+     (-> (.parse-args parser args)
+         (python/vars)
+         (py->lisp)))))
 
 (defmacro run-cli
   "Create a new command-line parser using the configuration `config` and run it
