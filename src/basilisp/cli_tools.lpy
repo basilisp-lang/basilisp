@@ -3,18 +3,7 @@
    argparse
    sys))
 
-(defn ^:private argument-parser-kwargs
-  [config]
-  {:prog         (:command config)
-   :description  (:description config)
-   :usage        (:usage config)
-   :epilog       (:epilogue config)
-   :add-help     (:include-help config true)
-   :allow-abbrev (:allow-abbrev config true)})
-
-(declare ^:private setup-parser)
-
-(defn wrapped-namespace
+(defn ^:private wrapped-namespace
   "Wrap an `argparse.Namespace` object from the argument parser.
 
   `argparse` uses Namespace objects to collect arguments parsed from the command
@@ -83,13 +72,44 @@
     (__len__ [this]
       (python/len (python/vars this)))))
 
+(defn ^:private argument-parser-kwargs
+  [config]
+  {:prog         (:command config)
+   :description  (:description config)
+   :usage        (:usage config)
+   :epilog       (:epilogue config)
+   :add-help     (:include-help config true)
+   :allow-abbrev (:allow-abbrev config true)})
+
+(defn ^:private argument-subparser-kwargs
+  [config]
+  {:help         (:description config)
+   :description  (:description config)
+   :usage        (:usage config)
+   :epilog       (:epilogue config)
+   :add-help     (:include-help config true)
+   :allow-abbrev (:allow-abbrev config true)})
+
+(declare ^:private setup-parser)
+
 (defn ^:private add-cli-sub-parser
   "Add a new command parser to the subparsers object."
-  [subparsers command]
-  (let [command-parser (->> (argument-parser-kwargs command)
-                            (apply-method-kw subparsers add-parser (:command command)))]
+  [subparsers {cmd-name :command :as command}]
+  (let [command-parser (->> (argument-subparser-kwargs command)
+                            (apply-method-kw subparsers add-parser cmd-name))]
     (setup-parser command-parser command)
     nil))
+
+(def action-default-attrs
+  "Actions are required to have a number of different argument defaults which are
+  not all provided to the action constructor. Failing to respond to these values
+  with a meaningful value causes `argparse` to throw exceptions in certain cases."
+  (->> (argparse/Action [] "dest")
+       (python/vars)
+       (.items)
+       (remove #{"dest"})
+       (mapcat (fn [[k v]] [(keyword (basilisp.lang.util/demunge k)) v]))
+       (apply hash-map)))
 
 ;; Deep inside of argparse, they create actions using the `action_class(**kwargs)`
 ;; syntax, so collect all arguments into keyword arguments is the safest option
@@ -105,15 +125,18 @@
   destination key, and the parsed option and should return a new options map."
   [assoc-fn]
   (fn ^{:kwargs :collect} AssocAction [{:keys [dest] :as kwargs}]
-    (let [kwargs (->> (get kwargs :option-strings [])
-                      (assoc kwargs :option-strings))]
+    (let [kwargs (merge action-default-attrs kwargs)]
       (reify
         ^:abstract argparse/Action
         (^{:kwargs :collect} __call__ [self _ namespace values _ _]
          (-> (wrapped-namespace namespace)
              (assoc-fn dest values)))
         (__getattr__ [self name]
-          (get kwargs (keyword (basilisp.lang.util/demunge name))))))))
+          (let [k (keyword (basilisp.lang.util/demunge name))]
+            (if (contains? kwargs k)
+              (get kwargs k)
+              (throw (python/AttributeError
+                      (str "UpdateAction does not have attribute " name))))))))))
 
 (defn ^:private cli-tools-update-action
   "Create a new CLI Tools Update Action.
@@ -126,15 +149,18 @@
   option."
   [update-fn]
   (fn ^{:kwargs :collect} UpdateAction [{:keys [dest] :as kwargs}]
-    (let [kwargs (->> (get kwargs :option-strings [])
-                      (assoc kwargs :option-strings))]
+    (let [kwargs (merge action-default-attrs kwargs)]
       (reify
         ^:abstract argparse/Action
         (^{:kwargs :collect} __call__ [self _ namespace _ _ _]
          (-> (wrapped-namespace namespace)
              (update dest update-fn)))
         (__getattr__ [self name]
-          (get kwargs (keyword (basilisp.lang.util/demunge name))))))))
+          (let [k (keyword (basilisp.lang.util/demunge name))]
+            (if (contains? kwargs k)
+              (get kwargs k)
+              (throw (python/AttributeError
+                      (str "UpdateAction does not have attribute " name))))))))))
 
 (defn ^:private cli-tools-action
   "Return a new Action for the argument definition.
@@ -198,7 +224,7 @@
   "Set up the command parser from the configuration map."
   [parser config]
   (when-let [commands (:commands config)]
-    (let [subparsers (.add-subparsers parser)]
+    (let [subparsers (.add-subparsers parser ** :title "subcommands")]
       (doseq [command commands]
         (add-cli-sub-parser subparsers command))))
   ;; Add arguments to the parser. Arguments can be grouped as exclusive groups
