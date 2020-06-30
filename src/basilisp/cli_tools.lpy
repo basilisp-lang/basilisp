@@ -83,14 +83,14 @@
    :allow-abbrev (:allow-abbrev config true)})
 
 (defn ^:private argument-subparser-kwargs
-  [config]
-  {:help         (:help config)
-   :description  (:description config)
-   :aliases      (:aliases config)
-   :usage        (:usage config)
-   :epilog       (:epilogue config)
-   :add-help     (:include-help config true)
-   :allow-abbrev (:allow-abbrev config true)})
+  [{:keys [aliases] :as config}]
+  (cond-> {:help         (:help config)
+           :description  (:description config)
+           :usage        (:usage config)
+           :epilog       (:epilogue config)
+           :add-help     (:include-help config true)
+           :allow-abbrev (:allow-abbrev config true)}
+    aliases (assoc :aliases aliases)))
 
 (declare ^:private setup-parser)
 
