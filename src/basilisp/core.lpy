@@ -3367,8 +3367,8 @@
   is nil or there are no more forms."
   [x & forms]
   (if (seq forms)
-    `(let [result# (-> ~x ~(first forms))]
-       (when-not (nil? result#)
+    `(when-not (nil? ~x)
+       (let [result# (-> ~x ~(first forms))]
          (some-> result# ~@(next forms))))
     x))
 
@@ -3377,8 +3377,8 @@
   is nil or there are no more forms."
   [x & forms]
   (if (seq forms)
-    `(let [result# (->> ~x ~(first forms))]
-       (when-not (nil? result#)
+    `(when-not (nil? ~x)
+       (let [result# (->> ~x ~(first forms))]
          (some->> result# ~@(next forms))))
     x))
 

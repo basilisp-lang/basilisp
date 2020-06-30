@@ -1,6 +1,7 @@
 (ns basilisp.cli-tools
   (:import
    argparse
+   os
    sys))
 
 (defn ^:private wrapped-namespace
@@ -100,7 +101,7 @@
     (setup-parser command-parser command)
     nil))
 
-(def action-default-attrs
+(def ^:private action-default-attrs
   "Actions are required to have a number of different argument defaults which are
   not all provided to the action constructor. Failing to respond to these values
   with a meaningful value causes `argparse` to throw exceptions in certain cases."
@@ -199,8 +200,11 @@
         ;; arguments _and_ keyword arguments, which is a challenging combination
         ;; to call via Basilisp, so we create a partial of the method with the
         ;; kwargs then (apply method args) for the potentially variadic positionals.
-        method (->> {:default (:default argument)
+        method (->> {:default (if-let [val-from-env (some-> (:env argument) (os/getenv))]
+                                val-from-env
+                                (:default argument))
                      :action  (cli-tools-action argument)
+                     :nargs   (if (:update-fn argument) 0 "?")
                      :type    type-fn
                      :metavar (when-let [metavar (:metavar argument)]
                                 (cond-> metavar
@@ -312,6 +316,13 @@
                 ;; `:parse-fn` and `:validate` rules, if given. Non-string
                 ;; values will be used as-is. Default nil.
                 :default "yes"
+
+                ;; The name of an environment variable from which to draw the
+                ;; default value if that environment variable exists. If the
+                ;; named environment variable is defined, its value will be
+                ;; subject to the same rules as `:default` above. This key
+                ;; always supersedes `:default` if it is defined. Default nil.
+                :env "SOME_ENV_VAR"
 
                 ;; An `assoc`-like function which will be passed the current
                 ;; options map, the relevant destination key, and the parsed
