@@ -48,13 +48,21 @@
                      (->> (update base-parser-config :arguments conj))
                      (cli/cli-parser))))))
 
+(defmacro parse-args
+  [args]
+  `(with-out-str
+     (try
+       (cli/parse-args parser ~args)
+       (catch python/SystemExit _ nil))))
+
 (def parser
   (cli/cli-parser
    {:command     "basilisp"
     :description "Basilisp is a Lisp dialect inspired by Clojure targeting Python 3"
     :arguments   []
     :commands    [{:command     "run"
-                   :description "run a Basilisp script or code"
+                   :description "Run a Basilisp script from a file or run Basilisp code directly."
+                   :help        "run a Basilisp script or code"
                    :arguments   [{:name "file-or-code"
                                   :help "the filename or, if using -c the code, to execute"}
                                  {:flags     ["-c" "--code"]
@@ -62,10 +70,10 @@
                                   :default   false
                                   :update-fn (constantly true)}
 
-                                 {:flags   ["--warn-on-shadowed-name"]
-                                  :help    "if provided, emit warnings if a local name is shadowed by another local name"
-                                  :env     "BASILISP_WARN_ON_SHADOWED_NAME"
-                                  :group   "compiler flags"}
+                                 {:flags ["--warn-on-shadowed-name"]
+                                  :help  "if provided, emit warnings if a local name is shadowed by another local name"
+                                  :env   "BASILISP_WARN_ON_SHADOWED_NAME"
+                                  :group "compiler flags"}
                                  {:flags ["--warn-on-shadowed-var"]
                                   :help  "if provided, emit warnings if a Var name is shadowed by a local name"
                                   :env   "BASILISP_WARN_ON_SHADOWED_VAR"

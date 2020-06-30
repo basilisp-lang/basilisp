@@ -84,8 +84,9 @@
 
 (defn ^:private argument-subparser-kwargs
   [config]
-  {:help         (:description config)
+  {:help         (:help config)
    :description  (:description config)
+   :aliases      (:aliases config)
    :usage        (:usage config)
    :epilog       (:epilogue config)
    :add-help     (:include-help config true)
@@ -360,7 +361,46 @@
                 :help "Add extra foos into the bars."}]
 
    ;; Subcommands which will be added to the parser. Default nil.
-   :commands []})
+   :commands [{;; The name of the command as it should appear in the CLI. Required.
+               :command "do-foo"
+
+               ;; A vector of valid aliases which will be accepted for the
+               ;; subcommand. Default [].
+               :aliases ["foo" "df"]
+
+               ;; The description which appears immediately under the usage text
+               ;; for this subcommand's help text. Optional.
+               :description "This command does the foo."
+
+               ;; The short help text which appears beside this subcommand on
+               ;; the parent command's help text. Optional.
+               :help "Does the foo"
+
+               ;; The usage message emitted when invalid arguments are provided or
+               ;; when printing the help text. If nil is provided, the usage
+               ;; message will be calculated automatically by the arguments and
+               ;; commands provided.
+               :usage "%(prog)s [options]"
+
+               ;; The text which appears beneath the generated help message.
+               ;; Optional.
+               :epilogue ""
+
+               ;; If true, include the `-h/--help` commands by default. Default
+               ;; true.
+               :include-help true
+
+               ;; If true, allow abbreviations for unambiguous partial flags.
+               ;; Default true.
+               :allow-abbrev true
+
+               ;; Arguments which apply to this specific subcommand. Default nil.
+               :arguments []
+
+               ;; Subcommands which will be added to the parser for this
+               ;; subcommand (which can have it's own subcommands and so on...).
+               ;; Default nil.
+               :commands []}]})
 
 (defn cli-parser
   "Create a CLI argument parser from the configuration map.
