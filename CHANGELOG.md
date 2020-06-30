@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added the current Python version (`:lpy36`, `:lpy37`, etc.) as a default reader feature for reader conditionals (#585)
  * Added default reader features for matching Python version ranges (`:lpy36+`, `:lpy38-`, etc.) (#593)
  * Added `lazy-cat` function for lazily concatenating sequences (#588)
+ * Added CLI argument parser in `basilisp.cli-tools` namespace (#535)
 
 ### Changed
  * Moved `basilisp.lang.runtime.to_seq` to `basilisp.lang.seq` so it can be used within that module and by `basilisp.lang.runtime` without circular import (#588)
@@ -43,7 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for generically diffing Basilisp data structures in `basilisp.data` namespace (#555)
  * Added support for artificially abstract bases classes in `deftype`, `defrecord`, and `reify` types (#565)
  * Added support for transient maps, sets, and vectors (#568)
- * Added CLI argument parser in `basilisp.cli-tools` namespace (#535)
 
 ### Changed
  * Basilisp set and map types are now backed by the HAMT provided by `immutables` (#557)
