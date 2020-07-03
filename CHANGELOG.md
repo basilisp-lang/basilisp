@@ -20,10 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Keyword hashes are now pre-computed when they are created, so they do not need to be recomputed again to be fetched from the intern cache (#592)
  * The compiler now uses the pre-computed hash to lookup keywords directly, which should improve lookup time for repeated invocations (#592)
  * Symbol hashes are now pre-computed when they are created (#592)
+ * Moved `basilisp.core.template` to `basilisp.template` to match Clojure (#599)
 
 ### Fixed
  * Fixed a bug where `def` forms did not permit recursive references to the `def`'ed Vars (#578)
  * Fixed a bug where `concat` could cause a `RecursionEror` if used on a `LazySeq` instance which itself calls `concat` (#588)
+ * Fixed a bug where map literals in function reader macro forms caused errors during reading (#599)
+ * Fixed a bug where `some->` and `some->>` threading macros would thread `nil` first arguments (#599)
 
 ### Removed
  * Removed `pyfunctional` dependency in favor of Python standard library functions (#589)
