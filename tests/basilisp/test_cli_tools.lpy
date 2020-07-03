@@ -63,8 +63,12 @@
     :commands    [{:command     "run"
                    :description "Run a Basilisp script from a file or run Basilisp code directly."
                    :help        "run a Basilisp script or code"
+                   :handler     identity
                    :arguments   [{:name "file-or-code"
                                   :help "the filename or, if using -c the code, to execute"}
+                                 {:flags   ["--in-ns"]
+                                  :help    "namespace to run the code in"
+                                  :default "basilisp.user"}
                                  {:flags     ["-c" "--code"]
                                   :help      "if provided, treat argument as a string of code"
                                   :default   false
@@ -72,9 +76,11 @@
 
                                  {:flags ["--warn-on-shadowed-name"]
                                   :help  "if provided, emit warnings if a local name is shadowed by another local name"
+                                  :nargs 0
                                   :env   "BASILISP_WARN_ON_SHADOWED_NAME"
                                   :group "compiler flags"}
                                  {:flags ["--warn-on-shadowed-var"]
                                   :help  "if provided, emit warnings if a Var name is shadowed by a local name"
+                                  :nargs 0
                                   :env   "BASILISP_WARN_ON_SHADOWED_VAR"
                                   :group "compiler flags"}]}]}))

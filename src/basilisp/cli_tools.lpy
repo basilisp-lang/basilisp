@@ -110,7 +110,7 @@
        (python/vars)
        (.items)
        (remove #{"dest"})
-       (mapcat (fn [[k v]] [(keyword (basilisp.lang.util/demunge k)) v]))
+       (mapcat (fn [[k v]] [(keyword (demunge k)) v]))
        (apply hash-map)))
 
 ;; Deep inside of argparse, they create actions using the `action_class(**kwargs)`
@@ -134,7 +134,7 @@
          (-> (wrapped-namespace namespace)
              (assoc-fn dest values)))
         (__getattr__ [self name]
-          (let [k (keyword (basilisp.lang.util/demunge name))]
+          (let [k (keyword (demunge name))]
             (if (contains? kwargs k)
               (get kwargs k)
               (throw (python/AttributeError
@@ -158,7 +158,7 @@
          (-> (wrapped-namespace namespace)
              (update dest update-fn)))
         (__getattr__ [self name]
-          (let [k (keyword (basilisp.lang.util/demunge name))]
+          (let [k (keyword (demunge name))]
             (if (contains? kwargs k)
               (get kwargs k)
               (throw (python/AttributeError
@@ -171,18 +171,35 @@
   an exception will be thrown. If neither is provided, a default assoc action will
   be returned using `assoc` as the function."
   [{:keys [assoc-fn update-fn]}]
-  (when (and assoc-fn update-fn)
-    (throw
-     (ex-info (str "Arguments may only specify either an :assoc-fn or "
-                   "an :update-fn, not both")
-              {:assoc-fn  assoc-fn
-               :update-fn update-fn})))
   (if update-fn
     (cli-tools-update-action update-fn)
     (cli-tools-assoc-action (or assoc-fn assoc))))
 
+(defn ^:private validate-argument
+  [{:keys [name flags nargs assoc-fn update-fn] :as argument}]
+  (when (and name flags)
+    (throw
+     (ex-info (str "Arguments may either be positional (via :name) or "
+                   "optional (via :flags), not both")
+              {:name  name
+               :flags flags})))
+  (when update-fn
+    (when assoc-fn
+      (throw
+       (ex-info (str "Arguments may only specify either an :assoc-fn or "
+                     "an :update-fn, not both")
+                {:assoc-fn  assoc-fn
+                 :update-fn update-fn})))
+    (when nargs
+      (throw
+       (ex-info (str "Arguments may only specify either an :update-fn or "
+                     ":nargs, not both")
+                {:assoc-fn  assoc-fn
+                 :update-fn update-fn})))))
+
 (defn ^:private add-argument
   [parser argument]
+  (validate-argument argument)
   (let [;; ArgumentParser has a "type" function which can convert the string value
         ;; from the CLI into its final value. We decompose that into a parse and
         ;; validate step in the argument config and re-compose those steps here.
@@ -197,15 +214,20 @@
                         validate-fn (comp validate-fn))
                       validate-fn)
 
+        default (if-let [val-from-env (some-> (:env argument) (os/getenv))]
+                  val-from-env
+                  (:default argument))
+
         ;; Python's ArgumentParser.add_argument method takes variadic positional
         ;; arguments _and_ keyword arguments, which is a challenging combination
         ;; to call via Basilisp, so we create a partial of the method with the
         ;; kwargs then (apply method args) for the potentially variadic positionals.
-        method (->> {:default (if-let [val-from-env (some-> (:env argument) (os/getenv))]
-                                val-from-env
-                                (:default argument))
+        method (->> {:default default
+                     :const   default
                      :action  (cli-tools-action argument)
-                     :nargs   (if (:update-fn argument) 0 "?")
+                     :nargs   (if-let [nargs (:nargs argument)]
+                                (cond-> nargs (keyword? nargs) (name))
+                                (if (:update-fn argument) 0 "?"))
                      :type    type-fn
                      :metavar (when-let [metavar (:metavar argument)]
                                 (cond-> metavar
@@ -214,16 +236,21 @@
                     (partial-kw (.-add-argument parser)))
         name   (:name argument)
         flags  (:flags argument)]
-    (when (and name flags)
-      (throw
-       (ex-info (str "Arguments may either be positional (via :name) or "
-                     "optional (via :flags), not both")
-                {:name  name
-                 :flags flags})))
     (if name
       (method name)
       (apply method flags))
     nil))
+
+(def ^:dynamic *create-default-handler*
+  "A function of one argument expecting an `argparse/ArgumentParser` instance
+  which returns a function of one argument which will receive the parsed arguments
+  from the CLI.
+
+  Override this to control how default handlers are generated."
+  (fn [parser]
+    (fn [_]
+      (.print-help parser)
+      (sys/exit 1))))
 
 (defn ^:private setup-parser
   "Set up the command parser from the configuration map."
@@ -265,6 +292,10 @@
       ;; All other arguments
       (doseq [argument (:normal groups)]
         (add-argument parser argument))))
+  ;; Configure either the given handler or a default handler.
+  (let [handler (or (:handler config)
+                    (*create-default-handler* parser))]
+    (.set-defaults parser ** :handler handler))
   nil)
 
 ;; Config map spec
@@ -277,6 +308,14 @@
 
    ;; The description which appears immediately under the usage text. Optional.
    :description "This command foos the bars."
+
+   ;; A function of one argument which receives the parsed arguments as a map
+   ;; and which can direct further action based on the arguments. Handlers
+   ;; can be defined on the top-level command and on any subcommands. If no
+   ;; handler is defined, a default one will be provided which prints the help
+   ;; text for the command or subcommand and exits the program with a non-zero
+   ;; error code.
+   :handler identity
 
    ;; The usage message emitted when invalid arguments are provided or when
    ;; printing the help text. If nil is provided, the usage message will be
@@ -300,6 +339,12 @@
                 ;; The flags for an optional argument. Mutually exclusive with
                 ;; the `:name` key.
                 :flags ["-f" "--foo"]
+
+                ;; The style of argument. Arguments may be defined in one of three
+                ;; styles. `:positional` arguments are the default type for
+                ;; positional style arguments. They consume 1 argument from the
+                ;; input and
+                :style :flag
 
                 ;; A function of one string argument which returns the intended
                 ;; final value. Default nil.
@@ -341,7 +386,7 @@
                 :update-fn (fnil inc 0)
 
                 ;; Either a string value or vector of strings used to refer to
-                ;; expected arguments generated help text message.
+                ;; expected arguments generated help text message. Optional.
                 :metavar "FOO"
 
                 ;; Arguments may be specified to be part of an exclusive group,
@@ -376,6 +421,10 @@
                ;; the parent command's help text. Optional.
                :help "Does the foo"
 
+               ;; A function of one argument with the same semantics as described
+               ;; in the top-level command `:handler` key.
+               :handler identity
+
                ;; The usage message emitted when invalid arguments are provided or
                ;; when printing the help text. If nil is provided, the usage
                ;; message will be calculated automatically by the arguments and
@@ -402,15 +451,35 @@
                ;; Default nil.
                :commands []}]})
 
+(defn file-type
+  "Return a type function for a file-typed argument. The `mode` must be specified
+  and must be one of the allowed modes for Python's `open` builtin.
+
+  If the user supplies the value '-', this function intelligently opens either
+  `*in*` for read-mode files or `*out*` for write-mode files.
+
+  This function also supports the `bufsize`, `encoding`, and `errors` options of
+  `open`."
+  ([mode]
+   (argparse/FileType mode))
+  ([mode & {:as opts}]
+   (apply-kw argparse/FileType mode opts)))
+
+(defn ^:private cli-parser?
+  [o]
+  (instance? argparse/ArgumentParser o))
+
 (defn cli-parser
   "Create a CLI argument parser from the configuration map.
 
   Configuration maps have the following spec"
-  [config]
-  (let [parser (->> (argument-parser-kwargs config)
-                    (apply-kw argparse/ArgumentParser))]
-    (setup-parser parser config)
-    parser))
+  [parser-or-config]
+  (if (cli-parser? parser-or-config)
+    parser-or-config
+    (doto (->> parser-or-config
+               (argument-parser-kwargs)
+               (apply-kw argparse/ArgumentParser))
+      (setup-parser parser-or-config))))
 
 (defn parse-args
   "Parse command line arguments using the supplied parser or CLI tools configuration
@@ -418,15 +487,40 @@
   ([parser-or-config]
    (parse-args parser-or-config sys/argv))
   ([parser-or-config args]
-   (let [parser (cond-> parser-or-config
-                  (map? parser-or-config) (cli-parser))]
-     (-> (.parse-args parser args)
-         (python/vars)
-         (py->lisp)))))
+   (-> (cli-parser parser-or-config)
+       (.parse-args args)
+       (python/vars)
+       (.items)
+       (->> (reduce (fn [m [k v]]
+                      (assoc! m (keyword (demunge k)) v))
+                    (transient {})))
+       (persistent!))))
+
+(defn ^:private execute-handler
+  "Execute the handler defined in the arguments.
+
+  If no handler is defined, print the help for the parser and exit with error code 1."
+  [{:keys [handler] :as parsed-args}]
+  (handler parsed-args))
+
+(defn handle-args
+  "Parse command line arguments using the supplied parser or CLI tools configuration
+  map (as by `parse-args`) and execute any command or sub-command handlers for the
+  parsed arguments.
+
+  If no `args` are given, parse the arguments from Python's `sys/argv`."
+  ([parser-or-config]
+   (-> (cli-parser parser-or-config)
+       (parse-args)
+       (execute-handler)))
+  ([parser-or-config args]
+   (->(cli-parser parser-or-config)
+      (parse-args args)
+      (execute-handler))))
 
 (defmacro run-cli
   "Create a new command-line parser using the configuration `config` and run it
   automatically if this namespace is called as the Python `__main__`."
   [config]
-  `(when (= --name-- "__main__")
-     (parse-args ~config)))
+  `(when (= __name__ "__main__")
+     (handle-args ~config)))

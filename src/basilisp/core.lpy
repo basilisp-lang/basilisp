@@ -4661,6 +4661,11 @@
   [s]
   (basilisp.lang.util/munge s))
 
+(defn demunge
+  "De-munge a Python-safe string identifier into a Lisp identifier."
+  [s]
+  (basilisp.lang.util/demunge s))
+
 (def namespace-munge
   "Convert a Basilisp namespace name to a valid Python name."
   munge)
