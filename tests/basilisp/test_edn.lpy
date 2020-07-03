@@ -1,4 +1,4 @@
-(ns basilisp.test-edn
+(ns tests.basilisp.test-edn
   (:require
    [basilisp.edn :as edn]
    [basilisp.test :refer [deftest are is testing]]))

@@ -1,4 +1,4 @@
-(ns tests.basilisp.walk-test
+(ns tests.basilisp.test-walk
   (:require
    [basilisp.test :refer [deftest is testing]]
    [basilisp.walk :as walk]))
@@ -104,9 +104,9 @@
   `(pl ~c1 (minus ~c1 ~c2)))
 
 (deftest macroexpand-all-test
-  (is (= '(tests.basilisp.walk-test/pl 20 (tests.basilisp.walk-test/minus 20 30))
+  (is (= '(tests.basilisp.test-walk/pl 20 (tests.basilisp.test-walk/minus 20 30))
          (macroexpand-1 '(calc 20 30))))
-  (is (= '(basilisp.core/+ 20 (tests.basilisp.walk-test/minus 20 30))
+  (is (= '(basilisp.core/+ 20 (tests.basilisp.test-walk/minus 20 30))
          (macroexpand '(calc 20 30))))
   (is (= '(basilisp.core/+ 20 (basilisp.core/- 20 30))
          (walk/macroexpand-all '(calc 20 30)))))

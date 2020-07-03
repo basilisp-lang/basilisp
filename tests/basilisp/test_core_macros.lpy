@@ -563,18 +563,22 @@
   (is (= 2 (some-> 1 inc)))
   (is (= 1 (some-> 1 inc dec)))
   (is (= 4 (some-> 10 inc (- 7))))
+  (is (= "the-key" (some-> (:key {:key :the-key}) (name))))
 
   (is (= nil (some-> {:a 3} :b inc)))
-  (is (= 4 (some-> {:a 3} :a inc))))
+  (is (= 4 (some-> {:a 3} :a inc)))
+  (is (= nil (some-> (:key {}) (name)))))
 
 (deftest some->>-test
   (is (= :a (some->> :a)))
   (is (= 2 (some->> 1 inc)))
   (is (= 1 (some->> 1 inc dec)))
   (is (= -4 (some->> 10 inc (- 7))))
+  (is (= "the-key" (some->> (:key {:key :the-key}) (name))))
 
   (is (= nil (some->> {:a 3} :b (- 7))))
-  (is (= 5 (some->> {:a 3} :a (- 8)))))
+  (is (= 5 (some->> {:a 3} :a (- 8))))
+  (is (= nil (some->> (:key {}) (name)))))
 
 (deftest cond->-test
   (is (= 1 (cond-> 1)))

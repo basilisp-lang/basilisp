@@ -1157,6 +1157,13 @@ def test_function_reader_macro():
         ),
         llist.l(sym.symbol("identity"), sym.symbol("arg-3"), sym.symbol("arg-rest")),
     )
+    assert read_str_first("#(identity {:arg %})") == llist.l(
+        sym.symbol("fn*"),
+        vec.v(sym.symbol("arg-1"),),
+        llist.l(
+            sym.symbol("identity"), lmap.map({kw.keyword("arg"): sym.symbol("arg-1")})
+        ),
+    )
 
     with pytest.raises(reader.SyntaxError):
         read_str_first("#(identity #(%1 %2))")
