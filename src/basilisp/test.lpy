@@ -2,7 +2,7 @@
   (:import
    inspect)
   (:require
-   [basilisp.core.template :as template]))
+   [basilisp.template :as template]))
 
 (def ^:private current-test-number
   (atom 0))

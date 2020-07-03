@@ -1,4 +1,4 @@
-(ns basilisp.core.template
+(ns basilisp.template
   (:require
    [basilisp.walk :refer [postwalk-replace]]))
 
