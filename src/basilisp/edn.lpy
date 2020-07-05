@@ -499,7 +499,9 @@
 
 (defprotocol EDNEncodeable
   (write* [this writer]
-    "Write the EDN encoded `this` to the stream `writer`."))
+    "Write the object `this` to the stream `writer` encoded as EDN.
+
+     Writer will be a file-like object supporting a `.write()` method."))
 
 (defn ^:private write-seq
   [e writer start-token end-token]
