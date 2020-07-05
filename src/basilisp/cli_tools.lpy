@@ -214,26 +214,18 @@
                         validate-fn (comp validate-fn))
                       validate-fn)
 
-        default (if-let [val-from-env (some-> (:env argument) (os/getenv))]
-                  val-from-env
-                  (:default argument))
+        ;; Prepare the keyword arguments for ArgumentParser.add_argument:type    type-fn
+                        :metavar (when-let [metavar (:metavar argument)]
+                                   (cond-> metavar
+                                     (vector? metavar) (python/tuple)))
+                        :help    (:help argument)}
+                 )
 
         ;; Python's ArgumentParser.add_argument method takes variadic positional
         ;; arguments _and_ keyword arguments, which is a challenging combination
         ;; to call via Basilisp, so we create a partial of the method with the
         ;; kwargs then (apply method args) for the potentially variadic positionals.
-        method (->> {:default default
-                     :const   default
-                     :action  (cli-tools-action argument)
-                     :nargs   (if-let [nargs (:nargs argument)]
-                                (cond-> nargs (keyword? nargs) (name))
-                                (if (:update-fn argument) 0 "?"))
-                     :type    type-fn
-                     :metavar (when-let [metavar (:metavar argument)]
-                                (cond-> metavar
-                                  (vector? metavar) (python/tuple)))
-                     :help    (:help argument)}
-                    (partial-kw (.-add-argument parser)))
+        method (partial-kw (.-add-argument parser) kwargs)
         name   (:name argument)
         flags  (:flags argument)]
     (if name
@@ -340,11 +332,7 @@
                 ;; the `:name` key.
                 :flags ["-f" "--foo"]
 
-                ;; The style of argument. Arguments may be defined in one of three
-                ;; styles. `:positional` arguments are the default type for
-                ;; positional style arguments. They consume 1 argument from the
-                ;; input and
-                :style :flag
+                :nargs nil
 
                 ;; A function of one string argument which returns the intended
                 ;; final value. Default nil.
