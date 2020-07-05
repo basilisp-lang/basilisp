@@ -509,11 +509,13 @@
     (when (pos? i)
       (.write writer " "))
     (write* v writer))
-  (.write writer end-token))
+  (.write writer end-token)
+  nil)
 
 (defn ^:private write-scalar
   [e writer]
-  (.write writer (repr e)))
+  (.write writer (repr e))
+  nil)
 
 (extend-protocol EDNEncodeable
   basilisp.lang.interfaces/IPersistentMap
@@ -526,7 +528,8 @@
       (write* k writer)
       (.write writer " ")
       (write* v writer))
-    (.write writer "}"))
+    (.write writer "}")
+    nil)
   basilisp.lang.interfaces/IPersistentList
   (write* [this writer]
     (write-seq this writer "(" ")"))
@@ -536,15 +539,30 @@
   basilisp.lang.interfaces/IPersistentVector
   (write* [this writer]
     (write-seq this writer "[" "]"))
+
+  ;; Use a custom implementation for symbols and strings rather than `write-scalar`
+  ;; to avoid picking up any of the dynamic Vars which affect `repr` calls.
+  ;; These could include things like writing metadata (which is not supported by
+  ;; the EDN spec) or print strings without quotes, which would obviously screw
+  ;; up the emitted EDN.
   basilisp.lang.symbol/Symbol
   (write* [this writer]
     (if-let [ns (namespace this)]
       (.write (str (namespace this) "/" (name this)))
-      (.write (str (name this))))))
+      (.write (str (name this))))
+    nil)
+  python/str
+  (write* [this writer]
+    (let [encoded (-> this
+                      (.encode "unicode_escape")
+                      (.decode "utf-8"))]
+      (.write writer "\"")
+      (.write writer encoded)
+      (.write writer "\"")
+      nil)))
 
 (extend basilisp.lang.keyword/Keyword EDNEncodeable {:write* write-scalar})
 
-(extend python/str   EDNEncodeable {:write* write-scalar})
 (extend python/int   EDNEncodeable {:write* write-scalar})
 (extend python/float EDNEncodeable {:write* write-scalar})
 (extend python/bool  EDNEncodeable {:write* write-scalar})
