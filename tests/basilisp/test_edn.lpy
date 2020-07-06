@@ -367,3 +367,38 @@
     "Regular string"               "\"Regular string\""
     "String with 'inner string'"   "\"String with 'inner string'\""
     "String with \"inner string\"" "\"String with \"inner string\"\""))
+
+(deftest write-dispatch
+  (are [v s] (= s (edn/write-string v))
+    #inst "2018-01-18T03:26:57.296-00:00"        "#inst \"2018-01-18T03:26:57.296000+00:00\""
+    #uuid "4ba98ef0-0620-4966-af61-f0f6c2dbf230" "#uuid \"4ba98ef0-0620-4966-af61-f0f6c2dbf230\""))
+
+(deftest write-map
+  (are [v s] (= s (edn/write-string v))
+    {}                      "{}"
+    {:a 1}                  "{:a 1}"
+    {:a {:b 1}}             "{:a {:b 1}}"
+    {:a [true false 1 2 3]} "{:a [true false 1 2 3]}"
+    {:b '(:a 5 "string")}   "{:b (:a 5 \"string\")}"))
+
+(deftest write-list
+  (are [v s] (= s (edn/write-string v))
+    '()                                      "()"
+    '(:a)                                    "(:a)"
+    '([:a])                                  "([:a])"
+    '(:a :b 3 "4")                           "(:a :b 3 \"4\")"
+    '(:a :c {:ns/kw [thing "other thing"]}) "(:a :c {:ns/kw [thing \"other thing\"]})"))
+
+(deftest write-set
+  (are [v s] (contains? s (edn/write-string v))
+    #{}        #{"#{}"}
+    #{:a}      #{"#{:a}"}
+    #{:a [:c]} #{"#{:a [:c]}" "#{[:c] :a}"}
+    #{:a :b}   #{"#{:a :b}" "#{:b a}"}))
+
+(deftest write-vector
+  (are [v s] (= s (edn/write-string v))
+    []                                        "[]"
+    [:a]                                      "[:a]"
+    [:a :a :b :c]                             "[:a :a :b :c]"
+    [:a :c {:d #{:e} :f '(1 2 3)} [:h :i :j]] "[:a :c {:d #{:e} :f (1 2 3)} [:h :i :j]]"))
