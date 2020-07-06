@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added the current Python version (`:lpy36`, `:lpy37`, etc.) as a default reader feature for reader conditionals (#585)
  * Added default reader features for matching Python version ranges (`:lpy36+`, `:lpy38-`, etc.) (#593)
  * Added `lazy-cat` function for lazily concatenating sequences (#588)
+ * Added support for writing EDN strings from `basilisp.edn` (#600)
  * Added CLI argument parser in `basilisp.cli-tools` namespace (#535)
 
 ### Changed
