@@ -412,7 +412,7 @@
     #{}        #{"#{}"}
     #{:a}      #{"#{:a}"}
     #{:a [:c]} #{"#{:a [:c]}" "#{[:c] :a}"}
-    #{:a :b}   #{"#{:a :b}" "#{:b a}"}))
+    #{:a :b}   #{"#{:a :b}" "#{:b :a}"}))
 
 (deftest write-vector
   (are [v s] (= s (edn/write-string v))
