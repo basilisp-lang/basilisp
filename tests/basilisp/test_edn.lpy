@@ -398,7 +398,7 @@
 
 (deftest write-vector
   (are [v s] (= s (edn/write-string v))
-    []                                        "[]"
-    [:a]                                      "[:a]"
-    [:a :a :b :c]                             "[:a :a :b :c]"
-    [:a :c {:d #{:e} :f '(1 2 3)} [:h :i :j]] "[:a :c {:d #{:e} :f (1 2 3)} [:h :i :j]]"))
+    []                                          "[]"
+    [:a]                                        "[:a]"
+    [:a :a :b :c]                               "[:a :a :b :c]"
+    [:a :c {:d #{:e}} {:f '(1 2 3)} [:h :i :j]] "[:a :c {:d #{:e}} {:f (1 2 3)} [:h :i :j]]"))
