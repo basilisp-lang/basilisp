@@ -253,6 +253,22 @@
 ;; Writer Tests ;;
 ;;;;;;;;;;;;;;;;;;
 
+(deftest write-base-cases
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (edn/write-string #py ())))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (edn/write-string #py #{})))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (edn/write-string #py [])))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (edn/write-string #py {})))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (edn/write-string (python/object))))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (edn/write-string 3.14M)))
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (edn/write-string 22/7))))
+
 (deftest write-constants
   (are [v s] (= s (edn/write-string v))
     nil    "nil"
