@@ -44,7 +44,9 @@
   (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
                     (edn/read-string s))
     "0..11"
-    "0.111.9"))
+    "0.111.9"
+    "##pi"
+    "##:NaN"))
 
 (deftest read-symbol
   (are [s v] (= v (edn/read-string s))
