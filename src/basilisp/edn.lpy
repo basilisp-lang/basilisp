@@ -1,6 +1,7 @@
 (ns basilisp.edn
   (:refer-basilisp :exclude [read read-string])
-  (:require [basilisp.string :as str]))
+  (:require [basilisp.string :as str])
+  (:import datetime math uuid))
 
 (declare ^:private read-next
          ^:private read-sym-or-num)
@@ -14,22 +15,37 @@
   (python/object))
 
 (def ^:private default-edn-data-readers
-  "Map of default data readers, which wrap the default readers and convert the
-  SyntaxErrors into standard ExceptionInfo types."
-  (reduce-kv (fn [m k tag-reader]
-               (assoc m k (fn [v]
-                            (try
-                              (tag-reader v)
-                              (catch basilisp.lang.reader/SyntaxError e
-                                (throw
-                                 (ex-info (get (.-args e) 0)
-                                          {:error :tag-reader-error})))))))
-             {}
-             (dissoc default-data-readers 'py)))
+  {'inst (fn [v]
+           (try
+             (basilisp.lang.util/inst-from-str v)
+             (catch python/OverflowError _
+               (throw
+                (ex-info (str "Unrecognized date/time syntax: " v)
+                         {:error :tag-reader-error})))
+             (catch python/ValueError _
+               (throw
+                (ex-info (str "Unrecognized date/time syntax: " v)
+                         {:error :tag-reader-error})))))
+   'uuid (fn [v]
+           (try
+             (basilisp.lang.util/uuid-from-str v)
+             (catch python/TypeError _
+               (throw
+                (ex-info (str "Unrecognized UUID format: " v)
+                         {:error :tag-reader-error})))
+             (catch python/ValueError _
+               (throw
+                (ex-info (str "Unrecognized UUID syntax: " v)
+                         {:error :tag-reader-error})) )))})
 
 (def ^:private eof
   "EOF marker if none is supplied."
   (python/object))
+
+(def ^:private numeric-constants
+  {'Inf  (python/float "inf")
+   '-Inf (- (python/float "inf"))
+   'NaN  (python/float "nan")})
 
 (def ^:private special-chars
   "A mapping of special character names to the characters they represent."
@@ -189,6 +205,7 @@
     (case (.peek reader)
       "_" :comment
       "{" :set
+      "#" :constant
       :tag)))
 
 (defmethod read-dispatch :comment
@@ -196,6 +213,23 @@
   (assert-starts reader "_")
   (read-next reader opts)
   comment)
+
+(defmethod read-dispatch :constant
+  [reader opts]
+  (assert-starts reader "#")
+  (let [const-sym (read-sym-or-num reader opts)]
+    (when-not (symbol? const-sym)
+      (throw
+       (ex-info "Reader constant must be a symbol"
+                {:error :reader-constant-not-symbol
+                 :type  (type const-sym)
+                 :value const-sym})))
+    (if-let [const (get numeric-constants const-sym)]
+      const
+      (throw
+       (ex-info "Unrecognized reader constant"
+                {:error :no-reader-constant-for-symbol
+                 :sym   const-sym})))))
 
 (defmethod read-dispatch :set
   [reader opts]
@@ -492,6 +526,110 @@
                 {:error :eof}))
       e)))
 
+;;;;;;;;;;;;;
+;; Writers ;;
+;;;;;;;;;;;;;
+
+(defprotocol EDNEncodeable
+  (write* [this writer]
+    "Write the object `this` to the stream `writer` encoded as EDN.
+
+     Writer will be a file-like object supporting a `.write()` method."))
+
+;; Rather than relying on the existing Lisp representations, we use custom
+;; implementations to avoid picking up any of the dynamic Vars which affect
+;; the result of `repr` calls. These include things like writing metadata or
+;; printing strings without quotes, neither of which is supported by the EDN
+;; spec.
+
+(defn ^:private write-seq
+  [e writer start-token end-token]
+  (.write writer start-token)
+  (doseq [entry (map-indexed (fn [i v] [i v]) (seq e))
+          :let  [[i v] entry]]
+    (when (pos? i)
+      (.write writer " "))
+    (write* v writer))
+  (.write writer end-token)
+  nil)
+
+(extend-protocol EDNEncodeable
+  basilisp.lang.interfaces/IPersistentMap
+  (write* [this writer]
+    (.write writer "{")
+    (doseq [entry (map-indexed (fn [i [k v]] [i k v]) (seq this))
+            :let  [[i k v] entry]]
+      (when (pos? i)
+        (.write writer " "))
+      (write* k writer)
+      (.write writer " ")
+      (write* v writer))
+    (.write writer "}")
+    nil)
+  basilisp.lang.interfaces/IPersistentList
+  (write* [this writer]
+    (write-seq this writer "(" ")"))
+  basilisp.lang.interfaces/IPersistentSet
+  (write* [this writer]
+    (write-seq this writer "#{" "}"))
+  basilisp.lang.interfaces/IPersistentVector
+  (write* [this writer]
+    (write-seq this writer "[" "]"))
+
+  basilisp.lang.keyword/Keyword
+  (write* [this writer]
+    (.write writer ":")
+    (if-let [ns (namespace this)]
+      (.write writer (str ns "/" (name this)))
+      (.write writer (str (name this))))
+    nil)
+  basilisp.lang.symbol/Symbol
+  (write* [this writer]
+    (if-let [ns (namespace this)]
+      (.write writer (str ns "/" (name this)))
+      (.write writer (str (name this))))
+    nil)
+
+  python/bool
+  (write* [this writer]
+    (.write writer (str/lower-case (python/repr this)))
+    nil)
+  python/int
+  (write* [this writer]
+    (.write writer (python/repr this))
+    nil)
+  python/float
+  (write* [this writer]
+    (->> (cond
+           (math/isinf this) (if (pos? this) "##Inf" "##-Inf")
+           (math/isnan this) "##NaN"
+           :else             (python/repr this))
+         (.write writer))
+    nil)
+  python/str
+  (write* [this writer]
+    (.write writer "\"")
+    (.write writer this)
+    (.write writer "\"")
+    nil)
+  nil
+  (write* [this writer]
+    (.write writer "nil")
+    nil)
+
+  datetime/datetime
+  (write* [this writer]
+    (.write writer "#inst \"")
+    (.write writer (.isoformat this))
+    (.write writer "\"")
+    nil)
+  uuid/UUID
+  (write* [this writer]
+    (.write writer "#uuid \"")
+    (.write writer (python/str this))
+    (.write writer "\"")
+    nil))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Public Interface ;;
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -527,3 +665,26 @@
    (when-not (and (nil? s) (= "" s))
      (-> (io/StringIO s)
          (read opts)))))
+
+(defn write
+  "Serialize the object `o` as EDN to the writer object `writer` (which must be
+  any file-like object supporting `.write()` method).
+
+  All Basilisp data structures are serializable to EDN by default. UUIDs and
+  Instants (Python `datetime`s) are also supported by default. Support for other
+  types may be added by extending the `EDNEncodeable` protocol for that type."
+  ([o]
+   (write o *out*))
+  ([o writer]
+   (write* o writer)))
+
+(defn write-string
+  "Serialize the object `o` as EDN and return the serialized object as a string.
+
+  All Basilisp data structures are serializable to EDN by default. UUIDs and
+  Instants (Python `datetime`s) are also supported by default. Support for other
+  types may be added by extending the `EDNEncodeable` protocol for that type."
+  [o]
+  (let [buf (io/StringIO "")]
+    (write o buf)
+    (.getvalue buf)))
