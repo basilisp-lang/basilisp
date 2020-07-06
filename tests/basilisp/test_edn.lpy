@@ -1,7 +1,12 @@
 (ns tests.basilisp.test-edn
   (:require
    [basilisp.edn :as edn]
-   [basilisp.test :refer [deftest are is testing]]))
+   [basilisp.test :refer [deftest are is testing]])
+  (:import math))
+
+;;;;;;;;;;;;;;;;;;
+;; Reader Tests ;;
+;;;;;;;;;;;;;;;;;;
 
 (deftest read-base-cases
   (are [s v] (= v (edn/read-string s))
@@ -31,6 +36,10 @@
     "-1.332"     -1.332
     "-1.0"       -1.0
     "-0.332"     -0.332)
+
+  (is (math/isinf (edn/read-string "##Inf")))
+  (is (math/isinf (edn/read-string "##-Inf")))
+  (is (math/isnan (edn/read-string "##NaN")))
 
   (are [s] (thrown? basilisp.lang.exception/ExceptionInfo
                     (edn/read-string s))
@@ -239,3 +248,122 @@
     "["
     "[:a"
     "[:a :b"))
+
+;;;;;;;;;;;;;;;;;;
+;; Writer Tests ;;
+;;;;;;;;;;;;;;;;;;
+
+(deftest write-constants
+  (are [v s] (= s (edn/write-string v))
+    nil    "nil"
+    true   "true"
+    false  "false"
+    ##-Inf "##-Inf"
+    ##Inf  "##Inf"
+    ##NaN  "##NaN"))
+
+(deftest write-numeric
+  (are [v s] (= s (edn/write-string v))
+    0        "0"
+    1        "1"
+    100      "100"
+    99927273 "99927273"
+    -1       "-1"
+    -538282  "-538282"
+
+    0.0        "0.0"
+    0.09387372 "0.09387372"
+    1.0        "1.0"
+    -1.332     "-1.332"
+    -1.0       "-1.0"
+    -0.332     "-0.332"))
+
+(deftest write-symbol
+  (are [v s] (= s (edn/write-string v))
+    'sym           "sym"
+    'kebab-kw      "kebab-kw"
+    'underscore_kw "underscore_kw"
+    'kw?           "kw?"
+    '+             "+"
+    '?             "?"
+    '=             "="
+    '!             "!"
+    '-             "-"
+    '*             "*"
+    '/             "/"
+    '>             ">"
+    '->            "->"
+    '->>           "->>"
+    '-->           "-->"
+    '<             "<"
+    '<-            "<-"
+    '<--           "<--"
+    '<body>        "<body>"
+    '*muffs*       "*muffs*"
+    'yay!          "yay!"
+    '.interop      ".interop"
+    'ns.name       "ns.name"
+
+    'ns/sym                  "ns/sym"
+    'qualified.ns/sym        "qualified.ns/sym"
+    'really.qualified.ns/sym "really.qualified.ns/sym"))
+
+(deftest write-keyword
+  (are [v s] (= s (edn/write-string v))
+    :kw               ":kw"
+    :kebab-kw         ":kebab-kw"
+    :underscore_kw    ":underscore_kw"
+    :kw?              ":kw?"
+    :+                ":+"
+    :?                ":?"
+    :=                ":="
+    :!                ":!"
+    :-                ":-"
+    :*                ":*"
+    :/                ":/"
+    :>                ":>"
+    :->               ":->"
+    :->>              ":->>"
+    :-->              ":-->"
+    :---------------> ":--------------->"
+    :<                ":<"
+    :<-               ":<-"
+    :<--              ":<--"
+    :<body>           ":<body>"
+    :*muffs*          ":*muffs*"
+    :yay!             ":yay!"
+
+    :ns/kw                   ":ns/kw"
+    :qualified.ns/kw         ":qualified.ns/kw"
+    :really.qualified.ns/kw ":really.qualified.ns/kw"))
+
+(deftest write-character
+  (are [v s] (= s (edn/write-string v))
+    \a "\"a\""
+    \Ω "\"Ω\""
+
+    \u03A9 "\"Ω\""
+
+    \space   "\" \""
+    \newline "\"\n\""
+    \tab     "\"\t\""
+    \return  "\"\r\""))
+
+(deftest write-string
+  (are [v s] (= s (edn/write-string v))
+    ""   "\"\""
+    " "  "\" \""
+    "\"" "\"\"\""
+    "\\" "\"\\\""
+    "\a" "\"\a\""
+    "\b" "\"\b\""
+    "\f" "\"\f\""
+    "\n" "\"\n\""
+    "\r" "\"\r\""
+    "\t" "\"\t\""
+    "\v" "\"\v\""
+
+    "Hello,\nmy name is\tChris."   "\"Hello,\nmy name is\tChris.\""
+    "Regular string"               "\"Regular string\""
+    "String with 'inner string'"   "\"String with 'inner string'\""
+    "String with \"inner string\"" "\"String with \"inner string\"\""))

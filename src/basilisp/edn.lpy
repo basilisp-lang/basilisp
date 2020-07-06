@@ -1,7 +1,7 @@
 (ns basilisp.edn
   (:refer-basilisp :exclude [read read-string])
   (:require [basilisp.string :as str])
-  (:import datetime uuid))
+  (:import datetime math uuid))
 
 (declare ^:private read-next
          ^:private read-sym-or-num)
@@ -15,22 +15,37 @@
   (python/object))
 
 (def ^:private default-edn-data-readers
-  "Map of default data readers, which wrap the default readers and convert the
-  SyntaxErrors into standard ExceptionInfo types."
-  (reduce-kv (fn [m k tag-reader]
-               (assoc m k (fn [v]
-                            (try
-                              (tag-reader v)
-                              (catch basilisp.lang.reader/SyntaxError e
-                                (throw
-                                 (ex-info (get (.-args e) 0)
-                                          {:error :tag-reader-error})))))))
-             {}
-             (dissoc default-data-readers 'py)))
+  {'inst (fn [v]
+           (try
+             (basilisp.lang.util/inst-from-str v)
+             (catch python/OverflowError _
+               (throw
+                (ex-info (str "Unrecognized date/time syntax: " v)
+                         {:error :tag-reader-error})))
+             (catch python/ValueError _
+               (throw
+                (ex-info (str "Unrecognized date/time syntax: " v)
+                         {:error :tag-reader-error})))))
+   'uuid (fn [v]
+           (try
+             (basilisp.lang.util/uuid-from-str v)
+             (catch python/TypeError _
+               (throw
+                (ex-info (str "Unrecognized UUID format: " v)
+                         {:error :tag-reader-error})))
+             (catch python/ValueError _
+               (throw
+                (ex-info (str "Unrecognized UUID syntax: " v)
+                         {:error :tag-reader-error})) )))})
 
 (def ^:private eof
   "EOF marker if none is supplied."
   (python/object))
+
+(def ^:private numeric-constants
+  {'Inf  (python/float "inf")
+   '-Inf (- (python/float "inf"))
+   'NaN  (python/float "nan")})
 
 (def ^:private special-chars
   "A mapping of special character names to the characters they represent."
@@ -190,6 +205,7 @@
     (case (.peek reader)
       "_" :comment
       "{" :set
+      "#" :constant
       :tag)))
 
 (defmethod read-dispatch :comment
@@ -197,6 +213,23 @@
   (assert-starts reader "_")
   (read-next reader opts)
   comment)
+
+(defmethod read-dispatch :constant
+  [reader opts]
+  (assert-starts reader "#")
+  (let [const-sym (read-sym-or-num reader opts)]
+    (when-not (symbol? const-sym)
+      (throw
+       (ex-info "Reader constant must be a symbol"
+                {:error :reader-constant-not-symbol
+                 :type  (type const-sym)
+                 :value const-sym})))
+    (if-let [const (get numeric-constants const-sym)]
+      const
+      (throw
+       (ex-info "Unrecognized reader constant"
+                {:error :no-reader-constant-for-symbol
+                 :sym   const-sym})))))
 
 (defmethod read-dispatch :set
   [reader opts]
@@ -503,6 +536,12 @@
 
      Writer will be a file-like object supporting a `.write()` method."))
 
+;; Rather than relying on the existing Lisp representations, we use custom
+;; implementations to avoid picking up any of the dynamic Vars which affect
+;; the result of `repr` calls. These include things like writing metadata or
+;; printing strings without quotes, neither of which is supported by the EDN
+;; spec.
+
 (defn ^:private write-seq
   [e writer start-token end-token]
   (.write writer start-token)
@@ -512,11 +551,6 @@
       (.write writer " "))
     (write* v writer))
   (.write writer end-token)
-  nil)
-
-(defn ^:private write-scalar
-  [e writer]
-  (.write writer (repr e))
   nil)
 
 (extend-protocol EDNEncodeable
@@ -542,36 +576,59 @@
   (write* [this writer]
     (write-seq this writer "[" "]"))
 
-  ;; Use a custom implementation for symbols and strings rather than `write-scalar`
-  ;; to avoid picking up any of the dynamic Vars which affect `repr` calls.
-  ;; These could include things like writing metadata (which is not supported by
-  ;; the EDN spec) or print strings without quotes, which would obviously screw
-  ;; up the emitted EDN.
+  basilisp.lang.keyword/Keyword
+  (write* [this writer]
+    (.write writer ":")
+    (if-let [ns (namespace this)]
+      (.write writer (str ns "/" (name this)))
+      (.write writer (str (name this))))
+    nil)
   basilisp.lang.symbol/Symbol
   (write* [this writer]
     (if-let [ns (namespace this)]
-      (.write (str (namespace this) "/" (name this)))
-      (.write (str (name this))))
+      (.write writer (str ns "/" (name this)))
+      (.write writer (str (name this))))
+    nil)
+
+  python/bool
+  (write* [this writer]
+    (.write writer (str/lower-case (python/repr this)))
+    nil)
+  python/int
+  (write* [this writer]
+    (.write writer (python/repr this))
+    nil)
+  python/float
+  (write* [this writer]
+    (->> (cond
+           (math/isinf this) (if (pos? this) "##Inf" "##-Inf")
+           (math/isnan this) "##NaN"
+           :else             (python/repr this))
+         (.write writer))
     nil)
   python/str
   (write* [this writer]
-    (let [encoded (-> this
-                      (.encode "unicode_escape")
-                      (.decode "utf-8"))]
-      (.write writer "\"")
-      (.write writer encoded)
-      (.write writer "\"")
-      nil)))
+    (.write writer "\"")
+    (.write writer this)
+    (.write writer "\"")
+    nil)
+  nil
+  (write* [this writer]
+    (.write writer "nil")
+    nil)
 
-(extend basilisp.lang.keyword/Keyword EDNEncodeable {:write* write-scalar})
-
-(extend python/int   EDNEncodeable {:write* write-scalar})
-(extend python/float EDNEncodeable {:write* write-scalar})
-(extend python/bool  EDNEncodeable {:write* write-scalar})
-(extend nil          EDNEncodeable {:write* write-scalar})
-
-(extend datetime/datetime  EDNEncodeable {:write* write-scalar})
-(extend uuid/UUID          EDNEncodeable {:write* write-scalar})
+  datetime/datetime
+  (write* [this writer]
+    (.write writer "#inst \"")
+    (.write writer (.isoformat this))
+    (.write writer "\"")
+    nil)
+  uuid/UUID
+  (write* [this writer]
+    (.write writer "#uuid \"")
+    (.write writer (python/str this))
+    (.write writer "\"")
+    nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Public Interface ;;
