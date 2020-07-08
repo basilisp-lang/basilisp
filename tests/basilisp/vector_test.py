@@ -135,8 +135,8 @@ def test_vector_meta():
 
 
 def test_vector_with_meta():
-    vec = vec.v("vec")
-    assert vec.meta is None
+    vec0 = vec.v("vec")
+    assert vec0.meta is None
 
     meta1 = lmap.m(type=symbol("str"))
     vec1 = vec.v("vec", meta=meta1)
