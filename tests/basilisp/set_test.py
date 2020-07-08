@@ -3,8 +3,8 @@ import typing
 
 import pytest
 
-import basilisp.lang.map as lmap
-import basilisp.lang.set as lset
+from basilisp.lang import map as lmap
+from basilisp.lang import set as lset
 from basilisp.lang.interfaces import (
     ICounted,
     ILispObject,

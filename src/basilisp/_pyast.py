@@ -1,5 +1,5 @@
 import sys
-from ast import (  # noqa
+from ast import (
     AST,
     Add,
     And,
@@ -64,7 +64,9 @@ from ast import (  # noqa
     LtE,
     MatMult,
     Mod,
-    Module as _Module,
+)
+from ast import Module as _Module  # noqa
+from ast import (
     Mult,
     Name,
     NameConstant,
@@ -102,7 +104,9 @@ from ast import (  # noqa
     YieldFrom,
     alias,
     arg,
-    arguments as _arguments,
+)
+from ast import arguments as _arguments
+from ast import (
     boolop,
     cmpop,
     comprehension,

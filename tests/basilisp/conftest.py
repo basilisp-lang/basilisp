@@ -3,10 +3,10 @@ from typing import Dict, Optional
 
 import pytest
 
-import basilisp.lang.compiler as compiler
-import basilisp.lang.reader as reader
-import basilisp.lang.runtime as runtime
-import basilisp.lang.symbol as sym
+from basilisp.lang import compiler as compiler
+from basilisp.lang import reader as reader
+from basilisp.lang import runtime as runtime
+from basilisp.lang import symbol as sym
 from tests.basilisp.helpers import CompileFn, get_or_create_ns
 
 

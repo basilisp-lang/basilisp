@@ -6,11 +6,11 @@ from typing import Any
 import click
 import pytest
 
-import basilisp.lang.compiler as compiler
-import basilisp.lang.reader as reader
-import basilisp.lang.runtime as runtime
-import basilisp.lang.symbol as sym
-import basilisp.main as basilisp
+from basilisp import main as basilisp
+from basilisp.lang import compiler as compiler
+from basilisp.lang import reader as reader
+from basilisp.lang import runtime as runtime
+from basilisp.lang import symbol as sym
 from basilisp.prompt import get_prompter
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"

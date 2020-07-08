@@ -4,13 +4,13 @@ from typing import Callable, Iterable, Optional
 
 import pytest
 
-import basilisp.lang.compiler as compiler
-import basilisp.lang.keyword as kw
-import basilisp.lang.map as lmap
-import basilisp.lang.runtime as runtime
-import basilisp.lang.symbol as sym
-import basilisp.lang.vector as vec
-import basilisp.main as basilisp
+from basilisp import main as basilisp
+from basilisp.lang import compiler as compiler
+from basilisp.lang import keyword as kw
+from basilisp.lang import map as lmap
+from basilisp.lang import runtime as runtime
+from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
 from basilisp.util import Maybe
 

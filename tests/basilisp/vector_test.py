@@ -2,8 +2,8 @@ import pickle
 
 import pytest
 
-import basilisp.lang.map as lmap
-import basilisp.lang.vector as vector
+from basilisp.lang import map as lmap
+from basilisp.lang import vector as vector
 from basilisp.lang.interfaces import (
     IAssociative,
     ICounted,

@@ -3,9 +3,9 @@ from typing import Optional, Union
 
 import attr
 
-import basilisp._pyast as ast
-import basilisp.lang.keyword as kw
-import basilisp.lang.map as lmap
+from basilisp import _pyast as ast
+from basilisp.lang import keyword as kw
+from basilisp.lang import map as lmap
 from basilisp.lang.compiler.nodes import Node
 from basilisp.lang.interfaces import IExceptionInfo, IMeta, IPersistentMap, ISeq
 from basilisp.lang.obj import lrepr

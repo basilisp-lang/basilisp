@@ -1,6 +1,6 @@
 from typing import Any, Callable, Tuple
 
-import basilisp.lang.symbol as sym
+from basilisp.lang import symbol as sym
 from basilisp.lang.runtime import CORE_NS_SYM, Namespace
 
 CompileFn = Callable[[str], Any]

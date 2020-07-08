@@ -4,15 +4,15 @@ from fractions import Fraction
 
 import pytest
 
-import basilisp.lang.atom as atom
-import basilisp.lang.keyword as keyword
-import basilisp.lang.list as llist
-import basilisp.lang.map as lmap
-import basilisp.lang.runtime as runtime
-import basilisp.lang.seq as lseq
-import basilisp.lang.set as lset
-import basilisp.lang.symbol as sym
-import basilisp.lang.vector as vec
+from basilisp.lang import atom as atom
+from basilisp.lang import keyword as keyword
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
+from basilisp.lang import runtime as runtime
+from basilisp.lang import seq as lseq
+from basilisp.lang import set as lset
+from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import SpecialForm
 from basilisp.lang.interfaces import ISeq
 from tests.basilisp.helpers import get_or_create_ns

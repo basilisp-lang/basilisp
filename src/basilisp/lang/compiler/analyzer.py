@@ -32,14 +32,14 @@ from typing import (
 
 import attr
 
-import basilisp.lang.keyword as kw
-import basilisp.lang.list as llist
-import basilisp.lang.map as lmap
-import basilisp.lang.reader as reader
-import basilisp.lang.runtime as runtime
-import basilisp.lang.set as lset
-import basilisp.lang.symbol as sym
-import basilisp.lang.vector as vec
+from basilisp.lang import keyword as kw
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
+from basilisp.lang import reader as reader
+from basilisp.lang import runtime as runtime
+from basilisp.lang import set as lset
+from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import (
     AMPERSAND,
     ARGLISTS_KW,
@@ -101,7 +101,9 @@ from basilisp.lang.compiler.nodes import (
     Local,
     LocalType,
     Loop,
-    Map as MapNode,
+)
+from basilisp.lang.compiler.nodes import Map as MapNode
+from basilisp.lang.compiler.nodes import (
     MaybeClass,
     MaybeHostForm,
     Node,
@@ -117,16 +119,11 @@ from basilisp.lang.compiler.nodes import (
     Reify,
     Require,
     RequireAlias,
-    Set as SetNode,
-    SetBang,
-    SpecialFormNode,
-    Throw,
-    Try,
-    VarRef,
-    Vector as VectorNode,
-    WithMeta,
-    deftype_or_reify_python_member_names,
 )
+from basilisp.lang.compiler.nodes import Set as SetNode
+from basilisp.lang.compiler.nodes import SetBang, SpecialFormNode, Throw, Try, VarRef
+from basilisp.lang.compiler.nodes import Vector as VectorNode
+from basilisp.lang.compiler.nodes import WithMeta, deftype_or_reify_python_member_names
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
