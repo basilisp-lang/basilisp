@@ -383,6 +383,21 @@
 
   (is (thrown? python/IndexError (pop! (transient [])))))
 
+;;;;;;;;;;;;;;;
+;; Volatiles ;;
+;;;;;;;;;;;;;;;
+
+(deftest volatile-test
+  (let [v (volatile! :a)]
+    (is (not (volatile? :a)))
+    (is (not (volatile? (atom :a))))
+    (is (volatile? v))
+    (is (= :a @v))
+    (is (= :b (vreset! v :b)))
+    (is (= :b @v))
+    (is (= :b/a (vswap! v #(keyword (name %) "a"))))
+    (is (= :b/a @v))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -762,18 +777,3 @@
       (other [arg])
       (other [arg1 arg2 arg3])
       (other [arg1 arg2 arg3 & rest-arg])]))
-
-;;;;;;;;;;;;;;;
-;; Volatiles ;;
-;;;;;;;;;;;;;;;
-
-(deftest volatile-test
-  (let [v (volatile! :a)]
-    (is (not (volatile? :a)))
-    (is (not (volatile? (atom :a))))
-    (is (volatile? v))
-    (is (= :a @v))
-    (is (= :b (vreset! v :b)))
-    (is (= :b @v))
-    (is (= :b/a (vswap! v #(keyword (name %) "a"))))
-    (is (= :b/a @v))))
