@@ -27,15 +27,15 @@ from typing import (
 
 import attr
 
-import basilisp._pyast as ast
-import basilisp.lang.keyword as kw
-import basilisp.lang.list as llist
-import basilisp.lang.map as lmap
-import basilisp.lang.reader as reader
-import basilisp.lang.runtime as runtime
-import basilisp.lang.set as lset
-import basilisp.lang.symbol as sym
-import basilisp.lang.vector as vec
+from basilisp import _pyast as ast
+from basilisp.lang import keyword as kw
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
+from basilisp.lang import reader as reader
+from basilisp.lang import runtime as runtime
+from basilisp.lang import set as lset
+from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import (
     DEFAULT_COMPILER_FILE_PATH,
     SYM_DYNAMIC_META_KEY,
@@ -74,7 +74,9 @@ from basilisp.lang.compiler.nodes import (
     Local,
     LocalType,
     Loop,
-    Map as MapNode,
+)
+from basilisp.lang.compiler.nodes import Map as MapNode
+from basilisp.lang.compiler.nodes import (
     MaybeClass,
     MaybeHostForm,
     Node,
@@ -90,21 +92,15 @@ from basilisp.lang.compiler.nodes import (
     Recur,
     Reify,
     Require,
-    Set as SetNode,
-    SetBang,
-    Throw,
-    Try,
-    VarRef,
-    Vector as VectorNode,
-    WithMeta,
 )
+from basilisp.lang.compiler.nodes import Set as SetNode
+from basilisp.lang.compiler.nodes import SetBang, Throw, Try, VarRef
+from basilisp.lang.compiler.nodes import Vector as VectorNode
+from basilisp.lang.compiler.nodes import WithMeta
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
-from basilisp.lang.runtime import (
-    CORE_NS,
-    NS_VAR_NAME as LISP_NS_VAR,
-    BasilispModule,
-    Var,
-)
+from basilisp.lang.runtime import CORE_NS
+from basilisp.lang.runtime import NS_VAR_NAME as LISP_NS_VAR
+from basilisp.lang.runtime import BasilispModule, Var
 from basilisp.lang.typing import CompilerOpts, LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe

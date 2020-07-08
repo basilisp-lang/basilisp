@@ -2,11 +2,11 @@ from unittest.mock import patch
 
 import pytest
 
-import basilisp.lang.atom as atom
-import basilisp.lang.keyword as kw
-import basilisp.lang.map as lmap
-import basilisp.lang.runtime as runtime
-import basilisp.lang.symbol as sym
+from basilisp.lang import atom as atom
+from basilisp.lang import keyword as kw
+from basilisp.lang import map as lmap
+from basilisp.lang import runtime as runtime
+from basilisp.lang import symbol as sym
 from basilisp.lang.runtime import Namespace, NamespaceMap, Var
 from tests.basilisp.helpers import get_or_create_ns
 

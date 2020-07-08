@@ -1,7 +1,7 @@
 import threading
 from typing import Iterable, Optional
 
-import basilisp.lang.map as lmap
+from basilisp.lang import map as lmap
 from basilisp.lang.interfaces import IAssociative, ILispObject
 
 _LOCK = threading.Lock()

@@ -4,15 +4,15 @@ from typing import Optional
 
 import pytest
 
-import basilisp.lang.keyword as kw
-import basilisp.lang.list as llist
-import basilisp.lang.map as lmap
-import basilisp.lang.reader as reader
-import basilisp.lang.runtime as runtime
-import basilisp.lang.set as lset
-import basilisp.lang.symbol as sym
-import basilisp.lang.util as langutil
-import basilisp.lang.vector as vec
+from basilisp.lang import keyword as kw
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
+from basilisp.lang import reader as reader
+from basilisp.lang import runtime as runtime
+from basilisp.lang import set as lset
+from basilisp.lang import symbol as sym
+from basilisp.lang import util as langutil
+from basilisp.lang import vector as vec
 from basilisp.lang.interfaces import IPersistentSet
 
 

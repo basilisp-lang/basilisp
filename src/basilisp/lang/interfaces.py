@@ -13,7 +13,8 @@ from typing import (
     Union,
 )
 
-from basilisp.lang.obj import LispObject as _LispObject, seq_lrepr
+from basilisp.lang.obj import LispObject as _LispObject
+from basilisp.lang.obj import seq_lrepr
 
 T = TypeVar("T")
 

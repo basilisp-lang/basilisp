@@ -1,6 +1,6 @@
 import threading
 
-import basilisp.lang.vector as vec
+from basilisp.lang import vector as vec
 from basilisp.lang.promise import Promise
 
 

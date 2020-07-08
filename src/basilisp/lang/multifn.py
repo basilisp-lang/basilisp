@@ -1,8 +1,8 @@
 import threading
 from typing import Any, Callable, Generic, Optional, TypeVar
 
-import basilisp.lang.map as lmap
-import basilisp.lang.symbol as sym
+from basilisp.lang import map as lmap
+from basilisp.lang import symbol as sym
 from basilisp.lang.interfaces import IPersistentMap
 from basilisp.util import Maybe
 

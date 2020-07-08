@@ -1,8 +1,8 @@
 import importlib
 import logging
 
-import basilisp.importer as importer
-import basilisp.lang.runtime as runtime
+from basilisp import importer as importer
+from basilisp.lang import runtime as runtime
 from basilisp.lang.typing import CompilerOpts
 from basilisp.logconfig import DEFAULT_HANDLER, DEFAULT_LEVEL
 

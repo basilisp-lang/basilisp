@@ -1,5 +1,5 @@
-import basilisp.lang.delay as delay
-import basilisp.lang.vector as vec
+from basilisp.lang import delay as delay
+from basilisp.lang import vector as vec
 
 
 def test_delay(capsys):

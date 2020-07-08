@@ -2,8 +2,8 @@ import pickle
 
 import pytest
 
-import basilisp.lang.list as llist
-import basilisp.lang.map as lmap
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
 from basilisp.lang.interfaces import (
     ILispObject,
     IPersistentCollection,

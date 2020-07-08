@@ -1,4 +1,4 @@
-import _pytest.pytester as pytester
+from _pytest import pytester as pytester
 
 
 def test_testrunner(testdir: pytester.Testdir, capsys):
