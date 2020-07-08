@@ -2160,6 +2160,32 @@
   [coll]
   (.pop-transient coll))
 
+;;;;;;;;;;;;;;;
+;; Volatiles ;;
+;;;;;;;;;;;;;;;
+
+(defn volatile!
+  "Return a Volatile reference container with the initial value `v`."
+  [v]
+  (basilisp.lang.volatile/Volatile v))
+
+(defn volatile?
+  "Return true if is a volatile reference container."
+  [x]
+  (instance? basilisp.lang.volatile/Volatile x))
+
+(defn vreset!
+  "Reset the value of volatile `v` non-atomically to `new-val`. Returns the new
+  value."
+  [v new-val]
+  (.reset v new-val))
+
+(defn vswap!
+  "Swap the value of volatile `v` non-atomically to the return of
+  `(apply f old-val args)`. Returns the new value of that function call."
+  [v f & args]
+  (apply (.-swap v) f args))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -5518,40 +5544,3 @@
          ((.- ~type-name ~'create) m#))
 
        ~type-name)))
-
-;;;;;;;;;;;;;;;
-;; Volatiles ;;
-;;;;;;;;;;;;;;;
-
-(defprotocol IVolatile
-  "Protocol for a volatile reference container. Volatile references do not provide
-  atomic semantics, but they may be useful as a mutable reference container in a
-  single-threaded context."
-
-  (vreset! [this new-val]
-    "Reset the value of a volatile non-atomically. Returns the new value.")
-  (vswap! [this f & args]
-    "Swap the value of a volatile non-atomically to the return of
-     (apply f old-val args). Returns the new value of that function
-     call."))
-
-(deftype Volatile [^:mutable val]
-  basilisp.lang.interfaces/IDeref
-  (deref [this] val)
-
-  IVolatile
-  (vreset! [this new-val]
-    (set! val new-val))
-  (vswap! [this f & args]
-    (let [new-val (apply f val args)]
-      (set! val new-val))))
-
-(defn volatile!
-  "Return a Volatile reference container with the initial value v."
-  [v]
-  (Volatile v))
-
-(defn volatile?
-  "Return true if implements IVolatile."
-  [x]
-  (satisfies? IVolatile x))
