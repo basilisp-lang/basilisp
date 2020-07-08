@@ -15,14 +15,16 @@ from typing import (
 
 import attr
 
-import basilisp.lang.keyword as kw
-import basilisp.lang.map as lmap
-import basilisp.lang.set as lset
-import basilisp.lang.symbol as sym
-import basilisp.lang.vector as vec
+from basilisp.lang import keyword as kw
+from basilisp.lang import map as lmap
+from basilisp.lang import set as lset
+from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.interfaces import IPersistentMap, IPersistentSet, IPersistentVector
 from basilisp.lang.runtime import Namespace, Var, to_lisp
-from basilisp.lang.typing import LispForm, ReaderForm as ReaderLispForm, SpecialForm
+from basilisp.lang.typing import LispForm
+from basilisp.lang.typing import ReaderForm as ReaderLispForm
+from basilisp.lang.typing import SpecialForm
 from basilisp.lang.util import munge
 
 _CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)

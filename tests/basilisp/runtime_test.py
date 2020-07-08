@@ -4,15 +4,15 @@ from fractions import Fraction
 
 import pytest
 
-import basilisp.lang.atom as atom
-import basilisp.lang.keyword as keyword
-import basilisp.lang.list as llist
-import basilisp.lang.map as lmap
-import basilisp.lang.runtime as runtime
-import basilisp.lang.seq as lseq
-import basilisp.lang.set as lset
-import basilisp.lang.symbol as sym
-import basilisp.lang.vector as vec
+from basilisp.lang import atom as atom
+from basilisp.lang import keyword as kw
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
+from basilisp.lang import runtime as runtime
+from basilisp.lang import seq as lseq
+from basilisp.lang import set as lset
+from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import SpecialForm
 from basilisp.lang.interfaces import ISeq
 from tests.basilisp.helpers import get_or_create_ns
@@ -28,19 +28,19 @@ def test_is_supported_python_version():
     {
         (3, 6): frozenset(
             map(
-                keyword.keyword,
+                kw.keyword,
                 ["lpy36", "default", "lpy", "lpy36-", "lpy36+", "lpy37-", "lpy38-"],
             )
         ),
         (3, 7): frozenset(
             map(
-                keyword.keyword,
+                kw.keyword,
                 ["lpy37", "default", "lpy", "lpy37-", "lpy37+", "lpy36+", "lpy38-"],
             )
         ),
         (3, 8): frozenset(
             map(
-                keyword.keyword,
+                kw.keyword,
                 ["lpy38", "default", "lpy", "lpy38-", "lpy38+", "lpy37+", "lpy36+"],
             )
         ),
@@ -145,13 +145,13 @@ def test_to_seq():
     assert None is not runtime.to_seq(lset.s(1))
     assert None is not runtime.to_seq("string")
 
-    one_elem = llist.l(keyword.keyword("kw"))
+    one_elem = llist.l(kw.keyword("kw"))
     assert one_elem == runtime.to_seq(one_elem)
 
-    seqable = vec.v(keyword.keyword("kw"))
+    seqable = vec.v(kw.keyword("kw"))
     assert seqable == runtime.to_seq(seqable)
 
-    v1 = vec.v(keyword.keyword("kw"), 1, llist.l("something"), 3)
+    v1 = vec.v(kw.keyword("kw"), 1, llist.l("something"), 3)
     s1 = runtime.to_seq(v1)
     assert isinstance(s1, ISeq)
     for v, s in zip(v1, s1):
@@ -230,9 +230,9 @@ def test_nth():
 
 def test_get():
     assert None is runtime.get(None, "a")
-    assert keyword.keyword("nada") is runtime.get(None, "a", keyword.keyword("nada"))
+    assert kw.keyword("nada") is runtime.get(None, "a", kw.keyword("nada"))
     assert None is runtime.get(3, "a")
-    assert keyword.keyword("nada") is runtime.get(3, "a", keyword.keyword("nada"))
+    assert kw.keyword("nada") is runtime.get(3, "a", kw.keyword("nada"))
     assert 1 == runtime.get(lmap.map({"a": 1}), "a")
     assert None is runtime.get(lmap.map({"a": 1}), "b")
     assert 2 == runtime.get(lmap.map({"a": 1}), "b", 2)
@@ -456,14 +456,14 @@ class TestToPython:
         assert "string" == runtime.to_py("string")
         assert sym.symbol("sym") == runtime.to_py(sym.symbol("sym"))
         assert sym.symbol("sym", ns="ns") == runtime.to_py(sym.symbol("sym", ns="ns"))
-        assert "kw" == runtime.to_py(keyword.keyword("kw"))
-        assert "kw" == runtime.to_py(keyword.keyword("kw", ns="kw"))
+        assert "kw" == runtime.to_py(kw.keyword("kw"))
+        assert "kw" == runtime.to_py(kw.keyword("kw", ns="kw"))
 
     def test_to_dict(self):
         assert {} == runtime.to_py(lmap.Map.empty())
         assert {"a": 2} == runtime.to_py(lmap.map({"a": 2}))
         assert {"a": 2, "b": "string"} == runtime.to_py(
-            lmap.map({"a": 2, keyword.keyword("b"): "string"})
+            lmap.map({"a": 2, kw.keyword("b"): "string"})
         )
 
     def test_to_list(self):
@@ -482,7 +482,7 @@ class TestToPython:
     def test_to_set(self):
         assert set() == runtime.to_py(lset.Set.empty())
         assert {"a", 2} == runtime.to_py(lset.set({"a", 2}))
-        assert {"a", 2, "b"} == runtime.to_py(lset.set({"a", 2, keyword.keyword("b")}))
+        assert {"a", 2, "b"} == runtime.to_py(lset.set({"a", 2, kw.keyword("b")}))
 
 
 class TestToLisp:
@@ -493,16 +493,14 @@ class TestToLisp:
         assert "string" == runtime.to_lisp("string")
         assert sym.symbol("sym") == runtime.to_lisp(sym.symbol("sym"))
         assert sym.symbol("sym", ns="ns") == runtime.to_lisp(sym.symbol("sym", ns="ns"))
-        assert keyword.keyword("kw") == runtime.to_lisp(keyword.keyword("kw"))
-        assert keyword.keyword("kw", ns="ns") == runtime.to_lisp(
-            keyword.keyword("kw", ns="ns")
-        )
+        assert kw.keyword("kw") == runtime.to_lisp(kw.keyword("kw"))
+        assert kw.keyword("kw", ns="ns") == runtime.to_lisp(kw.keyword("kw", ns="ns"))
 
     def test_to_map(self):
         assert lmap.Map.empty() == runtime.to_lisp({})
-        assert lmap.map({keyword.keyword("a"): 2}) == runtime.to_lisp({"a": 2})
+        assert lmap.map({kw.keyword("a"): 2}) == runtime.to_lisp({"a": 2})
         assert lmap.map(
-            {keyword.keyword("a"): 2, keyword.keyword("b"): "string"}
+            {kw.keyword("a"): 2, kw.keyword("b"): "string"}
         ) == runtime.to_lisp({"a": 2, "b": "string"})
 
     def test_to_map_no_keywordize(self):
@@ -515,8 +513,8 @@ class TestToLisp:
     def test_to_set(self):
         assert lset.Set.empty() == runtime.to_lisp(set())
         assert lset.set({"a", 2}) == runtime.to_lisp({"a", 2})
-        assert lset.set({"a", 2, keyword.keyword("b")}) == runtime.to_lisp(
-            {"a", 2, keyword.keyword("b")}
+        assert lset.set({"a", 2, kw.keyword("b")}) == runtime.to_lisp(
+            {"a", 2, kw.keyword("b")}
         )
 
     def test_to_vec(self):

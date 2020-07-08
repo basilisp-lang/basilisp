@@ -10,19 +10,19 @@ from fractions import Fraction
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
-import dateutil.parser as dateparser
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
+from dateutil import parser as dateparser
 
-import basilisp.lang.compiler as compiler
-import basilisp.lang.keyword as kw
-import basilisp.lang.list as llist
-import basilisp.lang.map as lmap
-import basilisp.lang.reader as reader
-import basilisp.lang.runtime as runtime
-import basilisp.lang.set as lset
-import basilisp.lang.symbol as sym
-import basilisp.lang.vector as vec
+from basilisp.lang import compiler as compiler
+from basilisp.lang import keyword as kw
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
+from basilisp.lang import reader as reader
+from basilisp.lang import runtime as runtime
+from basilisp.lang import set as lset
+from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
 from basilisp.lang.interfaces import IType, IWithMeta
 from basilisp.lang.runtime import Var

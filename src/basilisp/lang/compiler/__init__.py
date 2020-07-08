@@ -5,9 +5,9 @@ from typing import Any, Callable, Iterable, List, Optional
 
 from astor import code_gen as codegen
 
-import basilisp._pyast as ast
-import basilisp.lang.map as lmap
-import basilisp.lang.runtime as runtime
+from basilisp import _pyast as ast
+from basilisp.lang import map as lmap
+from basilisp.lang import runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
     WARN_ON_SHADOWED_NAME,
     WARN_ON_SHADOWED_VAR,
@@ -18,16 +18,15 @@ from basilisp.lang.compiler.analyzer import (  # noqa
     macroexpand_1,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
-from basilisp.lang.compiler.generator import (  # noqa
+from basilisp.lang.compiler.generator import (
     USE_VAR_INDIRECTION,
     WARN_ON_VAR_INDIRECTION,
     GeneratedPyAST,
     GeneratorContext,
-    expressionize as _expressionize,
-    gen_py_ast,
-    py_module_preamble,
-    statementize as _statementize,
 )
+from basilisp.lang.compiler.generator import expressionize as _expressionize  # noqa
+from basilisp.lang.compiler.generator import gen_py_ast, py_module_preamble
+from basilisp.lang.compiler.generator import statementize as _statementize
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
 from basilisp.lang.typing import CompilerOpts, ReaderForm
 from basilisp.lang.util import genname

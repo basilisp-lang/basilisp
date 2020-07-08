@@ -10,9 +10,9 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest.pytester import Testdir
 
-import basilisp.importer as importer
-import basilisp.lang.runtime as runtime
-import basilisp.lang.symbol as sym
+from basilisp import importer as importer
+from basilisp.lang import runtime as runtime
+from basilisp.lang import symbol as sym
 from basilisp.lang.util import demunge, munge
 
 

@@ -1,5 +1,5 @@
-import basilisp.lang.keyword as kw
-import basilisp.lang.symbol as sym
+from basilisp.lang import keyword as kw
+from basilisp.lang import symbol as sym
 
 
 class SpecialForm:

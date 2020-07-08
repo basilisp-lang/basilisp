@@ -8,9 +8,9 @@ from decimal import Decimal
 from fractions import Fraction
 from typing import Iterable, Match, Pattern, Type
 
-import dateutil.parser as dateparser
+from dateutil import parser as dateparser
 
-import basilisp.lang.atom as atom
+from basilisp.lang import atom as atom
 
 _DOUBLE_DOT = ".."
 _DOUBLE_DOT_REPLACEMENT = "__DOT_DOT__"

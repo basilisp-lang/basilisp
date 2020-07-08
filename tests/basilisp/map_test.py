@@ -3,7 +3,7 @@ from typing import Mapping
 
 import pytest
 
-import basilisp.lang.map as lmap
+from basilisp.lang import map as lmap
 from basilisp.lang.interfaces import (
     IAssociative,
     ICounted,
