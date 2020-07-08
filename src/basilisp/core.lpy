@@ -2337,14 +2337,6 @@
           (f assoc-coll k v))))
     init))
 
-(defn into
-  "Return a new collection created by adding all of the elements of from
-  to the existing to collection, as by conj."
-  ([] [])
-  ([to] to)
-  ([to from]
-   (reduce conj to from)))
-
 (defn comp
   "Return a function which is the composition of all the functions
   given as arguments. Note that, as in mathematical function composition,
@@ -2463,7 +2455,18 @@
   function f will be passed sequential elements from each collection on each
   invocation and must be able to accept as many arguments as there are
   collections. The sequence will terminate when at least one input collection
-  is exhausted."
+  is exhausted.
+
+  Return a transducer if no collection is provided."
+  ([f]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (rf result (f input)))
+       ([result input & inputs]
+        (rf result (apply f inputs))))))
   ([f coll]
    (lazy-seq
     (when (seq coll)
@@ -2495,36 +2498,58 @@
   (apply concat (apply map f colls)))
 
 (defn filter
-  "Return a lazy sequence of elements from coll where (pred elem) returns true."
-  [pred coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (pred (first coll))
-       (cons (first coll) (filter pred (rest coll)))
-       (filter pred (rest coll))))))
+  "Return a lazy sequence of elements from coll where (pred elem) returns true.
+
+  Return a transducer if no collection is provided."
+  ([pred]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (if (pred input)
+          (rf result input)
+          result)))))
+  ([pred coll]
+   (lazy-seq
+    (when (seq coll)
+      (if (pred (first coll))
+        (cons (first coll) (filter pred (rest coll)))
+        (filter pred (rest coll)))))))
 
 (def ^{:doc "Return a lazy sequence of elements from coll where (pred elem)
              returns true."}
   filterv (comp vec filter))
 
 (defn remove
-  "Return elements from coll where (pred elem) returns false."
-  [pred coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (not (pred (first coll)))
-       (cons (first coll) (remove pred (rest coll)))
-       (remove pred (rest coll))))))
+  "Return elements from coll where (pred elem) returns false.
+
+  Return a transducer if no collection is provided."
+  ([pred]
+   (filter (complement pred)))
+  ([pred coll]
+   (filter (complement pred) coll)))
 
 (defn keep
-  "Return a lazy sequence of non-nil results of (f elem) for elements in coll."
-  [f coll]
-  (lazy-seq
-   (when (seq coll)
-     (let [elem (first coll)]
-       (if-not (nil? (f elem))
-         (cons elem (keep f (rest coll)))
-         (keep f (rest coll)))))))
+  "Return a lazy sequence of non-nil results of (f elem) for elements in coll.
+
+  Return a transducer if no collection is provided."
+  ([f]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (if (nil? (f input))
+          result
+          (rf result input))))))
+  ([f coll]
+   (lazy-seq
+    (when (seq coll)
+      (let [elem (first coll)]
+        (if-not (nil? (f elem))
+          (cons elem (keep f (rest coll)))
+          (keep f (rest coll))))))))
 
 (defn keep-indexed
   "Return a lazy-sequence of non-nil results of (f index elem) for elements
@@ -2550,12 +2575,23 @@
        (cons (first coll) (take (dec n) (rest coll)))))))
 
 (defn take-while
-  "Return elements of coll while (pred elem) is true."
-  [pred coll]
-  (lazy-seq
-   (when (seq coll)
-     (when (pred (first coll))
-       (cons (first coll) (take-while pred (rest coll)))))))
+  "Return elements of coll while (pred elem) is true.
+
+  Return a transducer if no collection is provided."
+  ([pred]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (if (nil? (pred input))
+          result
+          (rf result input))))))
+  ([pred coll]
+   (lazy-seq
+    (when (seq coll)
+      (when (pred (first coll))
+        (cons (first coll) (take-while pred (rest coll))))))))
 
 (defn drop
   "Drop the first n elements of coll."
@@ -5554,3 +5590,55 @@
          ((.- ~type-name ~'create) m#))
 
        ~type-name)))
+
+;;;;;;;;;;;;;;;;;;;;;
+;; Reduce Protocol ;;
+;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;
+;; Transducers ;;
+;;;;;;;;;;;;;;;;;
+
+(defn transduce
+  "Reduce `coll` with by `(xform f)`.
+
+  "
+  ([xform f coll]
+   (transduce xform f (f) coll))
+  ([xform f init coll]
+   (let [xf             (xform f)
+         transduce-coll (fn [out in]
+                          (if (seq in)
+                            (recur (xf out (first in)) (rest in))
+                            out))]
+     (if (seq coll)
+       (transduce-coll init coll)
+       val))))
+
+(defn into
+  "Return a new collection created by adding all of the elements of `from`
+  to the existing to collection `to`, as by `conj`.
+
+  A transducer may be provided as `xform` to transform the elements as
+  they are copied.
+
+  `into` will attempt to use transient collections whenever possible to
+  improve performance."
+  ([] [])
+  ([to] to)
+  ([to from]
+   (if (instance? basilisp.lang.interfaces/IEvolveableCollection to)
+     (with-meta (persistent! (reduce conj (transient to) from)) (meta to))
+     (reduce conj to from)))
+  ([to xform from]
+   (if (instance? basilisp.lang.interfaces/IEvolveableCollection to)
+     (with-meta (persistent! (transduce xform conj! (transient to) from)) (meta to))
+     (transduce xform conj to from))))
+
+(defn cat
+  [rf]
+  (fn
+    ([] (rf))
+    ([result] (rf result))
+    ([result input]
+     (reduce rf result input))))
