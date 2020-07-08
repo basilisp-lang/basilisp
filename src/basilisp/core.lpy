@@ -2272,6 +2272,16 @@
   [x]
   (fn [& ^:no-warn-when-unused args] x))
 
+(defn reduced
+  "Wraps a value `x` such that it will terminate a reduce operation."
+  [x]
+  (basilisp.lang.reduced/Reduced x))
+
+(defn reduced?
+  "Return true if `x` should be considered fully reduced."
+  [x]
+  (instance? basilisp.lang.reduced/Reduced x))
+
 (defn reduce
   "Reduce `coll` by `f`.
 
