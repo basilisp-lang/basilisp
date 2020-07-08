@@ -3,7 +3,7 @@ import pickle
 import pytest
 
 from basilisp.lang import map as lmap
-from basilisp.lang import vector as vector
+from basilisp.lang import vector as vec
 from basilisp.lang.interfaces import (
     IAssociative,
     ICounted,
@@ -38,51 +38,51 @@ from basilisp.lang.symbol import symbol
     ],
 )
 def test_vector_interface_membership(interface):
-    assert isinstance(vector.v(), interface)
-    assert issubclass(vector.Vector, interface)
+    assert isinstance(vec.v(), interface)
+    assert issubclass(vec.Vector, interface)
 
 
 def test_vector_slice():
-    assert isinstance(vector.v(1, 2, 3)[1:], vector.Vector)
+    assert isinstance(vec.v(1, 2, 3)[1:], vec.Vector)
 
 
 def test_assoc():
-    v = vector.Vector.empty()
-    assert vector.v("a") == v.assoc(0, "a")
-    assert vector.Vector.empty() == v
-    assert vector.vector(["a", "b"]) == v.assoc(0, "a", 1, "b")
+    v = vec.Vector.empty()
+    assert vec.v("a") == v.assoc(0, "a")
+    assert vec.Vector.empty() == v
+    assert vec.vector(["a", "b"]) == v.assoc(0, "a", 1, "b")
 
-    v1 = vector.v("a")
-    assert vector.v("c", "b") == v1.assoc(0, "c", 1, "b")
-    assert vector.v("a", "b") == v1.assoc(1, "b")
+    v1 = vec.v("a")
+    assert vec.v("c", "b") == v1.assoc(0, "c", 1, "b")
+    assert vec.v("a", "b") == v1.assoc(1, "b")
 
 
 def test_vector_bool():
-    assert True is bool(vector.Vector.empty())
+    assert True is bool(vec.Vector.empty())
 
 
 def test_contains():
-    assert True is vector.v("a").contains(0)
-    assert True is vector.v("a", "b").contains(1)
-    assert False is vector.v("a", "b").contains(2)
-    assert False is vector.v("a", "b").contains(-1)
-    assert False is vector.Vector.empty().contains(0)
-    assert False is vector.Vector.empty().contains(1)
-    assert False is vector.Vector.empty().contains(-1)
+    assert True is vec.v("a").contains(0)
+    assert True is vec.v("a", "b").contains(1)
+    assert False is vec.v("a", "b").contains(2)
+    assert False is vec.v("a", "b").contains(-1)
+    assert False is vec.Vector.empty().contains(0)
+    assert False is vec.Vector.empty().contains(1)
+    assert False is vec.Vector.empty().contains(-1)
 
 
 def test_py_contains():
-    assert "a" in vector.v("a")
-    assert "a" in vector.v("a", "b")
-    assert "b" in vector.v("a", "b")
-    assert "c" not in vector.Vector.empty()
-    assert "c" not in vector.v("a")
-    assert "c" not in vector.v("a", "b")
+    assert "a" in vec.v("a")
+    assert "a" in vec.v("a", "b")
+    assert "b" in vec.v("a", "b")
+    assert "c" not in vec.Vector.empty()
+    assert "c" not in vec.v("a")
+    assert "c" not in vec.v("a", "b")
 
 
 def test_vector_cons():
     meta = lmap.m(tag="async")
-    v1 = vector.v(keyword("kw1"), meta=meta)
+    v1 = vec.v(keyword("kw1"), meta=meta)
     v2 = v1.cons(keyword("kw2"))
     assert v1 is not v2
     assert v1 != v2
@@ -92,54 +92,54 @@ def test_vector_cons():
 
 
 def test_entry():
-    assert vector.MapEntry.of(0, "a") == vector.v("a").entry(0)
-    assert vector.MapEntry.of(1, "b") == vector.v("a", "b").entry(1)
-    assert None is vector.v("a", "b").entry(2)
-    assert vector.MapEntry.of(-1, "b") == vector.v("a", "b").entry(-1)
-    assert None is vector.Vector.empty().entry(0)
-    assert None is vector.Vector.empty().entry(1)
-    assert None is vector.Vector.empty().entry(-1)
+    assert vec.MapEntry.of(0, "a") == vec.v("a").entry(0)
+    assert vec.MapEntry.of(1, "b") == vec.v("a", "b").entry(1)
+    assert None is vec.v("a", "b").entry(2)
+    assert vec.MapEntry.of(-1, "b") == vec.v("a", "b").entry(-1)
+    assert None is vec.Vector.empty().entry(0)
+    assert None is vec.Vector.empty().entry(1)
+    assert None is vec.Vector.empty().entry(-1)
 
 
 def test_val_at():
-    assert "a" == vector.v("a").val_at(0)
-    assert "b" == vector.v("a", "b").val_at(1)
-    assert None is vector.v("a", "b").val_at(2)
-    assert "b" == vector.v("a", "b").val_at(-1)
-    assert None is vector.Vector.empty().val_at(0)
-    assert None is vector.Vector.empty().val_at(1)
-    assert None is vector.Vector.empty().val_at(-1)
+    assert "a" == vec.v("a").val_at(0)
+    assert "b" == vec.v("a", "b").val_at(1)
+    assert None is vec.v("a", "b").val_at(2)
+    assert "b" == vec.v("a", "b").val_at(-1)
+    assert None is vec.Vector.empty().val_at(0)
+    assert None is vec.Vector.empty().val_at(1)
+    assert None is vec.Vector.empty().val_at(-1)
 
 
 def test_peek():
-    assert None is vector.v().peek()
+    assert None is vec.v().peek()
 
-    assert 1 == vector.v(1).peek()
-    assert 2 == vector.v(1, 2).peek()
-    assert 3 == vector.v(1, 2, 3).peek()
+    assert 1 == vec.v(1).peek()
+    assert 2 == vec.v(1, 2).peek()
+    assert 3 == vec.v(1, 2, 3).peek()
 
 
 def test_pop():
     with pytest.raises(IndexError):
-        vector.v().pop()
+        vec.v().pop()
 
-    assert vector.Vector.empty() == vector.v(1).pop()
-    assert vector.v(1) == vector.v(1, 2).pop()
-    assert vector.v(1, 2) == vector.v(1, 2, 3).pop()
+    assert vec.Vector.empty() == vec.v(1).pop()
+    assert vec.v(1) == vec.v(1, 2).pop()
+    assert vec.v(1, 2) == vec.v(1, 2, 3).pop()
 
 
 def test_vector_meta():
-    assert vector.v("vec").meta is None
+    assert vec.v("vec").meta is None
     meta = lmap.m(type=symbol("str"))
-    assert vector.v("vec", meta=meta).meta == meta
+    assert vec.v("vec", meta=meta).meta == meta
 
 
 def test_vector_with_meta():
-    vec = vector.v("vec")
+    vec = vec.v("vec")
     assert vec.meta is None
 
     meta1 = lmap.m(type=symbol("str"))
-    vec1 = vector.v("vec", meta=meta1)
+    vec1 = vec.v("vec", meta=meta1)
     assert vec1.meta == meta1
 
     meta2 = lmap.m(tag=keyword("async"))
@@ -158,24 +158,24 @@ def test_vector_with_meta():
 @pytest.mark.parametrize(
     "o",
     [
-        vector.v(),
-        vector.v(keyword("kw1")),
-        vector.v(keyword("kw1"), 2),
-        vector.v(keyword("kw1"), 2, None, "nothingness"),
-        vector.v(keyword("kw1"), vector.v("string", 4)),
+        vec.v(),
+        vec.v(keyword("kw1")),
+        vec.v(keyword("kw1"), 2),
+        vec.v(keyword("kw1"), 2, None, "nothingness"),
+        vec.v(keyword("kw1"), vec.v("string", 4)),
     ],
 )
-def test_vector_pickleability(pickle_protocol: int, o: vector.Vector):
+def test_vector_pickleability(pickle_protocol: int, o: vec.Vector):
     assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
 @pytest.mark.parametrize(
     "l,str_repr",
     [
-        (vector.v(), "[]"),
-        (vector.v(keyword("kw1")), "[:kw1]"),
-        (vector.v(keyword("kw1"), keyword("kw2")), "[:kw1 :kw2]"),
+        (vec.v(), "[]"),
+        (vec.v(keyword("kw1")), "[:kw1]"),
+        (vec.v(keyword("kw1"), keyword("kw2")), "[:kw1 :kw2]"),
     ],
 )
-def test_vector_repr(l: vector.Vector, str_repr: str):
+def test_vector_repr(l: vec.Vector, str_repr: str):
     assert repr(l) == str_repr

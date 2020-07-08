@@ -1,4 +1,6 @@
 import sys
+from ast import Ellipsis  # pylint: disable=redefined-builtin
+from ast import slice  # pylint: disable=redefined-builtin
 from ast import (
     AST,
     Add,
@@ -31,7 +33,6 @@ from ast import (
     Dict,
     DictComp,
     Div,
-    Ellipsis,
     Eq,
     ExceptHandler,
     Expr,
@@ -125,7 +126,6 @@ from ast import (
     mod,
     operator,
     parse,
-    slice,
     stmt,
     unaryop,
     walk,
