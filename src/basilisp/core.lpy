@@ -2638,9 +2638,9 @@
        ([] (rf))
        ([result] (rf result))
        ([result input]
-        (if (nil? (pred input))
-          result
-          (rf result input))))))
+        (if (pred input)
+          (rf result input)
+          (reduced result))))))
   ([pred coll]
    (lazy-seq
     (when (seq coll)
@@ -2648,22 +2648,44 @@
         (cons (first coll) (take-while pred (rest coll))))))))
 
 (defn drop
-  "Drop the first n elements of coll."
-  [n coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (> n 0)
-       (drop (dec n) (rest coll))
-       (seq coll)))))
+  "Drop the first n elements of coll.
+
+  Return a transducer if no collection is provided."
+  ([n]
+   (fn [rf]
+     (let [idx (volatile! (inc n))]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (if (pos? (vswap! idx dec))
+            result
+            (rf result input)))))))
+  ([n coll]
+   (lazy-seq
+    (when (seq coll)
+      (if (> n 0)
+        (drop (dec n) (rest coll))
+        (seq coll))))))
 
 (defn drop-while
-  "Drop elements of coll while (pred elem) is true."
-  [pred coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (pred (first coll))
-       (drop-while pred (rest coll))
-       (seq coll)))))
+  "Drop elements of coll while (pred elem) is true.
+
+  Return a transducer if no collection is provided."
+  ([pred]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (if-not (pred input)
+          (rf result input)
+          (reduced result)))))) ([pred coll]
+   (lazy-seq
+    (when (seq coll)
+      (if (pred (first coll))
+        (drop-while pred (rest coll))
+        (seq coll))))))
 
 (defn drop-last
   "Drop all but the last n items of coll."
@@ -2715,14 +2737,26 @@
 
 (defn interpose
   "Return a lazy sequence of elements of coll separated by sep. If
-  coll is empty, return an empty sequence."
-  [sep coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (seq (rest coll))
-       (cons (first coll)
-             (cons sep (interpose sep (rest coll))))
-       (cons (first coll) nil)))))
+  coll is empty, return an empty sequence.
+
+  Return a stateful transducer if no collection is provided."
+  ([sep]
+   (fn [rf]
+     (let [v (volatile! 1)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (if (zero? (vswap! v dec))
+            (rf result input)
+            (rf (rf result sep) input)))))))
+  ([sep coll]
+   (lazy-seq
+    (when (seq coll)
+      (if (seq (rest coll))
+        (cons (first coll)
+              (cons sep (interpose sep (rest coll))))
+        (cons (first coll) nil))))))
 
 (defn interleave
   "Return a lazy sequence consisting of the first element of coll, then the
