@@ -2273,7 +2273,9 @@
   (fn [& ^:no-warn-when-unused args] x))
 
 (defn reduced
-  "Wraps a value `x` such that it will terminate a reduce operation."
+  "Wraps a value `x` such that it will terminate a reduce operation.
+
+  Callers can retrieve the inner reduced value using `deref`/`@x`."
   [x]
   (basilisp.lang.reduced/Reduced x))
 
@@ -2281,6 +2283,18 @@
   "Return true if `x` should be considered fully reduced."
   [x]
   (instance? basilisp.lang.reduced/Reduced x))
+
+(defn ensure-reduced
+  "If `x` is not a reduced value, wrap it (as by `reduced`) and return the
+  wrapper. Otherwise return `x`."
+  [x]
+  (if (reduced? x) x (reduced x)))
+
+(defn unreduced
+  "If `x` is a reduced value (as produced by `reduced`), unwrap it and return
+  the inner value. Otherwise return `x`."
+  [x]
+  (if (reduced? x) @x x))
 
 (defn reduce
   "Reduce `coll` by `f`.
@@ -2466,7 +2480,7 @@
        ([result input]
         (rf result (f input)))
        ([result input & inputs]
-        (rf result (apply f inputs))))))
+        (rf result (apply f input inputs))))))
   ([f coll]
    (lazy-seq
     (when (seq coll)
@@ -2487,15 +2501,27 @@
 
 (defn map-indexed
   "Return a lazy sequence of (f idx elem) for elements in coll. The
-  index starts at 0."
-  [f coll]
-  (map f (range) coll))
+  index starts at 0.
+
+  Return a stateful transducer if no collection is provided."
+  ([f]
+   (fn [rf]
+     (let [idx (volatile! -1)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (rf result (f (vswap! idx inc) input)))))))
+  ([f coll]
+   (map f (range) coll)))
 
 (defn mapcat
   "Return a lazy sequence of the concatenated results of mapping f over
   colls."
-  [f & colls]
-  (apply concat (apply map f colls)))
+  ([f coll]
+   (apply concat (map f coll)))
+  ([f coll & colls]
+   (apply concat (apply map f coll colls))))
 
 (defn filter
   "Return a lazy sequence of elements from coll where (pred elem) returns true.
@@ -2540,9 +2566,10 @@
        ([] (rf))
        ([result] (rf result))
        ([result input]
-        (if (nil? (f input))
-          result
-          (rf result input))))))
+        (let [v (f input)]
+          (if (nil? v)
+            result
+            (rf result v)))))))
   ([f coll]
    (lazy-seq
     (when (seq coll)
@@ -2553,26 +2580,49 @@
 
 (defn keep-indexed
   "Return a lazy-sequence of non-nil results of (f index elem) for elements
-  in coll."
-  [f coll]
-  (let [keep-idx (fn keep-idx
-                   [rng coll]
-                   (lazy-seq
-                    (when (seq coll)
-                      (let [idx  (first rng)
-                            elem (first coll)]
-                        (if-not (nil? (f idx elem))
-                          (cons elem (keep-idx (rest rng) (rest coll)))
-                          (keep-idx (rest rng) (rest coll)))))))]
-    (keep-idx (range) coll)))
+  in coll.
+
+  Return a stateful transducer if no collection is provided."
+  ([f]
+   (fn [rf]
+     (let [idx (volatile! -1)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (let [v (f (vswap! idx inc) input)]
+            (if (nil? v)
+              result
+              (rf result v))))))))
+  ([f coll]
+   (let [keep-idx (fn keep-idx
+                    [rng coll]
+                    (lazy-seq
+                     (when (seq coll)
+                       (let [idx  (first rng)
+                             elem (first coll)]
+                         (if-not (nil? (f idx elem))
+                           (cons elem (keep-idx (rest rng) (rest coll)))
+                           (keep-idx (rest rng) (rest coll)))))))]
+     (keep-idx (range) coll))))
 
 (defn take
   "Return the first n elements of coll."
-  [n coll]
-  (lazy-seq
-   (when (seq coll)
-     (when (> n 0)
-       (cons (first coll) (take (dec n) (rest coll)))))))
+  ([n]
+   (fn [rf]
+     (let [idx (volatile! (inc n))]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (if (pos? (vswap! idx dec))
+            (rf result input)
+            (reduced result)))))))
+  ([n coll]
+   (lazy-seq
+    (when (seq coll)
+      (when (> n 0)
+        (cons (first coll) (take (dec n) (rest coll))))))))
 
 (defn take-while
   "Return elements of coll while (pred elem) is true.
@@ -5606,14 +5656,15 @@
   ([xform f coll]
    (transduce xform f (f) coll))
   ([xform f init coll]
-   (let [xf             (xform f)
-         transduce-coll (fn [out in]
-                          (if (seq in)
-                            (recur (xf out (first in)) (rest in))
-                            out))]
+   (let [xf (xform f)]
      (if (seq coll)
-       (transduce-coll init coll)
-       val))))
+       (loop [result init
+              coll   (seq coll)]
+         (cond
+           (reduced? result) @result
+           (seq coll)        (recur (xf result (first coll)) (rest coll))
+           :else             result))
+       init))))
 
 (defn into
   "Return a new collection created by adding all of the elements of `from`
