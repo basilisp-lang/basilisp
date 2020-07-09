@@ -3058,9 +3058,13 @@
   (nth coll (rand-int (count coll))))
 
 (defn random-sample
-  "Return elements from coll with the random probability of prob."
-  [prob coll]
-  (filter (fn [_] (< (rand) prob)) coll))
+  "Return elements from coll with the random probability of prob.
+
+  Return a transducer if no collection is provided."
+  ([prob]
+   (filter (fn [_] (< (rand) prob))))
+  ([prob coll]
+   (filter (fn [_] (< (rand) prob)) coll)))
 
 (defn shuffle
   "Return a random permutation of coll."
