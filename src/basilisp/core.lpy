@@ -2186,6 +2186,34 @@
   [v f & args]
   (apply (.-swap v) f args))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Transducer Utilities ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn reduced
+  "Wraps a value `x` such that it will terminate a reduce operation.
+
+  Callers can retrieve the inner reduced value using `deref`/`@x`."
+  [x]
+  (basilisp.lang.reduced/Reduced x))
+
+(defn reduced?
+  "Return true if `x` should be considered fully reduced."
+  [x]
+  (instance? basilisp.lang.reduced/Reduced x))
+
+(defn ensure-reduced
+  "If `x` is not a reduced value, wrap it (as by `reduced`) and return the
+  wrapper. Otherwise return `x`."
+  [x]
+  (if (reduced? x) x (reduced x)))
+
+(defn unreduced
+  "If `x` is a reduced value (as produced by `reduced`), unwrap it and return
+  the inner value. Otherwise return `x`."
+  [x]
+  (if (reduced? x) @x x))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2271,30 +2299,6 @@
   "Returns a function that accepts any number of arguments and returns x."
   [x]
   (fn [& ^:no-warn-when-unused args] x))
-
-(defn reduced
-  "Wraps a value `x` such that it will terminate a reduce operation.
-
-  Callers can retrieve the inner reduced value using `deref`/`@x`."
-  [x]
-  (basilisp.lang.reduced/Reduced x))
-
-(defn reduced?
-  "Return true if `x` should be considered fully reduced."
-  [x]
-  (instance? basilisp.lang.reduced/Reduced x))
-
-(defn ensure-reduced
-  "If `x` is not a reduced value, wrap it (as by `reduced`) and return the
-  wrapper. Otherwise return `x`."
-  [x]
-  (if (reduced? x) x (reduced x)))
-
-(defn unreduced
-  "If `x` is a reduced value (as produced by `reduced`), unwrap it and return
-  the inner value. Otherwise return `x`."
-  [x]
-  (if (reduced? x) @x x))
 
 (defn reduce
   "Reduce `coll` by `f`.
