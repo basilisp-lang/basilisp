@@ -4410,21 +4410,34 @@
 
 (defn replace
   "Replace elements of the vector/seq coll with matching elements from the
-  associative collection smap, if they exist."
-  [smap coll]
-  (if (vector? coll)
-    (persistent!
-     (reduce (fn [res v]
-               (if-let [newv (get smap v)]
-                 (conj! res newv)
-                 res))
-             (transient [])
-             coll))
-    (map (fn [v]
-           (if-let [newv (get smap v)]
-             newv
-             v))
-         coll)))
+  associative collection smap, if they exist.
+
+  Return a transducer if no collection is provided."
+  ([smap]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (->> (if-let [newv (get smap input)]
+               newv
+               input)
+             (rf result))))))
+  ([smap coll]
+   (if (vector? coll)
+     (persistent!
+      (reduce (fn [res v]
+                (->> (if-let [newv (get smap v)]
+                       newv
+                       v)
+                     (conj! res)))
+              (transient [])
+              coll))
+     (map (fn [v]
+            (if-let [newv (get smap v)]
+              newv
+              v))
+          coll))))
 
 (defn select-keys
   "Return a map with only the keys of m which are in ks."
