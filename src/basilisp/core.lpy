@@ -2807,14 +2807,28 @@
       (cons (f) (repeatedly (dec n) f))))))
 
 (defn take-nth
-  "Return a lazy sequence of every nth element of coll."
-  [n coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (<= n 0)
-       (repeat (first coll))
-       (cons (first coll)
-             (take-nth n (drop (dec n) (rest coll))))))))
+  "Return a lazy sequence of every nth element of coll.
+
+  Return a stateful transducer if no collection is provided."
+  ([n]
+   (fn [rf]
+     (let [v (volatile! 1)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (let [cur (vswap! v dec)]
+            (if (zero? cur)
+              (do (vreset! v n)
+                  (rf result input))
+              result)))))))
+  ([n coll]
+   (lazy-seq
+    (when (seq coll)
+      (if (<= n 0)
+        (repeat (first coll))
+        (cons (first coll)
+              (take-nth n (drop (dec n) (rest coll)))))))))
 
 (defn partition
   "Return a lazy sequence of partitions of coll of size n at offsets
