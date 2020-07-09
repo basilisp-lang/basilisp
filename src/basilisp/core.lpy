@@ -2519,9 +2519,15 @@
   ([f coll]
    (map f (range) coll)))
 
+;; Declare `cat` now for use in `mapcat`, though it is defined much later so
+;; it can make use of more advanced transducer functions.
+(def ^:redef cat)
+
 (defn mapcat
   "Return a lazy sequence of the concatenated results of mapping f over
   colls."
+  ([f]
+   (comp cat (map f)))
   ([f coll]
    (apply concat (map f coll)))
   ([f coll & colls]
@@ -5739,6 +5745,7 @@
      (transduce xform conj to from))))
 
 (defn cat
+  "A transducer which concatenates input collections into the reduced result."
   [rf]
   (fn
     ([] (rf))
