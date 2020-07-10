@@ -1935,13 +1935,6 @@
   [coll]
   (.rseq coll))
 
-(defn sequence
-  "Coerces coll to a possibly empty sequence."
-  [coll]
-  (if (seq? coll)
-    coll
-    (or (seq coll) '())))
-
 (defn subvec
   "Return a vector of elements consisting of the elements of v from the index 'start'
   (inclusive) to index 'end' exclusive, or the end of the vector if no 'end' is
@@ -2264,6 +2257,31 @@
   ([n coll]
    (dorun n coll)
    coll))
+
+(defn sequence
+  "Coerces coll to a possibly empty sequence. If `coll` is `nil`, return `()`.
+
+  When a transducer `xform` is supplied, returns a lazy sequence of the transform
+  to elements of `coll`."
+  ([coll]
+   (if (seq? coll)
+     coll
+     (or (seq coll) '())))
+  ([xform coll]
+   (let[xf              (xform (fn
+                                 ([] '())
+                                 ([result] result)
+                                 ([result input] (cons input result))))
+        create-sequence (fn create-sequence
+                          [coll]
+                          (lazy-seq
+                           (let [result (if (seq coll)
+                                          (xf (create-sequence (rest coll)) (first coll))
+                                          coll)]
+                             (if (reduced? result)
+                               @result
+                               result))))]
+     (create-sequence coll))))
 
 (defn iterate
   "Returns a lazy sequence of (f x), (f (f x)) and so on."
@@ -2886,32 +2904,57 @@
        (cons run (partition-by f (seq (drop (count run) coll))))))))
 
 (defn distinct
-  "Return a lazy sequence of the elements of coll, removing duplicates."
-  [coll]
-  (let [coll-distinct (fn coll-distinct
-                        [coll found]
-                        (lazy-seq
-                         (when (seq coll)
-                           (let [e (first coll)]
-                             (if-not (contains? found e)
-                               (cons e (coll-distinct (rest coll) (conj found e)))
-                               (coll-distinct (rest coll) found))))))]
-    (coll-distinct coll #{})))
+  "Return a lazy sequence of the elements of `coll`, removing duplicates.
+
+  Return a stateful transducer if no collection is provided."
+  ([]
+   (fn [rf]
+     (let [v (volatile! #{})]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (if (contains? @v input)
+            result
+            (do (vswap! v conj input)
+                (rf result input))))))))
+  ([coll]
+   (let [coll-distinct (fn coll-distinct
+                         [coll found]
+                         (lazy-seq
+                          (when (seq coll)
+                            (let [e (first coll)]
+                              (if-not (contains? found e)
+                                (cons e (coll-distinct (rest coll) (conj found e)))
+                                (coll-distinct (rest coll) found))))))]
+     (coll-distinct coll #{}))))
 
 (defn dedupe
-  "Return a lazy sequence of the elements of coll, removing consecutive duplicates."
-  [coll]
-  (let [coll-dedupe (fn coll-dedupe
-                      [coll prev]
-                      (lazy-seq
-                       (when (seq coll)
-                         (let [e (first coll)]
-                           (if-not (= e prev)
-                             (cons e (coll-dedupe (rest coll) e))
-                             (coll-dedupe (rest coll) prev))))))]
-    (lazy-seq
-     (when-let [e (first coll)]
-       (cons e (coll-dedupe (rest coll) e))))))
+  "Return a lazy sequence of the elements of `coll`, removing consecutive duplicates.
+
+  Return a stateful transducer if no collection is provided."
+  ([]
+   (fn [rf]
+     (let [prev (volatile! :basilisp.core.dedupe/default)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (if (= prev input)
+            result
+            (rf result input)))))))
+  ([coll]
+   (let [coll-dedupe (fn coll-dedupe
+                       [coll prev]
+                       (lazy-seq
+                        (when (seq coll)
+                          (let [e (first coll)]
+                            (if-not (= e prev)
+                              (cons e (coll-dedupe (rest coll) e))
+                              (coll-dedupe (rest coll) prev))))))]
+     (lazy-seq
+      (when-let [e (first coll)]
+        (cons e (coll-dedupe (rest coll) e)))))))
 
 (defn flatten
   "Flatten any combination of nested sequences (such as lists or vectors)
