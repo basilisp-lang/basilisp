@@ -398,6 +398,20 @@
     (is (= :b/a (vswap! v #(keyword (name %) "a"))))
     (is (= :b/a @v))))
 
+(deftest reduced-test
+  (is (not (reduced? [])))
+  (is (reduced? (reduced [])))
+  (is (= [] @(reduced [])))
+
+  (testing "ensure-reduced"
+    (is (reduced? (ensure-reduced [])))
+    (is (reduced? (ensure-reduced (reduced []))))
+    (is (not (reduced? @(ensure-reduced (reduced []))))))
+
+  (testing "unreduced"
+    (is (not (reduced? (unreduced (reduced [])))))
+    (is (= [] (unreduced (reduced []))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
