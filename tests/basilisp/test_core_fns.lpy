@@ -486,7 +486,7 @@
   (testing "transducer"
     (are [res input] (= res (into [] (partition-by odd?) input))
       [[1]]                 [1]
-      [[1 3 5 7 9 11]]      [1 3 4 5 7 9 11]
+      [[1 3 5 7 9 11]]      [1 3 5 7 9 11]
       [[1 1 1] [2 2] [3 3]] [1 1 1 2 2 3 3]))
 
   (testing "higher order function"
