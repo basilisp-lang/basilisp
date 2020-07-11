@@ -2460,21 +2460,6 @@
   not-any?
   (comp not some))
 
-(defn completing
-  "Given a reducing function of two arguments, `f`, return a function with both 0-,
-  1-, and 2-arities appropriate for `transduce`. The 0-arity will return a call to
-  `f` with no arguments. The 1-arity will call `cf` on its argument. The 2-arity
-  will call `f` directly with both of its arguments.
-
-  If `cf` is not given, `identity` will be used."
-  ([f]
-   (completing f identity))
-  ([f cf]
-   (fn
-     ([] (f))
-     ([result] (cf result))
-     ([result input] (f result input)))))
-
 (defn map
   "Return a lazy sequence of (f elem) for elements in coll. More than one
   collection may be supplied. If more than one collection is supplied, the
@@ -5805,6 +5790,21 @@
 ;;;;;;;;;;;;;;;;;
 ;; Transducers ;;
 ;;;;;;;;;;;;;;;;;
+
+(defn completing
+  "Given a reducing function of two arguments, `f`, return a function with both 0-,
+  1-, and 2-arities appropriate for `transduce`. The 0-arity will return a call to
+  `f` with no arguments. The 1-arity will call `cf` on its argument. The 2-arity
+  will call `f` directly with both of its arguments.
+
+  If `cf` is not given, `identity` will be used."
+  ([f]
+   (completing f identity))
+  ([f cf]
+   (fn
+     ([] (f))
+     ([result] (cf result))
+     ([result input] (f result input)))))
 
 (defn sequence
   "Coerces coll to a possibly empty sequence. If `coll` is `nil`, return `()`.
