@@ -2859,7 +2859,26 @@
   of step elements. If step is not given, steps of size n will be used
   and there will be no overlap between partitions. If there are leftover
   elements from coll which do not fill a full partition, then a partial
-  partition will be returned, unlike partition."
+  partition will be returned, unlike partition.
+
+  Return a stateful transducer if no collection is provided."
+  ([n]
+   (fn [rf]
+     (let [lst (python/list)]
+       (fn
+         ([] (rf))
+         ([result]
+          (let [result (if (zero? (python/len lst))
+                         result
+                         (unreduced (rf result (vec lst))))]
+            (rf result)))
+         ([result input]
+          (.append lst input)
+          (if (< (python/len lst) n)
+            result
+            (let [v (vec lst)]
+              (.clear lst)
+              (rf result v))))))))
   ([n coll]
    (partition-all n n coll))
   ([n step coll]
@@ -5763,9 +5782,10 @@
                            (let [result (if (seq coll)
                                           (xf (create-sequence (rest coll)) (first coll))
                                           coll)]
-                             (if (reduced? result)
-                               @result
-                               result))))]
+                             (xf
+                              (if (reduced? result)
+                                @result
+                                result)))))]
      (create-sequence coll)))
   ([xform coll & colls]
    (let[xf              (xform (fn
@@ -5780,9 +5800,10 @@
                                             (apply create-sequence (rest coll) $)
                                             (apply xf $ (map first coll)))
                                           coll)]
-                             (if (reduced? result)
-                               @result
-                               result))))]
+                             (xf
+                              (if (reduced? result)
+                                @result
+                                result)))))]
      (apply create-sequence coll colls))))
 
 (defn transduce
@@ -5798,9 +5819,9 @@
        (loop [result init
               coll   (seq coll)]
          (cond
-           (reduced? result) @result
+           (reduced? result) (xf @result)
            (seq coll)        (recur (xf result (first coll)) (rest coll))
-           :else             result))
+           :else             (xf result)))
        init))))
 
 (defn into
