@@ -448,7 +448,7 @@
   (testing "transducer"
     (are [res input] (= res (into [] (map inc) input))
       []           []
-      [6 7 8 9 10] (range 6 10)))
+      [6 7 8 9 10] (range 5 10)))
 
   (testing "higher order function"
     (are [res s] (= res s)
