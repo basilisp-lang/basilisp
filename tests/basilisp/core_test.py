@@ -1663,13 +1663,6 @@ def test_partition():
     ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 26))
 
 
-def test_partition_by():
-    assert llist.List.empty() == core.partition_by(core.odd__Q__, vec.Vector.empty())
-    assert llist.l(llist.l(1, 1, 1), llist.l(2, 2), llist.l(3, 3)) == core.partition_by(
-        core.odd__Q__, vec.v(1, 1, 1, 2, 2, 3, 3)
-    )
-
-
 class TestPrintFunctions:
     def test_pr_str(self):
         assert "" == core.pr_str()

@@ -2887,15 +2887,45 @@
       (cons (take n coll) (partition-all n step (drop step coll)))))))
 
 (defn partition-by
-  "Return a lazy sequence of partitions, splitting coll each time f
+  "Return a lazy sequence of partitions, splitting `coll` each time `f`
   returns a different value."
-  [f coll]
-  (lazy-seq
-   (when (seq coll)
-     (let [elem  (first coll)
-           felem (f elem)
-           run   (cons elem (take-while #(= felem (f %)) (next coll)))]
-       (cons run (partition-by f (seq (drop (count run) coll))))))))
+  ([f]
+   (fn [rf]
+     (let [prev (volatile! :basilisp.core.partition-by/default)
+           lst  (python/list)]
+       (fn
+         ([] (rf))
+         ([result]
+          (let [result (if (zero? (python/len lst))
+                         result
+                         (unreduced (rf result (vec lst))))]
+            (rf result)))
+         ([result input]
+          (let [v         (f input)
+                prev-elem @prev]
+            (cond
+              (= prev-elem :basilisp.core.partition-by/default)
+              (do (vreset! prev v)
+                  (.append lst input)
+                  result)
+
+              (= prev-elem v)
+              (do (.append lst input)
+                  result)
+
+              :else
+              (let [elem (vec lst)]
+                (vreset! prev v)
+                (.clear lst)
+                (.append lst input)
+                (rf result elem)))))))))
+  ([f coll]
+   (lazy-seq
+    (when (seq coll)
+      (let [elem  (first coll)
+            felem (f elem)
+            run   (cons elem (take-while #(= felem (f %)) (next coll)))]
+        (cons run (partition-by f (seq (drop (count run) coll)))))))))
 
 (defn distinct
   "Return a lazy sequence of the elements of `coll`, removing duplicates.

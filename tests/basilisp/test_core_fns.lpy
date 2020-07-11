@@ -482,6 +482,18 @@
       '((1 2 3 4 5) (11 12 13 14 15) (21 22 23)) 5 10 (range 1 24)
       '((1 2 3 4 5) (11 12 13 14 15) (21 22 23 24 25) 5 10 (range 1 26)))))
 
+(deftest partition-by-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (partition-by odd?) input))
+      [[1]]                 [1]
+      [[1 3 5 7 9 11]]      [1 3 4 5 7 9 11]
+      [[1 1 1] [2 2] [3 3]] [1 1 1 2 2 3 3]))
+
+  (testing "higher order function"
+    (are [res coll] (= res (partition-by odd? coll))
+      '()                    []
+      '((1 1 1) (2 2) (3 3)) [1 1 1 2 2 3 3])))
+
 (deftest distinct-test
   (are [x y] (= x (distinct y))
     '() []
