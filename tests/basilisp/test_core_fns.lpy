@@ -465,6 +465,23 @@
   (is (= '(1 :a d 2 :b e)
          (interleave [1 2 3] [:a :b] ['d 'e 'f]))))
 
+(deftest partition-all-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (partition-all 3) input))
+      [[1]]                 [1]
+      [[0 1 2] [3 4 5]]     (range 6)
+      [[0 1 2] [3 4 5] [6]] (range 7)))
+
+  (testing "no step"
+    (are [res n coll] (= res (partition-all n coll))
+      '((1 2) (3 4) (5 6)) 2 (range 1 7)
+      '((1 2 3) (4 5 6))   3 (range 1 7)))
+
+  (testing "with step"
+    (are [res n step coll] (= res (partition-all n step coll))
+      '((1 2 3 4 5) (11 12 13 14 15) (21 22 23)) 5 10 (range 1 24)
+      '((1 2 3 4 5) (11 12 13 14 15) (21 22 23 24 25) 5 10 (range 1 26)))))
+
 (deftest distinct-test
   (are [x y] (= x (distinct y))
     '() []
