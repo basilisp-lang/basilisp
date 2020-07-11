@@ -444,29 +444,47 @@
   (is (= nil ((some-fn :a :b :c) {:e 5} {:d 4})))
   (is (= nil ((some-fn :a :b :c) {:e 5 :d 4} {}))))
 
+(deftest map-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (map inc) input))
+      []           []
+      [6 7 8 9 10] (range 6 10)))
+
+  (testing "higher order function"
+    (are [res s] (= res s)
+      '()      (map identity [])
+      '(1 2 3) (map identity [1 2 3])
+      '(2 3 4) (map inc [1 2 3])
+      '(5 7 9) (map + [1 2 3] [4 5 6])
+      '(5 7 9) (map + [1 2 3] (range 4 10)))))
+
 (deftest keep-test
-  (is (= '() (keep identity [])))
-  (is (= '(:a :b :c) (keep identity [:a :b :c])))
-  (is (= '(:a :b :c) (keep identity [:a :b nil :c])))
-  (is (= '(:a :b :c) (keep identity [:a :b nil nil :c])))
-  (is (= '(:a :b :c :d) (keep identity [:a :b nil :c nil nil :d]))))
+  (testing "higher order function"
+    (are [x y] (= x (keep identity y))
+      '()            []
+      '(:a :b :c)    [:a :b :c]
+      '(:a :b :c)    [:a :b nil :c]
+      '(:a :b :c)    [:a :b nil nil :c]
+      '(:a :b :c :d) [:a :b nil :c nil nil :d])))
 
 (deftest keep-indexed-test
-  (let [f (fn [i v] v)]
-    (is (= '() (keep-indexed f [])))
-    (is (= '(:a :b :c) (keep-indexed f [:a :b :c])))
-    (is (= '(:a :b :c) (keep-indexed f [:a :b nil :c])))
-    (is (= '(:a :b :c) (keep-indexed f [:a :b nil nil :c])))
-    (is (= '(:a :b :c :d) (keep-indexed f [:a :b nil :c nil nil :d])))))
+  (testing "higher order function"
+    (let [f (fn [i v] v)]
+      (are [x y] (= x (keep-indexed f y))
+        '()            []
+        '(:a :b :c)    [:a :b :c]
+        '(:a :b :c)    [:a :b nil :c]
+        '(:a :b :c)    [:a :b nil nil :c]
+        '(:a :b :c :d) [:a :b nil :c nil nil :d]))))
 
 (deftest frequencies-test
   (are [x y] (= x (frequencies y))
-    {} '()
-    {} []
-    {:a 1} '(:a)
-    {:a 1} [:a]
-    {:a 3 :b 1} '(:a :a :a :b)
-    {:a 3 :b 1} [:a :a :a :b]
+    {}               '()
+    {}               []
+    {:a 1}           '(:a)
+    {:a 1}           [:a]
+    {:a 3 :b 1}      '(:a :a :a :b)
+    {:a 3 :b 1}      [:a :a :a :b]
     {:a 4 :b 1 :c 2} '(:a :a :a :b :c :c :a)
     {:a 4 :b 1 :c 2} [:a :a :a :b :c :c :a]))
 
