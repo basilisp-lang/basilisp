@@ -2258,31 +2258,6 @@
    (dorun n coll)
    coll))
 
-(defn sequence
-  "Coerces coll to a possibly empty sequence. If `coll` is `nil`, return `()`.
-
-  When a transducer `xform` is supplied, returns a lazy sequence of the transform
-  to elements of `coll`."
-  ([coll]
-   (if (seq? coll)
-     coll
-     (or (seq coll) '())))
-  ([xform coll]
-   (let[xf              (xform (fn
-                                 ([] '())
-                                 ([result] result)
-                                 ([result input] (cons input result))))
-        create-sequence (fn create-sequence
-                          [coll]
-                          (lazy-seq
-                           (let [result (if (seq coll)
-                                          (xf (create-sequence (rest coll)) (first coll))
-                                          coll)]
-                             (if (reduced? result)
-                               @result
-                               result))))]
-     (create-sequence coll))))
-
 (defn iterate
   "Returns a lazy sequence of (f x), (f (f x)) and so on."
   [f x]
@@ -5767,10 +5742,54 @@
 ;; Transducers ;;
 ;;;;;;;;;;;;;;;;;
 
-(defn transduce
-  "Reduce `coll` with by `(xform f)`.
+(defn sequence
+  "Coerces coll to a possibly empty sequence. If `coll` is `nil`, return `()`.
 
-  "
+  When a transducer `xform` is supplied, returns a lazy sequence of the transform
+  to elements of `coll`. If multiple collections are provided, `xform` must support
+  as many arguments as there are collections."
+  ([coll]
+   (if (seq? coll)
+     coll
+     (or (seq coll) '())))
+  ([xform coll]
+   (let[xf              (xform (fn
+                                 ([] '())
+                                 ([result] result)
+                                 ([result input] (cons input result))))
+        create-sequence (fn create-sequence
+                          [coll]
+                          (lazy-seq
+                           (let [result (if (seq coll)
+                                          (xf (create-sequence (rest coll)) (first coll))
+                                          coll)]
+                             (if (reduced? result)
+                               @result
+                               result))))]
+     (create-sequence coll)))
+  ([xform coll & colls]
+   (let[xf              (xform (fn
+                                 ([] '())
+                                 ([result] result)
+                                 ([result input] (cons input result))))
+        create-sequence (fn create-sequence
+                          [coll & colls]
+                          (lazy-seq
+                           (let [result (if (and (seq coll) (every? seq colls))
+                                          (as-> (map rest colls) $
+                                            (apply create-sequence (rest coll) $)
+                                            (apply xf $ (map first coll)))
+                                          coll)]
+                             (if (reduced? result)
+                               @result
+                               result))))]
+     (apply create-sequence coll colls))))
+
+(defn transduce
+  "Reduce `coll` by `(xform f)`.
+
+  If `coll` is empty, return `init` without calling `f`. If `init` is not given,
+  `f` will be called with no arguments to produce it."
   ([xform f coll]
    (transduce xform f (f) coll))
   ([xform f init coll]
@@ -5797,7 +5816,7 @@
   ([to] to)
   ([to from]
    (if (instance? basilisp.lang.interfaces/IEvolveableCollection to)
-     (with-meta (persistent! (reduce conj (transient to) from)) (meta to))
+     (with-meta (persistent! (reduce conj! (transient to) from)) (meta to))
      (reduce conj to from)))
   ([to xform from]
    (if (instance? basilisp.lang.interfaces/IEvolveableCollection to)
