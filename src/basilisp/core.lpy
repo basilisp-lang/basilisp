@@ -2620,7 +2620,7 @@
          ([result input]
           (if (pos? (vswap! idx dec))
             (rf result input)
-            (reduced result)))))))
+            (ensure-reduced result)))))))
   ([n coll]
    (lazy-seq
     (when (seq coll)
@@ -2639,7 +2639,7 @@
        ([result input]
         (if (pred input)
           (rf result input)
-          (reduced result))))))
+          (ensure-reduced result))))))
   ([pred coll]
    (lazy-seq
     (when (seq coll)
@@ -2679,7 +2679,7 @@
        ([result input]
         (if-not (pred input)
           (rf result input)
-          (reduced result)))))) ([pred coll]
+          (ensure-reduced result)))))) ([pred coll]
    (lazy-seq
     (when (seq coll)
       (if (pred (first coll))
@@ -5805,6 +5805,29 @@
      ([] (f))
      ([result] (cf result))
      ([result input] (f result input)))))
+
+(defn halt-when
+  "Return a transducer which ends the tranducing process the first time `pred`
+  returns a truthy value for an input.
+
+  If `retf` is given, it will be passed two arguments if a halt occurs. The
+  first argument is the current result and the second is the input which triggered
+  the halt. The return value of calling `retf` will be the return value of the
+  transducer.
+
+  If `retf` is not given, the default `retf` will return the value which triggered
+  the halt."
+  ([pred]
+   (halt-when pred (fn [_ input] (reduced input))))
+  ([pred retf]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (if (pred input)
+          (ensure-reduced (retf result input))
+          (rf result input)))))))
 
 (defn sequence
   "Coerces coll to a possibly empty sequence. If `coll` is `nil`, return `()`.
