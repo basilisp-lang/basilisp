@@ -2520,7 +2520,7 @@
   "Return a lazy sequence of the concatenated results of mapping f over
   colls."
   ([f]
-   (comp cat (map f)))
+   (comp (map f) cat))
   ([f coll]
    (apply concat (map f coll)))
   ([f coll & colls]
