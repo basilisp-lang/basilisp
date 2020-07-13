@@ -5866,7 +5866,7 @@
                            (let [result (if (and (seq coll) (every? seq colls))
                                           (as-> (map rest colls) $
                                             (apply create-sequence (rest coll) $)
-                                            (apply xf $ (map first coll)))
+                                            (apply xf $ (first coll) (map first colls)))
                                           coll)]
                              (xf
                               (if (reduced? result)
