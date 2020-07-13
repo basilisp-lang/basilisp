@@ -1480,30 +1480,6 @@ def test_merge():
     )
 
 
-def test_map_indexed():
-    assert llist.l(vec.v(0, 1), vec.v(1, 2), vec.v(2, 3)) == core.map_indexed(
-        core.vector, vec.v(1, 2, 3)
-    )
-
-
-def test_mapcat():
-    assert llist.List.empty() == core.mapcat(
-        lambda x: vec.v(x, x + 1), vec.Vector.empty()
-    )
-    assert llist.l(1, 2, 2, 3, 3, 4) == core.mapcat(
-        lambda x: vec.v(x, x + 1), vec.v(1, 2, 3)
-    )
-    assert llist.l(1, 4, 2, 5, 3, 6) == core.mapcat(
-        core.vector, vec.v(1, 2, 3), vec.v(4, 5, 6)
-    )
-
-
-def test_filter():
-    assert llist.List.empty() == core.filter_(core.identity, vec.Vector.empty())
-    assert llist.l(1, 3) == core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4))
-    assert llist.l(1, 2, 3, 4) == core.filter_(core.identity, vec.v(1, 2, 3, 4))
-
-
 def test_remove():
     assert llist.List.empty() == core.remove(core.identity, vec.Vector.empty())
     assert llist.l(2, 4) == core.remove(core.odd__Q__, vec.v(1, 2, 3, 4))
