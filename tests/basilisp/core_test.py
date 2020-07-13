@@ -1480,12 +1480,6 @@ def test_merge():
     )
 
 
-def test_remove():
-    assert llist.List.empty() == core.remove(core.identity, vec.Vector.empty())
-    assert llist.l(2, 4) == core.remove(core.odd__Q__, vec.v(1, 2, 3, 4))
-    assert llist.List.empty() == core.remove(core.identity, vec.v(1, 2, 3, 4))
-
-
 def test_take():
     assert llist.List.empty() == core.take(3, vec.Vector.empty())
     assert llist.l(1, 2, 3) == core.take(3, vec.v(1, 2, 3))
