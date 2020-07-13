@@ -512,8 +512,16 @@
       '(2 4 6) odd?     [1 2 3 4 5 6])))
 
 (deftest keep-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (keep identity) input))
+      []            []
+      [:a :b :c]    [:a :b :c]
+      [:a :b :c]    [:a :b nil :c]
+      [:a :b :c]    [:a :b nil nil :c]
+      [:a :b :c :d] [:a :b nil :c nil nil :d]))
+
   (testing "higher order function"
-    (are [x y] (= x (keep identity y))
+    (are [res input] (= res (keep identity input))
       '()            []
       '(:a :b :c)    [:a :b :c]
       '(:a :b :c)    [:a :b nil :c]
@@ -521,9 +529,18 @@
       '(:a :b :c :d) [:a :b nil :c nil nil :d])))
 
 (deftest keep-indexed-test
+  (testing "transducer"
+    (let [f (fn [i v] v)]
+      (are [res input] (= res (into [] (keep-indexed f) input))
+        []            []
+        [:a :b :c]    [:a :b :c]
+        [:a :b :c]    [:a :b nil :c]
+        [:a :b :c]    [:a :b nil nil :c]
+        [:a :b :c :d] [:a :b nil :c nil nil :d])))
+
   (testing "higher order function"
     (let [f (fn [i v] v)]
-      (are [x y] (= x (keep-indexed f y))
+      (are [res input] (= res (keep-indexed f input))
         '()            []
         '(:a :b :c)    [:a :b :c]
         '(:a :b :c)    [:a :b nil :c]
