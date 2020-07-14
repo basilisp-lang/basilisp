@@ -1480,17 +1480,6 @@ def test_merge():
     )
 
 
-def test_drop_last():
-    assert llist.l(1, 2, 3, 4) == core.drop_last(vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1, 2, 3) == core.drop_last(2, vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1, 2) == core.drop_last(3, vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1) == core.drop_last(4, vec.v(1, 2, 3, 4, 5))
-    assert llist.List.empty() == core.drop_last(5, vec.v(1, 2, 3, 4, 5))
-    assert llist.List.empty() == core.drop_last(6, vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1, 2, 3, 4, 5) == core.drop_last(0, vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1, 2, 3, 4, 5) == core.drop_last(-1, vec.v(1, 2, 3, 4, 5))
-
-
 def test_split_at():
     assert vec.v(llist.List.empty(), llist.List.empty()) == core.split_at(
         3, vec.Vector.empty()
