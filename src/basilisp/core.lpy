@@ -2649,7 +2649,7 @@
 (defn drop
   "Drop the first n elements of coll.
 
-  Return a transducer if no collection is provided."
+  Return a stateful transducer if no collection is provided."
   ([n]
    (fn [rf]
      (let [idx (volatile! (inc n))]
@@ -2673,13 +2673,16 @@
   Return a transducer if no collection is provided."
   ([pred]
    (fn [rf]
-     (fn
-       ([] (rf))
-       ([result] (rf result))
-       ([result input]
-        (if-not (pred input)
-          (rf result input)
-          (ensure-reduced result)))))) ([pred coll]
+     (let [v (volatile! false)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (cond
+            @v                 (rf result input)
+            (not (pred input)) (do (vreset! v true) (rf result input))
+            :else              result))))))
+  ([pred coll]
    (lazy-seq
     (when (seq coll)
       (if (pred (first coll))

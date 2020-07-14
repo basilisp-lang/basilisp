@@ -1480,23 +1480,6 @@ def test_merge():
     )
 
 
-def test_drop():
-    assert llist.List.empty() == core.drop(3, vec.Vector.empty())
-    assert llist.List.empty() == core.drop(3, vec.v(1, 2, 3))
-    assert llist.l(1, 2, 3) == core.drop(0, vec.v(1, 2, 3))
-    assert llist.l(2, 3) == core.drop(1, vec.v(1, 2, 3))
-    assert llist.l(3) == core.drop(2, vec.v(1, 2, 3))
-    assert llist.l(4) == core.drop(3, vec.v(1, 2, 3, 4))
-
-
-def test_drop_while():
-    assert llist.List.empty() == core.drop_while(core.odd__Q__, vec.Vector.empty())
-    assert llist.List.empty() == core.drop_while(core.odd__Q__, vec.v(1, 3, 5, 7))
-    assert llist.l(2) == core.drop_while(core.odd__Q__, vec.v(1, 3, 5, 2))
-    assert llist.l(2, 3, 4) == core.drop_while(core.odd__Q__, vec.v(1, 2, 3, 4))
-    assert llist.l(2, 4, 6, 8) == core.drop_while(core.odd__Q__, vec.v(2, 4, 6, 8))
-
-
 def test_drop_last():
     assert llist.l(1, 2, 3, 4) == core.drop_last(vec.v(1, 2, 3, 4, 5))
     assert llist.l(1, 2, 3) == core.drop_last(2, vec.v(1, 2, 3, 4, 5))
