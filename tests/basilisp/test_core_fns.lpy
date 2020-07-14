@@ -650,6 +650,19 @@
     {:a 4 :b 1 :c 2} '(:a :a :a :b :c :c :a)
     {:a 4 :b 1 :c 2} [:a :a :a :b :c :c :a]))
 
+(deftest interpose-test
+  (testing "transducer"
+    (are [input sep res] (= res (into [] (interpose sep) input))
+      []             "," []
+      ["hi"]         "," ["hi"]
+      ["hi" "there"] "," ["hi" "," "there"]))
+
+  (testing "higher order function"
+    (are [input sep res] (= res (interpose sep input))
+      []             "," '()
+      ["hi"]         "," '("hi")
+      ["hi" "there"] "," '("hi" "," "there"))))
+
 (deftest interleave-test
   (is (= '() (interleave)))
   (is (= '(1 2 3) (interleave [1 2 3])))
