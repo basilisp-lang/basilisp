@@ -765,14 +765,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (deftest replace-test
-  (is (= '(This is the code ZERO ONE TWO ZERO)
-         (replace '{0 ZERO, 1 ONE, 2 TWO} '(This is the code 0 1 2 0))))
-  (is (= [:four :two 3 :four 5 6 :two]
-         (replace {2 :two, 4 :four} [4 2 3 4 5 6 2])))
-  (is (= [10 8 6]
-         (replace [10 9 8 7 6] [0 2 4])))
-  (is (= [:zeroth :second :fourth :zeroth]
-         (replace [:zeroth :first :second :third :fourth] [0 2 4 0]))))
+  (testing "transducer"
+    (are [smap input res] (= res (into [] (replace smap) input))
+      '{0 ZERO, 1 ONE, 2 TWO}                 '(This is the code 0 1 2 0) '[This is the code ZERO ONE TWO ZERO]
+      {2 :two, 4 :four}                       [4 2 3 4 5 6 2]             [:four :two 3 :four 5 6 :two]
+      [10 9 8 7 6]                            [0 2 4]                     [10 8 6]
+      [:zeroth :first :second :third :fourth] [0 2 4 0]                   [:zeroth :second :fourth :zeroth]))
+
+  (testing "higher order function"
+    (are [smap input res] (= res (replace smap input))
+      '{0 ZERO, 1 ONE, 2 TWO}                 '(This is the code 0 1 2 0) '(This is the code ZERO ONE TWO ZERO)
+      {2 :two, 4 :four}                       [4 2 3 4 5 6 2]             [:four :two 3 :four 5 6 :two]
+      [10 9 8 7 6]                            [0 2 4]                     [10 8 6]
+      [:zeroth :first :second :third :fourth] [0 2 4 0]                   [:zeroth :second :fourth :zeroth])))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; String Functions ;;

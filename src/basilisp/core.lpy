@@ -2668,9 +2668,9 @@
         (seq coll))))))
 
 (defn drop-while
-  "Drop elements of coll while (pred elem) is true.
+  "Drop elements of coll until `(pred elem)` returns true.
 
-  Return a transducer if no collection is provided."
+  Return a stateful transducer if no collection is provided."
   ([pred]
    (fn [rf]
      (let [v (volatile! false)]
