@@ -2967,9 +2967,11 @@
          ([] (rf))
          ([result] (rf result))
          ([result input]
-          (if (= prev input)
+          (if (= @prev input)
             result
-            (rf result input)))))))
+            (do
+              (vreset! prev input)
+              (rf result input))))))))
   ([coll]
    (let [coll-dedupe (fn coll-dedupe
                        [coll prev]

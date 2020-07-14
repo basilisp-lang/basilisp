@@ -689,23 +689,44 @@
       '((1 1 1) (2 2) (3 3)) [1 1 1 2 2 3 3])))
 
 (deftest distinct-test
-  (are [x y] (= x (distinct y))
-    '() []
-    '(:a) [:a]
-    '(:a :b) [:a :b]
-    '(:a :b :c) [:a :b :c]
-    '(:a :b :c) [:a :a :a :b :c]
-    '(:a :b :c) [:a :a :a :b :c :a]))
+  (testing "transducer"
+    (are [res input] (= res (into [] (distinct) input))
+      []         []
+      [:a]       [:a]
+      [:a :b]    [:a :b]
+      [:a :b :c] [:a :b :c]
+      [:a :b :c] [:a :a :a :b :c]
+      [:a :b :c] [:a :a :a :b :c :a]))
+
+  (testing "higher order function"
+    (are [res input] (= res (distinct input))
+      '()         []
+      '(:a)       [:a]
+      '(:a :b)    [:a :b]
+      '(:a :b :c) [:a :b :c]
+      '(:a :b :c) [:a :a :a :b :c]
+      '(:a :b :c) [:a :a :a :b :c :a])))
 
 (deftest dedupe-test
-  (are [x y] (= x (dedupe y))
-    '() []
-    '(:a) [:a]
-    '(:a :b) [:a :b]
-    '(:a :b :c) [:a :b :c]
-    '(:a :b :c) [:a :a :a :b :c]
-    '(:a :b :c :a) [:a :a :a :b :c :a]
-    '(:a :b :c :a) [:a :a :a :b :c :c :a]))
+  (testing "transducer"
+    (are [res input] (= res (into [] (dedupe) input))
+      []            []
+      [:a]          [:a]
+      [:a :b]       [:a :b]
+      [:a :b :c]    [:a :b :c]
+      [:a :b :c]    [:a :a :a :b :c]
+      [:a :b :c :a] [:a :a :a :b :c :a]
+      [:a :b :c :a] [:a :a :a :b :c :c :a]))
+
+  (testing "higher order function"
+    (are [res input] (= res (dedupe input))
+      '()            []
+      '(:a)          [:a]
+      '(:a :b)       [:a :b]
+      '(:a :b :c)    [:a :b :c]
+      '(:a :b :c)    [:a :a :a :b :c]
+      '(:a :b :c :a) [:a :a :a :b :c :a]
+      '(:a :b :c :a) [:a :a :a :b :c :c :a])))
 
 (deftest flatten-test
   (are [x y] (= x (flatten y))
