@@ -1520,12 +1520,6 @@ def test_group_by():
     )
 
 
-def test_interpose():
-    assert llist.List.empty() == core.interpose(",", vec.Vector.empty())
-    assert llist.l("hi") == core.interpose(",", vec.v("hi"))
-    assert llist.l("hi", ",", "there") == core.interpose(",", vec.v("hi", "there"))
-
-
 def test_cycle():
     assert llist.l(1, 1, 1) == core.take(3, core.cycle(vec.v(1)))
     assert llist.l(1, 2, 1) == core.take(3, core.cycle(vec.v(1, 2)))
