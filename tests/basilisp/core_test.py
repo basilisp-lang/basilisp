@@ -1480,14 +1480,6 @@ def test_merge():
     )
 
 
-def test_take_nth():
-    assert llist.List.empty() == core.take_nth(0, vec.Vector.empty())
-    assert llist.l(1, 1, 1) == core.take(3, core.take_nth(0, vec.v(1)))
-    assert llist.l(1, 1, 1) == core.take(3, core.take_nth(0, vec.v(1, 1, 1)))
-    assert llist.l(1, 2, 3, 4, 5) == core.take_nth(1, vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1, 4) == core.take_nth(3, vec.v(1, 2, 3, 4, 5))
-
-
 def test_drop():
     assert llist.List.empty() == core.drop(3, vec.Vector.empty())
     assert llist.List.empty() == core.drop(3, vec.v(1, 2, 3))
