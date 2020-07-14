@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added default reader features for matching Python version ranges (`:lpy36+`, `:lpy38-`, etc.) (#593)
  * Added `lazy-cat` function for lazily concatenating sequences (#588)
  * Added support for writing EDN strings from `basilisp.edn` (#600)
+ * Added support for transducers (#601)
 
 ### Changed
  * Moved `basilisp.lang.runtime.to_seq` to `basilisp.lang.seq` so it can be used within that module and by `basilisp.lang.runtime` without circular import (#588)
