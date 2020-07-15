@@ -5855,10 +5855,7 @@
                            (let [result (if (seq coll)
                                           (xf (create-sequence (rest coll)) (first coll))
                                           coll)]
-                             (xf
-                              (if (reduced? result)
-                                @result
-                                result)))))]
+                             (xf (unreduced result)))))]
      (create-sequence coll)))
   ([xform coll & colls]
    (let[xf              (xform (fn
@@ -5873,10 +5870,7 @@
                                             (apply create-sequence (rest coll) $)
                                             (apply xf $ (first coll) (map first colls)))
                                           coll)]
-                             (xf
-                              (if (reduced? result)
-                                @result
-                                result)))))]
+                             (xf (unreduced result)))))]
      (apply create-sequence coll colls))))
 
 (defn transduce

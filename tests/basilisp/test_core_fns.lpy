@@ -168,16 +168,6 @@
     '(4 3 2 1) [1 2 3 4]
     '(:d :c :b :a) [:a :b :c :d]))
 
-(deftest sequence-test
-  (are [x y] (= x (sequence y))
-    '() '()
-    '() []
-    '() #{}
-    '() {}
-    '(0 1 2 3) [0 1 2 3]
-    '(0 1 2 3) '(0 1 2 3)
-    '(0 1 2 3) (range 4)))
-
 (deftest subvec-test
   (is (= [] (subvec [] 0)))
   (is (thrown? python/IndexError (subvec [] 3)))
@@ -1056,3 +1046,14 @@
                        +
                        0
                        (range)))))
+
+(deftest sequence-test
+  (testing "single arity"
+    (are [x y] (= x (sequence y))
+      '() '()
+      '() []
+      '() #{}
+      '() {}
+      '(0 1 2 3) [0 1 2 3]
+      '(0 1 2 3) '(0 1 2 3)
+      '(0 1 2 3) (range 4))))
