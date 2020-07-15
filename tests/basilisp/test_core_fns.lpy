@@ -1039,3 +1039,20 @@
       (other [arg])
       (other [arg1 arg2 arg3])
       (other [arg1 arg2 arg3 & rest-arg])]))
+
+;;;;;;;;;;;;;;;;;
+;; Transducers ;;
+;;;;;;;;;;;;;;;;;
+
+(deftest halt-when-test
+  (is (= 5 (transduce (comp (map inc)
+                            (halt-when #(>= % 5)))
+                      +
+                      0
+                      (range))))
+  (is (= 10 (transduce (comp (map inc)
+                             (halt-when #(>= % 5)
+                                        (fn [result _] result)))
+                       +
+                       0
+                       (range)))))
