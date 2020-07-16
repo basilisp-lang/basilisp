@@ -152,6 +152,7 @@ OBJECT_DUNDER_METHODS = frozenset(
         "__mul__",
         "__ne__",
         "__neg__",
+        "__next__",
         "__new__",
         "__not__",
         "__pos__",
