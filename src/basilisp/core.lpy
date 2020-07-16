@@ -2354,14 +2354,14 @@
   the argument functions are called from right to left."
   ([] identity)
   ([f] f)
-  ([f & args]
-   (let [composed (reduce (fn [f g]
-                            (fn [& args]
-                              (f (apply g args))))
-                          f
-                          args)]
-     (fn [& inner-args]
-       (apply composed inner-args)))))
+  ([f g]
+   (fn
+     ([x] (f (g x)))
+     ([x y] (f (g x y)))
+     ([x y z] (f (g x y z)))
+     ([x y z & args] (f (apply g x y z args)))))
+  ([f g & args]
+   (reduce comp f (cons g args))))
 
 (defn juxt
   "Return a function which takes any number of arguments and applies each of
@@ -5796,23 +5796,31 @@
 ;; Transducers ;;
 ;;;;;;;;;;;;;;;;;
 
+(import* collections)
+
+;; Eduction types return a custom iterator type which continually pulls from the
+;; input collection (cast as a `seq`). `xf` is called on each value of that
+;; sequence and it stores eligible values in a queue (`buf`). `__next__` adds
+;; to `buf` as long as there are eligible values from the input collection and
+;; yields from `buf` as long as there are values.
+
 (deftype EductionSeq [buf xf ^:mutable coll]
   (__next__ [self]
     (loop [s (seq coll)]
       (if-not s
         (if (python/bool buf)
-          (.pop buf)
+          (.popleft buf)
           (throw (python/StopIteration)))
         (let [[f & r] s
               v       (xf nil f)]
           (cond
             (reduced? v)      (do (xf nil) (throw (python/StopIteration)))
-            (python/bool buf) (do (set! coll r) (.pop buf))
+            (python/bool buf) (do (set! coll r) (.popleft buf))
             :else             (recur r)))))))
 
 (deftype Eduction [xform coll]
   (__iter__ [self]
-    (let [buf (python/list)
+    (let [buf (collections/deque)
           xf  (xform
                (fn
                  ([])
@@ -5823,6 +5831,16 @@
       (EductionSeq buf xf coll))))
 
 (defn eduction
+  "Return an iterable which is the application of the transducers `xform*` to the
+  input collection `coll`. Transducers will be applied to `comp` in the given order.
+
+  Unlike with `sequence`, `eduction` returns an iterable type which does not cache
+  its results. As such, any computation will be performed again on each iteration.
+
+  Eductions are likely to be more efficient in contexts where you would plan to
+  consume the entire input collection and only plan to use that computation once.
+  For cases with an infinite input sequence or if you need caching, `sequence` is
+  preferred."
   [& args]
   (let [[xform* coll] ((juxt butlast last) args)
         xform         (apply comp xform*)]
