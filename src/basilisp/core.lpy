@@ -5796,6 +5796,38 @@
 ;; Transducers ;;
 ;;;;;;;;;;;;;;;;;
 
+(deftype EductionSeq [buf xf ^:mutable coll]
+  (__next__ [self]
+    (loop [s (seq coll)]
+      (if-not s
+        (if (python/bool buf)
+          (.pop buf)
+          (throw (python/StopIteration)))
+        (let [[f & r] s
+              v       (xf nil f)]
+          (cond
+            (reduced? v)      (do (xf nil) (throw (python/StopIteration)))
+            (python/bool buf) (do (set! coll r) (.pop buf))
+            :else             (recur r)))))))
+
+(deftype Eduction [xform coll]
+  (__iter__ [self]
+    (let [buf (python/list)
+          xf  (xform
+               (fn
+                 ([])
+                 ([result] result)
+                 ([result input]
+                  (.append buf input)
+                  result)))]
+      (EductionSeq buf xf coll))))
+
+(defn eduction
+  [& args]
+  (let [[xform* coll] ((juxt butlast last) args)
+        xform         (apply comp xform*)]
+    (Eduction xform coll)))
+
 (defn completing
   "Given a reducing function of two arguments, `f`, return a function with both 0-,
   1-, and 2-arities appropriate for `transduce`. The 0-arity will return a call to
