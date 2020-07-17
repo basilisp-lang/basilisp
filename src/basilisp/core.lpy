@@ -5814,7 +5814,7 @@
         (let [[f & r] s
               v       (xf nil f)]
           (cond
-            (reduced? v)      (do (xf nil) (throw (python/StopIteration)))
+            (reduced? v)      (do (xf nil) (set! coll nil) (recur nil))
             (python/bool buf) (do (set! coll r) (.popleft buf))
             :else             (recur r)))))))
 

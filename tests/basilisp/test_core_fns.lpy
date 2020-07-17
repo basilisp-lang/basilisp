@@ -1034,6 +1034,26 @@
 ;; Transducers ;;
 ;;;;;;;;;;;;;;;;;
 
+(deftest eduction-test
+  (is (= '(1 9 25 49 81)
+         (seq (eduction (map inc)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        (take 5)
+                        (range)))))
+  (is (= '(1 9 49 81)
+         (seq (eduction (mapcat identity)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        (take 5)
+                        [(range 5) (range 6 10)]))))
+  (is (= '(1 9 49 81 121)
+         (seq (eduction (mapcat identity)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        (take 5)
+                        [(range 5) (range 6 10) (range 11 20)])))))
+
 (deftest halt-when-test
   (is (= 5 (transduce (comp (map inc)
                             (halt-when #(>= % 5)))
@@ -1056,4 +1076,12 @@
       '() {}
       '(0 1 2 3) [0 1 2 3]
       '(0 1 2 3) '(0 1 2 3)
-      '(0 1 2 3) (range 4))))
+      '(0 1 2 3) (range 4)))
+
+  (testing "tranducers"
+    (is (= '(1 2 3 4 5 6 7 8 9)
+           (sequence (comp (mapcat vector) cat) [[1 2 3] [4 5 6] [7 8 9]])))
+    (is (= '(1 2 3 4 5 6 7 8 9)
+           (sequence (mapcat identity) [[1 2 3] [4 5 6] [7 8 9]])))
+    (is (= '(1 4 7 2 5 8 3 6 9)
+           (sequence (mapcat vector) [1 2 3] [4 5 6] [7 8 9])))))
