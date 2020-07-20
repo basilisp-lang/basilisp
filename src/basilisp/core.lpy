@@ -1280,6 +1280,11 @@
   [x]
   (and (symbol? x) (some? (namespace x))))
 
+(defn queue?
+  "Return true if x is a persistent queue."
+  [x]
+  (instance? basilisp.lang.queue/PersistentQueue x))
+
 (defn ratio?
   "Return true if x is a Fraction."
   [x]
@@ -5902,30 +5907,34 @@
      coll
      (or (seq coll) '())))
   ([xform coll]
-   (let[xf              (xform (fn
-                                 ([] '())
-                                 ([result] result)
-                                 ([result input] (cons input result))))
+   (let[xf (xform (fn
+                    ([] (queue))
+                    ([result] result)
+                    ([result input]
+                     (conj result input))))
+
         create-sequence (fn create-sequence
                           [coll]
                           (lazy-seq
                            (let [result (if (seq coll)
-                                          (xf (create-sequence (rest coll)) (first coll))
+                                          (concat (xf (xf) (first coll))
+                                                  (create-sequence (rest coll)))
                                           coll)]
                              (xf (unreduced result)))))]
      (create-sequence coll)))
   ([xform coll & colls]
-   (let[xf              (xform (fn
-                                 ([] '())
-                                 ([result] result)
-                                 ([result input] (cons input result))))
+   (let[xf (xform (fn
+                    ([] (queue))
+                    ([result] result)
+                    ([result input]
+                     (conj result input))))
+
         create-sequence (fn create-sequence
                           [coll & colls]
                           (lazy-seq
                            (let [result (if (and (seq coll) (every? seq colls))
-                                          (as-> (map rest colls) $
-                                            (apply create-sequence (rest coll) $)
-                                            (apply xf $ (first coll) (map first colls)))
+                                          (concat (apply xf (xf) (first coll) (map first colls))
+                                                  (apply create-sequence (rest coll) (map rest colls)))
                                           coll)]
                              (xf (unreduced result)))))]
      (apply create-sequence coll colls))))

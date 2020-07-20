@@ -1,11 +1,9 @@
 from typing import Optional, TypeVar, cast
 
 from pyrsistent import PDeque, pdeque
-from pyrsistent._plist import _EMPTY_PLIST
 
 from basilisp.lang.interfaces import IPersistentList, IPersistentMap, ISeq, IWithMeta
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
-from basilisp.lang.seq import EMPTY
 
 T = TypeVar("T")
 
@@ -47,7 +45,10 @@ class PersistentQueue(IPersistentList[T], ISeq[T], IWithMeta):
 
     @property
     def first(self):
-        return self._inner.left
+        try:
+            return self._inner.left
+        except IndexError:
+            return None
 
     @property
     def rest(self) -> ISeq[T]:
