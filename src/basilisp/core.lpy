@@ -428,6 +428,13 @@
          strs   (coerce (conj args o) [])]
      (.join "" strs))))
 
+(defn queue
+  "Return a new persistent queue."
+  ([]
+   (basilisp.lang.queue/q))
+  ([coll]
+   (basilisp.lang.queue/queue coll)))
+
 (defn symbol
   "Create a new symbol with name and optional namespace ns."
   ([name]

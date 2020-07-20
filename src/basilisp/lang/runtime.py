@@ -475,6 +475,7 @@ class Namespace(ReferenceBase):
                 "basilisp.lang.map",
                 "basilisp.lang.multifn",
                 "basilisp.lang.promise",
+                "basilisp.lang.queue",
                 "basilisp.lang.reader",
                 "basilisp.lang.reduced",
                 "basilisp.lang.runtime",

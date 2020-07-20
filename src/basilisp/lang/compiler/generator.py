@@ -592,6 +592,7 @@ _LIST_ALIAS = genname("llist")
 _MAP_ALIAS = genname("lmap")
 _MULTIFN_ALIAS = genname("multifn")
 _PROMISE_ALIAS = genname("promise")
+_QUEUE_ALIAS = genname("queue")
 _READER_ALIAS = genname("reader")
 _REDUCED_ALIAS = genname("reduced")
 _RUNTIME_ALIAS = genname("runtime")
@@ -616,6 +617,7 @@ _MODULE_ALIASES = {
     "basilisp.lang.map": _MAP_ALIAS,
     "basilisp.lang.multifn": _MULTIFN_ALIAS,
     "basilisp.lang.promise": _PROMISE_ALIAS,
+    "basilisp.lang.queue": _QUEUE_ALIAS,
     "basilisp.lang.reader": _READER_ALIAS,
     "basilisp.lang.reduced": _REDUCED_ALIAS,
     "basilisp.lang.runtime": _RUNTIME_ALIAS,
