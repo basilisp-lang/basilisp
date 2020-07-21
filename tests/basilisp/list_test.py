@@ -50,9 +50,12 @@ def test_list_cons():
     l2 = l1.cons(keyword("kw2"))
     assert l1 is not l2
     assert l1 != l2
+    assert l2 == llist.l(keyword("kw2"), keyword("kw1"))
     assert len(l2) == 2
     assert meta == l1.meta
     assert l2.meta is None
+    l3 = l2.cons(3, "four")
+    assert l3 == llist.l("four", 3, keyword("kw2"), keyword("kw1"))
 
 
 def test_peek():

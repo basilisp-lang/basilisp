@@ -32,6 +32,7 @@ import attr
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import queue
 from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import util as langutil
@@ -270,6 +271,7 @@ class ReaderContext:
         {
             sym.symbol("inst"): _inst_from_str,
             sym.symbol("py"): _py_from_lisp,
+            sym.symbol("queue"): queue.queue,
             sym.symbol("uuid"): _uuid_from_str,
         }
     )

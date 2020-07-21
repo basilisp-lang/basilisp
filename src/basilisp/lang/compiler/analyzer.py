@@ -35,6 +35,7 @@ import attr
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import set as lset
@@ -114,12 +115,9 @@ from basilisp.lang.compiler.nodes import (
     PyList,
     PySet,
     PyTuple,
-    Quote,
-    Recur,
-    Reify,
-    Require,
-    RequireAlias,
 )
+from basilisp.lang.compiler.nodes import Queue as QueueNode
+from basilisp.lang.compiler.nodes import Quote, Recur, Reify, Require, RequireAlias
 from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, SpecialFormNode, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
@@ -3268,6 +3266,15 @@ def _map_node(ctx: AnalyzerContext, form: lmap.Map) -> MapNode:
 
 
 @_with_meta
+def _queue_node(ctx: AnalyzerContext, form: lqueue.PersistentQueue) -> QueueNode:
+    return QueueNode(
+        form=form,
+        items=vec.vector(map(partial(_analyze_form, ctx), form)),
+        env=ctx.get_node_env(pos=ctx.syntax_position),
+    )
+
+
+@_with_meta
 def _set_node(ctx: AnalyzerContext, form: lset.Set) -> SetNode:
     return SetNode(
         form=form,
@@ -3298,6 +3305,7 @@ _CONST_NODE_TYPES: Mapping[Type, ConstType] = {
     list: ConstType.PY_LIST,
     llist.List: ConstType.SEQ,
     lmap.Map: ConstType.MAP,
+    lqueue.PersistentQueue: ConstType.QUEUE,
     lset.Set: ConstType.SET,
     IRecord: ConstType.RECORD,
     ISeq: ConstType.SEQ,
@@ -3318,7 +3326,16 @@ def _const_node(ctx: AnalyzerContext, form: ReaderForm) -> Const:
         (
             ctx.is_quoted
             and isinstance(
-                form, (sym.Symbol, vec.Vector, llist.List, lmap.Map, lset.Set, ISeq)
+                form,
+                (
+                    sym.Symbol,
+                    vec.Vector,
+                    llist.List,
+                    lmap.Map,
+                    lqueue.PersistentQueue,
+                    lset.Set,
+                    ISeq,
+                ),
             )
         )
         or (ctx.should_allow_unresolved_symbols and isinstance(form, sym.Symbol))
@@ -3403,6 +3420,10 @@ def _analyze_form(  # pylint: disable=too-many-branches  # noqa: MC0001
         return _set_node(ctx, form)
     elif isinstance(form, sym.Symbol):
         return _symbol_node(ctx, form)
+    elif isinstance(form, lqueue.PersistentQueue):
+        if ctx.is_quoted:
+            return _const_node(ctx, form)
+        return _queue_node(ctx, form)
     elif isinstance(
         form,
         (

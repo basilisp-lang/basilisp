@@ -2,14 +2,22 @@ from typing import Optional, TypeVar, cast
 
 from pyrsistent import PDeque, pdeque
 
-from basilisp.lang.interfaces import IPersistentList, IPersistentMap, ISeq, IWithMeta
+from basilisp.lang.interfaces import (
+    ILispObject,
+    IPersistentList,
+    IPersistentMap,
+    ISeq,
+    IWithMeta,
+    seq_equals,
+)
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
+from basilisp.lang.seq import sequence
 
 T = TypeVar("T")
 
 
-class PersistentQueue(IPersistentList[T], ISeq[T], IWithMeta):
-    """Basilisp Queue. Delegates internally to a pyrsistent.PQueue object.
+class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
+    """Basilisp Queue. Delegates internally to a pyrsistent.PDeque object.
 
     Do not instantiate directly. Instead use the q() and queue() factory
     methods below."""
@@ -23,14 +31,24 @@ class PersistentQueue(IPersistentList[T], ISeq[T], IWithMeta):
     def __bool__(self):
         return True
 
+    def __eq__(self, other):
+        if self is other:
+            return True
+        if hasattr(other, "__len__") and len(self) != len(other):
+            return False
+        return seq_equals(self, other)
+
     def __hash__(self):
         return hash(self._inner)
+
+    def __iter__(self):
+        yield from self._inner
 
     def __len__(self):
         return len(self._inner)
 
     def _lrepr(self, **kwargs) -> str:
-        return _seq_lrepr(self._inner, "(", ")", meta=self._meta, **kwargs)
+        return _seq_lrepr(self._inner, "#queue (", ")", meta=self._meta, **kwargs)
 
     @property
     def meta(self) -> Optional[IPersistentMap]:
@@ -38,21 +56,6 @@ class PersistentQueue(IPersistentList[T], ISeq[T], IWithMeta):
 
     def with_meta(self, meta: Optional[IPersistentMap]) -> "List":
         return queue(self._inner, meta=meta)
-
-    @property
-    def is_empty(self):
-        return len(self._inner) == 0
-
-    @property
-    def first(self):
-        try:
-            return self._inner.left
-        except IndexError:
-            return None
-
-    @property
-    def rest(self) -> ISeq[T]:
-        return PersistentQueue(self._inner.popleft())
 
     def cons(self, *elems: T) -> "PersistentQueue[T]":
         return PersistentQueue(self._inner.extend(elems))
@@ -62,12 +65,18 @@ class PersistentQueue(IPersistentList[T], ISeq[T], IWithMeta):
         return q(meta=meta)
 
     def peek(self):
-        return self.first
+        try:
+            return self._inner.left
+        except IndexError:
+            return None
 
     def pop(self) -> "PersistentQueue[T]":
-        if self.is_empty:
+        if len(self._inner) == 0:
             raise IndexError("Cannot pop an empty queue")
-        return cast(PersistentQueue, self.rest)
+        return PersistentQueue(self._inner.popleft())
+
+    def seq(self) -> ISeq[T]:  # type: ignore[override]
+        return sequence(self)
 
 
 def queue(members, meta=None) -> PersistentQueue:  # pylint:disable=redefined-builtin
