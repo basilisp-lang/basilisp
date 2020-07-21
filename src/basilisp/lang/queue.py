@@ -1,6 +1,6 @@
-from typing import Optional, TypeVar, cast
+from typing import Optional, TypeVar
 
-from pyrsistent import PDeque, pdeque
+from pyrsistent import PDeque, pdeque  # noqa # pylint: disable=unused-import
 
 from basilisp.lang.interfaces import (
     ILispObject,
@@ -54,7 +54,7 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
     def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "List":
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentQueue":
         return queue(self._inner, meta=meta)
 
     def cons(self, *elems: T) -> "PersistentQueue[T]":
@@ -75,7 +75,7 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
             raise IndexError("Cannot pop an empty queue")
         return PersistentQueue(self._inner.popleft())
 
-    def seq(self) -> ISeq[T]:  # type: ignore[override]
+    def seq(self) -> ISeq[T]:
         return sequence(self)
 
 

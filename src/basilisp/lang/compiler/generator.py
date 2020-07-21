@@ -3425,27 +3425,27 @@ _CONST_VALUE_HANDLERS: Mapping[Type, SimplePyASTGenerator] = {
     complex: _num_to_py_ast,
     datetime: _inst_to_py_ast,
     Decimal: _decimal_to_py_ast,
-    dict: _const_py_dict_to_py_ast,  # type: ignore
+    dict: _const_py_dict_to_py_ast,  # type: ignore[dict-item]
     float: _num_to_py_ast,
     Fraction: _fraction_to_py_ast,
     int: _num_to_py_ast,
     kw.Keyword: _kw_to_py_ast,
-    list: _const_py_list_to_py_ast,  # type: ignore
-    llist.List: _const_seq_to_py_ast,  # type: ignore
-    lmap.Map: _const_map_to_py_ast,  # type: ignore
-    lqueue.PersistentQueue: _const_queue_to_py_ast,
-    lset.Set: _const_set_to_py_ast,  # type: ignore
-    IRecord: _const_record_to_py_ast,  # type: ignore
-    ISeq: _const_seq_to_py_ast,  # type: ignore
-    IType: _const_type_to_py_ast,  # type: ignore
+    list: _const_py_list_to_py_ast,  # type: ignore[dict-item]
+    llist.List: _const_seq_to_py_ast,  # type: ignore[dict-item]
+    lmap.Map: _const_map_to_py_ast,  # type: ignore[dict-item]
+    lqueue.PersistentQueue: _const_queue_to_py_ast,  # type: ignore[dict-item]
+    lset.Set: _const_set_to_py_ast,  # type: ignore[dict-item]
+    IRecord: _const_record_to_py_ast,  # type: ignore[dict-item]
+    ISeq: _const_seq_to_py_ast,  # type: ignore[dict-item]
+    IType: _const_type_to_py_ast,  # type: ignore[dict-item]
     type(re.compile("")): _regex_to_py_ast,
-    set: _const_py_set_to_py_ast,  # type: ignore
-    sym.Symbol: _const_sym_to_py_ast,  # type: ignore
+    set: _const_py_set_to_py_ast,  # type: ignore[dict-item]
+    sym.Symbol: _const_sym_to_py_ast,  # type: ignore[dict-item]
     str: _str_to_py_ast,
-    tuple: _const_py_tuple_to_py_ast,  # type: ignore
+    tuple: _const_py_tuple_to_py_ast,  # type: ignore[dict-item]
     type(None): _name_const_to_py_ast,
     uuid.UUID: _uuid_to_py_ast,
-    vec.Vector: _const_vec_to_py_ast,  # type: ignore
+    vec.Vector: _const_vec_to_py_ast,  # type: ignore[dict-item]
 }
 
 
@@ -3486,22 +3486,22 @@ _CONSTANT_HANDLER: Mapping[ConstType, SimplePyASTGenerator] = {
     ConstType.DECIMAL: _decimal_to_py_ast,
     ConstType.FRACTION: _fraction_to_py_ast,
     ConstType.KEYWORD: _kw_to_py_ast,
-    ConstType.MAP: _const_map_to_py_ast,  # type: ignore
-    ConstType.QUEUE: _const_queue_to_py_ast,
-    ConstType.SET: _const_set_to_py_ast,  # type: ignore
-    ConstType.RECORD: _const_record_to_py_ast,  # type: ignore
-    ConstType.SEQ: _const_seq_to_py_ast,  # type: ignore
-    ConstType.TYPE: _const_type_to_py_ast,  # type: ignore
+    ConstType.MAP: _const_map_to_py_ast,  # type: ignore[dict-item]
+    ConstType.QUEUE: _const_queue_to_py_ast,  # type: ignore[dict-item]
+    ConstType.SET: _const_set_to_py_ast,  # type: ignore[dict-item]
+    ConstType.RECORD: _const_record_to_py_ast,  # type: ignore[dict-item]
+    ConstType.SEQ: _const_seq_to_py_ast,  # type: ignore[dict-item]
+    ConstType.TYPE: _const_type_to_py_ast,  # type: ignore[dict-item]
     ConstType.REGEX: _regex_to_py_ast,
-    ConstType.SYMBOL: _const_sym_to_py_ast,  # type: ignore
+    ConstType.SYMBOL: _const_sym_to_py_ast,  # type: ignore[dict-item]
     ConstType.STRING: _str_to_py_ast,
     ConstType.NIL: _name_const_to_py_ast,
     ConstType.UUID: _uuid_to_py_ast,
-    ConstType.PY_DICT: _const_py_dict_to_py_ast,  # type: ignore
-    ConstType.PY_LIST: _const_py_list_to_py_ast,  # type: ignore
-    ConstType.PY_SET: _const_py_set_to_py_ast,  # type: ignore
-    ConstType.PY_TUPLE: _const_py_tuple_to_py_ast,  # type: ignore
-    ConstType.VECTOR: _const_vec_to_py_ast,  # type: ignore
+    ConstType.PY_DICT: _const_py_dict_to_py_ast,  # type: ignore[dict-item]
+    ConstType.PY_LIST: _const_py_list_to_py_ast,  # type: ignore[dict-item]
+    ConstType.PY_SET: _const_py_set_to_py_ast,  # type: ignore[dict-item]
+    ConstType.PY_TUPLE: _const_py_tuple_to_py_ast,  # type: ignore[dict-item]
+    ConstType.VECTOR: _const_vec_to_py_ast,  # type: ignore[dict-item]
 }
 
 
