@@ -31,6 +31,7 @@ from basilisp import _pyast as ast
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import set as lset
@@ -591,6 +592,7 @@ _LIST_ALIAS = genname("llist")
 _MAP_ALIAS = genname("lmap")
 _MULTIFN_ALIAS = genname("multifn")
 _PROMISE_ALIAS = genname("promise")
+_QUEUE_ALIAS = genname("queue")
 _READER_ALIAS = genname("reader")
 _RUNTIME_ALIAS = genname("runtime")
 _SEQ_ALIAS = genname("seq")
@@ -613,6 +615,7 @@ _MODULE_ALIASES = {
     "basilisp.lang.map": _MAP_ALIAS,
     "basilisp.lang.multifn": _MULTIFN_ALIAS,
     "basilisp.lang.promise": _PROMISE_ALIAS,
+    "basilisp.lang.queue": _QUEUE_ALIAS,
     "basilisp.lang.reader": _READER_ALIAS,
     "basilisp.lang.runtime": _RUNTIME_ALIAS,
     "basilisp.lang.seq": _SEQ_ALIAS,
@@ -3447,6 +3450,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.PY_LIST: _py_list_to_py_ast,
     NodeOp.PY_SET: _py_set_to_py_ast,
     NodeOp.PY_TUPLE: _py_tuple_to_py_ast,
+    NodeOp.QUEUE: _queue_to_py_ast,
     NodeOp.QUOTE: _quote_to_py_ast,
     NodeOp.RECUR: _recur_to_py_ast,  # type: ignore
     NodeOp.REIFY: _reify_to_py_ast,

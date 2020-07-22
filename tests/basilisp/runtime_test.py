@@ -8,6 +8,7 @@ from basilisp.lang import atom as atom
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
 from basilisp.lang import runtime as runtime
 from basilisp.lang import seq as lseq
 from basilisp.lang import set as lset
@@ -399,15 +400,20 @@ def test_deref():
         (lmap.PersistentMap.empty(), lmap.PersistentMap.empty()),
         (lmap.map({"a": 1, "b": 2}), lmap.map({"a": 1, "b": 2})),
         (lset.PersistentSet.empty(), lset.PersistentSet.empty()),
+        (lqueue.PersistentQueue.empty(), lqueue.PersistentQueue.empty()),
+        (lqueue.q(1, 2, 3), lqueue.q(1, 2, 3)),
         (lset.s(1, 2, 3), lset.s(1, 2, 3)),
         (vec.PersistentVector.empty(), vec.PersistentVector.empty()),
         (vec.v(1, 2, 3), vec.v(1, 2, 3)),
         (lseq.EMPTY, lseq.EMPTY),
         (lseq.EMPTY.cons(3).cons(2).cons(1), lseq.EMPTY.cons(3).cons(2).cons(1)),
+        (lqueue.q(1, 2, 3), lseq.EMPTY.cons(3).cons(2).cons(1)),
         (vec.v(1, 2, 3), lseq.EMPTY.cons(3).cons(2).cons(1)),
         (llist.PersistentList.empty(), vec.PersistentVector.empty()),
         (llist.l(1, 2, 3), vec.v(1, 2, 3)),
         (lseq.EMPTY, vec.PersistentVector.empty()),
+        (lqueue.q(1, 2, 3), vec.v(1, 2, 3)),
+        (lseq.EMPTY, lqueue.PersistentQueue.empty()),
         (lseq.EMPTY.cons(3).cons(2).cons(1), vec.v(1, 2, 3)),
         (llist.PersistentList.empty(), lseq.EMPTY),
         (lseq.EMPTY.cons(3).cons(2).cons(1), llist.l(1, 2, 3)),
@@ -427,15 +433,19 @@ def test_equals(v1, v2):
         (1, -1),
         (0, 0.00000032),
         (llist.l(1, 2, 3), llist.l(2, 3, 4)),
+        (llist.l(1, 2, 3), lqueue.q(2, 3, 4)),
         (llist.l(1, 2, 3), vec.v(2, 3, 4)),
         (lmap.PersistentMap.empty(), llist.PersistentList.empty()),
         (lmap.PersistentMap.empty(), vec.PersistentVector.empty()),
         (lmap.PersistentMap.empty(), lseq.EMPTY),
+        (lmap.PersistentMap.empty(), lqueue.PersistentQueue.empty()),
         (lmap.map({1: "1", 2: "2", 3: "3"}), llist.l(1, 2, 3)),
+        (lmap.map({1: "1", 2: "2", 3: "3"}), lqueue.q(1, 2, 3)),
         (lmap.map({1: "1", 2: "2", 3: "3"}), vec.v(1, 2, 3)),
         (lmap.map({1: "1", 2: "2", 3: "3"}), lseq.EMPTY.cons(3).cons(2).cons(1)),
         (lset.PersistentSet.empty(), llist.PersistentList.empty()),
         (lset.PersistentSet.empty(), lmap.PersistentMap.empty()),
+        (lset.PersistentSet.empty(), lqueue.PersistentQueue.empty()),
         (lset.PersistentSet.empty(), vec.PersistentVector.empty()),
         (lset.PersistentSet.empty(), lseq.EMPTY),
         (lset.s(1, 2, 3), llist.l(1, 2, 3)),
