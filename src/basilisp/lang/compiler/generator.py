@@ -87,12 +87,9 @@ from basilisp.lang.compiler.nodes import (
     PyList,
     PySet,
     PyTuple,
-    Quote,
-    ReaderLispForm,
-    Recur,
-    Reify,
-    Require,
 )
+from basilisp.lang.compiler.nodes import Queue as QueueNode
+from basilisp.lang.compiler.nodes import Quote, ReaderLispForm, Recur, Reify, Require
 from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
@@ -2974,6 +2971,35 @@ def _map_to_py_ast(
                 Maybe(meta_ast).map(lambda p: p.dependencies).or_else_get([]),
                 key_deps,
                 val_deps,
+            )
+        ),
+    )
+
+
+@_with_ast_loc
+def _queue_to_py_ast(
+    ctx: GeneratorContext, node: QueueNode, meta_node: Optional[MetaNode] = None
+) -> GeneratedPyAST:
+    assert node.op == NodeOp.QUEUE
+
+    meta_ast: Optional[GeneratedPyAST]
+    if meta_node is not None:
+        meta_ast = gen_py_ast(ctx, meta_node)
+    else:
+        meta_ast = None
+
+    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.items))
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_NEW_QUEUE_FN_NAME,
+            args=[ast.List(list(elems), ast.Load())],
+            keywords=Maybe(meta_ast)
+            .map(lambda p: [ast.keyword(arg="meta", value=p.node)])
+            .or_else_get([]),
+        ),
+        dependencies=list(
+            chain(
+                Maybe(meta_ast).map(lambda p: p.dependencies).or_else_get([]), elem_deps
             )
         ),
     )
