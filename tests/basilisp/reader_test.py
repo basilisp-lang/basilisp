@@ -7,6 +7,7 @@ import pytest
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import set as lset
@@ -1256,6 +1257,17 @@ def test_inst_reader_literal():
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('#inst "I am a little teapot short and stout"')
+
+
+def test_queue_reader_literal():
+    assert read_str_first("#queue ()") == lqueue.EMPTY
+    assert read_str_first("#queue (1 2 3)") == lqueue.q(1, 2, 3)
+    assert read_str_first('#queue ([1 2 3] :a "b" {:c :d})') == lqueue.q(
+        vec.v(1, 2, 3),
+        kw.keyword("a"),
+        "b",
+        lmap.map({kw.keyword("c"): kw.keyword("d")}),
+    )
 
 
 def test_regex_reader_literal():

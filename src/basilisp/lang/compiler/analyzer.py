@@ -3456,6 +3456,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
                     vec.PersistentVector,
                     llist.PersistentList,
                     lmap.PersistentMap,
+                    lqueue.PersistentQueue,
                     lset.PersistentSet,
                     ISeq,
                 ),

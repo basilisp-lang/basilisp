@@ -3117,6 +3117,7 @@ def _py_tuple_to_py_ast(ctx: GeneratorContext, node: PyTuple) -> GeneratedPyAST:
 _WITH_META_EXPR_HANDLER = {
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
+    NodeOp.QUEUE: _queue_to_py_ast,
     NodeOp.REIFY: _reify_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
