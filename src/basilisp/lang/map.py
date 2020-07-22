@@ -258,9 +258,10 @@ def map(  # pylint:disable=redefined-builtin
 ) -> PersistentMap[K, V]:
     """Creates a new map."""
     # For some reason, creating a new `immutables.Map` instance from an existing
-    # `basilisp.lang.map.Map` instance causes issues because the `__iter__` returns
-    # only the keys rather than tuple of key/value pairs, even though it adheres to
-    # the `Mapping` protocol. Passing the `.items()` directly bypasses this problem.
+    # `basilisp.lang.map.PersistentMap` instance causes issues because the `__iter__`
+    # returns only the keys rather than tuple of key/value pairs, even though it
+    # adheres to the `Mapping` protocol. Passing the `.items()` directly bypasses
+    # this problem.
     return PersistentMap.from_coll(kvs.items(), meta=meta)
 
 
