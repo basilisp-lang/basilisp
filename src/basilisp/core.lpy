@@ -431,7 +431,7 @@
 (defn queue
   "Return a new persistent queue."
   ([]
-   (basilisp.lang.queue/q))
+   basilisp.lang.queue/EMPTY)
   ([coll]
    (basilisp.lang.queue/queue coll)))
 
@@ -5799,10 +5799,6 @@
          ((.- ~type-name ~'create) m#))
 
        ~type-name)))
-
-;;;;;;;;;;;;;;;;;;;;;
-;; Reduce Protocol ;;
-;;;;;;;;;;;;;;;;;;;;;
 
 ;;;;;;;;;;;;;;;;;
 ;; Transducers ;;
