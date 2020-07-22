@@ -60,11 +60,11 @@ class TransientSet(ITransientSet[T]):
                 pass
         return self
 
-    def to_persistent(self) -> "Set[T]":
-        return Set(self._inner.finish())
+    def to_persistent(self) -> "PersistentSet[T]":
+        return PersistentSet(self._inner.finish())
 
 
-class Set(
+class PersistentSet(
     IPersistentSet[T], IEvolveableCollection[TransientSet], ILispObject, IWithMeta,
 ):
     """Basilisp Set. Delegates internally to a immutables.Map object.
@@ -81,8 +81,8 @@ class Set(
     @classmethod
     def from_iterable(
         cls, members: Optional[Iterable[T]], meta: Optional[IPersistentMap] = None
-    ) -> "Set":
-        return Set(_Map((m, m) for m in (members or ())), meta=meta)
+    ) -> "PersistentSet":
+        return PersistentSet(_Map((m, m) for m in (members or ())), meta=meta)
 
     _from_iterable = from_iterable
 
@@ -147,27 +147,27 @@ class Set(
     def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "Set[T]":
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentSet[T]":
         return set(self._inner, meta=meta)
 
-    def cons(self, *elems: T) -> "Set[T]":
+    def cons(self, *elems: T) -> "PersistentSet[T]":
         with self._inner.mutate() as m:
             for elem in elems:
                 m.set(elem, elem)
-            return Set(m.finish(), meta=self.meta)
+            return PersistentSet(m.finish(), meta=self.meta)
 
-    def disj(self, *elems: T) -> "Set[T]":
+    def disj(self, *elems: T) -> "PersistentSet[T]":
         with self._inner.mutate() as m:
             for elem in elems:
                 try:
                     del m[elem]
                 except KeyError:
                     pass
-            return Set(m.finish(), meta=self.meta)
+            return PersistentSet(m.finish(), meta=self.meta)
 
     @staticmethod
-    def empty() -> "Set":
-        return s()
+    def empty() -> "PersistentSet":
+        return EMPTY
 
     def seq(self) -> ISeq[T]:
         return sequence(self)
@@ -176,13 +176,16 @@ class Set(
         return TransientSet(self._inner.mutate())
 
 
+EMPTY = PersistentSet.from_iterable(())
+
+
 def set(  # pylint:disable=redefined-builtin
     members: Iterable[T], meta: Optional[IPersistentMap] = None
-) -> Set[T]:
+) -> PersistentSet[T]:
     """Creates a new set."""
-    return Set.from_iterable(members, meta=meta)
+    return PersistentSet.from_iterable(members, meta=meta)
 
 
-def s(*members: T, meta: Optional[IPersistentMap] = None) -> Set[T]:
+def s(*members: T, meta: Optional[IPersistentMap] = None) -> PersistentSet[T]:
     """Creates a new set from members."""
-    return Set.from_iterable(members, meta=meta)
+    return PersistentSet.from_iterable(members, meta=meta)

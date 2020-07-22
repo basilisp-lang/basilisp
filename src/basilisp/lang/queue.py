@@ -61,8 +61,8 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
         return PersistentQueue(self._inner.extend(elems))
 
     @staticmethod
-    def empty(meta=None) -> "PersistentQueue":  # pylint:disable=arguments-differ
-        return q(meta=meta)
+    def empty() -> "PersistentQueue":
+        return EMPTY
 
     def peek(self):
         try:
@@ -77,6 +77,9 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
 
     def seq(self) -> ISeq[T]:
         return sequence(self)
+
+
+EMPTY: PersistentQueue = PersistentQueue(pdeque())
 
 
 def queue(members, meta=None) -> PersistentQueue:  # pylint:disable=redefined-builtin

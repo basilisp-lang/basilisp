@@ -18,6 +18,7 @@ from basilisp.lang import compiler as compiler
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import set as lset
@@ -149,6 +150,12 @@ class TestLiterals:
         assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
             '#inst "2018-01-18T03:26:57.296-00:00"'
         )
+
+    def test_queue(self, lcompile: CompileFn):
+        assert lcompile("#queue ()") == lqueue.EMPTY
+        assert lcompile("#queue (1 2 3)") == lqueue.q(1, 2, 3)
+        q = lcompile("^:has-meta #queue ()")
+        assert q.meta == lmap.map({kw.keyword("has-meta"): True})
 
     def test_regex(self, lcompile: CompileFn):
         assert lcompile(r'#"\s"') == re.compile(r"\s")
@@ -2545,8 +2552,8 @@ class TestMacroexpandFunctions:
         assert llist.l(
             sym.symbol("defmacro", ns="basilisp.core"),
             sym.symbol("child"),
-            vec.Vector.empty(),
-            llist.l(sym.symbol("fn", ns="basilisp.core"), vec.Vector.empty()),
+            vec.PersistentVector.empty(),
+            llist.l(sym.symbol("fn", ns="basilisp.core"), vec.PersistentVector.empty()),
         ) == compiler.macroexpand_1(llist.l(sym.symbol("parent")))
 
         assert llist.l(
@@ -2556,7 +2563,9 @@ class TestMacroexpandFunctions:
         assert llist.l(sym.symbol("map")) == compiler.macroexpand_1(
             llist.l(sym.symbol("map"))
         )
-        assert vec.Vector.empty() == compiler.macroexpand_1(vec.Vector.empty())
+        assert vec.PersistentVector.empty() == compiler.macroexpand_1(
+            vec.PersistentVector.empty()
+        )
 
         assert sym.symbol("non-existent-symbol") == compiler.macroexpand_1(
             sym.symbol("non-existent-symbol")
@@ -2572,7 +2581,9 @@ class TestMacroexpandFunctions:
                 sym.symbol("fn", ns="basilisp.core"),
                 sym.symbol("child"),
                 vec.v(sym.symbol("&env"), sym.symbol("&form")),
-                llist.l(sym.symbol("fn", ns="basilisp.core"), vec.Vector.empty()),
+                llist.l(
+                    sym.symbol("fn", ns="basilisp.core"), vec.PersistentVector.empty()
+                ),
             ),
         ) == compiler.macroexpand(llist.l(sym.symbol("parent"), meta=meta))
 
@@ -2583,8 +2594,8 @@ class TestMacroexpandFunctions:
         assert llist.l(sym.symbol("map")) == compiler.macroexpand(
             llist.l(sym.symbol("map"), meta=meta)
         )
-        assert vec.Vector.empty() == compiler.macroexpand(
-            vec.Vector.empty().with_meta(meta)
+        assert vec.PersistentVector.empty() == compiler.macroexpand(
+            vec.PersistentVector.empty().with_meta(meta)
         )
 
         assert sym.symbol("non-existent-symbol") == compiler.macroexpand(
@@ -3399,14 +3410,21 @@ class TestQuote:
         )
 
     def test_quoted_map(self, lcompile: CompileFn):
-        assert lcompile("'{}") == lmap.Map.empty()
+        assert lcompile("'{}") == lmap.PersistentMap.empty()
         assert lcompile("'{:a 2}") == lmap.map({kw.keyword("a"): 2})
         assert lcompile('\'{:a 2 "str" s}') == lmap.map(
             {kw.keyword("a"): 2, "str": sym.symbol("s")}
         )
 
+    def test_quoted_queue(self, lcompile: CompileFn):
+        assert lcompile("'#queue ()") == lqueue.EMPTY
+        assert lcompile('\'#queue (s :a "d")') == lqueue.q(
+            sym.symbol("s"), kw.keyword("a"), "d"
+        )
+        assert lcompile("'#queue (1 2 3)") == lqueue.q(1, 2, 3)
+
     def test_quoted_set(self, lcompile: CompileFn):
-        assert lcompile("'#{}") == lset.Set.empty()
+        assert lcompile("'#{}") == lset.PersistentSet.empty()
         assert lcompile("'#{:a 2}") == lset.s(kw.keyword("a"), 2)
         assert lcompile('\'#{:a 2 "str"}') == lset.s(kw.keyword("a"), 2, "str")
 

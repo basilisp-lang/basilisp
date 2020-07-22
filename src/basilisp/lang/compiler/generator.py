@@ -1,5 +1,6 @@
 import collections
 import contextlib
+import functools
 import logging
 import re
 import uuid
@@ -20,7 +21,6 @@ from typing import (
     Optional,
     Pattern,
     Tuple,
-    Type,
     Union,
     cast,
 )
@@ -50,7 +50,6 @@ from basilisp.lang.compiler.nodes import (
     Binding,
     Catch,
     Const,
-    ConstType,
     Def,
     DefType,
     DefTypeBase,
@@ -480,7 +479,7 @@ def _clean_meta(form: IMeta) -> LispForm:
     meta = form.meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
     if len(meta) == 0:
         return None
-    return cast(lmap.Map, meta)
+    return cast(lmap.PersistentMap, meta)
 
 
 def _ast_with_loc(
@@ -636,8 +635,8 @@ _NEW_INST_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.inst_from_str")
 _NEW_KW_FN_NAME = _load_attr(f"{_KW_ALIAS}.keyword_from_hash")
 _NEW_LIST_FN_NAME = _load_attr(f"{_LIST_ALIAS}.list")
 _EMPTY_LIST_FN_NAME = _load_attr(f"{_LIST_ALIAS}.List.empty")
-_NEW_MAP_FN_NAME = _load_attr(f"{_MAP_ALIAS}.map")
 _NEW_QUEUE_FN_NAME = _load_attr(f"{_QUEUE_ALIAS}.queue")
+_NEW_MAP_FN_NAME = _load_attr(f"{_MAP_ALIAS}.map")
 _NEW_REGEX_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.regex_from_str")
 _NEW_SET_FN_NAME = _load_attr(f"{_SET_ALIAS}.set")
 _NEW_SYM_FN_NAME = _load_attr(f"{_SYM_ALIAS}.symbol")
@@ -760,7 +759,10 @@ def _await_to_py_ast(ctx: GeneratorContext, node: Await) -> GeneratedPyAST:
 
 
 def __should_warn_on_redef(
-    ctx: GeneratorContext, defsym: sym.Symbol, safe_name: str, def_meta: lmap.Map
+    ctx: GeneratorContext,
+    defsym: sym.Symbol,
+    safe_name: str,
+    def_meta: lmap.PersistentMap,
 ) -> bool:
     """Return True if the compiler should emit a warning about this name being redefined."""
     no_warn_on_redef = def_meta.val_at(SYM_NO_WARN_ON_REDEF_META_KEY, False)
@@ -796,7 +798,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
 
     assert node.meta is not None, "Meta should always be attached to Def nodes"
     def_meta = node.meta.form
-    assert isinstance(def_meta, lmap.Map), "Meta should always be a map"
+    assert isinstance(def_meta, lmap.PersistentMap), "Meta should always be a map"
 
     # If the Var is marked as dynamic, we need to generate a keyword argument
     # for the generated Python code to set the Var as dynamic
@@ -3119,6 +3121,7 @@ def _py_tuple_to_py_ast(ctx: GeneratorContext, node: PyTuple) -> GeneratedPyAST:
 _WITH_META_EXPR_HANDLER = {
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
+    NodeOp.QUEUE: _queue_to_py_ast,
     NodeOp.REIFY: _reify_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
@@ -3143,11 +3146,33 @@ def _with_meta_to_py_ast(
 #################
 
 
+@functools.singledispatch
+def _const_val_to_py_ast(form: LispForm, _: GeneratorContext) -> GeneratedPyAST:
+    """Generate Python AST nodes for constant Lisp forms.
+
+    Nested values in collections for :const nodes are not analyzed, so recursive
+    structures need to call into this function to generate Python AST nodes for
+    nested elements. For top-level :const Lisp AST nodes, see
+    `_const_node_to_py_ast`."""
+    raise GeneratorException(f"No constant handler is defined for type {type(form)}")
+
+
+def _collection_literal_to_py_ast(
+    ctx: GeneratorContext, form: Iterable[LispForm]
+) -> Iterable[GeneratedPyAST]:
+    """Turn a quoted collection literal of Lisp forms into Python AST nodes.
+
+    This function can only handle constant values. It does not call back into
+    the generic AST generators, so only constant values will be generated down
+    this path."""
+    yield from map(lambda form: _const_val_to_py_ast(form, ctx), form)
+
+
 def _const_meta_kwargs_ast(  # pylint:disable=inconsistent-return-statements
-    ctx: GeneratorContext, form: IMeta
+    ctx: GeneratorContext, form: LispForm
 ) -> Optional[GeneratedPyAST]:
-    if hasattr(form, "meta") and form.meta is not None:
-        genned = _const_val_to_py_ast(ctx, _clean_meta(form))
+    if isinstance(form, IMeta) and form.meta is not None:
+        genned = _const_val_to_py_ast(_clean_meta(form), ctx)
         return GeneratedPyAST(
             node=ast.keyword(arg="meta", value=genned.node),
             dependencies=genned.dependencies,
@@ -3156,22 +3181,19 @@ def _const_meta_kwargs_ast(  # pylint:disable=inconsistent-return-statements
         return None
 
 
+@_const_val_to_py_ast.register(bool)
+@_const_val_to_py_ast.register(type(None))
+@_const_val_to_py_ast.register(complex)
+@_const_val_to_py_ast.register(float)
+@_const_val_to_py_ast.register(int)
+@_const_val_to_py_ast.register(str)
 @_simple_ast_generator
-def _name_const_to_py_ast(_: GeneratorContext, form: Union[bool, None]) -> ast.AST:
+def _py_const_to_py_ast(form: Union[bool, None], _: GeneratorContext) -> ast.AST:
     return ast.Constant(form)
 
 
-@_simple_ast_generator
-def _num_to_py_ast(_: GeneratorContext, form: Union[complex, float, int]) -> ast.AST:
-    return ast.Constant(form)
-
-
-@_simple_ast_generator
-def _str_to_py_ast(_: GeneratorContext, form: str) -> ast.AST:
-    return ast.Constant(form)
-
-
-def _const_sym_to_py_ast(ctx: GeneratorContext, form: sym.Symbol) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(sym.Symbol)
+def _const_sym_to_py_ast(form: sym.Symbol, ctx: GeneratorContext) -> GeneratedPyAST:
     meta = _const_meta_kwargs_ast(ctx, form)
 
     sym_kwarg = (
@@ -3192,8 +3214,9 @@ def _const_sym_to_py_ast(ctx: GeneratorContext, form: sym.Symbol) -> GeneratedPy
     )
 
 
+@_const_val_to_py_ast.register(kw.Keyword)
 @_simple_ast_generator
-def _kw_to_py_ast(_: GeneratorContext, form: kw.Keyword) -> ast.AST:
+def _kw_to_py_ast(form: kw.Keyword, _: GeneratorContext) -> ast.AST:
     kwarg = (
         Maybe(form.ns)
         .map(lambda ns: [ast.keyword(arg="ns", value=ast.Constant(form.ns))])
@@ -3206,15 +3229,17 @@ def _kw_to_py_ast(_: GeneratorContext, form: kw.Keyword) -> ast.AST:
     )
 
 
+@_const_val_to_py_ast.register(Decimal)
 @_simple_ast_generator
-def _decimal_to_py_ast(_: GeneratorContext, form: Decimal) -> ast.AST:
+def _decimal_to_py_ast(form: Decimal, _: GeneratorContext) -> ast.AST:
     return ast.Call(
         func=_NEW_DECIMAL_FN_NAME, args=[ast.Constant(str(form))], keywords=[]
     )
 
 
+@_const_val_to_py_ast.register(Fraction)
 @_simple_ast_generator
-def _fraction_to_py_ast(_: GeneratorContext, form: Fraction) -> ast.AST:
+def _fraction_to_py_ast(form: Fraction, _: GeneratorContext) -> ast.AST:
     return ast.Call(
         func=_NEW_FRACTION_FN_NAME,
         args=[ast.Constant(form.numerator), ast.Constant(form.denominator)],
@@ -3222,26 +3247,30 @@ def _fraction_to_py_ast(_: GeneratorContext, form: Fraction) -> ast.AST:
     )
 
 
+@_const_val_to_py_ast.register(datetime)
 @_simple_ast_generator
-def _inst_to_py_ast(_: GeneratorContext, form: datetime) -> ast.AST:
+def _inst_to_py_ast(form: datetime, _: GeneratorContext) -> ast.AST:
     return ast.Call(
         func=_NEW_INST_FN_NAME, args=[ast.Constant(form.isoformat())], keywords=[]
     )
 
 
+@_const_val_to_py_ast.register(type(re.compile(r"")))
 @_simple_ast_generator
-def _regex_to_py_ast(_: GeneratorContext, form: Pattern) -> ast.AST:
+def _regex_to_py_ast(form: Pattern, _: GeneratorContext) -> ast.AST:
     return ast.Call(
         func=_NEW_REGEX_FN_NAME, args=[ast.Constant(form.pattern)], keywords=[]
     )
 
 
+@_const_val_to_py_ast.register(uuid.UUID)
 @_simple_ast_generator
-def _uuid_to_py_ast(_: GeneratorContext, form: uuid.UUID) -> ast.AST:
+def _uuid_to_py_ast(form: uuid.UUID, _: GeneratorContext) -> ast.AST:
     return ast.Call(func=_NEW_UUID_FN_NAME, args=[ast.Constant(str(form))], keywords=[])
 
 
-def _const_py_dict_to_py_ast(ctx: GeneratorContext, node: dict) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(dict)
+def _const_py_dict_to_py_ast(node: dict, ctx: GeneratorContext) -> GeneratedPyAST:
     key_deps, keys = _chain_py_ast(*_collection_literal_to_py_ast(ctx, node.keys()))
     val_deps, vals = _chain_py_ast(*_collection_literal_to_py_ast(ctx, node.values()))
     return GeneratedPyAST(
@@ -3250,26 +3279,32 @@ def _const_py_dict_to_py_ast(ctx: GeneratorContext, node: dict) -> GeneratedPyAS
     )
 
 
-def _const_py_list_to_py_ast(ctx: GeneratorContext, node: list) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(list)
+def _const_py_list_to_py_ast(node: list, ctx: GeneratorContext) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, node))
     return GeneratedPyAST(
         node=ast.List(elts=list(elems), ctx=ast.Load()), dependencies=list(elem_deps)
     )
 
 
-def _const_py_set_to_py_ast(ctx: GeneratorContext, node: set) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(set)
+def _const_py_set_to_py_ast(node: set, ctx: GeneratorContext) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, node))
     return GeneratedPyAST(node=ast.Set(elts=list(elems)), dependencies=list(elem_deps))
 
 
-def _const_py_tuple_to_py_ast(ctx: GeneratorContext, node: tuple) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(tuple)
+def _const_py_tuple_to_py_ast(node: tuple, ctx: GeneratorContext) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, node))
     return GeneratedPyAST(
         node=ast.Tuple(elts=list(elems), ctx=ast.Load()), dependencies=list(elem_deps)
     )
 
 
-def _const_map_to_py_ast(ctx: GeneratorContext, form: lmap.Map) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(lmap.PersistentMap)
+def _const_map_to_py_ast(
+    form: lmap.PersistentMap, ctx: GeneratorContext
+) -> GeneratedPyAST:
     key_deps, keys = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form.keys()))
     val_deps, vals = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form.values()))
     meta = _const_meta_kwargs_ast(ctx, form)
@@ -3289,8 +3324,9 @@ def _const_map_to_py_ast(ctx: GeneratorContext, form: lmap.Map) -> GeneratedPyAS
     )
 
 
+@_const_val_to_py_ast.register(lqueue.PersistentQueue)
 def _const_queue_to_py_ast(
-    ctx: GeneratorContext, form: lqueue.PersistentQueue
+    form: lqueue.PersistentQueue, ctx: GeneratorContext
 ) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
     meta = _const_meta_kwargs_ast(ctx, form)
@@ -3306,7 +3342,10 @@ def _const_queue_to_py_ast(
     )
 
 
-def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(lset.PersistentSet)
+def _const_set_to_py_ast(
+    form: lset.PersistentSet, ctx: GeneratorContext
+) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
     meta = _const_meta_kwargs_ast(ctx, form)
     return GeneratedPyAST(
@@ -3321,7 +3360,8 @@ def _const_set_to_py_ast(ctx: GeneratorContext, form: lset.Set) -> GeneratedPyAS
     )
 
 
-def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(IRecord)
+def _const_record_to_py_ast(form: IRecord, ctx: GeneratorContext) -> GeneratedPyAST:
     assert isinstance(form, IRecord) and isinstance(
         form, ISeqable
     ), "IRecord types should also be ISeq"
@@ -3338,13 +3378,13 @@ def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPy
     vals_deps: List[ast.AST] = []
     for k, v in form_seq:
         assert isinstance(k, kw.Keyword), "Record key in seq must be keyword"
-        key_nodes = _kw_to_py_ast(ctx, k)
+        key_nodes = _kw_to_py_ast(k, ctx)
         keys.append(key_nodes.node)
         assert (
-            len(key_nodes.dependencies) == 0
+            len(key_nodes.dependencies) == 0  # type: ignore[arg-type]
         ), "Simple AST generators must emit no dependencies"
 
-        val_nodes = _const_val_to_py_ast(ctx, v)
+        val_nodes = _const_val_to_py_ast(v, ctx)
         vals.append(val_nodes.node)
         vals_deps.extend(val_nodes.dependencies)
 
@@ -3364,12 +3404,14 @@ def _const_record_to_py_ast(ctx: GeneratorContext, form: IRecord) -> GeneratedPy
     )
 
 
+@_const_val_to_py_ast.register(llist.PersistentList)
+@_const_val_to_py_ast.register(ISeq)
 def _const_seq_to_py_ast(
-    ctx: GeneratorContext, form: Union[llist.List, ISeq]
+    form: Union[llist.PersistentList, ISeq], ctx: GeneratorContext
 ) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
 
-    if isinstance(form, llist.List):
+    if isinstance(form, llist.PersistentList):
         meta = _const_meta_kwargs_ast(ctx, form)
     else:
         meta = None
@@ -3386,13 +3428,14 @@ def _const_seq_to_py_ast(
     )
 
 
-def _const_type_to_py_ast(ctx: GeneratorContext, form: IType) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(IType)
+def _const_type_to_py_ast(form: IType, ctx: GeneratorContext) -> GeneratedPyAST:
     tp = type(form)
 
     ctor_args = []
     ctor_arg_deps: List[ast.AST] = []
     for field in attr.fields(tp):
-        field_nodes = _const_val_to_py_ast(ctx, getattr(form, field.name, None))
+        field_nodes = _const_val_to_py_ast(getattr(form, field.name, None), ctx)
         ctor_args.append(field_nodes.node)
         ctor_args.extend(field_nodes.dependencies)
 
@@ -3402,7 +3445,10 @@ def _const_type_to_py_ast(ctx: GeneratorContext, form: IType) -> GeneratedPyAST:
     )
 
 
-def _const_vec_to_py_ast(ctx: GeneratorContext, form: vec.Vector) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(vec.PersistentVector)
+def _const_vec_to_py_ast(
+    form: vec.PersistentVector, ctx: GeneratorContext
+) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
     meta = _const_meta_kwargs_ast(ctx, form)
     return GeneratedPyAST(
@@ -3420,91 +3466,6 @@ def _const_vec_to_py_ast(ctx: GeneratorContext, form: vec.Vector) -> GeneratedPy
     )
 
 
-_CONST_VALUE_HANDLERS: Mapping[Type, SimplePyASTGenerator] = {
-    bool: _name_const_to_py_ast,
-    complex: _num_to_py_ast,
-    datetime: _inst_to_py_ast,
-    Decimal: _decimal_to_py_ast,
-    dict: _const_py_dict_to_py_ast,  # type: ignore[dict-item]
-    float: _num_to_py_ast,
-    Fraction: _fraction_to_py_ast,
-    int: _num_to_py_ast,
-    kw.Keyword: _kw_to_py_ast,
-    list: _const_py_list_to_py_ast,  # type: ignore[dict-item]
-    llist.List: _const_seq_to_py_ast,  # type: ignore[dict-item]
-    lmap.Map: _const_map_to_py_ast,  # type: ignore[dict-item]
-    lqueue.PersistentQueue: _const_queue_to_py_ast,  # type: ignore[dict-item]
-    lset.Set: _const_set_to_py_ast,  # type: ignore[dict-item]
-    IRecord: _const_record_to_py_ast,  # type: ignore[dict-item]
-    ISeq: _const_seq_to_py_ast,  # type: ignore[dict-item]
-    IType: _const_type_to_py_ast,  # type: ignore[dict-item]
-    type(re.compile("")): _regex_to_py_ast,
-    set: _const_py_set_to_py_ast,  # type: ignore[dict-item]
-    sym.Symbol: _const_sym_to_py_ast,  # type: ignore[dict-item]
-    str: _str_to_py_ast,
-    tuple: _const_py_tuple_to_py_ast,  # type: ignore[dict-item]
-    type(None): _name_const_to_py_ast,
-    uuid.UUID: _uuid_to_py_ast,
-    vec.Vector: _const_vec_to_py_ast,  # type: ignore[dict-item]
-}
-
-
-def _const_val_to_py_ast(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAST:
-    """Generate Python AST nodes for constant Lisp forms.
-
-    Nested values in collections for :const nodes are not analyzed, so recursive
-    structures need to call into this function to generate Python AST nodes for
-    nested elements. For top-level :const Lisp AST nodes, see
-    `_const_node_to_py_ast`."""
-    handle_value = _CONST_VALUE_HANDLERS.get(type(form))
-    if handle_value is None:
-        if isinstance(form, ISeq):
-            handle_value = _const_seq_to_py_ast  # type: ignore
-        elif isinstance(form, IRecord):
-            handle_value = _const_record_to_py_ast
-        elif isinstance(form, IType):
-            handle_value = _const_type_to_py_ast
-    assert handle_value is not None, "A type handler must be defined for constants"
-    return handle_value(ctx, form)
-
-
-def _collection_literal_to_py_ast(
-    ctx: GeneratorContext, form: Iterable[LispForm]
-) -> Iterable[GeneratedPyAST]:
-    """Turn a quoted collection literal of Lisp forms into Python AST nodes.
-
-    This function can only handle constant values. It does not call back into
-    the generic AST generators, so only constant values will be generated down
-    this path."""
-    yield from map(partial(_const_val_to_py_ast, ctx), form)
-
-
-_CONSTANT_HANDLER: Mapping[ConstType, SimplePyASTGenerator] = {
-    ConstType.BOOL: _name_const_to_py_ast,
-    ConstType.INST: _inst_to_py_ast,
-    ConstType.NUMBER: _num_to_py_ast,
-    ConstType.DECIMAL: _decimal_to_py_ast,
-    ConstType.FRACTION: _fraction_to_py_ast,
-    ConstType.KEYWORD: _kw_to_py_ast,
-    ConstType.MAP: _const_map_to_py_ast,  # type: ignore[dict-item]
-    ConstType.QUEUE: _const_queue_to_py_ast,  # type: ignore[dict-item]
-    ConstType.SET: _const_set_to_py_ast,  # type: ignore[dict-item]
-    ConstType.RECORD: _const_record_to_py_ast,  # type: ignore[dict-item]
-    ConstType.SEQ: _const_seq_to_py_ast,  # type: ignore[dict-item]
-    ConstType.TYPE: _const_type_to_py_ast,  # type: ignore[dict-item]
-    ConstType.REGEX: _regex_to_py_ast,
-    ConstType.SYMBOL: _const_sym_to_py_ast,  # type: ignore[dict-item]
-    ConstType.STRING: _str_to_py_ast,
-    ConstType.NIL: _name_const_to_py_ast,
-    ConstType.UUID: _uuid_to_py_ast,
-    ConstType.PY_DICT: _const_py_dict_to_py_ast,  # type: ignore[dict-item]
-    ConstType.PY_LIST: _const_py_list_to_py_ast,  # type: ignore[dict-item]
-    ConstType.PY_SET: _const_py_set_to_py_ast,  # type: ignore[dict-item]
-    ConstType.PY_TUPLE: _const_py_tuple_to_py_ast,  # type: ignore[dict-item]
-    ConstType.VECTOR: _const_vec_to_py_ast,  # type: ignore[dict-item]
-}
-
-
 @_with_ast_loc
 def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: Const) -> GeneratedPyAST:
     """Generate Python AST nodes for a :const Lisp AST node.
@@ -3513,11 +3474,7 @@ def _const_node_to_py_ast(ctx: GeneratorContext, lisp_ast: Const) -> GeneratedPy
     this function cannot be called recursively for those nested values. Instead,
     call `_const_val_to_py_ast` on nested values."""
     assert lisp_ast.op == NodeOp.CONST
-    node_type = lisp_ast.type
-    handle_const_node = _CONSTANT_HANDLER.get(node_type)
-    assert handle_const_node is not None, f"No :const AST type handler for {node_type}"
-    node_val = lisp_ast.val
-    return handle_const_node(ctx, node_val)
+    return _const_val_to_py_ast(lisp_ast.val, ctx)
 
 
 _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {

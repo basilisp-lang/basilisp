@@ -7,6 +7,7 @@ import pytest
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import set as lset
@@ -381,20 +382,20 @@ def test_vector():
         1.4, kw.keyword("a"), "string"
     )
 
-    assert read_str_first("[\n]") == vec.Vector.empty()
+    assert read_str_first("[\n]") == vec.PersistentVector.empty()
     assert read_str_first("[       :a\n :b\n]") == vec.v(
         kw.keyword("a"), kw.keyword("b")
     )
     assert read_str_first("[:a :b\n]") == vec.v(kw.keyword("a"), kw.keyword("b"))
     assert read_str_first("[:a :b      ]") == vec.v(kw.keyword("a"), kw.keyword("b"))
-    assert read_str_first("[\n;;comment\n]") == vec.Vector.empty()
+    assert read_str_first("[\n;;comment\n]") == vec.PersistentVector.empty()
     assert read_str_first("[:a :b\n;;comment\n]") == vec.v(
         kw.keyword("a"), kw.keyword("b")
     )
     assert read_str_first("[:a \n;;comment\n :b]") == vec.v(
         kw.keyword("a"), kw.keyword("b")
     )
-    assert read_str_first("[\n#_[:a :b]\n]") == vec.Vector.empty()
+    assert read_str_first("[\n#_[:a :b]\n]") == vec.PersistentVector.empty()
     assert read_str_first("[:a :b\n#_[:a :b]\n]") == vec.v(
         kw.keyword("a"), kw.keyword("b")
     )
@@ -419,20 +420,20 @@ def test_list():
     )
     assert read_str_first("(- -1 2)") == llist.l(sym.symbol("-"), -1, 2)
 
-    assert read_str_first("(\n)") == llist.List.empty()
+    assert read_str_first("(\n)") == llist.PersistentList.empty()
     assert read_str_first("(       :a\n :b\n)") == llist.l(
         kw.keyword("a"), kw.keyword("b")
     )
     assert read_str_first("(:a :b\n)") == llist.l(kw.keyword("a"), kw.keyword("b"))
     assert read_str_first("(:a :b      )") == llist.l(kw.keyword("a"), kw.keyword("b"))
-    assert read_str_first("(\n;;comment\n)") == llist.List.empty()
+    assert read_str_first("(\n;;comment\n)") == llist.PersistentList.empty()
     assert read_str_first("(:a :b\n;;comment\n)") == llist.l(
         kw.keyword("a"), kw.keyword("b")
     )
     assert read_str_first("(:a \n;;comment\n :b)") == llist.l(
         kw.keyword("a"), kw.keyword("b")
     )
-    assert read_str_first("(\n#_[:a :b]\n)") == llist.List.empty()
+    assert read_str_first("(\n#_[:a :b]\n)") == llist.PersistentList.empty()
     assert read_str_first("(:a :b\n#_[:a :b]\n)") == llist.l(
         kw.keyword("a"), kw.keyword("b")
     )
@@ -455,20 +456,20 @@ def test_set():
         kw.keyword("a"), 1, "some string"
     )
 
-    assert read_str_first("#{\n}") == lset.Set.empty()
+    assert read_str_first("#{\n}") == lset.PersistentSet.empty()
     assert read_str_first("#{       :a\n :b\n}") == lset.s(
         kw.keyword("a"), kw.keyword("b")
     )
     assert read_str_first("#{:a :b\n}") == lset.s(kw.keyword("a"), kw.keyword("b"))
     assert read_str_first("#{:a :b      }") == lset.s(kw.keyword("a"), kw.keyword("b"))
-    assert read_str_first("#{\n;;comment\n}") == lset.Set.empty()
+    assert read_str_first("#{\n;;comment\n}") == lset.PersistentSet.empty()
     assert read_str_first("#{:a :b\n;;comment\n}") == lset.s(
         kw.keyword("a"), kw.keyword("b")
     )
     assert read_str_first("#{:a \n;;comment\n :b}") == lset.s(
         kw.keyword("a"), kw.keyword("b")
     )
-    assert read_str_first("#{\n#_[:a :b]\n}") == lset.Set.empty()
+    assert read_str_first("#{\n#_[:a :b]\n}") == lset.PersistentSet.empty()
     assert read_str_first("#{:a :b\n#_[:a :b]\n}") == lset.s(
         kw.keyword("a"), kw.keyword("b")
     )
@@ -490,7 +491,7 @@ def test_map():
         {kw.keyword("a"): 1, kw.keyword("b"): "string"}
     )
 
-    assert read_str_first("{\n}") == lmap.Map.empty()
+    assert read_str_first("{\n}") == lmap.PersistentMap.empty()
     assert read_str_first("{       :a\n :b\n}") == lmap.map(
         {kw.keyword("a"): kw.keyword("b")}
     )
@@ -498,14 +499,14 @@ def test_map():
     assert read_str_first("{:a :b      }") == lmap.map(
         {kw.keyword("a"): kw.keyword("b")}
     )
-    assert read_str_first("{\n;;comment\n}") == lmap.Map.empty()
+    assert read_str_first("{\n;;comment\n}") == lmap.PersistentMap.empty()
     assert read_str_first("{:a :b\n;;comment\n}") == lmap.map(
         {kw.keyword("a"): kw.keyword("b")}
     )
     assert read_str_first("{:a \n;;comment\n :b}") == lmap.map(
         {kw.keyword("a"): kw.keyword("b")}
     )
-    assert read_str_first("{\n#_[:a :b]\n}") == lmap.Map.empty()
+    assert read_str_first("{\n#_[:a :b]\n}") == lmap.PersistentMap.empty()
     assert read_str_first("{:a :b\n#_[:a :b]\n}") == lmap.map(
         {kw.keyword("a"): kw.keyword("b")}
     )
@@ -689,7 +690,7 @@ def test_syntax_quote_gensym():
     resolver = lambda s: sym.symbol(s.name, ns="test-ns")
 
     gensym = read_str_first("`s#", resolver=resolver)
-    assert isinstance(gensym, llist.List)
+    assert isinstance(gensym, llist.PersistentList)
     assert gensym.first == reader._QUOTE
     genned_sym: sym.Symbol = gensym[1]
     assert genned_sym.name.startswith("s_")
@@ -957,26 +958,26 @@ def test_comment_reader_macro():
 
     assert kw.keyword("kw2") == read_str_first("#_:kw1 :kw2")
 
-    assert llist.List.empty() == read_str_first("(#_sym)")
+    assert llist.PersistentList.empty() == read_str_first("(#_sym)")
     assert llist.l(sym.symbol("inc"), 5) == read_str_first("(inc #_counter 5)")
     assert llist.l(sym.symbol("dec"), 8) == read_str_first("(#_inc dec #_counter 8)")
 
-    assert vec.Vector.empty() == read_str_first("[#_m]")
+    assert vec.PersistentVector.empty() == read_str_first("[#_m]")
     assert vec.v(1) == read_str_first("[#_m 1]")
     assert vec.v(1) == read_str_first("[#_m 1 #_2]")
     assert vec.v(1, 2) == read_str_first("[#_m 1 2]")
     assert vec.v(1, 4) == read_str_first("[#_m 1 #_2 4]")
     assert vec.v(1, 4) == read_str_first("[#_m 1 #_2 4 #_5]")
 
-    assert lset.Set.empty() == read_str_first("#{#_m}")
+    assert lset.PersistentSet.empty() == read_str_first("#{#_m}")
     assert lset.s(1) == read_str_first("#{#_m 1}")
     assert lset.s(1) == read_str_first("#{#_m 1 #_2}")
     assert lset.s(1, 2) == read_str_first("#{#_m 1 2}")
     assert lset.s(1, 4) == read_str_first("#{#_m 1 #_2 4}")
     assert lset.s(1, 4) == read_str_first("#{#_m 1 #_2 4 #_5}")
 
-    assert lmap.Map.empty() == read_str_first("{#_:key}")
-    assert lmap.Map.empty() == read_str_first('{#_:key #_"value"}')
+    assert lmap.PersistentMap.empty() == read_str_first("{#_:key}")
+    assert lmap.PersistentMap.empty() == read_str_first('{#_:key #_"value"}')
     assert lmap.map({kw.keyword("key"): "value"}) == read_str_first(
         '{:key #_"other" "value"}'
     )
@@ -1112,7 +1113,7 @@ class TestReaderConditional:
         assert lset.s(1) == read_str_first("#{1 #?@(:clj [2 4 6])}")
 
     def test_splicing_form_in_maps(self):
-        assert lmap.Map.empty() == read_str_first("{#?@(:clj [:a 1])}")
+        assert lmap.PersistentMap.empty() == read_str_first("{#?@(:clj [:a 1])}")
         assert lmap.map({kw.keyword("b"): 2}) == read_str_first(
             "{#?@(:clj [:a 1] :lpy [:b 2])}"
         )
@@ -1176,7 +1177,7 @@ def test_deref():
     assert read_str_first("@s") == llist.l(reader._DEREF, sym.symbol("s"))
     assert read_str_first("@ns/s") == llist.l(reader._DEREF, sym.symbol("s", ns="ns"))
     assert read_str_first("@(atom {})") == llist.l(
-        reader._DEREF, llist.l(sym.symbol("atom"), lmap.Map.empty())
+        reader._DEREF, llist.l(sym.symbol("atom"), lmap.PersistentMap.empty())
     )
 
 
@@ -1256,6 +1257,17 @@ def test_inst_reader_literal():
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('#inst "I am a little teapot short and stout"')
+
+
+def test_queue_reader_literal():
+    assert read_str_first("#queue ()") == lqueue.EMPTY
+    assert read_str_first("#queue (1 2 3)") == lqueue.q(1, 2, 3)
+    assert read_str_first('#queue ([1 2 3] :a "b" {:c :d})') == lqueue.q(
+        vec.v(1, 2, 3),
+        kw.keyword("a"),
+        "b",
+        lmap.map({kw.keyword("c"): kw.keyword("d")}),
+    )
 
 
 def test_regex_reader_literal():

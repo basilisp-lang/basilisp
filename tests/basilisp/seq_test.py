@@ -101,7 +101,7 @@ def test_sequence():
 
 def test_seq_iterator():
     s = lseq.sequence([])
-    assert vec.Vector.empty() == vec.vector(s)
+    assert vec.PersistentVector.empty() == vec.vector(s)
 
     s = lseq.sequence(range(10000))
     assert 10000 == len(vec.vector(s))

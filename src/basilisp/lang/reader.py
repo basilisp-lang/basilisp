@@ -32,7 +32,7 @@ import attr
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
-from basilisp.lang import queue
+from basilisp.lang import queue as lqueue
 from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import util as langutil
@@ -70,7 +70,7 @@ newline_chars = re.compile("(\r\n|\r|\n)")
 fn_macro_args = re.compile("(%)(&|[0-9])?")
 unicode_char = re.compile(r"u(\w+)")
 
-DataReaders = Optional[lmap.Map]
+DataReaders = Optional[lmap.PersistentMap]
 GenSymEnvironment = MutableMapping[str, sym.Symbol]
 Resolver = Callable[[sym.Symbol], sym.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
@@ -227,28 +227,33 @@ class StreamReader:
 
 @functools.singledispatch
 def _py_from_lisp(
-    form: Union[llist.List, lmap.Map, lset.Set, vec.Vector]
+    form: Union[
+        llist.PersistentList,
+        lmap.PersistentMap,
+        lset.PersistentSet,
+        vec.PersistentVector,
+    ]
 ) -> ReaderForm:
     raise SyntaxError(f"Unrecognized Python type: {type(form)}")
 
 
 @_py_from_lisp.register(IPersistentList)
-def _py_tuple_from_list(form: llist.List) -> tuple:
+def _py_tuple_from_list(form: llist.PersistentList) -> tuple:
     return tuple(form)
 
 
 @_py_from_lisp.register(IPersistentMap)
-def _py_dict_from_map(form: lmap.Map) -> dict:
+def _py_dict_from_map(form: lmap.PersistentMap) -> dict:
     return dict(form)
 
 
 @_py_from_lisp.register(IPersistentSet)
-def _py_set_from_set(form: lset.Set) -> set:
+def _py_set_from_set(form: lset.PersistentSet) -> set:
     return set(form)
 
 
 @_py_from_lisp.register(IPersistentVector)
-def _py_list_from_vec(form: vec.Vector) -> list:
+def _py_list_from_vec(form: vec.PersistentVector) -> list:
     return list(form)
 
 
@@ -271,7 +276,7 @@ class ReaderContext:
         {
             sym.symbol("inst"): _inst_from_str,
             sym.symbol("py"): _py_from_lisp,
-            sym.symbol("queue"): queue.queue,
+            sym.symbol("queue"): lqueue.queue,
             sym.symbol("uuid"): _uuid_from_str,
         }
     )
@@ -297,7 +302,7 @@ class ReaderContext:
         features: Optional[IPersistentSet[kw.Keyword]] = None,
         process_reader_cond: bool = True,
     ) -> None:
-        data_readers = Maybe(data_readers).or_else_get(lmap.Map.empty())
+        data_readers = Maybe(data_readers).or_else_get(lmap.PersistentMap.empty())
         for reader_sym in data_readers.keys():
             if not isinstance(reader_sym, sym.Symbol):
                 raise TypeError("Expected symbol for data reader tag")
@@ -320,7 +325,7 @@ class ReaderContext:
         self._eof = eof
 
     @property
-    def data_readers(self) -> lmap.Map:
+    def data_readers(self) -> lmap.PersistentMap:
         return self._data_readers
 
     @property
@@ -402,7 +407,7 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
 
     def __init__(
         self,
-        form: llist.List[Tuple[kw.Keyword, ReaderForm]],
+        form: llist.PersistentList[Tuple[kw.Keyword, ReaderForm]],
         is_splicing: bool = False,
     ):
         self._form = form
@@ -533,7 +538,10 @@ def _read_namespaced(
 
 def _read_coll(
     ctx: ReaderContext,
-    f: Callable[[Collection[Any]], Union[llist.List, lset.Set, vec.Vector]],
+    f: Callable[
+        [Collection[Any]],
+        Union[llist.PersistentList, lset.PersistentSet, vec.PersistentVector],
+    ],
     end_token: str,
     coll_name: str,
 ):
@@ -559,7 +567,7 @@ def _read_coll(
             selected_feature = elem.select_feature(ctx.reader_features)
             if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
                 continue
-            elif isinstance(selected_feature, vec.Vector):
+            elif isinstance(selected_feature, vec.PersistentVector):
                 coll.extend(selected_feature)
             else:
                 raise ctx.syntax_error(
@@ -575,7 +583,7 @@ def _read_coll(
 
 
 @_with_loc
-def _read_list(ctx: ReaderContext) -> llist.List:
+def _read_list(ctx: ReaderContext) -> llist.PersistentList:
     """Read a list element from the input stream."""
     start = ctx.reader.advance()
     assert start == "("
@@ -583,7 +591,7 @@ def _read_list(ctx: ReaderContext) -> llist.List:
 
 
 @_with_loc
-def _read_vector(ctx: ReaderContext) -> vec.Vector:
+def _read_vector(ctx: ReaderContext) -> vec.PersistentVector:
     """Read a vector element from the input stream."""
     start = ctx.reader.advance()
     assert start == "["
@@ -591,12 +599,12 @@ def _read_vector(ctx: ReaderContext) -> vec.Vector:
 
 
 @_with_loc
-def _read_set(ctx: ReaderContext) -> lset.Set:
+def _read_set(ctx: ReaderContext) -> lset.PersistentSet:
     """Return a set from the input stream."""
     start = ctx.reader.advance()
     assert start == "{"
 
-    def set_if_valid(s: Collection) -> lset.Set:
+    def set_if_valid(s: Collection) -> lset.PersistentSet:
         coll_set = set(s)
         if len(s) != len(coll_set):
             dupes = ", ".join(
@@ -630,7 +638,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
             selected_feature = v.select_feature(ctx.reader_features)
             if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
                 continue
-            elif isinstance(selected_feature, vec.Vector):
+            elif isinstance(selected_feature, vec.PersistentVector):
                 yield from selected_feature
             else:
                 raise ctx.syntax_error(
@@ -671,7 +679,9 @@ def _map_key_processor(namespace: Optional[str],) -> Callable[[Hashable], Hashab
 
 
 @_with_loc
-def _read_map(ctx: ReaderContext, namespace: Optional[str] = None) -> lmap.Map:
+def _read_map(
+    ctx: ReaderContext, namespace: Optional[str] = None
+) -> lmap.PersistentMap:
     """Return a map from the input stream."""
     reader = ctx.reader
     start = reader.advance()
@@ -690,7 +700,7 @@ def _read_map(ctx: ReaderContext, namespace: Optional[str] = None) -> lmap.Map:
         return lmap.map(d)
 
 
-def _read_namespaced_map(ctx: ReaderContext) -> lmap.Map:
+def _read_namespaced_map(ctx: ReaderContext) -> lmap.PersistentMap:
     """Read a namespaced map from the input stream."""
     start = ctx.reader.peek()
     assert start == ":"
@@ -919,12 +929,12 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
     assert start == "^"
     meta = _read_next_consuming_comment(ctx)
 
-    meta_map: Optional[lmap.Map[LispForm, LispForm]]
+    meta_map: Optional[lmap.PersistentMap[LispForm, LispForm]]
     if isinstance(meta, sym.Symbol):
         meta_map = lmap.map({kw.keyword("tag"): meta})
     elif isinstance(meta, kw.Keyword):
         meta_map = lmap.map({meta: True})
-    elif isinstance(meta, lmap.Map):
+    elif isinstance(meta, lmap.PersistentMap):
         meta_map = meta
     else:
         raise ctx.syntax_error(
@@ -968,7 +978,7 @@ def _postwalk(f, form):
 
 
 @_with_loc
-def _read_function(ctx: ReaderContext) -> llist.List:
+def _read_function(ctx: ReaderContext) -> llist.PersistentList:
     """Read a function reader macro from the input stream."""
     if ctx.is_in_anon_fn:
         raise ctx.syntax_error("Nested #() definitions not allowed")
@@ -1015,7 +1025,7 @@ def _read_function(ctx: ReaderContext) -> llist.List:
 
 
 @_with_loc
-def _read_quoted(ctx: ReaderContext) -> llist.List:
+def _read_quoted(ctx: ReaderContext) -> llist.PersistentList:
     """Read a quoted form from the input stream."""
     start = ctx.reader.advance()
     assert start == "'"
@@ -1099,13 +1109,13 @@ def _process_syntax_quoted_form(
         return form[1]  # type: ignore
     elif _is_unquote_splicing(form):
         raise ctx.syntax_error("Cannot splice outside collection")
-    elif isinstance(form, llist.List):
+    elif isinstance(form, llist.PersistentList):
         return llist.l(_SEQ, lconcat(_expand_syntax_quote(ctx, form)))
-    elif isinstance(form, vec.Vector):
+    elif isinstance(form, vec.PersistentVector):
         return llist.l(_APPLY, _VECTOR, lconcat(_expand_syntax_quote(ctx, form)))
-    elif isinstance(form, lset.Set):
+    elif isinstance(form, lset.PersistentSet):
         return llist.l(_APPLY, _HASH_SET, lconcat(_expand_syntax_quote(ctx, form)))
-    elif isinstance(form, lmap.Map):
+    elif isinstance(form, lmap.PersistentMap):
         flat_kvs = list(chain.from_iterable(form.items()))
         return llist.l(_APPLY, _HASH_MAP, lconcat(_expand_syntax_quote(ctx, flat_kvs)))  # type: ignore
     elif isinstance(form, sym.Symbol):
@@ -1285,7 +1295,7 @@ def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional
         )
 
     feature_list = _read_coll(ctx, llist.list, ")", "reader conditional")
-    assert isinstance(feature_list, llist.List)
+    assert isinstance(feature_list, llist.PersistentList)
     return ReaderConditional(feature_list, is_splicing=is_splicing)
 
 
@@ -1331,7 +1341,7 @@ def _load_record_or_type(
     if rectype is None:
         raise ctx.syntax_error(f"Record or type {s} does not exist")
 
-    if isinstance(v, vec.Vector):
+    if isinstance(v, vec.PersistentVector):
         if issubclass(rectype, (IRecord, IType)):
             posfactory = Var.find_in_ns(ns_sym, sym.symbol(f"->{rec}"))
             assert (
@@ -1340,7 +1350,7 @@ def _load_record_or_type(
             return posfactory.value(*v)
         else:
             raise ctx.syntax_error(f"Var {s} is not a Record or Type")
-    elif isinstance(v, lmap.Map):
+    elif isinstance(v, lmap.PersistentMap):
         if issubclass(rectype, IRecord):
             mapfactory = Var.find_in_ns(ns_sym, sym.symbol(f"map->{rec}"))
             assert mapfactory is not None, "Record must have map factory"

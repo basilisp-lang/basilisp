@@ -2,10 +2,10 @@ import threading
 from typing import Iterable, Optional
 
 from basilisp.lang import map as lmap
-from basilisp.lang.interfaces import IAssociative, ILispObject
+from basilisp.lang.interfaces import IAssociative, ILispObject, IPersistentMap
 
 _LOCK = threading.Lock()
-_INTERN: lmap.Map[int, "Keyword"] = lmap.Map.empty()
+_INTERN: IPersistentMap[int, "Keyword"] = lmap.PersistentMap.empty()
 
 
 class Keyword(ILispObject):
@@ -49,7 +49,7 @@ class Keyword(ILispObject):
 
 
 def complete(
-    text: str, kw_cache: Optional[lmap.Map[int, Keyword]] = None,
+    text: str, kw_cache: Optional[IPersistentMap[int, Keyword]] = None,
 ) -> Iterable[str]:
     """Return an iterable of possible completions for the given text."""
     assert text.startswith(":")
