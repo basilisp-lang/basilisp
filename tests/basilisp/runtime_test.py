@@ -73,7 +73,9 @@ def test_rest():
 def test_nthrest():
     assert None is runtime.nthrest(None, 1)
 
-    assert llist.List.empty() == runtime.nthrest(llist.List.empty(), 0)
+    assert llist.PersistentList.empty() == runtime.nthrest(
+        llist.PersistentList.empty(), 0
+    )
     assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthrest(
         llist.l(1, 2, 3, 4, 5, 6), 1
     )
@@ -82,7 +84,9 @@ def test_nthrest():
     assert lseq.sequence([5, 6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 4)
     assert lseq.sequence([6]) == runtime.nthrest(llist.l(1, 2, 3, 4, 5, 6), 5)
 
-    assert vec.Vector.empty() == runtime.nthrest(vec.Vector.empty(), 0)
+    assert vec.PersistentVector.empty() == runtime.nthrest(
+        vec.PersistentVector.empty(), 0
+    )
     assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthrest(vec.v(1, 2, 3, 4, 5, 6), 1)
     assert lseq.sequence([3, 4, 5, 6]) == runtime.nthrest(vec.v(1, 2, 3, 4, 5, 6), 2)
     assert lseq.sequence([4, 5, 6]) == runtime.nthrest(vec.v(1, 2, 3, 4, 5, 6), 3)
@@ -103,7 +107,7 @@ def test_next():
 def test_nthnext():
     assert None is runtime.nthnext(None, 1)
 
-    assert None is runtime.nthnext(llist.List.empty(), 0)
+    assert None is runtime.nthnext(llist.PersistentList.empty(), 0)
     assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthnext(
         llist.l(1, 2, 3, 4, 5, 6), 1
     )
@@ -112,7 +116,7 @@ def test_nthnext():
     assert lseq.sequence([5, 6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 4)
     assert lseq.sequence([6]) == runtime.nthnext(llist.l(1, 2, 3, 4, 5, 6), 5)
 
-    assert None is runtime.nthnext(vec.Vector.empty(), 0)
+    assert None is runtime.nthnext(vec.PersistentVector.empty(), 0)
     assert lseq.sequence([2, 3, 4, 5, 6]) == runtime.nthnext(vec.v(1, 2, 3, 4, 5, 6), 1)
     assert lseq.sequence([3, 4, 5, 6]) == runtime.nthnext(vec.v(1, 2, 3, 4, 5, 6), 2)
     assert lseq.sequence([4, 5, 6]) == runtime.nthnext(vec.v(1, 2, 3, 4, 5, 6), 3)
@@ -131,10 +135,10 @@ def test_cons():
 
 def test_to_seq():
     assert None is runtime.to_seq(None)
-    assert None is runtime.to_seq(llist.List.empty())
-    assert None is runtime.to_seq(vec.Vector.empty())
-    assert None is runtime.to_seq(lmap.Map.empty())
-    assert None is runtime.to_seq(lset.Set.empty())
+    assert None is runtime.to_seq(llist.PersistentList.empty())
+    assert None is runtime.to_seq(vec.PersistentVector.empty())
+    assert None is runtime.to_seq(lmap.PersistentMap.empty())
+    assert None is runtime.to_seq(lset.PersistentSet.empty())
     assert None is runtime.to_seq("")
 
     assert None is not runtime.to_seq(llist.l(None))
@@ -165,10 +169,10 @@ def test_concat():
     s1 = runtime.concat()
     assert lseq.EMPTY is s1
 
-    s1 = runtime.concat(llist.List.empty(), llist.List.empty())
+    s1 = runtime.concat(llist.PersistentList.empty(), llist.PersistentList.empty())
     assert lseq.EMPTY == s1
 
-    s1 = runtime.concat(llist.List.empty(), llist.l(1, 2, 3))
+    s1 = runtime.concat(llist.PersistentList.empty(), llist.l(1, 2, 3))
     assert s1 == llist.l(1, 2, 3)
 
     s1 = runtime.concat(llist.l(1, 2, 3), vec.v(4, 5, 6))
@@ -210,13 +214,13 @@ def test_nth():
         runtime.nth(vec.v("h", "e", "l", "l", "o"), 7)
 
     with pytest.raises(TypeError):
-        runtime.nth(lmap.Map.empty(), 2)
+        runtime.nth(lmap.PersistentMap.empty(), 2)
 
     with pytest.raises(TypeError):
         runtime.nth(lmap.map({"a": 1, "b": 2, "c": 3}), 2)
 
     with pytest.raises(TypeError):
-        runtime.nth(lset.Set.empty(), 2)
+        runtime.nth(lset.PersistentSet.empty(), 2)
 
     with pytest.raises(TypeError):
         runtime.nth(lset.s(1, 2, 3), 2)
@@ -274,22 +278,22 @@ def test_get():
 
 
 def test_assoc():
-    assert lmap.Map.empty() == runtime.assoc(None)
+    assert lmap.PersistentMap.empty() == runtime.assoc(None)
     assert lmap.map({"a": 1}) == runtime.assoc(None, "a", 1)
     assert lmap.map({"a": 8}) == runtime.assoc(lmap.map({"a": 1}), "a", 8)
     assert lmap.map({"a": 1, "b": "string"}) == runtime.assoc(
         lmap.map({"a": 1}), "b", "string"
     )
 
-    assert vec.v("a") == runtime.assoc(vec.Vector.empty(), 0, "a")
+    assert vec.v("a") == runtime.assoc(vec.PersistentVector.empty(), 0, "a")
     assert vec.v("c", "b") == runtime.assoc(vec.v("a", "b"), 0, "c")
     assert vec.v("a", "c") == runtime.assoc(vec.v("a", "b"), 1, "c")
 
     with pytest.raises(IndexError):
-        runtime.assoc(vec.Vector.empty(), 1, "a")
+        runtime.assoc(vec.PersistentVector.empty(), 1, "a")
 
     with pytest.raises(TypeError):
-        runtime.assoc(llist.List.empty(), 1, "a")
+        runtime.assoc(llist.PersistentList.empty(), 1, "a")
 
 
 def test_update():
@@ -310,14 +314,14 @@ def test_update():
         lmap.map({"a": 1, "b": 583}), "b", lambda _: "string"
     )
 
-    assert vec.v("a") == runtime.update(vec.Vector.empty(), 0, lambda _: "a")
+    assert vec.v("a") == runtime.update(vec.PersistentVector.empty(), 0, lambda _: "a")
     assert vec.v("yay", "b") == runtime.update(vec.v("a", "b"), 0, lambda x: f"y{x}y")
     assert vec.v("a", "boy") == runtime.update(
         vec.v("a", "b"), 1, lambda x, y: f"{x}{y}", "oy"
     )
 
     with pytest.raises(TypeError):
-        runtime.update(llist.List.empty(), 1, lambda _: "y")
+        runtime.update(llist.PersistentList.empty(), 1, lambda _: "y")
 
 
 def test_conj():
@@ -325,24 +329,24 @@ def test_conj():
     assert llist.l(3, 2, 1) == runtime.conj(None, 1, 2, 3)
     assert llist.l(llist.l(1, 2, 3)) == runtime.conj(None, llist.l(1, 2, 3))
 
-    assert llist.l(1) == runtime.conj(llist.List.empty(), 1)
-    assert llist.l(3, 2, 1) == runtime.conj(llist.List.empty(), 1, 2, 3)
+    assert llist.l(1) == runtime.conj(llist.PersistentList.empty(), 1)
+    assert llist.l(3, 2, 1) == runtime.conj(llist.PersistentList.empty(), 1, 2, 3)
     assert llist.l(3, 2, 1, 1) == runtime.conj(llist.l(1), 1, 2, 3)
     assert llist.l(llist.l(1, 2, 3), 1) == runtime.conj(llist.l(1), llist.l(1, 2, 3))
 
-    assert lset.s(1) == runtime.conj(lset.Set.empty(), 1)
-    assert lset.s(1, 2, 3) == runtime.conj(lset.Set.empty(), 1, 2, 3)
+    assert lset.s(1) == runtime.conj(lset.PersistentSet.empty(), 1)
+    assert lset.s(1, 2, 3) == runtime.conj(lset.PersistentSet.empty(), 1, 2, 3)
     assert lset.s(1, 2, 3) == runtime.conj(lset.s(1), 1, 2, 3)
     assert lset.s(1, lset.s(1, 2, 3)) == runtime.conj(lset.s(1), lset.s(1, 2, 3))
 
-    assert vec.v(1) == runtime.conj(vec.Vector.empty(), 1)
-    assert vec.v(1, 2, 3) == runtime.conj(vec.Vector.empty(), 1, 2, 3)
+    assert vec.v(1) == runtime.conj(vec.PersistentVector.empty(), 1)
+    assert vec.v(1, 2, 3) == runtime.conj(vec.PersistentVector.empty(), 1, 2, 3)
     assert vec.v(1, 1, 2, 3) == runtime.conj(vec.v(1), 1, 2, 3)
     assert vec.v(1, vec.v(1, 2, 3)) == runtime.conj(vec.v(1), vec.v(1, 2, 3))
 
-    assert lmap.map({"a": 1}) == runtime.conj(lmap.Map.empty(), ["a", 1])
+    assert lmap.map({"a": 1}) == runtime.conj(lmap.PersistentMap.empty(), ["a", 1])
     assert lmap.map({"a": 1, "b": 93}) == runtime.conj(
-        lmap.Map.empty(), ["a", 1], ["b", 93]
+        lmap.PersistentMap.empty(), ["a", 1], ["b", 93]
     )
     assert lmap.map({"a": 1, "b": 93}) == runtime.conj(
         lmap.map({"a": 8}), ["a", 1], ["b", 93]
@@ -360,13 +364,15 @@ def test_conj():
 
 def test_deref():
     assert 1 == runtime.deref(atom.Atom(1))
-    assert vec.Vector.empty() == runtime.deref(atom.Atom(vec.Vector.empty()))
+    assert vec.PersistentVector.empty() == runtime.deref(
+        atom.Atom(vec.PersistentVector.empty())
+    )
 
     with pytest.raises(TypeError):
         runtime.deref(1)
 
     with pytest.raises(TypeError):
-        runtime.deref(vec.Vector.empty())
+        runtime.deref(vec.PersistentVector.empty())
 
 
 @pytest.mark.parametrize(
@@ -388,22 +394,22 @@ def test_deref():
         ("not empty", "not empty"),
         (Fraction("1/2"), Fraction("1/2")),
         (Decimal("3.14159"), Decimal("3.14159")),
-        (llist.List.empty(), llist.List.empty()),
+        (llist.PersistentList.empty(), llist.PersistentList.empty()),
         (llist.l(1, 2, 3), llist.l(1, 2, 3)),
-        (lmap.Map.empty(), lmap.Map.empty()),
+        (lmap.PersistentMap.empty(), lmap.PersistentMap.empty()),
         (lmap.map({"a": 1, "b": 2}), lmap.map({"a": 1, "b": 2})),
-        (lset.Set.empty(), lset.Set.empty()),
+        (lset.PersistentSet.empty(), lset.PersistentSet.empty()),
         (lset.s(1, 2, 3), lset.s(1, 2, 3)),
-        (vec.Vector.empty(), vec.Vector.empty()),
+        (vec.PersistentVector.empty(), vec.PersistentVector.empty()),
         (vec.v(1, 2, 3), vec.v(1, 2, 3)),
         (lseq.EMPTY, lseq.EMPTY),
         (lseq.EMPTY.cons(3).cons(2).cons(1), lseq.EMPTY.cons(3).cons(2).cons(1)),
         (vec.v(1, 2, 3), lseq.EMPTY.cons(3).cons(2).cons(1)),
-        (llist.List.empty(), vec.Vector.empty()),
+        (llist.PersistentList.empty(), vec.PersistentVector.empty()),
         (llist.l(1, 2, 3), vec.v(1, 2, 3)),
-        (lseq.EMPTY, vec.Vector.empty()),
+        (lseq.EMPTY, vec.PersistentVector.empty()),
         (lseq.EMPTY.cons(3).cons(2).cons(1), vec.v(1, 2, 3)),
-        (llist.List.empty(), lseq.EMPTY),
+        (llist.PersistentList.empty(), lseq.EMPTY),
         (lseq.EMPTY.cons(3).cons(2).cons(1), llist.l(1, 2, 3)),
     ],
 )
@@ -422,18 +428,18 @@ def test_equals(v1, v2):
         (0, 0.00000032),
         (llist.l(1, 2, 3), llist.l(2, 3, 4)),
         (llist.l(1, 2, 3), vec.v(2, 3, 4)),
-        (lmap.Map.empty(), llist.List.empty()),
-        (lmap.Map.empty(), vec.Vector.empty()),
-        (lmap.Map.empty(), lseq.EMPTY),
+        (lmap.PersistentMap.empty(), llist.PersistentList.empty()),
+        (lmap.PersistentMap.empty(), vec.PersistentVector.empty()),
+        (lmap.PersistentMap.empty(), lseq.EMPTY),
         (lmap.map({1: "1", 2: "2", 3: "3"}), llist.l(1, 2, 3)),
         (lmap.map({1: "1", 2: "2", 3: "3"}), vec.v(1, 2, 3)),
         (lmap.map({1: "1", 2: "2", 3: "3"}), lseq.EMPTY.cons(3).cons(2).cons(1)),
-        (lset.Set.empty(), llist.List.empty()),
-        (lset.Set.empty(), lmap.Map.empty()),
-        (lset.Set.empty(), vec.Vector.empty()),
-        (lset.Set.empty(), lseq.EMPTY),
+        (lset.PersistentSet.empty(), llist.PersistentList.empty()),
+        (lset.PersistentSet.empty(), lmap.PersistentMap.empty()),
+        (lset.PersistentSet.empty(), vec.PersistentVector.empty()),
+        (lset.PersistentSet.empty(), lseq.EMPTY),
         (lset.s(1, 2, 3), llist.l(1, 2, 3)),
-        (lset.s(1, 2, 3), lmap.Map.empty()),
+        (lset.s(1, 2, 3), lmap.PersistentMap.empty()),
         (lset.s(1, 2, 3), vec.v(1, 2, 3)),
         (lset.s(1, 2, 3), lseq.EMPTY.cons(3).cons(2).cons(1)),
     ],
@@ -460,27 +466,27 @@ class TestToPython:
         assert "kw" == runtime.to_py(kw.keyword("kw", ns="kw"))
 
     def test_to_dict(self):
-        assert {} == runtime.to_py(lmap.Map.empty())
+        assert {} == runtime.to_py(lmap.PersistentMap.empty())
         assert {"a": 2} == runtime.to_py(lmap.map({"a": 2}))
         assert {"a": 2, "b": "string"} == runtime.to_py(
             lmap.map({"a": 2, kw.keyword("b"): "string"})
         )
 
     def test_to_list(self):
-        assert [] == runtime.to_py(llist.List.empty())
+        assert [] == runtime.to_py(llist.PersistentList.empty())
         assert ["a", 2] == runtime.to_py(llist.l("a", 2))
         assert ["a", 2, None] == runtime.to_py(llist.l("a", 2, None))
 
-        assert [] == runtime.to_py(vec.Vector.empty())
+        assert [] == runtime.to_py(vec.PersistentVector.empty())
         assert ["a", 2] == runtime.to_py(vec.v("a", 2))
         assert ["a", 2, None] == runtime.to_py(vec.v("a", 2, None))
 
-        assert None is runtime.to_py(runtime.to_seq(vec.Vector.empty()))
+        assert None is runtime.to_py(runtime.to_seq(vec.PersistentVector.empty()))
         assert ["a", 2] == runtime.to_py(runtime.to_seq(vec.v("a", 2)))
         assert ["a", 2, None] == runtime.to_py(runtime.to_seq(vec.v("a", 2, None)))
 
     def test_to_set(self):
-        assert set() == runtime.to_py(lset.Set.empty())
+        assert set() == runtime.to_py(lset.PersistentSet.empty())
         assert {"a", 2} == runtime.to_py(lset.set({"a", 2}))
         assert {"a", 2, "b"} == runtime.to_py(lset.set({"a", 2, kw.keyword("b")}))
 
@@ -497,32 +503,34 @@ class TestToLisp:
         assert kw.keyword("kw", ns="ns") == runtime.to_lisp(kw.keyword("kw", ns="ns"))
 
     def test_to_map(self):
-        assert lmap.Map.empty() == runtime.to_lisp({})
+        assert lmap.PersistentMap.empty() == runtime.to_lisp({})
         assert lmap.map({kw.keyword("a"): 2}) == runtime.to_lisp({"a": 2})
         assert lmap.map(
             {kw.keyword("a"): 2, kw.keyword("b"): "string"}
         ) == runtime.to_lisp({"a": 2, "b": "string"})
 
     def test_to_map_no_keywordize(self):
-        assert lmap.Map.empty() == runtime.to_lisp({})
+        assert lmap.PersistentMap.empty() == runtime.to_lisp({})
         assert lmap.map({"a": 2}) == runtime.to_lisp({"a": 2}, keywordize_keys=False)
         assert lmap.map({"a": 2, "b": "string"}) == runtime.to_lisp(
             {"a": 2, "b": "string"}, keywordize_keys=False
         )
 
     def test_to_set(self):
-        assert lset.Set.empty() == runtime.to_lisp(set())
+        assert lset.PersistentSet.empty() == runtime.to_lisp(set())
         assert lset.set({"a", 2}) == runtime.to_lisp({"a", 2})
         assert lset.set({"a", 2, kw.keyword("b")}) == runtime.to_lisp(
             {"a", 2, kw.keyword("b")}
         )
 
     def test_to_vec(self):
-        assert vec.Vector.empty() == runtime.to_lisp([])
+        assert vec.PersistentVector.empty() == runtime.to_lisp([])
         assert vec.v("a", 2) == runtime.to_lisp(["a", 2])
         assert vec.v("a", 2, None) == runtime.to_lisp(["a", 2, None])
 
-        assert vec.Vector.empty() == runtime.to_lisp(vec.Vector.empty())
+        assert vec.PersistentVector.empty() == runtime.to_lisp(
+            vec.PersistentVector.empty()
+        )
         assert vec.v("a", 2) == runtime.to_lisp(("a", 2))
         assert vec.v("a", 2, None) == runtime.to_lisp(("a", 2, None))
 
@@ -554,13 +562,13 @@ def test_is_special_form(form: sym.Symbol):
 
 class TestResolveAlias:
     @pytest.fixture
-    def compiler_special_forms(self) -> lset.Set:
+    def compiler_special_forms(self) -> lset.PersistentSet:
         return lset.set(
             [v for k, v in SpecialForm.__dict__.items() if isinstance(v, sym.Symbol)]
         )
 
     def test_runtime_and_compiler_special_forms_in_sync(
-        self, compiler_special_forms: lset.Set
+        self, compiler_special_forms: lset.PersistentSet
     ):
         assert compiler_special_forms == runtime._SPECIAL_FORMS
 

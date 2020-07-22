@@ -60,7 +60,7 @@ def test_multi_function():
 
     f.remove_all_methods()
 
-    assert lmap.Map.empty() == f.methods
+    assert lmap.PersistentMap.empty() == f.methods
 
     with pytest.raises(NotImplementedError):
         f("blah")

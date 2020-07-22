@@ -13,8 +13,8 @@ def test_atom_deref_interface():
 
 
 def test_atom():
-    a = atom.Atom(vec.Vector.empty())
-    assert vec.Vector.empty() == a.deref()
+    a = atom.Atom(vec.PersistentVector.empty())
+    assert vec.PersistentVector.empty() == a.deref()
 
     assert vec.v(1) == a.swap(lambda v, e: v.cons(e), 1)
     assert vec.v(1) == a.deref()
@@ -22,8 +22,8 @@ def test_atom():
     assert vec.v(1, 2) == a.swap(lambda v, e: v.cons(e), 2)
     assert vec.v(1, 2) == a.deref()
 
-    assert vec.v(1, 2) == a.reset(lmap.Map.empty())
-    assert lmap.Map.empty() == a.deref()
+    assert vec.v(1, 2) == a.reset(lmap.PersistentMap.empty())
+    assert lmap.PersistentMap.empty() == a.deref()
 
 
 def test_alter_atom_meta():
