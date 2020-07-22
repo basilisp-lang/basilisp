@@ -10,7 +10,7 @@ from basilisp.lang.seq import EMPTY
 T = TypeVar("T")
 
 
-class List(IPersistentList[T], ISeq[T], IWithMeta):
+class PersistentList(IPersistentList[T], ISeq[T], IWithMeta):
     """Basilisp List. Delegates internally to a pyrsistent.PList object.
 
     Do not instantiate directly. Instead use the l() and list() factory
@@ -27,7 +27,7 @@ class List(IPersistentList[T], ISeq[T], IWithMeta):
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            return List(self._inner[item])
+            return PersistentList(self._inner[item])
         return self._inner[item]
 
     def __hash__(self):
@@ -43,7 +43,7 @@ class List(IPersistentList[T], ISeq[T], IWithMeta):
     def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "List":
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentList":
         return list(self._inner, meta=meta)
 
     @property
@@ -61,36 +61,36 @@ class List(IPersistentList[T], ISeq[T], IWithMeta):
     def rest(self) -> ISeq[T]:
         if self._inner.rest is _EMPTY_PLIST:
             return EMPTY
-        return List(self._inner.rest)
+        return PersistentList(self._inner.rest)
 
-    def cons(self, *elems: T) -> "List[T]":
+    def cons(self, *elems: T) -> "PersistentList[T]":
         l = self._inner
         for elem in elems:
             l = l.cons(elem)
-        return List(l)
+        return PersistentList(l)
 
     @staticmethod
-    def empty(meta=None) -> "List":  # pylint:disable=arguments-differ
+    def empty(meta=None) -> "PersistentList":  # pylint:disable=arguments-differ
         return l(meta=meta)
 
     def peek(self):
         return self.first
 
-    def pop(self) -> "List[T]":
+    def pop(self) -> "PersistentList[T]":
         if self.is_empty:
             raise IndexError("Cannot pop an empty list")
-        return cast(List, self.rest)
+        return cast(PersistentList, self.rest)
 
 
-def list(members, meta=None) -> List:  # pylint:disable=redefined-builtin
+def list(members, meta=None) -> PersistentList:  # pylint:disable=redefined-builtin
     """Creates a new list."""
-    return List(  # pylint: disable=abstract-class-instantiated
+    return PersistentList(  # pylint: disable=abstract-class-instantiated
         plist(iterable=members), meta=meta
     )
 
 
-def l(*members, meta=None) -> List:  # noqa
+def l(*members, meta=None) -> PersistentList:  # noqa
     """Creates a new list from members."""
-    return List(  # pylint: disable=abstract-class-instantiated
+    return PersistentList(  # pylint: disable=abstract-class-instantiated
         plist(iterable=members), meta=meta
     )

@@ -14,7 +14,9 @@ from basilisp.lang.interfaces import IPersistentMap, IRecord, ISeq, IType
 
 CompilerOpts = IPersistentMap[kw.Keyword, bool]
 
-IterableLispForm = Union[llist.List, lmap.Map, lset.Set, vec.Vector]
+IterableLispForm = Union[
+    llist.PersistentList, lmap.PersistentMap, lset.PersistentSet, vec.PersistentVector
+]
 LispNumber = Union[int, float, Fraction]
 LispForm = Union[
     bool,
@@ -25,16 +27,16 @@ LispForm = Union[
     float,
     Fraction,
     kw.Keyword,
-    llist.List,
-    lmap.Map,
+    llist.PersistentList,
+    lmap.PersistentMap,
     None,
     Pattern,
-    lset.Set,
+    lset.PersistentSet,
     str,
     sym.Symbol,
-    vec.Vector,
+    vec.PersistentVector,
     uuid.UUID,
 ]
 PyCollectionForm = Union[dict, list, set, tuple]
 ReaderForm = Union[LispForm, IRecord, ISeq, IType, PyCollectionForm]
-SpecialForm = Union[llist.List, ISeq]
+SpecialForm = Union[llist.PersistentList, ISeq]

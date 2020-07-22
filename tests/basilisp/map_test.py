@@ -39,13 +39,13 @@ def test_map_entry_interface_membership():
 )
 def test_map_interface_membership(interface):
     assert isinstance(lmap.m(), interface)
-    assert issubclass(lmap.Map, interface)
+    assert issubclass(lmap.PersistentMap, interface)
 
 
 def test_assoc():
     m = lmap.m()
     assert lmap.map({"k": 1}) == m.assoc("k", 1)
-    assert lmap.Map.empty() == m
+    assert lmap.PersistentMap.empty() == m
     assert lmap.map({"a": 1, "b": 2}) == m.assoc("a", 1, "b", 2)
 
     m1 = lmap.map({"a": 3})
@@ -54,7 +54,7 @@ def test_assoc():
 
 
 def test_map_bool():
-    assert True is bool(lmap.Map.empty())
+    assert True is bool(lmap.PersistentMap.empty())
 
 
 def test_map_as_function():
@@ -68,33 +68,35 @@ def test_map_as_function():
 def test_contains():
     assert True is lmap.map({"a": 1}).contains("a")
     assert False is lmap.map({"a": 1}).contains("b")
-    assert False is lmap.Map.empty().contains("a")
+    assert False is lmap.PersistentMap.empty().contains("a")
 
 
 def test_dissoc():
-    assert lmap.Map.empty() == lmap.Map.empty().dissoc("a")
-    assert lmap.Map.empty() == lmap.Map.empty().dissoc("a", "b", "c")
+    assert lmap.PersistentMap.empty() == lmap.PersistentMap.empty().dissoc("a")
+    assert lmap.PersistentMap.empty() == lmap.PersistentMap.empty().dissoc(
+        "a", "b", "c"
+    )
 
     m1 = lmap.map({"a": 3})
     assert m1 == m1.dissoc("b")
-    assert lmap.Map.empty() == m1.dissoc("a")
+    assert lmap.PersistentMap.empty() == m1.dissoc("a")
 
     m2 = lmap.map({"a": 3, "b": 2})
     assert lmap.map({"a": 3}) == m2.dissoc("b")
     assert lmap.map({"b": 2}) == m2.dissoc("a")
-    assert lmap.Map.empty() == m2.dissoc("a", "b")
+    assert lmap.PersistentMap.empty() == m2.dissoc("a", "b")
 
 
 def test_entry():
     assert MapEntry.of("a", 1) == lmap.map({"a": 1}).entry("a")
     assert None is lmap.map({"a": 1}).entry("b")
-    assert None is lmap.Map.empty().entry("a")
+    assert None is lmap.PersistentMap.empty().entry("a")
 
 
 def test_val_at():
     assert 1 == lmap.map({"a": 1}).val_at("a")
     assert None is lmap.map({"a": 1}).val_at("b")
-    assert None is lmap.Map.empty().val_at("a")
+    assert None is lmap.PersistentMap.empty().val_at("a")
 
 
 def test_map_cons():
@@ -213,5 +215,5 @@ def test_hash_map_creator():
         lmap.map({"a": 2, keyword("b"): lmap.map({keyword("c"): "string"})}),
     ],
 )
-def test_map_pickleability(pickle_protocol: int, o: lmap.Map):
+def test_map_pickleability(pickle_protocol: int, o: lmap.PersistentMap):
     assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))

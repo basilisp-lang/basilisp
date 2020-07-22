@@ -124,7 +124,13 @@ from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, SpecialFormNode, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
 from basilisp.lang.compiler.nodes import WithMeta, deftype_or_reify_python_member_names
-from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
+from basilisp.lang.interfaces import (
+    IMeta,
+    IRecord,
+    ISeq,
+    IType,
+    IWithMeta,
+)
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, count, genname, is_abstract, munge
@@ -271,12 +277,12 @@ class SymbolTable:
         if warn_on_unused_names and logger.isEnabledFor(logging.WARNING):
             new_frame._warn_unused_names()
 
-    def _as_env_map(self) -> MutableMapping[sym.Symbol, lmap.Map]:
+    def _as_env_map(self) -> MutableMapping[sym.Symbol, lmap.PersistentMap]:
         locals_ = {} if self._parent is None else self._parent._as_env_map()
         locals_.update({k: v.binding.to_map() for k, v in self._table.items()})
         return locals_
 
-    def as_env_map(self) -> lmap.Map:
+    def as_env_map(self) -> lmap.PersistentMap:
         """Return a map of symbols to the local binding objects in the
         local symbol table as of this call."""
         return lmap.map(self._as_env_map())
@@ -329,7 +335,7 @@ class AnalyzerContext:
         self._is_quoted: Deque[bool] = collections.deque([])
         self._macro_ns: Deque[Optional[runtime.Namespace]] = collections.deque([])
         self._opts = (
-            Maybe(opts).map(lmap.map).or_else_get(lmap.Map.empty())  # type: ignore
+            Maybe(opts).map(lmap.map).or_else_get(lmap.PersistentMap.empty())  # type: ignore
         )
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._should_macroexpand = should_macroexpand
@@ -665,7 +671,7 @@ def _with_loc(f):
     return _analyze_form
 
 
-def _clean_meta(meta: Optional[lmap.Map]) -> Optional[lmap.Map]:
+def _clean_meta(meta: Optional[lmap.PersistentMap]) -> Optional[lmap.PersistentMap]:
     """Remove reader metadata from the form's meta map."""
     if meta is None:
         return None
@@ -675,7 +681,7 @@ def _clean_meta(meta: Optional[lmap.Map]) -> Optional[lmap.Map]:
 
 
 def _body_ast(
-    form: Union[llist.List, ISeq], ctx: AnalyzerContext
+    form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
 ) -> Tuple[Iterable[Node], Node]:
     """Analyze the form and produce a body of statement nodes and a single
     return expression node.
@@ -760,7 +766,7 @@ def _call_args_ast(  # pylint: disable=too-many-branches
                 kwargs = lmap.map(kw_map)
         else:
             args = vec.vector(map(lambda form: _analyze_form(form, ctx), form))
-            kwargs = lmap.Map.empty()
+            kwargs = lmap.PersistentMap.empty()
 
         return args, kwargs
 
@@ -774,7 +780,13 @@ def _with_meta(gen_node):
 
     @wraps(gen_node)
     def with_meta(
-        form: Union[llist.List, lmap.Map, ISeq, lset.Set, vec.Vector],
+        form: Union[
+            llist.PersistentList,
+            lmap.PersistentMap,
+            ISeq,
+            lset.PersistentSet,
+            vec.PersistentVector,
+        ],
         ctx: AnalyzerContext,
     ) -> Node:
         assert not ctx.is_quoted, "with-meta nodes are not used in quoted expressions"
@@ -782,7 +794,7 @@ def _with_meta(gen_node):
         descriptor = gen_node(form, ctx)
 
         if isinstance(form, IMeta):
-            assert isinstance(form.meta, (lmap.Map, type(None)))
+            assert isinstance(form.meta, (lmap.PersistentMap, type(None)))
             form_meta = _clean_meta(form.meta)
             if form_meta is not None:
                 meta_ast = _analyze_form(form_meta, ctx)
@@ -855,11 +867,11 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         )
 
     init_idx: Optional[int]
-    children: vec.Vector[kw.Keyword]
+    children: vec.PersistentVector[kw.Keyword]
     if nelems == 2:
         init_idx = None
         doc = None
-        children = vec.Vector.empty()
+        children = vec.PersistentVector.empty()
     elif nelems == 3:
         init_idx = 2
         doc = None
@@ -914,7 +926,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     # this causes problems since we'll end up getting something like
     # `(quote ([] [v]))` rather than simply `([] [v])`.
     arglists_meta = def_meta.val_at(ARGLISTS_KW)  # type: ignore
-    if isinstance(arglists_meta, llist.List):
+    if isinstance(arglists_meta, llist.PersistentList):
         assert arglists_meta.first == SpecialForm.QUOTE
         var_meta = def_meta.update(  # type: ignore
             {ARGLISTS_KW: runtime.nth(arglists_meta, 1)}
@@ -985,14 +997,14 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     assert (isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP) or (
         isinstance(meta_ast, MapNode)
     )
-    existing_children = cast(vec.Vector, descriptor.children)
+    existing_children = cast(vec.PersistentVector, descriptor.children)
     return descriptor.assoc(
         meta=meta_ast, children=vec.vector(runtime.cons(META, existing_children))
     )
 
 
 def __deftype_method_param_bindings(
-    params: vec.Vector, ctx: AnalyzerContext, special_form: sym.Symbol
+    params: vec.PersistentVector, ctx: AnalyzerContext, special_form: sym.Symbol
 ) -> Tuple[bool, int, List[Binding]]:
     """Generate parameter bindings for `deftype*` or `reify*` methods.
 
@@ -1060,10 +1072,10 @@ def __deftype_method_param_bindings(
 
 
 def __deftype_classmethod(
-    form: Union[llist.List, ISeq],
+    form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
     method_name: str,
-    args: vec.Vector,
+    args: vec.PersistentVector,
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeClassMethod:
     """Emit a node for a :classmethod member of a `deftype*` form."""
@@ -1119,10 +1131,10 @@ def __deftype_classmethod(
 
 
 def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-locals
-    form: Union[llist.List, ISeq],
+    form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
     method_name: str,
-    args: vec.Vector,
+    args: vec.PersistentVector,
     special_form: sym.Symbol,
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeMethodArity:
@@ -1184,10 +1196,10 @@ def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-lo
 
 
 def __deftype_or_reify_property(
-    form: Union[llist.List, ISeq],
+    form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
     method_name: str,
-    args: vec.Vector,
+    args: vec.PersistentVector,
     special_form: sym.Symbol,
 ) -> DefTypeProperty:
     """Emit a node for a :property member of a `deftype*` or `reify*` form."""
@@ -1250,10 +1262,10 @@ def __deftype_or_reify_property(
 
 
 def __deftype_staticmethod(
-    form: Union[llist.List, ISeq],
+    form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
     method_name: str,
-    args: vec.Vector,
+    args: vec.PersistentVector,
     kwarg_support: Optional[KeywordArgSupport] = None,
 ) -> DefTypeStaticMethod:
     """Emit a node for a :staticmethod member of a `deftype*` form."""
@@ -1288,7 +1300,9 @@ def __deftype_staticmethod(
 
 
 def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branches
-    form: Union[llist.List, ISeq], ctx: AnalyzerContext, special_form: sym.Symbol
+    form: Union[llist.PersistentList, ISeq],
+    ctx: AnalyzerContext,
+    special_form: sym.Symbol,
 ) -> Union[DefTypeMethodArity, DefTypePythonMember]:
     """Emit either a `deftype*` or `reify*` property node or an arity of a `deftype*`
     or `reify*` method.
@@ -1334,7 +1348,7 @@ def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branche
         )
 
     args = runtime.nth(form, 1)
-    if not isinstance(args, vec.Vector):
+    if not isinstance(args, vec.PersistentVector):
         raise AnalyzerException(
             f"{special_form} member arguments must be vector, not {type(args)}",
             form=args,
@@ -1368,7 +1382,7 @@ def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branche
 
 
 def __deftype_or_reify_method_node_from_arities(  # pylint: disable=too-many-branches
-    form: Union[llist.List, ISeq],
+    form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
     arities: List[DefTypeMethodArity],
     special_form: sym.Symbol,
@@ -1443,7 +1457,7 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
         )
 
     implements = runtime.nth(form, 1)
-    if not isinstance(implements, vec.Vector):
+    if not isinstance(implements, vec.PersistentVector):
         raise AnalyzerException(
             f"{special_form} interfaces must be declared as "
             ":implements [Interface1 Interface2 ...]",
@@ -1558,7 +1572,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
     members: Iterable[DefTypeMember],
-) -> Tuple[bool, lset.Set[DefTypeBase]]:
+) -> Tuple[bool, lset.PersistentSet[DefTypeBase]]:
     """Return a tuple of two items indicating the abstractness of the `deftype*` or
     `reify*` super-types. The first element is a boolean value which, if True,
     indicates that all bases have been statically verified abstract. If False, that
@@ -1616,7 +1630,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
             # of the map, denoted by the keyword `:interface`.
             if _var_is_protocol(interface.var):
                 proto_map = interface.var.value
-                assert isinstance(proto_map, lmap.Map)
+                assert isinstance(proto_map, lmap.PersistentMap)
                 interface_type = proto_map.val_at(INTERFACE)
             else:
                 interface_type = interface.var.value
@@ -1716,7 +1730,7 @@ def _deftype_ast(  # pylint: disable=too-many-branches,too-many-locals
     )
 
     fields = runtime.nth(form, 2)
-    if not isinstance(fields, vec.Vector):
+    if not isinstance(fields, vec.PersistentVector):
         raise AnalyzerException(
             f"deftype* fields must be vector, not {type(fields)}", form=fields
         )
@@ -1803,7 +1817,7 @@ def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
 ) -> FnArity:
     with ctx.new_symbol_table("fn-method", is_context_boundary=True):
         params = form.first
-        if not isinstance(params, vec.Vector):
+        if not isinstance(params, vec.PersistentVector):
             raise AnalyzerException(
                 "function arity arguments must be a vector", form=params
             )
@@ -1904,7 +1918,7 @@ def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
 
 @_with_meta  # noqa: MC0001
 def _fn_ast(  # pylint: disable=too-many-branches
-    form: Union[llist.List, ISeq], ctx: AnalyzerContext
+    form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
 ) -> Fn:
     assert form.first == SpecialForm.FN
 
@@ -1932,7 +1946,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
             )
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
-        elif isinstance(name, (llist.List, vec.Vector)):
+        elif isinstance(name, (llist.PersistentList, vec.PersistentVector)):
             name = None
             name_node = None
             is_async = isinstance(form, IMeta) and _is_async(form)
@@ -1951,7 +1965,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
-        if isinstance(arity_or_args, llist.List):
+        if isinstance(arity_or_args, llist.PersistentList):
             arities = vec.vector(
                 map(
                     lambda form: __fn_method_ast(
@@ -1960,7 +1974,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
                     runtime.nthrest(form, idx),
                 )
             )
-        elif isinstance(arity_or_args, vec.Vector):
+        elif isinstance(arity_or_args, vec.PersistentVector):
             arities = vec.v(
                 __fn_method_ast(
                     runtime.nthrest(form, idx), ctx, fnname=name, is_async=is_async
@@ -2131,7 +2145,7 @@ def _host_interop_ast(  # pylint: disable=too-many-branches
                 kwargs=kwargs,
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             )
-    elif isinstance(maybe_m_or_f, (llist.List, ISeq)):
+    elif isinstance(maybe_m_or_f, (llist.PersistentList, ISeq)):
         # Likewise, I emit :host-call for forms like (. target (method arg1 ...)).
         method = maybe_m_or_f.first
         if not isinstance(method, sym.Symbol):
@@ -2207,7 +2221,7 @@ def _import_ast(  # pylint: disable=too-many-branches
                 ),
                 symbol_table=ctx.symbol_table.context_boundary,
             )
-        elif isinstance(f, vec.Vector):
+        elif isinstance(f, vec.PersistentVector):
             if len(f) != 3:
                 raise AnalyzerException(
                     "import alias must take the form: [module :as alias]", form=f
@@ -2249,7 +2263,7 @@ def _import_ast(  # pylint: disable=too-many-branches
     )
 
 
-def _invoke_ast(form: Union[llist.List, ISeq], ctx: AnalyzerContext) -> Node:
+def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -> Node:
     with ctx.expr_pos():
         fn = _analyze_form(form.first, ctx)
 
@@ -2275,7 +2289,9 @@ def _invoke_ast(form: Union[llist.List, ISeq], ctx: AnalyzerContext) -> Node:
                         _assert_recur_is_tail(expanded_ast)
 
                     return expanded_ast.assoc(
-                        raw_forms=cast(vec.Vector, expanded_ast.raw_forms).cons(form)
+                        raw_forms=cast(
+                            vec.PersistentVector, expanded_ast.raw_forms
+                        ).cons(form)
                     )
                 except Exception as e:
                     raise CompilerException(
@@ -2304,7 +2320,7 @@ def _let_ast(form: ISeq, ctx: AnalyzerContext) -> Let:
         )
 
     bindings = runtime.nth(form, 1)
-    if not isinstance(bindings, vec.Vector):
+    if not isinstance(bindings, vec.PersistentVector):
         raise AnalyzerException("let bindings must be a vector", form=bindings)
     elif len(bindings) % 2 != 0:
         raise AnalyzerException(
@@ -2370,7 +2386,7 @@ def __letfn_fn_body(form: ISeq, ctx: AnalyzerContext) -> Fn:
     fn_body = _analyze_form(
         fn_rest.cons(
             fn_name.with_meta(
-                (fn_name.meta or lmap.Map.empty()).assoc(
+                (fn_name.meta or lmap.PersistentMap.empty()).assoc(
                     SYM_NO_WARN_ON_SHADOW_META_KEY, True
                 )
             )
@@ -2398,7 +2414,7 @@ def _letfn_ast(  # pylint: disable=too-many-locals
         )
 
     bindings = runtime.nth(form, 1)
-    if not isinstance(bindings, vec.Vector):
+    if not isinstance(bindings, vec.PersistentVector):
         raise AnalyzerException("letfn bindings must be a vector", form=bindings)
     elif len(bindings) % 2 != 0:
         raise AnalyzerException(
@@ -2416,7 +2432,7 @@ def _letfn_ast(  # pylint: disable=too-many-locals
                     "letfn binding name must be a symbol", form=name
                 )
 
-            if not isinstance(value, llist.List):
+            if not isinstance(value, llist.PersistentList):
                 raise AnalyzerException(
                     "letfn binding value must be a list", form=value
                 )
@@ -2474,7 +2490,7 @@ def _loop_ast(form: ISeq, ctx: AnalyzerContext) -> Loop:
         )
 
     bindings = runtime.nth(form, 1)
-    if not isinstance(bindings, vec.Vector):
+    if not isinstance(bindings, vec.PersistentVector):
         raise AnalyzerException("loop bindings must be a vector", form=bindings)
     elif len(bindings) % 2 != 0:
         raise AnalyzerException(
@@ -2665,7 +2681,7 @@ def _require_ast(  # pylint: disable=too-many-branches
         if isinstance(f, sym.Symbol):
             module_name = f
             module_alias = None
-        elif isinstance(f, vec.Vector):
+        elif isinstance(f, vec.PersistentVector):
             if len(f) != 3:
                 raise AnalyzerException(
                     "require alias must take the form: [namespace :as alias]", form=f
@@ -2797,7 +2813,7 @@ def _try_ast(  # pylint: disable=too-many-branches
     catches = []
     finally_: Optional[Do] = None
     for expr in form.rest:
-        if isinstance(expr, (llist.List, ISeq)):
+        if isinstance(expr, (llist.PersistentList, ISeq)):
             if expr.first == SpecialForm.CATCH:
                 if finally_:
                     raise AnalyzerException(
@@ -2919,11 +2935,11 @@ _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
 ##################
 
 
-@_analyze_form.register(llist.List)
+@_analyze_form.register(llist.PersistentList)
 @_analyze_form.register(ISeq)
 @_with_loc
 def _list_node(form: ISeq, ctx: AnalyzerContext) -> Node:
-    if form == llist.List.empty():
+    if form == llist.PersistentList.empty():
         with ctx.quoted():
             return _const_node(form, ctx)
 
@@ -3305,7 +3321,7 @@ def _py_tuple_node(form: tuple, ctx: AnalyzerContext) -> Union[Const, PyTuple]:
 
 
 @_with_meta
-def _map_node(form: lmap.Map, ctx: AnalyzerContext) -> MapNode:
+def _map_node(form: lmap.PersistentMap, ctx: AnalyzerContext) -> MapNode:
     keys, vals = [], []
     for k, v in form.items():
         keys.append(_analyze_form(k, ctx))
@@ -3319,16 +3335,18 @@ def _map_node(form: lmap.Map, ctx: AnalyzerContext) -> MapNode:
     )
 
 
-@_analyze_form.register(lmap.Map)
+@_analyze_form.register(lmap.PersistentMap)
 @_with_loc
-def _map_node_or_quoted(form: lmap.Map, ctx: AnalyzerContext) -> Union[Const, MapNode]:
+def _map_node_or_quoted(
+    form: lmap.PersistentMap, ctx: AnalyzerContext
+) -> Union[Const, MapNode]:
     if ctx.is_quoted:
         return _const_node(form, ctx)
     return _map_node(form, ctx)
 
 
 @_with_meta
-def _set_node(form: lset.Set, ctx: AnalyzerContext) -> SetNode:
+def _set_node(form: lset.PersistentSet, ctx: AnalyzerContext) -> SetNode:
     return SetNode(
         form=form,
         items=vec.vector(map(lambda form: _analyze_form(form, ctx), form)),
@@ -3336,16 +3354,18 @@ def _set_node(form: lset.Set, ctx: AnalyzerContext) -> SetNode:
     )
 
 
-@_analyze_form.register(lset.Set)
+@_analyze_form.register(lset.PersistentSet)
 @_with_loc
-def _set_node_or_quoted(form: lset.Set, ctx: AnalyzerContext) -> Union[Const, SetNode]:
+def _set_node_or_quoted(
+    form: lset.PersistentSet, ctx: AnalyzerContext
+) -> Union[Const, SetNode]:
     if ctx.is_quoted:
         return _const_node(form, ctx)
     return _set_node(form, ctx)
 
 
 @_with_meta
-def _vector_node(form: vec.Vector, ctx: AnalyzerContext) -> VectorNode:
+def _vector_node(form: vec.PersistentVector, ctx: AnalyzerContext) -> VectorNode:
     return VectorNode(
         form=form,
         items=vec.vector(map(lambda form: _analyze_form(form, ctx), form)),
@@ -3353,10 +3373,10 @@ def _vector_node(form: vec.Vector, ctx: AnalyzerContext) -> VectorNode:
     )
 
 
-@_analyze_form.register(vec.Vector)
+@_analyze_form.register(vec.PersistentVector)
 @_with_loc
 def _vector_node_or_quoted(
-    form: vec.Vector, ctx: AnalyzerContext
+    form: vec.PersistentVector, ctx: AnalyzerContext
 ) -> Union[Const, VectorNode]:
     if ctx.is_quoted:
         return _const_node(form, ctx)
@@ -3379,9 +3399,9 @@ for tp, const_type in {
     int: ConstType.NUMBER,
     kw.Keyword: ConstType.KEYWORD,
     list: ConstType.PY_LIST,
-    llist.List: ConstType.SEQ,
-    lmap.Map: ConstType.MAP,
-    lset.Set: ConstType.SET,
+    llist.PersistentList: ConstType.SEQ,
+    lmap.PersistentMap: ConstType.MAP,
+    lset.PersistentSet: ConstType.SET,
     IRecord: ConstType.RECORD,
     ISeq: ConstType.SEQ,
     IType: ConstType.TYPE,
@@ -3392,7 +3412,7 @@ for tp, const_type in {
     tuple: ConstType.PY_TUPLE,
     type(None): ConstType.NIL,
     uuid.UUID: ConstType.UUID,
-    vec.Vector: ConstType.VECTOR,
+    vec.PersistentVector: ConstType.VECTOR,
 }.items():
 
     _const_node_type.register(tp, lambda _, default=const_type: default)
@@ -3418,11 +3438,19 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
         (
             ctx.is_quoted
             and isinstance(
-                form, (sym.Symbol, vec.Vector, llist.List, lmap.Map, lset.Set, ISeq,),
+                form,
+                (
+                    sym.Symbol,
+                    vec.PersistentVector,
+                    llist.PersistentList,
+                    lmap.PersistentMap,
+                    lset.PersistentSet,
+                    ISeq,
+                ),
             )
         )
         or (ctx.should_allow_unresolved_symbols and isinstance(form, sym.Symbol))
-        or (isinstance(form, (llist.List, ISeq)) and form.is_empty)
+        or (isinstance(form, (llist.PersistentList, ISeq)) and form.is_empty)
         or isinstance(
             form,
             (
@@ -3465,7 +3493,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
             meta_ast = _const_node(form_meta, ctx)
             assert isinstance(meta_ast, MapNode) or (
                 isinstance(meta_ast, Const) and meta_ast.type == ConstType.MAP
-            ), meta_ast
+            )
             return descriptor.assoc(meta=meta_ast, children=vec.v(META))
 
     return descriptor

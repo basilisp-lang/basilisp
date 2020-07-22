@@ -39,17 +39,17 @@ from basilisp.lang.symbol import symbol
 )
 def test_vector_interface_membership(interface):
     assert isinstance(vec.v(), interface)
-    assert issubclass(vec.Vector, interface)
+    assert issubclass(vec.PersistentVector, interface)
 
 
 def test_vector_slice():
-    assert isinstance(vec.v(1, 2, 3)[1:], vec.Vector)
+    assert isinstance(vec.v(1, 2, 3)[1:], vec.PersistentVector)
 
 
 def test_assoc():
-    v = vec.Vector.empty()
+    v = vec.PersistentVector.empty()
     assert vec.v("a") == v.assoc(0, "a")
-    assert vec.Vector.empty() == v
+    assert vec.PersistentVector.empty() == v
     assert vec.vector(["a", "b"]) == v.assoc(0, "a", 1, "b")
 
     v1 = vec.v("a")
@@ -58,7 +58,7 @@ def test_assoc():
 
 
 def test_vector_bool():
-    assert True is bool(vec.Vector.empty())
+    assert True is bool(vec.PersistentVector.empty())
 
 
 def test_contains():
@@ -66,16 +66,16 @@ def test_contains():
     assert True is vec.v("a", "b").contains(1)
     assert False is vec.v("a", "b").contains(2)
     assert False is vec.v("a", "b").contains(-1)
-    assert False is vec.Vector.empty().contains(0)
-    assert False is vec.Vector.empty().contains(1)
-    assert False is vec.Vector.empty().contains(-1)
+    assert False is vec.PersistentVector.empty().contains(0)
+    assert False is vec.PersistentVector.empty().contains(1)
+    assert False is vec.PersistentVector.empty().contains(-1)
 
 
 def test_py_contains():
     assert "a" in vec.v("a")
     assert "a" in vec.v("a", "b")
     assert "b" in vec.v("a", "b")
-    assert "c" not in vec.Vector.empty()
+    assert "c" not in vec.PersistentVector.empty()
     assert "c" not in vec.v("a")
     assert "c" not in vec.v("a", "b")
 
@@ -96,9 +96,9 @@ def test_entry():
     assert vec.MapEntry.of(1, "b") == vec.v("a", "b").entry(1)
     assert None is vec.v("a", "b").entry(2)
     assert vec.MapEntry.of(-1, "b") == vec.v("a", "b").entry(-1)
-    assert None is vec.Vector.empty().entry(0)
-    assert None is vec.Vector.empty().entry(1)
-    assert None is vec.Vector.empty().entry(-1)
+    assert None is vec.PersistentVector.empty().entry(0)
+    assert None is vec.PersistentVector.empty().entry(1)
+    assert None is vec.PersistentVector.empty().entry(-1)
 
 
 def test_val_at():
@@ -106,9 +106,9 @@ def test_val_at():
     assert "b" == vec.v("a", "b").val_at(1)
     assert None is vec.v("a", "b").val_at(2)
     assert "b" == vec.v("a", "b").val_at(-1)
-    assert None is vec.Vector.empty().val_at(0)
-    assert None is vec.Vector.empty().val_at(1)
-    assert None is vec.Vector.empty().val_at(-1)
+    assert None is vec.PersistentVector.empty().val_at(0)
+    assert None is vec.PersistentVector.empty().val_at(1)
+    assert None is vec.PersistentVector.empty().val_at(-1)
 
 
 def test_peek():
@@ -123,7 +123,7 @@ def test_pop():
     with pytest.raises(IndexError):
         vec.v().pop()
 
-    assert vec.Vector.empty() == vec.v(1).pop()
+    assert vec.PersistentVector.empty() == vec.v(1).pop()
     assert vec.v(1) == vec.v(1, 2).pop()
     assert vec.v(1, 2) == vec.v(1, 2, 3).pop()
 
@@ -165,7 +165,7 @@ def test_vector_with_meta():
         vec.v(keyword("kw1"), vec.v("string", 4)),
     ],
 )
-def test_vector_pickleability(pickle_protocol: int, o: vec.Vector):
+def test_vector_pickleability(pickle_protocol: int, o: vec.PersistentVector):
     assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
@@ -177,5 +177,5 @@ def test_vector_pickleability(pickle_protocol: int, o: vec.Vector):
         (vec.v(keyword("kw1"), keyword("kw2")), "[:kw1 :kw2]"),
     ],
 )
-def test_vector_repr(l: vec.Vector, str_repr: str):
+def test_vector_repr(l: vec.PersistentVector, str_repr: str):
     assert repr(l) == str_repr

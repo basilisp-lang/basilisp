@@ -96,7 +96,13 @@ from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
 from basilisp.lang.compiler.nodes import WithMeta
-from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
+from basilisp.lang.interfaces import (
+    IMeta,
+    IRecord,
+    ISeq,
+    ISeqable,
+    IType,
+)
 from basilisp.lang.runtime import CORE_NS
 from basilisp.lang.runtime import NS_VAR_NAME as LISP_NS_VAR
 from basilisp.lang.runtime import BasilispModule, Var
@@ -481,7 +487,7 @@ def _clean_meta(form: IMeta) -> LispForm:
     meta = form.meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
     if len(meta) == 0:
         return None
-    return cast(lmap.Map, meta)
+    return cast(lmap.PersistentMap, meta)
 
 
 def _ast_with_loc(
@@ -754,7 +760,10 @@ def _await_to_py_ast(ctx: GeneratorContext, node: Await) -> GeneratedPyAST:
 
 
 def __should_warn_on_redef(
-    ctx: GeneratorContext, defsym: sym.Symbol, safe_name: str, def_meta: lmap.Map
+    ctx: GeneratorContext,
+    defsym: sym.Symbol,
+    safe_name: str,
+    def_meta: lmap.PersistentMap,
 ) -> bool:
     """Return True if the compiler should emit a warning about this name being redefined."""
     no_warn_on_redef = def_meta.val_at(SYM_NO_WARN_ON_REDEF_META_KEY, False)
@@ -790,7 +799,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
 
     assert node.meta is not None, "Meta should always be attached to Def nodes"
     def_meta = node.meta.form
-    assert isinstance(def_meta, lmap.Map), "Meta should always be a map"
+    assert isinstance(def_meta, lmap.PersistentMap), "Meta should always be a map"
 
     # If the Var is marked as dynamic, we need to generate a keyword argument
     # for the generated Python code to set the Var as dynamic
@@ -3131,9 +3140,9 @@ def _collection_literal_to_py_ast(
 
 
 def _const_meta_kwargs_ast(  # pylint:disable=inconsistent-return-statements
-    ctx: GeneratorContext, form: IMeta
+    ctx: GeneratorContext, form: LispForm
 ) -> Optional[GeneratedPyAST]:
-    if hasattr(form, "meta") and form.meta is not None:
+    if isinstance(form, IMeta) and form.meta is not None:
         genned = _const_val_to_py_ast(_clean_meta(form), ctx)
         return GeneratedPyAST(
             node=ast.keyword(arg="meta", value=genned.node),
@@ -3263,8 +3272,10 @@ def _const_py_tuple_to_py_ast(node: tuple, ctx: GeneratorContext) -> GeneratedPy
     )
 
 
-@_const_val_to_py_ast.register(lmap.Map)
-def _const_map_to_py_ast(form: lmap.Map, ctx: GeneratorContext) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(lmap.PersistentMap)
+def _const_map_to_py_ast(
+    form: lmap.PersistentMap, ctx: GeneratorContext
+) -> GeneratedPyAST:
     key_deps, keys = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form.keys()))
     val_deps, vals = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form.values()))
     meta = _const_meta_kwargs_ast(ctx, form)
@@ -3284,8 +3295,10 @@ def _const_map_to_py_ast(form: lmap.Map, ctx: GeneratorContext) -> GeneratedPyAS
     )
 
 
-@_const_val_to_py_ast.register(lset.Set)
-def _const_set_to_py_ast(form: lset.Set, ctx: GeneratorContext) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(lset.PersistentSet)
+def _const_set_to_py_ast(
+    form: lset.PersistentSet, ctx: GeneratorContext
+) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
     meta = _const_meta_kwargs_ast(ctx, form)
     return GeneratedPyAST(
@@ -3344,14 +3357,14 @@ def _const_record_to_py_ast(form: IRecord, ctx: GeneratorContext) -> GeneratedPy
     )
 
 
-@_const_val_to_py_ast.register(llist.List)
+@_const_val_to_py_ast.register(llist.PersistentList)
 @_const_val_to_py_ast.register(ISeq)
 def _const_seq_to_py_ast(
-    form: Union[llist.List, ISeq], ctx: GeneratorContext
+    form: Union[llist.PersistentList, ISeq], ctx: GeneratorContext
 ) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
 
-    if isinstance(form, llist.List):
+    if isinstance(form, llist.PersistentList):
         meta = _const_meta_kwargs_ast(ctx, form)
     else:
         meta = None
@@ -3385,8 +3398,10 @@ def _const_type_to_py_ast(form: IType, ctx: GeneratorContext) -> GeneratedPyAST:
     )
 
 
-@_const_val_to_py_ast.register(vec.Vector)
-def _const_vec_to_py_ast(form: vec.Vector, ctx: GeneratorContext) -> GeneratedPyAST:
+@_const_val_to_py_ast.register(vec.PersistentVector)
+def _const_vec_to_py_ast(
+    form: vec.PersistentVector, ctx: GeneratorContext
+) -> GeneratedPyAST:
     elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
     meta = _const_meta_kwargs_ast(ctx, form)
     return GeneratedPyAST(

@@ -246,7 +246,7 @@ class Var(IDeref, ReferenceBase):
 
             # If this var was created with the dynamic keyword argument, then the
             # Var metadata should also specify that the Var is dynamic.
-            if isinstance(self._meta, lmap.Map):
+            if isinstance(self._meta, lmap.PersistentMap):
                 if not self._meta.val_at(_DYNAMIC_META_KEY):
                     self._meta = self._meta.assoc(_DYNAMIC_META_KEY, True)
             else:
@@ -420,11 +420,11 @@ class _ThreadBindings(threading.local):
 _THREAD_BINDINGS = _ThreadBindings()
 
 
-AliasMap = lmap.Map[sym.Symbol, sym.Symbol]
+AliasMap = lmap.PersistentMap[sym.Symbol, sym.Symbol]
 Module = Union[BasilispModule, types.ModuleType]
-ModuleMap = lmap.Map[sym.Symbol, Module]
-NamespaceMap = lmap.Map[sym.Symbol, "Namespace"]
-VarMap = lmap.Map[sym.Symbol, Var]
+ModuleMap = lmap.PersistentMap[sym.Symbol, Module]
+NamespaceMap = lmap.PersistentMap[sym.Symbol, "Namespace"]
+VarMap = lmap.PersistentMap[sym.Symbol, Var]
 
 
 class Namespace(ReferenceBase):
@@ -486,7 +486,7 @@ class Namespace(ReferenceBase):
         )
     )
 
-    _NAMESPACES: Atom[NamespaceMap] = Atom(lmap.Map.empty())
+    _NAMESPACES: Atom[NamespaceMap] = Atom(lmap.PersistentMap.empty())
 
     __slots__ = (
         "_name",
@@ -507,7 +507,7 @@ class Namespace(ReferenceBase):
         self._meta: Optional[IPersistentMap] = None
         self._lock = threading.Lock()
 
-        self._aliases: NamespaceMap = lmap.Map.empty()
+        self._aliases: NamespaceMap = lmap.PersistentMap.empty()
         self._imports: ModuleMap = lmap.map(
             dict(
                 map(
@@ -516,9 +516,9 @@ class Namespace(ReferenceBase):
                 )
             )
         )
-        self._import_aliases: AliasMap = lmap.Map.empty()
-        self._interns: VarMap = lmap.Map.empty()
-        self._refers: VarMap = lmap.Map.empty()
+        self._import_aliases: AliasMap = lmap.PersistentMap.empty()
+        self._interns: VarMap = lmap.PersistentMap.empty()
+        self._refers: VarMap = lmap.PersistentMap.empty()
 
     @property
     def name(self) -> str:
@@ -686,14 +686,14 @@ class Namespace(ReferenceBase):
             self._refers = final_refers
 
     @classmethod
-    def ns_cache(cls) -> lmap.Map:
+    def ns_cache(cls) -> lmap.PersistentMap:
         """Return a snapshot of the Namespace cache."""
         return cls._NAMESPACES.deref()
 
     @staticmethod
     def __get_or_create(
         ns_cache: NamespaceMap, name: sym.Symbol, module: BasilispModule = None,
-    ) -> lmap.Map:
+    ) -> lmap.PersistentMap:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
         ns = ns_cache.val_at(name, None)
@@ -727,7 +727,7 @@ class Namespace(ReferenceBase):
         if name == CORE_NS_SYM:
             raise ValueError("Cannot remove the Basilisp core namespace")
         while True:
-            oldval: lmap.Map = cls._NAMESPACES.deref()
+            oldval: lmap.PersistentMap = cls._NAMESPACES.deref()
             ns: Optional[Namespace] = oldval.val_at(name, None)
             newval = oldval
             if ns is not None:
@@ -1128,8 +1128,8 @@ def assoc(m, *kvs):
 
 
 @assoc.register(type(None))
-def _assoc_none(_: None, *kvs) -> lmap.Map:
-    return lmap.Map.empty().assoc(*kvs)
+def _assoc_none(_: None, *kvs) -> lmap.PersistentMap:
+    return lmap.PersistentMap.empty().assoc(*kvs)
 
 
 @assoc.register(IAssociative)
@@ -1148,8 +1148,8 @@ def update(m, k, f, *args):
 
 
 @update.register(type(None))
-def _update_none(_: None, k, f, *args) -> lmap.Map:
-    return lmap.Map.empty().assoc(k, f(None, *args))
+def _update_none(_: None, k, f, *args) -> lmap.PersistentMap:
+    return lmap.PersistentMap.empty().assoc(k, f(None, *args))
 
 
 @update.register(IAssociative)
@@ -1172,7 +1172,7 @@ def conj(coll, *xs):
 
 @conj.register(type(None))
 def _conj_none(_: None, *xs):
-    l = llist.List.empty()
+    l = llist.PersistentList.empty()
     return l.cons(*xs)
 
 
@@ -1295,7 +1295,7 @@ def to_lisp(o, keywordize_keys: bool = True):  # pylint: disable=unused-argument
 
 @to_lisp.register(list)
 @to_lisp.register(tuple)
-def _to_lisp_vec(o: Iterable, keywordize_keys: bool = True) -> vec.Vector:
+def _to_lisp_vec(o: Iterable, keywordize_keys: bool = True) -> vec.PersistentVector:
     return vec.vector(
         map(functools.partial(to_lisp, keywordize_keys=keywordize_keys), o)
     )
@@ -1312,14 +1312,14 @@ def _keywordize_keys_str(k):
 
 
 @to_lisp.register(dict)
-def _to_lisp_map(o: Mapping, keywordize_keys: bool = True) -> lmap.Map:
+def _to_lisp_map(o: Mapping, keywordize_keys: bool = True) -> lmap.PersistentMap:
     process_key = _keywordize_keys if keywordize_keys else lambda x: x
     return lmap.map({process_key(k): v for k, v in o.items()})  # type: ignore[operator]
 
 
 @to_lisp.register(frozenset)
 @to_lisp.register(set)
-def _to_lisp_set(o: AbstractSet, keywordize_keys: bool = True) -> lset.Set:
+def _to_lisp_set(o: AbstractSet, keywordize_keys: bool = True) -> lset.PersistentSet:
     return lset.set(map(functools.partial(to_lisp, keywordize_keys=keywordize_keys), o))
 
 
@@ -1524,11 +1524,11 @@ def _with_attrs(**kwargs):
     return decorator
 
 
-def _fn_with_meta(f, meta: Optional[lmap.Map]):
+def _fn_with_meta(f, meta: Optional[lmap.PersistentMap]):
     """Return a new function with the given meta. If the function f already
     has a meta map, then merge the new meta with the existing meta."""
 
-    if not isinstance(meta, lmap.Map):
+    if not isinstance(meta, lmap.PersistentMap):
         raise TypeError("meta must be a map")
 
     if inspect.iscoroutinefunction(f):
@@ -1545,7 +1545,7 @@ def _fn_with_meta(f, meta: Optional[lmap.Map]):
 
     wrapped_f.meta = (  # type: ignore
         f.meta.update(meta)
-        if hasattr(f, "meta") and isinstance(f.meta, lmap.Map)
+        if hasattr(f, "meta") and isinstance(f.meta, lmap.PersistentMap)
         else meta
     )
     wrapped_f.with_meta = partial(_fn_with_meta, wrapped_f)  # type: ignore

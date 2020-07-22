@@ -106,11 +106,11 @@ class TransientMap(ITransientMap[K, V]):
         else:
             return self
 
-    def to_persistent(self) -> "Map[K, V]":
-        return Map(self._inner.finish())
+    def to_persistent(self) -> "PersistentMap[K, V]":
+        return PersistentMap(self._inner.finish())
 
 
-class Map(
+class PersistentMap(
     IPersistentMap[K, V], IEvolveableCollection[TransientMap], ILispObject, IWithMeta
 ):
     """Basilisp Map. Delegates internally to a immutables.Map object.
@@ -128,8 +128,8 @@ class Map(
         cls,
         members: Union[Mapping[K, V], Iterable[Tuple[K, V]]],
         meta: Optional[IPersistentMap] = None,
-    ) -> "Map[K, V]":
-        return Map(_Map(members), meta=meta)
+    ) -> "PersistentMap[K, V]":
+        return PersistentMap(_Map(members), meta=meta)
 
     def __bool__(self):
         return True
@@ -170,14 +170,14 @@ class Map(
     def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "Map":
-        return Map(self._inner, meta=meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentMap":
+        return PersistentMap(self._inner, meta=meta)
 
     def assoc(self, *kvs):
         with self._inner.mutate() as m:
             for k, v in partition(kvs, 2):
                 m[k] = v
-            return Map(m.finish())
+            return PersistentMap(m.finish())
 
     def contains(self, k):
         return k in self._inner
@@ -189,7 +189,7 @@ class Map(
                     del m[k]
                 except KeyError:
                     pass
-            return Map(m.finish())
+            return PersistentMap(m.finish())
 
     def entry(self, k):
         v = self._inner.get(k, cast("V", _ENTRY_SENTINEL))
@@ -200,18 +200,18 @@ class Map(
     def val_at(self, k, default=None):
         return self._inner.get(k, default)
 
-    def update(self, *maps: Mapping[K, V]) -> "Map":
+    def update(self, *maps: Mapping[K, V]) -> "PersistentMap":
         m: _Map = self._inner.update(*(m.items() for m in maps))
-        return Map(m)
+        return PersistentMap(m)
 
     def update_with(
         self, merge_fn: Callable[[V, V], V], *maps: Mapping[K, V]
-    ) -> "Map[K, V]":
+    ) -> "PersistentMap[K, V]":
         with self._inner.mutate() as m:
             for map in maps:
                 for k, v in map.items():
                     m.set(k, merge_fn(m[k], v) if k in m else v)
-            return Map(m.finish())
+            return PersistentMap(m.finish())
 
     def cons(  # type: ignore[override]
         self,
@@ -221,7 +221,7 @@ class Map(
             IPersistentVector[Union[K, V]],
             Mapping[K, V],
         ],
-    ) -> "Map[K, V]":
+    ) -> "PersistentMap[K, V]":
         with self._inner.mutate() as m:
             try:
                 for elem in elems:
@@ -240,10 +240,10 @@ class Map(
                     "Argument to map conj must be another Map or castable to MapEntry"
                 )
             else:
-                return Map(m.finish(), meta=self.meta)
+                return PersistentMap(m.finish(), meta=self.meta)
 
     @staticmethod
-    def empty() -> "Map":
+    def empty() -> "PersistentMap":
         return m()
 
     def seq(self) -> ISeq[IMapEntry[K, V]]:
@@ -255,27 +255,27 @@ class Map(
 
 def map(  # pylint:disable=redefined-builtin
     kvs: Mapping[K, V], meta: Optional[IPersistentMap] = None
-) -> Map[K, V]:
+) -> PersistentMap[K, V]:
     """Creates a new map."""
     # For some reason, creating a new `immutables.Map` instance from an existing
     # `basilisp.lang.map.Map` instance causes issues because the `__iter__` returns
     # only the keys rather than tuple of key/value pairs, even though it adheres to
     # the `Mapping` protocol. Passing the `.items()` directly bypasses this problem.
-    return Map.from_coll(kvs.items(), meta=meta)
+    return PersistentMap.from_coll(kvs.items(), meta=meta)
 
 
-def m(**kvs) -> Map[str, V]:
+def m(**kvs) -> PersistentMap[str, V]:
     """Creates a new map from keyword arguments."""
-    return Map.from_coll(kvs)
+    return PersistentMap.from_coll(kvs)
 
 
-def from_entries(entries: Iterable[MapEntry[K, V]]) -> Map[K, V]:
+def from_entries(entries: Iterable[MapEntry[K, V]]) -> PersistentMap[K, V]:
     with _Map().mutate() as m:  # type: ignore[var-annotated]
         for entry in entries:
             m.set(entry.key, entry.value)
-        return Map(m.finish())
+        return PersistentMap(m.finish())
 
 
-def hash_map(*pairs) -> Map:
+def hash_map(*pairs) -> PersistentMap:
     entries = pymap(lambda v: MapEntry.of(v[0], v[1]), partition(pairs, 2))
     return from_entries(entries)
