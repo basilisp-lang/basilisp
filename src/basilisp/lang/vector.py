@@ -152,7 +152,7 @@ class PersistentVector(
 
     @staticmethod
     def empty() -> "PersistentVector[T]":
-        return v()
+        return EMPTY
 
     def seq(self) -> ISeq[T]:  # type: ignore[override]
         return sequence(self)
@@ -205,6 +205,9 @@ class MapEntry(IMapEntry[K, V], PersistentVector[Union[K, V]]):
     @staticmethod
     def from_vec(v: Sequence[Union[K, V]]) -> "MapEntry[K, V]":
         return MapEntry(pvector(v))
+
+
+EMPTY: PersistentVector = PersistentVector(pvector(()))
 
 
 def vector(
