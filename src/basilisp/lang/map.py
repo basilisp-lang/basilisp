@@ -244,13 +244,16 @@ class PersistentMap(
 
     @staticmethod
     def empty() -> "PersistentMap":
-        return m()
+        return EMPTY
 
     def seq(self) -> ISeq[IMapEntry[K, V]]:
         return sequence(MapEntry.of(k, v) for k, v in self._inner.items())
 
     def to_transient(self) -> TransientMap[K, V]:
         return TransientMap(self._inner.mutate())
+
+
+EMPTY: PersistentMap = PersistentMap.from_coll(())
 
 
 def map(  # pylint:disable=redefined-builtin

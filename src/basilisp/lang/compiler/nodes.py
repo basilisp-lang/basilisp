@@ -17,6 +17,7 @@ import attr
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
 from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
@@ -90,6 +91,7 @@ class NodeOp(Enum):
     PY_LIST = kw.keyword("py-list")
     PY_SET = kw.keyword("py-set")
     PY_TUPLE = kw.keyword("py-tuple")
+    QUEUE = kw.keyword("queue")
     QUOTE = kw.keyword("quote")
     RECUR = kw.keyword("recur")
     REIFY = kw.keyword("reify")
@@ -259,6 +261,7 @@ class NodeSyntacticPosition(Enum):
 class ConstType(Enum):
     NIL = kw.Keyword("nil")
     MAP = kw.keyword("map")
+    QUEUE = kw.keyword("queue")
     SET = kw.keyword("set")
     VECTOR = kw.keyword("vector")
     BOOL = kw.keyword("bool")
@@ -775,6 +778,17 @@ class PyTuple(Node[tuple]):
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)
+class Queue(Node[lqueue.PersistentQueue]):
+    form: lqueue.PersistentQueue
+    items: Iterable[Node]
+    env: NodeEnv
+    children: Sequence[kw.Keyword] = vec.v(ITEMS)
+    op: NodeOp = NodeOp.QUEUE
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
+
+
+@attr.s(auto_attribs=True, frozen=True, slots=True)
 class Quote(Node[SpecialForm]):
     form: SpecialForm
     expr: Const
@@ -918,7 +932,7 @@ class Vector(Node[IPersistentVector]):
 class WithMeta(Node[LispForm]):
     form: LispForm
     meta: Union[Const, Map]
-    expr: Union[Fn, Map, Set, Vector]
+    expr: Union[Fn, Map, Queue, Set, Vector]
     env: NodeEnv
     children: Sequence[kw.Keyword] = vec.v(META, EXPR)
     op: NodeOp = NodeOp.WITH_META

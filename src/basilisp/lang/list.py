@@ -5,7 +5,7 @@ from pyrsistent._plist import _EMPTY_PLIST
 
 from basilisp.lang.interfaces import IPersistentList, IPersistentMap, ISeq, IWithMeta
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
-from basilisp.lang.seq import EMPTY
+from basilisp.lang.seq import EMPTY as _EMPTY_SEQ
 
 T = TypeVar("T")
 
@@ -60,7 +60,7 @@ class PersistentList(IPersistentList[T], ISeq[T], IWithMeta):
     @property
     def rest(self) -> ISeq[T]:
         if self._inner.rest is _EMPTY_PLIST:
-            return EMPTY
+            return _EMPTY_SEQ
         return PersistentList(self._inner.rest)
 
     def cons(self, *elems: T) -> "PersistentList[T]":
@@ -70,8 +70,8 @@ class PersistentList(IPersistentList[T], ISeq[T], IWithMeta):
         return PersistentList(l)
 
     @staticmethod
-    def empty(meta=None) -> "PersistentList":  # pylint:disable=arguments-differ
-        return l(meta=meta)
+    def empty() -> "PersistentList":
+        return EMPTY
 
     def peek(self):
         return self.first
@@ -80,6 +80,9 @@ class PersistentList(IPersistentList[T], ISeq[T], IWithMeta):
         if self.is_empty:
             raise IndexError("Cannot pop an empty list")
         return cast(PersistentList, self.rest)
+
+
+EMPTY: PersistentList = PersistentList(plist())
 
 
 def list(members, meta=None) -> PersistentList:  # pylint:disable=redefined-builtin

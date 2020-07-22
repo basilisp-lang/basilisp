@@ -7,6 +7,7 @@ from typing import Pattern, Union
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
 from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
@@ -31,6 +32,7 @@ LispForm = Union[
     lmap.PersistentMap,
     None,
     Pattern,
+    lqueue.PersistentQueue,
     lset.PersistentSet,
     str,
     sym.Symbol,

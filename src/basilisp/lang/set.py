@@ -167,13 +167,16 @@ class PersistentSet(
 
     @staticmethod
     def empty() -> "PersistentSet":
-        return s()
+        return EMPTY
 
     def seq(self) -> ISeq[T]:
         return sequence(self)
 
     def to_transient(self) -> TransientSet:
         return TransientSet(self._inner.mutate())
+
+
+EMPTY = PersistentSet.from_iterable(())
 
 
 def set(  # pylint:disable=redefined-builtin

@@ -31,6 +31,7 @@ from basilisp import _pyast as ast
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import set as lset
@@ -86,12 +87,9 @@ from basilisp.lang.compiler.nodes import (
     PyList,
     PySet,
     PyTuple,
-    Quote,
-    ReaderLispForm,
-    Recur,
-    Reify,
-    Require,
 )
+from basilisp.lang.compiler.nodes import Queue as QueueNode
+from basilisp.lang.compiler.nodes import Quote, ReaderLispForm, Recur, Reify, Require
 from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
@@ -591,6 +589,7 @@ _LIST_ALIAS = genname("llist")
 _MAP_ALIAS = genname("lmap")
 _MULTIFN_ALIAS = genname("multifn")
 _PROMISE_ALIAS = genname("promise")
+_QUEUE_ALIAS = genname("queue")
 _READER_ALIAS = genname("reader")
 _RUNTIME_ALIAS = genname("runtime")
 _SEQ_ALIAS = genname("seq")
@@ -613,6 +612,7 @@ _MODULE_ALIASES = {
     "basilisp.lang.map": _MAP_ALIAS,
     "basilisp.lang.multifn": _MULTIFN_ALIAS,
     "basilisp.lang.promise": _PROMISE_ALIAS,
+    "basilisp.lang.queue": _QUEUE_ALIAS,
     "basilisp.lang.reader": _READER_ALIAS,
     "basilisp.lang.runtime": _RUNTIME_ALIAS,
     "basilisp.lang.seq": _SEQ_ALIAS,
@@ -631,6 +631,7 @@ _NEW_INST_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.inst_from_str")
 _NEW_KW_FN_NAME = _load_attr(f"{_KW_ALIAS}.keyword_from_hash")
 _NEW_LIST_FN_NAME = _load_attr(f"{_LIST_ALIAS}.list")
 _EMPTY_LIST_FN_NAME = _load_attr(f"{_LIST_ALIAS}.List.empty")
+_NEW_QUEUE_FN_NAME = _load_attr(f"{_QUEUE_ALIAS}.queue")
 _NEW_MAP_FN_NAME = _load_attr(f"{_MAP_ALIAS}.map")
 _NEW_REGEX_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.regex_from_str")
 _NEW_SET_FN_NAME = _load_attr(f"{_SET_ALIAS}.set")
@@ -2976,6 +2977,35 @@ def _map_to_py_ast(
 
 
 @_with_ast_loc
+def _queue_to_py_ast(
+    ctx: GeneratorContext, node: QueueNode, meta_node: Optional[MetaNode] = None
+) -> GeneratedPyAST:
+    assert node.op == NodeOp.QUEUE
+
+    meta_ast: Optional[GeneratedPyAST]
+    if meta_node is not None:
+        meta_ast = gen_py_ast(ctx, meta_node)
+    else:
+        meta_ast = None
+
+    elem_deps, elems = _chain_py_ast(*map(partial(gen_py_ast, ctx), node.items))
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_NEW_QUEUE_FN_NAME,
+            args=[ast.List(list(elems), ast.Load())],
+            keywords=Maybe(meta_ast)
+            .map(lambda p: [ast.keyword(arg="meta", value=p.node)])
+            .or_else_get([]),
+        ),
+        dependencies=list(
+            chain(
+                Maybe(meta_ast).map(lambda p: p.dependencies).or_else_get([]), elem_deps
+            )
+        ),
+    )
+
+
+@_with_ast_loc
 def _set_to_py_ast(
     ctx: GeneratorContext, node: SetNode, meta_node: Optional[MetaNode] = None
 ) -> GeneratedPyAST:
@@ -3087,6 +3117,7 @@ def _py_tuple_to_py_ast(ctx: GeneratorContext, node: PyTuple) -> GeneratedPyAST:
 _WITH_META_EXPR_HANDLER = {
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
+    NodeOp.QUEUE: _queue_to_py_ast,
     NodeOp.REIFY: _reify_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
@@ -3289,6 +3320,24 @@ def _const_map_to_py_ast(
     )
 
 
+@_const_val_to_py_ast.register(lqueue.PersistentQueue)
+def _const_queue_to_py_ast(
+    form: lqueue.PersistentQueue, ctx: GeneratorContext
+) -> GeneratedPyAST:
+    elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
+    meta = _const_meta_kwargs_ast(ctx, form)
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_NEW_QUEUE_FN_NAME,
+            args=[ast.List(list(elems), ast.Load())],
+            keywords=Maybe(meta).map(lambda p: [p.node]).or_else_get([]),
+        ),
+        dependencies=list(
+            chain(elem_deps, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
+        ),
+    )
+
+
 @_const_val_to_py_ast.register(lset.PersistentSet)
 def _const_set_to_py_ast(
     form: lset.PersistentSet, ctx: GeneratorContext
@@ -3447,6 +3496,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.PY_LIST: _py_list_to_py_ast,
     NodeOp.PY_SET: _py_set_to_py_ast,
     NodeOp.PY_TUPLE: _py_tuple_to_py_ast,
+    NodeOp.QUEUE: _queue_to_py_ast,
     NodeOp.QUOTE: _quote_to_py_ast,
     NodeOp.RECUR: _recur_to_py_ast,  # type: ignore
     NodeOp.REIFY: _reify_to_py_ast,

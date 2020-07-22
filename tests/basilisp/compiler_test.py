@@ -18,6 +18,7 @@ from basilisp.lang import compiler as compiler
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import set as lset
@@ -149,6 +150,12 @@ class TestLiterals:
         assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
             '#inst "2018-01-18T03:26:57.296-00:00"'
         )
+
+    def test_queue(self, lcompile: CompileFn):
+        assert lcompile("#queue ()") == lqueue.EMPTY
+        assert lcompile("#queue (1 2 3)") == lqueue.q(1, 2, 3)
+        q = lcompile("^:has-meta #queue ()")
+        assert q.meta == lmap.map({kw.keyword("has-meta"): True})
 
     def test_regex(self, lcompile: CompileFn):
         assert lcompile(r'#"\s"') == re.compile(r"\s")
@@ -3408,6 +3415,13 @@ class TestQuote:
         assert lcompile('\'{:a 2 "str" s}') == lmap.map(
             {kw.keyword("a"): 2, "str": sym.symbol("s")}
         )
+
+    def test_quoted_queue(self, lcompile: CompileFn):
+        assert lcompile("'#queue ()") == lqueue.EMPTY
+        assert lcompile('\'#queue (s :a "d")') == lqueue.q(
+            sym.symbol("s"), kw.keyword("a"), "d"
+        )
+        assert lcompile("'#queue (1 2 3)") == lqueue.q(1, 2, 3)
 
     def test_quoted_set(self, lcompile: CompileFn):
         assert lcompile("'#{}") == lset.PersistentSet.empty()
