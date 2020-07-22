@@ -96,13 +96,7 @@ from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
 from basilisp.lang.compiler.nodes import WithMeta
-from basilisp.lang.interfaces import (
-    IMeta,
-    IRecord,
-    ISeq,
-    ISeqable,
-    IType,
-)
+from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
 from basilisp.lang.runtime import CORE_NS
 from basilisp.lang.runtime import NS_VAR_NAME as LISP_NS_VAR
 from basilisp.lang.runtime import BasilispModule, Var

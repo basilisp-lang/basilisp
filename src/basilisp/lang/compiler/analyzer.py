@@ -124,13 +124,7 @@ from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, SpecialFormNode, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
 from basilisp.lang.compiler.nodes import WithMeta, deftype_or_reify_python_member_names
-from basilisp.lang.interfaces import (
-    IMeta,
-    IRecord,
-    ISeq,
-    IType,
-    IWithMeta,
-)
+from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, count, genname, is_abstract, munge
