@@ -5913,8 +5913,10 @@
                           [coll]
                           (lazy-seq
                            (let [result (if (seq coll)
-                                          (concat (xf (xf) (first coll))
-                                                  (create-sequence (rest coll)))
+                                          (let [elem (xf (xf) (first coll))]
+                                            (if (reduced? elem)
+                                              @elem
+                                              (concat elem (create-sequence (rest coll)))))
                                           coll)]
                              (xf (unreduced result)))))]
      (create-sequence coll)))
@@ -5929,8 +5931,10 @@
                           [coll & colls]
                           (lazy-seq
                            (let [result (if (and (seq coll) (every? seq colls))
-                                          (concat (apply xf (xf) (first coll) (map first colls))
-                                                  (apply create-sequence (rest coll) (map rest colls)))
+                                          (let [elem (apply xf (xf) (first coll) (map first colls))]
+                                            (if (reduced? elem)
+                                              @elem
+                                              (concat elem (apply create-sequence (rest coll) (map rest colls)))))
                                           coll)]
                              (xf (unreduced result)))))]
      (apply create-sequence coll colls))))
