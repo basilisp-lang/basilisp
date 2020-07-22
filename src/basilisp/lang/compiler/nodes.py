@@ -785,7 +785,7 @@ class Queue(Node[lqueue.PersistentQueue]):
     children: Sequence[kw.Keyword] = vec.v(ITEMS)
     op: NodeOp = NodeOp.QUEUE
     top_level: bool = False
-    raw_forms: IPersistentVector[LispForm] = vec.Vector.empty()
+    raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)

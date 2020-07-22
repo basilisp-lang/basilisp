@@ -3357,7 +3357,7 @@ def _queue_node_or_quoted(
 
 
 @_with_meta
-def _set_node(form: lset.Set, ctx: AnalyzerContext) -> SetNode:
+def _set_node(form: lset.PersistentSet, ctx: AnalyzerContext) -> SetNode:
     return SetNode(
         form=form,
         items=vec.vector(map(lambda form: _analyze_form(form, ctx), form)),
