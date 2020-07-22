@@ -634,6 +634,7 @@ _NEW_INST_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.inst_from_str")
 _NEW_KW_FN_NAME = _load_attr(f"{_KW_ALIAS}.keyword_from_hash")
 _NEW_LIST_FN_NAME = _load_attr(f"{_LIST_ALIAS}.list")
 _EMPTY_LIST_FN_NAME = _load_attr(f"{_LIST_ALIAS}.List.empty")
+_NEW_QUEUE_FN_NAME = _load_attr(f"{_QUEUE_ALIAS}.queue")
 _NEW_MAP_FN_NAME = _load_attr(f"{_MAP_ALIAS}.map")
 _NEW_REGEX_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.regex_from_str")
 _NEW_SET_FN_NAME = _load_attr(f"{_SET_ALIAS}.set")
@@ -3288,6 +3289,24 @@ def _const_map_to_py_ast(
                 val_deps,
                 Maybe(meta).map(lambda p: p.dependencies).or_else_get([]),
             )
+        ),
+    )
+
+
+@_const_val_to_py_ast.register(lqueue.PersistentQueue)
+def _const_queue_to_py_ast(
+    form: lqueue.PersistentQueue, ctx: GeneratorContext
+) -> GeneratedPyAST:
+    elem_deps, elems = _chain_py_ast(*_collection_literal_to_py_ast(ctx, form))
+    meta = _const_meta_kwargs_ast(ctx, form)
+    return GeneratedPyAST(
+        node=ast.Call(
+            func=_NEW_QUEUE_FN_NAME,
+            args=[ast.List(list(elems), ast.Load())],
+            keywords=Maybe(meta).map(lambda p: [p.node]).or_else_get([]),
+        ),
+        dependencies=list(
+            chain(elem_deps, Maybe(meta).map(lambda p: p.dependencies).or_else_get([]))
         ),
     )
 
