@@ -19,7 +19,7 @@ docs:
 
 .PHONY: format
 format:
-	@pipenv run sh -c 'isort -rc . && black .'
+	@pipenv run sh -c 'isort --profile black . && black .'
 
 
 lispcore.py:
@@ -44,7 +44,7 @@ pypy-shell:
 	@docker run -it \
 		--mount src=`pwd`,target=/usr/src/app,type=bind \
 		--workdir /usr/src/app \
-		pypy:3.6-7.0-slim-jessie \
+		pypy:3.6-7.3-slim-buster \
 		/bin/sh -c 'pip install -e . && basilisp repl'
 
 

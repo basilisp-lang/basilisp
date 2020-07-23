@@ -1,9 +1,9 @@
 import pytest
 
-import basilisp.lang.keyword as kw
-import basilisp.lang.map as lmap
-import basilisp.lang.multifn as multifn
-import basilisp.lang.symbol as sym
+from basilisp.lang import keyword as kw
+from basilisp.lang import map as lmap
+from basilisp.lang import multifn as multifn
+from basilisp.lang import symbol as sym
 
 
 def test_multi_function():
@@ -60,7 +60,7 @@ def test_multi_function():
 
     f.remove_all_methods()
 
-    assert lmap.Map.empty() == f.methods
+    assert lmap.PersistentMap.empty() == f.methods
 
     with pytest.raises(NotImplementedError):
         f("blah")

@@ -4,13 +4,13 @@ from typing import Callable, Iterable, Optional
 
 import pytest
 
-import basilisp.lang.compiler as compiler
-import basilisp.lang.keyword as kw
-import basilisp.lang.map as lmap
-import basilisp.lang.runtime as runtime
-import basilisp.lang.symbol as sym
-import basilisp.lang.vector as vec
-import basilisp.main as basilisp
+from basilisp import main as basilisp
+from basilisp.lang import compiler as compiler
+from basilisp.lang import keyword as kw
+from basilisp.lang import map as lmap
+from basilisp.lang import runtime as runtime
+from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
 from basilisp.util import Maybe
 
@@ -40,7 +40,7 @@ def pytest_collect_file(parent, path):
 class TestFailuresInfo(Exception):
     __slots__ = ("_msg", "_data")
 
-    def __init__(self, message: str, data: lmap.Map) -> None:
+    def __init__(self, message: str, data: lmap.PersistentMap) -> None:
         super().__init__()
         self._msg = message
         self._data = data
@@ -52,7 +52,7 @@ class TestFailuresInfo(Exception):
         return f"{self._msg} {lrepr(self._data)}"
 
     @property
-    def data(self) -> lmap.Map:
+    def data(self) -> lmap.PersistentMap:
         return self._data
 
     @property
@@ -60,7 +60,7 @@ class TestFailuresInfo(Exception):
         return self._msg
 
 
-TestFunction = Callable[[], lmap.Map]
+TestFunction = Callable[[], lmap.PersistentMap]
 
 
 class BasilispFile(pytest.File):
@@ -165,8 +165,8 @@ class BasilispTestItem(pytest.Item):
         If any tests fail, raise an ExceptionInfo exception with the
         test failures. PyTest will invoke self.repr_failure to display
         the failures to the user."""
-        results: lmap.Map = self._run_test()
-        failures: Optional[vec.Vector] = results.val_at(_FAILURES_KW)
+        results: lmap.PersistentMap = self._run_test()
+        failures: Optional[vec.PersistentVector] = results.val_at(_FAILURES_KW)
         if runtime.to_seq(failures):
             raise TestFailuresInfo("Test failures", lmap.map(results))
 
@@ -204,7 +204,7 @@ class BasilispTestItem(pytest.Item):
         messages.extend(traceback.format_exception(Exception, exc, exc.__traceback__))
         return "".join(messages)
 
-    def _failure_msg(self, details: lmap.Map) -> str:
+    def _failure_msg(self, details: lmap.PersistentMap) -> str:
         assert details.val_at(_TYPE_KW) == _FAILURE_KW
         msg: str = details.val_at(_MESSAGE_KW)
 

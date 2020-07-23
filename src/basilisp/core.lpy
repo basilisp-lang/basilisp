@@ -428,6 +428,13 @@
          strs   (coerce (conj args o) [])]
      (.join "" strs))))
 
+(defn queue
+  "Return a new persistent queue."
+  ([]
+   basilisp.lang.queue/EMPTY)
+  ([coll]
+   (basilisp.lang.queue/queue coll)))
+
 (defn symbol
   "Create a new symbol with name and optional namespace ns."
   ([name]
@@ -1273,6 +1280,11 @@
   [x]
   (and (symbol? x) (some? (namespace x))))
 
+(defn queue?
+  "Return true if x is a persistent queue."
+  [x]
+  (instance? basilisp.lang.queue/PersistentQueue x))
+
 (defn ratio?
   "Return true if x is a Fraction."
   [x]
@@ -1935,13 +1947,6 @@
   [coll]
   (.rseq coll))
 
-(defn sequence
-  "Coerces coll to a possibly empty sequence."
-  [coll]
-  (if (seq? coll)
-    coll
-    (or (seq coll) '())))
-
 (defn subvec
   "Return a vector of elements consisting of the elements of v from the index 'start'
   (inclusive) to index 'end' exclusive, or the end of the vector if no 'end' is
@@ -2160,6 +2165,60 @@
   [coll]
   (.pop-transient coll))
 
+;;;;;;;;;;;;;;;
+;; Volatiles ;;
+;;;;;;;;;;;;;;;
+
+(defn volatile!
+  "Return a Volatile reference container with the initial value `v`."
+  [v]
+  (basilisp.lang.volatile/Volatile v))
+
+(defn volatile?
+  "Return true if is a volatile reference container."
+  [x]
+  (instance? basilisp.lang.volatile/Volatile x))
+
+(defn vreset!
+  "Reset the value of volatile `v` non-atomically to `new-val`. Returns the new
+  value."
+  [v new-val]
+  (.reset v new-val))
+
+(defn vswap!
+  "Swap the value of volatile `v` non-atomically to the return of
+  `(apply f old-val args)`. Returns the new value of that function call."
+  [v f & args]
+  (apply (.-swap v) f args))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Transducer Utilities ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn reduced
+  "Wraps a value `x` such that it will terminate a reduce operation.
+
+  Callers can retrieve the inner reduced value using `deref`/`@x`."
+  [x]
+  (basilisp.lang.reduced/Reduced x))
+
+(defn reduced?
+  "Return true if `x` should be considered fully reduced."
+  [x]
+  (instance? basilisp.lang.reduced/Reduced x))
+
+(defn ensure-reduced
+  "If `x` is not a reduced value, wrap it (as by `reduced`) and return the
+  wrapper. Otherwise return `x`."
+  [x]
+  (if (reduced? x) x (reduced x)))
+
+(defn unreduced
+  "If `x` is a reduced value (as produced by `reduced`), unwrap it and return
+  the inner value. Otherwise return `x`."
+  [x]
+  (if (reduced? x) @x x))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2249,20 +2308,23 @@
 (defn reduce
   "Reduce `coll` by `f`.
 
-  If `val` is not supplied and `coll` has no elements, `f` will be called
-  with no arguments and the result will be returned.
+  If `val` is not supplied and `coll` has no elements, `f` will be called with no
+  arguments and the result will be returned.
 
   If `val` is not supplied and `coll` has one element, the result of
   `(f (first val))` is returned.
 
-  If `val` is not supplied and `coll` has elements, repeatedly reduce `coll`
-  by calling `f` on successive elements in `coll`.
+  If `val` is not supplied and `coll` has elements, repeatedly reduce `coll` by
+  calling `f` on successive elements in `coll`.
 
-  If `val` is supplied and `coll` has no elements, return `val` and `f` will
-  not be called.
+  If `val` is supplied and `coll` has no elements, return `val` and `f` will not
+  be called.
 
-  If `val` is supplied and `coll` has elements, repeatedly reduce coll
-  by calling `f` on successive elements in `coll`, starting with `val`."
+  If `val` is supplied and `coll` has elements, repeatedly reduce coll by calling
+  `f` on successive elements in `coll`, starting with `val`.
+
+  If `f` returns a `reduced` value at any point, reduction will terminate and the
+  reduced value will be returned immediately."
   ([f coll]
    (if (seq coll)
      (if (seq (rest coll))
@@ -2271,23 +2333,27 @@
      (f)))
   ([f val coll]
    (let [reduce-coll (fn [out in]
-                       (if (seq in)
-                         (recur (f out (first in)) (rest in))
-                         out))]
+                       (cond
+                         (reduced? out) @out
+                         (seq in)      (recur (f out (first in)) (rest in))
+                         :else         (unreduced out)))]
      (if (seq coll)
        (reduce-coll val coll)
        val))))
 
 (defn reduce-kv
-  "Reduce an associative coll by f. f must be a function of 3
-  arguments: the initially supplied value (in later invocations, the
-  the return from previous invocations), the key of an entry of
-  coll, and the value of an entry of coll.
+  "Reduce an associative `coll` by `f`. `f`` must be a function of 3 arguments:
+  the initially supplied value `init` (in later invocations, the return from
+  previous invocations), the key of an entry of `coll`, and the value of an entry
+  of `coll`.
 
-  If coll has no elements, init is returned and f is not called.
+  If `coll` has no elements, `init` is returned and `f` is not called.
 
-  reduce-kv may reduce vectors in addition to maps. Vectors have
-  non-negative integer keys."
+  If `f` returns a `reduced` value at any point, reduction will terminate and the
+  reduced value will be returned immediately.
+
+  `reduce-kv` may reduce vectors in addition to maps. Vectors have non-negative
+  integer keys."
   [f init coll]
   (if (seq coll)
     (loop [in-coll    coll
@@ -2296,18 +2362,11 @@
             k     (key entry)
             v     (val entry)
             rem   (rest in-coll)]
-        (if (seq rem)
-          (recur rem (f assoc-coll k v))
-          (f assoc-coll k v))))
+        (cond
+          (reduced? assoc-coll) @assoc-coll
+          (seq rem)             (recur rem (f assoc-coll k v))
+          :else                 (unreduced (f assoc-coll k v)))))
     init))
-
-(defn into
-  "Return a new collection created by adding all of the elements of from
-  to the existing to collection, as by conj."
-  ([] [])
-  ([to] to)
-  ([to from]
-   (reduce conj to from)))
 
 (defn comp
   "Return a function which is the composition of all the functions
@@ -2315,14 +2374,14 @@
   the argument functions are called from right to left."
   ([] identity)
   ([f] f)
-  ([f & args]
-   (let [composed (reduce (fn [f g]
-                            (fn [& args]
-                              (f (apply g args))))
-                          f
-                          args)]
-     (fn [& inner-args]
-       (apply composed inner-args)))))
+  ([f g]
+   (fn
+     ([x] (f (g x)))
+     ([x y] (f (g x y)))
+     ([x y z] (f (g x y z)))
+     ([x y z & args] (f (apply g x y z args)))))
+  ([f g & args]
+   (reduce comp f (cons g args))))
 
 (defn juxt
   "Return a function which takes any number of arguments and applies each of
@@ -2444,7 +2503,18 @@
   function f will be passed sequential elements from each collection on each
   invocation and must be able to accept as many arguments as there are
   collections. The sequence will terminate when at least one input collection
-  is exhausted."
+  is exhausted.
+
+  Return a transducer if no collection is provided."
+  ([f]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (rf result (f input)))
+       ([result input & inputs]
+        (rf result (apply f input inputs))))))
   ([f coll]
    (lazy-seq
     (when (seq coll)
@@ -2465,96 +2535,196 @@
 
 (defn map-indexed
   "Return a lazy sequence of (f idx elem) for elements in coll. The
-  index starts at 0."
-  [f coll]
-  (map f (range) coll))
+  index starts at 0.
+
+  Return a stateful transducer if no collection is provided."
+  ([f]
+   (fn [rf]
+     (let [idx (volatile! -1)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (rf result (f (vswap! idx inc) input)))))))
+  ([f coll]
+   (map f (range) coll)))
+
+;; Declare `cat` now for use in `mapcat`, though it is defined much later so
+;; it can make use of more advanced transducer functions.
+(def ^:redef cat)
 
 (defn mapcat
   "Return a lazy sequence of the concatenated results of mapping f over
   colls."
-  [f & colls]
-  (apply concat (apply map f colls)))
+  ([f]
+   (comp (map f) cat))
+  ([f coll]
+   (apply concat (map f coll)))
+  ([f coll & colls]
+   (apply concat (apply map f coll colls))))
 
 (defn filter
-  "Return a lazy sequence of elements from coll where (pred elem) returns true."
-  [pred coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (pred (first coll))
-       (cons (first coll) (filter pred (rest coll)))
-       (filter pred (rest coll))))))
+  "Return a lazy sequence of elements from coll where (pred elem) returns true.
+
+  Return a transducer if no collection is provided."
+  ([pred]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (if (pred input)
+          (rf result input)
+          result)))))
+  ([pred coll]
+   (lazy-seq
+    (when (seq coll)
+      (if (pred (first coll))
+        (cons (first coll) (filter pred (rest coll)))
+        (filter pred (rest coll)))))))
 
 (def ^{:doc "Return a lazy sequence of elements from coll where (pred elem)
              returns true."}
   filterv (comp vec filter))
 
 (defn remove
-  "Return elements from coll where (pred elem) returns false."
-  [pred coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (not (pred (first coll)))
-       (cons (first coll) (remove pred (rest coll)))
-       (remove pred (rest coll))))))
+  "Return elements from coll where (pred elem) returns false.
+
+  Return a transducer if no collection is provided."
+  ([pred]
+   (filter (complement pred)))
+  ([pred coll]
+   (filter (complement pred) coll)))
 
 (defn keep
-  "Return a lazy sequence of non-nil results of (f elem) for elements in coll."
-  [f coll]
-  (lazy-seq
-   (when (seq coll)
-     (let [elem (first coll)]
-       (if-not (nil? (f elem))
-         (cons elem (keep f (rest coll)))
-         (keep f (rest coll)))))))
+  "Return a lazy sequence of non-nil results of (f elem) for elements in coll.
+
+  Return a transducer if no collection is provided."
+  ([f]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (let [v (f input)]
+          (if (nil? v)
+            result
+            (rf result v)))))))
+  ([f coll]
+   (lazy-seq
+    (when (seq coll)
+      (let [elem (first coll)]
+        (if-not (nil? (f elem))
+          (cons elem (keep f (rest coll)))
+          (keep f (rest coll))))))))
 
 (defn keep-indexed
   "Return a lazy-sequence of non-nil results of (f index elem) for elements
-  in coll."
-  [f coll]
-  (let [keep-idx (fn keep-idx
-                   [rng coll]
-                   (lazy-seq
-                    (when (seq coll)
-                      (let [idx  (first rng)
-                            elem (first coll)]
-                        (if-not (nil? (f idx elem))
-                          (cons elem (keep-idx (rest rng) (rest coll)))
-                          (keep-idx (rest rng) (rest coll)))))))]
-    (keep-idx (range) coll)))
+  in coll.
+
+  Return a stateful transducer if no collection is provided."
+  ([f]
+   (fn [rf]
+     (let [idx (volatile! -1)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (let [v (f (vswap! idx inc) input)]
+            (if (nil? v)
+              result
+              (rf result v))))))))
+  ([f coll]
+   (let [keep-idx (fn keep-idx
+                    [rng coll]
+                    (lazy-seq
+                     (when (seq coll)
+                       (let [idx  (first rng)
+                             elem (first coll)]
+                         (if-not (nil? (f idx elem))
+                           (cons elem (keep-idx (rest rng) (rest coll)))
+                           (keep-idx (rest rng) (rest coll)))))))]
+     (keep-idx (range) coll))))
 
 (defn take
   "Return the first n elements of coll."
-  [n coll]
-  (lazy-seq
-   (when (seq coll)
-     (when (> n 0)
-       (cons (first coll) (take (dec n) (rest coll)))))))
+  ([n]
+   (fn [rf]
+     (let [idx (volatile! (inc n))]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (if (pos? (vswap! idx dec))
+            (rf result input)
+            (ensure-reduced result)))))))
+  ([n coll]
+   (lazy-seq
+    (when (seq coll)
+      (when (> n 0)
+        (cons (first coll) (take (dec n) (rest coll))))))))
 
 (defn take-while
-  "Return elements of coll while (pred elem) is true."
-  [pred coll]
-  (lazy-seq
-   (when (seq coll)
-     (when (pred (first coll))
-       (cons (first coll) (take-while pred (rest coll)))))))
+  "Return elements of coll while (pred elem) is true.
+
+  Return a transducer if no collection is provided."
+  ([pred]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (if (pred input)
+          (rf result input)
+          (ensure-reduced result))))))
+  ([pred coll]
+   (lazy-seq
+    (when (seq coll)
+      (when (pred (first coll))
+        (cons (first coll) (take-while pred (rest coll))))))))
 
 (defn drop
-  "Drop the first n elements of coll."
-  [n coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (> n 0)
-       (drop (dec n) (rest coll))
-       (seq coll)))))
+  "Drop the first n elements of coll.
+
+  Return a stateful transducer if no collection is provided."
+  ([n]
+   (fn [rf]
+     (let [idx (volatile! (inc n))]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (if (pos? (vswap! idx dec))
+            result
+            (rf result input)))))))
+  ([n coll]
+   (lazy-seq
+    (when (seq coll)
+      (if (> n 0)
+        (drop (dec n) (rest coll))
+        (seq coll))))))
 
 (defn drop-while
-  "Drop elements of coll while (pred elem) is true."
-  [pred coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (pred (first coll))
-       (drop-while pred (rest coll))
-       (seq coll)))))
+  "Drop elements of coll until `(pred elem)` returns true.
+
+  Return a stateful transducer if no collection is provided."
+  ([pred]
+   (fn [rf]
+     (let [v (volatile! false)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (cond
+            @v                 (rf result input)
+            (not (pred input)) (do (vreset! v true) (rf result input))
+            :else              result))))))
+  ([pred coll]
+   (lazy-seq
+    (when (seq coll)
+      (if (pred (first coll))
+        (drop-while pred (rest coll))
+        (seq coll))))))
 
 (defn drop-last
   "Drop all but the last n items of coll."
@@ -2606,14 +2776,26 @@
 
 (defn interpose
   "Return a lazy sequence of elements of coll separated by sep. If
-  coll is empty, return an empty sequence."
-  [sep coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (seq (rest coll))
-       (cons (first coll)
-             (cons sep (interpose sep (rest coll))))
-       (cons (first coll) nil)))))
+  coll is empty, return an empty sequence.
+
+  Return a stateful transducer if no collection is provided."
+  ([sep]
+   (fn [rf]
+     (let [v (volatile! 1)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (if (zero? (vswap! v dec))
+            (rf result input)
+            (rf (rf result sep) input)))))))
+  ([sep coll]
+   (lazy-seq
+    (when (seq coll)
+      (if (seq (rest coll))
+        (cons (first coll)
+              (cons sep (interpose sep (rest coll))))
+        (cons (first coll) nil))))))
 
 (defn interleave
   "Return a lazy sequence consisting of the first element of coll, then the
@@ -2664,14 +2846,28 @@
       (cons (f) (repeatedly (dec n) f))))))
 
 (defn take-nth
-  "Return a lazy sequence of every nth element of coll."
-  [n coll]
-  (lazy-seq
-   (when (seq coll)
-     (if (<= n 0)
-       (repeat (first coll))
-       (cons (first coll)
-             (take-nth n (drop (dec n) (rest coll))))))))
+  "Return a lazy sequence of every nth element of coll.
+
+  Return a stateful transducer if no collection is provided."
+  ([n]
+   (fn [rf]
+     (let [v (volatile! 1)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (let [cur (vswap! v dec)]
+            (if (zero? cur)
+              (do (vreset! v n)
+                  (rf result input))
+              result)))))))
+  ([n coll]
+   (lazy-seq
+    (when (seq coll)
+      (if (<= n 0)
+        (repeat (first coll))
+        (cons (first coll)
+              (take-nth n (drop (dec n) (rest coll)))))))))
 
 (defn partition
   "Return a lazy sequence of partitions of coll of size n at offsets
@@ -2703,7 +2899,26 @@
   of step elements. If step is not given, steps of size n will be used
   and there will be no overlap between partitions. If there are leftover
   elements from coll which do not fill a full partition, then a partial
-  partition will be returned, unlike partition."
+  partition will be returned, unlike partition.
+
+  Return a stateful transducer if no collection is provided."
+  ([n]
+   (fn [rf]
+     (let [lst (python/list)]
+       (fn
+         ([] (rf))
+         ([result]
+          (let [result (if (zero? (python/len lst))
+                         result
+                         (unreduced (rf result (vec lst))))]
+            (rf result)))
+         ([result input]
+          (.append lst input)
+          (if (< (python/len lst) n)
+            result
+            (let [v (vec lst)]
+              (.clear lst)
+              (rf result v))))))))
   ([n coll]
    (partition-all n n coll))
   ([n step coll]
@@ -2712,43 +2927,100 @@
       (cons (take n coll) (partition-all n step (drop step coll)))))))
 
 (defn partition-by
-  "Return a lazy sequence of partitions, splitting coll each time f
+  "Return a lazy sequence of partitions, splitting `coll` each time `f`
   returns a different value."
-  [f coll]
-  (lazy-seq
-   (when (seq coll)
-     (let [elem  (first coll)
-           felem (f elem)
-           run   (cons elem (take-while #(= felem (f %)) (next coll)))]
-       (cons run (partition-by f (seq (drop (count run) coll))))))))
+  ([f]
+   (fn [rf]
+     (let [prev (volatile! :basilisp.core.partition-by/default)
+           lst  (python/list)]
+       (fn
+         ([] (rf))
+         ([result]
+          (let [result (if (zero? (python/len lst))
+                         result
+                         (unreduced (rf result (vec lst))))]
+            (rf result)))
+         ([result input]
+          (let [v         (f input)
+                prev-elem @prev]
+            (cond
+              (= prev-elem :basilisp.core.partition-by/default)
+              (do (vreset! prev v)
+                  (.append lst input)
+                  result)
+
+              (= prev-elem v)
+              (do (.append lst input)
+                  result)
+
+              :else
+              (let [elem (vec lst)]
+                (vreset! prev v)
+                (.clear lst)
+                (.append lst input)
+                (rf result elem)))))))))
+  ([f coll]
+   (lazy-seq
+    (when (seq coll)
+      (let [elem  (first coll)
+            felem (f elem)
+            run   (cons elem (take-while #(= felem (f %)) (next coll)))]
+        (cons run (partition-by f (seq (drop (count run) coll)))))))))
 
 (defn distinct
-  "Return a lazy sequence of the elements of coll, removing duplicates."
-  [coll]
-  (let [coll-distinct (fn coll-distinct
-                        [coll found]
-                        (lazy-seq
-                         (when (seq coll)
-                           (let [e (first coll)]
-                             (if-not (contains? found e)
-                               (cons e (coll-distinct (rest coll) (conj found e)))
-                               (coll-distinct (rest coll) found))))))]
-    (coll-distinct coll #{})))
+  "Return a lazy sequence of the elements of `coll`, removing duplicates.
+
+  Return a stateful transducer if no collection is provided."
+  ([]
+   (fn [rf]
+     (let [v (volatile! #{})]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (if (contains? @v input)
+            result
+            (do (vswap! v conj input)
+                (rf result input))))))))
+  ([coll]
+   (let [coll-distinct (fn coll-distinct
+                         [coll found]
+                         (lazy-seq
+                          (when (seq coll)
+                            (let [e (first coll)]
+                              (if-not (contains? found e)
+                                (cons e (coll-distinct (rest coll) (conj found e)))
+                                (coll-distinct (rest coll) found))))))]
+     (coll-distinct coll #{}))))
 
 (defn dedupe
-  "Return a lazy sequence of the elements of coll, removing consecutive duplicates."
-  [coll]
-  (let [coll-dedupe (fn coll-dedupe
-                      [coll prev]
-                      (lazy-seq
-                       (when (seq coll)
-                         (let [e (first coll)]
-                           (if-not (= e prev)
-                             (cons e (coll-dedupe (rest coll) e))
-                             (coll-dedupe (rest coll) prev))))))]
-    (lazy-seq
-     (when-let [e (first coll)]
-       (cons e (coll-dedupe (rest coll) e))))))
+  "Return a lazy sequence of the elements of `coll`, removing consecutive duplicates.
+
+  Return a stateful transducer if no collection is provided."
+  ([]
+   (fn [rf]
+     (let [prev (volatile! :basilisp.core.dedupe/default)]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (if (= @prev input)
+            result
+            (do
+              (vreset! prev input)
+              (rf result input))))))))
+  ([coll]
+   (let [coll-dedupe (fn coll-dedupe
+                       [coll prev]
+                       (lazy-seq
+                        (when (seq coll)
+                          (let [e (first coll)]
+                            (if-not (= e prev)
+                              (cons e (coll-dedupe (rest coll) e))
+                              (coll-dedupe (rest coll) prev))))))]
+     (lazy-seq
+      (when-let [e (first coll)]
+        (cons e (coll-dedupe (rest coll) e)))))))
 
 (defn flatten
   "Flatten any combination of nested sequences (such as lists or vectors)
@@ -2895,9 +3167,13 @@
   (nth coll (rand-int (count coll))))
 
 (defn random-sample
-  "Return elements from coll with the random probability of prob."
-  [prob coll]
-  (filter (fn [_] (< (rand) prob)) coll))
+  "Return elements from coll with the random probability of prob.
+
+  Return a transducer if no collection is provided."
+  ([prob]
+   (filter (fn [_] (< (rand) prob))))
+  ([prob coll]
+   (filter (fn [_] (< (rand) prob)) coll)))
 
 (defn shuffle
   "Return a random permutation of coll."
@@ -4252,21 +4528,34 @@
 
 (defn replace
   "Replace elements of the vector/seq coll with matching elements from the
-  associative collection smap, if they exist."
-  [smap coll]
-  (if (vector? coll)
-    (persistent!
-     (reduce (fn [res v]
-               (if-let [newv (get smap v)]
-                 (conj! res newv)
-                 res))
-             (transient [])
-             coll))
-    (map (fn [v]
-           (if-let [newv (get smap v)]
-             newv
-             v))
-         coll)))
+  associative collection smap, if they exist.
+
+  Return a transducer if no collection is provided."
+  ([smap]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (->> (if-let [newv (get smap input)]
+               newv
+               input)
+             (rf result))))))
+  ([smap coll]
+   (if (vector? coll)
+     (persistent!
+      (reduce (fn [res v]
+                (->> (if-let [newv (get smap v)]
+                       newv
+                       v)
+                     (conj! res)))
+              (transient [])
+              coll))
+     (map (fn [v]
+            (if-let [newv (get smap v)]
+              newv
+              v))
+          coll))))
 
 (defn select-keys
   "Return a map with only the keys of m which are in ks."
@@ -5546,39 +5835,195 @@
 
        ~type-name)))
 
-;;;;;;;;;;;;;;;
-;; Volatiles ;;
-;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;
+;; Transducers ;;
+;;;;;;;;;;;;;;;;;
 
-(defprotocol IVolatile
-  "Protocol for a volatile reference container. Volatile references do not provide
-  atomic semantics, but they may be useful as a mutable reference container in a
-  single-threaded context."
+(import* collections)
 
-  (vreset! [this new-val]
-    "Reset the value of a volatile non-atomically. Returns the new value.")
-  (vswap! [this f & args]
-    "Swap the value of a volatile non-atomically to the return of
-     (apply f old-val args). Returns the new value of that function
-     call."))
+;; Eduction types return a custom iterator type which continually pulls from the
+;; input collection (cast as a `seq`). `xf` is called on each value of that
+;; sequence and it stores eligible values in a queue (`buf`). `__next__` adds
+;; to `buf` as long as there are eligible values from the input collection and
+;; yields from `buf` as long as there are values.
 
-(deftype Volatile [^:mutable val]
-  basilisp.lang.interfaces/IDeref
-  (deref [this] val)
+(deftype EductionSeq [buf xf ^:mutable coll]
+  (__next__ [self]
+    (loop [s (seq coll)]
+      (if-not s
+        (if (python/bool buf)
+          (.popleft buf)
+          (throw (python/StopIteration)))
+        (let [[f & r] s
+              v       (xf nil f)]
+          (cond
+            (reduced? v)      (do (xf nil) (set! coll nil) (recur nil))
+            (python/bool buf) (do (set! coll r) (.popleft buf))
+            :else             (recur r)))))))
 
-  IVolatile
-  (vreset! [this new-val]
-    (set! val new-val))
-  (vswap! [this f & args]
-    (let [new-val (apply f val args)]
-      (set! val new-val))))
+(deftype Eduction [xform coll]
+  (__iter__ [self]
+    (let [buf (collections/deque)
+          xf  (xform
+               (fn
+                 ([])
+                 ([result] result)
+                 ([result input]
+                  (.append buf input)
+                  result)))]
+      (EductionSeq buf xf coll))))
 
-(defn volatile!
-  "Return a Volatile reference container with the initial value v."
-  [v]
-  (Volatile v))
+(defn eduction
+  "Return an iterable which is the application of the transducers `xform*` to the
+  input collection `coll`. Transducers will be applied to `comp` in the given order.
 
-(defn volatile?
-  "Return true if implements IVolatile."
-  [x]
-  (satisfies? IVolatile x))
+  Unlike with `sequence`, `eduction` returns an iterable type which does not cache
+  its results. As such, any computation will be performed again on each iteration.
+
+  Eductions are likely to be more efficient in contexts where you would plan to
+  consume the entire input collection and only plan to use that computation once.
+  For cases with an infinite input sequence or if you need caching, `sequence` is
+  preferred."
+  [& args]
+  (let [[xform* coll] ((juxt butlast last) args)
+        xform         (apply comp xform*)]
+    (Eduction xform coll)))
+
+(defn completing
+  "Given a reducing function of two arguments, `f`, return a function with both 0-,
+  1-, and 2-arities appropriate for `transduce`. The 0-arity will return a call to
+  `f` with no arguments. The 1-arity will call `cf` on its argument. The 2-arity
+  will call `f` directly with both of its arguments.
+
+  If `cf` is not given, `identity` will be used."
+  ([f]
+   (completing f identity))
+  ([f cf]
+   (fn
+     ([] (f))
+     ([result] (cf result))
+     ([result input] (f result input)))))
+
+(defn halt-when
+  "Return a transducer which ends the tranducing process the first time `pred`
+  returns a truthy value for an input.
+
+  If `retf` is given, it will be passed two arguments if a halt occurs. The
+  first argument is the current result and the second is the input which triggered
+  the halt. The return value of calling `retf` will be the return value of the
+  transducer.
+
+  If `retf` is not given, the default `retf` will return the value which triggered
+  the halt."
+  ([pred]
+   (halt-when pred (fn [_ input] (reduced input))))
+  ([pred retf]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (if (pred input)
+          (ensure-reduced (retf result input))
+          (rf result input)))))))
+
+(defn sequence
+  "Coerces coll to a possibly empty sequence. If `coll` is `nil`, return `()`.
+
+  When a transducer `xform` is supplied, returns a lazy sequence of the transform
+  to elements of `coll`. If multiple collections are provided, `xform` must support
+  as many arguments as there are collections.
+
+  If multiple collections are provided, the resulting sequence will terminate when
+  any one of the inputs is exhausted."
+  ([coll]
+   (if (seq? coll)
+     coll
+     (or (seq coll) '())))
+  ([xform coll]
+   (let[xf (xform (fn
+                    ([] (queue))
+                    ([result] result)
+                    ([result input]
+                     (conj result input))))
+
+        create-sequence (fn create-sequence
+                          [coll]
+                          (lazy-seq
+                           (let [result (when (seq coll)
+                                          (let [elem (xf (xf) (first coll))]
+                                            (if (reduced? elem)
+                                              @elem
+                                              (concat elem (create-sequence (rest coll))))))]
+                             (xf (unreduced result)))))]
+     (create-sequence coll)))
+  ([xform coll & colls]
+   (let[xf (xform (fn
+                    ([] (queue))
+                    ([result] result)
+                    ([result input]
+                     (conj result input))))
+
+        create-sequence (fn create-sequence
+                          [coll & colls]
+                          (lazy-seq
+                           (let [result (when (and (seq coll) (every? seq colls))
+                                          (let [elem (apply xf (xf) (first coll) (map first colls))]
+                                            (if (reduced? elem)
+                                              @elem
+                                              (concat elem (apply create-sequence (rest coll) (map rest colls))))))]
+                             (xf (unreduced result)))))]
+     (apply create-sequence coll colls))))
+
+(defn transduce
+  "Reduce `coll` by the transducing function `xf` (created as `(xform f)`).
+
+  If `coll` is empty, return `init` without calling `f`. If `init` is not given,
+  `f` will be called with no arguments to produce it.
+
+  The transducing process will eagerly consume the input collection, calling `xf` on
+  the result of the previous call (or `init` on the first invocation) and the next
+  value from the input collection, until either the collection is exhausted or `xf`
+  returns a `reduced` value. In both cases, the `xf`'s 1-arity will be called with
+  result and that result will be returned."
+  ([xform f coll]
+   (transduce xform f (f) coll))
+  ([xform f init coll]
+   (let [xf (xform f)]
+     (if (seq coll)
+       (loop [result init
+              coll   (seq coll)]
+         (cond
+           (reduced? result) (xf @result)
+           (seq coll)        (recur (xf result (first coll)) (rest coll))
+           :else             (xf result)))
+       init))))
+
+(defn into
+  "Return a new collection created by adding all of the elements of `from`
+  to the existing to collection `to`, as by `conj`.
+
+  A transducer may be provided as `xform` to transform the elements as
+  they are copied.
+
+  `into` will attempt to use transient collections whenever possible to
+  improve performance."
+  ([] [])
+  ([to] to)
+  ([to from]
+   (if (instance? basilisp.lang.interfaces/IEvolveableCollection to)
+     (with-meta (persistent! (reduce conj! (transient to) from)) (meta to))
+     (reduce conj to from)))
+  ([to xform from]
+   (if (instance? basilisp.lang.interfaces/IEvolveableCollection to)
+     (with-meta (persistent! (transduce xform conj! (transient to) from)) (meta to))
+     (transduce xform conj to from))))
+
+(defn cat
+  "A transducer which concatenates input collections into the reduced result."
+  [rf]
+  (fn
+    ([] (rf))
+    ([result] (rf result))
+    ([result input]
+     (reduce rf result input))))

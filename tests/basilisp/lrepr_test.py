@@ -3,10 +3,10 @@ import re
 import uuid
 from fractions import Fraction
 
-import dateutil.parser as dateparser
 import pytest
+from dateutil import parser as dateparser
 
-import basilisp.lang.keyword as kw
+from basilisp.lang import keyword as kw
 from tests.basilisp.helpers import CompileFn
 
 

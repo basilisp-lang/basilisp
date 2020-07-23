@@ -29,13 +29,14 @@ from typing import (
 
 import attr
 
-import basilisp.lang.keyword as keyword
-import basilisp.lang.list as llist
-import basilisp.lang.map as lmap
-import basilisp.lang.set as lset
-import basilisp.lang.symbol as symbol
-import basilisp.lang.util as langutil
-import basilisp.lang.vector as vector
+from basilisp.lang import keyword as kw
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
+from basilisp.lang import set as lset
+from basilisp.lang import symbol as sym
+from basilisp.lang import util as langutil
+from basilisp.lang import vector as vec
 from basilisp.lang.interfaces import (
     ILispObject,
     ILookup,
@@ -69,35 +70,35 @@ newline_chars = re.compile("(\r\n|\r|\n)")
 fn_macro_args = re.compile("(%)(&|[0-9])?")
 unicode_char = re.compile(r"u(\w+)")
 
-DataReaders = Optional[lmap.Map]
-GenSymEnvironment = MutableMapping[str, symbol.Symbol]
-Resolver = Callable[[symbol.Symbol], symbol.Symbol]
+DataReaders = Optional[lmap.PersistentMap]
+GenSymEnvironment = MutableMapping[str, sym.Symbol]
+Resolver = Callable[[sym.Symbol], sym.Symbol]
 LispReaderFn = Callable[["ReaderContext"], LispForm]
 W = TypeVar("W", bound=LispReaderFn)
 
-READER_LINE_KW = keyword.keyword("line", ns="basilisp.lang.reader")
-READER_COL_KW = keyword.keyword("col", ns="basilisp.lang.reader")
+READER_LINE_KW = kw.keyword("line", ns="basilisp.lang.reader")
+READER_COL_KW = kw.keyword("col", ns="basilisp.lang.reader")
 
-READER_COND_FORM_KW = keyword.keyword("form")
-READER_COND_SPLICING_KW = keyword.keyword("splicing?")
+READER_COND_FORM_KW = kw.keyword("form")
+READER_COND_SPLICING_KW = kw.keyword("splicing?")
 
-_AMPERSAND = symbol.symbol("&")
-_FN = symbol.symbol("fn*")
-_INTEROP_CALL = symbol.symbol(".")
-_INTEROP_PROP = symbol.symbol(".-")
-_QUOTE = symbol.symbol("quote")
-_VAR = symbol.symbol("var")
+_AMPERSAND = sym.symbol("&")
+_FN = sym.symbol("fn*")
+_INTEROP_CALL = sym.symbol(".")
+_INTEROP_PROP = sym.symbol(".-")
+_QUOTE = sym.symbol("quote")
+_VAR = sym.symbol("var")
 
-_APPLY = symbol.symbol("apply", ns="basilisp.core")
-_CONCAT = symbol.symbol("concat", ns="basilisp.core")
-_DEREF = symbol.symbol("deref", ns="basilisp.core")
-_HASH_MAP = symbol.symbol("hash-map", ns="basilisp.core")
-_HASH_SET = symbol.symbol("hash-set", ns="basilisp.core")
-_LIST = symbol.symbol("list", ns="basilisp.core")
-_SEQ = symbol.symbol("seq", ns="basilisp.core")
-_UNQUOTE = symbol.symbol("unquote", ns="basilisp.core")
-_UNQUOTE_SPLICING = symbol.symbol("unquote-splicing", ns="basilisp.core")
-_VECTOR = symbol.symbol("vector", ns="basilisp.core")
+_APPLY = sym.symbol("apply", ns="basilisp.core")
+_CONCAT = sym.symbol("concat", ns="basilisp.core")
+_DEREF = sym.symbol("deref", ns="basilisp.core")
+_HASH_MAP = sym.symbol("hash-map", ns="basilisp.core")
+_HASH_SET = sym.symbol("hash-set", ns="basilisp.core")
+_LIST = sym.symbol("list", ns="basilisp.core")
+_SEQ = sym.symbol("seq", ns="basilisp.core")
+_UNQUOTE = sym.symbol("unquote", ns="basilisp.core")
+_UNQUOTE_SPLICING = sym.symbol("unquote-splicing", ns="basilisp.core")
+_VECTOR = sym.symbol("vector", ns="basilisp.core")
 
 
 class Comment:
@@ -226,28 +227,33 @@ class StreamReader:
 
 @functools.singledispatch
 def _py_from_lisp(
-    form: Union[llist.List, lmap.Map, lset.Set, vector.Vector]
+    form: Union[
+        llist.PersistentList,
+        lmap.PersistentMap,
+        lset.PersistentSet,
+        vec.PersistentVector,
+    ]
 ) -> ReaderForm:
     raise SyntaxError(f"Unrecognized Python type: {type(form)}")
 
 
 @_py_from_lisp.register(IPersistentList)
-def _py_tuple_from_list(form: llist.List) -> tuple:
+def _py_tuple_from_list(form: llist.PersistentList) -> tuple:
     return tuple(form)
 
 
 @_py_from_lisp.register(IPersistentMap)
-def _py_dict_from_map(form: lmap.Map) -> dict:
+def _py_dict_from_map(form: lmap.PersistentMap) -> dict:
     return dict(form)
 
 
 @_py_from_lisp.register(IPersistentSet)
-def _py_set_from_set(form: lset.Set) -> set:
+def _py_set_from_set(form: lset.PersistentSet) -> set:
     return set(form)
 
 
 @_py_from_lisp.register(IPersistentVector)
-def _py_list_from_vec(form: vector.Vector) -> list:
+def _py_list_from_vec(form: vec.PersistentVector) -> list:
     return list(form)
 
 
@@ -268,9 +274,10 @@ def _uuid_from_str(uuid_str: str) -> uuid.UUID:
 class ReaderContext:
     _DATA_READERS = lmap.map(
         {
-            symbol.symbol("inst"): _inst_from_str,
-            symbol.symbol("py"): _py_from_lisp,
-            symbol.symbol("uuid"): _uuid_from_str,
+            sym.symbol("inst"): _inst_from_str,
+            sym.symbol("py"): _py_from_lisp,
+            sym.symbol("queue"): lqueue.queue,
+            sym.symbol("uuid"): _uuid_from_str,
         }
     )
 
@@ -292,12 +299,12 @@ class ReaderContext:
         resolver: Resolver = None,
         data_readers: DataReaders = None,
         eof: Any = None,
-        features: Optional[IPersistentSet[keyword.Keyword]] = None,
+        features: Optional[IPersistentSet[kw.Keyword]] = None,
         process_reader_cond: bool = True,
     ) -> None:
-        data_readers = Maybe(data_readers).or_else_get(lmap.Map.empty())
+        data_readers = Maybe(data_readers).or_else_get(lmap.PersistentMap.empty())
         for reader_sym in data_readers.keys():
-            if not isinstance(reader_sym, symbol.Symbol):
+            if not isinstance(reader_sym, sym.Symbol):
                 raise TypeError("Expected symbol for data reader tag")
             if not reader_sym.ns:
                 raise ValueError("Non-namespaced tags are reserved by the reader")
@@ -318,7 +325,7 @@ class ReaderContext:
         self._eof = eof
 
     @property
-    def data_readers(self) -> lmap.Map:
+    def data_readers(self) -> lmap.PersistentMap:
         return self._data_readers
 
     @property
@@ -326,7 +333,7 @@ class ReaderContext:
         return self._eof
 
     @property
-    def reader_features(self) -> IPersistentSet[keyword.Keyword]:
+    def reader_features(self) -> IPersistentSet[kw.Keyword]:
         return self._features
 
     @property
@@ -337,7 +344,7 @@ class ReaderContext:
     def reader(self) -> StreamReader:
         return self._reader
 
-    def resolve(self, sym: symbol.Symbol) -> symbol.Symbol:
+    def resolve(self, sym: sym.Symbol) -> sym.Symbol:
         return self._resolve(sym)
 
     @contextlib.contextmanager
@@ -393,14 +400,14 @@ class ReaderContext:
         )
 
 
-class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
+class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
     FEATURE_NOT_PRESENT = object()
 
     __slots__ = ("_form", "_feature_vec", "_is_splicing")
 
     def __init__(
         self,
-        form: llist.List[Tuple[keyword.Keyword, ReaderForm]],
+        form: llist.PersistentList[Tuple[kw.Keyword, ReaderForm]],
         is_splicing: bool = False,
     ):
         self._form = form
@@ -408,13 +415,13 @@ class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
         self._is_splicing = is_splicing
 
     @staticmethod
-    def _compile_feature_vec(form: IPersistentList[Tuple[keyword.Keyword, ReaderForm]]):
-        found_features: Set[keyword.Keyword] = set()
-        feature_list: List[Tuple[keyword.Keyword, ReaderForm]] = []
+    def _compile_feature_vec(form: IPersistentList[Tuple[kw.Keyword, ReaderForm]]):
+        found_features: Set[kw.Keyword] = set()
+        feature_list: List[Tuple[kw.Keyword, ReaderForm]] = []
 
         try:
             for k, v in partition(form, 2):
-                if not isinstance(k, keyword.Keyword):
+                if not isinstance(k, kw.Keyword):
                     raise SyntaxError(
                         f"Reader conditional features must be keywords, not {type(k)}"
                     )
@@ -429,10 +436,10 @@ class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
                 "Reader conditionals must contain an even number of forms"
             )
 
-        return vector.vector(feature_list)
+        return vec.vector(feature_list)
 
     def val_at(
-        self, k: keyword.Keyword, default: Optional[ReaderForm] = None
+        self, k: kw.Keyword, default: Optional[ReaderForm] = None
     ) -> Optional[ReaderForm]:
         if k == READER_COND_FORM_KW:
             return self._form
@@ -446,7 +453,7 @@ class ReaderConditional(ILookup[keyword.Keyword, ReaderForm], ILispObject):
         return self._is_splicing
 
     def select_feature(
-        self, features: IPersistentSet[keyword.Keyword]
+        self, features: IPersistentSet[kw.Keyword]
     ) -> Union[ReaderForm, object]:
         for k, form in self._feature_vec:
             if k in features:
@@ -531,7 +538,10 @@ def _read_namespaced(
 
 def _read_coll(
     ctx: ReaderContext,
-    f: Callable[[Collection[Any]], Union[llist.List, lset.Set, vector.Vector]],
+    f: Callable[
+        [Collection[Any]],
+        Union[llist.PersistentList, lset.PersistentSet, vec.PersistentVector],
+    ],
     end_token: str,
     coll_name: str,
 ):
@@ -557,7 +567,7 @@ def _read_coll(
             selected_feature = elem.select_feature(ctx.reader_features)
             if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
                 continue
-            elif isinstance(selected_feature, vector.Vector):
+            elif isinstance(selected_feature, vec.PersistentVector):
                 coll.extend(selected_feature)
             else:
                 raise ctx.syntax_error(
@@ -573,7 +583,7 @@ def _read_coll(
 
 
 @_with_loc
-def _read_list(ctx: ReaderContext) -> llist.List:
+def _read_list(ctx: ReaderContext) -> llist.PersistentList:
     """Read a list element from the input stream."""
     start = ctx.reader.advance()
     assert start == "("
@@ -581,20 +591,20 @@ def _read_list(ctx: ReaderContext) -> llist.List:
 
 
 @_with_loc
-def _read_vector(ctx: ReaderContext) -> vector.Vector:
+def _read_vector(ctx: ReaderContext) -> vec.PersistentVector:
     """Read a vector element from the input stream."""
     start = ctx.reader.advance()
     assert start == "["
-    return _read_coll(ctx, vector.vector, "]", "vector")
+    return _read_coll(ctx, vec.vector, "]", "vector")
 
 
 @_with_loc
-def _read_set(ctx: ReaderContext) -> lset.Set:
+def _read_set(ctx: ReaderContext) -> lset.PersistentSet:
     """Return a set from the input stream."""
     start = ctx.reader.advance()
     assert start == "{"
 
-    def set_if_valid(s: Collection) -> lset.Set:
+    def set_if_valid(s: Collection) -> lset.PersistentSet:
         coll_set = set(s)
         if len(s) != len(coll_set):
             dupes = ", ".join(
@@ -628,7 +638,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
             selected_feature = v.select_feature(ctx.reader_features)
             if selected_feature is ReaderConditional.FEATURE_NOT_PRESENT:
                 continue
-            elif isinstance(selected_feature, vector.Vector):
+            elif isinstance(selected_feature, vec.PersistentVector):
                 yield from selected_feature
             else:
                 raise ctx.syntax_error(
@@ -653,23 +663,25 @@ def _map_key_processor(namespace: Optional[str],) -> Callable[[Hashable], Hashab
         return lambda v: v
 
     def process_key(k: Any) -> Any:
-        if isinstance(k, keyword.Keyword):
+        if isinstance(k, kw.Keyword):
             if k.ns is None:
-                return keyword.keyword(k.name, ns=namespace)
+                return kw.keyword(k.name, ns=namespace)
             if k.ns == "_":
-                return keyword.keyword(k.name)
-        if isinstance(k, symbol.Symbol):
+                return kw.keyword(k.name)
+        if isinstance(k, sym.Symbol):
             if k.ns is None:
-                return symbol.symbol(k.name, ns=namespace)
+                return sym.symbol(k.name, ns=namespace)
             if k.ns == "_":
-                return symbol.symbol(k.name)
+                return sym.symbol(k.name)
         return k
 
     return process_key
 
 
 @_with_loc
-def _read_map(ctx: ReaderContext, namespace: Optional[str] = None) -> lmap.Map:
+def _read_map(
+    ctx: ReaderContext, namespace: Optional[str] = None
+) -> lmap.PersistentMap:
     """Return a map from the input stream."""
     reader = ctx.reader
     start = reader.advance()
@@ -688,7 +700,7 @@ def _read_map(ctx: ReaderContext, namespace: Optional[str] = None) -> lmap.Map:
         return lmap.map(d)
 
 
-def _read_namespaced_map(ctx: ReaderContext) -> lmap.Map:
+def _read_namespaced_map(ctx: ReaderContext) -> lmap.PersistentMap:
     """Read a namespaced map from the input stream."""
     start = ctx.reader.peek()
     assert start == ":"
@@ -715,7 +727,7 @@ def _read_namespaced_map(ctx: ReaderContext) -> lmap.Map:
 # Due to some ambiguities that arise in parsing symbols, numbers, and the
 # special keywords `true`, `false`, and `nil`, we have to have a looser
 # type defined for the return from these reader functions.
-MaybeSymbol = Union[bool, None, symbol.Symbol]
+MaybeSymbol = Union[bool, None, sym.Symbol]
 MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
 
 
@@ -878,11 +890,11 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
         elif name == "false":
             return False
     if ctx.is_syntax_quoted and not name.endswith("#"):
-        return ctx.resolve(symbol.symbol(name, ns))
-    return symbol.symbol(name, ns=ns)
+        return ctx.resolve(sym.symbol(name, ns))
+    return sym.symbol(name, ns=ns)
 
 
-def _read_kw(ctx: ReaderContext) -> keyword.Keyword:
+def _read_kw(ctx: ReaderContext) -> kw.Keyword:
     """Return a keyword from the input stream."""
     start = ctx.reader.advance()
     assert start == ":"
@@ -899,15 +911,15 @@ def _read_kw(ctx: ReaderContext) -> keyword.Keyword:
     if should_autoresolve:
         current_ns = get_current_ns()
         if ns is not None:
-            aliased_ns = current_ns.aliases.get(symbol.symbol(ns))
+            aliased_ns = current_ns.aliases.get(sym.symbol(ns))
             if aliased_ns is None:
                 raise ctx.syntax_error(f"Cannot resolve namespace alias '{ns}'")
             ns = aliased_ns.name
         else:
             ns = current_ns.name
-        return keyword.keyword(name, ns=ns)
+        return kw.keyword(name, ns=ns)
 
-    return keyword.keyword(name, ns=ns)
+    return kw.keyword(name, ns=ns)
 
 
 def _read_meta(ctx: ReaderContext) -> IMeta:
@@ -917,12 +929,12 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
     assert start == "^"
     meta = _read_next_consuming_comment(ctx)
 
-    meta_map: Optional[lmap.Map[LispForm, LispForm]]
-    if isinstance(meta, symbol.Symbol):
-        meta_map = lmap.map({keyword.keyword("tag"): meta})
-    elif isinstance(meta, keyword.Keyword):
+    meta_map: Optional[lmap.PersistentMap[LispForm, LispForm]]
+    if isinstance(meta, sym.Symbol):
+        meta_map = lmap.map({kw.keyword("tag"): meta})
+    elif isinstance(meta, kw.Keyword):
         meta_map = lmap.map({meta: True})
-    elif isinstance(meta, lmap.Map):
+    elif isinstance(meta, lmap.PersistentMap):
         meta_map = meta
     else:
         raise ctx.syntax_error(
@@ -949,7 +961,7 @@ def _walk(inner_f, outer_f, form):
     if isinstance(form, IPersistentList):
         return outer_f(llist.list(map(inner_f, form)))
     elif isinstance(form, IPersistentVector):
-        return outer_f(vector.vector(map(inner_f, form)))
+        return outer_f(vec.vector(map(inner_f, form)))
     elif isinstance(form, IPersistentMap):
         return outer_f(lmap.hash_map(*chain.from_iterable(map(inner_f, form.seq()))))
     elif isinstance(form, IPersistentSet):
@@ -966,7 +978,7 @@ def _postwalk(f, form):
 
 
 @_with_loc
-def _read_function(ctx: ReaderContext) -> llist.List:
+def _read_function(ctx: ReaderContext) -> llist.PersistentList:
     """Read a function reader macro from the input stream."""
     if ctx.is_in_anon_fn:
         raise ctx.syntax_error("Nested #() definitions not allowed")
@@ -985,10 +997,10 @@ def _read_function(ctx: ReaderContext) -> llist.List:
 
     def sym_replacement(arg_num):
         suffix = arg_suffix(arg_num)
-        return symbol.symbol(f"arg-{suffix}")
+        return sym.symbol(f"arg-{suffix}")
 
     def identify_and_replace(f):
-        if isinstance(f, symbol.Symbol):
+        if isinstance(f, sym.Symbol):
             if f.ns is None:
                 match = fn_macro_args.match(f.name)
                 if match is not None:
@@ -1000,7 +1012,7 @@ def _read_function(ctx: ReaderContext) -> llist.List:
 
     body = _postwalk(identify_and_replace, form) if len(form) > 0 else None
 
-    arg_list: List[symbol.Symbol] = []
+    arg_list: List[sym.Symbol] = []
     numbered_args = sorted(map(int, filter(lambda k: k != "rest", arg_set)))
     if len(numbered_args) > 0:
         max_arg = max(numbered_args)
@@ -1009,11 +1021,11 @@ def _read_function(ctx: ReaderContext) -> llist.List:
             arg_list.append(_AMPERSAND)
             arg_list.append(sym_replacement("rest"))
 
-    return llist.l(_FN, vector.vector(arg_list), body)
+    return llist.l(_FN, vec.vector(arg_list), body)
 
 
 @_with_loc
-def _read_quoted(ctx: ReaderContext) -> llist.List:
+def _read_quoted(ctx: ReaderContext) -> llist.PersistentList:
     """Read a quoted form from the input stream."""
     start = ctx.reader.advance()
     assert start == "'"
@@ -1097,21 +1109,21 @@ def _process_syntax_quoted_form(
         return form[1]  # type: ignore
     elif _is_unquote_splicing(form):
         raise ctx.syntax_error("Cannot splice outside collection")
-    elif isinstance(form, llist.List):
+    elif isinstance(form, llist.PersistentList):
         return llist.l(_SEQ, lconcat(_expand_syntax_quote(ctx, form)))
-    elif isinstance(form, vector.Vector):
+    elif isinstance(form, vec.PersistentVector):
         return llist.l(_APPLY, _VECTOR, lconcat(_expand_syntax_quote(ctx, form)))
-    elif isinstance(form, lset.Set):
+    elif isinstance(form, lset.PersistentSet):
         return llist.l(_APPLY, _HASH_SET, lconcat(_expand_syntax_quote(ctx, form)))
-    elif isinstance(form, lmap.Map):
+    elif isinstance(form, lmap.PersistentMap):
         flat_kvs = list(chain.from_iterable(form.items()))
         return llist.l(_APPLY, _HASH_MAP, lconcat(_expand_syntax_quote(ctx, flat_kvs)))  # type: ignore
-    elif isinstance(form, symbol.Symbol):
+    elif isinstance(form, sym.Symbol):
         if form.ns is None and form.name.endswith("#"):
             try:
                 return llist.l(_QUOTE, ctx.gensym_env[form.name])
             except KeyError:
-                genned = symbol.symbol(langutil.genname(form.name[:-1])).with_meta(
+                genned = sym.symbol(langutil.genname(form.name[:-1])).with_meta(
                     form.meta
                 )
                 ctx.gensym_env[form.name] = genned
@@ -1283,7 +1295,7 @@ def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional
         )
 
     feature_list = _read_coll(ctx, llist.list, ")", "reader conditional")
-    assert isinstance(feature_list, llist.List)
+    assert isinstance(feature_list, llist.PersistentList)
     return ReaderConditional(feature_list, is_splicing=is_splicing)
 
 
@@ -1312,7 +1324,7 @@ def _read_reader_conditional(ctx: ReaderContext) -> LispReaderForm:
 
 
 def _load_record_or_type(
-    ctx: ReaderContext, s: symbol.Symbol, v: LispReaderForm
+    ctx: ReaderContext, s: sym.Symbol, v: LispReaderForm
 ) -> Union[IRecord, IType]:
     """Attempt to load the constructor named by `s` and construct a new
     record or type instance from the vector or map following name."""
@@ -1320,7 +1332,7 @@ def _load_record_or_type(
     assert "." in s.name, "Record names must appear fully qualified"
 
     ns_name, rec = s.name.rsplit(".", maxsplit=1)
-    ns_sym = symbol.symbol(ns_name)
+    ns_sym = sym.symbol(ns_name)
     ns = Namespace.get(ns_sym)
     if ns is None:
         raise ctx.syntax_error(f"Namespace {ns_name} does not exist")
@@ -1329,18 +1341,18 @@ def _load_record_or_type(
     if rectype is None:
         raise ctx.syntax_error(f"Record or type {s} does not exist")
 
-    if isinstance(v, vector.Vector):
+    if isinstance(v, vec.PersistentVector):
         if issubclass(rectype, (IRecord, IType)):
-            posfactory = Var.find_in_ns(ns_sym, symbol.symbol(f"->{rec}"))
+            posfactory = Var.find_in_ns(ns_sym, sym.symbol(f"->{rec}"))
             assert (
                 posfactory is not None
             ), "Record and Type must have positional factories"
             return posfactory.value(*v)
         else:
             raise ctx.syntax_error(f"Var {s} is not a Record or Type")
-    elif isinstance(v, lmap.Map):
+    elif isinstance(v, lmap.PersistentMap):
         if issubclass(rectype, IRecord):
-            mapfactory = Var.find_in_ns(ns_sym, symbol.symbol(f"map->{rec}"))
+            mapfactory = Var.find_in_ns(ns_sym, sym.symbol(f"map->{rec}"))
             assert mapfactory is not None, "Record must have map factory"
             return mapfactory.value(v)
         else:
@@ -1379,7 +1391,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
         return _read_numeric_constant(ctx)
     elif ns_name_chars.match(token):
         s = _read_sym(ctx)
-        assert isinstance(s, symbol.Symbol)
+        assert isinstance(s, sym.Symbol)
         v = _read_next_consuming_comment(ctx)
         if s in ctx.data_readers:
             f = ctx.data_readers[s]
@@ -1480,7 +1492,7 @@ def read(  # pylint: disable=too-many-arguments
     data_readers: DataReaders = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
-    features: Optional[IPersistentSet[keyword.Keyword]] = None,
+    features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a stream as a Lisp expression.
@@ -1534,7 +1546,7 @@ def read_str(  # pylint: disable=too-many-arguments
     data_readers: DataReaders = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
-    features: Optional[IPersistentSet[keyword.Keyword]] = None,
+    features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a string as a Lisp expression.
@@ -1559,7 +1571,7 @@ def read_file(  # pylint: disable=too-many-arguments
     data_readers: DataReaders = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
-    features: Optional[IPersistentSet[keyword.Keyword]] = None,
+    features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a file as a Lisp expression.

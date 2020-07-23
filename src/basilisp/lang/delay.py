@@ -2,7 +2,7 @@ from typing import Callable, Generic, Optional, TypeVar
 
 import attr
 
-import basilisp.lang.atom as atom
+from basilisp.lang import atom as atom
 from basilisp.lang.interfaces import IDeref
 
 T = TypeVar("T")

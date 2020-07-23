@@ -1,8 +1,8 @@
 import threading
 from typing import Any, Callable, Generic, Optional, TypeVar
 
-import basilisp.lang.map as lmap
-import basilisp.lang.symbol as sym
+from basilisp.lang import map as lmap
+from basilisp.lang import symbol as sym
 from basilisp.lang.interfaces import IPersistentMap
 from basilisp.util import Maybe
 
@@ -22,7 +22,7 @@ class MultiFunction(Generic[T]):
         self._default = default
         self._dispatch = dispatch
         self._lock = threading.Lock()
-        self._methods: IPersistentMap[T, Method] = lmap.Map.empty()
+        self._methods: IPersistentMap[T, Method] = lmap.PersistentMap.empty()
 
     def __call__(self, *args, **kwargs):
         key = self._dispatch(*args, **kwargs)
@@ -58,7 +58,7 @@ class MultiFunction(Generic[T]):
     def remove_all_methods(self) -> None:
         """Remove all methods defined for this multi-function."""
         with self._lock:
-            self._methods = lmap.Map.empty()
+            self._methods = lmap.PersistentMap.empty()
 
     @property
     def default(self) -> T:

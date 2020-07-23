@@ -2,7 +2,7 @@ import pickle
 
 import pytest
 
-import basilisp.lang.map as lmap
+from basilisp.lang import map as lmap
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import Symbol, symbol
 

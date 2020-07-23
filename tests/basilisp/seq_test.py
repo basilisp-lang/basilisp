@@ -1,8 +1,8 @@
-import basilisp.lang.keyword as kw
-import basilisp.lang.list as llist
-import basilisp.lang.runtime as runtime
-import basilisp.lang.seq as lseq
-import basilisp.lang.vector as vec
+from basilisp.lang import keyword as kw
+from basilisp.lang import list as llist
+from basilisp.lang import runtime as runtime
+from basilisp.lang import seq as lseq
+from basilisp.lang import vector as vec
 
 
 def test_to_sequence():
@@ -101,7 +101,7 @@ def test_sequence():
 
 def test_seq_iterator():
     s = lseq.sequence([])
-    assert vec.Vector.empty() == vec.vector(s)
+    assert vec.PersistentVector.empty() == vec.vector(s)
 
     s = lseq.sequence(range(10000))
     assert 10000 == len(vec.vector(s))

@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added default reader features for matching Python version ranges (`:lpy36+`, `:lpy38-`, etc.) (#593)
  * Added `lazy-cat` function for lazily concatenating sequences (#588)
  * Added support for writing EDN strings from `basilisp.edn` (#600)
+ * Added a persistent queue data type (#606)
+ * Added support for transducers (#601)
  * Added CLI argument parser in `basilisp.cli-tools` namespace (#535)
 
 ### Changed
@@ -23,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * The compiler now uses the pre-computed hash to lookup keywords directly, which should improve lookup time for repeated invocations (#592)
  * Symbol hashes are now pre-computed when they are created (#592)
  * Moved `basilisp.core.template` to `basilisp.template` to match Clojure (#599)
+ * Refactor compiler to use `functools.singledispatch` for type based dispatch (#605)
+ * Rename `List`, `Map`, `Set`, and `Vector` to `PersistentList`, `PersistentMap`, `PersistentSet`, and `PersistentVector` respectively (#605)
 
 ### Fixed
  * Fixed a bug where `def` forms did not permit recursive references to the `def`'ed Vars (#578)

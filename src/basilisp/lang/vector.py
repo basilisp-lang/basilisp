@@ -70,11 +70,11 @@ class TransientVector(ITransientVector[T]):
         del self._inner[-1]
         return self
 
-    def to_persistent(self) -> "Vector[T]":
-        return Vector(self._inner.persistent())
+    def to_persistent(self) -> "PersistentVector[T]":
+        return PersistentVector(self._inner.persistent())
 
 
-class Vector(
+class PersistentVector(
     IPersistentVector[T], IEvolveableCollection[TransientVector], ILispObject, IWithMeta
 ):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
@@ -104,7 +104,7 @@ class Vector(
 
     def __getitem__(self, item):
         if isinstance(item, slice):
-            return Vector(self._inner[item])
+            return PersistentVector(self._inner[item])
         return self._inner[item]
 
     def __hash__(self):
@@ -123,17 +123,17 @@ class Vector(
     def meta(self) -> Optional[IPersistentMap]:
         return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "Vector[T]":
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentVector[T]":
         return vector(self._inner, meta=meta)
 
-    def cons(self, *elems: T) -> "Vector[T]":  # type: ignore[override]
+    def cons(self, *elems: T) -> "PersistentVector[T]":  # type: ignore[override]
         e = self._inner.evolver()
         for elem in elems:
             e.append(elem)
-        return Vector(e.persistent(), meta=self.meta)
+        return PersistentVector(e.persistent(), meta=self.meta)
 
-    def assoc(self, *kvs: T) -> "Vector[T]":  # type: ignore[override]
-        return Vector(self._inner.mset(*kvs))  # type: ignore[arg-type]
+    def assoc(self, *kvs: T) -> "PersistentVector[T]":  # type: ignore[override]
+        return PersistentVector(self._inner.mset(*kvs))  # type: ignore[arg-type]
 
     def contains(self, k):
         return 0 <= k < len(self._inner)
@@ -151,8 +151,8 @@ class Vector(
             return default
 
     @staticmethod
-    def empty() -> "Vector[T]":
-        return v()
+    def empty() -> "PersistentVector[T]":
+        return EMPTY
 
     def seq(self) -> ISeq[T]:  # type: ignore[override]
         return sequence(self)
@@ -162,7 +162,7 @@ class Vector(
             return None
         return self[-1]
 
-    def pop(self) -> "Vector[T]":
+    def pop(self) -> "PersistentVector[T]":
         if len(self) == 0:
             raise IndexError("Cannot pop an empty vector")
         return self[:-1]
@@ -178,7 +178,7 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):
+class MapEntry(IMapEntry[K, V], PersistentVector[Union[K, V]]):
     __slots__ = ()
 
     def __init__(self, wrapped: "PVector[Union[K, V]]") -> None:
@@ -207,11 +207,16 @@ class MapEntry(IMapEntry[K, V], Vector[Union[K, V]]):
         return MapEntry(pvector(v))
 
 
-def vector(members: Iterable[T], meta: Optional[IPersistentMap] = None) -> Vector[T]:
+EMPTY: PersistentVector = PersistentVector(pvector(()))
+
+
+def vector(
+    members: Iterable[T], meta: Optional[IPersistentMap] = None
+) -> PersistentVector[T]:
     """Creates a new vector."""
-    return Vector(pvector(members), meta=meta)
+    return PersistentVector(pvector(members), meta=meta)
 
 
-def v(*members: T, meta: Optional[IPersistentMap] = None) -> Vector[T]:
+def v(*members: T, meta: Optional[IPersistentMap] = None) -> PersistentVector[T]:
     """Creates a new vector from members."""
-    return Vector(pvector(members), meta=meta)
+    return PersistentVector(pvector(members), meta=meta)

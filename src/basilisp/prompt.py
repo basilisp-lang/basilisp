@@ -14,8 +14,8 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
-import basilisp.lang.reader as reader
-import basilisp.lang.runtime as runtime
+from basilisp.lang import reader as reader
+from basilisp.lang import runtime as runtime
 
 _USER_DATA_HOME = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
 BASILISP_USER_DATA = os.path.abspath(os.path.join(_USER_DATA_HOME, "basilisp"))

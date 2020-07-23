@@ -3,8 +3,8 @@ import typing
 
 import pytest
 
-import basilisp.lang.map as lmap
-import basilisp.lang.set as lset
+from basilisp.lang import map as lmap
+from basilisp.lang import set as lset
 from basilisp.lang.interfaces import (
     ICounted,
     ILispObject,
@@ -31,7 +31,7 @@ from basilisp.lang.symbol import symbol
 )
 def test_set_interface_membership(interface):
     assert isinstance(lset.s(), interface)
-    assert issubclass(lset.Set, interface)
+    assert issubclass(lset.PersistentSet, interface)
 
 
 def test_set_as_function():
@@ -43,7 +43,7 @@ def test_set_as_function():
 
 
 def test_set_bool():
-    assert True is bool(lset.Set.empty())
+    assert True is bool(lset.PersistentSet.empty())
 
 
 def test_set_conj():
@@ -94,7 +94,7 @@ def test_set_with_meta():
         lset.s(keyword("kw1"), lset.s("string", 4)),
     ],
 )
-def test_set_pickleability(pickle_protocol: int, o: lset.Set):
+def test_set_pickleability(pickle_protocol: int, o: lset.PersistentSet):
     assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
@@ -106,5 +106,5 @@ def test_set_pickleability(pickle_protocol: int, o: lset.Set):
         (lset.s(keyword("kw1"), keyword("kw2")), {"#{:kw1 :kw2}", "#{:kw2 :kw1}"}),
     ],
 )
-def test_set_repr(l: lset.Set, str_repr: typing.Set[str]):
+def test_set_repr(l: lset.PersistentSet, str_repr: typing.Set[str]):
     assert repr(l) in str_repr

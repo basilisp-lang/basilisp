@@ -2,8 +2,8 @@ import pickle
 
 import pytest
 
-import basilisp.lang.list as llist
-import basilisp.lang.map as lmap
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
 from basilisp.lang.interfaces import (
     ILispObject,
     IPersistentCollection,
@@ -33,15 +33,15 @@ from basilisp.lang.symbol import symbol
 )
 def test_list_interface_membership(interface):
     assert isinstance(llist.l(), interface)
-    assert issubclass(llist.List, interface)
+    assert issubclass(llist.PersistentList, interface)
 
 
 def test_list_slice():
-    assert isinstance(llist.l(1, 2, 3)[1:], llist.List)
+    assert isinstance(llist.l(1, 2, 3)[1:], llist.PersistentList)
 
 
 def test_list_bool():
-    assert True is bool(llist.List.empty())
+    assert True is bool(llist.PersistentList.empty())
 
 
 def test_list_cons():
@@ -50,9 +50,12 @@ def test_list_cons():
     l2 = l1.cons(keyword("kw2"))
     assert l1 is not l2
     assert l1 != l2
+    assert l2 == llist.l(keyword("kw2"), keyword("kw1"))
     assert len(l2) == 2
     assert meta == l1.meta
     assert l2.meta is None
+    l3 = l2.cons(3, "four")
+    assert l3 == llist.l("four", 3, keyword("kw2"), keyword("kw1"))
 
 
 def test_peek():
@@ -67,7 +70,7 @@ def test_pop():
     with pytest.raises(IndexError):
         llist.l().pop()
 
-    assert llist.List.empty() == llist.l(1).pop()
+    assert llist.PersistentList.empty() == llist.l(1).pop()
     assert llist.l(2) == llist.l(1, 2).pop()
     assert llist.l(2, 3) == llist.l(1, 2, 3).pop()
 
@@ -100,7 +103,7 @@ def test_list_with_meta():
 
 
 def test_list_first():
-    assert None is llist.List.empty().first
+    assert None is llist.PersistentList.empty().first
     assert None is llist.l().first
     assert 1 == llist.l(1).first
     assert 1 == llist.l(1, 2).first
@@ -122,7 +125,7 @@ def test_list_rest():
         llist.l(keyword("kw1"), llist.l("string", 4)),
     ],
 )
-def test_list_pickleability(pickle_protocol: int, o: llist.List):
+def test_list_pickleability(pickle_protocol: int, o: llist.PersistentList):
     assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
 
 
@@ -134,5 +137,5 @@ def test_list_pickleability(pickle_protocol: int, o: llist.List):
         (llist.l(keyword("kw1"), keyword("kw2")), "(:kw1 :kw2)"),
     ],
 )
-def test_list_repr(l: llist.List, str_repr: str):
+def test_list_repr(l: llist.PersistentList, str_repr: str):
     assert repr(l) == str_repr

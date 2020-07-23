@@ -1,10 +1,10 @@
-import basilisp.lang.atom as atom
 import basilisp.lang.interfaces
-import basilisp.lang.keyword as kw
-import basilisp.lang.map as lmap
-import basilisp.lang.runtime as runtime
-import basilisp.lang.symbol as sym
-import basilisp.lang.vector as vec
+from basilisp.lang import atom as atom
+from basilisp.lang import keyword as kw
+from basilisp.lang import map as lmap
+from basilisp.lang import runtime as runtime
+from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 
 
 def test_atom_deref_interface():
@@ -13,8 +13,8 @@ def test_atom_deref_interface():
 
 
 def test_atom():
-    a = atom.Atom(vec.Vector.empty())
-    assert vec.Vector.empty() == a.deref()
+    a = atom.Atom(vec.PersistentVector.empty())
+    assert vec.PersistentVector.empty() == a.deref()
 
     assert vec.v(1) == a.swap(lambda v, e: v.cons(e), 1)
     assert vec.v(1) == a.deref()
@@ -22,8 +22,8 @@ def test_atom():
     assert vec.v(1, 2) == a.swap(lambda v, e: v.cons(e), 2)
     assert vec.v(1, 2) == a.deref()
 
-    assert vec.v(1, 2) == a.reset(lmap.Map.empty())
-    assert lmap.Map.empty() == a.deref()
+    assert vec.v(1, 2) == a.reset(lmap.PersistentMap.empty())
+    assert lmap.PersistentMap.empty() == a.deref()
 
 
 def test_alter_atom_meta():
