@@ -1298,23 +1298,6 @@ class TestComplement:
         assert False is is_even(odd_number)
 
 
-def test_reduce():
-    assert 0 == core.reduce(core.__PLUS__, [])
-    assert 1 == core.reduce(core.__PLUS__, [1])
-    assert 6 == core.reduce(core.__PLUS__, [1, 2, 3])
-    assert 45 == core.reduce(core.__PLUS__, 45, [])
-    assert 46 == core.reduce(core.__PLUS__, 45, [1])
-
-
-def test_reduce_with_lazy_seq():
-    assert 25 == core.reduce(
-        core.__PLUS__, core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4, 5, 6, 7, 8, 9))
-    )
-    assert 25 == core.reduce(
-        core.__PLUS__, 0, core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4, 5, 6, 7, 8, 9))
-    )
-
-
 def test_comp():
     assert 1 == core.comp()(1)
     assert "hi" == core.comp()("hi")
@@ -1498,118 +1481,6 @@ def test_merge():
     )
 
 
-def test_map():
-    assert llist.PersistentList.empty() == core.map_(
-        core.identity, vec.PersistentVector.empty()
-    )
-    assert llist.l(1, 2, 3) == core.map_(core.identity, vec.v(1, 2, 3))
-    assert llist.l(2, 3, 4) == core.map_(core.inc, vec.v(1, 2, 3))
-
-    assert llist.l(5, 7, 9) == core.map_(core.__PLUS__, vec.v(1, 2, 3), vec.v(4, 5, 6))
-    assert llist.l(5, 7, 9) == core.map_(
-        core.__PLUS__, vec.v(1, 2, 3), core.range_(4, 7)
-    )
-
-
-def test_map_indexed():
-    assert llist.l(vec.v(0, 1), vec.v(1, 2), vec.v(2, 3)) == core.map_indexed(
-        core.vector, vec.v(1, 2, 3)
-    )
-
-
-def test_mapcat():
-    assert llist.PersistentList.empty() == core.mapcat(
-        lambda x: vec.v(x, x + 1), vec.PersistentVector.empty()
-    )
-    assert llist.l(1, 2, 2, 3, 3, 4) == core.mapcat(
-        lambda x: vec.v(x, x + 1), vec.v(1, 2, 3)
-    )
-    assert llist.l(1, 4, 2, 5, 3, 6) == core.mapcat(
-        core.vector, vec.v(1, 2, 3), vec.v(4, 5, 6)
-    )
-
-
-def test_filter():
-    assert llist.PersistentList.empty() == core.filter_(
-        core.identity, vec.PersistentVector.empty()
-    )
-    assert llist.l(1, 3) == core.filter_(core.odd__Q__, vec.v(1, 2, 3, 4))
-    assert llist.l(1, 2, 3, 4) == core.filter_(core.identity, vec.v(1, 2, 3, 4))
-
-
-def test_remove():
-    assert llist.PersistentList.empty() == core.remove(
-        core.identity, vec.PersistentVector.empty()
-    )
-    assert llist.l(2, 4) == core.remove(core.odd__Q__, vec.v(1, 2, 3, 4))
-    assert llist.PersistentList.empty() == core.remove(core.identity, vec.v(1, 2, 3, 4))
-
-
-def test_take():
-    assert llist.PersistentList.empty() == core.take(3, vec.PersistentVector.empty())
-    assert llist.l(1, 2, 3) == core.take(3, vec.v(1, 2, 3))
-    assert llist.l(1, 2) == core.take(2, vec.v(1, 2, 3))
-    assert llist.l(1) == core.take(1, vec.v(1, 2, 3))
-    assert llist.PersistentList.empty() == core.take(0, vec.v(1, 2, 3))
-
-
-def test_take_while():
-    assert llist.PersistentList.empty() == core.take_while(
-        core.odd__Q__, vec.PersistentVector.empty()
-    )
-    assert llist.PersistentList.empty() == core.take_while(
-        core.even__Q__, vec.v(1, 3, 5, 7)
-    )
-    assert llist.PersistentList.empty() == core.take_while(
-        core.odd__Q__, vec.v(2, 3, 5, 7)
-    )
-    assert llist.l(1, 3, 5) == core.take_while(core.odd__Q__, vec.v(1, 3, 5, 2))
-    assert llist.l(1, 3, 5, 7) == core.take_while(core.odd__Q__, vec.v(1, 3, 5, 7))
-    assert llist.l(1) == core.take_while(core.odd__Q__, vec.v(1, 2, 3, 4))
-
-
-def test_take_nth():
-    assert llist.PersistentList.empty() == core.take_nth(
-        0, vec.PersistentVector.empty()
-    )
-    assert llist.l(1, 1, 1) == core.take(3, core.take_nth(0, vec.v(1)))
-    assert llist.l(1, 1, 1) == core.take(3, core.take_nth(0, vec.v(1, 1, 1)))
-    assert llist.l(1, 2, 3, 4, 5) == core.take_nth(1, vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1, 4) == core.take_nth(3, vec.v(1, 2, 3, 4, 5))
-
-
-def test_drop():
-    assert llist.PersistentList.empty() == core.drop(3, vec.PersistentVector.empty())
-    assert llist.PersistentList.empty() == core.drop(3, vec.v(1, 2, 3))
-    assert llist.l(1, 2, 3) == core.drop(0, vec.v(1, 2, 3))
-    assert llist.l(2, 3) == core.drop(1, vec.v(1, 2, 3))
-    assert llist.l(3) == core.drop(2, vec.v(1, 2, 3))
-    assert llist.l(4) == core.drop(3, vec.v(1, 2, 3, 4))
-
-
-def test_drop_while():
-    assert llist.PersistentList.empty() == core.drop_while(
-        core.odd__Q__, vec.PersistentVector.empty()
-    )
-    assert llist.PersistentList.empty() == core.drop_while(
-        core.odd__Q__, vec.v(1, 3, 5, 7)
-    )
-    assert llist.l(2) == core.drop_while(core.odd__Q__, vec.v(1, 3, 5, 2))
-    assert llist.l(2, 3, 4) == core.drop_while(core.odd__Q__, vec.v(1, 2, 3, 4))
-    assert llist.l(2, 4, 6, 8) == core.drop_while(core.odd__Q__, vec.v(2, 4, 6, 8))
-
-
-def test_drop_last():
-    assert llist.l(1, 2, 3, 4) == core.drop_last(vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1, 2, 3) == core.drop_last(2, vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1, 2) == core.drop_last(3, vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1) == core.drop_last(4, vec.v(1, 2, 3, 4, 5))
-    assert llist.PersistentList.empty() == core.drop_last(5, vec.v(1, 2, 3, 4, 5))
-    assert llist.PersistentList.empty() == core.drop_last(6, vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1, 2, 3, 4, 5) == core.drop_last(0, vec.v(1, 2, 3, 4, 5))
-    assert llist.l(1, 2, 3, 4, 5) == core.drop_last(-1, vec.v(1, 2, 3, 4, 5))
-
-
 def test_split_at():
     assert vec.v(
         llist.PersistentList.empty(), llist.PersistentList.empty()
@@ -1650,14 +1521,6 @@ def test_group_by():
     assert lmap.map({True: vec.v(1, 3), False: vec.v(2, 4)}) == core.group_by(
         core.odd__Q__, vec.v(1, 2, 3, 4)
     )
-
-
-def test_interpose():
-    assert llist.PersistentList.empty() == core.interpose(
-        ",", vec.PersistentVector.empty()
-    )
-    assert llist.l("hi") == core.interpose(",", vec.v("hi"))
-    assert llist.l("hi", ",", "there") == core.interpose(",", vec.v("hi", "there"))
 
 
 def test_cycle():
@@ -1701,31 +1564,6 @@ def test_partition():
     assert llist.l(
         llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
     ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 26))
-
-
-def test_partition_all():
-    assert llist.l(llist.l(1, 2), llist.l(3, 4), llist.l(5, 6)) == core.partition_all(
-        2, core.range_(1, 7)
-    )
-    assert llist.l(llist.l(1, 2, 3), llist.l(4, 5, 6)) == core.partition_all(
-        3, core.range_(1, 7)
-    )
-
-    assert llist.l(
-        llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23)
-    ) == core.partition_all(5, 10, core.range_(1, 24))
-    assert llist.l(
-        llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
-    ) == core.partition_all(5, 10, core.range_(1, 26))
-
-
-def test_partition_by():
-    assert llist.PersistentList.empty() == core.partition_by(
-        core.odd__Q__, vec.PersistentVector.empty()
-    )
-    assert llist.l(llist.l(1, 1, 1), llist.l(2, 2), llist.l(3, 3)) == core.partition_by(
-        core.odd__Q__, vec.v(1, 1, 1, 2, 2, 3, 3)
-    )
 
 
 class TestPrintFunctions:

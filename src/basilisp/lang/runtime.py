@@ -477,11 +477,13 @@ class Namespace(ReferenceBase):
                 "basilisp.lang.promise",
                 "basilisp.lang.queue",
                 "basilisp.lang.reader",
+                "basilisp.lang.reduced",
                 "basilisp.lang.runtime",
                 "basilisp.lang.seq",
                 "basilisp.lang.set",
                 "basilisp.lang.symbol",
                 "basilisp.lang.vector",
+                "basilisp.lang.volatile",
                 "basilisp.lang.util",
             ],
         )

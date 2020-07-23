@@ -168,16 +168,6 @@
     '(4 3 2 1) [1 2 3 4]
     '(:d :c :b :a) [:a :b :c :d]))
 
-(deftest sequence-test
-  (are [x y] (= x (sequence y))
-    '() '()
-    '() []
-    '() #{}
-    '() {}
-    '(0 1 2 3) [0 1 2 3]
-    '(0 1 2 3) '(0 1 2 3)
-    '(0 1 2 3) (range 4)))
-
 (deftest subvec-test
   (is (= [] (subvec [] 0)))
   (is (thrown? python/IndexError (subvec [] 3)))
@@ -383,9 +373,70 @@
 
   (is (thrown? python/IndexError (pop! (transient [])))))
 
+;;;;;;;;;;;;;;;
+;; Volatiles ;;
+;;;;;;;;;;;;;;;
+
+(deftest volatile-test
+  (let [v (volatile! :a)]
+    (is (not (volatile? :a)))
+    (is (not (volatile? (atom :a))))
+    (is (volatile? v))
+    (is (= :a @v))
+    (is (= :b (vreset! v :b)))
+    (is (= :b @v))
+    (is (= :b/a (vswap! v #(keyword (name %) "a"))))
+    (is (= :b/a @v))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Transducer Utilities ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest reduced-test
+  (is (not (reduced? [])))
+  (is (reduced? (reduced [])))
+  (is (= [] @(reduced [])))
+
+  (testing "ensure-reduced"
+    (is (reduced? (ensure-reduced [])))
+    (is (reduced? (ensure-reduced (reduced []))))
+    (is (not (reduced? @(ensure-reduced (reduced []))))))
+
+  (testing "unreduced"
+    (is (not (reduced? (unreduced (reduced [])))))
+    (is (= [] (unreduced (reduced []))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest reduce-test
+  (testing "with no init"
+    (are [coll f res] (= res (reduce f coll))
+      []                                + 0
+      [1]                               + 1
+      [1 2 3]                           + 6
+      (filter odd? [1 2 3 4 5 6 7 8 9]) + 25))
+
+  (testing "with an init"
+    (are [coll f init res] (= res (reduce f init coll))
+      []                                + 45 45
+      [1]                               + 45 46
+      [1 2 3]                           + 45 51
+      (filter odd? [1 2 3 4 5 6 7 8 9]) + 25 50))
+
+  (testing "return early"
+    (let [f (fn []
+              (let [idx (volatile! 0)]
+                (fn
+                  ([x] x)
+                  ([x y]
+                   (let [new-idx (vswap! idx inc)]
+                     (if (> new-idx 3)
+                       (reduced x)
+                       (+ x y)))))))]
+      (is (= 6 (reduce (f) (range))))
+      (is (= 9 (reduce (f) 6 (range)))))))
 
 (deftest reduce-kv-test
   (testing "reduce-kv does not execute f if no elems in coll"
@@ -398,7 +449,17 @@
 
   (testing "reduce-kv"
     (is (= {1 :a, 2 :b, 3 :c}
-           (reduce-kv #(assoc %1 %3 %2) {} {:a 1 :b 2 :c 3})))))
+           (reduce-kv #(assoc %1 %3 %2) {} {:a 1 :b 2 :c 3}))))
+
+  (testing "return early"
+    (let [idx (volatile! 0)
+          f   (fn
+                [m k v]
+                (let [new-idx (vswap! idx inc)]
+                  (if (> new-idx 3)
+                    (reduced m)
+                    (assoc m k v))))]
+      (is (= 3 (count (reduce-kv f {} {:a 1 :b 2 :c 3 :d 4 :e 5 :f 6})))))))
 
 (deftest every-pred-test
   (is (= true ((every-pred odd?) 3 5 9)))
@@ -415,31 +476,224 @@
   (is (= nil ((some-fn :a :b :c) {:e 5} {:d 4})))
   (is (= nil ((some-fn :a :b :c) {:e 5 :d 4} {}))))
 
+(deftest map-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (map inc) input))
+      []           []
+      [6 7 8 9 10] (range 5 10))
+
+    (is (= '([1 4] [2 5] [3 6])
+           (vec (sequence (map vector) [1 2 3] [4 5 6])))))
+
+  (testing "higher order function"
+    (are [res s] (= res s)
+      '()      (map identity [])
+      '(1 2 3) (map identity [1 2 3])
+      '(2 3 4) (map inc [1 2 3])
+      '(5 7 9) (map + [1 2 3] [4 5 6])
+      '(5 7 9) (map + [1 2 3] (range 4 10)))))
+
+(deftest map-indexed-test
+  (testing "transducer"
+    (= [[0 1] [1 2] [2 3]]
+       (into [] (map-indexed vector) [1 2 3])))
+
+  (testing "higher order function"
+    (is (= '([0 1] [1 2] [2 3]) (map-indexed vector [1 2 3])))))
+
+(deftest mapcat-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (mapcat #(vector % (inc %))) input))
+      []            []
+      [1 2 2 3 3 4] [1 2 3])
+
+    #_(is (= '(1 4 7 2 5 8 3 6 9)
+           (sequence (mapcat vector) [1 2 3] [4 5 6] [7 8 9]))))
+
+  (testing "higher order function"
+    (are [res input] (= res (mapcat #(vector % (inc %)) input))
+      '()            []
+      '(1 2 2 3 3 4) [1 2 3])
+
+    (is (= [1 4 2 5 3 6] (mapcat vector [1 2 3] [4 5 6])))))
+
+(deftest filter-test
+  (testing "transducer"
+    (are [res f input] (= res (into [] (filter f) input))
+      [1 3 5] odd? [1 2 3 4 5]
+      [1 3 5] odd? [1 2 3 4 5 6]))
+
+  (testing "higher order function"
+    (are [res f input] (= res (filter f input))
+      '()        identity []
+      '(1 2 3 4) identity [1 2 3 4]
+      '(1 3)     odd?     [1 2 3 4]
+      '(1 3 5)   odd?     [1 2 3 4 5])))
+
+(deftest remove-test
+  (testing "transducer"
+    (are [res f input] (= res (into [] (remove f) input))
+      [2 4]   odd? [1 2 3 4 5]
+      [2 4 6] odd? [1 2 3 4 5 6]))
+
+  (testing "higher order function"
+    (are [res f input] (= res (remove f input))
+      '()      identity []
+      '()      identity [1 2 3 4]
+      '(2 4)   odd?     [1 2 3 4]
+      '(2 4 6) odd?     [1 2 3 4 5 6])))
+
 (deftest keep-test
-  (is (= '() (keep identity [])))
-  (is (= '(:a :b :c) (keep identity [:a :b :c])))
-  (is (= '(:a :b :c) (keep identity [:a :b nil :c])))
-  (is (= '(:a :b :c) (keep identity [:a :b nil nil :c])))
-  (is (= '(:a :b :c :d) (keep identity [:a :b nil :c nil nil :d]))))
+  (testing "transducer"
+    (are [res input] (= res (into [] (keep identity) input))
+      []            []
+      [:a :b :c]    [:a :b :c]
+      [:a :b :c]    [:a :b nil :c]
+      [:a :b :c]    [:a :b nil nil :c]
+      [:a :b :c :d] [:a :b nil :c nil nil :d]))
+
+  (testing "higher order function"
+    (are [res input] (= res (keep identity input))
+      '()            []
+      '(:a :b :c)    [:a :b :c]
+      '(:a :b :c)    [:a :b nil :c]
+      '(:a :b :c)    [:a :b nil nil :c]
+      '(:a :b :c :d) [:a :b nil :c nil nil :d])))
 
 (deftest keep-indexed-test
-  (let [f (fn [i v] v)]
-    (is (= '() (keep-indexed f [])))
-    (is (= '(:a :b :c) (keep-indexed f [:a :b :c])))
-    (is (= '(:a :b :c) (keep-indexed f [:a :b nil :c])))
-    (is (= '(:a :b :c) (keep-indexed f [:a :b nil nil :c])))
-    (is (= '(:a :b :c :d) (keep-indexed f [:a :b nil :c nil nil :d])))))
+  (testing "transducer"
+    (let [f (fn [i v] v)]
+      (are [res input] (= res (into [] (keep-indexed f) input))
+        []            []
+        [:a :b :c]    [:a :b :c]
+        [:a :b :c]    [:a :b nil :c]
+        [:a :b :c]    [:a :b nil nil :c]
+        [:a :b :c :d] [:a :b nil :c nil nil :d])))
+
+  (testing "higher order function"
+    (let [f (fn [i v] v)]
+      (are [res input] (= res (keep-indexed f input))
+        '()            []
+        '(:a :b :c)    [:a :b :c]
+        '(:a :b :c)    [:a :b nil :c]
+        '(:a :b :c)    [:a :b nil nil :c]
+        '(:a :b :c :d) [:a :b nil :c nil nil :d]))))
+
+(deftest take-test
+  (testing "transducer"
+    (are [res n input] (= res (into [] (take n) input))
+      []      3 []
+      []      0 [1 2 3]
+      [1]     1 [1 2 3]
+      [1 2]   2 [1 2 3]
+      [1 2 3] 3 [1 2 3]))
+
+  (testing "higher order function"
+    (are [res n input] (= res (take n input))
+      '()      3 []
+      '()      0 [1 2 3]
+      '(1)     1 [1 2 3]
+      '(1 2)   2 [1 2 3]
+      '(1 2 3) 3 [1 2 3])))
+
+(deftest take-while-test
+  (testing "transducer"
+    (are [res f input] (= res (into [] (take-while f) input))
+      []        odd?  []
+      []        even? [1 3 5 7]
+      []        odd?  [2 3 5 7]
+      [1 3 5]   odd?  [1 3 5 2]
+      [1 3 5 7] odd?  [1 3 5 7]
+      [1]       odd?  [1 2 3 4]))
+
+  (testing "higher order function"
+    (are [res f input] (= res (take-while f input))
+      '()        odd?  []
+      '()        even? [1 3 5 7]
+      '()        odd?  [2 3 5 7]
+      '(1 3 5)   odd?  [1 3 5 2]
+      '(1 3 5 7) odd?  [1 3 5 7]
+      '(1)       odd?  [1 2 3 4])))
+
+(deftest drop-test
+  (testing "transducer"
+    (are [res n input] (= res (into [] (drop n) input))
+      []      3 []
+      []      3 [1 2 3]
+      [1 2 3] 0 [1 2 3]
+      [2 3]   1 [1 2 3]
+      [3]     2 [1 2 3]
+      [4]     3 [1 2 3 4]))
+
+  (testing "higher order function"
+    (are [res n input] (= res (drop n input))
+      '()      3 []
+      '()      3 [1 2 3]
+      '(1 2 3) 0 [1 2 3]
+      '(2 3)   1 [1 2 3]
+      '(3)     2 [1 2 3]
+      '(4)     3 [1 2 3 4])))
+
+(deftest drop-while-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (drop-while odd?) input))
+      []        []
+      []        [1 3 5 7]
+      [2]       [1 3 5 2]
+      [2 3 4]   [1 2 3 4]
+      [2 4 6 8] [2 4 6 8]))
+
+  (testing "higher order function"
+    (are [res input] (= res (drop-while odd? input))
+      '()        []
+      '()        [1 3 5 7]
+      '(2)       [1 3 5 2]
+      '(2 3 4)   [1 2 3 4]
+      '(2 4 6 8) [2 4 6 8])))
+
+(deftest take-nth-test
+  (testing "transducer"
+    (are [res n input] (= res (into [] (take-nth n) input))
+      []          0 []
+      [1]         0 [1]
+      [1]         0 [1 2 3]
+      [1 2 3 4 5] 1 [1 2 3 4 5]
+      [1 3 5]     2 [1 2 3 4 5]
+      [1 4]       3 [1 2 3 4 5]))
+
+  (testing "higher order function"
+    (are [res input] (= res (take 1 (take-nth 0 input)))
+      '()  []
+      '(1) [1]
+      '(1) [1 2 3])
+    (are [res n input] (= res (take-nth n input))
+      '(1 2 3 4 5) 1 [1 2 3 4 5]
+      '(1 3 5)     2 [1 2 3 4 5]
+      '(1 4)       3 [1 2 3 4 5])))
 
 (deftest frequencies-test
-  (are [x y] (= x (frequencies y))
-    {} '()
-    {} []
-    {:a 1} '(:a)
-    {:a 1} [:a]
-    {:a 3 :b 1} '(:a :a :a :b)
-    {:a 3 :b 1} [:a :a :a :b]
+  (are [res input] (= res (frequencies input))
+    {}               '()
+    {}               []
+    {:a 1}           '(:a)
+    {:a 1}           [:a]
+    {:a 3 :b 1}      '(:a :a :a :b)
+    {:a 3 :b 1}      [:a :a :a :b]
     {:a 4 :b 1 :c 2} '(:a :a :a :b :c :c :a)
     {:a 4 :b 1 :c 2} [:a :a :a :b :c :c :a]))
+
+(deftest interpose-test
+  (testing "transducer"
+    (are [input sep res] (= res (into [] (interpose sep) input))
+      []             "," []
+      ["hi"]         "," ["hi"]
+      ["hi" "there"] "," ["hi" "," "there"]))
+
+  (testing "higher order function"
+    (are [input sep res] (= res (interpose sep input))
+      []             "," '()
+      ["hi"]         "," '("hi")
+      ["hi" "there"] "," '("hi" "," "there"))))
 
 (deftest interleave-test
   (is (= '() (interleave)))
@@ -450,24 +704,74 @@
   (is (= '(1 :a d 2 :b e)
          (interleave [1 2 3] [:a :b] ['d 'e 'f]))))
 
+(deftest partition-all-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (partition-all 3) input))
+      [[1]]                 [1]
+      [[0 1 2] [3 4 5]]     (range 6)
+      [[0 1 2] [3 4 5] [6]] (range 7)))
+
+  (testing "no step"
+    (are [res n coll] (= res (partition-all n coll))
+      '((1 2) (3 4) (5 6)) 2 (range 1 7)
+      '((1 2 3) (4 5 6))   3 (range 1 7)))
+
+  (testing "with step"
+    (are [res n step coll] (= res (partition-all n step coll))
+      '((1 2 3 4 5) (11 12 13 14 15) (21 22 23)) 5 10 (range 1 24)
+      '((1 2 3 4 5) (11 12 13 14 15) (21 22 23 24 25) 5 10 (range 1 26)))))
+
+(deftest partition-by-test
+  (testing "transducer"
+    (are [res input] (= res (into [] (partition-by odd?) input))
+      [[1]]                 [1]
+      [[1 3 5 7 9 11]]      [1 3 5 7 9 11]
+      [[1 1 1] [2 2] [3 3]] [1 1 1 2 2 3 3]))
+
+  (testing "higher order function"
+    (are [res coll] (= res (partition-by odd? coll))
+      '()                    []
+      '((1 1 1) (2 2) (3 3)) [1 1 1 2 2 3 3])))
+
 (deftest distinct-test
-  (are [x y] (= x (distinct y))
-    '() []
-    '(:a) [:a]
-    '(:a :b) [:a :b]
-    '(:a :b :c) [:a :b :c]
-    '(:a :b :c) [:a :a :a :b :c]
-    '(:a :b :c) [:a :a :a :b :c :a]))
+  (testing "transducer"
+    (are [res input] (= res (into [] (distinct) input))
+      []         []
+      [:a]       [:a]
+      [:a :b]    [:a :b]
+      [:a :b :c] [:a :b :c]
+      [:a :b :c] [:a :a :a :b :c]
+      [:a :b :c] [:a :a :a :b :c :a]))
+
+  (testing "higher order function"
+    (are [res input] (= res (distinct input))
+      '()         []
+      '(:a)       [:a]
+      '(:a :b)    [:a :b]
+      '(:a :b :c) [:a :b :c]
+      '(:a :b :c) [:a :a :a :b :c]
+      '(:a :b :c) [:a :a :a :b :c :a])))
 
 (deftest dedupe-test
-  (are [x y] (= x (dedupe y))
-    '() []
-    '(:a) [:a]
-    '(:a :b) [:a :b]
-    '(:a :b :c) [:a :b :c]
-    '(:a :b :c) [:a :a :a :b :c]
-    '(:a :b :c :a) [:a :a :a :b :c :a]
-    '(:a :b :c :a) [:a :a :a :b :c :c :a]))
+  (testing "transducer"
+    (are [res input] (= res (into [] (dedupe) input))
+      []            []
+      [:a]          [:a]
+      [:a :b]       [:a :b]
+      [:a :b :c]    [:a :b :c]
+      [:a :b :c]    [:a :a :a :b :c]
+      [:a :b :c :a] [:a :a :a :b :c :a]
+      [:a :b :c :a] [:a :a :a :b :c :c :a]))
+
+  (testing "higher order function"
+    (are [res input] (= res (dedupe input))
+      '()            []
+      '(:a)          [:a]
+      '(:a :b)       [:a :b]
+      '(:a :b :c)    [:a :b :c]
+      '(:a :b :c)    [:a :a :a :b :c]
+      '(:a :b :c :a) [:a :a :a :b :c :a]
+      '(:a :b :c :a) [:a :a :a :b :c :c :a])))
 
 (deftest flatten-test
   (are [x y] (= x (flatten y))
@@ -527,14 +831,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (deftest replace-test
-  (is (= '(This is the code ZERO ONE TWO ZERO)
-         (replace '{0 ZERO, 1 ONE, 2 TWO} '(This is the code 0 1 2 0))))
-  (is (= [:four :two :four :two]
-         (replace {2 :two, 4 :four} [4 2 3 4 5 6 2])))
-  (is (= [10 8 6]
-         (replace [10 9 8 7 6] [0 2 4])))
-  (is (= [:zeroth :second :fourth :zeroth]
-         (replace [:zeroth :first :second :third :fourth] [0 2 4 0]))))
+  (testing "transducer"
+    (are [smap input res] (= res (into [] (replace smap) input))
+      '{0 ZERO, 1 ONE, 2 TWO}                 '(This is the code 0 1 2 0) '[This is the code ZERO ONE TWO ZERO]
+      {2 :two, 4 :four}                       [4 2 3 4 5 6 2]             [:four :two 3 :four 5 6 :two]
+      [10 9 8 7 6]                            [0 2 4]                     [10 8 6]
+      [:zeroth :first :second :third :fourth] [0 2 4 0]                   [:zeroth :second :fourth :zeroth]))
+
+  (testing "higher order function"
+    (are [smap input res] (= res (replace smap input))
+      '{0 ZERO, 1 ONE, 2 TWO}                 '(This is the code 0 1 2 0) '(This is the code ZERO ONE TWO ZERO)
+      {2 :two, 4 :four}                       [4 2 3 4 5 6 2]             [:four :two 3 :four 5 6 :two]
+      [10 9 8 7 6]                            [0 2 4]                     [10 8 6]
+      [:zeroth :first :second :third :fourth] [0 2 4 0]                   [:zeroth :second :fourth :zeroth])))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; String Functions ;;
@@ -763,19 +1072,94 @@
       (other [arg1 arg2 arg3])
       (other [arg1 arg2 arg3 & rest-arg])]))
 
-;;;;;;;;;;;;;;;
-;; Volatiles ;;
-;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;
+;; Transducers ;;
+;;;;;;;;;;;;;;;;;
 
-(deftest volatile-test
-  (let [v (volatile! :a)]
-    (is (satisfies? IVolatile v))
-    (is (not (satisfies? IVolatile @v)))
-    (is (not (volatile? :a)))
-    (is (not (volatile? (atom :a))))
-    (is (volatile? v))
-    (is (= :a @v))
-    (is (= :b (vreset! v :b)))
-    (is (= :b @v))
-    (is (= :b/a (vswap! v #(keyword (name %) "a"))))
-    (is (= :b/a @v))))
+(deftest eduction-test
+  (is (= '(1 9 49 81)
+         (seq (eduction (mapcat identity)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        (take 5)
+                        [(range 5) (range 6 10)]))))
+  (is (= '(1 9 25 49 81)
+         (seq (eduction (map inc)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        (take 5)
+                        (range)))))
+  (is (= '(1 9 49 81 121)
+         (seq (eduction (mapcat identity)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        (take 5)
+                        [(range 5) (range 6 10) (range 11 20)]))))
+  (is (= '(1 9 49 81 121 169 225 289 361)
+         (seq (eduction (mapcat identity)
+                        (filter odd?)
+                        (map (fn [x] (* x x)))
+                        [(range 5) (range 6 10) (range 11 20)])))))
+
+(deftest halt-when-test
+  (is (= 5 (transduce (comp (map inc)
+                            (halt-when #(>= % 5)))
+                      +
+                      0
+                      (range))))
+  (is (= 10 (transduce (comp (map inc)
+                             (halt-when #(>= % 5)
+                                        (fn [result _] result)))
+                       +
+                       0
+                       (range)))))
+
+(deftest sequence-test
+  (testing "single arity"
+    (are [x y] (= x (sequence y))
+      '() '()
+      '() []
+      '() #{}
+      '() {}
+      '(0 1 2 3) [0 1 2 3]
+      '(0 1 2 3) '(0 1 2 3)
+      '(0 1 2 3) (range 4)))
+
+  (testing "tranducer with one coll"
+    (is (= '(1 2 3 4 5 6 7 8 9)
+           (sequence (comp (mapcat vector) cat) [[1 2 3] [4 5 6] [7 8 9]])))
+    (is (= '(1 2 3 4 5 6 7 8 9)
+           (sequence (mapcat identity) [[1 2 3] [4 5 6] [7 8 9]])))
+    (is (= '(1 9 25 49 81)
+           (sequence (comp (map inc)
+                           (filter odd?)
+                           (map (fn [x] (* x x)))
+                           (take 5))
+                     (range))))
+    (is (= '(1 9 49 81)
+           (sequence (comp  (mapcat identity)
+                            (filter odd?)
+                            (map (fn [x] (* x x)))
+                            (take 5))
+                     [(range 5) (range 6 10)]))))
+
+  (testing "transducer with multiple colls"
+    (is (= '([1 4 7] [2 5 8] [3 6 9])
+           (sequence (map vector) [1 2 3] [4 5 6] [7 8 9])))
+    (is (= '(1 4 7 2 5 8 3 6 9)
+           (sequence (mapcat vector) [1 2 3] [4 5 6] [7 8 9])))
+    (is (= '(1 49 9 81)
+           (sequence (comp  (mapcat vector)
+                            (filter odd?)
+                            (map (fn [x] (* x x)))
+                            (take 5))
+                     (range 5)
+                     (range 6 10))))
+    (is (= '(121 1 49 169 9)
+           (sequence (comp  (mapcat vector)
+                            (filter odd?)
+                            (map (fn [x] (* x x)))
+                            (take 5))
+                     (range 5)
+                     (range 6 10)
+                     (range 11 16))))))

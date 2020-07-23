@@ -591,11 +591,13 @@ _MULTIFN_ALIAS = genname("multifn")
 _PROMISE_ALIAS = genname("promise")
 _QUEUE_ALIAS = genname("queue")
 _READER_ALIAS = genname("reader")
+_REDUCED_ALIAS = genname("reduced")
 _RUNTIME_ALIAS = genname("runtime")
 _SEQ_ALIAS = genname("seq")
 _SET_ALIAS = genname("lset")
 _SYM_ALIAS = genname("sym")
 _VEC_ALIAS = genname("vec")
+_VOLATILE_ALIAS = genname("volatile")
 _VAR_ALIAS = genname("Var")
 _UTIL_ALIAS = genname("langutil")
 
@@ -614,11 +616,13 @@ _MODULE_ALIASES = {
     "basilisp.lang.promise": _PROMISE_ALIAS,
     "basilisp.lang.queue": _QUEUE_ALIAS,
     "basilisp.lang.reader": _READER_ALIAS,
+    "basilisp.lang.reduced": _REDUCED_ALIAS,
     "basilisp.lang.runtime": _RUNTIME_ALIAS,
     "basilisp.lang.seq": _SEQ_ALIAS,
     "basilisp.lang.set": _SET_ALIAS,
     "basilisp.lang.symbol": _SYM_ALIAS,
     "basilisp.lang.vector": _VEC_ALIAS,
+    "basilisp.lang.volatile": _VOLATILE_ALIAS,
     "basilisp.lang.util": _UTIL_ALIAS,
 }
 
