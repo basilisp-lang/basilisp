@@ -5912,12 +5912,11 @@
         create-sequence (fn create-sequence
                           [coll]
                           (lazy-seq
-                           (let [result (if (seq coll)
+                           (let [result (when (seq coll)
                                           (let [elem (xf (xf) (first coll))]
                                             (if (reduced? elem)
                                               @elem
-                                              (concat elem (create-sequence (rest coll)))))
-                                          coll)]
+                                              (concat elem (create-sequence (rest coll))))))]
                              (xf (unreduced result)))))]
      (create-sequence coll)))
   ([xform coll & colls]
@@ -5930,12 +5929,11 @@
         create-sequence (fn create-sequence
                           [coll & colls]
                           (lazy-seq
-                           (let [result (if (and (seq coll) (every? seq colls))
+                           (let [result (when (and (seq coll) (every? seq colls))
                                           (let [elem (apply xf (xf) (first coll) (map first colls))]
                                             (if (reduced? elem)
                                               @elem
-                                              (concat elem (apply create-sequence (rest coll) (map rest colls)))))
-                                          coll)]
+                                              (concat elem (apply create-sequence (rest coll) (map rest colls))))))]
                              (xf (unreduced result)))))]
      (apply create-sequence coll colls))))
 
