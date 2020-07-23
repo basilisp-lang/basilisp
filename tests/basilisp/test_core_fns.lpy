@@ -459,7 +459,7 @@
                   (if (> new-idx 3)
                     (reduced m)
                     (assoc m k v))))]
-      (is (= 3 (count (reduce-kv f {:a 1 :b 2 :c 3 :d 4 :e 5 :f 6})))))))
+      (is (= 3 (count (reduce-kv f {} {:a 1 :b 2 :c 3 :d 4 :e 5 :f 6})))))))
 
 (deftest every-pred-test
   (is (= true ((every-pred odd?) 3 5 9)))
