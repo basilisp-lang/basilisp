@@ -2308,20 +2308,23 @@
 (defn reduce
   "Reduce `coll` by `f`.
 
-  If `val` is not supplied and `coll` has no elements, `f` will be called
-  with no arguments and the result will be returned.
+  If `val` is not supplied and `coll` has no elements, `f` will be called with no
+  arguments and the result will be returned.
 
   If `val` is not supplied and `coll` has one element, the result of
   `(f (first val))` is returned.
 
-  If `val` is not supplied and `coll` has elements, repeatedly reduce `coll`
-  by calling `f` on successive elements in `coll`.
+  If `val` is not supplied and `coll` has elements, repeatedly reduce `coll` by
+  calling `f` on successive elements in `coll`.
 
-  If `val` is supplied and `coll` has no elements, return `val` and `f` will
-  not be called.
+  If `val` is supplied and `coll` has no elements, return `val` and `f` will not
+  be called.
 
-  If `val` is supplied and `coll` has elements, repeatedly reduce coll
-  by calling `f` on successive elements in `coll`, starting with `val`."
+  If `val` is supplied and `coll` has elements, repeatedly reduce coll by calling
+  `f` on successive elements in `coll`, starting with `val`.
+
+  If `f` returns a `reduced` value at any point, reduction will terminate and the
+  reduced value will be returned immediately."
   ([f coll]
    (if (seq coll)
      (if (seq (rest coll))
@@ -2330,23 +2333,27 @@
      (f)))
   ([f val coll]
    (let [reduce-coll (fn [out in]
-                       (if (seq in)
-                         (recur (f out (first in)) (rest in))
-                         out))]
+                       (cond
+                         (reduced? out) @out
+                         (seq in)      (recur (f out (first in)) (rest in))
+                         :else         (unreduced out)))]
      (if (seq coll)
        (reduce-coll val coll)
        val))))
 
 (defn reduce-kv
-  "Reduce an associative coll by f. f must be a function of 3
-  arguments: the initially supplied value (in later invocations, the
-  the return from previous invocations), the key of an entry of
-  coll, and the value of an entry of coll.
+  "Reduce an associative `coll` by `f`. `f`` must be a function of 3 arguments:
+  the initially supplied value `init` (in later invocations, the return from
+  previous invocations), the key of an entry of `coll`, and the value of an entry
+  of `coll`.
 
-  If coll has no elements, init is returned and f is not called.
+  If `coll` has no elements, `init` is returned and `f` is not called.
 
-  reduce-kv may reduce vectors in addition to maps. Vectors have
-  non-negative integer keys."
+  If `f` returns a `reduced` value at any point, reduction will terminate and the
+  reduced value will be returned immediately.
+
+  `reduce-kv` may reduce vectors in addition to maps. Vectors have non-negative
+  integer keys."
   [f init coll]
   (if (seq coll)
     (loop [in-coll    coll
@@ -2355,9 +2362,10 @@
             k     (key entry)
             v     (val entry)
             rem   (rest in-coll)]
-        (if (seq rem)
-          (recur rem (f assoc-coll k v))
-          (f assoc-coll k v))))
+        (cond
+          (reduced? assoc-coll) @assoc-coll
+          (seq rem)             (recur rem (f assoc-coll k v))
+          :else                 (unreduced (f assoc-coll k v)))))
     init))
 
 (defn comp
@@ -5897,7 +5905,10 @@
 
   When a transducer `xform` is supplied, returns a lazy sequence of the transform
   to elements of `coll`. If multiple collections are provided, `xform` must support
-  as many arguments as there are collections."
+  as many arguments as there are collections.
+
+  If multiple collections are provided, the resulting sequence will terminate when
+  any one of the inputs is exhausted."
   ([coll]
    (if (seq? coll)
      coll
@@ -5938,10 +5949,16 @@
      (apply create-sequence coll colls))))
 
 (defn transduce
-  "Reduce `coll` by `(xform f)`.
+  "Reduce `coll` by the transducing function `xf` (created as `(xform f)`).
 
   If `coll` is empty, return `init` without calling `f`. If `init` is not given,
-  `f` will be called with no arguments to produce it."
+  `f` will be called with no arguments to produce it.
+
+  The transducing process will eagerly consume the input collection, calling `xf` on
+  the result of the previous call (or `init` on the first invocation) and the next
+  value from the input collection, until either the collection is exhausted or `xf`
+  returns a `reduced` value. In both cases, the `xf`'s 1-arity will be called with
+  result and that result will be returned."
   ([xform f coll]
    (transduce xform f (f) coll))
   ([xform f init coll]

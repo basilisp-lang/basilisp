@@ -388,6 +388,10 @@
     (is (= :b/a (vswap! v #(keyword (name %) "a"))))
     (is (= :b/a @v))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Transducer Utilities ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (deftest reduced-test
   (is (not (reduced? [])))
   (is (reduced? (reduced [])))
@@ -406,6 +410,34 @@
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(deftest reduce-test
+  (testing "with no init"
+    (are [coll f res] (= res (reduce f coll))
+      []                                + 0
+      [1]                               + 1
+      [1 2 3]                           + 6
+      (filter odd? [1 2 3 4 5 6 7 8 9]) + 25))
+
+  (testing "with an init"
+    (are [coll f init res] (= res (reduce f init coll))
+      []                                + 45 45
+      [1]                               + 45 46
+      [1 2 3]                           + 45 51
+      (filter odd? [1 2 3 4 5 6 7 8 9]) + 25 50))
+
+  (testing "return early"
+    (let [f (fn []
+              (let [idx (volatile! 0)]
+                (fn
+                  ([x] x)
+                  ([x y]
+                   (let [new-idx (vswap! idx inc)]
+                     (if (> new-idx 3)
+                       (reduced x)
+                       (+ x y)))))))]
+      (is (= 6 (reduce (f) (range))))
+      (is (= 9 (reduce (f) 6 (range)))))))
+
 (deftest reduce-kv-test
   (testing "reduce-kv does not execute f if no elems in coll"
     (let [a (atom false)]
@@ -417,7 +449,17 @@
 
   (testing "reduce-kv"
     (is (= {1 :a, 2 :b, 3 :c}
-           (reduce-kv #(assoc %1 %3 %2) {} {:a 1 :b 2 :c 3})))))
+           (reduce-kv #(assoc %1 %3 %2) {} {:a 1 :b 2 :c 3}))))
+
+  (testing "return early"
+    (let [idx (volatile! 0)
+          f   (fn
+                [m k v]
+                (let [new-idx (vswap! idx inc)]
+                  (if (> new-idx 3)
+                    (reduced m)
+                    (assoc m k v))))]
+      (is (= 3 (count (reduce-kv f {:a 1 :b 2 :c 3 :d 4 :e 5 :f 6})))))))
 
 (deftest every-pred-test
   (is (= true ((every-pred odd?) 3 5 9)))
