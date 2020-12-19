@@ -104,7 +104,11 @@ class PythonASTOptimizer(ast.NodeTransformer):
         new_orelse = _filter_dead_code(new_node.orelse)
 
         if new_body:
-            ifstmt = ast.If(test=new_node.test, body=new_body, orelse=new_orelse,)
+            ifstmt = ast.If(
+                test=new_node.test,
+                body=new_body,
+                orelse=new_orelse,
+            )
         elif new_orelse:
             ifstmt = ast.If(
                 test=ast.UnaryOp(op=ast.Not(), operand=new_node.test),

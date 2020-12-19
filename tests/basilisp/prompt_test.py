@@ -112,8 +112,18 @@ class TestCompleter:
                     "mapv",
                 ),
             ),
-            ("mav", (),),
-            ("(map-", ("map-entry", "map-entry?", "map-indexed",),),
+            (
+                "mav",
+                (),
+            ),
+            (
+                "(map-",
+                (
+                    "map-entry",
+                    "map-entry?",
+                    "map-indexed",
+                ),
+            ),
         ],
     )
     def test_completer(
@@ -193,7 +203,9 @@ class TestKeyBindings:
         ],
     )
     def test_valid_single_line_syntax(
-        self, handler: Binding, line: str,
+        self,
+        handler: Binding,
+        line: str,
     ):
         e = self.make_key_press_event(line)
         handler.call(e)

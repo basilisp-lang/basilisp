@@ -346,7 +346,8 @@ T_tvec = TypeVar("T_tvec", bound="ITransientVector")
 
 
 class ITransientVector(
-    ITransientAssociative[int, T], IIndexed,
+    ITransientAssociative[int, T],
+    IIndexed,
 ):
     __slots__ = ()
 

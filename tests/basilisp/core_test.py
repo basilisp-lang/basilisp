@@ -1556,11 +1556,14 @@ def test_partition():
         llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
     ) == core.partition(5, 10, core.range_(1, 26))
 
-    assert llist.l(
-        llist.l(1, 2, 3, 4, 5),
-        llist.l(11, 12, 13, 14, 15),
-        llist.l(21, 22, 23, kw.keyword("a"), kw.keyword("a")),
-    ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 24))
+    assert (
+        llist.l(
+            llist.l(1, 2, 3, 4, 5),
+            llist.l(11, 12, 13, 14, 15),
+            llist.l(21, 22, 23, kw.keyword("a"), kw.keyword("a")),
+        )
+        == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 24))
+    )
     assert llist.l(
         llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
     ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 26))

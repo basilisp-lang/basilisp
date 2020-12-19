@@ -629,7 +629,10 @@ class TestDefType:
         ],
     )
     def test_deftype_interface_must_implement_all_abstract_methods(
-        self, lcompile: CompileFn, code: str, ExceptionType,
+        self,
+        lcompile: CompileFn,
+        code: str,
+        ExceptionType,
     ):
         with pytest.raises(ExceptionType):
             lcompile(code)
@@ -669,7 +672,10 @@ class TestDefType:
         ],
     )
     def test_deftype_may_not_add_extra_methods_to_interface(
-        self, lcompile: CompileFn, code: str, ExceptionType,
+        self,
+        lcompile: CompileFn,
+        code: str,
+        ExceptionType,
     ):
         with pytest.raises(ExceptionType):
             lcompile(code)
@@ -678,7 +684,9 @@ class TestDefType:
         "code", ["(deftype* Shape [])", "(deftype* Shape [] :implements [])"]
     )
     def test_deftype_interface_may_have_no_fields_or_methods(
-        self, lcompile: CompileFn, code: str,
+        self,
+        lcompile: CompileFn,
+        code: str,
     ):
         lcompile(code)
 
@@ -914,7 +922,8 @@ class TestDefType:
                 lcompile(code)
 
         def test_deftype_member_args_are_vec(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1036,7 +1045,8 @@ class TestDefType:
                 lcompile(code)
 
         def test_deftype_classmethod_may_not_reference_fields(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1048,7 +1058,8 @@ class TestDefType:
                 )
 
         def test_deftype_classmethod_args_includes_cls(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1060,7 +1071,8 @@ class TestDefType:
                 )
 
         def test_deftype_classmethod_disallows_recur(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1073,7 +1085,8 @@ class TestDefType:
                 )
 
         def test_deftype_can_have_classmethod(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1089,7 +1102,8 @@ class TestDefType:
             assert Point(1, 2, 3) == Point.create(1, 2, 3)
 
         def test_deftype_symboltable_is_restored_after_classmethod(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1104,7 +1118,8 @@ class TestDefType:
             assert "[1 2 3]" == str(pt)
 
         def test_deftype_empty_classmethod_body(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1115,7 +1130,8 @@ class TestDefType:
             assert None is Point.create()
 
         def test_deftype_classmethod_returns_value(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1130,7 +1146,8 @@ class TestDefType:
             assert kw.keyword("a") is Point.create(kw.keyword("a"))
 
         def test_deftype_classmethod_only_support_valid_kwarg_strategies(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1141,7 +1158,8 @@ class TestDefType:
                 )
 
         def test_deftype_classmethod_apply_kwargs(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1157,7 +1175,8 @@ class TestDefType:
             assert (1, 2, 3) == (pt.x, pt.y, pt.z)
 
         def test_deftype_classmethod_collect_kwargs(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1313,7 +1332,8 @@ class TestDefType:
                 lcompile(code)
 
         def test_deftype_method_returns_value(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1363,14 +1383,17 @@ class TestDefType:
             Point = lcompile(code)
 
             pt = Point(1, 2, 3)
-            assert lmap.map(
-                {
-                    kw.keyword("w"): 2,
-                    kw.keyword("x"): 1,
-                    kw.keyword("y"): 4,
-                    kw.keyword("z"): 3,
-                }
-            ) == pt(w=2, y=4)
+            assert (
+                lmap.map(
+                    {
+                        kw.keyword("w"): 2,
+                        kw.keyword("x"): 1,
+                        kw.keyword("y"): 4,
+                        kw.keyword("z"): 3,
+                    }
+                )
+                == pt(w=2, y=4)
+            )
 
         @pytest.mark.parametrize(
             "code",
@@ -1444,7 +1467,8 @@ class TestDefType:
                 lcompile(code)
 
         def test_deftype_method_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1487,7 +1511,9 @@ class TestDefType:
                 lcompile(code)
 
         def test_multi_arity_deftype_method_dispatches_properly(
-            self, lcompile: CompileFn, ns: runtime.Namespace,
+            self,
+            lcompile: CompileFn,
+            ns: runtime.Namespace,
         ):
             code = """
             (import* abc)
@@ -1534,7 +1560,8 @@ class TestDefType:
             ) == llist.l(kw.keyword("first-arg"), "second-arg", 3)
 
         def test_multi_arity_deftype_method_call_fails_if_no_valid_arity(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1612,7 +1639,8 @@ class TestDefType:
                 lcompile(code)
 
         def test_deftype_property_includes_this(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1624,7 +1652,8 @@ class TestDefType:
                 )
 
         def test_deftype_property_args_are_syms(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1636,7 +1665,8 @@ class TestDefType:
                 )
 
         def test_deftype_property_may_not_have_args(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1659,13 +1689,15 @@ class TestDefType:
                 )
 
         def test_deftype_field_can_be_property(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Item = lcompile("(deftype* Item [prop] :implements [WithProp])")
             assert "prop" == Item("prop").prop
 
         def test_deftype_can_have_property(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1676,7 +1708,8 @@ class TestDefType:
             assert vec.v(1, 2, 3) == Point(1, 2, 3).prop
 
         def test_deftype_empty_property_body(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1687,7 +1720,8 @@ class TestDefType:
             assert None is Point(1, 2, 3).prop
 
         def test_deftype_property_returns_value(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1777,7 +1811,10 @@ class TestDefType:
             ],
         )
         def test_deftype_must_implement_interface_staticmethod(
-            self, lcompile: CompileFn, code: str, ExceptionType,
+            self,
+            lcompile: CompileFn,
+            code: str,
+            ExceptionType,
         ):
             with pytest.raises(ExceptionType):
                 lcompile(code)
@@ -1806,7 +1843,8 @@ class TestDefType:
                 lcompile(code)
 
         def test_deftype_staticmethod_may_not_reference_fields(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1818,7 +1856,8 @@ class TestDefType:
                 )
 
         def test_deftype_staticmethod_may_have_no_args(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1830,7 +1869,8 @@ class TestDefType:
             assert None is Point.dostatic()
 
         def test_deftype_staticmethod_disallows_recur(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1843,7 +1883,8 @@ class TestDefType:
                 )
 
         def test_deftype_can_have_staticmethod(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1855,7 +1896,8 @@ class TestDefType:
             assert vec.v(1, 2, 3) == Point.dostatic(1, 2, 3)
 
         def test_deftype_symboltable_is_restored_after_staticmethod(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1870,7 +1912,8 @@ class TestDefType:
             assert "[1 2 3]" == str(Point(1, 2, 3))
 
         def test_deftype_empty_staticmethod_body(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1881,7 +1924,8 @@ class TestDefType:
             assert None is Point.dostatic("x", "y")
 
         def test_deftype_staticmethod_returns_value(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -1896,7 +1940,8 @@ class TestDefType:
             assert kw.keyword("a") is Point.dostatic(kw.keyword("a"))
 
         def test_deftype_staticmethod_only_support_valid_kwarg_strategies(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -1924,7 +1969,9 @@ class TestDefType:
             ],
         )
         def test_deftype_staticmethod_kwargs(
-            self, lcompile: CompileFn, code: str,
+            self,
+            lcompile: CompileFn,
+            code: str,
         ):
             Point = lcompile(code)
             assert lmap.map(
@@ -2168,7 +2215,8 @@ class TestFunctionDef:
             lcompile("(fn* [m &] m)")
 
     def test_variadic_arity_fn_method_has_variadic_argument(
-        self, lcompile: CompileFn,
+        self,
+        lcompile: CompileFn,
     ):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* ([] :a) ([m &] m))")
@@ -2266,12 +2314,15 @@ class TestFunctionDef:
             f = lcompile("^{:kwargs :collect} (fn* [a b c kwargs] [a b c kwargs])")
 
             kwargs = {"some_value": 32, "value": "a string"}
-            assert vec.v(
-                1,
-                "2",
-                kw.keyword("three"),
-                lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
-            ) == f(1, "2", kw.keyword("three"), **kwargs)
+            assert (
+                vec.v(
+                    1,
+                    "2",
+                    kw.keyword("three"),
+                    lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
+                )
+                == f(1, "2", kw.keyword("three"), **kwargs)
+            )
 
         @pytest.mark.parametrize("kwarg_support", [":apply", ":collect"])
         def test_multi_arity_fns_do_not_support_kwargs(
@@ -2549,12 +2600,17 @@ class TestMacroexpandFunctions:
         )
 
     def test_macroexpand_1(self, lcompile: CompileFn, example_macro):
-        assert llist.l(
-            sym.symbol("defmacro", ns="basilisp.core"),
-            sym.symbol("child"),
-            vec.PersistentVector.empty(),
-            llist.l(sym.symbol("fn", ns="basilisp.core"), vec.PersistentVector.empty()),
-        ) == compiler.macroexpand_1(llist.l(sym.symbol("parent")))
+        assert (
+            llist.l(
+                sym.symbol("defmacro", ns="basilisp.core"),
+                sym.symbol("child"),
+                vec.PersistentVector.empty(),
+                llist.l(
+                    sym.symbol("fn", ns="basilisp.core"), vec.PersistentVector.empty()
+                ),
+            )
+            == compiler.macroexpand_1(llist.l(sym.symbol("parent")))
+        )
 
         assert llist.l(
             sym.symbol("add", ns="operator"), 1, 2
@@ -2574,18 +2630,22 @@ class TestMacroexpandFunctions:
     def test_macroexpand(self, lcompile: CompileFn, example_macro):
         meta = lmap.map({reader.READER_LINE_KW: 1, reader.READER_COL_KW: 1})
 
-        assert llist.l(
-            sym.symbol("def"),
-            sym.symbol("child"),
+        assert (
             llist.l(
-                sym.symbol("fn", ns="basilisp.core"),
+                sym.symbol("def"),
                 sym.symbol("child"),
-                vec.v(sym.symbol("&env"), sym.symbol("&form")),
                 llist.l(
-                    sym.symbol("fn", ns="basilisp.core"), vec.PersistentVector.empty()
+                    sym.symbol("fn", ns="basilisp.core"),
+                    sym.symbol("child"),
+                    vec.v(sym.symbol("&env"), sym.symbol("&form")),
+                    llist.l(
+                        sym.symbol("fn", ns="basilisp.core"),
+                        vec.PersistentVector.empty(),
+                    ),
                 ),
-            ),
-        ) == compiler.macroexpand(llist.l(sym.symbol("parent"), meta=meta))
+            )
+            == compiler.macroexpand(llist.l(sym.symbol("parent"), meta=meta))
+        )
 
         assert llist.l(sym.symbol("add", ns="operator"), 1, 2) == compiler.macroexpand(
             llist.l(sym.symbol("add", ns="operator"), 1, 2, meta=meta)
@@ -3808,7 +3868,10 @@ class TestReify:
         ],
     )
     def test_reify_interface_must_implement_all_abstract_methods(
-        self, lcompile: CompileFn, code: str, ExceptionType,
+        self,
+        lcompile: CompileFn,
+        code: str,
+        ExceptionType,
     ):
         with pytest.raises(ExceptionType):
             lcompile(code)
@@ -3842,7 +3905,10 @@ class TestReify:
         ],
     )
     def test_reify_may_not_add_extra_methods_to_interface(
-        self, lcompile: CompileFn, code: str, ExceptionType,
+        self,
+        lcompile: CompileFn,
+        code: str,
+        ExceptionType,
     ):
         with pytest.raises(ExceptionType):
             lcompile(code)
@@ -3851,7 +3917,9 @@ class TestReify:
         "code", ["(reify* :implements [])", "(reify* :implements [python/object])"]
     )
     def test_reify_interface_may_have_no_fields_or_methods(
-        self, lcompile: CompileFn, code: str,
+        self,
+        lcompile: CompileFn,
+        code: str,
     ):
         lcompile(code)
 
@@ -4070,7 +4138,8 @@ class TestReify:
                 lcompile(code)
 
         def test_reify_member_args_are_vec(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -4224,7 +4293,8 @@ class TestReify:
                 lcompile(code)
 
         def test_reify_method_returns_value(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -4271,14 +4341,17 @@ class TestReify:
             Point = lcompile(code)
 
             pt = Point(1, 2, 3)
-            assert lmap.map(
-                {
-                    kw.keyword("w"): 2,
-                    kw.keyword("x"): 1,
-                    kw.keyword("y"): 4,
-                    kw.keyword("z"): 3,
-                }
-            ) == pt(w=2, y=4)
+            assert (
+                lmap.map(
+                    {
+                        kw.keyword("w"): 2,
+                        kw.keyword("x"): 1,
+                        kw.keyword("y"): 4,
+                        kw.keyword("z"): 3,
+                    }
+                )
+                == pt(w=2, y=4)
+            )
 
         @pytest.mark.parametrize(
             "code",
@@ -4347,7 +4420,8 @@ class TestReify:
                 lcompile(code)
 
         def test_reify_method_variadic_method_cannot_have_lower_fixed_arity_than_other_methods(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -4387,7 +4461,9 @@ class TestReify:
                 lcompile(code)
 
         def test_multi_arity_reify_method_dispatches_properly(
-            self, lcompile: CompileFn, ns: runtime.Namespace,
+            self,
+            lcompile: CompileFn,
+            ns: runtime.Namespace,
         ):
             code = """
             (import* abc)
@@ -4432,7 +4508,8 @@ class TestReify:
             ) == llist.l(kw.keyword("first-arg"), "second-arg", 3)
 
         def test_multi_arity_reify_method_call_fails_if_no_valid_arity(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -4501,7 +4578,8 @@ class TestReify:
                 lcompile(code)
 
         def test_reify_property_includes_this(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -4512,7 +4590,8 @@ class TestReify:
                 )
 
         def test_reify_property_args_are_syms(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -4523,7 +4602,8 @@ class TestReify:
                 )
 
         def test_reify_property_may_not_have_args(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             with pytest.raises(compiler.CompilerException):
                 lcompile(
@@ -4544,7 +4624,8 @@ class TestReify:
                 )
 
         def test_reify_can_have_property(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -4555,7 +4636,8 @@ class TestReify:
             assert vec.v(1, 2, 3) == Point(1, 2, 3).prop
 
         def test_reify_empty_property_body(
-            self, lcompile: CompileFn,
+            self,
+            lcompile: CompileFn,
         ):
             Point = lcompile(
                 """
@@ -4792,7 +4874,9 @@ def test_throw(lcompile: CompileFn):
 
 class TestTryCatch:
     def test_single_catch_ignoring_binding(
-        self, lcompile: CompileFn, capsys,
+        self,
+        lcompile: CompileFn,
+        capsys,
     ):
         code = """
           (try
@@ -5091,7 +5175,10 @@ class TestSymbolResolution:
         ],
     )
     def test_symbol_deffed_in_fn_or_method_will_resolve_in_fn_or_method(
-        self, ns: runtime.Namespace, lcompile: CompileFn, code: str,
+        self,
+        ns: runtime.Namespace,
+        lcompile: CompileFn,
+        code: str,
     ):
         # This behavior is peculiar and perhaps even _wrong_, but it matches how
         # Clojure treats Vars defined in functions. Of course, generally speaking,
@@ -5298,14 +5385,16 @@ class TestSymbolResolution:
                 # Verify that we can refer to `other.ns/public-var` with a fully
                 # namespace qualified symbol
                 assert kw.keyword("public-var") == lcompile(
-                    "other.ns/public-var", resolver=runtime.resolve_alias,
+                    "other.ns/public-var",
+                    resolver=runtime.resolve_alias,
                 )
 
                 # Verify we cannot refer to `other.ns/private-var` because it is
                 # marked private
                 with pytest.raises(compiler.CompilerException):
                     lcompile(
-                        "other.ns/private-var", resolver=runtime.resolve_alias,
+                        "other.ns/private-var",
+                        resolver=runtime.resolve_alias,
                     )
 
         finally:

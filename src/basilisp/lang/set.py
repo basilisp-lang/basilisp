@@ -65,7 +65,10 @@ class TransientSet(ITransientSet[T]):
 
 
 class PersistentSet(
-    IPersistentSet[T], IEvolveableCollection[TransientSet], ILispObject, IWithMeta,
+    IPersistentSet[T],
+    IEvolveableCollection[TransientSet],
+    ILispObject,
+    IWithMeta,
 ):
     """Basilisp Set. Delegates internally to a immutables.Map object.
 

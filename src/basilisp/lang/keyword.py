@@ -49,7 +49,8 @@ class Keyword(ILispObject):
 
 
 def complete(
-    text: str, kw_cache: Optional[IPersistentMap[int, Keyword]] = None,
+    text: str,
+    kw_cache: Optional[IPersistentMap[int, Keyword]] = None,
 ) -> Iterable[str]:
     """Return an iterable of possible completions for the given text."""
     assert text.startswith(":")

@@ -590,7 +590,9 @@ class Namespace(ReferenceBase):
         try:
             ns_module = importlib.import_module(munge(ns_name))
         except ModuleNotFoundError as e:
-            raise ImportError(f"Basilisp namespace '{ns_name}' not found",) from e
+            raise ImportError(
+                f"Basilisp namespace '{ns_name}' not found",
+            ) from e
         else:
             assert isinstance(ns_module, BasilispModule)
             ns_sym = sym.symbol(ns_name)
@@ -644,7 +646,7 @@ class Namespace(ReferenceBase):
 
     def add_import(self, sym: sym.Symbol, module: Module, *aliases: sym.Symbol) -> None:
         """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
-        the aliases will be applied to the """
+        the aliases will be applied to the"""
         with self._lock:
             self._imports = self._imports.assoc(sym, module)
             if aliases:
@@ -695,7 +697,9 @@ class Namespace(ReferenceBase):
 
     @staticmethod
     def __get_or_create(
-        ns_cache: NamespaceMap, name: sym.Symbol, module: BasilispModule = None,
+        ns_cache: NamespaceMap,
+        name: sym.Symbol,
+        module: BasilispModule = None,
     ) -> lmap.PersistentMap:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
@@ -1509,7 +1513,8 @@ def _lisp_fn_collect_kwargs(f):
     @functools.wraps(f)
     def wrapped_f(*args, **kwargs):
         return f(
-            *args, lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
+            *args,
+            lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
         )
 
     return wrapped_f
@@ -1713,13 +1718,18 @@ def remove_ns_bindings():
 
 def get_current_ns() -> Namespace:
     """Get the value of the dynamic variable `*ns*` in the current thread."""
-    ns: Namespace = Maybe(Var.find(NS_VAR_SYM)).map(lambda v: v.value).or_else_raise(
-        lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
+    ns: Namespace = (
+        Maybe(Var.find(NS_VAR_SYM))
+        .map(lambda v: v.value)
+        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!"))
     )
     return ns
 
 
-def set_current_ns(ns_name: str, module: BasilispModule = None,) -> Var:
+def set_current_ns(
+    ns_name: str,
+    module: BasilispModule = None,
+) -> Var:
     """Set the value of the dynamic variable `*ns*` in the current thread."""
     symbol = sym.symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
@@ -1737,7 +1747,8 @@ def set_current_ns(ns_name: str, module: BasilispModule = None,) -> Var:
 
 
 def add_generated_python(
-    generated_python: str, which_ns: Optional[Namespace] = None,
+    generated_python: str,
+    which_ns: Optional[Namespace] = None,
 ) -> None:
     """Add generated Python code to a dynamic variable in which_ns."""
     if which_ns is None:

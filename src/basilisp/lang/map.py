@@ -119,7 +119,11 @@ class PersistentMap(
 
     __slots__ = ("_inner", "_meta")
 
-    def __init__(self, m: "_Map[K, V]", meta: Optional[IPersistentMap] = None,) -> None:
+    def __init__(
+        self,
+        m: "_Map[K, V]",
+        meta: Optional[IPersistentMap] = None,
+    ) -> None:
         self._inner = m
         self._meta = meta
 
