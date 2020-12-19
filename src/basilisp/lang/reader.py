@@ -653,7 +653,9 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
             yield v
 
 
-def _map_key_processor(namespace: Optional[str],) -> Callable[[Hashable], Hashable]:
+def _map_key_processor(
+    namespace: Optional[str],
+) -> Callable[[Hashable], Hashable]:
     """Return a map key processor.
 
     If no `namespace` is provided, return an identity function. If a `namespace`
@@ -971,7 +973,7 @@ def _walk(inner_f, outer_f, form):
 
 
 def _postwalk(f, form):
-    """"Walk form using depth-first, post-order traversal, applying f to each form
+    """ "Walk form using depth-first, post-order traversal, applying f to each form
     and replacing form with its result."""
     inner_f = functools.partial(_postwalk, f)
     return _walk(inner_f, f, form)

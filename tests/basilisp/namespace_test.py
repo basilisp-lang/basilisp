@@ -81,7 +81,8 @@ def test_remove_non_existent_ns(
 
 
 def test_alter_ns_meta(
-    ns_cache: atom.Atom[NamespaceMap], ns_sym: sym.Symbol,
+    ns_cache: atom.Atom[NamespaceMap],
+    ns_sym: sym.Symbol,
 ):
     ns = get_or_create_ns(ns_sym)
     assert ns.meta is None
@@ -94,7 +95,8 @@ def test_alter_ns_meta(
 
 
 def test_reset_ns_meta(
-    ns_cache: atom.Atom[NamespaceMap], ns_sym: sym.Symbol,
+    ns_cache: atom.Atom[NamespaceMap],
+    ns_sym: sym.Symbol,
 ):
     ns = get_or_create_ns(ns_sym)
     assert ns.meta is None

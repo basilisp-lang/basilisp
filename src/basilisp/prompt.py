@@ -64,7 +64,7 @@ class PromptToolkitPrompter(Prompter):
     __slots__ = ("_session",)
 
     def __init__(self):
-        self._session = PromptSession(
+        self._session: PromptSession = PromptSession(
             auto_suggest=AutoSuggestFromHistory(),
             completer=REPLCompleter(),
             history=FileHistory(BASILISP_REPL_HISTORY_FILE_PATH),

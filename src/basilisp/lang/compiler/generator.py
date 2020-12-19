@@ -331,7 +331,9 @@ PyASTGenerator = Callable[[GeneratorContext, Node], GeneratedPyAST]
 ####################
 
 
-def _chain_py_ast(*genned: GeneratedPyAST,) -> Tuple[PyASTStream, PyASTStream]:
+def _chain_py_ast(
+    *genned: GeneratedPyAST,
+) -> Tuple[PyASTStream, PyASTStream]:
     """Chain a sequence of generated Python ASTs into a tuple of dependency nodes"""
     deps = chain.from_iterable(map(lambda n: n.dependencies, genned))
     nodes = map(lambda n: n.node, genned)
@@ -456,7 +458,8 @@ def _class_ast(  # pylint: disable=too-many-arguments
 
 
 def _kwargs_ast(
-    ctx: GeneratorContext, kwargs: KeywordArgs,
+    ctx: GeneratorContext,
+    kwargs: KeywordArgs,
 ) -> Tuple[PyASTStream, PyASTStream]:
     """Return a tuple of dependency nodes and Python `ast.keyword` nodes from a
     Basilisp `KeywordArgs` Node property."""
@@ -645,8 +648,8 @@ _NEW_VEC_FN_NAME = _load_attr(f"{_VEC_ALIAS}.vector")
 _INTERN_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern")
 _INTERN_UNBOUND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern_unbound")
 _FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
-_ATTR_CLASS_DECORATOR_NAME = _load_attr(f"attr.s")
-_ATTRIB_FIELD_FN_NAME = _load_attr(f"attr.ib")
+_ATTR_CLASS_DECORATOR_NAME = _load_attr("attr.s")
+_ATTRIB_FIELD_FN_NAME = _load_attr("attr.ib")
 _COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
@@ -900,14 +903,18 @@ def _def_to_py_ast(  # pylint: disable=too-many-branches
             ),
         ),
         dependencies=list(
-            chain(def_dependencies, [] if meta_ast is None else meta_ast.dependencies,)
+            chain(
+                def_dependencies,
+                [] if meta_ast is None else meta_ast.dependencies,
+            )
         ),
     )
 
 
 @_with_ast_loc
 def __deftype_classmethod_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeClassMethod,
+    ctx: GeneratorContext,
+    node: DefTypeClassMethod,
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` or `reify*` classmethod."""
     assert node.op == NodeOp.DEFTYPE_CLASSMETHOD
@@ -942,7 +949,8 @@ def __deftype_classmethod_to_py_ast(
 
 @_with_ast_loc
 def __deftype_property_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeProperty,
+    ctx: GeneratorContext,
+    node: DefTypeProperty,
 ) -> GeneratedPyAST:
     assert node.op == NodeOp.DEFTYPE_PROPERTY
     method_name = munge(node.name)
@@ -1135,7 +1143,8 @@ def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments
 
 @_with_ast_loc_deps
 def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-arguments,too-many-locals
-    ctx: GeneratorContext, node: DefTypeMethod,
+    ctx: GeneratorContext,
+    node: DefTypeMethod,
 ) -> GeneratedPyAST:
     """Return a Python AST node for a function with multiple arities."""
     arities = node.arities
@@ -1170,7 +1179,10 @@ def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-argument
         not dispatch_fn_ast.dependencies
     ), "dispatch function should have no dependencies"
 
-    return GeneratedPyAST(node=dispatch_fn_ast.node, dependencies=fn_defs,)
+    return GeneratedPyAST(
+        node=dispatch_fn_ast.node,
+        dependencies=fn_defs,
+    )
 
 
 def __deftype_method_arity_to_py_ast(
@@ -1220,7 +1232,8 @@ def __deftype_method_arity_to_py_ast(
 
 @_with_ast_loc
 def __deftype_method_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeMethod,
+    ctx: GeneratorContext,
+    node: DefTypeMethod,
 ) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` or `reify*` method."""
     assert node.op == NodeOp.DEFTYPE_METHOD
@@ -1270,7 +1283,8 @@ _DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, DefTypeASTGenerator] = {
 
 
 def __deftype_member_to_py_ast(
-    ctx: GeneratorContext, node: DefTypeMember,
+    ctx: GeneratorContext,
+    node: DefTypeMember,
 ) -> GeneratedPyAST:
     member_type = node.op
     handle_deftype_member = _DEFTYPE_MEMBER_HANDLER.get(member_type)
@@ -1526,7 +1540,10 @@ def __fn_args_to_py_ast(
     return fn_args, varg, fn_body_ast
 
 
-def __fn_decorator(arities: Iterable[int], has_rest_arg: bool = False,) -> ast.Call:
+def __fn_decorator(
+    arities: Iterable[int],
+    has_rest_arg: bool = False,
+) -> ast.Call:
     return ast.Call(
         func=_BASILISP_FN_FN_NAME,
         args=[],
@@ -2057,7 +2074,9 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST:
             ast.Assign(
                 targets=[ast.Name(id=py_import_alias, ctx=ast.Store())],
                 value=ast.Call(
-                    func=import_func, args=[ast.Constant(safe_name)], keywords=[],
+                    func=import_func,
+                    args=[ast.Constant(safe_name)],
+                    keywords=[],
                 ),
             )
         )
@@ -2106,7 +2125,9 @@ def _invoke_to_py_ast(ctx: GeneratorContext, node: Invoke) -> GeneratedPyAST:
 
     return GeneratedPyAST(
         node=ast.Call(
-            func=fn_ast.node, args=list(args_nodes), keywords=list(kwargs_nodes),
+            func=fn_ast.node,
+            args=list(args_nodes),
+            keywords=list(kwargs_nodes),
         ),
         dependencies=list(chain(fn_ast.dependencies, args_deps, kwargs_deps)),
     )
@@ -2419,7 +2440,9 @@ def _reify_to_py_ast(
             ast.FunctionDef(
                 name="meta",
                 args=ast.arguments(
-                    args=[ast.arg(arg="self", annotation=None),],
+                    args=[
+                        ast.arg(arg="self", annotation=None),
+                    ],
                     kwarg=None,
                     vararg=None,
                     kwonlyargs=[],
@@ -2570,7 +2593,9 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
             )
         )
 
-    deps.append(ast.Delete(targets=[ast.Name(id=requiring_ns_name, ctx=ast.Del())]),)
+    deps.append(
+        ast.Delete(targets=[ast.Name(id=requiring_ns_name, ctx=ast.Del())]),
+    )
 
     assert last is not None, "require* node must have at least one import"
     return GeneratedPyAST(node=last, dependencies=deps)
@@ -2639,7 +2664,8 @@ def _throw_to_py_ast(ctx: GeneratorContext, node: Throw) -> GeneratedPyAST:
     raise_body = ast.Raise(exc=exc_ast.node, cause=None)
 
     return GeneratedPyAST(
-        node=_noop_node(), dependencies=list(chain(exc_ast.dependencies, [raise_body])),
+        node=_noop_node(),
+        dependencies=list(chain(exc_ast.dependencies, [raise_body])),
     )
 
 
@@ -2785,7 +2811,10 @@ def __var_direct_link_to_py_ast(
         aliased_ns_name = __name_in_module(safe_ns, current_ns.module)
         if aliased_ns_name is not None:
             return GeneratedPyAST(
-                node=_load_attr(f"{aliased_ns_name}.{safe_name}", ctx=py_var_ctx,)
+                node=_load_attr(
+                    f"{aliased_ns_name}.{safe_name}",
+                    ctx=py_var_ctx,
+                )
             )
     return None
 
@@ -3557,7 +3586,9 @@ def _from_module_import() -> ast.ImportFrom:
     language support modules."""
     return ast.ImportFrom(
         module="basilisp.lang.runtime",
-        names=[ast.alias(name="Var", asname=_VAR_ALIAS),],
+        names=[
+            ast.alias(name="Var", asname=_VAR_ALIAS),
+        ],
         level=0,
     )
 
@@ -3583,7 +3614,9 @@ def _ns_var(
     )
 
 
-def py_module_preamble(ns: runtime.Namespace,) -> GeneratedPyAST:
+def py_module_preamble(
+    ns: runtime.Namespace,
+) -> GeneratedPyAST:
     """Bootstrap a new module with imports and other boilerplate."""
     preamble: List[ast.AST] = []
     preamble.extend(_module_imports(ns))

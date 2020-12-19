@@ -19,7 +19,7 @@ twine = "*"
 astor = "*"
 atomos = "*"
 attrs = "*"
-basilisp = {editable = true,path = "."}
+basilisp = {editable = true, path = "."}
 click = "*"
 immutables = "*"
 prompt-toolkit = "~=3.0.0"
@@ -28,7 +28,7 @@ python-dateutil = "*"
 pytest = "*"
 
 [requires]
-python_version = "3.8"
+python_version = "3.9"
 
 [pipenv]
 allow_prereleases = true
