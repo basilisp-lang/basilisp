@@ -98,14 +98,22 @@ jobs:
     steps:
       - run_cpython_tests:
           python_version: "3.8"
-          tox_envs: py38,py38-mypy,py38-lint,format,safety
+          tox_envs: py38,py38-mypy,py38-lint,safety
+
+  test-cpython-39:
+    docker:
+      - image: circleci/python:3.9-buster
+    steps:
+      - run_cpython_tests:
+          python_version: "3.9"
+          tox_envs: py39,py39-mypy,py39-lint,format,safety
 
   report-coverage:
     docker:
-      - image: circleci/python:3.8-buster
+      - image: circleci/python:3.9-buster
     steps:
       - setup_tests:
-          python_version: "3.8"
+          python_version: "3.9"
           cache_key_prefix: report-coverage-deps
       - run:
           name: Report Coverage
@@ -170,9 +178,11 @@ workflows:
       - test-cpython-36
       - test-cpython-37
       - test-cpython-38
+      - test-cpython-39
       - test-pypy
       - report-coverage:
           requires:
             - test-cpython-36
             - test-cpython-37
             - test-cpython-38
+            - test-cpython-39

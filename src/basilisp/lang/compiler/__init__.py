@@ -91,7 +91,8 @@ def compiler_opts(
 
 
 def _emit_ast_string(
-    ns: runtime.Namespace, module: ast.AST,
+    ns: runtime.Namespace,
+    module: ast.AST,
 ) -> None:  # pragma: no cover
     """Emit the generated Python AST string either to standard out or to the
     *generated-python* dynamic Var for the current namespace. If the

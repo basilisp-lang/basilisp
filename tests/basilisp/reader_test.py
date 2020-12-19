@@ -525,38 +525,50 @@ def test_map():
 
 
 def test_namespaced_map(test_ns: str, ns: runtime.Namespace):
-    assert lmap.map(
-        {
-            kw.keyword("name", ns="member"): "Chris",
-            kw.keyword("gender", ns="person"): "M",
-            kw.keyword("id"): 15,
-        }
-    ) == read_str_first('#:person {:member/name "Chris" :gender "M" :_/id 15}')
-    assert lmap.map(
-        {
-            sym.symbol("name", ns="member"): "Chris",
-            sym.symbol("gender", ns="person"): "M",
-            sym.symbol("id"): 15,
-        }
-    ) == read_str_first('#:person{member/name "Chris" gender "M" _/id 15}')
+    assert (
+        lmap.map(
+            {
+                kw.keyword("name", ns="member"): "Chris",
+                kw.keyword("gender", ns="person"): "M",
+                kw.keyword("id"): 15,
+            }
+        )
+        == read_str_first('#:person {:member/name "Chris" :gender "M" :_/id 15}')
+    )
+    assert (
+        lmap.map(
+            {
+                sym.symbol("name", ns="member"): "Chris",
+                sym.symbol("gender", ns="person"): "M",
+                sym.symbol("id"): 15,
+            }
+        )
+        == read_str_first('#:person{member/name "Chris" gender "M" _/id 15}')
+    )
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('#:person/thing {member/name "Chris" gender "M" _/id 15}')
 
-    assert lmap.map(
-        {
-            kw.keyword("name", ns="member"): "Chris",
-            kw.keyword("gender", ns=test_ns): "M",
-            kw.keyword("id"): 15,
-        }
-    ) == read_str_first('#:: {:member/name "Chris" :gender "M" :_/id 15}')
-    assert lmap.map(
-        {
-            sym.symbol("name", ns="member"): "Chris",
-            sym.symbol("gender", ns=test_ns): "M",
-            sym.symbol("id"): 15,
-        }
-    ) == read_str_first('#::{member/name "Chris" gender "M" _/id 15}')
+    assert (
+        lmap.map(
+            {
+                kw.keyword("name", ns="member"): "Chris",
+                kw.keyword("gender", ns=test_ns): "M",
+                kw.keyword("id"): 15,
+            }
+        )
+        == read_str_first('#:: {:member/name "Chris" :gender "M" :_/id 15}')
+    )
+    assert (
+        lmap.map(
+            {
+                sym.symbol("name", ns="member"): "Chris",
+                sym.symbol("gender", ns=test_ns): "M",
+                sym.symbol("id"): 15,
+            }
+        )
+        == read_str_first('#::{member/name "Chris" gender "M" _/id 15}')
+    )
 
     assert lmap.map(
         {
@@ -651,39 +663,45 @@ def test_syntax_quoted(test_ns: str, ns: runtime.Namespace):
         "`(my-symbol other-symbol)", resolver=complex_resolver
     ), "Resolve multiple symbols together"
 
-    assert llist.l(
-        reader._SEQ,
+    assert (
         llist.l(
-            reader._CONCAT,
+            reader._SEQ,
             llist.l(
-                reader._LIST,
+                reader._CONCAT,
                 llist.l(
-                    reader._SEQ,
+                    reader._LIST,
                     llist.l(
-                        reader._CONCAT,
+                        reader._SEQ,
                         llist.l(
-                            reader._LIST,
-                            llist.l(sym.symbol("quote"), sym.symbol("quote")),
-                        ),
-                        llist.l(
-                            reader._LIST,
-                            llist.l(sym.symbol("quote"), sym.symbol("my-symbol")),
+                            reader._CONCAT,
+                            llist.l(
+                                reader._LIST,
+                                llist.l(sym.symbol("quote"), sym.symbol("quote")),
+                            ),
+                            llist.l(
+                                reader._LIST,
+                                llist.l(sym.symbol("quote"), sym.symbol("my-symbol")),
+                            ),
                         ),
                     ),
                 ),
             ),
-        ),
-    ) == read_str_first("`('my-symbol)"), "Resolver inner forms, even in quote"
+        )
+        == read_str_first("`('my-symbol)")
+    ), "Resolver inner forms, even in quote"
 
-    assert llist.l(
-        reader._SEQ,
+    assert (
         llist.l(
-            reader._CONCAT,
+            reader._SEQ,
             llist.l(
-                reader._LIST, llist.l(sym.symbol("quote"), sym.symbol("my-symbol"))
+                reader._CONCAT,
+                llist.l(
+                    reader._LIST, llist.l(sym.symbol("quote"), sym.symbol("my-symbol"))
+                ),
             ),
-        ),
-    ) == read_str_first("`(~'my-symbol)"), "Do not resolve unquoted quoted syms"
+        )
+        == read_str_first("`(~'my-symbol)")
+    ), "Do not resolve unquoted quoted syms"
 
 
 def test_syntax_quote_gensym():
@@ -733,13 +751,16 @@ def test_unquote():
         "~my-symbol"
     )
 
-    assert llist.l(
-        sym.symbol("quote"),
+    assert (
         llist.l(
-            sym.symbol("print"),
-            llist.l(sym.symbol("unquote", ns="basilisp.core"), sym.symbol("val")),
-        ),
-    ) == read_str_first("'(print ~val)"), "Unquote a symbol in a quote"
+            sym.symbol("quote"),
+            llist.l(
+                sym.symbol("print"),
+                llist.l(sym.symbol("unquote", ns="basilisp.core"), sym.symbol("val")),
+            ),
+        )
+        == read_str_first("'(print ~val)")
+    ), "Unquote a symbol in a quote"
 
     resolver = lambda s: sym.symbol(s.name, ns="test-ns")
     assert llist.l(
@@ -780,23 +801,31 @@ def test_unquote_splicing():
     with pytest.raises(reader.SyntaxError):
         read_str_first("`~@(1 2 3)")
 
-    assert llist.l(
-        sym.symbol("quote"),
+    assert (
         llist.l(
-            sym.symbol("print"),
-            llist.l(sym.symbol("unquote-splicing", ns="basilisp.core"), vec.v(1, 2, 3)),
-        ),
-    ) == read_str_first("'(print ~@[1 2 3])"), "Unquote splice a collection in a quote"
-
-    assert llist.l(
-        sym.symbol("quote"),
-        llist.l(
-            sym.symbol("print"),
+            sym.symbol("quote"),
             llist.l(
-                sym.symbol("unquote-splicing", ns="basilisp.core"), sym.symbol("c")
+                sym.symbol("print"),
+                llist.l(
+                    sym.symbol("unquote-splicing", ns="basilisp.core"), vec.v(1, 2, 3)
+                ),
             ),
-        ),
-    ) == read_str_first("'(print ~@c)"), "Unquote-splice a symbol in a quote"
+        )
+        == read_str_first("'(print ~@[1 2 3])")
+    ), "Unquote splice a collection in a quote"
+
+    assert (
+        llist.l(
+            sym.symbol("quote"),
+            llist.l(
+                sym.symbol("print"),
+                llist.l(
+                    sym.symbol("unquote-splicing", ns="basilisp.core"), sym.symbol("c")
+                ),
+            ),
+        )
+        == read_str_first("'(print ~@c)")
+    ), "Unquote-splice a symbol in a quote"
 
     resolver = lambda s: sym.symbol(s.name, ns="test-ns")
     assert llist.l(
@@ -1090,14 +1119,17 @@ class TestReaderConditional:
         assert isinstance(c, reader.ReaderConditional)
         assert c.is_splicing
         assert True is c.val_at(reader.READER_COND_SPLICING_KW)
-        assert llist.l(
-            kw.keyword("clj"),
-            vec.v(1, 2, 3),
-            kw.keyword("lpy"),
-            vec.v(4, 5, 6),
-            kw.keyword("default"),
-            vec.v(7, 8, 9),
-        ) == c.val_at(reader.READER_COND_FORM_KW)
+        assert (
+            llist.l(
+                kw.keyword("clj"),
+                vec.v(1, 2, 3),
+                kw.keyword("lpy"),
+                vec.v(4, 5, 6),
+                kw.keyword("default"),
+                vec.v(7, 8, 9),
+            )
+            == c.val_at(reader.READER_COND_FORM_KW)
+        )
         assert "#?@(:clj [1 2 3] :lpy [4 5 6] :default [7 8 9])" == c.lrepr()
 
     def test_splicing_form(self):
@@ -1160,7 +1192,9 @@ def test_function_reader_macro():
     )
     assert read_str_first("#(identity {:arg %})") == llist.l(
         sym.symbol("fn*"),
-        vec.v(sym.symbol("arg-1"),),
+        vec.v(
+            sym.symbol("arg-1"),
+        ),
         llist.l(
             sym.symbol("identity"), lmap.map({kw.keyword("arg"): sym.symbol("arg-1")})
         ),

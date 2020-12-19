@@ -21,7 +21,10 @@ def compiler_file_path() -> str:
 
 
 @pytest.mark.parametrize(
-    "s,code", [("1.6M", "(binding [*print-dup* true] (pr-str 1.6M))"),]
+    "s,code",
+    [
+        ("1.6M", "(binding [*print-dup* true] (pr-str 1.6M))"),
+    ],
 )
 def test_print_dup(lcompile: CompileFn, s: str, code: str):
     assert s == lcompile(code)

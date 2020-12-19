@@ -30,19 +30,61 @@ def test_is_supported_python_version():
         (3, 6): frozenset(
             map(
                 kw.keyword,
-                ["lpy36", "default", "lpy", "lpy36-", "lpy36+", "lpy37-", "lpy38-"],
+                [
+                    "lpy36",
+                    "default",
+                    "lpy",
+                    "lpy36-",
+                    "lpy36+",
+                    "lpy37-",
+                    "lpy38-",
+                    "lpy39-",
+                ],
             )
         ),
         (3, 7): frozenset(
             map(
                 kw.keyword,
-                ["lpy37", "default", "lpy", "lpy37-", "lpy37+", "lpy36+", "lpy38-"],
+                [
+                    "lpy37",
+                    "default",
+                    "lpy",
+                    "lpy37-",
+                    "lpy37+",
+                    "lpy36+",
+                    "lpy38-",
+                    "lpy39-",
+                ],
             )
         ),
         (3, 8): frozenset(
             map(
                 kw.keyword,
-                ["lpy38", "default", "lpy", "lpy38-", "lpy38+", "lpy37+", "lpy36+"],
+                [
+                    "lpy38",
+                    "default",
+                    "lpy",
+                    "lpy38-",
+                    "lpy38+",
+                    "lpy37+",
+                    "lpy36+",
+                    "lpy39-",
+                ],
+            )
+        ),
+        (3, 9): frozenset(
+            map(
+                kw.keyword,
+                [
+                    "lpy39",
+                    "default",
+                    "lpy",
+                    "lpy39-",
+                    "lpy39+",
+                    "lpy38+",
+                    "lpy37+",
+                    "lpy36+",
+                ],
             )
         ),
     }[(sys.version_info.major, sys.version_info.minor)],

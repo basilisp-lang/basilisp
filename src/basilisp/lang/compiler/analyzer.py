@@ -532,7 +532,9 @@ class AnalyzerContext:
     def new_symbol_table(self, name: str, is_context_boundary: bool = False):
         old_st = self.symbol_table
         with old_st.new_frame(
-            name, is_context_boundary, self.warn_on_unused_names,
+            name,
+            is_context_boundary,
+            self.warn_on_unused_names,
         ) as st:
             self._st.append(st)
             yield st
@@ -744,7 +746,7 @@ def _call_args_ast(  # pylint: disable=too-many-branches
 
                     if munged_k in kw_map:
                         raise AnalyzerException(
-                            f"duplicate keyword argument key in function or method invocation",
+                            "duplicate keyword argument key in function or method invocation",
                             form=k,
                         )
 
@@ -825,19 +827,23 @@ def _await_ast(form: ISeq, ctx: AnalyzerContext) -> Await:
 
     if not ctx.is_async_ctx:
         raise AnalyzerException(
-            f"await forms may not appear in non-async context", form=form
+            "await forms may not appear in non-async context", form=form
         )
 
     nelems = count(form)
     if nelems != 2:
         raise AnalyzerException(
-            f"await forms must contain 2 elements, as in: (await expr)", form=form
+            "await forms must contain 2 elements, as in: (await expr)", form=form
         )
 
     with ctx.expr_pos():
         expr = _analyze_form(runtime.nth(form, 1), ctx)
 
-    return Await(form=form, expr=expr, env=ctx.get_node_env(pos=ctx.syntax_position),)
+    return Await(
+        form=form,
+        expr=expr,
+        env=ctx.get_node_env(pos=ctx.syntax_position),
+    )
 
 
 def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
@@ -848,7 +854,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     nelems = count(form)
     if nelems not in (2, 3, 4):
         raise AnalyzerException(
-            f"def forms must have between 2 and 4 elements, as in: (def name docstring? init?)",
+            "def forms must have between 2 and 4 elements, as in: (def name docstring? init?)",
             form=form,
         )
 
@@ -1083,7 +1089,8 @@ def __deftype_classmethod(
         else:
             if not isinstance(cls_arg, sym.Symbol):
                 raise AnalyzerException(
-                    "deftype* class method 'cls' argument must be a symbol", form=args,
+                    "deftype* class method 'cls' argument must be a symbol",
+                    form=args,
                 )
             cls_binding = Binding(
                 form=cls_arg,
@@ -2251,7 +2258,9 @@ def _import_ast(  # pylint: disable=too-many-branches
         )
 
     return Import(
-        form=form, aliases=aliases, env=ctx.get_node_env(pos=ctx.syntax_position),
+        form=form,
+        aliases=aliases,
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2439,7 +2448,8 @@ def _letfn_ast(  # pylint: disable=too-many-locals
             )
             empty_binding_nodes.append((name, value, binding))
             ctx.put_new_symbol(
-                name, binding,
+                name,
+                binding,
             )
 
         # Once we've generated all of the filler Binding nodes, analyze the
@@ -2704,7 +2714,9 @@ def _require_ast(  # pylint: disable=too-many-branches
         )
 
     return Require(
-        form=form, aliases=aliases, env=ctx.get_node_env(pos=ctx.syntax_position),
+        form=form,
+        aliases=aliases,
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2727,7 +2739,7 @@ def _set_bang_ast(form: ISeq, ctx: AnalyzerContext) -> SetBang:
 
     if not target.is_assignable:
         raise AnalyzerException(
-            f"cannot set! target which is not assignable", form=target
+            "cannot set! target which is not assignable", form=target
         )
 
     with ctx.expr_pos():
@@ -2746,7 +2758,9 @@ def _throw_ast(form: ISeq, ctx: AnalyzerContext) -> Throw:
     with ctx.expr_pos():
         exc = _analyze_form(runtime.nth(form, 1), ctx)
     return Throw(
-        form=form, exception=exc, env=ctx.get_node_env(pos=ctx.syntax_position),
+        form=form,
+        exception=exc,
+        env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
 
@@ -2829,7 +2843,9 @@ def _try_ast(  # pylint: disable=too-many-branches
                     statements=vec.vector(finally_stmts),
                     ret=finally_ret,
                     is_body=True,
-                    env=ctx.get_node_env(pos=NodeSyntacticPosition.STMT,),
+                    env=ctx.get_node_env(
+                        pos=NodeSyntacticPosition.STMT,
+                    ),
                 )
                 continue
 
@@ -2971,7 +2987,9 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
 
 
 def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
-    ctx: AnalyzerContext, which_ns: runtime.Namespace, form: sym.Symbol,
+    ctx: AnalyzerContext,
+    which_ns: runtime.Namespace,
+    form: sym.Symbol,
 ) -> Optional[Union[MaybeHostForm, VarRef]]:
     """Resolve the symbol `form` in the context of the Namespace `which_ns`. If
     `allow_fuzzy_macroexpansion_matching` is True and no match is made on existing
@@ -3036,7 +3054,11 @@ def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
                 f"cannot resolve private Var {form.name} from namespace {form.ns}",
                 form=form,
             )
-        return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),)
+        return VarRef(
+            form=form,
+            var=v,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
 
     return None
 
@@ -3052,7 +3074,9 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
         v = current_ns.find(sym.symbol(form.name))
         if v is not None:
             return VarRef(
-                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
+                form=form,
+                var=v,
+                env=ctx.get_node_env(pos=ctx.syntax_position),
             )
     elif form.ns == _BUILTINS_NS:
         class_ = munge(form.name, allow_builtins=True)
@@ -3167,14 +3191,20 @@ def __resolve_bare_symbol(
     current_ns = ctx.current_ns
     v = current_ns.find(form)
     if v is not None:
-        return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),)
+        return VarRef(
+            form=form,
+            var=v,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
 
     # Look up the symbol in the current macro namespace, if one
     if ctx.current_macro_ns is not None:
         v = ctx.current_macro_ns.find(form)
         if v is not None:
             return VarRef(
-                form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position),
+                form=form,
+                var=v,
+                env=ctx.get_node_env(pos=ctx.syntax_position),
             )
 
     if "." in form.name:
@@ -3464,7 +3494,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
         )
         or (ctx.should_allow_unresolved_symbols and isinstance(form, sym.Symbol))
         or (isinstance(form, (llist.PersistentList, ISeq)) and form.is_empty)
-        or isinstance(
+        or isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
             form,
             (
                 bool,
