@@ -89,7 +89,9 @@ class TransientMap(ITransientMap[K, V]):
     ) -> "TransientMap[K, V]":
         try:
             for elem in elems:
-                if isinstance(elem, (IPersistentMap, Mapping)):
+                if isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
+                    elem, (IPersistentMap, Mapping)
+                ):
                     for k, v in elem.items():
                         self._inner[k] = v
                 elif isinstance(elem, IMapEntry):
@@ -147,7 +149,9 @@ class PersistentMap(
     def __eq__(self, other):
         if self is other:
             return True
-        if not isinstance(other, Mapping):
+        if not isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
+            other, Mapping
+        ):
             return NotImplemented
         if len(self._inner) != len(other):
             return False
@@ -229,7 +233,9 @@ class PersistentMap(
         with self._inner.mutate() as m:
             try:
                 for elem in elems:
-                    if isinstance(elem, (IPersistentMap, Mapping)):
+                    if isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
+                        elem, (IPersistentMap, Mapping)
+                    ):
                         for k, v in elem.items():
                             m.set(k, v)
                     elif isinstance(elem, IMapEntry):

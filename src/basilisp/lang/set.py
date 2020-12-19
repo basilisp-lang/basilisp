@@ -103,7 +103,9 @@ class PersistentSet(
     def __eq__(self, other):
         if self is other:
             return True
-        if not isinstance(other, AbstractSet):
+        if not isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
+            other, AbstractSet
+        ):
             return NotImplemented
         return _PySet.__eq__(self, other)
 
