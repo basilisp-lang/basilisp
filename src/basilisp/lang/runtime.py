@@ -1249,6 +1249,32 @@ def quotient(num, div) -> LispNumber:
     return math.trunc(num / div)
 
 
+@functools.singledispatch
+def compare(x, y) -> int:
+    """Return either -1, 0, or 1 to indicate the relationship between x and y.
+
+    This is a 3-way comparator commonly used in Java-derived systems. Python does not
+    typically use 3-way comparators, so this function convert's Python's `__lt__` and
+    `__gt__` method returns into one of the 3-way comparator return values."""
+    if y is None:
+        assert x is not None, "x cannot be nil"
+        return 1
+    return (x > y) - (x < y)
+
+
+@compare.register(type(None))
+def _compare_nil(_: None, y) -> int:
+    # nil is less than all values, except itself.
+    return 0 if y is None else -1
+
+
+@compare.register(IPersistentSet)
+def _compare_sets(x: IPersistentSet, y) -> int:
+    raise TypeError(
+        f"cannot compare instances of '{type(x).__name__}' and '{type(y).__name__}'"
+    )
+
+
 def sort(coll, f=None) -> Optional[ISeq]:
     """Return a sorted sequence of the elements in coll. If a comparator
     function f is provided, compare elements in coll using f."""

@@ -1,3 +1,4 @@
+from functools import total_ordering
 from typing import Iterable, Optional, Sequence, TypeVar, Union
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
@@ -74,6 +75,7 @@ class TransientVector(ITransientVector[T]):
         return PersistentVector(self._inner.persistent())
 
 
+@total_ordering
 class PersistentVector(
     IPersistentVector[T], IEvolveableCollection[TransientVector], ILispObject, IWithMeta
 ):
@@ -115,6 +117,15 @@ class PersistentVector(
 
     def __len__(self):
         return len(self._inner)
+
+    def __lt__(self, other):
+        if other is None:
+            return False
+        if not isinstance(other, PersistentVector):
+            return NotImplemented
+        if len(self) != len(other):
+            return len(self) < len(other)
+        return any(x < y for x, y in zip(self, other))
 
     def _lrepr(self, **kwargs) -> str:
         return _seq_lrepr(self._inner, "[", "]", meta=self._meta, **kwargs)

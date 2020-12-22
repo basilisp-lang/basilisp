@@ -1,4 +1,5 @@
 import threading
+from functools import total_ordering
 from typing import Iterable, Optional
 
 from basilisp.lang import map as lmap
@@ -8,6 +9,7 @@ _LOCK = threading.Lock()
 _INTERN: IPersistentMap[int, "Keyword"] = lmap.PersistentMap.empty()
 
 
+@total_ordering
 class Keyword(ILispObject):
     __slots__ = ("_name", "_ns", "_hash")
 
@@ -37,6 +39,19 @@ class Keyword(ILispObject):
 
     def __hash__(self):
         return self._hash
+
+    def __lt__(self, other):
+        if other is None:
+            return False
+        if not isinstance(other, Keyword):
+            return NotImplemented
+        if self._ns is None and other._ns is None:
+            return self._name < other._name
+        if self._ns is None:
+            return True
+        if other._ns is None:
+            return False
+        return self._ns < other._ns or self._name < other._name
 
     def __call__(self, m: IAssociative, default=None):
         try:

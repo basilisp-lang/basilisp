@@ -1,3 +1,4 @@
+from functools import total_ordering
 from typing import Optional
 
 from basilisp.lang.interfaces import ILispObject, IPersistentMap, IWithMeta
@@ -5,6 +6,7 @@ from basilisp.lang.obj import lrepr
 from basilisp.lang.util import munge
 
 
+@total_ordering
 class Symbol(ILispObject, IWithMeta):
     __slots__ = ("_name", "_ns", "_meta", "_hash")
 
@@ -55,6 +57,19 @@ class Symbol(ILispObject, IWithMeta):
 
     def __hash__(self):
         return self._hash
+
+    def __lt__(self, other):
+        if other is None:
+            return False
+        if not isinstance(other, Symbol):
+            return NotImplemented
+        if self._ns is None and other._ns is None:
+            return self._name < other._name
+        if self._ns is None:
+            return True
+        if other._ns is None:
+            return False
+        return self._ns < other._ns or self._name < other._name
 
 
 def symbol(name: str, ns: Optional[str] = None, meta=None) -> Symbol:
