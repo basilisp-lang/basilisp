@@ -41,7 +41,7 @@ class Keyword(ILispObject):
         return self._hash
 
     def __lt__(self, other):
-        if other is None:
+        if other is None:  # pragma: no cover
             return False
         if not isinstance(other, Keyword):
             return NotImplemented
