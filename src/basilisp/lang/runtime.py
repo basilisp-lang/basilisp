@@ -1279,6 +1279,8 @@ def _compare_decimal(x: decimal.Decimal, y) -> int:
 
 @compare.register(float)
 def _compare_float(x, y) -> int:
+    if y is None:
+        return 1
     if math.isnan(x):
         return 0
     return (x > y) - (x < y)

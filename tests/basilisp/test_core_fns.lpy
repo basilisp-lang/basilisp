@@ -91,6 +91,9 @@
 
   (testing "numbers"
     (are [res x y] (= res (compare x y))
+      1  ##NaN nil
+      -1 nil   ##NaN
+
       0 ##NaN ##NaN
       0 ##NaN 1
       0 ##NaN 3.14
