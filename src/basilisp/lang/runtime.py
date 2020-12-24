@@ -1,4 +1,5 @@
 import contextlib
+import decimal
 import functools
 import importlib
 import inspect
@@ -1268,8 +1269,29 @@ def _compare_nil(_: None, y) -> int:
     return 0 if y is None else -1
 
 
+@compare.register(decimal.Decimal)
+def _compare_decimal(x: decimal.Decimal, y) -> int:
+    # Decimal instances will not compare with float("nan"), so we need a special case
+    if isinstance(y, float):
+        return compare(y, x)
+    return (x > y) - (x < y)
+
+
+@compare.register(float)
+def _compare_float(x, y) -> int:
+    if math.isnan(x):
+        return 0
+    return (x > y) - (x < y)
+
+
 @compare.register(IPersistentSet)
 def _compare_sets(x: IPersistentSet, y) -> int:
+    # Sets are not comparable (because there is no total ordering between sets).
+    # However, in Python comparison is done using __lt__ and __gt__, which AbstractSet
+    # inconveniently also uses as part of it's API for comparing sets with subset and
+    # superset relationships. To "break" that, we just override the comparison method.
+    # One consequence of this is that it may be possible to sort a collection of sets,
+    # since `compare` isn't actually consulted in sorting.
     raise TypeError(
         f"cannot compare instances of '{type(x).__name__}' and '{type(y).__name__}'"
     )
