@@ -214,12 +214,21 @@
                         validate-fn (comp validate-fn))
                       validate-fn)
 
-        ;; Prepare the keyword arguments for ArgumentParser.add_argument:type    type-fn
-                        :metavar (when-let [metavar (:metavar argument)]
-                                   (cond-> metavar
-                                     (vector? metavar) (python/tuple)))
-                        :help    (:help argument)}
-                 )
+        ;; Prepare the keyword arguments for ArgumentParser.add_argument
+        default (if-let [val-from-env (some-> (:env argument) (os/getenv))]
+                  val-from-env
+                  (:default argument))
+        kwargs  {:default default
+                 :const   default
+                 :action  (cli-tools-action argument)
+                 :nargs   (if-let [nargs (:nargs argument)]
+                            (cond-> nargs (keyword? nargs) (name))
+                            (if (:update-fn argument) 0 "?"))
+                 :type    type-fn
+                 :metavar (when-let [metavar (:metavar argument)]
+                            (cond-> metavar
+                              (vector? metavar) (python/tuple)))
+                 :help    (:help argument)}
 
         ;; Python's ArgumentParser.add_argument method takes variadic positional
         ;; arguments _and_ keyword arguments, which is a challenging combination
