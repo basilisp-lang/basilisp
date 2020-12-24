@@ -215,11 +215,9 @@
                       validate-fn)
 
         ;; Prepare the keyword arguments for ArgumentParser.add_argument
-        default (if-let [val-from-env (some-> (:env argument) (os/getenv))]
-                  val-from-env
-                  (:default argument))
-        kwargs  {:default default
-                 :const   default
+        kwargs  {:default (or (some-> (:env argument) (os/getenv))
+                              (:default argument))
+                 :const   true
                  :action  (cli-tools-action argument)
                  :nargs   (if-let [nargs (:nargs argument)]
                             (cond-> nargs (keyword? nargs) (name))

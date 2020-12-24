@@ -75,12 +75,10 @@
 
                                               {:flags ["--warn-on-shadowed-name"]
                                                :help  "if provided, emit warnings if a local name is shadowed by another local name"
-                                               :nargs 0
                                                :env   "BASILISP_WARN_ON_SHADOWED_NAME"
                                                :group "compiler flags"}
                                               {:flags ["--warn-on-shadowed-var"]
                                                :help  "if provided, emit warnings if a Var name is shadowed by a local name"
-                                               :nargs 0
                                                :env   "BASILISP_WARN_ON_SHADOWED_VAR"
                                                :group "compiler flags"}]}]})]
     (are [args ret] (is (= ret (dissoc (parse-args parser args) :handler)))
