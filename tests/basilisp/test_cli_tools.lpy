@@ -81,7 +81,7 @@
                                                :help  "if provided, emit warnings if a Var name is shadowed by a local name"
                                                :env   "BASILISP_WARN_ON_SHADOWED_VAR"
                                                :group "compiler flags"}]}]})]
-    (are [args ret] (is (= ret (dissoc (parse-args parser args) :handler)))
+    (are [args ret] (= ret (dissoc (parse-args parser args) :handler))
       []                                                     {}
       ["run" "--in-ns" "basilisp.cli-tools" "cli_tools.lpy"] {:file-or-code          "cli_tools.lpy"
                                                               :code                  false
