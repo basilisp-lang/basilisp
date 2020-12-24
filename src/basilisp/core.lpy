@@ -1061,8 +1061,37 @@
   [frac]
   (.-denominator frac))
 
+(defn compare
+  "Return either -1, 0, or 1 to indicate the relationship between x and y.
+
+  This is a 3-way comparator commonly used in Java-derived systems. Python does not
+  typically use 3-way comparators, so this function convert's Python's `__lt__` and
+  `__gt__` method returns into one of the 3-way comparator return values.
+
+  Comparisons are generally only valid between homogeneous objects, with the exception
+  of numbers which can be compared regardless of type. Most scalar value types
+  (including nil, booleans, numbers, strings, keywords, and symbols) are comparable.
+  nil compares less than all values except itself. NaN compares equal to all numbers,
+  including itself. Strings are compared lexicographically. Symbols and keywords are
+  sorted first on their namespace, if they have one, and then on their name. Symbols
+  and keywords with namespaces always sort ahead of those without. Symbols cannot be
+  compared to keywords.
+
+  Of the built in collection types, only vectors can be compared. Vectors are compared
+  first by their length and then element-wise.
+
+  Other collections such as maps, sequences, and sets cannot be compared.
+
+  Python objects supporting `__lt__` and `__gt__` can generally be compared."
+  [x y]
+  (basilisp.lang.runtime/compare x y))
+
 (defn sort
-  "Return a sorted sequence of the elements from coll."
+  "Return a sorted sequence of the elements from coll.
+
+  Unlike in Clojure, this function does not use `compare` directly. Instead, the
+  heuristics that `compare` uses to produce three-way comparator return values
+  are used to guide sorting."
   ([coll]
    (basilisp.lang.runtime/sort coll))
   ([cmp coll]

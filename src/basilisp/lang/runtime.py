@@ -1,4 +1,5 @@
 import contextlib
+import decimal
 import functools
 import importlib
 import inspect
@@ -1247,6 +1248,55 @@ def _divide_ints(x: int, y: LispNumber) -> LispNumber:
 def quotient(num, div) -> LispNumber:
     """Return the integral quotient resulting from the division of num by div."""
     return math.trunc(num / div)
+
+
+@functools.singledispatch
+def compare(x, y) -> int:
+    """Return either -1, 0, or 1 to indicate the relationship between x and y.
+
+    This is a 3-way comparator commonly used in Java-derived systems. Python does not
+    typically use 3-way comparators, so this function convert's Python's `__lt__` and
+    `__gt__` method returns into one of the 3-way comparator return values."""
+    if y is None:
+        assert x is not None, "x cannot be nil"
+        return 1
+    return (x > y) - (x < y)
+
+
+@compare.register(type(None))
+def _compare_nil(_: None, y) -> int:
+    # nil is less than all values, except itself.
+    return 0 if y is None else -1
+
+
+@compare.register(decimal.Decimal)
+def _compare_decimal(x: decimal.Decimal, y) -> int:
+    # Decimal instances will not compare with float("nan"), so we need a special case
+    if isinstance(y, float):
+        return -compare(y, x)  # pylint: disable=arguments-out-of-order
+    return (x > y) - (x < y)
+
+
+@compare.register(float)
+def _compare_float(x, y) -> int:
+    if y is None:
+        return 1
+    if math.isnan(x):
+        return 0
+    return (x > y) - (x < y)
+
+
+@compare.register(IPersistentSet)
+def _compare_sets(x: IPersistentSet, y) -> int:
+    # Sets are not comparable (because there is no total ordering between sets).
+    # However, in Python comparison is done using __lt__ and __gt__, which AbstractSet
+    # inconveniently also uses as part of it's API for comparing sets with subset and
+    # superset relationships. To "break" that, we just override the comparison method.
+    # One consequence of this is that it may be possible to sort a collection of sets,
+    # since `compare` isn't actually consulted in sorting.
+    raise TypeError(
+        f"cannot compare instances of '{type(x).__name__}' and '{type(y).__name__}'"
+    )
 
 
 def sort(coll, f=None) -> Optional[ISeq]:
