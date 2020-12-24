@@ -1273,7 +1273,7 @@ def _compare_nil(_: None, y) -> int:
 def _compare_decimal(x: decimal.Decimal, y) -> int:
     # Decimal instances will not compare with float("nan"), so we need a special case
     if isinstance(y, float):
-        return -compare(y, x)
+        return -compare(y, x)  # pylint: disable=arguments-out-of-order
     return (x > y) - (x < y)
 
 
