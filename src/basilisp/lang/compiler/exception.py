@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import attr
 
@@ -46,7 +46,7 @@ class CompilerException(IExceptionInfo):
 
     @property
     def data(self) -> IPersistentMap:
-        d = {_PHASE: self.phase.value}
+        d: Dict[kw.Keyword, Any] = {_PHASE: self.phase.value}
         loc = None
         if self.form is not None:
             d[_FORM] = self.form
