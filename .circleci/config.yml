@@ -75,6 +75,38 @@ commands:
       - store_test_results:
           path: junit
 
+  run_pypy_tests:
+    description: "Install Tox and run tests."
+    parameters:
+      python_version:
+        description: "Required. Python version as `major.minor`."
+        type: string
+    steps:
+      - checkout
+      - restore_cache:
+          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+      - run:
+          name: Install tox
+          command: |
+            pip install -U pip
+            pip install tox
+      - run:
+          name: Run Tests
+          command: |
+            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.*py" "tests/**/test_*.*py" | circleci tests split --split-by=timings)
+            printf "Test files:\n"
+            echo "$CCI_NODE_TESTS"
+            printf "\n"
+            tox -e pypy3 -- $CCI_NODE_TESTS
+      - save_cache:
+          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - "/root/project/.tox"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
+      - store_test_results:
+          path: junit
+
 jobs:
   test-cpython-36:
     docker:
@@ -141,35 +173,21 @@ jobs:
           python_version: "3.8"
           cache_key_prefix: report-coverage-deps
 
-  test-pypy:
+  test-pypy-3.6:
     docker:
-      - image: pypy:3.6-7-slim-buster
+      - image: pypy:3.6-slim-buster
     parallelism: 3
     steps:
-      - checkout
-      - restore_cache:
-          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run:
-          name: Install tox
-          command: |
-            pip install -U pip
-            pip install tox
-      - run:
-          name: Run Tests
-          command: |
-            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.*py" "tests/**/test_*.*py" | circleci tests split --split-by=timings)
-            printf "Test files:\n"
-            echo "$CCI_NODE_TESTS"
-            printf "\n"
-            tox -e pypy3 -- $CCI_NODE_TESTS
-      - save_cache:
-          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-          paths:
-            - "/root/project/.tox"
-            - "/usr/local/bin"
-            - "/usr/local/lib/python3.6/site-packages"
-      - store_test_results:
-          path: junit
+      - run_pypy_tests:
+          python_version: "3.6"
+
+  test-pypy-3.7:
+    docker:
+      - image: pypy:3.7-slim-buster
+    parallelism: 3
+    steps:
+      - run_pypy_tests:
+          python_version: "3.7"
 
 workflows:
   version: 2
