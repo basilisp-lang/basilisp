@@ -93,11 +93,12 @@ commands:
       - run:
           name: Run Tests
           command: |
-            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.*py" "tests/**/test_*.*py" | circleci tests split --split-by=timings)
+            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.*py" "tests/**/test_*.*py" | circleci tests split)
             printf "Test files:\n"
             echo "$CCI_NODE_TESTS"
             printf "\n"
             tox -e pypy3 -- $CCI_NODE_TESTS
+          no_output_timeout: 30m
       - save_cache:
           key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
           paths:
