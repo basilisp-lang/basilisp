@@ -89,6 +89,29 @@ exclude = '''
 )/
 '''
 
+[tool.coverage.run]
+branch = true
+omit = ["*/__version__.py"]
+
+[tool.coverage.paths]
+source = [
+   "src/basilisp",
+   ".tox/*/lib/python*/site-packages/basilisp",
+   ".tox/pypy*/site-packages/basilisp",
+]
+
+[tool.coverage.report]
+# Regexes for lines to exclude from consideration
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    'if self\.debug',
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+]
+
 [tool.isort]
 known_first_party = "basilisp"
 skip = [
@@ -108,3 +131,6 @@ skip = [
   "junit",
   "pip-wheel-metadata",
 ]
+
+[tool.pytest.ini_options]
+junit_family = "legacy"
