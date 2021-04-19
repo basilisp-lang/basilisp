@@ -15,7 +15,7 @@ commands:
       - run: sudo chown -R circleci:circleci /usr/local/bin
       - run: sudo chown -R circleci:circleci /usr/local/lib/python<< parameters.python_version >>/site-packages
       - restore_cache:
-          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
       - run:
           name: Install Poetry and Tox
           shell: /bin/bash -leo pipefail
@@ -35,7 +35,7 @@ commands:
         type: string
     steps:
       - save_cache:
-          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
           paths:
             - "/home/circleci/project/.tox"
             - "/usr/local/bin"
@@ -77,7 +77,6 @@ commands:
           path: junit
 
   run_pypy_tests:
-
     description: "Install Tox and run tests."
     parameters:
       python_version:
@@ -90,6 +89,7 @@ commands:
       - run:
           name: Install Poetry and Tox
           command: |
+            sudo apt-get install curl
             pip install -U pip
             pip install tox
             curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
