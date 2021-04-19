@@ -77,6 +77,7 @@ commands:
           path: junit
 
   run_pypy_tests:
+
     description: "Install Tox and run tests."
     parameters:
       python_version:
@@ -85,7 +86,7 @@ commands:
     steps:
       - checkout
       - restore_cache:
-          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
       - run:
           name: Install Poetry and Tox
           command: |
@@ -102,7 +103,7 @@ commands:
             tox -e pypy3 -- $CCI_NODE_TESTS
           no_output_timeout: 30m
       - save_cache:
-          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
           paths:
             - "/root/project/.tox"
             - "/usr/local/bin"
