@@ -2,8 +2,7 @@
 release:
 	@rm -rf ./build
 	@rm -rf ./dist
-	@poetry run python setup.py sdist bdist_wheel --universal
-	@poetry run twine upload dist/*
+	@poetry publish --build
 
 
 .PHONY: docs
@@ -14,6 +13,17 @@ docs:
 .PHONY: format
 format:
 	@poetry run sh -c 'isort --profile black . && black .'
+
+
+.PHONY: repl
+repl:
+	@BASILISP_USE_DEV_LOGGER=true poetry run basilisp repl
+
+
+.PHONY: test
+test:
+	@rm -f .coverage*
+	@TOX_SKIP_ENV='pypy3|safety|coverage' poetry run tox -p 4
 
 
 lispcore.py:
@@ -28,11 +38,6 @@ clean:
 	@rm -rf ./lispcore.py
 
 
-.PHONY: repl
-repl:
-	@BASILISP_USE_DEV_LOGGER=true poetry run basilisp repl
-
-
 .PHONY: pypy-shell
 pypy-shell:
 	@docker run -it \
@@ -40,9 +45,3 @@ pypy-shell:
 		--workdir /usr/src/app \
 		pypy:3.6-7.3-slim-buster \
 		/bin/sh -c 'pip install -e . && basilisp repl'
-
-
-.PHONY: test
-test:
-	@rm -f .coverage*
-	@TOX_SKIP_ENV='pypy3|safety|coverage' poetry run tox -p 4
