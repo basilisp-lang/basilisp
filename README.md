@@ -32,9 +32,12 @@ documentation there helpful for getting started.
 
 ### Requirements
 
-This project uses [`poetry`](https://github.com/python-poetry/poetry) to
-manage the Python virtual environment and project dependencies. See the
-instructions on that repository to install in your local environment.
+This project uses [`poetry`](https://github.com/python-poetry/poetry) to manage
+the Python virtual environment, project dependencies, and package publication.
+See the instructions on that repository to install in your local environment.
+Because `basilisp` is intended to be used as a library, no `poetry.lock` file
+is committed to the repository. Developers should generate their own lock file
+and update it regularly during development instead.
 
 Additionally, [`pyenv`](https://github.com/pyenv/pyenv) is recommended to 
 manage versions of Python readily on your local development environment.
