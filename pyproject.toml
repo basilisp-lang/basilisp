@@ -1,6 +1,73 @@
+[tool.poetry]
+name = "basilisp"
+version = "0.1.dev14"
+description = "A Clojure-like lisp written for Python"
+authors = ["Christopher Rink <chrisrink10@gmail.com>"]
+license = "Eclipse Public License 1.0 (EPL-1.0)"
+readme = "README.md"
+packages = [
+    { include = "basilisp", from = "src" },
+]
+repository = "https://github.com/basilisp-lang/basilisp"
+documentation = "https://basilisp.readthedocs.io/"
+classifiers = [
+    # Trove classifiers
+    # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Eclipse Public License 1.0 (EPL-1.0)",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Software Development :: Compilers",
+]
+include = ["README.md", "LICENSE"]
+
+[tool.poetry.dependencies]
+python = "^3.6"
+astor = ">=0.8"
+atomos = "*"
+attrs = "*"
+click = "*"
+immutables = "~0.15"
+prompt-toolkit = "~=3.0.0"
+pyrsistent = "*"
+pytest = "*"
+python-dateutil = "*"
+
+[tool.poetry.dev-dependencies]
+black = "*"
+docutils = "==0.15"
+isort = "*"
+pygments = "*"
+pytest-pycharm = "*"
+sphinx = "*"
+sphinx-rtd-theme = "*"
+tox = "*"
+tox-pyenv = "*"
+twine = "*"
+
+[tool.poetry.extras]
+pygments = ["pygments"]
+
+[tool.poetry.scripts]
+basilisp = "basilisp.cli:cli"
+
+[tool.poetry.plugins.pytest11]
+basilisp_test_runner = "basilisp.testrunner"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
 [tool.black]
 line-length = 88
-target-version = ['py36']
+target-version = ["py36"]
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -22,22 +89,48 @@ exclude = '''
 )/
 '''
 
-[tool.isort]
-known_first_party = 'basilisp'
-skip = [
-  '.env',
-  '.hg',
-  '.git',
-  '.mypy_cache',
-  '.pytest_cache',
-  '.tox',
-  '.venv',
-  'buck-out',
-  'build',
-  'dist',
-  'docs',
-  'lispcore.py',
-  'htmlcov',
-  'junit',
-  'pip-wheel-metadata',
+[tool.coverage.run]
+branch = true
+omit = ["*/__version__.py"]
+
+[tool.coverage.paths]
+source = [
+   "src/basilisp",
+   ".tox/*/lib/python*/site-packages/basilisp",
+   ".tox/pypy*/site-packages/basilisp",
 ]
+
+[tool.coverage.report]
+# Regexes for lines to exclude from consideration
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    'if self\.debug',
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.isort]
+known_first_party = "basilisp"
+skip = [
+  ".env",
+  ".hg",
+  ".git",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".tox",
+  ".venv",
+  "buck-out",
+  "build",
+  "dist",
+  "docs",
+  "lispcore.py",
+  "htmlcov",
+  "junit",
+  "pip-wheel-metadata",
+]
+
+[tool.pytest.ini_options]
+junit_family = "legacy"

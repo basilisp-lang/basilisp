@@ -15,13 +15,14 @@ commands:
       - run: sudo chown -R circleci:circleci /usr/local/bin
       - run: sudo chown -R circleci:circleci /usr/local/lib/python<< parameters.python_version >>/site-packages
       - restore_cache:
-          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
       - run:
-          name: Install tox
+          name: Install Poetry and Tox
           shell: /bin/bash -leo pipefail
           command: |
             pip install -U pip
             pip install tox
+            curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
 
   teardown_tests:
     description: "Store the cache for the current run."
@@ -34,7 +35,7 @@ commands:
         type: string
     steps:
       - save_cache:
-          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
           paths:
             - "/home/circleci/project/.tox"
             - "/usr/local/bin"
@@ -84,23 +85,25 @@ commands:
     steps:
       - checkout
       - restore_cache:
-          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
       - run:
-          name: Install tox
+          name: Install Poetry and Tox
           command: |
+            apt-get update && apt-get install -y python3 curl
             pip install -U pip
             pip install tox
+            curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3 -
       - run:
           name: Run Tests
           command: |
-            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.*py" "tests/**/test_*.*py" | circleci tests split)
+            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.*py" "tests/**/test_*.*py" | circleci tests split --split-by=timings)
             printf "Test files:\n"
             echo "$CCI_NODE_TESTS"
             printf "\n"
             tox -e pypy3 -- $CCI_NODE_TESTS
           no_output_timeout: 30m
       - save_cache:
-          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
           paths:
             - "/root/project/.tox"
             - "/usr/local/bin"
