@@ -1,32 +1,26 @@
-.PHONY: setup-dev
-setup-dev:
-	@pipenv install --dev
-	@pipenv install -e .
-
-
 .PHONY: release
 release:
 	@rm -rf ./build
 	@rm -rf ./dist
-	@pipenv run python setup.py sdist bdist_wheel --universal
-	@pipenv run twine upload dist/*
+	@poetry run python setup.py sdist bdist_wheel --universal
+	@poetry run twine upload dist/*
 
 
 .PHONY: docs
 docs:
-	@pipenv run sphinx-build -M html "./docs" "./docs/_build"
+	@poetry run sphinx-build -M html "./docs" "./docs/_build"
 
 
 .PHONY: format
 format:
-	@pipenv run sh -c 'isort --profile black . && black .'
+	@poetry run sh -c 'isort --profile black . && black .'
 
 
 lispcore.py:
 	@BASILISP_DO_NOT_CACHE_NAMESPACES=true \
-		pipenv run basilisp run -c \
+		poetry run basilisp run -c \
 		'(with [f (python/open "lispcore.py" "w")] (.write f basilisp.core/*generated-python*))'
-	@pipenv run black lispcore.py
+	@poetry run black lispcore.py
 
 
 .PHONY: clean
@@ -36,7 +30,7 @@ clean:
 
 .PHONY: repl
 repl:
-	@BASILISP_USE_DEV_LOGGER=true pipenv run basilisp repl
+	@BASILISP_USE_DEV_LOGGER=true poetry run basilisp repl
 
 
 .PHONY: pypy-shell
@@ -51,4 +45,4 @@ pypy-shell:
 .PHONY: test
 test:
 	@rm -f .coverage*
-	@TOX_SKIP_ENV='pypy3|safety|coverage' pipenv run tox -p 4
+	@TOX_SKIP_ENV='pypy3|safety|coverage' poetry run tox -p 4

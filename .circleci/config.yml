@@ -17,11 +17,12 @@ commands:
       - restore_cache:
           key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
-          name: Install tox
+          name: Install Poetry and Tox
           shell: /bin/bash -leo pipefail
           command: |
             pip install -U pip
             pip install tox
+            curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
 
   teardown_tests:
     description: "Store the cache for the current run."
@@ -86,14 +87,15 @@ commands:
       - restore_cache:
           key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
       - run:
-          name: Install tox
+          name: Install Poetry and Tox
           command: |
             pip install -U pip
             pip install tox
+            curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
       - run:
           name: Run Tests
           command: |
-            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.*py" "tests/**/test_*.*py" | circleci tests split)
+            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.*py" "tests/**/test_*.*py" | circleci tests split --split-by=timings)
             printf "Test files:\n"
             echo "$CCI_NODE_TESTS"
             printf "\n"

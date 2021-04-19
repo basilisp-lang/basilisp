@@ -32,17 +32,9 @@ documentation there helpful for getting started.
 
 ### Requirements
 
-This project uses [`pipenv`](https://github.com/kennethreitz/pipenv) to
-manage the Python virtual environment and project dependencies. `pipenv`
-can be installed using Homebrew (on OS X) or `pip` otherwise:
-
-```bash
-brew install pipenv
-```
-
-```bash
-pip install --user pipenv
-```
+This project uses [`poetry`](https://github.com/python-poetry/poetry) to
+manage the Python virtual environment and project dependencies. See the
+instructions on that repository to install in your local environment.
 
 Additionally, [`pyenv`](https://github.com/pyenv/pyenv) is recommended to 
 manage versions of Python readily on your local development environment.
@@ -51,11 +43,10 @@ the documentation in the repository for more information.
 
 ### Getting Started
 
-To prepare your `pipenv` environment, you need to install dependencies
-and install Basilisp as an editable dependency:
+To prepare your `poetry` environment, you need to install dependencies:
 
 ```bash
-make setup-dev
+poetry install
 ```
 
 Afterwards, you can start up the REPL for development with a simple:
@@ -63,10 +54,6 @@ Afterwards, you can start up the REPL for development with a simple:
 ```bash
 make repl
 ```
-
-If dependencies are added or changed afterwards, you may need to
-`make setup-dev` again before attempting to start the REPL again or
-run tests.
 
 ### Linting, Running Tests, and Type Checking
 

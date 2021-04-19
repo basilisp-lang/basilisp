@@ -68,3 +68,4 @@ lintout.txt
 lispcore.py
 .idea/
 .envrc
+poetry.lock
