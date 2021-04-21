@@ -934,6 +934,15 @@
     '(1) [[[1]]]
     '(1 2 3) [[[1]] 2 [3]]))
 
+(deftest take-last-test
+  (are [res n coll] (= res (take-last n coll))
+    [:c :d] 2  [:a :b :c :d]
+    [:a]    2  [:a]
+    nil     2  []
+    nil     2  nil
+    nil     0  [:a]
+    nil     -1 [:a]))
+
 (deftest min-key-test
   (is (= "dsd" (max-key count "asd" "bsd" "dsd")))
   (is (= "long word" (max-key count "asd" "bsd" "dsd" "long word")))
@@ -975,6 +984,11 @@
                     (swap! a conj :b)))
                 "idiot")
     (is (= [:a :b] @a))))
+
+(deftest tree-seq-test
+  (are [res branch? children root] (= res (tree-seq branch? children root))
+    '(((1 2 (3)) (4)) (1 2 (3)) 1 2 (3) 3 (4) 4)                             seq? identity '((1 2 (3)) (4))
+    '((:A (:B (:D) (:E)) (:C (:F))) (:B (:D) (:E)) (:D) (:E) (:C (:F)) (:F)) next rest     '(:A (:B (:D) (:E)) (:C (:F)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Associative Functions ;;

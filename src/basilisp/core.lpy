@@ -3047,6 +3047,15 @@
          (concat (flatten e) (flatten r))
          (cons e (flatten r)))))))
 
+(defn take-last
+  "Return the last n items in coll in linear time."
+  [n coll]
+  (loop [c   (seq coll)
+         rem (seq (drop n coll))]
+    (if rem
+      (recur (next c) (next rem))
+      c)))
+
 (defn min-key
   "Return the arg for which (k arg) is the smallest number.
   If multiple values return the same number, return the last."
@@ -3101,6 +3110,24 @@
     (if (fn? ret)
       (recur (ret))
       ret)))
+
+(defn tree-seq
+  "Return a lazy seq on the nodes of the tree-like data structure `root`.
+
+  `branch?` should be a function of a single argument which should return
+  true if a node might contain children (though it need not).
+
+  `children` should be a function of one argument which should return a
+  sequence of children of a node. `children` will only be called on a node
+  if `branch?` returns true for that node."
+  [branch? children root]
+  (let [walk (fn walk
+               [node]
+               (lazy-seq
+                (cons node
+                      (when (branch? node)
+                        (mapcat walk (children node))))))]
+    (walk root)))
 
 (import* multiprocessing)
 
@@ -3744,6 +3771,20 @@
      (when (> start end)
        (throw (python/IndexError "Start index must be less than or equal to end index"))))
    (operator/getitem s (python/slice start end))))
+
+;;;;;;;;;;;;;;;;;;;;
+;; File Functions ;;
+;;;;;;;;;;;;;;;;;;;;
+
+(import* pathlib)
+
+(defn file-seq
+  "Return a seq of `pathlib.Path` objects for all files and subdirectories of `dir`."
+  [dir]
+  (-> (pathlib/Path dir)
+      (.resolve)
+      (.rglob "*")
+      (seq)))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Output Utilities ;;
