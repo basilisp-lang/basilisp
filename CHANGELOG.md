@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.1.dev15]
 ### Added
  * Added support for auto-resolving namespaces for keyword from the current namespace using the `::kw` syntax (#576)
  * Added support for namespaced map syntax (#577)
@@ -17,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for writing EDN strings from `basilisp.edn` (#600)
  * Added a persistent queue data type (#606)
  * Added support for transducers (#601)
+ * Added support for Python 3.9 (#608)
+ * Added support for 3-way comparators (#609)
 
 ### Changed
  * Moved `basilisp.lang.runtime.to_seq` to `basilisp.lang.seq` so it can be used within that module and by `basilisp.lang.runtime` without circular import (#588)
@@ -35,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
  * Removed `pyfunctional` dependency in favor of Python standard library functions (#589)
+
+### Other
+ * Basilisp uses `poetry` for dependency and virtual environment management, as well as for publishing to PyPI (#616)
 
 ## [v0.1.dev14] - 2020-06-18
 ### Added
@@ -297,6 +304,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.dev15]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev14..v0.1.dev15
 [v0.1.dev14]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev13..v0.1.dev14
 [v0.1.dev13]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev12..v0.1.dev13
 [v0.1.dev12]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev11..v0.1.dev12
