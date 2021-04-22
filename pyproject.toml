@@ -50,7 +50,6 @@ sphinx = "*"
 sphinx-rtd-theme = "*"
 tox = "*"
 tox-pyenv = "*"
-twine = "*"
 
 [tool.poetry.extras]
 pygments = ["pygments"]
