@@ -101,7 +101,7 @@ Handler = Callable[[argparse.ArgumentParser, argparse.Namespace], None]
 def _subcommand(
     subcommand: str,
     *,
-    help: Optional[str] = None,
+    help: Optional[str] = None,  # pylint: disable=redefined-builtin
     description: Optional[str] = None,
     handler: Handler,
 ):
