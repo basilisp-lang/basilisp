@@ -1,10 +1,11 @@
+import argparse
 import importlib
+import io
+import os
+import sys
 import traceback
 import types
-from typing import Any
-
-import click
-import pytest
+from typing import Any, Callable, Optional, Sequence
 
 from basilisp import main as basilisp
 from basilisp.lang import compiler as compiler
@@ -18,11 +19,6 @@ REPL_INPUT_FILE_PATH = "<REPL Input>"
 REPL_NS = "basilisp.repl"
 STDIN_INPUT_FILE_PATH = "<stdin>"
 STDIN_FILE_NAME = "-"
-
-
-@click.group()
-def cli():
-    """Basilisp is a Lisp dialect inspired by Clojure targeting Python 3."""
 
 
 def eval_file(filename: str, ctx: compiler.CompilerContext, ns: runtime.Namespace):
@@ -60,66 +56,83 @@ def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.Module
     return importlib.import_module(REPL_NS)
 
 
-@cli.command(short_help="start the Basilisp REPL")
-@click.option(
-    "--default-ns",
-    default=runtime.REPL_DEFAULT_NS,
-    help="default namespace to use for the REPL",
-)
-@click.option(
-    "--warn-on-shadowed-name",
-    default=None,
-    is_flag=True,
-    envvar="BASILISP_WARN_ON_SHADOWED_NAME",
-    help="if provided, emit warnings if a local name is shadowed by another local name",
-)
-@click.option(
-    "--warn-on-shadowed-var",
-    default=None,
-    is_flag=True,
-    envvar="BASILISP_WARN_ON_SHADOWED_VAR",
-    help="if provided, emit warnings if a Var name is shadowed by a local name",
-)
-@click.option(
-    "--warn-on-unused-names",
-    default=None,
-    is_flag=True,
-    envvar="BASILISP_WARN_ON_UNUSED_NAMES",
-    help="if provided, emit warnings if a local name is bound and unused",
-)
-@click.option(
-    "--use-var-indirection",
-    default=None,
-    is_flag=True,
-    envvar="BASILISP_USE_VAR_INDIRECTION",
-    help="if provided, all Var accesses will be performed via Var indirection",
-)
-@click.option(
-    "--warn-on-var-indirection",
-    default=None,
-    is_flag=True,
-    envvar="BASILISP_WARN_ON_VAR_INDIRECTION",
-    help="if provided, emit warnings if a Var reference cannot be direct linked",
-)
+def _add_compiler_arg_group(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group("compiler arguments")
+    group.add_argument(
+        "--warn-on-shadowed-name",
+        action="store_const",
+        const=True,
+        default=os.getenv("BASILISP_WARN_ON_SHADOWED_NAME"),
+        help="if provided, emit warnings if a local name is shadowed by another local name",
+    )
+    group.add_argument(
+        "--warn-on-shadowed-var",
+        action="store_const",
+        const=True,
+        default=os.getenv("BASILISP_WARN_ON_SHADOWED_VAR"),
+        help="if provided, emit warnings if a Var name is shadowed by a local name",
+    )
+    group.add_argument(
+        "--warn-on-unused-names",
+        action="store_const",
+        const=True,
+        default=os.getenv("BASILISP_WARN_ON_UNUSED_NAMES"),
+        help="if provided, emit warnings if a local name is bound and unused",
+    )
+    group.add_argument(
+        "--use-var-indirection",
+        action="store_const",
+        const=True,
+        default=os.getenv("BASILISP_USE_VAR_INDIRECTION"),
+        help="if provided, all Var accesses will be performed via Var indirection",
+    )
+    group.add_argument(
+        "--warn-on-var-indirection",
+        action="store_const",
+        const=True,
+        default=os.getenv("BASILISP_WARN_ON_VAR_INDIRECTION"),
+        help="if provided, emit warnings if a Var reference cannot be direct linked",
+    )
+
+
+Handler = Callable[[argparse.ArgumentParser, argparse.Namespace], None]
+
+
+def _subcommand(
+    subcommand: str,
+    *,
+    help: Optional[str] = None,
+    description: Optional[str] = None,
+    handler: Handler,
+):
+    def _wrap_add_subcommand(f: Callable[[argparse.ArgumentParser], None]):
+        def _wrapped_subcommand(subparsers: "argparse._SubParsersAction"):
+            parser = subparsers.add_parser(
+                subcommand, help=help, description=description
+            )
+            parser.set_defaults(handler=handler)
+            f(parser)
+
+        return _wrapped_subcommand
+
+    return _wrap_add_subcommand
+
+
 def repl(  # pylint: disable=too-many-arguments,too-many-locals
-    default_ns,
-    warn_on_shadowed_name,
-    warn_on_shadowed_var,
-    warn_on_unused_names,
-    use_var_indirection,
-    warn_on_var_indirection,
+    _,
+    args: argparse.Namespace,
 ):
     opts = compiler.compiler_opts(
-        warn_on_shadowed_name=warn_on_shadowed_name,
-        warn_on_shadowed_var=warn_on_shadowed_var,
-        warn_on_unused_names=warn_on_unused_names,
-        use_var_indirection=use_var_indirection,
-        warn_on_var_indirection=warn_on_var_indirection,
+        warn_on_shadowed_name=args.warn_on_shadowed_name,
+        warn_on_shadowed_var=args.warn_on_shadowed_var,
+        warn_on_unused_names=args.warn_on_unused_names,
+        use_var_indirection=args.use_var_indirection,
+        warn_on_var_indirection=args.warn_on_var_indirection,
     )
     basilisp.init(opts)
     ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts=opts)
-    repl_module = bootstrap_repl(ctx, default_ns)
-    ns_var = runtime.set_current_ns(default_ns)
+    repl_module = bootstrap_repl(ctx, args.default_ns)
+    ns_var = runtime.set_current_ns(args.default_ns)
     prompter = get_prompter()
     eof = object()
     while True:
@@ -155,73 +168,40 @@ def repl(  # pylint: disable=too-many-arguments,too-many-locals
             continue
 
 
-@cli.command(short_help="run a Basilisp script or code")
-@click.argument("file-or-code")
-@click.option(
-    "-c", "--code", is_flag=True, help="if provided, treat argument as a string of code"
+@_subcommand(
+    "repl",
+    help="start the Basilisp REPL",
+    description="Start a Basilisp REPL.",
+    handler=repl,
 )
-@click.option(
-    "--in-ns", default=runtime.REPL_DEFAULT_NS, help="namespace to use for the code"
-)
-@click.option(
-    "--warn-on-shadowed-name",
-    default=None,
-    is_flag=True,
-    envvar="BASILISP_WARN_ON_SHADOWED_NAME",
-    help="if provided, emit warnings if a local name is shadowed by another local name",
-)
-@click.option(
-    "--warn-on-shadowed-var",
-    default=None,
-    is_flag=True,
-    envvar="BASILISP_WARN_ON_SHADOWED_VAR",
-    help="if provided, emit warnings if a Var name is shadowed by a local name",
-)
-@click.option(
-    "--warn-on-unused-names",
-    default=None,
-    is_flag=True,
-    envvar="BASILISP_WARN_ON_UNUSED_NAMES",
-    help="if provided, emit warnings if a local name is bound and unused",
-)
-@click.option(
-    "--use-var-indirection",
-    default=None,
-    is_flag=True,
-    envvar="BASILISP_USE_VAR_INDIRECTION",
-    help="if provided, all Var accesses will be performed via Var indirection",
-)
-@click.option(
-    "--warn-on-var-indirection",
-    default=None,
-    is_flag=True,
-    envvar="BASILISP_WARN_ON_VAR_INDIRECTION",
-    help="if provided, emit warnings if a Var reference cannot be direct linked",
-)
+def _add_repl_subcommand(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--default-ns",
+        default=runtime.REPL_DEFAULT_NS,
+        help="default namespace to use for the REPL",
+    )
+    _add_compiler_arg_group(parser)
+
+
 def run(  # pylint: disable=too-many-arguments
-    file_or_code,
-    code,
-    in_ns,
-    warn_on_shadowed_name,
-    warn_on_shadowed_var,
-    warn_on_unused_names,
-    use_var_indirection,
-    warn_on_var_indirection,
+    _,
+    args: argparse.Namespace,
 ):
-    """Run a Basilisp script or a line of code, if it is provided."""
     opts = compiler.compiler_opts(
-        warn_on_shadowed_name=warn_on_shadowed_name,
-        warn_on_shadowed_var=warn_on_shadowed_var,
-        warn_on_unused_names=warn_on_unused_names,
-        use_var_indirection=use_var_indirection,
-        warn_on_var_indirection=warn_on_var_indirection,
+        warn_on_shadowed_name=args.warn_on_shadowed_name,
+        warn_on_shadowed_var=args.warn_on_shadowed_var,
+        warn_on_unused_names=args.warn_on_unused_names,
+        use_var_indirection=args.use_var_indirection,
+        warn_on_var_indirection=args.warn_on_var_indirection,
     )
     basilisp.init(opts)
     ctx = compiler.CompilerContext(
         filename=CLI_INPUT_FILE_PATH
-        if code
+        if args.code
         else (
-            STDIN_INPUT_FILE_PATH if file_or_code == STDIN_FILE_NAME else file_or_code
+            STDIN_INPUT_FILE_PATH
+            if args.file_or_code == STDIN_FILE_NAME
+            else args.file_or_code
         ),
         opts=opts,
     )
@@ -230,30 +210,95 @@ def run(  # pylint: disable=too-many-arguments
     core_ns = runtime.Namespace.get(runtime.CORE_NS_SYM)
     assert core_ns is not None
 
-    with runtime.ns_bindings(in_ns) as ns:
+    with runtime.ns_bindings(args.in_ns) as ns:
         ns.refer_all(core_ns)
 
-        if code:
-            print(runtime.lrepr(eval_str(file_or_code, ctx, ns, eof)))
-        elif file_or_code == STDIN_FILE_NAME:
-            print(runtime.lrepr(eval_stream(click.get_text_stream("stdin"), ctx, ns)))
+        if args.code:
+            print(runtime.lrepr(eval_str(args.file_or_code, ctx, ns, eof)))
+        elif args.file_or_code == STDIN_FILE_NAME:
+            print(
+                runtime.lrepr(
+                    eval_stream(
+                        io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8"), ctx, ns
+                    )
+                )
+            )
         else:
-            print(runtime.lrepr(eval_file(file_or_code, ctx, ns)))
+            print(runtime.lrepr(eval_file(args.file_or_code, ctx, ns)))
 
 
-@cli.command(short_help="run tests in a Basilisp project")
-@click.argument("args", nargs=-1)
-def test(args):  # pragma: no cover
-    """Run tests in a Basilisp project."""
-    pytest.main(args=list(args))
+@_subcommand(
+    "run",
+    help="run a Basilisp script or code",
+    description="Run a Basilisp script or a line of code, if it is provided.",
+    handler=run,
+)
+def _add_run_subcommand(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "file_or_code",
+        help="file path to a Basilisp file or, if -c is provided, a string of Basilisp code",
+    )
+    parser.add_argument(
+        "-c",
+        "--code",
+        action="store_true",
+        help="if provided, treat argument as a string of code",
+    )
+    parser.add_argument(
+        "--in-ns", default=runtime.REPL_DEFAULT_NS, help="namespace to use for the code"
+    )
+    _add_compiler_arg_group(parser)
 
 
-@cli.command(short_help="print the version of Basilisp")
-def version():
+def test(parser: argparse.ArgumentParser, args: argparse.Namespace):  # pragma: no cover
+    try:
+        import pytest
+    except (ImportError, ModuleNotFoundError):
+        parser.error(
+            "Cannot run tests without dependency PyTest. Please install PyTest and try again.",
+        )
+    else:
+        pytest.main(args=list(args.args))
+
+
+@_subcommand(
+    "test",
+    help="run tests in a Basilisp project",
+    description="Run tests in a Basilisp project.",
+    handler=test,
+)
+def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("args", nargs=-1)
+
+
+def version(parser: argparse.ArgumentParser, _):
     from basilisp.__version__ import __version__
 
-    print(f"Basilisp {__version__}")
+    parser.exit(status=0, message=f"Basilisp {__version__}")
+
+
+@_subcommand("version", help="print the version of Basilisp", handler=version)
+def _add_version_subcommand(_: argparse.ArgumentParser) -> None:
+    pass
+
+
+def invoke_cli(args: Optional[Sequence[str]] = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Basilisp is a Lisp dialect inspired by Clojure targeting Python 3."
+    )
+
+    subparsers = parser.add_subparsers(help="sub-commands")
+    _add_repl_subcommand(subparsers)
+    _add_run_subcommand(subparsers)
+    _add_test_subcommand(subparsers)
+    _add_version_subcommand(subparsers)
+
+    args = parser.parse_args(args=args)
+    if hasattr(args, "handler"):
+        args.handler(parser, args)
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
-    cli()
+    invoke_cli()
