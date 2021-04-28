@@ -293,9 +293,9 @@ def invoke_cli(args: Optional[Sequence[str]] = None) -> None:
     _add_test_subcommand(subparsers)
     _add_version_subcommand(subparsers)
 
-    args = parser.parse_args(args=args)
-    if hasattr(args, "handler"):
-        args.handler(parser, args)
+    parsed_args = parser.parse_args(args=args)
+    if hasattr(parsed_args, "handler"):
+        parsed_args.handler(parser, parsed_args)
     else:
         parser.print_help()
 
