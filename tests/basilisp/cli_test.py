@@ -1,6 +1,5 @@
 import io
 import os
-import platform
 import re
 import tempfile
 from typing import Optional, Sequence
@@ -10,10 +9,6 @@ import pytest
 
 from basilisp.cli import invoke_cli
 from basilisp.prompt import Prompter
-
-pytestmark = pytest.mark.skipif(
-    platform.python_implementation() == "PyPy", reason="CLI tests fail on PyPy 3.6"
-)
 
 
 @pytest.fixture
