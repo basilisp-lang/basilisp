@@ -33,11 +33,9 @@ python = "^3.6"
 astor = ">=0.8"
 atomos = "*"
 attrs = "*"
-click = "*"
 immutables = "~0.15"
 prompt-toolkit = "~=3.0.0"
 pyrsistent = "*"
-pytest = "*"
 python-dateutil = "*"
 
 [tool.poetry.dev-dependencies]
@@ -45,6 +43,7 @@ black = "*"
 docutils = "==0.15"
 isort = "*"
 pygments = "*"
+pytest = "*"
 pytest-pycharm = "*"
 sphinx = "*"
 sphinx-rtd-theme = "*"
@@ -53,6 +52,7 @@ tox-pyenv = "*"
 
 [tool.poetry.extras]
 pygments = ["pygments"]
+pytest = ["pytest"]
 
 [tool.poetry.scripts]
 basilisp = "basilisp.cli:cli"
