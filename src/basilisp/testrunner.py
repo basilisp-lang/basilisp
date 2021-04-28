@@ -145,7 +145,7 @@ class BasilispTestItem(pytest.Item):
         self._filename = filename
 
     @classmethod
-    def from_parent(  # type: ignore  # pylint: disable=arguments-differ,too-many-arguments
+    def from_parent(  # pylint: disable=arguments-differ,too-many-arguments
         cls,
         parent: "BasilispFile",
         name: str,
