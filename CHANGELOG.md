@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added a bootstrapping function for easily bootstrapping Basilisp projects from Python (#620)
 
+### Changed
+ * PyTest is now an optional extra dependency, rather than a required dependency (#622)
+
+### Removed
+ * Removed Click as a dependency in favor of builtin `argparse` (#622)
+
 ## [v0.1.dev15]
 ### Added
  * Added support for auto-resolving namespaces for keyword from the current namespace using the `::kw` syntax (#576)
