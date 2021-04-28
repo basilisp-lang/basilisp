@@ -118,7 +118,7 @@ def _subcommand(
     return _wrap_add_subcommand
 
 
-def repl(  # pylint: disable=too-many-arguments,too-many-locals
+def repl(
     _,
     args: argparse.Namespace,
 ):
@@ -183,7 +183,7 @@ def _add_repl_subcommand(parser: argparse.ArgumentParser) -> None:
     _add_compiler_arg_group(parser)
 
 
-def run(  # pylint: disable=too-many-arguments
+def run(
     _,
     args: argparse.Namespace,
 ):
@@ -271,10 +271,10 @@ def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("args", nargs=-1)
 
 
-def version(parser: argparse.ArgumentParser, _):
+def version(_, __):
     from basilisp.__version__ import __version__
 
-    parser.exit(status=0, message=f"Basilisp {__version__}")
+    print(f"Basilisp {__version__}")
 
 
 @_subcommand("version", help="print the version of Basilisp", handler=version)

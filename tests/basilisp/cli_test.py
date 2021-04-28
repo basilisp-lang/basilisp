@@ -31,7 +31,9 @@ def isolated_filesystem():
 def run_cli(monkeypatch, capsys):
     def _run_cli(args: Sequence[str], input: Optional[str] = None):
         if input is not None:
-            monkeypatch.setattr("sys.stdin", io.StringIO(input))
+            monkeypatch.setattr(
+                "sys.stdin", io.TextIOWrapper(io.BytesIO(input.encode("utf-8")))
+            )
         invoke_cli([*args])
         return capsys.readouterr()
 
@@ -58,22 +60,24 @@ class TestREPL:
 
     def test_syntax_error(self, run_cli):
         result = run_cli(["repl"], input="(+ 1 2")
+        assert "basilisp.user=> basilisp.user=> " == result.out
         assert (
             "basilisp.lang.reader.UnexpectedEOFError: Unexpected EOF in list "
-            "(line: 1, col: 7)\nbasilisp.user=> " in result.out
+            "(line: 1, col: 7)" in result.err
         )
 
     def test_compiler_error(self, run_cli):
         result = run_cli(["repl"], input="(fn*)")
+        assert "basilisp.user=> basilisp.user=> " == result.out
         assert (
             "basilisp.lang.compiler.exception.CompilerException: fn form "
             "must match: (fn* name? [arg*] body*) or (fn* name? method*)"
-        ) in result.out
-        assert result.out.endswith("\nbasilisp.user=> ")
+        ) in result.err
 
     def test_other_exception(self, run_cli):
         result = run_cli(["repl"], input='(throw (python/Exception "CLI test"))')
-        assert "Exception: CLI test\nbasilisp.user=> " in result.out
+        assert "basilisp.user=> basilisp.user=> " == result.out
+        assert "Exception: CLI test" in result.err
 
 
 class TestRun:
@@ -93,5 +97,5 @@ class TestRun:
 
 
 def test_version(run_cli):
-    result = invoke_cli(["version"])
+    result = run_cli(["version"])
     assert re.compile(r"^Basilisp (\d+)\.(\d+)\.(\w*)(\d+)\n$").match(result.out)
