@@ -273,10 +273,6 @@ class Var(IDeref, ReferenceBase):
     def dynamic(self) -> bool:
         return self._dynamic
 
-    @dynamic.setter
-    def dynamic(self, is_dynamic: bool):
-        self._dynamic = is_dynamic
-
     @property
     def is_private(self) -> Optional[bool]:
         if self._meta is not None:
@@ -287,6 +283,12 @@ class Var(IDeref, ReferenceBase):
     def is_bound(self) -> bool:
         return self._is_bound or self.is_thread_bound
 
+    def _set_root(self, val) -> None:
+        # Private setter which does not include lock so it can be used
+        # by other properties and methods which already manage the lock.
+        self._is_bound = True
+        self._root = val
+
     @property
     def root(self):
         with self._rlock:
@@ -295,12 +297,11 @@ class Var(IDeref, ReferenceBase):
     @root.setter
     def root(self, val):
         with self._wlock:
-            self._is_bound = True
-            self._root = val
+            self._set_root(val)
 
     def alter_root(self, f, *args):
         with self._wlock:
-            self._root = f(self._root, *args)
+            self._set_root(f(self._root, *args))
 
     def push_bindings(self, val):
         if self._tl is None:
@@ -321,22 +322,24 @@ class Var(IDeref, ReferenceBase):
 
     @property
     def value(self):
-        if self._dynamic:
-            assert self._tl is not None
-            if len(self._tl.bindings) > 0:
-                return self._tl.bindings[-1]
-        return self.root
+        with self._rlock:
+            if self._dynamic:
+                assert self._tl is not None
+                if len(self._tl.bindings) > 0:
+                    return self._tl.bindings[-1]
+            return self._root
 
     @value.setter
     def value(self, v):
-        if self._dynamic:
-            assert self._tl is not None
-            if len(self._tl.bindings) > 0:
-                self._tl.bindings[-1] = v
-            else:
-                self.push_bindings(v)
-            return
-        self.root = v
+        with self._wlock:
+            if self._dynamic:
+                assert self._tl is not None
+                if len(self._tl.bindings) > 0:
+                    self._tl.bindings[-1] = v
+                else:
+                    self.push_bindings(v)
+                return
+            self._set_root(v)
 
     @staticmethod
     def intern(
