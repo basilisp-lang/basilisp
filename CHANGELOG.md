@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * PyTest is now an optional extra dependency, rather than a required dependency (#622)
 
 ### Removed
- * Removed Click as a dependency in favor of builtin `argparse` (#622)
+ * Removed Click as a dependency in favor of builtin `argparse` (#622, #623)
+ * Removed Atomos as a dependency in favor of `readerwriterlock` (#623)
 
 ## [v0.1.dev15]
 ### Added

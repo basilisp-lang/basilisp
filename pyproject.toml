@@ -31,12 +31,12 @@ include = ["README.md", "LICENSE"]
 [tool.poetry.dependencies]
 python = "^3.6"
 astor = ">=0.8"
-atomos = "*"
 attrs = "*"
 immutables = "~0.15"
-prompt-toolkit = "~=3.0.0"
+prompt-toolkit = "~3.0.0"
 pyrsistent = "*"
 python-dateutil = "*"
+readerwriterlock = "~1.0.8"
 
 [tool.poetry.dev-dependencies]
 black = "*"
@@ -55,7 +55,7 @@ pygments = ["pygments"]
 pytest = ["pytest"]
 
 [tool.poetry.scripts]
-basilisp = "basilisp.cli:cli"
+basilisp = "basilisp.cli:invoke_cli"
 
 [tool.poetry.plugins.pytest11]
 basilisp_test_runner = "basilisp.testrunner"
