@@ -1,5 +1,6 @@
-import threading
 from typing import Callable, Optional
+
+from readerwriterlock.rwlock import Lockable
 
 from basilisp.lang.interfaces import IPersistentMap, IReference
 
@@ -21,20 +22,21 @@ class ReferenceBase(IReference):
 
     Consumers must have a `_lock` and `_meta` property defined."""
 
-    _lock: threading.Lock
+    _rlock: Lockable
+    _wlock: Lockable
     _meta: Optional[IPersistentMap]
 
     @property
     def meta(self) -> Optional[IPersistentMap]:
-        with self._lock:
+        with self._rlock:
             return self._meta
 
     def alter_meta(self, f: AlterMeta, *args) -> IPersistentMap:
-        with self._lock:
+        with self._wlock:
             self._meta = f(self._meta, *args)
             return self._meta
 
     def reset_meta(self, meta: IPersistentMap) -> IPersistentMap:
-        with self._lock:
+        with self._wlock:
             self._meta = meta
             return meta

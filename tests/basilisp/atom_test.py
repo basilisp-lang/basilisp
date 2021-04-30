@@ -22,7 +22,7 @@ def test_atom():
     assert vec.v(1, 2) == a.swap(lambda v, e: v.cons(e), 2)
     assert vec.v(1, 2) == a.deref()
 
-    assert vec.v(1, 2) == a.reset(lmap.PersistentMap.empty())
+    assert lmap.PersistentMap.empty() == a.reset(lmap.PersistentMap.empty())
     assert lmap.PersistentMap.empty() == a.deref()
 
 
