@@ -55,7 +55,7 @@ from basilisp.lang.interfaces import (
     ISeq,
     ITransientSet,
 )
-from basilisp.lang.reference import ReferenceBase
+from basilisp.lang.reference import RefBase, ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
 from basilisp.util import Maybe
@@ -216,7 +216,7 @@ class Unbound:
         return self is other or (isinstance(other, Unbound) and self.var == other.var)
 
 
-class Var(IDeref, ReferenceBase):
+class Var(RefBase):
     __slots__ = (
         "_name",
         "_ns",
@@ -227,6 +227,8 @@ class Var(IDeref, ReferenceBase):
         "_meta",
         "_rlock",
         "_wlock",
+        "_watches",
+        "_validator",
     )
 
     def __init__(
@@ -246,6 +248,8 @@ class Var(IDeref, ReferenceBase):
         lock = RWLockFair()
         self._rlock = lock.gen_rlock()
         self._wlock = lock.gen_wlock()
+        self._watches = lmap.PersistentMap.empty()
+        self._validator = None
 
         if dynamic:
             self._tl = _VarBindings()
@@ -283,11 +287,14 @@ class Var(IDeref, ReferenceBase):
     def is_bound(self) -> bool:
         return self._is_bound or self.is_thread_bound
 
-    def _set_root(self, val) -> None:
+    def _set_root(self, newval) -> None:
         # Private setter which does not include lock so it can be used
         # by other properties and methods which already manage the lock.
+        oldval = self._root
+        self._validate(newval)
         self._is_bound = True
-        self._root = val
+        self._root = newval
+        self._notify_watches(oldval, newval)
 
     @property
     def root(self):
@@ -306,6 +313,7 @@ class Var(IDeref, ReferenceBase):
     def push_bindings(self, val):
         if self._tl is None:
             raise RuntimeException("Can only push bindings to dynamic Vars")
+        self._validate(val)
         self._tl.bindings.append(val)
 
     def pop_bindings(self):
@@ -334,6 +342,7 @@ class Var(IDeref, ReferenceBase):
         with self._wlock:
             if self._dynamic:
                 assert self._tl is not None
+                self._validate(v)
                 if len(self._tl.bindings) > 0:
                     self._tl.bindings[-1] = v
                 else:

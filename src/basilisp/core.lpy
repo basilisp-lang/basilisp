@@ -4046,6 +4046,52 @@
   [o meta]
   (.reset-meta o meta))
 
+(defn add-watch
+  "Add a watch function `wf` identified by the key `k` to the ref (Atom or Var).
+
+  Watch functions should be functions of four arguments: the key associated with the
+  watch function, the ref object, the old value, and the new value.
+
+  Watch functions will be called synchronously. Note that the value of a ref may have
+  changed by the time a watch function is called, so watch functions should use the
+  old and new state arguments rather than attempting to `deref` the ref.
+
+  Watch functions cannot prevent state changes to a ref, regardless of the result of
+  the watch function.
+
+  Watch function keys are used to identify watches and may be used to remove a watch
+  from a ref (using `remove-watch`), but are otherwise unused by the watch feature.
+
+  Watches for a Var are only notified for Var root changes, not thread-local bindings."
+  [ref k wf]
+  (.add-watch ref k wf))
+
+(defn remove-watch
+  "Remove the watch function identified by `k` from the ref (Atom or Var), if it exists.
+  Returns the ref."
+  [ref k]
+  (.remove-watch ref k))
+
+(defn get-validator
+  "Return the validator defined for the ref (Atom or Var), or `nil` if no validator is
+  defined."
+  [ref]
+  (.get-validator ref))
+
+(defn set-validator!
+  "Set the validator function for the ref (Atom or Var).
+
+  Validator functions should be side-effect free functions of one argument: the proposed
+  new value of the ref. The validator should either return false or throw an error if
+  the ref value is invalid.
+
+  `nil` may be passed to remove the validator for a ref.
+
+  If the existing ref value is not valid according to `vf`, an exception will be thrown
+  and the new validator function will not be applied."
+  [ref vf]
+  (.set-validator ref vf))
+
 ;;;;;;;;;;;;;;;;;;;
 ;; Var Utilities ;;
 ;;;;;;;;;;;;;;;;;;;
