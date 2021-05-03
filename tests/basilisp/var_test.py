@@ -126,6 +126,20 @@ def test_var_validators(ns_sym: sym.Symbol, var_name: sym.Symbol):
         v.root = 2
 
 
+def test_var_validators_do_fire_for_thread_local(
+    ns_sym: sym.Symbol, var_name: sym.Symbol
+):
+    v = Var.intern(ns_sym, var_name, 0, dynamic=True)
+    even_validator = lambda i: isinstance(i, int) and i % 2 == 0
+    v.set_validator(even_validator)
+
+    with pytest.raises(ExceptionInfo):
+        v.value = 5
+
+    v.value = 4
+    assert 4 == v.value
+
+
 def test_var_watchers(ns_sym: sym.Symbol, var_name: sym.Symbol):
     v = Var.intern(ns_sym, var_name, 0)
     assert v is v.remove_watch("nonexistent-watch")
@@ -159,6 +173,29 @@ def test_var_watchers(ns_sym: sym.Symbol, var_name: sym.Symbol):
 
     assert [(0, 0), (0, 4), (4, 8)] == watcher1_vals
     assert [(4, 8), (8, 10), (10, "aaaaaaaaaa")] == watcher2_vals
+
+
+def test_var_watchers_do_not_fire_for_thread_local(
+    ns_sym: sym.Symbol, var_name: sym.Symbol
+):
+    v = Var.intern(ns_sym, var_name, 0, dynamic=True)
+
+    watcher_vals = []
+
+    def watcher(k, ref, old, new):
+        assert "watcher" == k
+        assert v is ref
+        watcher_vals.append((old, new))
+
+    v.add_watch("watcher", watcher)
+    v.value = 10
+
+    assert not watcher_vals
+    assert 10 == v.value
+
+    v.alter_root(lambda i: i + 5)
+    assert 5 == v.root
+    assert [(0, 5)] == watcher_vals
 
 
 def test_dynamic_var(
