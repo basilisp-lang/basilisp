@@ -84,7 +84,7 @@ def test_atom_validators():
     a.set_validator(odd_validator)
 
     with pytest.raises(ExceptionInfo):
-        a.swap(lambda i: i + 1)
+        a.compare_and_set(1, 4)
 
 
 def test_atom_watchers():
