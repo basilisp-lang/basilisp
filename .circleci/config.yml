@@ -15,7 +15,7 @@ commands:
       - run: sudo chown -R circleci:circleci /usr/local/bin
       - run: sudo chown -R circleci:circleci /usr/local/lib/python<< parameters.python_version >>/site-packages
       - restore_cache:
-          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
+          key: << parameters.cache_key_prefix >>2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
       - run:
           name: Install Poetry and Tox
           shell: /bin/bash -leo pipefail
@@ -35,7 +35,7 @@ commands:
         type: string
     steps:
       - save_cache:
-          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
+          key: << parameters.cache_key_prefix >>2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
           paths:
             - "/home/circleci/project/.tox"
             - "/usr/local/bin"
@@ -85,7 +85,7 @@ commands:
     steps:
       - checkout
       - restore_cache:
-          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
+          key: pypy-deps3-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
       - run:
           name: Install Poetry and Tox
           command: |
@@ -103,7 +103,7 @@ commands:
             tox -e pypy3 -- $CCI_NODE_TESTS
           no_output_timeout: 30m
       - save_cache:
-          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
+          key: pypy-deps3-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
           paths:
             - "/root/project/.tox"
             - "/usr/local/bin"
