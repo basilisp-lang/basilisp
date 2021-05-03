@@ -2,7 +2,7 @@ from typing import Callable, Generic, Optional, TypeVar
 
 from readerwriterlock.rwlock import RWLockFair
 
-from basilisp.lang.interfaces import IPersistentMap
+from basilisp.lang.interfaces import IPersistentMap, RefValidator
 from basilisp.lang.map import PersistentMap
 from basilisp.lang.reference import RefBase
 
@@ -12,14 +12,22 @@ T = TypeVar("T")
 class Atom(RefBase[T], Generic[T]):
     __slots__ = ("_meta", "_state", "_rlock", "_wlock", "_watches", "_validator")
 
-    def __init__(self, state: T) -> None:
-        self._meta: Optional[IPersistentMap] = None
+    def __init__(
+        self,
+        state: T,
+        meta: Optional[IPersistentMap] = None,
+        validator: Optional[RefValidator] = None,
+    ) -> None:
+        self._meta: Optional[IPersistentMap] = meta
         self._state = state
         lock = RWLockFair()
         self._rlock = lock.gen_rlock()
         self._wlock = lock.gen_wlock()
         self._watches = PersistentMap.empty()
-        self._validator = None
+        self._validator = validator
+
+        if validator is not None:
+            self._validate(state)
 
     def _compare_and_set(self, old: T, new: T) -> bool:
         with self._wlock:

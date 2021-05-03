@@ -89,10 +89,19 @@ class RefBase(IDeref[T], IRef, ReferenceBase):
     def get_validator(self) -> Optional[RefValidator]:
         return self._validator
 
-    def set_validator(self, vf: Optional[RefValidator]) -> None:
-        with self._wlock:
+    def set_validator(self, vf: Optional[RefValidator] = None) -> None:
+        # We cannot use a write lock here since we're calling `self.deref()` which
+        # attempts to acquire the read lock for the Ref and will deadlock if the
+        # lock is not reentrant.
+        #
+        # There are no guarantees that the Ref lock is reentrant and the default
+        # locks for Atoms and Vars are not).
+        #
+        # This is probably ok for most cases since we expect contention is low or
+        # non-existent while setting a validator function.
+        if vf is not None:
             self._validate(self.deref(), vf=vf)
-            self._validator = vf
+        self._validator = vf
 
     def _validate(self, val: Any, vf: Optional[RefValidator] = None):
         vf = vf or self._validator

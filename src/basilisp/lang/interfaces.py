@@ -145,7 +145,7 @@ class IRef(IReference):
         raise NotImplementedError()
 
     @abstractmethod
-    def set_validator(self, vf: RefValidator) -> None:
+    def set_validator(self, vf: Optional[RefValidator] = None) -> None:
         raise NotImplementedError()
 
 

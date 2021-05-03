@@ -877,8 +877,10 @@
   may be returned by deref'ing it. The value of an atom may be reset using
   reset! and may be swapped using swap!. All operations on an atom occur
   atomically."
-  [v]
-  (basilisp.lang.atom/Atom v))
+  ([v]
+   (basilisp.lang.atom/Atom v))
+  ([v & kwargs]
+   (apply-kw basilisp.lang.atom/Atom v (apply hash-map kwargs))))
 
 (defn realized?
   "Return true if the delay, future, lazy sequence, or promise has been
@@ -4029,9 +4031,9 @@
                                                    ctx
                                                    namespace))))
 
-;;;;;;;;;;;;;;;;;;;
-;; Ref Utilities ;;
-;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Reference (Atom/Namespace/Var) Utilities ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn alter-meta!
   "Atomically swap the metadata on reference o to the result of (apply f m args) where
@@ -4045,6 +4047,10 @@
   atoms, namespaces, and vars."
   [o meta]
   (.reset-meta o meta))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Ref (Atom/Var) Utilities ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn add-watch
   "Add a watch function `wf` identified by the key `k` to the ref (Atom or Var).
