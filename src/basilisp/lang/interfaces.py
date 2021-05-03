@@ -2,8 +2,10 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import (
     AbstractSet,
+    Any,
     Callable,
     Generic,
+    Hashable,
     Iterable,
     Iterator,
     Mapping,
@@ -119,6 +121,31 @@ class IReference(IMeta):
 
     @abstractmethod
     def reset_meta(self, meta: "IPersistentMap") -> "IPersistentMap":
+        raise NotImplementedError()
+
+
+RefValidator = Callable[[Any], Any]
+RefWatchKey = Hashable
+RefWatcher = Callable[[RefWatchKey, "IRef", Any, Any], None]
+
+
+class IRef(IReference):
+    __slots__ = ()
+
+    @abstractmethod
+    def add_watch(self, k: RefWatchKey, wf: RefWatcher) -> "IReference":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def remove_watch(self, k: RefWatchKey) -> "IReference":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_validator(self) -> Optional[RefValidator]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_validator(self, vf: Optional[RefValidator] = None) -> None:
         raise NotImplementedError()
 
 

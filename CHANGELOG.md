@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added a bootstrapping function for easily bootstrapping Basilisp projects from Python (#620)
+ * Added support for watchers and validator functions on Atoms and Vars (#627)
 
 ### Changed
  * PyTest is now an optional extra dependency, rather than a required dependency (#622)
