@@ -6170,7 +6170,7 @@
 (defn remove-tap
   "Remove a tap function from the tap set added by `add-tap`.
 
-  Tap functions may only be removed from the tap set corresopnding to the topic they
+  Tap functions may only be removed from the tap set corresponding to the topic they
   were added with. If no topic is given, the default topic is used.
 
   Returns `nil` in all cases."
