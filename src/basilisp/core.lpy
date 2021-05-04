@@ -1,5 +1,22 @@
 (in-ns 'basilisp.core)
 
+(import* abc
+         atexit
+         collections
+         decimal
+         fractions
+         functools
+         multiprocessing
+         os
+         pathlib
+         [queue :as py-queue]
+         random
+         threading
+         [time :as py-time]
+         uuid)
+
+(import* attr)
+
 (def ^{:doc      "Create a list from the arguments."
        :arglists '([& args])}
   list
@@ -928,8 +945,6 @@
 ;; Futures ;;
 ;;;;;;;;;;;;;
 
-(import* atexit)
-
 (def ^:dynamic *executor-pool*
   (basilisp.lang.futures/ThreadPoolExecutor))
 
@@ -1102,8 +1117,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; Simple Predicates ;;
 ;;;;;;;;;;;;;;;;;;;;;;;
-
-(import* decimal fractions uuid)
 
 (defn any?
   "Return true for any x."
@@ -3131,8 +3144,6 @@
                         (mapcat walk (children node))))))]
     (walk root)))
 
-(import* multiprocessing)
-
 (def ^:dynamic *pmap-cpu-count*
   (* 2 (multiprocessing/cpu-count)))
 
@@ -3186,8 +3197,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Random Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;
-
-(import* random)
 
 (defn rand
   "Return a random real number between lower (default: 0) and upper (default: 1) inclusive."
@@ -3624,8 +3633,6 @@
        (finally
          (pop-thread-bindings)))))
 
-(import* [time :as py-time])
-
 (defn ^:private perf-counter
   []
   (py-time/perf-counter))
@@ -3747,8 +3754,6 @@
 ;; String Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;
 
-(import* os)
-
 (defn format
   "Format a string as by Python's `%` operator."
   [fmt & args]
@@ -3777,8 +3782,6 @@
 ;;;;;;;;;;;;;;;;;;;;
 ;; File Functions ;;
 ;;;;;;;;;;;;;;;;;;;;
-
-(import* pathlib)
 
 (defn file-seq
   "Return a seq of `pathlib.Path` objects for all files and subdirectories of `dir`."
@@ -5031,8 +5034,6 @@
 ;; Interfaces ;;
 ;;;;;;;;;;;;;;;;
 
-(import* abc)
-
 (defmulti munge
   "Munge the input value into a Python-safe string. Converts keywords and
   symbols into strings as by `name` prior to munging. Returns a string."
@@ -5170,8 +5171,6 @@
 ;;;;;;;;;;;;;;;
 ;; Protocols ;;
 ;;;;;;;;;;;;;;;
-
-(import* functools)
 
 (defn ^:private gen-protocol-dispatch
   "Return the dispatch function for a single protocol method."
@@ -5653,8 +5652,6 @@
 ;; Records ;;
 ;;;;;;;;;;;;;
 
-(import* attr)
-
 (defn record?
   "Return true if v is a record type."
   [v]
@@ -5933,8 +5930,6 @@
 ;;;;;;;;;;;;;;;;;
 ;; Transducers ;;
 ;;;;;;;;;;;;;;;;;
-
-(import* collections)
 
 ;; Eduction types return a custom iterator type which continually pulls from the
 ;; input collection (cast as a `seq`). `xf` is called on each value of that
