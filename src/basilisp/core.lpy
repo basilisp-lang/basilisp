@@ -11,6 +11,7 @@
          pathlib
          [queue :as py-queue]
          random
+         re
          threading
          [time :as py-time]
          uuid)
@@ -4520,8 +4521,6 @@
 ;; Regex Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
-(import re)
-
 (defn re-pattern
   "Return a new re.Pattern instance."
   [s]
@@ -4577,7 +4576,7 @@
 ;; Multimethods ;;
 ;;;;;;;;;;;;;;;;;;
 
-(import basilisp.lang.multifn)
+(import* basilisp.lang.multifn)
 
 (defmacro defmulti
   "Define a new multimethod with the dispatch function."
