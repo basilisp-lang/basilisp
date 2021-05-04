@@ -6116,3 +6116,89 @@
     ([result] (rf result))
     ([result input]
      (reduce rf result input))))
+
+;;;;;;;;;;
+;; Taps ;;
+;;;;;;;;;;
+
+(defonce ^:private tap-queue
+  (->> (os/getenv "BASILISP_TAP_QUEUE_SIZE" 1024)
+       (python/int)
+       (py-queue/Queue)))
+
+(defonce ^:private tapset (atom {}))
+
+(defonce ^:private tap-thread
+  (delay
+   (doto (threading/Thread
+          **
+          :target (fn []
+                    (loop []
+                      (let [{:keys [topic val]} (.get tap-queue)
+                            topic-tapset        (get @tapset topic #{})]
+                        (doseq [tap (seq topic-tapset)]
+                          (try
+                            (tap val)
+                            (catch python/Exception _ nil))))
+                      (recur)))
+          :daemon true)
+     (.start))))
+
+(defn add-tap
+  "Add `tf`, a function of one argument, to the tap set for the topic `topic`. If no
+  topic is given, the default topic is used.
+
+  Tap functions are called only with values from calls to `tap>` with the topic they
+  are added with.
+
+  Taps may be removed from the tap set for a topic (or with the default topic) by a
+  matching call to `remove-tap`. Taps are identified only by their identity, so hang
+  on to a reference if you do need to remove the tap.
+
+  Returns `nil`."
+  ([tf]
+   (add-tap :basilisp.core.tap/default tf))
+  ([topic tf]
+   (force tap-thread)
+   (swap! tapset
+          (fn [old-state]
+            (let [topic-tapset (get old-state topic #{})]
+              (->> (conj topic-tapset tf)
+                   (assoc old-state topic)))))
+   nil))
+
+(defn remove-tap
+  "Remove a tap function from the tap set added by `add-tap`.
+
+  Tap functions may only be removed from the tap set corresopnding to the topic they
+  were added with. If no topic is given, the default topic is used.
+
+  Returns `nil` in all cases."
+  ([tf]
+   (remove-tap :basilisp.core.tap/default tf))
+  ([topic tf]
+   (force tap-thread)
+   (swap! tapset
+          (fn [old-state]
+            (let [topic-tapset (get old-state topic #{})]
+              (->> (disj topic-tapset tf)
+                   (assoc old-state topic)))))
+   nil))
+
+(defn tap>
+  "Send the value `val` to all tap functions registered for the topic. If no topic
+  is given, the default topic is used.
+
+  `tap>` will never block, though if the tap queue is full then tap values may be
+  dropped.
+
+  Returns true if `val` was sent to the queue, `false` if `val` was dropped."
+  ([val]
+   (tap> :basilisp.core.tap/default val))
+  ([topic val]
+   (try
+     (do
+       (force tap-thread)
+       (.put-nowait tap-queue {:topic topic :val val})
+       true)
+     (catch queue/Full _ false))))
