@@ -6197,9 +6197,9 @@
   ([val]
    (tap> :basilisp.core.tap/default val))
   ([topic val]
+   (force tap-thread)
    (try
      (do
-       (force tap-thread)
        (.put-nowait tap-queue {:topic topic :val val})
        true)
      (catch queue/Full _ false))))
