@@ -1327,3 +1327,35 @@
                      (range 5)
                      (range 6 10)
                      (range 11 16))))))
+
+;;;;;;;;;;
+;; Taps ;;
+;;;;;;;;;;
+
+(deftest tap-test
+  (let [tap-queue (var-get (find-var 'basilisp.core/tap-queue))
+
+        def-atom (atom [])
+        a1-atom  (atom [])
+        a2-atom  (atom [])
+        b-atom   (atom [])
+
+        def-fn   #(swap! def-atom conj %)
+        a1-fn    #(swap! a1-atom conj [:a1 %])
+        a2-fn    #(swap! a2-atom conj [:a2 %])
+        b-fn     #(swap! b-atom conj %)]
+    (add-tap def-fn)
+    (remove-tap b-fn)
+    (tap> "this is a test")
+
+    ;; Wait for the tap thread to drain
+    (.join tap-queue)
+
+    (remove-tap def-fn)
+    (tap> "this is not a test")
+
+    (is (= ["this is a test"] @def-atom))
+    (is (= [] @a1-atom))
+    (is (= [] @a2-atom))
+    (is (= [] @b-atom))
+    ))

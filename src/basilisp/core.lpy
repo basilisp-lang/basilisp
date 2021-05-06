@@ -6139,7 +6139,8 @@
                         (doseq [tap (seq topic-tapset)]
                           (try
                             (tap val)
-                            (catch python/Exception _ nil))))
+                            (catch python/Exception _ nil)))
+                        (.task-done tap-queue))
                       (recur)))
           :daemon true)
      (.start))))
