@@ -14,18 +14,26 @@ T = TypeVar("T")
 
 
 class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
+    __slots__ = ("_meta",)
+
+    def __init__(self, meta: Optional[IPersistentMap] = None):
+        self._meta = meta
+
     def __repr__(self):
         return "()"
 
     def __bool__(self):
         return True
 
-    @property
-    def meta(self) -> Optional[IPersistentMap]:
+    def seq(self) -> Optional[ISeq[T]]:
         return None
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "Cons[T]":  # type: ignore
-        return Cons(meta=meta)
+    @property
+    def meta(self) -> Optional[IPersistentMap]:
+        return self._meta
+
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "_EmptySequence[T]":
+        return _EmptySequence(meta=meta)
 
     @property
     def is_empty(self) -> bool:
@@ -51,7 +59,7 @@ class Cons(ISeq[T], ISequential, IWithMeta):
 
     def __init__(
         self,
-        first=None,
+        first,
         seq: Optional[ISeq[T]] = None,
         meta: Optional[IPersistentMap] = None,
     ) -> None:
@@ -79,7 +87,7 @@ class Cons(ISeq[T], ISequential, IWithMeta):
         return self._meta
 
     def with_meta(self, meta: Optional[IPersistentMap]) -> "Cons[T]":
-        return Cons(first=self._first, seq=self._rest, meta=meta)
+        return Cons(self._first, seq=self._rest, meta=meta)
 
 
 class _Sequence(IWithMeta, ISequential, ISeq[T]):
@@ -141,19 +149,23 @@ LazySeqGenerator = Callable[[], Optional[ISeq[T]]]
 class LazySeq(IWithMeta, ISequential, ISeq[T]):
     """LazySeqs are wrappers for delaying sequence computation. Create a LazySeq
     with a function that can either return None or a Seq. If a Seq is returned,
-    the LazySeq is a proxy to that Seq."""
+    the LazySeq is a proxy to that Seq.
 
-    __slots__ = ("_gen", "_seq", "_meta")
+    Callers should never provide the `obj` or `seq` arguments -- these are provided
+    only to support `with_meta` returning a new LazySeq instance."""
 
-    # pylint:disable=assigning-non-slot
+    __slots__ = ("_gen", "_obj", "_seq", "_meta")
+
     def __init__(
         self,
         gen: Optional[LazySeqGenerator],
+        obj: Optional[ISeq[T]] = None,
         seq: Optional[ISeq[T]] = None,
         *,
         meta: Optional[IPersistentMap] = None,
     ) -> None:
         self._gen: Optional[LazySeqGenerator] = gen
+        self._obj: Optional[ISeq[T]] = obj
         self._seq: Optional[ISeq[T]] = seq
         self._meta = meta
 
@@ -162,32 +174,72 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         return self._meta
 
     def with_meta(self, meta: Optional[IPersistentMap]) -> "LazySeq[T]":
-        return LazySeq(self._gen, seq=self._seq, meta=meta)
+        return LazySeq(self._gen, obj=self._obj, seq=self._seq, meta=meta)
 
-    # pylint:disable=assigning-non-slot
-    def _realize(self):
+    # LazySeqs have a fairly complex inner state, in spite of the simple interface.
+    # Calls from Basilisp code should be providing the only generator seed function.
+    # Calls to `(seq ...)` cause the LazySeq to cache the generator function locally
+    # (as explained in _compute_seq), clear the _gen attribute, and cache the results
+    # of that generator function call as _obj. _obj may be None, some other ISeq, or
+    # perhaps another LazySeq. Finally, the LazySeq attempts to consume all returned
+    # LazySeq objects before calling `(seq ...)` on the result, which is cached in the
+    # _seq attribute.
+
+    def _compute_seq(self) -> Optional[ISeq[T]]:
         if self._gen is not None:
-            self._seq = to_seq(self._gen())
+            # This local caching of the generator function and clearing of self._gen
+            # is absolutely critical for supporting co-recursive lazy sequences.
+            #
+            # The original example that prompted this change is below:
+            #
+            #   (def primes (remove
+            #                (fn [x] (some #(zero? (mod x %)) primes))
+            #                (iterate inc 2)))
+            #
+            #   (take 5 primes)  ;; => stack overflow
+            #
+            # If we don't clear self._gen, each successive call to (some ... primes)
+            # will end up forcing the primes LazySeq object to call self._gen, rather
+            # than caching the results, allowing examination of the partial seq
+            # computed up to that point.
+            gen = self._gen
             self._gen = None
+            self._obj = gen()
+        return self._obj if self._obj is not None else self._seq
+
+    def seq(self) -> Optional[ISeq[T]]:
+        self._compute_seq()
+        if self._obj is not None:
+            o = self._obj
+            self._obj = None
+            # Consume any additional lazy sequences returned immediately so we have a
+            # "real" concrete sequence to proxy to.
+            #
+            # The common idiom with LazySeqs is to return (cons value (lazy-seq ...))
+            # from the generator function, so this will only result in evaluating away
+            # instances where _another_ LazySeq is returned rather than a cons cell
+            # with a concrete first value. This loop will not consume the LazySeq in
+            # the rest position of the cons.
+            while isinstance(o, LazySeq):
+                o = o._compute_seq()  # type: ignore
+            self._seq = to_seq(o)
+        return self._seq
 
     @property
     def is_empty(self) -> bool:
-        self._realize()
-        return self._seq is None
+        return self.seq() is None
 
     @property
     def first(self) -> Optional[T]:
-        self._realize()
         try:
-            return self._seq.first  # type: ignore
+            return self.seq().first  # type: ignore[union-attr]
         except AttributeError:
             return None
 
     @property
     def rest(self) -> "ISeq[T]":
-        self._realize()
         try:
-            return self._seq.rest  # type: ignore
+            return self.seq().rest  # type: ignore[union-attr]
         except AttributeError:
             return EMPTY
 
@@ -208,9 +260,9 @@ def sequence(s: Iterable) -> ISeq[Any]:
         return EMPTY
 
 
-def _seq_or_nil(s: ISeq) -> Optional[ISeq]:
+def _seq_or_nil(s: Optional[ISeq]) -> Optional[ISeq]:
     """Return None if a ISeq is empty, the ISeq otherwise."""
-    if s.is_empty:
+    if s is None or s.is_empty:
         return None
     return s
 
@@ -229,6 +281,12 @@ def _to_seq_none(_) -> None:
 @to_seq.register(ISeq)
 def _to_seq_iseq(o: ISeq) -> Optional[ISeq]:
     return _seq_or_nil(o)
+
+
+@to_seq.register(LazySeq)
+def _to_seq_lazyseq(o: LazySeq) -> Optional[ISeq]:
+    # Force evaluation of the LazySeq by calling o.seq() directly.
+    return o.seq()
 
 
 @to_seq.register(ISeqable)

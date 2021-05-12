@@ -2302,18 +2302,17 @@
    coll))
 
 (defn iterate
-  "Returns a lazy sequence of (f x), (f (f x)) and so on."
+  "Returns a lazy sequence of x, (f x), (f (f x)) and so on."
   [f x]
   (lazy-seq
-   (let [v (f x)]
-     (when v
-       (cons v (iterate f v))))))
+   (when x
+     (cons x (iterate f (f x))))))
 
 (defn range
   "Return a range of integers from start. If end is specified, the
   sequence will terminate at end."
   ([]
-   (iterate inc -1))
+   (iterate inc 0))
   ([end]
    (lazy-seq (cons 0 (range 1 end))))
   ([start end]
@@ -2328,8 +2327,12 @@
   "Return a function which returns the logical complement of the return
   value of (apply f args)."
   [f]
-  (fn [& args]
-    (not (apply f args))))
+  (fn
+    ([x] (not (f x)))
+    ([x y] (not (f x y)))
+    ([x y z] (not (f x y z)))
+    ([x y z & args]
+     (not (apply f x y z args)))))
 
 (defn constantly
   "Returns a function that accepts any number of arguments and returns x."
@@ -2674,8 +2677,8 @@
             (ensure-reduced result)))))))
   ([n coll]
    (lazy-seq
-    (when (seq coll)
-      (when (> n 0)
+    (when (> n 0)
+      (when (seq coll)
         (cons (first coll) (take (dec n) (rest coll))))))))
 
 (defn take-while

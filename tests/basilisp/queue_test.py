@@ -102,6 +102,13 @@ def test_queue_with_meta():
     assert q4.meta == lmap.m(tag=keyword("macro"))
 
 
+def test_queue_seq():
+    assert None is lqueue.PersistentQueue.empty().seq()
+    assert lqueue.q(1) == lqueue.q(1).seq()
+    assert lqueue.q(1, 2) == lqueue.q(1, 2).seq()
+    assert lqueue.q(1, 2, 3) == lqueue.q(1, 2, 3).seq()
+
+
 @pytest.mark.parametrize(
     "o",
     [

@@ -73,6 +73,11 @@ class PersistentList(IPersistentList[T], ISeq[T], IWithMeta):
     def empty() -> "PersistentList":
         return EMPTY
 
+    def seq(self) -> Optional[ISeq[T]]:
+        if len(self._inner) == 0:
+            return None
+        return super().seq()
+
     def peek(self):
         return self.first
 
