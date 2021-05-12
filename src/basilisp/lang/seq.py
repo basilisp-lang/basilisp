@@ -151,7 +151,6 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
 
     __slots__ = ("_gen", "_obj", "_seq", "_meta")
 
-    # pylint:disable=assigning-non-slot
     def __init__(
         self,
         gen: Optional[LazySeqGenerator],
@@ -228,14 +227,14 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
     @property
     def first(self) -> Optional[T]:
         try:
-            return self.seq().first
+            return self.seq().first  # type: ignore[union-attr]
         except AttributeError:
             return None
 
     @property
     def rest(self) -> "ISeq[T]":
         try:
-            return self.seq().rest
+            return self.seq().rest  # type: ignore[union-attr]
         except AttributeError:
             return EMPTY
 
