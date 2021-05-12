@@ -965,7 +965,9 @@ def _walk(inner_f, outer_f, form):
     elif isinstance(form, IPersistentVector):
         return outer_f(vec.vector(map(inner_f, form)))
     elif isinstance(form, IPersistentMap):
-        return outer_f(lmap.hash_map(*chain.from_iterable(map(inner_f, form.seq()))))
+        return outer_f(
+            lmap.hash_map(*chain.from_iterable(map(inner_f, form.seq() or ())))
+        )
     elif isinstance(form, IPersistentSet):
         return outer_f(lset.set(map(inner_f, form)))
     else:

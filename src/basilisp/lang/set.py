@@ -174,7 +174,9 @@ class PersistentSet(
     def empty() -> "PersistentSet":
         return EMPTY
 
-    def seq(self) -> ISeq[T]:
+    def seq(self) -> Optional[ISeq[T]]:
+        if len(self._inner) == 0:
+            return None
         return sequence(self)
 
     def to_transient(self) -> TransientSet:

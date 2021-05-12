@@ -128,6 +128,13 @@ def test_pop():
     assert vec.v(1, 2) == vec.v(1, 2, 3).pop()
 
 
+def test_vector_seq():
+    assert None is vec.PersistentVector.empty().seq()
+    assert vec.v(1) == vec.v(1).seq()
+    assert vec.v(1, 2) == vec.v(1, 2).seq()
+    assert vec.v(1, 2, 3) == vec.v(1, 2, 3).seq()
+
+
 def test_vector_meta():
     assert vec.v("vec").meta is None
     meta = lmap.m(type=symbol("str"))
