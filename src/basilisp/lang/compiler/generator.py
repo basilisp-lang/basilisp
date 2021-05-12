@@ -1501,10 +1501,12 @@ MetaNode = Union[Const, MapNode]
 
 
 def __fn_name(ctx: GeneratorContext, s: Optional[str]) -> str:
-    """Generate a safe Python function name from a function name symbol. If no symbol
-    is provided, generate a name with a default prefix. Prepends the name of the parent
-    symbol table (if one exists) to help with debugging and readability of stack
-    traces."""
+    """Generate a safe Python function name from a function name symbol.
+
+    If no symbol is provided, generate a name with a default prefix.
+
+    Prepends the name of the parent symbol table (if one exists) to help with debugging
+    and readability of stack traces."""
     ctx_boundary = ctx.symbol_table.context_boundary
     ctx_boundary_prefix = "" if ctx_boundary.is_top else f"{ctx_boundary.name}__"
     return genname(
