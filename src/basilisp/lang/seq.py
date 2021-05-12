@@ -14,6 +14,11 @@ T = TypeVar("T")
 
 
 class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
+    __slots__ = ("_meta",)
+
+    def __init__(self, meta: Optional[IPersistentMap] = None):
+        self._meta = meta
+
     def __repr__(self):
         return "()"
 
@@ -25,10 +30,10 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
 
     @property
     def meta(self) -> Optional[IPersistentMap]:
-        return None
+        return self._meta
 
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "Cons[T]":  # type: ignore
-        return Cons(meta=meta)
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "_EmptySequence[T]":
+        return _EmptySequence(meta=meta)
 
     @property
     def is_empty(self) -> bool:
@@ -54,7 +59,7 @@ class Cons(ISeq[T], ISequential, IWithMeta):
 
     def __init__(
         self,
-        first=None,
+        first,
         seq: Optional[ISeq[T]] = None,
         meta: Optional[IPersistentMap] = None,
     ) -> None:
@@ -82,7 +87,7 @@ class Cons(ISeq[T], ISequential, IWithMeta):
         return self._meta
 
     def with_meta(self, meta: Optional[IPersistentMap]) -> "Cons[T]":
-        return Cons(first=self._first, seq=self._rest, meta=meta)
+        return Cons(self._first, seq=self._rest, meta=meta)
 
 
 class _Sequence(IWithMeta, ISequential, ISeq[T]):

@@ -297,7 +297,7 @@ class IPersistentVector(
         raise NotImplementedError()
 
     @abstractmethod
-    def seq(self) -> "ISeq[T]":  # type: ignore[override]
+    def seq(self) -> "Optional[ISeq[T]]":  # type: ignore[override]
         raise NotImplementedError()
 
 

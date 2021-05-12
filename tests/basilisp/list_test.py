@@ -102,6 +102,13 @@ def test_list_with_meta():
     assert l4.meta == lmap.m(tag=keyword("macro"))
 
 
+def test_list_seq():
+    assert None is llist.PersistentList.empty().seq()
+    assert llist.l(1) == llist.l(1).seq()
+    assert llist.l(1, 2) == llist.l(1, 2).seq()
+    assert llist.l(1, 2, 3) == llist.l(1, 2, 3).seq()
+
+
 def test_list_first():
     assert None is llist.PersistentList.empty().first
     assert None is llist.l().first
