@@ -170,6 +170,10 @@ class SymbolTable:
         yield SymbolTable(name, is_context_boundary=is_context_boundary, parent=self)
 
     @property
+    def is_top(self) -> bool:
+        return self._parent is None
+
+    @property
     def context_boundary(self) -> "SymbolTable":
         """Return the nearest context boundary parent symbol table to this one. If the
         current table is a context boundary, it will be returned directly.
@@ -1494,10 +1498,14 @@ def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
 MetaNode = Union[Const, MapNode]
 
 
-def __fn_name(s: Optional[str]) -> str:
+def __fn_name(ctx: GeneratorContext, s: Optional[str]) -> str:
     """Generate a safe Python function name from a function name symbol.
     If no symbol is provided, generate a name with a default prefix."""
-    return genname("__" + munge(Maybe(s).or_else_get(_FN_PREFIX)))
+    ctx_boundary = ctx.symbol_table.context_boundary
+    ctx_boundary_prefix = "" if ctx_boundary.is_top else f"{ctx_boundary.name}__"
+    return genname(
+        munge("".join(("__", ctx_boundary_prefix, Maybe(s).or_else_get(_FN_PREFIX))))
+    )
 
 
 def __fn_args_to_py_ast(
@@ -1619,7 +1627,7 @@ def __single_arity_fn_to_py_ast(
     assert method.op == NodeOp.FN_ARITY
 
     lisp_fn_name = node.local.name if node.local is not None else None
-    py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
+    py_fn_name = __fn_name(ctx, lisp_fn_name) if def_name is None else munge(def_name)
     py_fn_node = ast.AsyncFunctionDef if node.is_async else ast.FunctionDef
     with ctx.new_symbol_table(
         py_fn_name, is_context_boundary=True
@@ -1859,7 +1867,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     assert node.kwarg_support is None, "multi-arity functions do not support kwargs"
 
     lisp_fn_name = node.local.name if node.local is not None else None
-    py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
+    py_fn_name = __fn_name(ctx, lisp_fn_name) if def_name is None else munge(def_name)
 
     py_fn_node = ast.AsyncFunctionDef if node.is_async else ast.FunctionDef
 

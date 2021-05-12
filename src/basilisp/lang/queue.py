@@ -75,7 +75,9 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
             raise IndexError("Cannot pop an empty queue")
         return PersistentQueue(self._inner.popleft())
 
-    def seq(self) -> ISeq[T]:
+    def seq(self) -> Optional[ISeq[T]]:
+        if len(self._inner) == 0:
+            return None
         return sequence(self)
 
 

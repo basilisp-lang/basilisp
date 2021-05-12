@@ -256,7 +256,9 @@ class PersistentMap(
     def empty() -> "PersistentMap":
         return EMPTY
 
-    def seq(self) -> ISeq[IMapEntry[K, V]]:
+    def seq(self) -> Optional[ISeq[IMapEntry[K, V]]]:
+        if len(self._inner) == 0:
+            return None
         return sequence(MapEntry.of(k, v) for k, v in self._inner.items())
 
     def to_transient(self) -> TransientMap[K, V]:

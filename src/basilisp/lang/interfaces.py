@@ -172,7 +172,7 @@ class ISeqable(Iterable[T]):
     __slots__ = ()
 
     @abstractmethod
-    def seq(self) -> "ISeq[T]":
+    def seq(self) -> "Optional[ISeq[T]]":
         raise NotImplementedError()
 
 
@@ -481,7 +481,7 @@ class ISeq(ILispObject, ISeqable[T]):
     def cons(self, elem: T) -> "ISeq[T]":
         raise NotImplementedError()
 
-    def seq(self) -> "ISeq[T]":
+    def seq(self) -> "Optional[ISeq[T]]":
         return self
 
     def _lrepr(self, **kwargs):

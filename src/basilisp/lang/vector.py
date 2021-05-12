@@ -165,7 +165,9 @@ class PersistentVector(
     def empty() -> "PersistentVector[T]":
         return EMPTY
 
-    def seq(self) -> ISeq[T]:  # type: ignore[override]
+    def seq(self) -> Optional[ISeq[T]]:  # type: ignore[override]
+        if len(self._inner) == 0:
+            return None
         return sequence(self)
 
     def peek(self) -> Optional[T]:
