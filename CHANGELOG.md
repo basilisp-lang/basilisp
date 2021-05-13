@@ -8,9 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added a bootstrapping function for easily bootstrapping Basilisp projects from Python (#620)
  * Added support for watchers and validator functions on Atoms and Vars (#627)
+ * Added support for Taps (#631)
 
 ### Changed
  * PyTest is now an optional extra dependency, rather than a required dependency (#622)
+ * Generated Python functions corresponding to nested functions are now prefixed with the containing function name, if one exists (#632)
+
+### Fixed
+ * Fixed a bug where `seq`ing co-recursive lazy sequences would cause a stack overflow (#632) 
 
 ### Removed
  * Removed Click as a dependency in favor of builtin `argparse` (#622, #624)
