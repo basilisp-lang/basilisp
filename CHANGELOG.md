@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Generated Python functions corresponding to nested functions are now prefixed with the containing function name, if one exists (#632)
 
 ### Fixed
- * Fixed a bug where `seq`ing co-recursive lazy sequences would cause a stack overflow (#632) 
+ * Fixed a bug where `seq`ing co-recursive lazy sequences would cause a stack overflow (#632)
+ * Fixed a spurious failure in the test runner and switched to using macro forms for test line numbers (#631)
 
 ### Removed
  * Removed Click as a dependency in favor of builtin `argparse` (#622, #624)
