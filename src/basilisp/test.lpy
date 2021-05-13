@@ -1,6 +1,4 @@
 (ns basilisp.test
-  (:import
-   inspect)
   (:require
    [basilisp.template :as template]))
 
@@ -11,24 +9,14 @@
 (def ^:dynamic *test-section* nil)
 (def ^:dynamic *test-failures* nil)
 
-(defn line-no
-  "Get the line number from the current interpreter stack.
-
-  This is a horrible hack and it requires each particular assertion case
-  to define their frame offset from here, but it seems to be the most
-  accessible way of determining the line number without capturing it
-  for every test (including non-failing tests)."
-  [n]
-  (.-lineno (nth (inspect/stack) n)))
-
 (defmulti gen-assert
-  (fn [expr _]
+  (fn [expr _ _]
     (cond
       (list? expr) (first expr)
       :else        :default)))
 
 (defmethod gen-assert '=
-  [expr msg]
+  [expr msg line-num]
   `(when-not ~expr
     (swap! *test-failures*
            conj
@@ -38,11 +26,11 @@
             :expr         (quote ~expr)
             :actual       ~(nth expr 2)
             :expected     ~(second expr)
-            :line         (line-no 1)
+            :line         ~line-num
             :type         :failure})))
 
 (defmethod gen-assert 'thrown?
-  [expr msg]
+  [expr msg line-num]
   (let [exc-type (second expr)
         body     (nthnext expr 2)]
     `(try
@@ -55,7 +43,7 @@
                  :expr         (quote ~expr)
                  :actual       result#
                  :expected     (quote ~exc-type)
-                 :line         (line-no 1)
+                 :line         ~line-num
                  :type         :failure}))
        (catch ~exc-type _ nil)
        (catch python/Exception e#
@@ -67,11 +55,11 @@
                  :expr         (quote ~expr)
                  :actual       e#
                  :expected     ~exc-type
-                 :line         (line-no 1)
+                 :line         ~line-num
                  :type         :failure})))))
 
 (defmethod gen-assert :default
-  [expr msg]
+  [expr msg line-num]
   `(let [computed# ~expr]
      (when-not computed#
        (swap! *test-failures*
@@ -82,7 +70,7 @@
                :expr         (quote ~expr)
                :actual       computed#
                :expected     computed#
-               :line         (line-no 1)
+               :line         ~line-num
                :type         :failure}))))
 
 (defmacro is
@@ -90,19 +78,20 @@
   ([expr]
    `(is ~expr (str "Test failure: " (pr-str (quote ~expr)))))
   ([expr msg]
-   `(try
-      ~(gen-assert expr msg)
-      (catch python/Exception e#
-        (swap! *test-failures*
-               conj
-               {:test-name    *test-name*
-                :test-section *test-section*
-                :message      (str "Unexpected exception thrown during test run: " (python/repr e#))
-                :expr         (quote ~expr)
-                :actual       e#
-                :expected     (quote ~expr)
-                :line         (line-no 1)
-                :type         :error})))))
+   (let [line-num (:basilisp.lang.reader/line (meta &form))]
+     `(try
+        ~(gen-assert expr msg line-num)
+        (catch python/Exception e#
+          (swap! *test-failures*
+                 conj
+                 {:test-name    *test-name*
+                  :test-section *test-section*
+                  :message      (str "Unexpected exception thrown during test run: " (python/repr e#))
+                  :expr         (quote ~expr)
+                  :actual       e#
+                  :expected     (quote ~expr)
+                  :line         ~line-num
+                  :type         :error}))))))
 
 (defmacro are
   "Assert that expr is true. Must appear inside of a deftest form."
