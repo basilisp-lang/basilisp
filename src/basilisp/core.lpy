@@ -1418,6 +1418,24 @@
 ;; Type Coercion ;;
 ;;;;;;;;;;;;;;;;;;;
 
+(defn cast
+  "Throws a `TypeError` if x is not a cls. Otherwise, return x."
+  [cls x]
+  (when-not (instance? cls x)
+    (throw (python/TypeError
+            (str "Cannot cast object of type " (python/type x) " to " cls))))
+  x)
+
+(defn class
+  "Return the class of x."
+  [x]
+  (python/type x))
+
+(defn type
+  "Return the type of x."
+  [x]
+  (python/type x))
+
 (defn bigdec
   "Coerce x to a Decimal."
   [x]
