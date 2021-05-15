@@ -4630,11 +4630,11 @@
   "Return the set of all ancestors (parents and grandparents and so forth) of
   `tag` in hierarchy `h`.
 
-  `tag` may be either a valid Python type or a namespace-qualified keyword. If
-  `tag` is a Python type, ancestors include any relationships established via
-  calls to `derive` as well as any superclasses (as returned by `supers`). If
-  `tag`  is a namespace-qualified keyword, only relationships from `derive` are
-  returned.
+  `tag` may be either a valid Python type or a namespace-qualified keyword or
+  symbol. If `tag` is a Python type, ancestors include any relationships
+  established via calls to `derive` as well as any superclasses (as returned by
+  `supers`). If `tag`  is a namespace-qualified keyword, only relationships from
+  `derive` are returned.
 
   `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
   the global hierarchy will be used."
@@ -4651,11 +4651,11 @@
   "Return the set of all descendents (children and grandchildren and so forth)
   of `tag` in hierarchy `h`.
 
-  `tag` may be either a valid Python type or a namespace-qualified keyword. If
-  `tag` is a Python type, ancestors include any relationships established via
-  calls to `derive` as well as any subclasses _which have not been garbage
-  collected_. If `tag`  is a namespace-qualified keyword, only relationships
-  from `derive` are returned.
+  `tag` may be either a valid Python type or a namespace-qualified keyword or
+  symbol. If `tag` is a Python type, ancestors include any relationships
+  established via calls to `derive` as well as any subclasses _which have not
+  been garbage collected_. If `tag`  is a namespace-qualified keyword, only
+  relationships from `derive` are returned.
 
   `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
   the global hierarchy will be used."
@@ -4671,11 +4671,11 @@
 (defn parents
   "Return the set of all direct parents of `tag` in hierarchy `h`.
 
-  `tag` may be either a valid Python type or a namespace-qualified keyword. If
-  `tag` is a Python type, ancestors include any relationships established via
-  calls to `derive` as well as any immediate superclasses (as returned by
-  `bases`). If `tag`  is a namespace-qualified keyword, only relationships from
-  `derive` are returned.
+  `tag` may be either a valid Python type or a namespace-qualified keyword or
+  symbol. If `tag` is a Python type, ancestors include any relationships
+  established via calls to `derive` as well as any immediate superclasses (as
+  returned by `bases`). If `tag`  is a namespace-qualified keyword, only
+  relationships from `derive` are returned.
 
   `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
   the global hierarchy will be used."
@@ -4692,8 +4692,8 @@
   "Return true if `tag` is equal to `parent` or is a descendent of `parent` in
   hierarchy `h`.
 
-  `tag` may be either a valid Python type or a namespace-qualified keyword.
-  Ancestors will be fetched for `tag` using `ancestors`.
+  `tag` may be either a valid Python type or a namespace-qualified keyword or
+  symbol. Ancestors will be fetched for `tag` using `ancestors`.
 
   `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
   the global hierarchy will be used."
@@ -4704,6 +4704,17 @@
        (contains? (ancestors h tag) parent))))
 
 (defn derive
+  "Derive a parent/child relationship between `tag` and `parent`.
+
+  `tag` may be either a valid Python type or a namespace-qualified keyword or
+  symbol.
+
+  `parent` must be a namespace-qualified keyword or symbol.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used.
+
+  Relationships may be removed via `underive`."
   ([tag parent]
    (alter-var-root #'global-hierarchy derive tag parent))
   ([h tag parent]
