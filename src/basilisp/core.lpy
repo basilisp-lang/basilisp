@@ -18,6 +18,8 @@
 
 (import* attr)
 
+(import* basilisp.lang.multifn)
+
 (def ^{:doc      "Create a list from the arguments."
        :arglists '([& args])}
   list
@@ -1414,9 +1416,14 @@
   [x]
   (= 0 x))
 
-;;;;;;;;;;;;;;;;;;;
-;; Type Coercion ;;
-;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;
+;; Type Utilities ;;
+;;;;;;;;;;;;;;;;;;;;
+
+(defn bases
+  "Return the direct superclasses and interfaces of cls as a sequence."
+  [cls]
+  (apply list (.-__bases__ cls)))
 
 (defn cast
   "Throws a `TypeError` if x is not a cls. Otherwise, return x."
@@ -1431,10 +1438,19 @@
   [x]
   (python/type x))
 
+(defn supers
+  "Return the direct and indirect superclasses and interfaces of cls as a set."
+  [cls]
+  (set (python/filter #(not= cls %) (.-__mro__ cls))))
+
 (defn type
   "Return the type of x."
   [x]
   (python/type x))
+
+;;;;;;;;;;;;;;;;;;;
+;; Type Coercion ;;
+;;;;;;;;;;;;;;;;;;;
 
 (defn bigdec
   "Coerce x to a Decimal."
@@ -4593,11 +4609,131 @@
   [pattern s]
   (lazy-re-seq (seq (re/finditer pattern s))))
 
+;;;;;;;;;;;;;;;;;
+;; Hierarchies ;;
+;;;;;;;;;;;;;;;;;
+
+(defn make-hierarchy
+  "Return a hierarchy that may be used to establish parent and child
+  relationships via `derive` (relationships may be removed via `underive`).
+
+  Relationships can be queried using `ancestors`, `descendents`, `parents`, and
+  `isa?`."
+  []
+  {:parents     {}
+   :ancestors   {}
+   :descendents {}})
+
+(def ^:private ^:redef global-hierarchy (make-hierarchy))
+
+(defn ancestors
+  "Return the set of all ancestors (parents and grandparents and so forth) of
+  `tag` in hierarchy `h`.
+
+  `tag` may be either a valid Python type or a namespace-qualified keyword. If
+  `tag` is a Python type, ancestors include any relationships established via
+  calls to `derive` as well as any superclasses (as returned by `supers`). If
+  `tag`  is a namespace-qualified keyword, only relationships from `derive` are
+  returned.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used."
+  ([tag]
+   (ancestors global-hierarchy tag))
+  ([h tag]
+   (not-empty
+    (let [hierarchy-ancestors (get-in h [:ancestors tag] #{})]
+      (if (class? tag)
+        (reduce conj hierarchy-ancestors (supers tag))
+        hierarchy-ancestors)))))
+
+(defn descendents
+  "Return the set of all descendents (children and grandchildren and so forth)
+  of `tag` in hierarchy `h`.
+
+  `tag` may be either a valid Python type or a namespace-qualified keyword. If
+  `tag` is a Python type, ancestors include any relationships established via
+  calls to `derive` as well as any subclasses _which have not been garbage
+  collected_. If `tag`  is a namespace-qualified keyword, only relationships
+  from `derive` are returned.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used."
+  ([tag]
+   (descendents global-hierarchy tag))
+  ([h tag]
+   (not-empty
+    (let [hierarchy-ancestors (get-in h [:descendents tag] #{})]
+      (if (class? tag)
+        (reduce conj hierarchy-ancestors (.__subclasses__ tag))
+        hierarchy-ancestors)))))
+
+(defn parents
+  "Return the set of all direct parents of `tag` in hierarchy `h`.
+
+  `tag` may be either a valid Python type or a namespace-qualified keyword. If
+  `tag` is a Python type, ancestors include any relationships established via
+  calls to `derive` as well as any immediate superclasses (as returned by
+  `bases`). If `tag`  is a namespace-qualified keyword, only relationships from
+  `derive` are returned.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used."
+  ([tag]
+   (parents global-hierarchy tag))
+  ([h tag]
+   (not-empty
+    (let [hierarchy-ancestors (get-in h [:parents tag] #{})]
+      (if (class? tag)
+        (reduce conj hierarchy-ancestors (bases tag))
+        hierarchy-ancestors)))))
+
+(defn isa?
+  "Return true if `tag` is equal to `parent` or is a descendent of `parent` in
+  hierarchy `h`.
+
+  `tag` may be either a valid Python type or a namespace-qualified keyword.
+  Ancestors will be fetched for `tag` using `ancestors`.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used."
+  ([tag parent]
+   (isa? global-hierarchy tag parent))
+  ([h tag parent]
+   (or (= tag parent)
+       (contains? (ancestors h tag) parent))))
+
+(defn derive
+  ([tag parent]
+   (alter-var-root #'global-hierarchy derive tag parent))
+  ([h tag parent]
+   (assert (qualified-ident? parent) "Parent must be a qualified keyword or symbol")
+   (assert (or (qualified-ident? tag)
+               (class? tag))
+           "Tag must be a valid Python type or a qualified keyword or symbol")
+
+   (let [parent-ancestors (get-in h [:ancestors parent] #{})
+         cur-descendents  (get-in h [:descendents tag] #{})]
+     {:parents     (as-> (get-in h [:parents tag] #{}) $
+                     (conj $ parent)
+                     (assoc (:parents h) tag $))
+      :ancestors   (reduce (fn [ancestors descendent]
+                             (update ancestors descendent conj parent))
+                           (:ancestors h)
+                           (conj cur-descendents tag))
+      :descendents (reduce (fn [descendents ancestor]
+                             (update descendents ancestor conj tag))
+                           (:descendents h)
+                           (conj parent-ancestors parent))})))
+
+(defn underive
+  ([tag parent]
+   (alter-var-root #'global-hierarchy underive tag parent))
+  ([h tag parent]))
+
 ;;;;;;;;;;;;;;;;;;
 ;; Multimethods ;;
 ;;;;;;;;;;;;;;;;;;
-
-(import* basilisp.lang.multifn)
 
 (defmacro defmulti
   "Define a new multimethod with the dispatch function."
