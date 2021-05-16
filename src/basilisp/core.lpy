@@ -4729,11 +4729,21 @@
                      (conj $ parent)
                      (assoc (:parents h) tag $))
       :ancestors   (reduce (fn [ancestors descendent]
-                             (update ancestors descendent conj parent))
+                             (if (contains? ancestors descendent)
+                               (update ancestors descendent (comp set conj) parent)
+                               (as-> (get ancestors parent) $
+                                 (conj $ parent)
+                                 (set $)
+                                 (assoc ancestors descendent $))))
                            (:ancestors h)
                            (conj cur-descendents tag))
       :descendents (reduce (fn [descendents ancestor]
-                             (update descendents ancestor conj tag))
+                             (if (contains? descendents ancestor)
+                               (update descendents ancestor (comp set conj) tag)
+                               (as-> (get descendents tag) $
+                                 (conj $ tag)
+                                 (set $)
+                                 (assoc descendents ancestor $))))
                            (:descendents h)
                            (conj parent-ancestors parent))})))
 
