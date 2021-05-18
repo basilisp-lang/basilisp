@@ -1438,6 +1438,15 @@
   [x]
   (python/type x))
 
+(defn subclasses
+  "Return a set of subclasses of cls.
+
+  This set is not guaranteed to be exhaustive because classes only retain a
+  weak reference to their subclasses, so it is possible subclasses of cls
+  have been garbage collected."
+  [cls]
+  (set (.__subclasses__ cls)))
+
 (defn supers
   "Return the direct and indirect superclasses and interfaces of cls as a set."
   [cls]
