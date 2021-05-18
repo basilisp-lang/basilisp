@@ -2056,14 +2056,23 @@
   "Return a new version of the set s without the given elements. If the elements
   don't exist in s, they are ignored."
   ([s] s)
-  ([s & elems]
-   (apply (.-disj s) elems)))
+  ([s elem]
+   (when s
+     (.disj s elem)))
+  ([s elem & elems]
+   (when s
+     (apply (.-disj s) elem elems))))
 
 (defn dissoc
   "Return a new version of m without the given keys. If the keys
   don't exist in m, they are ignored."
-  [m & ks]
-  (apply (.-dissoc m) ks))
+  ([m] m)
+  ([m k]
+   (when m
+     (.dissoc m k)))
+  ([m k & ks]
+   (when m
+     (apply (.-dissoc m) k ks))))
 
 (defn get
   "Return the entry of `m` corresponding to `k` if it exists or `nil`/`default`
@@ -4748,9 +4757,46 @@
                            (conj parent-ancestors parent))})))
 
 (defn underive
+  "Remove a parent/child relationship between `tag` and `parent` originally
+  created via `derive`.
+
+  `tag` may be either a valid Python type or a namespace-qualified keyword or
+  symbol.
+
+  `parent` must be a namespace-qualified keyword or symbol.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used."
   ([tag parent]
    (alter-var-root #'global-hierarchy underive tag parent))
-  ([h tag parent]))
+  ([h tag parent]
+   (assert (qualified-ident? parent) "Parent must be a qualified keyword or symbol")
+   (assert (or (qualified-ident? tag)
+               (class? tag))
+           "Tag must be a valid Python type or a qualified keyword or symbol")
+
+   (let [parent-ancestors (get-in h [:ancestors parent] #{})
+         cur-descendents  (get-in h [:descendents tag] #{})
+
+         maybe-assoc (fn maybe-assoc [m k v]
+                       (if (seq v)
+                         (assoc m k v)
+                         (dissoc m k)))]
+     {:parents     (as-> (get-in h [:parents tag] #{}) $
+                     (disj $ parent)
+                     (maybe-assoc (:parents h) tag $))
+      :ancestors   (reduce (fn [ancestors descendent]
+                             (as-> (get ancestors descendent) $
+                               (apply disj $ parent parent-ancestors)
+                               (maybe-assoc ancestors descendent $)))
+                           (:ancestors h)
+                           (conj cur-descendents tag))
+      :descendents (reduce (fn [descendents ancestor]
+                             (as-> (get descendents ancestor) $
+                               (apply disj $ tag cur-descendents)
+                               (maybe-assoc descendents ancestor $)))
+                           (:descendents h)
+                           (conj parent-ancestors parent))})))
 
 ;;;;;;;;;;;;;;;;;;
 ;; Multimethods ;;
