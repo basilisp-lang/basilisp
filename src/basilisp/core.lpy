@@ -4635,12 +4635,12 @@
   "Return a hierarchy that may be used to establish parent and child
   relationships via `derive` (relationships may be removed via `underive`).
 
-  Relationships can be queried using `ancestors`, `descendents`, `parents`, and
+  Relationships can be queried using `ancestors`, `descendants`, `parents`, and
   `isa?`."
   []
   {:parents     {}
    :ancestors   {}
-   :descendents {}})
+   :descendants {}})
 
 (def ^:private ^:redef global-hierarchy (make-hierarchy))
 
@@ -4665,25 +4665,22 @@
         (reduce conj hierarchy-ancestors (supers tag))
         hierarchy-ancestors)))))
 
-(defn descendents
-  "Return the set of all descendents (children and grandchildren and so forth)
+(defn descendants
+  "Return the set of all descendants (children and grandchildren and so forth)
   of `tag` in hierarchy `h`.
 
-  `tag` may be either a valid Python type or a namespace-qualified keyword or
-  symbol. If `tag` is a Python type, ancestors include any relationships
-  established via calls to `derive` as well as any subclasses _which have not
-  been garbage collected_. If `tag`  is a namespace-qualified keyword, only
-  relationships from `derive` are returned.
+  `tag` must be a namespace-qualified keyword or symbol. Python types are not
+  supported for `descendants` checks.
 
   `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
   the global hierarchy will be used."
   ([tag]
-   (descendents global-hierarchy tag))
+   (descendants global-hierarchy tag))
   ([h tag]
    (not-empty
-    (let [hierarchy-ancestors (get-in h [:descendents tag] #{})]
+    (let [hierarchy-ancestors (get-in h [:descendants tag] #{})]
       (if (class? tag)
-        (reduce conj hierarchy-ancestors (.__subclasses__ tag))
+        (throw (python/TypeError "Cannot get descendants of classes"))
         hierarchy-ancestors)))))
 
 (defn parents
@@ -4742,7 +4739,7 @@
            "Tag must be a valid Python type or a qualified keyword or symbol")
 
    (let [parent-ancestors (get-in h [:ancestors parent] #{})
-         cur-descendents  (get-in h [:descendents tag] #{})]
+         cur-descendants  (get-in h [:descendants tag] #{})]
      {:parents     (as-> (get-in h [:parents tag] #{}) $
                      (conj $ parent)
                      (assoc (:parents h) tag $))
@@ -4754,15 +4751,15 @@
                                  (set $)
                                  (assoc ancestors descendent $))))
                            (:ancestors h)
-                           (conj cur-descendents tag))
-      :descendents (reduce (fn [descendents ancestor]
-                             (if (contains? descendents ancestor)
-                               (update descendents ancestor (comp set conj) tag)
-                               (as-> (get descendents tag) $
+                           (conj cur-descendants tag))
+      :descendants (reduce (fn [descendants ancestor]
+                             (if (contains? descendants ancestor)
+                               (update descendants ancestor (comp set conj) tag)
+                               (as-> (get descendants tag) $
                                  (conj $ tag)
                                  (set $)
-                                 (assoc descendents ancestor $))))
-                           (:descendents h)
+                                 (assoc descendants ancestor $))))
+                           (:descendants h)
                            (conj parent-ancestors parent))})))
 
 (defn underive
@@ -4785,7 +4782,7 @@
            "Tag must be a valid Python type or a qualified keyword or symbol")
 
    (let [parent-ancestors (get-in h [:ancestors parent] #{})
-         cur-descendents  (get-in h [:descendents tag] #{})
+         cur-descendants  (get-in h [:descendants tag] #{})
 
          maybe-assoc (fn maybe-assoc [m k v]
                        (if (seq v)
@@ -4799,12 +4796,12 @@
                                (apply disj $ parent parent-ancestors)
                                (maybe-assoc ancestors descendent $)))
                            (:ancestors h)
-                           (conj cur-descendents tag))
-      :descendents (reduce (fn [descendents ancestor]
-                             (as-> (get descendents ancestor) $
-                               (apply disj $ tag cur-descendents)
-                               (maybe-assoc descendents ancestor $)))
-                           (:descendents h)
+                           (conj cur-descendants tag))
+      :descendants (reduce (fn [descendants ancestor]
+                             (as-> (get descendants ancestor) $
+                               (apply disj $ tag cur-descendants)
+                               (maybe-assoc descendants ancestor $)))
+                           (:descendants h)
                            (conj parent-ancestors parent))})))
 
 ;;;;;;;;;;;;;;;;;;
