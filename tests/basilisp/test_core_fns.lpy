@@ -1216,6 +1216,98 @@
     (is (= #py [#py [:a :b 5] #py [:d :e :f]] l))
     (is (thrown? python/IndexError (aset l 0 5 :cc)))))
 
+;;;;;;;;;;;;;;;;;
+;; Hierarchies ;;
+;;;;;;;;;;;;;;;;;
+
+(deftest hierarchy-test
+  (testing "with keywords"
+    (let [h (make-hierarchy)]
+      ))
+
+  (testing "with types"
+    (let [h (-> (make-hierarchy)
+                (derive python/dict ::collections)
+                (derive python/list ::collections)
+                (derive python/set ::collections)
+                (derive python/tuple ::collections)
+                (derive python/list ::sequential)
+                (derive python/tuple ::sequential)
+                (derive python/int ::numeric)
+                (derive python/float ::numeric)
+                (derive python/complex ::numeric)
+                (derive ::collections ::types)
+                (derive ::sequential ::types)
+                (derive ::numeric ::types))]
+      (are [child parent] (isa? h child parent)
+        python/object python/object
+        python/int    python/object
+        python/bool   python/object
+        python/bool   python/bool
+
+        python/dict    ::collections
+        python/list    ::collections
+        python/set     ::collections
+        python/tuple   ::collections
+        python/int     ::numeric
+        python/float   ::numeric
+        python/complex ::numeric
+
+        python/dict    ::types
+        python/list    ::types
+        python/set     ::types
+        python/tuple   ::types
+        python/int     ::types
+        python/float   ::types
+        python/complex ::types)
+
+      (are [val res] (= res (ancestors h val))
+        python/dict    #{python/object ::types ::collections}
+        python/list    #{python/object ::types ::collections ::sequential}
+        python/set     #{python/object ::types ::collections}
+        python/tuple   #{python/object ::types ::collections ::sequential}
+        python/int     #{python/object ::types ::numeric}
+        python/float   #{python/object ::types ::numeric}
+        python/complex #{python/object ::types ::numeric}
+        ::collections  #{::types}
+        ::numeric      #{::types}
+        ::types        nil)
+
+      (are [val] (thrown? python/TypeError (descendants val))
+        python/dict
+        python/list
+        python/set
+        python/tuple
+        python/int
+        python/float
+        python/complex)
+
+      (are [val res] (= res (descendants h val))
+        ::collections  #{python/dict python/list python/set python/tuple}
+        ::numeric      #{python/int python/float python/complex}
+        ::types        #{::collections
+                         ::numeric
+                         ::sequential
+                         python/dict
+                         python/list
+                         python/set
+                         python/tuple
+                         python/int
+                         python/float
+                         python/complex})
+
+      (are [val res] (= res (parents h val))
+        python/dict    #{::collections python/object}
+        python/list    #{::collections ::sequential python/object}
+        python/set     #{::collections python/object}
+        python/tuple   #{::collections ::sequential python/object}
+        python/int     #{::numeric python/object}
+        python/float   #{::numeric python/object}
+        python/complex #{::numeric python/object}
+        ::collections  #{::types}
+        ::numeric      #{::types}
+        ::types        nil))))
+
 ;;;;;;;;;;;;;;;;
 ;; Interfaces ;;
 ;;;;;;;;;;;;;;;;
