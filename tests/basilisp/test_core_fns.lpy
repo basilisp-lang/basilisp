@@ -1222,8 +1222,86 @@
 
 (deftest hierarchy-test
   (testing "with keywords"
-    (let [h (make-hierarchy)]
-      ))
+    (let [h (-> (make-hierarchy)
+                (derive ::square ::rectangle)
+                (derive ::quadrilateral ::polygon)
+                (derive ::rectangle ::quadrilateral)
+                (derive ::trapezoid ::quadrilateral)
+                (derive ::hexagon ::polygon)
+                (derive ::triangle ::polygon)
+                (derive ::equilateral ::triangle)
+                (derive ::isosceles ::triangle)
+                (derive ::scalene ::triangle)
+                (derive ::square ::regular)
+                (derive ::equilateral ::regular))]
+      (are [child] (isa? h child ::polygon)
+        ::triangle
+        ::equilateral
+        ::isosceles
+        ::scalene
+        ::quadrilateral
+        ::rectangle
+        ::square
+        ::trapezoid
+        ::hexagon)
+
+      (are [child] (isa? h child ::regular)
+        ::equilateral
+        ::square)
+
+      (are [child parent] (isa? h child parent)
+        ::equilateral ::triangle
+        ::isosceles   ::triangle
+        ::scalene     ::triangle
+        ::rectangle   ::quadrilateral
+        ::square      ::quadrilateral
+        ::square      ::rectangle
+        ::trapezoid   ::quadrilateral)
+
+      (are [val res] (= res (ancestors h val))
+        ::triangle      #{::polygon}
+        ::equilateral   #{::triangle ::polygon ::regular}
+        ::isosceles     #{::triangle ::polygon}
+        ::scalene       #{::triangle ::polygon}
+        ::quadrilateral #{::polygon}
+        ::rectangle     #{::quadrilateral ::polygon}
+        ::square        #{::rectangle ::quadrilateral ::polygon ::regular}
+        ::trapezoid     #{::quadrilateral ::polygon}
+        ::hexagon       #{::polygon}
+        ::polygon       nil)
+
+      (are [val res] (= res (descendants h val))
+        ::triangle      #{::equilateral ::isosceles ::scalene}
+        ::equilateral   nil
+        ::isosceles     nil
+        ::scalene       nil
+        ::quadrilateral #{::rectangle ::square ::trapezoid}
+        ::rectangle     #{::square}
+        ::square        nil
+        ::trapezoid     nil
+        ::hexagon       nil
+        ::polygon       #{::triangle
+                          ::equilateral
+                          ::isosceles
+                          ::scalene
+                          ::quadrilateral
+                          ::rectangle
+                          ::square
+                          ::trapezoid
+                          ::hexagon}
+        ::regular       #{::square ::equilateral})
+
+      (are [val res] (= res (parents h val))
+        ::triangle      #{::polygon}
+        ::equilateral   #{::triangle ::regular}
+        ::isosceles     #{::triangle}
+        ::scalene       #{::triangle}
+        ::quadrilateral #{::polygon}
+        ::rectangle     #{::quadrilateral}
+        ::square        #{::rectangle ::regular}
+        ::trapezoid     #{::quadrilateral}
+        ::hexagon       #{::polygon}
+        ::polygon       nil)))
 
   (testing "with types"
     (let [h (-> (make-hierarchy)
@@ -1283,18 +1361,18 @@
         python/complex)
 
       (are [val res] (= res (descendants h val))
-        ::collections  #{python/dict python/list python/set python/tuple}
-        ::numeric      #{python/int python/float python/complex}
-        ::types        #{::collections
-                         ::numeric
-                         ::sequential
-                         python/dict
-                         python/list
-                         python/set
-                         python/tuple
-                         python/int
-                         python/float
-                         python/complex})
+        ::collections #{python/dict python/list python/set python/tuple}
+        ::numeric     #{python/int python/float python/complex}
+        ::types       #{::collections
+                        ::numeric
+                        ::sequential
+                        python/dict
+                        python/list
+                        python/set
+                        python/tuple
+                        python/int
+                        python/float
+                        python/complex})
 
       (are [val res] (= res (parents h val))
         python/dict    #{::collections python/object}
