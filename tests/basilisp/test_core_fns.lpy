@@ -1306,7 +1306,67 @@
           ::square        #{::rectangle ::regular}
           ::trapezoid     #{::quadrilateral}
           ::hexagon       #{::polygon}
-          ::polygon       nil))))
+          ::polygon       nil))
+
+      (testing "underive"
+        (let [h (-> h
+                    (underive ::rectangle ::quadrilateral)
+                    (underive ::isosceles ::triangle)
+                    (underive ::scalene ::triangle))]
+          (testing "isa?"
+            (are [child] (isa? h child ::polygon)
+              ::triangle
+              ::equilateral
+              ::hexagon)
+
+            (are [child] (isa? h child ::regular)
+              ::equilateral
+              ::square)
+
+            (are [child parent] (isa? h child parent)
+              ::equilateral ::triangle
+              ::square      ::rectangle
+              ::trapezoid   ::quadrilateral))
+
+          (testing "ancestors"
+            (are [val res] (= res (ancestors h val))
+              ::triangle      #{::polygon}
+              ::equilateral   #{::triangle ::polygon ::regular}
+              ::isosceles     nil
+              ::scalene       nil
+              ::quadrilateral #{::polygon}
+              ::rectangle     nil
+              ::square        #{::rectangle ::regular}
+              ::trapezoid     #{::quadrilateral ::polygon}
+              ::hexagon       #{::polygon}
+              ::polygon       nil))
+
+          (testing "descendants"
+            (are [val res] (= res (descendants h val))
+              ::triangle      #{::equilateral}
+              ::equilateral   nil
+              ::isosceles     nil
+              ::scalene       nil
+              ::quadrilateral #{::trapezoid}
+              ::rectangle     #{::square}
+              ::square        nil
+              ::trapezoid     nil
+              ::hexagon       nil
+              ::polygon       #{::triangle ::equilateral ::hexagon ::quadrilateral ::trapezoid}
+              ::regular       #{::square ::equilateral}))
+
+          (testing "parents"
+            (are [val res] (= res (parents h val))
+              ::triangle      #{::polygon}
+              ::equilateral   #{::triangle ::regular}
+              ::isosceles     nil
+              ::scalene       nil
+              ::quadrilateral #{::polygon}
+              ::rectangle     nil
+              ::square        #{::rectangle ::regular}
+              ::trapezoid     #{::quadrilateral}
+              ::hexagon       #{::polygon}
+              ::polygon       nil))))))
 
   (testing "derived with types"
     (let [h (-> (make-hierarchy)
