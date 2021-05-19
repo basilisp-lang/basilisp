@@ -1056,11 +1056,17 @@ class TestAssociativeFunctions:
         assert False is core.contains__Q__(vec.v(1, 2, 3), -1)
 
     def test_disj(self):
+        assert None is core.disj(None)
+        assert None is core.disj(None, "a")
+        assert None is core.disj(None, "a", "b", "c")
         assert lset.PersistentSet.empty() == core.disj(lset.PersistentSet.empty(), "a")
         assert lset.PersistentSet.empty() == core.disj(lset.s("a"), "a")
         assert lset.s("b", "d") == core.disj(lset.s("a", "b", "c", "d"), "a", "c", "e")
 
     def test_dissoc(self):
+        assert None is core.dissoc(None)
+        assert None is core.dissoc(None, "a")
+        assert None is core.dissoc(None, "a", "b", "c")
         assert lmap.PersistentMap.empty() == core.dissoc(lmap.map({"a": 1}), "a", "c")
         assert lmap.map({"a": 1}) == core.dissoc(lmap.map({"a": 1}), "b", "c")
 
