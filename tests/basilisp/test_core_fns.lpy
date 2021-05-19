@@ -1273,7 +1273,7 @@
         ::numeric      #{::types}
         ::types        nil)
 
-      (are [val] (thrown? python/TypeError (descendants val))
+      (are [val] (thrown? python/TypeError (descendants h val))
         python/dict
         python/list
         python/set

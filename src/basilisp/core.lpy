@@ -4704,7 +4704,7 @@
         hierarchy-ancestors)))))
 
 (defn isa?
-  "Return true if `tag` is equal to `parent` or is a descendent of `parent` in
+  "Return true if `tag` is equal to `parent` or is a descendant of `parent` in
   hierarchy `h`.
 
   `tag` may be either a valid Python type or a namespace-qualified keyword or
@@ -4743,13 +4743,13 @@
      {:parents     (as-> (get-in h [:parents tag] #{}) $
                      (conj $ parent)
                      (assoc (:parents h) tag $))
-      :ancestors   (reduce (fn [ancestors descendent]
-                             (if (contains? ancestors descendent)
-                               (update ancestors descendent (comp set conj) parent)
+      :ancestors   (reduce (fn [ancestors descendant]
+                             (if (contains? ancestors descendant)
+                               (update ancestors descendant (comp set conj) parent)
                                (as-> (get ancestors parent) $
                                  (conj $ parent)
                                  (set $)
-                                 (assoc ancestors descendent $))))
+                                 (assoc ancestors descendant $))))
                            (:ancestors h)
                            (conj cur-descendants tag))
       :descendants (reduce (fn [descendants ancestor]
@@ -4791,10 +4791,10 @@
      {:parents     (as-> (get-in h [:parents tag] #{}) $
                      (disj $ parent)
                      (maybe-assoc (:parents h) tag $))
-      :ancestors   (reduce (fn [ancestors descendent]
-                             (as-> (get ancestors descendent) $
+      :ancestors   (reduce (fn [ancestors descendant]
+                             (as-> (get ancestors descendant) $
                                (apply disj $ parent parent-ancestors)
-                               (maybe-assoc ancestors descendent $)))
+                               (maybe-assoc ancestors descendant $)))
                            (:ancestors h)
                            (conj cur-descendants tag))
       :descendants (reduce (fn [descendants ancestor]
