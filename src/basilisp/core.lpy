@@ -4784,23 +4784,23 @@
    (let [parent-ancestors (get-in h [:ancestors parent] #{})
          cur-descendants  (get-in h [:descendants tag] #{})
 
-         maybe-assoc (fn maybe-assoc [m k v]
-                       (if (seq v)
-                         (assoc m k v)
-                         (dissoc m k)))]
+         assoc-not-empty (fn assoc-not-empty [m k v]
+                           (if (seq v)
+                             (assoc m k v)
+                             (dissoc m k)))]
      {:parents     (as-> (get-in h [:parents tag] #{}) $
                      (disj $ parent)
-                     (maybe-assoc (:parents h) tag $))
+                     (assoc-not-empty (:parents h) tag $))
       :ancestors   (reduce (fn [ancestors descendant]
                              (as-> (get ancestors descendant) $
                                (apply disj $ parent parent-ancestors)
-                               (maybe-assoc ancestors descendant $)))
+                               (assoc-not-empty ancestors descendant $)))
                            (:ancestors h)
                            (conj cur-descendants tag))
       :descendants (reduce (fn [descendants ancestor]
                              (as-> (get descendants ancestor) $
                                (apply disj $ tag cur-descendants)
-                               (maybe-assoc descendants ancestor $)))
+                               (assoc-not-empty descendants ancestor $)))
                            (:descendants h)
                            (conj parent-ancestors parent))})))
 
