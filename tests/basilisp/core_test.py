@@ -1047,6 +1047,7 @@ class TestBitManipulation:
 
 class TestAssociativeFunctions:
     def test_contains(self):
+        assert False is core.contains__Q__(None, "a")
         assert True is core.contains__Q__(lmap.map({"a": 1}), "a")
         assert False is core.contains__Q__(lmap.map({"a": 1}), "b")
         assert True is core.contains__Q__(vec.v(1, 2, 3), 0)
