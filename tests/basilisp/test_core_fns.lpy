@@ -1323,10 +1323,14 @@
         python/bool   python/object
         python/bool   python/bool
 
-        python/dict    ::collections
-        python/list    ::collections
-        python/set     ::collections
-        python/tuple   ::collections
+        python/dict  ::collections
+        python/list  ::collections
+        python/set   ::collections
+        python/tuple ::collections
+
+        python/list  ::sequential
+        python/tuple ::sequential
+
         python/int     ::numeric
         python/float   ::numeric
         python/complex ::numeric
@@ -1348,6 +1352,7 @@
         python/float   #{python/object ::types ::numeric}
         python/complex #{python/object ::types ::numeric}
         ::collections  #{::types}
+        ::sequential   #{::types}
         ::numeric      #{::types}
         ::types        nil)
 
@@ -1362,6 +1367,7 @@
 
       (are [val res] (= res (descendants h val))
         ::collections #{python/dict python/list python/set python/tuple}
+        ::sequential  #{python/list python/tuple}
         ::numeric     #{python/int python/float python/complex}
         ::types       #{::collections
                         ::numeric
