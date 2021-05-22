@@ -1408,7 +1408,11 @@
           python/tuple   ::types
           python/int     ::types
           python/float   ::types
-          python/complex ::types))
+          python/complex ::types
+
+          [python/int ::numeric]   [::numeric ::types]
+          [python/int python/list] [::numeric ::collections]
+          [::sequential ::numeric] [::types ::types]))
 
       (testing "ancestors"
         (are [val res] (= res (ancestors h val))

@@ -4707,8 +4707,11 @@
   "Return true if `tag` is equal to `parent` or is a descendant of `parent` in
   hierarchy `h`.
 
-  `tag` may be either a valid Python type or a namespace-qualified keyword or
-  symbol. Ancestors will be fetched for `tag` using `ancestors`.
+  Both `tag` and `parent` may be a valid Python type or a namespace-qualified
+  keyword or symbol or a vector of namespace-qualified keywords or symbols. If
+  either of `tag` or `parent` is a vector, the other must be a vector as well.
+
+  Ancestors will be fetched for `tag` using `ancestors`.
 
   `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
   the global hierarchy will be used."
@@ -4716,6 +4719,10 @@
    (isa? global-hierarchy tag parent))
   ([h tag parent]
    (or (= tag parent)
+       (and (vector? tag)
+            (vector? parent)
+            (->> (map (partial isa? h) tag parent)
+                 (every? identity)))
        (contains? (ancestors h tag) parent))))
 
 (defn derive
