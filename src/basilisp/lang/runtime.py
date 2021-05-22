@@ -1110,6 +1110,11 @@ def contains(coll, k):
     return k in coll
 
 
+@contains.register(type(None))
+def _contains_none(_, __):
+    return False
+
+
 @contains.register(IAssociative)
 def _contains_iassociative(coll, k):
     return coll.contains(k)

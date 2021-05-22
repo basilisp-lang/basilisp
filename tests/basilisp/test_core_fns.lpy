@@ -1216,6 +1216,321 @@
     (is (= #py [#py [:a :b 5] #py [:d :e :f]] l))
     (is (thrown? python/IndexError (aset l 0 5 :cc)))))
 
+;;;;;;;;;;;;;;;;;
+;; Hierarchies ;;
+;;;;;;;;;;;;;;;;;
+
+(deftest hierarchy-test
+  (testing "derived with keywords"
+    (let [h (-> (make-hierarchy)
+                (derive ::square ::rectangle)
+                (derive ::quadrilateral ::polygon)
+                (derive ::rectangle ::quadrilateral)
+                (derive ::trapezoid ::quadrilateral)
+                (derive ::hexagon ::polygon)
+                (derive ::triangle ::polygon)
+                (derive ::equilateral ::triangle)
+                (derive ::isosceles ::triangle)
+                (derive ::scalene ::triangle)
+                (derive ::square ::regular)
+                (derive ::equilateral ::regular))]
+
+      (testing "isa?"
+        (are [child] (isa? h child ::polygon)
+          ::triangle
+          ::equilateral
+          ::isosceles
+          ::scalene
+          ::quadrilateral
+          ::rectangle
+          ::square
+          ::trapezoid
+          ::hexagon)
+
+        (are [child] (isa? h child ::regular)
+          ::equilateral
+          ::square)
+
+        (are [child parent] (isa? h child parent)
+          ::equilateral ::triangle
+          ::isosceles   ::triangle
+          ::scalene     ::triangle
+          ::rectangle   ::quadrilateral
+          ::square      ::quadrilateral
+          ::square      ::rectangle
+          ::trapezoid   ::quadrilateral))
+
+      (testing "ancestors"
+        (are [val res] (= res (ancestors h val))
+          ::triangle      #{::polygon}
+          ::equilateral   #{::triangle ::polygon ::regular}
+          ::isosceles     #{::triangle ::polygon}
+          ::scalene       #{::triangle ::polygon}
+          ::quadrilateral #{::polygon}
+          ::rectangle     #{::quadrilateral ::polygon}
+          ::square        #{::rectangle ::quadrilateral ::polygon ::regular}
+          ::trapezoid     #{::quadrilateral ::polygon}
+          ::hexagon       #{::polygon}
+          ::polygon       nil))
+
+      (testing "descendants"
+        (are [val res] (= res (descendants h val))
+          ::triangle      #{::equilateral ::isosceles ::scalene}
+          ::equilateral   nil
+          ::isosceles     nil
+          ::scalene       nil
+          ::quadrilateral #{::rectangle ::square ::trapezoid}
+          ::rectangle     #{::square}
+          ::square        nil
+          ::trapezoid     nil
+          ::hexagon       nil
+          ::polygon       #{::triangle
+                            ::equilateral
+                            ::isosceles
+                            ::scalene
+                            ::quadrilateral
+                            ::rectangle
+                            ::square
+                            ::trapezoid
+                            ::hexagon}
+          ::regular       #{::square ::equilateral}))
+
+      (testing "parents"
+        (are [val res] (= res (parents h val))
+          ::triangle      #{::polygon}
+          ::equilateral   #{::triangle ::regular}
+          ::isosceles     #{::triangle}
+          ::scalene       #{::triangle}
+          ::quadrilateral #{::polygon}
+          ::rectangle     #{::quadrilateral}
+          ::square        #{::rectangle ::regular}
+          ::trapezoid     #{::quadrilateral}
+          ::hexagon       #{::polygon}
+          ::polygon       nil))
+
+      (testing "underive"
+        (let [h (-> h
+                    (underive ::rectangle ::quadrilateral)
+                    (underive ::isosceles ::triangle)
+                    (underive ::scalene ::triangle))]
+          (testing "isa?"
+            (are [child] (isa? h child ::polygon)
+              ::triangle
+              ::equilateral
+              ::hexagon)
+
+            (are [child] (isa? h child ::regular)
+              ::equilateral
+              ::square)
+
+            (are [child parent] (isa? h child parent)
+              ::equilateral ::triangle
+              ::square      ::rectangle
+              ::trapezoid   ::quadrilateral))
+
+          (testing "ancestors"
+            (are [val res] (= res (ancestors h val))
+              ::triangle      #{::polygon}
+              ::equilateral   #{::triangle ::polygon ::regular}
+              ::isosceles     nil
+              ::scalene       nil
+              ::quadrilateral #{::polygon}
+              ::rectangle     nil
+              ::square        #{::rectangle ::regular}
+              ::trapezoid     #{::quadrilateral ::polygon}
+              ::hexagon       #{::polygon}
+              ::polygon       nil))
+
+          (testing "descendants"
+            (are [val res] (= res (descendants h val))
+              ::triangle      #{::equilateral}
+              ::equilateral   nil
+              ::isosceles     nil
+              ::scalene       nil
+              ::quadrilateral #{::trapezoid}
+              ::rectangle     #{::square}
+              ::square        nil
+              ::trapezoid     nil
+              ::hexagon       nil
+              ::polygon       #{::triangle ::equilateral ::hexagon ::quadrilateral ::trapezoid}
+              ::regular       #{::square ::equilateral}))
+
+          (testing "parents"
+            (are [val res] (= res (parents h val))
+              ::triangle      #{::polygon}
+              ::equilateral   #{::triangle ::regular}
+              ::isosceles     nil
+              ::scalene       nil
+              ::quadrilateral #{::polygon}
+              ::rectangle     nil
+              ::square        #{::rectangle ::regular}
+              ::trapezoid     #{::quadrilateral}
+              ::hexagon       #{::polygon}
+              ::polygon       nil))))))
+
+  (testing "derived with types"
+    (let [h (-> (make-hierarchy)
+                (derive python/dict ::collections)
+                (derive python/list ::collections)
+                (derive python/set ::collections)
+                (derive python/tuple ::collections)
+                (derive python/list ::sequential)
+                (derive python/tuple ::sequential)
+                (derive python/int ::numeric)
+                (derive python/float ::numeric)
+                (derive python/complex ::numeric)
+                (derive ::collections ::types)
+                (derive ::sequential ::types)
+                (derive ::numeric ::types))]
+
+      (testing "isa?"
+        (are [child parent] (isa? h child parent)
+          python/object python/object
+          python/int    python/object
+          python/bool   python/object
+          python/bool   python/bool
+
+          python/dict  ::collections
+          python/list  ::collections
+          python/set   ::collections
+          python/tuple ::collections
+
+          python/list  ::sequential
+          python/tuple ::sequential
+
+          python/int     ::numeric
+          python/float   ::numeric
+          python/complex ::numeric
+
+          python/dict    ::types
+          python/list    ::types
+          python/set     ::types
+          python/tuple   ::types
+          python/int     ::types
+          python/float   ::types
+          python/complex ::types
+
+          [python/int ::numeric]   [::numeric ::types]
+          [python/int python/list] [::numeric ::collections]
+          [::sequential ::numeric] [::types ::types]))
+
+      (testing "ancestors"
+        (are [val res] (= res (ancestors h val))
+          python/dict    #{python/object ::types ::collections}
+          python/list    #{python/object ::types ::collections ::sequential}
+          python/set     #{python/object ::types ::collections}
+          python/tuple   #{python/object ::types ::collections ::sequential}
+          python/int     #{python/object ::types ::numeric}
+          python/float   #{python/object ::types ::numeric}
+          python/complex #{python/object ::types ::numeric}
+          ::collections  #{::types}
+          ::sequential   #{::types}
+          ::numeric      #{::types}
+          ::types        nil))
+
+      (testing "descendants"
+        (are [val] (thrown? python/TypeError (descendants h val))
+          python/dict
+          python/list
+          python/set
+          python/tuple
+          python/int
+          python/float
+          python/complex)
+
+        (are [val res] (= res (descendants h val))
+          ::collections #{python/dict python/list python/set python/tuple}
+          ::sequential  #{python/list python/tuple}
+          ::numeric     #{python/int python/float python/complex}
+          ::types       #{::collections
+                          ::numeric
+                          ::sequential
+                          python/dict
+                          python/list
+                          python/set
+                          python/tuple
+                          python/int
+                          python/float
+                          python/complex}))
+
+      (testing "parents"
+        (are [val res] (= res (parents h val))
+          python/dict    #{::collections python/object}
+          python/list    #{::collections ::sequential python/object}
+          python/set     #{::collections python/object}
+          python/tuple   #{::collections ::sequential python/object}
+          python/int     #{::numeric python/object}
+          python/float   #{::numeric python/object}
+          python/complex #{::numeric python/object}
+          ::collections  #{::types}
+          ::numeric      #{::types}
+          ::types        nil))
+
+      (testing "underive"
+        (let [h (-> h
+                    (underive ::collections ::types)
+                    (underive python/complex ::numeric))]
+          (testing "isa?"
+            (are [child parent] (isa? h child parent)
+              python/dict  ::collections
+              python/list  ::collections
+              python/set   ::collections
+              python/tuple ::collections
+
+              python/list  ::sequential
+              python/tuple ::sequential
+
+              python/int   ::numeric
+              python/float ::numeric
+
+              python/list  ::types
+              python/tuple ::types
+              python/int   ::types
+              python/float ::types
+
+              [python/int ::numeric]   [::numeric ::types]
+              [python/int python/list] [::numeric ::collections]
+              [::sequential ::numeric] [::types ::types]))
+
+          (testing "ancestors"
+            (are [val res] (= res (ancestors h val))
+              python/dict    #{python/object ::collections}
+              python/list    #{python/object ::types ::collections ::sequential}
+              python/set     #{python/object ::collections}
+              python/tuple   #{python/object ::types ::collections ::sequential}
+              python/int     #{python/object ::types ::numeric}
+              python/float   #{python/object ::types ::numeric}
+              python/complex #{python/object}
+              ::collections  nil
+              ::sequential   #{::types}
+              ::numeric      #{::types}
+              ::types        nil))
+
+          (testing "descendants"
+            (are [val res] (= res (descendants h val))
+              ::collections #{python/dict python/list python/set python/tuple}
+              ::sequential  #{python/list python/tuple}
+              ::numeric     #{python/int python/float}
+              ::types       #{::numeric
+                              ::sequential
+                              python/list
+                              python/tuple
+                              python/int
+                              python/float}))
+
+          (testing "parents"
+            (are [val res] (= res (parents h val))
+              python/dict    #{::collections python/object}
+              python/list    #{::collections ::sequential python/object}
+              python/set     #{::collections python/object}
+              python/tuple   #{::collections ::sequential python/object}
+              python/int     #{::numeric python/object}
+              python/float   #{::numeric python/object}
+              python/complex #{python/object}
+              ::collections  nil
+              ::numeric      #{::types}
+              ::types        nil)))))))
+
 ;;;;;;;;;;;;;;;;
 ;; Interfaces ;;
 ;;;;;;;;;;;;;;;;

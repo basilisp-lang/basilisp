@@ -18,6 +18,8 @@
 
 (import* attr)
 
+(import* basilisp.lang.multifn)
+
 (def ^{:doc      "Create a list from the arguments."
        :arglists '([& args])}
   list
@@ -1414,9 +1416,14 @@
   [x]
   (= 0 x))
 
-;;;;;;;;;;;;;;;;;;;
-;; Type Coercion ;;
-;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;
+;; Type Utilities ;;
+;;;;;;;;;;;;;;;;;;;;
+
+(defn bases
+  "Return the direct superclasses and interfaces of cls as a sequence."
+  [cls]
+  (apply list (.-__bases__ cls)))
 
 (defn cast
   "Throws a `TypeError` if x is not a cls. Otherwise, return x."
@@ -1431,10 +1438,28 @@
   [x]
   (python/type x))
 
+(defn subclasses
+  "Return a set of subclasses of cls.
+
+  This set is not guaranteed to be exhaustive because classes only retain a
+  weak reference to their subclasses, so it is possible subclasses of cls
+  have been garbage collected."
+  [cls]
+  (set (.__subclasses__ cls)))
+
+(defn supers
+  "Return the direct and indirect superclasses and interfaces of cls as a set."
+  [cls]
+  (set (python/filter #(not= cls %) (.-__mro__ cls))))
+
 (defn type
   "Return the type of x."
   [x]
   (python/type x))
+
+;;;;;;;;;;;;;;;;;;;
+;; Type Coercion ;;
+;;;;;;;;;;;;;;;;;;;
 
 (defn bigdec
   "Coerce x to a Decimal."
@@ -2040,14 +2065,23 @@
   "Return a new version of the set s without the given elements. If the elements
   don't exist in s, they are ignored."
   ([s] s)
-  ([s & elems]
-   (apply (.-disj s) elems)))
+  ([s elem]
+   (when s
+     (.disj s elem)))
+  ([s elem & elems]
+   (when s
+     (apply (.-disj s) elem elems))))
 
 (defn dissoc
   "Return a new version of m without the given keys. If the keys
   don't exist in m, they are ignored."
-  [m & ks]
-  (apply (.-dissoc m) ks))
+  ([m] m)
+  ([m k]
+   (when m
+     (.dissoc m k)))
+  ([m k & ks]
+   (when m
+     (apply (.-dissoc m) k ks))))
 
 (defn get
   "Return the entry of `m` corresponding to `k` if it exists or `nil`/`default`
@@ -4593,11 +4627,180 @@
   [pattern s]
   (lazy-re-seq (seq (re/finditer pattern s))))
 
+;;;;;;;;;;;;;;;;;
+;; Hierarchies ;;
+;;;;;;;;;;;;;;;;;
+
+(defn make-hierarchy
+  "Return a hierarchy that may be used to establish parent and child
+  relationships via `derive` (relationships may be removed via `underive`).
+
+  Relationships can be queried using `ancestors`, `descendants`, `parents`, and
+  `isa?`."
+  []
+  {:parents     {}
+   :ancestors   {}
+   :descendants {}})
+
+(def ^:private ^:redef global-hierarchy (make-hierarchy))
+
+(defn ancestors
+  "Return the set of all ancestors (parents and grandparents and so forth) of
+  `tag` in hierarchy `h`.
+
+  `tag` may be either a valid Python type or a namespace-qualified keyword or
+  symbol. If `tag` is a Python type, ancestors include any relationships
+  established via calls to `derive` as well as any superclasses (as returned by
+  `supers`). If `tag`  is a namespace-qualified keyword, only relationships from
+  `derive` are returned.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used."
+  ([tag]
+   (ancestors global-hierarchy tag))
+  ([h tag]
+   (not-empty
+    (let [hierarchy-ancestors (get-in h [:ancestors tag] #{})]
+      (if (class? tag)
+        (reduce conj hierarchy-ancestors (supers tag))
+        hierarchy-ancestors)))))
+
+(defn descendants
+  "Return the set of all descendants (children and grandchildren and so forth)
+  of `tag` in hierarchy `h`.
+
+  `tag` must be a namespace-qualified keyword or symbol. Python types are not
+  supported for `descendants` checks.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used."
+  ([tag]
+   (descendants global-hierarchy tag))
+  ([h tag]
+   (not-empty
+    (let [hierarchy-ancestors (get-in h [:descendants tag] #{})]
+      (if (class? tag)
+        (throw (python/TypeError "Cannot get descendants of classes"))
+        hierarchy-ancestors)))))
+
+(defn parents
+  "Return the set of all direct parents of `tag` in hierarchy `h`.
+
+  `tag` may be either a valid Python type or a namespace-qualified keyword or
+  symbol. If `tag` is a Python type, ancestors include any relationships
+  established via calls to `derive` as well as any immediate superclasses (as
+  returned by `bases`). If `tag`  is a namespace-qualified keyword, only
+  relationships from `derive` are returned.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used."
+  ([tag]
+   (parents global-hierarchy tag))
+  ([h tag]
+   (not-empty
+    (let [hierarchy-ancestors (get-in h [:parents tag] #{})]
+      (if (class? tag)
+        (reduce conj hierarchy-ancestors (bases tag))
+        hierarchy-ancestors)))))
+
+(defn isa?
+  "Return true if `tag` is equal to `parent` or is a descendant of `parent` in
+  hierarchy `h`.
+
+  Both `tag` and `parent` may be a valid Python type or a namespace-qualified
+  keyword or symbol or a vector of namespace-qualified keywords or symbols. If
+  either of `tag` or `parent` is a vector, the other must be a vector as well.
+
+  Ancestors will be fetched for `tag` using `ancestors`.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used."
+  ([tag parent]
+   (isa? global-hierarchy tag parent))
+  ([h tag parent]
+   (or (= tag parent)
+       (and (vector? tag)
+            (vector? parent)
+            (->> (map (partial isa? h) tag parent)
+                 (every? identity)))
+       (contains? (ancestors h tag) parent))))
+
+(defn derive
+  "Derive a parent/child relationship between `tag` and `parent`.
+
+  `tag` may be either a valid Python type or a namespace-qualified keyword or
+  symbol.
+
+  `parent` must be a namespace-qualified keyword or symbol.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used.
+
+  Relationships may be removed via `underive`."
+  ([tag parent]
+   (alter-var-root #'global-hierarchy derive tag parent))
+  ([h tag parent]
+   (assert (qualified-ident? parent) "Parent must be a qualified keyword or symbol")
+   (assert (or (qualified-ident? tag)
+               (class? tag))
+           "Tag must be a valid Python type or a qualified keyword or symbol")
+
+   (let [parent-ancestors (get-in h [:ancestors parent] #{})
+         cur-descendants  (get-in h [:descendants tag] #{})]
+     {:parents     (as-> (get-in h [:parents tag] #{}) $
+                     (conj $ parent)
+                     (assoc (:parents h) tag $))
+      :ancestors   (reduce (fn [ancestors descendant]
+                             (->> (get ancestors descendant)
+                                  (apply conj parent-ancestors parent)
+                                  (set)
+                                  (assoc ancestors descendant)))
+                           (:ancestors h)
+                           (conj cur-descendants tag))
+      :descendants (reduce (fn [descendants ancestor]
+                             (->> (get descendants ancestor)
+                                  (apply conj cur-descendants tag)
+                                  (set)
+                                  (assoc descendants ancestor)))
+                           (:descendants h)
+                           (conj parent-ancestors parent))})))
+
+(defn underive
+  "Remove a parent/child relationship between `tag` and `parent` originally
+  created via `derive`.
+
+  `tag` may be either a valid Python type or a namespace-qualified keyword or
+  symbol.
+
+  `parent` must be a namespace-qualified keyword or symbol.
+
+  `h` must be a hierarchy returned by `make-hierarchy`. If `h` is not supplied,
+  the global hierarchy will be used."
+  ([tag parent]
+   (alter-var-root #'global-hierarchy underive tag parent))
+  ([h tag parent]
+   (assert (qualified-ident? parent) "Parent must be a qualified keyword or symbol")
+   (assert (or (qualified-ident? tag)
+               (class? tag))
+           "Tag must be a valid Python type or a qualified keyword or symbol")
+
+   (let [tag-parents (-> (get-in h [:parents tag] #{})
+                         (disj parent))
+         new-parents (if (seq tag-parents)
+                       (assoc (:parents h) tag tag-parents)
+                       (dissoc (:parents h) tag))]
+     (->> new-parents
+          (mapcat (fn [pair]
+                    (let [tag     (first pair)
+                          parents (second pair)]
+                      (map #(vector tag %) parents))))
+          (reduce (fn [h pair]
+                    (derive h (first pair) (second pair)))
+                  (make-hierarchy))))))
+
 ;;;;;;;;;;;;;;;;;;
 ;; Multimethods ;;
 ;;;;;;;;;;;;;;;;;;
-
-(import* basilisp.lang.multifn)
 
 (defmacro defmulti
   "Define a new multimethod with the dispatch function."
