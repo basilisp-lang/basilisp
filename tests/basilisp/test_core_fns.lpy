@@ -1464,7 +1464,72 @@
           python/complex #{::numeric python/object}
           ::collections  #{::types}
           ::numeric      #{::types}
-          ::types        nil)))))
+          ::types        nil))
+
+      (testing "underive"
+        (let [h (-> h
+                    (underive ::collections ::types)
+                    (underive python/complex ::numeric))]
+          (testing "isa?"
+            (are [child parent] (isa? h child parent)
+              python/dict  ::collections
+              python/list  ::collections
+              python/set   ::collections
+              python/tuple ::collections
+
+              python/list  ::sequential
+              python/tuple ::sequential
+
+              python/int   ::numeric
+              python/float ::numeric
+
+              python/list  ::types
+              python/tuple ::types
+              python/int   ::types
+              python/float ::types
+
+              [python/int ::numeric]   [::numeric ::types]
+              [python/int python/list] [::numeric ::collections]
+              [::sequential ::numeric] [::types ::types]))
+
+          (testing "ancestors"
+            (are [val res] (= res (ancestors h val))
+              python/dict    #{python/object ::collections}
+              python/list    #{python/object ::types ::collections ::sequential}
+              python/set     #{python/object ::collections}
+              python/tuple   #{python/object ::types ::collections ::sequential}
+              python/int     #{python/object ::types ::numeric}
+              python/float   #{python/object ::types ::numeric}
+              python/complex #{python/object}
+              ::collections  nil
+              ::sequential   #{::types}
+              ::numeric      #{::types}
+              ::types        nil))
+
+          (testing "descendants"
+            (are [val res] (= res (descendants h val))
+              ::collections #{python/dict python/list python/set python/tuple}
+              ::sequential  #{python/list python/tuple}
+              ::numeric     #{python/int python/float}
+              ::types       #{::numeric
+                              ::sequential
+                              python/list
+                              python/tuple
+                              python/int
+                              python/float}))
+
+          (testing "parents"
+            (are [val res] (= res (parents h val))
+              python/dict    #{::collections python/object}
+              python/list    #{::collections ::sequential python/object}
+              python/set     #{::collections python/object}
+              python/tuple   #{::collections ::sequential python/object}
+              python/int     #{::numeric python/object}
+              python/float   #{::numeric python/object}
+              python/complex #{python/object}
+              ::collections  nil
+              ::numeric      #{::types}
+              ::types        nil)))))))
 
 ;;;;;;;;;;;;;;;;
 ;; Interfaces ;;
