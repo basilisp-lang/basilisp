@@ -4784,28 +4784,19 @@
                (class? tag))
            "Tag must be a valid Python type or a qualified keyword or symbol")
 
-   (let [parent-ancestors (get-in h [:ancestors parent] #{})
-         cur-descendants  (get-in h [:descendants tag] #{})
-
-         assoc-not-empty (fn assoc-not-empty [m k v]
-                           (if (seq v)
-                             (assoc m k v)
-                             (dissoc m k)))]
-     {:parents     (as-> (get-in h [:parents tag] #{}) $
-                     (disj $ parent)
-                     (assoc-not-empty (:parents h) tag $))
-      :ancestors   (reduce (fn [ancestors descendant]
-                             (as-> (get ancestors descendant) $
-                               (apply disj $ parent parent-ancestors)
-                               (assoc-not-empty ancestors descendant $)))
-                           (:ancestors h)
-                           (conj cur-descendants tag))
-      :descendants (reduce (fn [descendants ancestor]
-                             (as-> (get descendants ancestor) $
-                               (apply disj $ tag cur-descendants)
-                               (assoc-not-empty descendants ancestor $)))
-                           (:descendants h)
-                           (conj parent-ancestors parent))})))
+   (let [tag-parents (-> (get-in h [:parents tag] #{})
+                         (disj parent))
+         new-parents (if (seq tag-parents)
+                       (assoc (:parents h) tag tag-parents)
+                       (dissoc (:parents h) tag))]
+     (->> new-parents
+          (mapcat (fn [pair]
+                    (let [tag     (first pair)
+                          parents (second pair)]
+                      (map #(vector tag %) parents))))
+          (reduce (fn [h pair]
+                    (derive h (first pair) (second pair)))
+                  (make-hierarchy))))))
 
 ;;;;;;;;;;;;;;;;;;
 ;; Multimethods ;;
