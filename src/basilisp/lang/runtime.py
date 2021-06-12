@@ -51,7 +51,8 @@ from basilisp.lang.interfaces import (
     IPersistentList,
     IPersistentMap,
     IPersistentSet,
-    IPersistentStack, IPersistentVector,
+    IPersistentStack,
+    IPersistentVector,
     ISeq,
     ITransientSet,
 )
