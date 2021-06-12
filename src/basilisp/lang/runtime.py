@@ -51,7 +51,7 @@ from basilisp.lang.interfaces import (
     IPersistentList,
     IPersistentMap,
     IPersistentSet,
-    IPersistentVector,
+    IPersistentStack, IPersistentVector,
     ISeq,
     ITransientSet,
 )
@@ -197,8 +197,6 @@ class RuntimeException(Exception):
 
 
 class _VarBindings(threading.local):
-    __slots__ = ("bindings",)
-
     def __init__(self):
         self.bindings: List = []
 
@@ -418,21 +416,25 @@ class Var(RefBase):
         return v
 
 
-Frame = FrozenSet[Var]
-FrameStack = List[Frame]
+Frame = IPersistentSet[Var]
+FrameStack = IPersistentStack[Frame]
 
 
 class _ThreadBindings(threading.local):
-    __slots__ = ("_bindings",)
-
     def __init__(self):
-        self._bindings: FrameStack = []
+        self._bindings: FrameStack = vec.PersistentVector.empty()
 
-    def push_bindings(self, frame: Frame):
-        self._bindings.append(frame)
+    def get_bindings(self) -> FrameStack:
+        return self._bindings
 
-    def pop_bindings(self):
-        return self._bindings.pop()
+    def push_bindings(self, frame: Frame) -> None:
+        self._bindings = self._bindings.cons(frame)
+
+    def pop_bindings(self) -> Frame:
+        frame = self._bindings.peek()
+        self._bindings = self._bindings.pop()
+        assert frame is not None
+        return frame
 
 
 _THREAD_BINDINGS = _ThreadBindings()
@@ -877,6 +879,14 @@ class Namespace(ReferenceBase):
         return results
 
 
+def get_thread_bindings() -> IPersistentMap[Var, Any]:
+    """Return the current thread-local bindings."""
+    bindings = {}
+    for frame in _THREAD_BINDINGS.get_bindings():
+        bindings.update({var: var.value for var in frame})
+    return lmap.map(bindings)
+
+
 def push_thread_bindings(m: IPersistentMap[Var, Any]) -> None:
     """Push thread local bindings for the Var keys in m using the values."""
     bindings = set()
@@ -889,7 +899,7 @@ def push_thread_bindings(m: IPersistentMap[Var, Any]) -> None:
         var.push_bindings(val)
         bindings.add(var)
 
-    _THREAD_BINDINGS.push_bindings(frozenset(bindings))
+    _THREAD_BINDINGS.push_bindings(lset.set(bindings))
 
 
 def pop_thread_bindings() -> None:

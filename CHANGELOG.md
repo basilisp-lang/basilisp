@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for watchers and validator functions on Atoms and Vars (#627)
  * Added support for Taps (#631)
  * Added support for hierarchies (#633)
+ * Added support for several more utility Namespace and Var utility functions (#636)
 
 ### Changed
  * PyTest is now an optional extra dependency, rather than a required dependency (#622)
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where `seq`ing co-recursive lazy sequences would cause a stack overflow (#632)
  * Fixed a spurious failure in the test runner and switched to using macro forms for test line numbers (#631)
  * Fixed a bug that allowed dynamic Vars to be `set!` even if they weren't thread-bound (#638)
+ * Fixed a bug where it was impossible to specify negative CLI options for the compiler flags (#638)
 
 ### Removed
  * Removed Click as a dependency in favor of builtin `argparse` (#622, #624, #636)

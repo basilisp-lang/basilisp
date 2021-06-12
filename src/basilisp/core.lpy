@@ -3648,6 +3648,11 @@
        :macro true}
   with-open with)
 
+(defn get-thread-bindings
+  "Return the current thread-local bindings as a map of Var/value pairs."
+  []
+  (basilisp.lang.runtime/get-thread-bindings))
+
 (defn push-thread-bindings
   "Takes a map of Var/value pairs and applies the given value to the Var in the
   current thread.
@@ -3688,6 +3693,77 @@
          ~@body)
        (finally
          (pop-thread-bindings)))))
+
+
+(defn with-redefs-fn
+  "Temporarily re-bind the given Var roots to the given values while executing
+  the function `f`, binding back to the original value afterwards.
+
+  Changes to the Var roots will be visible in all threads.
+
+  Note that Basilisp directly links Var references in compiled code by default
+  for performance reasons. Direct linking can be disabled for all Vars during
+  compilation by setting the `--use-var-indirection` compiler flag at startup.
+  Direct linking can be disabled for individual Vars by setting the `^:redef`
+  meta flag where the Var is `def`'ed.
+
+  `with-redefs` will throw an Exception if directly linked Vars are given in
+  the bindings."
+  [bindings-map f]
+  (when-not (and (:use-var-indirection *compiler-options*)
+                 (every? #(:redef (meta %)) (keys bindings-map)))
+    (throw
+     (ex-info (str "Cannot redef selected Vars; either apply ^:redef meta to Vars or "
+                   "restart Basilisp with '--use-var-indirection false' compiler flag")
+              {:unredefable-vars (remove #(:redef (meta %)) (keys bindings-map))})))
+  (let [redef-vars (fn [m]
+                     (doseq [v    m
+                             :let [vvar (first v)
+                                   vval (second v)]]
+                       (set! (.-root vvar) vval)))
+        originals  (reduce (fn [m elem]
+                             (let [vvar (first elem)]
+                               (assoc m vvar (.-root vvar))))
+                           {}
+                           bindings-map)]
+    (try
+      (do
+        (redef-vars bindings-map)
+        (f))
+      (finally
+        (redef-vars originals)))))
+
+(defmacro with-redefs
+  "Temporarily re-bind the given Var roots to the given values while executing
+  the body, binding back to the original value afterwards.
+
+  Changes to the Var roots will be visible in all threads.
+
+  Note that Basilisp directly links Var references in compiled code by default
+  for performance reasons. Direct linking can be disabled for all Vars during
+  compilation by setting the `--use-var-indirection` compiler flag at startup.
+  Direct linking can be disabled for individual Vars by setting the `^:redef`
+  meta flag where the Var is `def`'ed.
+
+  `with-redefs` will throw an Exception if directly linked Vars are given in
+  the bindings."
+  [bindings & body]
+  (when-not (and (vector? bindings)
+                 (even? (count bindings))
+                 (pos? (count bindings)))
+    (throw
+     (ex-info "Expected an even number of bindings"
+              {:bindings bindings})))
+  (let [var-bindings (reduce (fn [v pair]
+                               (let [vvar (first pair)
+                                     vval (second pair)]
+                                 (conj v `(var ~vvar) vval)))
+                             []
+                             (partition 2 bindings))]
+    `(with-redefs-fn
+       ~(apply hash-map var-bindings)
+       (fn []
+         ~@body))))
 
 (defn ^:private perf-counter
   []
@@ -4205,7 +4281,7 @@
 (defn all-ns
   "Return a sequence of all namespaces."
   []
-  (vals @basilisp.lang.runtime.Namespace/-NAMESPACES))
+  (vals (basilisp.lang.runtime.Namespace/ns-cache)))
 
 (defn find-ns
   "Return the namespace named by sym if it exists, or nil otherwise."
@@ -4571,6 +4647,18 @@
        ~requires
        ~uses
        ~@imports)))
+
+(defn requiring-resolve
+  "Resolve the namespaced symbol `sym` as by `resolve`. If resolution fails, attempts
+  to require `sym`'s namespace (as by `require`) before resolving again."
+  [sym]
+  (if (qualified-symbol? sym)
+    (or (resolve sym)
+        (do (require (symbol (namespace sym)))
+            (resolve sym)))
+    (throw
+     (ex-info "Cannot resolve an unqualified symbol"
+              {:sym sym}))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Regex Functions ;;
