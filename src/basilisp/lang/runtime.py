@@ -71,18 +71,18 @@ NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
 SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 6), (3, 7), (3, 8), (3, 9)})
 
-# Private string constants
-_COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
-_DEFAULT_READER_FEATURES_VAR_NAME = "*default-reader-features*"
-_GENERATED_PYTHON_VAR_NAME = "*generated-python*"
-_PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
-_PRINT_DUP_VAR_NAME = "*print-dup*"
-_PRINT_LENGTH_VAR_NAME = "*print-length*"
-_PRINT_LEVEL_VAR_NAME = "*print-level*"
-_PRINT_META_VAR_NAME = "*print-meta*"
-_PRINT_READABLY_VAR_NAME = "*print-readably*"
-_PYTHON_VERSION = "*python-version*"
-_BASILISP_VERSION = "*basilisp-version*"
+# Public basilisp.core symbol names
+COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
+DEFAULT_READER_FEATURES_VAR_NAME = "*default-reader-features*"
+GENERATED_PYTHON_VAR_NAME = "*generated-python*"
+PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
+PRINT_DUP_VAR_NAME = "*print-dup*"
+PRINT_LENGTH_VAR_NAME = "*print-length*"
+PRINT_LEVEL_VAR_NAME = "*print-level*"
+PRINT_META_VAR_NAME = "*print-meta*"
+PRINT_READABLY_VAR_NAME = "*print-readably*"
+PYTHON_VERSION_VAR_NAME = "*python-version*"
+BASILISP_VERSION_VAR_NAME = "*basilisp-version*"
 
 # Common meta keys
 _DYNAMIC_META_KEY = kw.keyword("dynamic")
@@ -1458,16 +1458,16 @@ def lrepr(o, human_readable: bool = False) -> str:
     return lobj.lrepr(
         o,
         human_readable=human_readable,
-        print_dup=core_ns.find(sym.symbol(_PRINT_DUP_VAR_NAME)).value,  # type: ignore
+        print_dup=core_ns.find(sym.symbol(PRINT_DUP_VAR_NAME)).value,  # type: ignore
         print_length=core_ns.find(  # type: ignore
-            sym.symbol(_PRINT_LENGTH_VAR_NAME)
+            sym.symbol(PRINT_LENGTH_VAR_NAME)
         ).value,
         print_level=core_ns.find(  # type: ignore
-            sym.symbol(_PRINT_LEVEL_VAR_NAME)
+            sym.symbol(PRINT_LEVEL_VAR_NAME)
         ).value,
-        print_meta=core_ns.find(sym.symbol(_PRINT_META_VAR_NAME)).value,  # type: ignore
+        print_meta=core_ns.find(sym.symbol(PRINT_META_VAR_NAME)).value,  # type: ignore
         print_readably=core_ns.find(  # type: ignore
-            sym.symbol(_PRINT_READABLY_VAR_NAME)
+            sym.symbol(PRINT_READABLY_VAR_NAME)
         ).value,
     )
 
@@ -1749,14 +1749,46 @@ def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
 
 
 def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
-    """Resolve the aliased symbol to a Var from the specified
-    namespace, or the current namespace if none is specified."""
+    """Resolve the aliased symbol to a Var from the specified namespace, or the
+    current namespace if none is specified."""
     return Var.find(resolve_alias(s, ns))
 
 
 #######################
 # Namespace Utilities #
 #######################
+
+
+@contextlib.contextmanager
+def bindings(bindings: Optional[Mapping[Union[str, sym.Symbol, Var], Any]] = None):
+    """Context manager for temporarily changing the value thread-local value for
+    Basilisp dynamic Vars."""
+
+    def _to_var(v: Union[str, sym.Symbol, Var]) -> Var:
+        if isinstance(v, Var):
+            return v
+        elif isinstance(v, sym.Symbol):
+            var = resolve_var(v)
+            if var is None:
+                raise RuntimeException(f"Cannot resolve Var for symbol {v}")
+            return var
+        else:
+            assert isinstance(v, str)
+            ns, name = v.split("/", maxsplit=1)
+            return _to_var(sym.symbol(name, ns=ns))
+
+    m = lmap.map({_to_var(k): v for k, v in (bindings or {}).items()})
+    logger.debug(
+        f"Binding thread-local values for Vars: {', '.join(map(str, m.keys()))}"
+    )
+    try:
+        push_thread_bindings(m)
+        yield
+    finally:
+        pop_thread_bindings()
+        logger.debug(
+            f"Reset thread-local bindings for Vars: {', '.join(map(str, m.keys()))}"
+        )
 
 
 @contextlib.contextmanager
@@ -1768,13 +1800,8 @@ def ns_bindings(ns_name: str, module: BasilispModule = None) -> Iterator[Namespa
         lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
     )
 
-    try:
-        logger.debug(f"Binding {NS_VAR_SYM} to {ns}")
-        ns_var.push_bindings(ns)
+    with bindings({ns_var: ns}):
         yield ns_var.value
-    finally:
-        ns_var.pop_bindings()
-        logger.debug(f"Reset bindings for {NS_VAR_SYM} to {ns_var.value}")
 
 
 @contextlib.contextmanager
@@ -1828,10 +1855,10 @@ def add_generated_python(
     """Add generated Python code to a dynamic variable in which_ns."""
     if which_ns is None:
         which_ns = get_current_ns()
-    v = Maybe(which_ns.find(sym.symbol(_GENERATED_PYTHON_VAR_NAME))).or_else(
+    v = Maybe(which_ns.find(sym.symbol(GENERATED_PYTHON_VAR_NAME))).or_else(
         lambda: Var.intern(
             which_ns,  # type: ignore
-            sym.symbol(_GENERATED_PYTHON_VAR_NAME),
+            sym.symbol(GENERATED_PYTHON_VAR_NAME),
             "",
             dynamic=True,
             meta=lmap.map({_PRIVATE_META_KEY: True}),
@@ -1845,7 +1872,7 @@ def add_generated_python(
 
 def print_generated_python() -> bool:
     """Return the value of the `*print-generated-python*` dynamic variable."""
-    ns_sym = sym.symbol(_PRINT_GENERATED_PY_VAR_NAME, ns=CORE_NS)
+    ns_sym = sym.symbol(PRINT_GENERATED_PY_VAR_NAME, ns=CORE_NS)
     return (
         Maybe(Var.find(ns_sym))
         .map(lambda v: v.value)
@@ -1888,7 +1915,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     # Dynamic Var examined by the compiler when importing new Namespaces
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_COMPILER_OPTIONS_VAR_NAME),
+        sym.symbol(COMPILER_OPTIONS_VAR_NAME),
         compiler_opts,
         dynamic=True,
     )
@@ -1896,7 +1923,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     # Dynamic Var for introspecting the default reader featureset
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_DEFAULT_READER_FEATURES_VAR_NAME),
+        sym.symbol(DEFAULT_READER_FEATURES_VAR_NAME),
         READER_COND_DEFAULT_FEATURE_SET,
         dynamic=True,
     )
@@ -1904,14 +1931,14 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     # Dynamic Vars examined by the compiler for generating Python code for debugging
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_PRINT_GENERATED_PY_VAR_NAME),
+        sym.symbol(PRINT_GENERATED_PY_VAR_NAME),
         False,
         dynamic=True,
         meta=lmap.map({_PRIVATE_META_KEY: True}),
     )
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_GENERATED_PYTHON_VAR_NAME),
+        sym.symbol(GENERATED_PYTHON_VAR_NAME),
         "",
         dynamic=True,
         meta=lmap.map({_PRIVATE_META_KEY: True}),
@@ -1919,20 +1946,20 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
 
     # Dynamic Vars for controlling printing
     Var.intern(
-        CORE_NS_SYM, sym.symbol(_PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
+        CORE_NS_SYM, sym.symbol(PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
     )
     Var.intern(
-        CORE_NS_SYM, sym.symbol(_PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
+        CORE_NS_SYM, sym.symbol(PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
     )
     Var.intern(
-        CORE_NS_SYM, sym.symbol(_PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
+        CORE_NS_SYM, sym.symbol(PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
     )
     Var.intern(
-        CORE_NS_SYM, sym.symbol(_PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
+        CORE_NS_SYM, sym.symbol(PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
     )
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_PRINT_READABLY_VAR_NAME),
+        sym.symbol(PRINT_READABLY_VAR_NAME),
         lobj.PRINT_READABLY,
         dynamic=True,
     )
@@ -1942,17 +1969,20 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
 
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_PYTHON_VERSION),
+        sym.symbol(PYTHON_VERSION_VAR_NAME),
         vec.vector(sys.version_info),
         dynamic=True,
     )
     Var.intern(
-        CORE_NS_SYM, sym.symbol(_BASILISP_VERSION), vec.vector(VERSION), dynamic=True
+        CORE_NS_SYM,
+        sym.symbol(BASILISP_VERSION_VAR_NAME),
+        vec.vector(VERSION),
+        dynamic=True,
     )
 
 
 def get_compiler_opts() -> CompilerOpts:
     """Return the current compiler options map."""
-    v = Var.find_in_ns(CORE_NS_SYM, sym.symbol(_COMPILER_OPTIONS_VAR_NAME))
+    v = Var.find_in_ns(CORE_NS_SYM, sym.symbol(COMPILER_OPTIONS_VAR_NAME))
     assert v is not None, "*compiler-options* Var not defined"
     return cast(CompilerOpts, v.value)

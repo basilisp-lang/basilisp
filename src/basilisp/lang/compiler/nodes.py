@@ -907,14 +907,11 @@ class VarRef(Node[sym.Symbol], Assignable):
     var: Var
     env: NodeEnv
     return_var: bool = False
+    is_assignable: bool = True
     children: Sequence[kw.Keyword] = vec.PersistentVector.empty()
     op: NodeOp = NodeOp.VAR
     top_level: bool = False
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
-
-    @property
-    def is_assignable(self) -> bool:
-        return self.var.dynamic
 
 
 @attr.s(auto_attribs=True, frozen=True, slots=True)

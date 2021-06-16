@@ -5,7 +5,7 @@ import os
 import sys
 import traceback
 import types
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence, Type
 
 from basilisp import main as basilisp
 from basilisp.lang import compiler as compiler
@@ -19,6 +19,8 @@ REPL_INPUT_FILE_PATH = "<REPL Input>"
 REPL_NS = "basilisp.repl"
 STDIN_INPUT_FILE_PATH = "<stdin>"
 STDIN_FILE_NAME = "-"
+
+DEFAULT_COMPILER_OPTS = {k.name: v for k, v in compiler.compiler_opts().items()}
 
 
 def eval_file(filename: str, ctx: compiler.CompilerContext, ns: runtime.Namespace):
@@ -56,42 +58,137 @@ def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.Module
     return importlib.import_module(REPL_NS)
 
 
+def _set_envvar_action(
+    var: str, parent: Type[argparse.Action] = argparse.Action
+) -> Type[argparse.Action]:
+    """Return an argparse.Action instance (deriving from `parent`) that sets the value
+    as the default value of the environment variable `var`."""
+
+    class EnvVarSetterAction(parent):  # type: ignore
+        def __call__(  # pylint: disable=signature-differs
+            self,
+            parser: argparse.ArgumentParser,
+            namespace: argparse.Namespace,
+            values: Any,
+            option_string: str,
+        ):
+            os.environ.setdefault(var, str(values))
+
+    return EnvVarSetterAction
+
+
+def _to_bool(v: Optional[str]) -> Optional[bool]:
+    """Coerce a string argument to a boolean value, if possible."""
+    if v is None:
+        return v
+    elif v.lower() in {"true", "t", "1", "yes", "y"}:
+        return True
+    elif v.lower() in {"false", "f", "0", "no", "n"}:
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Unable to coerce flag value to boolean.")
+
+
 def _add_compiler_arg_group(parser: argparse.ArgumentParser) -> None:
-    group = parser.add_argument_group("compiler arguments")
+    group = parser.add_argument_group(
+        "compiler arguments",
+        description=(
+            "The compiler arguments below can be used to tweak warnings emitted by the "
+            "compiler during compilation and in some cases, tweak emitted code. Note "
+            "that Basilisp, like Python, aggressively caches compiled namespaces so "
+            "you may need to disable namespace caching or modify your file to see the "
+            "compiler argument changes take effect."
+        ),
+    )
     group.add_argument(
         "--warn-on-shadowed-name",
-        action="store_const",
-        const=True,
-        default=os.getenv("BASILISP_WARN_ON_SHADOWED_NAME"),
-        help="if provided, emit warnings if a local name is shadowed by another local name",
+        action="store",
+        nargs="?",
+        const=os.getenv("BASILISP_WARN_ON_SHADOWED_NAME"),
+        type=_to_bool,
+        help=(
+            "if true, emit warnings if a local name is shadowed by another local "
+            "name (env: BASILISP_WARN_ON_SHADOWED_NAME; default: "
+            f"{DEFAULT_COMPILER_OPTS['warn-on-shadowed-name']})"
+        ),
     )
     group.add_argument(
         "--warn-on-shadowed-var",
-        action="store_const",
-        const=True,
-        default=os.getenv("BASILISP_WARN_ON_SHADOWED_VAR"),
-        help="if provided, emit warnings if a Var name is shadowed by a local name",
+        action="store",
+        nargs="?",
+        const=os.getenv("BASILISP_WARN_ON_SHADOWED_VAR"),
+        type=_to_bool,
+        help=(
+            "if true, emit warnings if a Var name is shadowed by a local name "
+            "(env: BASILISP_WARN_ON_SHADOWED_VAR; default: "
+            f"{DEFAULT_COMPILER_OPTS['warn-on-shadowed-var']})"
+        ),
     )
     group.add_argument(
         "--warn-on-unused-names",
-        action="store_const",
-        const=True,
-        default=os.getenv("BASILISP_WARN_ON_UNUSED_NAMES"),
-        help="if provided, emit warnings if a local name is bound and unused",
+        action="store",
+        nargs="?",
+        const=os.getenv("BASILISP_WARN_ON_UNUSED_NAMES"),
+        type=_to_bool,
+        help=(
+            "if true, emit warnings if a local name is bound and unused "
+            "(env: BASILISP_WARN_ON_UNUSED_NAMES; default: "
+            f"{DEFAULT_COMPILER_OPTS['warn-on-unused-names']})"
+        ),
+    )
+    group.add_argument(
+        "--warn-on-non-dynamic-set",
+        action="store",
+        nargs="?",
+        const=os.getenv("BASILISP_WARN_ON_NON_DYNAMIC_SET"),
+        type=_to_bool,
+        help=(
+            "if true, emit warnings if the compiler detects an attempt to set! "
+            "a Var which is not marked as ^:dynamic (env: "
+            "BASILISP_WARN_ON_NON_DYNAMIC_SET; default: "
+            f"{DEFAULT_COMPILER_OPTS['warn-on-non-dynamic-set']})"
+        ),
     )
     group.add_argument(
         "--use-var-indirection",
-        action="store_const",
-        const=True,
-        default=os.getenv("BASILISP_USE_VAR_INDIRECTION"),
-        help="if provided, all Var accesses will be performed via Var indirection",
+        action="store",
+        nargs="?",
+        const=os.getenv("BASILISP_USE_VAR_INDIRECTION"),
+        type=_to_bool,
+        help=(
+            "if true, all Var accesses will be performed via Var indirection "
+            "(env: BASILISP_USE_VAR_INDIRECTION; default: "
+            f"{DEFAULT_COMPILER_OPTS['use-var-indirection']})"
+        ),
     )
     group.add_argument(
         "--warn-on-var-indirection",
-        action="store_const",
+        action="store",
+        nargs="?",
+        const=os.getenv("BASILISP_WARN_ON_VAR_INDIRECTION"),
+        type=_to_bool,
+        help=(
+            "if true, emit warnings if a Var reference cannot be direct linked "
+            "(env: BASILISP_WARN_ON_VAR_INDIRECTION; default: "
+            f"{DEFAULT_COMPILER_OPTS['warn-on-var-indirection']})"
+        ),
+    )
+
+
+def _add_debug_arg_group(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group("debug options")
+    group.add_argument(
+        "--disable-ns-cache",
+        action=_set_envvar_action(
+            "BASILISP_DO_NOT_CACHE_NAMESPACES", parent=argparse._StoreAction
+        ),
+        nargs="?",
         const=True,
-        default=os.getenv("BASILISP_WARN_ON_VAR_INDIRECTION"),
-        help="if provided, emit warnings if a Var reference cannot be direct linked",
+        type=_to_bool,
+        help=(
+            "if true, disable attempting to load cached namespaces "
+            "(env: BASILISP_DO_NOT_CACHE_NAMESPACES; default: false)"
+        ),
     )
 
 
@@ -131,41 +228,71 @@ def repl(
     )
     basilisp.init(opts)
     ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts=opts)
-    repl_module = bootstrap_repl(ctx, args.default_ns)
-    ns_var = runtime.set_current_ns(args.default_ns)
     prompter = get_prompter()
     eof = object()
-    while True:
-        ns: runtime.Namespace = ns_var.value
-        try:
-            lsrc = prompter.prompt(f"{ns.name}=> ")
-        except EOFError:
-            break
-        except KeyboardInterrupt:  # pragma: no cover
-            print("")
-            continue
 
-        if len(lsrc) == 0:
-            continue
+    # Bind user-settable dynamic Vars to their existing value to allow users to
+    # conveniently (set! *var* val) at the REPL without needing `binding`.
+    with runtime.bindings(
+        {
+            var: var.value
+            for var in map(
+                lambda name: runtime.Var.find_safe(
+                    sym.symbol(name, ns="basilisp.core")
+                ),
+                [
+                    "*e",
+                    "*1",
+                    "*2",
+                    "*3",
+                    "*assert*",
+                    "*data-readers*",
+                    "*resolver*",
+                    runtime.PRINT_DUP_VAR_NAME,
+                    runtime.PRINT_LEVEL_VAR_NAME,
+                    runtime.PRINT_READABLY_VAR_NAME,
+                    runtime.PRINT_LEVEL_VAR_NAME,
+                    runtime.PRINT_META_VAR_NAME,
+                ],
+            )
+        }
+    ):
+        repl_module = bootstrap_repl(ctx, args.default_ns)
+        ns_var = runtime.set_current_ns(args.default_ns)
 
-        try:
-            result = eval_str(lsrc, ctx, ns, eof)
-            if result is eof:  # pragma: no cover
+        while True:
+            ns: runtime.Namespace = ns_var.value
+            try:
+                lsrc = prompter.prompt(f"{ns.name}=> ")
+            except EOFError:
+                break
+            except KeyboardInterrupt:  # pragma: no cover
+                print("")
                 continue
-            prompter.print(runtime.lrepr(result))
-            repl_module.mark_repl_result(result)  # type: ignore
-        except reader.SyntaxError as e:
-            traceback.print_exception(reader.SyntaxError, e, e.__traceback__)
-            repl_module.mark_exception(e)  # type: ignore
-            continue
-        except compiler.CompilerException as e:
-            traceback.print_exception(compiler.CompilerException, e, e.__traceback__)
-            repl_module.mark_exception(e)  # type: ignore
-            continue
-        except Exception as e:
-            traceback.print_exception(Exception, e, e.__traceback__)
-            repl_module.mark_exception(e)  # type: ignore
-            continue
+
+            if len(lsrc) == 0:
+                continue
+
+            try:
+                result = eval_str(lsrc, ctx, ns, eof)
+                if result is eof:  # pragma: no cover
+                    continue
+                prompter.print(runtime.lrepr(result))
+                repl_module.mark_repl_result(result)  # type: ignore
+            except reader.SyntaxError as e:
+                traceback.print_exception(reader.SyntaxError, e, e.__traceback__)
+                repl_module.mark_exception(e)  # type: ignore
+                continue
+            except compiler.CompilerException as e:
+                traceback.print_exception(
+                    compiler.CompilerException, e, e.__traceback__
+                )
+                repl_module.mark_exception(e)  # type: ignore
+                continue
+            except Exception as e:
+                traceback.print_exception(Exception, e, e.__traceback__)
+                repl_module.mark_exception(e)  # type: ignore
+                continue
 
 
 @_subcommand(
@@ -181,6 +308,7 @@ def _add_repl_subcommand(parser: argparse.ArgumentParser) -> None:
         help="default namespace to use for the REPL",
     )
     _add_compiler_arg_group(parser)
+    _add_debug_arg_group(parser)
 
 
 def run(
@@ -248,6 +376,7 @@ def _add_run_subcommand(parser: argparse.ArgumentParser):
         "--in-ns", default=runtime.REPL_DEFAULT_NS, help="namespace to use for the code"
     )
     _add_compiler_arg_group(parser)
+    _add_debug_arg_group(parser)
 
 
 def test(parser: argparse.ArgumentParser, args: argparse.Namespace):  # pragma: no cover

@@ -131,5 +131,18 @@ skip = [
   "pip-wheel-metadata",
 ]
 
+[tool.mypy]
+check_untyped_defs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+    "astor.*",
+    "prompt_toolkit.*",
+    "pygments.*",
+    "pytest.*"
+]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 junit_family = "legacy"
