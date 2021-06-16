@@ -2627,6 +2627,7 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
         target, (HostField, Local, VarRef)
     ), f"invalid set! target type {type(target)}"
 
+    check_set_ast: List[ast.AST] = []
     if isinstance(target, HostField):
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
     elif isinstance(target, VarRef):
@@ -2694,6 +2695,7 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
                         )
                     ],
                     target_ast.dependencies,
+                    check_set_ast,
                     [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
                 )
             ),
@@ -2705,6 +2707,7 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
                 chain(
                     val_ast.dependencies,
                     target_ast.dependencies,
+                    check_set_ast,
                     [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
                 )
             ),
