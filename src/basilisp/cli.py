@@ -20,6 +20,9 @@ REPL_NS = "basilisp.repl"
 STDIN_INPUT_FILE_PATH = "<stdin>"
 STDIN_FILE_NAME = "-"
 
+BOOL_TRUE = frozenset({"true", "t", "1", "yes", "y"})
+BOOL_FALSE = frozenset({"false", "f", "0", "no", "n"})
+
 DEFAULT_COMPILER_OPTS = {k.name: v for k, v in compiler.compiler_opts().items()}
 
 
@@ -58,6 +61,18 @@ def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.Module
     return importlib.import_module(REPL_NS)
 
 
+def _to_bool(v: Optional[str]) -> Optional[bool]:
+    """Coerce a string argument to a boolean value, if possible."""
+    if v is None:
+        return v
+    elif v.lower() in BOOL_TRUE:
+        return True
+    elif v.lower() in BOOL_FALSE:
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Unable to coerce flag value to boolean.")
+
+
 def _set_envvar_action(
     var: str, parent: Type[argparse.Action] = argparse.Action
 ) -> Type[argparse.Action]:
@@ -75,18 +90,6 @@ def _set_envvar_action(
             os.environ.setdefault(var, str(values))
 
     return EnvVarSetterAction
-
-
-def _to_bool(v: Optional[str]) -> Optional[bool]:
-    """Coerce a string argument to a boolean value, if possible."""
-    if v is None:
-        return v
-    elif v.lower() in {"true", "t", "1", "yes", "y"}:
-        return True
-    elif v.lower() in {"false", "f", "0", "no", "n"}:
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Unable to coerce flag value to boolean.")
 
 
 def _add_compiler_arg_group(parser: argparse.ArgumentParser) -> None:

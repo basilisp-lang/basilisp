@@ -7,8 +7,19 @@ from unittest.mock import patch
 
 import pytest
 
-from basilisp.cli import invoke_cli
+from basilisp.cli import BOOL_FALSE, BOOL_TRUE, invoke_cli
 from basilisp.prompt import Prompter
+
+
+@pytest.fixture(autouse=True)
+def env_vars():
+    environ = set(os.environ.items())
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        for var, val in environ:
+            os.environ[var] = val
 
 
 @pytest.fixture
@@ -33,6 +44,28 @@ def run_cli(monkeypatch, capsys):
         return capsys.readouterr()
 
     return _run_cli
+
+
+def test_debug_flag(run_cli):
+    result = run_cli(["run", "--disable-ns-cache", "true", "-c", "(+ 1 2)"])
+    assert "3\n" == result.out
+    assert os.environ["BASILISP_DO_NOT_CACHE_NAMESPACES"] == "True"
+
+
+class TestCompilerFlags:
+    def test_no_flag(self, run_cli):
+        result = run_cli(["run", "--warn-on-var-indirection", "-c", "(+ 1 2)"])
+        assert "3\n" == result.out
+
+    @pytest.mark.parametrize("val", BOOL_TRUE | BOOL_FALSE)
+    def test_valid_flag(self, run_cli, val):
+        result = run_cli(["run", "--warn-on-var-indirection", val, "-c", "(+ 1 2)"])
+        assert "3\n" == result.out
+
+    @pytest.mark.parametrize("val", ["maybe", "not-no", "4"])
+    def test_invalid_flag(self, run_cli, val):
+        with pytest.raises(SystemExit):
+            run_cli(["run", "--warn-on-var-indirection", val, "-c", "(+ 1 2)"])
 
 
 class TestREPL:
