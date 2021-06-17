@@ -1760,24 +1760,10 @@ def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
 
 
 @contextlib.contextmanager
-def bindings(bindings: Optional[Mapping[Union[str, sym.Symbol, Var], Any]] = None):
+def bindings(bindings: Optional[Mapping[Var, Any]] = None):
     """Context manager for temporarily changing the value thread-local value for
     Basilisp dynamic Vars."""
-
-    def _to_var(v: Union[str, sym.Symbol, Var]) -> Var:
-        if isinstance(v, Var):
-            return v
-        elif isinstance(v, sym.Symbol):
-            var = resolve_var(v)
-            if var is None:
-                raise RuntimeException(f"Cannot resolve Var for symbol {v}")
-            return var
-        else:
-            assert isinstance(v, str)
-            ns, name = v.split("/", maxsplit=1)
-            return _to_var(sym.symbol(name, ns=ns))
-
-    m = lmap.map({_to_var(k): v for k, v in (bindings or {}).items()})
+    m = lmap.map(bindings or {})
     logger.debug(
         f"Binding thread-local values for Vars: {', '.join(map(str, m.keys()))}"
     )

@@ -238,7 +238,7 @@ def repl(
             var: var.value
             for var in map(
                 lambda name: runtime.Var.find_safe(
-                    sym.symbol(name, ns="basilisp.core")
+                    sym.symbol(name, ns=runtime.CORE_NS)
                 ),
                 [
                     "*e",
