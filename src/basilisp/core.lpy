@@ -4646,6 +4646,16 @@
       (refer-lib current-ns libspec))
     nil))
 
+(defonce ^:dynamic ^:private *loaded-libs*
+  (atom #{}))
+
+(defn loaded-libs
+  "Return a set of all loaded Basilisp namespace names as symbols.
+
+  Namespace names are only added to this list if they appear in an `ns` macro."
+  []
+  @*loaded-libs*)
+
 (defmacro ns
   "Use this namespace pre-amble at the top of every namespace to declare
   the namespace name and import necessary Python modules and require
@@ -4693,6 +4703,7 @@
                              (:import opts)))]
     `(do
        (in-ns (quote ~name))
+       (swap! *loaded-libs* conj (quote ~name))
        ~(when doc
           `(alter-meta! (the-ns (quote ~name)) assoc :doc ~doc))
        (refer-basilisp ~@refer-filters)
