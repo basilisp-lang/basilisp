@@ -49,7 +49,7 @@ def run_cli(monkeypatch, capsys):
 def test_debug_flag(run_cli):
     result = run_cli(["run", "--disable-ns-cache", "true", "-c", "(+ 1 2)"])
     assert "3\n" == result.out
-    assert os.environ["BASILISP_DO_NOT_CACHE_NAMESPACES"] == "True"
+    assert os.environ["BASILISP_DO_NOT_CACHE_NAMESPACES"].lower() == "true"
 
 
 class TestCompilerFlags:
