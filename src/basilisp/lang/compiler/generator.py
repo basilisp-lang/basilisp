@@ -2648,11 +2648,7 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
                         ast.If(
                             test=ast.UnaryOp(
                                 op=ast.Not(),
-                                operand=ast.Attribute(
-                                    value=ast.Name(id=temp_var_name, ctx=ast.Load()),
-                                    attr="is_thread_bound",
-                                    ctx=ast.Load(),
-                                ),
+                                operand=_load_attr(f"{temp_var_name}.is_thread_bound"),
                             ),
                             body=[
                                 ast.Raise(
