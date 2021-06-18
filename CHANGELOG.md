@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added a bootstrapping function for easily bootstrapping Basilisp projects from Python (#620)
  * Added support for watchers and validator functions on Atoms and Vars (#627)
  * Added support for Taps (#631)
- * Added support for hierarchies (#???)
+ * Added support for hierarchies (#633)
 
 ### Changed
  * PyTest is now an optional extra dependency, rather than a required dependency (#622)
@@ -18,9 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
  * Fixed a bug where `seq`ing co-recursive lazy sequences would cause a stack overflow (#632)
  * Fixed a spurious failure in the test runner and switched to using macro forms for test line numbers (#631)
+ * Fixed a bug that allowed dynamic Vars to be `set!` even if they weren't thread-bound (#638)
 
 ### Removed
- * Removed Click as a dependency in favor of builtin `argparse` (#622, #624)
+ * Removed Click as a dependency in favor of builtin `argparse` (#622, #624, #636)
  * Removed Atomos as a dependency in favor of `readerwriterlock` (#624)
 
 ## [v0.1.dev15]

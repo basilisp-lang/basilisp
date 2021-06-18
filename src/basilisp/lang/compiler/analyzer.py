@@ -136,6 +136,7 @@ logger = logging.getLogger(__name__)
 WARN_ON_SHADOWED_NAME = kw.keyword("warn-on-shadowed-name")
 WARN_ON_SHADOWED_VAR = kw.keyword("warn-on-shadowed-var")
 WARN_ON_UNUSED_NAMES = kw.keyword("warn-on-unused-names")
+WARN_ON_NON_DYNAMIC_SET = kw.keyword("warn-on-non-dynamic-set")
 
 # Lisp AST node keywords
 INIT = kw.keyword("init")
@@ -363,6 +364,11 @@ class AnalyzerContext:
         return self.warn_on_shadowed_name or self._opts.val_at(
             WARN_ON_SHADOWED_VAR, False
         )
+
+    @property
+    def warn_on_non_dynamic_set(self) -> bool:
+        """If True, warn when attempting to set! a Var not marked as ^:dynamic."""
+        return self._opts.val_at(WARN_ON_NON_DYNAMIC_SET, True)
 
     @property
     def is_quoted(self) -> bool:
@@ -2741,6 +2747,22 @@ def _set_bang_ast(form: ISeq, ctx: AnalyzerContext) -> SetBang:
         raise AnalyzerException(
             "cannot set! target which is not assignable", form=target
         )
+
+    # Vars may only be set if they are (1) dynamic, and (2) already have a thread
+    # binding established via the `binding` macro in Basilisp or by manually pushing
+    # thread bindings (e.g. by runtime.push_thread_bindings).
+    #
+    # We can (generally) establish statically whether a Var is dynamic at compile time,
+    # but establishing whether or not a Var will be thread-bound by the time a set!
+    # is executed is much more challenging. Given the dynamic nature of the language,
+    # it is simply easier to emit warnings for these potentially invalid cases to let
+    # users fix the problem.
+    if isinstance(target, VarRef):
+        if ctx.warn_on_non_dynamic_set and not target.var.dynamic:
+            logger.warning(f"set! target {target.var} is not marked as dynamic")
+        elif not target.var.is_thread_bound:
+            # This case is way more likely to result in noise, so just emit at debug.
+            logger.debug(f"set! target {target.var} is not marked as thread-bound")
 
     with ctx.expr_pos():
         val = _analyze_form(runtime.nth(form, 2), ctx)

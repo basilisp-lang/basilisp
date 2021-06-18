@@ -9,6 +9,7 @@ from basilisp import _pyast as ast
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
+    WARN_ON_NON_DYNAMIC_SET,
     WARN_ON_SHADOWED_NAME,
     WARN_ON_SHADOWED_VAR,
     WARN_ON_UNUSED_NAMES,
@@ -69,10 +70,11 @@ class CompilerContext:
         return self._optimizer
 
 
-def compiler_opts(
+def compiler_opts(  # pylint: disable=too-many-arguments
     warn_on_shadowed_name: Optional[bool] = None,
     warn_on_shadowed_var: Optional[bool] = None,
     warn_on_unused_names: Optional[bool] = None,
+    warn_on_non_dynamic_set: Optional[bool] = None,
     use_var_indirection: Optional[bool] = None,
     warn_on_var_indirection: Optional[bool] = None,
 ) -> CompilerOpts:
@@ -83,6 +85,7 @@ def compiler_opts(
             WARN_ON_SHADOWED_NAME: warn_on_shadowed_name or False,
             WARN_ON_SHADOWED_VAR: warn_on_shadowed_var or False,
             WARN_ON_UNUSED_NAMES: warn_on_unused_names or True,
+            WARN_ON_NON_DYNAMIC_SET: warn_on_non_dynamic_set or True,
             # Generator options
             USE_VAR_INDIRECTION: use_var_indirection or False,
             WARN_ON_VAR_INDIRECTION: warn_on_var_indirection or True,

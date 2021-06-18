@@ -1135,12 +1135,13 @@ class TestDefType:
         ):
             Point = lcompile(
                 """
+            (import* types)
             (do
-              (def ^:dynamic a nil)
+              (def a (types/SimpleNamespace))
               (deftype* Point [x]
                 :implements [WithCls]
                 (^:classmethod create [cls x]
-                  (set! a x)))
+                  (set! (.-val a) x)))
               Point)"""
             )
             assert kw.keyword("a") is Point.create(kw.keyword("a"))
@@ -1929,12 +1930,13 @@ class TestDefType:
         ):
             Point = lcompile(
                 """
+            (import* types)
             (do
-              (def ^:dynamic a nil)
+              (def a (types/SimpleNamespace))
               (deftype* Point [x]
                 :implements [WithStatic]
                 (^:staticmethod dostatic [x]
-                  (set! a x)))
+                  (set! (.-val a) x)))
               Point)"""
             )
             assert kw.keyword("a") is Point.dostatic(kw.keyword("a"))
@@ -4787,7 +4789,7 @@ class TestSetBang:
             lcompile("(fn [a b] (set! a :c))")
 
     def test_set_cannot_assign_non_dynamic_var(self, lcompile: CompileFn):
-        with pytest.raises(compiler.CompilerException):
+        with pytest.raises(runtime.RuntimeException):
             lcompile(
                 """
             (def static-var :kw)
@@ -4795,16 +4797,27 @@ class TestSetBang:
             """
             )
 
-    def test_set_can_assign_dynamic_var(
+    def test_set_cannot_assign_dynamic_var_without_thread_bindings(
         self, lcompile: CompileFn, ns: runtime.Namespace
     ):
-        code = """
-        (def ^:dynamic *dynamic-var* :kw)
-        (set! *dynamic-var* \"instead a string\")
-        """
-        assert "instead a string" == lcompile(code)
-        var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("*dynamic-var*"))
-        assert var is not None
+        with pytest.raises(runtime.RuntimeException):
+            lcompile(
+                """
+            (def ^:dynamic *dynamic-var* :kw)
+            (set! *dynamic-var* \"instead a string\")
+            """
+            )
+
+    def test_set_can_assign_thread_bound_dynamic_var(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        var = lcompile("(def ^:dynamic *thread-bound-var* :kw)")
+        assert not var.is_thread_bound
+        var.push_bindings(sym.symbol("a-symbol"))
+        assert var.is_thread_bound
+        assert sym.symbol("a-symbol") == lcompile("*thread-bound-var*")
+        lcompile('(set! *thread-bound-var* "instead a string")')
+        assert "instead a string" == lcompile("*thread-bound-var*")
         assert "instead a string" == var.value
         assert kw.keyword("kw") == var.root
 
