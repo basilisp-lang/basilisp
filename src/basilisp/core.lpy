@@ -3630,14 +3630,13 @@
     `(let [obj#     ~expr
            ~binding (. obj# ~'__enter__)]
        (try
-         (do
-           ~@(if (nthnext bindings 2)
-               [(concat
-                 (list 'with (vec (nthrest bindings 2)))
-                 body)]
-               body)
-           (. ~binding (~'__exit__ nil nil nil))
-           nil)
+         ~@(if (nthnext bindings 2)
+             [(concat
+               (list 'with (vec (nthrest bindings 2)))
+               body)]
+             body)
+         (. ~binding (~'__exit__ nil nil nil))
+         nil
          (catch python/Exception e#
            (if (. ~binding (~'__exit__ (python/type e#) e# (. e# ~'__traceback__)))
              nil
@@ -6511,7 +6510,6 @@
   ([topic val]
    (force tap-thread)
    (try
-     (do
-       (.put-nowait tap-queue {:topic topic :val val})
-       true)
+     (.put-nowait tap-queue {:topic topic :val val})
+     true
      (catch queue/Full _ false))))

@@ -2787,7 +2787,7 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
             ast.Try(
                 body=list(
                     chain(
-                        body_ast.dependencies,
+                        map(statementize, body_ast.dependencies),
                         [
                             ast.Assign(
                                 targets=[ast.Name(id=try_expr_name, ctx=ast.Store())],
