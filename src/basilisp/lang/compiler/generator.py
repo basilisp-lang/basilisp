@@ -2627,40 +2627,55 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
         target, (HostField, Local, VarRef)
     ), f"invalid set! target type {type(target)}"
 
-    check_set_ast: List[ast.AST] = []
     if isinstance(target, HostField):
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
     elif isinstance(target, VarRef):
-        check_target_ast = _var_sym_to_py_ast(ctx, target.assoc(return_var=True))
-        target_ast = _var_sym_to_py_ast(ctx, target, is_assigning=True)
-        check_set_ast.extend(check_target_ast.dependencies)
-        check_set_ast.append(
-            ast.If(
-                test=ast.UnaryOp(
-                    op=ast.Not(),
-                    operand=ast.Attribute(
-                        value=check_target_ast.node,
-                        attr="is_thread_bound",
-                        ctx=ast.Load(),
-                    ),
-                ),
-                body=[
-                    ast.Raise(
-                        exc=ast.Call(
-                            func=_load_attr("basilisp.lang.runtime.RuntimeException"),
-                            args=[
-                                ast.Constant(
-                                    "Can't change/establish root binding of Var "
-                                    f"'{target.var}' with set!"
-                                ),
-                            ],
-                            keywords=[],
+        # This is a bit of a hack to force the generator to generate code for accessing
+        # a Var directly so we can store a temp reference to that Var rather than
+        # performing a global Var find twice for the same single expression.
+        temp_var_name = genname("var")
+        var_ast = _var_sym_to_py_ast(ctx, target.assoc(return_var=True))
+        target_ast = GeneratedPyAST(
+            node=_load_attr(f"{temp_var_name}.value", ctx=ast.Store()),
+            dependencies=list(
+                chain(
+                    var_ast.dependencies,
+                    [
+                        ast.Assign(
+                            targets=[ast.Name(id=temp_var_name, ctx=ast.Store())],
+                            value=var_ast.node,
                         ),
-                        cause=None,
-                    )
-                ],
-                orelse=[],
-            )
+                        ast.If(
+                            test=ast.UnaryOp(
+                                op=ast.Not(),
+                                operand=ast.Attribute(
+                                    value=ast.Name(id=temp_var_name, ctx=ast.Load()),
+                                    attr="is_thread_bound",
+                                    ctx=ast.Load(),
+                                ),
+                            ),
+                            body=[
+                                ast.Raise(
+                                    exc=ast.Call(
+                                        func=_load_attr(
+                                            "basilisp.lang.runtime.RuntimeException"
+                                        ),
+                                        args=[
+                                            ast.Constant(
+                                                "Can't change/establish root binding "
+                                                f"of Var '{target.var}' with set!"
+                                            ),
+                                        ],
+                                        keywords=[],
+                                    ),
+                                    cause=None,
+                                )
+                            ],
+                            orelse=[],
+                        ),
+                    ],
+                )
+            ),
         )
     elif isinstance(target, Local):
         target_ast = _local_sym_to_py_ast(ctx, target, is_assigning=True)
@@ -2683,7 +2698,6 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
                         )
                     ],
                     target_ast.dependencies,
-                    check_set_ast,
                     [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
                 )
             ),
@@ -2695,7 +2709,6 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
                 chain(
                     val_ast.dependencies,
                     target_ast.dependencies,
-                    check_set_ast,
                     [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
                 )
             ),
