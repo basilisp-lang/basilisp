@@ -953,6 +953,10 @@
 
 (atexit/register (.-shutdown *executor-pool*))
 
+;; Declare `bound-fn*` now for use in `future-call`, though it is defined much later
+;; with the rest of the Var binding functions and macros.
+(def ^:redef bound-fn*)
+
 (defn future-call
   "Call the no args function f in another thread. Returns a Future object.
   The value returned by f can be fetched using `deref` or `@`, though
@@ -960,7 +964,7 @@
   ([f]
    (future-call f *executor-pool*))
   ([f pool]
-   (.submit pool f)))
+   (.submit pool (bound-fn* f))))
 
 (defmacro future
   "Execute the expressions of body in another thread. Returns a Future object.
@@ -3686,13 +3690,63 @@
                                  (conj v `(var ~vvar) vval)))
                              []
                              (partition 2 bindings))]
-    `(try
-       (do
-         (push-thread-bindings (hash-map ~@var-bindings))
-         ~@body)
-       (finally
-         (pop-thread-bindings)))))
+    `(do
+       (push-thread-bindings (hash-map ~@var-bindings))
+       (try
+         ~@body
+         (finally
+           (pop-thread-bindings))))))
 
+(defn with-bindings*
+  "Execute the function `f` with the given arguments `args` (as by `apply`) with the
+  thread-local Var bindings specified in the Var/value map `bindings-map` installed.
+
+  The thread-local Var bindings will be popped after executing `f` in all cases.
+
+  Returns the return value of `f`."
+  [bindings-map f & args]
+  (push-thread-bindings bindings-map)
+  (try
+    (apply f args)
+    (finally
+      (pop-thread-bindings))))
+
+(defmacro with-bindings
+  "Execute the expressions given in the `body` with the thread-local Var bindings
+  specified in the Var/value map `bindings-map` installed.
+
+  The thread-local Var bindings will be popped after executing the body in all cases.
+
+  Returns the value of `body`."
+  [bindings-map & body]
+  `(with-bindings* ~bindings-map (fn [] ~@body)))
+
+(defn bound-fn*
+  "Return a function which executes `f` with the same thread-local Var bindings as
+  were in effect when `bound-fn*` was called.
+
+  `f` will be called with the same arguments as the returned function.
+
+  Returns the return value of `f`.
+
+  This is primarily useful for creating functions which might need to run on a different
+  thread, but which should have the same Var bindings in place as when it was defined."
+  [f]
+  (let [current-bindings (get-thread-bindings)]
+    (fn [& args]
+      (apply with-bindings* current-bindings f args))))
+
+(defmacro bound-fn
+  "Return a function with the same function tail (everything after `fn` when defining
+  a function) which will be executed with the same thread-local Var bindings as were
+  in effect when `bound-fn` was called.
+
+  Returns the return value of the defined function.
+
+  This is primarily useful for creating functions which might need to run on a different
+  thread, but which should have the same Var bindings in place as when it was defined."
+  [& fn-tail]
+  `(bound-fn* (fn ~@fn-tail)))
 
 (defn with-redefs-fn
   "Temporarily re-bind the given Var roots to the given values while executing
@@ -3726,9 +3780,8 @@
                            {}
                            bindings-map)]
     (try
-      (do
-        (redef-vars bindings-map)
-        (f))
+      (redef-vars bindings-map)
+      (f)
       (finally
         (redef-vars originals)))))
 
