@@ -331,8 +331,9 @@ class Var(RefBase):
 
     @property
     def value(self):
-        """Return the current value of the Var visible in the current thread. For
-        non-dynamic Vars, this will just be the root. For dynamic Vars, this will
+        """Return the current value of the Var visible in the current thread.
+
+        For non-dynamic Vars, this will just be the root. For dynamic Vars, this will
         be any thread-local binding if one is defined. Otherwise, the root value."""
         with self._rlock:
             if self._dynamic:
