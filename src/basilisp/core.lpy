@@ -4322,7 +4322,7 @@
   "Set the binding of the Var. Must be thread-local."
   [v val]
   (if (thread-bound? v)
-    (set! (.-value v) val)
+    (.set-value v val)
     (throw
      (ex-info "Cannot set non-thread-bound Var binding" {:var v}))))
 

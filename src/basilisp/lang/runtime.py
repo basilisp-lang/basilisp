@@ -331,6 +331,9 @@ class Var(RefBase):
 
     @property
     def value(self):
+        """Return the current value of the Var visible in the current thread. For
+        non-dynamic Vars, this will just be the root. For dynamic Vars, this will
+        be any thread-local binding if one is defined. Otherwise, the root value."""
         with self._rlock:
             if self._dynamic:
                 assert self._tl is not None
@@ -338,8 +341,11 @@ class Var(RefBase):
                     return self._tl.bindings[-1]
             return self._root
 
-    @value.setter
-    def value(self, v):
+    def set_value(self, v) -> None:
+        """Set the current value of the Var.
+
+        If the Var is not dynamic, this is equivalent to binding the root value. If the
+        Var is dynamic, this will set the thread-local bindings for the Var."""
         with self._wlock:
             if self._dynamic:
                 assert self._tl is not None
@@ -1901,7 +1907,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
 
     def in_ns(s: sym.Symbol):
         ns = Namespace.get_or_create(s)
-        _NS.value = ns
+        _NS.set_value(ns)
         return ns
 
     # Vars used in bootstrapping the runtime

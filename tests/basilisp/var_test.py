@@ -134,9 +134,9 @@ def test_var_validators_do_fire_for_thread_local(
     v.set_validator(even_validator)
 
     with pytest.raises(ExceptionInfo):
-        v.value = 5
+        v.set_value(5)
 
-    v.value = 4
+    v.set_value(4)
     assert 4 == v.value
 
 
@@ -188,7 +188,7 @@ def test_var_watchers_do_not_fire_for_thread_local(
         watcher_vals.append((old, new))
 
     v.add_watch("watcher", watcher)
-    v.value = 10
+    v.set_value(10)
 
     assert not watcher_vals
     assert 10 == v.value
@@ -222,7 +222,7 @@ def test_dynamic_var(
         assert new_val == v.value
         assert new_val == v.deref()
 
-        v.value = new_val2
+        v.set_value(new_val2)
         assert v.is_bound
         assert v.dynamic
         assert v.is_thread_bound
@@ -266,7 +266,7 @@ def test_var_bindings_are_noop_for_non_dynamic_var(
         assert intern_val == v.value
         assert intern_val == v.deref()
 
-        v.value = new_val2
+        v.set_value(new_val2)
         assert v.is_bound
         assert not v.dynamic
         assert not v.is_thread_bound
