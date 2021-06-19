@@ -101,13 +101,13 @@ def test_var_validators(ns_sym: sym.Symbol, var_name: sym.Symbol):
     assert even_validator == v.get_validator()
 
     with pytest.raises(ExceptionInfo):
-        v.root = 1
+        v.bind_root(1)
 
     with pytest.raises(ExceptionInfo):
         v.alter_root(lambda i: i + 1)
 
     assert 0 == v.root
-    v.root = 2
+    v.bind_root(2)
 
     v.set_validator()
     assert None is v.get_validator()
@@ -123,7 +123,7 @@ def test_var_validators(ns_sym: sym.Symbol, var_name: sym.Symbol):
     v.set_validator(odd_validator)
 
     with pytest.raises(ExceptionInfo):
-        v.root = 2
+        v.bind_root(2)
 
 
 def test_var_validators_do_fire_for_thread_local(
@@ -154,7 +154,7 @@ def test_var_watchers(ns_sym: sym.Symbol, var_name: sym.Symbol):
 
     v.add_watch(watcher1_key, watcher1)
     v.alter_root(lambda v: v * 2)  # == 0
-    v.root = 4  # == 4
+    v.bind_root(4)  # == 4
 
     watcher2_key = kw.keyword("watcher-the-second")
     watcher2_vals = []
@@ -168,7 +168,7 @@ def test_var_watchers(ns_sym: sym.Symbol, var_name: sym.Symbol):
     v.alter_root(lambda v: v * 2)  # == 8
 
     v.remove_watch(watcher1_key)
-    v.root = 10  # == 10
+    v.bind_root(10)  # == 10
     v.alter_root(lambda v: "a" * v)  # == "aaaaaaaaaa"
 
     assert [(0, 0), (0, 4), (4, 8)] == watcher1_vals

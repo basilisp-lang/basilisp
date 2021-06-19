@@ -3773,7 +3773,7 @@
                      (doseq [v    m
                              :let [vvar (first v)
                                    vval (second v)]]
-                       (set! (.-root vvar) vval)))
+                       (.set-root vvar vval)))
         originals  (reduce (fn [m elem]
                              (let [vvar (first elem)]
                                (assoc m vvar (.-root vvar))))
@@ -4368,7 +4368,7 @@
   ([ns name val]
    (let [ns (the-ns ns)
          v  (basilisp.lang.runtime/Var ns name)]
-     (set! (.-root v) val)
+     (.set-root v val)
      (.intern ns v))))
 
 (defn create-ns

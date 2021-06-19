@@ -300,12 +300,14 @@ class Var(RefBase):
         with self._rlock:
             return self._root
 
-    @root.setter
-    def root(self, val):
+    def bind_root(self, val) -> None:
+        """Atomically update the root binding of this Var to val."""
         with self._wlock:
             self._set_root(val)
 
-    def alter_root(self, f, *args):
+    def alter_root(self, f, *args) -> None:
+        """Atomically alter the root binding of this Var to the result of calling
+        f with the existing root value and any additional arguments."""
         with self._wlock:
             self._set_root(f(self._root, *args))
 
@@ -361,7 +363,7 @@ class Var(RefBase):
         if isinstance(ns, sym.Symbol):
             ns = Namespace.get_or_create(ns)
         var = ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
-        var.root = val
+        var.bind_root(val)
         return var
 
     @staticmethod
