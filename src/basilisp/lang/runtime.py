@@ -276,6 +276,13 @@ class Var(RefBase):
     def dynamic(self) -> bool:
         return self._dynamic
 
+    def set_dynamic(self, dynamic: bool) -> None:
+        if dynamic == self._dynamic:
+            return
+
+        self._dynamic = dynamic
+        self._tl = _VarBindings() if dynamic else None
+
     @property
     def is_private(self) -> Optional[bool]:
         if self._meta is not None:
@@ -358,32 +365,47 @@ class Var(RefBase):
                 return
             self._set_root(v)
 
-    @staticmethod
-    def intern(
+    __UNBOUND_SENTINEL = object()
+
+    @classmethod
+    def intern(  # pylint: disable=too-many-arguments
+        cls,
         ns: Union["Namespace", sym.Symbol],
         name: sym.Symbol,
         val,
         dynamic: bool = False,
-        meta=None,
+        meta: Optional[IPersistentMap] = None,
     ) -> "Var":
-        """Intern the value bound to the symbol `name` in namespace `ns`."""
+        """Intern the value bound to the symbol `name` in namespace `ns`.
+
+        If the Var already exists, it will have its root value updated to `val`,
+        its meta will be reset to match the provided `meta`, and the dynamic flag
+        will be updated to match the provided `dynamic` argument."""
         if isinstance(ns, sym.Symbol):
             ns = Namespace.get_or_create(ns)
-        var = ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
-        var.bind_root(val)
+        new_var = cls(ns, name, dynamic=dynamic, meta=meta)
+        var = ns.intern(name, new_var)
+        if val is not cls.__UNBOUND_SENTINEL:
+            var.bind_root(val)
+        # Namespace.intern will return an existing interned Var for the same name
+        # if one exists. We only want to set the meta and/or dynamic flag if the
+        # Var is not new.
+        if var is not new_var:
+            if meta is not None:
+                var.reset_meta(meta)
+            var.set_dynamic(dynamic)
         return var
 
-    @staticmethod
+    @classmethod
     def intern_unbound(
+        cls,
         ns: Union["Namespace", sym.Symbol],
         name: sym.Symbol,
         dynamic: bool = False,
-        meta=None,
+        meta: Optional[IPersistentMap] = None,
     ) -> "Var":
         """Create a new unbound `Var` instance to the symbol `name` in namespace `ns`."""
-        if isinstance(ns, sym.Symbol):
-            ns = Namespace.get_or_create(ns)
-        return ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
+        return cls.intern(ns, name, cls.__UNBOUND_SENTINEL, dynamic=dynamic, meta=meta)
 
     @staticmethod
     def find_in_ns(
@@ -398,8 +420,8 @@ class Var(RefBase):
             return ns.find(name_sym)
         return None
 
-    @staticmethod
-    def find(ns_qualified_sym: sym.Symbol) -> "Optional[Var]":
+    @classmethod
+    def find(cls, ns_qualified_sym: sym.Symbol) -> "Optional[Var]":
         """Return the value currently bound to the name in the namespace specified
         by `ns_qualified_sym`."""
         ns = Maybe(ns_qualified_sym.ns).or_else_raise(
@@ -409,16 +431,16 @@ class Var(RefBase):
         )
         ns_sym = sym.symbol(ns)
         name_sym = sym.symbol(ns_qualified_sym.name)
-        return Var.find_in_ns(ns_sym, name_sym)
+        return cls.find_in_ns(ns_sym, name_sym)
 
-    @staticmethod
-    def find_safe(ns_qualified_sym: sym.Symbol) -> "Var":
+    @classmethod
+    def find_safe(cls, ns_qualified_sym: sym.Symbol) -> "Var":
         """Return the Var currently bound to the name in the namespace specified
         by `ns_qualified_sym`. If no Var is bound to that name, raise an exception.
 
         This is a utility method to return useful debugging information when code
         refers to an invalid symbol at runtime."""
-        v = Var.find(ns_qualified_sym)
+        v = cls.find(ns_qualified_sym)
         if v is None:
             raise RuntimeException(
                 f"Unable to resolve symbol {ns_qualified_sym} in this context"
