@@ -3634,13 +3634,13 @@
     `(let [obj#     ~expr
            ~binding (. obj# ~'__enter__)]
        (try
-         ~@(if (nthnext bindings 2)
-             [(concat
-               (list 'with (vec (nthrest bindings 2)))
-               body)]
-             body)
-         (. ~binding (~'__exit__ nil nil nil))
-         nil
+         (let [res# ~@(if (nthnext bindings 2)
+                        [(concat
+                          (list 'with (vec (nthrest bindings 2)))
+                          body)]
+                        body)]
+           (. ~binding (~'__exit__ nil nil nil))
+           res#)
          (catch python/Exception e#
            (if (. ~binding (~'__exit__ (python/type e#) e# (. e# ~'__traceback__)))
              nil
