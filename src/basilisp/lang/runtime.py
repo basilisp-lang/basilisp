@@ -277,11 +277,12 @@ class Var(RefBase):
         return self._dynamic
 
     def set_dynamic(self, dynamic: bool) -> None:
-        if dynamic == self._dynamic:
-            return
+        with self._wlock:
+            if dynamic == self._dynamic:
+                return
 
-        self._dynamic = dynamic
-        self._tl = _VarBindings() if dynamic else None
+            self._dynamic = dynamic
+            self._tl = _VarBindings() if dynamic else None
 
     @property
     def is_private(self) -> Optional[bool]:
@@ -319,13 +320,13 @@ class Var(RefBase):
             self._set_root(f(self._root, *args))
 
     def push_bindings(self, val):
-        if self._tl is None:
+        if not self._dynamic or self._tl is None:
             raise RuntimeException("Can only push bindings to dynamic Vars")
         self._validate(val)
         self._tl.bindings.append(val)
 
     def pop_bindings(self):
-        if self._tl is None:
+        if not self._dynamic or self._tl is None:
             raise RuntimeException("Can only pop bindings from dynamic Vars")
         return self._tl.bindings.pop()
 
@@ -391,8 +392,7 @@ class Var(RefBase):
         # if one exists. We only want to set the meta and/or dynamic flag if the
         # Var is not new.
         if var is not new_var:
-            if meta is not None:
-                var.reset_meta(meta)
+            var.reset_meta(meta)
             var.set_dynamic(dynamic)
         return var
 

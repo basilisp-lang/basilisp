@@ -290,7 +290,8 @@ def test_intern(
     var_name: sym.Symbol,
     intern_val,
 ):
-    v = Var.intern(ns_sym, var_name, intern_val)
+    meta = lmap.map({kw.keyword("hello"): "there"})
+    v = Var.intern(ns_sym, var_name, intern_val, meta=meta)
     assert isinstance(v, Var)
     assert ns_sym.name == v.ns.name
     assert var_name == v.name
@@ -300,10 +301,26 @@ def test_intern(
     assert intern_val == v.root
     assert intern_val == v.value
     assert intern_val == v.deref()
+    assert meta == v.meta
 
     ns = get_or_create_ns(ns_sym)
     assert None is not ns
     assert ns.find(var_name) == v
+
+    # Check that attempting to re-intern the Var will overwrite meta and dynamic
+    new_meta = lmap.map({kw.keyword("general"): "kenobi"})
+    new_value = kw.keyword("new-value")
+    re_v = Var.intern(ns_sym, var_name, new_value, dynamic=True, meta=new_meta)
+    assert v is re_v
+    assert ns_sym.name == v.ns.name
+    assert var_name == v.name
+    assert v.is_bound
+    assert v.dynamic
+    assert not v.is_thread_bound
+    assert new_value == v.root
+    assert new_value == v.value
+    assert new_value == v.deref()
+    assert new_meta == v.meta
 
 
 def test_intern_unbound(
