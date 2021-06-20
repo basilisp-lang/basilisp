@@ -4218,6 +4218,67 @@
                                                    ctx
                                                    namespace))))
 
+(defn load-reader
+  "Read and evaluate the set of forms in the `io.TextIOBase` instance `reader`.
+
+  Most often this is useful if you want to split your namespace across multiple source
+  files. `require` will try to force you into a namespace-per-file paradigm (which is
+  generally preferred, but not right in every scenario). `load-reader` will load the
+  contents of the named file directly into the current namespace.
+
+  Note that unlike `require`, files loaded by `load-reader` will not be cached and will
+  thus incur compilation time on subsequent loads."
+  [reader]
+  (let [src (some-> (python/getattr reader "name" nil)
+                    (pathlib/Path)
+                    (.resolve)
+                    (python/str))
+        ctx (basilisp.lang.compiler.CompilerContext. (or src "<Load Input>"))]
+    (doseq [form (seq (basilisp.lang.reader/read reader
+                                                 *resolver*
+                                                 *data-readers*))]
+      (basilisp.lang.compiler/compile-and-exec-form form
+                                                    ctx
+                                                    *ns*))))
+
+(defn load-file
+  "Read and evaluate the set of forms contained in the file located at `path`.
+
+  Most often this is useful if you want to split your namespace across multiple source
+  files. `require` will try to force you into a namespace-per-file paradigm (which is
+  generally preferred, but not right in every scenario). `load-file` will load the
+  contents of the named file directly into the current namespace.
+
+  Note that unlike `require`, files loaded by `load-file` will not be cached and will
+  thus incur compilation time on subsequent loads."
+  [path]
+  (with-open [f (python/open path ** :mode "r")]
+    (load-reader f)))
+
+(defn load
+  "Read and evaluate the set of forms contained in the files identified by `paths`.
+
+  The provided paths should not include a file suffix.
+
+  Most often this is useful if you want to split your namespace across multiple source
+  files. `require` will try to force you into a namespace-per-file paradigm (which is
+  generally preferred, but not right in every scenario). `load` will load the contents
+  of the named file directly into the current namespace.
+
+  Note that unlike `require`, files loaded by `load` will not be cached and will thus
+  incur compilation time on subsequent loads.
+
+  This function is provided for compatibility with Clojure. Users should prefer
+  `load-file` (or perhaps `load-reader` or `load-string`) to this function."
+  [& paths]
+  (doseq [path (seq paths)]
+    (load-file (str path ".lpy"))))
+
+(defn load-string
+  "Read and evaluate the set of forms contained in the string `s`."
+  [s]
+  (load-reader (io/StringIO s)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Reference (Atom/Namespace/Var) Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
