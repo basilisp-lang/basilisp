@@ -4193,7 +4193,9 @@
   "Set the binding of the Var. Must be thread-local."
   [v val]
   (if (thread-bound? v)
-    (set! (.-value v) val)
+    (do
+      (.set-value v val)
+      val)
     (throw
      (ex-info "Cannot set non-thread-bound Var binding" {:var v}))))
 
@@ -4239,7 +4241,7 @@
   ([ns name val]
    (let [ns (the-ns ns)
          v  (basilisp.lang.runtime/Var ns name)]
-     (set! (.-root v) val)
+     (.set-root v val)
      (.intern ns v))))
 
 (defn create-ns

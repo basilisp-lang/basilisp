@@ -18,7 +18,7 @@ from basilisp.lang.interfaces import (
 try:
     from typing import Protocol
 except ImportError:
-    AlterMeta = Callable[..., IPersistentMap]
+    AlterMeta = Callable[..., Optional[IPersistentMap]]
 else:
 
     class AlterMeta(Protocol):  # type: ignore [no-redef]
@@ -45,12 +45,12 @@ class ReferenceBase(IReference):
         with self._rlock:
             return self._meta
 
-    def alter_meta(self, f: AlterMeta, *args) -> IPersistentMap:
+    def alter_meta(self, f: AlterMeta, *args) -> Optional[IPersistentMap]:
         with self._wlock:
             self._meta = f(self._meta, *args)
             return self._meta
 
-    def reset_meta(self, meta: IPersistentMap) -> IPersistentMap:
+    def reset_meta(self, meta: Optional[IPersistentMap]) -> Optional[IPersistentMap]:
         with self._wlock:
             self._meta = meta
             return meta

@@ -5360,7 +5360,7 @@ class TestSymbolResolution:
             private_var = Var(
                 other_ns, private_var_sym, meta=lmap.map({SYM_PRIVATE_META_KEY: True})
             )
-            private_var.value = kw.keyword("private-var")
+            private_var.set_value(kw.keyword("private-var"))
             other_ns.intern(private_var_sym, private_var)
 
             with pytest.raises(compiler.CompilerException):
@@ -5401,14 +5401,14 @@ class TestSymbolResolution:
 
             # Intern a public symbol in `other.ns`
             public_var = Var(other_ns, public_var_sym)
-            public_var.value = kw.keyword("public-var")
+            public_var.set_value(kw.keyword("public-var"))
             other_ns.intern(public_var_sym, public_var)
 
             # Intern a private symbol in `other.ns`
             private_var = Var(
                 other_ns, private_var_sym, meta=lmap.map({SYM_PRIVATE_META_KEY: True})
             )
-            private_var.value = kw.keyword("private-var")
+            private_var.set_value(kw.keyword("private-var"))
             other_ns.intern(private_var_sym, private_var)
 
             with runtime.ns_bindings(third_ns_name.name):
