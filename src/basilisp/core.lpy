@@ -3630,14 +3630,13 @@
     `(let [obj#     ~expr
            ~binding (. obj# ~'__enter__)]
        (try
-         (do
-           ~@(if (nthnext bindings 2)
-               [(concat
-                 (list 'with (vec (nthrest bindings 2)))
-                 body)]
-               body)
+         (let [res# ~@(if (nthnext bindings 2)
+                        [(concat
+                          (list 'with (vec (nthrest bindings 2)))
+                          body)]
+                        body)]
            (. ~binding (~'__exit__ nil nil nil))
-           nil)
+           res#)
          (catch python/Exception e#
            (if (. ~binding (~'__exit__ (python/type e#) e# (. e# ~'__traceback__)))
              nil
@@ -3682,12 +3681,12 @@
                                  (conj v `(var ~vvar) vval)))
                              []
                              (partition 2 bindings))]
-    `(try
-       (do
-         (push-thread-bindings (hash-map ~@var-bindings))
-         ~@body)
-       (finally
-         (pop-thread-bindings)))))
+    `(do
+       (push-thread-bindings (hash-map ~@var-bindings))
+       (try
+         ~@body
+         (finally
+           (pop-thread-bindings))))))
 
 (defn ^:private perf-counter
   []
@@ -6423,7 +6422,6 @@
   ([topic val]
    (force tap-thread)
    (try
-     (do
-       (.put-nowait tap-queue {:topic topic :val val})
-       true)
+     (.put-nowait tap-queue {:topic topic :val val})
+     true
      (catch queue/Full _ false))))

@@ -445,11 +445,10 @@
 (deftest with-test
   (let [[_ filename] (tempfile/mkstemp)]
     (try
-      (do
-        (with-open [file (python/open filename "w")]
-          (.write file "Testing text"))
-        (with-open [file (python/open filename)]
-          (is (= "Testing text" (.read file)))))
+      (with-open [file (python/open filename "w")]
+        (.write file "Testing text"))
+      (with-open [file (python/open filename)]
+        (is (= "Testing text" (.read file))))
       (finally
         (os/unlink filename)))))
 
