@@ -3654,6 +3654,7 @@ class TestRecur:
             '(fn [a] (loop* [a (do (recur "a") :c)] a))',
             '(fn [a] (loop* [a "a"] (recur a) a))',
             "(fn [a] (try (do (recur a) :b) (catch AttributeError _ nil)))",
+            "(fn [a] (try (recur a) :b (catch AttributeError _ nil)))",
             "(fn [a] (try :b (catch AttributeError _ (do (recur :a) :c))))",
             "(fn [a] (try :b (finally (do (recur :a) :c))))",
         ],
@@ -4897,6 +4898,22 @@ class TestTryCatch:
             (catch AttributeError _ "lower"))
         """
         assert "lower" == lcompile(code)
+
+    def test_multiple_expressions_in_try_body(
+        self,
+        lcompile: CompileFn,
+        capsys,
+    ):
+        code = """
+          (try
+            (print "hello")
+            true
+            :keyword
+            (let [s "UPPER"]
+              (.lower s))
+            (catch AttributeError _ "lower"))
+        """
+        assert "upper" == lcompile(code)
 
     def test_single_catch_with_binding(self, lcompile: CompileFn, capsys):
         code = """

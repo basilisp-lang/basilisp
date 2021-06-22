@@ -346,7 +346,10 @@ def _chain_py_ast(
     return deps, nodes
 
 
-def _load_attr(name: str, ctx: ast.AST = ast.Load()) -> ast.Attribute:
+PyASTCtx = Union[ast.Load, ast.Store]
+
+
+def _load_attr(name: str, ctx: PyASTCtx = ast.Load()) -> ast.Attribute:
     """Generate recursive Python Attribute AST nodes for resolving nested
     names."""
     attrs = name.split(".")
@@ -2795,7 +2798,7 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
             ast.Try(
                 body=list(
                     chain(
-                        body_ast.dependencies,
+                        map(statementize, body_ast.dependencies),
                         [
                             ast.Assign(
                                 targets=[ast.Name(id=try_expr_name, ctx=ast.Store())],
@@ -2856,7 +2859,9 @@ def __name_in_module(name: str, module: BasilispModule) -> Optional[str]:
 
 
 def __var_direct_link_to_py_ast(
-    current_ns: runtime.Namespace, var: runtime.Var, py_var_ctx: ast.AST
+    current_ns: runtime.Namespace,
+    var: runtime.Var,
+    py_var_ctx: PyASTCtx,
 ) -> Optional[GeneratedPyAST]:
     """Attempt to directly link a Var reference to a Python variable in the module of
     the current Namespace.
@@ -2923,7 +2928,7 @@ def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
     var_ns = var.ns
     var_ns_name = var_ns.name
     var_name = var.name.name
-    py_var_ctx = ast.Store() if is_assigning else ast.Load()
+    py_var_ctx: PyASTCtx = ast.Store() if is_assigning else ast.Load()
 
     # Return the actual Var, rather than its value if requested
     if node.return_var:
