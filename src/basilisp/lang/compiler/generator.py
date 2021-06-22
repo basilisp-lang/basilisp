@@ -637,6 +637,7 @@ _MODULE_ALIASES = {
 
 _NS_VAR_VALUE = f"{_NS_VAR}.value"
 
+_NS_VAR_VALUE_SETTER_FN_NAME = _load_attr(f"{_NS_VAR}.set_value")
 _NS_VAR_NAME = _load_attr(f"{_NS_VAR_VALUE}.name")
 _NEW_DECIMAL_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.decimal_from_str")
 _NEW_FRACTION_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.fraction")
@@ -2599,9 +2600,12 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
                 finalbody=[
                     # Restore the original namespace after each require to ensure that the
                     # following require starts with a clean slate
-                    ast.Assign(
-                        targets=[_load_attr(_NS_VAR_VALUE, ctx=ast.Store())],
-                        value=ast.Name(id=requiring_ns_name, ctx=ast.Load()),
+                    statementize(
+                        ast.Call(
+                            func=_NS_VAR_VALUE_SETTER_FN_NAME,
+                            args=[ast.Name(id=requiring_ns_name, ctx=ast.Load())],
+                            keywords=[],
+                        )
                     ),
                 ],
             )
@@ -2627,8 +2631,10 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
         target, (HostField, Local, VarRef)
     ), f"invalid set! target type {type(target)}"
 
+    assign_ast: List[ast.AST]
     if isinstance(target, HostField):
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
+        assign_ast = [ast.Assign(targets=[target_ast.node], value=val_ast.node)]
     elif isinstance(target, VarRef):
         # This is a bit of a hack to force the generator to generate code for accessing
         # a Var directly so we can store a temp reference to that Var rather than
@@ -2636,7 +2642,7 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
         temp_var_name = genname("var")
         var_ast = _var_sym_to_py_ast(ctx, target.assoc(return_var=True))
         target_ast = GeneratedPyAST(
-            node=_load_attr(f"{temp_var_name}.value", ctx=ast.Store()),
+            node=_load_attr(f"{temp_var_name}.set_value"),
             dependencies=list(
                 chain(
                     var_ast.dependencies,
@@ -2673,8 +2679,10 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
                 )
             ),
         )
+        assign_ast = [ast.Call(func=target_ast.node, args=[val_ast.node], keywords=[])]
     elif isinstance(target, Local):
         target_ast = _local_sym_to_py_ast(ctx, target, is_assigning=True)
+        assign_ast = [ast.Assign(targets=[target_ast.node], value=val_ast.node)]
     else:  # pragma: no cover
         raise GeneratorException(
             f"invalid set! target type {type(target)}", lisp_ast=target
@@ -2694,7 +2702,7 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
                         )
                     ],
                     target_ast.dependencies,
-                    [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
+                    assign_ast,
                 )
             ),
         )
@@ -2705,7 +2713,7 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
                 chain(
                     val_ast.dependencies,
                     target_ast.dependencies,
-                    [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
+                    assign_ast,
                 )
             ),
         )

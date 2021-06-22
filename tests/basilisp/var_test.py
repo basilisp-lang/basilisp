@@ -101,13 +101,13 @@ def test_var_validators(ns_sym: sym.Symbol, var_name: sym.Symbol):
     assert even_validator == v.get_validator()
 
     with pytest.raises(ExceptionInfo):
-        v.root = 1
+        v.bind_root(1)
 
     with pytest.raises(ExceptionInfo):
         v.alter_root(lambda i: i + 1)
 
     assert 0 == v.root
-    v.root = 2
+    v.bind_root(2)
 
     v.set_validator()
     assert None is v.get_validator()
@@ -123,7 +123,7 @@ def test_var_validators(ns_sym: sym.Symbol, var_name: sym.Symbol):
     v.set_validator(odd_validator)
 
     with pytest.raises(ExceptionInfo):
-        v.root = 2
+        v.bind_root(2)
 
 
 def test_var_validators_do_fire_for_thread_local(
@@ -134,9 +134,9 @@ def test_var_validators_do_fire_for_thread_local(
     v.set_validator(even_validator)
 
     with pytest.raises(ExceptionInfo):
-        v.value = 5
+        v.set_value(5)
 
-    v.value = 4
+    v.set_value(4)
     assert 4 == v.value
 
 
@@ -154,7 +154,7 @@ def test_var_watchers(ns_sym: sym.Symbol, var_name: sym.Symbol):
 
     v.add_watch(watcher1_key, watcher1)
     v.alter_root(lambda v: v * 2)  # == 0
-    v.root = 4  # == 4
+    v.bind_root(4)  # == 4
 
     watcher2_key = kw.keyword("watcher-the-second")
     watcher2_vals = []
@@ -168,7 +168,7 @@ def test_var_watchers(ns_sym: sym.Symbol, var_name: sym.Symbol):
     v.alter_root(lambda v: v * 2)  # == 8
 
     v.remove_watch(watcher1_key)
-    v.root = 10  # == 10
+    v.bind_root(10)  # == 10
     v.alter_root(lambda v: "a" * v)  # == "aaaaaaaaaa"
 
     assert [(0, 0), (0, 4), (4, 8)] == watcher1_vals
@@ -188,7 +188,7 @@ def test_var_watchers_do_not_fire_for_thread_local(
         watcher_vals.append((old, new))
 
     v.add_watch("watcher", watcher)
-    v.value = 10
+    v.set_value(10)
 
     assert not watcher_vals
     assert 10 == v.value
@@ -222,7 +222,7 @@ def test_dynamic_var(
         assert new_val == v.value
         assert new_val == v.deref()
 
-        v.value = new_val2
+        v.set_value(new_val2)
         assert v.is_bound
         assert v.dynamic
         assert v.is_thread_bound
@@ -266,7 +266,7 @@ def test_var_bindings_are_noop_for_non_dynamic_var(
         assert intern_val == v.value
         assert intern_val == v.deref()
 
-        v.value = new_val2
+        v.set_value(new_val2)
         assert v.is_bound
         assert not v.dynamic
         assert not v.is_thread_bound
@@ -290,7 +290,8 @@ def test_intern(
     var_name: sym.Symbol,
     intern_val,
 ):
-    v = Var.intern(ns_sym, var_name, intern_val)
+    meta = lmap.map({kw.keyword("hello"): "there"})
+    v = Var.intern(ns_sym, var_name, intern_val, meta=meta)
     assert isinstance(v, Var)
     assert ns_sym.name == v.ns.name
     assert var_name == v.name
@@ -300,10 +301,26 @@ def test_intern(
     assert intern_val == v.root
     assert intern_val == v.value
     assert intern_val == v.deref()
+    assert meta == v.meta
 
     ns = get_or_create_ns(ns_sym)
     assert None is not ns
     assert ns.find(var_name) == v
+
+    # Check that attempting to re-intern the Var will overwrite meta and dynamic
+    new_meta = lmap.map({kw.keyword("general"): "kenobi"})
+    new_value = kw.keyword("new-value")
+    re_v = Var.intern(ns_sym, var_name, new_value, dynamic=True, meta=new_meta)
+    assert v is re_v
+    assert ns_sym.name == v.ns.name
+    assert var_name == v.name
+    assert v.is_bound
+    assert v.dynamic
+    assert not v.is_thread_bound
+    assert new_value == v.root
+    assert new_value == v.value
+    assert new_value == v.deref()
+    assert new_meta == v.meta
 
 
 def test_intern_unbound(

@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where `seq`ing co-recursive lazy sequences would cause a stack overflow (#632)
  * Fixed a spurious failure in the test runner and switched to using macro forms for test line numbers (#631)
  * Fixed a bug that allowed dynamic Vars to be `set!` even if they weren't thread-bound (#638)
+ * Fixed a bug where re-`def`ing a Var (regardless of `^:redef` metadata) would not update metadata or dynamic flag (#642)
 
 ### Removed
  * Removed Click as a dependency in favor of builtin `argparse` (#622, #624, #636)

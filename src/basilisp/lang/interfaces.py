@@ -116,11 +116,15 @@ class IReference(IMeta):
     __slots__ = ()
 
     @abstractmethod
-    def alter_meta(self, f: Callable[..., "IPersistentMap"], *args) -> "IPersistentMap":
+    def alter_meta(
+        self, f: Callable[..., Optional["IPersistentMap"]], *args
+    ) -> Optional["IPersistentMap"]:
         raise NotImplementedError()
 
     @abstractmethod
-    def reset_meta(self, meta: "IPersistentMap") -> "IPersistentMap":
+    def reset_meta(
+        self, meta: Optional["IPersistentMap"]
+    ) -> Optional["IPersistentMap"]:
         raise NotImplementedError()
 
 

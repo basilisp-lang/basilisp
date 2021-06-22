@@ -277,6 +277,14 @@ class Var(RefBase):
     def dynamic(self) -> bool:
         return self._dynamic
 
+    def set_dynamic(self, dynamic: bool) -> None:
+        with self._wlock:
+            if dynamic == self._dynamic:
+                return
+
+            self._dynamic = dynamic
+            self._tl = _VarBindings() if dynamic else None
+
     @property
     def is_private(self) -> Optional[bool]:
         if self._meta is not None:
@@ -301,23 +309,25 @@ class Var(RefBase):
         with self._rlock:
             return self._root
 
-    @root.setter
-    def root(self, val):
+    def bind_root(self, val) -> None:
+        """Atomically update the root binding of this Var to val."""
         with self._wlock:
             self._set_root(val)
 
-    def alter_root(self, f, *args):
+    def alter_root(self, f, *args) -> None:
+        """Atomically alter the root binding of this Var to the result of calling
+        f with the existing root value and any additional arguments."""
         with self._wlock:
             self._set_root(f(self._root, *args))
 
     def push_bindings(self, val):
-        if self._tl is None:
+        if not self._dynamic or self._tl is None:
             raise RuntimeException("Can only push bindings to dynamic Vars")
         self._validate(val)
         self._tl.bindings.append(val)
 
     def pop_bindings(self):
-        if self._tl is None:
+        if not self._dynamic or self._tl is None:
             raise RuntimeException("Can only pop bindings from dynamic Vars")
         return self._tl.bindings.pop()
 
@@ -330,6 +340,10 @@ class Var(RefBase):
 
     @property
     def value(self):
+        """Return the current value of the Var visible in the current thread.
+
+        For non-dynamic Vars, this will just be the root. For dynamic Vars, this will
+        be any thread-local binding if one is defined. Otherwise, the root value."""
         with self._rlock:
             if self._dynamic:
                 assert self._tl is not None
@@ -337,8 +351,11 @@ class Var(RefBase):
                     return self._tl.bindings[-1]
             return self._root
 
-    @value.setter
-    def value(self, v):
+    def set_value(self, v) -> None:
+        """Set the current value of the Var.
+
+        If the Var is not dynamic, this is equivalent to binding the root value. If the
+        Var is dynamic, this will set the thread-local bindings for the Var."""
         with self._wlock:
             if self._dynamic:
                 assert self._tl is not None
@@ -350,32 +367,46 @@ class Var(RefBase):
                 return
             self._set_root(v)
 
-    @staticmethod
-    def intern(
+    __UNBOUND_SENTINEL = object()
+
+    @classmethod
+    def intern(  # pylint: disable=too-many-arguments
+        cls,
         ns: Union["Namespace", sym.Symbol],
         name: sym.Symbol,
         val,
         dynamic: bool = False,
-        meta=None,
+        meta: Optional[IPersistentMap] = None,
     ) -> "Var":
-        """Intern the value bound to the symbol `name` in namespace `ns`."""
+        """Intern the value bound to the symbol `name` in namespace `ns`.
+
+        If the Var already exists, it will have its root value updated to `val`,
+        its meta will be reset to match the provided `meta`, and the dynamic flag
+        will be updated to match the provided `dynamic` argument."""
         if isinstance(ns, sym.Symbol):
             ns = Namespace.get_or_create(ns)
-        var = ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
-        var.root = val
+        new_var = cls(ns, name, dynamic=dynamic, meta=meta)
+        var = ns.intern(name, new_var)
+        if val is not cls.__UNBOUND_SENTINEL:
+            var.bind_root(val)
+        # Namespace.intern will return an existing interned Var for the same name
+        # if one exists. We only want to set the meta and/or dynamic flag if the
+        # Var is not new.
+        if var is not new_var:
+            var.reset_meta(meta)
+            var.set_dynamic(dynamic)
         return var
 
-    @staticmethod
+    @classmethod
     def intern_unbound(
+        cls,
         ns: Union["Namespace", sym.Symbol],
         name: sym.Symbol,
         dynamic: bool = False,
-        meta=None,
+        meta: Optional[IPersistentMap] = None,
     ) -> "Var":
         """Create a new unbound `Var` instance to the symbol `name` in namespace `ns`."""
-        if isinstance(ns, sym.Symbol):
-            ns = Namespace.get_or_create(ns)
-        return ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
+        return cls.intern(ns, name, cls.__UNBOUND_SENTINEL, dynamic=dynamic, meta=meta)
 
     @staticmethod
     def find_in_ns(
@@ -390,8 +421,8 @@ class Var(RefBase):
             return ns.find(name_sym)
         return None
 
-    @staticmethod
-    def find(ns_qualified_sym: sym.Symbol) -> "Optional[Var]":
+    @classmethod
+    def find(cls, ns_qualified_sym: sym.Symbol) -> "Optional[Var]":
         """Return the value currently bound to the name in the namespace specified
         by `ns_qualified_sym`."""
         ns = Maybe(ns_qualified_sym.ns).or_else_raise(
@@ -401,16 +432,16 @@ class Var(RefBase):
         )
         ns_sym = sym.symbol(ns)
         name_sym = sym.symbol(ns_qualified_sym.name)
-        return Var.find_in_ns(ns_sym, name_sym)
+        return cls.find_in_ns(ns_sym, name_sym)
 
-    @staticmethod
-    def find_safe(ns_qualified_sym: sym.Symbol) -> "Var":
+    @classmethod
+    def find_safe(cls, ns_qualified_sym: sym.Symbol) -> "Var":
         """Return the Var currently bound to the name in the namespace specified
         by `ns_qualified_sym`. If no Var is bound to that name, raise an exception.
 
         This is a utility method to return useful debugging information when code
         refers to an invalid symbol at runtime."""
-        v = Var.find(ns_qualified_sym)
+        v = cls.find(ns_qualified_sym)
         if v is None:
             raise RuntimeException(
                 f"Unable to resolve symbol {ns_qualified_sym} in this context"
@@ -1888,7 +1919,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
 
     def in_ns(s: sym.Symbol):
         ns = Namespace.get_or_create(s)
-        _NS.value = ns
+        _NS.set_value(ns)
         return ns
 
     # Vars used in bootstrapping the runtime
