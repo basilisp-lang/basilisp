@@ -953,6 +953,10 @@
 
 (atexit/register (.-shutdown *executor-pool*))
 
+;; Declare `bound-fn*` now for use in `future-call`, though it is defined much later
+;; with the rest of the Var binding functions and macros.
+(def ^:redef bound-fn*)
+
 (defn future-call
   "Call the no args function f in another thread. Returns a Future object.
   The value returned by f can be fetched using `deref` or `@`, though
@@ -960,7 +964,7 @@
   ([f]
    (future-call f *executor-pool*))
   ([f pool]
-   (.submit pool f)))
+   (.submit pool (bound-fn* f))))
 
 (defmacro future
   "Execute the expressions of body in another thread. Returns a Future object.
@@ -3647,6 +3651,11 @@
        :macro true}
   with-open with)
 
+(defn get-thread-bindings
+  "Return the current thread-local bindings as a map of Var/value pairs."
+  []
+  (basilisp.lang.runtime/get-thread-bindings))
+
 (defn push-thread-bindings
   "Takes a map of Var/value pairs and applies the given value to the Var in the
   current thread.
@@ -3687,6 +3696,126 @@
          ~@body
          (finally
            (pop-thread-bindings))))))
+
+(defn with-bindings*
+  "Execute the function `f` with the given arguments `args` (as by `apply`) with the
+  thread-local Var bindings specified in the Var/value map `bindings-map` installed.
+
+  The thread-local Var bindings will be popped after executing `f` in all cases.
+
+  Returns the return value of `f`."
+  [bindings-map f & args]
+  (push-thread-bindings bindings-map)
+  (try
+    (apply f args)
+    (finally
+      (pop-thread-bindings))))
+
+(defmacro with-bindings
+  "Execute the expressions given in the `body` with the thread-local Var bindings
+  specified in the Var/value map `bindings-map` installed.
+
+  The thread-local Var bindings will be popped after executing the body in all cases.
+
+  Returns the value of `body`."
+  [bindings-map & body]
+  `(with-bindings* ~bindings-map (fn [] ~@body)))
+
+(defn bound-fn*
+  "Return a function which executes `f` with the same thread-local Var bindings as
+  were in effect when `bound-fn*` was called.
+
+  `f` will be called with the same arguments as the returned function.
+
+  Returns the return value of `f`.
+
+  This is primarily useful for creating functions which might need to run on a different
+  thread, but which should have the same Var bindings in place as when it was defined."
+  [f]
+  (let [current-bindings (get-thread-bindings)]
+    (fn [& args]
+      (apply with-bindings* current-bindings f args))))
+
+(defmacro bound-fn
+  "Return a function with the same function tail (everything after `fn` when defining
+  a function) which will be executed with the same thread-local Var bindings as were
+  in effect when `bound-fn` was called.
+
+  Returns the return value of the defined function.
+
+  This is primarily useful for creating functions which might need to run on a different
+  thread, but which should have the same Var bindings in place as when it was defined."
+  [& fn-tail]
+  `(bound-fn* (fn ~@fn-tail)))
+
+(defn with-redefs-fn
+  "Temporarily re-bind the given Var roots to the given values while executing
+  the function `f`, binding back to the original value afterwards.
+
+  Changes to the Var roots will be visible in all threads.
+
+  Note that Basilisp directly links Var references in compiled code by default
+  for performance reasons. Direct linking can be disabled for all Vars during
+  compilation by setting the `--use-var-indirection` compiler flag at startup.
+  Direct linking can be disabled for individual Vars by setting the `^:redef`
+  meta flag where the Var is `def`'ed.
+
+  `with-redefs` will throw an Exception if directly linked Vars are given in
+  the bindings."
+  [bindings-map f]
+  (when-not (or (:use-var-indirection *compiler-options*)
+                (every? #(:redef (meta %)) (keys bindings-map)))
+    (throw
+     (ex-info (str "Cannot redef selected Vars; either apply ^:redef meta to Vars or "
+                   "restart Basilisp with '--use-var-indirection false' compiler flag")
+              {:unredefable-vars (remove #(:redef (meta %)) (keys bindings-map))})))
+  (let [redef-vars (fn [m]
+                     (doseq [v    m
+                             :let [vvar (first v)
+                                   vval (second v)]]
+                       (.bind-root vvar vval)))
+        originals  (reduce (fn [m elem]
+                             (let [vvar (first elem)]
+                               (assoc m vvar (.-root vvar))))
+                           {}
+                           bindings-map)]
+    (redef-vars bindings-map)
+    (try
+      (f)
+      (finally
+        (redef-vars originals)))))
+
+(defmacro with-redefs
+  "Temporarily re-bind the given Var roots to the given values while executing
+  the body, binding back to the original value afterwards.
+
+  Changes to the Var roots will be visible in all threads.
+
+  Note that Basilisp directly links Var references in compiled code by default
+  for performance reasons. Direct linking can be disabled for all Vars during
+  compilation by setting the `--use-var-indirection` compiler flag at startup.
+  Direct linking can be disabled for individual Vars by setting the `^:redef`
+  meta flag where the Var is `def`'ed.
+
+  `with-redefs` will throw an Exception if directly linked Vars are given in
+  the bindings."
+  [bindings & body]
+  (when-not (and (vector? bindings)
+                 (even? (count bindings))
+                 (pos? (count bindings)))
+    (throw
+     (ex-info "Expected an even number of bindings"
+              {:bindings bindings})))
+  (let [var-bindings (reduce (fn [v pair]
+                               (let [vvar (first pair)
+                                     vval (second pair)]
+                                 (conj v `(var ~vvar) vval)))
+                             []
+                             (partition 2 bindings))]
+    `(with-redefs-fn
+       ~(apply hash-map var-bindings)
+       (fn []
+         ~@body))))
 
 (defn ^:private perf-counter
   []
@@ -4089,6 +4218,67 @@
                                                    ctx
                                                    namespace))))
 
+(defn load-reader
+  "Read and evaluate the set of forms in the `io.TextIOBase` instance `reader`.
+
+  Most often this is useful if you want to split your namespace across multiple source
+  files. `require` will try to force you into a namespace-per-file paradigm (which is
+  generally preferred, but not right in every scenario). `load-reader` will load the
+  contents of the named file directly into the current namespace.
+
+  Note that unlike `require`, files loaded by `load-reader` will not be cached and will
+  thus incur compilation time on subsequent loads."
+  [reader]
+  (let [src (some-> (python/getattr reader "name" nil)
+                    (pathlib/Path)
+                    (.resolve)
+                    (python/str))
+        ctx (basilisp.lang.compiler.CompilerContext. (or src "<Load Input>"))]
+    (doseq [form (seq (basilisp.lang.reader/read reader
+                                                 *resolver*
+                                                 *data-readers*))]
+      (basilisp.lang.compiler/compile-and-exec-form form
+                                                    ctx
+                                                    *ns*))))
+
+(defn load-file
+  "Read and evaluate the set of forms contained in the file located at `path`.
+
+  Most often this is useful if you want to split your namespace across multiple source
+  files. `require` will try to force you into a namespace-per-file paradigm (which is
+  generally preferred, but not right in every scenario). `load-file` will load the
+  contents of the named file directly into the current namespace.
+
+  Note that unlike `require`, files loaded by `load-file` will not be cached and will
+  thus incur compilation time on subsequent loads."
+  [path]
+  (with-open [f (python/open path ** :mode "r")]
+    (load-reader f)))
+
+(defn load
+  "Read and evaluate the set of forms contained in the files identified by `paths`.
+
+  The provided paths should not include a file suffix.
+
+  Most often this is useful if you want to split your namespace across multiple source
+  files. `require` will try to force you into a namespace-per-file paradigm (which is
+  generally preferred, but not right in every scenario). `load` will load the contents
+  of the named file directly into the current namespace.
+
+  Note that unlike `require`, files loaded by `load` will not be cached and will thus
+  incur compilation time on subsequent loads.
+
+  This function is provided for compatibility with Clojure. Users should prefer
+  `load-file` (or perhaps `load-reader` or `load-string`) to this function."
+  [& paths]
+  (doseq [path (seq paths)]
+    (load-file (str path ".lpy"))))
+
+(defn load-string
+  "Read and evaluate the set of forms contained in the string `s`."
+  [s]
+  (load-reader (io/StringIO s)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Reference (Atom/Namespace/Var) Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -4206,7 +4396,7 @@
 (defn all-ns
   "Return a sequence of all namespaces."
   []
-  (vals @basilisp.lang.runtime.Namespace/-NAMESPACES))
+  (vals (basilisp.lang.runtime.Namespace/ns-cache)))
 
 (defn find-ns
   "Return the namespace named by sym if it exists, or nil otherwise."
@@ -4519,6 +4709,16 @@
       (refer-lib current-ns libspec))
     nil))
 
+(defonce ^:dynamic ^:private *loaded-libs*
+  (atom #{}))
+
+(defn loaded-libs
+  "Return a set of all loaded Basilisp namespace names as symbols.
+
+  Namespace names are only added to this list if they appear in an `ns` macro."
+  []
+  @*loaded-libs*)
+
 (defmacro ns
   "Use this namespace pre-amble at the top of every namespace to declare
   the namespace name and import necessary Python modules and require
@@ -4566,12 +4766,25 @@
                              (:import opts)))]
     `(do
        (in-ns (quote ~name))
+       (swap! *loaded-libs* conj (quote ~name))
        ~(when doc
           `(alter-meta! (the-ns (quote ~name)) assoc :doc ~doc))
        (refer-basilisp ~@refer-filters)
        ~requires
        ~uses
        ~@imports)))
+
+(defn requiring-resolve
+  "Resolve the namespaced symbol `sym` as by `resolve`. If resolution fails, attempts
+  to require `sym`'s namespace (as by `require`) before resolving again."
+  [sym]
+  (if (qualified-symbol? sym)
+    (or (resolve sym)
+        (do (require (symbol (namespace sym)))
+            (resolve sym)))
+    (throw
+     (ex-info "Cannot resolve an unqualified symbol"
+              {:sym sym}))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Regex Functions ;;

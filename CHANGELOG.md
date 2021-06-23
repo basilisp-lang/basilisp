@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for watchers and validator functions on Atoms and Vars (#627)
  * Added support for Taps (#631)
  * Added support for hierarchies (#633)
+ * Added support for several more utility Namespace and Var utility functions (#636)
 
 ### Changed
  * PyTest is now an optional extra dependency, rather than a required dependency (#622)
