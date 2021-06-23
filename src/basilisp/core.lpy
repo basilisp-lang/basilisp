@@ -3763,8 +3763,8 @@
   `with-redefs` will throw an Exception if directly linked Vars are given in
   the bindings."
   [bindings-map f]
-  (when-not (and (:use-var-indirection *compiler-options*)
-                 (every? #(:redef (meta %)) (keys bindings-map)))
+  (when-not (or (:use-var-indirection *compiler-options*)
+                (every? #(:redef (meta %)) (keys bindings-map)))
     (throw
      (ex-info (str "Cannot redef selected Vars; either apply ^:redef meta to Vars or "
                    "restart Basilisp with '--use-var-indirection false' compiler flag")

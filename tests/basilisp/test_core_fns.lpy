@@ -1042,6 +1042,8 @@
 ;; Futures ;;
 ;;;;;;;;;;;;;
 
+(def ^:dynamic *thread-value* 4)
+
 (deftest futures-test
   (testing "successful future"
     (let [fut (future 1)]
@@ -1058,7 +1060,15 @@
       (is (= false (future-cancelled? fut)))
       (is (= false (future-done? fut)))
       ;; can't always cancel a sleep-ed Future
-      (future-cancel fut))))
+      (future-cancel fut)))
+
+  (testing "binding conveyance"
+    (let [fut (future *thread-value*)]
+      (is (= 4 @fut)))
+
+    (let [fut (binding [*thread-value* 3]
+                (future *thread-value*))]
+      (is (= 3 @fut)))))
 
 (deftest pmap-test
   (binding [*pmap-cpu-count* 2]
@@ -1219,6 +1229,30 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Namespace Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def ^:redef redeffable :a)
+(def not-redeffable :b)
+
+(deftest with-redefs-test
+  (testing "with-redefs cannot redef Vars without ^:redef metadata"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (with-redefs [not-redeffable :c]
+                   not-redeffable)))
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (with-redefs [redeffable     :d
+                               not-redeffable :c]
+                   not-redeffable))))
+
+  (testing "with-redefs resets to the original root"
+    (is (= :c (with-redefs [redeffable :c] redeffable)))
+    (is (= :a redeffable)))
+
+  (testing "with-redefs resets to the original root even after an exception"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (with-redefs [redeffable :c]
+                   (throw
+                    (ex-info "This is an exception" {})))))
+    (is (= :a redeffable))))
 
 (deftest requiring-resolve-test
   (is (thrown? basilisp.lang.exception/ExceptionInfo (requiring-resolve 'a-symbol)))
