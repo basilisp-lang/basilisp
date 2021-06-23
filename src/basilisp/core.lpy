@@ -3779,8 +3779,8 @@
                                (assoc m vvar (.-root vvar))))
                            {}
                            bindings-map)]
+    (redef-vars bindings-map)
     (try
-      (redef-vars bindings-map)
       (f)
       (finally
         (redef-vars originals)))))
