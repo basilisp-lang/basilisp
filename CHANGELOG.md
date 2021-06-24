@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * PyTest is now an optional extra dependency, rather than a required dependency (#622)
  * Generated Python functions corresponding to nested functions are now prefixed with the containing function name, if one exists (#632)
+ * `basilisp.test/are` docstring now indicates that line numbers may be suppressed on assertion failures created using `are` (#643)
 
 ### Fixed
  * Fixed a bug where `seq`ing co-recursive lazy sequences would cause a stack overflow (#632)
