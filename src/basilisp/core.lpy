@@ -5020,17 +5020,22 @@
   "Define a new multimethod with the given dispatch function.
 
   Multimethod dispatch functions should be defined with the same arity or arities as
-  the registered dispatch methods. The provided dispatch function will be called first
-  on all calls to the multimethod and should return a dispatch value which will be used
-  to identify a registered method. Methods can be registered with the `defmethod` macro.
+  the registered methods. The provided dispatch function will be called first on all
+  calls to the multimethod and should return a dispatch value which will be used to
+  identify a registered method. If the value returned by the dispatch function does
+  not correspond to a registered method, the method registered with the default
+  dispatch value, if one is registered, will be called instead. Methods can be
+  registered with the `defmethod` macro.
 
   Multimethods select a dispatch method by using `isa?` on all available dispatch
   values. Callers can provide a hierarchy to use for `isa?` resolution. For cases where
   multiple dispatch values are registered which may return `true` for a call to `isa?`
-  callers can select preferred values using `prefer-method`. Callers can view
-  multimethod preferences by calling `prefers`.
+  callers must select preferred values using `prefer-method` or a RuntimeException will
+  be thrown when a unique method cannot be selected. Callers can view multimethod
+  preferences by calling `prefers`.
 
-  Options include:
+  Callers may specify options as key/value pairs after the dispatch function. Options
+  include:
   - `:default` - the default value to use if no matching method is found for the
     selected dispatch value; the default value is `:default`
   - `:hierarchy` - the default hierarchy to use for resolving `isa?` relationships;
@@ -5067,7 +5072,12 @@
   "Add a new method to the multimethod `multifn` which responds to `dispatch-val`.
 
   `fn-tail` is the trailing part of a function definition after `fn` including any
-  relevant argument vectors."
+  relevant argument vectors.
+
+  Methods added to a multimethod can be removed using `remove-method`. All methods
+  may be removed using `remove-all-methods`.
+
+  See `defmulti` for more information about multimethods."
   [multifn dispatch-val & fn-tail]
   `(. ~multifn (~'add-method ~dispatch-val (fn ~@fn-tail))))
 
