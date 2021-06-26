@@ -6,7 +6,6 @@ from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
 from basilisp.lang.exception import ExceptionInfo
 from basilisp.lang.interfaces import (
-    IDeref,
     IPersistentMap,
     IRef,
     IReference,

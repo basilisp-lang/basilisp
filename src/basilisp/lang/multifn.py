@@ -89,9 +89,8 @@ class MultiFunction(Generic[T]):
             best_method: Optional[Method] = None
             for method_key, method in self._methods.items():
                 if self._is_a(key, method_key):
-                    if best_method is None or self._precedes(method_key, best_key):
+                    if best_key is None or self._precedes(method_key, best_key):
                         best_key, best_method = method_key, method
-                    assert best_key is not None
                     if not self._precedes(best_key, method_key):
                         raise runtime.RuntimeException(
                             "Cannot resolve a unique method for dispatch value "
@@ -126,7 +125,9 @@ class MultiFunction(Generic[T]):
         """Update the multimethod to prefer `preferred_key` over `other_key` in cases
         where method selection might be ambiguous between two values."""
         with self._lock:
-            if self._has_preference(other_key, preferred_key):
+            if self._has_preference(  # pylint: disable=arguments-out-of-order
+                other_key, preferred_key
+            ):
                 raise runtime.RuntimeException(
                     f"Cannot set preference for '{preferred_key}' over '{other_key}' "
                     f"due to existing preference for '{other_key}' over "
