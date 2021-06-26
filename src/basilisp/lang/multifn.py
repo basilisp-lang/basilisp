@@ -66,6 +66,10 @@ class MultiFunction(Generic[T]):
         raise NotImplementedError
 
     def _reset_cache(self):
+        """Reset the local cache to the base method mapping.
+
+        Should be called after methods are added or removed or after preferences are
+        altered."""
         # Does not use a lock to avoid lock reentrance
         self._cache = self._methods
 
@@ -73,7 +77,15 @@ class MultiFunction(Generic[T]):
         """Return True if `tag` can be considered a `parent` type using `isa?`."""
         return bool(self._isa.value(self._hierarchy.deref(), tag, parent))
 
+    def _has_preference(self, preferred_key: T, other_key: T) -> bool:
+        """Return True if this multimethod has `preferred_key` listed as a preference
+        over `other_key`."""
+        others = self._prefers.val_at(preferred_key)
+        return others is not None and other_key in others
+
     def _precedes(self, tag: T, parent: T) -> bool:
+        """Return True if `tag` should be considered ahead of `parent` for method
+        selection."""
         return self._has_preference(tag, parent) or self._is_a(tag, parent)
 
     def add_method(self, key: T, method: Method) -> None:
@@ -84,6 +96,7 @@ class MultiFunction(Generic[T]):
             self._reset_cache()
 
     def _find_and_cache_method(self, key: T) -> Optional[Method]:
+        """Find and cache the best method for dispatch value `key`."""
         with self._lock:
             best_key: Optional[T] = None
             best_method: Optional[Method] = None
@@ -114,12 +127,6 @@ class MultiFunction(Generic[T]):
             return cached_val
 
         return self._find_and_cache_method(key)
-
-    def _has_preference(self, preferred_key: T, other_key: T) -> bool:
-        """Return True if this multimethod has `preferred_key` listed as a preference
-        over `other_key`."""
-        others = self._prefers.val_at(preferred_key)
-        return others is not None and other_key in others
 
     def prefer_method(self, preferred_key: T, other_key: T) -> None:
         """Update the multimethod to prefer `preferred_key` over `other_key` in cases
