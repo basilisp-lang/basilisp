@@ -59,7 +59,7 @@ class ReferenceBase(IReference):
 T = TypeVar("T")
 
 
-class RefBase(IDeref[T], IRef, ReferenceBase):
+class RefBase(IRef[T], ReferenceBase):
     """
     Mixin for IRef classes to define the full IRef interface.
 

@@ -5017,7 +5017,36 @@
 ;;;;;;;;;;;;;;;;;;
 
 (defmacro defmulti
-  "Define a new multimethod with the dispatch function."
+  "Define a new multimethod with the given dispatch function.
+
+  Multimethod dispatch functions should be defined with the same arity or arities as
+  the registered dispatch methods. The provided dispatch function will be called first
+  on all calls to the multimethod and should return a dispatch value which will be used
+  to identify a registered method. Methods can be registered with the `defmethod` macro.
+
+  Multimethods select a dispatch method by using `isa?` on all available dispatch
+  values. Callers can provide a hierarchy to use for `isa?` resolution. For cases where
+  multiple dispatch values are registered which may return `true` for a call to `isa?`
+  callers can select preferred values using `prefer-method`. Callers can view
+  multimethod preferences by calling `prefers`.
+
+  Options include:
+  - `:default` - the default value to use if no matching method is found for the
+    selected dispatch value; the default value is `:default`
+  - `:hierarchy` - the default hierarchy to use for resolving `isa?` relationships;
+    the default value is the global hierarchy; hierarchies should be passed as reference
+    types (e.g. as a Var)
+
+  Multimethods are useful for defining polymorphic functions based on characteristics
+  of their arguments. This behavior is often called multiple dispatch. Unlike typical
+  multiple dispatch implementations, however, it is possible to define multimethods
+  which dispatch on characteristics other than the types of input values (though you
+  may define multimethods which dispatch solely on the types of arguments).
+
+  For cases where you might want to define a polymorphic function or functions based
+  solely on the type of the first argument, you should consider defining a protocol
+  (via `defprotocol`) instead. Protocols should generally perform better in cases
+  where the primary goal is dispatching on the type of the first argument."
   [name & body]
   (let [doc         (when (string? (first body))
                       (first body))
@@ -5029,35 +5058,57 @@
                       body)
         dispatch-fn (first body)
         opts        (apply hash-map (rest body))]
-    `(def ~name (basilisp.lang.multifn/MultiFunction ~(quote name)
+    `(def ~name (basilisp.lang.multifn/MultiFunction (quote ~name)
                                                      ~dispatch-fn
-                                                     ~(or (:default opts) :default)))))
+                                                     ~(or (:default opts) :default)
+                                                     ~(:hierarchy opts)))))
 
 (defmacro defmethod
-  "Add a new method to the multi-function which responds to dispatch-val."
+  "Add a new method to the multimethod `multifn` which responds to `dispatch-val`.
+
+  `fn-tail` is the trailing part of a function definition after `fn` including any
+  relevant argument vectors."
   [multifn dispatch-val & fn-tail]
   `(. ~multifn (~'add-method ~dispatch-val (fn ~@fn-tail))))
 
 (defn methods
-  "Return a map of dispatch values to methods for the given multi function."
+  "Return a map of dispatch values to methods for the given multimethod."
   [multifn]
   (.-methods multifn))
 
 (defn get-method
-  "Return the method which would respond to dispatch-val or nil if no method
-  exists for dispatch-val."
+  "Return the method of multimethod `multifn` which would respond to `dispatch-val` or
+  nil if no method exists for `dispatch-val`."
   [multifn dispatch-val]
   (.get-method multifn dispatch-val))
 
+(defn prefer-method
+  "Update the mulitmethod `multifn` to prefer `dispatch-val-x` over `dispatch-val-y` in
+  cases where the dispatch value selection might be ambiguous between the two.
+
+  Returns the multimethod."
+  [multifn dispatch-val-x dispatch-val-y]
+  (.prefer-method multifn dispatch-val-x dispatch-val-y)
+  multifn)
+
+(defn prefers
+  "Return a map of the set of preferrd values to the set of other conflicting values."
+  [multifn]
+  (.-prefers multifn))
+
 (defn remove-method
-  "Remove the method which responds to dispatch-val, if it exists. Return the
-  multi function."
+  "Remove the method from the multimethod `multfin` which responds to `dispatch-val`, if
+  it exists.
+
+  Return the multimethod."
   [multifn dispatch-val]
   (.remove-method multifn dispatch-val)
   multifn)
 
 (defn remove-all-methods
-  "Remove all method for this multi-function. Return the multi function."
+  "Remove all methods for the multimethod `multifn`.
+
+  Return the multimethod."
   [multifn]
   (.remove-all-methods multifn)
   multifn)
