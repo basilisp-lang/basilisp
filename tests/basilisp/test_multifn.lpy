@@ -66,6 +66,10 @@
   "operating system")
 
 (deftest multimethod-with-hierarchies-test
+  (testing "cannot create multimethod with non-reference type hierarchy"
+    (is (thrown? basilisp.lang.runtime/RuntimeException
+                 (defmulti real-fn :os :hierarchy (make-hierarchy)))))
+
   (let [m {:os :os/osx}]
     (is (= "unix" (os-lineage m)))
     (is (= "unix" (os-lineage m)))  ;; check again (should be a cache hit)
