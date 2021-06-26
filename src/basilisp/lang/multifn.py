@@ -23,9 +23,10 @@ class MultiFunction(Generic[T]):
         "_dispatch",
         "_lock",
         "_methods",
-        "_prefers",
         "_cache",
+        "_prefers",
         "_hierarchy",
+        "_cached_hierarchy",
         "_isa",
     )
 
@@ -42,8 +43,8 @@ class MultiFunction(Generic[T]):
         self._dispatch = dispatch
         self._lock = threading.Lock()
         self._methods: IPersistentMap[T, Method] = lmap.PersistentMap.empty()
-        self._prefers: IPersistentMap[T, IPersistentSet[T]] = lmap.PersistentMap.empty()
         self._cache: IPersistentMap[T, Method] = lmap.PersistentMap.empty()
+        self._prefers: IPersistentMap[T, IPersistentSet[T]] = lmap.PersistentMap.empty()
         self._hierarchy: IRef[IPersistentMap] = hierarchy or runtime.Var.find_safe(
             _GLOBAL_HIERARCHY_SYM
         )
@@ -52,6 +53,11 @@ class MultiFunction(Generic[T]):
             raise runtime.RuntimeException(
                 f"Expected IRef type for :hierarchy; got {type(hierarchy)}"
             )
+
+        # Maintain a cache of the hierarchy value to detect when the hierarchy
+        # has changed. If the hierarchy changes, we need to reset the internal
+        # caches.
+        self._cached_hierarchy = self._hierarchy.deref()
 
         # Fetch some items from basilisp.core that we need to compute the final
         # dispatch method. These cannot be imported statically because that would
@@ -72,6 +78,7 @@ class MultiFunction(Generic[T]):
         altered."""
         # Does not use a lock to avoid lock reentrance
         self._cache = self._methods
+        self._cached_hierarchy = self._hierarchy.deref()
 
     def _is_a(self, tag: T, parent: T) -> bool:
         """Return True if `tag` can be considered a `parent` type using `isa?`."""
@@ -122,6 +129,9 @@ class MultiFunction(Generic[T]):
     def get_method(self, key: T) -> Optional[Method]:
         """Return the method which would handle this dispatch key or None if no method
         defined for this key and no default."""
+        if self._cached_hierarchy != self._hierarchy.deref():
+            self._reset_cache()
+
         cached_val = self._cache.val_at(key)
         if cached_val is not None:
             return cached_val

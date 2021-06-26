@@ -21,7 +21,7 @@
   [_]
   "BLAH")
 
-(deftest test-multi-functions
+(deftest multimethod-test
   (testing "multi method usage"
     (is (= "1" (test-fn "i")))
     (is (= "2" (test-fn "ii")))
@@ -44,3 +44,48 @@
     (remove-all-methods test-fn)
 
     (is (not (seq (methods test-fn))))))
+
+(def ^:redef os-hierarchy
+  (-> (make-hierarchy)
+      (derive :os/osx :os/unix)))
+
+(defmulti os-lineage
+  :os
+  :hierarchy #'os-hierarchy)
+
+(defmethod os-lineage :os/unix
+  [_]
+  "unix")
+
+(defmethod os-lineage :os/bsd
+  [_]
+  "bsd")
+
+(defmethod os-lineage :default
+  [_]
+  "operating system")
+
+(deftest multimethod-with-hierarchies-test
+  (let [m {:os :os/osx}]
+    (is (= "unix" (os-lineage m)))
+    (is (= "unix" (os-lineage m)))  ;; check again (should be a cache hit)
+    (is (= {} (prefers os-lineage)))
+
+    (alter-var-root #'os-hierarchy derive :os/osx :os/bsd)
+
+    (testing "ambiguous method preference"
+      (is (= {} (prefers os-lineage)))
+      (is (thrown? basilisp.lang.runtime/RuntimeException (os-lineage m))))
+
+    (prefer-method os-lineage :os/unix :os/bsd)
+
+    (testing "method preferences"
+      (is (= "unix" (os-lineage m)))
+      (is (= "unix" (os-lineage m)))  ;; check again (should be a cache hit)
+      (is (= {:os/unix #{:os/bsd}} (prefers os-lineage)))
+      (is (= "operating system" (os-lineage {:os :os/windows})))
+      (is (= "operating system" (os-lineage {:os :os/windows}))))
+
+    (testing "cannot establish conflicting preference"
+      (is (thrown? basilisp.lang.runtime/RuntimeException)
+          (prefer-method os-lineage :os/bsd :os/unix)))))
