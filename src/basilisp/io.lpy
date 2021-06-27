@@ -51,7 +51,15 @@
   (make-writer [f opts]
     "Coerce `f` to a text-based writer instance, subject to `opts`.
 
-    Callers should generally prefer `basilisp.io/writer` to this function."))
+    Callers should generally prefer `basilisp.io/writer` to this function.")
+  (make-input-stream [f opts]
+    "Coerce `f` to a binary input stream instance, subject to `opts`.
+
+    Callers should generally prefer `basilisp.io/input-stream` to this function.")
+  (make-output-stream [f opts]
+    "Coerce `f` to a binary output stream instance, subject to `opts`.
+
+    Callers should generally prefer `basilisp.io/output-stream` to this function."))
 
 (extend-protocol IOFactory
   io/TextIOBase
@@ -67,29 +75,58 @@
       (throw
        (ex-info "Cannot coerce io.TextIOBase object to writer type"
                 {:file f :opts opts}))))
+  (make-input-stream [f opts]
+    (throw
+     (ex-info "Cannot coerce io.TextIOBase object to input-stream type"
+              {:file f :opts opts})))
+  (make-output-stream [f opts]
+    (throw
+     (ex-info "Cannot coerce io.TextIOBase object to output-stream type"
+              {:file f :opts opts})))
 
   io/RawIOBase
   (make-reader [f opts]
-    (let [buf-size (:buffer-size opts io/DEFAULT-BUFFER-SIZE)]
-      (-> (io/BufferedReader f ** :buffer-size buf-size)
-          (make-reader opts))))
+    (make-reader (make-input-stream f opts) opts))
   (make-writer [f opts]
+    (make-writer (make-output-stream f opts) opts))
+  (make-input-stream [f opts]
     (let [buf-size (:buffer-size opts io/DEFAULT-BUFFER-SIZE)]
-      (-> (io/BufferedWriter f ** :buffer-size buf-size)
-          (make-writer opts))))
+      (io/BufferedReader f ** :buffer-size buf-size)))
+  (make-output-stream [f opts]
+    (let [buf-size (:buffer-size opts io/DEFAULT-BUFFER-SIZE)]
+      (io/BufferedWriter f ** :buffer-size buf-size)))
 
   io/BufferedIOBase
   (make-reader [f opts]
     (make-reader (wrap-text-io f opts) opts))
   (make-writer [f opts]
     (make-writer (wrap-text-io f opts) opts))
+  (make-input-stream [f opts]
+    (if (.readable f)
+      f
+      (throw
+       (ex-info "Cannot coerce io.BufferedIOBase object to input-stream type"
+                {:file f :opts opts}))))
+  (make-output-stream [f opts]
+    (if (.writeable f)
+      f
+      (throw
+       (ex-info "Cannot coerce io.BufferedIOBase object to output-stream type"
+                {:file f :opts opts}))))
 
   python/bytes
   (make-reader [f opts]
-    (wrap-text-io (io/BytesIO f) opts))
-  (make-writer [_ _]
+    (wrap-text-io (make-input-stream f opts) opts))
+  (make-writer [f opts]
     (throw
-     (ex-info "Cannot write to bytes instance" {})))
+     (ex-info "Cannot coerce bytes object to writer type"
+              {:file f :opts opts})))
+  (make-input-stream [f _]
+    (io/BytesIO f))
+  (make-output-stream [f opts]
+    (throw
+     (ex-info "Cannot coerce bytes object to output-stream type"
+              {:file f :opts opts})))
 
   python/str
   (make-reader [f opts]
@@ -102,13 +139,31 @@
       (make-writer (urllib.parse/urlparse f) opts)
       (catch python/ValueError _
         (make-writer (pathlib/Path f) opts))))
+  (make-input-stream [f opts]
+    (try
+      (make-input-stream (urllib.parse/urlparse f) opts)
+      (catch python/ValueError _
+        (make-input-stream (pathlib/Path f) opts))))
+  (make-output-stream [f opts]
+    (try
+      (make-output-stream (urllib.parse/urlparse f) opts)
+      (catch python/ValueError _
+        (make-output-stream (pathlib/Path f) opts))))
 
   pathlib/Path
   (make-reader [f opts]
     (assert (str/includes? (:mode opts) "r"))
     (apply-kw python/open f opts))
   (make-writer [f opts]
-    (assert (str/includes? (:mode opts) "w"))
+    (assert (some #(str/includes? (:mode opts) %) ["w" "a"]))
+    (apply-kw python/open f opts))
+  (make-input-stream [f opts]
+    (assert (and (str/includes? (:mode opts) "r")
+                 (str/includes? (:mode opts) "b")))
+    (apply-kw python/open f opts))
+  (make-output-stream [f opts]
+    (assert (and (some #(str/includes? (:mode opts) %) ["w" "a"])
+                 (str/includes? (:mode opts) "b")))
     (apply-kw python/open f opts))
 
   urllib.parse/ParseResult
@@ -128,14 +183,36 @@
       (throw
        (ex-info "Cannot write to a non-File URL"
                 {:url f :opts opts}))))
+  (make-input-stream [f opts]
+    (if (contains? #{"file" ""} (.-scheme f))
+      (-> (urllib.parse/urlunparse f)
+          (pathlib/Path)
+          (make-input-stream opts))
+      (-> (urllib.parse/urlunparse f)
+          (urllib.request/Request)
+          (make-input-stream opts))))
+  (make-output-stream [f opts]
+    (if (contains? #{"file" ""} (.-scheme f))
+      (-> (urllib.parse/urlunparse f)
+          (pathlib/Path)
+          (make-output-stream opts))
+      (throw
+       (ex-info "Cannot write to a non-File URL"
+                {:url f :opts opts}))))
 
   urllib.request/Request
   (make-reader [f opts]
-    (-> (urllib.request/urlopen f)
+    (-> (make-input-stream f opts)
         (wrap-text-io opts)))
   (make-writer [f opts]
     (throw
      (ex-info "Cannot write to a non-File URL"
+              {:url f :opts opts})))
+  (make-input-stream [f _]
+    (urllib.request/urlopen f))
+  (make-output-stream [f opts]
+    (throw
+     (ex-info "Cannot output to a non-File URL"
               {:url f :opts opts}))))
 
 (defn reader
@@ -173,6 +250,50 @@
 
   Default implementations are available for:
   - `io/TextIOBase` (only if `(.writeable f)` is `true`)
+  - `io/RawIOBase`
+  - `io/BufferedIOBase`
+  - `python/str` (first resolved as a URL via `urllib.parse.urlparse`, then as a
+    local filesystem path via `pathlib`)
+  - `pathlib/Path`
+  - `urllib.parse.ParseResult`"
+  [f & opts]
+  (->> (apply hash-map opts)
+       (clean-writer-mode)
+       (make-writer f)))
+
+(defn input-stream
+  "Open an input stream instance on the file or path `f`.
+
+  The input stream instances returned are always binary, not text-based. In general,
+  the input streams should be compatible with Python's `io.BufferedIOBase` interface.
+
+  Callers should take care to open a reader instance using `with-open` to ensure
+  that any resources are properly closed afterwards.
+
+  Default implementations are available for:
+  - `io/RawIOBase`
+  - `io/BufferedIOBase`
+  - `python/str` (first resolved as a URL via `urllib.parse.urlparse`, then as a
+    local filesystem path via `pathlib`)
+  - `python/bytes`
+  - `pathlib/Path`
+  - `urllib.parse.ParseResult`
+  - `urllib.request/Request`"
+  [f & opts]
+  (->> (apply hash-map opts)
+       (clean-reader-mode)
+       (make-input-stream f)))
+
+(defn output-stream
+  "Open an output stream instance on the file or path `f`.
+
+  The output stream instances returned are always binary, not text-based. In general,
+  the output streams should be compatible with Python's `io.BufferedIOBase` interface.
+
+  Callers should take care to open a writer instance using `with-open` to ensure
+  that any resources are properly closed afterwards.
+
+  Default implementations are available for:
   - `io/RawIOBase`
   - `io/BufferedIOBase`
   - `python/str` (first resolved as a URL via `urllib.parse.urlparse`, then as a
