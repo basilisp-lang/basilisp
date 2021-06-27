@@ -70,7 +70,7 @@
        (ex-info "Cannot coerce io.TextIOBase object to reader type"
                 {:file f :opts opts}))))
   (make-writer [f opts]
-    (if (.writeable f)
+    (if (.writable f)
       f
       (throw
        (ex-info "Cannot coerce io.TextIOBase object to writer type"
@@ -108,7 +108,7 @@
        (ex-info "Cannot coerce io.BufferedIOBase object to input-stream type"
                 {:file f :opts opts}))))
   (make-output-stream [f opts]
-    (if (.writeable f)
+    (if (.writable f)
       f
       (throw
        (ex-info "Cannot coerce io.BufferedIOBase object to output-stream type"
@@ -249,7 +249,7 @@
   that any resources are properly closed afterwards.
 
   Default implementations are available for:
-  - `io/TextIOBase` (only if `(.writeable f)` is `true`)
+  - `io/TextIOBase` (only if `(.writable f)` is `true`)
   - `io/RawIOBase`
   - `io/BufferedIOBase`
   - `python/str` (first resolved as a URL via `urllib.parse.urlparse`, then as a
