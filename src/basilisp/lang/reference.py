@@ -6,7 +6,6 @@ from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
 from basilisp.lang.exception import ExceptionInfo
 from basilisp.lang.interfaces import (
-    IDeref,
     IPersistentMap,
     IRef,
     IReference,
@@ -59,7 +58,7 @@ class ReferenceBase(IReference):
 T = TypeVar("T")
 
 
-class RefBase(IDeref[T], IRef, ReferenceBase):
+class RefBase(IRef[T], ReferenceBase):
     """
     Mixin for IRef classes to define the full IRef interface.
 

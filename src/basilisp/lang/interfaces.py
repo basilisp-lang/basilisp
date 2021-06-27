@@ -133,7 +133,7 @@ RefWatchKey = Hashable
 RefWatcher = Callable[[RefWatchKey, "IRef", Any, Any], None]
 
 
-class IRef(IReference):
+class IRef(IDeref[T]):
     __slots__ = ()
 
     @abstractmethod
