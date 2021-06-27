@@ -1,0 +1,185 @@
+(ns basilisp.io
+  (:import
+   io
+   pathlib
+   urllib.parse
+   urllib.request)
+  (:require [basilisp.string :as str]))
+
+(defn- clean-reader-mode
+  [opts]
+  (let [mode (:mode opts "r")]
+    (when (some #(str/includes? mode %) #{"w" "a"})
+      (throw
+       (ex-info "Cannot open a reader in write mode"
+                {:mode mode})))
+
+    (cond->> mode
+      (not (str/includes? mode "r")) (str "r" mode)
+      true                           (assoc opts :mode))))
+
+(defn- clean-writer-mode
+  [opts]
+  (let [mode       (:mode opts "w")
+        clean-mode (cond
+                     (:append opts)                 (str "a" mode)
+                     (not (str/includes? mode "w")) (str "w" mode))]
+
+    (when (str/includes? mode "r")
+      (throw
+       (ex-info "Cannot open a writer in read mode"
+                {:mode mode})))
+
+    (when (every? #(str/includes? mode %) ["w" "a"])
+      (throw
+       (ex-info "Writers may only be open in write or append mode"
+                {:mode mode})))
+
+    (assoc opts :mode clean-mode)))
+
+(defn- wrap-text-io
+  "Wrap another type of `io` class in a `io.TextIOWrapper` instance."
+  [f opts]
+  (->> (dissoc opts :mode)
+       (apply-kw io/TextIOWrapper f)))
+
+(defprotocol IOFactory
+  (make-reader [f opts]
+    "Coerce `f` to a text-based reader instance, subject to `opts`.
+
+    Callers should generally prefer `basilisp.io/reader` to this function.")
+  (make-writer [f opts]
+    "Coerce `f` to a text-based writer instance, subject to `opts`.
+
+    Callers should generally prefer `basilisp.io/writer` to this function."))
+
+(extend-protocol IOFactory
+  io/TextIOBase
+  (make-reader [f opts]
+    (if (.readable f)
+      f
+      (throw
+       (ex-info "Cannot coerce io.TextIOBase object to reader type"
+                {:file f :opts opts}))))
+  (make-writer [f opts]
+    (if (.writeable f)
+      f
+      (throw
+       (ex-info "Cannot coerce io.TextIOBase object to writer type"
+                {:file f :opts opts}))))
+
+  io/RawIOBase
+  (make-reader [f opts]
+    (let [buf-size (:buffer-size opts io/DEFAULT-BUFFER-SIZE)]
+      (-> (io/BufferedReader f ** :buffer-size buf-size)
+          (make-reader opts))))
+  (make-writer [f opts]
+    (let [buf-size (:buffer-size opts io/DEFAULT-BUFFER-SIZE)]
+      (-> (io/BufferedWriter f ** :buffer-size buf-size)
+          (make-writer opts))))
+
+  io/BufferedIOBase
+  (make-reader [f opts]
+    (make-reader (wrap-text-io f opts) opts))
+  (make-writer [f opts]
+    (make-writer (wrap-text-io f opts) opts))
+
+  python/bytes
+  (make-reader [f opts]
+    (wrap-text-io (io/BytesIO f) opts))
+  (make-writer [_ _]
+    (throw
+     (ex-info "Cannot write to bytes instance" {})))
+
+  python/str
+  (make-reader [f opts]
+    (try
+      (make-reader (urllib.parse/urlparse f) opts)
+      (catch python/ValueError _
+        (make-reader (pathlib/Path f) opts))))
+  (make-writer [f opts]
+    (try
+      (make-writer (urllib.parse/urlparse f) opts)
+      (catch python/ValueError _
+        (make-writer (pathlib/Path f) opts))))
+
+  pathlib/Path
+  (make-reader [f opts]
+    (assert (str/includes? (:mode opts) "r"))
+    (apply-kw python/open f opts))
+  (make-writer [f opts]
+    (assert (str/includes? (:mode opts) "w"))
+    (apply-kw python/open f opts))
+
+  urllib.parse/ParseResult
+  (make-reader [f opts]
+    (if (contains? #{"file" ""} (.-scheme f))
+      (-> (urllib.parse/urlunparse f)
+          (pathlib/Path)
+          (make-reader opts))
+      (-> (urllib.parse/urlunparse f)
+          (urllib.request/Request)
+          (make-reader opts))))
+  (make-writer [f opts]
+    (if (contains? #{"file" ""} (.-scheme f))
+      (-> (urllib.parse/urlunparse f)
+          (pathlib/Path)
+          (make-writer opts))
+      (throw
+       (ex-info "Cannot write to a non-File URL"
+                {:url f :opts opts}))))
+
+  urllib.request/Request
+  (make-reader [f opts]
+    (-> (urllib.request/urlopen f)
+        (wrap-text-io opts)))
+  (make-writer [f opts]
+    (throw
+     (ex-info "Cannot write to a non-File URL"
+              {:url f :opts opts}))))
+
+(defn reader
+  "Open a reader instance on the file or path `f`.
+
+  The reader instances returned are always text-based, not binary. In general, the
+  readers should be compatible with Python's `io.TextIOBase` interface.
+
+  Callers should take care to open a reader instance using `with-open` to ensure
+  that any resources are properly closed afterwards.
+
+  Default implementations are available for:
+  - `io/TextIOBase` (only if `(.readable f)` is `true`)
+  - `io/RawIOBase`
+  - `io/BufferedIOBase`
+  - `python/str` (first resolved as a URL via `urllib.parse.urlparse`, then as a
+    local filesystem path via `pathlib`)
+  - `python/bytes`
+  - `pathlib/Path`
+  - `urllib.parse.ParseResult`
+  - `urllib.request/Request`"
+  [f & opts]
+  (->> (apply hash-map opts)
+       (clean-reader-mode)
+       (make-reader f)))
+
+(defn writer
+  "Open a writer instance on the file or path `f`.
+
+  The writer instances returned are always text-based, not binary. In general, the
+  writers should be compatible with Python's `io.TextIOBase` interface.
+
+  Callers should take care to open a writer instance using `with-open` to ensure
+  that any resources are properly closed afterwards.
+
+  Default implementations are available for:
+  - `io/TextIOBase` (only if `(.writeable f)` is `true`)
+  - `io/RawIOBase`
+  - `io/BufferedIOBase`
+  - `python/str` (first resolved as a URL via `urllib.parse.urlparse`, then as a
+    local filesystem path via `pathlib`)
+  - `pathlib/Path`
+  - `urllib.parse.ParseResult`"
+  [f & opts]
+  (->> (apply hash-map opts)
+       (clean-writer-mode)
+       (make-writer f)))

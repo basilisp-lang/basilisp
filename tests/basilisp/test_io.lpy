@@ -1,0 +1,4 @@
+(ns tests.basilisp.test-io
+  (:require
+   [basilisp.io :as bio]))
+
