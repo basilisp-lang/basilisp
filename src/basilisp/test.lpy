@@ -74,11 +74,24 @@
                :type         :failure}))))
 
 (defmacro is
-  "Assert that expr is true. Must appear inside of a deftest form."
+  "Assert that a test condition, `expr`, is true. `is` assertion failures are recorded
+  and reported as test failures, causing the entire containing `deftest` to be marked
+  as failed.
+
+  `expr` can take multiple forms:
+  - `(is (= expected actual))` generates a basic assertion that `expected` and `actual`
+    are equal by `=`; error messaging will reflect that the first element is the
+    expected value and the second element is the actual value
+  - `(is (thrown? ExceptionType expr))` generates a basica assertion that `expr` does
+    generate an exception of the type `ExceptionType`
+  - `(is expr)` is the most basic assertion type that just asserts that `expr` is truthy
+
+  `is` assertions must appear inside of a `deftest` form."
   ([expr]
    `(is ~expr (str "Test failure: " (pr-str (quote ~expr)))))
   ([expr msg]
-   (let [line-num (:basilisp.lang.reader/line (meta &form))]
+   (let [line-num (or (:basilisp.lang.reader/line (meta &form))
+                      (:basilisp.lang.reader/line (meta (first &form))))]
      `(try
         ~(gen-assert expr msg line-num)
         (catch python/Exception e#
@@ -94,14 +107,45 @@
                   :type         :error}))))))
 
 (defmacro are
-  "Assert that expr is true. Must appear inside of a deftest form."
+  "Generate assertions using the template expression `expr`. Template expressions
+  should be defined in terms of the symbols in the argument vector `argv`.
+
+  Arguments will be partitioned into groups of as many arguments are in `argv`
+  and applied to the template expression.
+
+  As an example:
+
+    (are [res x y] (is (= res (+ x y)))
+      3  1 2
+      4  2 2
+      0 -1 1)
+
+  This would macroexpand to create a group of assertions like this:
+
+    (do
+      (is (= 3 (+ 1 2)))
+      (is (= 4 (+ 2 2)))
+      (is (= 0 (+ -1 1))))
+
+  This may be convenient for generating large numbers of identically formed assertions
+  with different arguments.
+
+  Note that assertions generated with `are` typically lose line numbers in test failure
+  reports, due to the nature of the macro generation.
+
+  `are` assertions must appear inside of a `deftest` form."
   [argv expr & args]
   `(template/do-template ~argv (is ~expr) ~@args))
 
 (defmacro testing
-  "Wrapper for test cases to provide additional messaging and context
-  around the test or group of tests contained inside. Must appear inside
-  of a deftest form."
+  "Wrapper for test cases to provide additional messaging and context around the test
+  or group of tests contained inside. The value of `msg` will be shown in the report
+  with any test failures that occur inside this block.
+
+  `testing` macros may be nested. Each nested block message will be appended to the
+  message from the previous block.
+
+  `testing` forms must appear inside of a `deftest` form."
   [msg & body]
   `(binding [*test-section* (if *test-section*
                               (str *test-section* " :: " ~msg)
@@ -109,11 +153,13 @@
      ~@body))
 
 (defmacro deftest
-  "Define a new test function. Assertions can be made with the is macro.
-  Group tests with the testing macro.
+  "Define a new test.
 
-  Tests defined by deftest will be run by default by the PyTest test
-  runner using Basilisp's builtin PyTest hook."
+  Assertions can be made with the `is` and `are` macros. Group tests with the `testing`
+  macro.
+
+  Tests defined by `deftest` will be run by default by the PyTest test runner using
+  Basilisp's builtin PyTest hook."
   [name-sym & body]
   (let [test-num      (swap! current-test-number inc)
         test-name-sym (vary-meta name-sym

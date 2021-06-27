@@ -213,11 +213,12 @@ class BasilispTestItem(pytest.Item):
 
         test_section = details.val_at(_TEST_SECTION_KW)
         line = details.val_at(_LINE_KW)
+        line_msg = Maybe(line).map(lambda l: f":{l}").or_else_get("")
         section_msg = Maybe(test_section).map(lambda s: f" {s} :: ").or_else_get("")
 
         return "\n".join(
             [
-                f"FAIL in ({self.name}) ({self._filename}:{line})",
+                f"FAIL in ({self.name}) ({self._filename}{line_msg})",
                 f"    {section_msg}{msg}",
                 "",
                 f"    expected: {lrepr(expected)}",
