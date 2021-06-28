@@ -170,7 +170,7 @@
   urllib.parse/ParseResult
   (make-reader [f opts]
     (if (contains? #{"file" ""} (.-scheme f))
-      (-> (urllib.parse/urlunparse f)
+      (-> (.-path f)
           (pathlib/Path)
           (make-reader opts))
       (-> (urllib.parse/urlunparse f)
@@ -178,7 +178,7 @@
           (make-reader opts))))
   (make-writer [f opts]
     (if (contains? #{"file" ""} (.-scheme f))
-      (-> (urllib.parse/urlunparse f)
+      (-> (.-path f)
           (pathlib/Path)
           (make-writer opts))
       (throw
@@ -186,7 +186,7 @@
                 {:url f :opts opts}))))
   (make-input-stream [f opts]
     (if (contains? #{"file" ""} (.-scheme f))
-      (-> (urllib.parse/urlunparse f)
+      (-> (.-path f)
           (pathlib/Path)
           (make-input-stream opts))
       (-> (urllib.parse/urlunparse f)
@@ -194,7 +194,7 @@
           (make-input-stream opts))))
   (make-output-stream [f opts]
     (if (contains? #{"file" ""} (.-scheme f))
-      (-> (urllib.parse/urlunparse f)
+      (-> (.-path f)
           (pathlib/Path)
           (make-output-stream opts))
       (throw

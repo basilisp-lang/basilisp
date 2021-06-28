@@ -1,4 +1,26 @@
 (ns tests.basilisp.test-io
+  (:import
+   http.server
+   io
+   os
+   tempfile
+   threading)
   (:require
-   [basilisp.io :as bio]))
+   [basilisp.io :as bio]
+   [basilisp.test :refer [deftest is are testing]]))
 
+(deftest reader-test
+  (are [res src] (= res (slurp src))
+    "hi there" (.encode "hi there" "utf-8")
+    "hi there" (io/BytesIO (.encode "hi there" "utf-8"))
+    "hi there" (io/StringIO "hi there"))
+
+  (let [[fd filename] (tempfile/mkstemp)]
+    (try
+      (spit filename "hi there")
+      (println (str "file://" filename))
+      (is (= "hi there" (slurp filename)))
+      (is (= "hi there" (slurp (str "file://" filename))))
+      (finally
+        (os/close fd)
+        (os/unlink filename)))))
