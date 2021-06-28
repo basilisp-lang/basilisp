@@ -2196,13 +2196,6 @@ def _if_ast(form: ISeq, ctx: AnalyzerContext) -> If:
         else:
             else_node = _const_node(None, ctx)
 
-    # Optimize away dead if branches from the compiled AST
-    if isinstance(test_node, Const):
-        if test_node.val is False or test_node.val is None:
-            return else_node
-        else:
-            return then_node
-
     return If(
         form=form,
         test=test_node,
