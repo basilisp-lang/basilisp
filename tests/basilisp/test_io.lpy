@@ -1,5 +1,6 @@
 (ns tests.basilisp.test-io
   (:import
+   atexit
    http.server
    io
    os
@@ -8,6 +9,36 @@
   (:require
    [basilisp.io :as bio]
    [basilisp.test :refer [deftest is are testing]]))
+
+(def tempdir
+  "Temporary directory for generating test files.
+
+  The HTTP server below will serve files from that directory."
+  (tempfile/TemporaryDirectory))
+
+(atexit/register (.-cleanup tempdir))
+
+(defonce ^:private http-server
+  (doto (threading/Thread
+         **
+         :target (fn []
+                   ;; The Python 3.6 version of SimpleHTTPRequestHandler does not
+                   ;; support setting the directory it serves files from, so we
+                   ;; use reader conditionals to switch the working directory
+                   ;; to `tempdir` to avoid conflicting with any files in the
+                   ;; current work tree.
+                   (let [addr    (python/tuple ["", 8080])
+                         handler #?(:lpy36 http.server/SimpleHTTPRequestHandler
+                                    :lpy37+ (partial-kw http.server/SimpleHTTPRequestHandler :directory tempdir))
+                         cwd     (os/getcwd)]
+                     #?(:lpy36 (os/chdir tempdir))
+                     (try
+                       (with [srv (http.server/HTTPServer addr handler)]
+                         (.serve-forever srv))
+                       (finally
+                         (os/chdir cwd)))))
+         :daemon true)
+    (.start)))
 
 (deftest reader-test
   (are [res src] (= res (slurp src))
@@ -18,9 +49,12 @@
   (let [[fd filename] (tempfile/mkstemp)]
     (try
       (spit filename "hi there")
-      (println (str "file://" filename))
       (is (= "hi there" (slurp filename)))
       (is (= "hi there" (slurp (str "file://" filename))))
       (finally
         (os/close fd)
         (os/unlink filename)))))
+
+(deftest writer-test
+  (is (thrown? basilisp.lang.exception/ExceptionInfo
+               (spit (.encode "hi there" "utf-8") "more stuff!"))))
