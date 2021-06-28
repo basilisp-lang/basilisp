@@ -23,7 +23,8 @@
   (let [mode       (:mode opts "w")
         clean-mode (cond
                      (:append opts)                 (str "a" mode)
-                     (not (str/includes? mode "w")) (str "w" mode))]
+                     (not (str/includes? mode "w")) (str "w" mode)
+                     :else                          mode)]
 
     (when (str/includes? mode "r")
       (throw
