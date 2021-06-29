@@ -35,7 +35,7 @@
 
   When multiple arguments are provided, treat the first as the parent path and
   each subsequent argument as a child path, joining all paths together as one."
-  ([p] (as-path p)
+  ([p] (as-path p))
   ([parent child]
    (.joinpath (as-path parent) (as-path child)))
   ([parent child & others]
