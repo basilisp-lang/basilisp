@@ -7,12 +7,10 @@ from basilisp import main as basilisp
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
-from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
 from basilisp.util import Maybe
 
-_CURRENT_NS_SYM = sym.symbol("current-ns", ns="basilisp.test")
 _TEST_META_KW = kw.keyword("test", "basilisp.test")
 _TEST_NUM_META_KW = kw.keyword("order", "basilisp.test")
 
@@ -89,11 +87,10 @@ class BasilispFile(pytest.File):
     def collect(self):
         """Collect all of the tests in the namespace (module) given.
 
-        Basilisp's test runner imports the namespace which will (as a side
-        effect) collect all of the test functions in a namespace (represented
-        by `deftest` forms in Basilisp). BasilispFile.collect fetches those
-        test functions and generates BasilispTestItems for PyTest to run the
-        tests."""
+        Basilisp's test runner imports the namespace which will (as a side effect)
+        collect all of the test functions in a namespace (represented by `deftest`
+        forms in Basilisp). BasilispFile.collect fetches those test functions and
+        generates BasilispTestItems for PyTest to run the tests."""
         filename = self.fspath.basename
         module = self.fspath.pyimport()
         assert isinstance(module, runtime.BasilispModule)
@@ -120,12 +117,11 @@ _TYPE_KW = kw.keyword("type")
 class BasilispTestItem(pytest.Item):
     """Test items correspond to a single `deftest` form in a Basilisp test.
 
-    `deftest` forms run each `is` assertion and collect all failures in an
-    atom, reporting their results as a vector of failures when each test
-    concludes.
+    `deftest` forms run each `is` assertion and collect all failures in an atom,
+    reporting their results as a vector of failures when each test concludes.
 
-    The BasilispTestItem collects all the failures and returns a report
-    to PyTest to show to the end-user."""
+    The BasilispTestItem collects all the failures and returns a report to PyTest to
+    show to the end-user."""
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
@@ -158,17 +154,15 @@ class BasilispTestItem(pytest.Item):
     def runtest(self):
         """Run the tests associated with this test item.
 
-        If any tests fail, raise an ExceptionInfo exception with the
-        test failures. PyTest will invoke self.repr_failure to display
-        the failures to the user."""
+        If any tests fail, raise an ExceptionInfo exception with the test failures.
+        PyTest will invoke self.repr_failure to display the failures to the user."""
         results: lmap.PersistentMap = self._run_test()
         failures: Optional[vec.PersistentVector] = results.val_at(_FAILURES_KW)
         if runtime.to_seq(failures):
             raise TestFailuresInfo("Test failures", lmap.map(results))
 
     def repr_failure(self, excinfo, style=None):  # pylint: disable=unused-argument
-        """Representation function called when self.runtest() raises an
-        exception."""
+        """Representation function called when self.runtest() raises an exception."""
         if isinstance(excinfo.value, TestFailuresInfo):
             exc = excinfo.value
             failures = exc.data.val_at(_FAILURES_KW)
