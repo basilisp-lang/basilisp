@@ -6,6 +6,58 @@
    urllib.request)
   (:require [basilisp.string :as str]))
 
+(defprotocol Coercions
+  (as-path [f]
+    "Coerce `f` to a `pathlib.Path` instance.
+
+    Callers should generally prefer `basilisp.io/path` to this function."))
+
+(extend-protocol Coercions
+  nil
+  (as-path [f] nil)
+
+  python/str
+  (as-path [f] (pathlib/Path f))
+
+  pathlib/Path
+  (as-path [f] f)
+
+  urllib.parse/ParseResult
+  (as-path [f]
+    (if (contains? #{"file" ""} (.-scheme f))
+      (-> (.-path f) (pathlib/Path))
+      (throw
+       (ex-info "Cannot coerce non-File URL to pathlib.Path"
+                {:file f})))))
+
+(defn path
+  "Coerce `p` to a `pathlib.Path` instance.
+
+  When multiple arguments are provided, treat the first as the parent path and
+  each subsequent argument as a child path, joining all paths together as one."
+  ([p] (as-path p)
+  ([parent child]
+   (.joinpath (as-path parent) (as-path child)))
+  ([parent child & others]
+   (reduce path (path parent child) others)))
+
+(defn delete-file
+  "Delete the file named by `f`.
+
+  If `silently` is false or nil (default), attempting to delete a non-existent file
+  will raise a `FileNotFoundError`. Otherwise, return the value of `silently`."
+  ([f]
+   (.unlink (as-path f))
+   true)
+  ([f silently]
+   #?(:lpy37- (try
+                (.unlink (as-path f))
+                (catch python/FileNotFoundError e
+                  (when-not silently
+                    (throw e))))
+      :lpy38+ (.unlink (as-path f) ** :missing-ok (if silently true false)))
+   silently))
+
 (defn- clean-reader-mode
   [opts]
   (let [mode (:mode opts "r")]
@@ -170,32 +222,28 @@
   urllib.parse/ParseResult
   (make-reader [f opts]
     (if (contains? #{"file" ""} (.-scheme f))
-      (-> (.-path f)
-          (pathlib/Path)
+      (-> (as-path f)
           (make-reader opts))
       (-> (urllib.parse/urlunparse f)
           (urllib.request/Request)
           (make-reader opts))))
   (make-writer [f opts]
     (if (contains? #{"file" ""} (.-scheme f))
-      (-> (.-path f)
-          (pathlib/Path)
+      (-> (as-path f)
           (make-writer opts))
       (throw
        (ex-info "Cannot write to a non-File URL"
                 {:url f :opts opts}))))
   (make-input-stream [f opts]
     (if (contains? #{"file" ""} (.-scheme f))
-      (-> (.-path f)
-          (pathlib/Path)
+      (-> (as-path f)
           (make-input-stream opts))
       (-> (urllib.parse/urlunparse f)
           (urllib.request/Request)
           (make-input-stream opts))))
   (make-output-stream [f opts]
     (if (contains? #{"file" ""} (.-scheme f))
-      (-> (.-path f)
-          (pathlib/Path)
+      (-> (as-path f)
           (make-output-stream opts))
       (throw
        (ex-info "Cannot write to a non-File URL"
