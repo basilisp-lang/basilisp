@@ -6,7 +6,9 @@
    os
    pathlib
    tempfile
-   threading)
+   threading
+   urllib.parse
+   urllib.request)
   (:require
    [basilisp.io :as bio]
    [basilisp.test :refer [deftest is are testing]]))
@@ -77,10 +79,11 @@
 ;; functionality.
 
 (deftest reader-test
-  (are [res src] (= res (slurp src))
-    "hi there" (.encode "hi there" "utf-8")
-    "hi there" (io/BytesIO (.encode "hi there" "utf-8"))
-    "hi there" (io/StringIO "hi there"))
+  (testing "in-memory IO objects"
+    (are [res src] (= res (slurp src))
+      "hi there" (.encode "hi there" "utf-8")
+      "hi there" (io/BytesIO (.encode "hi there" "utf-8"))
+      "hi there" (io/StringIO "hi there")))
 
   (testing "local filenames"
     (let [[fd filename] (tempfile/mkstemp)]
@@ -101,7 +104,12 @@
 
       (testing "auto-encode binary file"
         (with-open [f (python/open path ** :mode "rb")]
-          (is (= "some content" (slurp f)))))))
+          (is (= "some content" (slurp f)))))
+
+      (testing "cannot read write-only file"
+        (with-open [f (python/open path ** :mode "w")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (slurp f)))))))
 
   (testing "http requests"
     (let [filename (pathlib/Path tempdir "reader-http-req.txt")]
