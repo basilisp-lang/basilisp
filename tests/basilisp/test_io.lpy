@@ -122,10 +122,52 @@
           (os/unlink filename))))))
 
 (deftest writer-test
-  (is (thrown? basilisp.lang.exception/ExceptionInfo
-               (spit (.encode "hi there" "utf-8") "more stuff!")))
-  (is (thrown? basilisp.lang.exception/ExceptionInfo
-               (spit (str "http://localhost:"
-                          http-server-port
-                          "/writer-http-req.txt")
-                     "some fun text"))))
+  (testing "in-memory IO objects"
+    (let [content "hi there"
+          dest    (io/BytesIO)]
+      (.write dest (.encode content "utf-8"))
+      (= content (slurp dest)))
+
+    (let [content "hi there"
+          dest    (io/StringIO)]
+      (.write dest content)
+      (= content (slurp dest)))
+
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (spit (.encode "hi there" "utf-8") "more stuff!"))))
+
+  (testing "local files"
+    (let [path (bio/path tempdir "writer-test-local-files.txt")]
+      (spit path "some content")
+      (= "some content" (slurp path))
+
+      (bio/delete-file path)
+
+      (spit (str path) "some content")
+      (= "some content" (slurp path))
+
+      (testing "open file object"
+        (with-open [f (python/open path ** :mode "w")]
+          (spit f "open file content"))
+
+        (is (= "open file content" (slurp path))))
+
+      (testing "auto-encode binary file"
+        (with-open [f (python/open path ** :mode "wb")]
+          (spit f "auto-encoded content"))
+
+        (is (= "auto-encoded content" (slurp path))))
+
+      (testing "cannot write read-only file"
+        (with-open [f (python/open path ** :mode "r")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (spit f "some content")))))))
+
+  (testing "http requests"
+    (let [url (str "http://localhost:" http-server-port "/writer-http-req.txt")]
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit url "some fun text")))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit (urllib.request/Request url) "some fun text")))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit (urllib.parse/urlparse url) "some fun text"))))))
