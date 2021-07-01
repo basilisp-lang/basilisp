@@ -72,6 +72,10 @@
       (is (= true (bio/delete-file path true)))
       (is (= :a (bio/delete-file path :a))))))
 
+;; The reader and writer tests below use `spit` and `slurp` because they are easier
+;; to work with directly but still exercise the full breadth of reader and writer
+;; functionality.
+
 (deftest reader-test
   (are [res src] (= res (slurp src))
     "hi there" (.encode "hi there" "utf-8")
@@ -86,9 +90,18 @@
         (is (= "hi there" (slurp (str "file://" filename))))
         (finally
           (os/close fd)
-          (os/unlink filename))))
+          (os/unlink filename)))))
 
-    )
+  (testing "local files"
+    (let [path (bio/path tempdir "reader-test-local-files.txt")]
+      (spit path "some content")
+
+      (with-open [f (python/open path ** :mode "r")]
+        (is (= "some content" (slurp f))))
+
+      (testing "auto-encode binary file"
+        (with-open [f (python/open path ** :mode "rb")]
+          (is (= "some content" (slurp f)))))))
 
   (testing "http requests"
     (let [filename (pathlib/Path tempdir "reader-http-req.txt")]
@@ -98,9 +111,7 @@
                                        http-server-port
                                        "/reader-http-req.txt"))))
         (finally
-          (os/unlink filename)))))
-
-  )
+          (os/unlink filename))))))
 
 (deftest writer-test
   (is (thrown? basilisp.lang.exception/ExceptionInfo
