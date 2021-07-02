@@ -486,7 +486,7 @@
   `path` before creating the parent directories."
   [f & others]
   (let [p (apply path f others)]
-    (.mkdir (.-parent p ** :parents true))
+    (.mkdir (.-parent p) ** :parents true)
     true))
 
 (defn exists?
