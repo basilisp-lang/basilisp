@@ -11,11 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for Taps (#631)
  * Added support for hierarchies (#633)
  * Added support for several more utility Namespace and Var utility functions (#636)
+ * Added `basilisp.io` namespace with polymorphic reader and writer functions (#645)
 
 ### Changed
  * PyTest is now an optional extra dependency, rather than a required dependency (#622)
  * Generated Python functions corresponding to nested functions are now prefixed with the containing function name, if one exists (#632)
  * `basilisp.test/are` docstring now indicates that line numbers may be suppressed on assertion failures created using `are` (#643)
+ * Multimethods now support providing a custom hierarchy and dispatch to registered values using `isa?` (#644)
 
 ### Fixed
  * Fixed a bug where `seq`ing co-recursive lazy sequences would cause a stack overflow (#632)

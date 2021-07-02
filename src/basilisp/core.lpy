@@ -1500,6 +1500,17 @@
       (throw
        (python/ValueError (str "cannot coerce " (python/repr x) " to byte"))))))
 
+(defn byte-string
+  "Coerce x to a byte string (Python `bytes` object).
+
+  Arguments shall be interpreted exactly as with that object's constructor."
+  ([x]
+   (python/bytes x))
+  ([x encoding]
+   (python/bytes x encoding))
+  ([x encoding errors]
+   (python/bytes x encoding errors)))
+
 (defn char
   "Coerce x to a string of length 1.
 
@@ -4937,7 +4948,15 @@
             (vector? parent)
             (->> (map (partial isa? h) tag parent)
                  (every? identity)))
-       (contains? (ancestors h tag) parent))))
+       (contains? (ancestors h tag) parent)
+       ;; in certain cases, in particular with the Python `io` module, the types
+       ;; in a class's MRO are not identical to the types users have access to.
+       ;; this is likely the case due to so-called "virtual" subclasses such as
+       ;; those supported by Python's `abc` module. we need to use `issubclass`
+       ;; to detect those edge cases.
+       (and (instance? python/type tag)
+            (instance? python/type parent)
+            (python/issubclass tag parent)))))
 
 (defn derive
   "Derive a parent/child relationship between `tag` and `parent`.
@@ -6424,6 +6443,53 @@
          ((.- ~type-name ~'create) m#))
 
        ~type-name)))
+
+;;;;;;;;;;;;;;;;;;
+;; IO Utilities ;;
+;;;;;;;;;;;;;;;;;;
+
+;; This is a circular import since namespaces using 'ns will always try to refer all
+;; symbols from 'basilisp.core. This should be fine since we won't be using anything
+;; from core defined below this section, but still this is a bad pattern and should
+;; not be replicated.
+(require 'basilisp.io)
+
+(defn slurp
+  "Open a `basilisp.io/reader` instance on `f` and read the contents of `f` into a
+  string.
+
+  Options may be provided as key value pairs and will be passed directly to
+  `basilisp.io/reader`. Supported reader options depend on which type of reader is
+  selected for `f`. Most readers support the `:encoding` option.
+
+  If `f` is a string, it first is resolved as a URL (via `urllib.parse.urlparse`).
+  If the URL is invalid or refers to a filesystem location (via `file://` scheme),
+  then it will be resolved as a local filesystem path.
+
+  Return the string contents."
+  [f & opts]
+  (with-open [reader (apply basilisp.io/reader f opts)]
+    (.read reader)))
+
+(defn spit
+  "Open a `basilisp.io/writer` instance on `f` and write `content` out to `f` before
+  closing the writer.
+
+  Options may be provided as key value pairs and will be passed directly to
+  `basilisp.io/writer`. Supported writer options depend on which type of writer is
+  selected for `f`. Most writers support the `:encoding` option.
+
+  If `f` is a string, it first is resolved as a URL (via `urllib.parse.urlparse`).
+  If the URL is invalid or refers to a filesystem location (via `file://` scheme),
+  then it will be resolved as a local filesystem path.
+
+  `spit` does not support writing to non-file URLs.
+
+  Return `nil`."
+  [f content & opts]
+  (with-open [writer (apply basilisp.io/writer f opts)]
+    (.write writer content)
+    nil))
 
 ;;;;;;;;;;;;;;;;;
 ;; Transducers ;;

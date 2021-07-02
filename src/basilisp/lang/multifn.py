@@ -45,6 +45,11 @@ class MultiFunction(Generic[T]):
         self._methods: IPersistentMap[T, Method] = lmap.PersistentMap.empty()
         self._cache: IPersistentMap[T, Method] = lmap.PersistentMap.empty()
         self._prefers: IPersistentMap[T, IPersistentSet[T]] = lmap.PersistentMap.empty()
+
+        # Fetch some items from basilisp.core that we need to compute the final
+        # dispatch method. These cannot be imported statically because that would
+        # produce a circular reference between basilisp.core and this module.
+        self._isa = runtime.Var.find_safe(_ISA_SYM)
         self._hierarchy: IRef[IPersistentMap] = hierarchy or runtime.Var.find_safe(
             _GLOBAL_HIERARCHY_SYM
         )
@@ -58,11 +63,6 @@ class MultiFunction(Generic[T]):
         # has changed. If the hierarchy changes, we need to reset the internal
         # caches.
         self._cached_hierarchy = self._hierarchy.deref()
-
-        # Fetch some items from basilisp.core that we need to compute the final
-        # dispatch method. These cannot be imported statically because that would
-        # produce a circular reference between basilisp.core and this module.
-        self._isa = runtime.Var.find_safe(_ISA_SYM)
 
     def __call__(self, *args, **kwargs):
         key = self._dispatch(*args, **kwargs)

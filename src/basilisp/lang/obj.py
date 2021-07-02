@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from decimal import Decimal
 from fractions import Fraction
 from functools import singledispatch
+from pathlib import Path
 from typing import Any, Callable, Iterable, Pattern, Tuple, Union
 
 from basilisp.util import take
@@ -266,6 +267,11 @@ def _lrepr_decimal(o: Decimal, print_dup: bool = PRINT_DUP, **_) -> str:
 @lrepr.register(Fraction)
 def _lrepr_fraction(o: Fraction, **_) -> str:
     return f"{o.numerator}/{o.denominator}"
+
+
+@lrepr.register(Path)
+def _lrepr_path(o: Path, **_) -> str:
+    return str(o)
 
 
 @lrepr.register(type(re.compile("")))
