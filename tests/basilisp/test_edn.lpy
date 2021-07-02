@@ -78,6 +78,7 @@
     "yay!"          'yay!
     ".interop"      '.interop
     "ns.name"       'ns.name
+    "*'"            '*'
 
     "ns/sym"                  'ns/sym
     "qualified.ns/sym"        'qualified.ns/sym
@@ -118,6 +119,7 @@
     ":<body>"           :<body>
     ":*muffs*"          :*muffs*
     ":yay!"             :yay!
+    ":*'"               :*'
 
     ":ns/kw"                  :ns/kw
     ":qualified.ns/kw"        :qualified.ns/kw

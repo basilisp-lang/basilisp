@@ -180,7 +180,7 @@ jobs:
   test-pypy-36:
     docker:
       - image: pypy:3.6-slim-buster
-    parallelism: 4
+    parallelism: 8
     steps:
       - run_pypy_tests:
           python_version: "3.6"
@@ -188,7 +188,7 @@ jobs:
   test-pypy-37:
     docker:
       - image: pypy:3.7-slim-buster
-    parallelism: 4
+    parallelism: 8
     steps:
       - run_pypy_tests:
           python_version: "3.7"

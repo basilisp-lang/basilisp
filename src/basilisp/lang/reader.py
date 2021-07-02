@@ -514,7 +514,7 @@ def _read_namespaced(
                 has_ns = True
                 ns = name
                 name = []
-        elif ns_name_chars.match(token):
+        elif ns_name_chars.match(token) or (name and token == "'"):
             reader.next_token()
             name.append(token)
         elif allowed_suffix is not None and token == allowed_suffix:
