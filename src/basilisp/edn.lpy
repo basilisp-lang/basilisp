@@ -128,7 +128,8 @@
                          :error :unexpected-char}))
               (recur name [] true))))
 
-        (re-matches ns-name-chars c)
+        (or (re-matches ns-name-chars c)
+            (and (seq name) (= c "'")))
         (do
           (.next-token reader)
           (recur ns (conj name c) has-ns))

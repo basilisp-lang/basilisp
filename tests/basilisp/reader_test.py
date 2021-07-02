@@ -124,239 +124,272 @@ def test_stream_reader_loc():
     assert (3, 2) == sreader.loc
 
 
-def test_complex():
-    assert read_str_first("1J") == 1j
-    assert read_str_first("100J") == 100j
-    assert read_str_first("99927273J") == 99_927_273j
-    assert read_str_first("0J") == 0j
-    assert read_str_first("-1J") == -1j
-    assert read_str_first("-538282J") == -538_282j
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("1JJ")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("1NJ")
-
-    assert read_str_first("0.0J") == 0.0j
-    assert read_str_first("0.09387372J") == 0.093_873_72j
-    assert read_str_first("1.0J") == 1.0j
-    assert read_str_first("1.332J") == 1.332j
-    assert read_str_first("-1.332J") == -1.332j
-    assert read_str_first("-1.0J") == -1.0j
-    assert read_str_first("-0.332J") == -0.332j
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("1.0MJ")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("22/7J")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("22J/7")
-
-
-def test_int():
-    assert read_str_first("1") == 1
-    assert read_str_first("100") == 100
-    assert read_str_first("99927273") == 99_927_273
-    assert read_str_first("0") == 0
-    assert read_str_first("-1") == -1
-    assert read_str_first("-538282") == -538_282
-
-    assert read_str_first("1N") == 1
-    assert read_str_first("100N") == 100
-    assert read_str_first("99927273N") == 99_927_273
-    assert read_str_first("0N") == 0
-    assert read_str_first("-1N") == -1
-    assert read_str_first("-538282N") == -538_282
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("1NN")
-
-
-def test_float():
-    assert read_str_first("0.0") == 0.0
-    assert read_str_first("0.09387372") == 0.093_873_72
-    assert read_str_first("1.0") == 1.0
-    assert read_str_first("1.332") == 1.332
-    assert read_str_first("-1.332") == -1.332
-    assert read_str_first("-1.0") == -1.0
-    assert read_str_first("-0.332") == -0.332
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("0..11")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("0.111.9")
-
-
-def test_kw():
-    assert kw.keyword("kw") == read_str_first(":kw")
-    assert kw.keyword("kebab-kw") == read_str_first(":kebab-kw")
-    assert kw.keyword("underscore_kw") == read_str_first(":underscore_kw")
-    assert kw.keyword("kw?") == read_str_first(":kw?")
-    assert kw.keyword("+") == read_str_first(":+")
-    assert kw.keyword("?") == read_str_first(":?")
-    assert kw.keyword("=") == read_str_first(":=")
-    assert kw.keyword("!") == read_str_first(":!")
-    assert kw.keyword("-") == read_str_first(":-")
-    assert kw.keyword("*") == read_str_first(":*")
-    assert kw.keyword("/") == read_str_first(":/")
-    assert kw.keyword(">") == read_str_first(":>")
-    assert kw.keyword("->") == read_str_first(":->")
-    assert kw.keyword("->>") == read_str_first(":->>")
-    assert kw.keyword("-->") == read_str_first(":-->")
-    assert kw.keyword("--------------->") == read_str_first(":--------------->")
-    assert kw.keyword("<") == read_str_first(":<")
-    assert kw.keyword("<-") == read_str_first(":<-")
-    assert kw.keyword("<--") == read_str_first(":<--")
-    assert kw.keyword("<body>") == read_str_first(":<body>")
-    assert kw.keyword("*muffs*") == read_str_first(":*muffs*")
-    assert kw.keyword("yay!") == read_str_first(":yay!")
-
-    assert kw.keyword("kw", ns="ns") == read_str_first(":ns/kw")
-    assert kw.keyword("kw", ns="qualified.ns") == read_str_first(":qualified.ns/kw")
-    assert kw.keyword("kw", ns="really.qualified.ns") == read_str_first(
-        ":really.qualified.ns/kw"
+class TestComplex:
+    @pytest.mark.parametrize(
+        "v,raw",
+        [
+            (1j, "1J"),
+            (100j, "100J"),
+            (99_927_273j, "99927273J"),
+            (0j, "0J"),
+            (-1j, "-1J"),
+            (-538_282j, "-538282J"),
+        ],
     )
+    def test_legal_complex(self, v: complex, raw: str):
+        assert v == read_str_first(raw)
 
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("://")
+    @pytest.mark.parametrize("raw", ["1JJ", "1NJ"])
+    def test_malformed_complex(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
 
-    with pytest.raises(reader.SyntaxError):
-        read_str_first(":ns//kw")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first(":some/ns/sym")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first(":ns/sym/")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first(":/kw")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first(":dotted.kw")
-
-
-def test_autoresolved_kw(test_ns: str, ns: runtime.Namespace):
-    assert kw.keyword("kw", ns=test_ns) == read_str_first("::kw")
-
-    new_ns = runtime.Namespace(sym.symbol("other.ns"))
-    ns.add_alias(new_ns, sym.symbol("other"))
-    assert kw.keyword("kw", ns="other.ns") == read_str_first("::other/kw")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("::third/kw")
-
-
-def test_literals():
-    assert read_str_first("nil") is None
-    assert read_str_first("true") is True
-    assert read_str_first("false") is False
-
-
-def test_symbol():
-    assert sym.symbol("sym") == read_str_first("sym")
-    assert sym.symbol("kebab-sym") == read_str_first("kebab-sym")
-    assert sym.symbol("underscore_sym") == read_str_first("underscore_sym")
-    assert sym.symbol("sym?") == read_str_first("sym?")
-    assert sym.symbol("+") == read_str_first("+")
-    assert sym.symbol("?") == read_str_first("?")
-    assert sym.symbol("=") == read_str_first("=")
-    assert sym.symbol("!") == read_str_first("!")
-    assert sym.symbol("-") == read_str_first("-")
-    assert sym.symbol("*") == read_str_first("*")
-    assert sym.symbol("/") == read_str_first("/")
-    assert sym.symbol(">") == read_str_first(">")
-    assert sym.symbol("->") == read_str_first("->")
-    assert sym.symbol("->>") == read_str_first("->>")
-    assert sym.symbol("-->") == read_str_first("-->")
-    assert sym.symbol("<") == read_str_first("<")
-    assert sym.symbol("<-") == read_str_first("<-")
-    assert sym.symbol("<--") == read_str_first("<--")
-    assert sym.symbol("$") == read_str_first("$")
-    assert sym.symbol("<body>") == read_str_first("<body>")
-    assert sym.symbol("*muffs*") == read_str_first("*muffs*")
-    assert sym.symbol("yay!") == read_str_first("yay!")
-    assert sym.symbol(".interop") == read_str_first(".interop")
-    assert sym.symbol("ns.name") == read_str_first("ns.name")
-
-    assert sym.symbol("sym", ns="ns") == read_str_first("ns/sym")
-    assert sym.symbol("sym", ns="qualified.ns") == read_str_first("qualified.ns/sym")
-    assert sym.symbol("sym", ns="really.qualified.ns") == read_str_first(
-        "really.qualified.ns/sym"
+    @pytest.mark.parametrize(
+        "v,raw",
+        [
+            (0.0j, "0.0J"),
+            (0.093_873_72j, "0.09387372J"),
+            (1.0j, "1.0J"),
+            (1.332j, "1.332J"),
+            (-1.332j, "-1.332J"),
+            (-1.0j, "-1.0J"),
+            (-0.332j, "-0.332J"),
+        ],
     )
+    def test_legal_float_complex(self, v: complex, raw: str):
+        assert v == read_str_first(raw)
 
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("//")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("ns//sym")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("some/ns/sym")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("ns/sym/")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("/sym")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first(".second.ns/name")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("ns..third/name")
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first("ns.second/.interop")
-
-    with pytest.raises(reader.SyntaxError):
-        # This will raise because the default pushback depth of the
-        # reader.StreamReader instance used by the reader is 5, so
-        # we are unable to pushback more - characters consumed by
-        # reader._read_num trying to parse a number.
-        read_str_first("------->")
+    @pytest.mark.parametrize("raw", ["1.0MJ", "22/7J", "22J/7"])
+    def test_malformed_float_complex(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
 
 
-def test_str():
-    assert "" == read_str_first('""')
-
-    assert '"' == read_str_first(r'"\""')
-    assert "\\" == read_str_first(r'"\\"')
-    assert "\a" == read_str_first(r'"\a"')
-    assert "\b" == read_str_first(r'"\b"')
-    assert "\f" == read_str_first(r'"\f"')
-    assert "\n" == read_str_first(r'"\n"')
-    assert "\r" == read_str_first(r'"\r"')
-    assert "\t" == read_str_first(r'"\t"')
-    assert "\v" == read_str_first(r'"\v"')
-
-    with pytest.raises(reader.SyntaxError):
-        read_str_first(r'"\q"')
-
-    assert "Hello,\nmy name is\tChris." == read_str_first(
-        r'"Hello,\nmy name is\tChris."'
+class TestInt:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("1", 1),
+            ("100", 100),
+            ("99927273", 99_927_273),
+            ("0", 0),
+            ("-1", -1),
+            ("-538282", -538_282),
+        ],
     )
+    def test_legal_int(self, v: int, raw: str):
+        assert v == read_str_first(raw)
 
-    assert "Regular string" == read_str_first('"Regular string"')
-    assert "String with 'inner string'" == read_str_first(
-        "\"String with 'inner string'\""
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("1N", 1),
+            ("100N", 100),
+            ("99927273N", 99_927_273),
+            ("0N", 0),
+            ("-1N", -1),
+            ("-538282N", -538_282),
+        ],
     )
-    assert 'String with "inner string"' == read_str_first(
-        r'"String with \"inner string\""'
+    def test_legal_bigint(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    def test_malformed_bigint(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first("1NN")
+
+
+class TestFloat:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("0.0", 0.0),
+            ("0.09387372", 0.093_873_72),
+            ("1.0", 1.0),
+            ("1.332", 1.332),
+            ("-1.332", -1.332),
+            ("-1.0", -1.0),
+            ("-0.332", -0.332),
+        ],
     )
+    def test_legal_float(self, v: float, raw: str):
+        assert v == read_str_first(raw)
 
-    with pytest.raises(reader.SyntaxError):
-        read_str_first('"Start of a string')
+    @pytest.mark.parametrize("raw", ["0..11", "0.111.9"])
+    def test_malformed_float(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
 
 
-def test_whitespace():
-    assert read_str_first("") is None
-    assert read_str_first(" ") is None
-    assert read_str_first("\t") is None
+class TestKeyword:
+    @pytest.mark.parametrize(
+        "v,raw",
+        [
+            ("kw", ":kw"),
+            ("kebab-kw", ":kebab-kw"),
+            ("underscore_kw", ":underscore_kw"),
+            ("kw?", ":kw?"),
+            ("+", ":+"),
+            ("?", ":?"),
+            ("=", ":="),
+            ("!", ":!"),
+            ("-", ":-"),
+            ("*", ":*"),
+            ("/", ":/"),
+            (">", ":>"),
+            ("->", ":->"),
+            ("->>", ":->>"),
+            ("-->", ":-->"),
+            ("--------------->", ":--------------->"),
+            ("<", ":<"),
+            ("<-", ":<-"),
+            ("<<-", ":<<-"),
+            ("<--", ":<--"),
+            ("<body>", ":<body>"),
+            ("*muffs*", ":*muffs*"),
+            ("yay!", ":yay!"),
+            ("*'", ":*'"),
+        ],
+    )
+    def test_legal_bare_symbol(self, v: str, raw: str):
+        assert kw.keyword(v) == read_str_first(raw)
+
+    @pytest.mark.parametrize(
+        "k,ns,raw",
+        [
+            ("kw", "ns", ":ns/kw"),
+            ("kw", "qualified.ns", ":qualified.ns/kw"),
+            ("kw", "really.qualified.ns", ":really.qualified.ns/kw"),
+        ],
+    )
+    def test_legal_ns_symbol(self, k: str, ns: str, raw: str):
+        assert kw.keyword(k, ns=ns) == read_str_first(raw)
+
+    @pytest.mark.parametrize(
+        "v", ["://", ":ns//kw", ":some/ns/sym", ":ns/sym/", ":/kw", ":dotted.kw"]
+    )
+    def test_illegal_symbol(self, v: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(v)
+
+    def test_autoresolved_kw(self, test_ns: str, ns: runtime.Namespace):
+        assert kw.keyword("kw", ns=test_ns) == read_str_first("::kw")
+
+        new_ns = runtime.Namespace(sym.symbol("other.ns"))
+        ns.add_alias(new_ns, sym.symbol("other"))
+        assert kw.keyword("kw", ns="other.ns") == read_str_first("::other/kw")
+
+        with pytest.raises(reader.SyntaxError):
+            read_str_first("::third/kw")
+
+
+@pytest.mark.parametrize("s,val", [("nil", None), ("true", True), ("false", False)])
+def test_literals(s: str, val):
+    assert read_str_first(s) is val
+
+
+class TestSymbol:
+    @pytest.mark.parametrize(
+        "s",
+        [
+            "sym",
+            "kebab-sym",
+            "underscore_sym",
+            "sym?",
+            "+",
+            "?",
+            "=",
+            "!",
+            "-",
+            "*",
+            "/",
+            ">",
+            "->",
+            "->>",
+            "<",
+            "<-",
+            "<<-",
+            "$",
+            "<body>",
+            "*mufs*",
+            "yay!",
+            ".interop",
+            "ns.name",
+            "*'",
+        ],
+    )
+    def test_legal_bare_symbol(self, s: str):
+        assert sym.symbol(s) == read_str_first(s)
+
+    @pytest.mark.parametrize(
+        "s,ns,raw",
+        [
+            ("sym", "ns", "ns/sym"),
+            ("sym", "qualified.ns", "qualified.ns/sym"),
+            ("sym", "really.qualified.ns", "really.qualified.ns/sym"),
+        ],
+    )
+    def test_legal_ns_symbol(self, s: str, ns: str, raw: str):
+        assert sym.symbol(s, ns=ns) == read_str_first(raw)
+
+    @pytest.mark.parametrize(
+        "v",
+        [
+            "//",
+            "ns//sym",
+            "some/ns/sym",
+            "ns/sym/",
+            "/sym",
+            ".second.ns/name",
+            "ns..third/name",
+            "ns.second/.interop",
+            # This will raise because the default pushback depth of the
+            # reader.StreamReader instance used by the reader is 5, so
+            # we are unable to pushback more - characters consumed by
+            # reader._read_num trying to parse a number.
+            "------->",
+        ],
+    )
+    def test_illegal_symbol(self, v: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(v)
+
+
+class TestString:
+    @pytest.mark.parametrize(
+        "v,raw",
+        [
+            ("", '""'),
+            ('"', r'"\""'),
+            ("\\", r'"\\"'),
+            ("\a", r'"\a"'),
+            ("\b", r'"\b"'),
+            ("\f", r'"\f"'),
+            ("\n", r'"\n"'),
+            ("\r", r'"\r"'),
+            ("\t", r'"\t"'),
+            ("\v", r'"\v"'),
+            ("Hello,\nmy name is\tChris.", r'"Hello,\nmy name is\tChris."'),
+            ("Regular string", '"Regular string"'),
+            ("String with 'inner string'", "\"String with 'inner string'\""),
+            ('String with "inner string"', r'"String with \"inner string\""'),
+        ],
+    )
+    def test_legal_string(self, v: str, raw: str):
+        assert v == read_str_first(raw)
+
+    def test_invalid_escape(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(r'"\q"')
+
+    def test_missing_terminating_quote(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first('"Start of a string')
+
+
+@pytest.mark.parametrize("s", ["", " ", "\t"])
+def test_whitespace(s: str):
+    assert read_str_first(s) is None
 
 
 def test_vector():
