@@ -277,7 +277,11 @@
   readers should be compatible with Python's `io.TextIOBase` interface.
 
   Callers should take care to open a reader instance using `with-open` to ensure
-  that any resources are properly closed afterwards.
+  that any resources are properly closed afterwards. Note that for in-memory IO
+  buffers such as `io.BytesIO` and `io.StringIO`, opening a reader without assigning
+  it to a name for the duration of its use may trigger garbage collection of the
+  reader which closes the underlying buffer, discarding the contents and invalidating
+  the buffer.
 
   Default implementations are available for:
   - `io/TextIOBase` (only if `(.readable f)` is `true`)
@@ -301,7 +305,11 @@
   writers should be compatible with Python's `io.TextIOBase` interface.
 
   Callers should take care to open a writer instance using `with-open` to ensure
-  that any resources are properly closed afterwards.
+  that any resources are properly closed afterwards. Note that for in-memory IO
+  buffers such as `io.BytesIO` and `io.StringIO`, opening a writer without assigning
+  it to a name for the duration of its use may trigger garbage collection of the
+  writer which closes the underlying buffer, discarding the contents and invalidating
+  the buffer.
 
   Default implementations are available for:
   - `io/TextIOBase` (only if `(.writable f)` is `true`)
@@ -323,7 +331,11 @@
   the input streams should be compatible with Python's `io.BufferedIOBase` interface.
 
   Callers should take care to open a reader instance using `with-open` to ensure
-  that any resources are properly closed afterwards.
+  that any resources are properly closed afterwards. Note that for in-memory IO
+  buffers such as `io.BytesIO` and `io.StringIO`, opening an input stream without
+  assigning it to a name for the duration of its use may trigger garbage collection of
+  the input stream which closes the underlying buffer, discarding the contents and
+  invalidating the buffer.
 
   Default implementations are available for:
   - `io/RawIOBase`
@@ -347,7 +359,11 @@
   the output streams should be compatible with Python's `io.BufferedIOBase` interface.
 
   Callers should take care to open a writer instance using `with-open` to ensure
-  that any resources are properly closed afterwards.
+  that any resources are properly closed afterwards. Note that for in-memory IO
+  buffers such as `io.BytesIO` and `io.StringIO`, opening an output stream without
+  assigning it to a name for the duration of its use may trigger garbage collection of
+  the output stream which closes the underlying buffer, discarding the contents and
+  invalidating the buffer.
 
   Default implementations are available for:
   - `io/RawIOBase`

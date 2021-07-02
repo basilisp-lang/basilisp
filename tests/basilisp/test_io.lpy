@@ -123,13 +123,18 @@
 
 (deftest writer-test
   (testing "in-memory IO objects"
+    ;; In these tess, we assign the writer to a name so it is not immediately gc'ed
+    ;; io.IOBase.__del__ calls .close() on the underlying buffer and causes subsequent
+    ;; reads to fail.
     (let [content "hi there"
-          dest    (io/BytesIO)]
-      (.write dest (.encode content "utf-8"))
-      (= content (slurp dest)))
+          dest    (io/BytesIO)
+          writer  (bio/writer dest)]
+      (.write writer content)
+      (= content (.read (bio/reader dest))))
 
     (let [content "hi there"
-          dest    (io/StringIO)]
+          dest    (io/StringIO)
+          writer  (bio/writer dest)]
       (.write dest content)
       (= content (slurp dest)))
 
@@ -230,3 +235,51 @@
                                        "/input-streams-http-req.txt"))))
         (finally
           (os/unlink filename))))))
+
+(deftest output-stream-test
+  (testing "in-memory IO objects"
+    (let [content (bytes "hi there")
+          dest    (io/BytesIO)]
+      (.write (bio/output-stream dest) content)
+      (= content (slurp-bytes dest)))
+
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (bio/output-stream (io/StringIO))))
+
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (spit (.encode "hi there" "utf-8") "more stuff!"))))
+
+  (testing "local files"
+    (let [path (bio/path tempdir "output-stream-test-local-files.txt")]
+      (spit-bytes path "some content")
+      (= (bytes "some content") (slurp-bytes path))
+
+      (bio/delete-file path)
+
+      (spit-bytes (str path) "some content")
+      (= (bytes "some content") (slurp-bytes path))
+
+      (testing "open file object"
+        (with-open [f (python/open path ** :mode "wb")]
+          (spit-bytes f "open file content"))
+
+        (is (= (bytes "open file content") (slurp-bytes path))))
+
+      (testing "cannot decode input stream"
+        (with-open [f (python/open path ** :mode "w")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (spit-bytes f "input stream bytes")))))
+
+      (testing "cannot write read-only file"
+        (with-open [f (python/open path ** :mode "rb")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (spit-bytes f "some content")))))))
+
+  (testing "http requests"
+    (let [url (str "http://localhost:" http-server-port "/output-stream-http-req.txt")]
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit-bytes url "some fun text")))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit-bytes (urllib.request/Request url) "some fun text")))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit-bytes (urllib.parse/urlparse url) "some fun text"))))))
