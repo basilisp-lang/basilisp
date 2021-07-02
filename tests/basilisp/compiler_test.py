@@ -5368,6 +5368,17 @@ class TestSymbolResolution:
         finally:
             runtime.Namespace.remove(other_ns_name)
 
+    def test_private_var_does_not_resolve_during_macroexpansion(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        # In a previous version of the compiler, it was possible to get access
+        # to namespace private Vars simply by referring to them from within macros
+        # from the same namespace.
+        #
+        # https://github.com/basilisp-lang/basilisp/issues/646
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let [] basilisp.core/*generated-python*)")
+
     def test_aliased_macro_symbol_resolution(
         self, lcompile: CompileFn, ns: runtime.Namespace
     ):
