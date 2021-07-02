@@ -171,3 +171,62 @@
                    (spit (urllib.request/Request url) "some fun text")))
       (is (thrown? basilisp.lang.exception/ExceptionInfo
                    (spit (urllib.parse/urlparse url) "some fun text"))))))
+
+(def ^:private bytes #(byte-string % "utf-8"))
+
+(defn- slurp-bytes
+  [f & opts]
+  (with-open [reader (apply basilisp.io/input-stream f opts)]
+    (.read reader)))
+
+(defn- spit-bytes
+  [f content & opts]
+  (with-open [writer (apply basilisp.io/output-stream f opts)]
+    (.write writer (bytes content))
+    nil))
+
+(deftest input-stream-test
+  (testing "in-memory IO objects"
+    (are [res src] (= (bytes res) (slurp-bytes src))
+      "hi there" (bytes "hi there")
+      "hi there" (io/BytesIO (bytes "hi there")))
+
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (slurp-bytes (io/StringIO "hi there")))))
+
+  (testing "local filenames"
+    (let [[fd filename] (tempfile/mkstemp)]
+      (try
+        (spit-bytes filename "hi there")
+        (is (= (bytes "hi there") (slurp-bytes filename)))
+        (is (= (bytes "hi there") (slurp-bytes (str "file://" filename))))
+        (finally
+          (os/close fd)
+          (os/unlink filename)))))
+
+  (testing "local files"
+    (let [path (bio/path tempdir "input-stream-test-local-files.txt")]
+      (spit-bytes path "some content")
+
+      (with-open [f (python/open path ** :mode "rb")]
+        (is (= (bytes "some content") (slurp-bytes f))))
+
+      (testing "cannot decode input stream"
+        (with-open [f (python/open path ** :mode "r")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (slurp-bytes f)))))
+
+      (testing "cannot read write-only file"
+        (with-open [f (python/open path ** :mode "wb")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (slurp-bytes f)))))))
+
+  (testing "http requests"
+    (let [filename (pathlib/Path tempdir "input-streams-http-req.txt")]
+      (spit-bytes filename "some text")
+      (try
+        (is (= "some text" (slurp (str "http://localhost:"
+                                       http-server-port
+                                       "/input-streams-http-req.txt"))))
+        (finally
+          (os/unlink filename))))))

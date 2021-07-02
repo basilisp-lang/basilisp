@@ -1500,6 +1500,17 @@
       (throw
        (python/ValueError (str "cannot coerce " (python/repr x) " to byte"))))))
 
+(defn byte-string
+  "Coerce x to a byte string (Python `bytes` object).
+
+  Arguments shall be interpreted exactly as with that object's constructor."
+  ([x]
+   (python/bytes x))
+  ([x encoding]
+   (python/bytes x encoding))
+  ([x encoding errors]
+   (python/bytes x encoding errors)))
+
 (defn char
   "Coerce x to a string of length 1.
 

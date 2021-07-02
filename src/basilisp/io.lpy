@@ -90,6 +90,12 @@
 
     (assoc opts :mode clean-mode)))
 
+(defn- clean-binary-mode
+  [opts]
+  (let [mode (:mode opts "r")]
+    (cond-> opts
+      (not (str/includes? mode "b")) (assoc :mode (str mode "b")))))
+
 (defn- wrap-text-io
   "Wrap another type of `io` class in a `io.TextIOWrapper` instance."
   [f opts]
@@ -331,6 +337,7 @@
   [f & opts]
   (->> (apply hash-map opts)
        (clean-reader-mode)
+       (clean-binary-mode)
        (make-input-stream f)))
 
 (defn output-stream
@@ -352,4 +359,5 @@
   [f & opts]
   (->> (apply hash-map opts)
        (clean-writer-mode)
-       (make-writer f)))
+       (clean-binary-mode)
+       (make-output-stream f)))
