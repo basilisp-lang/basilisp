@@ -29,7 +29,7 @@ test:
 lispcore.py:
 	@BASILISP_DO_NOT_CACHE_NAMESPACES=true \
 		poetry run basilisp run -c \
-		'(with [f (python/open "lispcore.py" "w")] (.write f basilisp.core/*generated-python*))'
+			'(spit "lispcore.py" @#'"'"'basilisp.core/*generated-python*)'
 	@poetry run black lispcore.py
 
 
