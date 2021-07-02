@@ -4709,7 +4709,7 @@
       (refer-lib current-ns libspec))
     nil))
 
-(defonce ^:dynamic ^:private *loaded-libs*
+(defonce ^:dynamic *loaded-libs*
   (atom #{}))
 
 (defn loaded-libs
@@ -5775,7 +5775,7 @@
               (alter-var-root (var ~protocol-name) merge ~protocol-name)))
        ~protocol-name)))
 
-(defn ^:private protocol?
+(defn protocol?
   "Return true if x is a Protocol."
   [x]
   (boolean (and (map? x) (:interface x))))
@@ -6155,20 +6155,20 @@
   [v]
   (instance? basilisp.lang.interfaces/IRecord v))
 
-(defmulti ^:private evolve
-  (fn [v & _]
-    (cond
-      (record? v) :record
-      (map? v)    :map)))
+(defmulti evolve
+  "Implementation detail of `defrecord`."
+  (fn [v & _] (type v)))
 
-(defmethod evolve :map
+(defmethod evolve basilisp.lang.interfaces/IPersistentMap
   [m & kwargs]
   (apply assoc m kwargs))
 
-(defmethod evolve :record
+(defmethod evolve basilisp.lang.interfaces/IRecord
   [rec & kwargs]
   (->> (apply hash-map kwargs)
        (apply-kw attr/evolve rec)))
+
+(prefer-method evolve basilisp.lang.interfaces/IRecord basilisp.lang.interfaces/IPersistentMap)
 
 (defn ^:private validate-record-fields
   "Validate that record fields do not contain any reserved entries,

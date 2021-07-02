@@ -307,7 +307,6 @@ class AnalyzerContext:
         "_filename",
         "_func_ctx",
         "_is_quoted",
-        "_macro_ns",
         "_opts",
         "_recur_points",
         "_should_macroexpand",
@@ -326,7 +325,6 @@ class AnalyzerContext:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._func_ctx: Deque[FunctionContext] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
-        self._macro_ns: Deque[Optional[runtime.Namespace]] = collections.deque([])
         self._opts = (
             Maybe(opts).map(lmap.map).or_else_get(lmap.PersistentMap.empty())  # type: ignore
         )
@@ -382,35 +380,6 @@ class AnalyzerContext:
         self._is_quoted.append(True)
         yield
         self._is_quoted.pop()
-
-    @property
-    def current_macro_ns(self) -> Optional[runtime.Namespace]:
-        """Return the current transient namespace available during macroexpansion.
-
-        If None, the analyzer should only use the current namespace for symbol
-        resolution."""
-        try:
-            return self._macro_ns[-1]
-        except IndexError:
-            return None
-
-    @contextlib.contextmanager
-    def macro_ns(self, ns: Optional[runtime.Namespace]):
-        """Set the transient namespace which is available to the analyzer during a
-        macroexpansion phase.
-
-        If set to None, prohibit the analyzer from using another namespace for symbol
-        resolution.
-
-        During macroexpansion, new forms referenced from the macro namespace would
-        be unavailable to the namespace containing the original macro invocation.
-        The macro namespace is a temporary override pointing to the namespace of the
-        macro definition which can be used to resolve these transient references."""
-        self._macro_ns.append(ns)
-        try:
-            yield
-        finally:
-            self._macro_ns.pop()
 
     @property
     def should_allow_unresolved_symbols(self) -> bool:
@@ -2285,9 +2254,7 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                         expanded = expanded.with_meta(
                             old_meta.cons(form.meta) if old_meta else form.meta
                         )
-                    with ctx.macro_ns(
-                        fn.var.ns if fn.var.ns is not ctx.current_ns else None
-                    ), ctx.expr_pos():
+                    with ctx.expr_pos():
                         expanded_ast = _analyze_form(expanded, ctx)
 
                     # Verify that macroexpanded code also does not have any
@@ -3117,15 +3084,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     v = Var.find(form)
     if v is not None:
         # Disallow global references to Vars defined with :private metadata
-        #
-        # Global references to private Vars are allowed in macroexpanded code
-        # as long as the macro referencing the private Var is in the same
-        # Namespace as the private Var (via `ctx.current_macro_ns`)
-        if (
-            v.ns != ctx.current_macro_ns
-            and v.meta is not None
-            and v.meta.val_at(SYM_PRIVATE_META_KEY, False)
-        ):
+        if v.meta is not None and v.meta.val_at(SYM_PRIVATE_META_KEY, False):
             raise AnalyzerException(
                 f"cannot resolve private Var {form.name} from namespace {form.ns}",
                 form=form,
@@ -3218,16 +3177,6 @@ def __resolve_bare_symbol(
             var=v,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
-
-    # Look up the symbol in the current macro namespace, if one
-    if ctx.current_macro_ns is not None:
-        v = ctx.current_macro_ns.find(form)
-        if v is not None:
-            return VarRef(
-                form=form,
-                var=v,
-                env=ctx.get_node_env(pos=ctx.syntax_position),
-            )
 
     if "." in form.name:
         raise AnalyzerException(
