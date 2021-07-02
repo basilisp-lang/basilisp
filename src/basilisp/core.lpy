@@ -4948,7 +4948,10 @@
             (vector? parent)
             (->> (map (partial isa? h) tag parent)
                  (every? identity)))
-       (contains? (ancestors h tag) parent))))
+       (contains? (ancestors h tag) parent)
+       (and (instance? python/type tag)
+            (instance? python/type parent)
+            (python/issubclass tag parent)))))
 
 (defn derive
   "Derive a parent/child relationship between `tag` and `parent`.

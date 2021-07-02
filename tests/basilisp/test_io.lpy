@@ -66,12 +66,16 @@
   (let [path (bio/path tempdir "delete-test.txt")]
     (testing "not silently"
       (spit path "loud delete")
+      (is (bio/exists? path))
       (is (= true (bio/delete-file path)))
+      (is (not (bio/exists? path)))
       (is (thrown? python/FileNotFoundError (bio/delete-file path))))
 
     (testing "silent delete"
       (spit path "quiet delete")
+      (is (bio/exists? path))
       (is (= true (bio/delete-file path true)))
+      (is (not (bio/exists? path)))
       (is (= :a (bio/delete-file path :a))))))
 
 ;; The reader and writer tests below use `spit` and `slurp` because they are easier
@@ -283,3 +287,64 @@
                    (spit-bytes (urllib.request/Request url) "some fun text")))
       (is (thrown? basilisp.lang.exception/ExceptionInfo
                    (spit-bytes (urllib.parse/urlparse url) "some fun text"))))))
+
+(deftest copy-test
+  (let [srcp  (bio/path tempdir "copy-src-test.txt")
+        destp (bio/path tempdir "copy-dest-test.txt")]
+    (testing "text buffer to file path"
+      (let [src (io/StringIO "text")]
+        (bio/copy src destp)
+        (is (= (.getvalue src) (slurp destp)))
+        (bio/delete-file destp)))
+
+    (testing "file path to text buffer"
+      (let [contents "text"
+            dest     (io/StringIO)]
+        (spit srcp contents)
+        (bio/copy srcp dest)
+        (is (= contents (.getvalue dest)))
+        (bio/delete-file srcp))))
+
+  (testing "text buffer to text buffer"
+    (let [src  (io/StringIO "text")
+          dest (io/StringIO)]
+      (bio/copy src dest)
+      (is (= (.getvalue src) (.getvalue dest)))))
+
+  (testing "string to text buffer"
+    (let [src  "text"
+          dest (io/StringIO)]
+      (bio/copy src dest)
+      (is (= src (.getvalue dest)))))
+
+  (testing "bytes to text buffer"
+    (let [src  (bytes "text")
+          dest (io/StringIO)]
+      (bio/copy src dest)
+      (is (= (.decode src "utf-8") (.getvalue dest)))))
+
+  (testing "binary buffer to text buffer; auto-decode"
+    (let [src  (io/BytesIO (bytes "text"))
+          dest (io/StringIO)]
+      (bio/copy src dest :encoding "utf-8")
+      (is (= "text" (.getvalue dest)))))
+
+  (testing "binary buffer to binary buffer"
+    (let [src  (io/BytesIO (bytes "not text"))
+          dest (io/BytesIO)]
+      (bio/copy src dest)
+      (is (= (.getvalue src) (.getvalue dest)))))
+
+  (testing "bytes to binary buffer"
+    (let [src  (bytes "not text")
+          dest (io/BytesIO)]
+      (bio/copy src dest)
+      (is (= src (.getvalue dest))))))
+
+(deftest touch-test
+  (let [path (bio/path tempdir "touch-test.txt")]
+    (is (not (bio/exists? path)))
+    (bio/touch path)
+    (is (bio/exists? path))
+    ;; second call should not error
+    (bio/touch path)))

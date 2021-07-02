@@ -379,6 +379,13 @@
        (clean-binary-mode)
        (make-output-stream f)))
 
+(defmacro ^:private buf-size
+  "In Python 3.8+, a default buffer size value is supplied if 0 is given. In earlier
+  versions, the default value is supplied via keyword argument and providing 0 ends
+  up causing 0 length buffers to be used."
+  []
+  #?(:py38+ 0 :py37- 16384))
+
 (defmulti copy-file
   "Multi-method implementation for copying files.
 
@@ -390,16 +397,16 @@
   (fn [input output _] [(type input) (type output)]))
 
 (defmethod copy-file [io/TextIOBase io/TextIOBase]
-  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
   (shutil/copyfileobj input output ** :length buffer-size))
 
 (defmethod copy-file [pathlib/Path io/TextIOBase]
-  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
   (with-open [r (reader input)]
     (shutil/copyfileobj r output ** :length buffer-size)))
 
 (defmethod copy-file [io/TextIOBase pathlib/Path]
-  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
   (with-open [w (writer output)]
     (shutil/copyfileobj input w ** :length buffer-size)))
 
@@ -413,12 +420,12 @@
 
 (defmethod copy-file [io/BufferedIOBase io/TextIOBase]
   ;; Decode a binary buffer into a text buffer
-  [input output {:keys [buffer-size encoding] :or {buffer-size 0}}]
+  [input output {:keys [buffer-size encoding] :or {buffer-size (buf-size)}}]
   (with-open [r (reader input :encoding encoding)]
     (shutil/copyfileobj r output ** :length buffer-size)))
 
 (defmethod copy-file [io/BufferedIOBase io/BufferedIOBase]
-  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
   (shutil/copyfileobj input output ** :length buffer-size))
 
 (defmethod copy-file [python/bytes io/BufferedIOBase]
@@ -426,12 +433,12 @@
   (copy-file (input-stream input) output opts))
 
 (defmethod copy-file [pathlib/Path io/BufferedIOBase]
-  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
   (with-open [r (input-stream input)]
     (shutil/copyfileobj r output ** :length buffer-size)))
 
 (defmethod copy-file [io/BufferedIOBase pathlib/Path]
-  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
   (with-open [w (output-stream output)]
     (shutil/copyfileobj input w ** :length buffer-size)))
 
@@ -464,7 +471,7 @@
 
   The default implementation where both arguments are `pathlib/Path` objects defer to
   Python's `shutil/copyfile` which provides default fast-path platform-specific
-  implementations wherever available.
+  implementations wherever available in Python 3.8+.
 
   Additional implementations may be added by providing additional methods (via
   `defmethod`) for the multi-method `copy-file`.
@@ -473,3 +480,13 @@
   which are opened by the implementations."
   [input output & opts]
   (copy-file input output (when opts (apply hash-map opts))))
+
+(defn exists?
+  "Return true if `f` exists. `f` may be any type supported by `path`."
+  [f]
+  (.exists (as-path f)))
+
+(defn touch
+  "Create file `f` if it does not exist. `f` may be any type supported by `path`."
+  [f]
+  (.touch (as-path f)))
