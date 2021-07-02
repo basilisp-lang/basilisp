@@ -303,7 +303,33 @@
         (spit srcp contents)
         (bio/copy srcp dest)
         (is (= contents (.getvalue dest)))
-        (bio/delete-file srcp))))
+        (bio/delete-file srcp)))
+
+    (testing "binary buffer to file path"
+      (let [src (io/BytesIO (bytes "text"))]
+        (bio/copy src destp)
+        (is (= (.getvalue src) (slurp-bytes destp)))
+        (bio/delete-file destp)))
+
+    (testing "file path to binary buffer"
+      (let [contents "text"
+            dest     (io/BytesIO)]
+        (spit-bytes srcp contents)
+        (bio/copy srcp dest)
+        (is (= (bytes contents) (.getvalue dest)))
+        (bio/delete-file srcp)))
+
+    (testing "path to path"
+      (spit srcp "source text")
+      (bio/copy srcp destp)
+      (is (= "source text" (slurp destp)))
+      (bio/delete-file srcp)
+      (bio/delete-file destp))
+
+    (testing "string to path"
+      (bio/copy "source string text" destp)
+      (is (= "source string text" (slurp destp)))
+      (bio/delete-file destp)))
 
   (testing "text buffer to text buffer"
     (let [src  (io/StringIO "text")
