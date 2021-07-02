@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where it was impossible to specify negative CLI options for the compiler flags (#638)
  * Fixed a bug where it was impossible to use more than a single body expression in a `try` special form (#640)
  * Fixed a bug where re-`def`ing a Var (regardless of `^:redef` metadata) would not update metadata or dynamic flag (#642)
+ * Fixed a bug where private Vars could be resolved from the source namespace of a public macro during macroexpansion (#648)
  * Fixed a bug where trailing quotes were not allowed in Symbols and Keywords (#650)
 
 ### Removed
