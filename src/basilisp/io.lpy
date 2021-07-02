@@ -2,6 +2,7 @@
   (:import
    io
    pathlib
+   shutil
    urllib.parse
    urllib.request)
   (:require [basilisp.string :as str]))
@@ -377,3 +378,98 @@
        (clean-writer-mode)
        (clean-binary-mode)
        (make-output-stream f)))
+
+(defmulti copy-file
+  "Multi-method implementation for copying files.
+
+  To register a new implementation, use `defmethod` like so:
+
+    (defmethod copy-file [python/str python/str]
+      [input output opts]
+       ...)"
+  (fn [input output _] [(type input) (type output)]))
+
+(defmethod copy-file [io/TextIOBase io/TextIOBase]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  (shutil/copyfileobj input output ** :length buffer-size))
+
+(defmethod copy-file [pathlib/Path io/TextIOBase]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  (with-open [r (reader input)]
+    (shutil/copyfileobj r output ** :length buffer-size)))
+
+(defmethod copy-file [io/TextIOBase pathlib/Path]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  (with-open [w (writer output)]
+    (shutil/copyfileobj input w ** :length buffer-size)))
+
+(defmethod copy-file [python/str io/TextIOBase]
+  [input output opts]
+  (copy-file (io/StringIO input) output opts))
+
+(defmethod copy-file [python/bytes io/TextIOBase]
+  [input output opts]
+  (copy-file (io/BytesIO input) output opts))
+
+(defmethod copy-file [io/BufferedIOBase io/TextIOBase]
+  ;; Decode a binary buffer into a text buffer
+  [input output {:keys [buffer-size encoding] :or {buffer-size 0}}]
+  (with-open [r (reader input :encoding encoding)]
+    (shutil/copyfileobj r output ** :length buffer-size)))
+
+(defmethod copy-file [io/BufferedIOBase io/BufferedIOBase]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  (shutil/copyfileobj input output ** :length buffer-size))
+
+(defmethod copy-file [python/bytes io/BufferedIOBase]
+  [input output opts]
+  (copy-file (input-stream input) output opts))
+
+(defmethod copy-file [pathlib/Path io/BufferedIOBase]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  (with-open [r (input-stream input)]
+    (shutil/copyfileobj r output ** :length buffer-size)))
+
+(defmethod copy-file [io/BufferedIOBase pathlib/Path]
+  [input output {:keys [buffer-size] :or {buffer-size 0}}]
+  (with-open [w (output-stream output)]
+    (shutil/copyfileobj input w ** :length buffer-size)))
+
+(defmethod copy-file [pathlib/Path pathlib/Path]
+  [input output _]
+  (shutil/copyfile input output))
+
+(defmethod copy-file [python/str pathlib/Path]
+  [input output opts]
+  (copy-file (io/StringIO input) output opts))
+
+(defn copy
+  "Copy the contents of a file from `input` to `output`. Metadata will not be copied.
+
+  `input` may be one of:
+  - `io/TextIOBase`
+  - `io/BufferedIOBase`
+  - `pathlib/Path`
+  - `python/bytes`
+  - `python/str` (assumed to be the contents to copy; not treated as a file path)
+
+  `output` may be one of:
+  - `io/TextIOBase`
+  - `io/BufferedIOBase`
+  - `pathlib/Path`
+
+  Options include:
+  - `:encoding` used only when converting from binary to text buffers
+  - `:buffer-size` the buffer size of chunks when copying files manually
+
+  The default implementation where both arguments are `pathlib/Path` objects defer to
+  Python's `shutil/copyfile` which provides default fast-path platform-specific
+  implementations wherever available.
+
+  Additional implementations may be added by providing additional methods (via
+  `defmethod`) for the multi-method `copy-file`.
+
+  All default implementations of `copy-file` do not close any streams save for those
+  which are opened by the implementations."
+  [input output & opts]
+  (copy-file input output (when opts (apply hash-map opts))))
