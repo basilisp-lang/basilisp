@@ -104,6 +104,7 @@ class NodeOp(Enum):
     VAR = kw.keyword("var")
     VECTOR = kw.keyword("vector")
     WITH_META = kw.keyword("with-meta")
+    YIELD = kw.keyword("yield")
 
 
 T = TypeVar("T")
@@ -937,6 +938,21 @@ class WithMeta(Node[LispForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
+@attr.s(auto_attribs=True, frozen=True, slots=True)
+class Yield(Node[SpecialForm]):
+    form: SpecialForm
+    expr: Optional[Node]
+    env: NodeEnv
+    children: Sequence[kw.Keyword] = vec.v(EXPR)
+    op: NodeOp = NodeOp.YIELD
+    top_level: bool = False
+    raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
+
+    @classmethod
+    def expressionless(cls, form: SpecialForm, env: NodeEnv):
+        return cls(form=form, expr=None, env=env, children=vec.PersistentVector.empty())
+
+
 SpecialFormNode = Union[
     Await,
     Def,
@@ -959,4 +975,5 @@ SpecialFormNode = Union[
     Throw,
     Try,
     VarRef,
+    Yield,
 ]

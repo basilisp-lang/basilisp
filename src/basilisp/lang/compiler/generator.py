@@ -93,7 +93,7 @@ from basilisp.lang.compiler.nodes import Quote, ReaderLispForm, Recur, Reify, Re
 from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
-from basilisp.lang.compiler.nodes import WithMeta
+from basilisp.lang.compiler.nodes import WithMeta, Yield
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
 from basilisp.lang.runtime import CORE_NS
 from basilisp.lang.runtime import NS_VAR_NAME as LISP_NS_VAR
@@ -710,8 +710,6 @@ def statementize(e: ast.AST) -> ast.AST:
             ast.With,
             ast.FunctionDef,
             ast.Return,
-            ast.Yield,
-            ast.YieldFrom,
             ast.Global,
             ast.ClassDef,
             ast.AsyncFunctionDef,
@@ -2815,6 +2813,17 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
     )
 
 
+@_with_ast_loc_deps
+def _yield_to_py_ast(ctx: GeneratorContext, node: Yield) -> GeneratedPyAST:
+    assert node.op == NodeOp.YIELD
+    if node.expr is None:
+        return GeneratedPyAST(node=ast.Yield(value=None))
+    expr_ast = gen_py_ast(ctx, node.expr)
+    return GeneratedPyAST(
+        node=ast.Yield(value=expr_ast.node), dependencies=expr_ast.dependencies
+    )
+
+
 ##########
 # Symbols
 ##########
@@ -3607,6 +3616,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.SET_BANG: _set_bang_to_py_ast,
     NodeOp.THROW: _throw_to_py_ast,
     NodeOp.TRY: _try_to_py_ast,
+    NodeOp.YIELD: _yield_to_py_ast,
     NodeOp.VAR: _var_sym_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
     NodeOp.WITH_META: _with_meta_to_py_ast,  # type: ignore

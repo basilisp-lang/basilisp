@@ -5676,3 +5676,107 @@ class TestVar:
         v = lcompile(code)
         assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("some-var"))
         assert v.value == "a value"
+
+
+class TestYield:
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(yield)",
+            "(yield :a)",
+            "(let* [v :a] (yield v))",
+        ],
+    )
+    def test_yield_must_be_in_fn_context(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(fn [] (yield :two :items))",
+            "(fn [] (yield :three :items :now))",
+        ],
+    )
+    def test_yield_num_elems(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    def test_yield_control_only(self, lcompile: CompileFn, ns: runtime.Namespace):
+        f = lcompile(
+            """
+            (def state (atom nil))
+            (fn []
+              (reset! state :started)
+              (yield)
+              (reset! state :done))
+            """
+        )
+        state = ns.find(sym.symbol("state")).value
+        coro = f()
+        assert None is state.deref()
+        assert None is next(coro)
+        assert kw.keyword("started") == state.deref()
+        assert None is next(coro, None)
+        assert kw.keyword("done") == state.deref()
+
+    def test_yield_value(self, lcompile: CompileFn, ns: runtime.Namespace):
+        f = lcompile(
+            """
+            (def state (atom nil))
+            (fn []
+              (reset! state :started)
+              (yield :yielding)
+              (reset! state :done))
+            """
+        )
+        state = ns.find(sym.symbol("state")).value
+        coro = f()
+        assert None is state.deref()
+        assert kw.keyword("yielding") == next(coro)
+        assert kw.keyword("started") == state.deref()
+        assert None is next(coro, None)
+        assert kw.keyword("done") == state.deref()
+
+    def test_yield_as_coroutine(self, lcompile: CompileFn, ns: runtime.Namespace):
+        f = lcompile(
+            """
+            (def state (atom nil))
+            (fn []
+              (reset! state :started)
+              (let [v (yield :yielding)]
+                (reset! state v)))
+            """
+        )
+        state = ns.find(sym.symbol("state")).value
+        coro = f()
+        assert None is state.deref()
+        assert kw.keyword("yielding") == next(coro)
+        assert kw.keyword("started") == state.deref()
+        with pytest.raises(StopIteration):
+            coro.send(kw.keyword("coroutine-value"))
+        assert kw.keyword("coroutine-value") == state.deref()
+
+    def test_yield_as_coroutine_with_multiple_yields(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        f = lcompile(
+            """
+            (def state (atom nil))
+            (fn []
+              (reset! state :started)
+              (let [v (yield :yielding)]
+                (reset! state v)
+                (yield)
+                (reset! state :done)))
+            """
+        )
+        state = ns.find(sym.symbol("state")).value
+        coro = f()
+        assert None is state.deref()
+        assert kw.keyword("yielding") == next(coro)
+        assert kw.keyword("started") == state.deref()
+        assert None is coro.send(kw.keyword("coroutine-value"))
+        assert kw.keyword("coroutine-value") == state.deref()
+        assert None is next(coro, None)
+        assert kw.keyword("done") == state.deref()

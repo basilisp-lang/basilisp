@@ -121,7 +121,11 @@ from basilisp.lang.compiler.nodes import Quote, Recur, Reify, Require, RequireAl
 from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, SpecialFormNode, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
-from basilisp.lang.compiler.nodes import WithMeta, deftype_or_reify_python_member_names
+from basilisp.lang.compiler.nodes import (
+    WithMeta,
+    Yield,
+    deftype_or_reify_python_member_names,
+)
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
@@ -2903,6 +2907,32 @@ def _var_ast(form: ISeq, ctx: AnalyzerContext) -> VarRef:
     )
 
 
+def _yield_ast(form: ISeq, ctx: AnalyzerContext) -> Yield:
+    assert form.first == SpecialForm.YIELD
+
+    if ctx.func_ctx is None:
+        raise AnalyzerException(
+            "yield forms may not appear in function context", form=form
+        )
+
+    nelems = count(form)
+    if nelems not in {1, 2}:
+        raise AnalyzerException(
+            "yield forms must contain 1 or 2 elements, as in: (yield [expr])", form=form
+        )
+
+    if nelems == 2:
+        with ctx.expr_pos():
+            expr = _analyze_form(runtime.nth(form, 1), ctx)
+        return Yield(
+            form=form,
+            expr=expr,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
+    else:
+        return Yield.expressionless(form, ctx.get_node_env(pos=ctx.syntax_position))
+
+
 SpecialFormHandler = Callable[[ISeq, AnalyzerContext], SpecialFormNode]
 _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.AWAIT: _await_ast,
@@ -2924,6 +2954,7 @@ _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.THROW: _throw_ast,
     SpecialForm.TRY: _try_ast,
     SpecialForm.VAR: _var_ast,
+    SpecialForm.YIELD: _yield_ast,
 }
 
 
