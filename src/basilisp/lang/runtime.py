@@ -113,6 +113,7 @@ _SET_BANG = sym.symbol("set!")
 _THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
+_YIELD = sym.symbol("yield")
 _SPECIAL_FORMS = lset.s(
     _AWAIT,
     _CATCH,
@@ -136,6 +137,7 @@ _SPECIAL_FORMS = lset.s(
     _THROW,
     _TRY,
     _VAR,
+    _YIELD,
 )
 
 

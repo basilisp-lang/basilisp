@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for hierarchies (#633)
  * Added support for several more utility Namespace and Var utility functions (#636)
  * Added `basilisp.io` namespace with polymorphic reader and writer functions (#645)
+ * Added support for coroutines and generators using `yield` syntax (#652)
 
 ### Changed
  * PyTest is now an optional extra dependency, rather than a required dependency (#622)

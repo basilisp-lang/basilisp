@@ -25,6 +25,7 @@ class SpecialForm:
     THROW = sym.symbol("throw")
     TRY = sym.symbol("try")
     VAR = sym.symbol("var")
+    YIELD = sym.symbol("yield")
 
 
 AMPERSAND = sym.symbol("&")

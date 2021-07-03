@@ -15,7 +15,7 @@
 
 (extend-protocol Coercions
   nil
-  (as-path [f] nil)
+  (as-path [_] nil)
 
   python/str
   (as-path [f] (pathlib/Path f))
