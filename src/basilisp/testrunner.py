@@ -1,7 +1,13 @@
+import contextlib
+import inspect
+import logging
 import traceback
-from typing import Callable, Iterable, Optional
+from types import GeneratorType
+from typing import Callable, Iterable, Iterator, Optional
 
+import py
 import pytest
+from _pytest.config import Config
 
 from basilisp import main as basilisp
 from basilisp.lang import keyword as kw
@@ -11,6 +17,10 @@ from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
 from basilisp.util import Maybe
 
+logger = logging.getLogger(__name__)
+
+_EACH_FIXTURES_META_KW = kw.keyword("each-fixtures", "basilisp.test")
+_ONCE_FIXTURES_NUM_META_KW = kw.keyword("once-fixtures", "basilisp.test")
 _TEST_META_KW = kw.keyword("test", "basilisp.test")
 _TEST_NUM_META_KW = kw.keyword("order", "basilisp.test")
 
@@ -55,10 +65,96 @@ class TestFailuresInfo(Exception):
 
 
 TestFunction = Callable[[], lmap.PersistentMap]
+FixtureFunction = Callable[[], Optional[Iterator[None]]]
+
+
+class FixtureManager:
+    __slots__ = ("_once_fixtures", "_once_fixture_teardowns", "_each_fixtures")
+
+    def __init__(self):
+        self._once_fixtures = ()
+        self._once_fixture_teardowns = []
+        self._each_fixtures = ()
+
+    @staticmethod
+    def _collect_fixtures(
+        ns: runtime.Namespace, fixture_type: kw.Keyword
+    ) -> Iterable[FixtureFunction]:
+        return ns.meta.val_at(fixture_type) if ns.meta is not None else ()
+
+    def collect(self, ns: runtime.Namespace) -> None:
+        """Collect all of the declared fixtures of the namespace."""
+        self._once_fixture_teardowns = []
+        self._once_fixtures = self._collect_fixtures(ns, _ONCE_FIXTURES_NUM_META_KW)
+        self._each_fixtures = self._collect_fixtures(ns, _EACH_FIXTURES_META_KW)
+
+    def wrap_test(self, f: TestFunction) -> TestFunction:
+        """Wrap individual tests with a context manager responsible for setting up
+        and tearing all :each style fixtures for the namespace."""
+        each_fixtures = self._each_fixtures
+
+        def run_test() -> lmap.PersistentMap:
+            with self._enable_fixtures(each_fixtures):
+                return f()
+
+        return run_test
+
+    def setup(self) -> None:
+        pass
+
+    def teardown(self) -> None:
+        pass
+
+    @staticmethod
+    def _run_fixture(fixture: FixtureFunction) -> Optional[Iterator[None]]:
+        if inspect.isgeneratorfunction(fixture):
+            coro = fixture()
+            assert isinstance(coro, GeneratorType)
+            try:
+                next(coro)
+            except StopIteration:
+                return None
+            else:
+                return coro
+        else:
+            return fixture()
+
+    @classmethod
+    @contextlib.contextmanager
+    def _enable_fixtures(cls, fixtures: Iterable[FixtureFunction]):
+        teardown_fixtures = []
+        try:
+            for fixture in fixtures:
+                teardown = cls._run_fixture(fixture)
+                if teardown is not None:
+                    teardown_fixtures.append(teardown)
+        except Exception:
+            logger.exception("Error occurring during fixture setup")
+            raise
+
+        try:
+            yield
+        finally:
+            for teardown in teardown_fixtures:
+                try:
+                    next(teardown)
+                except StopIteration:
+                    pass
 
 
 class BasilispFile(pytest.File):
     """Files represent a test module in Python or a test namespace in Basilisp."""
+
+    def __init__(
+        self,
+        fspath: py.path.local,
+        parent=None,
+        config: Optional[Config] = None,
+        session: Optional["Session"] = None,
+        nodeid: Optional[str] = None,
+    ) -> None:
+        super().__init__(fspath, parent, config, session, nodeid)
+        self._fixture_manager = FixtureManager()
 
     @staticmethod
     def _collected_tests(ns: runtime.Namespace) -> Iterable[runtime.Var]:
@@ -84,6 +180,12 @@ class BasilispFile(pytest.File):
             key=_test_num,
         )
 
+    def setup(self) -> None:
+        self._fixture_manager.setup()
+
+    def teardown(self) -> None:
+        self._fixture_manager.teardown()
+
     def collect(self):
         """Collect all of the tests in the namespace (module) given.
 
@@ -95,10 +197,15 @@ class BasilispFile(pytest.File):
         module = self.fspath.pyimport()
         assert isinstance(module, runtime.BasilispModule)
         ns = module.__basilisp_namespace__
+        self._fixture_manager.collect(ns)
         for test in self._collected_tests(ns):
             f: TestFunction = test.value
             yield BasilispTestItem.from_parent(
-                self, name=test.name.name, run_test=f, namespace=ns, filename=filename
+                self,
+                name=test.name.name,
+                run_test=self._fixture_manager.wrap_test(f),
+                namespace=ns,
+                filename=filename,
             )
 
 

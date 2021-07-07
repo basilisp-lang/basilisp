@@ -3650,10 +3650,10 @@
                           (list 'with (vec (nthrest bindings 2)))
                           body)]
                         body)]
-           (. ~binding (~'__exit__ nil nil nil))
+           (. obj# (~'__exit__ nil nil nil))
            res#)
          (catch python/Exception e#
-           (if (. ~binding (~'__exit__ (python/type e#) e# (. e# ~'__traceback__)))
+           (if (. obj# (~'__exit__ (python/type e#) e# (. e# ~'__traceback__)))
              nil
              (throw e#)))))))
 

@@ -9,6 +9,45 @@
 (def ^:dynamic *test-section* nil)
 (def ^:dynamic *test-failures* nil)
 
+(defmulti use-fixtures
+  "Configure fixture functions to be run for each test or once per namespace.
+
+  `fixture-type` may be one of:
+  - `:each` to specify that a fixture should be run before each test
+  - `:once` to specify that a fixture should be run once per test namespace
+
+  Fixture functions are functions of 0 arguments which must either return a value
+  or temporarily `yield` control back to the test runner after performing some setup.
+  If the `yield` approach is taken, the test runner will return control to the
+  fixture whenever the test or tests have finished executing.
+
+  For example, to define a fixture with setup and teardown functions, your fixture
+  may take this form:
+
+    (fn fixture []
+      (setup-test)
+      (yield)
+      (teardown-test))
+
+  Fixtures will be run in the order they are provided.
+
+  Subsequent calls to `use-fixtures` in the same test namespace will overwrite fixtures
+  applied during previous calls for the same `fixture-type`.
+
+  Note that due to the way fixtures are applied, the set of fixtures that are active
+  for each `fixture-type` after all tests are collected will be applied to all tests.
+  It is not possible to apply specific fixtures to individual tests by adding fixtures
+  via `use-fixture` and then removing them after the test is defined."
+  (fn [fixture-type & _] fixture-type))
+
+(defmethod use-fixtures :each
+  [_ & fixtures]
+  (alter-meta! *ns* assoc ::each-fixtures fixtures))
+
+(defmethod use-fixtures :once
+  [_ & fixtures]
+  (alter-meta! *ns* assoc ::once-fixtures fixtures))
+
 (defmulti gen-assert
   (fn [expr _ _]
     (cond
@@ -164,8 +203,8 @@
   (let [test-num      (swap! current-test-number inc)
         test-name-sym (vary-meta name-sym
                                  assoc
-                                 :basilisp.test/test true
-                                 :basilisp.test/order test-num)
+                                 ::test true
+                                 ::order test-num)
         test-name-str (name test-name-sym)
         test-ns-name  `(quote ~(symbol (name *ns*)))]
     `(defn ~test-name-sym

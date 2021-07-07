@@ -1,6 +1,6 @@
 # 🐍 basilisp 🐍
 
-A Lisp dialect inspired by Clojure targeting Python 3.
+A Clojure-compatible(-ish) Lisp dialect targeting Python 3.6+.
 
 **Disclaimer:** _Basilisp is a project I created to learn about Python, Clojure,
 and hosted languages generally. It should not be used in a production setting._
@@ -9,9 +9,9 @@ and hosted languages generally. It should not be used in a production setting._
 
 ## Getting Started
 
-Basilisp is developed on [GitHub](https://github.com/chrisrink10/basilisp)
-and hosted on [PyPI](https://pypi.python.org/pypi/basilisp). You can
-fetch Basilisp using a simple:
+Basilisp is developed on [GitHub](https://github.com/basilisp-lang/basilisp) and
+hosted on [PyPI](https://pypi.python.org/pypi/basilisp). You can fetch Basilisp
+using a simple:
 
 ```bash
 pip install basilisp
@@ -39,10 +39,10 @@ Because `basilisp` is intended to be used as a library, no `poetry.lock` file
 is committed to the repository. Developers should generate their own lock file
 and update it regularly during development instead.
 
-Additionally, [`pyenv`](https://github.com/pyenv/pyenv) is recommended to 
-manage versions of Python readily on your local development environment.
-Setup of `pyenv` is somewhat more specific to your environment, so see
-the documentation in the repository for more information.
+Additionally, [`pyenv`](https://github.com/pyenv/pyenv) is recommended to manage
+versions of Python readily on your local development environment. Setup of `pyenv`
+is somewhat more specific to your environment, so see the documentation in the
+repository for more information.
 
 ### Getting Started
 

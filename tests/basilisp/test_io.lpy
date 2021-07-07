@@ -11,48 +11,40 @@
    urllib.request)
   (:require
    [basilisp.io :as bio]
-   [basilisp.test :refer [deftest is are testing]]))
+   [basilisp.test :as test :refer [deftest is are testing]]
+   [basilisp.test.fixtures :refer [*tempdir* tempdir]]))
 
-(def tempdir
-  "Temporary directory for generating test files.
+(def ^:dynamic *http-port* nil)
 
-  The HTTP server below will serve files from that directory."
-  (let [o (tempfile/TemporaryDirectory)]
-    (atexit/register (.-cleanup o))
-    (.-name o)))
+(defn ^:private http-server
+  []
+  ;; The Python 3.6 version of SimpleHTTPRequestHandler does not
+  ;; support setting the directory it serves files from, so we
+  ;; use reader conditionals to switch the working directory
+  ;; to `tempdir` to avoid conflicting with any files in the
+  ;; current work tree.
+  (let [workdir *tempdir*
+        addr    (python/tuple ["", 0])
+        handler #?(:lpy36 http.server/SimpleHTTPRequestHandler
+                   :lpy37+ (partial-kw http.server/SimpleHTTPRequestHandler :directory workdir))
+        srv     (http.server/HTTPServer addr handler)
+        cwd     (os/getcwd)]
+    (doto (threading/Thread
+           **
+           :target (fn []
+                     #?(:lpy36 (os/chdir workdir))
+                     (.serve-forever srv))
+           :daemon true)
+      (.start))
+    (try
+      (binding [*http-port* (second (.-server-address srv))]
+        (yield))
+      (finally
+        (.shutdown srv)
+        (.server-close srv)
+        (os/chdir cwd)))))
 
-(def http-server-port
-  "HTTP Server port for the test.
-
-  Note that each different version of Python has its own port to avoid conflicts
-  when multiple test suites are run in parallel on the same computer."
-  #?(:lpy36 8081
-     :lpy37 8082
-     :lpy38 8083
-     :lpy39 8084
-     :default 8080))
-
-(defonce ^:private http-server
-  (doto (threading/Thread
-         **
-         :target (fn []
-                   ;; The Python 3.6 version of SimpleHTTPRequestHandler does not
-                   ;; support setting the directory it serves files from, so we
-                   ;; use reader conditionals to switch the working directory
-                   ;; to `tempdir` to avoid conflicting with any files in the
-                   ;; current work tree.
-                   (let [addr    (python/tuple ["", http-server-port])
-                         handler #?(:lpy36 http.server/SimpleHTTPRequestHandler
-                                    :lpy37+ (partial-kw http.server/SimpleHTTPRequestHandler :directory tempdir))
-                         cwd     (os/getcwd)]
-                     #?(:lpy36 (os/chdir tempdir))
-                     (try
-                       (with [srv (http.server/HTTPServer addr handler)]
-                         (.serve-forever srv))
-                       (finally
-                         (os/chdir cwd)))))
-         :daemon true)
-    (.start)))
+(test/use-fixtures :each tempdir http-server)
 
 (deftest path-test
   (is (= (pathlib/Path "/Users/chris")
@@ -63,7 +55,7 @@
          (bio/path "/Users/chris" "Projects" "basilisp" "src" "basilisp"))))
 
 (deftest delete-test
-  (let [path (bio/path tempdir "delete-test.txt")]
+  (let [path (bio/path *tempdir* "delete-test.txt")]
     (testing "not silently"
       (spit path "loud delete")
       (is (bio/exists? path))
@@ -100,7 +92,7 @@
           (os/unlink filename)))))
 
   (testing "local files"
-    (let [path (bio/path tempdir "reader-test-local-files.txt")]
+    (let [path (bio/path *tempdir* "reader-test-local-files.txt")]
       (spit path "some content")
 
       (with-open [f (python/open path ** :mode "r")]
@@ -116,11 +108,11 @@
                        (slurp f)))))))
 
   (testing "http requests"
-    (let [filename (pathlib/Path tempdir "reader-http-req.txt")]
+    (let [filename (pathlib/Path *tempdir* "reader-http-req.txt")]
       (spit filename "some text")
       (try
         (is (= "some text" (slurp (str "http://localhost:"
-                                       http-server-port
+                                       *http-port*
                                        "/reader-http-req.txt"))))
         (finally
           (os/unlink filename))))))
@@ -146,7 +138,7 @@
                  (spit (.encode "hi there" "utf-8") "more stuff!"))))
 
   (testing "local files"
-    (let [path (bio/path tempdir "writer-test-local-files.txt")]
+    (let [path (bio/path *tempdir* "writer-test-local-files.txt")]
       (spit path "some content")
       (= "some content" (slurp path))
 
@@ -173,7 +165,7 @@
                        (spit f "some content")))))))
 
   (testing "http requests"
-    (let [url (str "http://localhost:" http-server-port "/writer-http-req.txt")]
+    (let [url (str "http://localhost:" *http-port* "/writer-http-req.txt")]
       (is (thrown? basilisp.lang.exception/ExceptionInfo
                    (spit url "some fun text")))
       (is (thrown? basilisp.lang.exception/ExceptionInfo
@@ -214,7 +206,7 @@
           (os/unlink filename)))))
 
   (testing "local files"
-    (let [path (bio/path tempdir "input-stream-test-local-files.txt")]
+    (let [path (bio/path *tempdir* "input-stream-test-local-files.txt")]
       (spit-bytes path "some content")
 
       (with-open [f (python/open path ** :mode "rb")]
@@ -231,11 +223,11 @@
                        (slurp-bytes f)))))))
 
   (testing "http requests"
-    (let [filename (pathlib/Path tempdir "input-streams-http-req.txt")]
+    (let [filename (pathlib/Path *tempdir* "input-streams-http-req.txt")]
       (spit-bytes filename "some text")
       (try
         (is (= "some text" (slurp (str "http://localhost:"
-                                       http-server-port
+                                       *http-port*
                                        "/input-streams-http-req.txt"))))
         (finally
           (os/unlink filename))))))
@@ -254,7 +246,7 @@
                  (spit (.encode "hi there" "utf-8") "more stuff!"))))
 
   (testing "local files"
-    (let [path (bio/path tempdir "output-stream-test-local-files.txt")]
+    (let [path (bio/path *tempdir* "output-stream-test-local-files.txt")]
       (spit-bytes path "some content")
       (= (bytes "some content") (slurp-bytes path))
 
@@ -280,7 +272,7 @@
                        (spit-bytes f "some content")))))))
 
   (testing "http requests"
-    (let [url (str "http://localhost:" http-server-port "/output-stream-http-req.txt")]
+    (let [url (str "http://localhost:" *http-port* "/output-stream-http-req.txt")]
       (is (thrown? basilisp.lang.exception/ExceptionInfo
                    (spit-bytes url "some fun text")))
       (is (thrown? basilisp.lang.exception/ExceptionInfo
@@ -289,8 +281,8 @@
                    (spit-bytes (urllib.parse/urlparse url) "some fun text"))))))
 
 (deftest copy-test
-  (let [srcp  (bio/path tempdir "copy-src-test.txt")
-        destp (bio/path tempdir "copy-dest-test.txt")]
+  (let [srcp  (bio/path *tempdir* "copy-src-test.txt")
+        destp (bio/path *tempdir* "copy-dest-test.txt")]
     (testing "text buffer to file path"
       (let [src (io/StringIO "text")]
         (bio/copy src destp)
@@ -368,7 +360,7 @@
       (is (= src (.getvalue dest))))))
 
 (deftest touch-test
-  (let [path (bio/path tempdir "touch-test.txt")]
+  (let [path (bio/path *tempdir* "touch-test.txt")]
     (is (not (bio/exists? path)))
     (bio/touch path)
     (is (bio/exists? path))
