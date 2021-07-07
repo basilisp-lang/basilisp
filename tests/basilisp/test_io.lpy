@@ -12,7 +12,7 @@
   (:require
    [basilisp.io :as bio]
    [basilisp.test :as test :refer [deftest is are testing]]
-   [basilisp.test.fixtures :refer [*tempdir* tempdir]]))
+   [basilisp.test.fixtures :as fixtures :refer [*tempdir*]]))
 
 (def ^:dynamic *http-port* nil)
 
@@ -44,7 +44,7 @@
           (.server-close))
         (os/chdir cwd)))))
 
-(test/use-fixtures :each tempdir http-server)
+(test/use-fixtures :each fixtures/tempdir http-server)
 
 (deftest path-test
   (is (= (pathlib/Path "/Users/chris")
