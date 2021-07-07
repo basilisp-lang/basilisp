@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.1.0a1]
 ### Added
  * Added a bootstrapping function for easily bootstrapping Basilisp projects from Python (#620)
  * Added support for watchers and validator functions on Atoms and Vars (#627)
@@ -332,6 +334,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.0a1]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev15..v0.1.0a1
 [v0.1.dev15]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev14..v0.1.dev15
 [v0.1.dev14]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev13..v0.1.dev14
 [v0.1.dev13]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev12..v0.1.dev13
