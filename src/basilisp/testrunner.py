@@ -69,11 +69,13 @@ FixtureFunction = Callable[[], Optional[Iterator[None]]]
 
 
 class FixtureManager:
+    """FixtureManager instances manage `basilisp.test` style fixtures on behalf of
+    a BasilispFile collector."""
     __slots__ = ("_once_fixtures", "_once_fixture_teardowns", "_each_fixtures")
 
     def __init__(self):
         self._once_fixtures = ()
-        self._once_fixture_teardowns = []
+        self._once_fixture_teardowns = ()
         self._each_fixtures = ()
 
     @staticmethod
@@ -84,7 +86,6 @@ class FixtureManager:
 
     def collect(self, ns: runtime.Namespace) -> None:
         """Collect all of the declared fixtures of the namespace."""
-        self._once_fixture_teardowns = []
         self._once_fixtures = self._collect_fixtures(ns, _ONCE_FIXTURES_NUM_META_KW)
         self._each_fixtures = self._collect_fixtures(ns, _EACH_FIXTURES_META_KW)
 
@@ -100,10 +101,11 @@ class FixtureManager:
         return run_test
 
     def setup(self) -> None:
-        pass
+        self._once_fixture_teardowns = self._setup_fixtures(self._once_fixtures)
 
     def teardown(self) -> None:
-        pass
+        self._teardown_fixtures(self._once_fixture_teardowns)
+        self._once_fixture_teardowns = ()
 
     @staticmethod
     def _run_fixture(fixture: FixtureFunction) -> Optional[Iterator[None]]:
@@ -120,8 +122,7 @@ class FixtureManager:
             return fixture()
 
     @classmethod
-    @contextlib.contextmanager
-    def _enable_fixtures(cls, fixtures: Iterable[FixtureFunction]):
+    def _setup_fixtures(cls, fixtures: Iterable[FixtureFunction]) -> Iterable[Iterator[None]]:
         teardown_fixtures = []
         try:
             for fixture in fixtures:
@@ -131,15 +132,25 @@ class FixtureManager:
         except Exception:
             logger.exception("Error occurring during fixture setup")
             raise
+        else:
+            return teardown_fixtures
 
+    @staticmethod
+    def _teardown_fixtures(teardowns: Iterable[Iterator[None]]) -> None:
+        for teardown in teardowns:
+            try:
+                next(teardown)
+            except StopIteration:
+                pass
+
+    @classmethod
+    @contextlib.contextmanager
+    def _enable_fixtures(cls, fixtures: Iterable[FixtureFunction]):
+        teardown_fixtures = cls._setup_fixtures(fixtures)
         try:
             yield
         finally:
-            for teardown in teardown_fixtures:
-                try:
-                    next(teardown)
-                except StopIteration:
-                    pass
+            cls._teardown_fixtures(teardown_fixtures)
 
 
 class BasilispFile(pytest.File):
