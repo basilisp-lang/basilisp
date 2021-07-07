@@ -24,10 +24,9 @@
   ;; to `tempdir` to avoid conflicting with any files in the
   ;; current work tree.
   (let [workdir *tempdir*
-        addr    (python/tuple ["", 0])
         handler #?(:lpy36 http.server/SimpleHTTPRequestHandler
                    :lpy37+ (partial-kw http.server/SimpleHTTPRequestHandler :directory workdir))
-        srv     (http.server/HTTPServer addr handler)
+        srv     (http.server/HTTPServer #py ("" 0) handler)
         cwd     (os/getcwd)]
     (doto (threading/Thread
            **
@@ -40,8 +39,9 @@
       (binding [*http-port* (second (.-server-address srv))]
         (yield))
       (finally
-        (.shutdown srv)
-        (.server-close srv)
+        (doto srv
+          (.shutdown)
+          (.server-close))
         (os/chdir cwd)))))
 
 (test/use-fixtures :each tempdir http-server)
