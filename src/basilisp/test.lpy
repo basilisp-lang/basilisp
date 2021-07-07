@@ -2,9 +2,6 @@
   (:require
    [basilisp.template :as template]))
 
-(def ^:private current-test-number
-  (atom 0))
-
 (def ^:dynamic *test-name* nil)
 (def ^:dynamic *test-section* nil)
 (def ^:dynamic *test-failures* nil)
@@ -57,16 +54,16 @@
 (defmethod gen-assert '=
   [expr msg line-num]
   `(when-not ~expr
-    (swap! *test-failures*
-           conj
-           {:test-name    *test-name*
-            :test-section *test-section*
-            :message      ~msg
-            :expr         (quote ~expr)
-            :actual       ~(nth expr 2)
-            :expected     ~(second expr)
-            :line         ~line-num
-            :type         :failure})))
+    (vswap! *test-failures*
+            conj
+            {:test-name    *test-name*
+             :test-section *test-section*
+             :message      ~msg
+             :expr         (quote ~expr)
+             :actual       ~(nth expr 2)
+             :expected     ~(second expr)
+             :line         ~line-num
+             :type         :failure})))
 
 (defmethod gen-assert 'thrown?
   [expr msg line-num]
@@ -74,43 +71,43 @@
         body     (nthnext expr 2)]
     `(try
        (let [result# (do ~@body)]
-         (swap! *test-failures*
-                conj
-                {:test-name    *test-name*
-                 :test-section *test-section*
-                 :message      ~msg
-                 :expr         (quote ~expr)
-                 :actual       result#
-                 :expected     (quote ~exc-type)
-                 :line         ~line-num
-                 :type         :failure}))
+         (vswap! *test-failures*
+                 conj
+                 {:test-name    *test-name*
+                  :test-section *test-section*
+                  :message      ~msg
+                  :expr         (quote ~expr)
+                  :actual       result#
+                  :expected     (quote ~exc-type)
+                  :line         ~line-num
+                  :type         :failure}))
        (catch ~exc-type _ nil)
        (catch python/Exception e#
-         (swap! *test-failures*
-                conj
-                {:test-name    *test-name*
-                 :test-section *test-section*
-                 :message      (str "Expected " ~exc-type "; got " (python/type e#) " instead")
-                 :expr         (quote ~expr)
-                 :actual       e#
-                 :expected     ~exc-type
-                 :line         ~line-num
-                 :type         :failure})))))
+         (vswap! *test-failures*
+                 conj
+                 {:test-name    *test-name*
+                  :test-section *test-section*
+                  :message      (str "Expected " ~exc-type "; got " (python/type e#) " instead")
+                  :expr         (quote ~expr)
+                  :actual       e#
+                  :expected     ~exc-type
+                  :line         ~line-num
+                  :type         :failure})))))
 
 (defmethod gen-assert :default
   [expr msg line-num]
   `(let [computed# ~expr]
      (when-not computed#
-       (swap! *test-failures*
-              conj
-              {:test-name    *test-name*
-               :test-section *test-section*
-               :message      ~msg
-               :expr         (quote ~expr)
-               :actual       computed#
-               :expected     computed#
-               :line         ~line-num
-               :type         :failure}))))
+       (vswap! *test-failures*
+               conj
+               {:test-name    *test-name*
+                :test-section *test-section*
+                :message      ~msg
+                :expr         (quote ~expr)
+                :actual       computed#
+                :expected     computed#
+                :line         ~line-num
+                :type         :failure}))))
 
 (defmacro is
   "Assert that a test condition, `expr`, is true. `is` assertion failures are recorded
@@ -134,16 +131,16 @@
      `(try
         ~(gen-assert expr msg line-num)
         (catch python/Exception e#
-          (swap! *test-failures*
-                 conj
-                 {:test-name    *test-name*
-                  :test-section *test-section*
-                  :message      (str "Unexpected exception thrown during test run: " (python/repr e#))
-                  :expr         (quote ~expr)
-                  :actual       e#
-                  :expected     (quote ~expr)
-                  :line         ~line-num
-                  :type         :error}))))))
+          (vswap! *test-failures*
+                  conj
+                  {:test-name    *test-name*
+                   :test-section *test-section*
+                   :message      (str "Unexpected exception thrown during test run: " (python/repr e#))
+                   :expr         (quote ~expr)
+                   :actual       e#
+                   :expected     (quote ~expr)
+                   :line         ~line-num
+                   :type         :error}))))))
 
 (defmacro are
   "Generate assertions using the template expression `expr`. Template expressions
@@ -200,11 +197,7 @@
   Tests defined by `deftest` will be run by default by the PyTest test runner using
   Basilisp's builtin PyTest hook."
   [name-sym & body]
-  (let [test-num      (swap! current-test-number inc)
-        test-name-sym (vary-meta name-sym
-                                 assoc
-                                 ::test true
-                                 ::order test-num)
+  (let [test-name-sym (vary-meta name-sym assoc ::test true)
         test-name-str (name test-name-sym)
         test-ns-name  `(quote ~(symbol (name *ns*)))]
     `(defn ~test-name-sym
@@ -212,6 +205,6 @@
        (binding [*ns*            (the-ns ~test-ns-name)
                  *test-name*     ~test-name-str
                  *test-section*  nil
-                 *test-failures* (atom [])]
+                 *test-failures* (volatile! [])]
          ~@body
          {:failures (deref *test-failures*)}))))
