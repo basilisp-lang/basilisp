@@ -1,6 +1,5 @@
 import contextlib
 import inspect
-import logging
 import traceback
 from types import GeneratorType
 from typing import Callable, Iterable, Iterator, Optional
@@ -17,12 +16,9 @@ from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
 from basilisp.util import Maybe
 
-logger = logging.getLogger(__name__)
-
 _EACH_FIXTURES_META_KW = kw.keyword("each-fixtures", "basilisp.test")
 _ONCE_FIXTURES_NUM_META_KW = kw.keyword("once-fixtures", "basilisp.test")
 _TEST_META_KW = kw.keyword("test", "basilisp.test")
-_TEST_NUM_META_KW = kw.keyword("order", "basilisp.test")
 
 
 # pylint: disable=unused-argument
@@ -71,6 +67,7 @@ FixtureFunction = Callable[[], Optional[Iterator[None]]]
 class FixtureManager:
     """FixtureManager instances manage `basilisp.test` style fixtures on behalf of
     a BasilispFile collector."""
+
     __slots__ = ("_once_fixtures", "_once_fixture_teardowns", "_each_fixtures")
 
     def __init__(self):
@@ -82,7 +79,7 @@ class FixtureManager:
     def _collect_fixtures(
         ns: runtime.Namespace, fixture_type: kw.Keyword
     ) -> Iterable[FixtureFunction]:
-        return ns.meta.val_at(fixture_type) if ns.meta is not None else ()
+        return (ns.meta.val_at(fixture_type) or ()) if ns.meta is not None else ()
 
     def collect(self, ns: runtime.Namespace) -> None:
         """Collect all of the declared fixtures of the namespace."""
@@ -100,10 +97,14 @@ class FixtureManager:
 
         return run_test
 
-    def setup(self) -> None:
+    def setup_namespace(self) -> None:
+        """Setup :once fixtures for a namespace. Should have a corresponding call
+        to `FixtureManager.teardown_namespace` to clean up fixtures."""
         self._once_fixture_teardowns = self._setup_fixtures(self._once_fixtures)
 
-    def teardown(self) -> None:
+    def teardown_namespace(self) -> None:
+        """Teardown :once fixtures for a namespace. Must have called
+        `FixtureManager.setup_namespace` first."""
         self._teardown_fixtures(self._once_fixture_teardowns)
         self._once_fixture_teardowns = ()
 
@@ -122,7 +123,9 @@ class FixtureManager:
             return fixture()
 
     @classmethod
-    def _setup_fixtures(cls, fixtures: Iterable[FixtureFunction]) -> Iterable[Iterator[None]]:
+    def _setup_fixtures(
+        cls, fixtures: Iterable[FixtureFunction]
+    ) -> Iterable[Iterator[None]]:
         teardown_fixtures = []
         try:
             for fixture in fixtures:
@@ -130,8 +133,7 @@ class FixtureManager:
                 if teardown is not None:
                     teardown_fixtures.append(teardown)
         except Exception:
-            logger.exception("Error occurring during fixture setup")
-            raise
+            raise runtime.RuntimeException("Exception occurred during fixture setup")
         else:
             return teardown_fixtures
 
@@ -169,16 +171,15 @@ class BasilispFile(pytest.File):
 
     @staticmethod
     def _collected_tests(ns: runtime.Namespace) -> Iterable[runtime.Var]:
-        """Return the set of collected tests from the Namespace `ns`.
+        """Return the sorted sequence of collected tests from the Namespace `ns`.
 
-        Tests defined by `deftest` are annotated with `:basilisp.test/test` metadata
-        and `:basilisp.test/order` is a monotonically increasing integer added by
-        `deftest` at compile-time to run tests in the order they are defined (which
-        matches the default behavior of PyTest)."""
+        Tests defined by `deftest` are annotated with `:basilisp.test/test` metadata.
+        Tests are sorted by their line number, which matches the default behavior of
+        PyTest."""
 
         def _test_num(var: runtime.Var) -> int:
             assert var.meta is not None
-            order = var.meta.val_at(_TEST_NUM_META_KW)
+            order = var.meta.val_at(_LINE_KW)
             assert isinstance(order, int)
             return order
 
@@ -192,10 +193,10 @@ class BasilispFile(pytest.File):
         )
 
     def setup(self) -> None:
-        self._fixture_manager.setup()
+        self._fixture_manager.setup_namespace()
 
     def teardown(self) -> None:
-        self._fixture_manager.teardown()
+        self._fixture_manager.teardown_namespace()
 
     def collect(self):
         """Collect all of the tests in the namespace (module) given.
