@@ -6,8 +6,11 @@
 
 (defn tempdir
   "`basilisp.test` fixture which creates a temporary directory for the duration
-  of the test and binds the name to `*tempdir*`."
+  of the test.
+
+  The temporary directory name is yielded by the fixture and bound to the dynamic
+  Var `*tempdir*`."
   []
   (with-open [d (tempfile/TemporaryDirectory)]
     (binding [*tempdir* d]
-      (yield))))
+      (yield d))))
