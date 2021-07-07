@@ -17,6 +17,10 @@
 (def ^:dynamic *http-port* nil)
 
 (defn ^:private http-server
+  "Test fixture which stands up a local HTTP server which can be used to for reader
+  and writer tests.
+
+  Serves files from `*tempdir*` provided by the corresponding fixture."
   []
   ;; The Python 3.6 version of SimpleHTTPRequestHandler does not
   ;; support setting the directory it serves files from, so we
@@ -42,7 +46,7 @@
         (doto srv
           (.shutdown)
           (.server-close))
-        (os/chdir cwd)))))
+        #?(:lpy36 (os/chdir cwd))))))
 
 (test/use-fixtures :each fixtures/tempdir http-server)
 
