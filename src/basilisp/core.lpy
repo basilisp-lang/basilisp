@@ -3642,20 +3642,23 @@
   [bindings & body]
   (let [binding (first bindings)
         expr    (second bindings)]
-    `(let [obj#     ~expr
-           ~binding (. obj# ~'__enter__)]
+    `(let [obj#        ~expr
+           ~binding    (. obj# ~'__enter__)
+           hit-except# (volatile! false)]
        (try
          (let [res# ~@(if (nthnext bindings 2)
                         [(concat
                           (list 'with (vec (nthrest bindings 2)))
                           body)]
                         body)]
-           (. obj# (~'__exit__ nil nil nil))
            res#)
          (catch python/Exception e#
-           (if (. obj# (~'__exit__ (python/type e#) e# (. e# ~'__traceback__)))
-             nil
-             (throw e#)))))))
+           (vreset! hit-except# true)
+           (when-not (. obj# (~'__exit__ (python/type e#) e# (. e# ~'__traceback__)))
+             (throw e#)))
+         (finally
+           (when-not @hit-except#
+             (. obj# (~'__exit__ nil nil nil))))))))
 
 (def ^{:doc   "Evaluate body within a try/except expression, binding the named expressions
                as per Python's context manager protocol spec (Python's with blocks)."
