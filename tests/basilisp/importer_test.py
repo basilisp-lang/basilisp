@@ -14,10 +14,11 @@ from basilisp import importer as importer
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang.util import demunge, munge
+from basilisp.main import bootstrap as bootstrap_basilisp
 
 
 def importer_counter():
-    return sum([isinstance(o, importer.BasilispImporter) for o in sys.meta_path])
+    return sum(isinstance(o, importer.BasilispImporter) for o in sys.meta_path)
 
 
 def test_hook_imports():
@@ -75,20 +76,9 @@ def _ns_and_module(filename: str) -> Tuple[str, str]:
 
 
 if get_start_method() != "fork":
-
     # If `multiprocessing` starts a process using a method other than "fork",
     # the `basilisp.core` namespace will not be loaded in the child process.
-
-    def _import_module(name):
-        """Import a module after initializing `basilisp.core` in the child process."""
-        from basilisp.lang.compiler import compiler_opts
-        from basilisp.main import init
-
-        opts = compiler_opts()
-        init(opts)
-        importlib.import_module(name)
-
-
+    _import_module = bootstrap_basilisp
 else:
     _import_module = importlib.import_module
 
