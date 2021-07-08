@@ -1,8 +1,11 @@
 (ns basilisp.test.fixtures
+  "Built-in fixtures which may be useful in Basilisp tests."
   (:import
    tempfile))
 
-(def ^:dynamic *tempdir* nil)
+(def ^:dynamic *tempdir*
+  "Name of a temporary directory value bound by the fixture `tempdir`."
+  nil)
 
 (defn tempdir
   "`basilisp.test` fixture which creates a temporary directory for the duration
