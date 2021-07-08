@@ -7,7 +7,7 @@ from typing import Callable, Iterable, Iterator, Optional
 import py
 import pytest
 from _pytest.config import Config
-from _pytest.main import Session
+from _pytest.main import Session  # pylint: disable=unused-import
 
 from basilisp import main as basilisp
 from basilisp.lang import keyword as kw
