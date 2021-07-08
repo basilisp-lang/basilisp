@@ -8,14 +8,12 @@ import attr
 
 from basilisp.lang.interfaces import IBlockingDeref
 
-_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
-
 T = TypeVar("T")
 
 
-@attr.s(  # type: ignore
+@attr.s(
     auto_attribs=True,
-    **({"eq": True} if _CMP_OFF else {"cmp": False}),
+    eq=True,
     frozen=True,
     repr=False,
     slots=True,

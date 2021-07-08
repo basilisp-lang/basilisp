@@ -3,12 +3,10 @@ import attr
 from basilisp.lang.interfaces import IExceptionInfo, IPersistentMap
 from basilisp.lang.obj import lrepr
 
-_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
 
-
-@attr.s(  # type: ignore
+@attr.s(
     auto_attribs=True,
-    **({"eq": True} if _CMP_OFF else {"cmp": False}),
+    eq=True,
     repr=False,
     slots=True,
     str=False,
