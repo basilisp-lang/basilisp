@@ -139,8 +139,10 @@ warn_unused_ignores = true
 module = [
     "astor.*",
     "prompt_toolkit.*",
+    "py.*",
     "pygments.*",
-    "pytest.*"
+    "pytest.*",
+    "_pytest.*"
 ]
 ignore_missing_imports = true
 

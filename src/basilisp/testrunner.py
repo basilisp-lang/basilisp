@@ -7,6 +7,7 @@ from typing import Callable, Iterable, Iterator, Optional
 import py
 import pytest
 from _pytest.config import Config
+from _pytest.main import Session
 
 from basilisp import main as basilisp
 from basilisp.lang import keyword as kw
@@ -61,30 +62,87 @@ class TestFailuresInfo(Exception):
 
 
 TestFunction = Callable[[], lmap.PersistentMap]
-FixtureFunction = Callable[[], Optional[Iterator[None]]]
+FixtureTeardown = Iterator[None]
+FixtureFunction = Callable[[], Optional[FixtureTeardown]]
 
 
 class FixtureManager:
-    """FixtureManager instances manage `basilisp.test` style fixtures on behalf of
-    a BasilispFile collector."""
+    """FixtureManager instances manage `basilisp.test` style fixtures on behalf of a
+    BasilispFile collector.
+
+    Fixture managers provide methods for wrapping individual test functions with
+    fixture invocations and for setting up and tearing down namespace-level (:once)
+    fixtures."""
 
     __slots__ = ("_once_fixtures", "_once_fixture_teardowns", "_each_fixtures")
 
     def __init__(self):
-        self._once_fixtures = ()
-        self._once_fixture_teardowns = ()
-        self._each_fixtures = ()
-
-    @staticmethod
-    def _collect_fixtures(
-        ns: runtime.Namespace, fixture_type: kw.Keyword
-    ) -> Iterable[FixtureFunction]:
-        return (ns.meta.val_at(fixture_type) or ()) if ns.meta is not None else ()
+        self._once_fixtures: Iterable[FixtureFunction] = ()
+        self._once_fixture_teardowns: Iterable[FixtureTeardown] = ()
+        self._each_fixtures: Iterable[FixtureFunction] = ()
 
     def collect(self, ns: runtime.Namespace) -> None:
         """Collect all of the declared fixtures of the namespace."""
-        self._once_fixtures = self._collect_fixtures(ns, _ONCE_FIXTURES_NUM_META_KW)
-        self._each_fixtures = self._collect_fixtures(ns, _EACH_FIXTURES_META_KW)
+        if ns.meta is not None:
+            self._once_fixtures = ns.meta.val_at(_ONCE_FIXTURES_NUM_META_KW) or ()
+            self._each_fixtures = ns.meta.val_at(_EACH_FIXTURES_META_KW) or ()
+
+    @staticmethod
+    def _run_fixture(fixture: FixtureFunction) -> Optional[Iterator[None]]:
+        """Run a fixture function. If the fixture is a generator function, return the
+        generator/coroutine. Otherwise, simply return the value from the function, if
+        one."""
+        if inspect.isgeneratorfunction(fixture):
+            coro = fixture()
+            assert isinstance(coro, GeneratorType)
+            try:
+                next(coro)
+            except StopIteration:
+                return None
+            else:
+                return coro
+        else:
+            return fixture()
+
+    @classmethod
+    def _setup_fixtures(
+        cls, fixtures: Iterable[FixtureFunction]
+    ) -> Iterable[FixtureTeardown]:
+        """Set up fixtures by running them as by `_run_fixture`. Collect any fixtures
+        teardown steps (e.g. suspended coroutines) and return those so they can be
+        resumed later for any cleanup."""
+        teardown_fixtures = []
+        try:
+            for fixture in fixtures:
+                teardown = cls._run_fixture(fixture)
+                if teardown is not None:
+                    teardown_fixtures.append(teardown)
+        except Exception:
+            raise runtime.RuntimeException("Exception occurred during fixture setup")
+        else:
+            return teardown_fixtures
+
+    @staticmethod
+    def _teardown_fixtures(teardowns: Iterable[FixtureTeardown]) -> None:
+        """Perform teardown steps returned from a fixture function."""
+        for teardown in teardowns:
+            try:
+                next(teardown)
+            except StopIteration:
+                pass
+            else:
+                pass
+
+    @classmethod
+    @contextlib.contextmanager
+    def _enable_fixtures(cls, fixtures: Iterable[FixtureFunction]):
+        """Context manager which can be used to run a set of fixtures around a
+        block of code."""
+        teardown_fixtures = cls._setup_fixtures(fixtures)
+        try:
+            yield
+        finally:
+            cls._teardown_fixtures(teardown_fixtures)
 
     def wrap_test(self, f: TestFunction) -> TestFunction:
         """Wrap individual tests with a context manager responsible for setting up
@@ -108,57 +166,11 @@ class FixtureManager:
         self._teardown_fixtures(self._once_fixture_teardowns)
         self._once_fixture_teardowns = ()
 
-    @staticmethod
-    def _run_fixture(fixture: FixtureFunction) -> Optional[Iterator[None]]:
-        if inspect.isgeneratorfunction(fixture):
-            coro = fixture()
-            assert isinstance(coro, GeneratorType)
-            try:
-                next(coro)
-            except StopIteration:
-                return None
-            else:
-                return coro
-        else:
-            return fixture()
-
-    @classmethod
-    def _setup_fixtures(
-        cls, fixtures: Iterable[FixtureFunction]
-    ) -> Iterable[Iterator[None]]:
-        teardown_fixtures = []
-        try:
-            for fixture in fixtures:
-                teardown = cls._run_fixture(fixture)
-                if teardown is not None:
-                    teardown_fixtures.append(teardown)
-        except Exception:
-            raise runtime.RuntimeException("Exception occurred during fixture setup")
-        else:
-            return teardown_fixtures
-
-    @staticmethod
-    def _teardown_fixtures(teardowns: Iterable[Iterator[None]]) -> None:
-        for teardown in teardowns:
-            try:
-                next(teardown)
-            except StopIteration:
-                pass
-
-    @classmethod
-    @contextlib.contextmanager
-    def _enable_fixtures(cls, fixtures: Iterable[FixtureFunction]):
-        teardown_fixtures = cls._setup_fixtures(fixtures)
-        try:
-            yield
-        finally:
-            cls._teardown_fixtures(teardown_fixtures)
-
 
 class BasilispFile(pytest.File):
     """Files represent a test module in Python or a test namespace in Basilisp."""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         fspath: py.path.local,
         parent=None,
