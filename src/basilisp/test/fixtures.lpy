@@ -11,9 +11,8 @@
   "`basilisp.test` fixture which creates a temporary directory for the duration
   of the test.
 
-  The temporary directory name is yielded by the fixture and bound to the dynamic
-  Var `*tempdir*`."
+  The temporary directory name is bound to the dynamic Var `*tempdir*`."
   []
   (with-open [d (tempfile/TemporaryDirectory)]
     (binding [*tempdir* d]
-      (yield d))))
+      (yield))))
