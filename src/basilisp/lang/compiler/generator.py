@@ -382,23 +382,6 @@ def _collection_ast(
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
 
 
-# `attrs` throws an a ValueError for certain small class definitions, so
-# we want to avoid that.
-#
-# https://github.com/python-attrs/attrs/issues/589
-_ATTR_SLOTS_ON = getattr(attr, "__version_info__", (0,)) >= (19, 4)
-
-_ATTR_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
-_ATTR_CMP_KWARGS = (
-    [
-        ast.keyword(arg="eq", value=ast.Constant(False)),
-        ast.keyword(arg="order", value=ast.Constant(False)),
-    ]
-    if _ATTR_CMP_OFF
-    else [ast.keyword(arg="cmp", value=ast.Constant(False))]
-)
-
-
 def _class_ast(  # pylint: disable=too-many-arguments
     class_name: str,
     body: List[ast.AST],
@@ -408,7 +391,7 @@ def _class_ast(  # pylint: disable=too-many-arguments
     verified_abstract: bool = False,
     artificially_abstract_bases: Iterable[ast.AST] = (),
     is_frozen: bool = True,
-    use_slots: bool = _ATTR_SLOTS_ON,
+    use_slots: bool = True,
 ) -> ast.ClassDef:
     """Return a Python class definition for `deftype` and `reify` special forms."""
     return ast.ClassDef(
@@ -454,9 +437,10 @@ def _class_ast(  # pylint: disable=too-many-arguments
                     ast.Call(
                         func=_ATTR_CLASS_DECORATOR_NAME,
                         args=[],
-                        keywords=_ATTR_CMP_KWARGS
-                        + [
+                        keywords=[
+                            ast.keyword(arg="eq", value=ast.Constant(False)),
                             ast.keyword(arg="frozen", value=ast.Constant(is_frozen)),
+                            ast.keyword(arg="order", value=ast.Constant(False)),
                             ast.keyword(arg="slots", value=ast.Constant(use_slots)),
                         ],
                     ),
@@ -2523,7 +2507,7 @@ def _reify_to_py_ast(
                             verified_abstract=node.verified_abstract,
                             artificially_abstract_bases=artificially_abstract_bases,
                             is_frozen=True,
-                            use_slots=_ATTR_SLOTS_ON,
+                            use_slots=True,
                         )
                     ],
                 )

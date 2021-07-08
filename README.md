@@ -1,17 +1,14 @@
 # 🐍 basilisp 🐍
 
-A Lisp dialect inspired by Clojure targeting Python 3.
-
-**Disclaimer:** _Basilisp is a project I created to learn about Python, Clojure,
-and hosted languages generally. It should not be used in a production setting._
+A Clojure-compatible(-ish) Lisp dialect targeting Python 3.6+.
 
 [![PyPI](https://img.shields.io/pypi/v/basilisp.svg?style=flat-square)](https://pypi.org/project/basilisp/) [![python](https://img.shields.io/pypi/pyversions/basilisp.svg?style=flat-square)](https://pypi.org/project/basilisp/) [![pyimpl](https://img.shields.io/pypi/implementation/basilisp.svg?style=flat-square)](https://pypi.org/project/basilisp/) [![readthedocs](https://img.shields.io/readthedocs/basilisp.svg?style=flat-square)](https://basilisp.readthedocs.io/) [![CircleCI](	https://img.shields.io/circleci/project/github/basilisp-lang/basilisp/master.svg?style=flat-square)](https://circleci.com/gh/basilisp-lang/basilisp) [![Coveralls github](https://img.shields.io/coveralls/github/basilisp-lang/basilisp.svg?style=flat-square)](https://coveralls.io/github/basilisp-lang/basilisp) [![license](https://img.shields.io/github/license/basilisp-lang/basilisp.svg?style=flat-square)](https://github.com/basilisp-lang/basilisp/blob/master/LICENSE)
 
 ## Getting Started
 
-Basilisp is developed on [GitHub](https://github.com/chrisrink10/basilisp)
-and hosted on [PyPI](https://pypi.python.org/pypi/basilisp). You can
-fetch Basilisp using a simple:
+Basilisp is developed on [GitHub](https://github.com/basilisp-lang/basilisp) and
+hosted on [PyPI](https://pypi.python.org/pypi/basilisp). You can fetch Basilisp
+using a simple:
 
 ```bash
 pip install basilisp
@@ -23,10 +20,33 @@ Once Basilisp is installed, you can enter into the REPL using:
 basilisp repl
 ```
 
-Basilisp [documentation](https://basilisp.readthedocs.io) can help guide your 
-exploration at the REPL. Additionally, Basilisp features many of the same functions 
-and idioms as [Clojure](https://clojure.org/) so you may find guides and 
+Basilisp [documentation](https://basilisp.readthedocs.io) (work-in-progress) can help
+guide your  exploration at the REPL. Additionally, Basilisp features many of the same
+functions and idioms as [Clojure](https://clojure.org/) so you may find guides and
 documentation there helpful for getting started.
+
+### Who is this for?
+
+_Me._
+
+Basilisp is a project I created to learn about Python, Clojure, and hosted languages
+generally. That said, it is generally stable at this point with reasonably high test
+coverage, linting, and type checking. Work is ongoing to complete the rest  of
+standard the library implementations. I suspect it could be used to build small
+applications and tools at this point, though I would not recommend it unless you like
+being a very early adopter.
+
+_It should not be used in a production setting._
+
+### On Clojure Compatibility
+
+Basilisp strives to be roughly compatible with Clojure, but just as ClojureScript
+[diverges from Clojure](https://clojurescript.org/about/differences) at points,
+so too does Basilisp. Being a hosted language like Clojure (which celebrates its
+host, rather than hiding it) means that certain host-specific constructs cannot
+be replicated on every platform. I have tried to replicate the behavior of Clojure
+as closely  as I could while still staying true to Python. If you find such a
+divergence that is not due to specific host semantics, feel free to file an issue.
 
 ## Developing on Basilisp
 
@@ -39,10 +59,10 @@ Because `basilisp` is intended to be used as a library, no `poetry.lock` file
 is committed to the repository. Developers should generate their own lock file
 and update it regularly during development instead.
 
-Additionally, [`pyenv`](https://github.com/pyenv/pyenv) is recommended to 
-manage versions of Python readily on your local development environment.
-Setup of `pyenv` is somewhat more specific to your environment, so see
-the documentation in the repository for more information.
+Additionally, [`pyenv`](https://github.com/pyenv/pyenv) is recommended to manage
+versions of Python readily on your local development environment. Setup of `pyenv`
+is somewhat more specific to your environment, so see the documentation in the
+repository for more information.
 
 ### Getting Started
 
