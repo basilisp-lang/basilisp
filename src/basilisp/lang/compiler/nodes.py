@@ -28,8 +28,6 @@ from basilisp.lang.typing import ReaderForm as ReaderLispForm
 from basilisp.lang.typing import SpecialForm
 from basilisp.lang.util import munge
 
-_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
-
 ARITIES = kw.keyword("arities")
 BODY = kw.keyword("body")
 CLASS = kw.keyword("class")
@@ -718,9 +716,9 @@ class MaybeHostForm(Node[sym.Symbol]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(  # type: ignore
+@attr.s(
     auto_attribs=True,
-    **({"eq": True} if _CMP_OFF else {"cmp": False}),
+    eq=True,
     frozen=True,
     slots=True,
 )
@@ -735,9 +733,9 @@ class PyDict(Node[dict]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(  # type: ignore
+@attr.s(
     auto_attribs=True,
-    **({"eq": True} if _CMP_OFF else {"cmp": False}),
+    eq=True,
     frozen=True,
     slots=True,
 )
@@ -751,9 +749,9 @@ class PyList(Node[list]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(  # type: ignore
+@attr.s(
     auto_attribs=True,
-    **({"eq": True} if _CMP_OFF else {"cmp": False}),
+    eq=True,
     frozen=True,
     slots=True,
 )
