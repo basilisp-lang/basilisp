@@ -382,12 +382,6 @@ def _collection_ast(
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
 
 
-_ATTR_CMP_KWARGS = (
-    ast.keyword(arg="eq", value=ast.Constant(False)),
-    ast.keyword(arg="order", value=ast.Constant(False)),
-)
-
-
 def _class_ast(  # pylint: disable=too-many-arguments
     class_name: str,
     body: List[ast.AST],
@@ -443,9 +437,10 @@ def _class_ast(  # pylint: disable=too-many-arguments
                     ast.Call(
                         func=_ATTR_CLASS_DECORATOR_NAME,
                         args=[],
-                        keywords=_ATTR_CMP_KWARGS
-                        + [
+                        keywords=[
+                            ast.keyword(arg="eq", value=ast.Constant(False)),
                             ast.keyword(arg="frozen", value=ast.Constant(is_frozen)),
+                            ast.keyword(arg="order", value=ast.Constant(False)),
                             ast.keyword(arg="slots", value=ast.Constant(use_slots)),
                         ],
                     ),
