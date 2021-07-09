@@ -1,50 +1,134 @@
-from _pytest import pytester as pytester
+from _pytest.pytester import Pytester
+
+from basilisp.lang import runtime
+from basilisp.lang import symbol as sym
 
 
-def test_testrunner(testdir: pytester.Testdir, capsys):
+def test_testrunner(pytester: Pytester):
     code = """
-    (ns test-fixture
+    (ns test-testrunner
       (:require
-       [basilisp.test :refer [deftest is]]))
+       [basilisp.test :refer [deftest is are testing]]))
 
-    (deftest fixture-test
-      (is (= 1 1))
-      (is (= :hi :hi))
-      (is true)
-      (is false)
-      (is (= "true" false))
-      (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (ex-info "Exception" {}))))
-      (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (python/Exception))))
-      (is (= 4.6 4.6))
-      (is (throw (ex-info "Uncaught exception" {}))))
+    (deftest assertion-test
+      (testing "is assertions"
+        (is true)
+        (is false)
+        (is (= "string" "string"))
+        (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (ex-info "Exception" {}))))
+        (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (python/Exception))))
+        (is (throw (ex-info "Uncaught exception" {}))))
+
+      (testing "are assertions"
+        (are [exp actual] (= exp actual)
+          1      1
+          :hi    :hi
+          "true" false
+          4.6    4.6)))
+
+    (deftest passing-test
+      (is true))
+
+    (deftest error-test
+      (throw 
+        (ex-info "This test will count as an error." {})))
     """
-    testdir.makefile(".lpy", test_fixture=code)
+    pytester.makefile(".lpy", test_testrunner=code)
+    result: pytester.RunResult = pytester.runpytest()
+    result.assert_outcomes(passed=1, failed=2)
 
-    result: pytester.RunResult = testdir.runpytest()
-    result.assert_outcomes(failed=1)
+    result.stdout.fnmatch_lines(
+        [
+            "FAIL in (assertion-test) (test_testrunner.lpy:8)",
+            "     is assertions :: Test failure: false",
+            "",
+            "    expected: false",
+            "      actual: false",
+        ],
+        consecutive=True,
+    )
 
-    captured = capsys.readouterr()
+    result.stdout.fnmatch_lines(
+        [
+            "FAIL in (assertion-test) (test_testrunner.lpy:11)",
+            "     is assertions :: Expected <class 'basilisp.lang.exception.ExceptionInfo'>; got <class 'Exception'> instead",
+            "",
+            "    expected: <class 'basilisp.lang.exception.ExceptionInfo'>",
+            "      actual: Exception()",
+        ]
+    )
 
-    expected_out = """FAIL in (fixture-test) (test_fixture.lpy:9)
-    Test failure: false
+    result.stdout.fnmatch_lines(
+        [
+            "FAIL in (assertion-test) (test_testrunner.lpy)",
+            '     are assertions :: Test failure: (= "true" false)',
+            "",
+            '    expected: "true"',
+            "      actual: false",
+        ],
+        consecutive=True,
+    )
 
-    expected: false
-      actual: false"""
-    assert expected_out in captured.out
+    result.stdout.fnmatch_lines(
+        [
+            "ERROR in (assertion-test) (test_testrunner.lpy:12)",
+            "",
+            "Traceback (most recent call last):",
+            '  File "/*/test_testrunner.lpy", line 12, in assertion_test',
+            '    (is (throw (ex-info "Uncaught exception" {}))))',
+            "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
+        ],
+        consecutive=True,
+    )
 
-    expected_out = """FAIL in (fixture-test) (test_fixture.lpy:10)
-    Test failure: (= "true" false)
 
-    expected: "true"
-      actual: false"""
-    assert expected_out in captured.out
+def test_fixtures(pytester: Pytester):
+    code = """
+    (ns test-fixtures
+      (:require
+       [basilisp.test :refer [deftest is use-fixtures]]))
 
-    expected_out = """FAIL in (fixture-test) (test_fixture.lpy:12)
-    Expected <class 'basilisp.lang.exception.ExceptionInfo'>; got <class 'Exception'> instead
+    (def once-no-cleanup (volatile! 0))
+    (def once-cleanup (volatile! 0))
+    (def each-no-cleanup (volatile! 0))
+    (def each-cleanup (volatile! 0))
 
-    expected: <class 'basilisp.lang.exception.ExceptionInfo'>
-      actual: Exception()"""
-    assert expected_out in captured.out
+    ;; return here rather than yielding
+    (defn once-fixture-no-cleanup []
+      (vswap! once-no-cleanup inc))
 
-    expected_out = """ERROR in (fixture-test) (test_fixture.lpy:14)"""
-    assert expected_out in captured.out
+    (defn once-fixture-w-cleanup []
+      (vswap! once-cleanup inc)
+      (yield)
+      (vswap! once-cleanup dec))
+
+    ;; yield here rather than returning, even w/o cleanup step
+    (defn each-fixture-no-cleanup []
+      (vswap! each-no-cleanup inc)
+      (yield))
+
+    (defn each-fixture-w-cleanup []
+      (vswap! each-cleanup inc)
+      (yield)
+      (vswap! each-cleanup dec))
+
+    (use-fixtures :once once-fixture-no-cleanup once-fixture-w-cleanup)
+    (use-fixtures :each each-fixture-no-cleanup each-fixture-w-cleanup)
+
+    (deftest passing-test
+      (is true))
+
+    (deftest failing-test
+      (is false))
+    """
+    pytester.makefile(".lpy", test_fixtures=code)
+    result: pytester.RunResult = pytester.runpytest()
+    result.assert_outcomes(passed=1, failed=1)
+
+    get_volatile = lambda vname: runtime.Var.find_safe(
+        sym.symbol(vname, ns="test-fixtures")
+    ).value.deref()
+    assert 1 == get_volatile("once-no-cleanup")
+    assert 0 == get_volatile("once-cleanup")
+    assert 2 == get_volatile("each-no-cleanup")
+    assert 0 == get_volatile("each-cleanup")

@@ -102,7 +102,8 @@ class FixtureManager:
             else:
                 return coro
         else:
-            return fixture()
+            fixture()
+            return None
 
     @classmethod
     def _setup_fixtures(

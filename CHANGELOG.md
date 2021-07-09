@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added support for fixtures in `basilisp.test` (#654)
+
+### Changed
+ * Set tighter bounds on dependency version ranges (#657)
+
 ### Fixed
  * Fixed the `with` macro definition to match the Python language spec (#656)
 
