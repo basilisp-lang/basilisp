@@ -31,10 +31,7 @@ def pytest_collect_file(parent, path):
     """Primary PyTest hook to identify Basilisp test files."""
     if path.ext == ".lpy":
         if path.basename.startswith("test_") or path.purebasename.endswith("_test"):
-            if hasattr(BasilispFile, "from_parent"):
-                return BasilispFile.from_parent(parent, fspath=path)
-            else:
-                return BasilispFile(path, parent)
+            return BasilispFile.from_parent(parent, fspath=path)
     return None
 
 
@@ -95,12 +92,8 @@ class FixtureManager:
         if inspect.isgeneratorfunction(fixture):
             coro = fixture()
             assert isinstance(coro, GeneratorType)
-            try:
-                next(coro)
-            except StopIteration:
-                return None
-            else:
-                return coro
+            next(coro)
+            return coro
         else:
             fixture()
             return None
@@ -131,8 +124,10 @@ class FixtureManager:
                 next(teardown)
             except StopIteration:
                 pass
-            else:
-                pass
+            except Exception:
+                raise runtime.RuntimeException(
+                    "Exception occurred during fixture teardown"
+                )
 
     @classmethod
     @contextlib.contextmanager
@@ -145,17 +140,6 @@ class FixtureManager:
         finally:
             cls._teardown_fixtures(teardown_fixtures)
 
-    def wrap_test(self, f: TestFunction) -> TestFunction:
-        """Wrap individual tests with a context manager responsible for setting up
-        and tearing all :each style fixtures for the namespace."""
-        each_fixtures = self._each_fixtures
-
-        def run_test() -> lmap.PersistentMap:
-            with self._enable_fixtures(each_fixtures):
-                return f()
-
-        return run_test
-
     def setup_namespace(self) -> None:
         """Setup :once fixtures for a namespace. Should have a corresponding call
         to `FixtureManager.teardown_namespace` to clean up fixtures."""
@@ -166,6 +150,14 @@ class FixtureManager:
         `FixtureManager.setup_namespace` first."""
         self._teardown_fixtures(self._once_fixture_teardowns)
         self._once_fixture_teardowns = ()
+
+    def setup_test(self) -> Iterable[FixtureTeardown]:
+        """Setup :each fixtures for a namespace and return any associated teardowns.
+        Should have a corresponding call to `FixtureManager.teardown_test` to clean
+        up fixtures."""
+        return self._setup_fixtures(self._each_fixtures)
+
+    teardown_test = _teardown_fixtures
 
 
 class BasilispFile(pytest.File):
@@ -228,9 +220,10 @@ class BasilispFile(pytest.File):
             yield BasilispTestItem.from_parent(
                 self,
                 name=test.name.name,
-                run_test=self._fixture_manager.wrap_test(f),
+                run_test=f,
                 namespace=ns,
                 filename=filename,
+                fixture_manager=self._fixture_manager,
             )
 
 
@@ -262,11 +255,14 @@ class BasilispTestItem(pytest.Item):
         run_test: TestFunction,
         namespace: runtime.Namespace,
         filename: str,
+        fixture_manager: FixtureManager,
     ) -> None:
         super(BasilispTestItem, self).__init__(name, parent)
         self._run_test = run_test
         self._namespace = namespace
         self._filename = filename
+        self._fixture_manager = fixture_manager
+        self._teardowns = ()
 
     @classmethod
     def from_parent(  # pylint: disable=arguments-differ,too-many-arguments
@@ -276,12 +272,25 @@ class BasilispTestItem(pytest.Item):
         run_test: TestFunction,
         namespace: runtime.Namespace,
         filename: str,
+        fixture_manager: FixtureManager,
     ):
         """Create a new BasilispTestItem from the parent Node."""
         # https://github.com/pytest-dev/pytest/pull/6680
         return super().from_parent(
-            parent, name=name, run_test=run_test, namespace=namespace, filename=filename
+            parent,
+            name=name,
+            run_test=run_test,
+            namespace=namespace,
+            filename=filename,
+            fixture_manager=fixture_manager,
         )
+
+    def setup(self) -> None:
+        self._teardowns = self._fixture_manager.setup_test()
+
+    def teardown(self) -> None:
+        self._fixture_manager.teardown_test(self._teardowns)
+        self._teardowns = ()
 
     def runtest(self):
         """Run the tests associated with this test item.
@@ -308,7 +317,7 @@ class BasilispTestItem(pytest.Item):
                     exc = details.val_at(_ACTUAL_KW)
                     line = details.val_at(_LINE_KW)
                     messages.append(self._error_msg(exc, line=line))
-                else:
+                else:  # pragma: no cover
                     assert False, "Test failure type must be in #{:error :failure}"
 
             return "\n\n".join(messages)

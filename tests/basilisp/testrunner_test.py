@@ -1,3 +1,4 @@
+import pytest
 from _pytest.pytester import Pytester
 
 from basilisp.lang import runtime
@@ -132,3 +133,46 @@ def test_fixtures(pytester: Pytester):
     assert 0 == get_volatile("once-cleanup")
     assert 2 == get_volatile("each-no-cleanup")
     assert 0 == get_volatile("each-cleanup")
+
+
+@pytest.mark.parametrize(
+    "fixture,style,errors,passes,failures",
+    [
+        ("error-during-setup", ":once", 2, 0, 0),
+        ("error-during-setup", ":each", 2, 0, 0),
+        ("error-during-teardown", ":once", 3, 0, 0),
+        ("error-during-teardown", ":each", 2, 1, 1),
+    ],
+)
+def test_fixtures_with_errors(
+    pytester: Pytester,
+    fixture: str,
+    style: str,
+    errors: int,
+    passes: int,
+    failures: int,
+):
+    code = f"""
+    (ns test-fixtures-with-errors
+      (:require
+       [basilisp.test :refer [deftest is use-fixtures]]))
+
+    (defn error-during-setup []
+      (throw (ex-info "Setup error" {{}}))
+      (yield))
+
+    (defn error-during-teardown []
+      (yield)
+      (throw (ex-info "Teardown error" {{}})))
+
+    (use-fixtures {style} {fixture})
+
+    (deftest passing-test
+      (is true))
+
+    (deftest failing-test
+      (is false))
+    """
+    pytester.makefile(".lpy", test_fixtures_with_errors=code)
+    result: pytester.RunResult = pytester.runpytest()
+    result.assert_outcomes(passed=passes, failed=failures, errors=errors)
