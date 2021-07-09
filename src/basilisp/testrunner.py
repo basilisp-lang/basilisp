@@ -1,4 +1,3 @@
-import contextlib
 import inspect
 import traceback
 from types import GeneratorType
