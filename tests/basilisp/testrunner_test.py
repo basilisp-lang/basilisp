@@ -1,86 +1,115 @@
+import sys
+
 import pytest
-from _pytest.pytester import Pytester
+from _pytest.pytester import Pytester, RunResult
 
 from basilisp.lang import runtime
 from basilisp.lang import symbol as sym
 
 
-def test_testrunner(pytester: Pytester):
-    code = """
-    (ns test-testrunner
-      (:require
-       [basilisp.test :refer [deftest is are testing]]))
+class TestTestrunner:
+    @pytest.fixture
+    def run_result(self, pytester: Pytester) -> RunResult:
+        code = """
+        (ns test-testrunner
+          (:require
+           [basilisp.test :refer [deftest is are testing]]))
 
-    (deftest assertion-test
-      (testing "is assertions"
-        (is true)
-        (is false)
-        (is (= "string" "string"))
-        (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (ex-info "Exception" {}))))
-        (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (python/Exception))))
-        (is (throw (ex-info "Uncaught exception" {}))))
+        (deftest assertion-test
+          (testing "is assertions"
+            (is true)
+            (is false)
+            (is (= "string" "string"))
+            (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (ex-info "Exception" {}))))
+            (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (python/Exception))))
+            (is (throw (ex-info "Uncaught exception" {}))))
 
-      (testing "are assertions"
-        (are [exp actual] (= exp actual)
-          1      1
-          :hi    :hi
-          "true" false
-          4.6    4.6)))
+          (testing "are assertions"
+            (are [exp actual] (= exp actual)
+              1      1
+              :hi    :hi
+              "true" false
+              4.6    4.6)))
 
-    (deftest passing-test
-      (is true))
+        (deftest passing-test
+          (is true))
 
-    (deftest error-test
-      (throw 
-        (ex-info "This test will count as an error." {})))
-    """
-    pytester.makefile(".lpy", test_testrunner=code)
-    result: pytester.RunResult = pytester.runpytest()
-    result.assert_outcomes(passed=1, failed=2)
+        (deftest error-test
+          (throw
+            (ex-info "This test will count as an error." {})))
+        """
+        pytester.makefile(".lpy", test_testrunner=code)
+        yield pytester.runpytest()
+        runtime.Namespace.remove(sym.symbol("test-testrunner"))
 
-    result.stdout.fnmatch_lines(
-        [
-            "FAIL in (assertion-test) (test_testrunner.lpy:8)",
-            "     is assertions :: Test failure: false",
-            "",
-            "    expected: false",
-            "      actual: false",
-        ],
-        consecutive=True,
+    def test_outcomes(self, run_result: RunResult):
+        run_result.assert_outcomes(passed=1, failed=2)
+
+    def test_failure_repr(self, run_result: RunResult):
+        run_result.stdout.fnmatch_lines(
+            [
+                "FAIL in (assertion-test) (test_testrunner.lpy:8)",
+                "     is assertions :: Test failure: false",
+                "",
+                "    expected: false",
+                "      actual: false",
+            ],
+            consecutive=True,
+        )
+
+        run_result.stdout.fnmatch_lines(
+            [
+                "FAIL in (assertion-test) (test_testrunner.lpy:11)",
+                "     is assertions :: Expected <class 'basilisp.lang.exception.ExceptionInfo'>; got <class 'Exception'> instead",
+                "",
+                "    expected: <class 'basilisp.lang.exception.ExceptionInfo'>",
+                "      actual: Exception()",
+            ]
+        )
+
+        run_result.stdout.fnmatch_lines(
+            [
+                # Note the lack of line number, since `are` assertions generally lose
+                # the original line number during templating
+                "FAIL in (assertion-test) (test_testrunner.lpy)",
+                '     are assertions :: Test failure: (= "true" false)',
+                "",
+                '    expected: "true"',
+                "      actual: false",
+            ],
+            consecutive=True,
+        )
+
+    @pytest.mark.xfail(
+        sys.version_info < (3, 8),
+        reason=(
+            "This issue seems to stem from this fact that traceback line numbers for "
+            "Python 3.8+ point to the beginning of the subexpression, whereas before "
+            "they pointed to the end. See https://bugs.python.org/issue12458"
+        ),
     )
+    def test_error_repr(self, run_result: RunResult):
+        run_result.stdout.fnmatch_lines(
+            [
+                "ERROR in (assertion-test) (test_testrunner.lpy:12)",
+                "",
+                "Traceback (most recent call last):",
+                '  File "/*/test_testrunner.lpy", line 12, in assertion_test',
+                '    (is (throw (ex-info "Uncaught exception" {}))))',
+                "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
+            ],
+            consecutive=True,
+        )
 
-    result.stdout.fnmatch_lines(
-        [
-            "FAIL in (assertion-test) (test_testrunner.lpy:11)",
-            "     is assertions :: Expected <class 'basilisp.lang.exception.ExceptionInfo'>; got <class 'Exception'> instead",
-            "",
-            "    expected: <class 'basilisp.lang.exception.ExceptionInfo'>",
-            "      actual: Exception()",
-        ]
-    )
-
-    result.stdout.fnmatch_lines(
-        [
-            "FAIL in (assertion-test) (test_testrunner.lpy)",
-            '     are assertions :: Test failure: (= "true" false)',
-            "",
-            '    expected: "true"',
-            "      actual: false",
-        ],
-        consecutive=True,
-    )
-
-    result.stdout.fnmatch_lines(
-        [
-            "ERROR in (assertion-test) (test_testrunner.lpy:12)",
-            "",
-            "Traceback (most recent call last):",
-            '  File "/*/test_testrunner.lpy", line 12, in assertion_test',
-            '    (is (throw (ex-info "Uncaught exception" {}))))',
-            "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
-        ],
-        consecutive=True,
-    )
+        run_result.stdout.fnmatch_lines(
+            [
+                "ERROR in (error-test) (test_testrunner.lpy)",
+                "Traceback (most recent call last):",
+                '  File "/*/test_testrunner.lpy", line 25, in error_test',
+                "    (throw",
+                "basilisp.lang.exception.ExceptionInfo: This test will count as an error. {}",
+            ]
+        )
 
 
 def test_fixtures(pytester: Pytester):

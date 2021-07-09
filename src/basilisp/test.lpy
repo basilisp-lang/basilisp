@@ -127,19 +127,22 @@
    `(is ~expr (str "Test failure: " (pr-str (quote ~expr)))))
   ([expr msg]
    (let [line-num (or (:basilisp.lang.reader/line (meta &form))
-                      (:basilisp.lang.reader/line (meta (first &form))))]
+                      (:basilisp.lang.reader/line (meta (first &form))))
+         exc-name (gensym "e")]
      `(try
         ~(gen-assert expr msg line-num)
-        (catch python/Exception e#
+        (catch python/Exception ~exc-name
           (vswap! *test-failures*
                   conj
                   {:test-name    *test-name*
                    :test-section *test-section*
-                   :message      (str "Unexpected exception thrown during test run: " (python/repr e#))
+                   :message      (str "Unexpected exception thrown during test run: " (python/repr ~exc-name))
                    :expr         (quote ~expr)
-                   :actual       e#
+                   :actual       ~exc-name
                    :expected     (quote ~expr)
-                   :line         ~line-num
+                   :line         ~(if line-num
+                                    line-num
+                                    `(.-tb_lineno (.-__traceback__ ~exc-name)))
                    :type         :error}))))))
 
 (defmacro are
