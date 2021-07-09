@@ -1,7 +1,12 @@
+import inspect
 import traceback
-from typing import Callable, Iterable, Optional
+from types import GeneratorType
+from typing import Callable, Iterable, Iterator, Optional, Tuple
 
+import py
 import pytest
+from _pytest.config import Config
+from _pytest.main import Session  # pylint: disable=unused-import
 
 from basilisp import main as basilisp
 from basilisp.lang import keyword as kw
@@ -11,8 +16,9 @@ from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
 from basilisp.util import Maybe
 
+_EACH_FIXTURES_META_KW = kw.keyword("each-fixtures", "basilisp.test")
+_ONCE_FIXTURES_NUM_META_KW = kw.keyword("once-fixtures", "basilisp.test")
 _TEST_META_KW = kw.keyword("test", "basilisp.test")
-_TEST_NUM_META_KW = kw.keyword("order", "basilisp.test")
 
 
 # pylint: disable=unused-argument
@@ -24,10 +30,7 @@ def pytest_collect_file(parent, path):
     """Primary PyTest hook to identify Basilisp test files."""
     if path.ext == ".lpy":
         if path.basename.startswith("test_") or path.purebasename.endswith("_test"):
-            if hasattr(BasilispFile, "from_parent"):
-                return BasilispFile.from_parent(parent, fspath=path)
-            else:
-                return BasilispFile(path, parent)
+            return BasilispFile.from_parent(parent, fspath=path)
     return None
 
 
@@ -55,23 +58,115 @@ class TestFailuresInfo(Exception):
 
 
 TestFunction = Callable[[], lmap.PersistentMap]
+FixtureTeardown = Iterator[None]
+FixtureFunction = Callable[[], Optional[FixtureTeardown]]
+
+
+class FixtureManager:
+    """FixtureManager instances manage `basilisp.test` style fixtures on behalf of a
+    BasilispFile or BasilispTestItem node."""
+
+    __slots__ = ("_fixtures", "_teardowns")
+
+    def __init__(self, fixtures: Iterable[FixtureFunction]):
+        self._fixtures: Iterable[FixtureFunction] = fixtures
+        self._teardowns: Iterable[FixtureTeardown] = ()
+
+    @staticmethod
+    def _run_fixture(fixture: FixtureFunction) -> Optional[Iterator[None]]:
+        """Run a fixture function. If the fixture is a generator function, return the
+        generator/coroutine. Otherwise, simply return the value from the function, if
+        one."""
+        if inspect.isgeneratorfunction(fixture):
+            coro = fixture()
+            assert isinstance(coro, GeneratorType)
+            next(coro)
+            return coro
+        else:
+            fixture()
+            return None
+
+    @classmethod
+    def _setup_fixtures(
+        cls, fixtures: Iterable[FixtureFunction]
+    ) -> Iterable[FixtureTeardown]:
+        """Set up fixtures by running them as by `_run_fixture`. Collect any fixtures
+        teardown steps (e.g. suspended coroutines) and return those so they can be
+        resumed later for any cleanup."""
+        teardown_fixtures = []
+        try:
+            for fixture in fixtures:
+                teardown = cls._run_fixture(fixture)
+                if teardown is not None:
+                    teardown_fixtures.append(teardown)
+        except Exception:
+            raise runtime.RuntimeException("Exception occurred during fixture setup")
+        else:
+            return teardown_fixtures
+
+    @staticmethod
+    def _teardown_fixtures(teardowns: Iterable[FixtureTeardown]) -> None:
+        """Perform teardown steps returned from a fixture function."""
+        for teardown in teardowns:
+            try:
+                next(teardown)
+            except StopIteration:
+                pass
+            except Exception:
+                raise runtime.RuntimeException(
+                    "Exception occurred during fixture teardown"
+                )
+
+    def setup(self) -> None:
+        """Setup fixtures and store any teardowns for cleanup later.
+
+        Should have a corresponding call to `FixtureManager.teardown` to clean up
+        fixtures."""
+        self._teardowns = self._setup_fixtures(self._fixtures)
+
+    def teardown(self) -> None:
+        """Teardown fixtures from a previous call to `setup`."""
+        self._teardown_fixtures(self._teardowns)
+        self._teardowns = ()
 
 
 class BasilispFile(pytest.File):
     """Files represent a test module in Python or a test namespace in Basilisp."""
 
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        fspath: py.path.local,
+        parent=None,
+        config: Optional[Config] = None,
+        session: Optional["Session"] = None,
+        nodeid: Optional[str] = None,
+    ) -> None:
+        super().__init__(fspath, parent, config, session, nodeid)
+        self._fixture_manager: Optional[FixtureManager] = None
+
+    @staticmethod
+    def _collected_fixtures(
+        ns: runtime.Namespace,
+    ) -> Tuple[Iterable[FixtureFunction], Iterable[FixtureFunction]]:
+        """Collect all of the declared fixtures of the namespace."""
+        if ns.meta is not None:
+            return (
+                ns.meta.val_at(_ONCE_FIXTURES_NUM_META_KW) or (),
+                ns.meta.val_at(_EACH_FIXTURES_META_KW) or (),
+            )
+        return (), ()
+
     @staticmethod
     def _collected_tests(ns: runtime.Namespace) -> Iterable[runtime.Var]:
-        """Return the set of collected tests from the Namespace `ns`.
+        """Return the sorted sequence of collected tests from the Namespace `ns`.
 
-        Tests defined by `deftest` are annotated with `:basilisp.test/test` metadata
-        and `:basilisp.test/order` is a monotonically increasing integer added by
-        `deftest` at compile-time to run tests in the order they are defined (which
-        matches the default behavior of PyTest)."""
+        Tests defined by `deftest` are annotated with `:basilisp.test/test` metadata.
+        Tests are sorted by their line number, which matches the default behavior of
+        PyTest."""
 
         def _test_num(var: runtime.Var) -> int:
             assert var.meta is not None
-            order = var.meta.val_at(_TEST_NUM_META_KW)
+            order = var.meta.val_at(_LINE_KW)
             assert isinstance(order, int)
             return order
 
@@ -84,6 +179,14 @@ class BasilispFile(pytest.File):
             key=_test_num,
         )
 
+    def setup(self) -> None:
+        assert self._fixture_manager is not None
+        self._fixture_manager.setup()
+
+    def teardown(self) -> None:
+        assert self._fixture_manager is not None
+        self._fixture_manager.teardown()
+
     def collect(self):
         """Collect all of the tests in the namespace (module) given.
 
@@ -95,10 +198,17 @@ class BasilispFile(pytest.File):
         module = self.fspath.pyimport()
         assert isinstance(module, runtime.BasilispModule)
         ns = module.__basilisp_namespace__
+        once_fixtures, each_fixtures = self._collected_fixtures(ns)
+        self._fixture_manager = FixtureManager(once_fixtures)
         for test in self._collected_tests(ns):
             f: TestFunction = test.value
             yield BasilispTestItem.from_parent(
-                self, name=test.name.name, run_test=f, namespace=ns, filename=filename
+                self,
+                name=test.name.name,
+                run_test=f,
+                namespace=ns,
+                filename=filename,
+                fixture_manager=FixtureManager(each_fixtures),
             )
 
 
@@ -130,11 +240,13 @@ class BasilispTestItem(pytest.Item):
         run_test: TestFunction,
         namespace: runtime.Namespace,
         filename: str,
+        fixture_manager: FixtureManager,
     ) -> None:
         super(BasilispTestItem, self).__init__(name, parent)
         self._run_test = run_test
         self._namespace = namespace
         self._filename = filename
+        self._fixture_manager = fixture_manager
 
     @classmethod
     def from_parent(  # pylint: disable=arguments-differ,too-many-arguments
@@ -144,12 +256,24 @@ class BasilispTestItem(pytest.Item):
         run_test: TestFunction,
         namespace: runtime.Namespace,
         filename: str,
+        fixture_manager: FixtureManager,
     ):
         """Create a new BasilispTestItem from the parent Node."""
         # https://github.com/pytest-dev/pytest/pull/6680
         return super().from_parent(
-            parent, name=name, run_test=run_test, namespace=namespace, filename=filename
+            parent,
+            name=name,
+            run_test=run_test,
+            namespace=namespace,
+            filename=filename,
+            fixture_manager=fixture_manager,
         )
+
+    def setup(self) -> None:
+        self._fixture_manager.setup()
+
+    def teardown(self) -> None:
+        self._fixture_manager.teardown()
 
     def runtest(self):
         """Run the tests associated with this test item.
@@ -176,7 +300,7 @@ class BasilispTestItem(pytest.Item):
                     exc = details.val_at(_ACTUAL_KW)
                     line = details.val_at(_LINE_KW)
                     messages.append(self._error_msg(exc, line=line))
-                else:
+                else:  # pragma: no cover
                     assert False, "Test failure type must be in #{:error :failure}"
 
             return "\n\n".join(messages)
