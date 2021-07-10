@@ -63,7 +63,7 @@
       nil
       res)))
 
-(defn ^:priviate include-seq-elem?
+(defn ^:private include-seq-elem?
   "Return true if an element should be included in the final diff vector.
 
   `nil` elements at the end of a diff vector will be excluded."

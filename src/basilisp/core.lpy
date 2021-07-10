@@ -5699,7 +5699,8 @@
     [`(def ~(vary-meta method-name
                        assoc
                        :doc docstring
-                       :arglists (list 'quote arglists))
+                       :arglists (list 'quote arglists)
+                       :basilisp.core/source-protocol (list 'var protocol-name))
         (functools/singledispatch
          (fn ~method-name
            ~@(map (fn [[obj-sym & args]]

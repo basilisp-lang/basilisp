@@ -93,7 +93,10 @@ exclude = '''
 
 [tool.coverage.run]
 branch = true
-omit = ["*/__version__.py"]
+omit = [
+    "*/__version__.py",
+    "src/basilisp/contrib/*"
+]
 
 [tool.coverage.paths]
 source = [
