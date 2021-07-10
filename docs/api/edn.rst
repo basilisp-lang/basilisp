@@ -1,5 +1,5 @@
-``basilisp.edn``
-================
+basilisp.edn
+============
 
 .. toctree::
    :maxdepth: 2

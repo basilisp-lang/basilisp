@@ -1,5 +1,5 @@
-``basilisp.io``
-===============
+basilisp.io
+===========
 
 .. toctree::
    :maxdepth: 2

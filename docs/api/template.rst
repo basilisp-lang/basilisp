@@ -1,5 +1,5 @@
-``basilisp.template``
-=====================
+basilisp.template
+=================
 
 .. toctree::
    :maxdepth: 2

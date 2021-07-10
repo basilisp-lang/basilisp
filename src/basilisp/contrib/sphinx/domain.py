@@ -13,6 +13,7 @@ from sphinx.domains.python import (
     PyObject,
     PyProperty,
     PyStaticMethod,
+    PythonModuleIndex,
     PyVariable,
 )
 from sphinx.roles import XRefRole
@@ -42,6 +43,12 @@ class BasilispFunction(PyFunction):
 class BasilispClassLike(PyClasslike):
     def get_signature_prefix(self, sig: str) -> str:
         return self.objtype
+
+
+class BasilispNamespaceIndex(PythonModuleIndex):
+    name = 'nsindex'
+    localname = "Basilisp Namespace Index"
+    shortname = 'namespaces'
 
 
 class BasilispDomain(Domain):
@@ -85,7 +92,9 @@ class BasilispDomain(Domain):
         "objects": {},  # fullname -> docname, objtype
         "modules": {},  # modname -> docname, synopsis, platform, deprecated
     }
-    indices = []
+    indices = [
+        BasilispNamespaceIndex
+    ]
 
     def merge_domaindata(self, docnames: List[str], otherdata: Dict) -> None:
         pass

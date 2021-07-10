@@ -1,5 +1,5 @@
-``basilisp.json``
-=================
+basilisp.json
+=============
 
 .. toctree::
    :maxdepth: 2

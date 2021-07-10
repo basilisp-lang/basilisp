@@ -1,5 +1,5 @@
-``basilisp.walk``
-=================
+basilisp.walk
+=============
 
 .. toctree::
    :maxdepth: 2

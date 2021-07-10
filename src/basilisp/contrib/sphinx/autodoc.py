@@ -35,7 +35,6 @@ _ARGLISTS_KW = kw.keyword("arglists")
 _MACRO_KW = kw.keyword("macro")
 _PROTOCOL_KW = kw.keyword("protocol", ns=runtime.CORE_NS)
 _SOURCE_PROTOCOL_KW = kw.keyword("source-protocol", ns=runtime.CORE_NS)
-_INTERFACE_KW = kw.keyword("interface")
 _METHODS_KW = kw.keyword("methods")
 
 

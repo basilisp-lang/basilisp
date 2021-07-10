@@ -1,5 +1,5 @@
-``basilisp.data``
-=================
+basilisp.data
+=============
 
 .. toctree::
    :maxdepth: 2
