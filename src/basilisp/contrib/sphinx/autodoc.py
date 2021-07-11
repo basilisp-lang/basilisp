@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 _DOC_KW = kw.keyword("doc")
 _PRIVATE_KW = kw.keyword("private")
 _DYNAMIC_KW = kw.keyword("dynamic")
+_DEPRECATED_KW = kw.keyword("deprecated")
 _FILE_KW = kw.keyword("file")
 _ARGLISTS_KW = kw.keyword("arglists")
 _MACRO_KW = kw.keyword("macro")
@@ -134,15 +135,22 @@ class NamespaceDocumenter(Documenter):
         filtered = []
         for name, val in members:
             assert isinstance(val, runtime.Var)
+            if self.options.exclude_members and name in self.options.exclude_members:
+                continue
             if val.meta is not None:
-                # Private members will be excluded
-                #
+                # Ignore undocumented members unless undoc_members is set
+                if val.meta.val_at(_DOC_KW) is None and not self.options.undoc_members:
+                    continue
+                # Private members will be excluded unless they are requested
+                if (
+                    self.options.private_members is not None
+                    and val.meta.val_at(_PRIVATE_KW)
+                    and name not in self.options.private_members
+                ):
+                    continue
                 # Namespace members with :basilisp.core/source-protocol meta will be
                 # documented and grouped under the protocol they are defined by
-                if (
-                    val.meta.val_at(_PRIVATE_KW)
-                    or val.meta.val_at(_SOURCE_PROTOCOL_KW) is not None
-                ):
+                if val.meta.val_at(_SOURCE_PROTOCOL_KW) is not None:
                     continue
             filtered.append((name, val, False))
         return filtered
@@ -155,8 +163,6 @@ class VarDocumenter(Documenter):
 
     option_spec: OptionSpec = {
         "noindex": bool_option,
-        "synopsis": identity,
-        "platform": identity,
         "deprecated": bool_option,
     }
 
@@ -178,8 +184,11 @@ class VarDocumenter(Documenter):
         sourcename = self.get_sourcename()
         super().add_directive_header(sig)
 
-        if self.object.meta is not None and self.object.meta.val_at(_DYNAMIC_KW):
-            self.add_line("   :dynamic:", sourcename)
+        if self.object.meta is not None:
+            if self.object.meta.val_at(_DYNAMIC_KW):
+                self.add_line("   :dynamic:", sourcename)
+            if self.object.meta.val_at(_DEPRECATED_KW):
+                self.add_line("   :deprecated:", sourcename)
 
     def parse_name(self) -> bool:
         ns, name = self.name.split("::")
@@ -208,8 +217,8 @@ class VarDocumenter(Documenter):
         # but probably the lowest friction way of getting Sphinx to work for us.
         name = self.objpath[-1]
         var = runtime.Var.find(sym.symbol(name, ns=self.modname))
-        print(f"Found var {var=} {name=} {self.modname=}")
         if var is None:
+            logger.warning(f"Could not find Var {sym.symbol(name, ns=self.modname)}")
             return False
 
         self.object = var

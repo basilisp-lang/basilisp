@@ -7,3 +7,4 @@ basilisp.core
 
 .. autonamespace:: basilisp.core
    :members:
+   :undoc-members:

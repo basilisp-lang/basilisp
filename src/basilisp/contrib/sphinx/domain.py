@@ -19,23 +19,12 @@ from sphinx.roles import XRefRole
 from sphinx.util.typing import OptionSpec
 
 from basilisp.lang import reader, runtime
-from basilisp.lang import symbol as sym
 from basilisp.lang.interfaces import IPersistentList
 
 
 class BasilispObject(PyObject):
     def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
         return sig, ""
-
-    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
-        sig, prefix = name
-        sig_sexp = next(reader.read_str(sig), None)
-        if isinstance(sig_sexp, sym.Symbol):
-            return str(sym.symbol(sig, ns=modname))
-        elif isinstance(sig_sexp, IPersistentList):
-            return str(sym.symbol(runtime.first(sig_sexp), ns=modname))
-        else:
-            return name[0]
 
 
 class BasilispVar(BasilispObject):
@@ -49,14 +38,16 @@ class BasilispVar(BasilispObject):
     )
 
     def get_signature_prefix(self, sig: str) -> str:
-        return "" if "dynamic" not in self.options else "dynamic "
+        prefix = "Var "
+        if "dynamic" in self.options:
+            prefix = f"dynamic {prefix}"
+        return prefix
 
     def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
         prefix = self.get_signature_prefix(sig)
         if prefix:
             signode += addnodes.desc_annotation(prefix, prefix)
 
-        signode += addnodes.desc_annotation("Var", "Var")
         signode += addnodes.desc_name(sig, sig)
 
         type_ = self.options.get("type")
@@ -68,6 +59,10 @@ class BasilispVar(BasilispObject):
             signode += addnodes.desc_annotation(value, " = " + value)
 
         return sig, prefix
+
+    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+        sig, prefix = name
+        return f"{sig} ({prefix} Var in {modname})"
 
 
 class BasilispFunction(BasilispObject):
@@ -96,6 +91,13 @@ class BasilispFunction(BasilispObject):
         signode += addnodes.desc_name(sig, sig)
         return sig, prefix
 
+    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+        sig, prefix = name
+        sig_sexp = next(reader.read_str(sig), None)
+        if isinstance(sig_sexp, IPersistentList):
+            sig = runtime.first(sig_sexp)
+        return f"{sig} ({prefix} in {modname})"
+
 
 class BasilispClassLike(BasilispObject):
     def get_signature_prefix(self, sig: str) -> str:
@@ -108,6 +110,10 @@ class BasilispClassLike(BasilispObject):
 
         signode += addnodes.desc_name(sig, sig)
         return sig, prefix
+
+    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+        sig, prefix = name
+        return f"{sig} ({prefix} in {modname})"
 
 
 class BasilispNamespaceIndex(PythonModuleIndex):
