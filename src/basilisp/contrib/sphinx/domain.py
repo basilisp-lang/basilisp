@@ -1,54 +1,119 @@
 from typing import Any, Dict, List, Tuple
 
+from docutils import nodes
 from docutils.nodes import Element
 from docutils.parsers.rst import directives
+from sphinx import addnodes
 from sphinx.addnodes import desc_signature, pending_xref
 from sphinx.domains import Domain, ObjType
 from sphinx.domains.python import (
-    PyClasslike,
     PyClassMethod,
-    PyFunction,
     PyMethod,
     PyModule,
     PyObject,
     PyProperty,
     PyStaticMethod,
     PythonModuleIndex,
-    PyVariable,
 )
 from sphinx.roles import XRefRole
 from sphinx.util.typing import OptionSpec
 
+from basilisp.lang import reader, runtime
+from basilisp.lang import symbol as sym
+from basilisp.lang.interfaces import IPersistentList
 
-class BasilispFunction(PyFunction):
 
-    option_spec: OptionSpec = PyFunction.option_spec.copy()
+class BasilispObject(PyObject):
+    def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
+        return sig, ""
+
+    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+        sig, prefix = name
+        sig_sexp = next(reader.read_str(sig), None)
+        if isinstance(sig_sexp, sym.Symbol):
+            return str(sym.symbol(sig, ns=modname))
+        elif isinstance(sig_sexp, IPersistentList):
+            return str(sym.symbol(runtime.first(sig_sexp), ns=modname))
+        else:
+            return name[0]
+
+
+class BasilispVar(BasilispObject):
+    option_spec: OptionSpec = PyObject.option_spec.copy()
     option_spec.update(
         {
+            "dynamic": directives.unchanged,
+            "type": directives.unchanged,
+            "value": directives.unchanged,
+        }
+    )
+
+    def get_signature_prefix(self, sig: str) -> str:
+        return "" if "dynamic" not in self.options else "dynamic "
+
+    def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
+        prefix = self.get_signature_prefix(sig)
+        if prefix:
+            signode += addnodes.desc_annotation(prefix, prefix)
+
+        signode += addnodes.desc_annotation("Var", "Var")
+        signode += addnodes.desc_name(sig, sig)
+
+        type_ = self.options.get("type")
+        if type_:
+            signode += addnodes.desc_annotation(type_, "", nodes.Text(": "), type_)
+
+        value = self.options.get("value")
+        if value:
+            signode += addnodes.desc_annotation(value, " = " + value)
+
+        return sig, prefix
+
+
+class BasilispFunction(BasilispObject):
+    option_spec: OptionSpec = BasilispObject.option_spec.copy()
+    option_spec.update(
+        {
+            "async": directives.flag,
             "macro": directives.flag,
         }
     )
 
-    def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
-        print(f"{sig=} {signode=}")
-        return super().handle_signature(sig, signode)
+    def needs_arglist(self) -> bool:
+        return True
 
     def get_signature_prefix(self, sig: str) -> str:
-        prefix = ""
-        if "macro" in self.options:
-            prefix = "macro "
-        return prefix + super().get_signature_prefix(sig)
+        prefix = "fn " if "macro" not in self.options else "macro "
+        if "async" in self.options:
+            prefix = f"async {prefix}"
+        return prefix
+
+    def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
+        prefix = self.get_signature_prefix(sig)
+        if prefix:
+            signode += addnodes.desc_annotation(prefix, prefix)
+
+        signode += addnodes.desc_name(sig, sig)
+        return sig, prefix
 
 
-class BasilispClassLike(PyClasslike):
+class BasilispClassLike(BasilispObject):
     def get_signature_prefix(self, sig: str) -> str:
         return self.objtype
 
+    def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
+        prefix = self.get_signature_prefix(sig)
+        if prefix:
+            signode += addnodes.desc_annotation(prefix, prefix)
+
+        signode += addnodes.desc_name(sig, sig)
+        return sig, prefix
+
 
 class BasilispNamespaceIndex(PythonModuleIndex):
-    name = 'nsindex'
+    name = "nsindex"
     localname = "Basilisp Namespace Index"
-    shortname = 'namespaces'
+    shortname = "namespaces"
 
 
 class BasilispDomain(Domain):
@@ -69,7 +134,7 @@ class BasilispDomain(Domain):
 
     directives = {
         "namespace": PyModule,
-        "var": PyVariable,
+        "var": BasilispVar,
         "lispfunction": BasilispFunction,
         "protocol": BasilispClassLike,
         "record": BasilispClassLike,
@@ -92,9 +157,7 @@ class BasilispDomain(Domain):
         "objects": {},  # fullname -> docname, objtype
         "modules": {},  # modname -> docname, synopsis, platform, deprecated
     }
-    indices = [
-        BasilispNamespaceIndex
-    ]
+    indices = [BasilispNamespaceIndex]
 
     def merge_domaindata(self, docnames: List[str], otherdata: Dict) -> None:
         pass

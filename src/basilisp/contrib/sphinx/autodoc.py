@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 _DOC_KW = kw.keyword("doc")
 _PRIVATE_KW = kw.keyword("private")
+_DYNAMIC_KW = kw.keyword("dynamic")
+_FILE_KW = kw.keyword("file")
 _ARGLISTS_KW = kw.keyword("arglists")
 _MACRO_KW = kw.keyword("macro")
 _PROTOCOL_KW = kw.keyword("protocol", ns=runtime.CORE_NS)
@@ -38,7 +40,8 @@ _SOURCE_PROTOCOL_KW = kw.keyword("source-protocol", ns=runtime.CORE_NS)
 _METHODS_KW = kw.keyword("methods")
 
 
-def get_doc(reference: IReference) -> Optional[List[List[str]]]:
+def _get_doc(reference: IReference) -> Optional[List[List[str]]]:
+    """Return the docstring of an IReference type (e.g. Namespace or Var)."""
     docstring: Optional[str] = reference.meta and reference.meta.val_at(_DOC_KW)
     if docstring is None:
         return None
@@ -73,7 +76,6 @@ class NamespaceDocumenter(Documenter):
 
     def parse_name(self) -> bool:
         v = next(reader.read_str(self.name), None)
-        logger.info(f"Found {v}")
         if isinstance(v, sym.Symbol) and v.ns is None:
             self.modname = v.name
             self.objpath = []
@@ -107,13 +109,11 @@ class NamespaceDocumenter(Documenter):
 
     def get_doc(self, ignore: int = None) -> Optional[List[List[str]]]:
         assert self.object is not None
-        return get_doc(self.object)
+        return _get_doc(self.object)
 
     def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
         interns = self.object.interns
 
-        print(f"{want_all=}")
-        print(f"{self.options.members=}")
         if want_all:
             return False, list(
                 map(lambda s: ObjectMember(s[0].name, s[1]), interns.items())
@@ -126,7 +126,6 @@ class NamespaceDocumenter(Documenter):
                 selected.append(ObjectMember(m, val))
             else:
                 logger.warning(f"Member {m} not found in namespace {self.object}")
-        print(f"{selected=}")
         return False, selected
 
     def filter_members(
@@ -136,14 +135,16 @@ class NamespaceDocumenter(Documenter):
         for name, val in members:
             assert isinstance(val, runtime.Var)
             if val.meta is not None:
+                # Private members will be excluded
+                #
+                # Namespace members with :basilisp.core/source-protocol meta will be
+                # documented and grouped under the protocol they are defined by
                 if (
                     val.meta.val_at(_PRIVATE_KW)
                     or val.meta.val_at(_SOURCE_PROTOCOL_KW) is not None
                 ):
-                    print(f"filtering {val=}")
                     continue
             filtered.append((name, val, False))
-        print(f"{filtered=}")
         return filtered
 
 
@@ -165,11 +166,22 @@ class VarDocumenter(Documenter):
     def can_document_member(
         cls, member: Any, membername: str, isattr: bool, parent: Any
     ) -> bool:
-        print(f"can_document_member {member=} {membername=} {isattr=} {parent=}")
         return isinstance(member, runtime.Var)
 
+    def get_sourcename(self) -> str:
+        if self.object.meta is not None:
+            file = self.object.meta.val_at(_FILE_KW)
+            return f"{file}:docstring of {self.object}"
+        return f"docstring of {self.object}"
+
+    def add_directive_header(self, sig: str) -> None:
+        sourcename = self.get_sourcename()
+        super().add_directive_header(sig)
+
+        if self.object.meta is not None and self.object.meta.val_at(_DYNAMIC_KW):
+            self.add_line("   :dynamic:", sourcename)
+
     def parse_name(self) -> bool:
-        print(f"{type(self)}  {self.name=}")
         ns, name = self.name.split("::")
         self.modname = ns
         self.objpath = name.split(".")
@@ -181,6 +193,7 @@ class VarDocumenter(Documenter):
     def resolve_name(
         self, modname: str, parents: Any, path: str, base: Any
     ) -> Tuple[str, List[str]]:
+        """Unused method since parse_name is overridden."""
         return NotImplemented
 
     def import_object(self, raiseerror: bool = False) -> bool:
@@ -206,7 +219,13 @@ class VarDocumenter(Documenter):
 
     def get_doc(self, ignore: int = None) -> Optional[List[List[str]]]:
         assert self.object is not None
-        return get_doc(self.object)
+        return _get_doc(self.object)
+
+    def format_name(self) -> str:
+        return self.object_name
+
+    def format_signature(self, **kwargs: Any) -> str:
+        return ""
 
 
 class VarFnDocumenter(VarDocumenter):
@@ -218,14 +237,9 @@ class VarFnDocumenter(VarDocumenter):
     def can_document_member(
         cls, member: Any, membername: str, isattr: bool, parent: Any
     ) -> bool:
-
-        v = isinstance(member, runtime.Var) and isinstance(
+        return isinstance(member, runtime.Var) and isinstance(
             member.value, types.FunctionType
         )
-        print(
-            f"VarFnDocumenter can_document_member {member=} {membername=} {isattr=} {parent=} {v=}"
-        )
-        return v
 
     def add_directive_header(self, sig: str) -> None:
         sourcename = self.get_sourcename()
@@ -237,7 +251,7 @@ class VarFnDocumenter(VarDocumenter):
             self.add_line("   :macro:", sourcename)
 
     def format_name(self) -> str:
-        return f"({self.object_name} "
+        return f"({self.object_name}"
 
     def format_signature(self, **kwargs: Any) -> str:
         is_macro = (
@@ -248,7 +262,9 @@ class VarFnDocumenter(VarDocumenter):
             if is_macro:
                 arglist = runtime.nthrest(arglist, 2)
             call = " ".join(map(str, arglist))
-            return f"{call})"
+            if call:
+                return f" {call})"
+            return ")"
 
         arglists = self.object.meta.val_at(_ARGLISTS_KW)
         assert arglists is not None
@@ -292,7 +308,6 @@ class ProtocolDocumenter(VarDocumenter):
                 if val.meta.val_at(_PRIVATE_KW):
                     continue
             filtered.append((name, val, False))
-            print(f"{filtered=}")
         return filtered
 
 
