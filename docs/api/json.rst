@@ -7,3 +7,4 @@ basilisp.json
 
 .. autonamespace:: basilisp.json
    :members:
+   :undoc-members:

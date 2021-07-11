@@ -59,12 +59,12 @@ class NamespaceDocumenter(Documenter):
     option_spec: OptionSpec = {
         "members": members_option,
         "undoc-members": bool_option,
+        "exclude-members": exclude_members_option,
+        "private-members": members_option,
         "noindex": bool_option,
         "synopsis": identity,
         "platform": identity,
         "deprecated": bool_option,
-        "exclude-members": exclude_members_option,
-        "private-members": members_option,
     }
 
     object: Optional[runtime.Namespace]
@@ -139,13 +139,14 @@ class NamespaceDocumenter(Documenter):
                 continue
             if val.meta is not None:
                 # Ignore undocumented members unless undoc_members is set
-                if val.meta.val_at(_DOC_KW) is None and not self.options.undoc_members:
+                docstring: Optional[str] = val.meta.val_at(_DOC_KW)
+                if docstring is None and not self.options.undoc_members:
                     continue
                 # Private members will be excluded unless they are requested
-                if (
-                    self.options.private_members is not None
-                    and val.meta.val_at(_PRIVATE_KW)
-                    and name not in self.options.private_members
+                is_private: bool = val.meta.val_at(_PRIVATE_KW, False)
+                if is_private and (
+                    self.options.private_members is None
+                    or name not in self.options.private_members
                 ):
                     continue
                 # Namespace members with :basilisp.core/source-protocol meta will be

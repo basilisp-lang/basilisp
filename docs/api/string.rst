@@ -7,3 +7,4 @@ basilisp.string
 
 .. autonamespace:: basilisp.string
    :members:
+   :undoc-members:

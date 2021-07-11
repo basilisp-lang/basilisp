@@ -24,7 +24,8 @@ from basilisp.lang.interfaces import IPersistentList
 
 class BasilispObject(PyObject):
     def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
-        return sig, ""
+        """Subclasses should implement this themselves."""
+        return NotImplemented
 
 
 class BasilispVar(BasilispObject):

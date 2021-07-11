@@ -7,3 +7,4 @@ basilisp.edn
 
 .. autonamespace:: basilisp.edn
    :members:
+   :undoc-members:

@@ -7,3 +7,4 @@ basilisp.walk
 
 .. autonamespace:: basilisp.walk
    :members:
+   :undoc-members:

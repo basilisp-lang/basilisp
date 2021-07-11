@@ -7,3 +7,4 @@ basilisp.shell
 
 .. autonamespace:: basilisp.shell
    :members:
+   :undoc-members:

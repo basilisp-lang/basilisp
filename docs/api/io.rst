@@ -7,3 +7,4 @@ basilisp.io
 
 .. autonamespace:: basilisp.io
    :members:
+   :undoc-members:
