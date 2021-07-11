@@ -5,12 +5,14 @@ import types
 from typing import Any, List, Optional, Tuple
 
 from sphinx.ext.autodoc import (
+    ClassDocumenter,
     Documenter,
     ObjectMember,
     ObjectMembers,
     bool_option,
     exclude_members_option,
     identity,
+    inherited_members_option,
     members_option,
 )
 from sphinx.util.docstrings import prepare_docstring
@@ -29,6 +31,7 @@ from basilisp.lang.interfaces import (
 
 logger = logging.getLogger(__name__)
 
+# Var metadata used for annotations
 _DOC_KW = kw.keyword("doc")
 _PRIVATE_KW = kw.keyword("private")
 _DYNAMIC_KW = kw.keyword("dynamic")
@@ -36,6 +39,8 @@ _DEPRECATED_KW = kw.keyword("deprecated")
 _FILE_KW = kw.keyword("file")
 _ARGLISTS_KW = kw.keyword("arglists")
 _MACRO_KW = kw.keyword("macro")
+
+# Protocol support
 _PROTOCOL_KW = kw.keyword("protocol", ns=runtime.CORE_NS)
 _SOURCE_PROTOCOL_KW = kw.keyword("source-protocol", ns=runtime.CORE_NS)
 _METHODS_KW = kw.keyword("methods")
@@ -326,6 +331,16 @@ class TypeDocumenter(VarDocumenter):
     objtype = "type"
     priority = 15
 
+    option_spec: OptionSpec = {
+        "members": members_option,
+        "undoc-members": bool_option,
+        "inherited-members": inherited_members_option,
+        "exclude-members": exclude_members_option,
+        "private-members": members_option,
+        "special-members": members_option,
+        "noindex": bool_option,
+    }
+
     @classmethod
     def can_document_member(
         cls, member: Any, membername: str, isattr: bool, parent: Any
@@ -336,11 +351,12 @@ class TypeDocumenter(VarDocumenter):
             and issubclass(member.value, IType)
         )
 
+    def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+        return ClassDocumenter.get_object_members(self, want_all)
 
-class RecordDocumenter(VarDocumenter):
-    domain = "lpy"
+
+class RecordDocumenter(TypeDocumenter):
     objtype = "record"
-    priority = 15
 
     @classmethod
     def can_document_member(
