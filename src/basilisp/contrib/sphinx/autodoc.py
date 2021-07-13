@@ -94,6 +94,7 @@ class NamespaceDocumenter(Documenter):
     def resolve_name(
         self, modname: str, parents: Any, path: str, base: Any
     ) -> Tuple[str, List[str]]:
+        """Unused method since parse_name is overridden."""
         return NotImplemented
 
     def import_object(self, raiseerror: bool = False) -> bool:
@@ -180,23 +181,11 @@ class VarDocumenter(Documenter):
     ) -> bool:
         return isinstance(member, runtime.Var)
 
-    def get_sourcename(self) -> str:
-        if self.object.meta is not None:
-            file = self.object.meta.val_at(_FILE_KW)
-            return f"{file}:docstring of {self.object}"
-        return f"docstring of {self.object}"
-
-    def add_directive_header(self, sig: str) -> None:
-        sourcename = self.get_sourcename()
-        super().add_directive_header(sig)
-
-        if self.object.meta is not None:
-            if self.object.meta.val_at(_DYNAMIC_KW):
-                self.add_line("   :dynamic:", sourcename)
-            if self.object.meta.val_at(_DEPRECATED_KW):
-                self.add_line("   :deprecated:", sourcename)
-
     def parse_name(self) -> bool:
+        # Names may be given in either of these formats depending on the object:
+        #
+        #   basilisp.core::map
+        #   basilisp.walk::IWalkable.walk*
         ns, name = self.name.split("::")
         self.modname = ns
         self.objpath = name.split(".")
@@ -231,6 +220,22 @@ class VarDocumenter(Documenter):
         self.object_name = name
         self.parent = self.object.ns
         return True
+
+    def get_sourcename(self) -> str:
+        if self.object.meta is not None:
+            file = self.object.meta.val_at(_FILE_KW)
+            return f"{file}:docstring of {self.object}"
+        return f"docstring of {self.object}"
+
+    def add_directive_header(self, sig: str) -> None:
+        sourcename = self.get_sourcename()
+        super().add_directive_header(sig)
+
+        if self.object.meta is not None:
+            if self.object.meta.val_at(_DYNAMIC_KW):
+                self.add_line("   :dynamic:", sourcename)
+            if self.object.meta.val_at(_DEPRECATED_KW):
+                self.add_line("   :deprecated:", sourcename)
 
     def get_doc(self, ignore: int = None) -> Optional[List[List[str]]]:
         assert self.object is not None
