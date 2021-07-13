@@ -1,6 +1,7 @@
 import importlib
 import inspect
 import logging
+import sys
 import types
 from typing import Any, List, Optional, Tuple
 
@@ -13,6 +14,7 @@ from sphinx.ext.autodoc import (
     exclude_members_option,
     identity,
     inherited_members_option,
+    member_order_option,
     members_option,
 )
 from sphinx.util.docstrings import prepare_docstring
@@ -33,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 # Var metadata used for annotations
 _DOC_KW = kw.keyword("doc")
+_LINE_KW = kw.keyword("line")
 _PRIVATE_KW = kw.keyword("private")
 _DYNAMIC_KW = kw.keyword("dynamic")
 _DEPRECATED_KW = kw.keyword("deprecated")
@@ -66,6 +69,7 @@ class NamespaceDocumenter(Documenter):
         "undoc-members": bool_option,
         "exclude-members": exclude_members_option,
         "private-members": members_option,
+        "member-order": member_order_option,
         "noindex": bool_option,
         "synopsis": identity,
         "platform": identity,
@@ -161,6 +165,26 @@ class NamespaceDocumenter(Documenter):
                     continue
             filtered.append((name, val, False))
         return filtered
+
+    def sort_members(
+        self, documenters: List[Tuple["Documenter", bool]], order: str
+    ) -> List[Tuple["Documenter", bool]]:
+        if order == "bysource":
+            # By the time this method is called, the object isn't hydrated in the
+            # Documenter wrapper, so we cannot rely on the existence of that to get
+            # line numbers. Instead, we have to build an index manually.
+            line_numbers = {
+                s.name: (v.meta and v.meta.val_at(_LINE_KW, sys.maxsize))
+                for s, v in self.object.interns.items()
+            }
+
+            def _line_num(e: Tuple["Documenter", bool]) -> int:
+                documenter = e[0]
+                _, name = documenter.name.split("::", maxsplit=1)
+                return line_numbers.get(name, sys.maxsize)
+
+            documenters.sort(key=_line_num)
+        return super().sort_members(documenters, order)
 
 
 class VarDocumenter(Documenter):
