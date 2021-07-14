@@ -3,7 +3,7 @@ import inspect
 import logging
 import sys
 import types
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from sphinx.ext.autodoc import (
     ClassDocumenter,
@@ -123,6 +123,7 @@ class NamespaceDocumenter(Documenter):
         return _get_doc(self.object)
 
     def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+        assert self.object is not None
         interns = self.object.interns
 
         if want_all:
@@ -169,12 +170,17 @@ class NamespaceDocumenter(Documenter):
     def sort_members(
         self, documenters: List[Tuple["Documenter", bool]], order: str
     ) -> List[Tuple["Documenter", bool]]:
+        assert self.object is not None
         if order == "bysource":
             # By the time this method is called, the object isn't hydrated in the
             # Documenter wrapper, so we cannot rely on the existence of that to get
             # line numbers. Instead, we have to build an index manually.
-            line_numbers = {
-                s.name: (v.meta and v.meta.val_at(_LINE_KW, sys.maxsize))
+            line_numbers: Dict[str, int] = {
+                s.name: (
+                    v.meta.val_at(_LINE_KW, sys.maxsize)
+                    if v.meta is not None
+                    else sys.maxsize
+                )
                 for s, v in self.object.interns.items()
             }
 
@@ -246,12 +252,14 @@ class VarDocumenter(Documenter):
         return True
 
     def get_sourcename(self) -> str:
+        assert self.object is not None
         if self.object.meta is not None:
             file = self.object.meta.val_at(_FILE_KW)
             return f"{file}:docstring of {self.object}"
         return f"docstring of {self.object}"
 
     def add_directive_header(self, sig: str) -> None:
+        assert self.object is not None
         sourcename = self.get_sourcename()
         super().add_directive_header(sig)
 
@@ -286,6 +294,7 @@ class VarFnDocumenter(VarDocumenter):
         )
 
     def add_directive_header(self, sig: str) -> None:
+        assert self.object is not None
         sourcename = self.get_sourcename()
         super().add_directive_header(sig)
 
@@ -298,6 +307,7 @@ class VarFnDocumenter(VarDocumenter):
         return f"({self.object_name}"
 
     def format_signature(self, **kwargs: Any) -> str:
+        assert self.object is not None
         is_macro = (
             False if self.object.meta is None else self.object.meta.val_at(_MACRO_KW)
         )
@@ -310,6 +320,7 @@ class VarFnDocumenter(VarDocumenter):
                 return f" {call})"
             return ")"
 
+        assert self.object.meta is not None
         arglists = self.object.meta.val_at(_ARGLISTS_KW)
         assert arglists is not None
         return "\n".join(_format_sig(arglist) for arglist in arglists)
@@ -331,6 +342,7 @@ class ProtocolDocumenter(VarDocumenter):
         )
 
     def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+        assert self.object is not None
         assert want_all
         ns = self.object.ns
         proto: IPersistentMap = self.object.value
