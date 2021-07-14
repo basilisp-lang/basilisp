@@ -12,7 +12,7 @@ docs:
 
 .PHONY: format
 format:
-	@poetry run sh -c 'isort --profile black . && black .'
+	@poetry run sh -c 'isort . && black .'
 
 
 .PHONY: repl

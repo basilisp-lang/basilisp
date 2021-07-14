@@ -119,6 +119,7 @@ exclude_lines = [
 
 [tool.isort]
 known_first_party = "basilisp"
+profile = "black"
 skip = [
   ".env",
   ".hg",
