@@ -192,6 +192,7 @@ class NamespaceDocumenter(Documenter):
                 return line_numbers.get(name, sys.maxsize)
 
             documenters.sort(key=_line_num)
+            return documenters
         return super().sort_members(documenters, order)
 
 
