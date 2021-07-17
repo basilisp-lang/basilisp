@@ -3,7 +3,7 @@ import inspect
 import logging
 import sys
 import types
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from sphinx.ext.autodoc import (
     ClassDocumenter,
@@ -21,6 +21,7 @@ from sphinx.util.docstrings import prepare_docstring
 from sphinx.util.typing import OptionSpec
 
 from basilisp.lang import keyword as kw
+from basilisp.lang import map as lmap
 from basilisp.lang import reader, runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang.interfaces import (
@@ -51,10 +52,11 @@ _METHODS_KW = kw.keyword("methods")
 
 def _get_doc(reference: IReference) -> Optional[List[List[str]]]:
     """Return the docstring of an IReference type (e.g. Namespace or Var)."""
-    docstring: Optional[str] = reference.meta and reference.meta.val_at(_DOC_KW)
+    docstring = reference.meta and reference.meta.val_at(_DOC_KW)
     if docstring is None:
         return None
 
+    assert isinstance(docstring, str)
     return [prepare_docstring(docstring)]
 
 
@@ -85,10 +87,10 @@ class NamespaceDocumenter(Documenter):
         return False
 
     def parse_name(self) -> bool:
-        v = next(reader.read_str(self.name), None)
+        v = runtime.first(reader.read_str(self.name))
         if isinstance(v, sym.Symbol) and v.ns is None:
             self.modname = v.name
-            self.objpath = []
+            self.objpath: List[str] = []
             self.args = ""
             self.retann = ""
             self.fullname = v.name
@@ -154,7 +156,7 @@ class NamespaceDocumenter(Documenter):
                 if docstring is None and not self.options.undoc_members:
                     continue
                 # Private members will be excluded unless they are requested
-                is_private: bool = val.meta.val_at(_PRIVATE_KW, False)
+                is_private = cast(bool, val.meta.val_at(_PRIVATE_KW, False))
                 if is_private and (
                     self.options.private_members is None
                     or name not in self.options.private_members
@@ -177,7 +179,7 @@ class NamespaceDocumenter(Documenter):
             # line numbers. Instead, we have to build an index manually.
             line_numbers: Dict[str, int] = {
                 s.name: (
-                    v.meta.val_at(_LINE_KW, sys.maxsize)
+                    cast(int, v.meta.val_at(_LINE_KW, sys.maxsize))
                     if v.meta is not None
                     else sys.maxsize
                 )
@@ -345,8 +347,12 @@ class ProtocolDocumenter(VarDocumenter):
         assert self.object is not None
         assert want_all
         ns = self.object.ns
-        proto: IPersistentMap = self.object.value
-        proto_methods: IPersistentMap[kw.Keyword, Any] = proto.val_at(_METHODS_KW, ())
+        proto = self.object.value
+        assert isinstance(proto, IPersistentMap)
+        proto_methods = cast(
+            IPersistentMap[kw.Keyword, Any],
+            proto.val_at(_METHODS_KW, lmap.PersistentMap.empty()),
+        )
         return False, list(
             map(
                 lambda k: ObjectMember(k.name, ns.find(sym.symbol(k.name))),
