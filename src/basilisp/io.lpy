@@ -1,4 +1,9 @@
 (ns basilisp.io
+  "Polymorphic IO functions.
+
+  Functions in this namespace can provide readers and writers for both text and binary
+  streams from a wide variety of different input types as well as utility functions for
+  interacting with the filesystem."
   (:import
    io
    pathlib
@@ -9,9 +14,9 @@
 
 (defprotocol Coercions
   (as-path [f]
-    "Coerce `f` to a `pathlib.Path` instance.
+    "Coerce ``f`` to a ``pathlib.Path`` instance.
 
-    Callers should generally prefer `basilisp.io/path` to this function."))
+    Callers should generally prefer :lpy:fn:`basilisp.io/path` to this function."))
 
 (extend-protocol Coercions
   nil
@@ -32,7 +37,7 @@
                 {:file f})))))
 
 (defn path
-  "Coerce `p` to a `pathlib.Path` instance.
+  "Coerce ``p`` to a ``pathlib.Path`` instance.
 
   When multiple arguments are provided, treat the first as the parent path and
   each subsequent argument as a child path, joining all paths together as one."
@@ -43,10 +48,10 @@
    (reduce path (path parent child) others)))
 
 (defn delete-file
-  "Delete the file named by `f`.
+  "Delete the file named by ``f``.
 
-  If `silently` is false or nil (default), attempting to delete a non-existent file
-  will raise a `FileNotFoundError`. Otherwise, return the value of `silently`."
+  If ``silently`` is false or nil (default), attempting to delete a non-existent file
+  will raise a ``FileNotFoundError``. Otherwise, return the value of ``silently``."
   ([f]
    (.unlink (as-path f))
    true)
@@ -98,28 +103,28 @@
       (not (str/includes? mode "b")) (assoc :mode (str mode "b")))))
 
 (defn- wrap-text-io
-  "Wrap another type of `io` class in a `io.TextIOWrapper` instance."
+  "Wrap another type of ``io`` class in a ``io.TextIOWrapper`` instance."
   [f opts]
   (->> (dissoc opts :mode)
        (apply-kw io/TextIOWrapper f)))
 
 (defprotocol IOFactory
   (make-reader [f opts]
-    "Coerce `f` to a text-based reader instance, subject to `opts`.
+    "Coerce ``f`` to a text-based reader instance, subject to ``opts``.
 
-    Callers should generally prefer `basilisp.io/reader` to this function.")
+    Callers should generally prefer :lpy:fn:`reader` to this function.")
   (make-writer [f opts]
-    "Coerce `f` to a text-based writer instance, subject to `opts`.
+    "Coerce ``f`` to a text-based writer instance, subject to ``opts``.
 
-    Callers should generally prefer `basilisp.io/writer` to this function.")
+    Callers should generally prefer :lpy:fn:`writer` to this function.")
   (make-input-stream [f opts]
-    "Coerce `f` to a binary input stream instance, subject to `opts`.
+    "Coerce ``f`` to a binary input stream instance, subject to ``opts``.
 
-    Callers should generally prefer `basilisp.io/input-stream` to this function.")
+    Callers should generally prefer :lpy:fn:`input-stream` to this function.")
   (make-output-stream [f opts]
-    "Coerce `f` to a binary output stream instance, subject to `opts`.
+    "Coerce ``f`` to a binary output stream instance, subject to ``opts``.
 
-    Callers should generally prefer `basilisp.io/output-stream` to this function."))
+    Callers should generally prefer :lpy:fn:`output-stream` to this function."))
 
 (extend-protocol IOFactory
   io/TextIOBase
@@ -272,81 +277,84 @@
               {:url f :opts opts}))))
 
 (defn reader
-  "Open a reader instance on the file or path `f`.
+  "Open a reader instance on the file or path ``f``.
 
   The reader instances returned are always text-based, not binary. In general, the
-  readers should be compatible with Python's `io.TextIOBase` interface.
+  readers should be compatible with Python's ``io.TextIOBase`` interface.
 
-  Callers should take care to open a reader instance using `with-open` to ensure
-  that any resources are properly closed afterwards. Note that for in-memory IO
-  buffers such as `io.BytesIO` and `io.StringIO`, opening a reader without assigning
-  it to a name for the duration of its use may trigger garbage collection of the
-  reader which closes the underlying buffer, discarding the contents and invalidating
-  the buffer.
+  Callers should take care to open a reader instance using
+  :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed
+  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
+  ``io.StringIO``, opening a reader without assigning it to a name for the duration of
+  its use may trigger garbage collection of the reader which closes the underlying
+  buffer, discarding the contents and invalidating the buffer.
 
   Default implementations are available for:
-  - `io/TextIOBase` (only if `(.readable f)` is `true`)
-  - `io/RawIOBase`
-  - `io/BufferedIOBase`
-  - `python/str` (first resolved as a URL via `urllib.parse.urlparse`, then as a
-    local filesystem path via `pathlib`)
-  - `python/bytes`
-  - `pathlib/Path`
-  - `urllib.parse.ParseResult`
-  - `urllib.request/Request`"
+
+  - ``io/TextIOBase`` (only if ``(.readable f)`` is ``true``)
+  - ``io/RawIOBase``
+  - ``io/BufferedIOBase``
+  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
+    local filesystem path via ``pathlib``)
+  - ``python/bytes``
+  - ``pathlib/Path``
+  - ``urllib.parse.ParseResult``
+  - ``urllib.request/Request``"
   [f & opts]
   (->> (apply hash-map opts)
        (clean-reader-mode)
        (make-reader f)))
 
 (defn writer
-  "Open a writer instance on the file or path `f`.
+  "Open a writer instance on the file or path ``f``.
 
   The writer instances returned are always text-based, not binary. In general, the
-  writers should be compatible with Python's `io.TextIOBase` interface.
+  writers should be compatible with Python's ``io.TextIOBase`` interface.
 
-  Callers should take care to open a writer instance using `with-open` to ensure
-  that any resources are properly closed afterwards. Note that for in-memory IO
-  buffers such as `io.BytesIO` and `io.StringIO`, opening a writer without assigning
-  it to a name for the duration of its use may trigger garbage collection of the
-  writer which closes the underlying buffer, discarding the contents and invalidating
-  the buffer.
+  Callers should take care to open a writer instance using
+  :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed
+  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
+  ``io.StringIO``, opening a writer without assigning it to a name for the duration of
+  its use may trigger garbage collection of the writer which closes the underlying
+  buffer, discarding the contents and invalidating the buffer.
 
   Default implementations are available for:
-  - `io/TextIOBase` (only if `(.writable f)` is `true`)
-  - `io/RawIOBase`
-  - `io/BufferedIOBase`
-  - `python/str` (first resolved as a URL via `urllib.parse.urlparse`, then as a
-    local filesystem path via `pathlib`)
-  - `pathlib/Path`
-  - `urllib.parse.ParseResult`"
+
+  - ``io/TextIOBase`` (only if ``(.writable f)`` is ``true``)
+  - ``io/RawIOBase``
+  - ``io/BufferedIOBase``
+  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
+    local filesystem path via ``pathlib``)
+  - ``pathlib/Path``
+  - ``urllib.parse.ParseResult``"
   [f & opts]
   (->> (apply hash-map opts)
        (clean-writer-mode)
        (make-writer f)))
 
 (defn input-stream
-  "Open an input stream instance on the file or path `f`.
+  "Open an input stream instance on the file or path ``f``.
 
   The input stream instances returned are always binary, not text-based. In general,
-  the input streams should be compatible with Python's `io.BufferedIOBase` interface.
+  the input streams should be compatible with Python's ``io.BufferedIOBase`` interface.
 
-  Callers should take care to open a reader instance using `with-open` to ensure
-  that any resources are properly closed afterwards. Note that for in-memory IO
-  buffers such as `io.BytesIO` and `io.StringIO`, opening an input stream without
-  assigning it to a name for the duration of its use may trigger garbage collection of
-  the input stream which closes the underlying buffer, discarding the contents and
-  invalidating the buffer.
+  Callers should take care to open a reader instance using
+  :lpy:fn`basilisp.core/with-open` to ensure that any resources are properly closed
+  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
+  ``io.StringIO``, opening an input stream without assigning it to a name for the
+  duration of its use may trigger garbage collection of the input stream which closes
+  the underlying buffer, discarding the contents and invalidating the buffer.
 
   Default implementations are available for:
-  - `io/RawIOBase`
-  - `io/BufferedIOBase`
-  - `python/str` (first resolved as a URL via `urllib.parse.urlparse`, then as a
-    local filesystem path via `pathlib`)
-  - `python/bytes`
-  - `pathlib/Path`
-  - `urllib.parse.ParseResult`
-  - `urllib.request/Request`"
+
+  - ``io/RawIOBase``
+  - ``io/BufferedIOBase``
+  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
+    local filesystem path via ``pathlib``)
+  - ``python/bytes``
+  - ``pathlib/Path``
+  - ``urllib.parse.ParseResult``
+  - ``urllib.request/Request``"
   [f & opts]
   (->> (apply hash-map opts)
        (clean-reader-mode)
@@ -354,25 +362,26 @@
        (make-input-stream f)))
 
 (defn output-stream
-  "Open an output stream instance on the file or path `f`.
+  "Open an output stream instance on the file or path ``f``.
 
   The output stream instances returned are always binary, not text-based. In general,
-  the output streams should be compatible with Python's `io.BufferedIOBase` interface.
+  the output streams should be compatible with Python's ``io.BufferedIOBase`` interface.
 
-  Callers should take care to open a writer instance using `with-open` to ensure
-  that any resources are properly closed afterwards. Note that for in-memory IO
-  buffers such as `io.BytesIO` and `io.StringIO`, opening an output stream without
-  assigning it to a name for the duration of its use may trigger garbage collection of
-  the output stream which closes the underlying buffer, discarding the contents and
-  invalidating the buffer.
+  Callers should take care to open a writer instance using
+  :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed
+  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
+  ``io.StringIO``, opening an output stream without assigning it to a name for the
+  duration of its use may trigger garbage collection of the output stream which closes
+  the underlying buffer, discarding the contents and invalidating the buffer.
 
   Default implementations are available for:
-  - `io/RawIOBase`
-  - `io/BufferedIOBase`
-  - `python/str` (first resolved as a URL via `urllib.parse.urlparse`, then as a
-    local filesystem path via `pathlib`)
-  - `pathlib/Path`
-  - `urllib.parse.ParseResult`"
+
+  - ``io/RawIOBase``
+  - ``io/BufferedIOBase``
+  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
+    local filesystem path via ``pathlib``)
+  - ``pathlib/Path``
+  - ``urllib.parse.ParseResult``"
   [f & opts]
   (->> (apply hash-map opts)
        (clean-writer-mode)
@@ -389,7 +398,7 @@
 (defmulti copy-file
   "Multi-method implementation for copying files.
 
-  To register a new implementation, use `defmethod` like so:
+  To register a new implementation, use :lpy:fn:`basilisp.core/defmethod` like so::
 
     (defmethod copy-file [python/str python/str]
       [input output opts]
@@ -451,50 +460,53 @@
   (copy-file (io/StringIO input) output opts))
 
 (defn copy
-  "Copy the contents of a file from `input` to `output`. Metadata will not be copied.
+  "Copy the contents of a file from ``input`` to ``output``. Metadata will not be copied.
 
-  `input` may be one of:
-  - `io/TextIOBase`
-  - `io/BufferedIOBase`
-  - `pathlib/Path`
-  - `python/bytes`
-  - `python/str` (assumed to be the contents to copy; not treated as a file path)
+  ``input`` may be one of:
 
-  `output` may be one of:
-  - `io/TextIOBase`
-  - `io/BufferedIOBase`
-  - `pathlib/Path`
+  - ``io/TextIOBase``
+  - ``io/BufferedIOBase``
+  - ``pathlib/Path``
+  - ``python/bytes``
+  - ``python/str`` (assumed to be the contents to copy; not treated as a file path)
+
+  ``output`` may be one of:
+
+  - ``io/TextIOBase``
+  - ``io/BufferedIOBase``
+  - ``pathlib/Path``
 
   Options include:
-  - `:encoding` used only when converting from binary to text buffers
-  - `:buffer-size` the buffer size of chunks when copying files manually
 
-  The default implementation where both arguments are `pathlib/Path` objects defer to
-  Python's `shutil/copyfile` which provides default fast-path platform-specific
+    :keyword ``:encoding``: used only when converting from binary to text buffers
+    :keyword ``:buffer-size``: the buffer size of chunks when copying files manually
+
+  The default implementation where both arguments are ``pathlib/Path`` objects defer to
+  Python's ``shutil/copyfile`` which provides default fast-path platform-specific
   implementations wherever available in Python 3.8+.
 
   Additional implementations may be added by providing additional methods (via
-  `defmethod`) for the multi-method `copy-file`.
+  :lpy:fn:`basilisp.core/defmethod`) for the multi-method :lpy:fn:`copy-file`.
 
-  All default implementations of `copy-file` do not close any streams save for those
-  which are opened by the implementations."
+  All default implementations of :lpy:fn:`copy-file` do not close any streams save for
+  those which are opened by the implementations."
   [input output & opts]
   (copy-file input output (when opts (apply hash-map opts))))
 
 (defn make-parents
-  "Create the parent paths of `f` if they do not exist. Arguments will be passed to
-  `path` before creating the parent directories."
+  "Create the parent paths of ``f`` if they do not exist. Arguments will be passed to
+  ``path`` before creating the parent directories."
   [f & others]
   (let [p (apply path f others)]
     (.mkdir (.-parent p) ** :parents true)
     true))
 
 (defn exists?
-  "Return true if `f` exists. `f` may be any type supported by `path`."
+  "Return true if ``f`` exists. ``f`` may be any type supported by ``path``."
   [f]
   (.exists (as-path f)))
 
 (defn touch
-  "Create file `f` if it does not exist. `f` may be any type supported by `path`."
+  "Create file ``f`` if it does not exist. ``f`` may be any type supported by ``path``."
   [f]
   (.touch (as-path f)))
