@@ -31,6 +31,7 @@ from basilisp.lang.interfaces import (
     IReference,
     IType,
 )
+from basilisp.lang.multifn import MultiFunction
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +294,7 @@ class VarFnDocumenter(VarDocumenter):
         cls, member: Any, membername: str, isattr: bool, parent: Any
     ) -> bool:
         return isinstance(member, runtime.Var) and isinstance(
-            member.value, types.FunctionType
+            member.value, (types.FunctionType, MultiFunction)
         )
 
     def add_directive_header(self, sig: str) -> None:
@@ -305,6 +306,8 @@ class VarFnDocumenter(VarDocumenter):
             self.add_line("   :async:", sourcename)
         if self.object.meta is not None and self.object.meta.val_at(_MACRO_KW):
             self.add_line("   :macro:", sourcename)
+        if isinstance(self.object.value, MultiFunction):
+            self.add_line("   :multi:", sourcename)
 
     def format_name(self) -> str:
         return f"({self.object_name}"
@@ -325,8 +328,12 @@ class VarFnDocumenter(VarDocumenter):
 
         assert self.object.meta is not None
         arglists = self.object.meta.val_at(_ARGLISTS_KW)
-        assert arglists is not None
-        return "\n".join(_format_sig(arglist) for arglist in arglists)
+        if arglists is not None:
+            return "\n".join(_format_sig(arglist) for arglist in arglists)
+
+        # MultiFunctions don't automatically have :arglists meta set, so we provide
+        # a default signature for such cases to avoid Sphinx errors.
+        return " & args)"
 
 
 class ProtocolDocumenter(VarDocumenter):

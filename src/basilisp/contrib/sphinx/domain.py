@@ -180,11 +180,14 @@ class BasilispFunction(BasilispObject):
         {
             "async": directives.flag,
             "macro": directives.flag,
+            "multi": directives.flag,
         }
     )
 
     def get_signature_prefix(self, sig: str) -> str:
         prefix = "fn " if "macro" not in self.options else "macro "
+        if "multi" in self.options:
+            prefix = f"multi {prefix}"
         if "async" in self.options:
             prefix = f"async {prefix}"
         return prefix
@@ -365,6 +368,7 @@ class BasilispDomain(Domain):
     roles = {
         "ns": XRefRole(),
         "var": XRefRole(),
+        "fn": XRefRole(),
         "proto": XRefRole(),
         "rec": XRefRole(),
         "type": XRefRole(),
