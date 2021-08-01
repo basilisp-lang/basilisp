@@ -105,7 +105,12 @@ class RefBase(IRef[T], ReferenceBase):
     def _validate(self, val: Any, vf: Optional[RefValidator] = None):
         vf = vf or self._validator
         if vf is not None:
-            if not vf(val):
+            try:
+                res = vf(val)
+            except Exception:
+                res = False
+
+            if not res:
                 raise ExceptionInfo(
                     "Invalid reference state",
                     lmap.map({kw.keyword("data"): val, kw.keyword("validator"): vf}),
