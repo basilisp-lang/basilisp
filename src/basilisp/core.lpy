@@ -27,15 +27,15 @@
 
 (def
   ^{:doc      "If ``seq`` is a Seq, return the first element from ``seq``. If ``seq``
-               is ``nil`` , return ``nil`` . Otherwise, coerces ``seq`` to a Seq and
+               is ``nil``\\, return ``nil``\\. Otherwise, coerces ``seq`` to a Seq and
                returns the first element."
     :arglists '([seq])}
   first
   (fn* first [seq] (basilisp.lang.runtime/first seq)))
 
 (def
-  ^{:doc      "If ``seq`` is a Seq, return the elements after the first in ``seq`` .
-               If ``seq`` is ``nil`` , returns an empty seq. Otherwise, coerces ``seq``
+  ^{:doc      "If ``seq`` is a Seq, return the elements after the first in ``seq``\\.
+               If ``seq`` is ``nil``\\, returns an empty seq. Otherwise, coerces ``seq``
                to a seq and returns the rest."
     :arglists '([seq])}
   rest
@@ -43,8 +43,8 @@
 
 (def
   ^{:doc      "Calls :lpy:fn:`rest` on ``o``. If ``o`` returns an empty sequence or
-               ``nil``, returns ``nil`` . Otherwise, returns the elements after the
-               first in ``o`` ."
+               ``nil``, returns ``nil``\\. Otherwise, returns the elements after the
+               first in ``o``\\."
     :arglists '([seq])}
   next
   (fn* next [seq] (basilisp.lang.runtime/next seq)))
@@ -63,14 +63,14 @@
 
 (def
   ^{:doc      "Creates a new sequence where ``o`` is the first element and ``seq`` is
-               the rest. If ``seq`` is nil, return a list containing ``o`` . If ``seq``
+               the rest. If ``seq`` is nil, return a list containing ``o``\\. If ``seq``
                is not a Seq, attempt to coerce it to a Seq and then cons ``o`` onto the
                resulting sequence."
     :arglists '([o seq])}
   cons
   (fn* cons [o seq] (basilisp.lang.runtime/cons o seq)))
 
-(def ^{:doc      "Return the metadata from ``o`` , or ``nil`` if there is no metadata."
+(def ^{:doc      "Return the metadata from ``o``\\, or ``nil`` if there is no metadata."
        :arglists '([o])}
   meta
   (fn* meta [o]
@@ -109,7 +109,7 @@
   (fn identity [v] v))
 
 (def
-  ^{:doc      "Return ``true`` if ``obj`` is an instance of ``class`` ."
+  ^{:doc      "Return ``true`` if ``obj`` is an instance of ``class``\\."
     :arglists '([class obj])}
   instance?
   (fn instance? [class obj]
@@ -192,8 +192,8 @@
   (fn seq? [o]
     (instance? basilisp.lang.interfaces/ISeq o)))
 
-(def ^{:doc      "Coerce the argument ``o`` to a Seq. If ``o`` is ``nil`` , return
-                  ``nil`` ."
+(def ^{:doc      "Coerce the argument ``o`` to a Seq. If ``o`` is ``nil``\\, return
+                  ``nil``\\."
        :arglists '([o])}
   seq
   (fn seq [o]
@@ -210,7 +210,7 @@
 
 (def ^{:doc      "Return an object of the same type and representing the same value as
                   ``o`` (as by :lpy:fn:`with-meta`) with the new object's metadata set
-                  to the value of ``(apply f (meta o) & args)`` ."
+                  to the value of ``(apply f (meta o) & args)``\\."
        :arglists '([o f & args])}
   vary-meta
   (fn* vary-meta [o f & args]
@@ -237,7 +237,7 @@
     (apply basilisp.lang.set/s members)))
 
 (def
-  ^{:doc      "Return a set with the contents of ``coll`` ."
+  ^{:doc      "Return a set with the contents of ``coll``\\."
     :arglists '([coll])}
   set
   (fn set
@@ -252,7 +252,7 @@
     (apply basilisp.lang.vector/v elems)))
 
 (def
-  ^{:doc      "Return a vector with the contents of ``coll`` ."
+  ^{:doc      "Return a vector with the contents of ``coll``\\."
     :arglists '([coll])}
   vec
   (fn vec
@@ -263,7 +263,7 @@
 
 (def
   ^{:doc      "Return the length of ``coll`` as by Python's ``len`` builtin. If the
-               collection does not respond to ``__len__`` , then count it manually."
+               collection does not respond to ``__len__``\\, then count it manually."
     :arglists '([coll])}
   count
   (fn count [coll]
@@ -278,8 +278,8 @@
     (basilisp.lang.exception/ExceptionInfo msg data)))
 
 (def
-  ^{:doc      "Associate keys to values in associative data structure ``m`` . If ``m``
-               is ``nil`` , returns a new map with key-values ``kvs`` ."
+  ^{:doc      "Associate keys to values in associative data structure ``m``\\. If ``m``
+               is ``nil``\\, returns a new map with key-values ``kvs``\\."
     :arglists '([m k v] [m k v & kvs])}
   assoc
   (fn assoc
@@ -290,8 +290,8 @@
 
 (def
   ^{:doc      "Conjoin ``xs`` to collection ``coll``. New elements may be added in
-               different positions depending on the type of ``coll`` . ``conj`` returns
-               the same type as ``coll`` . If ``coll`` is ``nil`` , return a list with
+               different positions depending on the type of ``coll``\\. ``conj`` returns
+               the same type as ``coll``\\. If ``coll`` is ``nil``\\, return a list with
                ``xs`` conjoined."
     :arglists '([coll x] [coll x & xs])}
   conj
@@ -306,7 +306,7 @@
     :doc      "Define a new function with an optional docstring.
 
                The function will be interned in the current Namespace as a Var using
-               the given ``name`` .
+               the given ``name``\\.
 
                After the name, an optional mapping of meta attributes may be provided.
                Any metadata values given will be attached to the metadata of the
@@ -328,7 +328,7 @@
                the optional metadata map. Any forms appearing after the argument
                vector will be part of the function body. It is legal to define a
                function with no body. In this case, your function will always return
-               ``nil`` .
+               ``nil``\\.
 
                Functions with multiple arities are defined as a series of lists after
                the optional metadata map. Each list must contain an argument vector
@@ -400,7 +400,7 @@
   is specified.
 
   ``coll`` may be any sequential collection type (such as a list or vector), string,
-  or ``nil`` . If ``coll`` is not one of the supported types, a ``TypeError`` will be
+  or ``nil``\\. If ``coll`` is not one of the supported types, a ``TypeError`` will be
   thrown."
   ([coll i]
    (basilisp.lang.runtime/nth coll i))
@@ -408,7 +408,7 @@
    (basilisp.lang.runtime/nth coll i notfound)))
 
 (defn nthnext
-  "Returns the nth next sequence of ``coll`` .
+  "Returns the nth next sequence of ``coll``\\.
 
   (nthnext nil 1)           ;=> nil
   (nthnext [] 1)            ;=> nil
@@ -417,7 +417,7 @@
   (basilisp.lang.runtime/nthnext coll i))
 
 (defn nthrest
-  "Returns the nth rest sequence of ``coll`` , or ``coll`` if ``i`` is 0.
+  "Returns the nth rest sequence of ``coll``\\, or ``coll`` if ``i`` is 0.
 
   (nthrest nil 1)           ;=> nil
   (nthrest [] 1)            ;=> []
@@ -426,12 +426,12 @@
   (basilisp.lang.runtime/nthrest coll i))
 
 (defn nfirst
-  "Return the result of calling ``(next (first v))`` ."
+  "Return the result of calling ``(next (first v))``\\."
   [v]
   (next (first v)))
 
 (defn nnext
-  "Return the result of calling ``(next (next v))`` ."
+  "Return the result of calling ``(next (next v))``\\."
   [v]
   (next (next v)))
 
@@ -470,7 +470,7 @@
    (basilisp.lang.symbol/symbol name ns)))
 
 (defn keyword
-  "Create a new keyword with ``name`` and optional namespace ``ns`` . Keywords will
+  "Create a new keyword with ``name`` and optional namespace ``ns``\\. Keywords will
   have the colon prefix added automatically, so it should not be provided."
   ([name]
    (basilisp.lang.keyword/keyword name))
@@ -572,10 +572,10 @@
      ~@body))
 
 (defmacro defn-
-  "Define a new private function as by ``defn`` .
+  "Define a new private function as by ``defn``\\.
 
   Private functions are ``def`` 'ed with the ``:private`` metadata, which makes them
-  ineligible for access outside the namespace using ``require`` or ``refer`` ."
+  ineligible for access outside the namespace using ``require`` or ``refer``\\."
   [name & body]
   `(defn ~(vary-meta name assoc :private true)
      ~@body))
@@ -597,8 +597,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmacro if-not
-  "Evaluate ``cond`` and if it is ``true`` , return ``false-cond``. Otherwise return
-  ``true-cond`` ."
+  "Evaluate ``cond`` and if it is ``true``\\, return ``false-cond``. Otherwise return
+  ``true-cond``\\."
   [cond true-cond false-cond]
   `(if ~cond
      ~false-cond
@@ -623,7 +623,7 @@
 
 (defmacro if-some
   "Evaluate the binding as with ``let``, binding the given name for use in the ``true``
-  expression iff the binding expression is not ``nil`` . Otherwise, return the
+  expression iff the binding expression is not ``nil``\\. Otherwise, return the
   ``false`` expression without binding the name."
   [binding true-cond false-cond]
   (if (operator/ne 2 (count binding))
@@ -646,7 +646,7 @@
      nil))
 
 (defmacro when-let
-  "Evaluate the binding as with ``let`` , binding the given name for use in the
+  "Evaluate the binding as with ``let``\\, binding the given name for use in the
   ``true`` expression iff the binding expression is truthy. Return ``nil`` otherwise."
   [binding & body]
   `(if-let ~binding
@@ -654,9 +654,9 @@
      nil))
 
 (defmacro when-first
-  "Evaluate the binding as with ``let`` , binding the given name to the first value
+  "Evaluate the binding as with ``let``\\, binding the given name to the first value
   (as by :lpy:fn:`first`) in the binding expression iff the first value in the binding
-  expression is not ``nil`` . Return ``nil`` otherwise."
+  expression is not ``nil``\\. Return ``nil`` otherwise."
   [binding & body]
   (if (operator/ne 2 (count binding))
     (throw
@@ -670,8 +670,8 @@
        nil)))
 
 (defmacro when-some
-  "Evaluate the binding as with ``let`` , binding the given name for use in the
-  true expression iff the binding expression is not ``nil`` . Return ``nil``
+  "Evaluate the binding as with ``let``\\, binding the given name for use in the
+  true expression iff the binding expression is not ``nil``\\. Return ``nil``
   otherwise."
   [binding & body]
   `(if-some ~binding
@@ -688,7 +688,7 @@
 (defmacro and
   "Evaluate the expressions from left to right. If all expressions are truthy, return
   the result of the final expression. Otherwise, returns the first falsey expression.
-  Calling ``and`` with no arguments returns ``true`` ."
+  Calling ``and`` with no arguments returns ``true``\\."
   ([] true)
   ([& args]
    (if (seq (rest args))
@@ -701,7 +701,7 @@
 (defmacro or
   "Evaluate the expressions from left to right. Returns the first truthy expression.
   Otherwise, returns the final falsey expression. Calling ``or`` with no arguments
-  returns ``nil`` ."
+  returns ``nil``\\."
   ([] nil)
   ([& args]
    (if (seq (rest args))
@@ -712,7 +712,7 @@
      (first args))))
 
 (defmacro cond
-  "Given groups of test/expression pairs, evaluate each test and, if ``true`` , return
+  "Given groups of test/expression pairs, evaluate each test and, if ``true``\\, return
   the expression. Otherwise, continue through until reaching the final expression."
   [& clauses]
   (when (seq clauses)
@@ -726,7 +726,7 @@
 
 (defmacro dotimes
   "Repeatedly execute ``body`` (likely for side effects) while the binding name is
-  repeatedly rebound from 0 to the binding value, ``n`` , minus 1. Returns ``nil`` ."
+  repeatedly rebound from 0 to the binding value, ``n``\\, minus 1. Returns ``nil``\\."
   [binding & body]
   (if (operator/ne 2 (count binding))
     (throw
@@ -741,7 +741,7 @@
 
 (defmacro while
   "Execute ``body`` repeatedly (likely for side effects) until ``cond`` returns
-  ``false`` . Return ``nil`` ."
+  ``false``\\. Return ``nil``\\."
   [cond & body]
   `(loop []
      (when ~cond
@@ -749,13 +749,13 @@
        (recur))))
 
 (defn not
-  "Return the logical negation of ``expr`` ."
+  "Return the logical negation of ``expr``\\."
   [expr]
   (if expr false true))
 
 (defn apply-kw
   "Apply function ``f`` to the arguments provided, passing the keys from the final
-  argument (which must be a map) as Python keyword arguments to ``f`` . Keywords and
+  argument (which must be a map) as Python keyword arguments to ``f``\\. Keywords and
   symbol keys will be converted to strings and munged to be legal Python identifiers
   to avoid errors.
 
@@ -770,12 +770,12 @@
   (python/hash x))
 
 (defn identical?
-  "Return ``true`` if ``x`` and ``y`` are the same object, otherwise ``false`` ."
+  "Return ``true`` if ``x`` and ``y`` are the same object, otherwise ``false``\\."
   [x y]
   (operator/is_ x y))
 
 (defn =
-  "Return ``true`` if ``x`` and ``y`` are equal, otherwise ``false`` ."
+  "Return ``true`` if ``x`` and ``y`` are equal, otherwise ``false``\\."
   ([_] true)
   ([x & args]
    (if (seq (rest args))
@@ -785,12 +785,12 @@
      (basilisp.lang.runtime/equals x (first args)))))
 
 (defn not=
-  "Return ``true`` if ``x`` and ``y`` are not equal, otherwise ``false`` ."
+  "Return ``true`` if ``x`` and ``y`` are not equal, otherwise ``false``\\."
   [& args]
   (not (apply = args)))
 
 (defn >
-  "Return ``true`` if arguments are monotonically decreasing, otherwise ``false`` ."
+  "Return ``true`` if arguments are monotonically decreasing, otherwise ``false``\\."
   ([_] true)
   ([x & args]
    (if (seq (rest args))
@@ -800,7 +800,7 @@
      (operator/gt x (first args)))))
 
 (defn >=
-  "Return ``true`` if arguments are decreasing, otherwise ``false`` ."
+  "Return ``true`` if arguments are decreasing, otherwise ``false``\\."
   ([_] true)
   ([x & args]
    (if (seq (rest args))
@@ -810,7 +810,7 @@
      (operator/ge x (first args)))))
 
 (defn <
-  "Return ``true`` if arguments are monotonically increasing, otherwise ``false`` ."
+  "Return ``true`` if arguments are monotonically increasing, otherwise ``false``\\."
   ([_] true)
   ([x & args]
    (if (seq (rest args))
@@ -820,7 +820,7 @@
      (operator/lt x (first args)))))
 
 (defn <=
-  "Return ``true`` if arguments are increasing, otherwise ``false`` ."
+  "Return ``true`` if arguments are increasing, otherwise ``false``\\."
   ([_] true)
   ([x & args]
    (if (seq (rest args))
@@ -877,7 +877,7 @@
 
 (defn swap!
   "Atomically swap the value of an atom to the return value of ``(apply f
-  current-value args)`` . The function ``f`` may be called multiple times while
+  current-value args)``\\. The function ``f`` may be called multiple times while
   swapping, so should be free of side effects. Return the new value."
   [atom f & args]
   (let [current (deref atom)
@@ -899,7 +899,7 @@
       (recur atom f args))))
 
 (defn atom
-  "Return an Atom containing ``v`` . The value of an Atom at any point in time may be
+  "Return an Atom containing ``v``\\. The value of an Atom at any point in time may be
   returned by :lpy:fn`deref` ing it. The value of an atom may be reset using
   :lpy:fn:`reset!` and may be swapped using :lpy:fn:`swap!`. All operations on an atom
   occur atomically."
@@ -915,7 +915,7 @@
 
 (defmacro delay
   "Takes a body of expressions producing any value. Will not produce a value until
-  :lpy:fn:`deref` ed. The result is cached and returned in future ``derefs`` ."
+  :lpy:fn:`deref` ed. The result is cached and returned in future ``derefs``\\."
   [& body]
   (list 'basilisp.lang.delay/Delay
         (concat '(fn* []) body)))
@@ -927,7 +927,7 @@
 
 (defn force
   "If ``x`` is a Delay, returned the possibly cached value of ``x``. Otherwise, return
-  ``x`` ."
+  ``x``\\."
   [x]
   (if (delay? x)
     @x
@@ -943,7 +943,7 @@
   (basilisp.lang.promise/Promise))
 
 (defn deliver
-  "Deliver the value ``v`` to the promise ``p`` . If ``p`` already has a value, then a
+  "Deliver the value ``v`` to the promise ``p``\\. If ``p`` already has a value, then a
   subsequent call to :lpy:fn:`deliver` for ``p`` will have no effect."
   [p v]
   (.deliver p v))
@@ -963,7 +963,7 @@
 
 (defn future-call
   "Call the no args function ``f`` in another thread. Returns a Future object. The
-  value returned by ``f`` can be fetched using :lpy:fn:`deref` or ``@`` , though doing
+  value returned by ``f`` can be fetched using :lpy:fn:`deref` or ``@``\\, though doing
   so may block unless the ``deref`` with a timeout argument is used."
   ([f]
    (future-call f *executor-pool*))
@@ -972,7 +972,7 @@
 
 (defmacro future
   "Execute the expressions of ``body`` in another thread. Returns a Future object.
-  The value returned by the body can be fetched using :lpy:fn:`deref` or ``@`` , though
+  The value returned by the body can be fetched using :lpy:fn:`deref` or ``@``\\, though
   doing so may block unless the ``deref`` with a timeout argument is used."
   [& body]
   `(future-call
@@ -980,8 +980,8 @@
          ~@body)))
 
 (defn future-cancel
-  "Attempt to cancel the Future ``fut`` . If the future can be cancelled, return
-  ``true`` . Otherwise, return ``false`` ."
+  "Attempt to cancel the Future ``fut``\\. If the future can be cancelled, return
+  ``true``\\. Otherwise, return ``false``\\."
   [fut]
   (.cancel fut))
 
@@ -1044,17 +1044,17 @@
      (basilisp.lang.runtime/divide x y))))
 
 (defn mod
-  "Returns the modulo of ``num`` and ``div`` ."
+  "Returns the modulo of ``num`` and ``div``\\."
   [num div]
   (operator/mod num div))
 
 (defn quot
-  "Returns the quotient of ``num`` and ``div`` ."
+  "Returns the quotient of ``num`` and ``div``\\."
   [num div]
   (basilisp.lang.runtime/quotient num div))
 
 (defn rem
-  "Returns the remainder of ``num`` and ``div`` ."
+  "Returns the remainder of ``num`` and ``div``\\."
   [num div]
   (- num (* div (quot num div))))
 
@@ -1089,7 +1089,7 @@
   (.-denominator frac))
 
 (defn compare
-  "Return either -1, 0, or 1 to indicate the relationship between ``x`` and ``y`` .
+  "Return either -1, 0, or 1 to indicate the relationship between ``x`` and ``y``\\.
 
   This is a 3-way comparator commonly used in Java-derived systems. Python does not
   typically use 3-way comparators, so this function convert's Python's ``__lt__`` and
@@ -1097,7 +1097,7 @@
 
   Comparisons are generally only valid between homogeneous objects, with the exception
   of numbers which can be compared regardless of type. Most scalar value types
-  (including ``nil`` , booleans, numbers, strings, keywords, and symbols) are
+  (including ``nil``\\, booleans, numbers, strings, keywords, and symbols) are
   comparable. ``nil`` compares less than all values except itself. ``NaN`` compares
   equal to all numbers, including itself. Strings are compared lexicographically.
   Symbols and keywords are sorted first on their namespace, if they have one, and then
@@ -1114,7 +1114,7 @@
   (basilisp.lang.runtime/compare x y))
 
 (defn sort
-  "Return a sorted sequence of the elements from ``coll`` .
+  "Return a sorted sequence of the elements from ``coll``\\.
 
   Unlike in Clojure, this function does not use :lpy:fn:`compare` directly. Instead,
   the heuristics that ``compare`` uses to produce three-way comparator return values
@@ -1129,7 +1129,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn any?
-  "Return true for any ``x`` ."
+  "Return true for any ``x``\\."
   [_]
   true)
 
@@ -1143,7 +1143,7 @@
 
   Note that Python supplies byte string and byte array objects in its standard library.
   This function complies with Clojure's standard library in returning true iff ``x`` is
-  a Python ``bytearray`` . To check if an object is a Python ``bytes`` , use
+  a Python ``bytearray``\\. To check if an object is a Python ``bytes``\\, use
   :lpy:fn:`byte-string?` ."
   [x]
   (instance? python/bytearray x))
@@ -1152,7 +1152,7 @@
   "Return ``true`` if ``x`` is a byte string (the Python ``bytes`` type).
 
   Note that Python supplies byte string and byte array objects in its standard library.
-  To check if an object is a Python ``bytearray``, use ``bytes?`` ."
+  To check if an object is a Python ``bytearray``, use ``bytes?``\\."
   [x]
   (instance? python/bytes x))
 
@@ -1168,7 +1168,7 @@
   (instance? python/type x))
 
 (defn coll?
-  "Return ``true`` if ``x`` implements ``IPersistentCollection`` ."
+  "Return ``true`` if ``x`` implements ``IPersistentCollection``\\."
   [x]
   (instance? basilisp.lang.interfaces/IPersistentCollection x))
 
@@ -1183,14 +1183,14 @@
   (instance? basilisp.lang.interfaces/ICounted x))
 
 (defn decimal?
-  "Return ``true`` if ``x`` is a ``Decimal`` ."
+  "Return ``true`` if ``x`` is a ``Decimal``\\."
   [x]
   (instance? decimal/Decimal x))
 
 (defn empty?
-  "Return ``true`` if ``coll`` is empty (as by ``(not (seq coll))`` ).
+  "Return ``true`` if ``coll`` is empty (as by ``(not (seq coll))``\\).
 
-  Typically, you should prefer the idiom ``(seq coll)`` to ``(not (empty? coll))`` ."
+  Typically, you should prefer the idiom ``(seq coll)`` to ``(not (empty? coll))``\\."
   [coll]
   (not (seq coll)))
 
@@ -1200,7 +1200,7 @@
   (if (= 0 (mod x 2)) true false))
 
 (defn false?
-  "Return ``true`` if ``x`` is ``false`` , otherwise ``false`` ."
+  "Return ``true`` if ``x`` is ``false``\\, otherwise ``false``\\."
   [x]
   (operator/is- x false))
 
@@ -1213,7 +1213,7 @@
   float?)
 
 (defn fn?
-  "Return ``true`` if ``x`` is a function created by ``fn`` or ``fn*`` ."
+  "Return ``true`` if ``x`` is a function created by ``fn`` or ``fn*``\\."
   [x]
   (and (python/callable x)
        (python/hasattr x "_basilisp_fn")
@@ -1245,7 +1245,7 @@
   integer?)
 
 (defn map-entry?
-  "Return ``true`` if ``x`` implements ``IMapEntry`` ."
+  "Return ``true`` if ``x`` implements ``IMapEntry``\\."
   [x]
   (instance? basilisp.lang.interfaces/IMapEntry x))
 
@@ -1270,12 +1270,12 @@
   (and (integer? x) (neg? x)))
 
 (defn nil?
-  "Return ``true`` if ``x`` is ``nil`` , otherwise ``false`` ."
+  "Return ``true`` if ``x`` is ``nil``\\, otherwise ``false``\\."
   [x]
   (operator/is- x nil))
 
 (defn some?
-  "Return ``true`` if ``x`` is not ``nil`` , otherwise ``false`` s."
+  "Return ``true`` if ``x`` is not ``nil``\\, otherwise ``false`` s."
   [x]
   (not (nil? x)))
 
@@ -1300,27 +1300,27 @@
   (and (integer? x) (pos? x)))
 
 (defn py-dict?
-  "Return ``true`` if ``x`` is a Python ``dict`` ."
+  "Return ``true`` if ``x`` is a Python ``dict``\\."
   [x]
   (instance? python/dict x))
 
 (defn py-frozenset?
-  "Return ``true`` if ``x`` is a Python ``frozenset`` ."
+  "Return ``true`` if ``x`` is a Python ``frozenset``\\."
   [x]
   (instance? python/frozenset x))
 
 (defn py-list?
-  "Return ``true`` if ``x`` is a Python ``list`` ."
+  "Return ``true`` if ``x`` is a Python ``list``\\."
   [x]
   (instance? python/list x))
 
 (defn py-set?
-  "Return ``true`` if ``x`` is a Python ``set`` ."
+  "Return ``true`` if ``x`` is a Python ``set``\\."
   [x]
   (instance? python/set x))
 
 (defn py-tuple?
-  "Return ``true`` if ``x`` is a Python ``tuple`` ."
+  "Return ``true`` if ``x`` is a Python ``tuple``\\."
   [x]
   (instance? python/tuple x))
 
@@ -1345,7 +1345,7 @@
   (instance? basilisp.lang.queue/PersistentQueue x))
 
 (defn ratio?
-  "Return ``true`` if ``x`` is a ``Fraction`` ."
+  "Return ``true`` if ``x`` is a ``Fraction``\\."
   [x]
   (instance? fractions/Fraction x))
 
@@ -1360,17 +1360,17 @@
   (or (integer? x) (float? x)))
 
 (defn reversible?
-  "Return ``true`` if x implements ``IReversible`` ."
+  "Return ``true`` if x implements ``IReversible``\\."
   [x]
   (instance? basilisp.lang.interfaces/IReversible x))
 
 (defn seqable?
-  "Return ``true`` if an ``ISeq`` can be produced from ``x`` ."
+  "Return ``true`` if an ``ISeq`` can be produced from ``x``\\."
   [x]
   (instance? basilisp.lang.interfaces/ISeqable x))
 
 (defn sequential?
-  "Return ``true`` if ``x`` implements ``ISequential`` ."
+  "Return ``true`` if ``x`` implements ``ISequential``\\."
   [x]
   (instance? basilisp.lang.interfaces/ISequential x))
 
@@ -1390,7 +1390,7 @@
   (and (symbol? x) (nil? (namespace x))))
 
 (defn true?
-  "Return ``true`` if ``x`` is ``true`` , otherwise ``false`` ."
+  "Return ``true`` if ``x`` is ``true``\\, otherwise ``false``\\."
   [x]
   (operator/is- x true))
 
@@ -1438,7 +1438,7 @@
   (apply list (.-__bases__ cls)))
 
 (defn cast
-  "Throws a ``TypeError`` if ``x`` is not a ``cls`` . Otherwise, return ``x`` ."
+  "Throws a ``TypeError`` if ``x`` is not a ``cls``\\. Otherwise, return ``x``\\."
   [cls x]
   (when-not (instance? cls x)
     (throw (python/TypeError
@@ -1446,12 +1446,12 @@
   x)
 
 (defn class
-  "Return the class of ``x`` ."
+  "Return the class of ``x``\\."
   [x]
   (python/type x))
 
 (defn subclasses
-  "Return a set of subclasses of ``cls`` .
+  "Return a set of subclasses of ``cls``\\.
 
   This set is not guaranteed to be exhaustive because classes only retain a weak
   reference to their subclasses, so it is possible subclasses of cls have been garbage
@@ -1465,7 +1465,7 @@
   (set (python/filter #(not= cls %) (.-__mro__ cls))))
 
 (defn type
-  "Return the type of ``x`` ."
+  "Return the type of ``x``\\."
   [x]
   (python/type x))
 
@@ -1474,7 +1474,7 @@
 ;;;;;;;;;;;;;;;;;;;
 
 (defn bigdec
-  "Coerce ``x`` to a Python ``decimal.Decimal`` ."
+  "Coerce ``x`` to a Python ``decimal.Decimal``\\."
   [x]
   (decimal/Decimal x))
 
@@ -1482,7 +1482,7 @@
   "Coerce ``x`` to an integer.
 
   Python's builtin ``int`` type is arbitrary precision, so there is no difference
-  between ``bigint`` , ``biginteger`` , and Python's builtin ``int`` ."
+  between ``bigint``\\, ``biginteger``\\, and Python's builtin ``int``\\."
   [x]
   (python/int x))
 
@@ -1490,7 +1490,7 @@
   "Coerce ``x`` to an integer.
 
   Python's builtin ``int`` type is arbitrary precision, so there is no difference
-  between ``bigint`` , ``biginteger`` , and Python's builtin ``int`` ."
+  between ``bigint``\\, ``biginteger``\\, and Python's builtin ``int``\\."
   [x]
   (python/int x))
 
@@ -1523,7 +1523,7 @@
   "Coerce ``x`` to a string of length 1.
 
   Natural integers are treated as ordinals and passed to Python's ``chr``. Strings of
-  length 1 are returned as such. Other types will result in a ``ValueError`` ."
+  length 1 are returned as such. Other types will result in a ``ValueError``\\."
   [x]
   (cond
     (instance? python/int x) (python/chr x)
@@ -1571,7 +1571,7 @@
 (defmacro ^:private defcopy
   "Copy the Var ``var`` into a new Var as ``name``.
 
-  Append the given docstring ``doc`` to the end of the new Var's ``doc`` ."
+  Append the given docstring ``doc`` to the end of the new Var's ``doc``\\."
   ([name var]
    `(defcopy ~name nil ~var))
   ([name doc var]
@@ -1645,9 +1645,9 @@
   dec)
 
 (defn unchecked-negate
-  "Return the negation of ``x`` .
+  "Return the negation of ``x``\\.
 
-  Same as ``(- x)`` . Python integers are unlimited precision so unchecked arithmetic
+  Same as ``(- x)``\\. Python integers are unlimited precision so unchecked arithmetic
   is only provided for compatibility with platforms without unlimited precision
   integers."
   [x]
@@ -1698,12 +1698,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn to-array
-  "Return a Python list with the contents of ``coll`` ."
+  "Return a Python list with the contents of ``coll``\\."
   [coll]
   (python/list coll))
 
 (defn to-array-2d
-  "Return a two-dimensional Python list from the contents of ``coll`` .
+  "Return a two-dimensional Python list from the contents of ``coll``\\.
 
   Python lists do not specify a fixed size, so the resulting two-dimensional list may
   be ragged (in the Java sense of the word) if the inner collections of the input are
@@ -1712,7 +1712,7 @@
   (python/list (python/map python/list coll)))
 
 (defn into-array
-  "Returns a Python list with the values from ``aseq`` .
+  "Returns a Python list with the values from ``aseq``\\.
 
   The type argument is ignored and is provided only for Clojure compatibility."
   ([aseq]
@@ -1721,7 +1721,7 @@
    (python/list aseq)))
 
 (defn make-array
-  "Create a Python list with initial ``size`` . If multiple sizes are provided,
+  "Create a Python list with initial ``size``\\. If multiple sizes are provided,
   produces a multi-dimensional list-of-lists. There is no efficient way to allocate
   such multi-dimensional lists in Python, so this function will run in polynomial time.
 
@@ -1779,7 +1779,7 @@
      (operator/getitem array idx))))
 
 (defn aset
-  "Sets the value of the Python list at the index (or indices). Returns ``val`` ."
+  "Sets the value of the Python list at the index (or indices). Returns ``val``\\."
   ([array idx val]
    (operator/setitem array idx val)
    val)
@@ -1803,9 +1803,9 @@
   "Map ``expr`` over the Python list `array`, returning a new Python list with the
   result.
 
-  This macro initially binds the symbol named by ``ret`` to a clone of ``array`` . On
-  each iteration, the index (named by ``idx`` ) of ``ret`` is set to the return value
-  of ``expr`` ."
+  This macro initially binds the symbol named by ``ret`` to a clone of ``array``\\. On
+  each iteration, the index (named by ``idx``\\) of ``ret`` is set to the return value
+  of ``expr``\\."
   [array idx ret expr]
   `(let [len# (alength ~array)
          ~ret (aclone ~array)]
@@ -1816,10 +1816,10 @@
      ~ret))
 
 (defmacro areduce
-  "Reduce the Python list ``array`` by ``expr`` , returning the reduced expression.
+  "Reduce the Python list ``array`` by ``expr``\\, returning the reduced expression.
 
-  This macro initially binds the symbol named by ``ret`` to ``init`` . On each
-  iteration, ``ret`` is rebound to the return value of ``expr`` ."
+  This macro initially binds the symbol named by ``ret`` to ``init``\\. On each
+  iteration, ``ret`` is rebound to the return value of ``expr``\\."
   [array idx ret init expr]
   `(let [len# (alength ~array)]
      (loop [~ret ~init
@@ -1907,21 +1907,21 @@
   nil)
 
 (defn ex-cause
-  "Return the cause (another Exception) of ``ex`` if it derives from ``Exception`` ,
-  otherwise it returns ``nil`` ."
+  "Return the cause (another Exception) of ``ex`` if it derives from ``Exception``\\,
+  otherwise it returns ``nil``\\."
   [ex]
   (when (instance? python/Exception ex)
     (or (.- ex __cause__) (.- ex __context__))))
 
 (defn ex-data
-  "Return the data map of ``ex`` if is an instance of ``IExceptionInfo`` , otherwise
-  it returns ``nil`` ."
+  "Return the data map of ``ex`` if is an instance of ``IExceptionInfo``\\, otherwise
+  it returns ``nil``\\."
   [ex]
   (when (instance? basilisp.lang.interfaces/IExceptionInfo ex)
     (.-data ex)))
 
 (defn ex-message
-  "Return the message of ``ex`` if is an Exception, otherwise it returns ``nil`` ."
+  "Return the message of ``ex`` if is an Exception, otherwise it returns ``nil``\\."
   [ex]
   (when (instance? python/Exception ex)
     (python/getattr ex "message" (python/str ex))))
@@ -1931,21 +1931,21 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn bit-and
-  "Return the bitwise and of ``x`` and ``args`` ."
+  "Return the bitwise and of ``x`` and ``args``\\."
   [x & args]
   (if-let [rest-arg (seq (rest args))]
     (recur (operator/and- x (first args)) rest-arg)
     (operator/and- x (first args))))
 
 (defn bit-or
-  "Return the bitwise or of ``x`` and ``args`` ."
+  "Return the bitwise or of ``x`` and ``args``\\."
   [x & args]
   (if-let [rest-arg (seq (rest args))]
     (recur (operator/or- x (first args)) rest-arg)
     (operator/or- x (first args))))
 
 (defn bit-not
-  "Invert the bits of ``x`` ."
+  "Invert the bits of ``x``\\."
   [x]
   (operator/invert x))
 
@@ -1960,36 +1960,36 @@
   (operator/rshift x n))
 
 (defn bit-xor
-  "Return the bitwise xor of ``x`` and ``args`` ."
+  "Return the bitwise xor of ``x`` and ``args``\\."
   [x & args]
   (if-let [rest-arg (seq (rest args))]
     (recur (operator/xor x (first args)) rest-arg)
     (operator/xor x (first args))))
 
 (defn bit-and-not
-  "Return the bitwise and complement of ``x`` and ``args`` ."
+  "Return the bitwise and complement of ``x`` and ``args``\\."
   [x & args]
   (if-let [rest-arg (seq (rest args))]
     (recur (operator/and- x (operator/not- (first args))) rest-arg)
     (operator/and- x (operator/not- (first args)))))
 
 (defn bit-clear
-  "Clear the bit of ``x`` at index ``n`` ."
+  "Clear the bit of ``x`` at index ``n``\\."
   [x n]
   (bit-and x (bit-not (bit-shift-left 1 n))))
 
 (defn bit-flip
-  "Flip the bit of ``x`` at index ``n`` ."
+  "Flip the bit of ``x`` at index ``n``\\."
   [x n]
   (bit-xor x (bit-shift-left 1 n)))
 
 (defn bit-set
-  "Set the bit of ``x`` at index ``n`` ."
+  "Set the bit of ``x`` at index ``n``\\."
   [x n]
   (bit-or x (bit-shift-left 1 n)))
 
 (defn bit-test
-  "Test the bit of ``x`` at index ``n`` ."
+  "Test the bit of ``x`` at index ``n``\\."
   [x n]
   (bit-and (bit-shift-right x n) 1))
 
@@ -2010,13 +2010,13 @@
       (counter coll 0))))
 
 (defn empty
-  "Return an empty collection of the same interface type as ``coll`` , or ``nil`` ."
+  "Return an empty collection of the same interface type as ``coll``\\, or ``nil``\\."
   [coll]
   (when (coll? coll)
     (.empty coll)))
 
 (defn not-empty
-  "Return ``coll`` when ``coll`` is not empty, otherwise return ``nil`` ."
+  "Return ``coll`` when ``coll`` is not empty, otherwise return ``nil``\\."
   [coll]
   (when (seq coll)
     coll))
@@ -2026,7 +2026,7 @@
 
   For a vector, return the last element (more efficiently than by last).
 
-  For empty collections, returns ``nil`` ."
+  For empty collections, returns ``nil``\\."
   [coll]
   (.peek coll))
 
@@ -2077,14 +2077,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn contains?
-  "Return ``true`` if ``coll`` contains ``k`` . For vectors, ``k`` is an index. For
+  "Return ``true`` if ``coll`` contains ``k``\\. For vectors, ``k`` is an index. For
   maps, ``k`` is a key. For sets, ``k`` is a value in the set."
   [coll k]
   (basilisp.lang.runtime/contains coll k))
 
 (defn disj
   "Return a new version of the set ``s`` without the given elements. If the elements
-  don't exist in ``s`` , they are ignored."
+  don't exist in ``s``\\, they are ignored."
   ([s] s)
   ([s elem]
    (when s
@@ -2095,7 +2095,7 @@
 
 (defn dissoc
   "Return a new version of ``m`` without the given keys. If the keys don't exist in
-  ``m`` , they are ignored."
+  ``m``\\, they are ignored."
   ([m] m)
   ([m k]
    (when m
@@ -2118,7 +2118,7 @@
 
 (defn assoc-in
   "Associate value in a nested associative structure, with ``ks`` as a sequence of keys
-  and ``v`` as the new value. If no map exists for any key in ``ks`` , a new empty map
+  and ``v`` as the new value. If no map exists for any key in ``ks``\\, a new empty map
   will be created."
   [m ks v]
   (let [fk  (first ks)
@@ -2129,7 +2129,7 @@
 
 (defn get-in
   "Return the entry of an associative data structure addressed by the sequence of keys
-  ``ks`` or ``default`` (default: ``nil`` ) if the value is not found."
+  ``ks`` or ``default`` (default: ``nil``\\) if the value is not found."
   ([m ks]
    (get-in m ks nil))
   ([m ks default]
@@ -2143,15 +2143,15 @@
 
 (defn update
   "Updates the value for key ``k`` in associative data structure ``m`` with the return
-  value from calling ``(f old-v & args)`` . If ``m`` is ``nil`` , use an empty map. If
-  ``k`` is not in ``m`` , ``old-v`` will be ``nil`` ."
+  value from calling ``(f old-v & args)``\\. If ``m`` is ``nil``\\, use an empty map. If
+  ``k`` is not in ``m``\\, ``old-v`` will be ``nil``\\."
   [m k f & args]
   (apply basilisp.lang.runtime/update m k f args))
 
 (defn update-in
   "Updates the value for key ``k`` in associative data structure ``m`` with the return
-  value from calling ``(f old-v & args)`` . If ``m`` is ``nil`` , use an empty map. If
-  ``k`` is not in ``m`` , ``old-v`` will be ``nil`` ."
+  value from calling ``(f old-v & args)``\\. If ``m`` is ``nil``\\, use an empty map. If
+  ``k`` is not in ``m``\\, ``old-v`` will be ``nil``\\."
   [m ks f & args]
   (let [fk  (first ks)
         rks (rest ks)]
@@ -2167,7 +2167,7 @@
 
 (defn map-entry
   "With one argument, coerce the input to a map entry. With two arguments, return a
-  map entry containing ``key`` and ``value`` ."
+  map entry containing ``key`` and ``value``\\."
   ([coll]
    (if (= 2 (count coll))
      (basilisp.lang.map.MapEntry/from-vec coll)
@@ -2179,7 +2179,7 @@
    (basilisp.lang.map.MapEntry/of k v)))
 
 (defn find
-  "Find the map entry of ``k`` in ``m`` , if it exists. Return ``nil`` otherwise."
+  "Find the map entry of ``k`` in ``m``\\, if it exists. Return ``nil`` otherwise."
   [m k]
   (when-let [v (get m k)]
     (map-entry k v)))
@@ -2209,14 +2209,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn transient
-  "Return a transient copy of persistent collection ``coll`` .
+  "Return a transient copy of persistent collection ``coll``\\.
 
   Transients can be created from maps, sets, and vectors. Transients allow faster
   mutations than their persistent counterparts and are useful for performance
   sensitive code which makes many modifications to these data structures.
 
   Transient collections can be edited with the transient versions of the familiar
-  collection functions (depending on the type of ``coll`` ): :lpy:fn:`assoc!`,
+  collection functions (depending on the type of ``coll``\\): :lpy:fn:`assoc!`,
   :lpy:fn:`conj!`, :lpy:fn:`disj!`, :lpy:fn:`dissoc!`, and :lpy:fn:`pop!`. Transient
   collections are designed to be used in the same style as the builtin persistent
   collections, so callers should be sure to use the returned value from prior calls
@@ -2237,7 +2237,7 @@
 
 (defn persistent!
   "Return a persistent copy of the transient collection ``coll`` which was created
-  by calling ``transient`` ."
+  by calling ``transient``\\."
   [coll]
   (if (instance? basilisp.lang.interfaces/ITransientCollection coll)
     (.to-persistent coll)
@@ -2248,16 +2248,16 @@
                :type (type coll)}))))
 
 (defn assoc!
-  "Associate keys to values in the transient associative data structure ``m`` ."
+  "Associate keys to values in the transient associative data structure ``m``\\."
   ([m k v]
    (.assoc-transient m k v))
   ([m k v & kvs]
    (apply (.-assoc-transient m) k v kvs)))
 
 (defn conj!
-  "Conjoin ``xs`` to the transient collection ```coll`` . New elements may be added in
-  different positions depending on the type of ``coll`` . ``conj!`` returns the same
-  type as ``coll`` ."
+  "Conjoin ``xs`` to the transient collection ```coll``\\. New elements may be added in
+  different positions depending on the type of ``coll``\\. ``conj!`` returns the same
+  type as ``coll``\\."
   ([] (transient []))
   ([coll] coll)
   ([coll & xs]
@@ -2265,7 +2265,7 @@
 
 (defn disj!
   "Return a new version of the transient set ``s`` without the given elements. If the
-  elements don't exist in ``s`` , they are ignored."
+  elements don't exist in ``s``\\, they are ignored."
   ([s] s)
   ([s elem]
    (.disj-transient s elem))
@@ -2274,13 +2274,13 @@
 
 (defn dissoc!
   "Return a new version of the transient associative collection ``m`` without the
-  given keys. If the keys don't exist in ``m`` , they are ignored."
+  given keys. If the keys don't exist in ``m``\\, they are ignored."
   ([m k] (.dissoc-transient m k))
   ([m k & ks]
    (apply (.-dissoc-transient m) k ks)))
 
 (defn pop!
-  "Return a new transient vector without the last element of ``coll`` . If ``coll`` is
+  "Return a new transient vector without the last element of ``coll``\\. If ``coll`` is
   empty, throw an exception."
   [coll]
   (.pop-transient coll))
@@ -2290,7 +2290,7 @@
 ;;;;;;;;;;;;;;;
 
 (defn volatile!
-  "Return a Volatile reference container with the initial value ``v`` ."
+  "Return a Volatile reference container with the initial value ``v``\\."
   [v]
   (basilisp.lang.volatile/Volatile v))
 
@@ -2307,7 +2307,7 @@
 
 (defn vswap!
   "Swap the value of volatile ``v`` non-atomically to the return of
-  ``(apply f old-val args)`` . Returns the new value of that function call."
+  ``(apply f old-val args)``\\. Returns the new value of that function call."
   [v f & args]
   (apply (.-swap v) f args))
 
@@ -2318,7 +2318,7 @@
 (defn reduced
   "Wraps a value ``x`` such that it will terminate a reduce operation.
 
-  Callers can retrieve the inner reduced value using :lpy:fn:`deref` or ``@x`` ."
+  Callers can retrieve the inner reduced value using :lpy:fn:`deref` or ``@x``\\."
   [x]
   (basilisp.lang.reduced/Reduced x))
 
@@ -2329,13 +2329,13 @@
 
 (defn ensure-reduced
   "If ``x`` is not a reduced value, wrap it (as by :lpy:fn:`reduced`) and return the
-  wrapper. Otherwise return ``x`` ."
+  wrapper. Otherwise return ``x``\\."
   [x]
   (if (reduced? x) x (reduced x)))
 
 (defn unreduced
   "If ``x`` is a reduced value (as produced by :lpy:fn:`reduced`), unwrap it and return
-  the inner value. Otherwise return ``x`` ."
+  the inner value. Otherwise return ``x``\\."
   [x]
   (if (reduced? x) @x x))
 
@@ -2344,20 +2344,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmacro lazy-seq
-  "Takes a body of expressions which will produce a seq or ``nil`` . When ``seq`` is
-  first called on the resulting ``lazy-seq`` , the sequence will be realized."
+  "Takes a body of expressions which will produce a seq or ``nil``\\. When ``seq`` is
+  first called on the resulting ``lazy-seq``\\, the sequence will be realized."
   [& body]
   (list 'basilisp.lang.seq/LazySeq
         (concat '(fn* []) body)))
 
 (defmacro lazy-cat
-  "Return a lazy sequence of the concatenation of ``colls`` . None of the input
+  "Return a lazy sequence of the concatenation of ``colls``\\. None of the input
   collections will be evaluated until it is needed."
   [& colls]
   `(concat ~@(map (fn [coll] `(lazy-seq ~coll)) colls)))
 
 (defn dorun
-  "Force a lazy sequence be fully realized. Returns ``nil`` .
+  "Force a lazy sequence be fully realized. Returns ``nil``\\.
 
   This is often useful when you have a lazy sequence whose function also performs side
   effects.
@@ -2388,15 +2388,15 @@
    coll))
 
 (defn iterate
-  "Returns a lazy sequence of ``x`` , ``(f x)`` , ``(f (f x))`` and so on."
+  "Returns a lazy sequence of ``x``\\, ``(f x)``\\, ``(f (f x))`` and so on."
   [f x]
   (lazy-seq
    (when x
      (cons x (iterate f (f x))))))
 
 (defn range
-  "Return a range of integers from ``start`` . If ``end`` is specified, the sequence
-  will terminate at ``end`` ."
+  "Return a range of integers from ``start``\\. If ``end`` is specified, the sequence
+  will terminate at ``end``\\."
   ([]
    (iterate inc 0))
   ([end]
@@ -2411,7 +2411,7 @@
 
 (defn complement
   "Return a function which returns the logical complement of the return value of
-  ``(apply f args)`` ."
+  ``(apply f args)``\\."
   [f]
   (fn
     ([x] (not (f x)))
@@ -2421,12 +2421,12 @@
      (not (apply f x y z args)))))
 
 (defn constantly
-  "Returns a function that accepts any number of arguments and returns ``x`` ."
+  "Returns a function that accepts any number of arguments and returns ``x``\\."
   [x]
   (fn [& ^:no-warn-when-unused args] x))
 
 (defn reduce
-  "Reduce ``coll`` by ``f`` .
+  "Reduce ``coll`` by ``f``\\.
 
   If ``val`` is not supplied and ``coll`` has no elements, ``f`` will be called with no
   arguments and the result will be returned.
@@ -2435,13 +2435,13 @@
   ``(f (first val))`` is returned.
 
   If ``val`` is not supplied and ``coll`` has elements, repeatedly reduce ``coll`` by
-  calling ``f`` on successive elements in ``coll`` .
+  calling ``f`` on successive elements in ``coll``\\.
 
   If ``val`` is supplied and ``coll`` has no elements, return ``val` and ``f`` will not
   be called.
 
   If ``val`` is supplied and ``coll`` has elements, repeatedly reduce ``coll`` by
-  calling ``f`` on successive elements in ``coll`` , starting with ``val`` .
+  calling ``f`` on successive elements in ``coll``\\, starting with ``val``\\.
 
   If ``f`` returns a ``reduced`` value at any point, reduction will terminate and the
   reduced value will be returned immediately."
@@ -2462,10 +2462,10 @@
        val))))
 
 (defn reduce-kv
-  "Reduce an associative ``coll`` by ``f`` . ``f`` must be a function of 3 arguments:
+  "Reduce an associative ``coll`` by ``f``\\. ``f`` must be a function of 3 arguments:
   the initially supplied value ``init`` (in later invocations, the return from previous
-  invocations), the key of an entry of ``coll`` , and the value of an entry of
-  ``coll`` .
+  invocations), the key of an entry of ``coll``\\, and the value of an entry of
+  ``coll``\\.
 
   If ``coll`` has no elements, ``init`` is returned and ``f`` is not called.
 
@@ -2515,7 +2515,7 @@
             args)))
 
 (defn partial
-  "Return a function which is the partial application of ``f`` with ``args`` ."
+  "Return a function which is the partial application of ``f`` with ``args``\\."
   ([f] f)
   ([f & args]
    (apply basilisp.lang.runtime/partial f args)))
@@ -2541,7 +2541,7 @@
      (partial-kw f m))))
 
 (defn every?
-  "Return ``true`` if every element in ``coll`` satisfies ``pred`` ."
+  "Return ``true`` if every element in ``coll`` satisfies ``pred``\\."
   [pred coll]
   (cond
     (nil? (seq coll))   true
@@ -2550,7 +2550,7 @@
 
 (defn every-pred
   "Return a predicate composed of all of the input predicates, which returns ``true``
-  if all input predicates return ``true`` for a value, otherwise returns ``false`` .
+  if all input predicates return ``true`` for a value, otherwise returns ``false``\\.
   The returned predicate returns ``false`` on the first failing predicate and will
   not execute any remaining predicates."
   ([pred]
@@ -2568,12 +2568,12 @@
        (every? comp-pred args)))))
 
 (def
-  ^{:doc "Return ``true`` if not every element in ``coll`` satisfies ``pred`` ."}
+  ^{:doc "Return ``true`` if not every element in ``coll`` satisfies ``pred``\\."}
   not-every?
   (comp not every?))
 
 (defn some
-  "Return ``true`` if at least one element in ``coll`` satisfies ``pred`` ."
+  "Return ``true`` if at least one element in ``coll`` satisfies ``pred``\\."
   [pred coll]
   (when (seq coll)
     (or (pred (first coll))
@@ -2581,7 +2581,7 @@
 
 (defn some-fn
   "Return a predicate composed of all of the input functions, which returns the first
-  truthy return value from one of the inputs, otherwise returns ``nil`` . The returned
+  truthy return value from one of the inputs, otherwise returns ``nil``\\. The returned
   predicate returns the first truthy value it encounters and will not execute any
   remaining functions."
   ([f]
@@ -2597,12 +2597,12 @@
        (some comp-f args)))))
 
 (def
-  ^{:doc "Return ``true`` if no element in ``coll`` satisfies ``pred`` ."}
+  ^{:doc "Return ``true`` if no element in ``coll`` satisfies ``pred``\\."}
   not-any?
   (comp not some))
 
 (defn map
-  "Return a lazy sequence of ``(f elem)`` for elements in ``coll`` . More than one
+  "Return a lazy sequence of ``(f elem)`` for elements in ``coll``\\. More than one
   collection may be supplied. If more than one collection is supplied, the function
   ``f`` will be passed sequential elements from each collection on each invocation
   and must be able to accept as many arguments as there are collections. The sequence
@@ -2628,7 +2628,7 @@
       (cons (apply f (first coll) (map first colls))
             (apply map f (rest coll) (map rest colls)))))))
 
-(def ^{:doc "Return a vector of ``(f elem)`` for elements in ``coll`` . More than one
+(def ^{:doc "Return a vector of ``(f elem)`` for elements in ``coll``\\. More than one
              collection may be supplied. If more than one collection is supplied, the
              function ``f`` will be passed sequential elements from each collection on
              each invocation and must be able to accept as many arguments as there are
@@ -2637,7 +2637,7 @@
   mapv (comp vec map))
 
 (defn map-indexed
-  "Return a lazy sequence of ``(f idx elem)`` for elements in ``coll`` . The index
+  "Return a lazy sequence of ``(f idx elem)`` for elements in ``coll``\\. The index
   starts at 0.
 
   Return a stateful transducer if no collection is provided."
@@ -2657,7 +2657,7 @@
 (def ^:redef cat)
 
 (defn mapcat
-  "Return a lazy sequence of the concatenated results of mapping ``f`` over ``colls`` ."
+  "Return a lazy sequence of the concatenated results of mapping ``f`` over ``colls``\\."
   ([f]
    (comp (map f) cat))
   ([f coll]
@@ -2701,7 +2701,7 @@
 
 (defn keep
   "Return a lazy sequence of non- ``nil`` results of ``(f elem)`` for elements in
-  ``coll`` .
+  ``coll``\\.
 
   Return a transducer if no collection is provided."
   ([f]
@@ -2724,7 +2724,7 @@
 
 (defn keep-indexed
   "Return a lazy-sequence of non- ``nil`` results of ``(f index elem)`` for elements
-  in ``coll`` .
+  in ``coll``\\.
 
   Return a stateful transducer if no collection is provided."
   ([f]
@@ -2751,7 +2751,7 @@
      (keep-idx (range) coll))))
 
 (defn take
-  "Return the first ``n`` elements of ``coll`` ."
+  "Return the first ``n`` elements of ``coll``\\."
   ([n]
    (fn [rf]
      (let [idx (volatile! (inc n))]
@@ -2769,7 +2769,7 @@
         (cons (first coll) (take (dec n) (rest coll))))))))
 
 (defn take-while
-  "Return elements of ``coll`` while ``(pred elem)`` is ``true`` .
+  "Return elements of ``coll`` while ``(pred elem)`` is ``true``\\.
 
   Return a transducer if no collection is provided."
   ([pred]
@@ -2788,7 +2788,7 @@
         (cons (first coll) (take-while pred (rest coll))))))))
 
 (defn drop
-  "Drop the first ``n`` elements of ``coll`` .
+  "Drop the first ``n`` elements of ``coll``\\.
 
   Return a stateful transducer if no collection is provided."
   ([n]
@@ -2809,7 +2809,7 @@
         (seq coll))))))
 
 (defn drop-while
-  "Drop elements of ``coll`` until ``(pred elem)`` returns ``true`` .
+  "Drop elements of ``coll`` until ``(pred elem)`` returns ``true``\\.
 
   Return a stateful transducer if no collection is provided."
   ([pred]
@@ -2831,7 +2831,7 @@
         (seq coll))))))
 
 (defn drop-last
-  "Drop all but the last ``n`` items of ``coll`` ."
+  "Drop all but the last ``n`` items of ``coll``\\."
   ([coll]
    (drop-last 1 coll))
   ([n coll]
@@ -2844,19 +2844,19 @@
 
 (defn split-at
   "Split a collection at the ``n`` th item. Returns a vector of
-  ``[(take n coll) (drop n coll)]`` ."
+  ``[(take n coll) (drop n coll)]``\\."
   [n coll]
   [(take n coll) (drop n coll)])
 
 (defn split-with
-  "Split a collection at the inflection point of ``pred`` . Returns a vector of
-  ``[(take-while pred coll) (drop-while pred coll)]`` ."
+  "Split a collection at the inflection point of ``pred``\\. Returns a vector of
+  ``[(take-while pred coll) (drop-while pred coll)]``\\."
   [pred coll]
   [(take-while pred coll) (drop-while pred coll)])
 
 (defn frequencies
   "Return a map whose keys are the elements of ``coll`` and whose values are the counts
-  for the number of times the key appears in ``coll`` ."
+  for the number of times the key appears in ``coll``\\."
   [coll]
   (reduce (fn [m v]
             (if (contains? m v)
@@ -2879,7 +2879,7 @@
           coll))
 
 (defn interpose
-  "Return a lazy sequence of elements of ``coll`` separated by ``sep`` . If ``coll`` is
+  "Return a lazy sequence of elements of ``coll`` separated by ``sep``\\. If ``coll`` is
   empty, return an empty sequence.
 
   Return a stateful transducer if no collection is provided."
@@ -2903,7 +2903,7 @@
 
 (defn interleave
   "Return a lazy sequence consisting of the first element of ``coll` , then the first
-  element of the following ``coll`` , etc. until the shortest input collection is
+  element of the following ``coll``\\, etc. until the shortest input collection is
   exhausted."
   ([] '())
   ([coll] (seq coll))
@@ -2931,7 +2931,7 @@
 
 (defn repeat
   "Repeat ``x`` infinitely or ``n`` many times if ``n`` is specified. Returns a lazy
-  sequence of the ``x`` ."
+  sequence of the ``x``\\."
   ([x]
    (lazy-seq (cons x (repeat x))))
   ([n x]
@@ -2950,7 +2950,7 @@
       (cons (f) (repeatedly (dec n) f))))))
 
 (defn take-nth
-  "Return a lazy sequence of every ``n`` th element of ``coll`` .
+  "Return a lazy sequence of every ``n`` th element of ``coll``\\.
 
   Return a stateful transducer if no collection is provided."
   ([n]
@@ -2977,8 +2977,8 @@
   "Return a lazy sequence of partitions of ``coll`` of size ``n`` at offsets of
   ``step`` elements. If ``step`` is not given, steps of size ``n`` will be used and
   there will be no overlap between partitions. If ``pad`` is given, partition will pull
-  elements from ``pad`` until the final sequence is equal to size ``n`` . If there are
-  fewer than ``n`` leftover elements in ``coll`` , they will not be returned as a
+  elements from ``pad`` until the final sequence is equal to size ``n``\\. If there are
+  fewer than ``n`` leftover elements in ``coll``\\, they will not be returned as a
   partial partition."
   ([n coll]
    (partition n n coll))
@@ -3072,7 +3072,7 @@
         (cons run (partition-by f (seq (drop (count run) coll)))))))))
 
 (defn distinct
-  "Return a lazy sequence of the elements of ``coll`` , removing duplicates.
+  "Return a lazy sequence of the elements of ``coll``\\, removing duplicates.
 
   Return a stateful transducer if no collection is provided."
   ([]
@@ -3098,7 +3098,7 @@
      (coll-distinct coll #{}))))
 
 (defn dedupe
-  "Return a lazy sequence of the elements of ``coll`` , removing consecutive
+  "Return a lazy sequence of the elements of ``coll``\\, removing consecutive
   duplicates.
 
   Return a stateful transducer if no collection is provided."
@@ -3172,7 +3172,7 @@
           (rest args)))
 
 (defn sort-by
-  "Return a sorted sequence of the elements from ``coll`` ."
+  "Return a sorted sequence of the elements from ``coll``\\."
   ([keyfn coll]
    (basilisp.lang.runtime/sort-by keyfn coll))
   ([keyfn cmp coll]
@@ -3204,7 +3204,7 @@
       ret)))
 
 (defn tree-seq
-  "Return a lazy seq on the nodes of the tree-like data structure ``root`` .
+  "Return a lazy seq on the nodes of the tree-like data structure ``root``\\.
 
   ``branch?`` should be a function of a single argument which should return ``true``
   if a node might contain children (though it need not).
@@ -3231,7 +3231,7 @@
   Python threads do not allow parallel computation using threads.
 
   This function is not fully lazy. Chunks of elements from the input collection are
-  grabbed eagerly to spawn Futures of ``f`` . Elements after the chunk size in the
+  grabbed eagerly to spawn Futures of ``f``\\. Elements after the chunk size in the
   input collection are grabbed lazily. The chunk size is set by
   :lpy:var:`*pmap-cpu-count*` and defaults to 2 times the number of CPU cores on the
   machine; the value of ``*pmap-cpu-count*`` is captured when ``pmap`` is first called,
@@ -3257,13 +3257,13 @@
                 (apply pmap f (drop chunk-size coll) (map #(drop chunk-size %) colls))))))))
 
 (defn pcalls
-  "Return a lazy seq of the result of executing the no arg functions ``fns`` , which
+  "Return a lazy seq of the result of executing the no arg functions ``fns``\\, which
   will be evaluated in parallel."
   [& fns]
   (pmap (fn [f] (f)) fns))
 
 (defmacro pvalues
-  "Returns a lazy seq of the result of ``exprs`` , which will be evaluated in
+  "Returns a lazy seq of the result of ``exprs``\\, which will be evaluated in
   parallel."
   [& exprs]
   `(pcalls
@@ -3290,12 +3290,12 @@
    (random/randrange lower upper)))
 
 (defn rand-nth
-  "Return a random element from ``coll`` ."
+  "Return a random element from ``coll``\\."
   [coll]
   (nth coll (rand-int (count coll))))
 
 (defn random-sample
-  "Return elements from ``coll`` with the random probability of ``prob`` .
+  "Return elements from ``coll`` with the random probability of ``prob``\\.
 
   Return a transducer if no collection is provided."
   ([prob]
@@ -3304,7 +3304,7 @@
    (filter (fn [_] (< (rand) prob)) coll)))
 
 (defn shuffle
-  "Return a random permutation of ``coll`` ."
+  "Return a random permutation of ``coll``\\."
   [coll]
   (vec (random/sample (python/list coll) (count coll))))
 
@@ -3313,7 +3313,7 @@
 ;;;;;;;;;;;;;;;;;;;;
 
 (defn gensym
-  "Generate a unique symbol name of the form ``prefix_#`` . If no ``prefix`` is given,
+  "Generate a unique symbol name of the form ``prefix_#``\\. If no ``prefix`` is given,
   then ``v_`` will be used."
   ([]
    (gensym "v_"))
@@ -3323,7 +3323,7 @@
 (def ^:dynamic *assert* true)
 
 (defmacro assert
-  "Evaluate ``expr`` and if it returns logical false, throw an ``AssertionError`` .
+  "Evaluate ``expr`` and if it returns logical false, throw an ``AssertionError``\\.
 
   This macro does not emit an assertion if the dynamic Var :lpy:var:`*assert*` is set
   to a logical false value."
@@ -3335,12 +3335,12 @@
         (throw (python/AssertionError ~message))))))
 
 (defmacro apply-method
-  "Apply arguments to a method call. Equivalent to ``(apply (.-method o) args)`` ."
+  "Apply arguments to a method call. Equivalent to ``(apply (.-method o) args)``\\."
   [o method & args]
   `(apply (. ~o ~(symbol (str "-" method))) ~@args))
 
 (defmacro comment
-  "Ignore all the forms passed, returning ``nil`` ."
+  "Ignore all the forms passed, returning ``nil``\\."
   [& ^:no-warn-when-unused forms]
   nil)
 
@@ -3571,7 +3571,7 @@
 
 (defmacro doseq
   "Repeatedly run the body (likely for side effects) with bindings as described in the
-  :lpy:fn:`for` macro. Returns ``nil`` ."
+  :lpy:fn:`for` macro. Returns ``nil``\\."
   [bindings & body]
   `(dorun (for ~bindings ~@body)))
 
@@ -3605,7 +3605,7 @@
      (. t# ~name ~@args)))
 
 (defmacro new
-  "Create a new instance of ``class`` with ``args`` .
+  "Create a new instance of ``class`` with ``args``\\.
 
   New objects may be created as any of::
 
@@ -3715,13 +3715,13 @@
            (pop-thread-bindings))))))
 
 (defn with-bindings*
-  "Execute the function ``f`` with the given arguments ``args`` (as by ``apply`` ) with
+  "Execute the function ``f`` with the given arguments ``args`` (as by ``apply``\\) with
   the thread-local Var bindings specified in the Var/value map ``bindings-map``
   installed.
 
   The thread-local Var bindings will be popped after executing ``f`` in all cases.
 
-  Returns the return value of ``f`` ."
+  Returns the return value of ``f``\\."
   [bindings-map f & args]
   (push-thread-bindings bindings-map)
   (try
@@ -3735,7 +3735,7 @@
 
   The thread-local Var bindings will be popped after executing the body in all cases.
 
-  Returns the value of ``body`` ."
+  Returns the value of ``body``\\."
   [bindings-map & body]
   `(with-bindings* ~bindings-map (fn [] ~@body)))
 
@@ -3745,7 +3745,7 @@
 
   ``f`` will be called with the same arguments as the returned function.
 
-  Returns the return value of ``f`` .
+  Returns the return value of ``f``\\.
 
   This is primarily useful for creating functions which might need to run on a different
   thread, but which should have the same Var bindings in place as when it was defined."
@@ -3840,7 +3840,7 @@
   (py-time/perf-counter))
 
 (defmacro time
-  "Time the execution of ``expr`` . Return the result of ``expr`` and print the time
+  "Time the execution of ``expr``\\. Return the result of ``expr`` and print the time
   execution took in milliseconds."
   [expr]
   `(let [start (perf-counter)]
@@ -3854,7 +3854,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;
 
 (defmacro ->
-  "Thread ``x`` through the ``forms`` . Places x in the second position of the first
+  "Thread ``x`` through the ``forms``\\. Places x in the second position of the first
   form, and then the resulting expression into the second position of the second form,
   etc. Forms which are not lists will be made into lists."
   [x & forms]
@@ -3868,7 +3868,7 @@
     x))
 
 (defmacro ->>
-  "Thread ``x`` through the ``forms`` . Places ``x`` in the last position of the first
+  "Thread ``x`` through the ``forms``\\. Places ``x`` in the last position of the first
   form, and then the resulting expression into the last position of the second form,
   etc. Forms which are not lists will be made into lists."
   [x & forms]
@@ -3903,7 +3903,7 @@
 
 (defmacro cond->
   "Takes a test and form pair, threading ``x`` (as by :lpy:fn:`->``) through each form
-  for which the corresponding test evaluates as ``true`` . ``cond->`` does not short
+  for which the corresponding test evaluates as ``true``\\. ``cond->`` does not short
   circuit evaluation in any case."
   [x & clauses]
   (if (seq clauses)
@@ -3916,7 +3916,7 @@
 
 (defmacro cond->>
   "Takes a test and form pair, threading ``x`` (as by :lpy:fn:`->>`) through each form
-  for which the corresponding test evaluates as ``true`` . ``cond->>`` does not short
+  for which the corresponding test evaluates as ``true``\\. ``cond->>`` does not short
   circuit evaluation in any case."
   [x & clauses]
   (if (seq clauses)
@@ -3928,7 +3928,7 @@
     x))
 
 (defmacro as->
-  "Bind ``x`` to name and thread it through the ``forms`` , replacing instances of
+  "Bind ``x`` to name and thread it through the ``forms``\\, replacing instances of
   ``name`` in forms with the threaded expression."
   [x name & forms]
   (if (seq forms)
@@ -3940,8 +3940,8 @@
     x))
 
 (defmacro doto
-  "Evaluate ``x`` and thread it as the first argument in all of the given ``forms`` .
-  Returns ``x`` .
+  "Evaluate ``x`` and thread it as the first argument in all of the given ``forms``\\.
+  Returns ``x``\\.
 
   Useful for creating a Python class and calling methods on it for initialization
   before returning the class."
@@ -3988,7 +3988,7 @@
 
 (defn file-seq
   "Return a seq of ``pathlib.Path`` objects for all files and subdirectories of
-  ``dir`` ."
+  ``dir``\\."
   [dir]
   (-> (pathlib/Path dir)
       (.resolve)
@@ -4023,7 +4023,7 @@
 
 (defmacro with-in-str
   "Evaluate body with :lpy:var:`*in*` bound to a ``io.StringIO`` instance containing
-  the string ``s`` ."
+  the string ``s``\\."
   [s & body]
   `(binding [*in* (io/StringIO ~s)]
      ~@body))
@@ -4198,13 +4198,13 @@
                                            true)))))
 
 (defn read
-  "Read the next form from the ``stream`` . If no stream is specified, uses the value
+  "Read the next form from the ``stream``\\. If no stream is specified, uses the value
   currently bound to :lpy:var:`*in*`.
 
   Callers may bind a map of readers to :lpy:var:`*data-readers*` to customize the data
   readers used reading this string.
 
-  The stream must satisfy the interface of ``io.TextIOBase`` , but does not require any
+  The stream must satisfy the interface of ``io.TextIOBase``\\, but does not require any
   pushback capabilities. The default ``basilisp.lang.reader.StreamReader`` can wrap any
   object implementing ``TextIOBase`` and provide pushback capabilities."
   ([]
@@ -4251,7 +4251,7 @@
   (which is generally preferred, but not right in every scenario). ``load-reader`` will
   load the contents of the named file directly into the current namespace.
 
-  Note that unlike ``require`` , files loaded by ``load-reader`` will not be cached and
+  Note that unlike ``require``\\, files loaded by ``load-reader`` will not be cached and
   will thus incur compilation time on subsequent loads."
   [reader]
   (let [src (some-> (python/getattr reader "name" nil)
@@ -4274,7 +4274,7 @@
   (which is generally preferred, but not right in every scenario). ``load-file`` will
   load the contents of the named file directly into the current namespace.
 
-  Note that unlike ``require`` , files loaded by ``load-file`` will not be cached and
+  Note that unlike ``require``\\, files loaded by ``load-file`` will not be cached and
   will thus incur compilation time on subsequent loads."
   [path]
   (with-open [f (python/open path ** :mode "r")]
@@ -4290,7 +4290,7 @@
   (which is generally preferred, but not right in every scenario). ``load`` will load
   the contents of the named file directly into the current namespace.
 
-  Note that unlike ``require`` , files loaded by ``load`` will not be cached and will
+  Note that unlike ``require``\\, files loaded by ``load`` will not be cached and will
   thus incur compilation time on subsequent loads.
 
   This function is provided for compatibility with Clojure. Users should prefer
@@ -4301,7 +4301,7 @@
     (load-file (str path ".lpy"))))
 
 (defn load-string
-  "Read and evaluate the set of forms contained in the string ``s`` ."
+  "Read and evaluate the set of forms contained in the string ``s``\\."
   [s]
   (load-reader (io/StringIO s)))
 
@@ -4311,7 +4311,7 @@
 
 (defn alter-meta!
   "Atomically swap the metadata on reference ``o`` to the result of ``(apply f m args)``
-  where ``m`` is the current metadata of ``o`` . ``f`` should be free of side effects.
+  where ``m`` is the current metadata of ``o``\\. ``f`` should be free of side effects.
   References include atoms, namespaces, and vars."
   [o f & args]
   (apply-method o alter-meta f args))
@@ -4450,7 +4450,7 @@
 
 (defn intern
   "Finds or creates a Var in ``ns`` (which may be either a namespace or symbol), setting
-  the root binding to ``val`` , if provided. The namespace must exist. Return the Var."
+  the root binding to ``val``\\, if provided. The namespace must exist. Return the Var."
   ([ns name]
    (let [ns (the-ns ns)
          v  (basilisp.lang.runtime/Var ns name)]
@@ -4500,12 +4500,12 @@
   (.-interns (the-ns ns)))
 
 (defn ns-unalias
-  "Remove the alias for the symbol ``sym`` from ``ns`` . Return ``nil`` ."
+  "Remove the alias for the symbol ``sym`` from ``ns``\\. Return ``nil``\\."
   [ns sym]
   (.remove-alias (the-ns ns) sym))
 
 (defn ns-unmap
-  "Remove the mapping for the symbol ``sym`` from ``ns`` . Return ``nil`` ."
+  "Remove the mapping for the symbol ``sym`` from ``ns``\\. Return ``nil``\\."
   [ns sym]
   (.unmap (the-ns ns) sym))
 
@@ -4553,7 +4553,7 @@
   "Import Python modules by name.
 
   Modules may be specified either as symbols naming the full module path or as a
-  vector taking the form ``[full.module.path :as alias]`` .
+  vector taking the form ``[full.module.path :as alias]``\\.
 
   Note that unlike in Python, ``import`` ed Python module names are always hoisted to
   the current Namespace, so imported names will be available within a Namespace even
@@ -4591,7 +4591,7 @@
                             {:value req}))))
 
 (defn ^:private require-lib
-  "Require the library described by ``libspec`` into the Namespace ``requiring-ns`` ."
+  "Require the library described by ``libspec`` into the Namespace ``requiring-ns``\\."
   [requiring-ns libspec]
   (let [required-ns-sym  (:namespace libspec)]
     ;; In order to enable direct linking of Vars as Python variables, required
@@ -4609,7 +4609,7 @@
 
 (defn ^:private refer-filtered-interns
   "Return a map of symbols to interned Vars in the Namespace ``referred-ns`` subject
-  to the filters described in ``libspec`` ."
+  to the filters described in ``libspec``\\."
   [referred-ns libspec]
   (when (= :all (:refer libspec))
     (throw
@@ -4630,10 +4630,10 @@
                             {}))))
 
 (defn ^:private refer-lib
-  "Refer Vars into ``requiring-ns`` as described by ``libspec`` .
+  "Refer Vars into ``requiring-ns`` as described by ``libspec``\\.
 
   This function assumes the referred-to Namespace has already been loaded by
-  ``require-lib`` ."
+  ``require-lib``\\."
   [requiring-ns libspec]
   (let [referred-ns (the-ns (:namespace libspec))]
     (if-not (some #(contains? libspec %) [:refer :only :exclude :rename])
@@ -4681,7 +4681,8 @@
     nil))
 
 (defn refer
-  "Refer Vars from the namespace named by ``ns-sym`` , subject to the filters specified.
+  "Refer Vars from the namespace named by ``ns-sym``\\, subject to the filters
+  specified.
 
   Supported filters:
 
@@ -4807,8 +4808,8 @@
        ~@imports)))
 
 (defn requiring-resolve
-  "Resolve the namespaced symbol ``sym`` as by ``resolve`` . If resolution fails,
-  attempts to require ``sym`` 's namespace (as by ``require`` ) before resolving
+  "Resolve the namespaced symbol ``sym`` as by ``resolve``\\. If resolution fails,
+  attempts to require ``sym`` 's namespace (as by ``require``\\) before resolving
   again."
   [sym]
   (if (qualified-symbol? sym)
@@ -4829,7 +4830,7 @@
   (re/compile s))
 
 (defn re-find
-  "Returns the first match of a string to a pattern using ``re.search`` .
+  "Returns the first match of a string to a pattern using ``re.search``\\.
 
   If the string matches the pattern exactly and there are no match groups, return the
   string. Otherwise, return a vector with the string in the first position and the
@@ -4843,7 +4844,7 @@
           (vec (cons (.group match 0) groups)))))))
 
 (defn re-matches
-  "Returns a match of a string to a pattern using ``re.fullmatch`` .
+  "Returns a match of a string to a pattern using ``re.fullmatch``\\.
 
   If the string matches the pattern exactly and there are no match groups, return the
   string. Otherwise, return a vector with the string in the first position and the
@@ -4866,7 +4867,7 @@
                      (lazy-re-seq (rest iter))))))))
 
 (defn re-seq
-  "Returns a lazy sequence of matches of a string to a pattern using ``re.finditer`` .
+  "Returns a lazy sequence of matches of a string to a pattern using ``re.finditer``\\.
 
   If the string matches the pattern exactly and there are no match groups, return the
   string. Otherwise, return a vector with the string in the first position and the
@@ -4893,7 +4894,7 @@
 
 (defn ancestors
   "Return the set of all ancestors (parents and grandparents and so forth) of ``tag``
-  in hierarchy ``h`` .
+  in hierarchy ``h``\\.
 
   ``tag`` may be either a valid Python type or a namespace-qualified keyword or symbol.
   If ``tag`` is a Python type, ancestors include any relationships established via
@@ -4914,7 +4915,7 @@
 
 (defn descendants
   "Return the set of all descendants (children and grandchildren and so forth) of
-  ``tag`` in hierarchy ``h`` .
+  ``tag`` in hierarchy ``h``\\.
 
   ``tag`` must be a namespace-qualified keyword or symbol. Python types are not
   supported for ``descendants`` checks.
@@ -4931,7 +4932,7 @@
         hierarchy-ancestors)))))
 
 (defn parents
-  "Return the set of all direct parents of ``tag`` in hierarchy ``h`` .
+  "Return the set of all direct parents of ``tag`` in hierarchy ``h``\\.
 
   ``tag`` may be either a valid Python type or a namespace-qualified keyword or symbol.
   If ``tag`` is a Python type, ancestors include any relationships established via
@@ -4952,7 +4953,7 @@
 
 (defn isa?
   "Return true if ``tag`` is equal to ``parent`` or is a descendant of ``parent`` in
-  hierarchy ``h`` .
+  hierarchy ``h``\\.
 
   Both ``tag`` and ``parent`` may be a valid Python type or a namespace-qualified
   keyword or symbol or a vector of namespace-qualified keywords or symbols. If either
@@ -4981,7 +4982,7 @@
             (python/issubclass tag parent)))))
 
 (defn derive
-  "Derive a parent/child relationship between ``tag`` and ``parent`` .
+  "Derive a parent/child relationship between ``tag`` and ``parent``\\.
 
   ``tag`` may be either a valid Python type or a namespace-qualified keyword or symbol.
 
@@ -5080,7 +5081,7 @@
         the selected dispatch value; the default value is ``:default``
     :keyword ``:hierarchy``: the default hierarchy to use for resolving ``isa?``
         relationships; the default value is the global hierarchy; hierarchies should be
-        passed as reference types (e.g. as a ``Var`` )
+        passed as reference types (e.g. as a ``Var``\\)
 
   Multimethods are useful for defining polymorphic functions based on characteristics
   of their arguments. This behavior is often called multiple dispatch. Unlike typical
@@ -5109,7 +5110,7 @@
                                                      ~(:hierarchy opts)))))
 
 (defmacro defmethod
-  "Add a new method to the multimethod ``multifn`` which responds to ``dispatch-val`` .
+  "Add a new method to the multimethod ``multifn`` which responds to ``dispatch-val``\\.
 
   ``fn-tail`` is the trailing part of a function definition after ``fn`` including any
   relevant argument vectors.
@@ -5128,7 +5129,7 @@
 
 (defn get-method
   "Return the method of multimethod ``multifn`` which would respond to ``dispatch-val``
-  or ``nil`` if no method exists for ``dispatch-val`` ."
+  or ``nil`` if no method exists for ``dispatch-val``\\."
   [multifn dispatch-val]
   (.get-method multifn dispatch-val))
 
@@ -5149,7 +5150,7 @@
 
 (defn remove-method
   "Remove the method from the multimethod ``multifn`` which responds to
-  ``dispatch-val`` , if it exists.
+  ``dispatch-val``\\, if it exists.
 
   Return the multimethod."
   [multifn dispatch-val]
@@ -5157,7 +5158,7 @@
   multifn)
 
 (defn remove-all-methods
-  "Remove all methods for the multimethod ``multifn`` .
+  "Remove all methods for the multimethod ``multifn``\\.
 
   Return the multimethod."
   [multifn]
@@ -5170,7 +5171,7 @@
 
 (defn replace
   "Replace elements of the vector/seq ``coll`` with matching elements from the
-  associative collection ``smap`` , if they exist.
+  associative collection ``smap``\\, if they exist.
 
   Return a transducer if no collection is provided."
   ([smap]
@@ -5200,7 +5201,7 @@
           coll))))
 
 (defn select-keys
-  "Return a map with only the keys of ``m`` which are in ``ks`` ."
+  "Return a map with only the keys of ``m`` which are in ``ks``\\."
   [m ks]
   (persistent!
    (reduce (fn [new-map k]
@@ -5561,8 +5562,8 @@
 (defn py->lisp
   "Recursively convert Python data structures into Basilisp data structures.
 
-  Callers can specify a keyword argument ``:keywordize-keys`` , which defaults to
-  ``true`` . If ```:keywordize-keys is ``true`` , then all string keys in Python
+  Callers can specify a keyword argument ``:keywordize-keys``\\, which defaults to
+  ``true``\\. If ```:keywordize-keys is ``true``\\, then all string keys in Python
   ``dicts`` will be converted into keywords in the final return value."
   ([o]
    (basilisp.lang.runtime/to-lisp o))
@@ -5688,7 +5689,7 @@
   "Define a new Python interface (abstract base clase) with the given name and method
   signatures.
 
-  Method signatures are in the form ``(method-name [arg1 arg2 ...])`` . ``self`` or
+  Method signatures are in the form ``(method-name [arg1 arg2 ...])``\\. ``self`` or
   ``this`` arguments must be omitted from all interfaces.
 
   Interface objects cannot be directly instantiated. Instead, you must create a concrete
@@ -5837,16 +5838,16 @@
   permitted, so long as that that type is not also a Protocol. If ``target-type`` is an
   interface, objects of types implementing that interface will be extended by the given
   implementation unless a more concrete implementation is available (by the Python
-  method resolution order of the object's type). If ``target-type` is ``nil`` , it will
-  be interpreted as ``(python/type nil)`` .
+  method resolution order of the object's type). If ``target-type` is ``nil``\\, it will
+  be interpreted as ``(python/type nil)``\\.
 
   ``proto+methods`` are interleaved Protocol names and maps of Protocol method
-  implementations intended for ``target-type`` . The keys of each map are keywords
+  implementations intended for ``target-type``\\. The keys of each map are keywords
   corresponding to the names of the Protocol methods (as defined in the
   :lpy:fn:`defprotocol`). Each value should be either an existing function (referenced
   by its Var or name binding) or a new function definition.
 
-  ``extend`` may be called multiple times for a single ``target-type`` , so not all
+  ``extend`` may be called multiple times for a single ``target-type``\\, so not all
   implementations need to be known a priori. Successive calls to ``extend`` on
   ``target-type`` with the same Protocol implementations will overwrite previous
   implementations.
@@ -5950,8 +5951,8 @@
 
 (defn ^:private extend-map
   "Convert a vector of method definitions (as expected by ``extend-protocol`` and
-  ``extend-type`` ) into a map of method definitions which can be passed to
-  ``extend`` ."
+  ``extend-type``\\) into a map of method definitions which can be passed to
+  ``extend``\\."
   [methods]
   (->> (group-by first methods)
        (reduce (fn [m [method-name arities]]
@@ -6041,7 +6042,7 @@
                (sym-and-method-groups specs))))
 
 (defn extenders
-  "Return a collection of types explicitly extending protocol ``proto`` .
+  "Return a collection of types explicitly extending protocol ``proto``\\.
 
   The returned collection will not include types which extend proto via inheritance
   (as by :lpy:fn:`deftype` and :lpy:fn`defrecord`). Only types extending proto via
@@ -6050,13 +6051,13 @@
   (apply list impls))
 
 (defn extends?
-  "Return ``true`` ``if`` type extends protocol ``proto`` ."
+  "Return ``true`` ``if`` type extends protocol ``proto``\\."
   [{:keys [interface impls] :as proto} type]
   (or (python/issubclass type interface)
       (contains? impls type)))
 
 (defn satisfies?
-  "Return true if ``x`` satisfies protocol ``proto`` ."
+  "Return true if ``x`` satisfies protocol ``proto``\\."
   [{:keys [interface impls] :as proto} x]
   (or (instance? interface x)
       (python/isinstance x (python/tuple impls))))
@@ -6091,7 +6092,7 @@
   Mutable fields may be set within method bodies using the ``set!`` special form. It is
   not advised to use mutable fields unless you are sure you know what you are doing. As
   a consequence of Python's lax policy towards immutability, types with even one
-  mutable field may be mutated by outside callers using ``set!`` , so bear that in mind
+  mutable field may be mutated by outside callers using ``set!``\\, so bear that in mind
   when choosing mutability.
 
   Interface or protocol implementations are declared as the name of the interface or
@@ -6117,10 +6118,10 @@
   provided as a means to interoperate with Python code and their use is discouraged in
   pure Basilisp code.
 
-  Type objects are created with sensible ``object`` defaults as by ``attrs`` . New
+  Type objects are created with sensible ``object`` defaults as by ``attrs``\\. New
   types may override ``object`` defaults. An ``__init__`` function is automatically
   created which takes positional arguments matching the  order of definition in
-  ``fields``. Additionally, given a name ``NewType`` , a factory function will be
+  ``fields``. Additionally, given a name ``NewType``\\, a factory function will be
   created ``->NewType`` which can be used to generate new instances of the type.
 
   Methods must supply a ``this`` or ``self`` parameter. ``recur`` special forms used in
@@ -6147,7 +6148,7 @@
 
   Unlike types created via :lpy:fn:`deftype`, ``reify`` returns an object which
   implements the named interfaces using the implementations provided. You may not
-  provide fields as such to ``reify`` , though ``reify`` closes over any local names
+  provide fields as such to ``reify``\\, though ``reify`` closes over any local names
   defined in the same lexical context. These fields may serve as private fields of the
   created object.
 
@@ -6175,7 +6176,7 @@
   declare ``reify`` members as class or static members will result in a compile time
   error.
 
-  Type objects are created with sensible ``object`` defaults as by ``attrs`` . New
+  Type objects are created with sensible ``object`` defaults as by ``attrs``\\. New
   types may override ``object`` defaults.
 
   Reified objects always implement ``basilisp.lang.interfaces/IWithMeta`` and transfer
@@ -6249,7 +6250,7 @@
 (defmacro defrecord
   "Define a new Basilisp record.
 
-  The new record will have fields matching the names in ``fields`` . Fields may be
+  The new record will have fields matching the names in ``fields``\\. Fields may be
   referred to unqualified in the bodies of implemented methods.
 
   Interface or protocol implementations are declared as the name of the interface or
@@ -6264,10 +6265,10 @@
     (method-name [arg1] & body)
     (method-name [arg1 arg2 ...] & body)
 
-  Records objects are created with sensible ``object`` defaults as by ``attrs`` . New
+  Records objects are created with sensible ``object`` defaults as by ``attrs``\\. New
   records may override ``object`` defaults. An ``__init__`` function is automatically
   created which takes positional arguments matching the order of definition in
-  ``fields``. Additionally, given a name ``NewRecord`` , a factory function will be
+  ``fields``. Additionally, given a name ``NewRecord``\\, a factory function will be
   created ``->NewRecord`` which can be used to generate new instances of the record.
 
   Methods must supply a ``this`` or ``self`` parameter. ``recur`` special forms used
@@ -6483,10 +6484,10 @@
   into a string.
 
   Options may be provided as key value pairs and will be passed directly to
-  ``basilisp.io/reader`` . Supported reader options depend on which type of reader is
-  selected for ``f`` . Most readers support the ``:encoding`` option.
+  ``basilisp.io/reader``\\. Supported reader options depend on which type of reader is
+  selected for ``f``\\. Most readers support the ``:encoding`` option.
 
-  If ``f`` is a string, it first is resolved as a URL (via ``urllib.parse.urlparse`` ).
+  If ``f`` is a string, it first is resolved as a URL (via ``urllib.parse.urlparse``\\).
   If the URL is invalid or refers to a filesystem location (via ``file://`` scheme),
   then it will be resolved as a local filesystem path.
 
@@ -6500,16 +6501,16 @@
   ``f`` before closing the writer.
 
   Options may be provided as key value pairs and will be passed directly to
-  ``basilisp.io/writer`` . Supported writer options depend on which type of writer is
-  selected for ``f`` . Most writers support the ``:encoding`` option.
+  ``basilisp.io/writer``\\. Supported writer options depend on which type of writer is
+  selected for ``f``\\. Most writers support the ``:encoding`` option.
 
-  If ``f`` is a string, it first is resolved as a URL (via ``urllib.parse.urlparse`` ).
+  If ``f`` is a string, it first is resolved as a URL (via ``urllib.parse.urlparse``\\).
   If the URL is invalid or refers to a filesystem location (via ``file://`` scheme),
   then it will be resolved as a local filesystem path.
 
   ``spit`` does not support writing to non-file URLs.
 
-  Return ``nil`` ."
+  Return ``nil``\\."
   [f content & opts]
   (with-open [writer (apply basilisp.io/writer f opts)]
     (.write writer content)
@@ -6553,7 +6554,7 @@
 
 (defn eduction
   "Return an iterable which is the application of the transducers ``xform*`` to the
-  input collection ``coll`` . Transducers will be applied to :lpy:fn:`comp` in the
+  input collection ``coll``\\. Transducers will be applied to :lpy:fn:`comp` in the
   given order.
 
   Unlike with :lpy:fn:`sequence`, ``eduction`` returns an iterable type which does not
@@ -6570,7 +6571,7 @@
     (Eduction xform coll)))
 
 (defn completing
-  "Given a reducing function of two arguments, ``f`` , return a function with both 0-,
+  "Given a reducing function of two arguments, ``f``\\, return a function with both 0-,
   1-, and 2-arities appropriate for :lpy:fn:`transduce`. The 0-arity will return a call
   to ``f`` with no arguments. The 1-arity will call ``cf`` on its argument. The 2-arity
   will call ``f`` directly with both of its arguments.
@@ -6607,11 +6608,11 @@
           (rf result input)))))))
 
 (defn sequence
-  "Coerces ``coll`` to a possibly empty sequence. If ``coll`` is ``nil`` , return
-  ``()`` .
+  "Coerces ``coll`` to a possibly empty sequence. If ``coll`` is ``nil``\\, return
+  ``()``\\.
 
   When a transducer ``xform`` is supplied, returns a lazy sequence of the transform
-  to elements of ``coll`` . If multiple collections are provided, ``xform`` must
+  to elements of ``coll``\\. If multiple collections are provided, ``xform`` must
   support as many arguments as there are collections.
 
   If multiple collections are provided, the resulting sequence will terminate when
@@ -6656,9 +6657,9 @@
      (apply create-sequence coll colls))))
 
 (defn transduce
-  "Reduce ``coll`` by the transducing function ``xf`` (created as ``(xform f)`` ).
+  "Reduce ``coll`` by the transducing function ``xf`` (created as ``(xform f)``\\).
 
-  If ``coll`` is empty, return ``init`` without calling ``f`` . If ``init`` is not
+  If ``coll`` is empty, return ``init`` without calling ``f``\\. If ``init`` is not
   given, ``f`` will be called with no arguments to produce it.
 
   The transducing process will eagerly consume the input collection, calling ``xf`` on
@@ -6737,7 +6738,7 @@
      (.start))))
 
 (defn add-tap
-  "Add ``tf`` , a function of one argument, to the tap set for the topic ``topic`` . If
+  "Add ``tf``\\, a function of one argument, to the tap set for the topic ``topic``\\. If
   no topic is given, the default topic is used.
 
   Tap functions are called only with values from calls to :lpy:fn:`tap>` with the topic
