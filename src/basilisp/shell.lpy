@@ -42,20 +42,20 @@
   Following the command, 0 or more keyword/value pairs may be specified to
   control input and output options to the subprocess. The options are:
 
-   :keyword `:in`: a string, byte string, byte array, file descriptor, or file object
-   :keyword `:in-enc`: a string value matching one of Python's supported encodings;
+   :keyword ``:in``: a string, byte string, byte array, file descriptor, or file object
+   :keyword ``:in-enc``: a string value matching one of Python's supported encodings;
        if the value of ``:in`` is a string, decode that string to bytes using the
        encoding named here; if none is specified, ``utf-8`` will be used; if the value
        of ``:in`` is not a string, this value will be ignored
-   :keyword `:out-enc`: a string value matching on of Python's supported encodings or
+   :keyword ``:out-enc``: a string value matching on of Python's supported encodings or
        the special value ``:bytes``; if specified as a string, decode the standard out
        and standard error streams returned by the subprocess using this encoding; if
        specified as ``:bytes``, return the byte string from the output without
        encoding; if none is specified, ``utf-8`` will be used
-   :keyword `:env`: a mapping of string values to string values which are used as the
+   :keyword ``:env``: a mapping of string values to string values which are used as the
        subprocess's environment; if none is specified and :lpy:var:`*sh-env` is not
        set, the environment of the current process will be used
-   :keyword `:dir`: a string indicating the working directory which is to be used for
+   :keyword ``:dir``: a string indicating the working directory which is to be used for
        the subprocess; if none is specified and :lpy:var:`*sh-dir*` is not set, the
        working directory of the current process will be used"
   [& args]

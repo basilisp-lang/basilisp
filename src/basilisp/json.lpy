@@ -25,7 +25,7 @@
 
      ``opts`` is a map with the following options:
 
-       :keyword `:key-fn`: a function which will be called for each key in a map;
+       :keyword ``:key-fn``: a function which will be called for each key in a map;
            default is :lpy:fn:`basilisp.core/name`"))
 
 (extend-protocol JSONEncodeable
@@ -123,17 +123,17 @@
 
   The encoder supports a few options which may be specified as key/value pairs:
 
-    :keyword `:key-fn`: a function which will be called for each key in a map;
+    :keyword ``:key-fn``: a function which will be called for each key in a map;
         default is :lpy:fn:`basilisp.core/name`
-    :keyword `:escape-non-ascii`: if ``true``, escape non-ASCII characters in the
+    :keyword ``:escape-non-ascii``: if ``true``, escape non-ASCII characters in the
         output; default is ``true``
-    :keyword `:indent`: if ``nil``, use a compact representation; if a positive
+    :keyword ``:indent``: if ``nil``, use a compact representation; if a positive
         integer, each indent level will be that many spaces; if zero, a negative
         integer, or the empty string, newlines will be inserted without indenting;
         if a string, that string value will be used as the indent
-    :keyword `:item-sep`: a string separator between object and array items;
+    :keyword ``:item-sep``: a string separator between object and array items;
         default is ', '
-    :keyword `:key-sep`: a string separator between object key/value pairs;
+    :keyword ``:key-sep``: a string separator between object key/value pairs;
         default is ': '"
   [o writer & {:as opts}]
   (let [{:keys [escape-non-ascii indent separator] :as opts} (write-opts opts)]
@@ -181,7 +181,7 @@
 
      ``opts`` is a map with the following options:
 
-       :keyword `:key-fn`: a function which will be called for each key in a map;
+       :keyword ``:key-fn``: a function which will be called for each key in a map;
            default is :lpy:fn:`basilisp.core/identity`"))
 
 (extend-protocol JSONDecodeable
@@ -226,9 +226,9 @@
 
   The decoder supports a few options which may be specified as key/value pairs:
 
-   :keyword `:key-fn`: a function which will be called for each key in a map;
+   :keyword ``:key-fn``: a function which will be called for each key in a map;
        default is :lpy:fn:`basilisp.core/identity`
-   :keyword `:strict?`: boolean value; if ``true``, control characters (characters in
+   :keyword ``:strict?``: boolean value; if ``true``, control characters (characters in
        ASCII 0-31 range) will be prohibited inside JSON strings; default is ``true``"
   [reader & {:as opts}]
   (let [{:keys [strict?] :as opts} (read-opts opts)]
