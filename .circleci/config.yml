@@ -1,7 +1,7 @@
 version: 2.1
 
 commands:
-  setup_tests:
+  setup_cpython_tests:
     description: "Check out code, install Tox, and prepare the test environment."
     parameters:
       python_version:
@@ -13,18 +13,19 @@ commands:
     steps:
       - checkout
       - run: sudo chown -R circleci:circleci /usr/local/bin
-      - run: sudo chown -R circleci:circleci /usr/local/lib/python<< parameters.python_version >>/site-packages
+      # Fetch the site-packages location with the following command:
+      #   docker run -it cimg/python:3.6 python -m site --user-site
+      - run: sudo chown -R circleci:circleci /home/circleci/.local/lib/python<< parameters.python_version >>/site-packages
       - restore_cache:
           key: << parameters.cache_key_prefix >>2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
       - run:
-          name: Install Poetry and Tox
+          name: Install Tox
           shell: /bin/bash -leo pipefail
           command: |
             pip install -U pip
             pip install tox
-            curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
 
-  teardown_tests:
+  teardown_cpython_tests:
     description: "Store the cache for the current run."
     parameters:
       python_version:
@@ -39,7 +40,7 @@ commands:
           paths:
             - "/home/circleci/project/.tox"
             - "/usr/local/bin"
-            - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
+            - "/home/circleci/.local/lib/python<< parameters.python_version >>/site-packages"
 
   run_cpython_tests:
     description: "Install Tox and run tests."
@@ -55,7 +56,7 @@ commands:
         type: integer
         default: 2
     steps:
-      - setup_tests:
+      - setup_cpython_tests:
           python_version: << parameters.python_version >>
           cache_key_prefix: py<< parameters.python_version >>-deps
       - run:
@@ -68,7 +69,7 @@ commands:
             tox -p << parameters.tox_parallel >> -e << parameters.tox_envs >>
             mkdir coverage
             mv .coverage.* "coverage/.coverage.py<< parameters.python_version >>"
-      - teardown_tests:
+      - teardown_cpython_tests:
           python_version: << parameters.python_version >>
           cache_key_prefix: py<< parameters.python_version >>-deps
       - store_artifacts:
@@ -156,7 +157,7 @@ jobs:
     docker:
       - image: circleci/python:3.10-buster
     steps:
-      - setup_tests:
+      - setup_cpython_tests:
           python_version: "3.10"
           cache_key_prefix: report-coverage-deps
       - run:
@@ -181,7 +182,7 @@ jobs:
               fi
             done
             tox -v -e coverage
-      - teardown_tests:
+      - teardown_cpython_tests:
           python_version: "3.8"
           cache_key_prefix: report-coverage-deps
 
