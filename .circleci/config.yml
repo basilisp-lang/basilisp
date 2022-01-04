@@ -4,18 +4,12 @@ commands:
   setup_cpython_tests:
     description: "Check out code, install Tox, and prepare the test environment."
     parameters:
-      python_version:
-        description: "Required. Python version as `major.minor`."
-        type: string
       cache_key_prefix:
         description: "Required. Prefix used for the CircleCI cache key."
         type: string
     steps:
       - checkout
       - run: sudo chown -R circleci:circleci /usr/local/bin
-      # Fetch the site-packages location with the following command:
-      #   docker run -it cimg/python:3.6 python -m site --user-site
-      # - run: sudo chown -R circleci:circleci /home/circleci/.local/lib/python<< parameters.python_version >>/site-packages
       - restore_cache:
           key: << parameters.cache_key_prefix >>2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
       - run:
@@ -28,9 +22,6 @@ commands:
   teardown_cpython_tests:
     description: "Store the cache for the current run."
     parameters:
-      python_version:
-        description: "Required. Python version as `major.minor`."
-        type: string
       cache_key_prefix:
         description: "Required. Prefix used for the CircleCI cache key."
         type: string
@@ -40,7 +31,6 @@ commands:
           paths:
             - "/home/circleci/project/.tox"
             - "/usr/local/bin"
-            - "/home/circleci/.local/lib/python<< parameters.python_version >>/site-packages"
 
   run_cpython_tests:
     description: "Install Tox and run tests."
@@ -57,7 +47,6 @@ commands:
         default: 2
     steps:
       - setup_cpython_tests:
-          python_version: << parameters.python_version >>
           cache_key_prefix: py<< parameters.python_version >>-deps
       - run:
           name: Run Tests
@@ -70,7 +59,6 @@ commands:
             mkdir coverage
             mv .coverage.* "coverage/.coverage.py<< parameters.python_version >>"
       - teardown_cpython_tests:
-          python_version: << parameters.python_version >>
           cache_key_prefix: py<< parameters.python_version >>-deps
       - store_artifacts:
           path: coverage
