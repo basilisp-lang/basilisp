@@ -114,7 +114,7 @@ commands:
 jobs:
   test-cpython-36:
     docker:
-      - image: circleci/python:3.6-buster
+      - image: cimg/python:3.6
     steps:
       - run_cpython_tests:
           python_version: "3.6"
@@ -122,7 +122,7 @@ jobs:
 
   test-cpython-37:
     docker:
-      - image: circleci/python:3.7-buster
+      - image: cimg/python:3.7
     steps:
       - run_cpython_tests:
           python_version: "3.7"
@@ -130,7 +130,7 @@ jobs:
 
   test-cpython-38:
     docker:
-      - image: circleci/python:3.8-buster
+      - image: cimg/python:3.8
     steps:
       - run_cpython_tests:
           python_version: "3.8"
@@ -138,18 +138,26 @@ jobs:
 
   test-cpython-39:
     docker:
-      - image: circleci/python:3.9-buster
+      - image: cimg/python:3.9
     steps:
       - run_cpython_tests:
           python_version: "3.9"
           tox_envs: py39,py39-mypy,py39-lint,format,safety
 
+  test-cpython-310:
+    docker:
+      - image: cimg/python:3.10
+    steps:
+      - run_cpython_tests:
+          python_version: "3.10"
+          tox_envs: py310,py310-mypy,py310-lint,format,safety
+
   report-coverage:
     docker:
-      - image: circleci/python:3.9-buster
+      - image: circleci/python:3.10-buster
     steps:
       - setup_tests:
-          python_version: "3.9"
+          python_version: "3.10"
           cache_key_prefix: report-coverage-deps
       - run:
           name: Report Coverage
@@ -193,6 +201,14 @@ jobs:
       - run_pypy_tests:
           python_version: "3.7"
 
+  test-pypy-38:
+    docker:
+      - image: pypy:3.8-slim-buster
+    parallelism: 8
+    steps:
+      - run_pypy_tests:
+          python_version: "3.8"
+
 workflows:
   version: 2
   test:
@@ -201,11 +217,14 @@ workflows:
       - test-cpython-37
       - test-cpython-38
       - test-cpython-39
+      - test-cpython-310
       - test-pypy-36
       - test-pypy-37
+      - test-pypy-38
       - report-coverage:
           requires:
             - test-cpython-36
             - test-cpython-37
             - test-cpython-38
             - test-cpython-39
+            - test-cpython-310
