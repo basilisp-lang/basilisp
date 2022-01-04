@@ -146,7 +146,6 @@ jobs:
       - image: circleci/python:3.10-buster
     steps:
       - setup_cpython_tests:
-          python_version: "3.10"
           cache_key_prefix: report-coverage-deps
       - run:
           name: Report Coverage
@@ -171,7 +170,6 @@ jobs:
             done
             tox -v -e coverage
       - teardown_cpython_tests:
-          python_version: "3.8"
           cache_key_prefix: report-coverage-deps
 
   test-pypy-36:
