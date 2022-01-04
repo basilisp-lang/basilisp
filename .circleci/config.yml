@@ -15,7 +15,7 @@ commands:
       - run: sudo chown -R circleci:circleci /usr/local/bin
       # Fetch the site-packages location with the following command:
       #   docker run -it cimg/python:3.6 python -m site --user-site
-      - run: sudo chown -R circleci:circleci /home/circleci/.local/lib/python<< parameters.python_version >>/site-packages
+      # - run: sudo chown -R circleci:circleci /home/circleci/.local/lib/python<< parameters.python_version >>/site-packages
       - restore_cache:
           key: << parameters.cache_key_prefix >>2-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
       - run:
