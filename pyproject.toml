@@ -43,7 +43,10 @@ pytest = { version = ">=6.2.4", optional = true }
 pygments = { version = "^2.9.0", optional = true }
 
 [tool.poetry.dev-dependencies]
-black = "*"
+black = [
+    {version = "==20.8b1", python = ">=3.6.0,<3.6.2"},
+    {version = "^21.12b0", python = "^3.6.2"}
+]
 docutils = "==0.15"
 isort = "*"
 pygments = "*"
