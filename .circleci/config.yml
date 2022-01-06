@@ -188,13 +188,16 @@ jobs:
       - run_pypy_tests:
           python_version: "3.7"
 
-  test-pypy-38:
-    docker:
-      - image: pypy:3.8-slim-buster
-    parallelism: 8
-    steps:
-      - run_pypy_tests:
-          python_version: "3.8"
+# This will not work until the following Poetry bug is fixed:
+#   https://github.com/python-poetry/poetry/issues/4655
+#
+#  test-pypy-38:
+#    docker:
+#      - image: pypy:3.8-slim-buster
+#    parallelism: 8
+#    steps:
+#      - run_pypy_tests:
+#          python_version: "3.8"
 
 workflows:
   version: 2
