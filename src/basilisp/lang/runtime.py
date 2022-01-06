@@ -70,7 +70,7 @@ NS_VAR_NAME = "*ns*"
 NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
-SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 6), (3, 7), (3, 8), (3, 9)})
+SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 6), (3, 7), (3, 8), (3, 9), (3, 10)})
 
 # Public basilisp.core symbol names
 COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"

@@ -167,7 +167,7 @@ class StreamReader:
             self._update_loc(c)
 
     @property
-    def name(self) -> Optional[None]:
+    def name(self) -> Optional[str]:
         return getattr(self._stream, "name", None)
 
     @property
@@ -226,14 +226,7 @@ class StreamReader:
 
 
 @functools.singledispatch
-def _py_from_lisp(
-    form: Union[
-        llist.PersistentList,
-        lmap.PersistentMap,
-        lset.PersistentSet,
-        vec.PersistentVector,
-    ]
-) -> ReaderForm:
+def _py_from_lisp(form: object) -> ReaderForm:
     raise SyntaxError(f"Unrecognized Python type: {type(form)}")
 
 
@@ -479,7 +472,7 @@ def _with_loc(f: W) -> W:
     @functools.wraps(f)
     def with_lineno_and_col(ctx, **kwargs):
         line, col = ctx.reader.line, ctx.reader.col
-        v = f(ctx, **kwargs)  # type: ignore[call-arg]
+        v = f(ctx, **kwargs)
         if isinstance(v, IWithMeta):
             new_meta = lmap.map({READER_LINE_KW: line, READER_COL_KW: col})
             old_meta = v.meta

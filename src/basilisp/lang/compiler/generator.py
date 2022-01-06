@@ -1436,10 +1436,10 @@ def _wrap_override_var_indirection(f: PyASTGenerator) -> PyASTGenerator:
     ) -> GeneratedPyAST:
         if isinstance(node, Do) and node.top_level:
             with ctx.with_var_indirection_override():
-                return f(ctx, node, *args, **kwargs)  # type: ignore[call-arg]
+                return f(ctx, node, *args, **kwargs)
         else:
             with ctx.with_var_indirection_override(False):
-                return f(ctx, node, *args, **kwargs)  # type: ignore[call-arg]
+                return f(ctx, node, *args, **kwargs)
 
     return _wrapped_do
 
@@ -3238,7 +3238,7 @@ def _with_meta_to_py_ast(
 
 
 @functools.singledispatch
-def _const_val_to_py_ast(form: LispForm, _: GeneratorContext) -> GeneratedPyAST:
+def _const_val_to_py_ast(form: object, _: GeneratorContext) -> GeneratedPyAST:
     """Generate Python AST nodes for constant Lisp forms.
 
     Nested values in collections for :const nodes are not analyzed, so recursive
@@ -3472,7 +3472,7 @@ def _const_record_to_py_ast(form: IRecord, ctx: GeneratorContext) -> GeneratedPy
         key_nodes = _kw_to_py_ast(k, ctx)
         keys.append(key_nodes.node)
         assert (
-            len(key_nodes.dependencies) == 0  # type: ignore[arg-type]
+            len(key_nodes.dependencies) == 0
         ), "Simple AST generators must emit no dependencies"
 
         val_nodes = _const_val_to_py_ast(v, ctx)
