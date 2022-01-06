@@ -144,7 +144,6 @@ if sys.version_info >= (3, 8):
             kwargs["posonlyargs"] = []
             super().__init__(*args, **kwargs)
 
-
 else:
     Module = _Module
     arguments = _arguments

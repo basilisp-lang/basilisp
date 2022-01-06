@@ -155,7 +155,9 @@ else:
 
         def print(self, msg: str) -> None:
             tokens = list(pygments.lex(msg, lexer=self._pygments_lexer))
-            print_formatted_text(PygmentsTokens(tokens), **self._style_settings)
+            print_formatted_text(
+                PygmentsTokens(tokens), **self._style_settings  # type: ignore[arg-type]
+            )
 
     _DEFAULT_PROMPTER = StyledPromptToolkitPrompter
 
