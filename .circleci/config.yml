@@ -210,7 +210,7 @@ workflows:
       - test-cpython-310
       - test-pypy-36
       - test-pypy-37
-      - test-pypy-38
+      # - test-pypy-38
       - report-coverage:
           requires:
             - test-cpython-36
