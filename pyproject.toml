@@ -99,7 +99,7 @@ exclude = '''
 branch = true
 omit = [
     "*/__version__.py",
-    "src/basilisp/contrib/*"
+    "*/basilisp/contrib/sphinx/*",
 ]
 
 [tool.coverage.paths]
