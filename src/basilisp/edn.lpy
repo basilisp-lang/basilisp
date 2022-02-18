@@ -3,7 +3,7 @@
 
   This namespace includes functions for performing basic EDN encoding from and decoding
   to Basilisp builtin data structures. These decoding functions should be preferred to
-  :lpy:fn:`basilisp.core/read-str` when reading from untrusted input sources. Unlike
+  :lpy:fn:`basilisp.core/read-string` when reading from untrusted input sources. Unlike
   :lpy:fn:`basilisp.core/pr-str`, the EDN encoding functions only emit the subset of
   Basilisp syntax supported by the EDN spec, so they are generally preferred to that
   method."

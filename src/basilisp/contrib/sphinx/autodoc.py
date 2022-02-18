@@ -196,6 +196,12 @@ class NamespaceDocumenter(Documenter):
             return documenters
         return super().sort_members(documenters, order)
 
+    def format_name(self) -> str:
+        return self.object_name
+
+    def format_signature(self, **kwargs: Any) -> str:
+        return ""
+
 
 class VarDocumenter(Documenter):
     domain = "lpy"
@@ -244,7 +250,7 @@ class VarDocumenter(Documenter):
 
         # Protocol methods are passed as `some.ns::Protocol.method` which is annoying
         # but probably the lowest friction way of getting Sphinx to work for us.
-        name = self.objpath[-1]
+        name = self.objpath[-1] if self.fullname != "basilisp.core/.." else ".."
         var = runtime.Var.find(sym.symbol(name, ns=self.modname))
         if var is None:
             logger.warning(f"Could not find Var {sym.symbol(name, ns=self.modname)}")
@@ -293,8 +299,10 @@ class VarFnDocumenter(VarDocumenter):
     def can_document_member(
         cls, member: Any, membername: str, isattr: bool, parent: Any
     ) -> bool:
-        return isinstance(member, runtime.Var) and isinstance(
-            member.value, (types.FunctionType, MultiFunction)
+        return (
+            isinstance(member, runtime.Var)
+            and not member.dynamic
+            and isinstance(member.value, (types.FunctionType, MultiFunction))
         )
 
     def add_directive_header(self, sig: str) -> None:

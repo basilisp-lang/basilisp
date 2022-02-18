@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added support for fixtures in `basilisp.test` (#654)
  * Added support for Python 3.10 (#659)
+ * Added a Sphinx autodoc plugin for generating API documentation for Basilisp namespaces (#658)
 
 ### Changed
  * Set tighter bounds on dependency version ranges (#657)

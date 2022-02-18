@@ -1,12 +1,12 @@
+import logging
 from collections import defaultdict
-from typing import Any, Dict, Iterable, List, NamedTuple, Tuple, cast
+from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple, Union, cast
 
 from docutils import nodes
 from docutils.nodes import Element, Node
 from docutils.parsers.rst import directives  # type: ignore[attr-defined]
 from sphinx import addnodes
 from sphinx.addnodes import desc_signature, pending_xref
-from sphinx.builders import Builder
 from sphinx.domains import Domain, Index, IndexEntry, ObjType
 from sphinx.domains.python import (
     PyClassMethod,
@@ -18,13 +18,15 @@ from sphinx.domains.python import (
 from sphinx.environment import BuildEnvironment
 from sphinx.roles import XRefRole
 from sphinx.util.docutils import SphinxDirective
-from sphinx.util.nodes import make_id
+from sphinx.util.nodes import make_id, make_refnode
 from sphinx.util.typing import OptionSpec
 from sphinx.writers.html import HTMLTranslator
 
 from basilisp.lang import reader, runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang.interfaces import IPersistentList, IPersistentMap, IPersistentVector
+
+logger = logging.getLogger(__name__)
 
 
 class desc_lispparameterlist(addnodes.desc_parameterlist):
@@ -121,7 +123,6 @@ class BasilispNamespace(SphinxDirective):
                 self.options.get("platform", ""),
                 "deprecated" in self.options,
             )
-            domain.note_var(modname, "namespace", node_id, location=target)
 
             ret.append(target)
             indextext = f"namespace; {modname}"
@@ -134,6 +135,26 @@ class BasilispObject(PyObject):
     def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
         """Subclasses should implement this themselves."""
         return NotImplemented
+
+    def add_target_and_index(
+        self, name_cls: Tuple[str, str], sig: str, signode: desc_signature
+    ) -> None:
+        modname = self.options.get("module", self.env.ref_context.get("lpy:namespace"))
+        fullname = (modname + "/" if modname else "") + name_cls[0]
+        node_id = fullname
+        signode["ids"].append(node_id)
+
+        self.state.document.note_explicit_target(signode)
+
+        domain = cast(BasilispDomain, self.env.get_domain("lpy"))
+        domain.note_var(fullname, self.objtype, node_id, location=signode)
+
+        if "noindexentry" not in self.options:
+            indextext = self.get_index_text(modname, name_cls)
+            if indextext:
+                self.indexnode["entries"].append(
+                    ("single", indextext, node_id, "", None)
+                )
 
 
 class BasilispVar(BasilispObject):
@@ -321,6 +342,19 @@ class BasilispNamespaceIndex(Index):
         return sorted_content, collapse
 
 
+class BasilispXRefRole(XRefRole):
+    def process_link(
+        self,
+        env: BuildEnvironment,
+        refnode: Element,
+        has_explicit_title: bool,
+        title: str,
+        target: str,
+    ) -> Tuple[str, str]:
+        refnode["lpy:namespace"] = env.ref_context.get("lpy:namespace")
+        return title, target
+
+
 class VarEntry(NamedTuple):
     docname: str
     node_id: str
@@ -366,14 +400,14 @@ class BasilispDomain(Domain):
         "property": PyProperty,
     }
     roles = {
-        "ns": XRefRole(),
-        "var": XRefRole(),
-        "fn": XRefRole(),
-        "proto": XRefRole(),
-        "rec": XRefRole(),
-        "type": XRefRole(),
-        "meth": XRefRole(),
-        "prop": XRefRole(),
+        "ns": BasilispXRefRole(),
+        "var": BasilispXRefRole(),
+        "fn": BasilispXRefRole(),
+        "proto": BasilispXRefRole(),
+        "rec": BasilispXRefRole(),
+        "type": BasilispXRefRole(),
+        "meth": BasilispXRefRole(),
+        "prop": BasilispXRefRole(),
     }
     initial_data: Dict[str, Dict[str, Tuple[Any]]] = {
         "vars": {},  # fullname -> docname, objtype
@@ -394,17 +428,6 @@ class BasilispDomain(Domain):
         location: Any = None,
     ) -> None:
         """Note a Basilisp var for cross reference."""
-        # if name in self.vars:
-        #     other = self.vars[name]
-        #     if other.aliased and aliased is False:
-        #         # The original definition found. Override it!
-        #         pass
-        #     elif other.aliased is False and aliased:
-        #         # The original definition is already registered.
-        #         return
-        #     else:
-        #         # duplicated
-        #         pass
         self.vars[name] = VarEntry(self.env.docname, node_id, objtype, aliased)
 
     @property
@@ -423,16 +446,59 @@ class BasilispDomain(Domain):
             deprecated,
         )
 
-    def merge_domaindata(self, docnames: List[str], otherdata: Dict) -> None:
-        pass
+    def clear_doc(self, docname: str) -> None:
+        for fullname, obj in list(self.vars.items()):
+            if obj.docname == docname:
+                del self.vars[fullname]
+        for modname, mod in list(self.namespaces.items()):
+            if mod.docname == docname:
+                del self.namespaces[modname]
 
-    def resolve_any_xref(
+    def merge_domaindata(self, docnames: List[str], otherdata: Dict) -> None:
+        for fullname, var in otherdata["vars"].items():
+            if var.docname in docnames:
+                self.vars[fullname] = var
+        for modname, ns in otherdata["namespaces"].items():
+            if ns.docname in docnames:
+                self.namespaces[modname] = ns
+
+    def resolve_xref(
         self,
         env: BuildEnvironment,
         fromdocname: str,
-        builder: Builder,
+        builder,
+        type: str,
         target: str,
         node: pending_xref,
         contnode: Element,
-    ) -> List[Tuple[str, Element]]:
-        pass
+    ) -> Element:
+        nsname = node.get("lpy:namespace")
+
+        if node.get("reftype") == "ns":
+            maybe_obj = self.namespaces.get(target)
+            title = target
+        else:
+            obj_sym = runtime.first(reader.read_str(target))
+            assert isinstance(
+                obj_sym, sym.Symbol
+            ), f"Symbol expected; not {obj_sym.__class__}"
+            maybe_obj = self.vars.get(
+                f"{nsname}/{obj_sym}" if obj_sym.ns is None else str(obj_sym)
+            )
+            title = (
+                obj_sym.name
+                if obj_sym.ns is None or obj_sym.ns == nsname
+                else str(obj_sym)
+            )
+
+        if not maybe_obj:
+            logger.warning(
+                f"Unable to resolve xref for type={type} from {node.source} "
+                f"with target={target}"
+            )
+            return None
+
+        docname, node_id, *_ = cast(Union[NamespaceEntry, VarEntry], maybe_obj)
+        return make_refnode(
+            builder, fromdocname, docname, node_id, contnode, title=title
+        )

@@ -53,7 +53,7 @@
        specified as ``:bytes``, return the byte string from the output without
        encoding; if none is specified, ``utf-8`` will be used
    :keyword ``:env``: a mapping of string values to string values which are used as the
-       subprocess's environment; if none is specified and :lpy:var:`*sh-env` is not
+       subprocess's environment; if none is specified and :lpy:var:`*sh-env*` is not
        set, the environment of the current process will be used
    :keyword ``:dir``: a string indicating the working directory which is to be used for
        the subprocess; if none is specified and :lpy:var:`*sh-dir*` is not set, the

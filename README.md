@@ -21,7 +21,7 @@ basilisp repl
 ```
 
 Basilisp [documentation](https://basilisp.readthedocs.io) (work-in-progress) can help
-guide your  exploration at the REPL. Additionally, Basilisp features many of the same
+guide your exploration at the REPL. Additionally, Basilisp features many of the same
 functions and idioms as [Clojure](https://clojure.org/) so you may find guides and
 documentation there helpful for getting started.
 

@@ -3902,7 +3902,7 @@
     x))
 
 (defmacro cond->
-  "Takes a test and form pair, threading ``x`` (as by :lpy:fn:`->``) through each form
+  "Takes a test and form pair, threading ``x`` (as by :lpy:fn:`->`) through each form
   for which the corresponding test evaluates as ``true``\\. ``cond->`` does not short
   circuit evaluation in any case."
   [x & clauses]
