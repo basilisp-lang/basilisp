@@ -7,5 +7,4 @@ python:
   install:
     - method: pip
       path: .
-      extra_requirements:
-        - "Sphinx"
+    - requirements: docs/requirements.txt
