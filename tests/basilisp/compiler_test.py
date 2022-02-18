@@ -1384,17 +1384,14 @@ class TestDefType:
             Point = lcompile(code)
 
             pt = Point(1, 2, 3)
-            assert (
-                lmap.map(
-                    {
-                        kw.keyword("w"): 2,
-                        kw.keyword("x"): 1,
-                        kw.keyword("y"): 4,
-                        kw.keyword("z"): 3,
-                    }
-                )
-                == pt(w=2, y=4)
-            )
+            assert lmap.map(
+                {
+                    kw.keyword("w"): 2,
+                    kw.keyword("x"): 1,
+                    kw.keyword("y"): 4,
+                    kw.keyword("z"): 3,
+                }
+            ) == pt(w=2, y=4)
 
         @pytest.mark.parametrize(
             "code",
@@ -2316,15 +2313,12 @@ class TestFunctionDef:
             f = lcompile("^{:kwargs :collect} (fn* [a b c kwargs] [a b c kwargs])")
 
             kwargs = {"some_value": 32, "value": "a string"}
-            assert (
-                vec.v(
-                    1,
-                    "2",
-                    kw.keyword("three"),
-                    lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
-                )
-                == f(1, "2", kw.keyword("three"), **kwargs)
-            )
+            assert vec.v(
+                1,
+                "2",
+                kw.keyword("three"),
+                lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
+            ) == f(1, "2", kw.keyword("three"), **kwargs)
 
         @pytest.mark.parametrize("kwarg_support", [":apply", ":collect"])
         def test_multi_arity_fns_do_not_support_kwargs(
@@ -2602,17 +2596,12 @@ class TestMacroexpandFunctions:
         )
 
     def test_macroexpand_1(self, lcompile: CompileFn, example_macro):
-        assert (
-            llist.l(
-                sym.symbol("defmacro", ns="basilisp.core"),
-                sym.symbol("child"),
-                vec.PersistentVector.empty(),
-                llist.l(
-                    sym.symbol("fn", ns="basilisp.core"), vec.PersistentVector.empty()
-                ),
-            )
-            == compiler.macroexpand_1(llist.l(sym.symbol("parent")))
-        )
+        assert llist.l(
+            sym.symbol("defmacro", ns="basilisp.core"),
+            sym.symbol("child"),
+            vec.PersistentVector.empty(),
+            llist.l(sym.symbol("fn", ns="basilisp.core"), vec.PersistentVector.empty()),
+        ) == compiler.macroexpand_1(llist.l(sym.symbol("parent")))
 
         assert llist.l(
             sym.symbol("add", ns="operator"), 1, 2
@@ -2632,22 +2621,19 @@ class TestMacroexpandFunctions:
     def test_macroexpand(self, lcompile: CompileFn, example_macro):
         meta = lmap.map({reader.READER_LINE_KW: 1, reader.READER_COL_KW: 1})
 
-        assert (
+        assert llist.l(
+            sym.symbol("def"),
+            sym.symbol("child"),
             llist.l(
-                sym.symbol("def"),
+                sym.symbol("fn", ns="basilisp.core"),
                 sym.symbol("child"),
+                vec.v(sym.symbol("&env"), sym.symbol("&form")),
                 llist.l(
                     sym.symbol("fn", ns="basilisp.core"),
-                    sym.symbol("child"),
-                    vec.v(sym.symbol("&env"), sym.symbol("&form")),
-                    llist.l(
-                        sym.symbol("fn", ns="basilisp.core"),
-                        vec.PersistentVector.empty(),
-                    ),
+                    vec.PersistentVector.empty(),
                 ),
-            )
-            == compiler.macroexpand(llist.l(sym.symbol("parent"), meta=meta))
-        )
+            ),
+        ) == compiler.macroexpand(llist.l(sym.symbol("parent"), meta=meta))
 
         assert llist.l(sym.symbol("add", ns="operator"), 1, 2) == compiler.macroexpand(
             llist.l(sym.symbol("add", ns="operator"), 1, 2, meta=meta)
@@ -4344,17 +4330,14 @@ class TestReify:
             Point = lcompile(code)
 
             pt = Point(1, 2, 3)
-            assert (
-                lmap.map(
-                    {
-                        kw.keyword("w"): 2,
-                        kw.keyword("x"): 1,
-                        kw.keyword("y"): 4,
-                        kw.keyword("z"): 3,
-                    }
-                )
-                == pt(w=2, y=4)
-            )
+            assert lmap.map(
+                {
+                    kw.keyword("w"): 2,
+                    kw.keyword("x"): 1,
+                    kw.keyword("y"): 4,
+                    kw.keyword("z"): 3,
+                }
+            ) == pt(w=2, y=4)
 
         @pytest.mark.parametrize(
             "code",

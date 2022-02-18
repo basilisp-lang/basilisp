@@ -1,23 +1,23 @@
-(ns basilisp.set)
+(ns basilisp.set
+  "Set manipulation utilities.")
 
 (defn difference
-  "Return a new set with elements from s1 not in the others.
-  If no others are provided, return s."
+  "Return a new set with elements from set ``s`` not in the ``others``. If no others
+  are provided, return ``s``."
   ([s] s)
-  ([s1 & others]
-   (apply-method s1 difference others)))
+  ([s & others]
+   (apply-method s difference others)))
 
 (defn disjoint?
-  "Return true if s1 shares no common elements with s2.
+  "Return true if set ``s1`` shares no common elements with set ``s2``.
 
-  Sets are considered disjoint if and only if their intersection
-  is the empty set."
+  Sets are considered disjoint if and only if their intersection is the empty set."
   [s1 s2]
   (.isdisjoint s1 s2))
 
 (defn index
-  "Given a set of maps, return a mapping of unique selections of keys
-  from ks to the set of values which have those mappings."
+  "Given a set of maps ``rel``, return a mapping of unique selections of keys from
+  ``ks`` to the set of values which have those mappings."
   [rel ks]
   (reduce (fn [m v]
             (let [index-val (select-keys v ks)]
@@ -28,17 +28,17 @@
           rel))
 
 (defn intersection
-  "Return a new set with only elements in s1 that are in all
-  the others. If no others are provided, return s."
+  "Return a new set with only elements in set ``s`` that are in all the ``others``.
+  If no others are provided, return ``s``."
   ([s] s)
-  ([s1 & others]
-   (apply-method s1 intersection others)))
+  ([s & others]
+   (apply-method s intersection others)))
 
 (defn map-invert
   "Return a map whose vals and keys are swapped.
 
-  Duplicate values used as keys will overwrite each other as
-  iteration order is non-deterministic."
+  Duplicate values used as keys will overwrite each other as iteration order is
+  non-deterministic."
   [m]
   (persistent!
    (reduce (fn [m entry]
@@ -47,13 +47,12 @@
            m)))
 
 (defn project
-  "Given a set of maps, return a set of those maps with only the keys in ks."
+  "Given a set of maps ``rel``, return a set of those maps with only the keys in ``ks``."
   [rel ks]
   (set (map #(select-keys % ks) rel)))
 
 (defn rename-keys
-  "Return m with any keys appearing in kmap replaced with the value
-  in kmap."
+  "Return ``m`` with any keys appearing in ``kmap`` replaced with the value in ``kmap``."
   [m kmap]
   (with-meta
     (persistent!
@@ -70,42 +69,42 @@
     (meta m)))
 
 (defn rename
-  "Given a set of maps, return a set whose maps have had any keys in kmap
-  renamed to the value in kmap."
+  "Given a set of maps ``rel``, return a set whose maps have had any keys in ``kmap``
+  renamed to the value in ``kmap``."
   [rel kmap]
   (set (map #(rename-keys % kmap) rel)))
 
 (defn select
-  "Return a set of values for which pred is true."
+  "Return a set of values in ``xset`` for which ``pred`` is true."
   [pred xset]
   (set (filter pred xset)))
 
 (defn symmetric-difference
-  "Return a new set with elements which are not shared by any of
-  the s1 and others. If no others are provided, return s."
+  "Return a new set with elements which are not shared by any of the set ``s`` and
+  ``others``. If no others are provided, return ``s``."
   ([s] s)
-  ([s1 & others]
-   (apply-method s1 symmetric-difference others)))
+  ([s & others]
+   (apply-method s symmetric-difference others)))
 
 (defn subset?
-  "Return true if every element in s1 is also in s2."
+  "Return true if every element in ``s1`` is also in ``s2``."
   [s1 s2]
   (.issubset s1 s2))
 
 (defn superset?
-  "Return true if every element in s2 is also in s1."
+  "Return true if every element in ``s2`` is also in ``s1``."
   [s1 s2]
   (.issuperset s1 s2))
 
 (defn union
-  "Return a new set with elements in s1 that are in the others.
-  If no others are provided, return s."
+  "Return a new set with elements in set ``s`` that are in the ``others``. If no others
+  are provided, return ``s``."
   ([s] s)
-  ([s1 & others]
-   (apply-method s1 union others)))
+  ([s & others]
+   (apply-method s union others)))
 
 (defn ^:private product
-  "Generate the Cartesian product of sets l and r, calling (f left right)
+  "Generate the Cartesian product of sets ``l`` and ``r``, calling ``(f left right)``
   on each relation. Returns a set of all returned elements."
   [f l r]
   (set
@@ -114,9 +113,8 @@
         l)))
 
 (defn join
-  "Perform a natural join on the maps in lrel and rrel using keys shared
-  by elements of each relation. If ks is specified, join only on the given
-  keys."
+  "Perform a natural join on the maps in ``lrel`` and ``rrel`` using keys shared by
+  elements of each relation. If ``keymap`` is specified, join only on the given keys."
   ([lrel rrel]
    (let [shared (vec
                  (intersection

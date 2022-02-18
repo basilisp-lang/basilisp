@@ -1,4 +1,8 @@
-(ns basilisp.walk)
+(ns basilisp.walk
+  "Generic data structure walkers.
+
+  Support for all builtin data structures and types is included by default. Users
+  can add support for custom data types by extending the ``IWalkable`` protocol.")
 
 (defprotocol IWalkable
   (walk* [this inner outer]
@@ -42,8 +46,8 @@
     (outer this)))
 
 (defn walk
-  "Walk an arbitrary, possibly nested data structure, applying inner to each
-  element of form and then applying outer to the resulting form.
+  "Walk an arbitrary, possibly nested data structure, applying ``inner`` to each
+  element of ``form`` and then applying ``outer`` to the resulting form.
 
   All built in data structures are supported.
 
@@ -52,8 +56,8 @@
   (walk* form inner outer))
 
 (defn postwalk
-  "Walk form using depth-first, post-order traversal, applying f to each form
-  and replacing form with its result.
+  "Walk ``form`` using depth-first, post-order traversal, applying ``f`` to each form
+  and replacing ``form`` with its result.
 
   All built in data structures are supported.
 
@@ -62,8 +66,8 @@
   (walk (partial postwalk f) f form))
 
 (defn prewalk
-  "Walk form using depth-first, pre-order traversal, applying f to each form
-  and replacing form with its result.
+  "Walk ``form`` using depth-first, pre-order traversal, applying ``f`` to each form
+  and replacing ``form`` with its result.
 
   All built in data structures are supported.
 
@@ -72,8 +76,8 @@
   (walk (partial prewalk f) identity (f form)))
 
 (defn postwalk-replace
-  "Recursively walk through form as by postwalk, replacing elements appearing
-  as keys in replacements with the corresponding values."
+  "Recursively walk through ``form`` as by :lpy:fn:`postwalk`, replacing elements
+  appearing as keys in the map ``replacements`` with the corresponding values."
   [replacements form]
   (postwalk #(if (contains? replacements %)
                (get replacements %)
@@ -81,8 +85,8 @@
             form))
 
 (defn prewalk-replace
-  "Recursively walk through form as by prewalk, replacing elements appearing
-  as keys in replacements with the corresponding values."
+  "Recursively walk through ``form`` as by :lpy:fn:`prewalk`, replacing elements
+  appearing as keys in the map ``replacements`` with the corresponding values."
   [replacements form]
   (prewalk #(if (contains? replacements %)
               (get replacements %)
@@ -90,17 +94,17 @@
            form))
 
 (defn postwalk-demo
-  "Print each element as it is walked as by postwalk."
+  "Print each element as it is walked as by :lpy:fn`postwalk`."
   [form]
   (postwalk #(do (println (str "Walked: " %)) %) form))
 
 (defn prewalk-demo
-  "Print each element as it is walked as by postwalk."
+  "Print each element as it is walked as by :lpy:fn`postwalk`."
   [form]
   (prewalk #(do (println (str "Walked: " %)) %) form))
 
 (defn keywordize-keys
-  "Recursively walk form, transforming string keys into keywords in any maps."
+  "Recursively walk ``form``, transforming string keys into keywords in any maps."
   [form]
   (postwalk (fn [v]
               (if (map? v)
@@ -111,7 +115,7 @@
             form))
 
 (defn stringify-keys
-  "Recursively walk form, transforming keyword keys into strings in any maps."
+  "Recursively walk ``form``, transforming keyword keys into strings in any maps."
   [form]
   (postwalk (fn [v]
               (if (map? v)
@@ -122,7 +126,7 @@
             form))
 
 (defn macroexpand-all
-  "Recursively macroexpand all eligible forms contained in form."
+  "Recursively macroexpand all eligible forms contained in ``form``."
   [form]
   (prewalk (fn [v]
              (if (seq? v)

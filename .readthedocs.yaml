@@ -1,0 +1,10 @@
+version: 2
+
+sphinx:
+   configuration: docs/conf.py
+
+python:
+  install:
+    - method: pip
+      path: .
+    - requirements: docs/requirements.txt

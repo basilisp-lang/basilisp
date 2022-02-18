@@ -3,7 +3,7 @@
 
   This namespace includes functions for performing basic JSON encoding from
   and decoding to Basilisp builtin data structures. It is built on top of Python's
-  builtin `json` module. The builtin `json` module is not intended to be extended
+  builtin ``json`` module. The builtin ``json`` module is not intended to be extended
   in the way that is done here. As such, it is not the fastest JSON decoder or
   encoder available, but it is builtin so it is readily available for quick
   encoding and decoding needs."
@@ -23,10 +23,10 @@
   (to-json-encodeable* [this opts]
     "Return an object which can be JSON encoded by Python's default JSONEncoder.
 
-     `opts` is a map with the following options:
+     ``opts`` is a map with the following options:
 
-       `:key-fn` - is a function which will be called for each key in a map;
-                   default is `name`"))
+       :keyword ``:key-fn``: a function which will be called for each key in a map;
+           default is :lpy:fn:`basilisp.core/name`"))
 
 (extend-protocol JSONEncodeable
   python/object
@@ -103,38 +103,38 @@
    :separator        #py ((or item-sep ", ") (or key-sep ": "))})
 
 (defn write
-  "Serialize the object `o` as JSON to the writer object `writer` (which must be
-  any file-like object supporting `.write()` method).
+  "Serialize the object ``o`` as JSON to the writer object ``writer`` (which must be
+  any file-like object supporting ``.write()`` method).
 
   All data structures supported by the Basilisp reader are serialized to JSON
   by default. Maps are serialized as JSON Objects. Lists, sets, and vectors are
   serialized as JSON arrays. Keywords and symbols are serialized as strings with
   their namespace (if they have one). Python scalar types are serialized as their
-  corresponding JSON types (string, integer, float, boolean, and `nil`). Instants
-  (Python `datetime`s) and the related Python `date` and `time` types are
+  corresponding JSON types (string, integer, float, boolean, and ``nil``). Instants
+  (Python ``datetime`` s) and the related Python ``date`` and ``time`` types are
   serialized as ISO 8601 date strings. Decimals are serialized as stringified
   floats. Fractions are serialized as stringified ratios (numerator and
   denominator). UUIDs are serialized as their canonical hex string format.
 
-  Support for other data structures can be added by extending the `JSONEncodeable`
-  Protocol. That protocol includes one method which must return a Python data type
-  which can be understood by Python's builtin `json` module.
+  Support for other data structures can be added by extending the
+  :lpy:proto:`JSONEncodeable` Protocol. That protocol includes one method which must
+  return a Python data type which can be understood by Python's builtin ``json``
+  module.
 
   The encoder supports a few options which may be specified as key/value pairs:
 
-    `:key-fn`           - is a function which will be called for each key in a map;
-                          default is `name`
-    `:escape-non-ascii` - if `true`, escape non-ASCII characters in the output;
-                          default is `true`
-    `:indent`           - if `nil`, use a compact representation; if a positive
-                          integer, each indent level will be that many spaces; if
-                          zero, a negative integer, or the empty string, newlines
-                          will be inserted without indenting; if a string, that
-                          string value will be used as the indent
-    `:item-sep`         - a string separator between object and array items;
-                          default is ', '
-    `:key-sep`          - a string separator between object key/value pairs;
-                          default is ': '"
+    :keyword ``:key-fn``: a function which will be called for each key in a map;
+        default is :lpy:fn:`basilisp.core/name`
+    :keyword ``:escape-non-ascii``: if ``true``, escape non-ASCII characters in the
+        output; default is ``true``
+    :keyword ``:indent``: if ``nil``, use a compact representation; if a positive
+        integer, each indent level will be that many spaces; if zero, a negative
+        integer, or the empty string, newlines will be inserted without indenting;
+        if a string, that string value will be used as the indent
+    :keyword ``:item-sep``: a string separator between object and array items;
+        default is ', '
+    :keyword ``:key-sep``: a string separator between object key/value pairs;
+        default is ': '"
   [o writer & {:as opts}]
   (let [{:keys [escape-non-ascii indent separator] :as opts} (write-opts opts)]
     (json/dump o writer **
@@ -144,23 +144,24 @@
                :separators separator)))
 
 (defn write-str
-  "Serialize the object `o` as JSON and return the serialized object as a string.
+  "Serialize the object ``o`` as JSON and return the serialized object as a string.
 
   All data structures supported by the Basilisp reader are serialized to JSON
   by default. Maps are serialized as JSON Objects. Lists, sets, and vectors are
   serialized as JSON arrays. Keywords and symbols are serialized as strings with
   their namespace (if they have one). Python scalar types are serialized as their
-  corresponding JSON types (string, integer, float, boolean, and `nil`). Instants
-  (Python `datetime`s) and the related Python `date` and `time` types are
+  corresponding JSON types (string, integer, float, boolean, and ``nil``). Instants
+  (Python ``datetime`` s) and the related Python ``date`` and ``time`` types are
   serialized as ISO 8601 date strings. Decimals are serialized as stringified
   floats. Fractions are serialized as stringified ratios (numerator and
   denominator). UUIDs are serialized as their canonical hex string format.
 
-  Support for other data structures can be added by extending the `JSONEncodeable`
-  Protocol. That protocol includes one method which must return a Python data type
-  which can be understood by Python's builtin `json` module.
+  Support for other data structures can be added by extending the
+  :lpy:proto:`JSONEncodeable` Protocol. That protocol includes one method which must
+  return a Python data type which can be understood by Python's builtin ``json``
+  module.
 
-  The options for `write-str` are the same as for those of `write`."
+  The options for ``write-str`` are the same as for those of :lpy:fn:`write`."
   [o & {:as opts}]
   (let [{:keys [escape-non-ascii indent separator] :as opts} (write-opts opts)]
     (json/dumps o **
@@ -178,10 +179,10 @@
     "Return a Basilisp object in place of a Python object returned by Python's
      default JSONDecoder.
 
-     `opts` is a map with the following options:
+     ``opts`` is a map with the following options:
 
-       `:key-fn` - is a function which will be called for each key in a map;
-                   default is `identity`"))
+       :keyword ``:key-fn``: a function which will be called for each key in a map;
+           default is :lpy:fn:`basilisp.core/identity`"))
 
 (extend-protocol JSONDecodeable
   python/dict
@@ -216,33 +217,32 @@
 ;; Python, but it has gotten no traction: https://bugs.python.org/issue36738
 
 (defn read
-  "Decode the JSON-encoded stream from `reader` (which can be any Python file-like
+  "Decode the JSON-encoded stream from ``reader`` (which can be any Python file-like
   object) into Basilisp data structures.
 
   JSON Objects will be decoded as Basilisp maps. JSON Arrays will be decoded as
   as Basilisp vectors. All other JSON data types will be decoded as the
-  corresponding Python types (strings, booleans, integers, floats, and `nil`).
+  corresponding Python types (strings, booleans, integers, floats, and ``nil``).
 
   The decoder supports a few options which may be specified as key/value pairs:
 
-   `:key-fn`   - is a function which will be called for each key in a map;
-                 default is `identity`
-   `:strict?`  - boolean value; if `true`, control characters (characters in
-                 ASCII 0-31 range) will be prohibited inside JSON strings;
-                 default is `true`"
+   :keyword ``:key-fn``: a function which will be called for each key in a map;
+       default is :lpy:fn:`basilisp.core/identity`
+   :keyword ``:strict?``: boolean value; if ``true``, control characters (characters in
+       ASCII 0-31 range) will be prohibited inside JSON strings; default is ``true``"
   [reader & {:as opts}]
   (let [{:keys [strict?] :as opts} (read-opts opts)]
     (-> (json/load reader ** :strict strict?)
         (from-decoded-json* opts))))
 
 (defn read-str
-  "Decode the JSON-encoded string `s` into Basilisp data structures.
+  "Decode the JSON-encoded string ``s`` into Basilisp data structures.
 
   JSON Objects will be decoded as Basilisp maps. JSON Arrays will be decoded as
   as Basilisp vectors. All other JSON data types will be decoded as the
-  corresponding Python types (strings, booleans, integers, floats, and `nil`).
+  corresponding Python types (strings, booleans, integers, floats, and ``nil``).
 
-  The options for `read-str` are the same as for those of `read`."
+  The options for ``read-str`` are the same as for those of :lpy:fn:`read`."
   [s & {:as opts}]
   (let [{:keys [strict?] :as opts} (read-opts opts)]
     (-> (json/loads s ** :strict strict?)

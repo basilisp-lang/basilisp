@@ -28,3 +28,9 @@ Contents
    features
    gettingstarted
    reference
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`search`

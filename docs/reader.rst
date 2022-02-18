@@ -270,7 +270,7 @@ Line Comments
 Line comments are specified with the ``;`` character.
 All of the text to the end of the line are ignored.
 
-For a convenience in writing shell scripts with Basilisp, the standard *NIX `shebang <https://en.wikipedia.org/wiki/Shebang_(Unix)>` (``#!``) is also treated as a single-line comment.
+For a convenience in writing shell scripts with Basilisp, the standard \*NIX `shebang <https://en.wikipedia.org/wiki/Shebang_(Unix)>` (``#!``) is also treated as a single-line comment.
 
 .. _metadata:
 
