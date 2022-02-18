@@ -7,6 +7,7 @@ from docutils.nodes import Element, Node
 from docutils.parsers.rst import directives  # type: ignore[attr-defined]
 from sphinx import addnodes
 from sphinx.addnodes import desc_signature, pending_xref
+from sphinx.builders import Builder
 from sphinx.domains import Domain, Index, IndexEntry, ObjType
 from sphinx.domains.python import (
     PyClassMethod,
@@ -44,8 +45,6 @@ class desc_lispparameter(addnodes.desc_parameter):
     """
     Node for Lisp function parameter.
     """
-
-    pass
 
 
 # Visitor functions for the Sphinx HTML translator which are required to not have
@@ -147,7 +146,7 @@ class BasilispObject(PyObject):
         self.state.document.note_explicit_target(signode)
 
         domain = cast(BasilispDomain, self.env.get_domain("lpy"))
-        domain.note_var(fullname, self.objtype, node_id, location=signode)
+        domain.note_var(fullname, self.objtype, node_id)
 
         if "noindexentry" not in self.options:
             indextext = self.get_index_text(modname, name_cls)
@@ -267,7 +266,7 @@ class BasilispNamespaceIndex(Index):
     localname = "Basilisp Namespace Index"
     shortname = "namespaces"
 
-    def generate(
+    def generate(  # pylint: disable=too-many-branches,too-many-locals
         self, docnames: Iterable[str] = None
     ) -> Tuple[List[Tuple[str, List[IndexEntry]]], bool]:
         content: Dict[str, List[IndexEntry]] = defaultdict(list)
@@ -343,7 +342,7 @@ class BasilispNamespaceIndex(Index):
 
 
 class BasilispXRefRole(XRefRole):
-    def process_link(
+    def process_link(  # pylint: disable=too-many-arguments,unused-argument
         self,
         env: BuildEnvironment,
         refnode: Element,
@@ -355,14 +354,14 @@ class BasilispXRefRole(XRefRole):
         return title, target
 
 
-class VarEntry(NamedTuple):
+class VarEntry(NamedTuple):  # pylint: disable=inherit-non-class
     docname: str
     node_id: str
     objtype: str
     aliased: bool
 
 
-class NamespaceEntry(NamedTuple):
+class NamespaceEntry(NamedTuple):  # pylint: disable=inherit-non-class
     docname: str
     node_id: str
     synopsis: str
@@ -425,7 +424,6 @@ class BasilispDomain(Domain):
         objtype: str,
         node_id: str,
         aliased: bool = False,
-        location: Any = None,
     ) -> None:
         """Note a Basilisp var for cross reference."""
         self.vars[name] = VarEntry(self.env.docname, node_id, objtype, aliased)
@@ -434,7 +432,7 @@ class BasilispDomain(Domain):
     def namespaces(self) -> Dict[str, NamespaceEntry]:
         return self.data.setdefault("namespaces", {})
 
-    def note_namespace(
+    def note_namespace(  # pylint: disable=too-many-arguments
         self, name: str, node_id: str, synopsis: str, platform: str, deprecated: bool
     ) -> None:
         """Note a Basilisp Namespace module for cross reference."""
@@ -462,18 +460,19 @@ class BasilispDomain(Domain):
             if ns.docname in docnames:
                 self.namespaces[modname] = ns
 
-    def resolve_xref(
+    def resolve_xref(  # pylint: disable=too-many-arguments,unused-argument
         self,
         env: BuildEnvironment,
         fromdocname: str,
-        builder,
-        type: str,
+        builder: Builder,
+        typ: str,
         target: str,
         node: pending_xref,
         contnode: Element,
-    ) -> Element:
+    ) -> Optional[Element]:
         nsname = node.get("lpy:namespace")
 
+        maybe_obj: Union[NamespaceEntry, VarEntry, None]
         if node.get("reftype") == "ns":
             maybe_obj = self.namespaces.get(target)
             title = target
@@ -498,7 +497,7 @@ class BasilispDomain(Domain):
             )
             return None
 
-        docname, node_id, *_ = cast(Union[NamespaceEntry, VarEntry], maybe_obj)
+        docname, node_id, *_ = maybe_obj
         return make_refnode(
             builder, fromdocname, docname, node_id, contnode, title=title
         )
