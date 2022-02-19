@@ -6,18 +6,11 @@
 Welcome to Basilisp's documentation!
 ====================================
 
-.. note::
-
-   This documentation is incomplete and work is ongoing to improve it.
-
 Basilisp is a Lisp dialect inspired by Clojure targeting Python 3.
 
-Basilisp compiles down to raw Python 3 code and executes on the Python 3
-virtual machine, allowing natural interoperability between existing Python
-libraries and new Lisp code.
+Basilisp compiles down to raw Python 3 code and executes on the Python 3 virtual machine, allowing natural interoperability between existing Python libraries and new Lisp code.
 
-Use the links below to learn more about Basilisp and to find help if you
-run into trouble using Basilisp.
+Use the links below to learn more about Basilisp and to find help if you run into trouble using Basilisp.
 
 Contents
 --------
