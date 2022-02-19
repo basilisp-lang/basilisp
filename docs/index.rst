@@ -20,6 +20,7 @@ Contents
 
    features
    gettingstarted
+   differencesfromclojure
    reference
 
 Indices and tables

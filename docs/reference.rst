@@ -10,6 +10,7 @@ Reference
    repl
    specialforms
    compiler
+   runtime
    pyinterop
    typesandrecords
    cli
