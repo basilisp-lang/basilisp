@@ -19,18 +19,43 @@ Generally the Basilisp CLI configuration options are simple passthroughs that co
 Start a REPL Session
 --------------------
 
-TBD
+Basilisp's CLI includes a basic REPL client powered using `Prompt Toolkit <https://github.com/prompt-toolkit/python-prompt-toolkit>`_ (and optionally colored using `Pygments <https://pygments.org/>`_ if you installed the ``pygments`` extra).
+You can start the local REPL client with the following command.
+
+.. code-block:: bash
+
+   basilisp repl
+
+The builtin REPL supports basic code completion suggestions, syntax highlighting (if Pygments is installed), multi-line editing, and cross-session history.
+
+.. note::
+
+   You can exit the REPL by entering an end-of-file ("EOF") character by pressing Ctrl+D at your keyboard.
 
 .. _run_basilisp_code:
 
 Run Basilisp Code
 -----------------
 
-TBD
+You can run Basilisp code from a string or by directly naming a file with the CLI as well.
+
+.. code-block:: bash
+
+   basilisp run -c '(+ 1 2 3)'
+
+.. code-block:: bash
+
+   basilisp run path/to/some/file.lpy
 
 .. _run_basilisp_tests:
 
 Run Basilisp Tests
 ------------------
 
-TBD
+If you installed the `PyTest <https://docs.pytest.org/en/7.0.x/>`_ extra, you can also execute your test suite using the Basilisp CLI.
+
+.. code-block:: bash
+
+   basilisp test
+
+Because Basilisp defers all testing logic to PyTest, you can use any standard PyTest arguments and flags from this entrypoint.
