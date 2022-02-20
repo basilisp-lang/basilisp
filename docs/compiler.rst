@@ -74,6 +74,13 @@ The following settings can affect the generated Python code.
   * Default: ``false``
   * See also: :ref:`direct_linking`
 
+.. _macros:
+
+Macros
+------
+
+TBD
+
 .. _namespace_caching:
 
 Namespace Caching

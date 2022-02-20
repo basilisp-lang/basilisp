@@ -44,3 +44,24 @@ Vars
 ----
 
 TBD
+
+.. _dynamic_vars:
+
+Dynamic Vars
+^^^^^^^^^^^^
+
+TBD
+
+.. _private_vars:
+
+Private Vars
+^^^^^^^^^^^^
+
+TBD
+
+.. _unbound_vars:
+
+Unbound Vars
+^^^^^^^^^^^^
+
+TBD

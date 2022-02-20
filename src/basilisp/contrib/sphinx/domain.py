@@ -191,26 +191,11 @@ class BasilispVar(BasilispObject):
 
     def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
         sig, prefix = name
-        return f"{sig} ({prefix} Var in {modname})"
+        return f"{sig} ({prefix} in {modname})"
 
 
-class BasilispFunction(BasilispObject):
+class BasilispFunctionLike(BasilispObject):
     option_spec: OptionSpec = BasilispObject.option_spec.copy()
-    option_spec.update(
-        {
-            "async": directives.flag,
-            "macro": directives.flag,
-            "multi": directives.flag,
-        }
-    )
-
-    def get_signature_prefix(self, sig: str) -> str:
-        prefix = "fn " if "macro" not in self.options else "macro "
-        if "multi" in self.options:
-            prefix = f"multi {prefix}"
-        if "async" in self.options:
-            prefix = f"async {prefix}"
-        return prefix
 
     def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
         prefix = self.get_signature_prefix(sig)
@@ -228,13 +213,44 @@ class BasilispFunction(BasilispObject):
         param_list = desc_lispparameterlist()
         for param in runtime.rest(sig_sexp):
             param_node = desc_lispparameter()
-            assert isinstance(param, (sym.Symbol, IPersistentVector, IPersistentMap))
+            # assert isinstance(param, (sym.Symbol, IPersistentVector, IPersistentMap))
             param_node += addnodes.desc_sig_name("", runtime.lrepr(param))
             param_list += param_node
         signode += param_list
 
         signode += addnodes.desc_addname(")", ")")
         return fn_sym.name, prefix
+
+
+class BasilispSpecialForm(BasilispFunctionLike):
+    def get_signature_prefix(self, sig: str) -> str:
+        return "special form"
+
+    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+        sig, prefix = name
+        sig_sexp = runtime.first(reader.read_str(sig))
+        if isinstance(sig_sexp, IPersistentList):
+            sig = runtime.first(sig_sexp)
+        return f"{sig} ({prefix})"
+
+
+class BasilispFunction(BasilispFunctionLike):
+    option_spec: OptionSpec = BasilispFunctionLike.option_spec.copy()
+    option_spec.update(
+        {
+            "async": directives.flag,
+            "macro": directives.flag,
+            "multi": directives.flag,
+        }
+    )
+
+    def get_signature_prefix(self, sig: str) -> str:
+        prefix = "fn " if "macro" not in self.options else "macro "
+        if "multi" in self.options:
+            prefix = f"multi {prefix}"
+        if "async" in self.options:
+            prefix = f"async {prefix}"
+        return prefix
 
     def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
         sig, prefix = name
@@ -387,6 +403,7 @@ class BasilispDomain(Domain):
 
     directives = {
         "currentns": BasilispCurrentNamespace,
+        "specialform": BasilispSpecialForm,
         "namespace": BasilispNamespace,
         "var": BasilispVar,
         "lispfunction": BasilispFunction,
@@ -399,6 +416,7 @@ class BasilispDomain(Domain):
         "property": PyProperty,
     }
     roles = {
+        "form": BasilispXRefRole(),
         "ns": BasilispXRefRole(),
         "var": BasilispXRefRole(),
         "fn": BasilispXRefRole(),
