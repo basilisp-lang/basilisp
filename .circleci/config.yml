@@ -71,6 +71,10 @@ commands:
       python_version:
         description: "Required. Python version as `major.minor`."
         type: string
+      pip_version_bound:
+        description: "Optional. Pip version string locking the version of Pip that gets installed."
+        type: string
+        default: ""
     steps:
       - checkout
       - restore_cache:
@@ -79,7 +83,7 @@ commands:
           name: Install Poetry and Tox
           command: |
             apt-get update && apt-get install -y python3 curl
-            pip install -U pip
+            pip install -U pip<< parameters.pip_version_bound >>
             pip install tox
             curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3 -
       - run:
@@ -179,6 +183,7 @@ jobs:
     steps:
       - run_pypy_tests:
           python_version: "3.6"
+          pip_version_bound: "~=21.0"
 
   test-pypy-37:
     docker:
