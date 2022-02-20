@@ -43,12 +43,24 @@ Finally, ``ns`` will set the dynamic Var :lpy:var:`basilisp.core/*current-ns*` t
 Vars
 ----
 
-TBD
+Vars are mutable boxes which hold a reference to something.
+Users typically interact with Vars with the :lpy:form:`def` form and the :lpy:fn:`basilisp.core/defn` macro which create Vars to hold he result of the expression or function.
+All values created with these forms are stored in Vars and interned in a Namespace so they can be looked up later.
+The Basilisp compiler uses Vars interned in Namespaces during name resolution to determine if a name is referring to a local name (perhaps in a :lpy:form:`let` or function argument) or if it refers to a Var.
+
+Vars may have metadata, which generally originates on the ``name`` symbol given during a :lpy:form:`def`.
+Specific metadata keys given during the creation of a Var can enable specific features that may be useful for some Vars.
 
 .. _dynamic_vars:
 
 Dynamic Vars
 ^^^^^^^^^^^^
+
+Vars created with the ``^:dynamic`` metadata key are known as "dynamic" Vars.
+Dynamic Vars are typically named with so-called "earmuffs" (leading and trailing ``*`` characters) to indicate their dynamic nature.
+For instance, if you were going to call the Var ``dynamic-var``, you'd actually name it ``*dynamic-var*``.
+
+Dynamic Vars include a thread-local stack of value bindings that can be overridden using the :lpy:fn:`basilisp.core/binding` macro.
 
 TBD
 

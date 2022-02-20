@@ -71,7 +71,7 @@ Special forms are fundamental forms which offer functionality directly from the 
 
    .. note::
 
-      Arguments in ``fn`` forms support destructuring which is an advanced tool for accessing specific portions of arguments.
+      Arguments in ``fn`` forms support :ref:`destructuring` which is an advanced tool for accessing specific portions of arguments.
 
    Functions may be overloaded with one or more arities (signature with different numbers of arguments).
    If a function has multiple arities, each arity should appear in its own :ref:`list <lists>` immediately after ``fn`` symbol or name if one is given.
