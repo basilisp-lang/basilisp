@@ -25,7 +25,7 @@ from sphinx.writers.html import HTMLTranslator
 
 from basilisp.lang import reader, runtime
 from basilisp.lang import symbol as sym
-from basilisp.lang.interfaces import IPersistentList, IPersistentMap, IPersistentVector
+from basilisp.lang.interfaces import IPersistentList
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +213,6 @@ class BasilispFunctionLike(BasilispObject):
         param_list = desc_lispparameterlist()
         for param in runtime.rest(sig_sexp):
             param_node = desc_lispparameter()
-            # assert isinstance(param, (sym.Symbol, IPersistentVector, IPersistentMap))
             param_node += addnodes.desc_sig_name("", runtime.lrepr(param))
             param_list += param_node
         signode += param_list
@@ -495,28 +494,28 @@ class BasilispDomain(Domain):
         )
 
     def clear_doc(self, docname: str) -> None:
-        for frm, obj in list(self.forms.items()):
-            if obj.docname == docname:
-                del self.forms[frm]
-        for fullname, obj in list(self.vars.items()):
-            if obj.docname == docname:
-                del self.vars[fullname]
-        for modname, mod in list(self.namespaces.items()):
-            if mod.docname == docname:
-                del self.namespaces[modname]
+        for frm_name, form_entry in list(self.forms.items()):
+            if form_entry.docname == docname:
+                del self.forms[frm_name]
+        for var_name, var_entry in list(self.vars.items()):
+            if var_entry.docname == docname:
+                del self.vars[var_name]
+        for ns_name, ns_entry in list(self.namespaces.items()):
+            if ns_entry.docname == docname:
+                del self.namespaces[ns_name]
 
     def merge_domaindata(self, docnames: List[str], otherdata: Dict) -> None:
-        for frm, obj in otherdata["forms"].items():
-            if obj.docname in docnames:
-                self.forms[frm] = obj
-        for fullname, var in otherdata["vars"].items():
-            if var.docname in docnames:
-                self.vars[fullname] = var
-        for modname, ns in otherdata["namespaces"].items():
-            if ns.docname in docnames:
-                self.namespaces[modname] = ns
+        for frm_name, form_entry in otherdata["forms"].items():
+            if form_entry.docname in docnames:
+                self.forms[frm_name] = form_entry
+        for var_name, var_entry in otherdata["vars"].items():
+            if var_entry.docname in docnames:
+                self.vars[var_name] = var_entry
+        for ns_name, ns_entry in otherdata["namespaces"].items():
+            if ns_entry.docname in docnames:
+                self.namespaces[ns_name] = ns_entry
 
-    def resolve_xref(  # pylint: disable=too-many-arguments,unused-argument
+    def resolve_xref(  # pylint: disable=too-many-arguments,too-many-locals,unused-argument
         self,
         env: BuildEnvironment,
         fromdocname: str,

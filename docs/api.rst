@@ -8,4 +8,4 @@ Use the links below to explore the Basilisp API.
    :caption: Contents:
    :glob:
 
-   api/*
+   api/**
