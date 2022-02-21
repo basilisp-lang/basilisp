@@ -19,6 +19,7 @@ In practice, Namespaces are typically written and organized as individual files 
 Namespaces may be nested to produce a deeper source tree where that makes sense to do.
 
 Users create Namespaces using the :lpy:fn:`basilisp.core/ns` macro at the top of every code file.
+Namespace names should match the document's place in the source tree, with forward slash (``/``) characters being replaced by periods (``.``) and underscores (``_``) replaces with hyphens (``-``).
 
 .. code-block:: clojure
 
@@ -37,7 +38,7 @@ Finally, ``ns`` will set the dynamic Var :lpy:var:`basilisp.core/*ns*` to ``mypr
 
 .. note::
 
-   This documentation frequently conflates namespaces and physical files.
+   This documentation frequently conflates namespaces and physical files for simplicity's sake.
    It is not necessary for a namespace to be defined in only one file, nor is it necessary that one file contain only one namespace.
    However, while these practices are technically permitted, they are generally discouraged since it makes it harder to figure out where code is defined and organized.
 
@@ -45,28 +46,60 @@ Finally, ``ns`` will set the dynamic Var :lpy:var:`basilisp.core/*ns*` to ``mypr
 
    :lpy:fn:`all-ns`, :lpy:fn:`create-ns`, :lpy:fn:`find-ns`, :lpy:fn:`intern`, :lpy:fn:`ns`, :lpy:fn:`ns-name`, :lpy:fn:`ns-resolve`, :lpy:fn:`remove-ns`, :lpy:fn:`resolve`, :lpy:fn:`the-ns`
 
+.. seealso::
+
+   :ref:`importing_modules`
+
 .. _namespace_requires:
 
 Requires
 ^^^^^^^^
 
+Requires are the primary way users establish linkages between different namespaces, similarly to how Python's ``import`` statement connects different Python modules and packages.
+In typical usage, namespaces are required in the :lpy:fn:`ns` preamble at the top of every code file.
+In a REPL context, it may make sense to use the :lpy:fn:`require` function to require a namespace in an ad-hoc fashion during development.
+Both tools generally provide the same set of capabilities, as the ``ns`` form ultimately compiles down to calls to the function ``require``.
+
+Required namespaces may be required using their full name, aliased to a shorter name (such as ``str`` for ``basilisp.string``), or even have individual Vars from the namespace referred in and reference as if they were defined in the same namespace.
+Users may even combine the options together.
+When using the ``:refer`` feature of ``require``, users may also choose to instead refer all Vars from the target namespace by using the ``:all`` keyword in place of the vector of Var names to require.
+
+.. code-block:: clojure
+
+   (ns myproject.ns
+     (:require
+      [basilisp.string :as str]
+      [basilisp.io]
+      [basilisp.edn :as edn :refer [read-string]]
+      [basilisp.set :refer :all]
+      [basilisp.walk :refer [walk]]))
+
+.. warning::
+
+   Referring ``:all`` Vars from another namespace is generally discouraged, since it can clog up the namespace with potentially unused names and can make it challenging for readers to figure out where a Var came from.
+
+As noted above in :ref:`namespaces`, the :lpy:fn:`ns` macro performs an implicit ``[basilisp.core :refer :all]`` by default, allowing users to refer to all core functions without qualification.
+In general this is desirable, since you will be interacting with :lpy:ns:`basilisp.core` a lot.
+However, in some cases, you may wish to suppress certain Vars from being referred, particularly if you are defining Vars with clashing names.
+In such cases, you can instruct the ``ns`` macro to exclude specific Vars from ``basilisp.core``:
+
+.. code-block::
+
+   (ns myproject.ns
+     (:refer-basilisp :exclude [get]))
+
+There are other filtering and selection criteria which can be included on both ``:refer-basilisp`` and ``:require`` sections of the ``ns`` macro.
+See the documentation for :lpy:fn:`require` for more details.
+
 .. note::
 
    :lpy:fn:`require` and the ``(:require ...)`` form of :lpy:fn:`ns` are the preferred methods for requiring namespaces and referring Vars.
+
    :lpy:fn:`refer` and :lpy:fn:`use` are both older, more limited functions which ``refer`` has subsumed and they are only included for Clojure compatibility.
 
 .. seealso::
 
    :lpy:fn:`ns-aliases`, :lpy:fn:`ns-interns`, :lpy:fn:`ns-map`, :lpy:fn:`ns-publics`, :lpy:fn:`ns-refers`, :lpy:fn:`ns-unalias`, :lpy:fn:`ns-unmap`, :lpy:fn:`refer`, :lpy:fn:`require`, :lpy:fn:`use`
-
-.. _namespace_imports:
-
-Imports
-^^^^^^^
-
-.. seealso::
-
-   :lpy:form:`import`, :lpy:fn:`import`, :lpy:fn:`ns-imports`, :lpy:fn:`ns-map`
 
 .. _vars:
 
@@ -83,7 +116,7 @@ Specific metadata keys given during the creation of a Var can enable specific fe
 
 .. seealso::
 
-   :lpy:fn:`alter-var-root`, :lpy:fn:`find-var`, :lpy:fn:`thread-bound?`, :lpy:fn:`var-get`, :lpy:fn:`var-set`
+   :lpy:fn:`alter-var-root`, :lpy:fn:`find-var`, :lpy:fn:`thread-bound?`, :lpy:fn:`var-get`, :lpy:fn:`var-set`, :lpy:fn:`with-redefs`, :lpy:fn:`with-redefs-fn`
 
 .. _dynamic_vars:
 
@@ -93,7 +126,19 @@ Dynamic Vars
 Vars created with the ``^:dynamic`` metadata key are known as "dynamic" Vars.
 Dynamic Vars include a thread-local stack of value bindings that can be overridden using the :lpy:fn:`basilisp.core/binding` macro.
 This may be a suitable alternative to requiring users to pass in an infrequently changing value as an argument to your function.
-Basilisp uses this in :lpy:ns:`basilisp.core` with things such as :lpy:var:`*in*`
+Basilisp uses this in :lpy:ns:`basilisp.core` with things such as :lpy:var:`*in*`, :lpy:var:`*out*`, and :lpy:var:`*data-readers*`.
+
+For example, if you wanted to fetch all of the data being printed to ``*out*`` as a string, you could trivially do so with this construct:
+
+.. code-block:: clojure
+
+   (import io)
+   (let [s (io/StringIO)]
+     (binding [*out* s]
+       ...)
+     (.getvalue s))
+
+Note that this functionality already exists as :lpy:fn:`with-out-str`, but it serves as a good example of how to use :lpy:fn:`binding` with a dynamic Var.
 
 .. note::
 
@@ -104,6 +149,10 @@ Basilisp uses this in :lpy:ns:`basilisp.core` with things such as :lpy:var:`*in*
 
    Dynamic Vars are never :ref:`direct linked <direct_linking>`, so they are always subject to Var indirection.
    Users should be aware of this limitation when using dynamic Vars in hot paths.
+
+.. seealso::
+
+   :lpy:fn:`binding`, :lpy:fn:`bound-fn`, :lpy:fn:`bound-fn*`, :lpy:fn:`get-thread-bindings`, :lpy:fn:`pop-thread-bindings`, :lpy:fn:`push-thread-bindings`, :lpy:fn:`with-bindings`, :lpy:fn:`with-bindings*`
 
 .. _private_vars:
 
