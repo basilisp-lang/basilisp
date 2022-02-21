@@ -13,6 +13,5 @@ Reference
    pyinterop
    runtime
    concepts
-   typesandrecords
    testing
    compiler

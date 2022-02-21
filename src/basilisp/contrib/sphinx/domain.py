@@ -226,6 +226,18 @@ class BasilispSpecialForm(BasilispFunctionLike):
     def get_signature_prefix(self, sig: str) -> str:
         return "special form"
 
+    def add_target_and_index(
+        self, name_cls: Tuple[str, str], sig: str, signode: desc_signature
+    ) -> None:
+        fullname = name_cls[0]
+        node_id = fullname
+        signode["ids"].append(node_id)
+
+        self.state.document.note_explicit_target(signode)
+
+        domain = cast(BasilispDomain, self.env.get_domain("lpy"))
+        domain.note_form(fullname, node_id)
+
     def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
         sig, prefix = name
         sig_sexp = runtime.first(reader.read_str(sig))
@@ -279,7 +291,7 @@ class BasilispClassLike(BasilispObject):
 
 class BasilispNamespaceIndex(Index):
     name = "nsindex"
-    localname = "Basilisp Namespace Index"
+    localname = "Namespace Index"
     shortname = "namespaces"
 
     def generate(  # pylint: disable=too-many-branches,too-many-locals
@@ -366,8 +378,14 @@ class BasilispXRefRole(XRefRole):
         title: str,
         target: str,
     ) -> Tuple[str, str]:
-        refnode["lpy:namespace"] = env.ref_context.get("lpy:namespace")
+        if refnode.attributes.get("reftype") != "form":
+            refnode["lpy:namespace"] = env.ref_context.get("lpy:namespace")
         return title, target
+
+
+class FormEntry(NamedTuple):  # pylint: disable=inherit-non-class
+    docname: str
+    node_id: str
 
 
 class VarEntry(NamedTuple):  # pylint: disable=inherit-non-class
@@ -389,6 +407,7 @@ class BasilispDomain(Domain):
     name = "lpy"
     label = "basilisp"
     object_types: Dict[str, ObjType] = {
+        "form": ObjType("special form", "form", "specialform", "obj"),
         "namespace": ObjType("namespace", "ns", "obj"),
         "var": ObjType("var", "var", "obj"),
         "function": ObjType("lispfunction", "func", "obj"),
@@ -427,10 +446,23 @@ class BasilispDomain(Domain):
         "prop": BasilispXRefRole(),
     }
     initial_data: Dict[str, Dict[str, Tuple[Any]]] = {
+        "forms": {},  # name -> docname
         "vars": {},  # fullname -> docname, objtype
         "namespaces": {},  # nsname -> docname, synopsis, platform, deprecated
     }
     indices = [BasilispNamespaceIndex]
+
+    @property
+    def forms(self) -> Dict[str, FormEntry]:
+        return self.data.setdefault("forms", {})
+
+    def note_form(
+        self,
+        name: str,
+        node_id: str,
+    ) -> None:
+        """Note a Basilisp var for cross reference."""
+        self.forms[name] = FormEntry(self.env.docname, node_id)
 
     @property
     def vars(self) -> Dict[str, VarEntry]:
@@ -463,6 +495,9 @@ class BasilispDomain(Domain):
         )
 
     def clear_doc(self, docname: str) -> None:
+        for frm, obj in list(self.forms.items()):
+            if obj.docname == docname:
+                del self.forms[frm]
         for fullname, obj in list(self.vars.items()):
             if obj.docname == docname:
                 del self.vars[fullname]
@@ -471,6 +506,9 @@ class BasilispDomain(Domain):
                 del self.namespaces[modname]
 
     def merge_domaindata(self, docnames: List[str], otherdata: Dict) -> None:
+        for frm, obj in otherdata["forms"].items():
+            if obj.docname in docnames:
+                self.forms[frm] = obj
         for fullname, var in otherdata["vars"].items():
             if var.docname in docnames:
                 self.vars[fullname] = var
@@ -490,9 +528,13 @@ class BasilispDomain(Domain):
     ) -> Optional[Element]:
         nsname = node.get("lpy:namespace")
 
-        maybe_obj: Union[NamespaceEntry, VarEntry, None]
-        if node.get("reftype") == "ns":
+        maybe_obj: Union[FormEntry, NamespaceEntry, VarEntry, None]
+        reftype = node.get("reftype")
+        if reftype == "ns":
             maybe_obj = self.namespaces.get(target)
+            title = target
+        elif reftype == "form":
+            maybe_obj = self.forms.get(target)
             title = target
         else:
             obj_sym = runtime.first(reader.read_str(target))

@@ -27,4 +27,5 @@ Indices and tables
 ==================
 
 * :ref:`genindex`
+* :ref:`lpy-nsindex`
 * :ref:`search`

@@ -5,6 +5,11 @@ Concepts
 
 .. lpy:currentns:: basilisp.core
 
+.. _seqs:
+
+Seqs
+----
+
 .. _macros:
 
 Macros
@@ -32,6 +37,10 @@ Macros created with ``defmacro`` automatically have access to two additional par
    Introducing new and unusual syntax to a language can make it harder to onboard new developers and can make code harder to reason about.
    Before reaching for macros, ask yourself if the problem can be solved using standard functions first.
 
+.. warning::
+
+   Macro writers should take care not to emit any references to :ref:`private_vars` in their macros, as these will not resolve for users outside of the namespace they are defined in, causing compile-time errors.
+
 .. seealso::
 
    :ref:`syntax_quoting`, :lpy:form:`quote`, :lpy:fn:`gensym`, :lpy:fn:`macroexpand`, :lpy:fn:`macroexpand-1`, :lpy:fn:`unquote`, :lpy:fn:`unquote-splicing`
@@ -47,5 +56,52 @@ TBD
 
 Destructuring
 -------------
+
+TBD
+
+.. _references_and_refs:
+
+References and Refs
+-------------------
+
+TBD
+
+.. _transducers:
+
+Transducers
+-----------
+
+.. _hierarchies:
+
+Hierarchies
+-----------
+
+TBD
+
+.. _multimethods:
+
+Multimethods
+------------
+
+TBD
+
+.. _protocols:
+
+Protocols
+---------
+
+TBD
+
+.. _data_types:
+
+Data Types
+----------
+
+TBD
+
+.. _records:
+
+Records
+-------
 
 TBD
