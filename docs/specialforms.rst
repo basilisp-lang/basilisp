@@ -16,7 +16,7 @@ Special forms are fundamental forms which offer functionality directly from the 
                      (def name expr)
                      (def name docstring expr)
 
-   Intern the value ``expr`` with the name ``name`` as a :ref:`Var <vars>` in the current namespace (the namespace pointed to by :lpy:var:`*current-ns*` in the current thread).
+   Intern the value ``expr`` with the name ``name`` as a :ref:`Var <vars>` in the current namespace (the namespace pointed to by :lpy:var:`*ns*` in the current thread).
 
    ``name`` should be an unqualified :ref:`symbol <symbols>`.
    If a namespace is included with the symbol, it will be silently discarded by the compiler.
@@ -167,6 +167,8 @@ Special forms are fundamental forms which offer functionality directly from the 
 
    Return the forms of ``expr`` as data, rather than executing the expression.
    This is particularly useful in when writing macros.
+
+   May also be shortened with the :ref:`special character <special_chars>` ``'``, as ``'form``.
 
    .. seealso::
 

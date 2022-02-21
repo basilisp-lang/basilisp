@@ -86,6 +86,7 @@ PYTHON_VERSION_VAR_NAME = "*python-version*"
 BASILISP_VERSION_VAR_NAME = "*basilisp-version*"
 
 # Common meta keys
+_DOC_META_KEY = kw.keyword("doc")
 _DYNAMIC_META_KEY = kw.keyword("dynamic")
 _PRIVATE_META_KEY = kw.keyword("private")
 _REDEF_META_KEY = kw.keyword("redef")
@@ -1918,7 +1919,22 @@ def print_generated_python() -> bool:
 def init_ns_var() -> Var:
     """Initialize the dynamic `*ns*` variable in the `basilisp.core` Namespace."""
     core_ns = Namespace.get_or_create(CORE_NS_SYM)
-    ns_var = Var.intern(core_ns, sym.symbol(NS_VAR_NAME), core_ns, dynamic=True)
+    ns_var = Var.intern(
+        core_ns,
+        sym.symbol(NS_VAR_NAME),
+        core_ns,
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "Pointer to the current namespace.\n\n"
+                    "This value is used by both the compiler and runtime to determine where "
+                    "newly defined Vars should be bound, so users should not alter or bind "
+                    "this Var unless they know what they're doing."
+                )
+            }
+        ),
+    )
     logger.debug(f"Created namespace variable {NS_VAR_SYM}")
     return ns_var
 
@@ -1936,8 +1952,30 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         return ns
 
     # Vars used in bootstrapping the runtime
-    Var.intern_unbound(CORE_NS_SYM, sym.symbol("unquote"))
-    Var.intern_unbound(CORE_NS_SYM, sym.symbol("unquote-splicing"))
+    Var.intern_unbound(
+        CORE_NS_SYM,
+        sym.symbol("unquote"),
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "Placeholder Var so the compiler does not throw an error while syntax quoting.\n\n"
+                    "See :ref:`macros` and :ref:`syntax_quoting` for more details."
+                )
+            }
+        ),
+    )
+    Var.intern_unbound(
+        CORE_NS_SYM,
+        sym.symbol("unquote-splicing"),
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "Placeholder Var so the compiler does not throw an error while syntax quoting.\n\n"
+                    "See :ref:`macros` and :ref:`syntax_quoting` for more details."
+                )
+            }
+        ),
+    )
     Var.intern(
         CORE_NS_SYM, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
     )
@@ -1956,6 +1994,14 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         sym.symbol(DEFAULT_READER_FEATURES_VAR_NAME),
         READER_COND_DEFAULT_FEATURE_SET,
         dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "The set of all currently supported "
+                    ":ref:`reader features <reader_conditions>`."
+                )
+            }
+        ),
     )
 
     # Dynamic Vars examined by the compiler for generating Python code for debugging
@@ -2002,12 +2048,28 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         sym.symbol(PYTHON_VERSION_VAR_NAME),
         vec.vector(sys.version_info),
         dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "The current Python version as a vector of "
+                    "``[major, minor, revision]``."
+                )
+            }
+        ),
     )
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(BASILISP_VERSION_VAR_NAME),
         vec.vector(VERSION),
         dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "The current Basilisp version as a vector of "
+                    "``[major, minor, revision]``."
+                )
+            }
+        ),
     )
 
 

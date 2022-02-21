@@ -30,7 +30,7 @@ Under the hood, this magic macro will do a bunch of convenient setup that users 
 First, it will require the namespace :lpy:ns:`basilisp.string` which makes the functions from that namespace available in the current namespace using the shortened prefix ``str``.
 That means within the newly created namespace you will be able to refer to :lpy:fn:`basilisp.string/alpha?` as simply ``str/alpha?``.
 Secondly, the ``ns`` macro will import the Python module `datetime <https://docs.python.org/3/library/datetime.html>`_, which we can use in a similar way, referring to objects as ``datetime/date`` for instance.
-Finally, ``ns`` will set the dynamic Var :lpy:var:`basilisp.core/*current-ns*` to ``myproject.ns``, which informs the compiler that any new Vars or functions defined right now should be associated with ``myproject.ns``, not any other namespace.
+Finally, ``ns`` will set the dynamic Var :lpy:var:`basilisp.core/*ns*` to ``myproject.ns``, which informs the compiler that any new Vars or functions defined right now should be associated with ``myproject.ns``, not any other namespace.
 
 .. note::
 
@@ -46,7 +46,7 @@ Vars
 Vars are mutable boxes which hold a reference to something.
 Users typically interact with Vars with the :lpy:form:`def` form and the :lpy:fn:`basilisp.core/defn` macro which create Vars to hold he result of the expression or function.
 All values created with these forms are stored in Vars and interned in a Namespace so they can be looked up later.
-The Basilisp compiler uses Vars interned in Namespaces during name resolution to determine if a name is referring to a local name (perhaps in a :lpy:form:`let` or function argument) or if it refers to a Var.
+The Basilisp compiler uses Vars interned in Namespaces during name resolution to determine if a name is referring to a local name (perhaps in a :lpy:form:`let` binding or as a function argument) or if it refers to a Var.
 
 Vars may have metadata, which generally originates on the ``name`` symbol given during a :lpy:form:`def`.
 Specific metadata keys given during the creation of a Var can enable specific features that may be useful for some Vars.
@@ -57,12 +57,19 @@ Dynamic Vars
 ^^^^^^^^^^^^
 
 Vars created with the ``^:dynamic`` metadata key are known as "dynamic" Vars.
-Dynamic Vars are typically named with so-called "earmuffs" (leading and trailing ``*`` characters) to indicate their dynamic nature.
-For instance, if you were going to call the Var ``dynamic-var``, you'd actually name it ``*dynamic-var*``.
-
 Dynamic Vars include a thread-local stack of value bindings that can be overridden using the :lpy:fn:`basilisp.core/binding` macro.
+This may be a suitable alternative to requiring users to pass in an infrequently changing value as an argument to your function.
+Basilisp uses this in :lpy:ns:`basilisp.core` with things such as :lpy:var:`*in*`
 
-TBD
+.. note::
+
+   Dynamic Vars are typically named with so-called "earmuffs" (leading and trailing ``*`` characters) to indicate their dynamic nature.
+   For instance, if you were going to call the Var ``dynamic-var``, you'd actually name it ``*dynamic-var*``.
+
+.. note::
+
+   Dynamic Vars are never :ref:`direct linked <direct_linking>`, so they are always subject to Var indirection.
+   Users should be aware of this limitation when using dynamic Vars in hot paths.
 
 .. _private_vars:
 
