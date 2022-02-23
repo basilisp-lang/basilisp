@@ -26,6 +26,7 @@ Contents
    gettingstarted
    differencesfromclojure
    reference
+   releasenotes
    contributing
 
 Indices and tables
