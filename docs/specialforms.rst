@@ -10,7 +10,9 @@ Special forms are fundamental forms which offer functionality directly from the 
 
 .. lpy:specialform:: (await expr)
 
-   TBD
+   Await a value from a function as by Python's `await <https://docs.python.org/3/reference/expressions.html#await-expression>`_ expression.
+   Use of the ``await`` is only valid for functions defined as coroutine functions.
+   See :lpy:form:`fn` for more information.
 
 .. lpy:specialform:: (def name)
                      (def name expr)
@@ -91,6 +93,11 @@ Special forms are fundamental forms which offer functionality directly from the 
       For multi-arity functions with a variadic arity, the variadic arity must have at least the same number of positional arguments as the maximum number of positional arguments across all of the remaining arities.
       It is a compile-time error to include a variadic arity in a multi-arity function with fewer fixed positional arguments than any other arity.
 
+   .. note::
+
+      Functions annotated with the ``:async`` metadata key will be compiled as Python coroutine functions (as by Python's `async def <https://docs.python.org/3/reference/compound_stmts.html#async-def>`_).
+      Coroutine functions may make use of the :lpy:form:`await` special form.
+
 .. lpy:specialform:: (if test true-expr)
                      (if test true-expr false-expr)
 
@@ -161,7 +168,9 @@ Special forms are fundamental forms which offer functionality directly from the 
    Later binding expressions in ``let` forms may reference the results of previously bound expressions.
    ``let`` form names may be rebound in child ``let`` forms.
 
-   ``let`` forms support :ref:`destructuring` bindings.
+   .. note::
+
+          Bindings in ``let`` forms support :ref:`destructuring` which is an advanced tool for accessing specific portions of arguments.
 
    .. code-block::
 
@@ -204,9 +213,33 @@ Special forms are fundamental forms which offer functionality directly from the 
 
       :ref:`macros`
 
-.. lpy:specialform:: (recur ...)
+.. lpy:specialform:: (recur & args)
 
-   TBD
+   Evaluate the arguments given and re-binds them to the corresponding names at the last recursion point.
+   Recursion points are defined for:
+
+   * Each arity of a function created by :lpy:form:`fn` (and by extension :lpy:fn:`defn`).
+     The number arguments to ``recur`` must match the arity of the recursion point.
+     You may not recur between different arities of the same function.
+   * Loops created via :lpy:form:`loop`\.
+     The arguments to recur are rebound to the names in the ``loop`` binding.
+   * Methods defined on types created via :lpy:form:`deftype`\.
+     Users should not pass the ``self`` or ``this`` reference to ``recur``.
+     ``recur`` is disallowed in static methods, class methods, and properties.
+
+   .. note::
+
+      All recursion with ``recur`` is tail-recursive by definition.
+      It is a compile-time error to have a ``recur`` statement in non-tail position.
+
+   .. note::
+
+      Recursion via ``recur`` does not consume an additional stack frame in any case.
+      Python does not support tail-call optimization, so users are discouraged from looping using traditional recursion for cases with unknown bounds.
+
+   .. note::
+
+      Recursion points are checked lexically, so ``recur`` forms may only be defined in the same lexical context as a construct which defines a recursion point.
 
 .. lpy:specialform:: (reify ...)
 
