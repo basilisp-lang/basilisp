@@ -154,6 +154,36 @@ Special forms are fundamental forms which offer functionality directly from the 
 .. lpy:specialform:: (let [& args] & body)
 
    Bind 0 or more symbol names to the result of expressions and execute the body of expressions with access to those expressions.
+   Execute the body expressions in an implicit :lpy:form:`do`, returning the value of the final expression.
+   As with ``do`` forms, if no expressions are given, returns ``nil``.
+
+   Names bound in ``let`` forms are lexically scoped to the ``let`` body.
+   Later binding expressions in ``let` forms may reference the results of previously bound expressions.
+   ``let`` form names may be rebound in child ``let`` forms.
+
+   ``let`` forms support :ref:`destructuring` bindings.
+
+   .. code-block::
+
+      (let [])  ;;=> nil
+
+      (let [x 3]
+        x)
+      ;;=> 3
+
+      (let [x 3
+            y (inc x)]
+        y)
+      ;;=> 4
+
+   .. note::
+
+      Names bound in ``let`` forms are *not* variables and thus the value bound to a name cannot be changed.
+      ``let`` form bindings may be overridden in child ``let`` forms.
+
+   .. note::
+
+      Astute readers will note that the true "special form" is ``let*``, while :lpy:fn:`let` is a core macro which rewrites its inputs into ``let*`` forms.
 
 .. lpy:specialform:: (letfn ...)
 
@@ -165,7 +195,7 @@ Special forms are fundamental forms which offer functionality directly from the 
 
 .. lpy:specialform:: (quote expr)
 
-   Return the forms of ``expr`` as data, rather than executing the expression.
+   Return the forms of ``expr`` unevaluated, rather than executing the expression.
    This is particularly useful in when writing macros.
 
    May also be shortened with the :ref:`special character <special_chars>` ``'``, as ``'form``.
@@ -186,13 +216,24 @@ Special forms are fundamental forms which offer functionality directly from the 
 
    TBD
 
-.. lpy:specialform:: (set! ...)
+.. lpy:specialform:: (set! target value)
 
-   TBD
+   Set the ``target`` to the expression ``value``.
+   Only a limited set of a targets are considered assignable:
+   * :lpy:form:`deftype` locals designated as ``:mutable``
+   * :ref:`Host fields <accessing_object_methods_and_props>`
+   * :ref:`dynamic_vars` with established thread-local bindings
 
-.. lpy:specialform:: (throw ...)
+   .. note::
 
-   TBD
+      The Basilisp compiler makes attempts to verify whether a ``set!`` is legal at compile time, but there are cases which must be deferred to runtime due to the dynamic nature of the language.
+      In particular, due to the non-lexical nature of dynamic Var bindings, it can be difficult to establish if a Var is thread-bound when it is ``set!``, so this check is deferred to runtime.
+
+.. lpy:specialform:: (throw exc)
+
+   Throw the exception named by ``exc``.
+   The semantics of ``throw`` are identical to those of Python's `raise <https://docs.python.org/3/reference/simple_stmts.html#the-raise-statement>`_ statement with exception.
+   Unlike Python's ``raise``, an exception is always required and no explicit exception chaining is permitted (as by the ``from`` keyword in Python).
 
 .. lpy:specialform:: (try ...)
 
@@ -209,6 +250,8 @@ Special forms are fundamental forms which offer functionality directly from the 
 
       #'my-var
 
-.. lpy:specialform:: (yield ...)
+.. lpy:specialform:: (yield)
+                     (yield expr)
 
-   TBD
+   Yield a value from a function as by Python's `yield <https://docs.python.org/3/reference/simple_stmts.html#the-yield-statement>`_ statement.
+   Use of the ``yield`` form automatically converts your function into a Python generator.
