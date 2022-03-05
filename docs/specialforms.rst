@@ -158,7 +158,7 @@ Special forms are fundamental forms which offer functionality directly from the 
 
       :ref:`accessing_object_methods_and_props`
 
-.. lpy:specialform:: (let [& args] & body)
+.. lpy:specialform:: (let [& bindings] & body)
 
    Bind 0 or more symbol names to the result of expressions and execute the body of expressions with access to those expressions.
    Execute the body expressions in an implicit :lpy:form:`do`, returning the value of the final expression.
@@ -226,9 +226,32 @@ Special forms are fundamental forms which offer functionality directly from the 
 
       Astute readers will note that the true "special form" is ``letfn*``, while :lpy:fn:`letfn` is a core macro which rewrites its inputs into ``letfn*`` forms.
 
-.. lpy:specialform:: (loop ...)
+.. lpy:specialform:: (loop [& bindings] & body)
 
-   TBD
+   ``loop`` forms are functionally identical to :lpy:form:`let` forms, save for the fact that ``loop`` forms establish a recursion point which enables looping with :lpy:form:`recur`.
+
+   .. code-block::
+
+      (loop [])  ;;=> nil
+
+      (loop [x 3]
+        x)
+      ;;=> 3
+
+      (loop [x 1]
+        (if (< x 10)
+          (recur (* x 2))
+          x))
+      ;;=> 16
+
+   .. note::
+
+      ``loop`` forms will not loop automatically -- users need to force the loop with :lpy:form:`recur`.
+      Returning a value (rather than ``recur``\ing) from the loop terminates the loop and returns the final value.
+
+   .. note::
+
+      Astute readers will note that the true "special form" is ``loop*``, while :lpy:fn:`loop` is a core macro which rewrites its inputs into ``let*`` forms.
 
 .. lpy:specialform:: (quote expr)
 
@@ -279,6 +302,7 @@ Special forms are fundamental forms which offer functionality directly from the 
 
    Set the ``target`` to the expression ``value``.
    Only a limited set of a targets are considered assignable:
+
    * :lpy:form:`deftype` locals designated as ``:mutable``
    * :ref:`Host fields <accessing_object_methods_and_props>`
    * :ref:`dynamic_vars` with established thread-local bindings
