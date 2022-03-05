@@ -165,12 +165,12 @@ Special forms are fundamental forms which offer functionality directly from the 
    As with ``do`` forms, if no expressions are given, returns ``nil``.
 
    Names bound in ``let`` forms are lexically scoped to the ``let`` body.
-   Later binding expressions in ``let` forms may reference the results of previously bound expressions.
-   ``let`` form names may be rebound in child ``let`` forms.
+   Later binding expressions in ``let`` forms may reference the results of previously bound expressions.
+   ``let`` form names may be rebound in child ``let`` and :lpy:form:`let` forms.
 
    .. note::
 
-          Bindings in ``let`` forms support :ref:`destructuring` which is an advanced tool for accessing specific portions of arguments.
+      Bindings in ``let`` forms support :ref:`destructuring` which is an advanced tool for accessing specific portions of arguments.
 
    .. code-block::
 
@@ -188,15 +188,43 @@ Special forms are fundamental forms which offer functionality directly from the 
    .. note::
 
       Names bound in ``let`` forms are *not* variables and thus the value bound to a name cannot be changed.
-      ``let`` form bindings may be overridden in child ``let`` forms.
+      ``let`` form bindings may be overridden in child ``let`` and :lpy:form:`letfn` forms.
 
    .. note::
 
       Astute readers will note that the true "special form" is ``let*``, while :lpy:fn:`let` is a core macro which rewrites its inputs into ``let*`` forms.
 
-.. lpy:specialform:: (letfn ...)
+.. lpy:specialform:: (letfn [& fns] & body)
 
-   TBD
+   Bind 0 or more functions to names and execute the body of expressions with access to those expressions.
+   Execute the body expressions in an implicit :lpy:form:`do`, returning the value of the final expression.
+   As with ``do`` forms, if no expressions are given, returns ``nil``.
+
+   Function names bound in ``letfn`` forms are lexically scoped to the ``letfn`` body.
+   Functions in ``letfn`` forms may reference each other freely, allowing mutual recursion.
+   ``letfn`` function names may be rebound in child :lpy:form:`let` and ``letfn`` forms.
+
+   .. note::
+
+      Function definitions in ``letfn`` forms support :ref:`destructuring` which is an advanced tool for accessing specific portions of arguments.
+
+   .. code-block::
+
+      (letfn [])  ;;=> nil
+
+      (letfn [(plus-two [x] (+ (plus-one x) 1))
+              (plus-one [x] (+ x 1))]
+        (plus-two 3))
+      ;;=> 4
+
+   .. note::
+
+      Names bound in ``letfn`` forms are *not* variables and thus the value bound to a name cannot be changed.
+      ``letfn`` form bindings may be overridden in child :lpy:form:`let` and ``letfn`` forms.
+
+   .. note::
+
+      Astute readers will note that the true "special form" is ``letfn*``, while :lpy:fn:`letfn` is a core macro which rewrites its inputs into ``letfn*`` forms.
 
 .. lpy:specialform:: (loop ...)
 
@@ -232,14 +260,12 @@ Special forms are fundamental forms which offer functionality directly from the 
       All recursion with ``recur`` is tail-recursive by definition.
       It is a compile-time error to have a ``recur`` statement in non-tail position.
 
+      Recursion points are checked lexically, so ``recur`` forms may only be defined in the same lexical context as a construct which defines a recursion point.
+
    .. note::
 
       Recursion via ``recur`` does not consume an additional stack frame in any case.
       Python does not support tail-call optimization, so users are discouraged from looping using traditional recursion for cases with unknown bounds.
-
-   .. note::
-
-      Recursion points are checked lexically, so ``recur`` forms may only be defined in the same lexical context as a construct which defines a recursion point.
 
 .. lpy:specialform:: (reify ...)
 
