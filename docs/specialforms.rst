@@ -8,11 +8,10 @@ Special forms are fundamental forms which offer functionality directly from the 
 
 .. lpy:currentns:: basilisp.core
 
-.. lpy:specialform:: (await expr)
+.. _primary_special_forms:
 
-   Await a value from a function as by Python's `await <https://docs.python.org/3/reference/expressions.html#await-expression>`_ expression.
-   Use of the ``await`` is only valid for functions defined as coroutine functions.
-   See :lpy:form:`fn` for more information.
+Primary Special Forms
+---------------------
 
 .. lpy:specialform:: (def name)
                      (def name expr)
@@ -114,19 +113,6 @@ Special forms are fundamental forms which offer functionality directly from the 
    .. seealso::
 
       :lpy:fn:`and`, :lpy:fn:`or`, :lpy:fn:`if-not`, :lpy:fn:`when`, :lpy:fn:`when-not`
-
-.. lpy:specialform:: (import & py-packages)
-
-   Import the Python package or packages given as arguments.
-   Package names should be unqualified :ref:`symbols` or three element :ref:`vectors`.
-   The vector form is ``[package-name :as alias]`` and the name will be bound as the chosen ``alias`` rather than as the package name.
-   Package symbols in both the symbol and vector format may include dots which will behave in the expected way, consistent with standard Python ``import`` statements.
-
-   .. warning::
-
-      Basilisp namespaces should not be imported using this mechanism.
-      While it may work for basic use cases, it may introduce unexpected and hard-to-diagnose bugs.
-      Instead, Basilisp namespaces should be imported using :lpy:form:`require`.
 
 .. lpy:specialform:: (. obj method)
                      (. obj method & args)
@@ -294,10 +280,6 @@ Special forms are fundamental forms which offer functionality directly from the 
 
    TBD
 
-.. lpy:specialform:: (require ...)
-
-   TBD
-
 .. lpy:specialform:: (set! target value)
 
    Set the ``target`` to the expression ``value``.
@@ -318,9 +300,19 @@ Special forms are fundamental forms which offer functionality directly from the 
    The semantics of ``throw`` are identical to those of Python's `raise <https://docs.python.org/3/reference/simple_stmts.html#the-raise-statement>`_ statement with exception.
    Unlike Python's ``raise``, an exception is always required and no explicit exception chaining is permitted (as by the ``from`` keyword in Python).
 
-.. lpy:specialform:: (try ...)
+.. lpy:specialform:: (try *exprs *catch-exprs finally?)
 
-   TBD
+   Execute 1 or more expressions (``exprs``) in an implicit :lpy:form:`do`, returning the final value if no exceptions occur.
+   If an exception occurs and a matching ``catch`` expression is provided, handle the exception and return the value of the ``catch`` expression.
+   Evaluation of which ``catch`` expression to use follows the semantics of the underlying Python VM -- that is, for an exception ``e``, bind to the first ``catch`` expression for which ``(instance? ExceptionType e)`` returns ``true``.
+   Users may optionally provide a ``finally`` clause trailing the final ``catch`` expression which will be executed in all cases.
+
+   .. note::
+
+      Basilisp's ``try`` special form matches the semantics of Python's `try <https://docs.python.org/3/reference/compound_stmts.html#the-try-statement>`_ with two minor exceptions:
+
+      * In Basilisp, a single ``catch`` expression may only bind to a single exception type.
+      * In Basilisp, the ``finally`` clause can never provide a return value for the enclosing function.
 
 .. lpy:specialform:: (var var-name)
 
@@ -333,8 +325,54 @@ Special forms are fundamental forms which offer functionality directly from the 
 
       #'my-var
 
+.. _basilisp_specific_special_forms:
+
+Basilisp-specific Special Forms
+-------------------------------
+
+The special forms below were added to provide direct support for Python VM specific features and their usage should be relegated to platform-specific code.
+
+.. lpy:specialform:: (await expr)
+
+   Await a value from a function as by Python's `await <https://docs.python.org/3/reference/expressions.html#await-expression>`_ expression.
+   Use of the ``await`` is only valid for functions defined as coroutine functions.
+   See :lpy:form:`fn` for more information.
+
 .. lpy:specialform:: (yield)
                      (yield expr)
 
    Yield a value from a function as by Python's `yield <https://docs.python.org/3/reference/simple_stmts.html#the-yield-statement>`_ statement.
    Use of the ``yield`` form automatically converts your function into a Python generator.
+   Basilisp seq and sequence functions integrate seamlessly with Python generators.
+
+.. _import_related_special_forms:
+
+Import-related Special Forms
+----------------------------
+
+Basilisp provides two special forms specifically for importing Python and Basilisp code into the current context.
+
+.. warning::
+
+   These special forms should be considered an implementation detail and their direct usage is strongly discouraged.
+   In nearly all cases, users should delegate to the corresponding functions in :lpy:ns:`basilisp.core` instead.
+
+.. lpy:specialform:: (import* & py-packages)
+
+   Import the Python package or packages given as arguments.
+   See :lpy:fn:`import` for more details.
+
+   .. warning::
+
+      Basilisp namespaces should not be imported using this mechanism.
+      See :lpy:form:`require` for more details on requiring Basilisp namespaces.
+
+.. lpy:specialform:: (require* & namespaces)
+
+   Load Basilisp libraries and make them accessible in the current namespace.
+   See :lpy:fn:`require` for more details.
+
+   .. warning::
+
+      Python packages and modules cannot be imported using this mechanism.
+      See :lpy:form:`import` for more details on importing Python modules.
