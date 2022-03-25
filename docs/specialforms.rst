@@ -45,9 +45,12 @@ Primary Special Forms
       While it is entirely legal to ``def`` a value within a function, the results of interning the Var within the function still apply to the current namespace.
       Within a function or method context, users should use the :lpy:form:`let` special form to bind a value to a name in that scope.
 
-.. lpy:specialform:: (deftype ...)
+.. lpy:specialform:: (deftype name fields superclass+impls)
 
-   TBD
+   Define a new data type (a Python class) with the given set of fields which implement 0 or more Python interfaces.
+   Fields should be given as a vector of names like a function argument list.
+   Python interfaces include any type which inherits from ``abc.ABC``\.
+   New types may also implement all Python "dunder" methods automatically, though may also choose to explicitly "implement" ``python/object``.
 
 .. lpy:specialform:: (do)
                      (do & exprs)
