@@ -5,9 +5,6 @@ Python Interop
 
 Basilisp features myriad options for interfacing with host Python code.
 
-.. contents::
-   :depth: 2
-
 .. _name_munging:
 
 Name Munging
@@ -44,7 +41,7 @@ It is not required to import anything to enable this functionality.
 Importing Modules
 -----------------
 
-As in standard Python, it is possible to import any module importable in native Python code in Basilisp using the ``(import module)`` macro.
+As in standard Python, it is possible to import any module importable in native Python code in Basilisp using the :lpy:fn:`import` macro, as ``(import module)``.
 Submodules may be imported using the standard Python ``.`` separator: ``(import module.sub)``.
 
 Upon import, top-level (unqualified) Python modules may be referred to using the full module name as the namespace portion of the symbol and the desired module member.
@@ -52,17 +49,34 @@ Submodules will be available under the full, dot-separated name.
 
 To avoid name clashes from the above, you may alias imports (as in native Python code) using the same syntax as ``require``.
 Both top-level modules and submodules may be aliased: ``(import [module.sub :as sm])``.
-Note that none of the other convenience features or flags from ``require`` are available, so you will not be able to, say, refer unqualified module members into the current Namespace.
+Note that none of the other convenience features or flags from :lpy:fn:`require` are available, so you will not be able to, say, refer unqualified module members into the current Namespace.
+
+.. code-block::
+
+    (import [os.path :as path])
+    (path/exists "test.txt") ;;=> false
+
+.. note::
+
+   Users should generally prefer to use the :lpy:fn:`ns` macro for importing modules into their namespace, rather than using the :lpy:fn:`import` form directly.
+
+   .. code-block:: clojure
+
+      (ns myproject.ns
+       (:import [os.path :as path]))
 
 .. warning::
 
    Unlike in Python, imported module names and aliases cannot be referred to directly in Basilisp code.
    Module and Namespace names are resolved separately from local names and will not resolve as unqualified names.
 
-.. code-block::
+.. seealso::
 
-    (import [os.path :as path])
-    (path/exists "test.txt") ;;=> false
+   :lpy:form:`import`, :lpy:fn:`import`, :lpy:fn:`ns-imports`, :lpy:fn:`ns-map`
+
+.. seealso::
+
+   :ref:`namespaces`
 
 .. _referencing_module_members:
 
@@ -88,7 +102,7 @@ Often when interfacing with native Python code, you will end up handling raw Pyt
 In such cases, you may need or want to call a method on that object or access a property.
 Basilisp has specialized syntax support for calling methods on objects and accessing its properties.
 
-To access an object's method, the ``.`` special form can be used: ``(. object method & args)``.
+To access an object's method, the :lpy:form:`.` special form can be used: ``(. object method & args)``.
 
 .. code-block:: clojure
 

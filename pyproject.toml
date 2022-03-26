@@ -65,7 +65,7 @@ pytest = ["pytest"]
 basilisp = "basilisp.cli:invoke_cli"
 
 [tool.poetry.plugins.pytest11]
-basilisp_test_runner = "basilisp.testrunner"
+basilisp_test_runner = "basilisp.contrib.pytest.testrunner"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

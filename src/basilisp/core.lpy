@@ -3999,9 +3999,29 @@
 ;; Output Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;
 
-(def ^:dynamic *in* sys/stdin)
-(def ^:dynamic *out* sys/stdout)
-(def ^:dynamic *err* sys/stderr)
+(def ^:dynamic *in*
+  "The current value of *standard in* used by Basilisp.
+
+  Note that binding a new value to this Var will not affect *Python* code (which
+  generally respects ``sys.stdin``), though all Basilisp code should respect the
+  value."
+  sys/stdin)
+
+(def ^:dynamic *out*
+  "The current value of *standard out* used by Basilisp.
+
+  Note that binding a new value to this Var will not affect *Python* code (which
+  generally respects ``sys.stdout``), though all Basilisp code should respect the
+  value."
+  sys/stdout)
+
+(def ^:dynamic *err*
+  "The current value of *standard error* used by Basilisp.
+
+  Note that binding a new value to this Var will not affect *Python* code (which
+  generally respects ``sys.stderr``), though all Basilisp code should respect the
+  value."
+  sys/stderr)
 
 (def ^:dynamic *print-sep* " ")
 

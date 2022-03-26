@@ -181,7 +181,7 @@
 
   As an example::
 
-    (are [res x y] (is (= res (+ x y)))
+    (are [res x y] (= res (+ x y))
       3  1 2
       4  2 2
       0 -1 1)

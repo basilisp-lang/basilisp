@@ -1,3 +1,5 @@
+.. _reader:
+
 Reader
 ======
 
@@ -333,10 +335,10 @@ Fortunately, Basilisp includes data readers for reading Python collection litera
 Python literals can be read by prefixing existing Basilisp data structures with a ``#py`` data reader tag.
 Python literals use the matching syntax to the corresponding Python data type, which does not always match the syntax for the same data type in Basilisp.
 
-* ``#py []`` produces a Python `list <https://docs.python.org/3/library/stdtypes.html#list>` type.
-* ``#py ()`` produces a Python `tuple <https://docs.python.org/3/library/stdtypes.html#tuple>` type.
-* ``#py {}`` produces a Python `dict <https://docs.python.org/3/library/stdtypes.html#dict>` type.
-* ``#py #{}`` produces a Python `set <https://docs.python.org/3/library/stdtypes.html#set>` type.
+* ``#py []`` produces a Python `list <https://docs.python.org/3/library/stdtypes.html#list>`_ type.
+* ``#py ()`` produces a Python `tuple <https://docs.python.org/3/library/stdtypes.html#tuple>`_ type.
+* ``#py {}`` produces a Python `dict <https://docs.python.org/3/library/stdtypes.html#dict>`_ type.
+* ``#py #{}`` produces a Python `set <https://docs.python.org/3/library/stdtypes.html#set>`_ type.
 
 .. _special_chars:
 
@@ -353,7 +355,30 @@ Basilisp's reader has a few special characters which cause the reader to emit mo
 Syntax Quoting
 --------------
 
-Syntax quoting is a facility primarily used for writing macros in Basilisp.
+Syntax quoting is a facility primarily used for writing :ref:`macros` in Basilisp.
+Users can syntax quote a block using the ````` character at the beginning of any valid reader form.
+Within a syntax quoted form, users gain access to a few extra tools for macro writing:
+
+* Symbols may be suffixed with a ``#`` character to have the reader generate a guaranteed-unique name to avoid name clashes during macroexpansion.
+  Repeated uses of the same symbol prefix will be resolved as the same symbol name within the same syntax quoted form.
+  Macros which need to generate symbols across multiple syntax quote blocks should use a :lpy:fn:`gensym` created outside both blocks and unquoted into the correct place in each.
+* Forms may be injected into another form (typically a list, vector, set, or map) using the ``~`` (unquote) character.
+  This is typically useful with macro parameters or other data generated external to the syntax quote.
+* Sequence types may be "spliced" into the current form using the ``~@`` (unquote splice) character.
+  This allows you to generate a sequence of items and have it naturally stitched into a larger syntax quoted form.
+
+Any *unquoted* symbols not suffixed with ``#`` within a syntax quoted form will be fully resolved against the current runtime environment.
+More specifically:
+
+* Any unquoted symbol with a namespace alias will be converted into a symbol with the alias resolved to the "full" namespace name
+* Any unquoted symbol with no namespace will have its full namespace added, if one exists, or otherwise the current namespace name will be added as the symbol's namespace
+
+After all of the special processing has been applied to a syntax quoted form, the result is a standard quoted (unevaluated) form with all symbols resolved and any unquotes and splices applied.
+In nearly all cases, this will be the return value from a macro function, which the compiler will compile the rest of the way into raw Python code.
+
+.. warning::
+
+   Using any of these special syntax quoting characters outside of a syntax quote context will result in a compiler error.
 
 .. _reader_conditions:
 
@@ -389,3 +414,43 @@ Splicing reader conditionals may only appear within other collection literal for
     [1 2 3]
     basilisp.user=> #?@(:lpy [1 2 3])
     basilisp.lang.reader.SyntaxError: Unexpected reader conditional
+
+.. _python_version_reader_features:
+
+Python Version Reader Features
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Basilisp includes a specialized set of reader features based on the major version of Python (e.g. 3.6, 3.7, etc.).
+Because the API of Python's standard library changes significantly between versions, it can be challenging to support multiple versions at once.
+In classical Python, users are forced to use conditional gates either at the top level of a module to define different function versions, or perhaps gate the logic within a function or class.
+Both options incur some level of runtime cost.
+The Python version features allow you to supply version specific overrides from the reader forward, meaning only the specific code for the version of Python you are using will be compiled and hit at runtime.
+
+The version specific feature for Python 3.6 is ``:lpy36`` while the feature for Python 3.10 is ``:lpy310``.
+
+In addition to the features that lock to specific versions, there are also "range" features that allow you to specify all Python versions before or after the specified version.
+For example, to select all versions of Python 3.7 or greater, you would use ``:lpy37+``.
+To select all versions of Python Python 3.8 or before, you would use ``:lpy38-``.
+
+All versions of Python supported by the current version of Basilisp will be included in the default feature set.
+
+Basilisp takes advantage of this in :lpy:ns:`basilisp.io`.
+
+.. code-block:: clojure
+
+   (defn delete-file
+     "Delete the file named by ``f``.
+
+     If ``silently`` is false or nil (default), attempting to delete a non-existent file
+     will raise a ``FileNotFoundError``. Otherwise, return the value of ``silently``."
+     ([f]
+      (.unlink (as-path f))
+      true)
+     ([f silently]
+      #?(:lpy37- (try
+                   (.unlink (as-path f))
+                   (catch python/FileNotFoundError e
+                     (when-not silently
+                       (throw e))))
+         :lpy38+ (.unlink (as-path f) ** :missing-ok (if silently true false)))
+      silently))

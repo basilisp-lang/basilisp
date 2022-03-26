@@ -6,10 +6,12 @@ Reference
    :caption: Contents:
 
    api
-   reader
-   repl
-   specialforms
-   compiler
-   pyinterop
-   typesandrecords
    cli
+   repl
+   reader
+   specialforms
+   pyinterop
+   runtime
+   concepts
+   testing
+   compiler

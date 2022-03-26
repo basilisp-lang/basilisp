@@ -4,7 +4,7 @@ from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple, Union
 
 from docutils import nodes
 from docutils.nodes import Element, Node
-from docutils.parsers.rst import directives  # type: ignore[attr-defined]
+from docutils.parsers.rst import directives
 from sphinx import addnodes
 from sphinx.addnodes import desc_signature, pending_xref
 from sphinx.builders import Builder
@@ -25,7 +25,7 @@ from sphinx.writers.html import HTMLTranslator
 
 from basilisp.lang import reader, runtime
 from basilisp.lang import symbol as sym
-from basilisp.lang.interfaces import IPersistentList, IPersistentMap, IPersistentVector
+from basilisp.lang.interfaces import IPersistentList
 
 logger = logging.getLogger(__name__)
 
@@ -191,26 +191,11 @@ class BasilispVar(BasilispObject):
 
     def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
         sig, prefix = name
-        return f"{sig} ({prefix} Var in {modname})"
+        return f"{sig} ({prefix} in {modname})"
 
 
-class BasilispFunction(BasilispObject):
+class BasilispFunctionLike(BasilispObject):
     option_spec: OptionSpec = BasilispObject.option_spec.copy()
-    option_spec.update(
-        {
-            "async": directives.flag,
-            "macro": directives.flag,
-            "multi": directives.flag,
-        }
-    )
-
-    def get_signature_prefix(self, sig: str) -> str:
-        prefix = "fn " if "macro" not in self.options else "macro "
-        if "multi" in self.options:
-            prefix = f"multi {prefix}"
-        if "async" in self.options:
-            prefix = f"async {prefix}"
-        return prefix
 
     def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
         prefix = self.get_signature_prefix(sig)
@@ -228,13 +213,55 @@ class BasilispFunction(BasilispObject):
         param_list = desc_lispparameterlist()
         for param in runtime.rest(sig_sexp):
             param_node = desc_lispparameter()
-            assert isinstance(param, (sym.Symbol, IPersistentVector, IPersistentMap))
             param_node += addnodes.desc_sig_name("", runtime.lrepr(param))
             param_list += param_node
         signode += param_list
 
         signode += addnodes.desc_addname(")", ")")
         return fn_sym.name, prefix
+
+
+class BasilispSpecialForm(BasilispFunctionLike):
+    def get_signature_prefix(self, sig: str) -> str:
+        return "special form"
+
+    def add_target_and_index(
+        self, name_cls: Tuple[str, str], sig: str, signode: desc_signature
+    ) -> None:
+        fullname = name_cls[0]
+        node_id = fullname
+        signode["ids"].append(node_id)
+
+        self.state.document.note_explicit_target(signode)
+
+        domain = cast(BasilispDomain, self.env.get_domain("lpy"))
+        domain.note_form(fullname, node_id)
+
+    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+        sig, prefix = name
+        sig_sexp = runtime.first(reader.read_str(sig))
+        if isinstance(sig_sexp, IPersistentList):
+            sig = runtime.first(sig_sexp)
+        return f"{sig} ({prefix})"
+
+
+class BasilispFunction(BasilispFunctionLike):
+    option_spec: OptionSpec = BasilispFunctionLike.option_spec.copy()
+    option_spec.update(
+        {
+            "async": directives.flag,
+            "macro": directives.flag,
+            "multi": directives.flag,
+        }
+    )
+
+    def get_signature_prefix(self, sig: str) -> str:
+        prefix = "fn " if "macro" not in self.options else "macro "
+        if "multi" in self.options:
+            prefix = f"multi {prefix}"
+        if "async" in self.options:
+            prefix = f"async {prefix}"
+        return prefix
 
     def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
         sig, prefix = name
@@ -263,7 +290,7 @@ class BasilispClassLike(BasilispObject):
 
 class BasilispNamespaceIndex(Index):
     name = "nsindex"
-    localname = "Basilisp Namespace Index"
+    localname = "Namespace Index"
     shortname = "namespaces"
 
     def generate(  # pylint: disable=too-many-branches,too-many-locals
@@ -350,8 +377,14 @@ class BasilispXRefRole(XRefRole):
         title: str,
         target: str,
     ) -> Tuple[str, str]:
-        refnode["lpy:namespace"] = env.ref_context.get("lpy:namespace")
+        if refnode.attributes.get("reftype") != "form":
+            refnode["lpy:namespace"] = env.ref_context.get("lpy:namespace")
         return title, target
+
+
+class FormEntry(NamedTuple):  # pylint: disable=inherit-non-class
+    docname: str
+    node_id: str
 
 
 class VarEntry(NamedTuple):  # pylint: disable=inherit-non-class
@@ -373,6 +406,7 @@ class BasilispDomain(Domain):
     name = "lpy"
     label = "basilisp"
     object_types: Dict[str, ObjType] = {
+        "form": ObjType("special form", "form", "specialform", "obj"),
         "namespace": ObjType("namespace", "ns", "obj"),
         "var": ObjType("var", "var", "obj"),
         "function": ObjType("lispfunction", "func", "obj"),
@@ -387,6 +421,7 @@ class BasilispDomain(Domain):
 
     directives = {
         "currentns": BasilispCurrentNamespace,
+        "specialform": BasilispSpecialForm,
         "namespace": BasilispNamespace,
         "var": BasilispVar,
         "lispfunction": BasilispFunction,
@@ -399,6 +434,7 @@ class BasilispDomain(Domain):
         "property": PyProperty,
     }
     roles = {
+        "form": BasilispXRefRole(),
         "ns": BasilispXRefRole(),
         "var": BasilispXRefRole(),
         "fn": BasilispXRefRole(),
@@ -409,10 +445,23 @@ class BasilispDomain(Domain):
         "prop": BasilispXRefRole(),
     }
     initial_data: Dict[str, Dict[str, Tuple[Any]]] = {
+        "forms": {},  # name -> docname
         "vars": {},  # fullname -> docname, objtype
         "namespaces": {},  # nsname -> docname, synopsis, platform, deprecated
     }
     indices = [BasilispNamespaceIndex]
+
+    @property
+    def forms(self) -> Dict[str, FormEntry]:
+        return self.data.setdefault("forms", {})
+
+    def note_form(
+        self,
+        name: str,
+        node_id: str,
+    ) -> None:
+        """Note a Basilisp var for cross reference."""
+        self.forms[name] = FormEntry(self.env.docname, node_id)
 
     @property
     def vars(self) -> Dict[str, VarEntry]:
@@ -445,22 +494,28 @@ class BasilispDomain(Domain):
         )
 
     def clear_doc(self, docname: str) -> None:
-        for fullname, obj in list(self.vars.items()):
-            if obj.docname == docname:
-                del self.vars[fullname]
-        for modname, mod in list(self.namespaces.items()):
-            if mod.docname == docname:
-                del self.namespaces[modname]
+        for frm_name, form_entry in list(self.forms.items()):
+            if form_entry.docname == docname:
+                del self.forms[frm_name]
+        for var_name, var_entry in list(self.vars.items()):
+            if var_entry.docname == docname:
+                del self.vars[var_name]
+        for ns_name, ns_entry in list(self.namespaces.items()):
+            if ns_entry.docname == docname:
+                del self.namespaces[ns_name]
 
     def merge_domaindata(self, docnames: List[str], otherdata: Dict) -> None:
-        for fullname, var in otherdata["vars"].items():
-            if var.docname in docnames:
-                self.vars[fullname] = var
-        for modname, ns in otherdata["namespaces"].items():
-            if ns.docname in docnames:
-                self.namespaces[modname] = ns
+        for frm_name, form_entry in otherdata["forms"].items():
+            if form_entry.docname in docnames:
+                self.forms[frm_name] = form_entry
+        for var_name, var_entry in otherdata["vars"].items():
+            if var_entry.docname in docnames:
+                self.vars[var_name] = var_entry
+        for ns_name, ns_entry in otherdata["namespaces"].items():
+            if ns_entry.docname in docnames:
+                self.namespaces[ns_name] = ns_entry
 
-    def resolve_xref(  # pylint: disable=too-many-arguments,unused-argument
+    def resolve_xref(  # pylint: disable=too-many-arguments,too-many-locals,unused-argument
         self,
         env: BuildEnvironment,
         fromdocname: str,
@@ -472,9 +527,13 @@ class BasilispDomain(Domain):
     ) -> Optional[Element]:
         nsname = node.get("lpy:namespace")
 
-        maybe_obj: Union[NamespaceEntry, VarEntry, None]
-        if node.get("reftype") == "ns":
+        maybe_obj: Union[FormEntry, NamespaceEntry, VarEntry, None]
+        reftype = node.get("reftype")
+        if reftype == "ns":
             maybe_obj = self.namespaces.get(target)
+            title = target
+        elif reftype == "form":
+            maybe_obj = self.forms.get(target)
             title = target
         else:
             obj_sym = runtime.first(reader.read_str(target))

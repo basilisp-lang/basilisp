@@ -4,14 +4,14 @@
    tempfile))
 
 (def ^:dynamic *tempdir*
-  "Name of a temporary directory value bound by the fixture `tempdir`."
+  "Name of a temporary directory value bound by the fixture :lpy:fn:`tempdir`."
   nil)
 
 (defn tempdir
-  "`basilisp.test` fixture which creates a temporary directory for the duration
+  ":lpy:ns:`basilisp.test` fixture which creates a temporary directory for the duration
   of the test.
 
-  The temporary directory name is bound to the dynamic Var `*tempdir*`."
+  The temporary directory name is bound to the dynamic Var :lpy:var:`*tempdir*`."
   []
   (with-open [d (tempfile/TemporaryDirectory)]
     (binding [*tempdir* d]

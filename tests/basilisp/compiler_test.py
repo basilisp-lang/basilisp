@@ -695,6 +695,12 @@ class TestDefType:
         [
             """
         (deftype* Point [x y z]
+          :implements []
+          (__str__ [this]
+            (python/repr #py ("Point" x y z))))
+        """,
+            """
+        (deftype* Point [x y z]
           :implements [python/object]
           (__str__ [this]
             (python/repr #py ("Point" x y z))))
