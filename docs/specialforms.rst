@@ -47,10 +47,54 @@ Primary Special Forms
 
 .. lpy:specialform:: (deftype name fields superclass+impls)
 
-   Define a new data type (a Python class) with the given set of fields which implement 0 or more Python interfaces.
+   Define a new data type (a Python class) with the given set of fields which implement 0 or more Python interfaces and Basilisp protocols.
+   Types defined by ``deftype`` are immutable, slotted classes by default and do not include any niceties beyond what a basic Python class definition would give you.
+
+   .. code-block:: clojure
+
+      (defprotocol Shape
+        (perimeter [] "Return the perimeter of the Shape as a floating point number.")
+        (area [] "Return the area of the Shape as a floating point number.")0
+
+      (deftype Rectangle [x y]
+        Shape
+        (perimeter [self] (+ (* 2 x) (* 2 y)))
+        (area [self] (* x y)))
+
    Fields should be given as a vector of names like a function argument list.
+   Fields are accessible within implemented interface methods as unqualified names.
+   Fields are immutable by default, but may be defined as mutable using the ``^:mutable`` metadata.
+   Mutable fields may be set using the :lpy:form:`set!` special form from within any implemented interfaces.
+   Fields may be given a default value using the ``{:default ...}`` metadata which will automatically be set when a new instance is created and which is not required to be provided during construction.
+   Fields with defaults **must** appear after all fields without defaults.
+
+   .. warning::
+
+      Users should use field mutability and defaults sparingly, as it encourages exactly the types of design patterns that Basilisp and Clojure discourage.
+
    Python interfaces include any type which inherits from ``abc.ABC``\.
    New types may also implement all Python "dunder" methods automatically, though may also choose to explicitly "implement" ``python/object``.
+   Python ``ABC`` types may include standard instance methods as well as class methods, properties, and static methods (unlike Java interfaces).
+   Basilisp allows users to mark implemented methods as each using the ``^:classmethod``, ``^:property``, and ``^:staticmethod`` metadata, respectively, on the implemented method name.
+
+   Neither the Python language specification nor the Python VM explicitly require users to use the ``abc.ABC`` metaclass and ``abc.abstractmethod`` decorator to define an abstract class or interface type, so a significant amount of standard library code and third-party libraries omit this step.
+   As such, even if a class is functionally an abstract class or interface, the Basilisp compiler will not consider it one without ``abc.ABC`` in the superclass list.
+   To get around this limitation, you can mark a class in the superclass list as "artificially" abstract using the ``^:abstract`` metadata.
+
+   .. warning::
+
+      Users should use artificial abstractness sparingly since it departs from the intended purpose of the ``deftype`` construct and circumvents protections built into the compiler.
+
+   .. note::
+
+      ``deftype`` is certainly necessary at times, but users should consider using :lpy:fn:`defrecord` first.
+      ``defrecord`` creates a record type, which behaves like a map but which can also implement Python interfaces and satisfy Basilisp protocols.
+      This makes it an ideal for data which needs to interact with Python code and Basilisp code.
+      Records are strictly immutable, however, so they may not be suitable for all cases.
+
+   .. seealso::
+
+      :lpy:fn:`defrecord`, :lpy:fn:`defprotocol`, :lpy:form:`reify`
 
 .. lpy:specialform:: (do)
                      (do & exprs)
