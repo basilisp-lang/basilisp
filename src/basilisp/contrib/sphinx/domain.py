@@ -4,7 +4,7 @@ from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple, Union
 
 from docutils import nodes
 from docutils.nodes import Element, Node
-from docutils.parsers.rst import directives  # type: ignore[attr-defined]
+from docutils.parsers.rst import directives
 from sphinx import addnodes
 from sphinx.addnodes import desc_signature, pending_xref
 from sphinx.builders import Builder
