@@ -53,8 +53,8 @@ Primary Special Forms
    .. code-block:: clojure
 
       (defprotocol Shape
-        (perimeter [] "Return the perimeter of the Shape as a floating point number.")
-        (area [] "Return the area of the Shape as a floating point number.")0
+        (perimeter [self] "Return the perimeter of the Shape as a floating point number.")
+        (area [self] "Return the area of the Shape as a floating point number."))
 
       (deftype Rectangle [x y]
         Shape
@@ -323,9 +323,38 @@ Primary Special Forms
       Recursion via ``recur`` does not consume an additional stack frame in any case.
       Python does not support tail-call optimization, so users are discouraged from looping using traditional recursion for cases with unknown bounds.
 
-.. lpy:specialform:: (reify ...)
+.. lpy:specialform:: (reify superclass+impls)
 
-   TBD
+   Return a new object which implements 0 or more Python interfaces and Basilisp protocols.
+   Methods on objects returned by ``reify`` close over their environment, which provides a similar functionality to that of a class created by :lpy:form:`deftype`\.
+
+   .. code-block:: clojure
+
+      (defprotocol Shape
+        (perimeter [self] "Return the perimeter of the Shape as a floating point number.")
+        (area [self] "Return the area of the Shape as a floating point number."))
+
+      (defn rectangle [x y]
+        (reify Shape
+          (perimeter [self] (+ (* 2 x) (* 2 y)))
+          (area [self] (* x y))))
+
+   Python interfaces include any type which inherits from ``abc.ABC``\.
+   New types may also implement all Python "dunder" methods automatically, though may also choose to explicitly "implement" ``python/object``.
+   Python ``ABC`` types may include standard instance methods as well as class methods, properties, and static methods (unlike Java interfaces).
+   Basilisp allows users to mark implemented methods as each using the ``^:classmethod``, ``^:property``, and ``^:staticmethod`` metadata, respectively, on the implemented method name.
+
+   Neither the Python language specification nor the Python VM explicitly require users to use the ``abc.ABC`` metaclass and ``abc.abstractmethod`` decorator to define an abstract class or interface type, so a significant amount of standard library code and third-party libraries omit this step.
+   As such, even if a class is functionally an abstract class or interface, the Basilisp compiler will not consider it one without ``abc.ABC`` in the superclass list.
+   To get around this limitation, you can mark a class in the superclass list as "artificially" abstract using the ``^:abstract`` metadata.
+
+   .. warning::
+
+      Users should use artificial abstractness sparingly since it departs from the intended purpose of the ``reify`` construct and circumvents protections built into the compiler.
+
+   .. seealso::
+
+      :lpy:form:`deftype`
 
 .. lpy:specialform:: (set! target value)
 
