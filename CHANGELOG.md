@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
  * Set tighter bounds on dependency version ranges (#657)
- * Improved on and completed several different sections of the documentation (#661)
+ * Improved on and completed several different sections of the documentation (#661, #669)
 
 ### Fixed
  * Fixed the `with` macro definition to match the Python language spec (#656)
