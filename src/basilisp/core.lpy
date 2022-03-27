@@ -6,6 +6,8 @@
          decimal
          fractions
          functools
+         importlib
+         importlib.util
          multiprocessing
          os
          pathlib
@@ -4584,7 +4586,31 @@
   [& modules]
   `(import* ~@modules))
 
-(import importlib)
+(defn ^:private rewrite-clojure-libspec
+  "Rewrite libspecs which point to namespaces starting with 'clojure.' to use a
+  Basilisp alternative if the original library cannot be found on the import path.
+
+  If a matching library is found and no alias was given, configure the alias to be
+  original requested namespace name."
+  [libspec]
+  (let [ns-name (name (:namespace libspec))]
+    (if (and (.startswith ns-name "clojure.")
+             (not
+              (try
+                (importlib.util/find-spec (basilisp.lang.util/munge ns-name))
+                (catch #?(:lpy36- python/AttributeError :lpy37+ python/ModuleNotFoundError) _
+                  nil))))
+      (let [basilisp-ns-name (str (.replace ns-name "clojure" "basilisp" 1))]
+        ;; Add the original name as an alias if no alias was given
+        ;;
+        ;; This won't cover every case, since it's certainly possible someone was
+        ;; using an alias, but still referring to some required Vars with a fully
+        ;; qualified name. We don't currently support setting multiple aliases for
+        ;; a single namespace right now though we could simulate this via multiple
+        ;; `require` s, but I'm not convinced that's an important enough case.
+        (cond-> (assoc libspec :namespace (symbol basilisp-ns-name))
+          (not (:as libspec)) (assoc :as (symbol ns-name))))
+      libspec)))
 
 (defn ^:private require-libspec
   "Convert a user-specified require libspec into a map with well-defined keys.
@@ -4600,15 +4626,20 @@
   - ``:refer :all`` if every Var should be referred
   - ``:only [sym1, sym2]`` a sequence of symbols naming Vars to refer
   - ``:exclude [sym1, sym2]`` to refer all except the specified symbols
-  - ``:rename {sym1 new-sym1}`` to rename all the specified symbols to the given new name"
+  - ``:rename {sym1 new-sym1}`` to rename all the specified symbols to the given new name
+
+  Namespaces beginning with 'clojure.' will be automatically rewritten to 'basilisp.' if
+  the original library cannot be found. This should allow for automatically importing
+  Clojure's included core libraries such as ``clojure.string``"
   [req]
-  (cond
-    (vector? req) (merge {:namespace (first req)}
-                         (apply hash-map (rest req)))
-    (symbol? req) {:namespace req}
-    :else         (throw
-                   (ex-info "Invalid libspec for require"
-                            {:value req}))))
+  (rewrite-clojure-libspec
+   (cond
+     (vector? req) (merge {:namespace (first req)}
+                          (apply hash-map (rest req)))
+     (symbol? req) {:namespace req}
+     :else         (throw
+                    (ex-info "Invalid libspec for require"
+                             {:value req})))))
 
 (defn ^:private require-lib
   "Require the library described by ``libspec`` into the Namespace ``requiring-ns``\\."
