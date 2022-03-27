@@ -87,64 +87,103 @@ Basilisp regular expressions use Python's `regular expression <https://docs.pyth
 REPL
 ----
 
-TBD
+Basilisp's REPL experience closely matches that of Clojure's.
+Basilisp does not currently support any programmatic REPL server such as `nREPL <https://nrepl.org/nrepl/index.html>`_ or pREPL, though support is planned (see `#412 <https://github.com/basilisp-lang/basilisp/issues/412>`_).
 
 .. _evaluation_differences:
 
 Evaluation
 ----------
 
-TBD
+Basilisp code has the same evaluation semantics as Clojure.
+The :lpy:fn:`load` and :lpy:fn:`load-file` functions are supported though their usage is generally discouraged.
+Basilisp does not perform any locals clearing.
 
 .. _special_form_differences:
 
 Special Forms
 -------------
 
-TBD
+Basilisp special forms should be identical to their Clojure counterparts unless otherwise noted below.
+
+* :lpy:form:`def` does not support the ``^:const`` metadata key.
+* :lpy:form:`if` does not use any boxing behavior as that is not relevant for Python.
+* The JVM specific ``locking``\, ``monitor-enter``\, and ``monitor-exit`` special forms are not implemented.
+* The Python VM specific :lpy:form:`await` and :lpy:form:`yield` forms are included to support Python interoperability.
 
 .. _namespace_differences:
 
 Namespaces
 ----------
 
-TBD
+Basilisp namespaces are reified at runtime and support the full set of ``clojure.core`` namespace APIs.
+Namespaces correspond to a single Python `module <https://docs.python.org/3/library/sys.html#sys.modules>`_ which is where the compiled code (essentially anything that has been :lpy:form:`def`\-ed) lives.
+Users should rarely need to be concerned with this implementation detail.
 
+As in Clojure, namespaces are bootstrapped using the :lpy:fn:`ns` header macro at the top of a code file.
+There are some differences between ``ns`` in Clojure and ``ns`` in Basilisp:
 
-.. _var_differences:
+* Users may use ``:refer-basilisp`` and ``:refer-clojure`` interchangeably to control which of the :lpy:ns:`basilisp.core` functions are referred into the new namespace.
+* Prefix lists are not supported for any of the import or require selectors.
+* Clojure namespaces are not automatically rewritten, but support for that feature is being tracked in `#667 <https://github.com/basilisp-lang/basilisp/issues/667>`_.
 
-Vars
+.. _lib_differences:
+
+Libs
 ----
 
-TBD
+Support for Clojure libs is `planned <https://github.com/basilisp-lang/basilisp/issues/668>`_\.
 
-.. _library_differences:
+.. _refs_and_transactions_differences:
 
-Libraries
----------
+Refs and Transactions
+---------------------
 
-TBD
+Neither refs nor transactions are supported.
+
+.. _agents_differences:
+
+Agents
+------
+
+Agents are not currently supported. Support is tracked in `#413 <https://github.com/basilisp-lang/basilisp/issues/413>`_.
 
 .. _host_interop_differences:
 
 Host Interop
 ------------
 
-TBD
+Host interoperability features generally match those of Clojure.
+
+* :lpy:fn:`new` is a macro for Clojure compatibility, as the ``new`` keyword is not required for constructing new objects in Python.
+* `Python builtins <https://docs.python.org/3/library/functions.html>`_ are available under the special namespace ``py`` (as ``py/abs``, for instance) without requiring an import.
+
+.. seealso::
+
+   :ref:`python_interop`
 
 .. _type_hinting_differences:
 
 Type Hinting
 ^^^^^^^^^^^^
 
-Type hints are supported, but unused by the compiler in any capacity.
+Type hints may be applied anywhere they are supported in Clojure, but the compiler does not currently use them.
+Support for attaching type hints to the Python AST is tracked in `#354 <https://github.com/basilisp-lang/basilisp/issues/354>`_\.
+There is no need for type hints anywhere in Basilisp right now, however.
 
 .. _compilation_differences:
 
 Compilation
 -----------
 
-TBD
+Basilisp's compilation is intended to work more like Clojure's than ClojureScript's, in the sense that code is meant to be JIT compiled from Lisp code into Python code at runtime.
+Basilisp compiles namespaces into modules one form at a time, which brings along all of the attendant benefits (macros can be defined and immediately used) and drawbacks (being unable to optimize code across the entire namespace).
+``gen-class`` is not required or implemented in Basilisp, but :lpy:fn:`gen-interface` is.
+Users may still create dynamic classes using Python's ``type`` builtin, just as they could do in Python code.
+
+.. seealso::
+
+   :ref:`compiler`
 
 .. _core_libraries_differences:
 
