@@ -155,9 +155,10 @@ def compile_and_exec_form(  # pylint: disable= too-many-arguments
     if collect_bytecode:
         collect_bytecode(bytecode)
     exec(bytecode, ns.module.__dict__)
-    ret = getattr(ns.module, final_wrapped_name)()
-    del ns.module.__dict__[final_wrapped_name]
-    return ret
+    try:
+        return getattr(ns.module, final_wrapped_name)()
+    finally:
+        del ns.module.__dict__[final_wrapped_name]
 
 
 def _incremental_compile_module(
