@@ -48,7 +48,6 @@ from basilisp.lang.compiler.constants import (
     DEFAULT_COMPILER_FILE_PATH,
     DOC_KW,
     FILE_KW,
-    INLINE_KW,
     LINE_KW,
     NAME_KW,
     NS_KW,
@@ -57,6 +56,7 @@ from basilisp.lang.compiler.constants import (
     SYM_CLASSMETHOD_META_KEY,
     SYM_DEFAULT_META_KEY,
     SYM_DYNAMIC_META_KEY,
+    SYM_INLINE_META_KW,
     SYM_KWARGS_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
@@ -624,7 +624,7 @@ _is_py_classmethod = _bool_meta_getter(SYM_CLASSMETHOD_META_KEY)
 _is_py_property = _bool_meta_getter(SYM_PROPERTY_META_KEY)
 _is_py_staticmethod = _bool_meta_getter(SYM_STATICMETHOD_META_KEY)
 _is_macro = _bool_meta_getter(SYM_MACRO_META_KEY)
-_inline_meta = _meta_getter(INLINE_KW)
+_inline_meta = _meta_getter(SYM_INLINE_META_KW)
 
 
 def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
@@ -943,8 +943,8 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
             init = _analyze_form(runtime.nth(form, init_idx), ctx)
 
         if isinstance(init, Fn) and init.inline_fn is not None:
-            var.meta.assoc(INLINE_KW, init.inline_fn)
-            def_meta = def_meta.assoc(INLINE_KW, init.inline_fn.form)
+            var.meta.assoc(SYM_INLINE_META_KW, init.inline_fn)
+            def_meta = def_meta.assoc(SYM_INLINE_META_KW, init.inline_fn.form)
     else:
         init = None
 
@@ -2363,8 +2363,8 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                     form=form,
                     phase=CompilerPhase.MACROEXPANSION,
                 ) from e
-        elif fn.var.meta and fn.var.meta.get(INLINE_KW):
-            inline_fn = fn.var.meta.get(INLINE_KW)
+        elif fn.var.meta and fn.var.meta.get(SYM_INLINE_META_KW):
+            inline_fn = fn.var.meta.get(SYM_INLINE_META_KW)
             try:
                 expanded = inline_fn(*form.rest)
                 if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):
