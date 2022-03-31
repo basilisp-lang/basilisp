@@ -48,6 +48,7 @@ from basilisp.lang.compiler.constants import (
     DEFAULT_COMPILER_FILE_PATH,
     DOC_KW,
     FILE_KW,
+    INLINE_KW,
     LINE_KW,
     NAME_KW,
     NS_KW,
@@ -590,10 +591,11 @@ class AnalyzerContext:
 ####################
 
 
-MetaGetter = Callable[[Union[IMeta, Var]], bool]
+BoolMetaGetter = Callable[[Union[IMeta, Var]], bool]
+MetaGetter = Callable[[Union[IMeta, Var]], Any]
 
 
-def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
+def _bool_meta_getter(meta_kw: kw.Keyword) -> BoolMetaGetter:
     """Return a function which checks an object with metadata for a boolean
     value by meta_kw."""
 
@@ -605,13 +607,26 @@ def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
     return has_meta_prop
 
 
-_is_artificially_abstract = _meta_getter(SYM_ABSTRACT_META_KEY)
-_is_async = _meta_getter(SYM_ASYNC_META_KEY)
-_is_mutable = _meta_getter(SYM_MUTABLE_META_KEY)
-_is_py_classmethod = _meta_getter(SYM_CLASSMETHOD_META_KEY)
-_is_py_property = _meta_getter(SYM_PROPERTY_META_KEY)
-_is_py_staticmethod = _meta_getter(SYM_STATICMETHOD_META_KEY)
-_is_macro = _meta_getter(SYM_MACRO_META_KEY)
+def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
+    """Return a function which checks an object with metadata for a boolean
+    value by meta_kw."""
+
+    def get_meta_prop(o: Union[IMeta, Var]) -> bool:
+        return (
+            Maybe(o.meta).map(lambda m: m.val_at(meta_kw, None)).value
+        )
+
+    return get_meta_prop
+
+
+_is_artificially_abstract = _bool_meta_getter(SYM_ABSTRACT_META_KEY)
+_is_async = _bool_meta_getter(SYM_ASYNC_META_KEY)
+_is_mutable = _bool_meta_getter(SYM_MUTABLE_META_KEY)
+_is_py_classmethod = _bool_meta_getter(SYM_CLASSMETHOD_META_KEY)
+_is_py_property = _bool_meta_getter(SYM_PROPERTY_META_KEY)
+_is_py_staticmethod = _bool_meta_getter(SYM_STATICMETHOD_META_KEY)
+_is_macro = _bool_meta_getter(SYM_MACRO_META_KEY)
+_inline_meta = _meta_getter(INLINE_KW)
 
 
 def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
@@ -928,6 +943,10 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     if init_idx is not None:
         with ctx.expr_pos():
             init = _analyze_form(runtime.nth(form, init_idx), ctx)
+
+        if isinstance(init, Fn) and init.inline_fn is not None:
+            var.meta.assoc(INLINE_KW, init.inline_fn)
+            def_meta = def_meta.assoc(INLINE_KW, init.inline_fn.form)
     else:
         init = None
 
@@ -1528,7 +1547,7 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
     return interfaces, members
 
 
-_var_is_protocol = _meta_getter(VAR_IS_PROTOCOL_META_KEY)
+_var_is_protocol = _bool_meta_getter(VAR_IS_PROTOCOL_META_KEY)
 
 
 def __is_deftype_member(mem) -> bool:
@@ -1894,8 +1913,61 @@ def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
         )
 
 
+InlineMeta = Union[Callable, bool, None]
+
+
+@functools.singledispatch
+def __unquote_args(f: LispForm, _: FrozenSet[sym.Symbol]):
+    return f
+
+
+@__unquote_args.register(ISeq)
+def __unquote_args_seq(f: ISeq, args: FrozenSet[sym.Symbol]):
+    # llist.list(map(partial(reader._postwalk, lambda form: __unquote_args(form, args)), f))
+    return f
+
+
+@__unquote_args.register(sym.Symbol)
+def __unquote_args_sym(f: sym.Symbol, args: FrozenSet[sym.Symbol]):
+    if f in args:
+        return llist.l(reader._UNQUOTE, f)
+    return f
+
+
+def _inline_fn_ast(
+    inline_meta: InlineMeta,
+    inline_arity: FnArity,
+    name: Optional[Binding],
+    ctx: AnalyzerContext,
+) -> Optional[Fn]:
+    assert inline_meta is not None, "Inline metadata must be defined at this point"
+    # TODO: also consider whether or not the function(s) inside will be valid
+    #       if they are inlined (e.g. if the namespace or module is imported)
+    if len(inline_arity.body.statements) == 0 and isinstance(
+        inline_arity.body.ret, Invoke
+    ):
+        # logger.debug(f"Generating inline def for {name.name}")
+        unquoted_form = reader._postwalk(
+            lambda f: __unquote_args(
+                f,
+                frozenset(binding.form for binding in inline_arity.params),
+            ),
+            inline_arity.body.ret.form,
+        )
+        macroed_form = reader.syntax_quote(unquoted_form)
+        inline_fn_form = llist.l(
+            SpecialForm.FN,
+            vec.vector(binding.form for binding in inline_arity.params),
+            macroed_form,
+        ).with_meta(lmap.map({INLINE_KW: False}))
+        logger.debug(f"Generating inline def for {name and name.name}: {inline_fn_form}")
+        return _fn_ast(inline_fn_form, ctx)
+
+    return None
+
+
 @_with_meta  # noqa: MC0001
-def _fn_ast(  # pylint: disable=too-many-branches
+def _fn_ast(  # pylint: di_fn_astsable=too-many-branches
     form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
 ) -> Fn:
     assert form.first == SpecialForm.FN
@@ -1912,11 +1984,13 @@ def _fn_ast(  # pylint: disable=too-many-branches
             )
 
         name_node: Optional[Binding]
+        inline: InlineMeta
         if isinstance(name, sym.Symbol):
             name_node = Binding(
                 form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
             is_async = _is_async(name) or isinstance(form, IMeta) and _is_async(form)
+            inline = _inline_meta(name) or isinstance(form, IMeta) and _inline_meta(form)
             kwarg_support = (
                 __fn_kwargs_support(name)
                 or isinstance(form, IMeta)
@@ -1928,6 +2002,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
             name = None
             name_node = None
             is_async = isinstance(form, IMeta) and _is_async(form)
+            inline = isinstance(form, IMeta) and _inline_meta(form)
             kwarg_support = isinstance(form, IMeta) and __fn_kwargs_support(form)
         else:
             raise AnalyzerException(
@@ -2009,6 +2084,16 @@ def _fn_ast(  # pylint: disable=too-many-branches
             env=ctx.get_node_env(pos=ctx.syntax_position),
             is_async=is_async,
             kwarg_support=None if isinstance(kwarg_support, bool) else kwarg_support,
+            # Generate an inlineable (macro) variant of the current function if it:
+            #  - has a name (e.g. for a def)
+            #  - has a single arity, composed of a single expression.
+            inline_fn=(
+                _inline_fn_ast(inline, arities[0], name_node, ctx)
+                if inline is not None
+                and num_variadic == 0
+                and len(arities) == 1
+                else None
+            ),
         )
 
 
@@ -2248,35 +2333,62 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
         fn = _analyze_form(form.first, ctx)
 
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
-        if _is_macro(fn.var):
-            if ctx.should_macroexpand:
-                try:
-                    macro_env = ctx.symbol_table.as_env_map()
-                    expanded = fn.var.value(macro_env, form, *form.rest)
-                    if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):
-                        old_meta = expanded.meta
-                        expanded = expanded.with_meta(
-                            old_meta.cons(form.meta) if old_meta else form.meta
-                        )
-                    with ctx.expr_pos():
-                        expanded_ast = _analyze_form(expanded, ctx)
-
-                    # Verify that macroexpanded code also does not have any
-                    # non-tail recur forms
-                    if ctx.recur_point is not None:
-                        _assert_recur_is_tail(expanded_ast)
-
-                    return expanded_ast.assoc(
-                        raw_forms=cast(
-                            vec.PersistentVector, expanded_ast.raw_forms
-                        ).cons(form)
+        if _is_macro(fn.var) and ctx.should_macroexpand:
+            try:
+                macro_env = ctx.symbol_table.as_env_map()
+                expanded = fn.var.value(macro_env, form, *form.rest)
+                if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):
+                    old_meta = expanded.meta
+                    expanded = expanded.with_meta(
+                        old_meta.cons(form.meta) if old_meta else form.meta
                     )
-                except Exception as e:
-                    raise CompilerException(
-                        "error occurred during macroexpansion",
-                        form=form,
-                        phase=CompilerPhase.MACROEXPANSION,
-                    ) from e
+                with ctx.expr_pos():
+                    expanded_ast = _analyze_form(expanded, ctx)
+
+                # Verify that macroexpanded code also does not have any
+                # non-tail recur forms
+                if ctx.recur_point is not None:
+                    _assert_recur_is_tail(expanded_ast)
+
+                return expanded_ast.assoc(
+                    raw_forms=cast(vec.PersistentVector, expanded_ast.raw_forms).cons(
+                        form
+                    )
+                )
+            except Exception as e:
+                raise CompilerException(
+                    "error occurred during macroexpansion",
+                    form=form,
+                    phase=CompilerPhase.MACROEXPANSION,
+                ) from e
+        elif fn.var.meta and fn.var.meta.get(INLINE_KW) is not None:
+            inline_fn = fn.var.meta.get(INLINE_KW)
+            try:
+                expanded = inline_fn(*form.rest)
+                if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):
+                    old_meta = expanded.meta
+                    expanded = expanded.with_meta(
+                        old_meta.cons(form.meta) if old_meta else form.meta
+                    )
+                with ctx.expr_pos():
+                    expanded_ast = _analyze_form(expanded, ctx)
+
+                # Verify that inlined code also does not have any
+                # non-tail recur forms
+                if ctx.recur_point is not None:
+                    _assert_recur_is_tail(expanded_ast)
+
+                return expanded_ast.assoc(
+                    raw_forms=cast(vec.PersistentVector, expanded_ast.raw_forms).cons(
+                        form
+                    )
+                )
+            except Exception as e:
+                raise CompilerException(
+                    "error occurred during inlining",
+                    form=form,
+                    phase=CompilerPhase.MACROEXPANSION,
+                ) from e
 
     args, kwargs = _call_args_ast(form.rest, ctx)
     return Invoke(

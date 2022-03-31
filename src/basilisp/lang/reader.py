@@ -46,6 +46,7 @@ from basilisp.lang.interfaces import (
     IPersistentSet,
     IPersistentVector,
     IRecord,
+    ISeq,
     IType,
     IWithMeta,
 )
@@ -1481,6 +1482,28 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
         return ctx.eof
     else:
         raise ctx.syntax_error(f"Unexpected token '{token}'")
+
+
+def syntax_quote(
+    form: RawReaderForm,
+    resolver: Resolver = None,
+    data_readers: DataReaders = None,
+    eof: Any = EOF,
+    features: Optional[IPersistentSet[kw.Keyword]] = None,
+    process_reader_cond: bool = True,
+):
+    """Return the syntax quoted version of a form."""
+    # the buffer is unused here, but is necessary to create a ReaderContext
+    with io.StringIO("") as buf:
+        ctx = ReaderContext(
+            buf,
+            resolver=resolver,
+            data_readers=data_readers,
+            eof=eof,
+            features=features,
+            process_reader_cond=process_reader_cond,
+        )
+        return _process_syntax_quoted_form(ctx, form)
 
 
 def read(  # pylint: disable=too-many-arguments

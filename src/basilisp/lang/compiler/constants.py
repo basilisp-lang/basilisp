@@ -55,5 +55,6 @@ FILE_KW = kw.keyword("file")
 LINE_KW = kw.keyword("line")
 NAME_KW = kw.keyword("name")
 NS_KW = kw.keyword("ns")
+INLINE_KW = kw.keyword("inline")
 
 VAR_IS_PROTOCOL_META_KEY = kw.keyword("protocol", "basilisp.core")
