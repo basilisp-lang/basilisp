@@ -68,6 +68,15 @@ Generation Settings
 
 The following settings can affect the generated Python code.
 
+* ``inline-functions`` - if ``true``:
+
+  * the compiler will generate inline function definitions for any :lpy:form:`def`\'ed functions with the ``^{:inline true}`` metadata (replacing the boolean ``^:inline`` key with the inline function), and
+  * any invocations of a function with a callable ``^:inline`` metadata key will be replaced with the return value of that callable (as a macro)
+
+  * Environment Variable: ``BASILISP_INLINE_FUNCTIONS``
+  * Default: ``true``
+  * See also: :ref:`inlining`
+
 * ``use-var-indirection`` - if ``true``, all Var accesses will be performed via Var indirection
 
   * Environment Variable: ``BASILISP_USE_VAR_INDIRECTION``
@@ -116,6 +125,13 @@ It is unlikely you will want to do this, but you can configure the compiler to e
 .. note::
 
    It is possible to initially define a Var with ``^:redef`` and then remove that metadata later, allowing later uses to be direct linked even if those which were compiled while ``^:redef`` was set will use indirection.
+
+.. _inlining:
+
+Inlining
+--------
+
+TBD
 
 .. _compiler_debugging:
 

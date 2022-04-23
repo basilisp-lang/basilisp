@@ -138,6 +138,7 @@ from basilisp.util import Maybe, partition
 logger = logging.getLogger(__name__)
 
 # Analyzer options
+INLINE_FUNCTIONS = kw.keyword("inline-functions")
 WARN_ON_SHADOWED_NAME = kw.keyword("warn-on-shadowed-name")
 WARN_ON_SHADOWED_VAR = kw.keyword("warn-on-shadowed-var")
 WARN_ON_UNUSED_NAMES = kw.keyword("warn-on-unused-names")
@@ -345,6 +346,11 @@ class AnalyzerContext:
     @property
     def filename(self) -> str:
         return self._filename
+
+    @property
+    def should_inline_functions(self) -> bool:
+        """If True, function calls may be inlined if an inline def is provided."""
+        return self._opts.val_at(INLINE_FUNCTIONS, True)
 
     @property
     def warn_on_unused_names(self) -> bool:
@@ -1942,7 +1948,7 @@ def _inline_fn_ast(
 
     # TODO: also consider whether or not the function(s) inside will be valid
     #       if they are inlined (e.g. if the namespace or module is imported)
-    if len(inline_arity.body.statements) == 0:
+    if ctx.should_inline_functions and len(inline_arity.body.statements) == 0:
         logger.log(TRACE, f"Generating inline def for {name.name}")
         unquoted_form = reader._postwalk(
             lambda f: __unquote_args(
