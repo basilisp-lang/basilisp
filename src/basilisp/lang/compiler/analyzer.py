@@ -2363,7 +2363,7 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                     form=form,
                     phase=CompilerPhase.MACROEXPANSION,
                 ) from e
-        elif fn.var.meta and fn.var.meta.get(SYM_INLINE_META_KW):
+        elif fn.var.meta and callable(fn.var.meta.get(SYM_INLINE_META_KW)):
             inline_fn = fn.var.meta.get(SYM_INLINE_META_KW)
             try:
                 expanded = inline_fn(*form.rest)

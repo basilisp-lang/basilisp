@@ -951,28 +951,39 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
         )
 
 
-def _walk(inner_f, outer_f, form):
+@functools.singledispatch
+def _walk(form, _, outer_f):
     """Walk an arbitrary, possibly nested data structure, applying inner_f to each
     element of form and then applying outer_f to the resulting form."""
-    if isinstance(form, IPersistentList):
-        return outer_f(llist.list(map(inner_f, form)))
-    elif isinstance(form, IPersistentVector):
-        return outer_f(vec.vector(map(inner_f, form)))
-    elif isinstance(form, IPersistentMap):
-        return outer_f(
-            lmap.hash_map(*chain.from_iterable(map(inner_f, form.seq() or ())))
-        )
-    elif isinstance(form, IPersistentSet):
-        return outer_f(lset.set(map(inner_f, form)))
-    else:
-        return outer_f(form)
+    return outer_f(form)
+
+
+@_walk.register(IPersistentList)
+@_walk.register(ISeq)
+def _walk_ipersistentlist(form: Union[IPersistentList, ISeq], inner_f, outer_f):
+    return outer_f(llist.list(map(inner_f, form)))
+
+
+@_walk.register(IPersistentVector)
+def _walk_ipersistentvector(form: IPersistentVector, inner_f, outer_f):
+    return outer_f(vec.vector(map(inner_f, form)))
+
+
+@_walk.register(IPersistentMap)
+def _walk_ipersistentmap(form: IPersistentMap, inner_f, outer_f):
+    return outer_f(lmap.hash_map(*chain.from_iterable(map(inner_f, form.seq() or ()))))
+
+
+@_walk.register(IPersistentSet)
+def _walk_ipersistentset(form: IPersistentSet, inner_f, outer_f):
+    return outer_f(lset.set(map(inner_f, form)))
 
 
 def _postwalk(f, form):
-    """ "Walk form using depth-first, post-order traversal, applying f to each form
+    """Walk form using depth-first, post-order traversal, applying f to each form
     and replacing form with its result."""
     inner_f = functools.partial(_postwalk, f)
-    return _walk(inner_f, f, form)
+    return _walk(form, inner_f, f)
 
 
 @_with_loc
