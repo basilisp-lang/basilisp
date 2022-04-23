@@ -1963,7 +1963,7 @@ def _inline_fn_ast(
 
 
 @_with_meta  # noqa: MC0001
-def _fn_ast(  # pylint: di_fn_astsable=too-many-branches
+def _fn_ast(  # pylint: disable=too-many-branches
     form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
 ) -> Fn:
     assert form.first == SpecialForm.FN

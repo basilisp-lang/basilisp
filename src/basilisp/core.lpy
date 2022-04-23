@@ -329,7 +329,6 @@
 (.alter-meta #'seq assoc :inline (fn [o] `(basilisp.lang.runtime/to-seq ~o)))
 (.alter-meta #'set assoc :inline (fn [coll] `(basilisp.lang.set/set ~coll)))
 (.alter-meta #'vec assoc :inline (fn [coll] `(basilisp.lang.vector/vector ~coll)))
-(.alter-meta #'count assoc :inline (fn [coll] `(basilisp.lang.runtime/count ~coll)))
 
 (def
   ^{:macro    true
