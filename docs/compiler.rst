@@ -144,6 +144,14 @@ Only "simple" functions are eligible for inlining.
 Simple functions are functions of a single _fixed_ arity (no variadic functions) with only a single body expression.
 Functions not meeting these criteria will trigger compile time errors if they are annotated with boolean ``:inline`` metadata.
 
+.. note::
+
+   Individual instances of inlining may be disabled by annotating the call site with the ``:no-inline`` metadata.
+
+   .. code-block::
+
+      ^:no-inline (first [1 2 3])
+
 .. warning::
 
    Inlining functions certainly has its benefits, namely: increasing performance making simple function calls.
