@@ -350,8 +350,8 @@ class AnalyzerContext:
 
     @property
     def should_generate_auto_inlines(self) -> bool:
-        """If True, generate inline function defs for functions with `^:inline` meta
-        keys."""
+        """If True, generate inline function defs for functions with boolean `^:inline`
+        meta keys."""
         return self._opts.val_at(GENERATE_AUTO_INLINES, True)
 
     @property
@@ -955,9 +955,9 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         with ctx.expr_pos():
             init = _analyze_form(runtime.nth(form, init_idx), ctx)
 
-        # Attach the automatically generated inline function to the Var and def
-        # metadata. We do not need to do this for user-provided inline functions
-        # since those should already be attached to the meta.
+        # Attach the automatically generated inline function (if one exists) to the Var
+        # and def metadata. We do not need to do this for user-provided inline
+        # functions since those should already be attached to the meta.
         if isinstance(init, Fn) and init.inline_fn is not None:
             assert var.meta is not None
             assert isinstance(var.meta.val_at(SYM_INLINE_META_KW), bool), (
