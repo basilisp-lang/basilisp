@@ -104,6 +104,19 @@ def _add_compiler_arg_group(parser: argparse.ArgumentParser) -> None:
         ),
     )
     group.add_argument(
+        "--generate-auto-inlines",
+        action="store",
+        nargs="?",
+        const=os.getenv("BASILISP_GENERATE_AUTO_INLINES"),
+        type=_to_bool,
+        help=(
+            "if true, the compiler will attempt to generate inline function defs "
+            "for functions with a boolean `^:inline` meta key (env: "
+            "BASILISP_GENERATE_AUTO_INLINES; default: "
+            f"{DEFAULT_COMPILER_OPTS['generate-auto-inlines']})"
+        ),
+    )
+    group.add_argument(
         "--inline-functions",
         action="store",
         nargs="?",

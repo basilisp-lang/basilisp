@@ -68,10 +68,13 @@ Generation Settings
 
 The following settings can affect the generated Python code.
 
-* ``inline-functions`` - if ``true``:
+* ``generate-auto-inlines`` - if ``true``, the compiler will generate inline function definitions for any :lpy:form:`def`\'ed functions with the ``^{:inline true}`` metadata (replacing the boolean ``^:inline`` key with the inline function)
 
-  * the compiler will generate inline function definitions for any :lpy:form:`def`\'ed functions with the ``^{:inline true}`` metadata (replacing the boolean ``^:inline`` key with the inline function), and
-  * any invocations of a function with a callable ``^:inline`` metadata key will be replaced with the return value of that callable (as a macro)
+  * Environment Variable: ``BASILISP_GENERATE_AUTO_INLINES``
+  * Default: ``true``
+  * See also: :ref:`inlining`
+
+* ``inline-functions`` - if ``true``, any invocations of a function with a callable ``^:inline`` metadata key will be replaced with the return value of that callable (as a macro)
 
   * Environment Variable: ``BASILISP_INLINE_FUNCTIONS``
   * Default: ``true``
@@ -131,7 +134,9 @@ It is unlikely you will want to do this, but you can configure the compiler to e
 Inlining
 --------
 
-TBD
+The Basilisp compiler supports inlining function calls directly into a call site for simple functions.
+Inline definitions can be provided for named (:lpy:fn:`defn`\'ed) functions by providing an anonymous function on the ``:inline`` meta key.
+The compiler additionally supports automatically generating inline function definitions for certain functions.
 
 .. _compiler_debugging:
 

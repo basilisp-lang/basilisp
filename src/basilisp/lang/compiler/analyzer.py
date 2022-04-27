@@ -138,6 +138,7 @@ from basilisp.util import Maybe, partition
 logger = logging.getLogger(__name__)
 
 # Analyzer options
+GENERATE_AUTO_INLINES = kw.keyword("generate-auto-inlines")
 INLINE_FUNCTIONS = kw.keyword("inline-functions")
 WARN_ON_SHADOWED_NAME = kw.keyword("warn-on-shadowed-name")
 WARN_ON_SHADOWED_VAR = kw.keyword("warn-on-shadowed-var")
@@ -346,6 +347,12 @@ class AnalyzerContext:
     @property
     def filename(self) -> str:
         return self._filename
+
+    @property
+    def should_generate_auto_inlines(self) -> bool:
+        """If True, generate inline function defs for functions with `^:inline` meta
+        keys."""
+        return self._opts.val_at(GENERATE_AUTO_INLINES, True)
 
     @property
     def should_inline_functions(self) -> bool:
@@ -1939,15 +1946,10 @@ def __unquote_args_sym(f: sym.Symbol, args: FrozenSet[sym.Symbol]):
 
 
 def _inline_fn_ast(
-    inline_meta: InlineMeta,
     inline_arity: FnArity,
     name: Optional[Binding],
     ctx: AnalyzerContext,
 ) -> Optional[Fn]:
-    assert inline_meta is not None, "Inline metadata must be defined at this point"
-
-    # TODO: also consider whether or not the function(s) inside will be valid
-    #       if they are inlined (e.g. if the namespace or module is imported)
     if ctx.should_inline_functions and len(inline_arity.body.statements) == 0:
         logger.log(TRACE, f"Generating inline def for {name.name}")
         unquoted_form = reader._postwalk(
@@ -2079,11 +2081,18 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
-        if num_variadic != 0 and inline is not None:
-            raise AnalyzerException(
-                "functions with variadic arity may not be inlined",
-                form=form,
-            )
+        should_auto_inline = ctx.should_generate_auto_inlines and isinstance(inline, bool)
+        if should_auto_inline:
+            if num_variadic != 0:
+                raise AnalyzerException(
+                    "functions with variadic arity may not be inlined",
+                    form=form,
+                )
+            if len(arities) != 1:
+                raise AnalyzerException(
+                    "multi-arity functions cannot be inlined",
+                    form=form,
+                )
 
         return Fn(
             form=form,
@@ -2099,7 +2108,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
             #  - has a single arity, composed of a single expression.
             inline_fn=(
                 _inline_fn_ast(inline, arities[0], name_node, ctx)
-                if inline is not None and num_variadic == 0 and len(arities) == 1
+                if should_auto_inline
                 else None
             ),
         )
@@ -2353,8 +2362,8 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                 with ctx.expr_pos():
                     expanded_ast = _analyze_form(expanded, ctx)
 
-                # Verify that macroexpanded code also does not have any
-                # non-tail recur forms
+                # Verify that macroexpanded code also does not have any non-tail
+                # recur forms
                 if ctx.recur_point is not None:
                     _assert_recur_is_tail(expanded_ast)
 
@@ -2370,6 +2379,8 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                     phase=CompilerPhase.MACROEXPANSION,
                 ) from e
         elif fn.var.meta and callable(fn.var.meta.get(SYM_INLINE_META_KW)):
+            # TODO: also consider whether or not the function(s) inside will be valid
+            #       if they are inlined (e.g. if the namespace or module is imported)
             inline_fn = fn.var.meta.get(SYM_INLINE_META_KW)
             try:
                 expanded = inline_fn(*form.rest)
@@ -2381,8 +2392,7 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                 with ctx.expr_pos():
                     expanded_ast = _analyze_form(expanded, ctx)
 
-                # Verify that inlined code also does not have any
-                # non-tail recur forms
+                # Verify that inlined code also does not have any non-tail recur forms
                 if ctx.recur_point is not None:
                     _assert_recur_is_tail(expanded_ast)
 

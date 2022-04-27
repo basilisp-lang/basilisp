@@ -9,6 +9,7 @@ from basilisp import _pyast as ast
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
+    GENERATE_AUTO_INLINES,
     INLINE_FUNCTIONS,
     WARN_ON_NON_DYNAMIC_SET,
     WARN_ON_SHADOWED_NAME,
@@ -72,6 +73,7 @@ class CompilerContext:
 
 
 def compiler_opts(  # pylint: disable=too-many-arguments
+    generate_auto_inlines: Optional[bool] = None,
     inline_functions: Optional[bool] = None,
     warn_on_shadowed_name: Optional[bool] = None,
     warn_on_shadowed_var: Optional[bool] = None,
@@ -84,6 +86,7 @@ def compiler_opts(  # pylint: disable=too-many-arguments
     return lmap.map(
         {
             # Analyzer options
+            GENERATE_AUTO_INLINES: generate_auto_inlines or True,
             INLINE_FUNCTIONS: inline_functions or True,
             WARN_ON_SHADOWED_NAME: warn_on_shadowed_name or False,
             WARN_ON_SHADOWED_VAR: warn_on_shadowed_var or False,
