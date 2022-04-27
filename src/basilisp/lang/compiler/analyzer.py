@@ -60,6 +60,7 @@ from basilisp.lang.compiler.constants import (
     SYM_KWARGS_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
+    SYM_NO_INLINE_META_KEY,
     SYM_NO_WARN_ON_SHADOW_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
     SYM_PRIVATE_META_KEY,
@@ -637,6 +638,7 @@ _is_py_classmethod = _bool_meta_getter(SYM_CLASSMETHOD_META_KEY)
 _is_py_property = _bool_meta_getter(SYM_PROPERTY_META_KEY)
 _is_py_staticmethod = _bool_meta_getter(SYM_STATICMETHOD_META_KEY)
 _is_macro = _bool_meta_getter(SYM_MACRO_META_KEY)
+_is_no_inline = _bool_meta_getter(SYM_NO_INLINE_META_KEY)
 _inline_meta = _meta_getter(SYM_INLINE_META_KW)
 
 
@@ -1940,12 +1942,6 @@ def __unquote_args(f: LispForm, _: FrozenSet[sym.Symbol]):
     return f
 
 
-@__unquote_args.register(ISeq)
-def __unquote_args_seq(f: ISeq, args: FrozenSet[sym.Symbol]):
-    # llist.list(map(partial(reader._postwalk, lambda form: __unquote_args(form, args)), f))
-    return f
-
-
 @__unquote_args.register(sym.Symbol)
 def __unquote_args_sym(f: sym.Symbol, args: FrozenSet[sym.Symbol]):
     if f in args:
@@ -2404,7 +2400,11 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                     form=form,
                     phase=CompilerPhase.MACROEXPANSION,
                 ) from e
-        elif fn.var.meta and callable(fn.var.meta.get(SYM_INLINE_META_KW)):
+        elif (
+            not _is_no_inline(form)
+            and fn.var.meta
+            and callable(fn.var.meta.get(SYM_INLINE_META_KW))
+        ):
             # TODO: also consider whether or not the function(s) inside will be valid
             #       if they are inlined (e.g. if the namespace or module is imported)
             inline_fn = fn.var.meta.get(SYM_INLINE_META_KW)
