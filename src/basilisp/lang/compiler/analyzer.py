@@ -624,7 +624,7 @@ def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
     """Return a function which checks an object with metadata for a boolean
     value by meta_kw."""
 
-    def get_meta_prop(o: Union[IMeta, Var]) -> bool:
+    def get_meta_prop(o: Union[IMeta, Var]) -> Any:
         return Maybe(o.meta).map(lambda m: m.val_at(meta_kw, None)).value
 
     return get_meta_prop
@@ -955,9 +955,17 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         with ctx.expr_pos():
             init = _analyze_form(runtime.nth(form, init_idx), ctx)
 
+        # Attach the automatically generated inline function to the Var and def
+        # metadata. We do not need to do this for user-provided inline functions
+        # since those should already be attached to the meta.
         if isinstance(init, Fn) and init.inline_fn is not None:
+            assert var.meta is not None
+            assert isinstance(var.meta.val_at(SYM_INLINE_META_KW), bool), (
+                "Cannot have a user-generated inline function and an automatically "
+                "generated inline function"
+            )
             var.meta.assoc(SYM_INLINE_META_KW, init.inline_fn)
-            def_meta = def_meta.assoc(SYM_INLINE_META_KW, init.inline_fn.form)
+            def_meta = def_meta.assoc(SYM_INLINE_META_KW, init.inline_fn.form)  # type: ignore[union-attr]
     else:
         init = None
 
@@ -1946,28 +1954,53 @@ def __unquote_args_sym(f: sym.Symbol, args: FrozenSet[sym.Symbol]):
 
 
 def _inline_fn_ast(
-    inline_arity: FnArity,
-    name: Optional[Binding],
     ctx: AnalyzerContext,
+    form: Union[llist.PersistentList, ISeq],
+    name: Optional[Binding],
+    arities: vec.PersistentVector[FnArity],
+    num_variadic: int,
 ) -> Optional[Fn]:
-    if ctx.should_inline_functions and len(inline_arity.body.statements) == 0:
-        logger.log(TRACE, f"Generating inline def for {name.name}")
-        unquoted_form = reader._postwalk(
-            lambda f: __unquote_args(
-                f,
-                frozenset(binding.form for binding in inline_arity.params),
-            ),
-            inline_arity.body.ret.form,
-        )
-        macroed_form = reader.syntax_quote(unquoted_form)
-        inline_fn_form = llist.l(
-            SpecialForm.FN,
-            vec.vector(binding.form for binding in inline_arity.params),
-            macroed_form,
-        )
-        return _fn_ast(inline_fn_form, ctx)
+    if not ctx.should_generate_auto_inlines:
+        return None
 
-    return None
+    inline_arity = arities[0]
+
+    if num_variadic != 0:
+        raise AnalyzerException(
+            "functions with variadic arity may not be inlined",
+            form=form,
+        )
+
+    if len(arities) != 1:
+        raise AnalyzerException(
+            "multi-arity functions cannot be inlined",
+            form=form,
+        )
+
+    if len(inline_arity.body.statements) > 0:
+        raise AnalyzerException(
+            "cannot generate an inline function for functions with more than one "
+            "body expression",
+            form=form,
+        )
+
+    logger.log(
+        TRACE, f"Generating inline def for {name.name if name is not None else 'fn'}"
+    )
+    unquoted_form = reader._postwalk(
+        lambda f: __unquote_args(
+            f,
+            frozenset(binding.form for binding in inline_arity.params),
+        ),
+        inline_arity.body.ret.form,
+    )
+    macroed_form = reader.syntax_quote(unquoted_form)
+    inline_fn_form = llist.l(
+        SpecialForm.FN,
+        vec.vector(binding.form for binding in inline_arity.params),
+        macroed_form,
+    )
+    return _fn_ast(inline_fn_form, ctx)
 
 
 @_with_meta  # noqa: MC0001
@@ -2081,19 +2114,6 @@ def _fn_ast(  # pylint: disable=too-many-branches
                 form=form,
             )
 
-        should_auto_inline = ctx.should_generate_auto_inlines and isinstance(inline, bool)
-        if should_auto_inline:
-            if num_variadic != 0:
-                raise AnalyzerException(
-                    "functions with variadic arity may not be inlined",
-                    form=form,
-                )
-            if len(arities) != 1:
-                raise AnalyzerException(
-                    "multi-arity functions cannot be inlined",
-                    form=form,
-                )
-
         return Fn(
             form=form,
             is_variadic=num_variadic == 1,
@@ -2103,12 +2123,18 @@ def _fn_ast(  # pylint: disable=too-many-branches
             env=ctx.get_node_env(pos=ctx.syntax_position),
             is_async=is_async,
             kwarg_support=None if isinstance(kwarg_support, bool) else kwarg_support,
-            # Generate an inlineable (macro) variant of the current function if it:
-            #  - has a name (e.g. for a def)
-            #  - has a single arity, composed of a single expression.
+            # Generate an inlineable (macro) variant of the current function if:
+            #  - the metadata for the fn contains a boolean `:inline` meta key
+            #  - the function has a single arity, composed of a single expression
+            #
+            # This node attribute (inline_fn) is not used for holding user provided
+            # inline functions. If a user provides an inline function, then that
+            # function will be compiled as part of the metadata already and will be
+            # found by the compiler on the associated Var without needing this code
+            # path at all.
             inline_fn=(
-                _inline_fn_ast(inline, arities[0], name_node, ctx)
-                if should_auto_inline
+                _inline_fn_ast(ctx, form, name_node, arities, num_variadic)
+                if isinstance(inline, bool)
                 else None
             ),
         )
@@ -2382,6 +2408,7 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
             # TODO: also consider whether or not the function(s) inside will be valid
             #       if they are inlined (e.g. if the namespace or module is imported)
             inline_fn = fn.var.meta.get(SYM_INLINE_META_KW)
+            assert inline_fn is not None
             try:
                 expanded = inline_fn(*form.rest)
                 if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):

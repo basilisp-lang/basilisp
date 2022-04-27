@@ -1507,7 +1507,7 @@ def syntax_quote(
     # the buffer is unused here, but is necessary to create a ReaderContext
     with io.StringIO("") as buf:
         ctx = ReaderContext(
-            buf,
+            StreamReader(buf),
             resolver=resolver,
             data_readers=data_readers,
             eof=eof,
