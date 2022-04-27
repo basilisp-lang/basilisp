@@ -959,14 +959,14 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
 
         # Attach the automatically generated inline function (if one exists) to the Var
         # and def metadata. We do not need to do this for user-provided inline
-        # functions since those should already be attached to the meta.
+        # functions (for which `init.inline_fn` will be None) since those should
+        # already be attached to the meta.
         if isinstance(init, Fn) and init.inline_fn is not None:
-            assert var.meta is not None
             assert isinstance(var.meta.val_at(SYM_INLINE_META_KW), bool), (
                 "Cannot have a user-generated inline function and an automatically "
                 "generated inline function"
             )
-            var.meta.assoc(SYM_INLINE_META_KW, init.inline_fn)
+            var.meta.assoc(SYM_INLINE_META_KW, init.inline_fn)  # type: ignore[union-attr]
             def_meta = def_meta.assoc(SYM_INLINE_META_KW, init.inline_fn.form)  # type: ignore[union-attr]
     else:
         init = None
@@ -2407,8 +2407,7 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
         ):
             # TODO: also consider whether or not the function(s) inside will be valid
             #       if they are inlined (e.g. if the namespace or module is imported)
-            inline_fn = fn.var.meta.get(SYM_INLINE_META_KW)
-            assert inline_fn is not None
+            inline_fn = cast(Callable, fn.var.meta.get(SYM_INLINE_META_KW))
             try:
                 expanded = inline_fn(*form.rest)
                 if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):

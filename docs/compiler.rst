@@ -136,7 +136,24 @@ Inlining
 
 The Basilisp compiler supports inlining function calls directly into a call site for simple functions.
 Inline definitions can be provided for named (:lpy:fn:`defn`\'ed) functions by providing an anonymous function on the ``:inline`` meta key.
-The compiler additionally supports automatically generating inline function definitions for certain functions.
+The compiler will automatically inline calls to functions annotated with such a function in their meta if inlining is enabled.
+
+The compiler additionally supports automatically generating inline function definitions for simple functions.
+Functions annotated with a boolean ``:inline`` meta key will have inline definitions generated automatically at compile time and will thereafter be eligible to be inlined (subject to the current function inlining settings set on the compiler).
+Only "simple" functions are eligible for inlining.
+Simple functions are functions of a single _fixed_ arity (no variadic functions) with only a single body expression.
+Functions not meeting these criteria will trigger compile time errors if they are annotated with boolean ``:inline`` metadata.
+
+.. warning::
+
+   Inlining functions certainly has its benefits, namely: increasing performance making simple function calls.
+
+   However, inlining can come with some significant drawbacks if you aren't careful.
+   One such drawback is that inlined function references which use an imported, required, or referred symbol which is not available in at the inlined call site will not work and will produce a compile time error.
+   Another drawback is that inlining, like macros, occurs at compile time and thus changes the final generated code -- stack traces will not include the original inlined function invocation which can impede debugging.
+   Relatedly, an inlined function cannot be re-:lpy:form:`def`\'ed, monkeypatched, or rebound at runtime.
+
+   Users should consider inlining primarily a Basilisp internal feature and use it extremely sparingly in user code.
 
 .. _compiler_debugging:
 
