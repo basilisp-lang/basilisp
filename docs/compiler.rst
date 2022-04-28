@@ -154,6 +154,12 @@ Functions not meeting these criteria will trigger compile time errors if they ar
 
 .. warning::
 
+   The boolean ``:inline`` key must be applied to the :lpy:form:`fn` form or the optional ``fn`` name itself.
+   The user-provided ``:inline`` function must be applied to the Var which is generally done by applying the metadata to the :lpy:form:`def` name itself.
+   Users are encouraged to simply apply these meta keys with :lpy:fn:`defn`\, which will always do the right thing regardless of where you apply the metadata.
+
+.. warning::
+
    Inlining functions certainly has its benefits, namely: increasing performance making simple function calls.
 
    However, inlining can come with some significant drawbacks if you aren't careful.

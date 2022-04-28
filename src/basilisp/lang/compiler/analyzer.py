@@ -2433,7 +2433,7 @@ def _invoke_ast(  # pylint: disable=too-many-branches
                 raise CompilerException(
                     "error occurred during inlining",
                     form=form,
-                    phase=CompilerPhase.MACROEXPANSION,
+                    phase=CompilerPhase.INLINING,
                 ) from e
 
     args, kwargs = _call_args_ast(form.rest, ctx)
