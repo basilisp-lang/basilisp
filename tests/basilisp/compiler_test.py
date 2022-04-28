@@ -2638,7 +2638,7 @@ class TestFunctionInlining:
             (defn ^{:inline (fn [] :a)} f
               []
               :b)
-            
+
             [(f) ^:no-inline (f)]
             """
         )
