@@ -45,7 +45,7 @@ class TransientVector(ITransientVector[T]):
             self._inner.append(elem)
         return self
 
-    def assoc_transient(self, *kvs: T) -> "TransientVector[T]":  # type: ignore[override]
+    def assoc_transient(self, *kvs: T) -> "TransientVector[T]":
         for i, v in partition(kvs, 2):
             self._inner.set(i, v)
         return self
@@ -143,7 +143,7 @@ class PersistentVector(
             e.append(elem)
         return PersistentVector(e.persistent(), meta=self.meta)
 
-    def assoc(self, *kvs: T) -> "PersistentVector[T]":  # type: ignore[override]
+    def assoc(self, *kvs: T) -> "PersistentVector[T]":
         return PersistentVector(self._inner.mset(*kvs))  # type: ignore[arg-type]
 
     def contains(self, k):

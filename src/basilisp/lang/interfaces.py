@@ -258,7 +258,7 @@ class IPersistentMap(ICounted, Mapping[K, V], IAssociative[K, V]):
     __slots__ = ()
 
     @abstractmethod
-    def cons(  # type: ignore[override]
+    def cons(
         self: T_map, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]", None]
     ) -> T_map:
         raise NotImplementedError()
@@ -293,7 +293,7 @@ class IPersistentVector(
     __slots__ = ()
 
     @abstractmethod
-    def assoc(self: T_vec, *kvs) -> T_vec:  # type: ignore[override]
+    def assoc(self: T_vec, *kvs) -> T_vec:
         raise NotImplementedError()
 
     @abstractmethod
@@ -352,7 +352,7 @@ class ITransientMap(ICounted, ITransientAssociative[K, V]):
     __slots__ = ()
 
     @abstractmethod
-    def cons_transient(  # type: ignore[override]
+    def cons_transient(
         self: T_tmap, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]", None]
     ) -> T_tmap:
         raise NotImplementedError()
@@ -383,7 +383,7 @@ class ITransientVector(
     __slots__ = ()
 
     @abstractmethod
-    def assoc_transient(self: T_tvec, *kvs) -> T_tvec:  # type: ignore[override]
+    def assoc_transient(self: T_tvec, *kvs) -> T_tvec:
         raise NotImplementedError()
 
     @abstractmethod

@@ -962,7 +962,7 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
         # functions (for which `init.inline_fn` will be None) since those should
         # already be attached to the meta.
         if isinstance(init, Fn) and init.inline_fn is not None:
-            assert isinstance(var.meta.val_at(SYM_INLINE_META_KW), bool), (
+            assert isinstance(var.meta.val_at(SYM_INLINE_META_KW), bool), (  # type: ignore[union-attr]
                 "Cannot have a user-generated inline function and an automatically "
                 "generated inline function"
             )
@@ -2367,7 +2367,9 @@ def _import_ast(  # pylint: disable=too-many-branches
     )
 
 
-def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -> Node:
+def _invoke_ast(  # pylint: disable=too-many-branches
+    form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
+) -> Node:
     with ctx.expr_pos():
         fn = _analyze_form(form.first, ctx)
 
@@ -2401,7 +2403,7 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                     phase=CompilerPhase.MACROEXPANSION,
                 ) from e
         elif (
-            not _is_no_inline(form)
+            not (isinstance(form, IMeta) and _is_no_inline(form))
             and fn.var.meta
             and callable(fn.var.meta.get(SYM_INLINE_META_KW))
         ):

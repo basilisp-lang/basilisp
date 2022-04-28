@@ -110,7 +110,7 @@ class PersistentSet(
         return _PySet.__eq__(self, other)
 
     def __hash__(self):
-        return self._hash()  # type: ignore[attr-defined]
+        return self._hash()
 
     def __iter__(self):
         yield from self._inner.keys()

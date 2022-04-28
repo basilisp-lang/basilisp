@@ -1495,7 +1495,7 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
         raise ctx.syntax_error(f"Unexpected token '{token}'")
 
 
-def syntax_quote(
+def syntax_quote(  # pylint: disable=too-many-branches
     form: RawReaderForm,
     resolver: Resolver = None,
     data_readers: DataReaders = None,
