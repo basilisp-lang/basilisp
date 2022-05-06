@@ -24,7 +24,7 @@ from basilisp.lang import runtime as runtime
 from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
-from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
+from basilisp.lang.compiler.constants import SYM_INLINE_META_KW, SYM_PRIVATE_META_KEY
 from basilisp.lang.interfaces import IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.util import demunge
@@ -2587,6 +2587,112 @@ def test_fn_call(lcompile: CompileFn):
     """
     fvar = lcompile(code)
     assert fvar == "bleep"
+
+
+class TestFunctionInlining:
+    def test_cannot_inline_variadic_fn(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(defn ^:inline f [& args] args)")
+
+    def test_cannot_inline_multi_arity_fn(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (defn ^:inline f
+                  ([a] a)
+                  ([a b] [a b]))
+                """
+            )
+
+    def test_cannot_inline_multi_expression_fn(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (defn ^:inline f
+                  [a b]
+                  :extra-expression
+                  [a b])
+                """
+            )
+
+    def test_cannot_inline_unimported_module(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (defn ^{:inline (fn [s] `(json/loads ~s))} loads
+                  [s]
+                  s)
+
+                (loads "{}")
+                """
+            )
+
+    def test_non_boolean_inline_metadata_ignored(self, lcompile: CompileFn):
+        v = lcompile("(defn ^{:inline :yes-please} f [a] a)")
+        assert v.meta is not None
+        assert v.meta.val_at(SYM_INLINE_META_KW) == kw.keyword("yes-please")
+
+    def test_no_inlining_occurs_if_no_inline_meta_specified(self, lcompile: CompileFn):
+        val = lcompile(
+            """
+            (defn ^{:inline (fn [] :a)} f
+              []
+              :b)
+
+            [(f) ^:no-inline (f)]
+            """
+        )
+        assert val == vec.v(kw.keyword("a"), kw.keyword("b"))
+
+    def test_no_inlining_occurs_if_inline_not_callable(self, lcompile: CompileFn):
+        val = lcompile(
+            """
+            (defn ^{:inline 1} f [] :b)
+
+            [(f) ^:no-inline (f)]
+            """
+        )
+        assert val == vec.v(kw.keyword("b"), kw.keyword("b"))
+
+    @pytest.mark.parametrize("inline_functions", [True, False])
+    def test_function_result_is_same_with_or_without_inline(
+        self, lcompile: CompileFn, inline_functions: bool
+    ):
+        val = lcompile(
+            """
+            (defn ^{:inline (fn [a b] `(+ 1 (* ~a ~b)))} f
+              [a b]
+              (operator/add 1 (operator/mul a b)))
+
+            (f 2 3)
+            """,
+            opts={
+                compiler.INLINE_FUNCTIONS: inline_functions,
+            },
+        )
+        assert val == 7
+
+    @pytest.mark.parametrize(
+        "should_generate_inlines,inline_functions",
+        [(True, True), (True, False), (False, True), (False, False)],
+    )
+    def test_function_result_is_same_with_or_without_auto_inline(
+        self, lcompile: CompileFn, should_generate_inlines: bool, inline_functions: bool
+    ):
+        val = lcompile(
+            """
+            (defn ^:inline f
+              [a b]
+              (operator/add 1 (operator/mul a b)))
+
+            (f 2 3)
+            """,
+            opts={
+                compiler.GENERATE_AUTO_INLINES: should_generate_inlines,
+                compiler.INLINE_FUNCTIONS: inline_functions,
+            },
+        )
+        assert val == 7
 
 
 def test_macro_expansion(lcompile: CompileFn):

@@ -23,6 +23,7 @@ _COL = kw.keyword("col")
 class CompilerPhase(Enum):
     ANALYZING = kw.keyword("analyzing")
     CODE_GENERATION = kw.keyword("code-generation")
+    INLINING = kw.keyword("inlining")
     MACROEXPANSION = kw.keyword("macroexpansion")
     COMPILING_PYTHON = kw.keyword("compiling-python")
 

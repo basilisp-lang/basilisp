@@ -68,6 +68,18 @@ Generation Settings
 
 The following settings can affect the generated Python code.
 
+* ``generate-auto-inlines`` - if ``true``, the compiler will generate inline function definitions for any :lpy:form:`def`\'ed functions with the ``^{:inline true}`` metadata (replacing the boolean ``^:inline`` key with the inline function)
+
+  * Environment Variable: ``BASILISP_GENERATE_AUTO_INLINES``
+  * Default: ``true``
+  * See also: :ref:`inlining`
+
+* ``inline-functions`` - if ``true``, any invocations of a function with a callable ``^:inline`` metadata key will be replaced with the return value of that callable (as a macro)
+
+  * Environment Variable: ``BASILISP_INLINE_FUNCTIONS``
+  * Default: ``true``
+  * See also: :ref:`inlining`
+
 * ``use-var-indirection`` - if ``true``, all Var accesses will be performed via Var indirection
 
   * Environment Variable: ``BASILISP_USE_VAR_INDIRECTION``
@@ -116,6 +128,46 @@ It is unlikely you will want to do this, but you can configure the compiler to e
 .. note::
 
    It is possible to initially define a Var with ``^:redef`` and then remove that metadata later, allowing later uses to be direct linked even if those which were compiled while ``^:redef`` was set will use indirection.
+
+.. _inlining:
+
+Inlining
+--------
+
+The Basilisp compiler supports inlining function calls directly into a call site for simple functions.
+Inline definitions can be provided for named (:lpy:fn:`defn`\'ed) functions by providing an anonymous function on the ``:inline`` meta key.
+The compiler will automatically inline calls to functions annotated with such a function in their meta if inlining is enabled.
+
+The compiler additionally supports automatically generating inline function definitions for simple functions.
+Functions annotated with a boolean ``:inline`` meta key will have inline definitions generated automatically at compile time and will thereafter be eligible to be inlined (subject to the current function inlining settings set on the compiler).
+Only "simple" functions are eligible for inlining.
+Simple functions are functions of a single _fixed_ arity (no variadic functions) with only a single body expression.
+Functions not meeting these criteria will trigger compile time errors if they are annotated with boolean ``:inline`` metadata.
+
+.. note::
+
+   Individual instances of inlining may be disabled by annotating the call site with the ``:no-inline`` metadata.
+
+   .. code-block::
+
+      ^:no-inline (first [1 2 3])
+
+.. warning::
+
+   The boolean ``:inline`` key must be applied to the :lpy:form:`fn` form or the optional ``fn`` name itself.
+   The user-provided ``:inline`` function must be applied to the Var which is generally done by applying the metadata to the :lpy:form:`def` name itself.
+   Users are encouraged to simply apply these meta keys with :lpy:fn:`defn`\, which will always do the right thing regardless of where you apply the metadata.
+
+.. warning::
+
+   Inlining functions certainly has its benefits, namely: increasing performance making simple function calls.
+
+   However, inlining can come with some significant drawbacks if you aren't careful.
+   One such drawback is that inlined function references which use an imported, required, or referred symbol which is not available in at the inlined call site will not work and will produce a compile time error.
+   Another drawback is that inlining, like macros, occurs at compile time and thus changes the final generated code -- stack traces will not include the original inlined function invocation which can impede debugging.
+   Relatedly, an inlined function cannot be re-:lpy:form:`def`\'ed, monkeypatched, or rebound at runtime.
+
+   Users should consider inlining primarily a Basilisp internal feature and use it extremely sparingly in user code.
 
 .. _compiler_debugging:
 

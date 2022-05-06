@@ -266,17 +266,19 @@
 (def
   ^{:doc      "Return the length of ``coll`` as by Python's ``len`` builtin. If the
                collection does not respond to ``__len__``\\, then count it manually."
-    :arglists '([coll])}
+    :arglists '([coll])
+    :inline   true}
   count
-  (fn count [coll]
+  (fn ^:inline count [coll]
     (basilisp.lang.runtime/count coll)))
 
 (def
   ^{:doc      "Returns a ``basilisp.lang.exception/ExceptionInfo`` instance with
                the given message and data."
-    :arglists '([msg data])}
+    :arglists '([msg data])
+    :inline   true}
   ex-info
-  (fn ex-info [msg data]
+  (fn ^:inline ex-info [msg data]
     (basilisp.lang.exception/ExceptionInfo msg data)))
 
 (def
@@ -302,6 +304,31 @@
      (basilisp.lang.runtime/conj coll x))
     ([coll x & xs]
      (apply basilisp.lang.runtime/conj coll x xs))))
+
+;; Define inline functions for earlier core functions now that we have all the
+;; functionality required to do so.
+
+(.alter-meta #'first assoc :inline (fn [seq] `(basilisp.lang.runtime/first ~seq)))
+(.alter-meta #'rest assoc :inline (fn [seq] `(basilisp.lang.runtime/rest ~seq)))
+(.alter-meta #'next assoc :inline (fn [seq] `(basilisp.lang.runtime/next ~seq)))
+(.alter-meta #'second assoc :inline (fn [seq] `(first (rest ~seq))))
+(.alter-meta #'ffirst assoc :inline (fn [seq] `(first (first ~seq))))
+(.alter-meta #'identity assoc :inline (fn [o] `~o))
+(.alter-meta #'instance? assoc :inline (fn [class obj] `(python/isinstance ~obj ~class)))
+(.alter-meta #'boolean? assoc :inline (fn [o] `(instance? python/bool ~o)))
+(.alter-meta #'float? assoc :inline (fn [o] `(instance? python/float ~o)))
+(.alter-meta #'integer? assoc :inline (fn [o] `(instance? python/int ~o)))
+(.alter-meta #'string? assoc :inline (fn [o] `(instance? python/str ~o)))
+(.alter-meta #'symbol? assoc :inline (fn [o] `(instance? basilisp.lang.symbol/Symbol ~o)))
+(.alter-meta #'keyword? assoc :inline (fn [o] `(instance? basilisp.lang.keyword/Keyword ~o)))
+(.alter-meta #'list? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/IPersistentList ~o)))
+(.alter-meta #'map? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/IPersistentMap ~o)))
+(.alter-meta #'set? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/IPersistentSet ~o)))
+(.alter-meta #'vector? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/IPersistentVector ~o)))
+(.alter-meta #'seq? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/ISeq ~o)))
+(.alter-meta #'seq assoc :inline (fn [o] `(basilisp.lang.runtime/to-seq ~o)))
+(.alter-meta #'set assoc :inline (fn [coll] `(basilisp.lang.set/set ~coll)))
+(.alter-meta #'vec assoc :inline (fn [coll] `(basilisp.lang.vector/vector ~coll)))
 
 (def
   ^{:macro    true
@@ -409,7 +436,7 @@
   ([coll i notfound]
    (basilisp.lang.runtime/nth coll i notfound)))
 
-(defn nthnext
+(defn ^:inline nthnext
   "Returns the nth next sequence of ``coll``\\.
 
   (nthnext nil 1)           ;=> nil
@@ -418,7 +445,7 @@
   [coll i]
   (basilisp.lang.runtime/nthnext coll i))
 
-(defn nthrest
+(defn ^:inline nthrest
   "Returns the nth rest sequence of ``coll``\\, or ``coll`` if ``i`` is 0.
 
   (nthrest nil 1)           ;=> nil
@@ -427,12 +454,12 @@
   [coll i]
   (basilisp.lang.runtime/nthrest coll i))
 
-(defn nfirst
+(defn ^:inline nfirst
   "Return the result of calling ``(next (first v))``\\."
   [v]
   (next (first v)))
 
-(defn nnext
+(defn ^:inline nnext
   "Return the result of calling ``(next (next v))``\\."
   [v]
   (next (next v)))
@@ -486,7 +513,7 @@
     v
     (.-name v)))
 
-(defn namespace
+(defn ^:inline namespace
   "Return the namespace of a symbol or keyword, or ``nil`` if no namespace."
   [v]
   (.-ns v))
@@ -582,13 +609,13 @@
   `(defn ~(vary-meta name assoc :private true)
      ~@body))
 
-(defn macroexpand-1
+(defn ^:inline macroexpand-1
   "Macroexpand ``form`` one time. Returns the macroexpanded form. The return value
   may still represent a macro. Does not macroexpand child forms."
   [form]
   (basilisp.lang.compiler/macroexpand-1 form))
 
-(defn macroexpand
+(defn ^:inline macroexpand
   "Repeatedly macroexpand ``form`` as by :lpy:fn:`macroexpand-1` until form no longer
   represents a macro. Returns the expanded form. Does not macroexpand child forms."
   [form]
@@ -766,12 +793,12 @@
   [f & args]
   (basilisp.lang.runtime/apply-kw f args))
 
-(defn hash
+(defn ^:inline hash
   "Return the hash code for its argument."
   [x]
   (python/hash x))
 
-(defn identical?
+(defn ^:inline identical?
   "Return ``true`` if ``x`` and ``y`` are the same object, otherwise ``false``\\."
   [x y]
   (operator/is_ x y))
@@ -853,7 +880,7 @@
   ([o timeout-s timeout-val]
    (basilisp.lang.runtime/deref o timeout-s timeout-val)))
 
-(defn compare-and-set!
+(defn ^:inline compare-and-set!
   "Atomically set the value of ``atom`` to ``new-val`` if and only if ``old-val`` is
   the current value of the atom."
   [atom old-val new-val]
@@ -910,7 +937,7 @@
   ([v & kwargs]
    (apply-kw basilisp.lang.atom/Atom v (apply hash-map kwargs))))
 
-(defn realized?
+(defn ^:inline realized?
   "Return ``true`` if the delay, future, lazy sequence, or promise has been realized."
   [o]
   (.-is-realized o))
@@ -922,7 +949,7 @@
   (list 'basilisp.lang.delay/Delay
         (concat '(fn* []) body)))
 
-(defn delay?
+(defn ^:inline delay?
   "Return ``true`` if ``x`` names a delay."
   [x]
   (instance? basilisp.lang.delay/Delay x))
@@ -935,7 +962,7 @@
     @x
     x))
 
-(defn promise
+(defn ^:inline promise
   "Return a promise object which can be set exactly once using :lpy:fn:`deliver` .
   Readers may block waiting for the value of the promise using ``@`` or
   :lpy:fn:`deref`. If the value has already been realized, then reading the value of
@@ -944,7 +971,7 @@
   []
   (basilisp.lang.promise/Promise))
 
-(defn deliver
+(defn ^:inline deliver
   "Deliver the value ``v`` to the promise ``p``\\. If ``p`` already has a value, then a
   subsequent call to :lpy:fn:`deliver` for ``p`` will have no effect."
   [p v]
@@ -981,23 +1008,23 @@
     (fn* []
          ~@body)))
 
-(defn future-cancel
+(defn ^:inline future-cancel
   "Attempt to cancel the Future ``fut``\\. If the future can be cancelled, return
   ``true``\\. Otherwise, return ``false``\\."
   [fut]
   (.cancel fut))
 
-(defn future?
+(defn ^:inline future?
   "Return ``true`` if ``x`` is a future, ``false`` otherwise."
   [x]
   (instance? basilisp.lang.futures/Future x))
 
-(defn future-cancelled?
+(defn ^:inline future-cancelled?
   "Return ``true`` if the Future ``fut`` has been cancelled, ``false`` otherwise."
   [fut]
   (.cancelled fut))
 
-(defn future-done?
+(defn ^:inline future-done?
   "Return ``true`` if the Future ``fut`` is done, ``false`` otherwise."
   [fut]
   (.done fut))
@@ -1045,27 +1072,27 @@
      (recur (basilisp.lang.runtime/divide x y) (first args) (rest args))
      (basilisp.lang.runtime/divide x y))))
 
-(defn mod
+(defn ^:inline mod
   "Returns the modulo of ``num`` and ``div``\\."
   [num div]
   (operator/mod num div))
 
-(defn quot
+(defn ^:inline quot
   "Returns the quotient of ``num`` and ``div``\\."
   [num div]
   (basilisp.lang.runtime/quotient num div))
 
-(defn rem
+(defn ^:inline rem
   "Returns the remainder of ``num`` and ``div``\\."
   [num div]
   (- num (* div (quot num div))))
 
-(defn inc
+(defn ^:inline inc
   "Increment the argument by 1."
   [x]
   (+ x 1))
 
-(defn dec
+(defn ^:inline dec
   "Decrement the argument by 1."
   [x]
   (- x 1))
@@ -1080,17 +1107,17 @@
   [& args]
   (python/max args))
 
-(defn numerator
+(defn ^:inline numerator
   "Return the numerator of a Fraction."
   [frac]
   (.-numerator frac))
 
-(defn denominator
+(defn ^:inline denominator
   "Return the denominator of a Fraction."
   [frac]
   (.-denominator frac))
 
-(defn compare
+(defn ^:inline compare
   "Return either -1, 0, or 1 to indicate the relationship between ``x`` and ``y``\\.
 
   This is a 3-way comparator commonly used in Java-derived systems. Python does not
@@ -1130,17 +1157,17 @@
 ;; Simple Predicates ;;
 ;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn any?
+(defn ^:inline any?
   "Return true for any ``x``\\."
   [_]
   true)
 
-(defn associative?
+(defn ^:inline associative?
   "Return ``true`` if ``x`` implements ``IAssociative``  ."
   [x]
   (instance? basilisp.lang.interfaces/IAssociative x))
 
-(defn bytes?
+(defn ^:inline bytes?
   "Return ``true`` if ``x`` is a byte array (the Python ``bytearray`` type).
 
   Note that Python supplies byte string and byte array objects in its standard library.
@@ -1150,7 +1177,7 @@
   [x]
   (instance? python/bytearray x))
 
-(defn byte-string?
+(defn ^:inline byte-string?
   "Return ``true`` if ``x`` is a byte string (the Python ``bytes`` type).
 
   Note that Python supplies byte string and byte array objects in its standard library.
@@ -1164,32 +1191,32 @@
   (and (instance? python/str x)
        (= (python/len x) 1)))
 
-(defn class?
+(defn ^:inline class?
   "Return ``true`` if ``x`` names a type."
   [x]
   (instance? python/type x))
 
-(defn coll?
+(defn ^:inline coll?
   "Return ``true`` if ``x`` implements ``IPersistentCollection``\\."
   [x]
   (instance? basilisp.lang.interfaces/IPersistentCollection x))
 
-(defn complex?
+(defn ^:inline complex?
   "Return ``true`` if ``x`` is a complex number."
   [x]
   (instance? python/complex x))
 
-(defn counted?
+(defn ^:inline counted?
   "Return ``true`` if ``x`` can be counted in constant time."
   [x]
   (instance? basilisp.lang.interfaces/ICounted x))
 
-(defn decimal?
+(defn ^:inline decimal?
   "Return ``true`` if ``x`` is a ``Decimal``\\."
   [x]
   (instance? decimal/Decimal x))
 
-(defn empty?
+(defn ^:inline empty?
   "Return ``true`` if ``coll`` is empty (as by ``(not (seq coll))``\\).
 
   Typically, you should prefer the idiom ``(seq coll)`` to ``(not (empty? coll))``\\."
@@ -1201,7 +1228,7 @@
   [x]
   (if (= 0 (mod x 2)) true false))
 
-(defn false?
+(defn ^:inline false?
   "Return ``true`` if ``x`` is ``false``\\, otherwise ``false``\\."
   [x]
   (operator/is- x false))
@@ -1226,7 +1253,7 @@
   [x]
   (or (keyword? x) (symbol? x)))
 
-(defn ifn?
+(defn ^:inline ifn?
   "Return ``true`` if ``x`` is callable as a function.
 
   Many Basilisp data structures are callable as functions though they are not proper
@@ -1234,7 +1261,7 @@
   [x]
   (python/callable x))
 
-(defn indexed?
+(defn ^:inline indexed?
   "Return ``true`` if elements of ``x`` can be accessed by index efficiently."
   [x]
   (instance? basilisp.lang.interfaces/IIndexed x))
@@ -1246,7 +1273,7 @@
   int?
   integer?)
 
-(defn map-entry?
+(defn ^:inline map-entry?
   "Return ``true`` if ``x`` implements ``IMapEntry``\\."
   [x]
   (instance? basilisp.lang.interfaces/IMapEntry x))
@@ -1271,12 +1298,12 @@
   [x]
   (and (integer? x) (neg? x)))
 
-(defn nil?
+(defn  ^:inline nil?
   "Return ``true`` if ``x`` is ``nil``\\, otherwise ``false``\\."
   [x]
   (operator/is- x nil))
 
-(defn some?
+(defn ^:inline some?
   "Return ``true`` if ``x`` is not ``nil``\\, otherwise ``false`` s."
   [x]
   (not (nil? x)))
@@ -1301,27 +1328,27 @@
   [x]
   (and (integer? x) (pos? x)))
 
-(defn py-dict?
+(defn ^:inline py-dict?
   "Return ``true`` if ``x`` is a Python ``dict``\\."
   [x]
   (instance? python/dict x))
 
-(defn py-frozenset?
+(defn ^:inline py-frozenset?
   "Return ``true`` if ``x`` is a Python ``frozenset``\\."
   [x]
   (instance? python/frozenset x))
 
-(defn py-list?
+(defn ^:inline py-list?
   "Return ``true`` if ``x`` is a Python ``list``\\."
   [x]
   (instance? python/list x))
 
-(defn py-set?
+(defn ^:inline py-set?
   "Return ``true`` if ``x`` is a Python ``set``\\."
   [x]
   (instance? python/set x))
 
-(defn py-tuple?
+(defn ^:inline py-tuple?
   "Return ``true`` if ``x`` is a Python ``tuple``\\."
   [x]
   (instance? python/tuple x))
@@ -1341,12 +1368,12 @@
   [x]
   (and (symbol? x) (some? (namespace x))))
 
-(defn queue?
+(defn ^:inline queue?
   "Return ``true`` if ``x`` is a persistent queue."
   [x]
   (instance? basilisp.lang.queue/PersistentQueue x))
 
-(defn ratio?
+(defn ^:inline ratio?
   "Return ``true`` if ``x`` is a ``Fraction``\\."
   [x]
   (instance? fractions/Fraction x))
@@ -1361,17 +1388,17 @@
   [x]
   (or (integer? x) (float? x)))
 
-(defn reversible?
+(defn ^:inline reversible?
   "Return ``true`` if x implements ``IReversible``\\."
   [x]
   (instance? basilisp.lang.interfaces/IReversible x))
 
-(defn seqable?
+(defn ^:inline seqable?
   "Return ``true`` if an ``ISeq`` can be produced from ``x``\\."
   [x]
   (instance? basilisp.lang.interfaces/ISeqable x))
 
-(defn sequential?
+(defn ^:inline sequential?
   "Return ``true`` if ``x`` implements ``ISequential``\\."
   [x]
   (instance? basilisp.lang.interfaces/ISequential x))
@@ -1381,7 +1408,7 @@
   [x]
   (and (keyword? x) (nil? (namespace x))))
 
-(defn special-symbol?
+(defn ^:inline special-symbol?
   "Return ``true`` if ``x`` is a special form symbol."
   [x]
   (basilisp.lang.runtime/is-special-form x))
@@ -1391,12 +1418,12 @@
   [x]
   (and (symbol? x) (nil? (namespace x))))
 
-(defn true?
+(defn ^:inline true?
   "Return ``true`` if ``x`` is ``true``\\, otherwise ``false``\\."
   [x]
   (operator/is- x true))
 
-(defn uuid?
+(defn ^:inline uuid?
   "Return ``true`` if ``x`` is a UUID."
   [x]
   (instance? uuid/UUID x))
@@ -1420,12 +1447,12 @@
     (catch python/TypeError _ false)
     (catch python/ValueError _ false)))
 
-(defn var?
+(defn ^:inline var?
   "Return ``true`` if ``x`` is a Var."
   [x]
   (instance? basilisp.lang.runtime/Var x))
 
-(defn zero?
+(defn ^:inline zero?
   "Return ``true`` if ``x`` is 0."
   [x]
   (= 0 x))
@@ -1434,7 +1461,7 @@
 ;; Type Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;
 
-(defn bases
+(defn ^:inline bases
   "Return the direct superclasses and interfaces of ``cls`` as a sequence."
   [cls]
   (apply list (.-__bases__ cls)))
@@ -1447,12 +1474,12 @@
             (str "Cannot cast object of type " (python/type x) " to " cls))))
   x)
 
-(defn class
+(defn ^:inline class
   "Return the class of ``x``\\."
   [x]
   (python/type x))
 
-(defn subclasses
+(defn ^:inline subclasses
   "Return a set of subclasses of ``cls``\\.
 
   This set is not guaranteed to be exhaustive because classes only retain a weak
@@ -1461,12 +1488,12 @@
   [cls]
   (set (.__subclasses__ cls)))
 
-(defn supers
+(defn ^:inline supers
   "Return the direct and indirect superclasses and interfaces of ``cls`` as a set."
   [cls]
   (set (python/filter #(not= cls %) (.-__mro__ cls))))
 
-(defn type
+(defn ^:inline type
   "Return the type of ``x``\\."
   [x]
   (python/type x))
@@ -1480,7 +1507,7 @@
   [x]
   (decimal/Decimal x))
 
-(defn bigint
+(defn ^:inline bigint
   "Coerce ``x`` to an integer.
 
   Python's builtin ``int`` type is arbitrary precision, so there is no difference
@@ -1488,7 +1515,7 @@
   [x]
   (python/int x))
 
-(defn biginteger
+(defn ^:inline biginteger
   "Coerce ``x`` to an integer.
 
   Python's builtin ``int`` type is arbitrary precision, so there is no difference
@@ -1496,7 +1523,7 @@
   [x]
   (python/int x))
 
-(defn boolean
+(defn ^:inline boolean
   "Coerce ``x`` to a boolean."
   [x]
   (python/bool x))
@@ -1534,7 +1561,7 @@
                               (python/ValueError
                                (str "cannot cast " (python/repr x) " to char")))))
 
-(defn double
+(defn ^:inline double
   "Coerce ``x`` to a float.
 
   Python does not differentiate between ``float`` and ``double``. Python ``float`` s are
@@ -1542,24 +1569,24 @@
   [x]
   (python/float x))
 
-(defn float
+(defn ^:inline float
   "Coerce ``x`` to a float."
   [x]
   (python/float x))
 
-(defn int
+(defn ^:inline int
   "Coerce ``x`` to an integer."
   [x]
   (python/int x))
 
-(defn long
+(defn ^:inline long
   "Coerce ``x`` to an integer.
 
   Python does not support `long` types, so the value is coerced to an integer."
   [x]
   (python/int x))
 
-(defn short
+(defn ^:inline short
   "Coerce ``x`` to an integer.
 
   Python does not support `short` types, so the value is coerced to an integer."
@@ -1699,12 +1726,12 @@
 ;; Arrays (Python List) ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn to-array
+(defn ^:inline to-array
   "Return a Python list with the contents of ``coll``\\."
   [coll]
   (python/list coll))
 
-(defn to-array-2d
+(defn ^:inline to-array-2d
   "Return a two-dimensional Python list from the contents of ``coll``\\.
 
   Python lists do not specify a fixed size, so the resulting two-dimensional list may
@@ -1766,7 +1793,7 @@
        final)
      (operator/mul #py [init-val-or-seq] size))))
 
-(defn aclone
+(defn ^:inline aclone
   "Return a clone of the Python list."
   [array]
   (python/list array))
@@ -1796,7 +1823,7 @@
          (operator/setitem target idx idx2)
          idx2)))))
 
-(defn alength
+(defn ^:inline alength
   "Return the length of the Python list."
   [array]
   (python/len array))
@@ -1830,14 +1857,14 @@
          (recur ~expr (inc ~idx))
          ~ret))))
 
-(defn booleans
+(defn ^:inline booleans
   "Dummy cast to a Python list of booleans.
 
   This function is provided for Clojure compatibility."
   [x]
   x)
 
-(defn bytes
+(defn ^:inline bytes
   "Dummy cast to a Python list of bytes (distinct from Python's ``bytarray`` and
   ``bytes`` types).
 
@@ -1845,42 +1872,42 @@
   [x]
   x)
 
-(defn chars
+(defn ^:inline chars
   "Dummy cast to a Python list of chars.
 
   This function is provided for Clojure compatibility."
   [x]
   x)
 
-(defn doubles
+(defn ^:inline doubles
   "Dummy cast to a Python list of doubles.
 
   This function is provided for Clojure compatibility."
   [x]
   x)
 
-(defn floats
+(defn ^:inline floats
   "Dummy cast to a Python list of floats.
 
   This function is provided for Clojure compatibility."
   [x]
   x)
 
-(defn ints
+(defn ^:inline ints
   "Dummy cast to a Python list of integers.
 
   This function is provided for Clojure compatibility."
   [x]
   x)
 
-(defn longs
+(defn ^:inline longs
   "Dummy cast to a Python list of longs.
 
   This function is provided for Clojure compatibility."
   [x]
   x)
 
-(defn shorts
+(defn ^:inline shorts
   "Dummy cast to a Python list of shorts.
 
   This function is provided for Clojure compatibility."
@@ -1946,17 +1973,17 @@
     (recur (operator/or- x (first args)) rest-arg)
     (operator/or- x (first args))))
 
-(defn bit-not
+(defn ^:inline bit-not
   "Invert the bits of ``x``\\."
   [x]
   (operator/invert x))
 
-(defn bit-shift-left
+(defn ^:inline bit-shift-left
   "Return ``x`` shifted left ``n`` bits."
   [x n]
   (operator/lshift x n))
 
-(defn bit-shift-right
+(defn ^:inline bit-shift-right
   "Return ``x`` shifted right ``n`` bits."
   [x n]
   (operator/rshift x n))
@@ -1975,22 +2002,22 @@
     (recur (operator/and- x (operator/not- (first args))) rest-arg)
     (operator/and- x (operator/not- (first args)))))
 
-(defn bit-clear
+(defn ^:inline bit-clear
   "Clear the bit of ``x`` at index ``n``\\."
   [x n]
   (bit-and x (bit-not (bit-shift-left 1 n))))
 
-(defn bit-flip
+(defn ^:inline bit-flip
   "Flip the bit of ``x`` at index ``n``\\."
   [x n]
   (bit-xor x (bit-shift-left 1 n)))
 
-(defn bit-set
+(defn ^:inline bit-set
   "Set the bit of ``x`` at index ``n``\\."
   [x n]
   (bit-or x (bit-shift-left 1 n)))
 
-(defn bit-test
+(defn ^:inline bit-test
   "Test the bit of ``x`` at index ``n``\\."
   [x n]
   (bit-and (bit-shift-right x n) 1))
@@ -2023,7 +2050,7 @@
   (when (seq coll)
     coll))
 
-(defn peek
+(defn ^:inline peek
   "For a list or a queue, return the first element.
 
   For a vector, return the last element (more efficiently than by last).
@@ -2032,7 +2059,7 @@
   [coll]
   (.peek coll))
 
-(defn pop
+(defn ^:inline pop
   "For a list or a queue, return a new list without the first element.
 
   For a vector, return a new vector without the last element.
@@ -2052,7 +2079,7 @@
                        out))]
     (do-reverse coll '())))
 
-(defn rseq
+(defn ^:inline rseq
   "Return a sequence of the elements of ``coll`` in reverse order in constant time.
   Only Vectors support this operation."
   [coll]
@@ -2078,7 +2105,7 @@
 ;; Associative Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn contains?
+(defn ^:inline contains?
   "Return ``true`` if ``coll`` contains ``k``\\. For vectors, ``k`` is an index. For
   maps, ``k`` is a key. For sets, ``k`` is a value in the set."
   [coll k]
@@ -2186,22 +2213,22 @@
   (when-let [v (get m k)]
     (map-entry k v)))
 
-(defn key
+(defn ^:inline key
   "Return the key from a map entry."
   [entry]
   (.-key entry))
 
-(defn val
+(defn ^:inline val
   "Return the val from a map entry."
   [entry]
   (.-value entry))
 
-(defn keys
+(defn ^:inline keys
   "Return a seq of the keys from a map."
   [m]
   (seq (.keys m)))
 
-(defn vals
+(defn ^:inline vals
   "Return a seq of the values from a map."
   [m]
   (seq (.values m)))
@@ -2281,7 +2308,7 @@
   ([m k & ks]
    (apply (.-dissoc-transient m) k ks)))
 
-(defn pop!
+(defn ^:inline pop!
   "Return a new transient vector without the last element of ``coll``\\. If ``coll`` is
   empty, throw an exception."
   [coll]
@@ -2291,17 +2318,17 @@
 ;; Volatiles ;;
 ;;;;;;;;;;;;;;;
 
-(defn volatile!
+(defn ^:inline volatile!
   "Return a Volatile reference container with the initial value ``v``\\."
   [v]
   (basilisp.lang.volatile/Volatile v))
 
-(defn volatile?
+(defn ^:inline volatile?
   "Return ``true`` if ``x`` is a volatile reference container."
   [x]
   (instance? basilisp.lang.volatile/Volatile x))
 
-(defn vreset!
+(defn ^:inline vreset!
   "Reset the value of volatile ``v`` non-atomically to ``new-val``. Returns the new
   value."
   [v new-val]
@@ -2317,14 +2344,14 @@
 ;; Transducer Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn reduced
+(defn ^:inline reduced
   "Wraps a value ``x`` such that it will terminate a reduce operation.
 
   Callers can retrieve the inner reduced value using :lpy:fn:`deref` or ``@x``\\."
   [x]
   (basilisp.lang.reduced/Reduced x))
 
-(defn reduced?
+(defn ^:inline reduced?
   "Return true if ``x`` should be considered fully reduced."
   [x]
   (instance? basilisp.lang.reduced/Reduced x))
@@ -3545,7 +3572,7 @@
         ;;  pairs - pairs of bindings; either symbol/seq pairs or modifier pairs
         gen-iter (fn gen-iter [pairs]
                    (if (seq pairs)
-                     (let [for-iter (gensym "for")
+                     (let [for-iter (gensym "for") 
                            seq-arg  (gensym "seq")
                            pair     (first pairs)
                            binding  (first pair)
@@ -3670,12 +3697,12 @@
        :macro true}
   with-open with)
 
-(defn get-thread-bindings
+(defn ^:inline get-thread-bindings
   "Return the current thread-local bindings as a map of Var/value pairs."
   []
   (basilisp.lang.runtime/get-thread-bindings))
 
-(defn push-thread-bindings
+(defn ^:inline push-thread-bindings
   "Takes a map of Var/value pairs and applies the given value to the Var in the current
   thread.
 
@@ -3687,7 +3714,7 @@
   [bindings]
   (basilisp.lang.runtime/push-thread-bindings bindings))
 
-(defn pop-thread-bindings
+(defn ^:inline pop-thread-bindings
   "Pop thread bindings set by a corresponding call to :lpy:fn:`push-thread-bindings`.
   This should not be called without a prior call to :lpy:fn:`push-thread-bindings` ."
   []
@@ -4027,12 +4054,12 @@
 
 (def ^:dynamic *print-sep* " ")
 
-(defn repr
+(defn ^:inline repr
   "Return the reader representation of an object."
   [x]
   (basilisp.lang.runtime/lrepr x))
 
-(defn flush
+(defn ^:inline flush
   "Flush the buffer currently bound to :lpy:var:`*out*`."
   []
   (.flush *out*))
@@ -4322,7 +4349,7 @@
   (doseq [path (seq paths)]
     (load-file (str path ".lpy"))))
 
-(defn load-string
+(defn ^:inline load-string
   "Read and evaluate the set of forms contained in the string ``s``\\."
   [s]
   (load-reader (io/StringIO s)))
@@ -4338,7 +4365,7 @@
   [o f & args]
   (apply-method o alter-meta f args))
 
-(defn reset-meta!
+(defn ^:inline reset-meta!
   "Atomically swap the metadata on reference ``o`` to meta. References include atoms,
   namespaces, and vars."
   [o meta]
@@ -4348,7 +4375,7 @@
 ;; Ref (Atom/Var) Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn add-watch
+(defn ^:inline add-watch
   "Add a watch function ``wf`` identified by the key ``k`` to the ref (Atom or Var).
 
   Watch functions should be functions of four arguments: the key associated with the
@@ -4369,19 +4396,19 @@
   [ref k wf]
   (.add-watch ref k wf))
 
-(defn remove-watch
+(defn ^:inline remove-watch
   "Remove the watch function identified by ``k`` from the ref (Atom or Var), if it
   exists. Returns the ref."
   [ref k]
   (.remove-watch ref k))
 
-(defn get-validator
+(defn ^:inline get-validator
   "Return the validator defined for the ref (Atom or Var), or ``nil`` if no validator is
   defined."
   [ref]
   (.get-validator ref))
 
-(defn set-validator!
+(defn ^:inline set-validator!
   "Set the validator function for the ref (Atom or Var).
 
   Validator functions should be side-effect free functions of one argument: the proposed
@@ -4405,7 +4432,7 @@
   [v f & args]
   (apply-method v alter-root f args))
 
-(defn find-var
+(defn ^:inline find-var
   "Return the Var named by namespace-qualified ``sym`` if it exists, or ``nil``
   otherwise."
   [sym]
@@ -4443,12 +4470,12 @@
 ;; Namespace Utilities ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn all-ns
+(defn ^:inline all-ns
   "Return a sequence of all namespaces."
   []
   (vals (basilisp.lang.runtime.Namespace/ns-cache)))
 
-(defn find-ns
+(defn ^:inline find-ns
   "Return the namespace named by ``sym`` if it exists, or ``nil`` otherwise."
   [sym]
   (basilisp.lang.runtime.Namespace/get sym))
@@ -4483,18 +4510,18 @@
      (.set-root v val)
      (.intern ns v))))
 
-(defn create-ns
+(defn ^:inline create-ns
   "Create a Namespace with the name ``ns-sym`` or return the existing one if it already
   exists."
   [ns-sym]
   (basilisp.lang.runtime.Namespace/get-or-create ns-sym))
 
-(defn remove-ns
+(defn ^:inline remove-ns
   "Remove the namespace named by the symbol."
   [ns-sym]
   (basilisp.lang.runtime.Namespace/remove ns-sym))
 
-(defn ns-name
+(defn ^:inline ns-name
   "Return the name of the namespace, a symbol."
   [ns]
   (.-name ns))
@@ -4511,22 +4538,22 @@
           {}
           (.-aliases (the-ns ns))))
 
-(defn ns-imports
+(defn ^:inline ns-imports
   "Return a set of Python modules which are imported in the current namespace."
   [ns]
   (.-imports (the-ns ns)))
 
-(defn ns-interns
+(defn ^:inline ns-interns
   "Return a map of symbols to Vars which are interned in the current namespace."
   [ns]
   (.-interns (the-ns ns)))
 
-(defn ns-unalias
+(defn ^:inline ns-unalias
   "Remove the alias for the symbol ``sym`` from ``ns``\\. Return ``nil``\\."
   [ns sym]
   (.remove-alias (the-ns ns) sym))
 
-(defn ns-unmap
+(defn ^:inline ns-unmap
   "Remove the mapping for the symbol ``sym`` from ``ns``\\. Return ``nil``\\."
   [ns sym]
   (.unmap (the-ns ns) sym))
@@ -4543,7 +4570,7 @@
           {}
           (ns-interns (the-ns ns))))
 
-(defn ns-refers
+(defn ^:inline ns-refers
   "Return a map of symbols to Vars which are referred in the current namespace."
   [ns]
   (.-refers (the-ns ns)))
@@ -4560,12 +4587,12 @@
       (ns-interns resolved-ns)
       (ns-refers resolved-ns)))))
 
-(defn ns-resolve
+(defn ^:inline ns-resolve
   "Return the Var which will be resolved by the symbol in the given namespace."
   [ns sym]
   (basilisp.lang.runtime/resolve-var sym (the-ns ns)))
 
-(defn resolve
+(defn ^:inline resolve
   "Return the Var which will be resolved by the symbol in the namespace currently bound
   to :lpy:var:`*ns*`."
   [sym]
@@ -5173,12 +5200,12 @@
   [multifn dispatch-val & fn-tail]
   `(. ~multifn (~'add-method ~dispatch-val (fn ~@fn-tail))))
 
-(defn methods
+(defn ^:inline methods
   "Return a map of dispatch values to methods for the given multimethod."
   [multifn]
   (.-methods multifn))
 
-(defn get-method
+(defn ^:inline get-method
   "Return the method of multimethod ``multifn`` which would respond to ``dispatch-val``
   or ``nil`` if no method exists for ``dispatch-val``\\."
   [multifn dispatch-val]
@@ -5194,7 +5221,7 @@
   (.prefer-method multifn dispatch-val-x dispatch-val-y)
   multifn)
 
-(defn prefers
+(defn ^:inline prefers
   "Return a map of the set of preferred values to the set of other conflicting values."
   [multifn]
   (.-prefers multifn))
@@ -6247,7 +6274,7 @@
 ;; Records ;;
 ;;;;;;;;;;;;;
 
-(defn record?
+(defn ^:inline record?
   "Return ``true`` if ``v`` is a record type."
   [v]
   (instance? basilisp.lang.interfaces/IRecord v))

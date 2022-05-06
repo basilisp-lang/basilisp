@@ -530,6 +530,7 @@ class Fn(Node[SpecialForm]):
     is_variadic: bool = False
     is_async: bool = False
     kwarg_support: Optional[KeywordArgSupport] = None
+    inline_fn: Optional["Fn"] = None
     children: Sequence[kw.Keyword] = vec.v(ARITIES)
     op: NodeOp = NodeOp.FN
     top_level: bool = False
