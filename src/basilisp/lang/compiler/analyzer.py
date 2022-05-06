@@ -2367,9 +2367,31 @@ def _import_ast(  # pylint: disable=too-many-branches
     )
 
 
-def _invoke_ast(  # pylint: disable=too-many-branches
-    form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
+def __handle_macroexpanded_ast(
+    original: Union[llist.PersistentList, ISeq],
+    expanded: Union[ReaderForm, ISeq],
+    ctx: AnalyzerContext,
 ) -> Node:
+    """Prepare the Lisp AST from macroexpanded and inlined code."""
+    if isinstance(expanded, IWithMeta) and isinstance(original, IMeta):
+        old_meta = expanded.meta
+        expanded = expanded.with_meta(
+            old_meta.cons(original.meta) if old_meta else original.meta
+        )
+    with ctx.expr_pos():
+        expanded_ast = _analyze_form(expanded, ctx)
+
+    # Verify that macroexpanded code also does not have any non-tail
+    # recur forms
+    if ctx.recur_point is not None:
+        _assert_recur_is_tail(expanded_ast)
+
+    return expanded_ast.assoc(
+        raw_forms=cast(vec.PersistentVector, expanded_ast.raw_forms).cons(original)
+    )
+
+
+def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -> Node:
     with ctx.expr_pos():
         fn = _analyze_form(form.first, ctx)
 
@@ -2378,24 +2400,7 @@ def _invoke_ast(  # pylint: disable=too-many-branches
             try:
                 macro_env = ctx.symbol_table.as_env_map()
                 expanded = fn.var.value(macro_env, form, *form.rest)
-                if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):
-                    old_meta = expanded.meta
-                    expanded = expanded.with_meta(
-                        old_meta.cons(form.meta) if old_meta else form.meta
-                    )
-                with ctx.expr_pos():
-                    expanded_ast = _analyze_form(expanded, ctx)
-
-                # Verify that macroexpanded code also does not have any non-tail
-                # recur forms
-                if ctx.recur_point is not None:
-                    _assert_recur_is_tail(expanded_ast)
-
-                return expanded_ast.assoc(
-                    raw_forms=cast(vec.PersistentVector, expanded_ast.raw_forms).cons(
-                        form
-                    )
-                )
+                return __handle_macroexpanded_ast(form, expanded, ctx)
             except Exception as e:
                 raise CompilerException(
                     "error occurred during macroexpansion",
@@ -2412,23 +2417,7 @@ def _invoke_ast(  # pylint: disable=too-many-branches
             inline_fn = cast(Callable, fn.var.meta.get(SYM_INLINE_META_KW))
             try:
                 expanded = inline_fn(*form.rest)
-                if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):
-                    old_meta = expanded.meta
-                    expanded = expanded.with_meta(
-                        old_meta.cons(form.meta) if old_meta else form.meta
-                    )
-                with ctx.expr_pos():
-                    expanded_ast = _analyze_form(expanded, ctx)
-
-                # Verify that inlined code also does not have any non-tail recur forms
-                if ctx.recur_point is not None:
-                    _assert_recur_is_tail(expanded_ast)
-
-                return expanded_ast.assoc(
-                    raw_forms=cast(vec.PersistentVector, expanded_ast.raw_forms).cons(
-                        form
-                    )
-                )
+                return __handle_macroexpanded_ast(form, expanded, ctx)
             except Exception as e:
                 raise CompilerException(
                     "error occurred during inlining",

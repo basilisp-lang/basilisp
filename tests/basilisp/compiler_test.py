@@ -2694,12 +2694,6 @@ class TestFunctionInlining:
         )
         assert val == 7
 
-    def test_metadata_is_applied_to_inline_result(self, lcompile: CompileFn):
-        pass
-
-    def test_metadata_is_applied_to_inlined_code(self, lcompile: CompileFn):
-        pass
-
 
 def test_macro_expansion(lcompile: CompileFn):
     assert llist.l(1, 2, 3) == lcompile("((fn [] '(1 2 3)))")
