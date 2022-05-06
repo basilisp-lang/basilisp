@@ -8,6 +8,7 @@
          functools
          importlib
          importlib.util
+         math
          multiprocessing
          os
          pathlib
@@ -1072,6 +1073,11 @@
      (recur (basilisp.lang.runtime/divide x y) (first args) (rest args))
      (basilisp.lang.runtime/divide x y))))
 
+(defn ^:inline abs
+  "Return the absolute value of ``x``\\."
+  [x]
+  (python/abs x))
+
 (defn ^:inline mod
   "Returns the modulo of ``num`` and ``div``\\."
   [num div]
@@ -1266,6 +1272,11 @@
   [x]
   (instance? basilisp.lang.interfaces/IIndexed x))
 
+(defn infinite?
+  "Return ``true`` if ``x`` is either positive or negative infinity."
+  [x]
+  (math/isinf x))
+
 (def ^{:doc "Return ``true`` if ``x`` is an integer.
 
              Note that unlike Clojure, Basilisp uses Python integers and there is no
@@ -1277,6 +1288,11 @@
   "Return ``true`` if ``x`` implements ``IMapEntry``\\."
   [x]
   (instance? basilisp.lang.interfaces/IMapEntry x))
+
+(defn NaN?
+  "Return ``true`` if ``x`` is NaN."
+  [x]
+  (math/isnan x))
 
 (defn neg?
   "Return ``true`` if ``x`` is negative."
@@ -3323,6 +3339,11 @@
   [coll]
   (nth coll (rand-int (count coll))))
 
+(defn random-uuid
+  "Return a random type 4 UUID."
+  []
+  (uuid/uuid4))
+
 (defn random-sample
   "Return elements from ``coll`` with the random probability of ``prob``\\.
 
@@ -5294,6 +5315,38 @@
            (transient {})
            ks)))
 
+(defn update-keys
+  "Update the keys in map ``m`` by applying a function of one argument, ``f``\\,
+  to every key.
+
+  ``f`` must return a unique key for every input key, otherwise the behavior of
+  this function is undefined."
+  [m f]
+  (with-meta
+    (persistent!
+     (reduce-kv (fn [m k v]
+                  (assoc! m (f k) v))
+                (transient {})
+                m))
+    (meta m)))
+
+(defn update-vals
+  "Update the values in map ``m`` by applying a function of one argument, ``f``\\,
+  to every value."
+  [m f]
+  (with-meta
+    (persistent!
+     (reduce-kv (fn [m k v]
+                  (assoc! m k (f v)))
+                ;; using the incoming map as a base means we could potentially
+                ;; share structure
+                (transient
+                 (if (instance? basilisp.lang.interfaces/IEvolveableCollection m)
+                   m
+                   {}))
+                m))
+    (meta m)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Destructuring Support ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -5652,6 +5705,72 @@
    (basilisp.lang.runtime/to-lisp o))
   ([o & {:keys [keywordize-keys] :or {keywordize-keys true}}]
    (basilisp.lang.runtime/to-lisp o keywordize-keys)))
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Parsing Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn ^:private parsing-error
+  [s]
+  (python/TypeError
+   (str "Expected string; got " (type s))))
+
+(defn parse-double
+  "Parse the string argument ``s`` as a floating point number as by Python's
+  builtin |float|_ function, returning the float if the string contains one,
+  or ``nil`` otherwise.
+
+  This function will throw a ``TypeError`` for non-string types.
+
+  .. |float| replace:: ``float``
+  .. _float: https://docs.python.org/3/library/functions.html#float"
+  [s]
+  (if (string? s)
+    (try
+      (python/float s)
+      (catch python/ValueError _ nil))
+    (throw (parsing-error s))))
+
+(defn parse-long
+  "Parse the string argument ``s`` as an integer (base 10) as by Python's builtin
+  |int|_ function, returning the integer if the string contains one, or ``nil``
+  otherwise.
+
+  This function will throw a ``TypeError`` for non-string types.
+
+  .. |int| replace:: ``int``
+  .. _int: https://docs.python.org/3/library/functions.html#int"
+  [s]
+  (if (string? s)
+    (try
+      (python/int s)
+      (catch python/ValueError _ nil))
+    (throw (parsing-error s))))
+
+(defn parse-boolean
+  "Parse the string argument ``s`` as either boolean ``true`` or ``false``
+  returning the boolean if the string contains one, or ``nil`` otherwise.
+
+  This function will throw a ``TypeError`` for non-string types."
+  [s]
+  (if (string? s)
+    (get {"true" true "false" false} s)
+    (throw (parsing-error s))))
+
+(defn parse-uuid
+  "Parse the string argument ``s`` as a UUID as by Python's |uuid.UUID|_\\,
+  returning the UUID if the string contains one, or ``nil`` otherwise.
+
+  This function will throw a ``TypeError`` for non-string types.
+
+  .. |uuid.UUID| replace:: ``uuid.UUID``
+  .. _uuid.UUID: https://docs.python.org/3/library/uuid.html"
+  [s]
+  (if (string? s)
+    (try
+      (uuid/UUID s)
+      (catch python/ValueError _ nil))
+    (throw (parsing-error s))))
 
 ;;;;;;;;;;;;;;;;
 ;; Interfaces ;;
