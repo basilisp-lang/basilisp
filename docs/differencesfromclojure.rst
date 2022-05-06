@@ -125,7 +125,7 @@ There are some differences between ``ns`` in Clojure and ``ns`` in Basilisp:
 
 * Users may use ``:refer-basilisp`` and ``:refer-clojure`` interchangeably to control which of the :lpy:ns:`basilisp.core` functions are referred into the new namespace.
 * Prefix lists are not supported for any of the import or require selectors.
-* Clojure namespaces are not automatically rewritten, but support for that feature is being tracked in `#667 <https://github.com/basilisp-lang/basilisp/issues/667>`_.
+* Automatic namespace aliasing: if a namespaces starting with ``clojure.`` is required and does not exist, but a corresponding namespace starting with ``basilisp.`` does exist, Basilisp will import the latter automatically with the former as an alias.
 
 .. _lib_differences:
 
