@@ -4617,8 +4617,8 @@
   "Rewrite libspecs which point to namespaces starting with 'clojure.' to use a
   Basilisp alternative if the original library cannot be found on the import path.
 
-  If a matching library is found and no alias was given, configure the alias to be
-  original requested namespace name."
+  If a matching library is found, configure an alias to be original requested
+  namespace name."
   [libspec]
   (let [ns-name (name (:namespace libspec))]
     (if (and (.startswith ns-name "clojure.")
@@ -4630,13 +4630,12 @@
       (let [basilisp-ns-name (str (.replace ns-name "clojure" "basilisp" 1))]
         ;; Add the original name as an alias if no alias was given
         ;;
-        ;; This won't cover every case, since it's certainly possible someone was
-        ;; using an alias, but still referring to some required Vars with a fully
-        ;; qualified name. We don't currently support setting multiple aliases for
-        ;; a single namespace right now though we could simulate this via multiple
-        ;; `require` s, but I'm not convinced that's an important enough case.
+        ;; If an `:as` alias is not given, we'll just use that. Otherwise, we use
+        ;; `:original-namespace` to let the require machinery know to set an
+        ;; extra alias here.
         (cond-> (assoc libspec :namespace (symbol basilisp-ns-name))
-          (not (:as libspec)) (assoc :as (symbol ns-name))))
+          (not (:as libspec)) (assoc :as (symbol ns-name))
+          (:as libspec)       (assoc :original-namespace (symbol ns-name))))
       libspec)))
 
 (defn ^:private require-libspec
@@ -4655,9 +4654,11 @@
   - ``:exclude [sym1, sym2]`` to refer all except the specified symbols
   - ``:rename {sym1 new-sym1}`` to rename all the specified symbols to the given new name
 
-  Namespaces beginning with 'clojure.' will be automatically rewritten to 'basilisp.' if
-  the original library cannot be found. This should allow for automatically importing
-  Clojure's included core libraries such as ``clojure.string``"
+  If a namespace name beginning with 'clojure.' does not exist on the import path,
+  Basilisp will attempt to load a corresponding namespace starting with 'basilisp.'
+  automatically, aliasing the imported namespace as the requested namespace name.
+  This should allow for automatically importing Clojure's included core libraries such
+  as ``clojure.string``"
   [req]
   (rewrite-clojure-libspec
    (cond
@@ -4681,6 +4682,10 @@
                   [required-ns-sym :as ns-alias]
                   required-ns-sym))
           requiring-ns)
+    ;; Add a special alias for the original namespace (e.g. `clojure.*`), if we
+    ;; rewrote the namespace on require.
+    (when-let [original-ns (:original-namespace libspec)]
+      (.add-alias requiring-ns (the-ns required-ns-sym) original-ns))
     ;; Reset the namespace to the requiring namespace, since it was likely changed
     ;; during the require process
     (set! *ns* requiring-ns)))
