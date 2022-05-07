@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
  * Fixed the `with` macro definition to match the Python language spec (#656)
+ * Fixed a bug where `py->lisp` did not convert map keys or values into Basilisp objects (#679)
 
 ## [v0.1.0a1]
 ### Added

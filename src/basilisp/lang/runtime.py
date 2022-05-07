@@ -1429,19 +1429,26 @@ def _to_lisp_vec(o: Iterable, keywordize_keys: bool = True) -> vec.PersistentVec
 
 
 @functools.singledispatch
-def _keywordize_keys(k):
-    return k
+def _keywordize_keys(k, keywordize_keys: bool = True):
+    return to_lisp(k, keywordize_keys=keywordize_keys)
 
 
 @_keywordize_keys.register(str)
-def _keywordize_keys_str(k):
+def _keywordize_keys_str(k, keywordize_keys: bool = True):
     return kw.keyword(k)
 
 
 @to_lisp.register(dict)
 def _to_lisp_map(o: Mapping, keywordize_keys: bool = True) -> lmap.PersistentMap:
-    process_key = _keywordize_keys if keywordize_keys else lambda x: x
-    return lmap.map({process_key(k): v for k, v in o.items()})  # type: ignore[operator]
+    process_key = _keywordize_keys if keywordize_keys else to_lisp
+    return lmap.map(
+        {
+            process_key(k, keywordize_keys=keywordize_keys): to_lisp(
+                v, keywordize_keys=keywordize_keys
+            )
+            for k, v in o.items()
+        }
+    )
 
 
 @to_lisp.register(frozenset)
