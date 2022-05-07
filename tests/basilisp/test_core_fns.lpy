@@ -1028,22 +1028,22 @@
 (deftest update-keys-test
   (are [res start] (and (= res (update-keys start name))
                         (= (meta res) (meta start)))
-    {}                                           {}
-    ^:cool {}                                    ^:cool {}
-    {:a "a"}                                     {:a "A"}
-    ^:neat {:a "a"}                              ^:neat {"a" "a"}
-    {:a "a" 'b 2}                                {"a" "a" "b" 2}
-    ^{:good :yes :great :also-yes} {:a "a" 'b 2} ^{:good :yes :great :also-yes} {"a" "a" "b" 2}))
+    {}                                             {}
+    ^:cool {}                                      ^:cool {}
+    {"a" "a"}                                      {:a "a"}
+    ^:neat {"a" "a"}                               ^:neat {:a "a"}
+    {"a" "a" "b" 2}                                {:a "a" 'b 2}
+    ^{:good :yes :great :also-yes} {"a" "a" "b" 2} ^{:good :yes :great :also-yes} {:a "a" 'b 2}))
 
 (deftest update-vals-test
   (are [res start] (and (= res (update-vals start #(cond-> % (string? %) (.upper))))
                         (= (meta res) (meta start)))
     {}                                           {}
     ^:cool {}                                    ^:cool {}
-    {:a "a"}                                     {:a "A"}
-    ^:neat {:a "a"}                              ^:neat {:a "A"}
-    {:a "a" 'b 2}                                {:a "A" 'b 2}
-    ^{:good :yes :great :also-yes} {:a "a" 'b 2} ^{:good :yes :great :also-yes} {:a "A" 'b 2}))
+    {:a "A"}                                     {:a "a"}
+    ^:neat {:a "A"}                              ^:neat {:a "a"}
+    {:a "A" 'b 2}                                {:a "a" 'b 2}
+    ^{:good :yes :great :also-yes} {:a "A" 'b 2} ^{:good :yes :great :also-yes} {:a "a" 'b 2}))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; String Functions ;;
@@ -1617,7 +1617,7 @@
     #{}
     ())
 
-  (are [res x] (parse-double x)
+  (are [res x] (= res (parse-double x))
     nil   ""
     nil   "strang"
     nil   "--13.6"
@@ -1642,7 +1642,7 @@
     #{}
     ())
 
-  (are [res x] (parse-long x)
+  (are [res x] (= res (parse-long x))
     nil   ""
     nil   "strang"
     nil   "--13"
@@ -1666,7 +1666,7 @@
     #{}
     ())
 
-  (are [res x] (parse-boolean x)
+  (are [res x] (= res (parse-boolean x))
     nil   ""
     nil   "1"
     nil   "strang"
@@ -1691,7 +1691,7 @@
     #{}
     ())
 
-  (are [res x] (parse-uuid x)
+  (are [res x] (= res (parse-uuid x))
     nil                                          ""
     nil                                          "1"
     nil                                          "strang"
