@@ -1036,7 +1036,7 @@
     ^{:good :yes :great :also-yes} {:a "a" 'b 2} ^{:good :yes :great :also-yes} {"a" "a" "b" 2}))
 
 (deftest update-vals-test
-  (are [res start] (and (= res (update-vals start #(cond-> % (str? %) (.upper))))
+  (are [res start] (and (= res (update-vals start #(cond-> % (string? %) (.upper))))
                         (= (meta res) (meta start)))
     {}                                           {}
     ^:cool {}                                    ^:cool {}
