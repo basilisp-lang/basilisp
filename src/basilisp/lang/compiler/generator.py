@@ -1507,7 +1507,7 @@ def __fn_args_to_py_ast(
     fn_args, varg = [], None
     fn_body_ast: List[ast.AST] = []
     for binding in params:
-        assert binding.init is None, ":fn nodes cannot have bindint :inits"
+        assert binding.init is None, ":fn nodes cannot have binding :inits"
         assert varg is None, "Must have at most one variadic arg"
         arg_name = genname(munge(binding.name))
 

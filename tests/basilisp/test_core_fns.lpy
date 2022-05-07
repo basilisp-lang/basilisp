@@ -1025,6 +1025,26 @@
       [10 9 8 7 6]                            [0 2 4]                     [10 8 6]
       [:zeroth :first :second :third :fourth] [0 2 4 0]                   [:zeroth :second :fourth :zeroth])))
 
+(deftest update-keys-test
+  (are [res start] (and (= res (update-keys start name))
+                        (= (meta res) (meta start)))
+    {}                                           {}
+    ^:cool {}                                    ^:cool {}
+    {:a "a"}                                     {:a "A"}
+    ^:neat {:a "a"}                              ^:neat {"a" "a"}
+    {:a "a" 'b 2}                                {"a" "a" "b" 2}
+    ^{:good :yes :great :also-yes} {:a "a" 'b 2} ^{:good :yes :great :also-yes} {"a" "a" "b" 2}))
+
+(deftest update-vals-test
+  (are [res start] (and (= res (update-vals start #(cond-> % (str? %) (.upper))))
+                        (= (meta res) (meta start)))
+    {}                                           {}
+    ^:cool {}                                    ^:cool {}
+    {:a "a"}                                     {:a "A"}
+    ^:neat {:a "a"}                              ^:neat {:a "A"}
+    {:a "a" 'b 2}                                {:a "A" 'b 2}
+    ^{:good :yes :great :also-yes} {:a "a" 'b 2} ^{:good :yes :great :also-yes} {:a "A" 'b 2}))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; String Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;
