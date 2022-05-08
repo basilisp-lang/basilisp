@@ -1605,7 +1605,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;
 
 (deftest parse-double-test
-  (are [x] (thrown? basilisp.lang.exception/ExceptionInfo (parse-double x))
+  (are [x] (thrown? python/TypeError (parse-double x))
     nil
     true
     1
@@ -1630,7 +1630,7 @@
     -15.6 "-15.6   "))
 
 (deftest parse-long-test
-  (are [x] (thrown? basilisp.lang.exception/ExceptionInfo (parse-long x))
+  (are [x] (thrown? python/TypeError (parse-long x))
     nil
     true
     1
@@ -1654,7 +1654,7 @@
     -15   "-15    "))
 
 (deftest parse-boolean-test
-  (are [x] (thrown? basilisp.lang.exception/ExceptionInfo (parse-boolean x))
+  (are [x] (thrown? python/TypeError (parse-boolean x))
     nil
     true
     1
@@ -1679,7 +1679,7 @@
     false "false"))
 
 (deftest parse-uuid-test
-  (are [x] (thrown? basilisp.lang.exception/ExceptionInfo (parse-uuid x))
+  (are [x] (thrown? python/TypeError (parse-uuid x))
     nil
     true
     1
