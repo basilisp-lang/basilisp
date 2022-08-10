@@ -1830,6 +1830,26 @@
                      (range 6 10)
                      (range 11 16))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stateful Iteration ;;
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest iteration-test
+  (letfn [(range-chunk [n]
+            (vec (range n (+ n 3))))]
+    (is (= '([0 1 2] [2 3 4])
+           (take 2 (iteration range-chunk :kf last :initk 0))))
+    (is (= '([5 6 7] [7 8 9] [9 10 11])
+           (take 3 (iteration range-chunk :kf last :initk 5))))
+    (is (= '(5 7 9)
+           (take 3 (iteration range-chunk :vf first :kf last :initk 5))))
+    (is (= '(18 24 30)
+           (take 3 (iteration range-chunk :vf (partial apply +) :kf last :initk 5))))
+    (is (= '(0 1 2 3 4 5 6 7 8)
+           (sequence
+            cat
+            (iteration range-chunk :somef (partial some #(< % 7)) :kf (comp inc last) :initk 0))))))
+
 ;;;;;;;;;;
 ;; Taps ;;
 ;;;;;;;;;;

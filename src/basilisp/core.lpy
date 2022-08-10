@@ -6911,6 +6911,32 @@
     ([result input]
      (reduce rf result input))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stateful Iteration ;;
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn iteration
+  "Return a reducible sequence via repeated calls to ``step``, a function of a
+  \"continuation token\", ``k``.
+
+  ``step`` will initially be called with ``initk``. Given a return value of that
+  call, ``ret``, if ``(somef ret)`` returns a truthy value, the result of ``(vf ret)``
+  will be included in the sequence. Otherwise, the sequence will terminate and
+  neither ``kf`` nor ``vf`` will be called. If the iteration continues, ``step``
+  will be called again with the result of ``(kf ret)``.
+
+  Only ``step`` is a required argument. ``somef`` defaults to :lpy:fn:`some?`,
+  ``vf`` and ``kf`` default to :lpy:fn:`identity`, and ``initk`` defaults to ``nil``.
+
+  For the purposes of this function, ``step`` should be considered an impure
+  function and repeated calls to it even with the same token may not necesarily
+  return the same values."
+  [step & {:keys [somef vf kf initk] :or {somef some? vf identity kf identity initk nil}}]
+  (lazy-seq
+   (let [ret (step initk)]
+     (when (somef ret)
+       (cons (vf ret) (iteration step :somef somef :vf vf :kf kf :initk (kf ret)))))))
+
 ;;;;;;;;;;
 ;; Taps ;;
 ;;;;;;;;;;
