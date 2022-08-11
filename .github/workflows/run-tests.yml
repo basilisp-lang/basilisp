@@ -34,7 +34,7 @@ jobs:
         with:
           path: |
             .tox
-            ${{ env.Python_ROOT_DIR }}/lib/python${{ matrix.version }}/site-packages
+            ~/.cache/pip
             ~/.cache/pypoetry
             ~/.local/share/pypoetry
           key: ${{ runner.os }}-python-${{ matrix.version }}-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
@@ -74,7 +74,7 @@ jobs:
         with:
           path: |
             .tox
-            /usr/local/lib/python3.10/site-packages
+            ~/.cache/pip
             ~/.cache/pypoetry
             ~/.local/share/pypoetry
           key: ${{ runner.os }}-python-coverage-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
