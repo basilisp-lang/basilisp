@@ -818,6 +818,19 @@ class TestNumericPredicates:
     def test_complex_is_not_rational(self, complex_number):
         assert False is core.rational__Q__(complex_number)
 
+    @pytest.mark.parametrize("v", [float("inf"), float("-inf")])
+    def test_is_infinite(self, v):
+        assert True is core.infinite__Q__(v)
+
+    def test_is_not_infinite(self, real_number):
+        assert False is core.infinite__Q__(real_number)
+
+    def test_is_nan(self):
+        assert True is core.NaN__Q__(float("nan"))
+
+    def test_is_not_nan(self, real_number):
+        assert False is core.infinite__Q__(real_number)
+
 
 class TestIsNil:
     def test_nil_values_are_nil(self, nil_value):

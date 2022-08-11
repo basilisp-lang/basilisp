@@ -1025,6 +1025,26 @@
       [10 9 8 7 6]                            [0 2 4]                     [10 8 6]
       [:zeroth :first :second :third :fourth] [0 2 4 0]                   [:zeroth :second :fourth :zeroth])))
 
+(deftest update-keys-test
+  (are [res start] (and (= res (update-keys start name))
+                        (= (meta res) (meta start)))
+    {}                                             {}
+    ^:cool {}                                      ^:cool {}
+    {"a" "a"}                                      {:a "a"}
+    ^:neat {"a" "a"}                               ^:neat {:a "a"}
+    {"a" "a" "b" 2}                                {:a "a" 'b 2}
+    ^{:good :yes :great :also-yes} {"a" "a" "b" 2} ^{:good :yes :great :also-yes} {:a "a" 'b 2}))
+
+(deftest update-vals-test
+  (are [res start] (and (= res (update-vals start #(cond-> % (string? %) (.upper))))
+                        (= (meta res) (meta start)))
+    {}                                           {}
+    ^:cool {}                                    ^:cool {}
+    {:a "A"}                                     {:a "a"}
+    ^:neat {:a "A"}                              ^:neat {:a "a"}
+    {:a "A" 'b 2}                                {:a "a" 'b 2}
+    ^{:good :yes :great :also-yes} {:a "A" 'b 2} ^{:good :yes :great :also-yes} {:a "a" 'b 2}))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; String Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -1580,6 +1600,108 @@
               ::numeric      #{::types}
               ::types        nil)))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Parsing Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest parse-double-test
+  (are [x] (thrown? python/TypeError (parse-double x))
+    nil
+    true
+    1
+    11.6
+    :a-keyword
+    'sym
+    {}
+    []
+    #{}
+    ())
+
+  (are [res x] (= res (parse-double x))
+    nil   ""
+    nil   "strang"
+    nil   "--13.6"
+    0.0   "0"
+    0.0   "0.0"
+    14.0  " 14"
+    3.14  "3.14     "
+    14.0  "  14  "
+    -15.6 " -15.6"
+    -15.6 "-15.6   "))
+
+(deftest parse-long-test
+  (are [x] (thrown? python/TypeError (parse-long x))
+    nil
+    true
+    1
+    11.6
+    :a-keyword
+    'sym
+    {}
+    []
+    #{}
+    ())
+
+  (are [res x] (= res (parse-long x))
+    nil   ""
+    nil   "strang"
+    nil   "--13"
+    nil   "0.0"
+    0     "0"
+    14    " 14"
+    83    "  83     "
+    -15   " -15"
+    -15   "-15    "))
+
+(deftest parse-boolean-test
+  (are [x] (thrown? python/TypeError (parse-boolean x))
+    nil
+    true
+    1
+    11.6
+    :a-keyword
+    'sym
+    {}
+    []
+    #{}
+    ())
+
+  (are [res x] (= res (parse-boolean x))
+    nil   ""
+    nil   "1"
+    nil   "strang"
+    nil   "--13.6"
+    nil   "True"
+    nil   "False"
+    nil   "TRUE"
+    nil   "FALSE"
+    true  "true"
+    false "false"))
+
+(deftest parse-uuid-test
+  (are [x] (thrown? python/TypeError (parse-uuid x))
+    nil
+    true
+    1
+    11.6
+    :a-keyword
+    'sym
+    {}
+    []
+    #{}
+    ())
+
+  (are [res x] (= res (parse-uuid x))
+    nil                                          ""
+    nil                                          "1"
+    nil                                          "strang"
+    #uuid "529f77ae-bf6e-43e0-92a4-798e3ce4d35e" "529f77ae-bf6e-43e0-92a4-798e3ce4d35e"
+    nil                                          "529f77ae-bf6e-43e0-92a4-798e3ce4d35"
+    nil                                          "529f77ae-bf6-43e0-92a4-798e3ce4d35e"
+    #uuid "67209b54-9668-4656-8cf9-94ee70ed6ba8" "67209B54-9668-4656-8CF9-94EE70ED6BA8"
+    nil                                          "67209B54-9668-4656-8CF9-94EE70ED6BA"
+    nil                                          "67209B5-9668-4656-8CF9-94EE70ED6BA8"))
+
 ;;;;;;;;;;;;;;;;
 ;; Interfaces ;;
 ;;;;;;;;;;;;;;;;
@@ -1707,6 +1829,26 @@
                      (range 5)
                      (range 6 10)
                      (range 11 16))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; Stateful Iteration ;;
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest iteration-test
+  (letfn [(range-chunk [n]
+            (vec (range n (+ n 3))))]
+    (is (= '([0 1 2] [2 3 4])
+           (take 2 (iteration range-chunk :kf last :initk 0))))
+    (is (= '([5 6 7] [7 8 9] [9 10 11])
+           (take 3 (iteration range-chunk :kf last :initk 5))))
+    (is (= '(5 7 9)
+           (take 3 (iteration range-chunk :vf first :kf last :initk 5))))
+    (is (= '(18 24 30)
+           (take 3 (iteration range-chunk :vf (partial apply +) :kf last :initk 5))))
+    (is (= '(0 1 2 3 4 5 6 7 8)
+           (sequence
+            cat
+            (iteration range-chunk :somef (partial some #(< % 7)) :kf (comp inc last) :initk 0))))))
 
 ;;;;;;;;;;
 ;; Taps ;;

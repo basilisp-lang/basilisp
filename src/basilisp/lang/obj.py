@@ -280,5 +280,7 @@ def _lrepr_pattern(o: Pattern, **_) -> str:
 
 
 @lrepr.register(uuid.UUID)
-def _lrepr_uuid(o: uuid.UUID, **_) -> str:
+def _lrepr_uuid(o: uuid.UUID, human_readable: bool = False, **_) -> str:
+    if human_readable:
+        return str(o)
     return f'#uuid "{str(o)}"'
