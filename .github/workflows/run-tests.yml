@@ -1,0 +1,34 @@
+name: Run tests
+
+on: [push]
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: [ '3.6', '3.7', '3.8', '3.9', '3.10', 'pypy3.6', 'pypy3.7', 'pypy3.8' ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.version }}
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+          path: |
+            .tox
+            /usr/local/bin
+            /usr/local/lib/python${{ matrix.version }}/site-packages
+          key: ${{ runner.os }}-primes
+      - name: Install Poetry
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Install Tox
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          pip install -U pip
+          pip install tox
+      - name: Run tests
+        run: tox -p 2
