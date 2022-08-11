@@ -279,7 +279,7 @@ class VarDocumenter(Documenter):
             if self.object.meta.val_at(_DEPRECATED_KW):
                 self.add_line("   :deprecated:", sourcename)
 
-    def get_doc(self, ignore: int = None) -> Optional[List[List[str]]]:
+    def get_doc(self) -> Optional[List[List[str]]]:
         assert self.object is not None
         return _get_doc(self.object)
 
