@@ -2,6 +2,10 @@ name: Run tests
 
 on: [push]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   run-tests:
     runs-on: ubuntu-latest
@@ -31,4 +35,7 @@ jobs:
           pip install -U pip
           pip install tox
       - name: Run tests
+        env:
+          TOX_PARALLEL_NO_SPINNER: 1
+          TOX_SHOW_OUTPUT: "True"
         run: tox -p 2
