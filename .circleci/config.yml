@@ -1,0 +1,70 @@
+version: 2.1
+
+commands:
+  run_pypy_tests:
+    description: "Install Tox and run tests."
+    parameters:
+      python_version:
+        description: "Required. Python version as `major.minor`."
+        type: string
+    steps:
+      - checkout
+      - restore_cache:
+          key: pypy-deps3-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
+      - run:
+          name: Install Poetry and Tox
+          command: |
+            apt-get update && apt-get install -y python3 curl
+            pip install -U pip
+            pip install tox
+            curl -sSL https://install.python-poetry.org | python3 -
+      - run:
+          name: Run Tests
+          command: |
+            CCI_NODE_TESTS=$(circleci tests glob "tests/**/*_test.*py" "tests/**/test_*.*py" | circleci tests split --split-by=timings)
+            printf "Test files:\n"
+            echo "$CCI_NODE_TESTS"
+            printf "\n"
+            tox -e pypy3 -- $CCI_NODE_TESTS
+          no_output_timeout: 30m
+      - save_cache:
+          key: pypy-deps3-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
+          paths:
+            - "/root/project/.tox"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
+      - store_test_results:
+          path: junit
+
+jobs:
+  test-pypy-36:
+    docker:
+      - image: pypy:3.6-slim-buster
+    parallelism: 8
+    steps:
+      - run_pypy_tests:
+          python_version: "3.6"
+
+  test-pypy-37:
+    docker:
+      - image: pypy:3.7-slim-buster
+    parallelism: 8
+    steps:
+      - run_pypy_tests:
+          python_version: "3.7"
+
+  test-pypy-38:
+    docker:
+      - image: pypy:3.8-slim-buster
+    parallelism: 8
+    steps:
+      - run_pypy_tests:
+          python_version: "3.8"
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - test-pypy-36
+      - test-pypy-37
+      - test-pypy-38
