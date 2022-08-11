@@ -34,7 +34,7 @@ jobs:
         with:
           path: |
             .tox
-            /usr/local/lib/python${{ matrix.version }}/site-packages
+            ${{ env.Python_ROOT_DIR }}/lib/python${{ matrix.version }}/site-packages
             ~/.cache/pypoetry
             ~/.local/share/pypoetry
           key: ${{ runner.os }}-python-${{ matrix.version }}-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
