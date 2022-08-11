@@ -1,3 +1,4 @@
+import platform
 import sys
 
 import pytest
@@ -83,7 +84,10 @@ class TestTestrunner:
     @pytest.mark.xfail(
         (
             sys.version_info < (3, 8)
-            or (sys.implementation == "pypy" and sys.version_info <= (3, 8))
+            or (
+                platform.python_implementation() == "PyPy"
+                and sys.version_info <= (3, 8)
+            )
         ),
         reason=(
             "This issue seems to stem from this fact that traceback line numbers for "
