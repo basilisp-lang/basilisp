@@ -12,6 +12,23 @@ jobs:
     strategy:
       matrix:
         version: [ '3.6', '3.7', '3.8', '3.9', '3.10', 'pypy3.6', 'pypy3.7', 'pypy3.8' ]
+        include:
+          - version: '3.6'
+            tox-env: py36,py36-mypy,py36-lint,safety
+          - version: '3.7'
+            tox-env: py37,py37-mypy,py37-lint,safety
+          - version: '3.8'
+            tox-env: py38,py38-mypy,py38-lint,safety
+          - version: '3.9'
+            tox-env: py39,py39-mypy,py39-lint,safety
+          - version: '3.10'
+            tox-env: py310,py310-mypy,py310-lint,format,safety
+          - version: 'pypy3.6'
+            tox-env: pypy36
+          - version: 'pypy3.7'
+            tox-env: pypy37
+          - version: 'pypy3.8'
+            tox-env: pypy38
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -25,7 +42,7 @@ jobs:
             .tox
             /usr/local/bin
             /usr/local/lib/python${{ matrix.version }}/site-packages
-          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('poetry.lock') }}
+          key: ${{ runner.os }}-python-${{ matrix.version }}-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
       - name: Install Poetry
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: curl -sSL https://install.python-poetry.org | python3 -
@@ -38,12 +55,5 @@ jobs:
         env:
           TOX_PARALLEL_NO_SPINNER: 1
           TOX_SHOW_OUTPUT: "True"
-        run: |
-          if [[ ${{ matrix.version }} == pypy* ]];
-          then
-            env_raw=${{ matrix.verson }}
-          else
-            env_raw=py${{ matrix.version }}
-          fi
-          env=$(echo $env_raw | tr -d '.')
-          tox -p 2 -e $env,$env-mypy,$env-lint,format,safety
+          TOXENV: ${{ matrix.tox-env }}
+        run: tox -p 2
