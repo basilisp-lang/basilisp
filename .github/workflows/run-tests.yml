@@ -52,4 +52,45 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
           TOX_SHOW_OUTPUT: "True"
           TOXENV: ${{ matrix.tox-env }}
-        run: tox -p 2
+        run: |
+          tox -p 2
+          mv .coverage.* "coverage/.coverage.py${{ matrix.version}}"
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-coverage
+          path: coverage/.coverage.py*
+  report-coverage:
+    environment: CI
+    runs-on: ubuntu-latest
+    needs: run-tests
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+          path: |
+            .tox
+            /usr/local/bin
+            /usr/local/lib/python3.10/site-packages
+            ~/.cache/pypoetry
+            ~/.local/share/pypoetry
+          key: ${{ runner.os }}-python-coverage-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
+      - name: Install Poetry
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Install Tox
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          pip install -U pip
+          pip install tox
+      - name: Download code coverage
+        uses: actions/download-artifact@v3
+        with:
+          name: code-coverage
+      - name: Report coverage
+        run: tox -v -e coverage
