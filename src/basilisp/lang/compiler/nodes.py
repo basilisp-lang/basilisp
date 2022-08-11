@@ -169,7 +169,7 @@ class Node(ABC, Generic[T]):
         column numbers."""
 
     def to_map(self) -> lmap.PersistentMap:
-        return to_lisp(attr.asdict(self))
+        return to_lisp(attr.asdict(self))  # type: ignore[arg-type]
 
     def assoc(self, **kwargs):
         return attr.evolve(self, **kwargs)

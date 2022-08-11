@@ -3525,7 +3525,7 @@ def _const_type_to_py_ast(form: IType, ctx: GeneratorContext) -> GeneratedPyAST:
 
     ctor_args = []
     ctor_arg_deps: List[ast.AST] = []
-    for field in attr.fields(tp):
+    for field in attr.fields(tp):  # type: ignore[arg-type]
         field_nodes = _const_val_to_py_ast(getattr(form, field.name, None), ctx)
         ctor_args.append(field_nodes.node)
         ctor_args.extend(field_nodes.dependencies)

@@ -121,7 +121,7 @@ class NamespaceDocumenter(Documenter):
         self.module = ns.module
         return True
 
-    def get_doc(self, ignore: int = None) -> Optional[List[List[str]]]:
+    def get_doc(self) -> Optional[List[List[str]]]:
         assert self.object is not None
         return _get_doc(self.object)
 
