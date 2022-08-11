@@ -38,4 +38,12 @@ jobs:
         env:
           TOX_PARALLEL_NO_SPINNER: 1
           TOX_SHOW_OUTPUT: "True"
-        run: tox -p 2
+        run: |
+          if [[ ${{ matrix.version }} == pypy* ]];
+          then
+            env_raw=${{ matrix.verson }}
+          else
+            env_raw=py${{ matrix.version }}
+          fi
+          env=$(echo $env_raw | tr -d '.')
+          tox -p 2 -e $env,$env-mypy,$env-lint,format,safety
