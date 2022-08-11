@@ -34,7 +34,6 @@ jobs:
         with:
           path: |
             .tox
-            /usr/local/bin
             /usr/local/lib/python${{ matrix.version }}/site-packages
             ~/.cache/pypoetry
             ~/.local/share/pypoetry
@@ -75,7 +74,6 @@ jobs:
         with:
           path: |
             .tox
-            /usr/local/bin
             /usr/local/lib/python3.10/site-packages
             ~/.cache/pypoetry
             ~/.local/share/pypoetry
