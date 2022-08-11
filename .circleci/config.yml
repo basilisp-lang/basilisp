@@ -15,7 +15,7 @@ commands:
           name: Install Poetry and Tox
           command: |
             apt-get update && apt-get install -y python3 curl
-            pip install -U pip virtualenv
+            pip install -U pip virtualenv distutils
             pip install tox
             curl -sSL https://install.python-poetry.org | python3 -
             echo 'export PATH="/root/.local/bin:$PATH"' >> $BASH_ENV
