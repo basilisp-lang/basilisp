@@ -21,7 +21,7 @@ jobs:
             .tox
             /usr/local/bin
             /usr/local/lib/python${{ matrix.version }}/site-packages
-          key: ${{ runner.os }}-primes
+          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('poetry.lock') }}
       - name: Install Poetry
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: curl -sSL https://install.python-poetry.org | python3 -
