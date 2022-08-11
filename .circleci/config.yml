@@ -61,6 +61,14 @@ jobs:
       - run_pypy_tests:
           python_version: "3.8"
 
+  test-pypy-39:
+    docker:
+      - image: pypy:3.9-slim-buster
+    parallelism: 8
+    steps:
+      - run_pypy_tests:
+          python_version: "3.9"
+
 workflows:
   version: 2
   test:
@@ -68,3 +76,4 @@ workflows:
       - test-pypy-36
       - test-pypy-37
       - test-pypy-38
+      - test-pypy-39
