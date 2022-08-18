@@ -1,0 +1,95 @@
+name: Run tests
+
+on: [push]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: [ '3.6', '3.7', '3.8', '3.9', '3.10' ]
+        include:
+          - version: '3.6'
+            tox-env: py36,py36-mypy,py36-lint,safety
+          - version: '3.7'
+            tox-env: py37,py37-mypy,py37-lint,safety
+          - version: '3.8'
+            tox-env: py38,py38-mypy,py38-lint,safety
+          - version: '3.9'
+            tox-env: py39,py39-mypy,py39-lint,safety
+          - version: '3.10'
+            tox-env: py310,py310-mypy,py310-lint,format,safety
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.version }}
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+          path: |
+            .tox
+            ~/.cache/pip
+            ~/.cache/pypoetry
+            ~/.local/share/pypoetry
+          key: ${{ runner.os }}-python-${{ matrix.version }}-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
+      - name: Install Poetry
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Install Tox
+        run: |
+          pip install -U pip
+          pip install tox
+      - name: Run tests
+        env:
+          TOX_PARALLEL_NO_SPINNER: 1
+          TOX_SHOW_OUTPUT: "True"
+          TOXENV: ${{ matrix.tox-env }}
+        run: |
+          tox -p 2
+          mkdir coverage
+          mv .coverage.* "coverage/.coverage.py${{ matrix.version}}"
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-coverage
+          path: coverage/.coverage.py*
+  report-coverage:
+    environment: CI
+    runs-on: ubuntu-latest
+    needs: run-tests
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+          path: |
+            .tox
+            ~/.cache/pip
+            ~/.cache/pypoetry
+            ~/.local/share/pypoetry
+          key: ${{ runner.os }}-python-coverage-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
+      - name: Install Poetry
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Install Tox
+        run: |
+          pip install -U pip
+          pip install tox
+      - name: Download code coverage
+        uses: actions/download-artifact@v3
+        with:
+          name: code-coverage
+      - name: Report coverage
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+        run: tox -v -e coverage
