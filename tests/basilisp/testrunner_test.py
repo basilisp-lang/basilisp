@@ -82,7 +82,7 @@ class TestTestrunner:
         )
 
     @pytest.mark.xfail(
-        platform.python_implementation() == "PyPy" and sys.version_info <= (3, 8),
+        platform.python_implementation() == "PyPy" and sys.version_info == (3, 8),
         reason=(
             "PyPy 3.8 seems to fail this test, but 3.9 doesn't so it doesn't bear "
             "further investigation."
@@ -97,6 +97,8 @@ class TestTestrunner:
         ),
     )
     def test_error_repr(self, run_result: RunResult):
+        print(platform.python_implementation())
+        print(sys.version_info)
         run_result.stdout.fnmatch_lines(
             [
                 "ERROR in (assertion-test) (test_testrunner.lpy:12)",
