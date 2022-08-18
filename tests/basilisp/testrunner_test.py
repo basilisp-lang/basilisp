@@ -82,13 +82,14 @@ class TestTestrunner:
         )
 
     @pytest.mark.xfail(
-        (
-            sys.version_info < (3, 8)
-            or (
-                platform.python_implementation() == "PyPy"
-                and sys.version_info <= (3, 8)
-            )
-        ),
+        platform.python_implementation() == "PyPy" and sys.version_info <= (3, 8),
+        reason=(
+            "PyPy 3.8 seems to fail this test, but 3.9 doesn't so it doesn't bear "
+            "further investigation."
+        )
+    )
+    @pytest.mark.xfail(
+        sys.version_info < (3, 8),
         reason=(
             "This issue seems to stem from this fact that traceback line numbers for "
             "Python 3.8+ point to the beginning of the subexpression, whereas before "
