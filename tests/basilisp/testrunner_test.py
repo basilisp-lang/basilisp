@@ -86,7 +86,7 @@ class TestTestrunner:
         reason=(
             "PyPy 3.8 seems to fail this test, but 3.9 doesn't so it doesn't bear "
             "further investigation."
-        )
+        ),
     )
     @pytest.mark.xfail(
         sys.version_info < (3, 8),
