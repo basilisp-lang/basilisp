@@ -5565,8 +5565,9 @@
       {:first f
        :rest  r})"
   [body]
-  (let [args (first body)
-        body (rest body)
+  (let [args         (first body)
+        arg-vec-meta (meta args)
+        body         (rest body)
 
         arg-groups (split-with (partial not= '&) args)
         args       (first arg-groups)
@@ -5582,9 +5583,11 @@
                            (mapcat destructure-binding)))
 
         defs     (map destructure-def args)
-        arg-vec  (vec (concat
-                       (map :name defs)
-                       (map :name rest-defs)))
+        arg-vec  (with-meta
+                   (vec (concat
+                         (map :name defs)
+                         (map :name rest-defs)))
+                   arg-vec-meta)
         bindings (->> defs
                       (filter #(not= :symbol (:type %)))
                       (mapcat destructure-binding)

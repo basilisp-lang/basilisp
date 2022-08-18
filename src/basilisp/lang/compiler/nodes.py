@@ -354,6 +354,7 @@ class Binding(Node[sym.Symbol], Assignable):
     name: str
     local: LocalType
     env: NodeEnv
+    tag: Optional[Node] = None
     arg_id: Optional[int] = None
     is_variadic: bool = False
     is_assignable: bool = False
@@ -400,6 +401,7 @@ class Def(Node[SpecialForm]):
     init: Optional[Node]
     doc: Optional[str]
     env: NodeEnv
+    tag: Optional[Node] = None
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.PersistentVector.empty()
     op: NodeOp = NodeOp.DEF
@@ -555,6 +557,7 @@ class FnArity(Node[SpecialForm]):
     fixed_arity: int
     body: Do
     env: NodeEnv
+    tag: Optional[Node] = None
     is_variadic: bool = False
     children: Sequence[kw.Keyword] = vec.v(PARAMS, BODY)
     op: NodeOp = NodeOp.FN_ARITY

@@ -211,3 +211,26 @@ As you can see in the example above, this strategy fits neatly with the existing
 The ``:collect`` strategy is a better accompaniment to functions with positional arguments.
 With this strategy, Python keyword arguments are converted into a Basilisp map with de-munged keyword arguments and passed as the final positional argument of the function.
 You can use map destructuring on this final positional argument, just as you would with the map in the ``:apply`` case above.
+
+Type Hinting
+------------
+
+Basilisp supports passing type hints through to the underlying generated Python using type hints by applying the ``:tag`` metadata to certain syntax elements.
+
+In Clojure, these tags are type declarations for certain primitive types.
+In Clojurescript, tags are type *hints* and they are only necessary in extremely limited circumstances to help the compiler.
+In Basilisp, tags are not used by the compiler at all.
+Instead, tags applied to function arguments and return values in Basilisp are applied to the underlying Python objects and are introspectable at runtime using the Python `inspect <https://docs.python.org/3/library/inspect.html>`_ standard library module.
+
+Type hints may be applied to :lpy:form:`def` names, function arguments and return values, and :lpy:form:`let` local forms.
+
+.. code-block:: clojure
+
+   (def ^python/str s "a string")
+
+   (defn upper
+     ^python/str [^python/str s]
+     (.upper s))
+
+   (let [^python/int i 64]
+     (* i 2))
