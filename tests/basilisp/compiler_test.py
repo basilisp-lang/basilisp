@@ -5405,6 +5405,7 @@ class TestSymbolResolution:
         self, lcompile: CompileFn, monkeypatch: MonkeyPatch
     ):
         with TemporaryDirectory() as tmpdir:
+            cwd = os.getcwd()
             monkeypatch.chdir(tmpdir)
             monkeypatch.syspath_prepend(tmpdir)
             monkeypatch.setattr(
@@ -5432,6 +5433,7 @@ class TestSymbolResolution:
                 """
                 )
             finally:
+                monkeypatch.chdir(cwd)
                 os.unlink(module_file_path)
 
     def test_aliased_var_does_not_resolve(

@@ -99,10 +99,13 @@ class TestImporter:
     @pytest.fixture
     def module_dir(self, monkeypatch: MonkeyPatch, module_cache):
         with TemporaryDirectory() as tmpdir:
+            cwd = os.getcwd()
             monkeypatch.chdir(tmpdir)
             monkeypatch.syspath_prepend(tmpdir)
             monkeypatch.setattr("sys.modules", module_cache)
             yield tmpdir
+            monkeypatch.chdir(tmpdir)
+            monkeypatch.chdir(cwd)
 
     @pytest.fixture
     def make_new_module(self, module_dir):

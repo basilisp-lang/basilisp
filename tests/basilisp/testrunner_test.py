@@ -94,7 +94,7 @@ class TestTestrunner:
                 "ERROR in (assertion-test) (test_testrunner.lpy:12)",
                 "",
                 "Traceback (most recent call last):",
-                '  File "/*/test_testrunner.lpy", line 12, in assertion_test',
+                '  File "*test_testrunner.lpy", line 12, in assertion_test',
                 '    (is (throw (ex-info "Uncaught exception" {}))))',
                 "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
             ]
@@ -118,7 +118,7 @@ class TestTestrunner:
             [
                 "ERROR in (error-test) (test_testrunner.lpy)",
                 "Traceback (most recent call last):",
-                '  File "/*/test_testrunner.lpy", line 25, in error_test',
+                '  File "*test_testrunner.lpy", line 25, in error_test',
                 "    (throw",
                 "basilisp.lang.exception.ExceptionInfo: This test will count as an error. {}",
             ]
