@@ -40,6 +40,7 @@ def test_is_supported_python_version():
                     "lpy38-",
                     "lpy39-",
                     "lpy310-",
+                    "lpy311-"
                 ],
             )
         ),
@@ -56,6 +57,7 @@ def test_is_supported_python_version():
                     "lpy38-",
                     "lpy39-",
                     "lpy310-",
+                    "lpy311-",
                 ],
             )
         ),
@@ -72,6 +74,7 @@ def test_is_supported_python_version():
                     "lpy36+",
                     "lpy39-",
                     "lpy310-",
+                    "lpy311-",
                 ],
             )
         ),
@@ -88,6 +91,7 @@ def test_is_supported_python_version():
                     "lpy37+",
                     "lpy36+",
                     "lpy310-",
+                    "lpy311-",
                 ],
             )
         ),
@@ -98,8 +102,9 @@ def test_is_supported_python_version():
                     "lpy310",
                     "default",
                     "lpy",
+                    "lpy311-",
                     "lpy310+",
-                    "lpy310-",
+                    "lpy310+",
                     "lpy39+",
                     "lpy38+",
                     "lpy37+",
@@ -107,6 +112,23 @@ def test_is_supported_python_version():
                 ],
             )
         ),
+        (3, 11): frozenset(
+            map(
+                kw.keyword,
+                [
+                    "lpy311",
+                    "default",
+                    "lpy",
+                    "lpy311-",
+                    "lpy311+",
+                    "lpy310+",
+                    "lpy39+",
+                    "lpy38+",
+                    "lpy37+",
+                    "lpy36+",
+                ],
+            )
+        )
     }[(sys.version_info.major, sys.version_info.minor)],
 )
 def test_reader_default_featureset(feature):

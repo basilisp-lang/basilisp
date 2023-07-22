@@ -97,15 +97,28 @@ class TestTestrunner:
         ),
     )
     def test_error_repr(self, run_result: RunResult):
-        run_result.stdout.fnmatch_lines(
-            [
+        if (sys.version_info < (3,11)):
+            expected = [
                 "ERROR in (assertion-test) (test_testrunner.lpy:12)",
                 "",
                 "Traceback (most recent call last):",
                 '  File "/*/test_testrunner.lpy", line 12, in assertion_test',
                 '    (is (throw (ex-info "Uncaught exception" {}))))',
                 "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
-            ],
+            ]
+        else:
+            expected = [
+                "ERROR in (assertion-test) (test_testrunner.lpy:12)",
+                "",
+                "Traceback (most recent call last):",
+                '  File "*test_testrunner.lpy", line 12, in assertion_test',
+                '    (is (throw (ex-info "Uncaught exception" {}))))',
+                '    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^',
+                "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
+            ]
+
+        run_result.stdout.fnmatch_lines(
+            expected,
             consecutive=True,
         )
 

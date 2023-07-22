@@ -472,7 +472,9 @@ def _kwargs_ast(
 def _clean_meta(form: IMeta) -> LispForm:
     """Remove reader metadata from the form's meta map."""
     assert form.meta is not None, "Form must have non-null 'meta' attribute"
-    meta = form.meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
+    meta = form.meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW,
+                            reader.READER_END_LINE_KW, reader.READER_END_COL_KW)
+#    print(f":meta {meta}")
     if len(meta) == 0:
         return None
     return cast(lmap.PersistentMap, meta)
@@ -485,17 +487,20 @@ def _ast_with_loc(
     if they exist in the node environment."""
     if env.line is not None:
         py_ast.node.lineno = env.line
-
+        py_ast.node.end_lineno = env.end_line
         if include_dependencies:
             for dep in py_ast.dependencies:
                 dep.lineno = env.line
+                dep.end_lineno = env.end_line
 
     if env.col is not None:
-        py_ast.node.col_offset = env.col
+        py_ast.node.col_offset = env.col-1
+        py_ast.node.end_col_offset = env.end_col-1
 
         if include_dependencies:
             for dep in py_ast.dependencies:
-                dep.col_offset = env.col
+                dep.col_offset = env.col-1
+                dep.end_col_offset = env.end_col-1
 
     return py_ast
 

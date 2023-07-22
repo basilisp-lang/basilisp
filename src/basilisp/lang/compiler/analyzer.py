@@ -652,8 +652,11 @@ def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
         if meta is not None:
             line = meta.get(reader.READER_LINE_KW)
             col = meta.get(reader.READER_COL_KW)
+            end_line = meta.get(reader.READER_END_LINE_KW)
+            end_col = meta.get(reader.READER_END_COL_KW)
+#            print(f':l {line} :c {col} :el {end_line} :ec {end_col}')
             if isinstance(line, int) and isinstance(col, int):
-                return line, col
+                return line, col, end_line, end_col
     return None
 
 
@@ -677,7 +680,8 @@ def _clean_meta(meta: Optional[lmap.PersistentMap]) -> Optional[lmap.PersistentM
     if meta is None:
         return None
     else:
-        new_meta = meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
+        new_meta = meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW,
+                               reader.READER_END_LINE_KW, reader.READER_END_COL_KW)
         return None if len(new_meta) == 0 else new_meta
 
 

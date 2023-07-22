@@ -191,24 +191,24 @@ class Node(ABC, Generic[T]):
                 f(child, *args, **kwargs)
 
     def fix_missing_locations(
-        self, start_loc: Optional[Tuple[int, int]] = None
+        self, form_loc: Optional[Tuple[int, int]] = None
     ) -> "Node":
         """Return a transformed copy of this node with location in this node's
-        environment updated to match the `start_loc` if given, or using its
+        environment updated to match the `form_loc` if given, or using its
         existing location otherwise. All child nodes will be recursively
         transformed and replaced. Child nodes will use their parent node
         location if they do not have one."""
         if self.env.line is None or self.env.col is None:
-            loc = start_loc
+            loc = form_loc
         else:
-            loc = (self.env.line, self.env.col)
+            loc = (self.env.line, self.env.col, self.env.end_line, self.env.end_col)
 
         assert loc is not None and all(
             e is not None for e in loc
         ), "Must specify location information"
 
         new_attrs: MutableMapping[str, Union[NodeEnv, Node, Iterable[Node]]] = {
-            "env": attr.evolve(self.env, line=loc[0], col=loc[1])
+            "env": attr.evolve(self.env, line=loc[0], col=loc[1], end_line=loc[2], end_col=loc[3])
         }
         for child_kw in self.children:
             child_attr = munge(child_kw.name)
@@ -218,12 +218,12 @@ class Node(ABC, Generic[T]):
                 iter_child: Iterable[Node] = getattr(self, child_attr)
                 assert iter_child is not None, "Listed child must not be none"
                 new_attrs[child_attr] = vec.vector(
-                    item.fix_missing_locations(start_loc) for item in iter_child
+                    item.fix_missing_locations(form_loc) for item in iter_child
                 )
             else:
                 child: Node = getattr(self, child_attr)
                 assert child is not None, "Listed child must not be none"
-                new_attrs[child_attr] = child.fix_missing_locations(start_loc)
+                new_attrs[child_attr] = child.fix_missing_locations(form_loc)
 
         return self.assoc(**new_attrs)
 
@@ -323,6 +323,8 @@ class NodeEnv:
     file: str
     line: Optional[int] = None
     col: Optional[int] = None
+    end_line: Optional[int] = None
+    end_col: Optional[int] = None
     pos: Optional[NodeSyntacticPosition] = None
     func_ctx: Optional[FunctionContext] = None
 
