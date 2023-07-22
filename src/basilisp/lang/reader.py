@@ -256,15 +256,15 @@ def _py_list_from_vec(form: vec.PersistentVector) -> list:
 def _inst_from_str(inst_str: str) -> datetime:
     try:
         return langutil.inst_from_str(inst_str)
-    except (ValueError, OverflowError):
-        raise SyntaxError(f"Unrecognized date/time syntax: {inst_str}")
+    except (ValueError, OverflowError) as exc:
+        raise SyntaxError(f"Unrecognized date/time syntax: {inst_str}") from exc
 
 
 def _uuid_from_str(uuid_str: str) -> uuid.UUID:
     try:
         return langutil.uuid_from_str(uuid_str)
-    except (ValueError, TypeError):
-        raise SyntaxError(f"Unrecognized UUID format: {uuid_str}")
+    except (ValueError, TypeError) as exc:
+        raise SyntaxError(f"Unrecognized UUID format: {uuid_str}") from exc
 
 
 class ReaderContext:
@@ -427,10 +427,10 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
                     )
                 found_features.add(k)
                 feature_list.append((k, v))
-        except ValueError:
+        except ValueError as exc:
             raise SyntaxError(
                 "Reader conditionals must contain an even number of forms"
-            )
+            ) from exc
 
         return vec.vector(feature_list)
 
@@ -479,8 +479,14 @@ def _with_loc(f: W) -> W:
         v = f(ctx, **kwargs)
         end_line, end_col = ctx.reader.line, ctx.reader.col
         if isinstance(v, IWithMeta):
-            new_meta = lmap.map({READER_LINE_KW: line, READER_COL_KW: col,
-                                 READER_END_LINE_KW: end_line, READER_END_COL_KW: end_col})
+            new_meta = lmap.map(
+                {
+                    READER_LINE_KW: line,
+                    READER_COL_KW: col,
+                    READER_END_LINE_KW: end_line,
+                    READER_END_COL_KW: end_col,
+                }
+            )
             old_meta = v.meta
             return v.with_meta(
                 old_meta.cons(new_meta) if old_meta is not None else new_meta
@@ -695,8 +701,8 @@ def _read_map(
             if k in d:
                 raise ctx.syntax_error(f"Duplicate key '{k}' in map literal")
             d[k] = v
-    except ValueError:
-        raise ctx.syntax_error("Unexpected token '}'; expected map value")
+    except ValueError as exc:
+        raise ctx.syntax_error("Unexpected token '}'; expected map value") from exc
     else:
         return lmap.map(d)
 
@@ -732,7 +738,7 @@ MaybeSymbol = Union[bool, None, sym.Symbol]
 MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
 
 
-def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
+def _read_num(  # noqa: C901
     ctx: ReaderContext,
 ) -> MaybeNumber:
     """Return a numeric (complex, Decimal, float, int, Fraction) from the input stream."""
@@ -753,10 +759,10 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
                 try:
                     for _ in chars:
                         reader.pushback()
-                except IndexError:
+                except IndexError as exc:
                     raise ctx.syntax_error(
                         "Requested to pushback too many characters onto StreamReader"
-                    )
+                    ) from exc
                 return _read_sym(ctx)
             chars.append(token)
             continue
@@ -1118,7 +1124,10 @@ def _process_syntax_quoted_form(
     The child forms (called rest above) are processed by _expand_syntax_quote.
 
     All other forms are passed through without modification."""
-    lconcat = lambda v: llist.list(v).cons(_CONCAT)
+
+    def lconcat(v):
+        return llist.list(v).cons(_CONCAT)
+
     if _is_unquote(form):
         return form[1]  # type: ignore
     elif _is_unquote_splicing(form):
@@ -1250,8 +1259,8 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
     s = _read_str(ctx, allow_arbitrary_escapes=True)
     try:
         return langutil.regex_from_str(s)
-    except re.error:
-        raise ctx.syntax_error(f"Unrecognized regex pattern syntax: {s}")
+    except re.error as exc:
+        raise ctx.syntax_error(f"Unrecognized regex pattern syntax: {s}") from exc
 
 
 _NUMERIC_CONSTANTS = {
@@ -1614,7 +1623,7 @@ def read_file(  # pylint: disable=too-many-arguments
 
     Keyword arguments to this function have the same meanings as those of
     basilisp.lang.reader.read."""
-    with open(filename) as f:
+    with open(filename, encoding="UTF-8") as f:
         yield from read(
             f,
             resolver=resolver,

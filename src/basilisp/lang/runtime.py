@@ -70,7 +70,9 @@ NS_VAR_NAME = "*ns*"
 NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
-SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 6), (3, 7), (3, 8), (3, 9), (3, 10), (3, 11)})
+SUPPORTED_PYTHON_VERSIONS = frozenset(
+    {(3, 6), (3, 7), (3, 8), (3, 9), (3, 10), (3, 11)}
+)
 
 # Public basilisp.core symbol names
 COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
@@ -154,9 +156,9 @@ def _supported_python_versions_features() -> Iterable[kw.Keyword]:
      - :lpy36- - to match Basilisp running on Python 3.6 and earlier versions
      - :lpy37- - to match Basilisp running on Python 3.7 and earlier versions
      - :lpy38- - to match Basilisp running on Python 3.8 and earlier versions"""
-    feature_kw = lambda major, minor, suffix="": kw.keyword(
-        f"lpy{major}{minor}{suffix}"
-    )
+
+    def feature_kw(major, minor, suffix=""):
+        return kw.keyword(f"lpy{major}{minor}{suffix}")
 
     yield feature_kw(sys.version_info.major, sys.version_info.minor)
 
@@ -812,7 +814,6 @@ class Namespace(ReferenceBase):
 
         return is_match
 
-    # pylint: disable=unnecessary-comprehension
     def __complete_alias(
         self, prefix: str, name_in_ns: Optional[str] = None
     ) -> Iterable[str]:
@@ -861,7 +862,6 @@ class Namespace(ReferenceBase):
             for candidate_name, _ in candidates:
                 yield f"{candidate_name}/"
 
-    # pylint: disable=unnecessary-comprehension
     def __complete_interns(
         self, value: str, include_private_vars: bool = True
     ) -> Iterable[str]:
@@ -880,7 +880,6 @@ class Namespace(ReferenceBase):
             filter(is_match, ((s, v) for s, v in self.interns.items())),
         )
 
-    # pylint: disable=unnecessary-comprehension
     def __complete_refers(self, value: str) -> Iterable[str]:
         """Return an iterable of possible completions matching the given
         prefix from the list of referred Vars."""
@@ -941,8 +940,10 @@ def pop_thread_bindings() -> None:
     """Pop the thread local bindings set by push_thread_bindings above."""
     try:
         bindings = _THREAD_BINDINGS.pop_bindings()
-    except IndexError:
-        raise RuntimeException("cannot pop thread-local bindings without prior push")
+    except IndexError as exc:
+        raise RuntimeException(
+            "cannot pop thread-local bindings without prior push"
+        ) from exc
 
     for var in bindings:
         var.pop_bindings()
@@ -1107,8 +1108,10 @@ def count(coll) -> int:
     except (AttributeError, TypeError):
         try:
             return sum(1 for _ in coll)
-        except TypeError:
-            raise TypeError(f"count not supported on object of type {type(coll)}")
+        except TypeError as exc:
+            raise TypeError(
+                f"count not supported on object of type {type(coll)}"
+            ) from exc
 
 
 __nth_sentinel = object()

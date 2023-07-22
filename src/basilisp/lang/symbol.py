@@ -22,7 +22,7 @@ class Symbol(ILispObject, IWithMeta):
         print_meta = kwargs["print_meta"]
 
         if self._ns is not None:
-            sym_repr = "{ns}/{name}".format(ns=self._ns, name=self._name)
+            sym_repr = f"{self._ns}/{self._name}"
         else:
             sym_repr = self._name
 

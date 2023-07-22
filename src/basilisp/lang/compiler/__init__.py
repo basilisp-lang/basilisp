@@ -119,7 +119,7 @@ def _emit_ast_string(
         runtime.add_generated_python(to_py_str(module), which_ns=ns)
 
 
-def compile_and_exec_form(  # pylint: disable= too-many-arguments
+def compile_and_exec_form(
     form: ReaderForm,
     ctx: CompilerContext,
     ns: runtime.Namespace,

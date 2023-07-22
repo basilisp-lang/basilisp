@@ -6,7 +6,7 @@ from typing import Callable, Iterable, Iterator, Optional, Tuple
 import py
 import pytest
 from _pytest.config import Config
-from _pytest.main import Session  # pylint: disable=unused-import
+from _pytest.main import Session
 
 from basilisp import main as basilisp
 from basilisp.lang import keyword as kw
@@ -102,8 +102,10 @@ class FixtureManager:
                 teardown = cls._run_fixture(fixture)
                 if teardown is not None:
                     teardown_fixtures.append(teardown)
-        except Exception:
-            raise runtime.RuntimeException("Exception occurred during fixture setup")
+        except Exception as exc:
+            raise runtime.RuntimeException(
+                "Exception occurred during fixture setup"
+            ) from exc
         else:
             return teardown_fixtures
 
@@ -115,10 +117,10 @@ class FixtureManager:
                 next(teardown)
             except StopIteration:
                 pass
-            except Exception:
+            except Exception as exc:
                 raise runtime.RuntimeException(
                     "Exception occurred during fixture teardown"
-                )
+                ) from exc
 
     def setup(self) -> None:
         """Setup fixtures and store any teardowns for cleanup later.
@@ -245,7 +247,7 @@ class BasilispTestItem(pytest.Item):
         filename: str,
         fixture_manager: FixtureManager,
     ) -> None:
-        super(BasilispTestItem, self).__init__(name, parent)
+        super().__init__(name, parent)
         self._run_test = run_test
         self._namespace = namespace
         self._filename = filename
@@ -288,7 +290,7 @@ class BasilispTestItem(pytest.Item):
         if runtime.to_seq(failures):
             raise TestFailuresInfo("Test failures", lmap.map(results))
 
-    def repr_failure(self, excinfo, style=None):  # pylint: disable=unused-argument
+    def repr_failure(self, excinfo, style=None):
         """Representation function called when self.runtest() raises an exception."""
         if isinstance(excinfo.value, TestFailuresInfo):
             exc = excinfo.value

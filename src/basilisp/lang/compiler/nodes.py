@@ -191,14 +191,19 @@ class Node(ABC, Generic[T]):
                 f(child, *args, **kwargs)
 
     def fix_missing_locations(
-        self, form_loc: Optional[Tuple[int, int]] = None
+        self, form_loc: Optional[Tuple[int, int, int, int]] = None
     ) -> "Node":
         """Return a transformed copy of this node with location in this node's
         environment updated to match the `form_loc` if given, or using its
         existing location otherwise. All child nodes will be recursively
         transformed and replaced. Child nodes will use their parent node
         location if they do not have one."""
-        if self.env.line is None or self.env.col is None:
+        if (
+            self.env.line is None
+            or self.env.col is None
+            or self.env.end_line is None
+            or self.env.end_col is None
+        ):
             loc = form_loc
         else:
             loc = (self.env.line, self.env.col, self.env.end_line, self.env.end_col)
@@ -208,7 +213,9 @@ class Node(ABC, Generic[T]):
         ), "Must specify location information"
 
         new_attrs: MutableMapping[str, Union[NodeEnv, Node, Iterable[Node]]] = {
-            "env": attr.evolve(self.env, line=loc[0], col=loc[1], end_line=loc[2], end_col=loc[3])
+            "env": attr.evolve(
+                self.env, line=loc[0], col=loc[1], end_line=loc[2], end_col=loc[3]
+            )
         }
         for child_kw in self.children:
             child_attr = munge(child_kw.name)

@@ -30,7 +30,6 @@ class MultiFunction(Generic[T]):
         "_isa",
     )
 
-    # pylint:disable=assigning-non-slot
     def __init__(
         self,
         name: sym.Symbol,

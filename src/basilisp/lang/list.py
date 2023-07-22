@@ -1,6 +1,6 @@
 from typing import Optional, TypeVar, cast
 
-from pyrsistent import PList, plist  # noqa # pylint: disable=unused-import
+from pyrsistent import PList, plist  # noqa
 from pyrsistent._plist import _EMPTY_PLIST
 
 from basilisp.lang.interfaces import IPersistentList, IPersistentMap, ISeq, IWithMeta
@@ -92,13 +92,9 @@ EMPTY: PersistentList = PersistentList(plist())
 
 def list(members, meta=None) -> PersistentList:  # pylint:disable=redefined-builtin
     """Creates a new list."""
-    return PersistentList(  # pylint: disable=abstract-class-instantiated
-        plist(iterable=members), meta=meta
-    )
+    return PersistentList(plist(iterable=members), meta=meta)
 
 
 def l(*members, meta=None) -> PersistentList:  # noqa
     """Creates a new list from members."""
-    return PersistentList(  # pylint: disable=abstract-class-instantiated
-        plist(iterable=members), meta=meta
-    )
+    return PersistentList(plist(iterable=members), meta=meta)

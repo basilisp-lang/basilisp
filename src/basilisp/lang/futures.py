@@ -1,4 +1,4 @@
-from concurrent.futures import Future as _Future  # noqa # pylint: disable=unused-import
+from concurrent.futures import Future as _Future  # noqa
 from concurrent.futures import ProcessPoolExecutor as _ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor
 from concurrent.futures import TimeoutError as _TimeoutError

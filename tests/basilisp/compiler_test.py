@@ -2731,8 +2731,14 @@ class TestMacroexpandFunctions:
         )
 
     def test_macroexpand(self, lcompile: CompileFn, example_macro):
-        meta = lmap.map({reader.READER_LINE_KW: 1, reader.READER_COL_KW: 1,
-                         reader.READER_END_LINE_KW: 1, reader.READER_END_COL_KW: 1})
+        meta = lmap.map(
+            {
+                reader.READER_LINE_KW: 1,
+                reader.READER_COL_KW: 1,
+                reader.READER_END_LINE_KW: 1,
+                reader.READER_END_COL_KW: 1,
+            }
+        )
 
         assert llist.l(
             sym.symbol("def"),

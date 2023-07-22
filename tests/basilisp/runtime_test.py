@@ -40,7 +40,7 @@ def test_is_supported_python_version():
                     "lpy38-",
                     "lpy39-",
                     "lpy310-",
-                    "lpy311-"
+                    "lpy311-",
                 ],
             )
         ),
@@ -128,7 +128,7 @@ def test_is_supported_python_version():
                     "lpy36+",
                 ],
             )
-        )
+        ),
     }[(sys.version_info.major, sys.version_info.minor)],
 )
 def test_reader_default_featureset(feature):

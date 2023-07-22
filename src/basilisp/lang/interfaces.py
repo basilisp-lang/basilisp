@@ -32,7 +32,6 @@ class IDeref(Generic[T], ABC):
 class IBlockingDeref(IDeref[T]):
     __slots__ = ()
 
-    # pylint: disable=arguments-differ
     @abstractmethod
     def deref(
         self, timeout: Optional[float] = None, timeout_val: Optional[T] = None
@@ -197,14 +196,14 @@ class ILookup(Generic[K, V], ABC):
         raise NotImplementedError()
 
 
-T_pcoll = TypeVar("T_pcoll", bound="IPersistentCollection", covariant=True)
+T_pcoll_co = TypeVar("T_pcoll_co", bound="IPersistentCollection", covariant=True)
 
 
 class IPersistentCollection(ISeqable[T]):
     __slots__ = ()
 
     @abstractmethod
-    def cons(self: T_pcoll, *elems: T) -> "T_pcoll":
+    def cons(self: T_pcoll_co, *elems: T) -> "T_pcoll_co":
         raise NotImplementedError()
 
     @staticmethod
@@ -305,12 +304,13 @@ class IPersistentVector(
         raise NotImplementedError()
 
 
-T_tcoll = TypeVar("T_tcoll", bound="ITransientCollection", covariant=True)
+T_tcoll_co = TypeVar("T_tcoll_co", bound="ITransientCollection", covariant=True)
+
 
 # Including ABC as a base seems to cause catastrophic meltdown.
-class IEvolveableCollection(Generic[T_tcoll]):
+class IEvolveableCollection(Generic[T_tcoll_co]):
     @abstractmethod
-    def to_transient(self) -> T_tcoll:
+    def to_transient(self) -> T_tcoll_co:
         raise NotImplementedError()
 
 
@@ -318,11 +318,11 @@ class ITransientCollection(Generic[T]):
     __slots__ = ()
 
     @abstractmethod
-    def cons_transient(self: T_tcoll, *elems: T) -> "T_tcoll":
+    def cons_transient(self: T_tcoll_co, *elems: T) -> "T_tcoll_co":
         raise NotImplementedError()
 
     @abstractmethod
-    def to_persistent(self: T_tcoll) -> "IPersistentCollection[T]":
+    def to_persistent(self: T_tcoll_co) -> "IPersistentCollection[T]":
         raise NotImplementedError()
 
 

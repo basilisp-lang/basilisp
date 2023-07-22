@@ -101,7 +101,6 @@ class _Sequence(IWithMeta, ISequential, ISeq[T]):
 
     __slots__ = ("_first", "_seq", "_rest", "_meta")
 
-    # pylint:disable=assigning-non-slot
     def __init__(
         self, s: Iterator[T], first: T, *, meta: Optional[IPersistentMap] = None
     ) -> None:
@@ -125,7 +124,6 @@ class _Sequence(IWithMeta, ISequential, ISeq[T]):
     def first(self) -> Optional[T]:
         return self._first
 
-    # pylint:disable=assigning-non-slot
     @property
     def rest(self) -> "ISeq[T]":
         if self._rest:

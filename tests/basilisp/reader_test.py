@@ -882,9 +882,13 @@ def test_meta():
     assert s == sym.symbol("s")
     assert issubmap(s.meta, lmap.map({kw.keyword("tag"): sym.symbol("str")}))
     assert issubmap(s.meta, lmap.map({kw.keyword("line", "basilisp.lang.reader"): 1}))
-    assert issubmap(s.meta, lmap.map({kw.keyword("end_line", "basilisp.lang.reader"): 1}))
+    assert issubmap(
+        s.meta, lmap.map({kw.keyword("end_line", "basilisp.lang.reader"): 1})
+    )
     assert issubmap(s.meta, lmap.map({kw.keyword("col", "basilisp.lang.reader"): 6}))
-    assert issubmap(s.meta, lmap.map({kw.keyword("end_col", "basilisp.lang.reader"): 7}))
+    assert issubmap(
+        s.meta, lmap.map({kw.keyword("end_col", "basilisp.lang.reader"): 7})
+    )
 
     s = read_str_first("^:dynamic *ns*")
     assert s == sym.symbol("*ns*")

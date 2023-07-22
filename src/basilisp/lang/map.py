@@ -19,7 +19,7 @@ from basilisp.lang.vector import MapEntry
 from basilisp.util import partition
 
 try:
-    from immutables._map import MapMutation  # pylint: disable=unused-import
+    from immutables._map import MapMutation
 except ImportError:
     from immutables.map import MapMutation  # type: ignore[misc]
 
@@ -89,9 +89,7 @@ class TransientMap(ITransientMap[K, V]):
     ) -> "TransientMap[K, V]":
         try:
             for elem in elems:
-                if isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
-                    elem, (IPersistentMap, Mapping)
-                ):
+                if isinstance(elem, (IPersistentMap, Mapping)):
                     for k, v in elem.items():
                         self._inner[k] = v
                 elif isinstance(elem, IMapEntry):
@@ -101,10 +99,10 @@ class TransientMap(ITransientMap[K, V]):
                 else:
                     entry: IMapEntry[K, V] = MapEntry.from_vec(elem)
                     self._inner[entry.key] = entry.value
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
             raise ValueError(
                 "Argument to map conj must be another Map or castable to MapEntry"
-            )
+            ) from exc
         else:
             return self
 
@@ -149,9 +147,7 @@ class PersistentMap(
     def __eq__(self, other):
         if self is other:
             return True
-        if not isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
-            other, Mapping
-        ):
+        if not isinstance(other, Mapping):
             return NotImplemented
         if len(self._inner) != len(other):
             return False
@@ -233,9 +229,7 @@ class PersistentMap(
         with self._inner.mutate() as m:
             try:
                 for elem in elems:
-                    if isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
-                        elem, (IPersistentMap, Mapping)
-                    ):
+                    if isinstance(elem, (IPersistentMap, Mapping)):
                         for k, v in elem.items():
                             m.set(k, v)
                     elif isinstance(elem, IMapEntry):
@@ -245,10 +239,10 @@ class PersistentMap(
                     else:
                         entry: IMapEntry[K, V] = MapEntry.from_vec(elem)
                         m.set(entry.key, entry.value)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
                 raise ValueError(
                     "Argument to map conj must be another Map or castable to MapEntry"
-                )
+                ) from exc
             else:
                 return PersistentMap(m.finish(), meta=self.meta)
 
