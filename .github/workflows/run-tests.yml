@@ -92,3 +92,5 @@ jobs:
         run: tox -v -e coverage
       - name: Report Combined Coverage
         uses: coverallsapp/github-action@v2
+        with:
+          file: coverage.xml
