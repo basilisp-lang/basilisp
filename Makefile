@@ -23,7 +23,7 @@ repl:
 .PHONY: test
 test:
 	@rm -f .coverage*
-	@TOX_SKIP_ENV='pypy3|safety|coverage' poetry run tox -p 4
+	@TOX_SKIP_ENV='pypy3|safety|coverage' poetry run tox run-parallel -p 4
 
 
 lispcore.py:
@@ -43,5 +43,5 @@ pypy-shell:
 	@docker run -it \
 		--mount src=`pwd`,target=/usr/src/app,type=bind \
 		--workdir /usr/src/app \
-		pypy:3.6-7.3-slim-buster \
+		pypy:3.10-7.3-slim-buster \
 		/bin/sh -c 'pip install -e . && basilisp repl'

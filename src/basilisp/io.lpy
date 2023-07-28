@@ -56,12 +56,7 @@
    (.unlink (as-path f))
    true)
   ([f silently]
-   #?(:lpy37- (try
-                (.unlink (as-path f))
-                (catch python/FileNotFoundError e
-                  (when-not silently
-                    (throw e))))
-      :lpy38+ (.unlink (as-path f) ** :missing-ok (if silently true false)))
+   (.unlink (as-path f) ** :missing-ok (if silently true false))
    silently))
 
 (defn- clean-reader-mode

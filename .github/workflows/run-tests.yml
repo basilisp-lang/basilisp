@@ -11,12 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        version: [ '3.6', '3.7', '3.8', '3.9', '3.10' ]
+        version: ['3.8', '3.9', '3.10']
         include:
-          - version: '3.6'
-            tox-env: py36,py36-mypy,py36-lint,safety
-          - version: '3.7'
-            tox-env: py37,py37-mypy,py37-lint,safety
           - version: '3.8'
             tox-env: py38,py38-mypy,py38-lint,safety
           - version: '3.9'
@@ -59,8 +55,8 @@ jobs:
         with:
           name: code-coverage
           path: coverage/.coverage.py*
+
   report-coverage:
-    environment: CI
     runs-on: ubuntu-latest
     needs: run-tests
     steps:
@@ -89,7 +85,11 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: code-coverage
-      - name: Report coverage
+      - name: Combine Coverage files from all supported Python versions
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         run: tox -v -e coverage
+      - name: Report Combined Coverage
+        uses: coverallsapp/github-action@v2
+        with:
+          file: coverage.xml

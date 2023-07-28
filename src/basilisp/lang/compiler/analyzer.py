@@ -3605,7 +3605,6 @@ for tp, const_type in {
     uuid.UUID: ConstType.UUID,
     vec.PersistentVector: ConstType.VECTOR,
 }.items():
-
     _const_node_type.register(tp, lambda _, default=const_type: default)
 
 

@@ -290,8 +290,8 @@ class ReaderContext:
     def __init__(  # pylint: disable=too-many-arguments
         self,
         reader: StreamReader,
-        resolver: Resolver = None,
-        data_readers: DataReaders = None,
+        resolver: Optional[Resolver] = None,
+        data_readers: Optional[DataReaders] = None,
         eof: Any = None,
         features: Optional[IPersistentSet[kw.Keyword]] = None,
         process_reader_cond: bool = True,
@@ -1497,8 +1497,8 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
 
 def syntax_quote(  # pylint: disable=too-many-arguments
     form: RawReaderForm,
-    resolver: Resolver = None,
-    data_readers: DataReaders = None,
+    resolver: Optional[Resolver] = None,
+    data_readers: Optional[DataReaders] = None,
     eof: Any = EOF,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
@@ -1519,8 +1519,8 @@ def syntax_quote(  # pylint: disable=too-many-arguments
 
 def read(  # pylint: disable=too-many-arguments
     stream,
-    resolver: Resolver = None,
-    data_readers: DataReaders = None,
+    resolver: Optional[Resolver] = None,
+    data_readers: Optional[DataReaders] = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
@@ -1573,8 +1573,8 @@ def read(  # pylint: disable=too-many-arguments
 
 def read_str(  # pylint: disable=too-many-arguments
     s: str,
-    resolver: Resolver = None,
-    data_readers: DataReaders = None,
+    resolver: Optional[Resolver] = None,
+    data_readers: Optional[DataReaders] = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
@@ -1598,8 +1598,8 @@ def read_str(  # pylint: disable=too-many-arguments
 
 def read_file(  # pylint: disable=too-many-arguments
     filename: str,
-    resolver: Resolver = None,
-    data_readers: DataReaders = None,
+    resolver: Optional[Resolver] = None,
+    data_readers: Optional[DataReaders] = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[kw.Keyword]] = None,

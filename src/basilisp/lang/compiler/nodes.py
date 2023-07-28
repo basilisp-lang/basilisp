@@ -172,7 +172,7 @@ class Node(ABC, Generic[T]):
         return to_lisp(attr.asdict(self))  # type: ignore[arg-type]
 
     def assoc(self, **kwargs):
-        return attr.evolve(self, **kwargs)
+        return attr.evolve(self, **kwargs)  # type: ignore[misc]
 
     def visit(self, f: Callable[..., None], *args, **kwargs):
         """Visit all immediate children of this node, calling

@@ -58,16 +58,15 @@ class IIndexed(ICounted, ABC):
     __slots__ = ()
 
 
-# Making this interface Generic causes the __repr__ to differ between
-# Python 3.6 and 3.7, which affects a few simple test assertions.
-# Since there is little benefit to this type being Generic, I'm leaving
-# it as is for now.
-class IExceptionInfo(Exception, ABC):
+T_ExceptionInfo = TypeVar("T_ExceptionInfo", bound="IPersistentMap")
+
+
+class IExceptionInfo(Exception, Generic[T_ExceptionInfo], ABC):
     __slots__ = ()
 
     @property
     @abstractmethod
-    def data(self) -> "IPersistentMap":
+    def data(self) -> T_ExceptionInfo:
         raise NotImplementedError()
 
 
@@ -306,6 +305,7 @@ class IPersistentVector(
 
 
 T_tcoll = TypeVar("T_tcoll", bound="ITransientCollection", covariant=True)
+
 
 # Including ABC as a base seems to cause catastrophic meltdown.
 class IEvolveableCollection(Generic[T_tcoll]):

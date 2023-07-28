@@ -4646,7 +4646,7 @@
              (not
               (try
                 (importlib.util/find-spec (basilisp.lang.util/munge ns-name))
-                (catch #?(:lpy36- python/AttributeError :lpy37+ python/ModuleNotFoundError) _
+                (catch python/ModuleNotFoundError _
                   nil))))
       (let [basilisp-ns-name (str (.replace ns-name "clojure" "basilisp" 1))]
         ;; Add the original name as an alias if no alias was given

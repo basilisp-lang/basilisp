@@ -1355,7 +1355,7 @@ def test_partial_kw():
     )(
         value=82, other_value="a string"
     )
-    assert {"value": 82, "other_value": "a string",} == core.partial_kw(
+    assert {"value": 82, "other_value": "a string"} == core.partial_kw(
         dict, kw.keyword("value"), 3, kw.keyword("other-value"), "some string"
     )(value=82, other_value="a string")
 

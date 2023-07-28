@@ -38,22 +38,6 @@ commands:
           path: junit
 
 jobs:
-  test-pypy-36:
-    docker:
-      - image: pypy:3.6-slim-buster
-    parallelism: 8
-    steps:
-      - run_pypy_tests:
-          python_version: "3.6"
-
-  test-pypy-37:
-    docker:
-      - image: pypy:3.7-slim-buster
-    parallelism: 8
-    steps:
-      - run_pypy_tests:
-          python_version: "3.7"
-
   test-pypy-38:
     docker:
       - image: pypy:3.8-slim-buster
@@ -64,17 +48,24 @@ jobs:
 
   test-pypy-39:
     docker:
-      - image: pypy:3.9-slim-buster
+      - image: pypy:3.9-slim-bookworm
     parallelism: 8
     steps:
       - run_pypy_tests:
           python_version: "3.9"
 
+  test-pypy-310:
+    docker:
+      - image: pypy:3.10-slim-bookworm
+    parallelism: 8
+    steps:
+      - run_pypy_tests:
+          python_version: "3.10"
+
 workflows:
   version: 2
   test:
     jobs:
-      - test-pypy-36
-      - test-pypy-37
       - test-pypy-38
       - test-pypy-39
+      - test-pypy-310

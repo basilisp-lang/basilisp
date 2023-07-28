@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = "Basilisp"
-copyright = "2018-2020, Chris Rink"
+copyright = "2018-2023, Chris Rink"
 author = "Chris Rink"
 
 # The short X.Y version

@@ -134,11 +134,12 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         self,
         fullname: str,
         path,  # Optional[List[str]] # MyPy complains this is incompatible with supertype
-        target: types.ModuleType = None,
+        target: Optional[types.ModuleType] = None,
     ) -> Optional[ModuleSpec]:
         """Find the ModuleSpec for the specified Basilisp module.
 
-        Returns None if the module is not a Basilisp module to allow import processing to continue."""
+        Returns None if the module is not a Basilisp module to allow import processing to continue.
+        """
         package_components = fullname.split(".")
         if not path:
             path = sys.path
