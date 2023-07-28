@@ -79,6 +79,8 @@ W = TypeVar("W", bound=LispReaderFn)
 
 READER_LINE_KW = kw.keyword("line", ns="basilisp.lang.reader")
 READER_COL_KW = kw.keyword("col", ns="basilisp.lang.reader")
+READER_END_LINE_KW = kw.keyword("end-line", ns="basilisp.lang.reader")
+READER_END_COL_KW = kw.keyword("end-col", ns="basilisp.lang.reader")
 
 READER_COND_FORM_KW = kw.keyword("form")
 READER_COND_SPLICING_KW = kw.keyword("splicing?")
@@ -474,8 +476,16 @@ def _with_loc(f: W) -> W:
     def with_lineno_and_col(ctx, **kwargs):
         line, col = ctx.reader.line, ctx.reader.col
         v = f(ctx, **kwargs)
+        end_line, end_col = ctx.reader.line, ctx.reader.col
         if isinstance(v, IWithMeta):
-            new_meta = lmap.map({READER_LINE_KW: line, READER_COL_KW: col})
+            new_meta = lmap.map(
+                {
+                    READER_LINE_KW: line,
+                    READER_COL_KW: col,
+                    READER_END_LINE_KW: end_line,
+                    READER_END_COL_KW: end_col,
+                }
+            )
             old_meta = v.meta
             return v.with_meta(
                 old_meta.cons(new_meta) if old_meta is not None else new_meta

@@ -11,14 +11,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        version: ['3.8', '3.9', '3.10']
+        version: ['3.8', '3.9', '3.10', '3.11']
         include:
           - version: '3.8'
             tox-env: py38,py38-mypy,py38-lint,safety
           - version: '3.9'
             tox-env: py39,py39-mypy,py39-lint,safety
           - version: '3.10'
-            tox-env: py310,py310-mypy,py310-lint,format,safety
+            tox-env: py310,py310-mypy,py310-lint,safety
+          - version: '3.11'
+            tox-env: py311,py311-mypy,py311-lint,format,safety
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -63,7 +65,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       - name: Cache dependencies
         id: cache-deps
         uses: actions/cache@v3

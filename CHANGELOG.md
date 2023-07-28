@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for fixtures in `basilisp.test` (#654)
- * Added support for Python 3.10 (#659)
+ * Added support for Python 3.10 and 3.11 (#659, #693)
  * Added a Sphinx autodoc plugin for generating API documentation for Basilisp namespaces (#658)
  * Added support for rewriting required namespaces starting with `clojure.` as `basilisp.` if the original name isn't found on the import path (#670, #676)
  * Added support for inlining simple functions (#673)
