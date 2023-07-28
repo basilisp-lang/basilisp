@@ -6,7 +6,7 @@
 Welcome to Basilisp's documentation!
 ====================================
 
-Basilisp is a :ref:`Clojure-compatible(-ish) <differences_from_clojure>` Lisp dialect targeting Python 3.6+.
+Basilisp is a :ref:`Clojure-compatible(-ish) <differences_from_clojure>` Lisp dialect targeting Python 3.8+.
 
 Basilisp compiles down to raw Python 3 code and executes on the Python 3 virtual machine, allowing natural interoperability between existing Python libraries and new Lisp code.
 

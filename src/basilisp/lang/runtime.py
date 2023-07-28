@@ -70,7 +70,7 @@ NS_VAR_NAME = "*ns*"
 NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
-SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 6), (3, 7), (3, 8), (3, 9), (3, 10)})
+SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 8), (3, 9), (3, 10)})
 
 # Public basilisp.core symbol names
 COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
@@ -148,7 +148,7 @@ def _supported_python_versions_features() -> Iterable[kw.Keyword]:
     `major`.`minor` versions the current Python VM corresponds to amongst the
     set of supported Python versions.
 
-    For example, for Python 3.6, we emit:
+    For example, for Python 3.6, we would emit:
      - :lpy36  - to exactly match Basilisp running on Python 3.6
      - :lpy36+ - to match Basilisp running on Python 3.6 and later versions
      - :lpy36- - to match Basilisp running on Python 3.6 and earlier versions
@@ -559,7 +559,9 @@ class Namespace(ReferenceBase):
         "_import_aliases",
     )
 
-    def __init__(self, name: sym.Symbol, module: BasilispModule = None) -> None:
+    def __init__(
+        self, name: sym.Symbol, module: Optional[BasilispModule] = None
+    ) -> None:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
@@ -757,7 +759,7 @@ class Namespace(ReferenceBase):
     def __get_or_create(
         ns_cache: NamespaceMap,
         name: sym.Symbol,
-        module: BasilispModule = None,
+        module: Optional[BasilispModule] = None,
     ) -> lmap.PersistentMap:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
@@ -769,7 +771,7 @@ class Namespace(ReferenceBase):
 
     @classmethod
     def get_or_create(
-        cls, name: sym.Symbol, module: BasilispModule = None
+        cls, name: sym.Symbol, module: Optional[BasilispModule] = None
     ) -> "Namespace":
         """Get the namespace bound to the symbol `name` in the global namespace
         cache, creating it if it does not exist.
@@ -1830,7 +1832,9 @@ def bindings(bindings: Optional[Mapping[Var, Any]] = None):
 
 
 @contextlib.contextmanager
-def ns_bindings(ns_name: str, module: BasilispModule = None) -> Iterator[Namespace]:
+def ns_bindings(
+    ns_name: str, module: Optional[BasilispModule] = None
+) -> Iterator[Namespace]:
     """Context manager for temporarily changing the value of basilisp.core/*ns*."""
     symbol = sym.symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
@@ -1868,7 +1872,7 @@ def get_current_ns() -> Namespace:
 
 def set_current_ns(
     ns_name: str,
-    module: BasilispModule = None,
+    module: Optional[BasilispModule] = None,
 ) -> Var:
     """Set the value of the dynamic variable `*ns*` in the current thread."""
     symbol = sym.symbol(ns_name)

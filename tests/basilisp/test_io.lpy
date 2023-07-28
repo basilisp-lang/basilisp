@@ -22,19 +22,13 @@
 
   Serves files from `*tempdir*` provided by the corresponding fixture."
   []
-  ;; The Python 3.6 version of SimpleHTTPRequestHandler does not support setting the
-  ;; directory it serves files from, so we use reader conditionals to switch the
-  ;; working directory to `tempdir` to avoid conflicting with any files in the current
-  ;; work tree.
   (let [workdir *tempdir*
-        handler #?(:lpy36 http.server/SimpleHTTPRequestHandler
-                   :lpy37+ (partial-kw http.server/SimpleHTTPRequestHandler :directory workdir))
+        handler (partial-kw http.server/SimpleHTTPRequestHandler :directory workdir)
         srv     (http.server/HTTPServer #py ("" 0) handler)
         cwd     (os/getcwd)]
     (doto (threading/Thread
            **
            :target (fn []
-                     #?(:lpy36 (os/chdir workdir))
                      (.serve-forever srv))
            :daemon true)
       (.start))
@@ -44,8 +38,7 @@
       (finally
         (doto srv
           (.shutdown)
-          (.server-close))
-        #?(:lpy36 (os/chdir cwd))))))
+          (.server-close))))))
 
 (test/use-fixtures :each fixtures/tempdir http-server)
 

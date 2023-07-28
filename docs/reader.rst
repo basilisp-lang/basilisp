@@ -420,13 +420,13 @@ Splicing reader conditionals may only appear within other collection literal for
 Python Version Reader Features
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Basilisp includes a specialized set of reader features based on the major version of Python (e.g. 3.6, 3.7, etc.).
+Basilisp includes a specialized set of reader features based on the major version of Python (e.g. 3.8, 3.9, etc.).
 Because the API of Python's standard library changes significantly between versions, it can be challenging to support multiple versions at once.
 In classical Python, users are forced to use conditional gates either at the top level of a module to define different function versions, or perhaps gate the logic within a function or class.
 Both options incur some level of runtime cost.
 The Python version features allow you to supply version specific overrides from the reader forward, meaning only the specific code for the version of Python you are using will be compiled and hit at runtime.
 
-The version specific feature for Python 3.6 is ``:lpy36`` while the feature for Python 3.10 is ``:lpy310``.
+The version specific feature for Python 3.8 is ``:lpy38`` while the feature for Python 3.10 is ``:lpy310``.
 
 In addition to the features that lock to specific versions, there are also "range" features that allow you to specify all Python versions before or after the specified version.
 For example, to select all versions of Python 3.7 or greater, you would use ``:lpy37+``.

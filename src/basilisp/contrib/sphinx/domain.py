@@ -294,7 +294,7 @@ class BasilispNamespaceIndex(Index):
     shortname = "namespaces"
 
     def generate(  # pylint: disable=too-many-branches,too-many-locals
-        self, docnames: Iterable[str] = None
+        self, docnames: Optional[Iterable[str]] = None
     ) -> Tuple[List[Tuple[str, List[IndexEntry]]], bool]:
         content: Dict[str, List[IndexEntry]] = defaultdict(list)
 

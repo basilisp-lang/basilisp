@@ -21,7 +21,7 @@ from basilisp.util import partition
 try:
     from immutables._map import MapMutation  # pylint: disable=unused-import
 except ImportError:
-    from immutables.map import MapMutation  # type: ignore[misc]
+    from immutables.map import MapMutation  # type: ignore[assignment]
 
 
 T = TypeVar("T")
