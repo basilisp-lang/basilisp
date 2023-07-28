@@ -55,6 +55,7 @@ jobs:
         with:
           name: code-coverage
           path: coverage/.coverage.py*
+
   report-coverage:
     environment: CI
     runs-on: ubuntu-latest
@@ -85,7 +86,9 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: code-coverage
-      - name: Report coverage
+      - name: Combine Coverage files from all supported Python versions
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
         run: tox -v -e coverage
+      - name: Report Combined Coverage
+        uses: coverallsapp/github-action@v2
