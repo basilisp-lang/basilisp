@@ -293,7 +293,7 @@ class BasilispNamespaceIndex(Index):
     localname = "Namespace Index"
     shortname = "namespaces"
 
-    def generate(  # pylint: disable=too-many-branches,too-many-locals
+    def generate(  # pylint: disable=too-many-locals
         self, docnames: Optional[Iterable[str]] = None
     ) -> Tuple[List[Tuple[str, List[IndexEntry]]], bool]:
         content: Dict[str, List[IndexEntry]] = defaultdict(list)
@@ -369,7 +369,7 @@ class BasilispNamespaceIndex(Index):
 
 
 class BasilispXRefRole(XRefRole):
-    def process_link(  # pylint: disable=too-many-arguments,unused-argument
+    def process_link(  # pylint: disable=too-many-arguments
         self,
         env: BuildEnvironment,
         refnode: Element,
@@ -382,19 +382,19 @@ class BasilispXRefRole(XRefRole):
         return title, target
 
 
-class FormEntry(NamedTuple):  # pylint: disable=inherit-non-class
+class FormEntry(NamedTuple):
     docname: str
     node_id: str
 
 
-class VarEntry(NamedTuple):  # pylint: disable=inherit-non-class
+class VarEntry(NamedTuple):
     docname: str
     node_id: str
     objtype: str
     aliased: bool
 
 
-class NamespaceEntry(NamedTuple):  # pylint: disable=inherit-non-class
+class NamespaceEntry(NamedTuple):
     docname: str
     node_id: str
     synopsis: str
@@ -515,7 +515,7 @@ class BasilispDomain(Domain):
             if ns_entry.docname in docnames:
                 self.namespaces[ns_name] = ns_entry
 
-    def resolve_xref(  # pylint: disable=too-many-arguments,too-many-locals,unused-argument
+    def resolve_xref(  # pylint: disable=too-many-arguments
         self,
         env: BuildEnvironment,
         fromdocname: str,

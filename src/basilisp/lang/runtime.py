@@ -814,7 +814,6 @@ class Namespace(ReferenceBase):
 
         return is_match
 
-    # pylint: disable=unnecessary-comprehension
     def __complete_alias(
         self, prefix: str, name_in_ns: Optional[str] = None
     ) -> Iterable[str]:
@@ -863,7 +862,6 @@ class Namespace(ReferenceBase):
             for candidate_name, _ in candidates:
                 yield f"{candidate_name}/"
 
-    # pylint: disable=unnecessary-comprehension
     def __complete_interns(
         self, value: str, include_private_vars: bool = True
     ) -> Iterable[str]:
@@ -882,7 +880,6 @@ class Namespace(ReferenceBase):
             filter(is_match, ((s, v) for s, v in self.interns.items())),
         )
 
-    # pylint: disable=unnecessary-comprehension
     def __complete_refers(self, value: str) -> Iterable[str]:
         """Return an iterable of possible completions matching the given
         prefix from the list of referred Vars."""
@@ -943,8 +940,10 @@ def pop_thread_bindings() -> None:
     """Pop the thread local bindings set by push_thread_bindings above."""
     try:
         bindings = _THREAD_BINDINGS.pop_bindings()
-    except IndexError:
-        raise RuntimeException("cannot pop thread-local bindings without prior push")
+    except IndexError as e:
+        raise RuntimeException(
+            "cannot pop thread-local bindings without prior push"
+        ) from e
 
     for var in bindings:
         var.pop_bindings()
@@ -1109,8 +1108,10 @@ def count(coll) -> int:
     except (AttributeError, TypeError):
         try:
             return sum(1 for _ in coll)
-        except TypeError:
-            raise TypeError(f"count not supported on object of type {type(coll)}")
+        except TypeError as e:
+            raise TypeError(
+                f"count not supported on object of type {type(coll)}"
+            ) from e
 
 
 __nth_sentinel = object()

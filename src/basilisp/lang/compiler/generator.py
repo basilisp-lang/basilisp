@@ -140,7 +140,6 @@ class SymbolTableEntry:
     symbol: sym.Symbol
 
 
-# pylint: disable=unsupported-membership-test,unsupported-delete-operation,unsupported-assignment-operation
 @attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
     name: str
@@ -778,9 +777,7 @@ def __should_warn_on_redef(
 
 
 @_with_ast_loc
-def _def_to_py_ast(  # pylint: disable=too-many-branches
-    ctx: GeneratorContext, node: Def
-) -> GeneratedPyAST:
+def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
     """Return a Python AST Node for a `def` expression."""
     assert node.op == NodeOp.DEF
 
@@ -976,7 +973,7 @@ def __deftype_property_to_py_ast(
             )
 
 
-def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments,too-many-locals
+def __multi_arity_deftype_dispatch_method(
     name: str,
     arity_map: Mapping[int, str],
     default_name: Optional[str] = None,
@@ -1134,7 +1131,7 @@ def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments
 
 
 @_with_ast_loc_deps
-def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-arguments,too-many-locals
+def __multi_arity_deftype_method_to_py_ast(
     ctx: GeneratorContext,
     node: DefTypeMethod,
 ) -> GeneratedPyAST:
@@ -1332,9 +1329,7 @@ def __deftype_or_reify_bases_to_py_ast(
 
 
 @_with_ast_loc
-def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: GeneratorContext, node: DefType
-) -> GeneratedPyAST:
+def _deftype_to_py_ast(ctx: GeneratorContext, node: DefType) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` expression."""
     assert node.op == NodeOp.DEFTYPE
     type_name = munge(node.name)
@@ -2905,7 +2900,7 @@ def __var_find_to_py_ast(
 
 
 @_with_ast_loc
-def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
+def _var_sym_to_py_ast(
     ctx: GeneratorContext, node: VarRef, is_assigning: bool = False
 ) -> GeneratedPyAST:
     """Generate a Python AST node for accessing a Var.
@@ -3259,7 +3254,7 @@ def _collection_literal_to_py_ast(
     yield from map(lambda form: _const_val_to_py_ast(form, ctx), form)
 
 
-def _const_meta_kwargs_ast(  # pylint:disable=inconsistent-return-statements
+def _const_meta_kwargs_ast(
     ctx: GeneratorContext, form: LispForm
 ) -> Optional[GeneratedPyAST]:
     if isinstance(form, IMeta) and form.meta is not None:

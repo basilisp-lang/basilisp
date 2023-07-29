@@ -194,9 +194,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
         super().invalidate_caches()
         self._cache = {}
 
-    def _cache_bytecode(
-        self, source_path, cache_path, data
-    ):  # pylint: disable=unused-argument
+    def _cache_bytecode(self, source_path, cache_path, data):
         self.set_data(cache_path, data)
 
     def path_stats(self, path):
@@ -215,8 +213,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
     def get_filename(self, fullname: str) -> str:  # pragma: no cover
         try:
             cached = self._cache[fullname]
-        except KeyError:
-            raise ImportError(f"Could not import module '{fullname}'")
+        except KeyError as e:
+            raise ImportError(f"Could not import module '{fullname}'") from e
         spec = cached["spec"]
         return spec.loader_state.filename
 
@@ -289,7 +287,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):
                 Iterable[ReaderForm],
                 reader.read_file(filename, resolver=runtime.resolve_alias),
             )
-            compiler.compile_module(  # pylint: disable=unexpected-keyword-arg
+            compiler.compile_module(
                 forms,
                 compiler.CompilerContext(
                     filename=filename, opts=runtime.get_compiler_opts()
@@ -349,6 +347,4 @@ def hook_imports():
     using standard `import module.submodule` syntax."""
     if any(isinstance(o, BasilispImporter) for o in sys.meta_path):
         return
-    sys.meta_path.insert(
-        0, BasilispImporter()  # pylint:disable=abstract-class-instantiated
-    )
+    sys.meta_path.insert(0, BasilispImporter())

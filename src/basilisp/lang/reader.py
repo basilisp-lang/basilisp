@@ -254,15 +254,15 @@ def _py_list_from_vec(form: vec.PersistentVector) -> list:
 def _inst_from_str(inst_str: str) -> datetime:
     try:
         return langutil.inst_from_str(inst_str)
-    except (ValueError, OverflowError):
-        raise SyntaxError(f"Unrecognized date/time syntax: {inst_str}")
+    except (ValueError, OverflowError) as e:
+        raise SyntaxError(f"Unrecognized date/time syntax: {inst_str}") from e
 
 
 def _uuid_from_str(uuid_str: str) -> uuid.UUID:
     try:
         return langutil.uuid_from_str(uuid_str)
-    except (ValueError, TypeError):
-        raise SyntaxError(f"Unrecognized UUID format: {uuid_str}")
+    except (ValueError, TypeError) as e:
+        raise SyntaxError(f"Unrecognized UUID format: {uuid_str}") from e
 
 
 class ReaderContext:
@@ -425,10 +425,10 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
                     )
                 found_features.add(k)
                 feature_list.append((k, v))
-        except ValueError:
+        except ValueError as e:
             raise SyntaxError(
                 "Reader conditionals must contain an even number of forms"
-            )
+            ) from e
 
         return vec.vector(feature_list)
 
@@ -690,8 +690,8 @@ def _read_map(
             if k in d:
                 raise ctx.syntax_error(f"Duplicate key '{k}' in map literal")
             d[k] = v
-    except ValueError:
-        raise ctx.syntax_error("Unexpected token '}'; expected map value")
+    except ValueError as e:
+        raise ctx.syntax_error("Unexpected token '}'; expected map value") from e
     else:
         return lmap.map(d)
 
@@ -748,10 +748,10 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
                 try:
                     for _ in chars:
                         reader.pushback()
-                except IndexError:
+                except IndexError as e:
                     raise ctx.syntax_error(
                         "Requested to pushback too many characters onto StreamReader"
-                    )
+                    ) from e
                 return _read_sym(ctx)
             chars.append(token)
             continue
@@ -1245,8 +1245,8 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
     s = _read_str(ctx, allow_arbitrary_escapes=True)
     try:
         return langutil.regex_from_str(s)
-    except re.error:
-        raise ctx.syntax_error(f"Unrecognized regex pattern syntax: {s}")
+    except re.error as e:
+        raise ctx.syntax_error(f"Unrecognized regex pattern syntax: {s}") from e
 
 
 _NUMERIC_CONSTANTS = {
@@ -1609,7 +1609,7 @@ def read_file(  # pylint: disable=too-many-arguments
 
     Keyword arguments to this function have the same meanings as those of
     basilisp.lang.reader.read."""
-    with open(filename) as f:
+    with open(filename, encoding="utf-8") as f:
         yield from read(
             f,
             resolver=resolver,

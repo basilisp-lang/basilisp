@@ -24,7 +24,7 @@ else:
         def __call__(
             self, meta: Optional[IPersistentMap], *args
         ) -> Optional[IPersistentMap]:
-            ...  # pylint: disable=pointless-statement
+            ...
 
 
 class ReferenceBase(IReference):
