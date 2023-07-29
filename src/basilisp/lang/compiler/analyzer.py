@@ -193,7 +193,6 @@ class SymbolTableEntry:
         return self.binding.local
 
 
-# pylint: disable=unsupported-membership-test,unsupported-delete-operation,unsupported-assignment-operation
 @attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
     name: str
@@ -713,7 +712,7 @@ def _body_ast(
     return stmts, ret
 
 
-def _call_args_ast(  # pylint: disable=too-many-branches
+def _call_args_ast(
     form: ISeq, ctx: AnalyzerContext
 ) -> Tuple[Iterable[Node], KeywordArgs]:
     """Return a tuple of positional arguments and keyword arguments, splitting at the
@@ -853,7 +852,7 @@ def _await_ast(form: ISeq, ctx: AnalyzerContext) -> Await:
     )
 
 
-def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
+def _def_ast(  # pylint: disable=too-many-locals
     form: ISeq, ctx: AnalyzerContext
 ) -> Def:
     assert form.first == SpecialForm.DEF
@@ -1101,10 +1100,10 @@ def __deftype_classmethod(
     ):
         try:
             cls_arg = args[0]
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 "deftype* class method must include 'cls' argument", form=args
-            )
+            ) from e
         else:
             if not isinstance(cls_arg, sym.Symbol):
                 raise AnalyzerException(
@@ -1162,11 +1161,11 @@ def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-lo
     with ctx.new_symbol_table(method_name, is_context_boundary=True):
         try:
             this_arg = args[0]
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 f"{special_form} method must include 'this' or 'self' argument",
                 form=args,
-            )
+            ) from e
         else:
             if not isinstance(this_arg, sym.Symbol):
                 raise AnalyzerException(
@@ -1226,11 +1225,11 @@ def __deftype_or_reify_property(
     with ctx.new_symbol_table(method_name, is_context_boundary=True):
         try:
             this_arg = args[0]
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 f"{special_form} property must include 'this' or 'self' argument",
                 form=args,
-            )
+            ) from e
         else:
             if not isinstance(this_arg, sym.Symbol):
                 raise AnalyzerException(
@@ -1317,7 +1316,7 @@ def __deftype_staticmethod(
         return method
 
 
-def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branches
+def __deftype_or_reify_prop_or_method_arity(
     form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
     special_form: sym.Symbol,
@@ -1399,7 +1398,7 @@ def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branche
         )
 
 
-def __deftype_or_reify_method_node_from_arities(  # pylint: disable=too-many-branches
+def __deftype_or_reify_method_node_from_arities(
     form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
     arities: List[DefTypeMethodArity],
@@ -1585,7 +1584,7 @@ def __is_reify_member(mem) -> bool:
     return inspect.isfunction(mem) or isinstance(mem, property)
 
 
-def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-branches,too-many-locals
+def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-locals
     special_form: sym.Symbol,
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
@@ -1721,7 +1720,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
 __DEFTYPE_DEFAULT_SENTINEL = object()
 
 
-def _deftype_ast(  # pylint: disable=too-many-branches,too-many-locals
+def _deftype_ast(  # pylint: disable=too-many-locals
     form: ISeq, ctx: AnalyzerContext
 ) -> DefType:
     assert form.first == SpecialForm.DEFTYPE
@@ -1827,7 +1826,7 @@ def _do_ast(form: ISeq, ctx: AnalyzerContext) -> Do:
     )
 
 
-def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
+def __fn_method_ast(  # pylint: disable=too-many-locals
     form: ISeq,
     ctx: AnalyzerContext,
     fnname: Optional[sym.Symbol] = None,
@@ -1927,11 +1926,11 @@ def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
 
     try:
         return KeywordArgSupport(kwarg_support)
-    except ValueError:
+    except ValueError as e:
         raise AnalyzerException(
             "fn keyword argument support metadata :kwarg must be one of: #{:apply :collect}",
             form=kwarg_support,
-        )
+        ) from e
 
 
 InlineMeta = Union[Callable, bool, None]
@@ -2000,9 +1999,7 @@ def _inline_fn_ast(
 
 
 @_with_meta  # noqa: MC0001
-def _fn_ast(  # pylint: disable=too-many-branches
-    form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
-) -> Fn:
+def _fn_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -> Fn:
     assert form.first == SpecialForm.FN
 
     idx = 1
@@ -2010,11 +2007,11 @@ def _fn_ast(  # pylint: disable=too-many-branches
     with ctx.new_symbol_table("fn", is_context_boundary=True):
         try:
             name = runtime.nth(form, idx)
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
                 form=form,
-            )
+            ) from e
 
         name_node: Optional[Binding]
         inline: InlineMeta
@@ -2047,11 +2044,11 @@ def _fn_ast(  # pylint: disable=too-many-branches
 
         try:
             arity_or_args = runtime.nth(form, idx)
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 "fn form expects either multiple arities or a vector of arguments",
                 form=form,
-            )
+            ) from e
 
         if isinstance(arity_or_args, llist.PersistentList):
             arities = vec.vector(
@@ -2171,11 +2168,11 @@ def _host_prop_ast(form: ISeq, ctx: AnalyzerContext) -> HostField:
     if field.name == ".-":
         try:
             field = runtime.nth(form, 2)
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 "host interop prop must be exactly 3 elems long: (.- target field)",
                 form=form,
-            )
+            ) from e
         else:
             if not isinstance(field, sym.Symbol):
                 raise AnalyzerException(
@@ -2211,9 +2208,7 @@ def _host_prop_ast(form: ISeq, ctx: AnalyzerContext) -> HostField:
         )
 
 
-def _host_interop_ast(  # pylint: disable=too-many-branches
-    form: ISeq, ctx: AnalyzerContext
-) -> Union[HostCall, HostField]:
+def _host_interop_ast(form: ISeq, ctx: AnalyzerContext) -> Union[HostCall, HostField]:
     assert form.first == SpecialForm.INTEROP_CALL
     nelems = count(form)
     assert nelems >= 3
@@ -2302,9 +2297,7 @@ def _if_ast(form: ISeq, ctx: AnalyzerContext) -> If:
     )
 
 
-def _import_ast(  # pylint: disable=too-many-branches
-    form: ISeq, ctx: AnalyzerContext
-) -> Import:
+def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
     assert form.first == SpecialForm.IMPORT
 
     aliases = []
@@ -2694,7 +2687,7 @@ def _assert_no_recur(node: Node) -> None:
         node.visit(_assert_no_recur)
 
 
-def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branches
+def _assert_recur_is_tail(node: Node) -> None:
     """Assert that `recur` forms only appear in the tail position of this
     or child AST nodes.
 
@@ -2797,9 +2790,7 @@ def _reify_ast(form: ISeq, ctx: AnalyzerContext) -> Reify:
         )
 
 
-def _require_ast(  # pylint: disable=too-many-branches
-    form: ISeq, ctx: AnalyzerContext
-) -> Require:
+def _require_ast(form: ISeq, ctx: AnalyzerContext) -> Require:
     assert form.first == SpecialForm.REQUIRE
 
     aliases = []
@@ -2950,9 +2941,7 @@ def _catch_ast(form: ISeq, ctx: AnalyzerContext) -> Catch:
         )
 
 
-def _try_ast(  # pylint: disable=too-many-branches
-    form: ISeq, ctx: AnalyzerContext
-) -> Try:
+def _try_ast(form: ISeq, ctx: AnalyzerContext) -> Try:
     assert form.first == SpecialForm.TRY
 
     try_exprs = []
@@ -3153,7 +3142,7 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
     )
 
 
-def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
+def __resolve_namespaced_symbol_in_ns(
     ctx: AnalyzerContext,
     which_ns: runtime.Namespace,
     form: sym.Symbol,
@@ -3642,7 +3631,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
         )
         or (ctx.should_allow_unresolved_symbols and isinstance(form, sym.Symbol))
         or (isinstance(form, (llist.PersistentList, ISeq)) and form.is_empty)
-        or isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
+        or isinstance(
             form,
             (
                 bool,

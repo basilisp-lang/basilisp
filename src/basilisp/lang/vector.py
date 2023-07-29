@@ -2,7 +2,7 @@ from functools import total_ordering
 from typing import Iterable, Optional, Sequence, TypeVar, Union
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
-from pyrsistent.typing import PVectorEvolver  # pylint:disable=unused-import
+from pyrsistent.typing import PVectorEvolver
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,
@@ -26,7 +26,7 @@ class TransientVector(ITransientVector[T]):
     __slots__ = ("_inner",)
 
     def __init__(self, wrapped: "PVectorEvolver[T]") -> None:
-        self._inner = wrapped  # pylint: disable=assigning-non-slot
+        self._inner = wrapped
 
     def __bool__(self):
         return True

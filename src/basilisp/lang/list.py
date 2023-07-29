@@ -92,13 +92,9 @@ EMPTY: PersistentList = PersistentList(plist())
 
 def list(members, meta=None) -> PersistentList:  # pylint:disable=redefined-builtin
     """Creates a new list."""
-    return PersistentList(  # pylint: disable=abstract-class-instantiated
-        plist(iterable=members), meta=meta
-    )
+    return PersistentList(plist(iterable=members), meta=meta)
 
 
 def l(*members, meta=None) -> PersistentList:  # noqa
     """Creates a new list from members."""
-    return PersistentList(  # pylint: disable=abstract-class-instantiated
-        plist(iterable=members), meta=meta
-    )
+    return PersistentList(plist(iterable=members), meta=meta)

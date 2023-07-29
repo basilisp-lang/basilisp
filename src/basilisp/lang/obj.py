@@ -87,7 +87,7 @@ def map_lrepr(
 
     def entry_reprs():
         for k, v in entries():
-            yield "{k} {v}".format(k=lrepr(k, **kwargs), v=lrepr(v, **kwargs))
+            yield f"{lrepr(k, **kwargs)} {lrepr(v, **kwargs)}"
 
     trailer = []
     print_dup = kwargs["print_dup"]

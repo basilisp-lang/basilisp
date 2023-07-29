@@ -16,7 +16,7 @@ from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
 
 try:
-    from immutables._map import MapMutation  # pylint: disable=unused-import
+    from immutables._map import MapMutation
 except ImportError:
     from immutables.map import MapMutation  # type: ignore[assignment]
 
@@ -103,9 +103,7 @@ class PersistentSet(
     def __eq__(self, other):
         if self is other:
             return True
-        if not isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
-            other, AbstractSet
-        ):
+        if not isinstance(other, AbstractSet):
             return NotImplemented
         return _PySet.__eq__(self, other)
 

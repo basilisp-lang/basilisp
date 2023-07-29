@@ -84,15 +84,11 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
 EMPTY: PersistentQueue = PersistentQueue(pdeque())
 
 
-def queue(members, meta=None) -> PersistentQueue:  # pylint:disable=redefined-builtin
+def queue(members, meta=None) -> PersistentQueue:
     """Creates a new queue."""
-    return PersistentQueue(  # pylint: disable=abstract-class-instantiated
-        pdeque(iterable=members), meta=meta
-    )
+    return PersistentQueue(pdeque(iterable=members), meta=meta)
 
 
 def q(*members, meta=None) -> PersistentQueue:  # noqa
     """Creates a new queue from members."""
-    return PersistentQueue(  # pylint: disable=abstract-class-instantiated
-        pdeque(iterable=members), meta=meta
-    )
+    return PersistentQueue(pdeque(iterable=members), meta=meta)
