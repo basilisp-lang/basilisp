@@ -49,7 +49,7 @@ jobs:
           TOX_SHOW_OUTPUT: "True"
           TOXENV: ${{ matrix.tox-env }}
         run: |
-          tox -p 2
+          tox run-parallel -p 2
           mkdir coverage
           mv .coverage.* "coverage/.coverage.py${{ matrix.version }}"
       - name: Archive code coverage results
@@ -90,7 +90,7 @@ jobs:
       - name: Combine Coverage files from all supported Python versions
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-        run: tox -v -e coverage
+        run: tox run -v -e coverage
       - name: Report Combined Coverage
         uses: coverallsapp/github-action@v2
         with:

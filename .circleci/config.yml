@@ -26,7 +26,7 @@ commands:
             printf "Test files:\n"
             echo "$CCI_NODE_TESTS"
             printf "\n"
-            tox -e pypy3 -- $CCI_NODE_TESTS
+            tox run -e pypy3 -- $CCI_NODE_TESTS
           no_output_timeout: 30m
       - save_cache:
           key: pypy-<< parameters.python_version >>-deps3-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
