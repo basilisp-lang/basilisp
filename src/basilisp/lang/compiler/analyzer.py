@@ -641,7 +641,7 @@ _is_no_inline = _bool_meta_getter(SYM_NO_INLINE_META_KEY)
 _inline_meta = _meta_getter(SYM_INLINE_META_KW)
 
 
-def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
+def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int, int, int]]:
     """Fetch the location of the form in the original filename from the
     input form, if it has metadata."""
     # Technically, IMeta is sufficient for fetching `form.meta` but the
@@ -651,8 +651,15 @@ def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
         if meta is not None:
             line = meta.get(reader.READER_LINE_KW)
             col = meta.get(reader.READER_COL_KW)
-            if isinstance(line, int) and isinstance(col, int):
-                return line, col
+            end_line = meta.get(reader.READER_END_LINE_KW)
+            end_col = meta.get(reader.READER_END_COL_KW)
+            if (
+                isinstance(line, int)
+                and isinstance(col, int)
+                and isinstance(end_line, int)
+                and isinstance(end_col, int)
+            ):
+                return line, col, end_line, end_col
     return None
 
 
@@ -676,7 +683,12 @@ def _clean_meta(meta: Optional[lmap.PersistentMap]) -> Optional[lmap.PersistentM
     if meta is None:
         return None
     else:
-        new_meta = meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
+        new_meta = meta.dissoc(
+            reader.READER_LINE_KW,
+            reader.READER_COL_KW,
+            reader.READER_END_LINE_KW,
+            reader.READER_END_COL_KW,
+        )
         return None if len(new_meta) == 0 else new_meta
 
 

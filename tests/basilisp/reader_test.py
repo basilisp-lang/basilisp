@@ -881,6 +881,10 @@ def test_meta():
     s = read_str_first("^str s")
     assert s == sym.symbol("s")
     assert issubmap(s.meta, lmap.map({kw.keyword("tag"): sym.symbol("str")}))
+    assert issubmap(s.meta, lmap.map({reader.READER_LINE_KW: 1}))
+    assert issubmap(s.meta, lmap.map({reader.READER_END_LINE_KW: 1}))
+    assert issubmap(s.meta, lmap.map({reader.READER_COL_KW: 6}))
+    assert issubmap(s.meta, lmap.map({reader.READER_END_COL_KW: 7}))
 
     s = read_str_first("^:dynamic *ns*")
     assert s == sym.symbol("*ns*")
