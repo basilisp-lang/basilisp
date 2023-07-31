@@ -798,7 +798,9 @@ def __should_warn_on_redef(
 
 
 @_with_ast_loc
-def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
+def _def_to_py_ast(  # pylint: disable=too-many-locals
+    ctx: GeneratorContext, node: Def
+) -> GeneratedPyAST:
     """Return a Python AST Node for a `def` expression."""
     assert node.op == NodeOp.DEF
 
@@ -1849,7 +1851,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     ret_ann_ast: Optional[ast.AST] = None
     if all(tag is not None for tag in return_tags):
         ret_ann_asts: List[ast.AST] = []
-        for tag in return_tags:
+        for tag in cast(Iterable[Node], return_tags):
             ret_ann = gen_py_ast(ctx, tag)
             assert (
                 ret_ann_ast is None or not ret_ann.dependencies

@@ -789,7 +789,7 @@ def _call_args_ast(
 
 def _tag_ast(
     form: Optional[sym.Symbol], ctx: AnalyzerContext
-) -> Union[Const, HostField, MaybeClass, MaybeHostForm, None, VarRef]:
+) -> Union[HostField, Local, MaybeClass, MaybeHostForm, None, VarRef]:
     if form is None:
         return None
     tag = _analyze_form(form, ctx)
