@@ -1660,7 +1660,7 @@ def __kwargs_support_decorator(
 
 
 @_with_ast_loc_deps
-def __single_arity_fn_to_py_ast(
+def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext,
     node: Fn,
     method: FnArity,
