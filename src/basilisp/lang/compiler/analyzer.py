@@ -787,21 +787,11 @@ def _call_args_ast(
         return args, kwargs
 
 
-def _tag_ast(
-    form: Optional[sym.Symbol], ctx: AnalyzerContext
-) -> Union[HostField, Local, MaybeClass, MaybeHostForm, None, VarRef]:
+def _tag_ast(form: Optional[LispForm], ctx: AnalyzerContext) -> Optional[Node]:
     if form is None:
         return None
-    tag = _analyze_form(form, ctx)
-    # Restricting tag references to these limited node types is largely done to
-    # limit the Python AST generated for the tag type to a single expression node
-    # without any dependency nodes because some AST generator helpers cannot handle
-    # emitting dependency nodes.
-    if not isinstance(tag, (HostField, Local, MaybeClass, MaybeHostForm, VarRef)):
-        raise AnalyzerException(
-            "tags may only be references to a class, local, or Var", form=form
-        )
-    return tag
+    return _analyze_form(form, ctx)
+
 
 
 def _with_meta(gen_node):
