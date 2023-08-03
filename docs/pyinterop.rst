@@ -234,3 +234,8 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
 
    (let [^python/int i 64]
      (* i 2))
+
+.. note::
+
+   The reader applies ``:tag`` :ref:`metadata` automatically for symbols following the ``^`` symbol, but users may manually apply ``:tag`` metadata containing any valid expression.
+   Python permits any valid expression in a variable annotation, so Basilisp likewise allows any valid expression.
