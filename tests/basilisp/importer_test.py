@@ -104,7 +104,6 @@ class TestImporter:
             monkeypatch.syspath_prepend(tmpdir)
             monkeypatch.setattr("sys.modules", module_cache)
             yield tmpdir
-            monkeypatch.chdir(tmpdir)
             monkeypatch.chdir(cwd)
 
     @pytest.fixture

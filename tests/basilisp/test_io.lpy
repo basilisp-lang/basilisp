@@ -112,10 +112,9 @@
                                        *http-port*
                                        "/reader-http-req.txt"))))
         (finally
-          ;; A small wait is intentially added to accomodate for a
-          ;; potential delay in releasing the file by the HTTP server
-          ;; on MS-Windows.
-          (time/sleep 1)
+          ;; Give a chance to the server to release the
+          ;; file before removing it.
+          (time/sleep 0)
           (os/unlink filename))))))
 
 (deftest writer-test
@@ -231,10 +230,9 @@
                                        *http-port*
                                        "/input-streams-http-req.txt"))))
         (finally
-          ;; A small wait is intentially added to accomodate for a
-          ;; potential delay in releasing the file by the HTTP server
-          ;; on MS-Windows.
-          (time/sleep 1)
+          ;; Give a chance to the server to release the
+          ;; file before removing it.
+          (time/sleep 0)
           (os/unlink filename))))))
 
 (deftest output-stream-test
