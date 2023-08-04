@@ -1,10 +1,3 @@
-.PHONY: release
-release:
-	@rm -rf ./build
-	@rm -rf ./dist
-	@poetry publish --build
-
-
 .PHONY: docs
 docs:
 	@poetry run sphinx-build -M html "./docs" "./docs/_build"

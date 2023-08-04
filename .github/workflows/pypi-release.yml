@@ -1,0 +1,25 @@
+name: Release to PyPI
+
+on:
+  release:
+    types: [ published ]
+
+concurrency:
+  group: pypi-release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ vars.PYTHON_VERSION }}
+      - name: Install Poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Validate Release Version
+        run: poetry version -s | grep -E "$(echo "$GITHUB_REF_NAME" | tr -d 'v')"
+      - name: Publish to PyPI
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.POETRY_PYPI_TOKEN_PYPI }}
+        run: poetry publish --build --repository=pypi
