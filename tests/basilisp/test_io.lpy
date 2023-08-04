@@ -114,7 +114,7 @@
         (finally
           ;; Give a chance to the server to release the
           ;; file before removing it.
-          (time/sleep 0)
+          (time/sleep 1)
           (os/unlink filename))))))
 
 (deftest writer-test
@@ -232,7 +232,7 @@
         (finally
           ;; Give a chance to the server to release the
           ;; file before removing it.
-          (time/sleep 0)
+          (time/sleep 1)
           (os/unlink filename))))))
 
 (deftest output-stream-test

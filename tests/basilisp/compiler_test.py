@@ -5433,6 +5433,7 @@ class TestSymbolResolution:
                 """
                 )
             finally:
+                monkeypatch.chdir(cwd)
                 os.unlink(module_file_path)
 
     def test_aliased_var_does_not_resolve(
