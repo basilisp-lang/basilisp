@@ -6,6 +6,7 @@
   interacting with the filesystem."
   (:import
    io
+   os.path
    pathlib
    shutil
    urllib.parse
@@ -31,7 +32,13 @@
   urllib.parse/ParseResult
   (as-path [f]
     (if (contains? #{"file" ""} (.-scheme f))
-      (-> (.-path f) (pathlib/Path))
+      (let [path (.-path f)]
+        (if (= sys/platform "win32")
+          ;; On MS-Windows, extracting the path from the URL
+          ;; incorrectly adds a leading `/', .e.g. /C:\xyz.
+          (pathlib/Path (subs path 1))
+
+          (pathlib/Path path)))
       (throw
        (ex-info "Cannot coerce non-File URL to pathlib.Path"
                 {:file f})))))
@@ -121,6 +128,18 @@
 
     Callers should generally prefer :lpy:fn:`output-stream` to this function."))
 
+(defn- convert-to-path-or-url [f-str]
+  "Convert ``f-str`` to a python Path or URL object based on to
+  whether it represents an absolute path or not, respectively.
+
+  This fn is intended to be used with the input and output
+  writers. Converting MS-Windows absolutely paths (such as c:\\xyz and
+  \\\\share\\xyz) directly to URLs are likely to confuse the urllib
+  parser. As such, they are converted to Path objects instead."
+  (if (os.path/isabs f-str)
+    (pathlib/Path f-str)
+    (urllib.parse/urlparse f-str)))
+
 (extend-protocol IOFactory
   io/TextIOBase
   (make-reader [f opts]
@@ -191,22 +210,22 @@
   python/str
   (make-reader [f opts]
     (try
-      (make-reader (urllib.parse/urlparse f) opts)
+      (make-reader (convert-to-path-or-url f) opts)
       (catch python/ValueError _
         (make-reader (pathlib/Path f) opts))))
   (make-writer [f opts]
     (try
-      (make-writer (urllib.parse/urlparse f) opts)
+      (make-writer (convert-to-path-or-url f) opts)
       (catch python/ValueError _
         (make-writer (pathlib/Path f) opts))))
   (make-input-stream [f opts]
     (try
-      (make-input-stream (urllib.parse/urlparse f) opts)
+      (make-input-stream (convert-to-path-or-url f) opts)
       (catch python/ValueError _
         (make-input-stream (pathlib/Path f) opts))))
   (make-output-stream [f opts]
     (try
-      (make-output-stream (urllib.parse/urlparse f) opts)
+      (make-output-stream (convert-to-path-or-url f) opts)
       (catch python/ValueError _
         (make-output-stream (pathlib/Path f) opts))))
 

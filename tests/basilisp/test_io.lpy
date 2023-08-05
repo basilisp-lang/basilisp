@@ -7,6 +7,7 @@
    pathlib
    tempfile
    threading
+   time
    urllib.parse
    urllib.request)
   (:require
@@ -82,12 +83,12 @@
       (try
         (spit filename "hi there")
         (is (= "hi there" (slurp filename)))
-        (is (= "hi there" (slurp (str "file://" filename))))
+        (is (= "hi there" (slurp (str "file:///" filename))))
         (finally
           (os/close fd)
           (os/unlink filename)))))
 
-  (testing "local files"
+   (testing "local files"
     (let [path (bio/path *tempdir* "reader-test-local-files.txt")]
       (spit path "some content")
 
@@ -111,6 +112,9 @@
                                        *http-port*
                                        "/reader-http-req.txt"))))
         (finally
+          ;; Give a chance to the server to release the
+          ;; file before removing it.
+          (time/sleep 1)
           (os/unlink filename))))))
 
 (deftest writer-test
@@ -196,7 +200,7 @@
       (try
         (spit-bytes filename "hi there")
         (is (= (bytes "hi there") (slurp-bytes filename)))
-        (is (= (bytes "hi there") (slurp-bytes (str "file://" filename))))
+        (is (= (bytes "hi there") (slurp-bytes (str "file:///" filename))))
         (finally
           (os/close fd)
           (os/unlink filename)))))
@@ -226,6 +230,9 @@
                                        *http-port*
                                        "/input-streams-http-req.txt"))))
         (finally
+          ;; Give a chance to the server to release the
+          ;; file before removing it.
+          (time/sleep 1)
           (os/unlink filename))))))
 
 (deftest output-stream-test

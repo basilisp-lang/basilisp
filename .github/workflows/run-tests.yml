@@ -12,9 +12,10 @@ concurrency:
 
 jobs:
   run-tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{matrix.os}}
     strategy:
       matrix:
+        os: [ubuntu-latest]
         version: ['3.8', '3.9', '3.10', '3.11']
         include:
           - version: '3.8'
@@ -25,6 +26,12 @@ jobs:
             tox-env: py310,py310-mypy,py310-lint,safety
           - version: '3.11'
             tox-env: py311,py311-mypy,py311-lint,format,safety
+          - os: windows-latest
+            version: '3.11'
+            tox-env: py311,safety
+          - os: macos-latest
+            version: '3.11'
+            tox-env: py311,safety
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -41,8 +48,13 @@ jobs:
             ~/.local/share/pypoetry
           key: ${{ runner.os }}-python-${{ matrix.version }}-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
       - name: Install Poetry
-        if: steps.cache-deps.outputs.cache-hit != 'true'
+        if: steps.cache-deps.outputs.cache-hit != 'true' && ! startsWith (matrix.os, 'windows')
         run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Install Poetry (Windows)
+        if: steps.cache-deps.outputs.cache-hit != 'true' && startsWith (matrix.os, 'windows')
+        shell: pwsh
+        run: |
+          (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
       - name: Install Tox
         run: |
           pip install -U pip
@@ -57,6 +69,7 @@ jobs:
           mkdir coverage
           mv .coverage.* "coverage/.coverage.py${{ matrix.version }}"
       - name: Archive code coverage results
+        if: "startsWith (matrix.os, 'ubuntu')"
         uses: actions/upload-artifact@v3
         with:
           name: code-coverage

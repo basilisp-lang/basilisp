@@ -443,13 +443,14 @@
   (is (= #py ["A" "B" "C"] (.. "a,b,c" upper (split ",")))))
 
 (deftest with-test
-  (let [[_ filename] (tempfile/mkstemp)]
+  (let [[fh filename] (tempfile/mkstemp)]
     (try
       (with-open [file (python/open filename "w")]
         (.write file "Testing text"))
       (with-open [file (python/open filename)]
         (is (= "Testing text" (.read file))))
       (finally
+        (os/close fh)
         (os/unlink filename)))))
 
 (deftest if-let-test
