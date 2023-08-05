@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
  * Run CPython CI checks on Github Actions rather than CircleCI (#683)
  * Remove support for Python 3.6 and 3.7, which are both EOL (#691)
+ * Fix test suite failures on Windows and add Github Actions runners for testing on Windows (#688)
  * Update Prospector version for linting (#694)
 
 ## [v0.1.0a1]
