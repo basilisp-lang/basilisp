@@ -48,9 +48,13 @@ jobs:
             ~/.local/share/pypoetry
           key: ${{ runner.os }}-python-${{ matrix.version }}-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
       - name: Install Poetry
-        uses: abatilo/actions-poetry@v2
-        with:
-          poetry-version: 1.5.1
+        if: steps.cache-deps.outputs.cache-hit != 'true' && ! startsWith (matrix.os, 'windows')
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Install Poetry (Windows)
+        if: steps.cache-deps.outputs.cache-hit != 'true' && startsWith (matrix.os, 'windows')
+        shell: pwsh
+        run: |
+          (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
       - name: Install Tox
         run: |
           pip install -U pip
