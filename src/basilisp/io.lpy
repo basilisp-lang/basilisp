@@ -132,13 +132,13 @@
   "Convert ``f-str`` to a python Path or URL object based on to
   whether it represents an absolute path or not, respectively.
 
-This fn is intended to be used with the input and output
-writers. Converting MS-Windows absolutely paths (such as c:\\xyz and
-\\\\share\\xyz) directly to URLs are likely to confuse the urllib
-parser. As such, they are converted to Path objects instead."
+  This fn is intended to be used with the input and output
+  writers. Converting MS-Windows absolutely paths (such as c:\\xyz and
+  \\\\share\\xyz) directly to URLs are likely to confuse the urllib
+  parser. As such, they are converted to Path objects instead."
   (if (os.path/isabs f-str)
-          (pathlib/Path f-str)
-          (urllib.parse/urlparse f-str)))
+    (pathlib/Path f-str)
+    (urllib.parse/urlparse f-str)))
 
 (extend-protocol IOFactory
   io/TextIOBase
