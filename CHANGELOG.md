@@ -6,6 +6,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+ * Added CLI argument parser in `basilisp.cli-tools` namespace (#535)
+
+## [v0.1.0a2]
+### Added
+ * Added support for fixtures in `basilisp.test` (#654)
+ * Added support for Python 3.10 and 3.11 (#659, #693)
+ * Added a Sphinx autodoc plugin for generating API documentation for Basilisp namespaces (#658)
+ * Added support for rewriting required namespaces starting with `clojure.` as `basilisp.` if the original name isn't found on the import path (#670, #676)
+ * Added support for inlining simple functions (#673)
+ * Added the `clojure.core` functions from v1.11 (#672)
+
+### Changed
+ * Set tighter bounds on dependency version ranges (#657)
+ * Improved on and completed several different sections of the documentation (#661, #669)
+ * Delete unused utility functions after they are generated and executed by the REPL to save memory (#674)
+
+### Fixed
+ * Fixed the `with` macro definition to match the Python language spec (#656)
+ * Fixed a bug where `py->lisp` did not convert map keys or values into Basilisp objects (#679)
+
+### Other
+ * Run CPython CI checks on Github Actions rather than CircleCI (#683)
+ * Remove support for Python 3.6 and 3.7, which are both EOL (#691)
+ * Fix test suite failures on Windows and add Github Actions runners for testing on Windows (#688)
+ * Update Prospector version for linting (#694)
+
+## [v0.1.0a1]
+### Added
+ * Added a bootstrapping function for easily bootstrapping Basilisp projects from Python (#620)
+ * Added support for watchers and validator functions on Atoms and Vars (#627)
+ * Added support for Taps (#631)
+ * Added support for hierarchies (#633)
+ * Added support for several more utility Namespace and Var utility functions (#636)
+ * Added `basilisp.io` namespace with polymorphic reader and writer functions (#645)
+ * Added support for coroutines and generators using `yield` syntax (#652)
+
+### Changed
+ * PyTest is now an optional extra dependency, rather than a required dependency (#622)
+ * Generated Python functions corresponding to nested functions are now prefixed with the containing function name, if one exists (#632)
+ * `basilisp.test/are` docstring now indicates that line numbers may be suppressed on assertion failures created using `are` (#643)
+ * Multimethods now support providing a custom hierarchy and dispatch to registered values using `isa?` (#644)
+
+### Fixed
+ * Fixed a bug where `seq`ing co-recursive lazy sequences would cause a stack overflow (#632)
+ * Fixed a spurious failure in the test runner and switched to using macro forms for test line numbers (#631)
+ * Fixed a bug that allowed dynamic Vars to be `set!` even if they weren't thread-bound (#638)
+ * Fixed a bug where it was impossible to specify negative CLI options for the compiler flags (#638)
+ * Fixed a bug where it was impossible to use more than a single body expression in a `try` special form (#640)
+ * Fixed a bug where re-`def`ing a Var (regardless of `^:redef` metadata) would not update metadata or dynamic flag (#642)
+ * Fixed a bug where private Vars could be resolved from the source namespace of a public macro during macroexpansion (#648)
+ * Fixed a bug where trailing quotes were not allowed in Symbols and Keywords (#650)
+
+### Removed
+ * Removed Click as a dependency in favor of builtin `argparse` (#622, #624, #636)
+ * Removed Atomos as a dependency in favor of `readerwriterlock` (#624)
+
+## [v0.1.dev15]
+### Added
  * Added support for auto-resolving namespaces for keyword from the current namespace using the `::kw` syntax (#576)
  * Added support for namespaced map syntax (#577)
  * Added support for numeric constant literals for NaN, positive infinity, and negative infinity (#582)
@@ -17,7 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for writing EDN strings from `basilisp.edn` (#600)
  * Added a persistent queue data type (#606)
  * Added support for transducers (#601)
- * Added CLI argument parser in `basilisp.cli-tools` namespace (#535)
+ * Added support for Python 3.9 (#608)
+ * Added support for 3-way comparators (#609)
 
 ### Changed
  * Moved `basilisp.lang.runtime.to_seq` to `basilisp.lang.seq` so it can be used within that module and by `basilisp.lang.runtime` without circular import (#588)
@@ -36,6 +95,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
  * Removed `pyfunctional` dependency in favor of Python standard library functions (#589)
+
+### Other
+ * Basilisp uses `poetry` for dependency and virtual environment management, as well as for publishing to PyPI (#616)
 
 ## [v0.1.dev14] - 2020-06-18
 ### Added
@@ -298,6 +360,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.0a2]: https://github.com/chrisrink10/basilisp/compare/v0.1.0a1..v0.1.0a2
+[v0.1.0a1]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev15..v0.1.0a1
+[v0.1.dev15]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev14..v0.1.dev15
 [v0.1.dev14]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev13..v0.1.dev14
 [v0.1.dev13]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev12..v0.1.dev13
 [v0.1.dev12]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev11..v0.1.dev12

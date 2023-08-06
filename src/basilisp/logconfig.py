@@ -9,10 +9,11 @@ def get_level() -> str:
 
 def get_handler(level: str, fmt: str) -> logging.Handler:
     """Get the default logging handler for Basilisp."""
-    handler: logging.Handler = logging.NullHandler()
-    if os.getenv("BASILISP_USE_DEV_LOGGER") == "true":
-        handler = logging.StreamHandler()
-
+    handler = (
+        logging.StreamHandler()
+        if os.getenv("BASILISP_USE_DEV_LOGGER", "").lower() == "true"
+        else logging.NullHandler()
+    )
     handler.setFormatter(logging.Formatter(fmt))
     handler.setLevel(level)
     return handler

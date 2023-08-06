@@ -46,6 +46,7 @@ from basilisp.lang.interfaces import (
     IPersistentSet,
     IPersistentVector,
     IRecord,
+    ISeq,
     IType,
     IWithMeta,
 )
@@ -78,6 +79,8 @@ W = TypeVar("W", bound=LispReaderFn)
 
 READER_LINE_KW = kw.keyword("line", ns="basilisp.lang.reader")
 READER_COL_KW = kw.keyword("col", ns="basilisp.lang.reader")
+READER_END_LINE_KW = kw.keyword("end-line", ns="basilisp.lang.reader")
+READER_END_COL_KW = kw.keyword("end-col", ns="basilisp.lang.reader")
 
 READER_COND_FORM_KW = kw.keyword("form")
 READER_COND_SPLICING_KW = kw.keyword("splicing?")
@@ -167,7 +170,7 @@ class StreamReader:
             self._update_loc(c)
 
     @property
-    def name(self) -> Optional[None]:
+    def name(self) -> Optional[str]:
         return getattr(self._stream, "name", None)
 
     @property
@@ -226,14 +229,7 @@ class StreamReader:
 
 
 @functools.singledispatch
-def _py_from_lisp(
-    form: Union[
-        llist.PersistentList,
-        lmap.PersistentMap,
-        lset.PersistentSet,
-        vec.PersistentVector,
-    ]
-) -> ReaderForm:
+def _py_from_lisp(form: object) -> ReaderForm:
     raise SyntaxError(f"Unrecognized Python type: {type(form)}")
 
 
@@ -260,15 +256,15 @@ def _py_list_from_vec(form: vec.PersistentVector) -> list:
 def _inst_from_str(inst_str: str) -> datetime:
     try:
         return langutil.inst_from_str(inst_str)
-    except (ValueError, OverflowError):
-        raise SyntaxError(f"Unrecognized date/time syntax: {inst_str}")
+    except (ValueError, OverflowError) as e:
+        raise SyntaxError(f"Unrecognized date/time syntax: {inst_str}") from e
 
 
 def _uuid_from_str(uuid_str: str) -> uuid.UUID:
     try:
         return langutil.uuid_from_str(uuid_str)
-    except (ValueError, TypeError):
-        raise SyntaxError(f"Unrecognized UUID format: {uuid_str}")
+    except (ValueError, TypeError) as e:
+        raise SyntaxError(f"Unrecognized UUID format: {uuid_str}") from e
 
 
 class ReaderContext:
@@ -296,8 +292,8 @@ class ReaderContext:
     def __init__(  # pylint: disable=too-many-arguments
         self,
         reader: StreamReader,
-        resolver: Resolver = None,
-        data_readers: DataReaders = None,
+        resolver: Optional[Resolver] = None,
+        data_readers: Optional[DataReaders] = None,
         eof: Any = None,
         features: Optional[IPersistentSet[kw.Keyword]] = None,
         process_reader_cond: bool = True,
@@ -431,10 +427,10 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
                     )
                 found_features.add(k)
                 feature_list.append((k, v))
-        except ValueError:
+        except ValueError as e:
             raise SyntaxError(
                 "Reader conditionals must contain an even number of forms"
-            )
+            ) from e
 
         return vec.vector(feature_list)
 
@@ -479,9 +475,17 @@ def _with_loc(f: W) -> W:
     @functools.wraps(f)
     def with_lineno_and_col(ctx, **kwargs):
         line, col = ctx.reader.line, ctx.reader.col
-        v = f(ctx, **kwargs)  # type: ignore[call-arg]
+        v = f(ctx, **kwargs)
+        end_line, end_col = ctx.reader.line, ctx.reader.col
         if isinstance(v, IWithMeta):
-            new_meta = lmap.map({READER_LINE_KW: line, READER_COL_KW: col})
+            new_meta = lmap.map(
+                {
+                    READER_LINE_KW: line,
+                    READER_COL_KW: col,
+                    READER_END_LINE_KW: end_line,
+                    READER_END_COL_KW: end_col,
+                }
+            )
             old_meta = v.meta
             return v.with_meta(
                 old_meta.cons(new_meta) if old_meta is not None else new_meta
@@ -514,7 +518,7 @@ def _read_namespaced(
                 has_ns = True
                 ns = name
                 name = []
-        elif ns_name_chars.match(token):
+        elif ns_name_chars.match(token) or (name and token == "'"):
             reader.next_token()
             name.append(token)
         elif allowed_suffix is not None and token == allowed_suffix:
@@ -696,8 +700,8 @@ def _read_map(
             if k in d:
                 raise ctx.syntax_error(f"Duplicate key '{k}' in map literal")
             d[k] = v
-    except ValueError:
-        raise ctx.syntax_error("Unexpected token '}'; expected map value")
+    except ValueError as e:
+        raise ctx.syntax_error("Unexpected token '}'; expected map value") from e
     else:
         return lmap.map(d)
 
@@ -754,10 +758,10 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
                 try:
                     for _ in chars:
                         reader.pushback()
-                except IndexError:
+                except IndexError as e:
                     raise ctx.syntax_error(
                         "Requested to pushback too many characters onto StreamReader"
-                    )
+                    ) from e
                 return _read_sym(ctx)
             chars.append(token)
             continue
@@ -957,26 +961,39 @@ def _read_meta(ctx: ReaderContext) -> IMeta:
         )
 
 
-def _walk(inner_f, outer_f, form):
+@functools.singledispatch
+def _walk(form, _, outer_f):
     """Walk an arbitrary, possibly nested data structure, applying inner_f to each
     element of form and then applying outer_f to the resulting form."""
-    if isinstance(form, IPersistentList):
-        return outer_f(llist.list(map(inner_f, form)))
-    elif isinstance(form, IPersistentVector):
-        return outer_f(vec.vector(map(inner_f, form)))
-    elif isinstance(form, IPersistentMap):
-        return outer_f(lmap.hash_map(*chain.from_iterable(map(inner_f, form.seq()))))
-    elif isinstance(form, IPersistentSet):
-        return outer_f(lset.set(map(inner_f, form)))
-    else:
-        return outer_f(form)
+    return outer_f(form)
+
+
+@_walk.register(IPersistentList)
+@_walk.register(ISeq)
+def _walk_ipersistentlist(form: Union[IPersistentList, ISeq], inner_f, outer_f):
+    return outer_f(llist.list(map(inner_f, form)))
+
+
+@_walk.register(IPersistentVector)
+def _walk_ipersistentvector(form: IPersistentVector, inner_f, outer_f):
+    return outer_f(vec.vector(map(inner_f, form)))
+
+
+@_walk.register(IPersistentMap)
+def _walk_ipersistentmap(form: IPersistentMap, inner_f, outer_f):
+    return outer_f(lmap.hash_map(*chain.from_iterable(map(inner_f, form.seq() or ()))))
+
+
+@_walk.register(IPersistentSet)
+def _walk_ipersistentset(form: IPersistentSet, inner_f, outer_f):
+    return outer_f(lset.set(map(inner_f, form)))
 
 
 def _postwalk(f, form):
-    """ "Walk form using depth-first, post-order traversal, applying f to each form
+    """Walk form using depth-first, post-order traversal, applying f to each form
     and replacing form with its result."""
     inner_f = functools.partial(_postwalk, f)
-    return _walk(inner_f, f, form)
+    return _walk(form, inner_f, f)
 
 
 @_with_loc
@@ -1238,8 +1255,8 @@ def _read_regex(ctx: ReaderContext) -> Pattern:
     s = _read_str(ctx, allow_arbitrary_escapes=True)
     try:
         return langutil.regex_from_str(s)
-    except re.error:
-        raise ctx.syntax_error(f"Unrecognized regex pattern syntax: {s}")
+    except re.error as e:
+        raise ctx.syntax_error(f"Unrecognized regex pattern syntax: {s}") from e
 
 
 _NUMERIC_CONSTANTS = {
@@ -1488,10 +1505,32 @@ def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
         raise ctx.syntax_error(f"Unexpected token '{token}'")
 
 
+def syntax_quote(  # pylint: disable=too-many-arguments
+    form: RawReaderForm,
+    resolver: Optional[Resolver] = None,
+    data_readers: Optional[DataReaders] = None,
+    eof: Any = EOF,
+    features: Optional[IPersistentSet[kw.Keyword]] = None,
+    process_reader_cond: bool = True,
+):
+    """Return the syntax quoted version of a form."""
+    # the buffer is unused here, but is necessary to create a ReaderContext
+    with io.StringIO("") as buf:
+        ctx = ReaderContext(
+            StreamReader(buf),
+            resolver=resolver,
+            data_readers=data_readers,
+            eof=eof,
+            features=features,
+            process_reader_cond=process_reader_cond,
+        )
+        return _process_syntax_quoted_form(ctx, form)
+
+
 def read(  # pylint: disable=too-many-arguments
     stream,
-    resolver: Resolver = None,
-    data_readers: DataReaders = None,
+    resolver: Optional[Resolver] = None,
+    data_readers: Optional[DataReaders] = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
@@ -1544,8 +1583,8 @@ def read(  # pylint: disable=too-many-arguments
 
 def read_str(  # pylint: disable=too-many-arguments
     s: str,
-    resolver: Resolver = None,
-    data_readers: DataReaders = None,
+    resolver: Optional[Resolver] = None,
+    data_readers: Optional[DataReaders] = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
@@ -1569,8 +1608,8 @@ def read_str(  # pylint: disable=too-many-arguments
 
 def read_file(  # pylint: disable=too-many-arguments
     filename: str,
-    resolver: Resolver = None,
-    data_readers: DataReaders = None,
+    resolver: Optional[Resolver] = None,
+    data_readers: Optional[DataReaders] = None,
     eof: Any = EOF,
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
@@ -1580,7 +1619,7 @@ def read_file(  # pylint: disable=too-many-arguments
 
     Keyword arguments to this function have the same meanings as those of
     basilisp.lang.reader.read."""
-    with open(filename) as f:
+    with open(filename, encoding="utf-8") as f:
         yield from read(
             f,
             resolver=resolver,

@@ -1,0 +1,526 @@
+(ns basilisp.io
+  "Polymorphic IO functions.
+
+  Functions in this namespace can provide readers and writers for both text and binary
+  streams from a wide variety of different input types as well as utility functions for
+  interacting with the filesystem."
+  (:import
+   io
+   os.path
+   pathlib
+   shutil
+   urllib.parse
+   urllib.request)
+  (:require [basilisp.string :as str]))
+
+(defprotocol Coercions
+  (as-path [f]
+    "Coerce ``f`` to a ``pathlib.Path`` instance.
+
+    Callers should generally prefer :lpy:fn:`basilisp.io/path` to this function."))
+
+(extend-protocol Coercions
+  nil
+  (as-path [_] nil)
+
+  python/str
+  (as-path [f] (pathlib/Path f))
+
+  pathlib/Path
+  (as-path [f] f)
+
+  urllib.parse/ParseResult
+  (as-path [f]
+    (if (contains? #{"file" ""} (.-scheme f))
+      (let [path (.-path f)]
+        (if (= sys/platform "win32")
+          ;; On MS-Windows, extracting the path from the URL
+          ;; incorrectly adds a leading `/', .e.g. /C:\xyz.
+          (pathlib/Path (subs path 1))
+
+          (pathlib/Path path)))
+      (throw
+       (ex-info "Cannot coerce non-File URL to pathlib.Path"
+                {:file f})))))
+
+(defn path
+  "Coerce ``p`` to a ``pathlib.Path`` instance.
+
+  When multiple arguments are provided, treat the first as the parent path and
+  each subsequent argument as a child path, joining all paths together as one."
+  ([p] (as-path p))
+  ([parent child]
+   (.joinpath (as-path parent) (as-path child)))
+  ([parent child & others]
+   (reduce path (path parent child) others)))
+
+(defn delete-file
+  "Delete the file named by ``f``.
+
+  If ``silently`` is false or nil (default), attempting to delete a non-existent file
+  will raise a ``FileNotFoundError``. Otherwise, return the value of ``silently``."
+  ([f]
+   (.unlink (as-path f))
+   true)
+  ([f silently]
+   (.unlink (as-path f) ** :missing-ok (if silently true false))
+   silently))
+
+(defn- clean-reader-mode
+  [opts]
+  (let [mode (:mode opts "r")]
+    (when (some #(str/includes? mode %) #{"w" "a"})
+      (throw
+       (ex-info "Cannot open a reader in write mode"
+                {:mode mode})))
+
+    (cond->> mode
+      (not (str/includes? mode "r")) (str "r" mode)
+      true                           (assoc opts :mode))))
+
+(defn- clean-writer-mode
+  [opts]
+  (let [mode       (:mode opts "w")
+        clean-mode (cond
+                     (:append opts)                 (str "a" mode)
+                     (not (str/includes? mode "w")) (str "w" mode)
+                     :else                          mode)]
+
+    (when (str/includes? mode "r")
+      (throw
+       (ex-info "Cannot open a writer in read mode"
+                {:mode mode})))
+
+    (when (every? #(str/includes? mode %) ["w" "a"])
+      (throw
+       (ex-info "Writers may only be open in write or append mode"
+                {:mode mode})))
+
+    (assoc opts :mode clean-mode)))
+
+(defn- clean-binary-mode
+  [opts]
+  (let [mode (:mode opts "r")]
+    (cond-> opts
+      (not (str/includes? mode "b")) (assoc :mode (str mode "b")))))
+
+(defn- wrap-text-io
+  "Wrap another type of ``io`` class in a ``io.TextIOWrapper`` instance."
+  [f opts]
+  (->> (dissoc opts :mode)
+       (apply-kw io/TextIOWrapper f)))
+
+(defprotocol IOFactory
+  (make-reader [f opts]
+    "Coerce ``f`` to a text-based reader instance, subject to ``opts``.
+
+    Callers should generally prefer :lpy:fn:`reader` to this function.")
+  (make-writer [f opts]
+    "Coerce ``f`` to a text-based writer instance, subject to ``opts``.
+
+    Callers should generally prefer :lpy:fn:`writer` to this function.")
+  (make-input-stream [f opts]
+    "Coerce ``f`` to a binary input stream instance, subject to ``opts``.
+
+    Callers should generally prefer :lpy:fn:`input-stream` to this function.")
+  (make-output-stream [f opts]
+    "Coerce ``f`` to a binary output stream instance, subject to ``opts``.
+
+    Callers should generally prefer :lpy:fn:`output-stream` to this function."))
+
+(defn- convert-to-path-or-url [f-str]
+  "Convert ``f-str`` to a python Path or URL object based on to
+  whether it represents an absolute path or not, respectively.
+
+  This fn is intended to be used with the input and output
+  writers. Converting MS-Windows absolutely paths (such as c:\\xyz and
+  \\\\share\\xyz) directly to URLs are likely to confuse the urllib
+  parser. As such, they are converted to Path objects instead."
+  (if (os.path/isabs f-str)
+    (pathlib/Path f-str)
+    (urllib.parse/urlparse f-str)))
+
+(extend-protocol IOFactory
+  io/TextIOBase
+  (make-reader [f opts]
+    (if (.readable f)
+      f
+      (throw
+       (ex-info "Cannot coerce io.TextIOBase object to reader type"
+                {:file f :opts opts}))))
+  (make-writer [f opts]
+    (if (.writable f)
+      f
+      (throw
+       (ex-info "Cannot coerce io.TextIOBase object to writer type"
+                {:file f :opts opts}))))
+  (make-input-stream [f opts]
+    (throw
+     (ex-info "Cannot coerce io.TextIOBase object to input-stream type"
+              {:file f :opts opts})))
+  (make-output-stream [f opts]
+    (throw
+     (ex-info "Cannot coerce io.TextIOBase object to output-stream type"
+              {:file f :opts opts})))
+
+  io/RawIOBase
+  (make-reader [f opts]
+    (make-reader (make-input-stream f opts) opts))
+  (make-writer [f opts]
+    (make-writer (make-output-stream f opts) opts))
+  (make-input-stream [f opts]
+    (let [buf-size (:buffer-size opts io/DEFAULT-BUFFER-SIZE)]
+      (io/BufferedReader f ** :buffer-size buf-size)))
+  (make-output-stream [f opts]
+    (let [buf-size (:buffer-size opts io/DEFAULT-BUFFER-SIZE)]
+      (io/BufferedWriter f ** :buffer-size buf-size)))
+
+  io/BufferedIOBase
+  (make-reader [f opts]
+    (make-reader (wrap-text-io f opts) opts))
+  (make-writer [f opts]
+    (make-writer (wrap-text-io f opts) opts))
+  (make-input-stream [f opts]
+    (if (.readable f)
+      f
+      (throw
+       (ex-info "Cannot coerce io.BufferedIOBase object to input-stream type"
+                {:file f :opts opts}))))
+  (make-output-stream [f opts]
+    (if (.writable f)
+      f
+      (throw
+       (ex-info "Cannot coerce io.BufferedIOBase object to output-stream type"
+                {:file f :opts opts}))))
+
+  python/bytes
+  (make-reader [f opts]
+    (wrap-text-io (make-input-stream f opts) opts))
+  (make-writer [f opts]
+    (throw
+     (ex-info "Cannot coerce bytes object to writer type"
+              {:file f :opts opts})))
+  (make-input-stream [f _]
+    (io/BytesIO f))
+  (make-output-stream [f opts]
+    (throw
+     (ex-info "Cannot coerce bytes object to output-stream type"
+              {:file f :opts opts})))
+
+  python/str
+  (make-reader [f opts]
+    (try
+      (make-reader (convert-to-path-or-url f) opts)
+      (catch python/ValueError _
+        (make-reader (pathlib/Path f) opts))))
+  (make-writer [f opts]
+    (try
+      (make-writer (convert-to-path-or-url f) opts)
+      (catch python/ValueError _
+        (make-writer (pathlib/Path f) opts))))
+  (make-input-stream [f opts]
+    (try
+      (make-input-stream (convert-to-path-or-url f) opts)
+      (catch python/ValueError _
+        (make-input-stream (pathlib/Path f) opts))))
+  (make-output-stream [f opts]
+    (try
+      (make-output-stream (convert-to-path-or-url f) opts)
+      (catch python/ValueError _
+        (make-output-stream (pathlib/Path f) opts))))
+
+  pathlib/Path
+  (make-reader [f opts]
+    (assert (str/includes? (:mode opts) "r"))
+    (apply-kw python/open f opts))
+  (make-writer [f opts]
+    (assert (some #(str/includes? (:mode opts) %) ["w" "a"]))
+    (apply-kw python/open f opts))
+  (make-input-stream [f opts]
+    (assert (and (str/includes? (:mode opts) "r")
+                 (str/includes? (:mode opts) "b")))
+    (apply-kw python/open f opts))
+  (make-output-stream [f opts]
+    (assert (and (some #(str/includes? (:mode opts) %) ["w" "a"])
+                 (str/includes? (:mode opts) "b")))
+    (apply-kw python/open f opts))
+
+  urllib.parse/ParseResult
+  (make-reader [f opts]
+    (if (contains? #{"file" ""} (.-scheme f))
+      (-> (as-path f)
+          (make-reader opts))
+      (-> (urllib.parse/urlunparse f)
+          (urllib.request/Request)
+          (make-reader opts))))
+  (make-writer [f opts]
+    (if (contains? #{"file" ""} (.-scheme f))
+      (-> (as-path f)
+          (make-writer opts))
+      (throw
+       (ex-info "Cannot write to a non-File URL"
+                {:url f :opts opts}))))
+  (make-input-stream [f opts]
+    (if (contains? #{"file" ""} (.-scheme f))
+      (-> (as-path f)
+          (make-input-stream opts))
+      (-> (urllib.parse/urlunparse f)
+          (urllib.request/Request)
+          (make-input-stream opts))))
+  (make-output-stream [f opts]
+    (if (contains? #{"file" ""} (.-scheme f))
+      (-> (as-path f)
+          (make-output-stream opts))
+      (throw
+       (ex-info "Cannot write to a non-File URL"
+                {:url f :opts opts}))))
+
+  urllib.request/Request
+  (make-reader [f opts]
+    (-> (make-input-stream f opts)
+        (wrap-text-io opts)))
+  (make-writer [f opts]
+    (throw
+     (ex-info "Cannot write to a non-File URL"
+              {:url f :opts opts})))
+  (make-input-stream [f _]
+    (urllib.request/urlopen f))
+  (make-output-stream [f opts]
+    (throw
+     (ex-info "Cannot output to a non-File URL"
+              {:url f :opts opts}))))
+
+(defn reader
+  "Open a reader instance on the file or path ``f``.
+
+  The reader instances returned are always text-based, not binary. In general, the
+  readers should be compatible with Python's ``io.TextIOBase`` interface.
+
+  Callers should take care to open a reader instance using
+  :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed
+  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
+  ``io.StringIO``, opening a reader without assigning it to a name for the duration of
+  its use may trigger garbage collection of the reader which closes the underlying
+  buffer, discarding the contents and invalidating the buffer.
+
+  Default implementations are available for:
+
+  - ``io/TextIOBase`` (only if ``(.readable f)`` is ``true``)
+  - ``io/RawIOBase``
+  - ``io/BufferedIOBase``
+  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
+    local filesystem path via ``pathlib``)
+  - ``python/bytes``
+  - ``pathlib/Path``
+  - ``urllib.parse.ParseResult``
+  - ``urllib.request/Request``"
+  [f & opts]
+  (->> (apply hash-map opts)
+       (clean-reader-mode)
+       (make-reader f)))
+
+(defn writer
+  "Open a writer instance on the file or path ``f``.
+
+  The writer instances returned are always text-based, not binary. In general, the
+  writers should be compatible with Python's ``io.TextIOBase`` interface.
+
+  Callers should take care to open a writer instance using
+  :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed
+  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
+  ``io.StringIO``, opening a writer without assigning it to a name for the duration of
+  its use may trigger garbage collection of the writer which closes the underlying
+  buffer, discarding the contents and invalidating the buffer.
+
+  Default implementations are available for:
+
+  - ``io/TextIOBase`` (only if ``(.writable f)`` is ``true``)
+  - ``io/RawIOBase``
+  - ``io/BufferedIOBase``
+  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
+    local filesystem path via ``pathlib``)
+  - ``pathlib/Path``
+  - ``urllib.parse.ParseResult``"
+  [f & opts]
+  (->> (apply hash-map opts)
+       (clean-writer-mode)
+       (make-writer f)))
+
+(defn input-stream
+  "Open an input stream instance on the file or path ``f``.
+
+  The input stream instances returned are always binary, not text-based. In general,
+  the input streams should be compatible with Python's ``io.BufferedIOBase`` interface.
+
+  Callers should take care to open a reader instance using
+  :lpy:fn`basilisp.core/with-open` to ensure that any resources are properly closed
+  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
+  ``io.StringIO``, opening an input stream without assigning it to a name for the
+  duration of its use may trigger garbage collection of the input stream which closes
+  the underlying buffer, discarding the contents and invalidating the buffer.
+
+  Default implementations are available for:
+
+  - ``io/RawIOBase``
+  - ``io/BufferedIOBase``
+  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
+    local filesystem path via ``pathlib``)
+  - ``python/bytes``
+  - ``pathlib/Path``
+  - ``urllib.parse.ParseResult``
+  - ``urllib.request/Request``"
+  [f & opts]
+  (->> (apply hash-map opts)
+       (clean-reader-mode)
+       (clean-binary-mode)
+       (make-input-stream f)))
+
+(defn output-stream
+  "Open an output stream instance on the file or path ``f``.
+
+  The output stream instances returned are always binary, not text-based. In general,
+  the output streams should be compatible with Python's ``io.BufferedIOBase`` interface.
+
+  Callers should take care to open a writer instance using
+  :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed
+  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
+  ``io.StringIO``, opening an output stream without assigning it to a name for the
+  duration of its use may trigger garbage collection of the output stream which closes
+  the underlying buffer, discarding the contents and invalidating the buffer.
+
+  Default implementations are available for:
+
+  - ``io/RawIOBase``
+  - ``io/BufferedIOBase``
+  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
+    local filesystem path via ``pathlib``)
+  - ``pathlib/Path``
+  - ``urllib.parse.ParseResult``"
+  [f & opts]
+  (->> (apply hash-map opts)
+       (clean-writer-mode)
+       (clean-binary-mode)
+       (make-output-stream f)))
+
+(defmacro ^:private buf-size
+  "In Python 3.8+, a default buffer size value is supplied if 0 is given. In earlier
+  versions, the default value is supplied via keyword argument and providing 0 ends
+  up causing 0 length buffers to be used."
+  []
+  #?(:py38+ 0 :py37- 16384))
+
+(defmulti copy-file
+  "Multi-method implementation for copying files.
+
+  To register a new implementation, use :lpy:fn:`basilisp.core/defmethod` like so::
+
+    (defmethod copy-file [python/str python/str]
+      [input output opts]
+       ...)"
+  (fn [input output _] [(type input) (type output)]))
+
+(defmethod copy-file [io/TextIOBase io/TextIOBase]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  (shutil/copyfileobj input output ** :length buffer-size))
+
+(defmethod copy-file [pathlib/Path io/TextIOBase]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  (with-open [r (reader input)]
+    (shutil/copyfileobj r output ** :length buffer-size)))
+
+(defmethod copy-file [io/TextIOBase pathlib/Path]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  (with-open [w (writer output)]
+    (shutil/copyfileobj input w ** :length buffer-size)))
+
+(defmethod copy-file [python/str io/TextIOBase]
+  [input output opts]
+  (copy-file (io/StringIO input) output opts))
+
+(defmethod copy-file [python/bytes io/TextIOBase]
+  [input output opts]
+  (copy-file (io/BytesIO input) output opts))
+
+(defmethod copy-file [io/BufferedIOBase io/TextIOBase]
+  ;; Decode a binary buffer into a text buffer
+  [input output {:keys [buffer-size encoding] :or {buffer-size (buf-size)}}]
+  (with-open [r (reader input :encoding encoding)]
+    (shutil/copyfileobj r output ** :length buffer-size)))
+
+(defmethod copy-file [io/BufferedIOBase io/BufferedIOBase]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  (shutil/copyfileobj input output ** :length buffer-size))
+
+(defmethod copy-file [python/bytes io/BufferedIOBase]
+  [input output opts]
+  (copy-file (input-stream input) output opts))
+
+(defmethod copy-file [pathlib/Path io/BufferedIOBase]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  (with-open [r (input-stream input)]
+    (shutil/copyfileobj r output ** :length buffer-size)))
+
+(defmethod copy-file [io/BufferedIOBase pathlib/Path]
+  [input output {:keys [buffer-size] :or {buffer-size (buf-size)}}]
+  (with-open [w (output-stream output)]
+    (shutil/copyfileobj input w ** :length buffer-size)))
+
+(defmethod copy-file [pathlib/Path pathlib/Path]
+  [input output _]
+  (shutil/copyfile input output))
+
+(defmethod copy-file [python/str pathlib/Path]
+  [input output opts]
+  (copy-file (io/StringIO input) output opts))
+
+(defn copy
+  "Copy the contents of a file from ``input`` to ``output``. Metadata will not be copied.
+
+  ``input`` may be one of:
+
+  - ``io/TextIOBase``
+  - ``io/BufferedIOBase``
+  - ``pathlib/Path``
+  - ``python/bytes``
+  - ``python/str`` (assumed to be the contents to copy; not treated as a file path)
+
+  ``output`` may be one of:
+
+  - ``io/TextIOBase``
+  - ``io/BufferedIOBase``
+  - ``pathlib/Path``
+
+  Options include:
+
+    :keyword ``:encoding``: used only when converting from binary to text buffers
+    :keyword ``:buffer-size``: the buffer size of chunks when copying files manually
+
+  The default implementation where both arguments are ``pathlib/Path`` objects defer to
+  Python's ``shutil/copyfile`` which provides default fast-path platform-specific
+  implementations wherever available in Python 3.8+.
+
+  Additional implementations may be added by providing additional methods (via
+  :lpy:fn:`basilisp.core/defmethod`) for the multi-method :lpy:fn:`copy-file`.
+
+  All default implementations of :lpy:fn:`copy-file` do not close any streams save for
+  those which are opened by the implementations."
+  [input output & opts]
+  (copy-file input output (when opts (apply hash-map opts))))
+
+(defn make-parents
+  "Create the parent paths of ``f`` if they do not exist. Arguments will be passed to
+  ``path`` before creating the parent directories."
+  [f & others]
+  (let [p (apply path f others)]
+    (.mkdir (.-parent p) ** :parents true)
+    true))
+
+(defn exists?
+  "Return true if ``f`` exists. ``f`` may be any type supported by ``path``."
+  [f]
+  (.exists (as-path f)))
+
+(defn touch
+  "Create file ``f`` if it does not exist. ``f`` may be any type supported by ``path``."
+  [f]
+  (.touch (as-path f)))

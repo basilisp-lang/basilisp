@@ -73,6 +73,11 @@ class PersistentList(IPersistentList[T], ISeq[T], IWithMeta):
     def empty() -> "PersistentList":
         return EMPTY
 
+    def seq(self) -> Optional[ISeq[T]]:
+        if len(self._inner) == 0:
+            return None
+        return super().seq()
+
     def peek(self):
         return self.first
 
@@ -87,13 +92,9 @@ EMPTY: PersistentList = PersistentList(plist())
 
 def list(members, meta=None) -> PersistentList:  # pylint:disable=redefined-builtin
     """Creates a new list."""
-    return PersistentList(  # pylint: disable=abstract-class-instantiated
-        plist(iterable=members), meta=meta
-    )
+    return PersistentList(plist(iterable=members), meta=meta)
 
 
 def l(*members, meta=None) -> PersistentList:  # noqa
     """Creates a new list from members."""
-    return PersistentList(  # pylint: disable=abstract-class-instantiated
-        plist(iterable=members), meta=meta
-    )
+    return PersistentList(plist(iterable=members), meta=meta)

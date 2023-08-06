@@ -1,16 +1,21 @@
 (ns basilisp.template
+  "Macro templating utilities.
+
+  The utilities in this namespace may be used in macros to apply a single expression
+  to a sequence of inputs. For an example, see :lpy:fn:`basilisp.test/are`."
   (:require
    [basilisp.walk :refer [postwalk-replace]]))
 
 (defn apply-template
-  "Given a template expression `expr` and bindings (as `argv`), replace all instances
-  of elements from `argv` in `expr` with the corresponding elements from `values`.
+  "Given a template expression ``expr`` and bindings (as ``argv``), replace all
+  instances of elements from ``argv`` in ``expr`` with the corresponding elements
+  from ``values``.
 
-  For example:
+  For example::
 
     (apply-template '[x y] '(= x y) '[1 2])
 
-  produces
+  produces::
 
     (= 1 2)"
   [argv expr values]
@@ -20,17 +25,17 @@
     (postwalk-replace $ expr)))
 
 (defmacro do-template
-  "Given a template expression `expr` and bindings, produce a `do` expression with
-  the repeated templated expressions replacing names in `argv` with elements from
-  `args`.
+  "Given a template expression ``expr`` and bindings, produce a ``do`` expression with
+  the repeated templated expressions replacing names in ``argv`` with elements from
+  ``args``.
 
-  For example:
+  For example::
 
     (macroexpand '(do-template [x y] (= x y)
                     1 (dec 2)
                     2 (inc 1)))
 
-  produces
+  produces::
 
     (do
       (= 1 (dec 2))

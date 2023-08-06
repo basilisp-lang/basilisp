@@ -1,0 +1,371 @@
+(ns tests.basilisp.test-io
+  (:import
+   atexit
+   http.server
+   io
+   os
+   pathlib
+   tempfile
+   threading
+   time
+   urllib.parse
+   urllib.request)
+  (:require
+   [basilisp.io :as bio]
+   [basilisp.test :as test :refer [deftest is are testing]]
+   [basilisp.test.fixtures :as fixtures :refer [*tempdir*]]))
+
+(def ^:dynamic *http-port* nil)
+
+(defn ^:private http-server
+  "Test fixture which stands up a local HTTP server which can be used to for reader
+  and writer tests.
+
+  Serves files from `*tempdir*` provided by the corresponding fixture."
+  []
+  (let [workdir *tempdir*
+        handler (partial-kw http.server/SimpleHTTPRequestHandler :directory workdir)
+        srv     (http.server/HTTPServer #py ("" 0) handler)
+        cwd     (os/getcwd)]
+    (doto (threading/Thread
+           **
+           :target (fn []
+                     (.serve-forever srv))
+           :daemon true)
+      (.start))
+    (try
+      (binding [*http-port* (second (.-server-address srv))]
+        (yield))
+      (finally
+        (doto srv
+          (.shutdown)
+          (.server-close))))))
+
+(test/use-fixtures :each fixtures/tempdir http-server)
+
+(deftest path-test
+  (is (= (pathlib/Path "/Users/chris")
+         (bio/path "/Users/chris")))
+  (is (= (pathlib/Path "/Users/chris/Projects")
+         (bio/path "/Users/chris" "Projects")))
+  (is (= (pathlib/Path "/Users/chris/Projects/basilisp/src/basilisp")
+         (bio/path "/Users/chris" "Projects" "basilisp" "src" "basilisp"))))
+
+(deftest delete-test
+  (let [path (bio/path *tempdir* "delete-test.txt")]
+    (testing "not silently"
+      (spit path "loud delete")
+      (is (bio/exists? path))
+      (is (= true (bio/delete-file path)))
+      (is (not (bio/exists? path)))
+      (is (thrown? python/FileNotFoundError (bio/delete-file path))))
+
+    (testing "silent delete"
+      (spit path "quiet delete")
+      (is (bio/exists? path))
+      (is (= true (bio/delete-file path true)))
+      (is (not (bio/exists? path)))
+      (is (= :a (bio/delete-file path :a))))))
+
+;; The reader and writer tests below use `spit` and `slurp` because they are easier
+;; to work with directly but still exercise the full breadth of reader and writer
+;; functionality.
+
+(deftest reader-test
+  (testing "in-memory IO objects"
+    (are [res src] (= res (slurp src))
+      "hi there" (.encode "hi there" "utf-8")
+      "hi there" (io/BytesIO (.encode "hi there" "utf-8"))
+      "hi there" (io/StringIO "hi there")))
+
+  (testing "local filenames"
+    (let [[fd filename] (tempfile/mkstemp)]
+      (try
+        (spit filename "hi there")
+        (is (= "hi there" (slurp filename)))
+        (is (= "hi there" (slurp (str "file:///" filename))))
+        (finally
+          (os/close fd)
+          (os/unlink filename)))))
+
+   (testing "local files"
+    (let [path (bio/path *tempdir* "reader-test-local-files.txt")]
+      (spit path "some content")
+
+      (with-open [f (python/open path ** :mode "r")]
+        (is (= "some content" (slurp f))))
+
+      (testing "auto-encode binary file"
+        (with-open [f (python/open path ** :mode "rb")]
+          (is (= "some content" (slurp f)))))
+
+      (testing "cannot read write-only file"
+        (with-open [f (python/open path ** :mode "w")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (slurp f)))))))
+
+  (testing "http requests"
+    (let [filename (pathlib/Path *tempdir* "reader-http-req.txt")]
+      (spit filename "some text")
+      (try
+        (is (= "some text" (slurp (str "http://localhost:"
+                                       *http-port*
+                                       "/reader-http-req.txt"))))
+        (finally
+          ;; Give a chance to the server to release the
+          ;; file before removing it.
+          (time/sleep 1)
+          (os/unlink filename))))))
+
+(deftest writer-test
+  (testing "in-memory IO objects"
+    ;; In these tess, we assign the writer to a name so it is not immediately gc'ed
+    ;; io.IOBase.__del__ calls .close() on the underlying buffer and causes subsequent
+    ;; reads to fail.
+    (let [content "hi there"
+          dest    (io/BytesIO)
+          writer  (bio/writer dest)]
+      (.write writer content)
+      (= content (.read (bio/reader dest))))
+
+    (let [content "hi there"
+          dest    (io/StringIO)
+          writer  (bio/writer dest)]
+      (.write dest content)
+      (= content (slurp dest)))
+
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (spit (.encode "hi there" "utf-8") "more stuff!"))))
+
+  (testing "local files"
+    (let [path (bio/path *tempdir* "writer-test-local-files.txt")]
+      (spit path "some content")
+      (= "some content" (slurp path))
+
+      (bio/delete-file path)
+
+      (spit (str path) "some content")
+      (= "some content" (slurp path))
+
+      (testing "open file object"
+        (with-open [f (python/open path ** :mode "w")]
+          (spit f "open file content"))
+
+        (is (= "open file content" (slurp path))))
+
+      (testing "auto-encode binary file"
+        (with-open [f (python/open path ** :mode "wb")]
+          (spit f "auto-encoded content"))
+
+        (is (= "auto-encoded content" (slurp path))))
+
+      (testing "cannot write read-only file"
+        (with-open [f (python/open path ** :mode "r")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (spit f "some content")))))))
+
+  (testing "http requests"
+    (let [url (str "http://localhost:" *http-port* "/writer-http-req.txt")]
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit url "some fun text")))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit (urllib.request/Request url) "some fun text")))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit (urllib.parse/urlparse url) "some fun text"))))))
+
+(def ^:private bytes #(byte-string % "utf-8"))
+
+(defn- slurp-bytes
+  [f & opts]
+  (with-open [reader (apply basilisp.io/input-stream f opts)]
+    (.read reader)))
+
+(defn- spit-bytes
+  [f content & opts]
+  (with-open [writer (apply basilisp.io/output-stream f opts)]
+    (.write writer (bytes content))
+    nil))
+
+(deftest input-stream-test
+  (testing "in-memory IO objects"
+    (are [res src] (= (bytes res) (slurp-bytes src))
+      "hi there" (bytes "hi there")
+      "hi there" (io/BytesIO (bytes "hi there")))
+
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (slurp-bytes (io/StringIO "hi there")))))
+
+  (testing "local filenames"
+    (let [[fd filename] (tempfile/mkstemp)]
+      (try
+        (spit-bytes filename "hi there")
+        (is (= (bytes "hi there") (slurp-bytes filename)))
+        (is (= (bytes "hi there") (slurp-bytes (str "file:///" filename))))
+        (finally
+          (os/close fd)
+          (os/unlink filename)))))
+
+  (testing "local files"
+    (let [path (bio/path *tempdir* "input-stream-test-local-files.txt")]
+      (spit-bytes path "some content")
+
+      (with-open [f (python/open path ** :mode "rb")]
+        (is (= (bytes "some content") (slurp-bytes f))))
+
+      (testing "cannot decode input stream"
+        (with-open [f (python/open path ** :mode "r")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (slurp-bytes f)))))
+
+      (testing "cannot read write-only file"
+        (with-open [f (python/open path ** :mode "wb")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (slurp-bytes f)))))))
+
+  (testing "http requests"
+    (let [filename (pathlib/Path *tempdir* "input-streams-http-req.txt")]
+      (spit-bytes filename "some text")
+      (try
+        (is (= "some text" (slurp (str "http://localhost:"
+                                       *http-port*
+                                       "/input-streams-http-req.txt"))))
+        (finally
+          ;; Give a chance to the server to release the
+          ;; file before removing it.
+          (time/sleep 1)
+          (os/unlink filename))))))
+
+(deftest output-stream-test
+  (testing "in-memory IO objects"
+    (let [content (bytes "hi there")
+          dest    (io/BytesIO)]
+      (.write (bio/output-stream dest) content)
+      (= content (slurp-bytes dest)))
+
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (bio/output-stream (io/StringIO))))
+
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (spit (.encode "hi there" "utf-8") "more stuff!"))))
+
+  (testing "local files"
+    (let [path (bio/path *tempdir* "output-stream-test-local-files.txt")]
+      (spit-bytes path "some content")
+      (= (bytes "some content") (slurp-bytes path))
+
+      (bio/delete-file path)
+
+      (spit-bytes (str path) "some content")
+      (= (bytes "some content") (slurp-bytes path))
+
+      (testing "open file object"
+        (with-open [f (python/open path ** :mode "wb")]
+          (spit-bytes f "open file content"))
+
+        (is (= (bytes "open file content") (slurp-bytes path))))
+
+      (testing "cannot decode input stream"
+        (with-open [f (python/open path ** :mode "w")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (spit-bytes f "input stream bytes")))))
+
+      (testing "cannot write read-only file"
+        (with-open [f (python/open path ** :mode "rb")]
+          (is (thrown? basilisp.lang.exception/ExceptionInfo
+                       (spit-bytes f "some content")))))))
+
+  (testing "http requests"
+    (let [url (str "http://localhost:" *http-port* "/output-stream-http-req.txt")]
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit-bytes url "some fun text")))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit-bytes (urllib.request/Request url) "some fun text")))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo
+                   (spit-bytes (urllib.parse/urlparse url) "some fun text"))))))
+
+(deftest copy-test
+  (let [srcp  (bio/path *tempdir* "copy-src-test.txt")
+        destp (bio/path *tempdir* "copy-dest-test.txt")]
+    (testing "text buffer to file path"
+      (let [src (io/StringIO "text")]
+        (bio/copy src destp)
+        (is (= (.getvalue src) (slurp destp)))
+        (bio/delete-file destp)))
+
+    (testing "file path to text buffer"
+      (let [contents "text"
+            dest     (io/StringIO)]
+        (spit srcp contents)
+        (bio/copy srcp dest)
+        (is (= contents (.getvalue dest)))
+        (bio/delete-file srcp)))
+
+    (testing "binary buffer to file path"
+      (let [src (io/BytesIO (bytes "text"))]
+        (bio/copy src destp)
+        (is (= (.getvalue src) (slurp-bytes destp)))
+        (bio/delete-file destp)))
+
+    (testing "file path to binary buffer"
+      (let [contents "text"
+            dest     (io/BytesIO)]
+        (spit-bytes srcp contents)
+        (bio/copy srcp dest)
+        (is (= (bytes contents) (.getvalue dest)))
+        (bio/delete-file srcp)))
+
+    (testing "path to path"
+      (spit srcp "source text")
+      (bio/copy srcp destp)
+      (is (= "source text" (slurp destp)))
+      (bio/delete-file srcp)
+      (bio/delete-file destp))
+
+    (testing "string to path"
+      (bio/copy "source string text" destp)
+      (is (= "source string text" (slurp destp)))
+      (bio/delete-file destp)))
+
+  (testing "text buffer to text buffer"
+    (let [src  (io/StringIO "text")
+          dest (io/StringIO)]
+      (bio/copy src dest)
+      (is (= (.getvalue src) (.getvalue dest)))))
+
+  (testing "string to text buffer"
+    (let [src  "text"
+          dest (io/StringIO)]
+      (bio/copy src dest)
+      (is (= src (.getvalue dest)))))
+
+  (testing "bytes to text buffer"
+    (let [src  (bytes "text")
+          dest (io/StringIO)]
+      (bio/copy src dest)
+      (is (= (.decode src "utf-8") (.getvalue dest)))))
+
+  (testing "binary buffer to text buffer; auto-decode"
+    (let [src  (io/BytesIO (bytes "text"))
+          dest (io/StringIO)]
+      (bio/copy src dest :encoding "utf-8")
+      (is (= "text" (.getvalue dest)))))
+
+  (testing "binary buffer to binary buffer"
+    (let [src  (io/BytesIO (bytes "not text"))
+          dest (io/BytesIO)]
+      (bio/copy src dest)
+      (is (= (.getvalue src) (.getvalue dest)))))
+
+  (testing "bytes to binary buffer"
+    (let [src  (bytes "not text")
+          dest (io/BytesIO)]
+      (bio/copy src dest)
+      (is (= src (.getvalue dest))))))
+
+(deftest touch-test
+  (let [path (bio/path *tempdir* "touch-test.txt")]
+    (is (not (bio/exists? path)))
+    (bio/touch path)
+    (is (bio/exists? path))
+    ;; second call should not error
+    (bio/touch path)))

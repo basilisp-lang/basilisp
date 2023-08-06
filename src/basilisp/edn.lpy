@@ -1,4 +1,12 @@
 (ns basilisp.edn
+  "EDN Encoder and Decoders
+
+  This namespace includes functions for performing basic EDN encoding from and decoding
+  to Basilisp builtin data structures. These decoding functions should be preferred to
+  :lpy:fn:`basilisp.core/read-string` when reading from untrusted input sources. Unlike
+  :lpy:fn:`basilisp.core/pr-str`, the EDN encoding functions only emit the subset of
+  Basilisp syntax supported by the EDN spec, so they are generally preferred to that
+  method."
   (:refer-basilisp :exclude [read read-string])
   (:require [basilisp.string :as str])
   (:import datetime math uuid))
@@ -128,7 +136,8 @@
                          :error :unexpected-char}))
               (recur name [] true))))
 
-        (re-matches ns-name-chars c)
+        (or (re-matches ns-name-chars c)
+            (and (seq name) (= c "'")))
         (do
           (.next-token reader)
           (recur ns (conj name c) has-ns))
@@ -532,9 +541,9 @@
 
 (defprotocol EDNEncodeable
   (write* [this writer]
-    "Write the object `this` to the stream `writer` encoded as EDN.
+    "Write the object ``this`` to the stream ``writer`` encoded as EDN.
 
-     Writer will be a file-like object supporting a `.write()` method."))
+     Writer will be a file-like object supporting a ``.write()`` method."))
 
 ;; Rather than relying on the existing Lisp representations, we use custom
 ;; implementations to avoid picking up any of the dynamic Vars which affect
@@ -635,17 +644,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;
 
 (defn read
-  "Read the next object from the input stream. If no stream is given, `*in*`
-  is used.
+  "Read the next object from the input stream. If no stream is given,
+  :lpy:var:`basilisp.core/*in*` is used.
 
-  Several options may be specified in the map argument `opts`:
+  Several options may be specified in the map argument ``opts``:
 
-   :eof     - value to return when an EOF is encountered
-   :readers - a map of tagged data readers to be used for reading data tagged
-              elements; if none is supplied, the `default-data-readers` will
-              be used (without support for the Basilisp `#py` tag)
-   :default - a function of two arguments that will be called with the tag and
-              data element if a tag is not found in `:readers`; default nil"
+   :keyword ``:eof``: value to return when an EOF is encountered
+   :keyword ``:readers``: a map of tagged data readers to be used for reading data
+       tagged elements; if none is supplied, the `default-data-readers` will be used
+       (without support for the Basilisp ``#py`` tag)
+   :keyword ``:default``: a function of two arguments that will be called with the tag
+       and data element if a tag is not found in ``:readers``; default ``nil``"
   ([]
    (read *in*))
   ([stream]
@@ -657,8 +666,8 @@
          (read-edn opts)))))
 
 (defn read-string
-  "Read the next object from the input string. If nil or the empty string,
-  returns nil."
+  "Read the next object from the input string. If ``nil`` or the empty string,
+  returns ``nil``."
   ([s]
    (read-string s {}))
   ([s opts]
@@ -667,23 +676,25 @@
          (read opts)))))
 
 (defn write
-  "Serialize the object `o` as EDN to the writer object `writer` (which must be
-  any file-like object supporting `.write()` method).
+  "Serialize the object ``o`` as EDN to the writer object ``writer`` (which must be
+  any file-like object supporting ``.write()`` method).
 
   All Basilisp data structures are serializable to EDN by default. UUIDs and
-  Instants (Python `datetime`s) are also supported by default. Support for other
-  types may be added by extending the `EDNEncodeable` protocol for that type."
+  Instants (Python ``datetime`` s) are also supported by default. Support for other
+  types may be added by extending the :lpy:proto:`EDNEncodeable` protocol for that
+  type."
   ([o]
    (write o *out*))
   ([o writer]
    (write* o writer)))
 
 (defn write-string
-  "Serialize the object `o` as EDN and return the serialized object as a string.
+  "Serialize the object ``o`` as EDN and return the serialized object as a string.
 
   All Basilisp data structures are serializable to EDN by default. UUIDs and
-  Instants (Python `datetime`s) are also supported by default. Support for other
-  types may be added by extending the `EDNEncodeable` protocol for that type."
+  Instants (Python ``datetime`` s) are also supported by default. Support for other
+  types may be added by extending the :lpy:proto:`EDNEncodeable` protocol for that
+  type."
   [o]
   (let [buf (io/StringIO "")]
     (write o buf)

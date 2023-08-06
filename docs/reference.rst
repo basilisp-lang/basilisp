@@ -5,10 +5,13 @@ Reference
    :maxdepth: 2
    :caption: Contents:
 
-   reader
-   repl
-   specialforms
-   compiler
-   pyinterop
-   typesandrecords
+   api
    cli
+   repl
+   reader
+   specialforms
+   pyinterop
+   runtime
+   concepts
+   testing
+   compiler

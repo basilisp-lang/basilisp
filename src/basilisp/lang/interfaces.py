@@ -2,8 +2,10 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import (
     AbstractSet,
+    Any,
     Callable,
     Generic,
+    Hashable,
     Iterable,
     Iterator,
     Mapping,
@@ -30,7 +32,6 @@ class IDeref(Generic[T], ABC):
 class IBlockingDeref(IDeref[T]):
     __slots__ = ()
 
-    # pylint: disable=arguments-differ
     @abstractmethod
     def deref(
         self, timeout: Optional[float] = None, timeout_val: Optional[T] = None
@@ -56,16 +57,15 @@ class IIndexed(ICounted, ABC):
     __slots__ = ()
 
 
-# Making this interface Generic causes the __repr__ to differ between
-# Python 3.6 and 3.7, which affects a few simple test assertions.
-# Since there is little benefit to this type being Generic, I'm leaving
-# it as is for now.
-class IExceptionInfo(Exception, ABC):
+T_ExceptionInfo = TypeVar("T_ExceptionInfo", bound="IPersistentMap")
+
+
+class IExceptionInfo(Exception, Generic[T_ExceptionInfo], ABC):
     __slots__ = ()
 
     @property
     @abstractmethod
-    def data(self) -> "IPersistentMap":
+    def data(self) -> T_ExceptionInfo:
         raise NotImplementedError()
 
 
@@ -114,11 +114,40 @@ class IReference(IMeta):
     __slots__ = ()
 
     @abstractmethod
-    def alter_meta(self, f: Callable[..., "IPersistentMap"], *args) -> "IPersistentMap":
+    def alter_meta(
+        self, f: Callable[..., Optional["IPersistentMap"]], *args
+    ) -> Optional["IPersistentMap"]:
         raise NotImplementedError()
 
     @abstractmethod
-    def reset_meta(self, meta: "IPersistentMap") -> "IPersistentMap":
+    def reset_meta(
+        self, meta: Optional["IPersistentMap"]
+    ) -> Optional["IPersistentMap"]:
+        raise NotImplementedError()
+
+
+RefValidator = Callable[[Any], Any]
+RefWatchKey = Hashable
+RefWatcher = Callable[[RefWatchKey, "IRef", Any, Any], None]
+
+
+class IRef(IDeref[T]):
+    __slots__ = ()
+
+    @abstractmethod
+    def add_watch(self, k: RefWatchKey, wf: RefWatcher) -> "IReference":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def remove_watch(self, k: RefWatchKey) -> "IReference":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_validator(self) -> Optional[RefValidator]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_validator(self, vf: Optional[RefValidator] = None) -> None:
         raise NotImplementedError()
 
 
@@ -145,7 +174,7 @@ class ISeqable(Iterable[T]):
     __slots__ = ()
 
     @abstractmethod
-    def seq(self) -> "ISeq[T]":
+    def seq(self) -> "Optional[ISeq[T]]":
         raise NotImplementedError()
 
 
@@ -166,14 +195,14 @@ class ILookup(Generic[K, V], ABC):
         raise NotImplementedError()
 
 
-T_pcoll = TypeVar("T_pcoll", bound="IPersistentCollection", covariant=True)
+T_pcoll_co = TypeVar("T_pcoll_co", bound="IPersistentCollection", covariant=True)
 
 
 class IPersistentCollection(ISeqable[T]):
     __slots__ = ()
 
     @abstractmethod
-    def cons(self: T_pcoll, *elems: T) -> "T_pcoll":
+    def cons(self: T_pcoll_co, *elems: T) -> "T_pcoll_co":
         raise NotImplementedError()
 
     @staticmethod
@@ -227,7 +256,7 @@ class IPersistentMap(ICounted, Mapping[K, V], IAssociative[K, V]):
     __slots__ = ()
 
     @abstractmethod
-    def cons(  # type: ignore[override]
+    def cons(
         self: T_map, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]", None]
     ) -> T_map:
         raise NotImplementedError()
@@ -262,7 +291,7 @@ class IPersistentVector(
     __slots__ = ()
 
     @abstractmethod
-    def assoc(self: T_vec, *kvs) -> T_vec:  # type: ignore[override]
+    def assoc(self: T_vec, *kvs) -> T_vec:
         raise NotImplementedError()
 
     @abstractmethod
@@ -270,16 +299,17 @@ class IPersistentVector(
         raise NotImplementedError()
 
     @abstractmethod
-    def seq(self) -> "ISeq[T]":  # type: ignore[override]
+    def seq(self) -> "Optional[ISeq[T]]":  # type: ignore[override]
         raise NotImplementedError()
 
 
-T_tcoll = TypeVar("T_tcoll", bound="ITransientCollection", covariant=True)
+T_tcoll_co = TypeVar("T_tcoll_co", bound="ITransientCollection", covariant=True)
+
 
 # Including ABC as a base seems to cause catastrophic meltdown.
-class IEvolveableCollection(Generic[T_tcoll]):
+class IEvolveableCollection(Generic[T_tcoll_co]):
     @abstractmethod
-    def to_transient(self) -> T_tcoll:
+    def to_transient(self) -> T_tcoll_co:
         raise NotImplementedError()
 
 
@@ -287,11 +317,11 @@ class ITransientCollection(Generic[T]):
     __slots__ = ()
 
     @abstractmethod
-    def cons_transient(self: T_tcoll, *elems: T) -> "T_tcoll":
+    def cons_transient(self: T_tcoll_co, *elems: T) -> "T_tcoll_co":
         raise NotImplementedError()
 
     @abstractmethod
-    def to_persistent(self: T_tcoll) -> "IPersistentCollection[T]":
+    def to_persistent(self: T_tcoll_co) -> "IPersistentCollection[T]":
         raise NotImplementedError()
 
 
@@ -321,7 +351,7 @@ class ITransientMap(ICounted, ITransientAssociative[K, V]):
     __slots__ = ()
 
     @abstractmethod
-    def cons_transient(  # type: ignore[override]
+    def cons_transient(
         self: T_tmap, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]", None]
     ) -> T_tmap:
         raise NotImplementedError()
@@ -352,7 +382,7 @@ class ITransientVector(
     __slots__ = ()
 
     @abstractmethod
-    def assoc_transient(self: T_tvec, *kvs) -> T_tvec:  # type: ignore[override]
+    def assoc_transient(self: T_tvec, *kvs) -> T_tvec:
         raise NotImplementedError()
 
     @abstractmethod
@@ -454,7 +484,7 @@ class ISeq(ILispObject, ISeqable[T]):
     def cons(self, elem: T) -> "ISeq[T]":
         raise NotImplementedError()
 
-    def seq(self) -> "ISeq[T]":
+    def seq(self) -> "Optional[ISeq[T]]":
         return self
 
     def _lrepr(self, **kwargs):

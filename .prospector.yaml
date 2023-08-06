@@ -1,5 +1,6 @@
 output-format: text
 
+autodetect: false
 strictness: medium
 test-warnings: true
 doc-warnings: false
@@ -40,5 +41,6 @@ pylint:
     - no-else-raise
     - no-else-return
     - protected-access
+    - unnecessary-lambda-assignment
     - unsubscriptable-object
     - useless-import-alias

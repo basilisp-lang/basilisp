@@ -93,7 +93,7 @@ from basilisp.lang.compiler.nodes import Quote, ReaderLispForm, Recur, Reify, Re
 from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
-from basilisp.lang.compiler.nodes import WithMeta
+from basilisp.lang.compiler.nodes import WithMeta, Yield
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
 from basilisp.lang.runtime import CORE_NS
 from basilisp.lang.runtime import NS_VAR_NAME as LISP_NS_VAR
@@ -140,7 +140,6 @@ class SymbolTableEntry:
     symbol: sym.Symbol
 
 
-# pylint: disable=unsupported-membership-test,unsupported-delete-operation,unsupported-assignment-operation
 @attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
     name: str
@@ -168,6 +167,12 @@ class SymbolTable:
     def new_frame(self, name: str, is_context_boundary: bool):
         """Context manager for creating a new stack frame."""
         yield SymbolTable(name, is_context_boundary=is_context_boundary, parent=self)
+
+    @property
+    def is_top(self) -> bool:
+        """Return true if this is the top-level symbol table (e.g. there is no
+        parent)."""
+        return self._parent is None
 
     @property
     def context_boundary(self) -> "SymbolTable":
@@ -340,7 +345,10 @@ def _chain_py_ast(
     return deps, nodes
 
 
-def _load_attr(name: str, ctx: ast.AST = ast.Load()) -> ast.Attribute:
+PyASTCtx = Union[ast.Load, ast.Store]
+
+
+def _load_attr(name: str, ctx: PyASTCtx = ast.Load()) -> ast.Attribute:
     """Generate recursive Python Attribute AST nodes for resolving nested
     names."""
     attrs = name.split(".")
@@ -373,23 +381,6 @@ def _collection_ast(
     return _chain_py_ast(*map(partial(gen_py_ast, ctx), form))
 
 
-# `attrs` throws an a ValueError for certain small class definitions, so
-# we want to avoid that.
-#
-# https://github.com/python-attrs/attrs/issues/589
-_ATTR_SLOTS_ON = getattr(attr, "__version_info__", (0,)) >= (19, 4)
-
-_ATTR_CMP_OFF = getattr(attr, "__version_info__", (0,)) >= (19, 2)
-_ATTR_CMP_KWARGS = (
-    [
-        ast.keyword(arg="eq", value=ast.Constant(False)),
-        ast.keyword(arg="order", value=ast.Constant(False)),
-    ]
-    if _ATTR_CMP_OFF
-    else [ast.keyword(arg="cmp", value=ast.Constant(False))]
-)
-
-
 def _class_ast(  # pylint: disable=too-many-arguments
     class_name: str,
     body: List[ast.AST],
@@ -399,7 +390,7 @@ def _class_ast(  # pylint: disable=too-many-arguments
     verified_abstract: bool = False,
     artificially_abstract_bases: Iterable[ast.AST] = (),
     is_frozen: bool = True,
-    use_slots: bool = _ATTR_SLOTS_ON,
+    use_slots: bool = True,
 ) -> ast.ClassDef:
     """Return a Python class definition for `deftype` and `reify` special forms."""
     return ast.ClassDef(
@@ -445,9 +436,10 @@ def _class_ast(  # pylint: disable=too-many-arguments
                     ast.Call(
                         func=_ATTR_CLASS_DECORATOR_NAME,
                         args=[],
-                        keywords=_ATTR_CMP_KWARGS
-                        + [
+                        keywords=[
+                            ast.keyword(arg="eq", value=ast.Constant(False)),
                             ast.keyword(arg="frozen", value=ast.Constant(is_frozen)),
+                            ast.keyword(arg="order", value=ast.Constant(False)),
                             ast.keyword(arg="slots", value=ast.Constant(use_slots)),
                         ],
                     ),
@@ -479,7 +471,12 @@ def _kwargs_ast(
 def _clean_meta(form: IMeta) -> LispForm:
     """Remove reader metadata from the form's meta map."""
     assert form.meta is not None, "Form must have non-null 'meta' attribute"
-    meta = form.meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
+    meta = form.meta.dissoc(
+        reader.READER_LINE_KW,
+        reader.READER_COL_KW,
+        reader.READER_END_LINE_KW,
+        reader.READER_END_COL_KW,
+    )
     if len(meta) == 0:
         return None
     return cast(lmap.PersistentMap, meta)
@@ -490,19 +487,21 @@ def _ast_with_loc(
 ) -> GeneratedPyAST:
     """Hydrate Generated Python AST nodes with line numbers and column offsets
     if they exist in the node environment."""
-    if env.line is not None:
+    if env.line is not None and env.end_line is not None:
         py_ast.node.lineno = env.line
-
+        py_ast.node.end_lineno = env.end_line
         if include_dependencies:
             for dep in py_ast.dependencies:
                 dep.lineno = env.line
+                dep.end_lineno = env.end_line
 
-    if env.col is not None:
-        py_ast.node.col_offset = env.col
-
+    if env.col is not None and env.end_col is not None:
+        py_ast.node.col_offset = env.col - 1
+        py_ast.node.end_col_offset = env.end_col - 1
         if include_dependencies:
             for dep in py_ast.dependencies:
-                dep.col_offset = env.col
+                dep.col_offset = env.col - 1
+                dep.end_col_offset = env.end_col - 1
 
     return py_ast
 
@@ -631,6 +630,7 @@ _MODULE_ALIASES = {
 
 _NS_VAR_VALUE = f"{_NS_VAR}.value"
 
+_NS_VAR_VALUE_SETTER_FN_NAME = _load_attr(f"{_NS_VAR}.set_value")
 _NS_VAR_NAME = _load_attr(f"{_NS_VAR_VALUE}.name")
 _NEW_DECIMAL_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.decimal_from_str")
 _NEW_FRACTION_FN_NAME = _load_attr(f"{_UTIL_ALIAS}.fraction")
@@ -700,8 +700,6 @@ def statementize(e: ast.AST) -> ast.AST:
             ast.With,
             ast.FunctionDef,
             ast.Return,
-            ast.Yield,
-            ast.YieldFrom,
             ast.Global,
             ast.ClassDef,
             ast.AsyncFunctionDef,
@@ -786,9 +784,7 @@ def __should_warn_on_redef(
 
 
 @_with_ast_loc
-def _def_to_py_ast(  # pylint: disable=too-many-branches
-    ctx: GeneratorContext, node: Def
-) -> GeneratedPyAST:
+def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
     """Return a Python AST Node for a `def` expression."""
     assert node.op == NodeOp.DEF
 
@@ -984,7 +980,7 @@ def __deftype_property_to_py_ast(
             )
 
 
-def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments,too-many-locals
+def __multi_arity_deftype_dispatch_method(
     name: str,
     arity_map: Mapping[int, str],
     default_name: Optional[str] = None,
@@ -1142,7 +1138,7 @@ def __multi_arity_deftype_dispatch_method(  # pylint: disable=too-many-arguments
 
 
 @_with_ast_loc_deps
-def __multi_arity_deftype_method_to_py_ast(  # pylint: disable=too-many-arguments,too-many-locals
+def __multi_arity_deftype_method_to_py_ast(
     ctx: GeneratorContext,
     node: DefTypeMethod,
 ) -> GeneratedPyAST:
@@ -1340,9 +1336,7 @@ def __deftype_or_reify_bases_to_py_ast(
 
 
 @_with_ast_loc
-def _deftype_to_py_ast(  # pylint: disable=too-many-branches,too-many-locals
-    ctx: GeneratorContext, node: DefType
-) -> GeneratedPyAST:
+def _deftype_to_py_ast(ctx: GeneratorContext, node: DefType) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` expression."""
     assert node.op == NodeOp.DEFTYPE
     type_name = munge(node.name)
@@ -1444,10 +1438,10 @@ def _wrap_override_var_indirection(f: PyASTGenerator) -> PyASTGenerator:
     ) -> GeneratedPyAST:
         if isinstance(node, Do) and node.top_level:
             with ctx.with_var_indirection_override():
-                return f(ctx, node, *args, **kwargs)  # type: ignore[call-arg]
+                return f(ctx, node, *args, **kwargs)
         else:
             with ctx.with_var_indirection_override(False):
-                return f(ctx, node, *args, **kwargs)  # type: ignore[call-arg]
+                return f(ctx, node, *args, **kwargs)
 
     return _wrapped_do
 
@@ -1494,10 +1488,18 @@ def _synthetic_do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
 MetaNode = Union[Const, MapNode]
 
 
-def __fn_name(s: Optional[str]) -> str:
+def __fn_name(ctx: GeneratorContext, s: Optional[str]) -> str:
     """Generate a safe Python function name from a function name symbol.
-    If no symbol is provided, generate a name with a default prefix."""
-    return genname("__" + munge(Maybe(s).or_else_get(_FN_PREFIX)))
+
+    If no symbol is provided, generate a name with a default prefix.
+
+    Prepends the name of the parent symbol table (if one exists) to help with debugging
+    and readability of stack traces."""
+    ctx_boundary = ctx.symbol_table.context_boundary
+    ctx_boundary_prefix = "" if ctx_boundary.is_top else f"{ctx_boundary.name}__"
+    return genname(
+        munge("".join(("__", ctx_boundary_prefix, Maybe(s).or_else_get(_FN_PREFIX))))
+    )
 
 
 def __fn_args_to_py_ast(
@@ -1507,7 +1509,7 @@ def __fn_args_to_py_ast(
     fn_args, varg = [], None
     fn_body_ast: List[ast.AST] = []
     for binding in params:
-        assert binding.init is None, ":fn nodes cannot have bindint :inits"
+        assert binding.init is None, ":fn nodes cannot have binding :inits"
         assert varg is None, "Must have at most one variadic arg"
         arg_name = genname(munge(binding.name))
 
@@ -1619,7 +1621,7 @@ def __single_arity_fn_to_py_ast(
     assert method.op == NodeOp.FN_ARITY
 
     lisp_fn_name = node.local.name if node.local is not None else None
-    py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
+    py_fn_name = __fn_name(ctx, lisp_fn_name) if def_name is None else munge(def_name)
     py_fn_node = ast.AsyncFunctionDef if node.is_async else ast.FunctionDef
     with ctx.new_symbol_table(
         py_fn_name, is_context_boundary=True
@@ -1859,7 +1861,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     assert node.kwarg_support is None, "multi-arity functions do not support kwargs"
 
     lisp_fn_name = node.local.name if node.local is not None else None
-    py_fn_name = __fn_name(lisp_fn_name) if def_name is None else munge(def_name)
+    py_fn_name = __fn_name(ctx, lisp_fn_name) if def_name is None else munge(def_name)
 
     py_fn_node = ast.AsyncFunctionDef if node.is_async else ast.FunctionDef
 
@@ -2507,7 +2509,7 @@ def _reify_to_py_ast(
                             verified_abstract=node.verified_abstract,
                             artificially_abstract_bases=artificially_abstract_bases,
                             is_frozen=False,
-                            use_slots=_ATTR_SLOTS_ON,
+                            use_slots=True,
                         )
                     ],
                 )
@@ -2585,9 +2587,12 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST:
                 finalbody=[
                     # Restore the original namespace after each require to ensure that the
                     # following require starts with a clean slate
-                    ast.Assign(
-                        targets=[_load_attr(_NS_VAR_VALUE, ctx=ast.Store())],
-                        value=ast.Name(id=requiring_ns_name, ctx=ast.Load()),
+                    statementize(
+                        ast.Call(
+                            func=_NS_VAR_VALUE_SETTER_FN_NAME,
+                            args=[ast.Name(id=requiring_ns_name, ctx=ast.Load())],
+                            keywords=[],
+                        )
                     ),
                 ],
             )
@@ -2613,12 +2618,58 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
         target, (HostField, Local, VarRef)
     ), f"invalid set! target type {type(target)}"
 
+    assign_ast: List[ast.AST]
     if isinstance(target, HostField):
         target_ast = _interop_prop_to_py_ast(ctx, target, is_assigning=True)
+        assign_ast = [ast.Assign(targets=[target_ast.node], value=val_ast.node)]
     elif isinstance(target, VarRef):
-        target_ast = _var_sym_to_py_ast(ctx, target, is_assigning=True)
+        # This is a bit of a hack to force the generator to generate code for accessing
+        # a Var directly so we can store a temp reference to that Var rather than
+        # performing a global Var find twice for the same single expression.
+        temp_var_name = genname("var")
+        var_ast = _var_sym_to_py_ast(ctx, target.assoc(return_var=True))
+        target_ast = GeneratedPyAST(
+            node=_load_attr(f"{temp_var_name}.set_value"),
+            dependencies=list(
+                chain(
+                    var_ast.dependencies,
+                    [
+                        ast.Assign(
+                            targets=[ast.Name(id=temp_var_name, ctx=ast.Store())],
+                            value=var_ast.node,
+                        ),
+                        ast.If(
+                            test=ast.UnaryOp(
+                                op=ast.Not(),
+                                operand=_load_attr(f"{temp_var_name}.is_thread_bound"),
+                            ),
+                            body=[
+                                ast.Raise(
+                                    exc=ast.Call(
+                                        func=_load_attr(
+                                            "basilisp.lang.runtime.RuntimeException"
+                                        ),
+                                        args=[
+                                            ast.Constant(
+                                                "Can't change/establish root binding "
+                                                f"of Var '{target.var}' with set!"
+                                            ),
+                                        ],
+                                        keywords=[],
+                                    ),
+                                    cause=None,
+                                )
+                            ],
+                            orelse=[],
+                        ),
+                    ],
+                )
+            ),
+        )
+        assign_ast = [ast.Call(func=target_ast.node, args=[val_ast.node], keywords=[])]
     elif isinstance(target, Local):
         target_ast = _local_sym_to_py_ast(ctx, target, is_assigning=True)
+        assign_ast = [ast.Assign(targets=[target_ast.node], value=val_ast.node)]
     else:  # pragma: no cover
         raise GeneratorException(
             f"invalid set! target type {type(target)}", lisp_ast=target
@@ -2638,7 +2689,7 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
                         )
                     ],
                     target_ast.dependencies,
-                    [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
+                    assign_ast,
                 )
             ),
         )
@@ -2649,7 +2700,7 @@ def _set_bang_to_py_ast(ctx: GeneratorContext, node: SetBang) -> GeneratedPyAST:
                 chain(
                     val_ast.dependencies,
                     target_ast.dependencies,
-                    [ast.Assign(targets=[target_ast.node], value=val_ast.node)],
+                    assign_ast,
                 )
             ),
         )
@@ -2731,7 +2782,7 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
             ast.Try(
                 body=list(
                     chain(
-                        body_ast.dependencies,
+                        map(statementize, body_ast.dependencies),
                         [
                             ast.Assign(
                                 targets=[ast.Name(id=try_expr_name, ctx=ast.Store())],
@@ -2745,6 +2796,17 @@ def _try_to_py_ast(ctx: GeneratorContext, node: Try) -> GeneratedPyAST:
                 finalbody=finallys,
             )
         ],
+    )
+
+
+@_with_ast_loc_deps
+def _yield_to_py_ast(ctx: GeneratorContext, node: Yield) -> GeneratedPyAST:
+    assert node.op == NodeOp.YIELD
+    if node.expr is None:
+        return GeneratedPyAST(node=ast.Yield(value=None))
+    expr_ast = gen_py_ast(ctx, node.expr)
+    return GeneratedPyAST(
+        node=ast.Yield(value=expr_ast.node), dependencies=expr_ast.dependencies
     )
 
 
@@ -2792,7 +2854,9 @@ def __name_in_module(name: str, module: BasilispModule) -> Optional[str]:
 
 
 def __var_direct_link_to_py_ast(
-    current_ns: runtime.Namespace, var: runtime.Var, py_var_ctx: ast.AST
+    current_ns: runtime.Namespace,
+    var: runtime.Var,
+    py_var_ctx: PyASTCtx,
 ) -> Optional[GeneratedPyAST]:
     """Attempt to directly link a Var reference to a Python variable in the module of
     the current Namespace.
@@ -2843,7 +2907,7 @@ def __var_find_to_py_ast(
 
 
 @_with_ast_loc
-def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
+def _var_sym_to_py_ast(
     ctx: GeneratorContext, node: VarRef, is_assigning: bool = False
 ) -> GeneratedPyAST:
     """Generate a Python AST node for accessing a Var.
@@ -2859,7 +2923,7 @@ def _var_sym_to_py_ast(  # pylint: disable=too-many-branches
     var_ns = var.ns
     var_ns_name = var_ns.name
     var_name = var.name.name
-    py_var_ctx = ast.Store() if is_assigning else ast.Load()
+    py_var_ctx: PyASTCtx = ast.Store() if is_assigning else ast.Load()
 
     # Return the actual Var, rather than its value if requested
     if node.return_var:
@@ -3176,7 +3240,7 @@ def _with_meta_to_py_ast(
 
 
 @functools.singledispatch
-def _const_val_to_py_ast(form: LispForm, _: GeneratorContext) -> GeneratedPyAST:
+def _const_val_to_py_ast(form: object, _: GeneratorContext) -> GeneratedPyAST:
     """Generate Python AST nodes for constant Lisp forms.
 
     Nested values in collections for :const nodes are not analyzed, so recursive
@@ -3197,7 +3261,7 @@ def _collection_literal_to_py_ast(
     yield from map(lambda form: _const_val_to_py_ast(form, ctx), form)
 
 
-def _const_meta_kwargs_ast(  # pylint:disable=inconsistent-return-statements
+def _const_meta_kwargs_ast(
     ctx: GeneratorContext, form: LispForm
 ) -> Optional[GeneratedPyAST]:
     if isinstance(form, IMeta) and form.meta is not None:
@@ -3410,7 +3474,7 @@ def _const_record_to_py_ast(form: IRecord, ctx: GeneratorContext) -> GeneratedPy
         key_nodes = _kw_to_py_ast(k, ctx)
         keys.append(key_nodes.node)
         assert (
-            len(key_nodes.dependencies) == 0  # type: ignore[arg-type]
+            len(key_nodes.dependencies) == 0
         ), "Simple AST generators must emit no dependencies"
 
         val_nodes = _const_val_to_py_ast(v, ctx)
@@ -3463,7 +3527,7 @@ def _const_type_to_py_ast(form: IType, ctx: GeneratorContext) -> GeneratedPyAST:
 
     ctor_args = []
     ctor_arg_deps: List[ast.AST] = []
-    for field in attr.fields(tp):
+    for field in attr.fields(tp):  # type: ignore[arg-type]
         field_nodes = _const_val_to_py_ast(getattr(form, field.name, None), ctx)
         ctor_args.append(field_nodes.node)
         ctor_args.extend(field_nodes.dependencies)
@@ -3538,6 +3602,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.SET_BANG: _set_bang_to_py_ast,
     NodeOp.THROW: _throw_to_py_ast,
     NodeOp.TRY: _try_to_py_ast,
+    NodeOp.YIELD: _yield_to_py_ast,
     NodeOp.VAR: _var_sym_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
     NodeOp.WITH_META: _with_meta_to_py_ast,  # type: ignore

@@ -27,36 +27,6 @@ def test_is_supported_python_version():
 @pytest.mark.parametrize(
     "feature",
     {
-        (3, 6): frozenset(
-            map(
-                kw.keyword,
-                [
-                    "lpy36",
-                    "default",
-                    "lpy",
-                    "lpy36-",
-                    "lpy36+",
-                    "lpy37-",
-                    "lpy38-",
-                    "lpy39-",
-                ],
-            )
-        ),
-        (3, 7): frozenset(
-            map(
-                kw.keyword,
-                [
-                    "lpy37",
-                    "default",
-                    "lpy",
-                    "lpy37-",
-                    "lpy37+",
-                    "lpy36+",
-                    "lpy38-",
-                    "lpy39-",
-                ],
-            )
-        ),
         (3, 8): frozenset(
             map(
                 kw.keyword,
@@ -66,9 +36,9 @@ def test_is_supported_python_version():
                     "lpy",
                     "lpy38-",
                     "lpy38+",
-                    "lpy37+",
-                    "lpy36+",
                     "lpy39-",
+                    "lpy310-",
+                    "lpy311-",
                 ],
             )
         ),
@@ -82,8 +52,38 @@ def test_is_supported_python_version():
                     "lpy39-",
                     "lpy39+",
                     "lpy38+",
-                    "lpy37+",
-                    "lpy36+",
+                    "lpy310-",
+                    "lpy311-",
+                ],
+            )
+        ),
+        (3, 10): frozenset(
+            map(
+                kw.keyword,
+                [
+                    "lpy310",
+                    "default",
+                    "lpy",
+                    "lpy311-",
+                    "lpy310+",
+                    "lpy310-",
+                    "lpy39+",
+                    "lpy38+",
+                ],
+            )
+        ),
+        (3, 11): frozenset(
+            map(
+                kw.keyword,
+                [
+                    "lpy311",
+                    "default",
+                    "lpy",
+                    "lpy311+",
+                    "lpy311-",
+                    "lpy310+",
+                    "lpy39+",
+                    "lpy38+",
                 ],
             )
         ),
@@ -566,12 +566,59 @@ class TestToLisp:
         assert lmap.map(
             {kw.keyword("a"): 2, kw.keyword("b"): "string"}
         ) == runtime.to_lisp({"a": 2, "b": "string"})
+        assert lmap.map(
+            {
+                kw.keyword("a"): 2,
+                kw.keyword("b"): lmap.map(
+                    {
+                        kw.keyword("c"): "string",
+                        kw.keyword("d"): vec.v("list"),
+                        kw.keyword("e"): lset.s("a", "set"),
+                        kw.keyword("f"): vec.v("tuple", "not", "list"),
+                    }
+                ),
+            }
+        ) == runtime.to_lisp(
+            {
+                "a": 2,
+                "b": {
+                    "c": "string",
+                    "d": ["list"],
+                    "e": {"a", "set"},
+                    kw.keyword("f"): ("tuple", "not", "list"),
+                },
+            }
+        )
 
     def test_to_map_no_keywordize(self):
         assert lmap.PersistentMap.empty() == runtime.to_lisp({})
         assert lmap.map({"a": 2}) == runtime.to_lisp({"a": 2}, keywordize_keys=False)
         assert lmap.map({"a": 2, "b": "string"}) == runtime.to_lisp(
             {"a": 2, "b": "string"}, keywordize_keys=False
+        )
+        assert lmap.map(
+            {
+                "a": 2,
+                "b": lmap.map(
+                    {
+                        "c": "string",
+                        "d": vec.v("list"),
+                        "e": lset.s("a", "set"),
+                        kw.keyword("f"): vec.v("tuple", "not", "list"),
+                    }
+                ),
+            }
+        ) == runtime.to_lisp(
+            {
+                "a": 2,
+                "b": {
+                    "c": "string",
+                    "d": ["list"],
+                    "e": {"a", "set"},
+                    kw.keyword("f"): ("tuple", "not", "list"),
+                },
+            },
+            keywordize_keys=False,
         )
 
     def test_to_set(self):

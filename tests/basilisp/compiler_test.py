@@ -24,7 +24,7 @@ from basilisp.lang import runtime as runtime
 from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
-from basilisp.lang.compiler.constants import SYM_PRIVATE_META_KEY
+from basilisp.lang.compiler.constants import SYM_INLINE_META_KW, SYM_PRIVATE_META_KEY
 from basilisp.lang.interfaces import IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.util import demunge
@@ -695,6 +695,12 @@ class TestDefType:
         [
             """
         (deftype* Point [x y z]
+          :implements []
+          (__str__ [this]
+            (python/repr #py ("Point" x y z))))
+        """,
+            """
+        (deftype* Point [x y z]
           :implements [python/object]
           (__str__ [this]
             (python/repr #py ("Point" x y z))))
@@ -1135,12 +1141,13 @@ class TestDefType:
         ):
             Point = lcompile(
                 """
+            (import* types)
             (do
-              (def ^:dynamic a nil)
+              (def a (types/SimpleNamespace))
               (deftype* Point [x]
                 :implements [WithCls]
                 (^:classmethod create [cls x]
-                  (set! a x)))
+                  (set! (.-val a) x)))
               Point)"""
             )
             assert kw.keyword("a") is Point.create(kw.keyword("a"))
@@ -1383,17 +1390,14 @@ class TestDefType:
             Point = lcompile(code)
 
             pt = Point(1, 2, 3)
-            assert (
-                lmap.map(
-                    {
-                        kw.keyword("w"): 2,
-                        kw.keyword("x"): 1,
-                        kw.keyword("y"): 4,
-                        kw.keyword("z"): 3,
-                    }
-                )
-                == pt(w=2, y=4)
-            )
+            assert lmap.map(
+                {
+                    kw.keyword("w"): 2,
+                    kw.keyword("x"): 1,
+                    kw.keyword("y"): 4,
+                    kw.keyword("z"): 3,
+                }
+            ) == pt(w=2, y=4)
 
         @pytest.mark.parametrize(
             "code",
@@ -1929,12 +1933,13 @@ class TestDefType:
         ):
             Point = lcompile(
                 """
+            (import* types)
             (do
-              (def ^:dynamic a nil)
+              (def a (types/SimpleNamespace))
               (deftype* Point [x]
                 :implements [WithStatic]
                 (^:staticmethod dostatic [x]
-                  (set! a x)))
+                  (set! (.-val a) x)))
               Point)"""
             )
             assert kw.keyword("a") is Point.dostatic(kw.keyword("a"))
@@ -2314,15 +2319,12 @@ class TestFunctionDef:
             f = lcompile("^{:kwargs :collect} (fn* [a b c kwargs] [a b c kwargs])")
 
             kwargs = {"some_value": 32, "value": "a string"}
-            assert (
-                vec.v(
-                    1,
-                    "2",
-                    kw.keyword("three"),
-                    lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
-                )
-                == f(1, "2", kw.keyword("three"), **kwargs)
-            )
+            assert vec.v(
+                1,
+                "2",
+                kw.keyword("three"),
+                lmap.map({kw.keyword(demunge(k)): v for k, v in kwargs.items()}),
+            ) == f(1, "2", kw.keyword("three"), **kwargs)
 
         @pytest.mark.parametrize("kwarg_support", [":apply", ":collect"])
         def test_multi_arity_fns_do_not_support_kwargs(
@@ -2587,6 +2589,112 @@ def test_fn_call(lcompile: CompileFn):
     assert fvar == "bleep"
 
 
+class TestFunctionInlining:
+    def test_cannot_inline_variadic_fn(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(defn ^:inline f [& args] args)")
+
+    def test_cannot_inline_multi_arity_fn(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (defn ^:inline f
+                  ([a] a)
+                  ([a b] [a b]))
+                """
+            )
+
+    def test_cannot_inline_multi_expression_fn(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (defn ^:inline f
+                  [a b]
+                  :extra-expression
+                  [a b])
+                """
+            )
+
+    def test_cannot_inline_unimported_module(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                """
+                (defn ^{:inline (fn [s] `(json/loads ~s))} loads
+                  [s]
+                  s)
+
+                (loads "{}")
+                """
+            )
+
+    def test_non_boolean_inline_metadata_ignored(self, lcompile: CompileFn):
+        v = lcompile("(defn ^{:inline :yes-please} f [a] a)")
+        assert v.meta is not None
+        assert v.meta.val_at(SYM_INLINE_META_KW) == kw.keyword("yes-please")
+
+    def test_no_inlining_occurs_if_no_inline_meta_specified(self, lcompile: CompileFn):
+        val = lcompile(
+            """
+            (defn ^{:inline (fn [] :a)} f
+              []
+              :b)
+
+            [(f) ^:no-inline (f)]
+            """
+        )
+        assert val == vec.v(kw.keyword("a"), kw.keyword("b"))
+
+    def test_no_inlining_occurs_if_inline_not_callable(self, lcompile: CompileFn):
+        val = lcompile(
+            """
+            (defn ^{:inline 1} f [] :b)
+
+            [(f) ^:no-inline (f)]
+            """
+        )
+        assert val == vec.v(kw.keyword("b"), kw.keyword("b"))
+
+    @pytest.mark.parametrize("inline_functions", [True, False])
+    def test_function_result_is_same_with_or_without_inline(
+        self, lcompile: CompileFn, inline_functions: bool
+    ):
+        val = lcompile(
+            """
+            (defn ^{:inline (fn [a b] `(+ 1 (* ~a ~b)))} f
+              [a b]
+              (operator/add 1 (operator/mul a b)))
+
+            (f 2 3)
+            """,
+            opts={
+                compiler.INLINE_FUNCTIONS: inline_functions,
+            },
+        )
+        assert val == 7
+
+    @pytest.mark.parametrize(
+        "should_generate_inlines,inline_functions",
+        [(True, True), (True, False), (False, True), (False, False)],
+    )
+    def test_function_result_is_same_with_or_without_auto_inline(
+        self, lcompile: CompileFn, should_generate_inlines: bool, inline_functions: bool
+    ):
+        val = lcompile(
+            """
+            (defn ^:inline f
+              [a b]
+              (operator/add 1 (operator/mul a b)))
+
+            (f 2 3)
+            """,
+            opts={
+                compiler.GENERATE_AUTO_INLINES: should_generate_inlines,
+                compiler.INLINE_FUNCTIONS: inline_functions,
+            },
+        )
+        assert val == 7
+
+
 def test_macro_expansion(lcompile: CompileFn):
     assert llist.l(1, 2, 3) == lcompile("((fn [] '(1 2 3)))")
 
@@ -2600,17 +2708,12 @@ class TestMacroexpandFunctions:
         )
 
     def test_macroexpand_1(self, lcompile: CompileFn, example_macro):
-        assert (
-            llist.l(
-                sym.symbol("defmacro", ns="basilisp.core"),
-                sym.symbol("child"),
-                vec.PersistentVector.empty(),
-                llist.l(
-                    sym.symbol("fn", ns="basilisp.core"), vec.PersistentVector.empty()
-                ),
-            )
-            == compiler.macroexpand_1(llist.l(sym.symbol("parent")))
-        )
+        assert llist.l(
+            sym.symbol("defmacro", ns="basilisp.core"),
+            sym.symbol("child"),
+            vec.PersistentVector.empty(),
+            llist.l(sym.symbol("fn", ns="basilisp.core"), vec.PersistentVector.empty()),
+        ) == compiler.macroexpand_1(llist.l(sym.symbol("parent")))
 
         assert llist.l(
             sym.symbol("add", ns="operator"), 1, 2
@@ -2628,24 +2731,28 @@ class TestMacroexpandFunctions:
         )
 
     def test_macroexpand(self, lcompile: CompileFn, example_macro):
-        meta = lmap.map({reader.READER_LINE_KW: 1, reader.READER_COL_KW: 1})
+        meta = lmap.map(
+            {
+                reader.READER_LINE_KW: 1,
+                reader.READER_COL_KW: 1,
+                reader.READER_END_LINE_KW: 1,
+                reader.READER_END_COL_KW: 1,
+            }
+        )
 
-        assert (
+        assert llist.l(
+            sym.symbol("def"),
+            sym.symbol("child"),
             llist.l(
-                sym.symbol("def"),
+                sym.symbol("fn", ns="basilisp.core"),
                 sym.symbol("child"),
+                vec.v(sym.symbol("&env"), sym.symbol("&form")),
                 llist.l(
                     sym.symbol("fn", ns="basilisp.core"),
-                    sym.symbol("child"),
-                    vec.v(sym.symbol("&env"), sym.symbol("&form")),
-                    llist.l(
-                        sym.symbol("fn", ns="basilisp.core"),
-                        vec.PersistentVector.empty(),
-                    ),
+                    vec.PersistentVector.empty(),
                 ),
-            )
-            == compiler.macroexpand(llist.l(sym.symbol("parent"), meta=meta))
-        )
+            ),
+        ) == compiler.macroexpand(llist.l(sym.symbol("parent"), meta=meta))
 
         assert llist.l(sym.symbol("add", ns="operator"), 1, 2) == compiler.macroexpand(
             llist.l(sym.symbol("add", ns="operator"), 1, 2, meta=meta)
@@ -3652,6 +3759,7 @@ class TestRecur:
             '(fn [a] (loop* [a (do (recur "a") :c)] a))',
             '(fn [a] (loop* [a "a"] (recur a) a))',
             "(fn [a] (try (do (recur a) :b) (catch AttributeError _ nil)))",
+            "(fn [a] (try (recur a) :b (catch AttributeError _ nil)))",
             "(fn [a] (try :b (catch AttributeError _ (do (recur :a) :c))))",
             "(fn [a] (try :b (finally (do (recur :a) :c))))",
         ],
@@ -4341,17 +4449,14 @@ class TestReify:
             Point = lcompile(code)
 
             pt = Point(1, 2, 3)
-            assert (
-                lmap.map(
-                    {
-                        kw.keyword("w"): 2,
-                        kw.keyword("x"): 1,
-                        kw.keyword("y"): 4,
-                        kw.keyword("z"): 3,
-                    }
-                )
-                == pt(w=2, y=4)
-            )
+            assert lmap.map(
+                {
+                    kw.keyword("w"): 2,
+                    kw.keyword("x"): 1,
+                    kw.keyword("y"): 4,
+                    kw.keyword("z"): 3,
+                }
+            ) == pt(w=2, y=4)
 
         @pytest.mark.parametrize(
             "code",
@@ -4787,7 +4892,7 @@ class TestSetBang:
             lcompile("(fn [a b] (set! a :c))")
 
     def test_set_cannot_assign_non_dynamic_var(self, lcompile: CompileFn):
-        with pytest.raises(compiler.CompilerException):
+        with pytest.raises(runtime.RuntimeException):
             lcompile(
                 """
             (def static-var :kw)
@@ -4795,16 +4900,27 @@ class TestSetBang:
             """
             )
 
-    def test_set_can_assign_dynamic_var(
+    def test_set_cannot_assign_dynamic_var_without_thread_bindings(
         self, lcompile: CompileFn, ns: runtime.Namespace
     ):
-        code = """
-        (def ^:dynamic *dynamic-var* :kw)
-        (set! *dynamic-var* \"instead a string\")
-        """
-        assert "instead a string" == lcompile(code)
-        var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("*dynamic-var*"))
-        assert var is not None
+        with pytest.raises(runtime.RuntimeException):
+            lcompile(
+                """
+            (def ^:dynamic *dynamic-var* :kw)
+            (set! *dynamic-var* \"instead a string\")
+            """
+            )
+
+    def test_set_can_assign_thread_bound_dynamic_var(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        var = lcompile("(def ^:dynamic *thread-bound-var* :kw)")
+        assert not var.is_thread_bound
+        var.push_bindings(sym.symbol("a-symbol"))
+        assert var.is_thread_bound
+        assert sym.symbol("a-symbol") == lcompile("*thread-bound-var*")
+        lcompile('(set! *thread-bound-var* "instead a string")')
+        assert "instead a string" == lcompile("*thread-bound-var*")
         assert "instead a string" == var.value
         assert kw.keyword("kw") == var.root
 
@@ -4884,6 +5000,22 @@ class TestTryCatch:
             (catch AttributeError _ "lower"))
         """
         assert "lower" == lcompile(code)
+
+    def test_multiple_expressions_in_try_body(
+        self,
+        lcompile: CompileFn,
+        capsys,
+    ):
+        code = """
+          (try
+            (print "hello")
+            true
+            :keyword
+            (let [s "UPPER"]
+              (.lower s))
+            (catch AttributeError _ "lower"))
+        """
+        assert "upper" == lcompile(code)
 
     def test_single_catch_with_binding(self, lcompile: CompileFn, capsys):
         code = """
@@ -5273,6 +5405,7 @@ class TestSymbolResolution:
         self, lcompile: CompileFn, monkeypatch: MonkeyPatch
     ):
         with TemporaryDirectory() as tmpdir:
+            cwd = os.getcwd()
             monkeypatch.chdir(tmpdir)
             monkeypatch.syspath_prepend(tmpdir)
             monkeypatch.setattr(
@@ -5300,6 +5433,7 @@ class TestSymbolResolution:
                 """
                 )
             finally:
+                monkeypatch.chdir(cwd)
                 os.unlink(module_file_path)
 
     def test_aliased_var_does_not_resolve(
@@ -5330,13 +5464,24 @@ class TestSymbolResolution:
             private_var = Var(
                 other_ns, private_var_sym, meta=lmap.map({SYM_PRIVATE_META_KEY: True})
             )
-            private_var.value = kw.keyword("private-var")
+            private_var.set_value(kw.keyword("private-var"))
             other_ns.intern(private_var_sym, private_var)
 
             with pytest.raises(compiler.CompilerException):
                 lcompile("(other/m :arg)")
         finally:
             runtime.Namespace.remove(other_ns_name)
+
+    def test_private_var_does_not_resolve_during_macroexpansion(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        # In a previous version of the compiler, it was possible to get access
+        # to namespace private Vars simply by referring to them from within macros
+        # from the same namespace.
+        #
+        # https://github.com/basilisp-lang/basilisp/issues/646
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(let [] basilisp.core/*generated-python*)")
 
     def test_aliased_macro_symbol_resolution(
         self, lcompile: CompileFn, ns: runtime.Namespace
@@ -5371,14 +5516,14 @@ class TestSymbolResolution:
 
             # Intern a public symbol in `other.ns`
             public_var = Var(other_ns, public_var_sym)
-            public_var.value = kw.keyword("public-var")
+            public_var.set_value(kw.keyword("public-var"))
             other_ns.intern(public_var_sym, public_var)
 
             # Intern a private symbol in `other.ns`
             private_var = Var(
                 other_ns, private_var_sym, meta=lmap.map({SYM_PRIVATE_META_KEY: True})
             )
-            private_var.value = kw.keyword("private-var")
+            private_var.set_value(kw.keyword("private-var"))
             other_ns.intern(private_var_sym, private_var)
 
             with runtime.ns_bindings(third_ns_name.name):
@@ -5635,3 +5780,107 @@ class TestVar:
         v = lcompile(code)
         assert v == Var.find_in_ns(sym.symbol(ns_name), sym.symbol("some-var"))
         assert v.value == "a value"
+
+
+class TestYield:
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(yield)",
+            "(yield :a)",
+            "(let* [v :a] (yield v))",
+        ],
+    )
+    def test_yield_must_be_in_fn_context(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "(fn [] (yield :two :items))",
+            "(fn [] (yield :three :items :now))",
+        ],
+    )
+    def test_yield_num_elems(self, lcompile: CompileFn, code: str):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(code)
+
+    def test_yield_control_only(self, lcompile: CompileFn, ns: runtime.Namespace):
+        f = lcompile(
+            """
+            (def state (atom nil))
+            (fn []
+              (reset! state :started)
+              (yield)
+              (reset! state :done))
+            """
+        )
+        state = ns.find(sym.symbol("state")).value
+        coro = f()
+        assert None is state.deref()
+        assert None is next(coro)
+        assert kw.keyword("started") == state.deref()
+        assert None is next(coro, None)
+        assert kw.keyword("done") == state.deref()
+
+    def test_yield_value(self, lcompile: CompileFn, ns: runtime.Namespace):
+        f = lcompile(
+            """
+            (def state (atom nil))
+            (fn []
+              (reset! state :started)
+              (yield :yielding)
+              (reset! state :done))
+            """
+        )
+        state = ns.find(sym.symbol("state")).value
+        coro = f()
+        assert None is state.deref()
+        assert kw.keyword("yielding") == next(coro)
+        assert kw.keyword("started") == state.deref()
+        assert None is next(coro, None)
+        assert kw.keyword("done") == state.deref()
+
+    def test_yield_as_coroutine(self, lcompile: CompileFn, ns: runtime.Namespace):
+        f = lcompile(
+            """
+            (def state (atom nil))
+            (fn []
+              (reset! state :started)
+              (let [v (yield :yielding)]
+                (reset! state v)))
+            """
+        )
+        state = ns.find(sym.symbol("state")).value
+        coro = f()
+        assert None is state.deref()
+        assert kw.keyword("yielding") == next(coro)
+        assert kw.keyword("started") == state.deref()
+        with pytest.raises(StopIteration):
+            coro.send(kw.keyword("coroutine-value"))
+        assert kw.keyword("coroutine-value") == state.deref()
+
+    def test_yield_as_coroutine_with_multiple_yields(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        f = lcompile(
+            """
+            (def state (atom nil))
+            (fn []
+              (reset! state :started)
+              (let [v (yield :yielding)]
+                (reset! state v)
+                (yield)
+                (reset! state :done)))
+            """
+        )
+        state = ns.find(sym.symbol("state")).value
+        coro = f()
+        assert None is state.deref()
+        assert kw.keyword("yielding") == next(coro)
+        assert kw.keyword("started") == state.deref()
+        assert None is coro.send(kw.keyword("coroutine-value"))
+        assert kw.keyword("coroutine-value") == state.deref()
+        assert None is next(coro, None)
+        assert kw.keyword("done") == state.deref()

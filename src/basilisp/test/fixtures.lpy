@@ -1,0 +1,18 @@
+(ns basilisp.test.fixtures
+  "Built-in fixtures which may be useful in Basilisp tests."
+  (:import
+   tempfile))
+
+(def ^:dynamic *tempdir*
+  "Name of a temporary directory value bound by the fixture :lpy:fn:`tempdir`."
+  nil)
+
+(defn tempdir
+  ":lpy:ns:`basilisp.test` fixture which creates a temporary directory for the duration
+  of the test.
+
+  The temporary directory name is bound to the dynamic Var :lpy:var:`*tempdir*`."
+  []
+  (with-open [d (tempfile/TemporaryDirectory)]
+    (binding [*tempdir* d]
+      (yield))))

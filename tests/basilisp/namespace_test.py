@@ -129,12 +129,12 @@ def test_intern_does_not_overwrite(ns_cache: atom.Atom[NamespaceMap]):
 
     var_val1 = "cool string"
     var1 = Var(ns, var_sym)
-    var1.value = var_val1
+    var1.set_value(var_val1)
     ns.intern(var_sym, var1)
 
     var_val2 = "lame string"
     var2 = Var(ns, var_sym)
-    var2.value = var_val2
+    var2.set_value(var_val2)
     ns.intern(var_sym, var2)
 
     assert var1 is ns.find(var_sym)
@@ -152,7 +152,7 @@ def test_unmap(ns_cache: atom.Atom[NamespaceMap]):
 
     var_val = "cool string"
     var = Var(ns, var_sym)
-    var.value = var_val
+    var.set_value(var_val)
     ns.intern(var_sym, var)
 
     assert var is ns.find(var_sym)
@@ -167,7 +167,7 @@ def test_refer(ns_cache: atom.Atom[NamespaceMap]):
     ns1 = get_or_create_ns(sym.symbol("ns1"))
     var_sym, var_val = sym.symbol("useful-value"), "cool string"
     var = Var(ns1, var_sym)
-    var.value = var_val
+    var.set_value(var_val)
     ns1.intern(var_sym, var)
 
     ns2 = get_or_create_ns(sym.symbol("ns2"))
@@ -181,7 +181,7 @@ def test_cannot_refer_private(ns_cache: atom.Atom[NamespaceMap]):
     ns1 = get_or_create_ns(sym.symbol("ns1"))
     var_sym, var_val = sym.symbol("useful-value"), "cool string"
     var = Var(ns1, var_sym, meta=lmap.map({kw.keyword("private"): True}))
-    var.value = var_val
+    var.set_value(var_val)
     ns1.intern(var_sym, var)
 
     ns2 = get_or_create_ns(sym.symbol("ns2"))
@@ -196,23 +196,23 @@ def test_refer_all(ns_cache: atom.Atom[NamespaceMap]):
 
     var_sym1, var_val1 = sym.symbol("useful-value"), "cool string"
     var1 = Var(ns1, var_sym1)
-    var1.value = var_val1
+    var1.set_value(var_val1)
     ns1.intern(var_sym1, var1)
 
     var_sym2, var_val2 = sym.symbol("private-value"), "private string"
     var2 = Var(ns1, var_sym2, meta=lmap.map({kw.keyword("private"): True}))
-    var2.value = var_val2
+    var2.set_value(var_val2)
     ns1.intern(var_sym2, var2)
 
     var_sym3, var_val3 = sym.symbol("existing-value"), "interned string"
     var3 = Var(ns1, var_sym3)
-    var3.value = var_val3
+    var3.set_value(var_val3)
     ns1.intern(var_sym3, var3)
 
     ns2 = get_or_create_ns(sym.symbol("ns2"))
     var_val4 = "some other value"
     var4 = Var(ns2, var_sym3)
-    var4.value = var_val4
+    var4.set_value(var_val4)
     ns2.intern(var_sym3, var4)
     ns2.refer_all(ns1)
 
@@ -234,13 +234,13 @@ def test_refer_does_not_shadow_intern(ns_cache: atom.Atom[NamespaceMap]):
 
     var_val1 = "cool string"
     var1 = Var(ns1, var_sym)
-    var1.value = var_val1
+    var1.set_value(var_val1)
     ns1.intern(var_sym, var1)
 
     ns2 = get_or_create_ns(sym.symbol("ns2"))
     var_val2 = "lame string"
     var2 = Var(ns1, var_sym)
-    var2.value = var_val2
+    var2.set_value(var_val2)
     ns2.intern(var_sym, var2)
 
     ns2.add_refer(var_sym, var1)

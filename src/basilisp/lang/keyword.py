@@ -28,8 +28,8 @@ class Keyword(ILispObject):
 
     def _lrepr(self, **kwargs) -> str:
         if self._ns is not None:
-            return ":{ns}/{name}".format(ns=self._ns, name=self._name)
-        return ":{name}".format(name=self._name)
+            return f":{self._ns}/{self._name}"
+        return f":{self._name}"
 
     def __eq__(self, other):
         return self is other or (

@@ -186,6 +186,15 @@ def test_map_with_meta():
     assert m4.meta == lmap.m(tag=keyword("macro"))
 
 
+def test_map_seq():
+    assert None is lmap.PersistentMap.empty().seq()
+    assert {v("a", 1)} == set(lmap.map({"a": 1}).seq())
+    assert {v("a", 1), v("b", 2)} == set(lmap.map({"a": 1, "b": 2}).seq())
+    assert {v("a", 1), v("b", 2), v("c", 3)} == set(
+        lmap.map({"a": 1, "b": 2, "c": 3}).seq()
+    )
+
+
 def test_map_repr():
     m = lmap.m()
     assert repr(m) == "{}"

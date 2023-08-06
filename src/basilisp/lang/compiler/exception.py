@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import attr
 
@@ -18,11 +18,14 @@ _LISP_AST = kw.keyword("lisp_ast")
 _PY_AST = kw.keyword("py_ast")
 _LINE = kw.keyword("line")
 _COL = kw.keyword("col")
+_END_LINE = kw.keyword("end-line")
+_END_COL = kw.keyword("end-col")
 
 
 class CompilerPhase(Enum):
     ANALYZING = kw.keyword("analyzing")
     CODE_GENERATION = kw.keyword("code-generation")
+    INLINING = kw.keyword("inlining")
     MACROEXPANSION = kw.keyword("macroexpansion")
     COMPILING_PYTHON = kw.keyword("compiling-python")
 
@@ -31,9 +34,16 @@ class CompilerPhase(Enum):
 class _loc:
     line: Optional[int] = None
     col: Optional[int] = None
+    end_line: Optional[int] = None
+    end_col: Optional[int] = None
 
     def __bool__(self):
-        return self.line is not None and self.col is not None
+        return (
+            self.line is not None
+            and self.col is not None
+            and self.end_line is not None
+            and self.end_col is not None
+        )
 
 
 @attr.s(auto_attribs=True, slots=True, str=False)
@@ -46,7 +56,7 @@ class CompilerException(IExceptionInfo):
 
     @property
     def data(self) -> IPersistentMap:
-        d = {_PHASE: self.phase.value}
+        d: Dict[kw.Keyword, Any] = {_PHASE: self.phase.value}
         loc = None
         if self.form is not None:
             d[_FORM] = self.form
@@ -67,6 +77,8 @@ class CompilerException(IExceptionInfo):
         if loc:  # pragma: no cover
             d[_LINE] = loc.line
             d[_COL] = loc.col
+            d[_END_LINE] = loc.end_line
+            d[_END_COL] = loc.end_col
         return lmap.map(d)
 
     def __str__(self):

@@ -84,6 +84,13 @@ def test_set_with_meta():
     assert s4.meta == lmap.m(tag=keyword("macro"))
 
 
+def test_set_seq():
+    assert None is lset.PersistentSet.empty().seq()
+    assert {1} == set(lset.s(1).seq())
+    assert {1, 2} == set(lset.s(1, 2).seq())
+    assert {1, 2, 3} == set(lset.s(1, 2, 3).seq())
+
+
 @pytest.mark.parametrize(
     "o",
     [

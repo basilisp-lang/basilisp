@@ -25,9 +25,7 @@ class Delay(IDeref[T]):
     __slots__ = ("_state",)
 
     def __init__(self, f: Callable[[], T]) -> None:
-        self._state = atom.Atom(  # pylint:disable=assigning-non-slot
-            _DelayState(f=f, value=None, computed=False)
-        )
+        self._state = atom.Atom(_DelayState(f=f, value=None, computed=False))
 
     @staticmethod
     def __deref(state: _DelayState) -> _DelayState:

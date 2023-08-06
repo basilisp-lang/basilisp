@@ -31,6 +31,8 @@ from typing import (
     cast,
 )
 
+from readerwriterlock.rwlock import RWLockFair
+
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
@@ -49,11 +51,12 @@ from basilisp.lang.interfaces import (
     IPersistentList,
     IPersistentMap,
     IPersistentSet,
+    IPersistentStack,
     IPersistentVector,
     ISeq,
     ITransientSet,
 )
-from basilisp.lang.reference import ReferenceBase
+from basilisp.lang.reference import RefBase, ReferenceBase
 from basilisp.lang.typing import CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
 from basilisp.util import Maybe
@@ -67,22 +70,23 @@ NS_VAR_NAME = "*ns*"
 NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
-SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 6), (3, 7), (3, 8), (3, 9)})
+SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 8), (3, 9), (3, 10), (3, 11)})
 
-# Private string constants
-_COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
-_DEFAULT_READER_FEATURES_VAR_NAME = "*default-reader-features*"
-_GENERATED_PYTHON_VAR_NAME = "*generated-python*"
-_PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
-_PRINT_DUP_VAR_NAME = "*print-dup*"
-_PRINT_LENGTH_VAR_NAME = "*print-length*"
-_PRINT_LEVEL_VAR_NAME = "*print-level*"
-_PRINT_META_VAR_NAME = "*print-meta*"
-_PRINT_READABLY_VAR_NAME = "*print-readably*"
-_PYTHON_VERSION = "*python-version*"
-_BASILISP_VERSION = "*basilisp-version*"
+# Public basilisp.core symbol names
+COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
+DEFAULT_READER_FEATURES_VAR_NAME = "*default-reader-features*"
+GENERATED_PYTHON_VAR_NAME = "*generated-python*"
+PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
+PRINT_DUP_VAR_NAME = "*print-dup*"
+PRINT_LENGTH_VAR_NAME = "*print-length*"
+PRINT_LEVEL_VAR_NAME = "*print-level*"
+PRINT_META_VAR_NAME = "*print-meta*"
+PRINT_READABLY_VAR_NAME = "*print-readably*"
+PYTHON_VERSION_VAR_NAME = "*python-version*"
+BASILISP_VERSION_VAR_NAME = "*basilisp-version*"
 
 # Common meta keys
+_DOC_META_KEY = kw.keyword("doc")
 _DYNAMIC_META_KEY = kw.keyword("dynamic")
 _PRIVATE_META_KEY = kw.keyword("private")
 _REDEF_META_KEY = kw.keyword("redef")
@@ -110,6 +114,7 @@ _SET_BANG = sym.symbol("set!")
 _THROW = sym.symbol("throw")
 _TRY = sym.symbol("try")
 _VAR = sym.symbol("var")
+_YIELD = sym.symbol("yield")
 _SPECIAL_FORMS = lset.s(
     _AWAIT,
     _CATCH,
@@ -133,6 +138,7 @@ _SPECIAL_FORMS = lset.s(
     _THROW,
     _TRY,
     _VAR,
+    _YIELD,
 )
 
 
@@ -142,7 +148,7 @@ def _supported_python_versions_features() -> Iterable[kw.Keyword]:
     `major`.`minor` versions the current Python VM corresponds to amongst the
     set of supported Python versions.
 
-    For example, for Python 3.6, we emit:
+    For example, for Python 3.6, we would emit:
      - :lpy36  - to exactly match Basilisp running on Python 3.6
      - :lpy36+ - to match Basilisp running on Python 3.6 and later versions
      - :lpy36- - to match Basilisp running on Python 3.6 and earlier versions
@@ -195,8 +201,6 @@ class RuntimeException(Exception):
 
 
 class _VarBindings(threading.local):
-    __slots__ = ("bindings",)
-
     def __init__(self):
         self.bindings: List = []
 
@@ -214,7 +218,7 @@ class Unbound:
         return self is other or (isinstance(other, Unbound) and self.var == other.var)
 
 
-class Var(IDeref, ReferenceBase):
+class Var(RefBase):
     __slots__ = (
         "_name",
         "_ns",
@@ -223,7 +227,10 @@ class Var(IDeref, ReferenceBase):
         "_is_bound",
         "_tl",
         "_meta",
-        "_lock",
+        "_rlock",
+        "_wlock",
+        "_watches",
+        "_validator",
     )
 
     def __init__(
@@ -240,7 +247,11 @@ class Var(IDeref, ReferenceBase):
         self._is_bound = False
         self._tl = None
         self._meta = meta
-        self._lock = threading.Lock()
+        lock = RWLockFair()
+        self._rlock = lock.gen_rlock()
+        self._wlock = lock.gen_wlock()
+        self._watches = lmap.PersistentMap.empty()
+        self._validator = None
 
         if dynamic:
             self._tl = _VarBindings()
@@ -268,9 +279,13 @@ class Var(IDeref, ReferenceBase):
     def dynamic(self) -> bool:
         return self._dynamic
 
-    @dynamic.setter
-    def dynamic(self, is_dynamic: bool):
-        self._dynamic = is_dynamic
+    def set_dynamic(self, dynamic: bool) -> None:
+        with self._wlock:
+            if dynamic == self._dynamic:
+                return
+
+            self._dynamic = dynamic
+            self._tl = _VarBindings() if dynamic else None
 
     @property
     def is_private(self) -> Optional[bool]:
@@ -282,28 +297,39 @@ class Var(IDeref, ReferenceBase):
     def is_bound(self) -> bool:
         return self._is_bound or self.is_thread_bound
 
+    def _set_root(self, newval) -> None:
+        # Private setter which does not include lock so it can be used
+        # by other properties and methods which already manage the lock.
+        oldval = self._root
+        self._validate(newval)
+        self._is_bound = True
+        self._root = newval
+        self._notify_watches(oldval, newval)
+
     @property
     def root(self):
-        with self._lock:
+        with self._rlock:
             return self._root
 
-    @root.setter
-    def root(self, val):
-        with self._lock:
-            self._is_bound = True
-            self._root = val
+    def bind_root(self, val) -> None:
+        """Atomically update the root binding of this Var to val."""
+        with self._wlock:
+            self._set_root(val)
 
-    def alter_root(self, f, *args):
-        with self._lock:
-            self._root = f(self._root, *args)
+    def alter_root(self, f, *args) -> None:
+        """Atomically alter the root binding of this Var to the result of calling
+        f with the existing root value and any additional arguments."""
+        with self._wlock:
+            self._set_root(f(self._root, *args))
 
     def push_bindings(self, val):
-        if self._tl is None:
+        if not self._dynamic or self._tl is None:
             raise RuntimeException("Can only push bindings to dynamic Vars")
+        self._validate(val)
         self._tl.bindings.append(val)
 
     def pop_bindings(self):
-        if self._tl is None:
+        if not self._dynamic or self._tl is None:
             raise RuntimeException("Can only pop bindings from dynamic Vars")
         return self._tl.bindings.pop()
 
@@ -316,49 +342,73 @@ class Var(IDeref, ReferenceBase):
 
     @property
     def value(self):
-        if self._dynamic:
-            assert self._tl is not None
-            if len(self._tl.bindings) > 0:
-                return self._tl.bindings[-1]
-        return self.root
+        """Return the current value of the Var visible in the current thread.
 
-    @value.setter
-    def value(self, v):
-        if self._dynamic:
-            assert self._tl is not None
-            if len(self._tl.bindings) > 0:
-                self._tl.bindings[-1] = v
-            else:
-                self.push_bindings(v)
-            return
-        self.root = v
+        For non-dynamic Vars, this will just be the root. For dynamic Vars, this will
+        be any thread-local binding if one is defined. Otherwise, the root value."""
+        with self._rlock:
+            if self._dynamic:
+                assert self._tl is not None
+                if len(self._tl.bindings) > 0:
+                    return self._tl.bindings[-1]
+            return self._root
 
-    @staticmethod
-    def intern(
+    def set_value(self, v) -> None:
+        """Set the current value of the Var.
+
+        If the Var is not dynamic, this is equivalent to binding the root value. If the
+        Var is dynamic, this will set the thread-local bindings for the Var."""
+        with self._wlock:
+            if self._dynamic:
+                assert self._tl is not None
+                self._validate(v)
+                if len(self._tl.bindings) > 0:
+                    self._tl.bindings[-1] = v
+                else:
+                    self.push_bindings(v)
+                return
+            self._set_root(v)
+
+    __UNBOUND_SENTINEL = object()
+
+    @classmethod
+    def intern(  # pylint: disable=too-many-arguments
+        cls,
         ns: Union["Namespace", sym.Symbol],
         name: sym.Symbol,
         val,
         dynamic: bool = False,
-        meta=None,
+        meta: Optional[IPersistentMap] = None,
     ) -> "Var":
-        """Intern the value bound to the symbol `name` in namespace `ns`."""
+        """Intern the value bound to the symbol `name` in namespace `ns`.
+
+        If the Var already exists, it will have its root value updated to `val`,
+        its meta will be reset to match the provided `meta`, and the dynamic flag
+        will be updated to match the provided `dynamic` argument."""
         if isinstance(ns, sym.Symbol):
             ns = Namespace.get_or_create(ns)
-        var = ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
-        var.root = val
+        new_var = cls(ns, name, dynamic=dynamic, meta=meta)
+        var = ns.intern(name, new_var)
+        if val is not cls.__UNBOUND_SENTINEL:
+            var.bind_root(val)
+        # Namespace.intern will return an existing interned Var for the same name
+        # if one exists. We only want to set the meta and/or dynamic flag if the
+        # Var is not new.
+        if var is not new_var:
+            var.reset_meta(meta)
+            var.set_dynamic(dynamic)
         return var
 
-    @staticmethod
+    @classmethod
     def intern_unbound(
+        cls,
         ns: Union["Namespace", sym.Symbol],
         name: sym.Symbol,
         dynamic: bool = False,
-        meta=None,
+        meta: Optional[IPersistentMap] = None,
     ) -> "Var":
         """Create a new unbound `Var` instance to the symbol `name` in namespace `ns`."""
-        if isinstance(ns, sym.Symbol):
-            ns = Namespace.get_or_create(ns)
-        return ns.intern(name, Var(ns, name, dynamic=dynamic, meta=meta))
+        return cls.intern(ns, name, cls.__UNBOUND_SENTINEL, dynamic=dynamic, meta=meta)
 
     @staticmethod
     def find_in_ns(
@@ -373,8 +423,8 @@ class Var(IDeref, ReferenceBase):
             return ns.find(name_sym)
         return None
 
-    @staticmethod
-    def find(ns_qualified_sym: sym.Symbol) -> "Optional[Var]":
+    @classmethod
+    def find(cls, ns_qualified_sym: sym.Symbol) -> "Optional[Var]":
         """Return the value currently bound to the name in the namespace specified
         by `ns_qualified_sym`."""
         ns = Maybe(ns_qualified_sym.ns).or_else_raise(
@@ -384,16 +434,16 @@ class Var(IDeref, ReferenceBase):
         )
         ns_sym = sym.symbol(ns)
         name_sym = sym.symbol(ns_qualified_sym.name)
-        return Var.find_in_ns(ns_sym, name_sym)
+        return cls.find_in_ns(ns_sym, name_sym)
 
-    @staticmethod
-    def find_safe(ns_qualified_sym: sym.Symbol) -> "Var":
+    @classmethod
+    def find_safe(cls, ns_qualified_sym: sym.Symbol) -> "Var":
         """Return the Var currently bound to the name in the namespace specified
         by `ns_qualified_sym`. If no Var is bound to that name, raise an exception.
 
         This is a utility method to return useful debugging information when code
         refers to an invalid symbol at runtime."""
-        v = Var.find(ns_qualified_sym)
+        v = cls.find(ns_qualified_sym)
         if v is None:
             raise RuntimeException(
                 f"Unable to resolve symbol {ns_qualified_sym} in this context"
@@ -401,21 +451,25 @@ class Var(IDeref, ReferenceBase):
         return v
 
 
-Frame = FrozenSet[Var]
-FrameStack = List[Frame]
+Frame = IPersistentSet[Var]
+FrameStack = IPersistentStack[Frame]
 
 
 class _ThreadBindings(threading.local):
-    __slots__ = ("_bindings",)
-
     def __init__(self):
-        self._bindings: FrameStack = []
+        self._bindings: FrameStack = vec.PersistentVector.empty()
 
-    def push_bindings(self, frame: Frame):
-        self._bindings.append(frame)
+    def get_bindings(self) -> FrameStack:
+        return self._bindings
 
-    def pop_bindings(self):
-        return self._bindings.pop()
+    def push_bindings(self, frame: Frame) -> None:
+        self._bindings = self._bindings.cons(frame)
+
+    def pop_bindings(self) -> Frame:
+        frame = self._bindings.peek()
+        self._bindings = self._bindings.pop()
+        assert frame is not None
+        return frame
 
 
 _THREAD_BINDINGS = _ThreadBindings()
@@ -496,7 +550,8 @@ class Namespace(ReferenceBase):
         "_name",
         "_module",
         "_meta",
-        "_lock",
+        "_rlock",
+        "_wlock",
         "_interns",
         "_refers",
         "_aliases",
@@ -504,12 +559,16 @@ class Namespace(ReferenceBase):
         "_import_aliases",
     )
 
-    def __init__(self, name: sym.Symbol, module: BasilispModule = None) -> None:
+    def __init__(
+        self, name: sym.Symbol, module: Optional[BasilispModule] = None
+    ) -> None:
         self._name = name
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
         self._meta: Optional[IPersistentMap] = None
-        self._lock = threading.Lock()
+        lock = RWLockFair()
+        self._rlock = lock.gen_rlock()
+        self._wlock = lock.gen_wlock()
 
         self._aliases: NamespaceMap = lmap.PersistentMap.empty()
         self._imports: ModuleMap = lmap.map(
@@ -545,20 +604,20 @@ class Namespace(ReferenceBase):
     def aliases(self) -> NamespaceMap:
         """A mapping between a symbolic alias and another Namespace. The
         fully qualified name of a namespace is also an alias for itself."""
-        with self._lock:
+        with self._rlock:
             return self._aliases
 
     @property
     def imports(self) -> ModuleMap:
         """A mapping of names to Python modules imported into the current
         namespace."""
-        with self._lock:
+        with self._rlock:
             return self._imports
 
     @property
     def import_aliases(self) -> AliasMap:
         """A mapping of a symbolic alias and a Python module name."""
-        with self._lock:
+        with self._rlock:
             return self._import_aliases
 
     @property
@@ -566,7 +625,7 @@ class Namespace(ReferenceBase):
         """A mapping between a symbolic name and a Var. The Var may point to
         code, data, or nothing, if it is unbound. Vars in `interns` are
         interned in _this_ namespace."""
-        with self._lock:
+        with self._rlock:
             return self._interns
 
     @property
@@ -574,7 +633,7 @@ class Namespace(ReferenceBase):
         """A mapping between a symbolic name and a Var. Vars in refers are
         interned in another namespace and are only referred to without an
         alias in this namespace."""
-        with self._lock:
+        with self._rlock:
             return self._refers
 
     def __repr__(self):
@@ -605,7 +664,7 @@ class Namespace(ReferenceBase):
 
     def add_alias(self, namespace: "Namespace", *aliases: sym.Symbol) -> None:
         """Add Symbol aliases for the given Namespace."""
-        with self._lock:
+        with self._wlock:
             new_m = self._aliases
             for alias in aliases:
                 new_m = new_m.assoc(alias, namespace)
@@ -613,12 +672,12 @@ class Namespace(ReferenceBase):
 
     def get_alias(self, alias: sym.Symbol) -> "Optional[Namespace]":
         """Get the Namespace aliased by Symbol or None if it does not exist."""
-        with self._lock:
+        with self._rlock:
             return self._aliases.val_at(alias, None)
 
     def remove_alias(self, alias: sym.Symbol) -> None:
         """Remove the Namespace aliased by Symbol. Return None."""
-        with self._lock:
+        with self._wlock:
             self._aliases = self._aliases.dissoc(alias)
 
     def intern(self, sym: sym.Symbol, var: Var, force: bool = False) -> Var:
@@ -626,20 +685,20 @@ class Namespace(ReferenceBase):
         If the Symbol already maps to a Var, this method _will not overwrite_
         the existing Var mapping unless the force keyword argument is given
         and is True."""
-        with self._lock:
+        with self._wlock:
             old_var = self._interns.val_at(sym, None)
             if old_var is None or force:
                 self._interns = self._interns.assoc(sym, var)
             return self._interns.val_at(sym)
 
     def unmap(self, sym: sym.Symbol) -> None:
-        with self._lock:
+        with self._wlock:
             self._interns = self._interns.dissoc(sym)
 
     def find(self, sym: sym.Symbol) -> Optional[Var]:
         """Find Vars mapped by the given Symbol input or None if no Vars are
         mapped by that Symbol."""
-        with self._lock:
+        with self._rlock:
             v = self._interns.val_at(sym, None)
             if v is None:
                 return self._refers.val_at(sym, None)
@@ -648,7 +707,7 @@ class Namespace(ReferenceBase):
     def add_import(self, sym: sym.Symbol, module: Module, *aliases: sym.Symbol) -> None:
         """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
         the aliases will be applied to the"""
-        with self._lock:
+        with self._wlock:
             self._imports = self._imports.assoc(sym, module)
             if aliases:
                 m = self._import_aliases
@@ -662,7 +721,7 @@ class Namespace(ReferenceBase):
 
         First try to resolve a module directly with the given name. If no module
         can be resolved, attempt to resolve the module using import aliases."""
-        with self._lock:
+        with self._rlock:
             mod = self._imports.val_at(sym, None)
             if mod is None:
                 alias = self._import_aliases.get(sym, None)
@@ -674,17 +733,17 @@ class Namespace(ReferenceBase):
     def add_refer(self, sym: sym.Symbol, var: Var) -> None:
         """Refer var in this namespace under the name sym."""
         if not var.is_private:
-            with self._lock:
+            with self._wlock:
                 self._refers = self._refers.assoc(sym, var)
 
     def get_refer(self, sym: sym.Symbol) -> Optional[Var]:
         """Get the Var referred by Symbol or None if it does not exist."""
-        with self._lock:
+        with self._rlock:
             return self._refers.val_at(sym, None)
 
     def refer_all(self, other_ns: "Namespace") -> None:
         """Refer all the Vars in the other namespace."""
-        with self._lock:
+        with self._wlock:
             final_refers = self._refers
             for s, var in other_ns.interns.items():
                 if not var.is_private:
@@ -700,7 +759,7 @@ class Namespace(ReferenceBase):
     def __get_or_create(
         ns_cache: NamespaceMap,
         name: sym.Symbol,
-        module: BasilispModule = None,
+        module: Optional[BasilispModule] = None,
     ) -> lmap.PersistentMap:
         """Private swap function used by `get_or_create` to atomically swap
         the new namespace map into the global cache."""
@@ -712,7 +771,7 @@ class Namespace(ReferenceBase):
 
     @classmethod
     def get_or_create(
-        cls, name: sym.Symbol, module: BasilispModule = None
+        cls, name: sym.Symbol, module: Optional[BasilispModule] = None
     ) -> "Namespace":
         """Get the namespace bound to the symbol `name` in the global namespace
         cache, creating it if it does not exist.
@@ -755,7 +814,6 @@ class Namespace(ReferenceBase):
 
         return is_match
 
-    # pylint: disable=unnecessary-comprehension
     def __complete_alias(
         self, prefix: str, name_in_ns: Optional[str] = None
     ) -> Iterable[str]:
@@ -804,7 +862,6 @@ class Namespace(ReferenceBase):
             for candidate_name, _ in candidates:
                 yield f"{candidate_name}/"
 
-    # pylint: disable=unnecessary-comprehension
     def __complete_interns(
         self, value: str, include_private_vars: bool = True
     ) -> Iterable[str]:
@@ -823,7 +880,6 @@ class Namespace(ReferenceBase):
             filter(is_match, ((s, v) for s, v in self.interns.items())),
         )
 
-    # pylint: disable=unnecessary-comprehension
     def __complete_refers(self, value: str) -> Iterable[str]:
         """Return an iterable of possible completions matching the given
         prefix from the list of referred Vars."""
@@ -857,6 +913,14 @@ class Namespace(ReferenceBase):
         return results
 
 
+def get_thread_bindings() -> IPersistentMap[Var, Any]:
+    """Return the current thread-local bindings."""
+    bindings = {}
+    for frame in _THREAD_BINDINGS.get_bindings():
+        bindings.update({var: var.value for var in frame})
+    return lmap.map(bindings)
+
+
 def push_thread_bindings(m: IPersistentMap[Var, Any]) -> None:
     """Push thread local bindings for the Var keys in m using the values."""
     bindings = set()
@@ -869,15 +933,17 @@ def push_thread_bindings(m: IPersistentMap[Var, Any]) -> None:
         var.push_bindings(val)
         bindings.add(var)
 
-    _THREAD_BINDINGS.push_bindings(frozenset(bindings))
+    _THREAD_BINDINGS.push_bindings(lset.set(bindings))
 
 
 def pop_thread_bindings() -> None:
     """Pop the thread local bindings set by push_thread_bindings above."""
     try:
         bindings = _THREAD_BINDINGS.pop_bindings()
-    except IndexError:
-        raise RuntimeException("cannot pop thread-local bindings without prior push")
+    except IndexError as e:
+        raise RuntimeException(
+            "cannot pop thread-local bindings without prior push"
+        ) from e
 
     for var in bindings:
         var.pop_bindings()
@@ -1042,8 +1108,10 @@ def count(coll) -> int:
     except (AttributeError, TypeError):
         try:
             return sum(1 for _ in coll)
-        except TypeError:
-            raise TypeError(f"count not supported on object of type {type(coll)}")
+        except TypeError as e:
+            raise TypeError(
+                f"count not supported on object of type {type(coll)}"
+            ) from e
 
 
 __nth_sentinel = object()
@@ -1088,6 +1156,11 @@ def _nth_iseq(coll: ISeq, i: int, notfound=__nth_sentinel):
 def contains(coll, k):
     """Return true if o contains the key k."""
     return k in coll
+
+
+@contains.register(type(None))
+def _contains_none(_, __):
+    return False
 
 
 @contains.register(IAssociative)
@@ -1359,19 +1432,26 @@ def _to_lisp_vec(o: Iterable, keywordize_keys: bool = True) -> vec.PersistentVec
 
 
 @functools.singledispatch
-def _keywordize_keys(k):
-    return k
+def _keywordize_keys(k, keywordize_keys: bool = True):
+    return to_lisp(k, keywordize_keys=keywordize_keys)
 
 
 @_keywordize_keys.register(str)
-def _keywordize_keys_str(k):
+def _keywordize_keys_str(k, keywordize_keys: bool = True):
     return kw.keyword(k)
 
 
 @to_lisp.register(dict)
 def _to_lisp_map(o: Mapping, keywordize_keys: bool = True) -> lmap.PersistentMap:
-    process_key = _keywordize_keys if keywordize_keys else lambda x: x
-    return lmap.map({process_key(k): v for k, v in o.items()})  # type: ignore[operator]
+    process_key = _keywordize_keys if keywordize_keys else to_lisp
+    return lmap.map(
+        {
+            process_key(k, keywordize_keys=keywordize_keys): to_lisp(
+                v, keywordize_keys=keywordize_keys
+            )
+            for k, v in o.items()
+        }
+    )
 
 
 @to_lisp.register(frozenset)
@@ -1433,16 +1513,16 @@ def lrepr(o, human_readable: bool = False) -> str:
     return lobj.lrepr(
         o,
         human_readable=human_readable,
-        print_dup=core_ns.find(sym.symbol(_PRINT_DUP_VAR_NAME)).value,  # type: ignore
+        print_dup=core_ns.find(sym.symbol(PRINT_DUP_VAR_NAME)).value,  # type: ignore
         print_length=core_ns.find(  # type: ignore
-            sym.symbol(_PRINT_LENGTH_VAR_NAME)
+            sym.symbol(PRINT_LENGTH_VAR_NAME)
         ).value,
         print_level=core_ns.find(  # type: ignore
-            sym.symbol(_PRINT_LEVEL_VAR_NAME)
+            sym.symbol(PRINT_LEVEL_VAR_NAME)
         ).value,
-        print_meta=core_ns.find(sym.symbol(_PRINT_META_VAR_NAME)).value,  # type: ignore
+        print_meta=core_ns.find(sym.symbol(PRINT_META_VAR_NAME)).value,  # type: ignore
         print_readably=core_ns.find(  # type: ignore
-            sym.symbol(_PRINT_READABLY_VAR_NAME)
+            sym.symbol(PRINT_READABLY_VAR_NAME)
         ).value,
     )
 
@@ -1724,8 +1804,8 @@ def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
 
 
 def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
-    """Resolve the aliased symbol to a Var from the specified
-    namespace, or the current namespace if none is specified."""
+    """Resolve the aliased symbol to a Var from the specified namespace, or the
+    current namespace if none is specified."""
     return Var.find(resolve_alias(s, ns))
 
 
@@ -1735,7 +1815,27 @@ def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
 
 
 @contextlib.contextmanager
-def ns_bindings(ns_name: str, module: BasilispModule = None) -> Iterator[Namespace]:
+def bindings(bindings: Optional[Mapping[Var, Any]] = None):
+    """Context manager for temporarily changing the value thread-local value for
+    Basilisp dynamic Vars."""
+    m = lmap.map(bindings or {})
+    logger.debug(
+        f"Binding thread-local values for Vars: {', '.join(map(str, m.keys()))}"
+    )
+    try:
+        push_thread_bindings(m)
+        yield
+    finally:
+        pop_thread_bindings()
+        logger.debug(
+            f"Reset thread-local bindings for Vars: {', '.join(map(str, m.keys()))}"
+        )
+
+
+@contextlib.contextmanager
+def ns_bindings(
+    ns_name: str, module: Optional[BasilispModule] = None
+) -> Iterator[Namespace]:
     """Context manager for temporarily changing the value of basilisp.core/*ns*."""
     symbol = sym.symbol(ns_name)
     ns = Namespace.get_or_create(symbol, module=module)
@@ -1743,13 +1843,8 @@ def ns_bindings(ns_name: str, module: BasilispModule = None) -> Iterator[Namespa
         lambda: RuntimeException(f"Dynamic Var {NS_VAR_SYM} not bound!")
     )
 
-    try:
-        logger.debug(f"Binding {NS_VAR_SYM} to {ns}")
-        ns_var.push_bindings(ns)
+    with bindings({ns_var: ns}):
         yield ns_var.value
-    finally:
-        ns_var.pop_bindings()
-        logger.debug(f"Reset bindings for {NS_VAR_SYM} to {ns_var.value}")
 
 
 @contextlib.contextmanager
@@ -1778,7 +1873,7 @@ def get_current_ns() -> Namespace:
 
 def set_current_ns(
     ns_name: str,
-    module: BasilispModule = None,
+    module: Optional[BasilispModule] = None,
 ) -> Var:
     """Set the value of the dynamic variable `*ns*` in the current thread."""
     symbol = sym.symbol(ns_name)
@@ -1803,10 +1898,10 @@ def add_generated_python(
     """Add generated Python code to a dynamic variable in which_ns."""
     if which_ns is None:
         which_ns = get_current_ns()
-    v = Maybe(which_ns.find(sym.symbol(_GENERATED_PYTHON_VAR_NAME))).or_else(
+    v = Maybe(which_ns.find(sym.symbol(GENERATED_PYTHON_VAR_NAME))).or_else(
         lambda: Var.intern(
             which_ns,  # type: ignore
-            sym.symbol(_GENERATED_PYTHON_VAR_NAME),
+            sym.symbol(GENERATED_PYTHON_VAR_NAME),
             "",
             dynamic=True,
             meta=lmap.map({_PRIVATE_META_KEY: True}),
@@ -1820,7 +1915,7 @@ def add_generated_python(
 
 def print_generated_python() -> bool:
     """Return the value of the `*print-generated-python*` dynamic variable."""
-    ns_sym = sym.symbol(_PRINT_GENERATED_PY_VAR_NAME, ns=CORE_NS)
+    ns_sym = sym.symbol(PRINT_GENERATED_PY_VAR_NAME, ns=CORE_NS)
     return (
         Maybe(Var.find(ns_sym))
         .map(lambda v: v.value)
@@ -1836,7 +1931,22 @@ def print_generated_python() -> bool:
 def init_ns_var() -> Var:
     """Initialize the dynamic `*ns*` variable in the `basilisp.core` Namespace."""
     core_ns = Namespace.get_or_create(CORE_NS_SYM)
-    ns_var = Var.intern(core_ns, sym.symbol(NS_VAR_NAME), core_ns, dynamic=True)
+    ns_var = Var.intern(
+        core_ns,
+        sym.symbol(NS_VAR_NAME),
+        core_ns,
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "Pointer to the current namespace.\n\n"
+                    "This value is used by both the compiler and runtime to determine where "
+                    "newly defined Vars should be bound, so users should not alter or bind "
+                    "this Var unless they know what they're doing."
+                )
+            }
+        ),
+    )
     logger.debug(f"Created namespace variable {NS_VAR_SYM}")
     return ns_var
 
@@ -1850,12 +1960,34 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
 
     def in_ns(s: sym.Symbol):
         ns = Namespace.get_or_create(s)
-        _NS.value = ns
+        _NS.set_value(ns)
         return ns
 
     # Vars used in bootstrapping the runtime
-    Var.intern_unbound(CORE_NS_SYM, sym.symbol("unquote"))
-    Var.intern_unbound(CORE_NS_SYM, sym.symbol("unquote-splicing"))
+    Var.intern_unbound(
+        CORE_NS_SYM,
+        sym.symbol("unquote"),
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "Placeholder Var so the compiler does not throw an error while syntax quoting.\n\n"
+                    "See :ref:`macros` and :ref:`syntax_quoting` for more details."
+                )
+            }
+        ),
+    )
+    Var.intern_unbound(
+        CORE_NS_SYM,
+        sym.symbol("unquote-splicing"),
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "Placeholder Var so the compiler does not throw an error while syntax quoting.\n\n"
+                    "See :ref:`macros` and :ref:`syntax_quoting` for more details."
+                )
+            }
+        ),
+    )
     Var.intern(
         CORE_NS_SYM, sym.symbol("in-ns"), in_ns, meta=lmap.map({_REDEF_META_KEY: True})
     )
@@ -1863,7 +1995,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     # Dynamic Var examined by the compiler when importing new Namespaces
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_COMPILER_OPTIONS_VAR_NAME),
+        sym.symbol(COMPILER_OPTIONS_VAR_NAME),
         compiler_opts,
         dynamic=True,
     )
@@ -1871,22 +2003,30 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     # Dynamic Var for introspecting the default reader featureset
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_DEFAULT_READER_FEATURES_VAR_NAME),
+        sym.symbol(DEFAULT_READER_FEATURES_VAR_NAME),
         READER_COND_DEFAULT_FEATURE_SET,
         dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "The set of all currently supported "
+                    ":ref:`reader features <reader_conditions>`."
+                )
+            }
+        ),
     )
 
     # Dynamic Vars examined by the compiler for generating Python code for debugging
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_PRINT_GENERATED_PY_VAR_NAME),
+        sym.symbol(PRINT_GENERATED_PY_VAR_NAME),
         False,
         dynamic=True,
         meta=lmap.map({_PRIVATE_META_KEY: True}),
     )
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_GENERATED_PYTHON_VAR_NAME),
+        sym.symbol(GENERATED_PYTHON_VAR_NAME),
         "",
         dynamic=True,
         meta=lmap.map({_PRIVATE_META_KEY: True}),
@@ -1894,20 +2034,20 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
 
     # Dynamic Vars for controlling printing
     Var.intern(
-        CORE_NS_SYM, sym.symbol(_PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
+        CORE_NS_SYM, sym.symbol(PRINT_DUP_VAR_NAME), lobj.PRINT_DUP, dynamic=True
     )
     Var.intern(
-        CORE_NS_SYM, sym.symbol(_PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
+        CORE_NS_SYM, sym.symbol(PRINT_LENGTH_VAR_NAME), lobj.PRINT_LENGTH, dynamic=True
     )
     Var.intern(
-        CORE_NS_SYM, sym.symbol(_PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
+        CORE_NS_SYM, sym.symbol(PRINT_LEVEL_VAR_NAME), lobj.PRINT_LEVEL, dynamic=True
     )
     Var.intern(
-        CORE_NS_SYM, sym.symbol(_PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
+        CORE_NS_SYM, sym.symbol(PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
     )
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_PRINT_READABLY_VAR_NAME),
+        sym.symbol(PRINT_READABLY_VAR_NAME),
         lobj.PRINT_READABLY,
         dynamic=True,
     )
@@ -1917,17 +2057,36 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
 
     Var.intern(
         CORE_NS_SYM,
-        sym.symbol(_PYTHON_VERSION),
+        sym.symbol(PYTHON_VERSION_VAR_NAME),
         vec.vector(sys.version_info),
         dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "The current Python version as a vector of "
+                    "``[major, minor, revision]``."
+                )
+            }
+        ),
     )
     Var.intern(
-        CORE_NS_SYM, sym.symbol(_BASILISP_VERSION), vec.vector(VERSION), dynamic=True
+        CORE_NS_SYM,
+        sym.symbol(BASILISP_VERSION_VAR_NAME),
+        vec.vector(VERSION),
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "The current Basilisp version as a vector of "
+                    "``[major, minor, revision]``."
+                )
+            }
+        ),
     )
 
 
 def get_compiler_opts() -> CompilerOpts:
     """Return the current compiler options map."""
-    v = Var.find_in_ns(CORE_NS_SYM, sym.symbol(_COMPILER_OPTIONS_VAR_NAME))
+    v = Var.find_in_ns(CORE_NS_SYM, sym.symbol(COMPILER_OPTIONS_VAR_NAME))
     assert v is not None, "*compiler-options* Var not defined"
     return cast(CompilerOpts, v.value)

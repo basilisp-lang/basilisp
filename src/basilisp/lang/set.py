@@ -16,9 +16,9 @@ from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
 
 try:
-    from immutables._map import MapMutation  # pylint: disable=unused-import
+    from immutables._map import MapMutation
 except ImportError:
-    from immutables.map import MapMutation  # type: ignore[misc]
+    from immutables.map import MapMutation  # type: ignore[assignment]
 
 
 T = TypeVar("T")
@@ -103,14 +103,12 @@ class PersistentSet(
     def __eq__(self, other):
         if self is other:
             return True
-        if not isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
-            other, AbstractSet
-        ):
+        if not isinstance(other, AbstractSet):
             return NotImplemented
         return _PySet.__eq__(self, other)
 
     def __hash__(self):
-        return self._hash()  # type: ignore[attr-defined]
+        return self._hash()
 
     def __iter__(self):
         yield from self._inner.keys()
@@ -174,7 +172,9 @@ class PersistentSet(
     def empty() -> "PersistentSet":
         return EMPTY
 
-    def seq(self) -> ISeq[T]:
+    def seq(self) -> Optional[ISeq[T]]:
+        if len(self._inner) == 0:
+            return None
         return sequence(self)
 
     def to_transient(self) -> TransientSet:

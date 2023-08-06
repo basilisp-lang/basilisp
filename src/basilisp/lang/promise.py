@@ -6,7 +6,6 @@ from basilisp.lang.interfaces import IBlockingDeref
 T = TypeVar("T")
 
 
-# pylint: disable=assigning-non-slot
 class Promise(IBlockingDeref[T]):
     __slots__ = ("_condition", "_is_delivered", "_value")
 

@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from decimal import Decimal
 from fractions import Fraction
 from functools import singledispatch
+from pathlib import Path
 from typing import Any, Callable, Iterable, Pattern, Tuple, Union
 
 from basilisp.util import take
@@ -86,7 +87,7 @@ def map_lrepr(
 
     def entry_reprs():
         for k, v in entries():
-            yield "{k} {v}".format(k=lrepr(k, **kwargs), v=lrepr(v, **kwargs))
+            yield f"{lrepr(k, **kwargs)} {lrepr(v, **kwargs)}"
 
     trailer = []
     print_dup = kwargs["print_dup"]
@@ -268,11 +269,18 @@ def _lrepr_fraction(o: Fraction, **_) -> str:
     return f"{o.numerator}/{o.denominator}"
 
 
+@lrepr.register(Path)
+def _lrepr_path(o: Path, **_) -> str:
+    return str(o)
+
+
 @lrepr.register(type(re.compile("")))
 def _lrepr_pattern(o: Pattern, **_) -> str:
     return f'#"{o.pattern}"'
 
 
 @lrepr.register(uuid.UUID)
-def _lrepr_uuid(o: uuid.UUID, **_) -> str:
+def _lrepr_uuid(o: uuid.UUID, human_readable: bool = False, **_) -> str:
+    if human_readable:
+        return str(o)
     return f'#uuid "{str(o)}"'

@@ -1,30 +1,33 @@
 (ns basilisp.shell
+  "Support for launching a subprocess."
   (:import subprocess))
 
 (def ^:dynamic *sh-dir*
-  "Bind to the value of the working directory to use for calls to `sh` if the `:dir`
-  argument is not provided. Callers may use the `with-sh-dir` macro to bind this
-  value for multiple calls to `sh`.
+  "Bind to the value of the working directory to use for calls to :lpy:fn:`sh` if the
+  ``:dir`` argument is not provided. Callers may use the :lpy:fn:`with-sh-dir` macro
+  to bind this value for multiple calls to ``sh``.
 
-  Defaults to `nil`, which will use the current working directory of this process."
+  Defaults to ``nil``, which will use the current working directory of this process."
   nil)
 
 (def ^:dynamic *sh-env*
-  "Bind to a map of environment variables to use for calls to `sh` if the `:env`
-  argument is not provided. Callers may use the `with-sh-env` macro to bind this
-  value for multiple calls to `sh`.
+  "Bind to a map of environment variables to use for calls to :lpy:fn:`sh` if the
+  ``:env`` argument is not provided. Callers may use the :lpy:fn:`with-sh-env` macro
+  to bind this value for multiple calls to :lpy:fn:`sh`.
 
-  Defaults to `nil`, which will use the current process's environment."
+  Defaults to ``nil``, which will use the current process's environment."
   nil)
 
 (defmacro with-sh-dir
-  "Convenience macro for binding `*sh-dir*` for multiple `sh` invocations."
+  "Convenience macro for binding :lpy:var:`*sh-dir*` for multiple :lpy:fn:`sh`
+  invocations."
   [dir & body]
   `(binding [*sh-dir* ~dir]
      ~@body))
 
 (defmacro with-sh-env
-  "Convenience macro for binding `*sh-env*` for multiple `sh` invocations."
+  "Convenience macro for binding :lpy:var:`*sh-env*` for multiple :lpy:fn:`sh`
+  invocations."
   [env-map & body]
   `(binding [*sh-env* ~env-map]
      ~@body))
@@ -32,32 +35,29 @@
 (defn sh
   "Execute a shell command as a subprocess of the current process.
 
-  Commands are specified as a series of string arguments split on whitespace:
+  Commands are specified as a series of string arguments split on whitespace::
 
     (sh \"ls\" \"-la\")
 
   Following the command, 0 or more keyword/value pairs may be specified to
   control input and output options to the subprocess. The options are:
 
-   - :in -      a string, byte string, byte array, file descriptor, or file
-                object
-   - :in-enc -  a string value matching one of Python's supported encodings;
-                if the value of `:in` is a string, decode that string to bytes
-                using the encoding named here; if none is specified, `utf-8`
-                will be used; if the value of `:in` is not a string, this value
-                will be ignored
-   - :out-enc - a string value matching on of Python's supported encodings or
-                the special value `:bytes`; if specified as a string, decode the
-                standard out and standard error streams returned by the subprocess
-                using this encoding; if specified as `:bytes`, return the byte
-                string from the output without encoding; if none is specified,
-                `utf-8` will be used
-   - :env -     a mapping of string values to string values which are used as the
-                subprocess's environment; if none is specified and `*sh-env` is
-                not set, the environment of the current process will be used
-   - :dir -     a string indicating the working directory which is to be used for
-                the subprocess; if none is specified and `*sh-dir*` is not set,
-                the working directory of the current process will be used"
+   :keyword ``:in``: a string, byte string, byte array, file descriptor, or file object
+   :keyword ``:in-enc``: a string value matching one of Python's supported encodings;
+       if the value of ``:in`` is a string, decode that string to bytes using the
+       encoding named here; if none is specified, ``utf-8`` will be used; if the value
+       of ``:in`` is not a string, this value will be ignored
+   :keyword ``:out-enc``: a string value matching on of Python's supported encodings or
+       the special value ``:bytes``; if specified as a string, decode the standard out
+       and standard error streams returned by the subprocess using this encoding; if
+       specified as ``:bytes``, return the byte string from the output without
+       encoding; if none is specified, ``utf-8`` will be used
+   :keyword ``:env``: a mapping of string values to string values which are used as the
+       subprocess's environment; if none is specified and :lpy:var:`*sh-env*` is not
+       set, the environment of the current process will be used
+   :keyword ``:dir``: a string indicating the working directory which is to be used for
+       the subprocess; if none is specified and :lpy:var:`*sh-dir*` is not set, the
+       working directory of the current process will be used"
   [& args]
   (let [[cmd arg-seq] (split-with string? args)
         sh-args       (apply hash-map arg-seq)

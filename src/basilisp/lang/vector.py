@@ -2,7 +2,7 @@ from functools import total_ordering
 from typing import Iterable, Optional, Sequence, TypeVar, Union
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
-from pyrsistent.typing import PVectorEvolver  # pylint:disable=unused-import
+from pyrsistent.typing import PVectorEvolver
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,
@@ -26,7 +26,7 @@ class TransientVector(ITransientVector[T]):
     __slots__ = ("_inner",)
 
     def __init__(self, wrapped: "PVectorEvolver[T]") -> None:
-        self._inner = wrapped  # pylint: disable=assigning-non-slot
+        self._inner = wrapped
 
     def __bool__(self):
         return True
@@ -45,7 +45,7 @@ class TransientVector(ITransientVector[T]):
             self._inner.append(elem)
         return self
 
-    def assoc_transient(self, *kvs: T) -> "TransientVector[T]":  # type: ignore[override]
+    def assoc_transient(self, *kvs: T) -> "TransientVector[T]":
         for i, v in partition(kvs, 2):
             self._inner.set(i, v)
         return self
@@ -143,7 +143,7 @@ class PersistentVector(
             e.append(elem)
         return PersistentVector(e.persistent(), meta=self.meta)
 
-    def assoc(self, *kvs: T) -> "PersistentVector[T]":  # type: ignore[override]
+    def assoc(self, *kvs: T) -> "PersistentVector[T]":
         return PersistentVector(self._inner.mset(*kvs))  # type: ignore[arg-type]
 
     def contains(self, k):
@@ -165,7 +165,9 @@ class PersistentVector(
     def empty() -> "PersistentVector[T]":
         return EMPTY
 
-    def seq(self) -> ISeq[T]:  # type: ignore[override]
+    def seq(self) -> Optional[ISeq[T]]:  # type: ignore[override]
+        if len(self._inner) == 0:
+            return None
         return sequence(self)
 
     def peek(self) -> Optional[T]:

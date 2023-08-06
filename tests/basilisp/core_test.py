@@ -818,6 +818,19 @@ class TestNumericPredicates:
     def test_complex_is_not_rational(self, complex_number):
         assert False is core.rational__Q__(complex_number)
 
+    @pytest.mark.parametrize("v", [float("inf"), float("-inf")])
+    def test_is_infinite(self, v):
+        assert True is core.infinite__Q__(v)
+
+    def test_is_not_infinite(self, real_number):
+        assert False is core.infinite__Q__(real_number)
+
+    def test_is_nan(self):
+        assert True is core.NaN__Q__(float("nan"))
+
+    def test_is_not_nan(self, real_number):
+        assert False is core.infinite__Q__(real_number)
+
 
 class TestIsNil:
     def test_nil_values_are_nil(self, nil_value):
@@ -1047,6 +1060,7 @@ class TestBitManipulation:
 
 class TestAssociativeFunctions:
     def test_contains(self):
+        assert False is core.contains__Q__(None, "a")
         assert True is core.contains__Q__(lmap.map({"a": 1}), "a")
         assert False is core.contains__Q__(lmap.map({"a": 1}), "b")
         assert True is core.contains__Q__(vec.v(1, 2, 3), 0)
@@ -1056,11 +1070,17 @@ class TestAssociativeFunctions:
         assert False is core.contains__Q__(vec.v(1, 2, 3), -1)
 
     def test_disj(self):
+        assert None is core.disj(None)
+        assert None is core.disj(None, "a")
+        assert None is core.disj(None, "a", "b", "c")
         assert lset.PersistentSet.empty() == core.disj(lset.PersistentSet.empty(), "a")
         assert lset.PersistentSet.empty() == core.disj(lset.s("a"), "a")
         assert lset.s("b", "d") == core.disj(lset.s("a", "b", "c", "d"), "a", "c", "e")
 
     def test_dissoc(self):
+        assert None is core.dissoc(None)
+        assert None is core.dissoc(None, "a")
+        assert None is core.dissoc(None, "a", "b", "c")
         assert lmap.PersistentMap.empty() == core.dissoc(lmap.map({"a": 1}), "a", "c")
         assert lmap.map({"a": 1}) == core.dissoc(lmap.map({"a": 1}), "b", "c")
 
@@ -1335,7 +1355,7 @@ def test_partial_kw():
     )(
         value=82, other_value="a string"
     )
-    assert {"value": 82, "other_value": "a string",} == core.partial_kw(
+    assert {"value": 82, "other_value": "a string"} == core.partial_kw(
         dict, kw.keyword("value"), 3, kw.keyword("other-value"), "some string"
     )(value=82, other_value="a string")
 
@@ -1556,14 +1576,11 @@ def test_partition():
         llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
     ) == core.partition(5, 10, core.range_(1, 26))
 
-    assert (
-        llist.l(
-            llist.l(1, 2, 3, 4, 5),
-            llist.l(11, 12, 13, 14, 15),
-            llist.l(21, 22, 23, kw.keyword("a"), kw.keyword("a")),
-        )
-        == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 24))
-    )
+    assert llist.l(
+        llist.l(1, 2, 3, 4, 5),
+        llist.l(11, 12, 13, 14, 15),
+        llist.l(21, 22, 23, kw.keyword("a"), kw.keyword("a")),
+    ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 24))
     assert llist.l(
         llist.l(1, 2, 3, 4, 5), llist.l(11, 12, 13, 14, 15), llist.l(21, 22, 23, 24, 25)
     ) == core.partition(5, 10, core.repeat(kw.keyword("a")), core.range_(1, 26))

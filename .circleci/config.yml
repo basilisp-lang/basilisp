@@ -1,159 +1,24 @@
 version: 2.1
 
 commands:
-  setup_tests:
-    description: "Check out code, install Tox, and prepare the test environment."
-    parameters:
-      python_version:
-        description: "Required. Python version as `major.minor`."
-        type: string
-      cache_key_prefix:
-        description: "Required. Prefix used for the CircleCI cache key."
-        type: string
-    steps:
-      - checkout
-      - run: sudo chown -R circleci:circleci /usr/local/bin
-      - run: sudo chown -R circleci:circleci /usr/local/lib/python<< parameters.python_version >>/site-packages
-      - restore_cache:
-          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-      - run:
-          name: Install tox
-          shell: /bin/bash -leo pipefail
-          command: |
-            pip install -U pip
-            pip install tox
-
-  teardown_tests:
-    description: "Store the cache for the current run."
-    parameters:
-      python_version:
-        description: "Required. Python version as `major.minor`."
-        type: string
-      cache_key_prefix:
-        description: "Required. Prefix used for the CircleCI cache key."
-        type: string
-    steps:
-      - save_cache:
-          key: << parameters.cache_key_prefix >>1-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
-          paths:
-            - "/home/circleci/project/.tox"
-            - "/usr/local/bin"
-            - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
-
-  run_cpython_tests:
+  run_pypy_tests:
     description: "Install Tox and run tests."
     parameters:
       python_version:
         description: "Required. Python version as `major.minor`."
         type: string
-      tox_envs:
-        description: "Required. Set of Tox environments to run on this node."
-        type: string
-      tox_parallel:
-        description: "Optional. Number of parallel workers spawned by Tox."
-        type: integer
-        default: 2
-    steps:
-      - setup_tests:
-          python_version: << parameters.python_version >>
-          cache_key_prefix: py<< parameters.python_version >>-deps
-      - run:
-          name: Run Tests
-          shell: /bin/bash -leo pipefail
-          environment:
-            TOX_PARALLEL_NO_SPINNER: 1
-            TOX_SHOW_OUTPUT: "True"
-          command: |
-            tox -p << parameters.tox_parallel >> -e << parameters.tox_envs >>
-            mkdir coverage
-            mv .coverage.* "coverage/.coverage.py<< parameters.python_version >>"
-      - teardown_tests:
-          python_version: << parameters.python_version >>
-          cache_key_prefix: py<< parameters.python_version >>-deps
-      - store_artifacts:
-          path: coverage
-      - store_test_results:
-          path: junit
-
-jobs:
-  test-cpython-36:
-    docker:
-      - image: circleci/python:3.6-buster
-    steps:
-      - run_cpython_tests:
-          python_version: "3.6"
-          tox_envs: py36,py36-mypy,py36-lint,safety
-
-  test-cpython-37:
-    docker:
-      - image: circleci/python:3.7-buster
-    steps:
-      - run_cpython_tests:
-          python_version: "3.7"
-          tox_envs: py37,py37-mypy,py37-lint,safety
-
-  test-cpython-38:
-    docker:
-      - image: circleci/python:3.8-buster
-    steps:
-      - run_cpython_tests:
-          python_version: "3.8"
-          tox_envs: py38,py38-mypy,py38-lint,safety
-
-  test-cpython-39:
-    docker:
-      - image: circleci/python:3.9-buster
-    steps:
-      - run_cpython_tests:
-          python_version: "3.9"
-          tox_envs: py39,py39-mypy,py39-lint,format,safety
-
-  report-coverage:
-    docker:
-      - image: circleci/python:3.9-buster
-    steps:
-      - setup_tests:
-          python_version: "3.9"
-          cache_key_prefix: report-coverage-deps
-      - run:
-          name: Report Coverage
-          command: |
-            # Fetch the build numbers for this Workflow UUID
-            RECENT_BUILDS_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/tree/$CIRCLE_BRANCH"
-            BUILD_NUMS=$(curl -H "Circle-Token: $CIRCLECI_API_TOKEN" "$RECENT_BUILDS_URL" | \
-              jq -r "map(select(.workflows.workflow_id == \"$CIRCLE_WORKFLOW_ID\")) | map(.build_num) | .[]")
-            echo "CircleCI build URL: $RECENT_BUILDS_URL"
-            echo "CircleCI build numbers: $(echo "$BUILD_NUMS" | tr '\n' ' ')"
-
-            # Fetch all of the artifacts for the build numbers
-            for build_num in $BUILD_NUMS
-            do
-              ARTIFACT_META_URL="https://circleci.com/api/v1.1/project/github/basilisp-lang/basilisp/$build_num/artifacts"
-              echo "Fetching artifacts for CircleCI build from: $ARTIFACT_META_URL"
-              ARTIFACT_URLS=$(curl -H "Circle-Token: $CIRCLECI_API_TOKEN" "$ARTIFACT_META_URL" | jq -r '.[].url')
-              if [ -n "$ARTIFACT_URLS" ]; then
-                echo "Found artifact URLs: $(echo "$ARTIFACT_URLS" | tr '\n' ' ')"
-                curl -L --remote-name-all $ARTIFACT_URLS
-              fi
-            done
-            tox -v -e coverage
-      - teardown_tests:
-          python_version: "3.8"
-          cache_key_prefix: report-coverage-deps
-
-  test-pypy:
-    docker:
-      - image: pypy:3.6-7-slim-buster
-    parallelism: 3
     steps:
       - checkout
       - restore_cache:
-          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-<< parameters.python_version >>-deps3-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
       - run:
-          name: Install tox
+          name: Install Poetry and Tox
           command: |
-            pip install -U pip
+            apt-get update && apt-get install -y python3 python3-distutils curl
+            pip install -U pip virtualenv
             pip install tox
+            curl -sSL https://install.python-poetry.org | python3 -
+            echo 'export PATH="/root/.local/bin:$PATH"' >> $BASH_ENV
       - run:
           name: Run Tests
           command: |
@@ -161,28 +26,46 @@ jobs:
             printf "Test files:\n"
             echo "$CCI_NODE_TESTS"
             printf "\n"
-            tox -e pypy3 -- $CCI_NODE_TESTS
+            tox run -e pypy3 -- $CCI_NODE_TESTS
+          no_output_timeout: 30m
       - save_cache:
-          key: pypy-deps2-{{ checksum "tox.ini" }}-{{ checksum "Pipfile.lock" }}
+          key: pypy-<< parameters.python_version >>-deps3-{{ checksum "tox.ini" }}-{{ checksum "pyproject.toml" }}
           paths:
             - "/root/project/.tox"
             - "/usr/local/bin"
-            - "/usr/local/lib/python3.6/site-packages"
+            - "/usr/local/lib/python<< parameters.python_version >>/site-packages"
       - store_test_results:
           path: junit
+
+jobs:
+  test-pypy-38:
+    docker:
+      - image: pypy:3.8-slim-buster
+    parallelism: 8
+    steps:
+      - run_pypy_tests:
+          python_version: "3.8"
+
+  test-pypy-39:
+    docker:
+      - image: pypy:3.9-slim-bookworm
+    parallelism: 8
+    steps:
+      - run_pypy_tests:
+          python_version: "3.9"
+
+  test-pypy-310:
+    docker:
+      - image: pypy:3.10-slim-bookworm
+    parallelism: 8
+    steps:
+      - run_pypy_tests:
+          python_version: "3.10"
 
 workflows:
   version: 2
   test:
     jobs:
-      - test-cpython-36
-      - test-cpython-37
-      - test-cpython-38
-      - test-cpython-39
-      - test-pypy
-      - report-coverage:
-          requires:
-            - test-cpython-36
-            - test-cpython-37
-            - test-cpython-38
-            - test-cpython-39
+      - test-pypy-38
+      - test-pypy-39
+      - test-pypy-310

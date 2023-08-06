@@ -8,6 +8,14 @@
     (and (instance? Square other)
          (= dim (.-dim other)))))
 
+(deftest deftype-constructors
+  (let [elems [(tests.basilisp.test-defrecord.Square. 1)
+               (Square. 1)
+               (new tests.basilisp.test-defrecord.Square 1)
+               (new Square 1)
+               (tests.basilisp.test-defrecord/Square 1)]]
+    (is (apply = elems))))
+
 (deftest deftype-reader-form
   (testing "type"
     (is (= (->Square 5) #tests.basilisp.test-defrecord.Square[5])))
@@ -175,6 +183,14 @@
   Shape
   (area [self]
     (* 3.14 radius radius)))
+
+(deftest defrecord-constructors
+  (let [elems [(tests.basilisp.test-defrecord.Circle. 1)
+               (Circle. 1)
+               (new tests.basilisp.test-defrecord.Circle 1)
+               (new Circle 1)
+               (tests.basilisp.test-defrecord/Circle 1)]]
+    (is (apply = elems))))
 
 (deftest defrecord-with-methods
   (let [c  (->Circle 1)

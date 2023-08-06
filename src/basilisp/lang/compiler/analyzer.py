@@ -56,9 +56,11 @@ from basilisp.lang.compiler.constants import (
     SYM_CLASSMETHOD_META_KEY,
     SYM_DEFAULT_META_KEY,
     SYM_DYNAMIC_META_KEY,
+    SYM_INLINE_META_KW,
     SYM_KWARGS_META_KEY,
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
+    SYM_NO_INLINE_META_KEY,
     SYM_NO_WARN_ON_SHADOW_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
     SYM_PRIVATE_META_KEY,
@@ -121,7 +123,11 @@ from basilisp.lang.compiler.nodes import Quote, Recur, Reify, Require, RequireAl
 from basilisp.lang.compiler.nodes import Set as SetNode
 from basilisp.lang.compiler.nodes import SetBang, SpecialFormNode, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
-from basilisp.lang.compiler.nodes import WithMeta, deftype_or_reify_python_member_names
+from basilisp.lang.compiler.nodes import (
+    WithMeta,
+    Yield,
+    deftype_or_reify_python_member_names,
+)
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
@@ -133,9 +139,12 @@ from basilisp.util import Maybe, partition
 logger = logging.getLogger(__name__)
 
 # Analyzer options
+GENERATE_AUTO_INLINES = kw.keyword("generate-auto-inlines")
+INLINE_FUNCTIONS = kw.keyword("inline-functions")
 WARN_ON_SHADOWED_NAME = kw.keyword("warn-on-shadowed-name")
 WARN_ON_SHADOWED_VAR = kw.keyword("warn-on-shadowed-var")
 WARN_ON_UNUSED_NAMES = kw.keyword("warn-on-unused-names")
+WARN_ON_NON_DYNAMIC_SET = kw.keyword("warn-on-non-dynamic-set")
 
 # Lisp AST node keywords
 INIT = kw.keyword("init")
@@ -184,7 +193,6 @@ class SymbolTableEntry:
         return self.binding.local
 
 
-# pylint: disable=unsupported-membership-test,unsupported-delete-operation,unsupported-assignment-operation
 @attr.s(auto_attribs=True, slots=True)
 class SymbolTable:
     name: str
@@ -306,7 +314,6 @@ class AnalyzerContext:
         "_filename",
         "_func_ctx",
         "_is_quoted",
-        "_macro_ns",
         "_opts",
         "_recur_points",
         "_should_macroexpand",
@@ -325,7 +332,6 @@ class AnalyzerContext:
         self._filename = Maybe(filename).or_else_get(DEFAULT_COMPILER_FILE_PATH)
         self._func_ctx: Deque[FunctionContext] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
-        self._macro_ns: Deque[Optional[runtime.Namespace]] = collections.deque([])
         self._opts = (
             Maybe(opts).map(lmap.map).or_else_get(lmap.PersistentMap.empty())  # type: ignore
         )
@@ -341,6 +347,17 @@ class AnalyzerContext:
     @property
     def filename(self) -> str:
         return self._filename
+
+    @property
+    def should_generate_auto_inlines(self) -> bool:
+        """If True, generate inline function defs for functions with boolean `^:inline`
+        meta keys."""
+        return self._opts.val_at(GENERATE_AUTO_INLINES, True)
+
+    @property
+    def should_inline_functions(self) -> bool:
+        """If True, function calls may be inlined if an inline def is provided."""
+        return self._opts.val_at(INLINE_FUNCTIONS, True)
 
     @property
     def warn_on_unused_names(self) -> bool:
@@ -365,6 +382,11 @@ class AnalyzerContext:
         )
 
     @property
+    def warn_on_non_dynamic_set(self) -> bool:
+        """If True, warn when attempting to set! a Var not marked as ^:dynamic."""
+        return self._opts.val_at(WARN_ON_NON_DYNAMIC_SET, True)
+
+    @property
     def is_quoted(self) -> bool:
         try:
             return self._is_quoted[-1] is True
@@ -376,35 +398,6 @@ class AnalyzerContext:
         self._is_quoted.append(True)
         yield
         self._is_quoted.pop()
-
-    @property
-    def current_macro_ns(self) -> Optional[runtime.Namespace]:
-        """Return the current transient namespace available during macroexpansion.
-
-        If None, the analyzer should only use the current namespace for symbol
-        resolution."""
-        try:
-            return self._macro_ns[-1]
-        except IndexError:
-            return None
-
-    @contextlib.contextmanager
-    def macro_ns(self, ns: Optional[runtime.Namespace]):
-        """Set the transient namespace which is available to the analyzer during a
-        macroexpansion phase.
-
-        If set to None, prohibit the analyzer from using another namespace for symbol
-        resolution.
-
-        During macroexpansion, new forms referenced from the macro namespace would
-        be unavailable to the namespace containing the original macro invocation.
-        The macro namespace is a temporary override pointing to the namespace of the
-        macro definition which can be used to resolve these transient references."""
-        self._macro_ns.append(ns)
-        try:
-            yield
-        finally:
-            self._macro_ns.pop()
 
     @property
     def should_allow_unresolved_symbols(self) -> bool:
@@ -611,10 +604,11 @@ class AnalyzerContext:
 ####################
 
 
-MetaGetter = Callable[[Union[IMeta, Var]], bool]
+BoolMetaGetter = Callable[[Union[IMeta, Var]], bool]
+MetaGetter = Callable[[Union[IMeta, Var]], Any]
 
 
-def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
+def _bool_meta_getter(meta_kw: kw.Keyword) -> BoolMetaGetter:
     """Return a function which checks an object with metadata for a boolean
     value by meta_kw."""
 
@@ -626,16 +620,28 @@ def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
     return has_meta_prop
 
 
-_is_artificially_abstract = _meta_getter(SYM_ABSTRACT_META_KEY)
-_is_async = _meta_getter(SYM_ASYNC_META_KEY)
-_is_mutable = _meta_getter(SYM_MUTABLE_META_KEY)
-_is_py_classmethod = _meta_getter(SYM_CLASSMETHOD_META_KEY)
-_is_py_property = _meta_getter(SYM_PROPERTY_META_KEY)
-_is_py_staticmethod = _meta_getter(SYM_STATICMETHOD_META_KEY)
-_is_macro = _meta_getter(SYM_MACRO_META_KEY)
+def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
+    """Return a function which checks an object with metadata for a boolean
+    value by meta_kw."""
+
+    def get_meta_prop(o: Union[IMeta, Var]) -> Any:
+        return Maybe(o.meta).map(lambda m: m.val_at(meta_kw, None)).value
+
+    return get_meta_prop
 
 
-def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
+_is_artificially_abstract = _bool_meta_getter(SYM_ABSTRACT_META_KEY)
+_is_async = _bool_meta_getter(SYM_ASYNC_META_KEY)
+_is_mutable = _bool_meta_getter(SYM_MUTABLE_META_KEY)
+_is_py_classmethod = _bool_meta_getter(SYM_CLASSMETHOD_META_KEY)
+_is_py_property = _bool_meta_getter(SYM_PROPERTY_META_KEY)
+_is_py_staticmethod = _bool_meta_getter(SYM_STATICMETHOD_META_KEY)
+_is_macro = _bool_meta_getter(SYM_MACRO_META_KEY)
+_is_no_inline = _bool_meta_getter(SYM_NO_INLINE_META_KEY)
+_inline_meta = _meta_getter(SYM_INLINE_META_KW)
+
+
+def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int, int, int]]:
     """Fetch the location of the form in the original filename from the
     input form, if it has metadata."""
     # Technically, IMeta is sufficient for fetching `form.meta` but the
@@ -645,8 +651,15 @@ def _loc(form: Union[LispForm, ISeq]) -> Optional[Tuple[int, int]]:
         if meta is not None:
             line = meta.get(reader.READER_LINE_KW)
             col = meta.get(reader.READER_COL_KW)
-            if isinstance(line, int) and isinstance(col, int):
-                return line, col
+            end_line = meta.get(reader.READER_END_LINE_KW)
+            end_col = meta.get(reader.READER_END_COL_KW)
+            if (
+                isinstance(line, int)
+                and isinstance(col, int)
+                and isinstance(end_line, int)
+                and isinstance(end_col, int)
+            ):
+                return line, col, end_line, end_col
     return None
 
 
@@ -670,7 +683,12 @@ def _clean_meta(meta: Optional[lmap.PersistentMap]) -> Optional[lmap.PersistentM
     if meta is None:
         return None
     else:
-        new_meta = meta.dissoc(reader.READER_LINE_KW, reader.READER_COL_KW)
+        new_meta = meta.dissoc(
+            reader.READER_LINE_KW,
+            reader.READER_COL_KW,
+            reader.READER_END_LINE_KW,
+            reader.READER_END_COL_KW,
+        )
         return None if len(new_meta) == 0 else new_meta
 
 
@@ -706,7 +724,7 @@ def _body_ast(
     return stmts, ret
 
 
-def _call_args_ast(  # pylint: disable=too-many-branches
+def _call_args_ast(
     form: ISeq, ctx: AnalyzerContext
 ) -> Tuple[Iterable[Node], KeywordArgs]:
     """Return a tuple of positional arguments and keyword arguments, splitting at the
@@ -846,7 +864,7 @@ def _await_ast(form: ISeq, ctx: AnalyzerContext) -> Await:
     )
 
 
-def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
+def _def_ast(  # pylint: disable=too-many-locals
     form: ISeq, ctx: AnalyzerContext
 ) -> Def:
     assert form.first == SpecialForm.DEF
@@ -949,6 +967,18 @@ def _def_ast(  # pylint: disable=too-many-branches,too-many-locals
     if init_idx is not None:
         with ctx.expr_pos():
             init = _analyze_form(runtime.nth(form, init_idx), ctx)
+
+        # Attach the automatically generated inline function (if one exists) to the Var
+        # and def metadata. We do not need to do this for user-provided inline
+        # functions (for which `init.inline_fn` will be None) since those should
+        # already be attached to the meta.
+        if isinstance(init, Fn) and init.inline_fn is not None:
+            assert isinstance(var.meta.val_at(SYM_INLINE_META_KW), bool), (  # type: ignore[union-attr]
+                "Cannot have a user-generated inline function and an automatically "
+                "generated inline function"
+            )
+            var.meta.assoc(SYM_INLINE_META_KW, init.inline_fn)  # type: ignore[union-attr]
+            def_meta = def_meta.assoc(SYM_INLINE_META_KW, init.inline_fn.form)  # type: ignore[union-attr]
     else:
         init = None
 
@@ -1082,10 +1112,10 @@ def __deftype_classmethod(
     ):
         try:
             cls_arg = args[0]
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 "deftype* class method must include 'cls' argument", form=args
-            )
+            ) from e
         else:
             if not isinstance(cls_arg, sym.Symbol):
                 raise AnalyzerException(
@@ -1143,11 +1173,11 @@ def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-lo
     with ctx.new_symbol_table(method_name, is_context_boundary=True):
         try:
             this_arg = args[0]
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 f"{special_form} method must include 'this' or 'self' argument",
                 form=args,
-            )
+            ) from e
         else:
             if not isinstance(this_arg, sym.Symbol):
                 raise AnalyzerException(
@@ -1207,11 +1237,11 @@ def __deftype_or_reify_property(
     with ctx.new_symbol_table(method_name, is_context_boundary=True):
         try:
             this_arg = args[0]
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 f"{special_form} property must include 'this' or 'self' argument",
                 form=args,
-            )
+            ) from e
         else:
             if not isinstance(this_arg, sym.Symbol):
                 raise AnalyzerException(
@@ -1298,7 +1328,7 @@ def __deftype_staticmethod(
         return method
 
 
-def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branches
+def __deftype_or_reify_prop_or_method_arity(
     form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
     special_form: sym.Symbol,
@@ -1380,7 +1410,7 @@ def __deftype_or_reify_prop_or_method_arity(  # pylint: disable=too-many-branche
         )
 
 
-def __deftype_or_reify_method_node_from_arities(  # pylint: disable=too-many-branches
+def __deftype_or_reify_method_node_from_arities(
     form: Union[llist.PersistentList, ISeq],
     ctx: AnalyzerContext,
     arities: List[DefTypeMethodArity],
@@ -1549,7 +1579,7 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
     return interfaces, members
 
 
-_var_is_protocol = _meta_getter(VAR_IS_PROTOCOL_META_KEY)
+_var_is_protocol = _bool_meta_getter(VAR_IS_PROTOCOL_META_KEY)
 
 
 def __is_deftype_member(mem) -> bool:
@@ -1566,7 +1596,7 @@ def __is_reify_member(mem) -> bool:
     return inspect.isfunction(mem) or isinstance(mem, property)
 
 
-def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-branches,too-many-locals
+def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-locals
     special_form: sym.Symbol,
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
@@ -1702,7 +1732,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-bran
 __DEFTYPE_DEFAULT_SENTINEL = object()
 
 
-def _deftype_ast(  # pylint: disable=too-many-branches,too-many-locals
+def _deftype_ast(  # pylint: disable=too-many-locals
     form: ISeq, ctx: AnalyzerContext
 ) -> DefType:
     assert form.first == SpecialForm.DEFTYPE
@@ -1808,7 +1838,7 @@ def _do_ast(form: ISeq, ctx: AnalyzerContext) -> Do:
     )
 
 
-def __fn_method_ast(  # pylint: disable=too-many-branches,too-many-locals
+def __fn_method_ast(  # pylint: disable=too-many-locals
     form: ISeq,
     ctx: AnalyzerContext,
     fnname: Optional[sym.Symbol] = None,
@@ -1908,15 +1938,80 @@ def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
 
     try:
         return KeywordArgSupport(kwarg_support)
-    except ValueError:
+    except ValueError as e:
         raise AnalyzerException(
             "fn keyword argument support metadata :kwarg must be one of: #{:apply :collect}",
             form=kwarg_support,
+        ) from e
+
+
+InlineMeta = Union[Callable, bool, None]
+
+
+@functools.singledispatch
+def __unquote_args(f: LispForm, _: FrozenSet[sym.Symbol]):
+    return f
+
+
+@__unquote_args.register(sym.Symbol)
+def __unquote_args_sym(f: sym.Symbol, args: FrozenSet[sym.Symbol]):
+    if f in args:
+        return llist.l(reader._UNQUOTE, f)
+    return f
+
+
+def _inline_fn_ast(
+    ctx: AnalyzerContext,
+    form: Union[llist.PersistentList, ISeq],
+    name: Optional[Binding],
+    arities: vec.PersistentVector[FnArity],
+    num_variadic: int,
+) -> Optional[Fn]:
+    if not ctx.should_generate_auto_inlines:
+        return None
+
+    inline_arity = arities[0]
+
+    if num_variadic != 0:
+        raise AnalyzerException(
+            "functions with variadic arity may not be inlined",
+            form=form,
         )
+
+    if len(arities) != 1:
+        raise AnalyzerException(
+            "multi-arity functions cannot be inlined",
+            form=form,
+        )
+
+    if len(inline_arity.body.statements) > 0:
+        raise AnalyzerException(
+            "cannot generate an inline function for functions with more than one "
+            "body expression",
+            form=form,
+        )
+
+    logger.log(
+        TRACE, f"Generating inline def for {name.name if name is not None else 'fn'}"
+    )
+    unquoted_form = reader._postwalk(
+        lambda f: __unquote_args(
+            f,
+            frozenset(binding.form for binding in inline_arity.params),
+        ),
+        inline_arity.body.ret.form,
+    )
+    macroed_form = reader.syntax_quote(unquoted_form)
+    inline_fn_form = llist.l(
+        SpecialForm.FN,
+        vec.vector(binding.form for binding in inline_arity.params),
+        macroed_form,
+    )
+    return _fn_ast(inline_fn_form, ctx)
 
 
 @_with_meta  # noqa: MC0001
-def _fn_ast(  # pylint: disable=too-many-branches
+def _fn_ast(  # pylint: disable=too-many-locals
     form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
 ) -> Fn:
     assert form.first == SpecialForm.FN
@@ -1926,18 +2021,22 @@ def _fn_ast(  # pylint: disable=too-many-branches
     with ctx.new_symbol_table("fn", is_context_boundary=True):
         try:
             name = runtime.nth(form, idx)
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
                 form=form,
-            )
+            ) from e
 
         name_node: Optional[Binding]
+        inline: InlineMeta
         if isinstance(name, sym.Symbol):
             name_node = Binding(
                 form=name, name=name.name, local=LocalType.FN, env=ctx.get_node_env()
             )
             is_async = _is_async(name) or isinstance(form, IMeta) and _is_async(form)
+            inline = (
+                _inline_meta(name) or isinstance(form, IMeta) and _inline_meta(form)
+            )
             kwarg_support = (
                 __fn_kwargs_support(name)
                 or isinstance(form, IMeta)
@@ -1949,6 +2048,7 @@ def _fn_ast(  # pylint: disable=too-many-branches
             name = None
             name_node = None
             is_async = isinstance(form, IMeta) and _is_async(form)
+            inline = isinstance(form, IMeta) and _inline_meta(form)
             kwarg_support = isinstance(form, IMeta) and __fn_kwargs_support(form)
         else:
             raise AnalyzerException(
@@ -1958,11 +2058,11 @@ def _fn_ast(  # pylint: disable=too-many-branches
 
         try:
             arity_or_args = runtime.nth(form, idx)
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 "fn form expects either multiple arities or a vector of arguments",
                 form=form,
-            )
+            ) from e
 
         if isinstance(arity_or_args, llist.PersistentList):
             arities = vec.vector(
@@ -2030,6 +2130,20 @@ def _fn_ast(  # pylint: disable=too-many-branches
             env=ctx.get_node_env(pos=ctx.syntax_position),
             is_async=is_async,
             kwarg_support=None if isinstance(kwarg_support, bool) else kwarg_support,
+            # Generate an inlineable (macro) variant of the current function if:
+            #  - the metadata for the fn contains a boolean `:inline` meta key
+            #  - the function has a single arity, composed of a single expression
+            #
+            # This node attribute (inline_fn) is not used for holding user provided
+            # inline functions. If a user provides an inline function, then that
+            # function will be compiled as part of the metadata already and will be
+            # found by the compiler on the associated Var without needing this code
+            # path at all.
+            inline_fn=(
+                _inline_fn_ast(ctx, form, name_node, arities, num_variadic)
+                if isinstance(inline, bool)
+                else None
+            ),
         )
 
 
@@ -2068,11 +2182,11 @@ def _host_prop_ast(form: ISeq, ctx: AnalyzerContext) -> HostField:
     if field.name == ".-":
         try:
             field = runtime.nth(form, 2)
-        except IndexError:
+        except IndexError as e:
             raise AnalyzerException(
                 "host interop prop must be exactly 3 elems long: (.- target field)",
                 form=form,
-            )
+            ) from e
         else:
             if not isinstance(field, sym.Symbol):
                 raise AnalyzerException(
@@ -2108,9 +2222,7 @@ def _host_prop_ast(form: ISeq, ctx: AnalyzerContext) -> HostField:
         )
 
 
-def _host_interop_ast(  # pylint: disable=too-many-branches
-    form: ISeq, ctx: AnalyzerContext
-) -> Union[HostCall, HostField]:
+def _host_interop_ast(form: ISeq, ctx: AnalyzerContext) -> Union[HostCall, HostField]:
     assert form.first == SpecialForm.INTEROP_CALL
     nelems = count(form)
     assert nelems >= 3
@@ -2199,9 +2311,7 @@ def _if_ast(form: ISeq, ctx: AnalyzerContext) -> If:
     )
 
 
-def _import_ast(  # pylint: disable=too-many-branches
-    form: ISeq, ctx: AnalyzerContext
-) -> Import:
+def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
     assert form.first == SpecialForm.IMPORT
 
     aliases = []
@@ -2264,42 +2374,63 @@ def _import_ast(  # pylint: disable=too-many-branches
     )
 
 
+def __handle_macroexpanded_ast(
+    original: Union[llist.PersistentList, ISeq],
+    expanded: Union[ReaderForm, ISeq],
+    ctx: AnalyzerContext,
+) -> Node:
+    """Prepare the Lisp AST from macroexpanded and inlined code."""
+    if isinstance(expanded, IWithMeta) and isinstance(original, IMeta):
+        old_meta = expanded.meta
+        expanded = expanded.with_meta(
+            old_meta.cons(original.meta) if old_meta else original.meta
+        )
+    with ctx.expr_pos():
+        expanded_ast = _analyze_form(expanded, ctx)
+
+    # Verify that macroexpanded code also does not have any non-tail
+    # recur forms
+    if ctx.recur_point is not None:
+        _assert_recur_is_tail(expanded_ast)
+
+    return expanded_ast.assoc(
+        raw_forms=cast(vec.PersistentVector, expanded_ast.raw_forms).cons(original)
+    )
+
+
 def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -> Node:
     with ctx.expr_pos():
         fn = _analyze_form(form.first, ctx)
 
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
-        if _is_macro(fn.var):
-            if ctx.should_macroexpand:
-                try:
-                    macro_env = ctx.symbol_table.as_env_map()
-                    expanded = fn.var.value(macro_env, form, *form.rest)
-                    if isinstance(expanded, IWithMeta) and isinstance(form, IMeta):
-                        old_meta = expanded.meta
-                        expanded = expanded.with_meta(
-                            old_meta.cons(form.meta) if old_meta else form.meta
-                        )
-                    with ctx.macro_ns(
-                        fn.var.ns if fn.var.ns is not ctx.current_ns else None
-                    ), ctx.expr_pos():
-                        expanded_ast = _analyze_form(expanded, ctx)
-
-                    # Verify that macroexpanded code also does not have any
-                    # non-tail recur forms
-                    if ctx.recur_point is not None:
-                        _assert_recur_is_tail(expanded_ast)
-
-                    return expanded_ast.assoc(
-                        raw_forms=cast(
-                            vec.PersistentVector, expanded_ast.raw_forms
-                        ).cons(form)
-                    )
-                except Exception as e:
-                    raise CompilerException(
-                        "error occurred during macroexpansion",
-                        form=form,
-                        phase=CompilerPhase.MACROEXPANSION,
-                    ) from e
+        if _is_macro(fn.var) and ctx.should_macroexpand:
+            try:
+                macro_env = ctx.symbol_table.as_env_map()
+                expanded = fn.var.value(macro_env, form, *form.rest)
+                return __handle_macroexpanded_ast(form, expanded, ctx)
+            except Exception as e:
+                raise CompilerException(
+                    "error occurred during macroexpansion",
+                    form=form,
+                    phase=CompilerPhase.MACROEXPANSION,
+                ) from e
+        elif (
+            not (isinstance(form, IMeta) and _is_no_inline(form))
+            and fn.var.meta
+            and callable(fn.var.meta.get(SYM_INLINE_META_KW))
+        ):
+            # TODO: also consider whether or not the function(s) inside will be valid
+            #       if they are inlined (e.g. if the namespace or module is imported)
+            inline_fn = cast(Callable, fn.var.meta.get(SYM_INLINE_META_KW))
+            try:
+                expanded = inline_fn(*form.rest)
+                return __handle_macroexpanded_ast(form, expanded, ctx)
+            except Exception as e:
+                raise CompilerException(
+                    "error occurred during inlining",
+                    form=form,
+                    phase=CompilerPhase.INLINING,
+                ) from e
 
     args, kwargs = _call_args_ast(form.rest, ctx)
     return Invoke(
@@ -2570,7 +2701,7 @@ def _assert_no_recur(node: Node) -> None:
         node.visit(_assert_no_recur)
 
 
-def _assert_recur_is_tail(node: Node) -> None:  # pylint: disable=too-many-branches
+def _assert_recur_is_tail(node: Node) -> None:
     """Assert that `recur` forms only appear in the tail position of this
     or child AST nodes.
 
@@ -2673,9 +2804,7 @@ def _reify_ast(form: ISeq, ctx: AnalyzerContext) -> Reify:
         )
 
 
-def _require_ast(  # pylint: disable=too-many-branches
-    form: ISeq, ctx: AnalyzerContext
-) -> Require:
+def _require_ast(form: ISeq, ctx: AnalyzerContext) -> Require:
     assert form.first == SpecialForm.REQUIRE
 
     aliases = []
@@ -2741,6 +2870,22 @@ def _set_bang_ast(form: ISeq, ctx: AnalyzerContext) -> SetBang:
         raise AnalyzerException(
             "cannot set! target which is not assignable", form=target
         )
+
+    # Vars may only be set if they are (1) dynamic, and (2) already have a thread
+    # binding established via the `binding` macro in Basilisp or by manually pushing
+    # thread bindings (e.g. by runtime.push_thread_bindings).
+    #
+    # We can (generally) establish statically whether a Var is dynamic at compile time,
+    # but establishing whether or not a Var will be thread-bound by the time a set!
+    # is executed is much more challenging. Given the dynamic nature of the language,
+    # it is simply easier to emit warnings for these potentially invalid cases to let
+    # users fix the problem.
+    if isinstance(target, VarRef):
+        if ctx.warn_on_non_dynamic_set and not target.var.dynamic:
+            logger.warning(f"set! target {target.var} is not marked as dynamic")
+        elif not target.var.is_thread_bound:
+            # This case is way more likely to result in noise, so just emit at debug.
+            logger.debug(f"set! target {target.var} is not marked as thread-bound")
 
     with ctx.expr_pos():
         val = _analyze_form(runtime.nth(form, 2), ctx)
@@ -2810,9 +2955,7 @@ def _catch_ast(form: ISeq, ctx: AnalyzerContext) -> Catch:
         )
 
 
-def _try_ast(  # pylint: disable=too-many-branches
-    form: ISeq, ctx: AnalyzerContext
-) -> Try:
+def _try_ast(form: ISeq, ctx: AnalyzerContext) -> Try:
     assert form.first == SpecialForm.TRY
 
     try_exprs = []
@@ -2914,6 +3057,32 @@ def _var_ast(form: ISeq, ctx: AnalyzerContext) -> VarRef:
     )
 
 
+def _yield_ast(form: ISeq, ctx: AnalyzerContext) -> Yield:
+    assert form.first == SpecialForm.YIELD
+
+    if ctx.func_ctx is None:
+        raise AnalyzerException(
+            "yield forms may not appear in function context", form=form
+        )
+
+    nelems = count(form)
+    if nelems not in {1, 2}:
+        raise AnalyzerException(
+            "yield forms must contain 1 or 2 elements, as in: (yield [expr])", form=form
+        )
+
+    if nelems == 2:
+        with ctx.expr_pos():
+            expr = _analyze_form(runtime.nth(form, 1), ctx)
+        return Yield(
+            form=form,
+            expr=expr,
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
+    else:
+        return Yield.expressionless(form, ctx.get_node_env(pos=ctx.syntax_position))
+
+
 SpecialFormHandler = Callable[[ISeq, AnalyzerContext], SpecialFormNode]
 _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.AWAIT: _await_ast,
@@ -2935,6 +3104,7 @@ _SPECIAL_FORM_HANDLERS: Mapping[sym.Symbol, SpecialFormHandler] = {
     SpecialForm.THROW: _throw_ast,
     SpecialForm.TRY: _try_ast,
     SpecialForm.VAR: _var_ast,
+    SpecialForm.YIELD: _yield_ast,
 }
 
 
@@ -2986,7 +3156,7 @@ def _resolve_nested_symbol(ctx: AnalyzerContext, form: sym.Symbol) -> HostField:
     )
 
 
-def __resolve_namespaced_symbol_in_ns(  # pylint: disable=too-many-branches
+def __resolve_namespaced_symbol_in_ns(
     ctx: AnalyzerContext,
     which_ns: runtime.Namespace,
     form: sym.Symbol,
@@ -3095,15 +3265,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     v = Var.find(form)
     if v is not None:
         # Disallow global references to Vars defined with :private metadata
-        #
-        # Global references to private Vars are allowed in macroexpanded code
-        # as long as the macro referencing the private Var is in the same
-        # Namespace as the private Var (via `ctx.current_macro_ns`)
-        if (
-            v.ns != ctx.current_macro_ns
-            and v.meta is not None
-            and v.meta.val_at(SYM_PRIVATE_META_KEY, False)
-        ):
+        if v.meta is not None and v.meta.val_at(SYM_PRIVATE_META_KEY, False):
             raise AnalyzerException(
                 f"cannot resolve private Var {form.name} from namespace {form.ns}",
                 form=form,
@@ -3196,16 +3358,6 @@ def __resolve_bare_symbol(
             var=v,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
-
-    # Look up the symbol in the current macro namespace, if one
-    if ctx.current_macro_ns is not None:
-        v = ctx.current_macro_ns.find(form)
-        if v is not None:
-            return VarRef(
-                form=form,
-                var=v,
-                env=ctx.get_node_env(pos=ctx.syntax_position),
-            )
 
     if "." in form.name:
         raise AnalyzerException(
@@ -3456,7 +3608,6 @@ for tp, const_type in {
     uuid.UUID: ConstType.UUID,
     vec.PersistentVector: ConstType.VECTOR,
 }.items():
-
     _const_node_type.register(tp, lambda _, default=const_type: default)
 
 
@@ -3494,7 +3645,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
         )
         or (ctx.should_allow_unresolved_symbols and isinstance(form, sym.Symbol))
         or (isinstance(form, (llist.PersistentList, ISeq)) and form.is_empty)
-        or isinstance(  # pylint: disable=isinstance-second-argument-not-valid-type
+        or isinstance(
             form,
             (
                 bool,
