@@ -3409,25 +3409,30 @@
   (let [default (if (odd? (count clauses))
                   (last clauses)
                   :basilisp.core.case/no-default)
-        pairs   (mapcat identity
-                        (mapcat (fn [pair]
-                                  (let [binding (first pair)
-                                        expr    (second pair)]
-                                    (if (list? binding)
-                                      (map #(vector (list 'quote %) expr) binding)
-                                      [[(list 'quote binding) expr]])))
-                                (partition 2
-                                           (if (= default :basilisp.core.case/no-default)
-                                             clauses
-                                             (drop-last clauses)))))
-        expr-gs (gensym "expr")]
-    `(let [~expr-gs ~expr
-           m#       ~(apply hash-map pairs)]
-       (if-not (contains? m# ~expr-gs)
-         ~(if (= default :basilisp.core.case/no-default)
-            `(throw (python/ValueError (str "No case clause matches " ~expr-gs)))
-            `~default)
-         (get m# ~expr-gs)))))
+        pairs   (mapcat (fn [pair]
+                          (let [binding (first pair)
+                                expr    (second pair)]
+                            (if (list? binding)
+                              (map #(vector % expr) binding)
+                              [[binding expr]])))
+                        (partition 2
+                                   (if (= default :basilisp.core.case/no-default)
+                                     clauses
+                                     (drop-last clauses))))
+        expr-gs (gensym "expr")
+        pairs-cond (mapcat identity (map (fn [pair]
+                                           (let [t (first pair)
+                                                 e (second pair)]
+                                             (list `(= ~expr-gs ~(if (symbol? t)
+                                                                   `'~t
+                                                                   t)) e)))
+                                         pairs))
+        pairs-cond-else (concat pairs-cond
+                                [:else `(if (= ~default :basilisp.core.case/no-default)
+                                          (throw (python/ValueError (str "No case clause matches " ~expr-gs)))
+                                          ~default)])]
+    `(let [~expr-gs ~expr]
+       (cond ~@pairs-cond-else))))
 
 (defmacro condp
   "Take a predicate and an expression and a series of clauses, call ``(pred test expr)``
