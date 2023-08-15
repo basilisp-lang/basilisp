@@ -3401,7 +3401,8 @@
 
   The clauses are pairs of a matching value and a return value. The matching values are
   not evaluated and must be compile-time constants. Symbols will not be resolved. Lists
-  may be passed to match multiple compile time values to a single return value."
+  may be passed to match multiple compile time values to a single return value. The
+  dispatch is done in constant time."
   [expr & clauses]
   (when (< (count clauses) 2)
     (throw (ex-info "case expression must have at least one clause"
@@ -3412,7 +3413,7 @@
         pairs   (mapcat identity
                         (mapcat (fn [pair]
                                   (let [binding (first pair)
-                                        expr    (second pair)]
+                                        expr    `(fn [] ~(second pair))]
                                     (if (list? binding)
                                       (map #(vector (list 'quote %) expr) binding)
                                       [[(list 'quote binding) expr]])))
@@ -3427,7 +3428,7 @@
          ~(if (= default :basilisp.core.case/no-default)
             `(throw (python/ValueError (str "No case clause matches " ~expr-gs)))
             `~default)
-         (get m# ~expr-gs)))))
+         ((get m# ~expr-gs))))))
 
 (defmacro condp
   "Take a predicate and an expression and a series of clauses, call ``(pred test expr)``
