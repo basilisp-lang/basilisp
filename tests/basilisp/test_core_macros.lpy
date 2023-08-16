@@ -1434,7 +1434,7 @@
     (is (= [[{:nested {:a "A"} :a "a" :b "b"}
              {:nested {:a "C"} :a "c" :b "d"}
              {:a "e" :b "e"}]
-            "AbCdnile"]
+            "AbCde"]
            (loop [items [{:nested {:a "A"} :a "a" :b "b"}
                          {:nested {:a "C"} :a "c" :b "d"}
                          {:a "e" :b "e"}]

@@ -472,16 +472,25 @@
     (recur (rest s))
     (first s)))
 
+(defn  ^:inline nil?
+  "Return ``true`` if ``x`` is ``nil``\\, otherwise ``false``\\."
+  [x]
+  (operator/is- x nil))
+
 (defn str
-  "Create a string representation of ``o``."
+  "Create a string representation of ``o``.
+
+  Return the empty string if ``o`` is nil."
   ([] "")
   ([o] (basilisp.lang.runtime/lstr o))
   ([o & args]
    (let [coerce (fn [in out]
-                  (if (seq (rest in))
-                    (recur (rest in)
-                           (conj out (basilisp.lang.runtime/lstr (first in))))
-                    (conj out (basilisp.lang.runtime/lstr (first in)))))
+                  (let [item (first in)
+                        repr (if (nil? item) "" (basilisp.lang.runtime/lstr item))]
+                    (if (seq (rest in))
+                      (recur (rest in)
+                             (conj out repr))
+                      (conj out repr))))
          strs   (coerce (conj args o) [])]
      (.join "" strs))))
 
