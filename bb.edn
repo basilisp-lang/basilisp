@@ -1,0 +1,25 @@
+{:tasks
+ {:requires [[babashka.fs :as fs]]
+
+  docs (shell "poetry" "run" "sphinx-build" "-M" "html" "./docs" "./docs/_build")
+
+  format (shell "poetry" "run" "sh" "-c" "isort . && black .")
+
+  repl (shell {:extra-env {"BASILISP_USE_DEV_LOGGER" "true"}} "poetry run basilisp repl")
+
+  test (do (doseq [cov (fs/list-dir "." ".coverage*")]
+             (fs/delete-tree cov))
+           (shell {:extra-env {"TOX_SKIP_ENV" "pypy3|safety|coverage"}} "poetry run tox run-parallel -p 4"))
+
+  lispcore.py (do (shell {:extra-env {"BASILISP_USE_DEV_LOGGER" "true"}}
+                         "poetry" "run" "basilisp" "run" "-c"
+                         "(spit \"lispcore.py\" @#'basilisp.core/*generated-python*)")
+                  (shell "poetry run black lispcore.py"))
+
+  clean (fs/delete-tree "./lispcore.py")
+
+  pypy-shell (shell "docker run -it
+		--mount src=`pwd`,target=/usr/src/app,type=bind
+		--workdir /usr/src/app
+		pypy:3.10-7.3-slim-buster
+		/bin/sh -c 'pip install -e . && basilisp repl'")}}
