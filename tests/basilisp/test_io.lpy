@@ -162,7 +162,18 @@
       (testing "cannot write read-only file"
         (with-open [f (python/open path ** :mode "r")]
           (is (thrown? basilisp.lang.exception/ExceptionInfo
-                       (spit f "some content")))))))
+                       (spit f "some content")))))
+
+      (testing "relative path"
+        (let [[fd filename] (tempfile/mkstemp ** :dir "." :prefix "test-rel-path-")]
+          (try
+            (let [filename-rel (os.path/relpath filename ".")]
+              (with-open [f (python/open filename-rel ** :mode "w")]
+                (spit f "hello rel"))
+              (is (= "hello rel" (slurp filename-rel))))
+            (finally
+              (os/close fd)
+              (os/unlink filename)))))))
 
   (testing "http requests"
     (let [url (str "http://localhost:" *http-port* "/writer-http-req.txt")]

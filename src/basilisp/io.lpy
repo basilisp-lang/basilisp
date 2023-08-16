@@ -33,8 +33,8 @@
   (as-path [f]
     (if (contains? #{"file" ""} (.-scheme f))
       (let [path (.-path f)]
-        (if (= sys/platform "win32")
-          ;; On MS-Windows, extracting the path from the URL
+        (if (and (= sys/platform "win32") (os.path/isabs path))
+          ;; On MS-Windows, extracting an absolute path from the URL
           ;; incorrectly adds a leading `/', .e.g. /C:\xyz.
           (pathlib/Path (subs path 1))
 
