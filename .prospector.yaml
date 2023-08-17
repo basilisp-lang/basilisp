@@ -20,6 +20,7 @@ ignore-paths:
   - pip-wheel-metadata
   - lispcore.py
   - tests
+  - venv
 
 pep8:
   disable:
