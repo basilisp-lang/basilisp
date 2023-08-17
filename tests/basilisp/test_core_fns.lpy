@@ -1050,6 +1050,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;
 
 (deftest str-test
+  (is (= "" (str nil)))
   (is (= "ab" (str "a" nil "b"))))
 
 (deftest subs-test
