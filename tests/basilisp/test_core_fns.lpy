@@ -970,6 +970,32 @@
   (is (= "dsd" (min-key count "asd" "bsd" "dsd" "long word")))
   (is (= "a" (min-key count "a" "bsd" "dsd" "long word"))))
 
+(deftest sort-test
+  (testing "no cmp function"
+    (is (= '() (sort [])))
+    (is (= '(1 2 3 4 5) (sort [5 3 4 1 2])))
+    (is (= '([:a] [5 5] [1 2 3])
+           (sort [[1 2 3] [:a] [5 5]]))))
+
+  (testing "with cmp function"
+    (let [cmp (fn [v1 v2] (< v2 v1))]
+      (is (= '() (sort cmp [])))
+      (is (= '([1 2 3] [5 5] [:a])
+             (sort cmp [[1 2 3] [:a] [5 5]]))))
+
+    ;; taken from clojuredocs
+    (is (= '(:d :c :b :a) (sort #(compare %2 %1) '(:a :b :c :d)))))
+
+  (testing "sorting vectors"
+    (are [res v] (= res (sort v))
+      '([1] [3] [1 2]) [[1] [1 2] [3]]
+      '([1] [1 2] [1 3]) [[1 3] [1] [1 2]]
+      '([1] [0 1] [0 1]) [[0 1] [1] [0 1] ]))
+
+  (testing "sorting maps"
+    (are [res v] (= res (sort v))
+      '([:3 18] [:5 28] [:9 23]) {:9 23 :3 18 :5 28})))
+
 (deftest sort-by-test
   (testing "no cmp function"
     (is (= '() (sort-by count [])))

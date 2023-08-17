@@ -1373,14 +1373,6 @@ def _compare_sets(x: IPersistentSet, y) -> int:
     )
 
 
-def sort(coll, f=None) -> Optional[ISeq]:
-    """Return a sorted sequence of the elements in coll. If a comparator
-    function f is provided, compare elements in coll using f."""
-    if isinstance(coll, IPersistentMap):
-        coll = lseq.to_seq(coll)
-    return lseq.sequence(sorted(coll, key=Maybe(f).map(functools.cmp_to_key).value))
-
-
 def _fn_to_comparator(f):
     """Coerce F comparator fn to a 3 way comparator fn."""
 
@@ -1399,6 +1391,43 @@ def _fn_to_comparator(f):
             return 0
 
     return cmp
+
+
+def sort(coll, f=compare) -> Optional[ISeq]:
+    """Return a sorted sequence of the elements in coll. If a
+    comparator function f is provided, compare elements in coll
+    using f or use the `compare` fn if not.
+
+    The comparator fn can be either a boolean or 3-way comparison fn."""
+    if isinstance(coll, IPersistentMap):
+        coll = lseq.to_seq(coll)
+
+    comparator = _fn_to_comparator(f)
+
+    class key:
+        __slots__ = ("obj",)
+
+        def __init__(self, obj):
+            self.obj = obj
+
+        def __lt__(self, other):
+            return comparator(self.obj, other.obj) < 0
+
+        def __gt__(self, other):
+            return comparator(self.obj, other.obj) > 0
+
+        def __eq__(self, other):
+            return comparator(self.obj, other.obj) == 0
+
+        def __le__(self, other):
+            return comparator(self.obj, other.obj) <= 0
+
+        def __ge__(self, other):
+            return comparator(self.obj, other.obj) >= 0
+
+        __hash__ = None  # type: ignore
+
+    return lseq.sequence(sorted(coll, key=key))
 
 
 def sort_by(keyfn, coll, cmp=compare) -> Optional[ISeq]:
