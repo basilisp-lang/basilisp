@@ -200,6 +200,7 @@
 
       0  [0 1 2] [0 1 2]
       -1 [0 1 2] [1 1 2]
+      1  [2 55] [1 99]
       1  [1 1 2] [0 1 2]))
 
   (testing "un-comparables"
@@ -979,7 +980,42 @@
     (let [cmp (fn [v1 v2] (- v2 v1))]
       (is (= '() (sort-by count cmp [])))
       (is (= '([1 2 3] [5 5] [:a])
-             (sort-by count cmp [[1 2 3] [:a] [5 5]]))))))
+             (sort-by count cmp [[1 2 3] [:a] [5 5]])))))
+
+  (testing "sorting vectors"
+    (are [res v] (= res (sort-by identity v))
+      '([1] [3] [1 2]) [[1] [1 2] [3]]
+      '([1] [1 2] [1 3]) [[1 3] [1] [1 2]]
+      '([1] [0 1] [0 1]) [[0 1] [1] [0 1] ])
+
+    ;; taken from clojuredocs
+    (is (= '([1 2] [2 2] [2 3]) (sort-by first [[1 2] [2 2] [2 3]])))
+    (is (= '([2 2] [2 3] [1 2]) (sort-by first > [[1 2] [2 2] [2 3]]) )))
+
+  (testing "sorting maps"
+    (are [res v] (= res (sort-by identity v))
+      '([:3 18] [:5 28] [:9 23]) {:9 23 :3 18 :5 28})
+
+    ;; taken from clojuredocs
+    (is (= '({:rank 1} {:rank 2} {:rank 3}) (sort-by :rank [{:rank 2} {:rank 3} {:rank 1}])))
+    (let [x [{:foo 2 :bar 11}
+             {:bar 99 :foo 1}
+             {:bar 55 :foo 2}
+             {:foo 1 :bar 77}]
+          order [55 77 99 11]]
+      (is (= '({:foo 1, :bar 77} {:bar 99, :foo 1} {:foo 2, :bar 11} {:bar 55, :foo 2})
+             (sort-by (juxt :foo :bar) x)))
+      (is (= '({:bar 55, :foo 2} {:foo 1, :bar 77} {:bar 99, :foo 1} {:foo 2, :bar 11})
+             (sort-by
+              #((into {} (map-indexed (fn [i e] [e i]) order)) (:bar %))
+              x))))
+    (is (= '([:foo 7] [:baz 5] [:bar 3]) (sort-by val > {:foo 7, :bar 3, :baz 5})))
+    (is (= '({:value 1, :label "a"} {:value 2, :label "b"} {:value 3, :label "c"})
+           (sort-by :value [{:value 1 :label "a"} {:value 3 :label "c"} {:value 2 :label "b"}])))
+    (is (= '({:value 3 :label "c"} {:value 2, :label "b"} {:value 1, :label "a"})
+           (sort-by :value #(> %1 %2) [{:value 1 :label "a"} {:value 3 :label "c"} {:value 2 :label "b"}])))
+    (is (= '({:label "c"} {:value 1, :label "a"} {:value 2, :label "b"})
+           (sort-by :value [{:value 1 :label "a"} {:label "c"} {:value 2 :label "b"}])))))
 
 (deftest zipmap-test
   (are [x y z] (= x (zipmap y z))

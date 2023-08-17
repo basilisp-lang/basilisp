@@ -135,6 +135,9 @@ class BasilispObject(PyObject):
         """Subclasses should implement this themselves."""
         return NotImplemented
 
+    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
+        return "TODO"
+
     def add_target_and_index(
         self, name_cls: Tuple[str, str], sig: str, signode: desc_signature
     ) -> None:

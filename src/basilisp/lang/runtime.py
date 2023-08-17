@@ -6,6 +6,7 @@ import inspect
 import itertools
 import logging
 import math
+import numbers
 import re
 import sys
 import threading
@@ -1375,39 +1376,61 @@ def _compare_sets(x: IPersistentSet, y) -> int:
 def sort(coll, f=None) -> Optional[ISeq]:
     """Return a sorted sequence of the elements in coll. If a comparator
     function f is provided, compare elements in coll using f."""
+    if isinstance(coll, IPersistentMap):
+        coll = lseq.to_seq(coll)
     return lseq.sequence(sorted(coll, key=Maybe(f).map(functools.cmp_to_key).value))
 
 
-def sort_by(keyfn, coll, cmp=None) -> Optional[ISeq]:
-    """Return a sorted sequence of the elements in coll. If a comparator
-    function f is provided, compare elements in coll using f."""
-    if cmp is not None:
+def _fn_to_comparator(f):
+    """Coerce F comparator fn to a 3 way comparator fn."""
 
-        class key:
-            __slots__ = ("obj",)
+    def cmp(x, y):
+        r = f(x, y)
+        if isinstance(r, numbers.Number) and not isinstance(r, bool):
+            return r
+        elif r:
+            return -1
+        elif f(y, x):
+            return 1
+        else:
+            return 0
 
-            def __init__(self, obj):
-                self.obj = obj
+    return cmp
 
-            def __lt__(self, other):
-                return cmp(keyfn(self.obj), keyfn(other.obj)) < 0
 
-            def __gt__(self, other):
-                return cmp(keyfn(self.obj), keyfn(other.obj)) > 0
+def sort_by(keyfn, coll, cmp=compare) -> Optional[ISeq]:
+    """Return a sorted sequence of the elements in coll. If a
+    comparator function cmp is provided, compare elements in coll
+    using cmp or use the `compare` fn if not.
 
-            def __eq__(self, other):
-                return cmp(keyfn(self.obj), keyfn(other.obj)) == 0
+    The comparator fn can be either a boolean or 3-way comparison fn."""
+    if isinstance(coll, IPersistentMap):
+        coll = lseq.to_seq(coll)
 
-            def __le__(self, other):
-                return cmp(keyfn(self.obj), keyfn(other.obj)) <= 0
+    comparator = _fn_to_comparator(cmp)
 
-            def __ge__(self, other):
-                return cmp(keyfn(self.obj), keyfn(other.obj)) >= 0
+    class key:
+        __slots__ = ("obj",)
 
-            __hash__ = None  # type: ignore
+        def __init__(self, obj):
+            self.obj = obj
 
-    else:
-        key = keyfn  # type: ignore
+        def __lt__(self, other):
+            return comparator(keyfn(self.obj), keyfn(other.obj)) < 0
+
+        def __gt__(self, other):
+            return comparator(keyfn(self.obj), keyfn(other.obj)) > 0
+
+        def __eq__(self, other):
+            return comparator(keyfn(self.obj), keyfn(other.obj)) == 0
+
+        def __le__(self, other):
+            return comparator(keyfn(self.obj), keyfn(other.obj)) <= 0
+
+        def __ge__(self, other):
+            return comparator(keyfn(self.obj), keyfn(other.obj)) >= 0
+
+        __hash__ = None  # type: ignore
 
     return lseq.sequence(sorted(coll, key=key))
 
