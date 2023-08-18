@@ -149,7 +149,9 @@ class BasilispObject(PyObject):
         domain.note_var(fullname, self.objtype, node_id)
 
         if "noindexentry" not in self.options:
-            indextext = self.get_index_text(modname, name_cls)
+            indextext = self.get_index_text(  # pylint: disable=assignment-from-no-return, useless-suppression
+                modname, name_cls
+            )
             if indextext:
                 self.indexnode["entries"].append(
                     ("single", indextext, node_id, "", None)

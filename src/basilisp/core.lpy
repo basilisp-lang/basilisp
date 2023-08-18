@@ -472,16 +472,25 @@
     (recur (rest s))
     (first s)))
 
+(defn  ^:inline nil?
+  "Return ``true`` if ``x`` is ``nil``\\, otherwise ``false``\\."
+  [x]
+  (operator/is- x nil))
+
 (defn str
-  "Create a string representation of ``o``."
+  "Create a string representation of ``o``.
+
+  Return the empty string if ``o`` is nil."
   ([] "")
-  ([o] (basilisp.lang.runtime/lstr o))
+  ([o] (if (nil? o) "" (basilisp.lang.runtime/lstr o)))
   ([o & args]
    (let [coerce (fn [in out]
-                  (if (seq (rest in))
-                    (recur (rest in)
-                           (conj out (basilisp.lang.runtime/lstr (first in))))
-                    (conj out (basilisp.lang.runtime/lstr (first in)))))
+                  (let [item (first in)
+                        repr (if (nil? item) "" (basilisp.lang.runtime/lstr item))]
+                    (if (seq (rest in))
+                      (recur (rest in)
+                             (conj out repr))
+                      (conj out repr))))
          strs   (coerce (conj args o) [])]
      (.join "" strs))))
 
@@ -4165,13 +4174,13 @@
   :lpy:var:`*print-sep*` (default is an ASCII space)."
   ([] (print ""))
   ([x]
-   (.write *out* (str x))
+   (.write *out* (basilisp.lang.runtime/lstr x))
    nil)
   ([x & args]
    (let [stdout    *out*
          sep       *print-sep*
-         repr-args (interpose sep (map str args))]
-     (.write stdout (str x))
+         repr-args (interpose sep (map basilisp.lang.runtime/lstr args))]
+     (.write stdout (basilisp.lang.runtime/lstr x))
      (.write stdout sep)
      (.write stdout (apply str repr-args))
      nil)))
@@ -4184,14 +4193,14 @@
   ([] (println ""))
   ([x]
    (let [stdout *out*]
-     (.write stdout (str x))
+     (.write stdout (basilisp.lang.runtime/lstr x))
      (.write stdout \newline)
      nil))
   ([x & args]
    (let [stdout    *out*
          sep       *print-sep*
-         repr-args (interpose sep (map str args))]
-     (.write stdout (str x))
+         repr-args (interpose sep (map basilisp.lang.runtime/lstr args))]
+     (.write stdout (basilisp.lang.runtime/lstr x))
      (.write stdout sep)
      (.write stdout (apply str repr-args))
      (.write stdout \newline)

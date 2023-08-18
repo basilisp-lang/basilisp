@@ -1049,6 +1049,10 @@
 ;; String Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;
 
+(deftest str-test
+  (is (= "" (str nil)))
+  (is (= "ab" (str "a" nil "b"))))
+
 (deftest subs-test
   (is (= "" (subs "" 0)))
   (is (thrown? python/IndexError (subs "" 3)))
