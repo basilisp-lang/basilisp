@@ -135,9 +135,6 @@ class BasilispObject(PyObject):
         """Subclasses should implement this themselves."""
         return NotImplemented
 
-    def get_index_text(self, modname: str, name: Tuple[str, str]) -> str:
-        return "TODO"
-
     def add_target_and_index(
         self, name_cls: Tuple[str, str], sig: str, signode: desc_signature
     ) -> None:
@@ -152,7 +149,9 @@ class BasilispObject(PyObject):
         domain.note_var(fullname, self.objtype, node_id)
 
         if "noindexentry" not in self.options:
-            indextext = self.get_index_text(modname, name_cls)
+            indextext = self.get_index_text(  # pylint: disable=assignment-from-no-return, useless-suppression
+                modname, name_cls
+            )
             if indextext:
                 self.indexnode["entries"].append(
                     ("single", indextext, node_id, "", None)
