@@ -1384,6 +1384,9 @@ def sort(coll, f=None) -> Optional[ISeq]:
 def _fn_to_comparator(f):
     """Coerce F comparator fn to a 3 way comparator fn."""
 
+    if f == compare:  # pylint: disable=comparison-with-callable
+        return f
+
     def cmp(x, y):
         r = f(x, y)
         if isinstance(r, numbers.Number) and not isinstance(r, bool):

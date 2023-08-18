@@ -161,17 +161,38 @@ def test_vector_with_meta():
     assert vec2 == vec3
     assert vec3.meta == lmap.m(tag=keyword("macro"))
 
-def test_vector_less_than():
-    assert False == (vec.v() < vec.v())
-    assert False == (vec.v() > vec.v())
-    assert False == (vec.v(1) < vec.v(1))
-    assert False == (vec.v(1) > vec.v(1))
-    assert False == (vec.v(1, 2) < vec.v(1, 2))
-    assert False == (vec.v(1, 2) > vec.v(1, 2))
-    assert True  == (vec.v(1, 2) < vec.v(1, 3))
-    assert False == (vec.v(1, 3) < vec.v(1, 2))
-    assert True  == (vec.v(1, 2) < vec.v(1, 2, 3))
-    assert False == (vec.v(1, 2, 3) < vec.v(1, 2))
+
+@pytest.mark.parametrize(
+    "result,v1,v2",
+    [
+        (False, vec.v(), vec.v()),
+        (False, vec.v(1), vec.v(1)),
+        (False, vec.v(1, 2), vec.v(1, 2)),
+        (True, vec.v(1, 2), vec.v(1, 3)),
+        (False, vec.v(1, 3), vec.v(1, 2)),
+        (True, vec.v(1, 2), vec.v(1, 2, 3)),
+        (False, vec.v(1, 2, 3), vec.v(1, 2)),
+    ],
+)
+def test_vector_less_than(result, v1, v2):
+    assert result == (v1 < v2)
+
+
+@pytest.mark.parametrize(
+    "result,v1,v2",
+    [
+        (False, vec.v(), vec.v()),
+        (False, vec.v(1), vec.v(1)),
+        (False, vec.v(1, 2), vec.v(1, 2)),
+        (False, vec.v(1, 2), vec.v(1, 3)),
+        (True, vec.v(1, 3), vec.v(1, 2)),
+        (False, vec.v(1, 2), vec.v(1, 2, 3)),
+        (True, vec.v(1, 2, 3), vec.v(1, 2)),
+    ],
+)
+def test_vector_greater_than(result, v1, v2):
+    assert result == (v1 > v2)
+
 
 @pytest.mark.parametrize(
     "o",

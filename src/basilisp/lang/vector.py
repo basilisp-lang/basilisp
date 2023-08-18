@@ -119,10 +119,10 @@ class PersistentVector(
         return len(self._inner)
 
     def __lt__(self, other):
-        """Return true if the SELF vector is shorter than the OTHER
-        vector, or the first unequal element in SELF when iterating
-        from left to right is less than the corresponding OTHER
-        element.
+        """Return true if the `self` vector is shorter than the
+        `other` vector, or the first unequal element in `self` when
+        iterating from left to right is less than the corresponding
+        `other` element.
 
         This is to support the comparing and sorting operations of
         vectors in Clojure."""
