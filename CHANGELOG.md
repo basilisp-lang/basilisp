@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix issue with relative paths dropping their first character on MS-Windows (#703).
  * Fix incompatibility with `(str nil)` returning "nil" (#706).
  * Fix `sort-by` support for maps and boolean comparator fns (#709).
+ * Fix `sort` support for maps and boolean comparator fns (#711).
 
 ## [v0.1.0a2]
 ### Added

@@ -1158,11 +1158,9 @@
   (basilisp.lang.runtime/compare x y))
 
 (defn sort
-  "Return a sorted sequence of the elements from ``coll``\\.
+  "Return a sorted sequence of the elements from ``coll`` using the ``cmp`` comparator\\.
 
-  Unlike in Clojure, this function does not use :lpy:fn:`compare` directly. Instead,
-  the heuristics that ``compare`` uses to produce three-way comparator return values
-  are used to guide sorting."
+  The :lpy:fn:`compare` fn is used in if ``cmp`` is not provided."
   ([coll]
    (basilisp.lang.runtime/sort coll))
   ([cmp coll]
@@ -3226,7 +3224,9 @@
           (rest args)))
 
 (defn sort-by
-  "Return a sorted sequence of the elements from ``coll``\\."
+  "Return a sorted sequence of the elements from ``coll`` using the ``cmp`` comparator on (``keyfn`` item)\\.
+
+  The :lpy:fn:`compare` fn is used in if ``cmp`` is not provided."
   ([keyfn coll]
    (basilisp.lang.runtime/sort-by keyfn coll))
   ([keyfn cmp coll]
