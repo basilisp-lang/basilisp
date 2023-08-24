@@ -78,17 +78,19 @@
 
 (defmethod gen-assert '=
   [expr msg line-num]
-  `(when-not ~expr
-    (vswap! *test-failures*
-            conj
-            {:test-name    *test-name*
-             :test-section *test-section*
-             :message      ~msg
-             :expr         (quote ~expr)
-             :actual       ~(nth expr 2)
-             :expected     ~(second expr)
-             :line         ~line-num
-             :type         :failure})))
+  `(let [actual# ~(nth expr 2)
+         expected# ~(second expr)]
+     (when-not (= expected# actual#)
+       (vswap! *test-failures*
+               conj
+               {:test-name    *test-name*
+                :test-section *test-section*
+                :message      ~msg
+                :expr         (quote ~expr)
+                :actual       actual#
+                :expected     expected#
+                :line         ~line-num
+                :type         :failure}))))
 
 (defmethod gen-assert 'thrown?
   [expr msg line-num]
