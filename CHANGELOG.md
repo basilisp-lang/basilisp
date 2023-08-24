@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix incompatibility with `(str nil)` returning "nil" (#706).
  * Fix `sort-by` support for maps and boolean comparator fns (#709).
  * Fix `sort` support for maps and boolean comparator fns (#711).
+ * Fix `(is (= exp act))` should only evaluate its args once on failure (#712).
 
 ## [v0.1.0a2]
 ### Added
