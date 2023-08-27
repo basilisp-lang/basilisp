@@ -3716,7 +3716,7 @@
            res#)
          (catch python/Exception e#
            (vreset! hit-except# true)
-           (when-not (. obj# (~'__exit__ (python/type e#) e# (. e# ~'__traceback__)))
+           (when-not (. obj# (~'__exit__ (python/type e#) e# (.- e# ~'__traceback__)))
              (throw e#)))
          (finally
            (when-not @hit-except#
