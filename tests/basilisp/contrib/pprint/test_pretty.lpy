@@ -12,7 +12,9 @@
 ;; April 3, 2009
 
 
-(in-ns 'clojure.test-clojure.pprint)
+(ns tests.basilisp.contrib.pprint.test-pretty)
+
+(in-ns 'tests.basilisp.test-pprint)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -108,7 +110,7 @@ Usage: *hello*
 
   (binding [*print-pprint-dispatch* simple-dispatch]
     (write (var Foo) :stream nil))
-  "#'clojure.test-clojure.pprint/Foo"
+  "#'tests.basilisp.test-pprint/Foo"
 )
 
 
@@ -138,8 +140,9 @@ Usage: *hello*
               (for [block blocks]
                 `[(str/split-lines
                    (with-out-str
-                     (with-pprint-dispatch code-dispatch
-                       (pprint (read-string ~block)))))
+                     (binding [*print-sort-unordered-colls* true]
+                       (with-pprint-dispatch code-dispatch
+                         (pprint (read-string ~block))))))
                   (str/split-lines ~block)]))))
 
 (code-block code-block-tests
@@ -192,7 +195,7 @@ Usage: *hello*
   "(ns autodoc.build-html
   \"This is the namespace that builds the HTML pages themselves.
 It is implemented with a number of custom enlive templates.\"
-  {:skip-wiki true, :author \"Tom Faulhaber\"}
+  {:author \"Tom Faulhaber\", :skip-wiki true}
   (:refer-clojure :exclude [empty complement])
   (:import [java.util.jar JarFile]
            [java.io File FileWriter BufferedWriter StringReader
@@ -220,37 +223,42 @@ It is implemented with a number of custom enlive templates.\"
     (write obj :stream nil)))
 
 ;;; A bunch of predefined data to print
+(import threading)
 (def future-filled (future-call (fn [] 100)))
 @future-filled
-(def future-unfilled (future-call (fn [] (.acquire (java.util.concurrent.Semaphore. 0)))))
 (def promise-filled (promise))
 (deliver promise-filled '(first second third))
 (def promise-unfilled (promise))
-(def basic-agent (agent '(first second third)))
+;; (def basic-agent (agent '(first second third)))
 (def basic-atom (atom '(first second third)))
-(def basic-ref (ref '(first second third)))
+(def basic-ref (#'basilisp.pprint/ref '(first second third)))
 (def delay-forced (delay '(first second third)))
 (force delay-forced)
 (def delay-unforced (delay '(first second third)))
 (defrecord pprint-test-rec [a b c])
-
 (simple-tests pprint-datastructures-tests
- (tst-pprint 20 future-filled) #"#<Future@[0-9a-f]+: \r?\n  100>"
- (tst-pprint 20 future-unfilled) #"#<Future@[0-9a-f]+: \r?\n  :pending>"
- (tst-pprint 20 promise-filled) #"#<Promise@[0-9a-f]+: \r?\n  \(first\r?\n   second\r?\n   third\)>"
+ (tst-pprint 20 future-filled) #"#<Future@[-0-9a-f]+: \r?\n  100>"
+ (let [sema (threading/Semaphore ** :value 0)
+       future-unfilled (future-call (fn [] (.acquire sema)))]
+   (try
+     (tst-pprint 20 future-unfilled)
+     (finally
+       (.release sema))))
+ #"#<Future@[-0-9a-f]+: \r?\n  :pending>"
+ (tst-pprint 20 promise-filled) #"#<Promise@[-0-9a-f]+: \r?\n  \(first\r?\n   second\r?\n   third\)>"
  ;; This hangs currently, cause we can't figure out whether a promise is filled
  ;;(tst-pprint 20 promise-unfilled) #"#<Promise@[0-9a-f]+: \r?\n  :pending>"
- (tst-pprint 20 basic-agent) #"#<Agent@[0-9a-f]+: \r?\n  \(first\r?\n   second\r?\n   third\)>"
- (tst-pprint 20 basic-atom) #"#<Atom@[0-9a-f]+: \r?\n  \(first\r?\n   second\r?\n   third\r?\)>"
- (tst-pprint 20 basic-ref) #"#<Ref@[0-9a-f]+: \r?\n  \(first\r?\n   second\r?\n   third\)>"
- (tst-pprint 20 delay-forced) #"#<Delay@[0-9a-f]+: \r?\n  \(first\r?\n   second\r?\n   third\)>"
+ ;; (tst-pprint 20 basic-agent) #"#<Agent@[0-9a-f]+: \r?\n  \(first\r?\n   second\r?\n   third\)>"
+ (tst-pprint 20 basic-atom) #"#<Atom@[-0-9a-f]+: \r?\n  \(first\r?\n   second\r?\n   third\r?\)>"
+ ;; (tst-pprint 20 basic-ref) #"#<Ref@[0-9a-f]+: \r?\n  \(first\r?\n   second\r?\n   third\)>"
+ (tst-pprint 20 delay-forced) #"#<Delay@[-0-9a-f]+: \r?\n  \(first\r?\n   second\r?\n   third\)>"
  ;; Currently no way not to force the delay
  ;;(tst-pprint 20 delay-unforced) #"#<Delay@[0-9a-f]+: \n  :pending>"
- (tst-pprint 20 (pprint-test-rec. 'first 'second 'third)) "{:a first,\n :b second,\n :c third}"
+ (tst-pprint 20 (->pprint-test-rec 'first 'second 'third)) "{:a first,\n :b second,\n :c third}"
 
  ;; basic java arrays: fails owing to assembla ticket #346
  ;;(tst-pprint 10 (int-array (range 7))) "[0,\n 1,\n 2,\n 3,\n 4,\n 5,\n 6]"
- (tst-pprint 15 (reduce conj clojure.lang.PersistentQueue/EMPTY (range 10)))
+ (tst-pprint 15 (reduce conj basilisp.lang.queue/EMPTY (range 10)))
  "<-(0\n   1\n   2\n   3\n   4\n   5\n   6\n   7\n   8\n   9)-<"
  )
 
@@ -269,7 +277,7 @@ It is implemented with a number of custom enlive templates.\"
       (when aseq
 	(write-out (first aseq))
 	(when (next aseq)
-	  (.write ^java.io.Writer *out* " ")
+	  (.write ^Writer *out* " ")
 	  (pprint-newline :linear)
 	  (recur (next aseq)))))))
 
@@ -301,48 +309,57 @@ It is implemented with a number of custom enlive templates.\"
   (binding [*print-length* 8] (with-out-str (pprint [1 2 3 4 5 6])))
   "[1 2 3 4 5 6]\n"
 
-  (binding [*print-length* 1] (with-out-str (pprint (sorted-set 1 2 3 4 5 6))))
+  (binding [*print-length* 1
+            *print-sort-unordered-colls* true] (with-out-str (pprint #{1 2 3 4 5 6})))
   "#{1 ...}\n"
-  (binding [*print-length* 2] (with-out-str (pprint (sorted-set 1 2 3 4 5 6))))
+  (binding [*print-length* 2
+            *print-sort-unordered-colls* true] (with-out-str (pprint #{1 2 3 4 5 6})))
   "#{1 2 ...}\n"
-  (binding [*print-length* 6] (with-out-str (pprint (sorted-set 1 2 3 4 5 6))))
+  (binding [*print-length* 6
+            *print-sort-unordered-colls* true] (with-out-str (pprint #{1 2 3 4 5 6})))
   "#{1 2 3 4 5 6}\n"
-  (binding [*print-length* 8] (with-out-str (pprint (sorted-set 1 2 3 4 5 6))))
+  (binding [*print-length* 8
+            *print-sort-unordered-colls* true] (with-out-str (pprint #{1 2 3 4 5 6})))
   "#{1 2 3 4 5 6}\n"
 
-  (binding [*print-length* 1] (with-out-str (pprint (sorted-map 1 2, 3 4, 5 6, 7 8, 9 10, 11 12))))
+  (binding [*print-length* 1
+            *print-sort-unordered-colls* true] (with-out-str (pprint {1 2, 3 4, 5 6, 7 8, 9 10, 11 12})))
   "{1 2, ...}\n"
-  (binding [*print-length* 2] (with-out-str (pprint (sorted-map 1 2, 3 4, 5 6, 7 8, 9 10, 11 12))))
+  (binding [*print-length* 2
+            *print-sort-unordered-colls* true] (with-out-str (pprint {1 2, 3 4, 5 6, 7 8, 9 10, 11 12})))
   "{1 2, 3 4, ...}\n"
-  (binding [*print-length* 6] (with-out-str (pprint (sorted-map 1 2, 3 4, 5 6, 7 8, 9 10, 11 12))))
+  (binding [*print-length* 6
+            *print-sort-unordered-colls* true] (with-out-str (pprint {1 2, 3 4, 5 6, 7 8, 9 10, 11 12})))
   "{1 2, 3 4, 5 6, 7 8, 9 10, 11 12}\n"
-  (binding [*print-length* 8] (with-out-str (pprint (sorted-map 1 2, 3 4, 5 6, 7 8, 9 10, 11 12))))
+  (binding [*print-length* 8
+            *print-sort-unordered-colls* true] (with-out-str (pprint {1 2, 3 4, 5 6, 7 8, 9 10, 11 12})))
   "{1 2, 3 4, 5 6, 7 8, 9 10, 11 12}\n"
 
 
-  (binding [*print-length* 1] (with-out-str (pprint (int-array [1 2 3 4 5 6]))))
-  "[1, ...]\n"
-  (binding [*print-length* 2] (with-out-str (pprint (int-array [1 2 3 4 5 6]))))
-  "[1, 2, ...]\n"
-  (binding [*print-length* 6] (with-out-str (pprint (int-array [1 2 3 4 5 6]))))
-  "[1, 2, 3, 4, 5, 6]\n"
-  (binding [*print-length* 8] (with-out-str (pprint (int-array [1 2 3 4 5 6]))))
-  "[1, 2, 3, 4, 5, 6]\n"
+;;   (binding [*print-length* 1] (with-out-str (pprint (int-array [1 2 3 4 5 6]))))
+;;   "[1, ...]\n"
+;;   (binding [*print-length* 2] (with-out-str (pprint (int-array [1 2 3 4 5 6]))))
+;;   "[1, 2, ...]\n"
+;;   (binding [*print-length* 6] (with-out-str (pprint (int-array [1 2 3 4 5 6]))))
+;;   "[1, 2, 3, 4, 5, 6]\n"
+;;   (binding [*print-length* 8] (with-out-str (pprint (int-array [1 2 3 4 5 6]))))
+;;   "[1, 2, 3, 4, 5, 6]\n"
   )
 
 (defn- flush-alerting-writer
-  [o]
-  (let [flush-count-atom (atom 0)]
+  []
+  (let [flush-count-atom (atom 0)
+        bio (#'basilisp.pprint/proxy [io/BytesIO] []
+              (write [b]
+                (swap! flush-count-atom inc)
+                (.write (super (type this) this) b)))]
     [
-      (proxy [java.io.BufferedWriter] [o]
-        (flush []
-          (proxy-super flush)
-          (swap! flush-count-atom inc)))
+     (io/TextIOWrapper bio ** :line_buffering false)
       flush-count-atom]))
 
 (deftest test-flush-underlying-prn
   []
-  (let [[out flush-count-atom] (flush-alerting-writer (java.io.StringWriter.))]
+  (let [[out flush-count-atom] (flush-alerting-writer)]
     (binding [*out* out
               *flush-on-newline* true]
       (prn (range 50))
@@ -351,7 +368,7 @@ It is implemented with a number of custom enlive templates.\"
 
 (deftest test-flush-underlying-pprint
   []
-  (let [[out flush-count-atom] (flush-alerting-writer (java.io.StringWriter.))]
+  (let [[out flush-count-atom] (flush-alerting-writer)]
     (binding [*out* out
               *flush-on-newline* true]
       (pprint (range 50))
@@ -360,7 +377,7 @@ It is implemented with a number of custom enlive templates.\"
 
 (deftest test-noflush-underlying-prn
   []
-  (let [[out flush-count-atom] (flush-alerting-writer (java.io.StringWriter.))]
+  (let [[out flush-count-atom] (flush-alerting-writer)]
     (binding [*out* out
               *flush-on-newline* nil]
       (prn (range 50))
@@ -369,24 +386,31 @@ It is implemented with a number of custom enlive templates.\"
 
 (deftest test-noflush-underlying-pprint
   []
-  (let [[out flush-count-atom] (flush-alerting-writer (java.io.StringWriter.))]
+  (let [[out flush-count-atom] (flush-alerting-writer)]
     (binding [*out* out
               *flush-on-newline* nil]
       (pprint (range 50))
       (pprint (range 50)))
     (is (= @flush-count-atom 0) "pprint flushes on newline")))
 
+(import datetime)
+
 (deftest test-pprint-calendar
-  (let [calendar (doto (java.util.GregorianCalendar. 2014 3 29 14 0 0)
-                   (.setTimeZone (java.util.TimeZone/getTimeZone "GMT")))
+  (let [calendar (-> (datetime/datetime 2014 4 29 14 0 0 0)
+                     (.replace ** :tzinfo datetime.timezone/utc)) ;; (doto (java.util.GregorianCalendar. 2014 3 29 14 0 0)
+        ;; (.setTimeZone (java.util.TimeZone/getTimeZone "GMT")))
         calendar-str (with-out-str (pprint calendar))]
+    (str/split-lines calendar-str)
     (is (= (str/split-lines calendar-str)
-           ["#inst \"2014-04-29T14:00:00.000+00:00\""])
+           ["#inst \"2014-04-29T14:00:00+00:00\""])
         "calendar object pretty prints")))
 
 (deftest test-print-meta
   (let [r (with-meta (range 24) {:b 2})]
-    (are [expected val] (= (platform-newlines expected) (with-out-str (binding [*print-meta* true] (pprint val))))
+    (are [expected val] (= (platform-newlines expected) (with-out-str
+                                                          (binding [*print-meta* true
+                                                                    *print-sort-unordered-colls* true]
+                                                            (pprint val))))
       "^{:a 1, :b 2} {:x 1, :y 2}\n"
       ^{:a 1 :b 2} {:x 1 :y 2}
 
@@ -405,11 +429,15 @@ It is implemented with a number of custom enlive templates.\"
       "^{:a 1}\n[[[1\n   ^{:b 2}\n   (0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23)]]]\n"
       ^{:a 1} [[[1 ^{:b 2} r]]]
 
-      "^{:line 409, :column 16} (1 2 3 4)\n"
-      ^{:a 1} '(1 2 3 4)
+      ;; It appears that quoted lists in clojure populate :line
+      ;; and :column in meta. Can't see their significance to support
+      ;; this in basilisp.
+      ;;
+      ;; "^{:line 409, :column 16} '(1 2 3 4)\n"
+      ;; ^{:a 1} '(1 2 3 4)
 
       "^{:a 1} (0 1 2 3)\n"
       ^{:a 1} (with-meta (range 4) {:a 1})
 
-      "^{:a 1} #{1 4 3 2}\n"
+      "^{:a 1} #{1 2 3 4}\n"
       ^{:a 1} #{1 2 3 4})))

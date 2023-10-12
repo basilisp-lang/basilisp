@@ -15,17 +15,14 @@
 
 ;; This module implements a column-aware wrapper around an instance of java.io.Writer
 
-(in-ns 'clojure.pprint)
-
-(import [clojure.lang IDeref]
-        [java.io Writer])
+(in-ns 'basilisp.pprint)
 
 (def ^:dynamic ^{:private true} *default-page-width* 72)
 
-(defn- get-field [^Writer this sym]
+(defn- get-field [ this sym]
   (sym @@this))
 
-(defn- set-field [^Writer this sym new-val] 
+(defn- set-field [^Writer this sym new-val]
   (alter @this assoc sym new-val))
 
 (defn- get-column [this]
@@ -44,31 +41,31 @@
 (defn- get-writer [this]
   (get-field this :base))
 
-(defn- c-write-char [^Writer this ^Integer c]
-  (dosync (if (= c (int \newline))
+(defn- c-write-char [^Writer this ^int c]
+  (dosync (if (= c (ord \newline))
 	    (do
               (set-field this :cur 0)
               (set-field this :line (inc (get-field this :line))))
 	    (set-field this :cur (inc (get-field this :cur)))))
-  (.write ^Writer (get-field this :base) c))
+  (.write ^Writer (get-field this :base) (chr c)))
 
 (defn- column-writer   
   ([writer] (column-writer writer *default-page-width*))
   ([^Writer writer max-columns]
      (let [fields (ref {:max max-columns, :cur 0, :line 0 :base writer})]
-       (proxy [Writer IDeref] []
+       (proxy [Writer basilisp.lang.interfaces/IDeref] []
          (deref [] fields)
          (flush []
            (.flush writer))
          (write
-          ([^chars cbuf ^Integer off ^Integer len] 
-             (let [^Writer writer (get-field this :base)] 
+          ([^str cbuf ^int off ^int len]
+             (let [^Writer writer (get-field this :base)]
                (.write writer cbuf off len)))
           ([x]
              (condp = (class x)
-               String 
-               (let [^String s x
-                     nl (.lastIndexOf s (int \newline))]
+               python/str
+               (let [^str s x
+                     nl (.rfind s \newline)]
                  (dosync (if (neg? nl)
                            (set-field this :cur (+ (get-field this :cur) (count s)))
                            (do
@@ -77,7 +74,5 @@
                                                       (count (filter #(= % \newline) s)))))))
                  (.write ^Writer (get-field this :base) s))
 
-               Integer
-               (c-write-char this x)
-               Long
+               python/int
                (c-write-char this x))))))))

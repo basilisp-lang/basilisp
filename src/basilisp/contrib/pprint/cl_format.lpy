@@ -16,7 +16,13 @@
 ;; in "Common Lisp the Language, 2nd edition", Chapter 22 (available online at:
 ;; http://www.cs.cmu.edu/afs/cs.cmu.edu/project/ai-repository/ai/html/cltl/clm/node200.html#SECTION002633000000000000000)
 
-(in-ns 'clojure.pprint)
+(in-ns 'basilisp.pprint)
+
+(require '[basilisp.string :as str])
+
+(import fractions
+        math
+        re)
 
 ;;; Forward references
 (declare compile-format)
@@ -68,7 +74,7 @@ http://www.lispworks.com/documentation/HyperSpec/Body/22_c.htm
 (defn- format-error [message offset] 
   (let [full-message (str message \newline *format-str* \newline 
                            (apply str (repeat offset \space)) "^" \newline)]
-    (throw (RuntimeException. full-message))))
+    (throw (python/RuntimeError full-message))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Argument navigators manage the argument list
@@ -77,7 +83,7 @@ http://www.lispworks.com/documentation/HyperSpec/Body/22_c.htm
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defstruct ^{:private true}
-  arg-navigator :seq :rest :pos )
+  arg-navigator :seqn :rest :pos )
 
 (defn- init-navigator 
   "Create a new arg-navigator from the sequence with the position set to 0"
@@ -90,19 +96,19 @@ http://www.lispworks.com/documentation/HyperSpec/Body/22_c.htm
 (defn- next-arg [ navigator ]
   (let [ rst (:rest navigator) ]
     (if rst
-      [(first rst) (struct arg-navigator (:seq navigator ) (next rst) (inc (:pos navigator)))]
+      [(first rst) (struct arg-navigator (:seqn navigator ) (next rst) (inc (:pos navigator)))]
      (throw (new Exception  "Not enough arguments for format definition")))))
 
 (defn- next-arg-or-nil [navigator]
   (let [rst (:rest navigator)]
     (if rst
-      [(first rst) (struct arg-navigator (:seq navigator ) (next rst) (inc (:pos navigator)))]
+      [(first rst) (struct arg-navigator (:seqn navigator ) (next rst) (inc (:pos navigator)))]
       [nil navigator])))
 
 ;; Get an argument off the arg list and compile it if it's not already compiled
 (defn- get-format-arg [navigator]
   (let [[raw-format navigator] (next-arg navigator)
-        compiled-format (if (instance? String raw-format) 
+        compiled-format (if (instance? python/str raw-format)
                                (compile-format raw-format)
                                raw-format)]
     [compiled-format navigator]))
@@ -112,13 +118,13 @@ http://www.lispworks.com/documentation/HyperSpec/Body/22_c.htm
 (defn- absolute-reposition [navigator position]
   (if (>= position (:pos navigator))
     (relative-reposition navigator (- position (:pos navigator)))
-    (struct arg-navigator (:seq navigator) (drop position (:seq navigator)) position)))
+    (struct arg-navigator (:seqn navigator) (drop position (:seqn navigator)) position)))
 
 (defn- relative-reposition [navigator position]
   (let [newpos (+ (:pos navigator) position)]
     (if (neg? position)
       (absolute-reposition navigator newpos)
-      (struct arg-navigator (:seq navigator) (drop position (:rest navigator)) newpos))))
+      (struct arg-navigator (:seqn navigator) (drop position (:rest navigator)) newpos))))
 
 (defstruct ^{:private true}
   compiled-directive :func :def :params :offset)
@@ -174,15 +180,15 @@ http://www.lispworks.com/documentation/HyperSpec/Body/22_c.htm
                     (opt-base-str *print-base* n)))
     (ratio? n) (str
                 (if *print-radix* (or (get special-radix-markers *print-base*) (str "#" *print-base* "r")))
-                (opt-base-str *print-base* (.numerator ^clojure.lang.Ratio n))
+                (opt-base-str *print-base* (.-numerator ^fractions/Fraction n))
                 "/"
-                (opt-base-str *print-base* (.denominator ^clojure.lang.Ratio n)))
+                (opt-base-str *print-base* (.-denominator ^fractions/Fraction n)))
     :else nil))
 
 (defn- format-ascii [print-func params arg-navigator offsets]
   (let [ [arg arg-navigator] (next-arg arg-navigator) 
-         ^String base-output (or (format-simple-number arg) (print-func arg))
-         base-width (.length base-output)
+         ^str base-output (or (format-simple-number arg) (print-func arg))
+         base-width (count base-output)
          min-width (+ base-width (:minpad params))
          width (if (>= min-width (:mincol params)) 
                  min-width
@@ -207,10 +213,10 @@ http://www.lispworks.com/documentation/HyperSpec/Body/22_c.htm
   [x]
   (cond
    (integer? x) true
-   (decimal? x) (>= (.ulp (.stripTrailingZeros (bigdec 0))) 1) ; true iff no fractional part
-   (float? x)   (= x (Math/floor x))
-   (ratio? x)   (let [^clojure.lang.Ratio r x]
-                  (= 0 (rem (.numerator r) (.denominator r))))
+   (decimal? x) (= (operator/mod x 1) 1)
+   (float? x)   (.is_integer x)
+   (ratio? x)   (let [^fractions/Fraction r x]
+                  (= 1 (.-denominator r)))
    :else        false))
 
 (defn- remainders
@@ -231,12 +237,12 @@ http://www.lispworks.com/documentation/HyperSpec/Body/22_c.htm
     "0"
     (let [xlated-val (cond
                        (float? val) (bigdec val)
-                       (ratio? val) (let [^clojure.lang.Ratio r val] 
+                       (ratio? val) (let [^fractions/Fraction r val]
                                       (/ (.numerator r) (.denominator r)))
                        :else val)] 
       (apply str 
              (map 
-              #(if (< % 10) (char (+ (int \0) %)) (char (+ (int \a) (- % 10)))) 
+              #(if (< % 10) (char (+ (ord \0) %)) (char (+ (ord \a) (- % 10))))
               (remainders base val))))))
 
 (def ^{:private true}
@@ -247,8 +253,8 @@ http://www.lispworks.com/documentation/HyperSpec/Body/22_c.htm
 for improved performance"
   [base val]
   (let [format-str (get java-base-formats base)]
-    (if (and format-str (integer? val) (not (instance? clojure.lang.BigInt val)))
-      (clojure.core/format format-str val)
+    (if (and format-str (integer? val))
+      (basilisp.core/format format-str val)
       (base-str base val))))
 
 (defn- group-by* [unit lis]
@@ -267,12 +273,12 @@ for improved performance"
                               commas (repeat (count groups) (:commachar params))]
                           (apply str (next (interleave commas groups))))
                         raw-str)
-            ^String signed-str (cond
+            ^str signed-str (cond
                                   neg (str "-" group-str)
                                   (:at params) (str "+" group-str)
                                   true group-str)
-            padded-str (if (< (.length signed-str) (:mincol params))
-                         (str (apply str (repeat (- (:mincol params) (.length signed-str)) 
+            padded-str (if (< (count signed-str) (:mincol params))
+                         (str (apply str (repeat (- (:mincol params) (count signed-str))
                                                  (:padchar params)))
                               signed-str)
                          signed-str)]
@@ -489,7 +495,7 @@ Note this should only be used for the last one in the sequence"
 
 (defn- pretty-character [params navigator offsets]
   (let [[c navigator] (next-arg navigator)
-        as-int (int c)
+        as-int (ord c)
         base-char (bit-and as-int 127)
         meta (bit-and as-int 128)
         special (get special-chars base-char)]
@@ -504,8 +510,8 @@ Note this should only be used for the last one in the sequence"
 (defn- readable-character [params navigator offsets]
   (let [[c navigator] (next-arg navigator)]
     (condp = (:char-format params)
-      \o (cl-format true "\\o~3,'0o" (int c))
-      \u (cl-format true "\\u~4,'0x" (int c))
+      \o (cl-format true "\\o~3,'0o" (ord c))
+      \u (cl-format true "\\u~4,'0x" (ord c))
       nil (pr c))
     navigator))
 
@@ -541,10 +547,10 @@ Note this should only be used for the last one in the sequence"
 ;; TODO - return exponent as int to eliminate double conversion
 (defn- float-parts-base
   "Produce string parts for the mantissa (normalized 1-9) and exponent"
-  [^Object f]
-  (let [^String s (.toLowerCase (.toString f))
-        exploc (.indexOf s (int \e))
-        dotloc (.indexOf s (int \.))]
+  [^object f]
+  (let [^str s (.lower (str f))
+        exploc (.find s \e)
+        dotloc (.find s ".")]
     (if (neg? exploc)
       (if (neg? dotloc)
         [s (str (dec (count s)))]
@@ -557,29 +563,29 @@ Note this should only be used for the last one in the sequence"
 (defn- float-parts
   "Take care of leading and trailing zeros in decomposed floats"
   [f]
-  (let [[m ^String e] (float-parts-base f)
+  (let [[m ^str e] (float-parts-base f)
         m1 (rtrim m \0)
         m2 (ltrim m1 \0)
         delta (- (count m1) (count m2))
-        ^String e (if (and (pos? (count e)) (= (nth e 0) \+)) (subs e 1) e)]
+        ^str e (if (and (pos? (count e)) (= (nth e 0) \+)) (subs e 1) e)]
     (if (empty? m2)
       ["0" 0]
-      [m2 (- (Integer/valueOf e) delta)])))
+      [m2 (- (int e) delta)])))
 
-(defn- ^String inc-s
+(defn- ^str inc-s
   "Assumption: The input string consists of one or more decimal digits,
 and no other characters.  Return a string containing one or more
 decimal digits containing a decimal number one larger than the input
 string.  The output string will always be the same length as the input
 string, or one character longer."
-  [^String s]
+  [^str s]
   (let [len-1 (dec (count s))]
     (loop [i (int len-1)]
       (cond
        (neg? i) (apply str "1" (repeat (inc len-1) "0"))
-       (= \9 (.charAt s i)) (recur (dec i))
+       (= \9 (get s i)) (recur (dec i))
        :else (apply str (subs s 0 i)
-                    (char (inc (int (.charAt s i))))
+                    (char (inc (ord (get s i))))
                     (repeat (- len-1 i) "0"))))))
 
 (defn- round-str [m e d w]
@@ -611,8 +617,8 @@ string, or one character longer."
           ["0" 0 false]
           (if (> len round-pos)
             (let [round-char (nth m1 round-pos)
-                  ^String result (subs m1 0 round-pos)]
-              (if (>= (int round-char) (int \5))
+                  ^str result (subs m1 0 round-pos)]
+              (if (>= (ord round-char) (ord \5))
                 (let [round-up-result (inc-s result)
                       expanded (> (count round-up-result) (count result))]
                   [(if expanded
@@ -662,7 +668,7 @@ string, or one character longer."
         (if (not= x 0)
           (bigdec x)
           d)
-        (if (or (== d Double/POSITIVE_INFINITY) (== d Double/NEGATIVE_INFINITY))
+        (if (or (== d math/inf ) (= d (- math/inf)))
           (bigdec x)
           d)))
     x))
@@ -681,11 +687,11 @@ string, or one character longer."
         append-zero (and (not d) (<= (dec (count mantissa)) scaled-exp))
         [rounded-mantissa scaled-exp expanded] (round-str mantissa scaled-exp 
                                                           d (if w (- w (if add-sign 1 0))))
-        ^String fixed-repr (get-fixed rounded-mantissa (if expanded (inc scaled-exp) scaled-exp) d)
+        ^str fixed-repr (get-fixed rounded-mantissa (if expanded (inc scaled-exp) scaled-exp) d)
         fixed-repr (if (and w d
                             (>= d 1)
-                            (= (.charAt fixed-repr 0) \0)
-                            (= (.charAt fixed-repr 1) \.)
+                            (= (get fixed-repr 0) \0)
+                            (= (get fixed-repr 1) \.)
                             (> (count fixed-repr) (- w (if add-sign 1 0))))
                      (subs fixed-repr 1)  ; chop off leading 0
                      fixed-repr)
@@ -728,9 +734,9 @@ string, or one character longer."
             expchar (or (:exponentchar params) \E)
             add-sign (or (:at params) (neg? arg))
             prepend-zero (<= k 0)
-            ^Integer scaled-exp (- exp (dec k))
-            scaled-exp-str (str (Math/abs scaled-exp))
-            scaled-exp-str (str expchar (if (neg? scaled-exp) \- \+) 
+            ^int scaled-exp (- exp (dec k))
+            scaled-exp-str (str (abs scaled-exp))
+            scaled-exp-str (str expchar (if (neg? scaled-exp) \- \+)
                                 (if e (apply str 
                                              (repeat 
                                               (- e 
@@ -772,13 +778,13 @@ string, or one character longer."
                                (repeat 
                                 (- w full-len (if append-zero 1 0) )
                                 (:padchar params)))
-                        (if add-sign (if (neg? arg) \- \+)) 
+                        (if add-sign (if (neg? arg) \- \+))
                         (if prepend-zero "0")
                         full-mantissa
                         (if append-zero "0")
                         scaled-exp-str))))
             (print (str
-                    (if add-sign (if (neg? arg) \- \+)) 
+                    (if add-sign (if (neg? arg) \- \+))
                     (if prepend-zero "0")
                     full-mantissa
                     (if append-zero "0")
@@ -815,15 +821,15 @@ string, or one character longer."
 ;; the function to render ~$ directives
 ;; TODO: support rationals. Back off to ~D/~A is the appropriate cases
 (defn- dollar-float [params navigator offsets]
-  (let [[^Double arg navigator] (next-arg navigator)
-        [mantissa exp] (float-parts (Math/abs arg))
+  (let [[^float arg navigator] (next-arg navigator)
+        [mantissa exp] (float-parts (abs arg))
         d (:d params) ; digits after the decimal
         n (:n params) ; minimum digits before the decimal
         w (:w params) ; minimum field width
         add-sign (or (:at params) (neg? arg))
         [rounded-mantissa scaled-exp expanded] (round-str mantissa exp d nil)
-        ^String fixed-repr (get-fixed rounded-mantissa (if expanded (inc scaled-exp) scaled-exp) d)
-        full-repr (str (apply str (repeat (- n (.indexOf fixed-repr (int \.))) \0)) fixed-repr)
+        ^str fixed-repr (get-fixed rounded-mantissa (if expanded (inc scaled-exp) scaled-exp) d)
+        full-repr (str (apply str (repeat (- n (.index fixed-repr \.)) \0)) fixed-repr)
         full-len (+ (count full-repr) (if add-sign 1 0))]
     (print (str
             (if (and (:colon params) add-sign) (if (neg? arg) \- \+))
@@ -893,10 +899,10 @@ string, or one character longer."
         args (init-navigator arg-list)]
     (loop [count 0
            args args
-           last-pos (num -1)]
+           last-pos -1]
       (if (and (not max-count) (= (:pos args) last-pos) (> count 1))
         ;; TODO get the offset in here and call format exception
-        (throw (RuntimeException. "%{ construct not consuming any arguments: Infinite loop!")))
+        (throw (python/RuntimeError "%{ construct not consuming any arguments: Infinite loop!")))
       (if (or (and (empty? (:rest args))
                    (or (not (:colon (:right-params params))) (> count 0)))
               (and max-count (>= count max-count)))
@@ -939,10 +945,10 @@ string, or one character longer."
                              [param-clause navigator])]
     (loop [count 0
            navigator navigator
-           last-pos (num -1)]
+           last-pos -1]
       (if (and (not max-count) (= (:pos navigator) last-pos) (> count 1))
         ;; TODO get the offset in here and call format exception
-        (throw (RuntimeException. "%@{ construct not consuming any arguments: Infinite loop!")))
+        (throw (python/RuntimeError "%@{ construct not consuming any arguments: Infinite loop!")))
       (if (or (and (empty? (:rest navigator))
                    (or (not (:colon (:right-params params))) (> count 0)))
               (and max-count (>= count max-count)))
@@ -1006,9 +1012,9 @@ string, or one character longer."
     (if (empty? clauses)
       [acc navigator]
       (let [clause (first clauses)
-            [iter-result result-str] (binding [*out* (java.io.StringWriter.)]
+            [iter-result result-str] (binding [*out* (io/StringIO)]
                                        [(execute-sub-format clause navigator base-navigator) 
-                                        (.toString *out*)])]
+                                        (.getvalue *out*)])]
         (if (= :up-arrow (first iter-result))
           [acc (second iter-result)]
           (recur (next clauses) (conj acc result-str) iter-result))))))
@@ -1071,47 +1077,47 @@ string, or one character longer."
 
 (defn- downcase-writer 
   "Returns a proxy that wraps writer, converting all characters to lower case"
-  [^java.io.Writer writer]
-  (proxy [java.io.Writer] []
+  [^Writer writer]
+  (proxy [Writer] []
     (close [] (.close writer))
     (flush [] (.flush writer))
-    (write ([^chars cbuf ^Integer off ^Integer len] 
+    (write ([^str cbuf ^int off ^int len]
               (.write writer cbuf off len))
            ([x]
               (condp = (class x)
-		String 
-		(let [s ^String x]
-		  (.write writer (.toLowerCase s)))
+		python/str
+		(let [s ^str x]
+		  (.write writer (.lower s)))
 
-		Integer
-		(let [c ^Character x]
-		  (.write writer (int (Character/toLowerCase (char c))))))))))
+                python/int
+		(let [c ^str x]
+		  (.write writer (ord (.lower (chr c))))))))))
 
 (defn- upcase-writer 
   "Returns a proxy that wraps writer, converting all characters to upper case"
-  [^java.io.Writer writer]
-  (proxy [java.io.Writer] []
+  [^Writer writer]
+  (proxy [Writer] []
     (close [] (.close writer))
     (flush [] (.flush writer))
-    (write ([^chars cbuf ^Integer off ^Integer len] 
+    (write ([^str cbuf ^int off ^int len]
               (.write writer cbuf off len))
            ([x]
               (condp = (class x)
-		String 
-		(let [s ^String x]
-		  (.write writer (.toUpperCase s)))
+                python/str
+		(let [s ^str x]
+		  (.write writer (.upper s)))
 
-		Integer
-		(let [c ^Character x]
-		  (.write writer (int (Character/toUpperCase (char c))))))))))
+                python/int
+		(let [c ^str x]
+		  (.write writer (ord (.upper (chr c))))))))))
 
 (defn- capitalize-string
   "Capitalizes the words in a string. If first? is false, don't capitalize the 
                                       first character of the string even if it's a letter."
   [s first?]
-  (let [^Character f (first s) 
-        s (if (and first? f (Character/isLetter f))
-            (str (Character/toUpperCase f) (subs s 1))
+  (let [^str f (first s)
+        s (if (and first? f (.isalpha f))
+            (str (.upper f) (subs s 1))
             s)]
     (apply str 
            (first
@@ -1119,77 +1125,75 @@ string, or one character longer."
              (fn [s]
                (if (empty? s)
                  [nil nil]
-                 (let [m (re-matcher #"\W\w" s)
-                       match (re-find m)
-                       offset (and match (inc (.start m)))]
+                 (let [m (re/search #"\W\w" s)
+                       offset (and m (inc (.start m)))]
                    (if offset
                      [(str (subs s 0 offset) 
-                           (Character/toUpperCase ^Character (nth s offset)))
+                           (.upper ^str (nth s offset)))
                       (subs s (inc offset))]
                      [s nil]))))
              s)))))
 
 (defn- capitalize-word-writer
   "Returns a proxy that wraps writer, capitalizing all words"
-  [^java.io.Writer writer]
+  [^Writer writer]
   (let [last-was-whitespace? (ref true)] 
-    (proxy [java.io.Writer] []
+    (proxy [Writer] []
       (close [] (.close writer))
       (flush [] (.flush writer))
       (write 
-       ([^chars cbuf ^Integer off ^Integer len] 
+       ([^str cbuf ^int off ^int len]
           (.write writer cbuf off len))
        ([x]
           (condp = (class x)
-            String 
-            (let [s ^String x]
+            python/str
+            (let [s ^str x]
               (.write writer 
-                      ^String (capitalize-string (.toLowerCase s) @last-was-whitespace?))
-              (when (pos? (.length s))
+                      ^str (capitalize-string (.lower s) @last-was-whitespace?))
+              (when (pos? (count s))
                 (dosync 
                  (ref-set last-was-whitespace? 
-                          (Character/isWhitespace 
-                           ^Character (nth s (dec (count s))))))))
+                          (.isspace
+                           ^str (nth s (dec (count s))))))))
 
-            Integer
-            (let [c (char x)]
-              (let [mod-c (if @last-was-whitespace? (Character/toUpperCase (char x)) c)]
+            python/int
+            (let [c (chr x)]
+              (let [mod-c (if @last-was-whitespace? (.upper (chr x)) c)]
                 (.write writer (int mod-c))
-                (dosync (ref-set last-was-whitespace? (Character/isWhitespace (char x))))))))))))
+                (dosync (ref-set last-was-whitespace? (.isspace (chr x))))))))))))
 
 (defn- init-cap-writer
   "Returns a proxy that wraps writer, capitalizing the first word"
-  [^java.io.Writer writer]
+  [^Writer writer]
   (let [capped (ref false)] 
-    (proxy [java.io.Writer] []
+    (proxy [Writer] []
       (close [] (.close writer))
       (flush [] (.flush writer))
-      (write ([^chars cbuf ^Integer off ^Integer len] 
+      (write ([^str cbuf ^int off ^int len]
                 (.write writer cbuf off len))
              ([x]
                 (condp = (class x)
-                 String 
-                 (let [s (.toLowerCase ^String x)]
+                 python/str
+                 (let [s (.lower ^str x)]
                    (if (not @capped) 
-                     (let [m (re-matcher #"\S" s)
-                           match (re-find m)
-                           offset (and match (.start m))]
+                     (let [m (re/search #"\S" s)
+                           offset (and (.start m))]
                        (if offset
                          (do (.write writer 
                                    (str (subs s 0 offset) 
-                                        (Character/toUpperCase ^Character (nth s offset))
-                                        (.toLowerCase ^String (subs s (inc offset)))))
+                                        (.upper ^str (nth s offset))
+                                        (.lower ^str (subs s (inc offset)))))
                            (dosync (ref-set capped true)))
                          (.write writer s))) 
-                     (.write writer (.toLowerCase s))))
+                     (.write writer (.lower s))))
 
-                 Integer
-                 (let [c ^Character (char x)]
-                   (if (and (not @capped) (Character/isLetter c))
+                 python/int
+                 (let [c ^str (char x)]
+                   (if (and (not @capped) (.isalpha c))
                      (do
                        (dosync (ref-set capped true))
-                       (.write writer (int (Character/toUpperCase c))))
-                     (.write writer (int (Character/toLowerCase c)))))))))))
+                       (.write writer (int (.upper c))))
+                     (.write writer (int (.lower c)))))))))))
 
 (defn- modify-case [make-writer params navigator offsets]
   (let [clause (first (:clauses params))]
@@ -1201,7 +1205,7 @@ string, or one character longer."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn get-pretty-writer 
-  "Returns the java.io.Writer passed in wrapped in a pretty writer proxy, unless it's 
+  "Returns the Writer passed in wrapped in a pretty writer proxy, unless it's
 already a pretty writer. Generally, it is unnecessary to call this function, since pprint,
 write, and cl-format all call it if they need to. However if you want the state to be 
 preserved across calls, you will want to wrap them with this. 
@@ -1247,7 +1251,7 @@ It prints a table of squares and cubes for the numbers from 1 to 10:
 not a pretty writer (which keeps track of columns), this function always outputs a newline."
   {:added "1.2"}
   []
-  (if (instance? clojure.lang.IDeref *out*)
+  (if (instance? basilisp.lang.interfaces/IDeref *out*)
     (if (not (= 0 (get-column (:base @@*out*))))
       (prn))
     (prn)))
@@ -1321,6 +1325,10 @@ not a pretty writer (which keeps track of columns), this function always outputs
   [char, 
    {:directive char,
     :params `(array-map ~@params),
+    ;; array-maps is currently not implemented in Basilisp and at the
+    ;; moment are mocked as maps, the following is a field to keep
+    ;; track of the `params` key order.
+    :params-keys `(keep-indexed (fn [idx v] (if (even? idx) v)) ~params)
     :flags flags,
     :bracket-info bracket-info,
     :generator-fn (concat '(fn [ params offset]) generator-fn) }])
@@ -1333,42 +1341,42 @@ not a pretty writer (which keeps track of columns), this function always outputs
 
 (defdirectives 
   (\A 
-   [ :mincol [0 Integer] :colinc [1 Integer] :minpad [0 Integer] :padchar [\space Character] ] 
+   [ :mincol [0 python/int] :colinc [1 python/int] :minpad [0 python/int] :padchar [\space python/str] ]
    #{ :at :colon :both} {}
    #(format-ascii print-str %1 %2 %3))
 
   (\S 
-   [ :mincol [0 Integer] :colinc [1 Integer] :minpad [0 Integer] :padchar [\space Character] ] 
+   [ :mincol [0 python/int] :colinc [1 python/int] :minpad [0 python/int] :padchar [\space python/str] ]
    #{ :at :colon :both} {}
    #(format-ascii pr-str %1 %2 %3))
 
   (\D
-   [ :mincol [0 Integer] :padchar [\space Character] :commachar [\, Character] 
-    :commainterval [ 3 Integer]]
+   [ :mincol [0 python/int] :padchar [\space python/str] :commachar [\, python/str]
+    :commainterval [ 3 python/int]]
    #{ :at :colon :both } {}
    #(format-integer 10 %1 %2 %3))
 
   (\B
-   [ :mincol [0 Integer] :padchar [\space Character] :commachar [\, Character] 
-    :commainterval [ 3 Integer]]
+   [ :mincol [0 python/int] :padchar [\space python/str] :commachar [\, python/str]
+    :commainterval [ 3 python/int]]
    #{ :at :colon :both } {}
    #(format-integer 2 %1 %2 %3))
 
   (\O
-   [ :mincol [0 Integer] :padchar [\space Character] :commachar [\, Character] 
-    :commainterval [ 3 Integer]]
+   [ :mincol [0 python/int] :padchar [\space python/str] :commachar [\, python/str]
+    :commainterval [ 3 python/int]]
    #{ :at :colon :both } {}
    #(format-integer 8 %1 %2 %3))
 
   (\X
-   [ :mincol [0 Integer] :padchar [\space Character] :commachar [\, Character] 
-    :commainterval [ 3 Integer]]
+   [ :mincol [0 python/int] :padchar [\space python/str] :commachar [\, python/str]
+    :commainterval [ 3 python/int]]
    #{ :at :colon :both } {}
    #(format-integer 16 %1 %2 %3))
 
   (\R
-   [:base [nil Integer] :mincol [0 Integer] :padchar [\space Character] :commachar [\, Character] 
-    :commainterval [ 3 Integer]]
+   [:base [nil python/int] :mincol [0 python/int] :padchar [\space python/str] :commachar [\, python/str]
+    :commainterval [ 3 python/int]]
    #{ :at :colon :both } {}
    (do
      (cond                          ; ~R is overloaded with bizareness
@@ -1389,7 +1397,7 @@ not a pretty writer (which keeps track of columns), this function always outputs
        navigator)))
 
   (\C
-   [:char-format [nil Character]]
+   [:char-format [nil python/str]]
    #{ :at :colon :both } {}
    (cond
      (:colon params) pretty-character
@@ -1397,32 +1405,32 @@ not a pretty writer (which keeps track of columns), this function always outputs
      :else plain-character))
 
   (\F
-   [ :w [nil Integer] :d [nil Integer] :k [0 Integer] :overflowchar [nil Character] 
-    :padchar [\space Character] ]
+   [ :w [nil python/int] :d [nil python/int] :k [0 python/int] :overflowchar [nil python/str]
+    :padchar [\space python/str] ]
    #{ :at } {}
    fixed-float)
 
   (\E
-   [ :w [nil Integer] :d [nil Integer] :e [nil Integer] :k [1 Integer] 
-    :overflowchar [nil Character] :padchar [\space Character] 
-    :exponentchar [nil Character] ]
+   [ :w [nil python/int] :d [nil python/int] :e [nil python/int] :k [1 python/int]
+    :overflowchar [nil python/str] :padchar [\space python/str]
+    :exponentchar [nil python/str] ]
    #{ :at } {}
    exponential-float)
 
   (\G
-   [ :w [nil Integer] :d [nil Integer] :e [nil Integer] :k [1 Integer] 
-    :overflowchar [nil Character] :padchar [\space Character] 
-    :exponentchar [nil Character] ]
+   [ :w [nil python/int] :d [nil python/int] :e [nil python/int] :k [1 python/int]
+    :overflowchar [nil python/str] :padchar [\space python/str]
+    :exponentchar [nil python/str] ]
    #{ :at } {}
    general-float)
 
   (\$
-   [ :d [2 Integer] :n [1 Integer] :w [0 Integer] :padchar [\space Character]]
+   [ :d [2 python/int] :n [1 python/int] :w [0 python/int] :padchar [\space python/str]]
    #{ :at :colon :both} {}
    dollar-float)
 
   (\% 
-   [ :count [1 Integer] ] 
+   [ :count [1 python/int] ]
    #{ } {}
    (fn [params arg-navigator offsets]
      (dotimes [i (:count params)]
@@ -1430,7 +1438,7 @@ not a pretty writer (which keeps track of columns), this function always outputs
      arg-navigator))
 
   (\&
-   [ :count [1 Integer] ] 
+   [ :count [1 python/int] ]
    #{ :pretty } {}
    (fn [params arg-navigator offsets]
      (let [cnt (:count params)]
@@ -1440,7 +1448,7 @@ not a pretty writer (which keeps track of columns), this function always outputs
      arg-navigator))
 
   (\| 
-   [ :count [1 Integer] ] 
+   [ :count [1 python/int] ]
    #{ } {}
    (fn [params arg-navigator offsets]
      (dotimes [i (:count params)]
@@ -1448,7 +1456,7 @@ not a pretty writer (which keeps track of columns), this function always outputs
      arg-navigator))
 
   (\~ 
-   [ :n [1 Integer] ] 
+   [ :n [1 python/int] ]
    #{ } {}
    (fn [params arg-navigator offsets]
      (let [n (:n params)]
@@ -1464,14 +1472,14 @@ not a pretty writer (which keeps track of columns), this function always outputs
      arg-navigator))
 
   (\T
-   [ :colnum [1 Integer] :colinc [1 Integer] ] 
+   [ :colnum [1 python/int] :colinc [1 python/int] ]
    #{ :at :pretty } {}
    (if (:at params)
      #(relative-tabulation %1 %2 %3)
      #(absolute-tabulation %1 %2 %3)))
 
   (\* 
-   [ :n [nil Integer] ] 
+   [ :n [nil python/int] ]
    #{ :colon :at } {}
    (if (:at params)
      (fn [params navigator offsets]
@@ -1516,7 +1524,7 @@ not a pretty writer (which keeps track of columns), this function always outputs
   (\) [] #{} {} nil) 
 
   (\[
-   [ :selector [nil Integer] ]
+   [ :selector [nil python/int] ]
    #{ :colon :at } { :right \], :allows-separator true, :else :last }
    (cond
      (:colon params)
@@ -1528,13 +1536,13 @@ not a pretty writer (which keeps track of columns), this function always outputs
      true
      choice-conditional))
 
-  (\; [:min-remaining [nil Integer] :max-columns [nil Integer]] 
+  (\; [:min-remaining [nil python/int] :max-columns [nil python/int]]
    #{ :colon } { :separator true } nil) 
    
   (\] [] #{} {} nil) 
 
   (\{
-   [ :max-iterations [nil Integer] ]
+   [ :max-iterations [nil python/int] ]
    #{ :colon :at :both} { :right \}, :allows-separator false }
    (cond
      (and (:at params) (:colon params))
@@ -1553,14 +1561,14 @@ not a pretty writer (which keeps track of columns), this function always outputs
   (\} [] #{:colon} {} nil) 
 
   (\<
-   [:mincol [0 Integer] :colinc [1 Integer] :minpad [0 Integer] :padchar [\space Character]]
+   [:mincol [0 python/int] :colinc [1 python/int] :minpad [0 python/int] :padchar [\space python/str]]
    #{:colon :at :both :pretty} { :right \>, :allows-separator true, :else :first }
    logical-block-or-justify)
 
   (\> [] #{:colon} {} nil) 
 
   ;; TODO: detect errors in cases where colon not allowed
-  (\^ [:arg1 [nil Integer] :arg2 [nil Integer] :arg3 [nil Integer]] 
+  (\^ [:arg1 [nil python/int] :arg2 [nil python/int] :arg3 [nil python/int]]
    #{:colon} {} 
    (fn [params navigator offsets]
      (let [arg1 (:arg1 params)
@@ -1607,7 +1615,7 @@ not a pretty writer (which keeps track of columns), this function always outputs
    conditional-newline)
 
   (\I
-   [:n [0 Integer]]
+   [:n [0 python/int]]
    #{:colon} {}
    set-indent)
   )
@@ -1623,10 +1631,9 @@ not a pretty writer (which keeps track of columns), this function always outputs
      special-params #{ :parameter-from-args :remaining-arg-count })
 
 (defn- extract-param [[s offset saw-comma]]
-  (let [m (re-matcher param-pattern s)
-        param (re-find m)]
-    (if param
-      (let [token-str (first (re-groups m))
+  (let [m (re/search param-pattern s)]
+    (if m
+      (let [token-str (first (.groups m))
             remainder (subs s (.end m))
             new-offset (+ offset (.end m))]
         (if (not (= \, (nth remainder 0)))
@@ -1643,13 +1650,13 @@ not a pretty writer (which keeps track of columns), this function always outputs
 (defn- translate-param
   "Translate the string representation of a param to the internalized
                                       representation"
-  [[^String p offset]]
+  [[^str p offset]]
   [(cond 
-    (= (.length p) 0) nil
-    (and (= (.length p) 1) (contains? #{\v \V} (nth p 0))) :parameter-from-args
-    (and (= (.length p) 1) (= \# (nth p 0))) :remaining-arg-count
-    (and (= (.length p) 2) (= \' (nth p 0))) (nth p 1)
-    true (Integer/parseInt p))
+    (= (count p) 0) nil
+    (and (= (count p) 1) (contains? #{\v \V} (nth p 0))) :parameter-from-args
+    (and (= (count p) 1) (= \# (nth p 0))) :remaining-arg-count
+    (and (= (count p) 2) (= \' (nth p 0))) (nth p 1)
+    true (int p))
    offset])
  
 (def ^{:private true}
@@ -1697,27 +1704,28 @@ of parameters as well."
       "Too many parameters for directive \"~C\": ~D~:* ~[were~;was~:;were~] specified but only ~D~:* ~[are~;is~:;are~] allowed"
       (:directive def) (count params) (count (:params def)))
      (second (first params))))
-  (doall
-   (map #(let [val (first %1)]
-           (if (not (or (nil? val) (contains? special-params val) 
-                        (instance? (second (second %2)) val)))
-             (format-error (str "Parameter " (name (first %2))
-                                " has bad type in directive \"" (:directive def) "\": "
-                                (class val))
-                           (second %1))) )
-        params (:params def)))
+  (let [def-params (:params def) ]
+    (doall
+     (map #(let [val (first (get def-params %1))]
+             (if (not (or (nil? val) (contains? special-params val)
+                          (instance? (second (second %2)) val)))
+               (format-error (str "Parameter " (name (first %2))
+                                  " has bad type in directive \"" (:directive def) "\": "
+                                  (class val))
+                             (second %1))) )
+          params (:params-keys def))))
      
   (merge                                ; create the result map
    (into (array-map) ; start with the default values, make sure the order is right
          (reverse (for [[name [default]] (:params def)] [name [default offset]])))
-   (reduce #(apply assoc %1 %2) {} (filter #(first (nth % 1)) (zipmap (keys (:params def)) params))) ; add the specified parameters, filtering out nils
+   (reduce #(apply assoc %1 %2) {} (filter #(first (nth % 1)) (zipmap (:params-keys def) params))) ; add the specified parameters, filtering out nils
    flags))                                ; and finally add the flags
 
 (defn- compile-directive [s offset]
   (let [[raw-params [rest offset]] (extract-params s offset)
         [_ [rest offset flags]] (extract-flags rest offset)
         directive (first rest)
-        def (get directive-table (Character/toUpperCase ^Character directive))
+        def (get directive-table (.upper ^str directive))
         params (if def (map-params def (map translate-param raw-params) flags offset))]
     (if (not directive)
       (format-error "Format string ended in the middle of a directive" offset))
@@ -1852,12 +1860,12 @@ performance when you're using the same format string repeatedly"
     (process-nesting
      (first 
       (consume 
-       (fn [[^String s offset]]
+       (fn [[^str s offset]]
          (if (empty? s)
            [nil s]
-           (let [tilde (.indexOf s (int \~))]
+           (let [tilde (.find s \~)]
              (cond
-              (neg? tilde) [(compile-raw-string s offset) ["" (+ offset (.length s))]]
+              (neg? tilde) [(compile-raw-string s offset) ["" (+ offset (count s))]]
               (zero? tilde)  (compile-directive (subs s 1) (inc offset))
               true 
               [(compile-raw-string (subs s 0 tilde) offset) [(subs s tilde) (+ tilde offset)]]))))
@@ -1880,11 +1888,11 @@ column number or pretty printing"
   "Executes the format with the arguments."
   {:skip-wiki true}
   ([stream format args]
-     (let [^java.io.Writer real-stream (cond 
-                                         (not stream) (java.io.StringWriter.)
+     (let [^Writer real-stream         (cond
+                                         (not stream) (io/StringIO)
                                          (true? stream) *out*
                                          :else stream)
-           ^java.io.Writer wrapped-stream (if (and (needs-pretty format) 
+           ^Writer wrapped-stream         (if (and (needs-pretty format)
                                                     (not (pretty-writer? real-stream)))
                                              (get-pretty-writer real-stream)
                                              real-stream)]
@@ -1892,9 +1900,9 @@ column number or pretty printing"
          (try
           (execute-format format args)
           (finally
-           (if-not (identical? real-stream wrapped-stream)
+           (when-not (identical? real-stream wrapped-stream)
              (.flush wrapped-stream))))
-         (if (not stream) (.toString real-stream)))))
+         (if (not stream) (.getvalue real-stream)))))
   ([format args]
      (map-passing-context 
       (fn [element context]
@@ -1922,11 +1930,11 @@ format-in can be either a control string or a previously compiled format."
   {:added "1.2"}
   [format-in]
   `(let [format-in# ~format-in
-         my-c-c# (var-get (get (ns-interns (the-ns 'clojure.pprint))
+         my-c-c# (var-get (get (ns-interns (the-ns 'basilisp.pprint))
                                '~'cached-compile))
-         my-e-f# (var-get (get (ns-interns (the-ns 'clojure.pprint))
+         my-e-f# (var-get (get (ns-interns (the-ns 'basilisp.pprint))
                                '~'execute-format))
-         my-i-n# (var-get (get (ns-interns (the-ns 'clojure.pprint))
+         my-i-n# (var-get (get (ns-interns (the-ns 'basilisp.pprint))
                                '~'init-navigator))
          cf# (if (string? format-in#) (my-c-c# format-in#) format-in#)]
      (fn [stream# & args#]
@@ -1943,7 +1951,7 @@ format-in can be either a control string or a previously compiled format."
   {:added "1.2"}
   [format-in]
   `(let [format-in# ~format-in
-         cf# (if (string? format-in#) (#'clojure.pprint/cached-compile format-in#) format-in#)]
+         cf# (if (string? format-in#) (#'basilisp.pprint/cached-compile format-in#) format-in#)]
      (fn [& args#]
-       (let [navigator# (#'clojure.pprint/init-navigator args#)]
-         (#'clojure.pprint/execute-format cf# navigator#)))))
+       (let [navigator# (#'basilisp.pprint/init-navigator args#)]
+         (#'basilisp.pprint/execute-format cf# navigator#)))))

@@ -14,8 +14,9 @@
 
 ;; This module implements the generic pretty print functions and special variables
 
-(in-ns 'clojure.pprint)
+(in-ns 'basilisp.pprint)
 
+(require '[basilisp.string :as str])
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Variables that control the pretty printer
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -89,7 +90,11 @@ radix specifier is in the form #XXr where XX is the decimal value of *print-base
    :added "1.2"}
  *print-base* 10)
 
-
+(def ^:dynamic
+  *print-sort-unordered-colls*
+  "If true, sort unsorted collections type (maps and sets) before
+  printing them out."
+  nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Internal variables that keep track of where we are in the 
@@ -117,31 +122,31 @@ radix specifier is in the form #XXr where XX is the decimal value of *print-base
 
 (def ^{:private true} write-option-table
      {;:array            *print-array*
-      :base             'clojure.pprint/*print-base*,
+      :base             'basilisp.pprint/*print-base*,
       ;;:case             *print-case*,
-      :circle           'clojure.pprint/*print-circle*,
+      :circle           'basilisp.pprint/*print-circle*,
       ;;:escape           *print-escape*,
       ;;:gensym           *print-gensym*,
-      :length           'clojure.core/*print-length*,
-      :level            'clojure.core/*print-level*,
-      :lines            'clojure.pprint/*print-lines*,
-      :miser-width      'clojure.pprint/*print-miser-width*,
-      :dispatch         'clojure.pprint/*print-pprint-dispatch*,
-      :pretty           'clojure.pprint/*print-pretty*,
-      :radix            'clojure.pprint/*print-radix*,
-      :readably         'clojure.core/*print-readably*,
-      :right-margin     'clojure.pprint/*print-right-margin*,
-      :suppress-namespaces 'clojure.pprint/*print-suppress-namespaces*})
+      :length           'basilisp.core/*print-length*,
+      :level            'basilisp.core/*print-level*,
+      :lines            'basilisp.pprint/*print-lines*,
+      :miser-width      'basilisp.pprint/*print-miser-width*,
+      :dispatch         'basilisp.pprint/*print-pprint-dispatch*,
+      :pretty           'basilisp.pprint/*print-pretty*,
+      :radix            'basilisp.pprint/*print-radix*,
+      :readably         'basilisp.core/*print-readably*,
+      :right-margin     'basilisp.pprint/*print-right-margin*,
+      :suppress-namespaces 'basilisp.pprint/*print-suppress-namespaces*})
 
 
 (defmacro ^{:private true} binding-map [amap & body]
   (let []
     `(do
-       (. clojure.lang.Var (pushThreadBindings ~amap))
+       (push-thread-bindings ~amap)
        (try
         ~@body
         (finally
-         (. clojure.lang.Var (popThreadBindings)))))))
+          (pop-thread-bindings))))))
 
 (defn- table-ize [t m] 
   (apply hash-map (mapcat 
@@ -150,7 +155,7 @@ radix specifier is in the form #XXr where XX is the decimal value of *print-base
 
 (defn- pretty-writer? 
   "Return true iff x is a PrettyWriter"
-  [x] (and (instance? clojure.lang.IDeref x) (:pretty-writer @@x)))
+  [x] (and (instance? basilisp.lang.interfaces/IDeref x) (:pretty-writer @@x)))
 
 (defn- make-pretty-writer 
   "Wrap base-writer in a PrettyWriter with the specified right-margin and miser-width"
@@ -226,7 +231,7 @@ The following keyword arguments can be passed with values:
                        (:stream options)
                        true) 
               base-writer (condp = optval
-                            nil (java.io.StringWriter.)
+                            nil (io/StringIO)
                             true *out*
                             optval)]
           (if *print-pretty*
@@ -235,8 +240,7 @@ The following keyword arguments can be passed with values:
             (binding [*out* base-writer]
               (pr object)))
           (if (nil? optval) 
-            (.toString ^java.io.StringWriter base-writer)))))))
-
+            (.getvalue ^io/StringIO base-writer)))))))
 
 (defn pprint 
   "Pretty print object to the optional output writer. If the writer is not provided, 
@@ -263,7 +267,7 @@ where obj is the object to pretty print. That function will be called with *out*
 to a pretty printing writer to which it should do its printing.
 
 For example functions, see simple-dispatch and code-dispatch in 
-clojure.pprint.dispatch.clj."
+basilisp.contrib.pprint.dispatch.clj."
   {:added "1.2"}
   [function]
   (let [old-meta (meta #'*print-pprint-dispatch*)]
@@ -290,9 +294,9 @@ clojure.pprint.dispatch.clj."
       [(apply hash-map acc) body])))
 
 (defn- check-enumerated-arg [arg choices]
-  (if-not (choices arg)
+  (when-not (choices arg)
           (throw
-           (IllegalArgumentException.
+           (python/ValueError
             ;; TODO clean up choices string
             (str "Bad argument: " arg ". It must be one of " choices)))))
 
@@ -311,17 +315,17 @@ and :suffix."
   {:added "1.2", :arglists '[[options* body]]}
   [& args]
   (let [[options body] (parse-lb-options #{:prefix :per-line-prefix :suffix} args)]
-    `(do (if (#'clojure.pprint/level-exceeded) 
-           (.write ^java.io.Writer *out* "#")
+    `(do (if (@#'basilisp.pprint/level-exceeded)
+           (.write ^Writer *out* "#")
            (do 
-             (push-thread-bindings {#'clojure.pprint/*current-level*
-                                    (inc (var-get #'clojure.pprint/*current-level*))
-                                    #'clojure.pprint/*current-length* 0})
+             (push-thread-bindings {#'basilisp.pprint/*current-level*
+                                    (inc (var-get #'basilisp.pprint/*current-level*))
+                                    #'basilisp.pprint/*current-length* 0})
              (try  
-              (#'clojure.pprint/start-block *out*
+              (@#'basilisp.pprint/start-block *out*
                            ~(:prefix options) ~(:per-line-prefix options) ~(:suffix options))
               ~@body
-              (#'clojure.pprint/end-block *out*)
+              (@#'basilisp.pprint/end-block *out*)
               (finally 
                (pop-thread-bindings)))))
          nil)))
@@ -368,7 +372,7 @@ THIS FUNCTION IS NOT YET IMPLEMENTED."
   {:added "1.2"}
   [kind colnum colinc] 
   (check-enumerated-arg kind #{:line :section :line-relative :section-relative})
-  (throw (UnsupportedOperationException. "pprint-tab is not yet implemented")))
+  (throw (python/AttributeError "pprint-tab is not yet implemented")))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -380,9 +384,9 @@ THIS FUNCTION IS NOT YET IMPLEMENTED."
 (defn- pll-mod-body [var-sym body]
   (letfn [(inner [form]
                  (if (seq? form)
-                   (let [form (macroexpand form)] 
+                   (let [form (macroexpand form)]
                      (condp = (first form)
-                       'loop* form
+                       'loop* form 'var form
                        'recur (concat `(recur (inc ~var-sym)) (rest form))
                        (walk inner identity form)))
                    form))]
@@ -398,6 +402,6 @@ for use in pretty-printer dispatch functions."
     `(loop ~(apply vector count-var 0 bindings)
        (if (or (not *print-length*) (< ~count-var *print-length*))
          (do ~@mod-body)
-         (.write ^java.io.Writer *out* "...")))))
+         (.write ^Writer *out* "...")))))
 
 nil
