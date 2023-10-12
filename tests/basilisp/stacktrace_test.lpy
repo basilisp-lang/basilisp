@@ -1,0 +1,27 @@
+(ns tests.basilisp.stacktrace-test
+  (:require [basilisp.stacktrace :as s]
+            [basilisp.string :as str]
+            [basilisp.test :refer [deftest are is testing]]))
+
+
+(defn- exception-test []
+  (/ 5 0))
+
+(deftest stacktrace-basic
+  (try
+    (exception-test)
+    (catch python/Exception e
+      ;; one stack frame
+      (let [trace1 (-> (with-out-str (s/print-cause-trace e 1))
+                       (str/split-lines))]
+        (is (= 4 (count trace1)) trace1)
+        (is (= "Traceback (most recent call last):" (first trace1)))
+        (is (= ["    (try" " ZeroDivisionError: Fraction(5, 0)" ] (take-last 2 trace1))))
+
+      ;; full stack
+      (let [trace (-> (with-out-str (s/print-cause-trace e))
+                      (str/split-lines))]
+        (is (< 4 (count trace)) trace)
+        (is (= "Traceback (most recent call last):" (first trace)))
+        (is (= ["    raise ZeroDivisionError('Fraction(%s, 0)' % numerator)"
+                " ZeroDivisionError: Fraction(5, 0)" ] (take-last 2 trace)))))))

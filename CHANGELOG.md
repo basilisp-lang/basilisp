@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added rudimentary support for `clojure.stacktrace` with `print-cause-trace` (part of #721).
+
+### Fixed
  * Fix issue with `case` evaluating all of its clauses expressions (#699).
  * Fix issue with relative paths dropping their first character on MS-Windows (#703).
  * Fix incompatibility with `(str nil)` returning "nil" (#706).
