@@ -6,7 +6,7 @@
 ;   the terms of this license.
 ;   You must not remove this notice, or any other, from this software.
 
-(in-ns 'clojure.pprint)
+(in-ns 'basilisp.pprint)
 
 (defn print-table
   "Prints a collection of maps in a textual table. Prints table headings

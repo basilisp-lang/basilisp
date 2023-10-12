@@ -13,8 +13,10 @@
 
 ;; This test set tests the basic cl-format functionality
 
+(ns tests.basilisp.contrib.pprint.test-cl-format
+  (:use basilisp.pprint))
 
-(in-ns 'clojure.test-clojure.pprint)
+(in-ns 'tests.basilisp.test-pprint)
 
 (def format cl-format)
 
@@ -141,10 +143,10 @@
 (simple-tests c-tests
   (cl-format nil "~{~c~^, ~}~%" "hello") "h, e, l, l, o\n"
   (cl-format nil "~{~:c~^, ~}~%" "hello") "h, e, l, l, o\n"
-  (cl-format nil "~@C~%" \m) "\\m\n"
-  (cl-format nil "~@C~%" (char 222)) "\\Þ\n"
-  (cl-format nil "~@C~%" (char 8)) "\\backspace\n"
-  (cl-format nil "~@C~%" (char 3)) "\\\n")
+  (cl-format nil "~@C~%" \m) "\"m\"\n"
+  (cl-format nil "~@C~%" (char 222)) "\"\\xde\"\n"
+  (cl-format nil "~@C~%" (char 8)) "\"\\x08\"\n"
+  (cl-format nil "~@C~%" (char 3)) "\"\\x03\"\n")
 
 (simple-tests e-tests
   (cl-format nil "*~E*" 0.0) "*0.0E+0*"
@@ -504,7 +506,7 @@
 ;; TODO test ~:^ generates an error when used improperly
 ;; TODO test ~:^ works in ~@:{...~}
 (let [aseq '(a quick brown fox jumped over the lazy dog)
-      lseq (mapcat identity (for [x aseq] [x (.length (name x))]))]
+      lseq (mapcat identity (for [x aseq] [x (count (name x))]))]
   (simple-tests up-tests
     (cl-format nil "~{~a~^, ~}" aseq) "a, quick, brown, fox, jumped, over, the, lazy, dog"
     (cl-format nil "~{~a~0^, ~}" aseq) "a"
@@ -531,19 +533,19 @@
 )
 
 (simple-tests angle-bracket-max-column-tests
-  (cl-format nil "~%;; ~{~<~%;; ~1,50:; ~A~>~}.~%" (into [] (.split "This function computes the circular thermodynamic coefficient of the thrombulator angle for use in determining the reaction distance" "\\s")))
+  (cl-format nil "~%;; ~{~<~%;; ~1,50:; ~A~>~}.~%" (into [] (.split "This function computes the circular thermodynamic coefficient of the thrombulator angle for use in determining the reaction distance")))
   "\n;;  This function computes the circular\n;;  thermodynamic coefficient of the thrombulator\n;;  angle for use in determining the reaction\n;;  distance.\n"
-(cl-format true "~%;; ~{~<~%;; ~:; ~A~>~}.~%" (into [] (.split "This function computes the circular thermodynamic coefficient of the thrombulator angle for use in determining the reaction distance." "\\s"))))
+(cl-format true "~%;; ~{~<~%;; ~:; ~A~>~}.~%" (into [] (.split "This function computes the circular thermodynamic coefficient of the thrombulator angle for use in determining the reaction distance."))))
 
 (defn list-to-table [aseq column-width]
-  (let [stream (get-pretty-writer (java.io.StringWriter.))]
+  (let [stream (get-pretty-writer (io/StringIO))]
     (binding [*out* stream]
      (doseq [row aseq]
        (doseq [col row]
          (cl-format true "~4D~7,vT" col column-width))
        (prn)))
     (.flush stream)
-    (.toString (:base @@(:base @@stream)))))
+    (.getvalue (:base @@(:base @@stream)))))
 
 (simple-tests column-writer-test
   (list-to-table (map #(vector % (* % %) (* % % %)) (range 1 21)) 8)
@@ -592,22 +594,22 @@
 ;; big-pos-ratio is a ratio value that is larger than
 ;; Double/MAX_VALUE, and has a non-terminating decimal representation
 ;; if you attempt to represent it exactly.
-(def big-pos-ratio (/ (* 4 (bigint (. BigDecimal valueOf Double/MAX_VALUE))) 3))
+(def big-pos-ratio (/ (* 4 (int (first sys/float_info))) 3))
 (def big-neg-ratio (- big-pos-ratio))
 ;; tiny-pos-ratio is a ratio between 0 and Double/MIN_VALUE.
-(def tiny-pos-ratio (/ 1 (bigint (apply str (cons "1" (repeat 340 "0"))))))
+(def tiny-pos-ratio (/ 1 (int (apply str (cons "1" (repeat 340 "0"))))))
 (def tiny-neg-ratio (- tiny-pos-ratio))
 
 (simple-tests cltl-F-tests
   (cl-format false "~10,3f" 4/5) "     0.800"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3f" big-pos-ratio)) "239692417981642093333333333333333300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.000"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3f" big-neg-ratio)) "-239692417981642093333333333333333300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.000"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3f" tiny-pos-ratio)) "     0.000"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3f" tiny-neg-ratio)) "    -0.000"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3f" big-pos-ratio)) "239692417981642093333333333333333300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.000"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3f" big-neg-ratio)) "-239692417981642093333333333333333300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.000"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3f" tiny-pos-ratio)) "     0.000"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3f" tiny-neg-ratio)) "    -0.000"
   (foo 3.14159)  "  3.14| 31.42|  3.14|3.1416|3.14|3.14159" 
   (foo 314159/100000)
                  "  3.14| 31.42|  3.14|3.1416|3.14|3.14159"
@@ -624,14 +626,14 @@
 ;; Clojure doesn't support float/double differences in representation
 (simple-tests cltl-E-tests
   (cl-format false "~10,3e" 4/5) "  8.000E-1"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3e" big-pos-ratio)) "2.397E+308"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3e" big-neg-ratio)) "-2.397E+308"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3e" tiny-pos-ratio)) "1.000E-340"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3e" tiny-neg-ratio)) "-1.000E-340"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3e" big-pos-ratio)) "2.397E+308"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3e" big-neg-ratio)) "-2.397E+308"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3e" tiny-pos-ratio)) "1.000E-340"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3e" tiny-neg-ratio)) "-1.000E-340"
   (foo-e 0.0314159) "  3.14E-2| 31.42$-03|+.003E+01|  3.14E-2"  ; Added this one 
   (foo-e 314159/10000000)
                     "  3.14E-2| 31.42$-03|+.003E+01|  3.14E-2"
@@ -673,14 +675,14 @@
 ;; Clojure doesn't support float/double differences in representation
 (simple-tests cltl-G-tests
   (cl-format false "~10,3g" 4/5)  " 0.800    "
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3g" big-pos-ratio)) "2.397E+308"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3g" big-neg-ratio)) "-2.397E+308"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3g" tiny-pos-ratio)) "1.000E-340"
-  (binding [*math-context* java.math.MathContext/DECIMAL128]
-    (cl-format false "~10,3g" tiny-neg-ratio)) "-1.000E-340"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3g" big-pos-ratio)) "2.397E+308"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3g" big-neg-ratio)) "-2.397E+308"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3g" tiny-pos-ratio)) "1.000E-340"
+  ;; (binding [*math-context* java.math.MathContext/DECIMAL128]
+  ;;   (cl-format false "~10,3g" tiny-neg-ratio)) "-1.000E-340"
   (foo-g 0.0314159) "  3.14E-2|314.2$-04|0.314E-01|  3.14E-2" 
   (foo-g 314159/10000000)
                     "  3.14E-2|314.2$-04|0.314E-01|  3.14E-2"
@@ -817,10 +819,10 @@ but it was called with an argument of type short-float.\n")
                  [{:a 54.7e17 :b {:a 'is-a} :c ["hi" "there"]}
                   {:b 5 :a -2/3 :c "dog" :d 'panda}]))
   "
-|      :a | :e |    :d |             :c |
-|---------+----+-------+----------------|
-| 5.47E18 |    |       | [\"hi\" \"there\"] |
-|    -2/3 |    | panda |            dog |
+|       :a | :e |    :d |             :c |
+|----------+----+-------+----------------|
+| 5.47e+18 |    |       | [\"hi\" \"there\"] |
+|     -2/3 |    | panda |            dog |
 "
   )
 

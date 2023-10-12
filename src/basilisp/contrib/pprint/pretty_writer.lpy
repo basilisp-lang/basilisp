@@ -15,10 +15,10 @@
 ;; This module implements a wrapper around a java.io.Writer which implements the
 ;; core of the XP algorithm.
 
-(in-ns 'clojure.pprint)
+(in-ns 'basilisp.pprint)
 
-(import [clojure.lang IDeref]
-        [java.io Writer])
+(import os
+        re)
 
 ;; TODO: Support for tab directives
 
@@ -105,7 +105,7 @@
 ;;; Functions to write tokens in the output buffer
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def ^:private pp-newline (memoize #(System/getProperty "line.separator")))
+(def ^:private pp-newline (fn [] os/linesep))
 
 (declare emit-nl)
 
@@ -114,7 +114,7 @@
    (when-let [cb (getf :logical-block-callback)] (cb :start))
    (let [lb (:logical-block token)]
     (dosync
-     (when-let [^String prefix (:prefix lb)] 
+     (when-let [^str prefix (:prefix lb)]
        (write-to-base prefix))
      (let [col (get-column (getf :base))]
        (ref-set (:start-col lb) col)
@@ -122,7 +122,7 @@
 
 (defmethod write-token :end-block-t [^Writer this token]
   (when-let [cb (getf :logical-block-callback)] (cb :end))
-  (when-let [^String suffix (:suffix (:logical-block token))] 
+  (when-let [^str suffix (:suffix (:logical-block token))]
     (write-to-base suffix)))
 
 (defmethod write-token :indent-t [^Writer this token]
@@ -134,7 +134,7 @@
 		  :current (get-column (getf :base)))))))
 
 (defmethod write-token :buffer-blob [^Writer this token]
-  (write-to-base ^String (:data token)))
+  (write-to-base ^str (:data token)))
 
 (defmethod write-token :nl-t [^Writer this token]
 ;  (prlabel wt @(:done-nl (:logical-block token)))
@@ -143,18 +143,18 @@
            (and (not (= (:type token) :fill))
                 @(:done-nl (:logical-block token))))
     (emit-nl this token)
-    (if-let [^String tws (getf :trailing-white-space)]
+    (when-let [^str tws (getf :trailing-white-space)]
       (write-to-base tws)))
   (dosync (setf :trailing-white-space nil)))
 
 (defn- write-tokens [^Writer this tokens force-trailing-whitespace]
   (doseq [token tokens]
-    (if-not (= (:type-tag token) :nl-t)
-      (if-let [^String tws (getf :trailing-white-space)]
+    (when-not (= (:type-tag token) :nl-t)
+      (when-let [^str tws (getf :trailing-white-space)]
 	(write-to-base tws)))
     (write-token this token)
     (setf :trailing-white-space (:trailing-white-space token)))
-  (let [^String tws (getf :trailing-white-space)] 
+  (let [^str tws (getf :trailing-white-space)]
     (when (and force-trailing-whitespace tws)
       (write-to-base tws)
       (setf :trailing-white-space nil))))
@@ -234,13 +234,13 @@
            (recur (:parent lb)))))))
 
 (defn- emit-nl [^Writer this nl]
-  (write-to-base ^String (pp-newline))
+  (write-to-base ^str (pp-newline))
   (dosync (setf :trailing-white-space nil))
   (let [lb (:logical-block nl)
-        ^String prefix (:per-line-prefix lb)] 
+        ^str prefix (:per-line-prefix lb)]
     (if prefix 
       (write-to-base prefix))
-    (let [^String istr (apply str (repeat (- @(:indent lb) (count prefix))
+    (let [^str istr (apply str (repeat (- @(:indent lb) (count prefix))
 					  \space))] 
       (write-to-base istr))
     (update-nl-state lb)))
@@ -301,7 +301,7 @@
      (if (not (tokens-fit? this buffer))
        (let [new-buffer (write-token-string this buffer)]
 ;;          (prlabel wl new-buffer)
-         (if-not (identical? buffer new-buffer)
+         (when-not (identical? buffer new-buffer)
                  (recur new-buffer)))))))
 
 ;;; Add a buffer token to the buffer and see if it's time to start
@@ -316,13 +316,13 @@
 ;;; Write all the tokens that have been buffered
 (defn- write-buffered-output [^Writer this]
   (write-line this)
-  (if-let [buf (getf :buffer)]
+  (when-let [buf (getf :buffer)]
     (do
       (write-tokens this buf true)
       (setf :buffer []))))
 
 (defn- write-white-space [^Writer this]
-  (when-let [^String tws (getf :trailing-white-space)]
+  (when-let [^str tws (getf :trailing-white-space)]
     ; (prlabel wws (str "*" tws "*"))
     (write-to-base tws)
     (dosync
@@ -331,13 +331,14 @@
 ;;; If there are newlines in the string, print the lines up until the last newline, 
 ;;; making the appropriate adjustments. Return the remainder of the string
 (defn- write-initial-lines 
-  [^Writer this ^String s] 
+  [^Writer this ^str s]
   (let [lines (.split s "\n" -1)]
     (if (= (count lines) 1)
       s
       (dosync 
-       (let [^String prefix (:per-line-prefix (first (getf :logical-blocks)))
-             ^String l (first lines)] 
+       (let [lb (first (getf :logical-blocks))
+             ^str prefix (when (map? lb) (:per-line-prefix lb))
+             ^str l (first lines)]
          (if (= :buffering (getf :mode))
            (let [oldpos (getf :pos)
                  newpos (+ oldpos (count l))]
@@ -347,17 +348,17 @@
            (do
              (write-white-space this)
              (write-to-base l)))
-         (write-to-base (int \newline))
-         (doseq [^String l (next (butlast lines))]
+         (write-to-base (ord \newline))
+         (doseq [^str l (next (butlast lines))]
            (write-to-base l)
-           (write-to-base ^String (pp-newline))
+           (write-to-base ^str (pp-newline))
            (if prefix
              (write-to-base prefix)))
          (setf :buffering :writing)
          (last lines))))))
 
 
-(defn- p-write-char [^Writer this ^Integer c]
+(defn- p-write-char [^Writer this ^int c]
   (if (= (getf :mode) :writing)
     (do 
       (write-white-space this)
@@ -389,17 +390,17 @@
                      :miser-width miser-width
                      :trailing-white-space nil
                      :pos 0})]
-    (proxy [Writer IDeref PrettyFlush] []
+    (proxy [Writer basilisp.lang.interfaces/IDeref PrettyFlush] []
       (deref [] fields)
 
       (write 
        ([x]
           ;;     (prlabel write x (getf :mode))
           (condp = (class x)
-            String 
-            (let [^String s0 (write-initial-lines this x)
-                  ^String s (.replaceFirst s0 "\\s+$" "")
-                  white-space (.substring s0 (count s))
+            python/str
+            (let [^str s0 (write-initial-lines this x)
+                  ^str s (re/sub #"\s+$" "" s0 1)
+                  white-space (subs s0 (count s))
                   mode (getf :mode)]
               (dosync
                (if (= mode :writing)
@@ -412,9 +413,7 @@
                    (setf :pos newpos)
                    (add-to-buffer this (make-buffer-blob s white-space oldpos newpos))))))
 
-            Integer
-            (p-write-char this x)
-            Long
+            python/int
             (p-write-char this x)))
         ([x off len]
            (.write ^Writer this (subs (str x) off (+ off len)))))
@@ -424,7 +423,8 @@
                (dosync
                 (write-tokens this (getf :buffer) true)
                 (setf :buffer []))
-               (write-white-space this)))
+               (write-white-space this))
+        nil)
 
       (flush []
              (.ppflush ^PrettyFlush this)
@@ -441,7 +441,7 @@
 
 (defn- start-block 
   [^Writer this 
-   ^String prefix ^String per-line-prefix ^String suffix]
+   ^str prefix ^str per-line-prefix ^str suffix]
   (dosync 
    (let [lb (struct logical-block (getf :logical-blocks) nil (ref 0) (ref 0)
                     (ref false) (ref false)
@@ -464,7 +464,7 @@
 (defn- end-block [^Writer this]
   (dosync
    (let [lb (getf :logical-blocks)
-         ^String suffix (:suffix lb)]
+         ^str suffix (:suffix lb)]
      (if (= (getf :mode) :writing)
        (do
          (write-white-space this)

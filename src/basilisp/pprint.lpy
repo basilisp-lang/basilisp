@@ -11,6 +11,9 @@
 ;; Author: Tom Faulhaber
 ;; April 3, 2009
 
+;; Port to Basilisp initiated from
+;; https://github.com/clojure/clojure/blob/08a2d9bdd013143a87e50fa82e9740e2ab4ee2c2/src/clj/clojure/pprint.clj
+
 (ns 
     ^{:author "Tom Faulhaber",
       :doc "A Pretty Printer for Clojure
@@ -32,20 +35,23 @@ cl-format, it supports very concise custom dispatch. It also provides
 a more powerful alternative to Clojure's standard format function.
 
 See documentation for pprint and cl-format for more information or 
-complete documentation on the Clojure web site on GitHub.",
+complete documentation on the Clojure web site on GitHub.
+
+In addition, Basilisp introduces the `*print-sort-unordered-colls*`
+variable for sorting unsorted collection before printing them out.
+",
        :added "1.2"}
-    clojure.pprint
-    (:refer-clojure :exclude (deftype))
-    (:use [clojure.walk :only [walk]]))
+    basilisp.pprint
+    (:use [basilisp.walk :only [walk]]))
 
-(set! *warn-on-reflection* true)
+;;(set! *warn-on-reflection* true)
 
-(load "pprint/utilities")
-(load "pprint/column_writer")
-(load "pprint/pretty_writer")
-(load "pprint/pprint_base")
-(load "pprint/cl_format")
-(load "pprint/dispatch")
-(load "pprint/print_table")
+(load "contrib/pprint/utilities")
+(load "contrib/pprint/column_writer")
+(load "contrib/pprint/pretty_writer")
+(load "contrib/pprint/pprint_base")
+(load "contrib/pprint/cl_format")
+(load "contrib/pprint/dispatch")
+(load "contrib/pprint/print_table")
 
 nil
