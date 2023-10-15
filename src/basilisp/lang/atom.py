@@ -10,7 +10,7 @@ T = TypeVar("T")
 
 
 class Atom(RefBase[T], Generic[T]):
-    __slots__ = ("_meta", "_state", "_rlock", "_wlock", "_watches", "_validator")
+    __slots__ = ("_meta", "_state", "_lock", "_watches", "_validator")
 
     def __init__(
         self,
@@ -20,9 +20,7 @@ class Atom(RefBase[T], Generic[T]):
     ) -> None:
         self._meta: Optional[IPersistentMap] = meta
         self._state = state
-        lock = RWLockFair()
-        self._rlock = lock.gen_rlock()
-        self._wlock = lock.gen_wlock()
+        self._lock = RWLockFair()
         self._watches = PersistentMap.empty()
         self._validator = validator
 
@@ -30,7 +28,7 @@ class Atom(RefBase[T], Generic[T]):
             self._validate(state)
 
     def _compare_and_set(self, old: T, new: T) -> bool:
-        with self._wlock:
+        with self._lock.gen_wlock():
             if self._state != old:
                 return False
             self._state = new
@@ -48,7 +46,7 @@ class Atom(RefBase[T], Generic[T]):
 
     def deref(self) -> T:
         """Return the state stored within the Atom."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             return self._state
 
     def reset(self, v: T) -> T:
