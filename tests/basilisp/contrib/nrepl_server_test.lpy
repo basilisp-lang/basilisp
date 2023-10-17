@@ -50,7 +50,9 @@
   `(with [sock# (socket/socket socket/AF_INET socket/SOCK_STREAM)]
          (let [~client {:sock sock# :backlog* (atom {:items [] :fraction ""})}]
            (.connect sock# (python/tuple ["127.0.0.1" *nrepl-port*]))
-           (.settimeout sock# 3)
+           ;; the high time out value is for accommodating the slow
+           ;; execution on pypy.
+           (.settimeout sock# 20)
            ~@body)))
 
 (defn client-send!

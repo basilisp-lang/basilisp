@@ -83,7 +83,18 @@ class TestnREPLServer:
             tmpfilepath = os.path.join(tmpdirpath, ".nrepl-port-test")
             thread = Thread(target=run_nrepl, args=[run_cli, tmpfilepath], daemon=True)
             thread.start()
-            time.sleep(1)  # give server some time to settle down
+
+            # give the server some time to settle down.
+            #
+            # the high retries number is to address the slowness when
+            # running on pypy.
+            retries = 60
+            while not os.path.exists(tmpfilepath):
+                time.sleep(1)
+                retries -= 1
+                if retries < 0:
+                    break
+
             with open(tmpfilepath) as tf:
                 port = int(tf.readline())
                 assert port > 0 and port < 65536
