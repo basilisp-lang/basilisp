@@ -1963,7 +1963,7 @@ def add_generated_python(
         which_ns = get_current_ns()
     v = Maybe(which_ns.find(sym.symbol(GENERATED_PYTHON_VAR_NAME))).or_else(
         lambda: Var.intern(
-            which_ns,  # type: ignore
+            which_ns,  # type: ignore[arg-type, unused-ignore]
             sym.symbol(GENERATED_PYTHON_VAR_NAME),
             "",
             dynamic=True,

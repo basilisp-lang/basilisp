@@ -333,7 +333,7 @@ class AnalyzerContext:
         self._func_ctx: Deque[FunctionContext] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
         self._opts = (
-            Maybe(opts).map(lmap.map).or_else_get(lmap.PersistentMap.empty())  # type: ignore
+            Maybe(opts).map(lmap.map).or_else_get(lmap.PersistentMap.empty())  # type: ignore[arg-type, unused-ignore]
         )
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._should_macroexpand = should_macroexpand
