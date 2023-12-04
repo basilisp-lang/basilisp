@@ -1399,35 +1399,39 @@ def sort(coll, f=compare) -> Optional[ISeq]:
     using f or use the `compare` fn if not.
 
     The comparator fn can be either a boolean or 3-way comparison fn."""
-    if isinstance(coll, IPersistentMap):
-        coll = lseq.to_seq(coll)
+    seq = lseq.to_seq(coll)
+    if seq:
+        if isinstance(coll, IPersistentMap):
+            coll = seq
 
-    comparator = _fn_to_comparator(f)
+        comparator = _fn_to_comparator(f)
 
-    class key:
-        __slots__ = ("obj",)
+        class key:
+            __slots__ = ("obj",)
 
-        def __init__(self, obj):
-            self.obj = obj
+            def __init__(self, obj):
+                self.obj = obj
 
-        def __lt__(self, other):
-            return comparator(self.obj, other.obj) < 0
+            def __lt__(self, other):
+                return comparator(self.obj, other.obj) < 0
 
-        def __gt__(self, other):
-            return comparator(self.obj, other.obj) > 0
+            def __gt__(self, other):
+                return comparator(self.obj, other.obj) > 0
 
-        def __eq__(self, other):
-            return comparator(self.obj, other.obj) == 0
+            def __eq__(self, other):
+                return comparator(self.obj, other.obj) == 0
 
-        def __le__(self, other):
-            return comparator(self.obj, other.obj) <= 0
+            def __le__(self, other):
+                return comparator(self.obj, other.obj) <= 0
 
-        def __ge__(self, other):
-            return comparator(self.obj, other.obj) >= 0
+            def __ge__(self, other):
+                return comparator(self.obj, other.obj) >= 0
 
-        __hash__ = None  # type: ignore
+            __hash__ = None  # type: ignore
 
-    return lseq.sequence(sorted(coll, key=key))
+        return lseq.sequence(sorted(coll, key=key))
+    else:
+        return llist.EMPTY
 
 
 def sort_by(keyfn, coll, cmp=compare) -> Optional[ISeq]:
@@ -1436,35 +1440,39 @@ def sort_by(keyfn, coll, cmp=compare) -> Optional[ISeq]:
     using cmp or use the `compare` fn if not.
 
     The comparator fn can be either a boolean or 3-way comparison fn."""
-    if isinstance(coll, IPersistentMap):
-        coll = lseq.to_seq(coll)
+    seq = lseq.to_seq(coll)
+    if seq:
+        if isinstance(coll, IPersistentMap):
+            coll = seq
 
-    comparator = _fn_to_comparator(cmp)
+        comparator = _fn_to_comparator(cmp)
 
-    class key:
-        __slots__ = ("obj",)
+        class key:
+            __slots__ = ("obj",)
 
-        def __init__(self, obj):
-            self.obj = obj
+            def __init__(self, obj):
+                self.obj = obj
 
-        def __lt__(self, other):
-            return comparator(keyfn(self.obj), keyfn(other.obj)) < 0
+            def __lt__(self, other):
+                return comparator(keyfn(self.obj), keyfn(other.obj)) < 0
 
-        def __gt__(self, other):
-            return comparator(keyfn(self.obj), keyfn(other.obj)) > 0
+            def __gt__(self, other):
+                return comparator(keyfn(self.obj), keyfn(other.obj)) > 0
 
-        def __eq__(self, other):
-            return comparator(keyfn(self.obj), keyfn(other.obj)) == 0
+            def __eq__(self, other):
+                return comparator(keyfn(self.obj), keyfn(other.obj)) == 0
 
-        def __le__(self, other):
-            return comparator(keyfn(self.obj), keyfn(other.obj)) <= 0
+            def __le__(self, other):
+                return comparator(keyfn(self.obj), keyfn(other.obj)) <= 0
 
-        def __ge__(self, other):
-            return comparator(keyfn(self.obj), keyfn(other.obj)) >= 0
+            def __ge__(self, other):
+                return comparator(keyfn(self.obj), keyfn(other.obj)) >= 0
 
-        __hash__ = None  # type: ignore
+            __hash__ = None  # type: ignore
 
-    return lseq.sequence(sorted(coll, key=key))
+        return lseq.sequence(sorted(coll, key=key))
+    else:
+        return llist.EMPTY
 
 
 def is_special_form(s: sym.Symbol) -> bool:

@@ -992,8 +992,14 @@
       '([1] [1 2] [1 3]) [[1 3] [1] [1 2]]
       '([1] [0 1] [0 1]) [[0 1] [1] [0 1] ]))
 
+  (testing "sorting sequences"
+    (are [res v] (= res (sort v))
+      '() (seq [])
+      '(1 2 3) (seq [2 3 1])))
+
   (testing "sorting maps"
     (are [res v] (= res (sort v))
+      '() {}
       '([:3 18] [:5 28] [:9 23]) {:9 23 :3 18 :5 28})))
 
 (deftest sort-by-test
@@ -1018,8 +1024,14 @@
     (is (= '([1 2] [2 2] [2 3]) (sort-by first [[1 2] [2 2] [2 3]])))
     (is (= '([2 2] [2 3] [1 2]) (sort-by first > [[1 2] [2 2] [2 3]]) )))
 
+  (testing "sorting seqs"
+    (are [res v] (= res (sort-by second > v))
+      '() (seq [])
+      '([1 7] [3 4] [2 1]) (seq [[2 1] [3 4] [1 7]])))
+
   (testing "sorting maps"
     (are [res v] (= res (sort-by identity v))
+      '() {}
       '([:3 18] [:5 28] [:9 23]) {:9 23 :3 18 :5 28})
 
     ;; taken from clojuredocs
