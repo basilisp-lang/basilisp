@@ -4533,13 +4533,13 @@
   the root binding to ``val``\\, if provided. The namespace must exist. Return the Var."
   ([ns name]
    (let [ns (the-ns ns)
-         v  (basilisp.lang.runtime/Var ns name)]
-     (.intern ns v)))
+         v  (basilisp.lang.runtime/Var ns name ** :meta {:ns ns :name name})]
+     (.intern ns name v)))
   ([ns name val]
    (let [ns (the-ns ns)
-         v  (basilisp.lang.runtime/Var ns name)]
-     (.set-root v val)
-     (.intern ns v))))
+         v  (basilisp.lang.runtime/Var ns name ** :meta {:ns ns :name name})]
+     (.bind-root v val)
+     (.intern ns name v))))
 
 (defn ^:inline create-ns
   "Create a Namespace with the name ``ns-sym`` or return the existing one if it already

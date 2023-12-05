@@ -1363,6 +1363,39 @@
   ;; a valid symbol in that namespace
   (is (= (resolve 'basilisp.shell/sh) (requiring-resolve 'basilisp.shell/sh))))
 
+(deftest intern-test
+  (let [ns-sym (gensym "intern-test-ns")
+        ns0 (create-ns ns-sym)]
+    (testing "unbound"
+      (let [sym (gensym "intern-test")
+            v (intern ns0 sym)
+            {:keys [name ns] :as m} (meta v)]
+        (is (= ns0 ns))
+        (is (= sym name))
+        (is (= false (.-is-bound v)))))
+
+    (testing "unbound ns-sym"
+      (let [sym (gensym "intern-test")
+            v (intern ns-sym sym)
+            {:keys [name ns] :as m} (meta v)]
+        (is (= ns0 ns))
+        (is (= sym name))
+        (is (= false (.-is-bound v)))))
+
+    (testing "bound"
+      (let [sym (gensym "intern-test")
+            v (intern ns0 sym 5)
+            {:keys [name ns] :as m} (meta v)]
+        (is (= ns0 ns))
+        (is (= sym name))
+        (is (= true (.-is-bound v)))
+        (is (= 5 @v))
+        (is (= v (find-var (symbol (str ns0) (str sym))))))))
+
+
+  (testing "ns-not-exists"
+    (is (thrown? python/AttributeError (intern 'ns-non-existant 'xyz)))))
+
 ;;;;;;;;;;;;;;;;;
 ;; Hierarchies ;;
 ;;;;;;;;;;;;;;;;;
