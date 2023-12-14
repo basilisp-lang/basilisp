@@ -1870,8 +1870,7 @@ def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
     """Resolve the aliased symbol to a Var from the specified namespace, or the
     current namespace if none is specified."""
     ns_qualified_sym = resolve_alias(s, ns)
-    var = Var.find(resolve_alias(s, ns)) if ns_qualified_sym.ns else None
-    return var
+    return Var.find(resolve_alias(s, ns)) if ns_qualified_sym.ns else None
 
 
 #######################
