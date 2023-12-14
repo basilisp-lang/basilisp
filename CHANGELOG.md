@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix issue with `intern` failing when used (#725).
  * Fix issue with `ns` not being available after `in-ns` on the REPL (#718).
  * Fixed issue with import modules aliasing using ns eval (#719).
+ * Fix issue with `ns-resolve` throwing an error on macros (#720).
 
 ## [v0.1.0a2]
 ### Added
