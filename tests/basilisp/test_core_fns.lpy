@@ -2021,4 +2021,10 @@
     (binding [*ns* *ns*]
       (eval '(in-ns 'test-core-fns.ns-after-in-ns))
       (eval '(ns test-core-fns.ns-after-in-ns))
-      (is (= *ns* (the-ns 'test-core-fns.ns-after-in-ns))))))
+      (is (= *ns* (the-ns 'test-core-fns.ns-after-in-ns)))))
+
+  (testing "eval ns with import aliases"
+    (binding [*ns* *ns*]
+      (eval '(ns test-core-fns.ns-with-import (:import [time :as time-alias])))
+      (is (= *ns* (the-ns 'test-core-fns.ns-with-import)))
+      (is (= "Thu Jan  1 00:00:01 1970" (eval '(time-alias/asctime (time-alias/gmtime 1))))))))
