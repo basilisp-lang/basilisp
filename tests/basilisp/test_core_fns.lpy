@@ -2010,3 +2010,15 @@
             [:a2 "and this one!"]]
            @a2-atom))
     (is (= [] @b-atom))))
+
+
+;;;;;;;;;;
+;; eval ;;
+;;;;;;;;;;
+
+(deftest eval-test
+  (testing "can ns after in-ns"
+    (binding [*ns* *ns*]
+      (eval '(in-ns 'test-core-fns.ns-after-in-ns))
+      (eval '(ns test-core-fns.ns-after-in-ns))
+      (is (= *ns* (the-ns 'test-core-fns.ns-after-in-ns))))))
