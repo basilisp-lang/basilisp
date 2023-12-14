@@ -1363,6 +1363,21 @@
   ;; a valid symbol in that namespace
   (is (= (resolve 'basilisp.shell/sh) (requiring-resolve 'basilisp.shell/sh))))
 
+(deftest ns-resolve-test
+  (is (= #'basilisp.core/apply (ns-resolve *ns* 'apply)))
+  (is (nil? (ns-resolve *ns* 'xyz)))
+
+  (is (= #'basilisp.set/union (ns-resolve *ns* 'basilisp.set/union)))
+  (is (= #'basilisp.set/union (ns-resolve *ns* 'set/union)))
+  (is (nil? (ns-resolve *ns* 'basilisp.set/xyz)))
+  (is (nil? (ns-resolve *ns* 'set/xyz)))
+
+  (is (= #'basilisp.test/is (ns-resolve *ns* 'is)))
+  (is (nil? (ns-resolve *ns* '*test-section*)))
+  (is (= #'basilisp.test/*test-section* (ns-resolve (the-ns 'basilisp.test) '*test-section*)))
+
+  (is (nil? (ns-resolve *ns* 'if))))
+
 (deftest intern-test
   (let [ns-sym (gensym "intern-test-ns")
         ns0 (create-ns ns-sym)]
@@ -2021,4 +2036,10 @@
     (binding [*ns* *ns*]
       (eval '(in-ns 'test-core-fns.ns-after-in-ns))
       (eval '(ns test-core-fns.ns-after-in-ns))
-      (is (= *ns* (the-ns 'test-core-fns.ns-after-in-ns))))))
+      (is (= *ns* (the-ns 'test-core-fns.ns-after-in-ns)))))
+
+  (testing "eval ns with import aliases"
+    (binding [*ns* *ns*]
+      (eval '(ns test-core-fns.ns-with-import (:import [time :as time-alias])))
+      (is (= *ns* (the-ns 'test-core-fns.ns-with-import)))
+      (is (= "Thu Jan  1 00:00:01 1970" (eval '(time-alias/asctime (time-alias/gmtime 1))))))))
