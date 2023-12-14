@@ -4642,7 +4642,13 @@
   Use of ``import`` directly is discouraged in favor of the ``:import`` directive in
   the :lpy:fn:`ns` macro."
   [& modules]
-  `(import* ~@modules))
+  ;; We need to use eval here, because there could have been an ns
+  ;; switch inside an eval earlier, and although *ns* is correctly set
+  ;; to the new ns, the global python namespace can still refer to the
+  ;; old python global ns where the import would have been evaluated
+  ;; otherwise.
+  (let [form `(import* ~@modules)]
+    `(eval '~form  *ns*)))
 
 (defn ^:private rewrite-clojure-libspec
   "Rewrite libspecs which point to namespaces starting with 'clojure.' to use a
