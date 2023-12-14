@@ -768,6 +768,13 @@ class Namespace(ReferenceBase):
         if ns is not None:
             return ns_cache
         new_ns = Namespace(name, module=module)
+        # The `ns` macro is important for setting up an new namespace,
+        # but it becomes available only after basilisp.core has been
+        # loaded.
+        ns_var = Var.find_in_ns(CORE_NS_SYM, sym.symbol("ns"))
+        if ns_var:
+            new_ns.add_refer(sym.symbol("ns"), ns_var)
+
         return ns_cache.assoc(name, new_ns)
 
     @classmethod
