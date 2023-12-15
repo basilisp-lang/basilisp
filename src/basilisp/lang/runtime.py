@@ -762,6 +762,13 @@ class Namespace(ReferenceBase):
         if ns is not None:
             return ns_cache
         new_ns = Namespace(name, module=module)
+        # The `ns` macro is important for setting up an new namespace,
+        # but it becomes available only after basilisp.core has been
+        # loaded.
+        ns_var = Var.find_in_ns(CORE_NS_SYM, sym.symbol("ns"))
+        if ns_var:
+            new_ns.add_refer(sym.symbol("ns"), ns_var)
+
         return ns_cache.assoc(name, new_ns)
 
     @classmethod
@@ -1863,7 +1870,8 @@ def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
 def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
     """Resolve the aliased symbol to a Var from the specified namespace, or the
     current namespace if none is specified."""
-    return Var.find(resolve_alias(s, ns))
+    ns_qualified_sym = resolve_alias(s, ns)
+    return Var.find(resolve_alias(s, ns)) if ns_qualified_sym.ns else None
 
 
 #######################
