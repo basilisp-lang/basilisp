@@ -1,6 +1,6 @@
 from typing import Any, Callable, Optional, TypeVar
 
-from readerwriterlock.rwlock import Lockable
+from readerwriterlock.rwlock import RWLockable
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
@@ -33,24 +33,23 @@ class ReferenceBase(IReference):
     `basilisp.lang.runtime.Namespace` objects are the only objects which are
     `IReference` objects without also being `IRef` objects.
 
-    Implementers must have the `_rlock`, `_wlock`, and `_meta` properties defined."""
+    Implementers must have the `_lock` and `_meta` properties defined."""
 
-    _rlock: Lockable
-    _wlock: Lockable
+    _lock: RWLockable
     _meta: Optional[IPersistentMap]
 
     @property
     def meta(self) -> Optional[IPersistentMap]:
-        with self._rlock:
+        with self._lock.gen_rlock():
             return self._meta
 
     def alter_meta(self, f: AlterMeta, *args) -> Optional[IPersistentMap]:
-        with self._wlock:
+        with self._lock.gen_wlock():
             self._meta = f(self._meta, *args)
             return self._meta
 
     def reset_meta(self, meta: Optional[IPersistentMap]) -> Optional[IPersistentMap]:
-        with self._wlock:
+        with self._lock.gen_wlock():
             self._meta = meta
             return meta
 
@@ -72,7 +71,7 @@ class RefBase(IRef[T], ReferenceBase):
     _watches: IPersistentMap
 
     def add_watch(self, k: RefWatchKey, wf: RefWatcher) -> "RefBase[T]":
-        with self._wlock:
+        with self._lock.gen_wlock():
             self._watches = self._watches.assoc(k, wf)
             return self
 
@@ -81,7 +80,7 @@ class RefBase(IRef[T], ReferenceBase):
             wf(k, self, old, new)
 
     def remove_watch(self, k: RefWatchKey) -> "RefBase[T]":
-        with self._wlock:
+        with self._lock.gen_wlock():
             self._watches = self._watches.dissoc(k)
             return self
 
