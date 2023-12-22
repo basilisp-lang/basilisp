@@ -4,7 +4,6 @@ import decimal
 import functools
 import io
 import re
-import string
 import uuid
 from datetime import datetime
 from fractions import Fraction
@@ -890,8 +889,10 @@ def _read_hex_byte(ctx: ReaderContext) -> bytes:
     c2 = reader.next_token()
     try:
         return bytes([int("".join(["0x", c1, c2]), base=16)])
-    except ValueError:
-        raise ctx.syntax_error(f"Invalid byte representation for base 16: 0x{c1}{c2}")
+    except ValueError as e:
+        raise ctx.syntax_error(
+            f"Invalid byte representation for base 16: 0x{c1}{c2}"
+        ) from e
 
 
 def _read_byte_str(ctx: ReaderContext) -> bytes:
@@ -1448,7 +1449,7 @@ def _load_record_or_type(
         raise ctx.syntax_error("Records may only be constructed from Vectors and Maps")
 
 
-def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
+def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
     """Return a data structure evaluated as a reader
     macro from the input stream."""
     start = ctx.reader.advance()
