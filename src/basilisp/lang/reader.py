@@ -4,6 +4,7 @@ import decimal
 import functools
 import io
 import re
+import string
 import uuid
 from datetime import datetime
 from fractions import Fraction
@@ -843,7 +844,7 @@ _STR_ESCAPE_CHARS = {
 
 
 def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
-    """Return a string from the input stream.
+    """Return a UTF-8 encoded string from the input stream.
 
     If allow_arbitrary_escapes is True, do not throw a SyntaxError if an
     unknown escape sequence is encountered."""
@@ -867,6 +868,73 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
             reader.next_token()
             return "".join(s)
         s.append(token)
+
+
+_BYTES_ESCAPE_CHARS = {
+    '"': b'"',
+    "\\": b"\\",
+    "a": b"\a",
+    "b": b"\b",
+    "f": b"\f",
+    "n": b"\n",
+    "r": b"\r",
+    "t": b"\t",
+    "v": b"\v",
+}
+
+
+def _read_hex_byte(ctx: ReaderContext) -> bytes:
+    """Read a byte with a 2 digit hex code such as `\\xff`."""
+    reader = ctx.reader
+    c1 = reader.next_token()
+    c2 = reader.next_token()
+    try:
+        return bytes([int("".join(["0x", c1, c2]), base=16)])
+    except ValueError:
+        raise ctx.syntax_error(f"Invalid byte representation for base 16: 0x{c1}{c2}")
+
+
+def _read_byte_str(ctx: ReaderContext) -> bytes:
+    """Return a byte string from the input stream.
+
+    Byte strings have the same restrictions and semantics as byte literals in Python.
+    Individual characters must be within the ASCII range or must be valid escape sequences.
+    """
+    reader = ctx.reader
+
+    token = reader.peek()
+    while whitespace_chars.match(token):
+        token = reader.next_token()
+
+    if token != '"':
+        raise ctx.syntax_error(f"Expected '\"'; got '{token}' instead")
+
+    b: List[bytes] = []
+    while True:
+        token = reader.next_token()
+        if token == "":
+            raise ctx.eof_error("Unexpected EOF in byte string")
+        if ord(token) < 1 or ord(token) > 127:
+            raise ctx.eof_error("Byte strings must contain only ASCII characters")
+        if token == "\\":
+            token = reader.next_token()
+            escape_char = _BYTES_ESCAPE_CHARS.get(token, None)
+            if escape_char:
+                b.append(escape_char)
+                continue
+            elif token == "x":
+                b.append(_read_hex_byte(ctx))
+                continue
+            else:
+                # In Python, invalid escape sequences entered into byte strings are
+                # retained with backslash for debugging purposes, so we do the same.
+                b.append(b"\\")
+                b.append(token.encode("utf-8"))
+                continue
+        if token == '"':
+            reader.next_token()
+            return b"".join(b)
+        b.append(token.encode("utf-8"))
 
 
 @_with_loc
@@ -1408,6 +1476,9 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
         return _read_reader_conditional(ctx)
     elif token == "#":
         return _read_numeric_constant(ctx)
+    elif token == "b":
+        ctx.reader.advance()
+        return _read_byte_str(ctx)
     elif ns_name_chars.match(token):
         s = _read_sym(ctx)
         assert isinstance(s, sym.Symbol)

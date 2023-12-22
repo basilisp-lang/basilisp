@@ -202,6 +202,12 @@ def _lrepr_bool(o: bool, **_) -> str:
     return repr(o).lower()
 
 
+@lrepr.register(bytes)
+def _lrepr_bytes(o: bytes, **_) -> str:
+    v = repr(o)
+    return f'#b "{v[2:-1]}"'
+
+
 @lrepr.register(type(None))
 def _lrepr_nil(_: None, **__) -> str:
     return "nil"

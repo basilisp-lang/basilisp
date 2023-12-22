@@ -96,6 +96,38 @@ Strings are denoted as a series of characters enclosed by ``"`` quotation marks.
 If a string needs to contain a quotation mark literal, that quotation mark should be escaped as ``\"``.
 Strings may be multi-line by default and only a closing ``"`` will terminate reading a string.
 Strings correspond to the Python ``str`` type.
+String literals are always read with the UTF-8 encoding.
+
+String literals may contain the following escape sequences: ``\\``, ``\a``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\v``.
+Their meanings match the equivalent escape sequences supported in `Python string literals<https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`.
+
+
+Byte Strings
+------------
+
+::
+
+    basilisp.user=> #b ""
+    #b ""
+    basilisp.user=> #b "this is a string"
+    #b "this is a string"
+    basilisp.user=> (type #b "")
+    <class 'bytes'>
+
+Byte strings are denoted as a series of ASCII characters enclosed by ``"`` quotation marks and preceded by a ``#b``.
+If a string needs to contain a quotation mark literal, that quotation mark should be escaped as ``\"``.
+Strings may be multi-line by default and only a closing ``"`` will terminate reading a string.
+Strings correspond to the Python ``bytes`` type.
+
+Byte string literals may contain the following escape sequences: ``\\``, ``\a``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\v``.
+Byte strings may also characters using a hex escape code as ``\xhh`` where ``hh`` is a hexadecimal value.
+Their meanings match the equivalent escape sequences supported in `Python byte string literals<https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`.
+
+
+.. warning::
+
+   As in Python, byte string literals may not include any characters outside of the ASCII range.
+
 
 .. _character_literals:
 
