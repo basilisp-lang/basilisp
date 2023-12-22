@@ -3583,6 +3583,7 @@ def _const_node_type(_: Any) -> ConstType:
 
 for tp, const_type in {
     bool: ConstType.BOOL,
+    bytes: ConstType.BYTES,
     complex: ConstType.NUMBER,
     datetime: ConstType.INST,
     Decimal: ConstType.DECIMAL,
@@ -3612,6 +3613,7 @@ for tp, const_type in {
 
 
 @_analyze_form.register(bool)
+@_analyze_form.register(bytes)
 @_analyze_form.register(complex)
 @_analyze_form.register(datetime)
 @_analyze_form.register(Decimal)
@@ -3649,6 +3651,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
             form,
             (
                 bool,
+                bytes,
                 complex,
                 datetime,
                 Decimal,

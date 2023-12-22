@@ -271,6 +271,7 @@ class ConstType(Enum):
     SET = kw.keyword("set")
     VECTOR = kw.keyword("vector")
     BOOL = kw.keyword("bool")
+    BYTES = kw.keyword("bytes")
     KEYWORD = kw.keyword("keyword")
     SYMBOL = kw.keyword("symbol")
     STRING = kw.keyword("string")

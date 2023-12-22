@@ -3275,6 +3275,7 @@ def _const_meta_kwargs_ast(
 
 
 @_const_val_to_py_ast.register(bool)
+@_const_val_to_py_ast.register(bytes)
 @_const_val_to_py_ast.register(type(None))
 @_const_val_to_py_ast.register(complex)
 @_const_val_to_py_ast.register(float)

@@ -21,6 +21,7 @@ IterableLispForm = Union[
 LispNumber = Union[int, float, Fraction]
 LispForm = Union[
     bool,
+    bytes,
     complex,
     datetime,
     Decimal,

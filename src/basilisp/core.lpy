@@ -1321,11 +1321,6 @@
   [x]
   (and (integer? x) (neg? x)))
 
-(defn  ^:inline nil?
-  "Return ``true`` if ``x`` is ``nil``\\, otherwise ``false``\\."
-  [x]
-  (operator/is- x nil))
-
 (defn ^:inline some?
   "Return ``true`` if ``x`` is not ``nil``\\, otherwise ``false`` s."
   [x]
@@ -3603,7 +3598,7 @@
         ;;  pairs - pairs of bindings; either symbol/seq pairs or modifier pairs
         gen-iter (fn gen-iter [pairs]
                    (if (seq pairs)
-                     (let [for-iter (gensym "for") 
+                     (let [for-iter (gensym "for")
                            seq-arg  (gensym "seq")
                            pair     (first pairs)
                            binding  (first pair)
