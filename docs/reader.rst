@@ -99,7 +99,7 @@ Strings correspond to the Python ``str`` type.
 String literals are always read with the UTF-8 encoding.
 
 String literals may contain the following escape sequences: ``\\``, ``\a``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\v``.
-Their meanings match the equivalent escape sequences supported in `Python string literals<https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`.
+Their meanings match the equivalent escape sequences supported in `Python string literals <https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`_\.
 
 
 Byte Strings
@@ -121,7 +121,7 @@ Strings correspond to the Python ``bytes`` type.
 
 Byte string literals may contain the following escape sequences: ``\\``, ``\a``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\v``.
 Byte strings may also characters using a hex escape code as ``\xhh`` where ``hh`` is a hexadecimal value.
-Their meanings match the equivalent escape sequences supported in `Python byte string literals<https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`.
+Their meanings match the equivalent escape sequences supported in `Python byte string literals <https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`_\.
 
 
 .. warning::
