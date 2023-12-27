@@ -1,7 +1,7 @@
 import contextlib
 import decimal
 import functools
-import importlib
+import importlib.metadata
 import inspect
 import itertools
 import logging
@@ -2118,8 +2118,6 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     )
 
     # Version info
-    from basilisp.__version__ import VERSION
-
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(PYTHON_VERSION_VAR_NAME),
@@ -2137,7 +2135,10 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(BASILISP_VERSION_VAR_NAME),
-        vec.vector(VERSION),
+        vec.vector(
+            (int(s) if s.isdigit() else s)
+            for s in importlib.metadata.version("basilisp").split(".")
+        ),
         dynamic=True,
         meta=lmap.map(
             {
