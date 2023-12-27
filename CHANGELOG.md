@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added rudimentary support for `clojure.stacktrace` with `print-cause-trace` (part of #721)
  * Added support for `bytes` literals using a `#b` prefix (#732)
+ * Added support for Python 3.12 (#734)
 
 ### Changed
  * Basilisp now supports PyTest 7.0+ (#660)

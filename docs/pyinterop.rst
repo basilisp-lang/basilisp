@@ -27,7 +27,7 @@ When compiled, a ``kebab-case`` identifier always becomes a ``snake_case`` ident
 Python Builtins
 ---------------
 
-Python features a collection of `builtin <https://docs.python.org/3.8/library/functions.html>`_ functions which are available by default without module qualification in all Python scripts.
+Python features a collection of `builtin <https://docs.python.org/3/library/functions.html>`_ functions which are available by default without module qualification in all Python scripts.
 Python builtins are available in all Basilisp code as qualified symbols with the ``python`` namespace portion.
 It is not required to import anything to enable this functionality.
 
