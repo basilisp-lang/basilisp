@@ -1,12 +1,12 @@
+import importlib.util
 import inspect
+import os
 import traceback
+from pathlib import Path
 from types import GeneratorType
 from typing import Callable, Iterable, Iterator, Optional, Tuple
 
-import py
 import pytest
-from _pytest.config import Config
-from _pytest.main import Session
 
 from basilisp import main as basilisp
 from basilisp.lang import keyword as kw
@@ -26,11 +26,11 @@ def pytest_configure(config):
     basilisp.bootstrap("basilisp.test")
 
 
-def pytest_collect_file(parent, path):
+def pytest_collect_file(file_path: Path, path, parent):
     """Primary PyTest hook to identify Basilisp test files."""
-    if path.ext == ".lpy":
-        if path.basename.startswith("test_") or path.purebasename.endswith("_test"):
-            return BasilispFile.from_parent(parent, fspath=path)
+    if file_path.suffix == ".lpy":
+        if file_path.name.startswith("test_") or file_path.name.endswith("_test"):
+            return BasilispFile.from_parent(parent, fspath=path, path=file_path)
     return None
 
 
@@ -135,18 +135,43 @@ class FixtureManager:
         self._teardowns = ()
 
 
+def _is_package(path: Path) -> bool:
+    """Return `True` if the given path refers to a Python or Basilisp package."""
+    _, _, files = next(os.walk(path))
+    for file in files:
+        if file in {"__init__.lpy", "__init__.py"} or file.endswith(".lpy"):
+            return True
+    return False
+
+
+def _get_fully_qualified_module_name(file: Path) -> str:
+    """Return the fully qualified module name (from the import root) for a module given
+    its location.
+
+    This works by traversing up the filesystem looking for the top-most package. From
+    there, we derive a Python module name referring to the given module path."""
+    top = None
+    for p in file.parents:
+        if _is_package(p):
+            top = p
+        else:
+            break
+
+    if top is None or top == file.parent:
+        return file.stem
+
+    root = top.parent
+    elems = list(file.with_suffix("").relative_to(root).parts)
+    if elems[-1] == "__init__":
+        elems.pop()
+    return ".".join(elems)
+
+
 class BasilispFile(pytest.File):
     """Files represent a test module in Python or a test namespace in Basilisp."""
 
-    def __init__(  # pylint: disable=too-many-arguments
-        self,
-        fspath: py.path.local,
-        parent=None,
-        config: Optional[Config] = None,
-        session: Optional["Session"] = None,
-        nodeid: Optional[str] = None,
-    ) -> None:
-        super().__init__(fspath, parent, config, session, nodeid)
+    def __init__(self, **kwargs) -> None:  # pylint: disable=too-many-arguments
+        super().__init__(**kwargs)
         self._fixture_manager: Optional[FixtureManager] = None
 
     @staticmethod
@@ -192,16 +217,21 @@ class BasilispFile(pytest.File):
         assert self._fixture_manager is not None
         self._fixture_manager.teardown()
 
+    def _import_module(self) -> runtime.BasilispModule:
+        modname = _get_fully_qualified_module_name(self.path)
+        module = importlib.import_module(modname)
+        assert isinstance(module, runtime.BasilispModule)
+        return module
+
     def collect(self):
-        """Collect all of the tests in the namespace (module) given.
+        """Collect all tests from the namespace (module) given.
 
         Basilisp's test runner imports the namespace which will (as a side effect)
-        collect all of the test functions in a namespace (represented by `deftest`
-        forms in Basilisp). BasilispFile.collect fetches those test functions and
-        generates BasilispTestItems for PyTest to run the tests."""
-        filename = self.fspath.basename
-        module = self.fspath.pyimport()
-        assert isinstance(module, runtime.BasilispModule)
+        collect the test functions in a namespace (represented by `deftest` forms in
+        Basilisp). BasilispFile.collect fetches those test functions and generates
+        BasilispTestItems for PyTest to run the tests."""
+        filename = self.path.name
+        module = self._import_module()
         ns = module.__basilisp_namespace__
         once_fixtures, each_fixtures = self._collected_fixtures(ns)
         self._fixture_manager = FixtureManager(once_fixtures)

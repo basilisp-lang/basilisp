@@ -40,6 +40,7 @@ class TestTestrunner:
             (ex-info "This test will count as an error." {})))
         """
         pytester.makefile(".lpy", test_testrunner=code)
+        pytester.syspathinsert()
         yield pytester.runpytest()
         runtime.Namespace.remove(sym.symbol("test-testrunner"))
 
@@ -165,6 +166,7 @@ def test_fixtures(pytester: Pytester):
       (is false))
     """
     pytester.makefile(".lpy", test_fixtures=code)
+    pytester.syspathinsert()
     result: pytester.RunResult = pytester.runpytest()
     result.assert_outcomes(passed=1, failed=1)
 
@@ -216,5 +218,6 @@ def test_fixtures_with_errors(
       (is false))
     """
     pytester.makefile(".lpy", test_fixtures_with_errors=code)
+    pytester.syspathinsert()
     result: pytester.RunResult = pytester.runpytest()
     result.assert_outcomes(passed=passes, failed=failures, errors=errors)
