@@ -69,7 +69,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 88
-target-version = ["py36"]
+target-version = ["py38"]
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -149,10 +149,8 @@ warn_unused_ignores = true
 module = [
     "astor.*",
     "prompt_toolkit.*",
-    "py.*",
     "pygments.*",
     "pytest.*",
-    "_pytest.*",
     "sphinx.*"
 ]
 ignore_missing_imports = true
