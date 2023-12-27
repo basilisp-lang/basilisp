@@ -1,5 +1,5 @@
 import argparse
-import importlib
+import importlib.metadata
 import io
 import os
 import sys
@@ -430,9 +430,8 @@ def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
 
 
 def version(_, __):
-    from basilisp.__version__ import __version__
-
-    print(f"Basilisp {__version__}")
+    v = importlib.metadata.version("basilisp")
+    print(f"Basilisp {v}")
 
 
 @_subcommand("version", help="print the version of Basilisp", handler=version)

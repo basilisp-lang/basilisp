@@ -27,10 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed issue with import modules aliasing using ns eval (#719)
  * Fix issue with `ns-resolve` throwing an error on macros (#720)
  * Fix issue with py module `readerwritelock` locks handling (#722)
- * Fix issue with basilisp.io/writer :append mode not working (#741).
+ * Fix issue with basilisp.io/writer :append mode not working (#741)
 
 ### Removed
  * Removed the dependency `astor` for versions of Python 3.9+ (#736)
+ * Removed `basilisp.__version__` in favor of using `importlib.metadata` for version info (#617)
 
 ## [v0.1.0a2]
 ### Added

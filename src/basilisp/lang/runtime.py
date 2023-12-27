@@ -1,7 +1,7 @@
 import contextlib
 import decimal
 import functools
-import importlib
+import importlib.metadata
 import inspect
 import itertools
 import logging
@@ -72,6 +72,10 @@ NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
 SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 8), (3, 9), (3, 10), (3, 11), (3, 12)})
+BASILISP_VERSION_STRING = importlib.metadata.version("basilisp")
+BASILISP_VERSION = vec.vector(
+    (int(s) if s.isdigit() else s) for s in BASILISP_VERSION_STRING.split(".")
+)
 
 # Public basilisp.core symbol names
 COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
@@ -2118,8 +2122,6 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     )
 
     # Version info
-    from basilisp.__version__ import VERSION
-
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(PYTHON_VERSION_VAR_NAME),
@@ -2137,7 +2139,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(BASILISP_VERSION_VAR_NAME),
-        vec.vector(VERSION),
+        BASILISP_VERSION,
         dynamic=True,
         meta=lmap.map(
             {
