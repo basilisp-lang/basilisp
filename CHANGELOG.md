@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix issue with `ns-resolve` throwing an error on macros (#720)
  * Fix issue with py module `readerwritelock` locks handling (#722)
 
+### Removed
+ * Removed the dependency `astor` for versions of Python 3.9+ (#736)
+
 ## [v0.1.0a2]
 ### Added
  * Added support for fixtures in `basilisp.test` (#654)

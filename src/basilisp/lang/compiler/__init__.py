@@ -1,9 +1,8 @@
 import itertools
 import os
+import sys
 import types
 from typing import Any, Callable, Iterable, List, Optional
-
-from astor import code_gen as codegen
 
 from basilisp import _pyast as ast
 from basilisp.lang import map as lmap
@@ -37,10 +36,33 @@ from basilisp.lang.util import genname
 _DEFAULT_FN = "__lisp_expr__"
 
 
-def to_py_str(t: ast.AST) -> str:
-    """Return a string of the Python code which would generate the input
-    AST node."""
-    return codegen.to_source(t)
+if sys.version_info >= (3, 9):
+    from ast import unparse
+
+    def to_py_str(t: ast.AST) -> str:
+        """Return a string of the Python code which would generate the input
+        AST node."""
+        return unparse(t) + "\n\n"
+
+else:
+    try:
+        from astor import code_gen as codegen
+
+        def to_py_str(t: ast.AST) -> str:
+            """Return a string of the Python code which would generate the input
+            AST node."""
+            return codegen.to_source(t)
+
+    except ImportError:
+        import warnings
+
+        def to_py_str(t: ast.AST) -> str:  # pylint: disable=unused-argument
+            warnings.warn(
+                "Unable to generate Python code from generated AST due to missing "
+                "dependency 'astor'",
+                RuntimeWarning,
+            )
+            return ""
 
 
 BytecodeCollector = Callable[[types.CodeType], None]
