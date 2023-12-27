@@ -170,7 +170,7 @@ def _get_fully_qualified_module_name(file: Path) -> str:
 class BasilispFile(pytest.File):
     """Files represent a test module in Python or a test namespace in Basilisp."""
 
-    def __init__(self, **kwargs) -> None:  # pylint: disable=too-many-arguments
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._fixture_manager: Optional[FixtureManager] = None
 
