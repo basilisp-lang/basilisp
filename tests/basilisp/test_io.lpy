@@ -175,6 +175,22 @@
               (os/close fd)
               (os/unlink filename)))))))
 
+  (testing "writer local files"
+    (let [path (bio/path *tempdir* "writer-test-writer-local-files.txt")]
+      (testing "writer file object write"
+        (with-open [f (bio/writer path)]
+          (.write f "some file contents"))
+        (is (= "some file contents" (slurp path))))
+
+      (testing "writer file object append"
+        (with-open [f (bio/writer path :append true)]
+          (.write f " and then some more"))
+        (is (= "some file contents and then some more" (slurp path)))
+
+        (with-open [f (bio/writer path :append false)]
+          (.write f "some other content"))
+        (is (= "some other content" (slurp path))))))
+
   (testing "http requests"
     (let [url (str "http://localhost:" *http-port* "/writer-http-req.txt")]
       (is (thrown? basilisp.lang.exception/ExceptionInfo
