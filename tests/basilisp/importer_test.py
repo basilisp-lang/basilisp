@@ -7,8 +7,6 @@ from typing import Optional, Tuple
 from unittest.mock import patch
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
-from _pytest.pytester import Testdir
 
 from basilisp import importer as importer
 from basilisp.lang import runtime as runtime
@@ -35,7 +33,7 @@ def test_hook_imports():
         assert 1 == importer_counter()
 
 
-def test_demunged_import(testdir: Testdir):
+def test_demunged_import(pytester: pytest.Pytester):
     with TemporaryDirectory() as tmpdir:
         tmp_module = os.path.join(
             tmpdir, "long__AMP__namespace_name__PLUS__with___LT__punctuation__GT__.lpy"
@@ -85,11 +83,11 @@ else:
 
 class TestImporter:
     @pytest.fixture
-    def do_cache_namespaces(self, monkeypatch):
+    def do_cache_namespaces(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv(importer._NO_CACHE_ENVVAR, "false")
 
     @pytest.fixture
-    def do_not_cache_namespaces(self, monkeypatch):
+    def do_not_cache_namespaces(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv(importer._NO_CACHE_ENVVAR, "true")
 
     @pytest.fixture
@@ -97,7 +95,7 @@ class TestImporter:
         return {name: module for name, module in sys.modules.items()}
 
     @pytest.fixture
-    def module_dir(self, monkeypatch: MonkeyPatch, module_cache):
+    def module_dir(self, monkeypatch: pytest.MonkeyPatch, module_cache):
         with TemporaryDirectory() as tmpdir:
             cwd = os.getcwd()
             monkeypatch.chdir(tmpdir)
