@@ -2,6 +2,7 @@ from builtins import map as pymap
 from typing import Callable, Iterable, Mapping, Optional, Tuple, TypeVar, Union, cast
 
 from immutables import Map as _Map
+from immutables import MapMutation
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,
@@ -17,12 +18,6 @@ from basilisp.lang.obj import map_lrepr as _map_lrepr
 from basilisp.lang.seq import sequence
 from basilisp.lang.vector import MapEntry
 from basilisp.util import partition
-
-try:
-    from immutables._map import MapMutation
-except ImportError:
-    from immutables.map import MapMutation  # type: ignore[assignment]
-
 
 T = TypeVar("T")
 K = TypeVar("K")
@@ -208,7 +203,7 @@ class PersistentMap(
         m: _Map = self._inner.update(*(m.items() for m in maps))
         return PersistentMap(m)
 
-    def update_with(
+    def update_with(  # type: ignore[return]
         self, merge_fn: Callable[[V, V], V], *maps: Mapping[K, V]
     ) -> "PersistentMap[K, V]":
         with self._inner.mutate() as m:
@@ -217,7 +212,7 @@ class PersistentMap(
                     m.set(k, merge_fn(m[k], v) if k in m else v)
             return PersistentMap(m.finish())
 
-    def cons(  # type: ignore[override]
+    def cons(  # type: ignore[override, return]
         self,
         *elems: Union[
             IPersistentMap[K, V],
@@ -279,7 +274,7 @@ def m(**kvs) -> PersistentMap[str, V]:
     return PersistentMap.from_coll(kvs)
 
 
-def from_entries(entries: Iterable[MapEntry[K, V]]) -> PersistentMap[K, V]:
+def from_entries(entries: Iterable[MapEntry[K, V]]) -> PersistentMap[K, V]:  # type: ignore[return]
     with _Map().mutate() as m:  # type: ignore[var-annotated]
         for entry in entries:
             m.set(entry.key, entry.value)

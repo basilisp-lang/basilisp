@@ -2,6 +2,7 @@ from collections.abc import Set as _PySet
 from typing import AbstractSet, Iterable, Optional, TypeVar
 
 from immutables import Map as _Map
+from immutables import MapMutation
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,
@@ -14,12 +15,6 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
-
-try:
-    from immutables._map import MapMutation
-except ImportError:
-    from immutables.map import MapMutation  # type: ignore[assignment]
-
 
 T = TypeVar("T")
 
@@ -153,13 +148,13 @@ class PersistentSet(
     def with_meta(self, meta: Optional[IPersistentMap]) -> "PersistentSet[T]":
         return set(self._inner, meta=meta)
 
-    def cons(self, *elems: T) -> "PersistentSet[T]":
+    def cons(self, *elems: T) -> "PersistentSet[T]":  # type: ignore[return]
         with self._inner.mutate() as m:
             for elem in elems:
                 m.set(elem, elem)
             return PersistentSet(m.finish(), meta=self.meta)
 
-    def disj(self, *elems: T) -> "PersistentSet[T]":
+    def disj(self, *elems: T) -> "PersistentSet[T]":  # type: ignore[return]
         with self._inner.mutate() as m:
             for elem in elems:
                 try:
