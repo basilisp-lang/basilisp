@@ -1,3 +1,4 @@
+import platform
 import sys
 from decimal import Decimal
 from fractions import Fraction
@@ -40,6 +41,7 @@ def test_is_supported_python_version():
                     "lpy310-",
                     "lpy311-",
                     "lpy312-",
+                    platform.system().lower(),
                 ],
             )
         ),
@@ -56,6 +58,7 @@ def test_is_supported_python_version():
                     "lpy310-",
                     "lpy311-",
                     "lpy312-",
+                    platform.system().lower(),
                 ],
             )
         ),
@@ -72,6 +75,7 @@ def test_is_supported_python_version():
                     "lpy310-",
                     "lpy39+",
                     "lpy38+",
+                    platform.system().lower(),
                 ],
             )
         ),
@@ -88,6 +92,7 @@ def test_is_supported_python_version():
                     "lpy310+",
                     "lpy39+",
                     "lpy38+",
+                    platform.system().lower(),
                 ],
             )
         ),
@@ -104,6 +109,7 @@ def test_is_supported_python_version():
                     "lpy311+",
                     "lpy39+",
                     "lpy38+",
+                    platform.system().lower(),
                 ],
             )
         ),
