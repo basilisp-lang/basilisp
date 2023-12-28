@@ -1,3 +1,4 @@
+import ast
 import collections
 import contextlib
 import functools
@@ -27,16 +28,17 @@ from typing import (
 
 import attr
 
-from basilisp import _pyast as ast
-from basilisp.lang import keyword as kw
-from basilisp.lang import list as llist
-from basilisp.lang import map as lmap
-from basilisp.lang import queue as lqueue
-from basilisp.lang import reader as reader
-from basilisp.lang import runtime as runtime
-from basilisp.lang import set as lset
-from basilisp.lang import symbol as sym
-from basilisp.lang import vector as vec
+from basilisp.lang import (
+    keyword as kw,
+    list as llist,
+    map as lmap,
+    queue as lqueue,
+    reader as reader,
+    runtime as runtime,
+    set as lset,
+    symbol as sym,
+    vector as vec,
+)
 from basilisp.lang.compiler.constants import (
     DEFAULT_COMPILER_FILE_PATH,
     SYM_DYNAMIC_META_KEY,
@@ -67,16 +69,14 @@ from basilisp.lang.compiler.nodes import (
     If,
     Import,
     Invoke,
-    KeywordArgs,
     KeywordArgSupport,
+    KeywordArgs,
     Let,
     LetFn,
     Local,
     LocalType,
     Loop,
-)
-from basilisp.lang.compiler.nodes import Map as MapNode
-from basilisp.lang.compiler.nodes import (
+    Map as MapNode,
     MaybeClass,
     MaybeHostForm,
     Node,
@@ -87,17 +87,28 @@ from basilisp.lang.compiler.nodes import (
     PyList,
     PySet,
     PyTuple,
+    Queue as QueueNode,
+    Quote,
+    ReaderLispForm,
+    Recur,
+    Reify,
+    Require,
+    Set as SetNode,
+    SetBang,
+    Throw,
+    Try,
+    VarRef,
+    Vector as VectorNode,
+    WithMeta,
+    Yield,
 )
-from basilisp.lang.compiler.nodes import Queue as QueueNode
-from basilisp.lang.compiler.nodes import Quote, ReaderLispForm, Recur, Reify, Require
-from basilisp.lang.compiler.nodes import Set as SetNode
-from basilisp.lang.compiler.nodes import SetBang, Throw, Try, VarRef
-from basilisp.lang.compiler.nodes import Vector as VectorNode
-from basilisp.lang.compiler.nodes import WithMeta, Yield
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
-from basilisp.lang.runtime import CORE_NS
-from basilisp.lang.runtime import NS_VAR_NAME as LISP_NS_VAR
-from basilisp.lang.runtime import BasilispModule, Var
+from basilisp.lang.runtime import (
+    BasilispModule,
+    CORE_NS,
+    NS_VAR_NAME as LISP_NS_VAR,
+    Var,
+)
 from basilisp.lang.typing import CompilerOpts, LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
@@ -732,6 +743,7 @@ def expressionize(
     return ast.FunctionDef(
         name=fn_name,
         args=ast.arguments(
+            posonlyargs=[],
             args=args,
             kwarg=None,
             vararg=vargs,
@@ -925,6 +937,7 @@ def __deftype_classmethod_to_py_ast(
             node=ast.FunctionDef(
                 name=munge(node.name),
                 args=ast.arguments(
+                    posonlyargs=[],
                     args=list(
                         chain((ast.arg(arg=class_name, annotation=None),), fn_args)
                     ),
@@ -964,6 +977,7 @@ def __deftype_property_to_py_ast(
                 node=ast.FunctionDef(
                     name=method_name,
                     args=ast.arguments(
+                        posonlyargs=[],
                         args=list(
                             chain([ast.arg(arg=this_name, annotation=None)], fn_args)
                         ),
@@ -1123,6 +1137,7 @@ def __multi_arity_deftype_dispatch_method(
         node=ast.FunctionDef(
             name=name,
             args=ast.arguments(
+                posonlyargs=[],
                 args=[ast.arg(arg=method_prefix, annotation=None)],
                 kwarg=None,
                 vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
@@ -1205,6 +1220,7 @@ def __deftype_method_arity_to_py_ast(
                 node=ast.FunctionDef(
                     name=method_name if method_name is not None else munge(arity.name),
                     args=ast.arguments(
+                        posonlyargs=[],
                         args=list(
                             chain((ast.arg(arg=this_name, annotation=None),), fn_args)
                         ),
@@ -1253,6 +1269,7 @@ def __deftype_staticmethod_to_py_ast(
             node=ast.FunctionDef(
                 name=munge(node.name),
                 args=ast.arguments(
+                    posonlyargs=[],
                     args=fn_args,
                     kwarg=None,
                     vararg=varg,
@@ -1645,6 +1662,7 @@ def __single_arity_fn_to_py_ast(
                         py_fn_node(
                             name=py_fn_name,
                             args=ast.arguments(
+                                posonlyargs=[],
                                 args=fn_args,
                                 kwarg=None,
                                 vararg=varg,
@@ -1821,6 +1839,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                 py_fn_node(
                     name=name,
                     args=ast.arguments(
+                        posonlyargs=[],
                         args=[],
                         kwarg=None,
                         vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
@@ -1895,6 +1914,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                 py_fn_node(
                     name=arity_name,
                     args=ast.arguments(
+                        posonlyargs=[],
                         args=fn_args,
                         kwarg=None,
                         vararg=varg,
@@ -2442,6 +2462,7 @@ def _reify_to_py_ast(
             ast.FunctionDef(
                 name="meta",
                 args=ast.arguments(
+                    posonlyargs=[],
                     args=[
                         ast.arg(arg="self", annotation=None),
                     ],
@@ -2458,6 +2479,7 @@ def _reify_to_py_ast(
             ast.FunctionDef(
                 name="with_meta",
                 args=ast.arguments(
+                    posonlyargs=[],
                     args=[
                         ast.arg(arg="self", annotation=None),
                         ast.arg(arg="new_meta", annotation=None),

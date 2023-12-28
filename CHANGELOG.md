@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
  * Basilisp now supports PyTest 7.0+ (#660)
+ * Optimize calls to Python's `operator` module into their corresponding native operators (#???)
 
 ### Fixed
  * Fix issue with `case` evaluating all of its clauses expressions (#699)

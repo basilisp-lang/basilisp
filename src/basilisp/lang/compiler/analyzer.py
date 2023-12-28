@@ -32,15 +32,17 @@ from typing import (
 
 import attr
 
-from basilisp.lang import keyword as kw
-from basilisp.lang import list as llist
-from basilisp.lang import map as lmap
-from basilisp.lang import queue as lqueue
-from basilisp.lang import reader as reader
-from basilisp.lang import runtime as runtime
-from basilisp.lang import set as lset
-from basilisp.lang import symbol as sym
-from basilisp.lang import vector as vec
+from basilisp.lang import (
+    keyword as kw,
+    list as llist,
+    map as lmap,
+    queue as lqueue,
+    reader as reader,
+    runtime as runtime,
+    set as lset,
+    symbol as sym,
+    vector as vec,
+)
 from basilisp.lang.compiler.constants import (
     AMPERSAND,
     ARGLISTS_KW,
@@ -66,8 +68,8 @@ from basilisp.lang.compiler.constants import (
     SYM_PRIVATE_META_KEY,
     SYM_PROPERTY_META_KEY,
     SYM_STATICMETHOD_META_KEY,
-    VAR_IS_PROTOCOL_META_KEY,
     SpecialForm,
+    VAR_IS_PROTOCOL_META_KEY,
 )
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase
 from basilisp.lang.compiler.nodes import (
@@ -97,16 +99,14 @@ from basilisp.lang.compiler.nodes import (
     Import,
     ImportAlias,
     Invoke,
-    KeywordArgs,
     KeywordArgSupport,
+    KeywordArgs,
     Let,
     LetFn,
     Local,
     LocalType,
     Loop,
-)
-from basilisp.lang.compiler.nodes import Map as MapNode
-from basilisp.lang.compiler.nodes import (
+    Map as MapNode,
     MaybeClass,
     MaybeHostForm,
     Node,
@@ -117,13 +117,19 @@ from basilisp.lang.compiler.nodes import (
     PyList,
     PySet,
     PyTuple,
-)
-from basilisp.lang.compiler.nodes import Queue as QueueNode
-from basilisp.lang.compiler.nodes import Quote, Recur, Reify, Require, RequireAlias
-from basilisp.lang.compiler.nodes import Set as SetNode
-from basilisp.lang.compiler.nodes import SetBang, SpecialFormNode, Throw, Try, VarRef
-from basilisp.lang.compiler.nodes import Vector as VectorNode
-from basilisp.lang.compiler.nodes import (
+    Queue as QueueNode,
+    Quote,
+    Recur,
+    Reify,
+    Require,
+    RequireAlias,
+    Set as SetNode,
+    SetBang,
+    SpecialFormNode,
+    Throw,
+    Try,
+    VarRef,
+    Vector as VectorNode,
     WithMeta,
     Yield,
     deftype_or_reify_python_member_names,
@@ -2004,6 +2010,7 @@ def _inline_fn_ast(
     macroed_form = reader.syntax_quote(unquoted_form)
     inline_fn_form = llist.l(
         SpecialForm.FN,
+        *([sym.symbol(genname(f"{name.name}-inline"))] if name is not None else []),
         vec.vector(binding.form for binding in inline_arity.params),
         macroed_form,
     )
