@@ -28,17 +28,15 @@ from typing import (
 
 import attr
 
-from basilisp.lang import (
-    keyword as kw,
-    list as llist,
-    map as lmap,
-    queue as lqueue,
-    reader as reader,
-    runtime as runtime,
-    set as lset,
-    symbol as sym,
-    vector as vec,
-)
+from basilisp.lang import keyword as kw
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
+from basilisp.lang import queue as lqueue
+from basilisp.lang import reader as reader
+from basilisp.lang import runtime as runtime
+from basilisp.lang import set as lset
+from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import (
     DEFAULT_COMPILER_FILE_PATH,
     SYM_DYNAMIC_META_KEY,
@@ -69,14 +67,16 @@ from basilisp.lang.compiler.nodes import (
     If,
     Import,
     Invoke,
-    KeywordArgSupport,
     KeywordArgs,
+    KeywordArgSupport,
     Let,
     LetFn,
     Local,
     LocalType,
     Loop,
-    Map as MapNode,
+)
+from basilisp.lang.compiler.nodes import Map as MapNode
+from basilisp.lang.compiler.nodes import (
     MaybeClass,
     MaybeHostForm,
     Node,
@@ -87,28 +87,17 @@ from basilisp.lang.compiler.nodes import (
     PyList,
     PySet,
     PyTuple,
-    Queue as QueueNode,
-    Quote,
-    ReaderLispForm,
-    Recur,
-    Reify,
-    Require,
-    Set as SetNode,
-    SetBang,
-    Throw,
-    Try,
-    VarRef,
-    Vector as VectorNode,
-    WithMeta,
-    Yield,
 )
+from basilisp.lang.compiler.nodes import Queue as QueueNode
+from basilisp.lang.compiler.nodes import Quote, ReaderLispForm, Recur, Reify, Require
+from basilisp.lang.compiler.nodes import Set as SetNode
+from basilisp.lang.compiler.nodes import SetBang, Throw, Try, VarRef
+from basilisp.lang.compiler.nodes import Vector as VectorNode
+from basilisp.lang.compiler.nodes import WithMeta, Yield
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
-from basilisp.lang.runtime import (
-    BasilispModule,
-    CORE_NS,
-    NS_VAR_NAME as LISP_NS_VAR,
-    Var,
-)
+from basilisp.lang.runtime import CORE_NS
+from basilisp.lang.runtime import NS_VAR_NAME as LISP_NS_VAR
+from basilisp.lang.runtime import BasilispModule, Var
 from basilisp.lang.typing import CompilerOpts, LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe

@@ -5,30 +5,30 @@ import sys
 import types
 from typing import Any, Callable, Iterable, List, Optional
 
-from basilisp.lang import map as lmap, runtime as runtime
+from basilisp.lang import map as lmap
+from basilisp.lang import runtime as runtime
 from basilisp.lang.compiler.analyzer import (
-    AnalyzerContext,
     GENERATE_AUTO_INLINES,
     INLINE_FUNCTIONS,
     WARN_ON_NON_DYNAMIC_SET,
     WARN_ON_SHADOWED_NAME,
     WARN_ON_SHADOWED_VAR,
     WARN_ON_UNUSED_NAMES,
+    AnalyzerContext,
     analyze_form,
     macroexpand,
     macroexpand_1,
-)  # noqa
+)
 from basilisp.lang.compiler.exception import CompilerException, CompilerPhase  # noqa
 from basilisp.lang.compiler.generator import (
-    GeneratedPyAST,
-    GeneratorContext,
     USE_VAR_INDIRECTION,
     WARN_ON_VAR_INDIRECTION,
-    expressionize as _expressionize,
-    gen_py_ast,
-    py_module_preamble,
-    statementize as _statementize,
-)  # noqa
+    GeneratedPyAST,
+    GeneratorContext,
+)
+from basilisp.lang.compiler.generator import expressionize as _expressionize  # noqa
+from basilisp.lang.compiler.generator import gen_py_ast, py_module_preamble
+from basilisp.lang.compiler.generator import statementize as _statementize
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
 from basilisp.lang.typing import CompilerOpts, ReaderForm
 from basilisp.lang.util import genname
