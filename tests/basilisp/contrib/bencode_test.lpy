@@ -1,0 +1,80 @@
+(ns tests.basilisp.contrib.bencode-test
+  (:require
+   [basilisp.contrib.bencode :as bc]
+   [basilisp.test :refer [deftest are is testing]]))
+
+(deftest bencode-encode
+  (testing "bencode supported types"
+    (are [v s] (= (.encode s "utf-8") (bc/encode v))
+      nil                                 "0:"
+      ""                                  "0:"
+      -0                                  "i0e"
+      0                                   "i0e"
+      42                                  "i42e"
+      -42                                 "i-42e"
+      "spam"                              "4:spam"
+      :keyword                            "7:keyword"
+      :ns/kw                              "5:ns/kw"
+      :other.ns/kw                        "11:other.ns/kw"
+      'sym                                "3:sym"
+      'ns/sym                             "6:ns/sym"
+      'other.ns/sym                       "12:other.ns/sym"
+      []                                  "le"
+      ["spam" 42]                         "l4:spami42ee"
+      '("spam" 42)                        "l4:spami42ee"
+      {}                                  "de"
+      {"bar" "spam" :foo 42 :efg/xyz 128} "d3:bar4:spam7:efg/xyzi128e3:fooi42ee"
+      ["spam" 42 {"bar" "spam" :foo 42}]  "l4:spami42ed3:bar4:spam3:fooi42eee"))
+
+  (testing "bencode unsupported types"
+    (are [v] (thrown? basilisp.lang.exception/ExceptionInfo (bc/encode v))
+      -3.14
+      0.3
+      #{25}
+      (seq [25 26])
+      {45 "some map"}
+      {["vec key"] "something bad"})))
+
+(deftest bencode-decode
+  (testing "basic"
+    (are [s v] (= [v nil] (bc/decode (python/bytes s "utf-8") {}))
+      "0:"                     #b ""
+      "le"                     []
+      "de"                     {}
+      "i0e"                    0
+      "i-1e"                   -1
+      "i1e"                    1
+      "i42e"                   42
+      "i-42e"                  -42
+      "4:spam"                 #b "spam"
+      "l4:spami42ee"           [#b "spam" 42]
+      "d3:bar4:spam3:fooi42ee" {#b "bar" #b "spam" #b "foo" 42}))
+
+  (testing "encoded string"
+    (are [s v] (= [v nil] (bc/decode (python/bytes s "utf-8") {:string-fn #(.decode % "utf-8")}))
+      "0:"                     ""
+      "le"                     []
+      "de"                     {}
+      "i0e"                    0
+      "i-1e"                   -1
+      "i1e"                    1
+      "i42e"                   42
+      "i-42e"                  -42
+      "4:spam"                 "spam"
+      "l4:spami42ee"           ["spam" 42]
+      "d3:bar4:spam3:fooi42ee" {#b "bar" "spam" #b "foo" 42}))
+
+  (testing "keywordized"
+    (are [s v] (= v (bc/decode (python/bytes s "utf-8") {:keywordize-keys true}))
+      "d3:bar4:spam3:fooi42ee" [{:bar #b "spam" :foo 42} nil]
+      "d3:bard1:xi-42eee"      [{:bar {:x -42}} nil]))
+
+  (testing "multiple"
+    (is (= [42 #b "4:spam"] (bc/decode #b "i42e4:spam" {})))
+    (is (= [[{#b "bar" #b "spam"} 42] nil] (bc/decode-all #b "d3:bar4:spamei42e")))
+    (is (= [[{:bar #b "spam"} 42] nil] (bc/decode-all #b "d3:bar4:spamei42e" {:keywordize-keys true}))))
+
+  (testing "incomplete"
+    (is (= [nil #b "i42"] (bc/decode #b "i42" {})))
+    (is (= [nil #b "d3:bar4:spam3:fooi42"] (bc/decode #b "d3:bar4:spam3:fooi42" {})))
+    (is (= [[{#b "bar" #b "spam"} 42] #b "i0"] (bc/decode-all #b "d3:bar4:spamei42ei0")))))
