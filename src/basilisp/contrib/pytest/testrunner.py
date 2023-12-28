@@ -29,7 +29,7 @@ def pytest_configure(config):
 def pytest_collect_file(file_path: Path, path, parent):
     """Primary PyTest hook to identify Basilisp test files."""
     if file_path.suffix == ".lpy":
-        if file_path.name.startswith("test_") or file_path.name.endswith("_test"):
+        if file_path.name.startswith("test_") or file_path.stem.endswith("_test"):
             return BasilispFile.from_parent(parent, fspath=path, path=file_path)
     return None
 
