@@ -118,7 +118,7 @@
           (is (= ["error" "unknown-op" "done"] status)))))))
 
 (deftest nrepl-server-symbol-identify
-  (are [result symbol-ns symbol-str] (= result (nr/symbol-identify symbol-ns symbol-str))
+  (are [result symbol-ns symbol-str] (= result (@#'nr/symbol-identify symbol-ns symbol-str))
     [:keyword (keyword (str *ns*) "x")] *ns* "::x"
     [:keyword (keyword "basilisp.test" "xyz")] (the-ns 'basilisp.test) "::xyz"
     [:keyword (keyword "basilisp.contrib.nrepl-server" "x")] *ns* "::nr/x"

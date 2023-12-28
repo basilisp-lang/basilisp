@@ -32,6 +32,30 @@ The builtin REPL supports basic code completion suggestions, syntax highlighting
 
    You can exit the REPL by entering an end-of-file ("EOF") character by pressing Ctrl+D at your keyboard.
 
+.. _start_an_nREPL_session:
+
+Start an nREPL Session
+----------------------
+
+Basilisp's CLI incorporates an nREPL server adapted from `nbb <https://github.com/babashka/nbb>`_.
+
+To start the server from the command line use the following command
+
+.. code-block:: bash
+
+   basilisp nrepl-server
+   # => nREPL server started on port 50407 on host 127.0.0.1 - nrepl://127.0.0.1:50407
+
+You can then establish a connection from your IDE to the server address.
+
+- from `Emacs`, using `CIDER <https://github.com/clojure-emacs/cider>`_
+
+  `M-x cider-connect-clj`
+
+- from `Visual Studio Code`, using `Calva <https://calva.io/>`_
+
+  `REPL` -> `Connect to a running REPL in your project` -> `Generic`
+
 .. _run_basilisp_code:
 
 Run Basilisp Code

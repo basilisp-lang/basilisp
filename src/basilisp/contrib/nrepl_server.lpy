@@ -1,7 +1,7 @@
+;; adapted from
+;; https://github.com/babashka/nbb/blob/bca8b5017a06768eb35d02a2d6233ca9c6c2f692/src/nbb/impl/nrepl_server.cljs
 (ns basilisp.contrib.nrepl-server
-  "A port of nbb's nREPL server implementation to basilisp.
-
-  https://github.com/babashka/nbb/blob/bca8b5017a06768eb35d02a2d6233ca9c6c2f692/src/nbb/impl/nrepl_server.cljs"
+  "A port of `nbb <https://github.com/babashka/nbb>`_'s nREPL server implementation to basilisp."
   (:require [basilisp.contrib.bencode :as bc]
             [basilisp.string :as str])
   (:import [basilisp.__version__ :as ver]
@@ -29,12 +29,12 @@
   ;; we want error to always output to `sys/stderr` unfiltered.
   `(.write sys/stderr (str ~(keyword (str *ns*) "error") " " (str/join " " [~@values]) \newline)))
 
-(definterface IReadWrite
+(definterface ^:private IReadWrite
   ;; Pythonic interface for creating `sys/stdout` like File objects.
   (read [])
   (write [value]))
 
-(deftype StreamOutFn [out-fn]
+(deftype ^:private StreamOutFn [out-fn]
   ;; A type to use as replacement binding for writing to `sys/stdout`
   ;; stream, so that the output ``value`` is passed to ``out-fn``
   ;; instead.
@@ -155,7 +155,7 @@
   (send-fn request {"new-session" (str (random-uuid))
                     "status" ["done"]}))
 
-(defn handle-close [request send-fn]
+(defn- handle-close [request send-fn]
   (send-fn request {"status" ["done"]}))
 
 (defn- handle-classpath [_request _send-fn]
@@ -164,7 +164,7 @@
 (defn- handle-macroexpand [_request _send-fn]
   (throw (python/NotImplementedError)))
 
-(defn symbol-identify
+(defn- symbol-identify
   "Return a vector of information about ``symbol-str`` as might be
   resolved in ``resolve-ns``.
 
@@ -319,7 +319,7 @@
                       "status" ["done"]})))
 
 (def ops
-  "Operations supported by the nrepl server."
+  "A list of operations supported by the nrepl server."
   {:eval handle-eval
    :describe handle-describe
    :info handle-lookup
@@ -406,9 +406,9 @@
         (error :client-connection-error :client client-info :exception e)
         (error (traceback/format-exc))))))
 
-(defn server-make [opts]
+(defn server-make
   "Create and return a `socketserver/TCPServer` serving nREPL clients
-  according to ``opts` at 127.0.0.1 at a random available port.
+  according to ``opts`` at 127.0.0.1 at a random available port.
 
   See `ops` for the operation supported by the server.
 
@@ -433,18 +433,19 @@
 
   2. The session uuids are ignored and only created to satisfy the
   initial clone op."
+  [opts]
   (let [{:keys [host port] :or {host "127.0.0.1" port 0}} opts
         handler (python/type (name (gensym "nREPLTCPHandler")) (python/tuple [socketserver/StreamRequestHandler])
                              #py {"handle" #(on-connect % opts)})]
     (socketserver/ThreadingTCPServer (python/tuple [host port]) handler)))
 
-(def nrepl-server-signature
+(def ^:private nrepl-server-signature
   "The de facto signature nrepl started message that is used by IDEs to
   identify the host and port number the server is running on."
   "nREPL server started on port %s on host %s - nrepl://%s:%s")
 
 (defn start-server!
-  "Create an nREPL server with lpy:fn:`server-make` (of which see)
+  "Create an nREPL server with :lpy:fn:`server-make` (of which see)
   according to ``opts`` if given, and serve clients for ever.
 
   It prints out the `nrepl-server-signature` message at startup for
@@ -456,10 +457,10 @@
   to .nrepl-port.
 
   :server* An atom to hold the server reference as returned from
-  lpy:fn:`server-make`, useful for testing.
+  :lpy:fn:`server-make`, useful for testing.
 
-  also see lpy:fn:`server-make` for additionally supported
-  ``opts``keys."
+  also see :lpy:fn:`server-make` for additionally supported
+  ``opts`` keys."
   ([]
    (start-server! {}))
   ([opts]
