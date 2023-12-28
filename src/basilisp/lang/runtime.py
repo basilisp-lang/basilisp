@@ -1183,6 +1183,7 @@ def get(m, k, default=None):  # pylint: disable=unused-argument
     return default
 
 
+@get.register(bytes)
 @get.register(dict)
 @get.register(list)
 @get.register(str)
