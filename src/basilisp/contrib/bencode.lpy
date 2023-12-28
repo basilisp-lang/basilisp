@@ -126,36 +126,53 @@
        (when (> (count bs) 0)
          bs)))))
 
-(defn ^:private decode-recur
-  [data {:keys [key-fn string-fn] :or {key-fn identity string-fn identity} :as opts}]
+(declare decode*)
+
+(defn ^:private decode-int
+  [data]
+  (let [data (slice data 1)
+        i    (index-of data #b "e")]
+    [(int (slice data 0 i))
+     (slice data (inc i))]))
+
+(defn ^:private decode-byte-string
+  [data {:keys [string-fn] :or {string-fn identity}}]
+  (let [i    (index-of data #b ":")
+        n    (int (slice data 0 i))
+        data (slice data (inc i))]
+    [(if (= n 0)
+       (string-fn #b "")
+       (string-fn (slice data 0 n)))
+     (when data
+       (slice data n))]))
+
+(defn ^:private decode-list
+  [data opts]
+  (let [data (slice data 1)]
+    (loop [data data v (transient [])]
+      (if (= (slice data 0 1) #b "e")
+        [(persistent! v) (slice data 1)]
+        (let [[value data] (decode* data opts)]
+          (recur data (conj! v value)))))))
+
+(defn ^:private decode-dict
+  [data {:keys [key-fn] :or {key-fn identity} :as opts}]
+  (let [data (slice data 1)]
+    (loop [data data m (transient {})]
+      (if (= (slice data 0 1) #b "e")
+        [(persistent! m) (slice data 1)]
+        (let [[k data] (decode-byte-string data {:string-fn key-fn})
+              [v data] (decode* data opts)]
+          (recur data (assoc! m k v)))))))
+
+(defn ^:private decode*
+  [data opts]
   (case (slice data 0 1)
-    #b "i" (let [data (slice data 1)
-                 i    (index-of data #b "e")]
-             [(int (slice data 0 i))
-              (slice data (inc i))])
-    #b "l" (let [data (slice data 1)]
-             (loop [data data v (transient [])]
-               (if (= (slice data 0 1) #b "e")
-                 [(persistent! v) (slice data 1)]
-                 (let [[value data] (decode-recur data opts)]
-                   (recur data (conj! v value))))))
-    #b "d" (let [data (slice data 1)]
-             (loop [data data m (transient {})]
-               (if (= (slice data 0 1) #b "e")
-                 [(persistent! m) (slice data 1)]
-                 (let [[k data] (decode-recur data opts)
-                       [v data] (decode-recur data opts)
-                       k        (key-fn k)]
-                   (recur data (assoc! m k v))))))
+    #b "i" (decode-int data)
+    #b "l" (decode-list data opts)
+    #b "d" (decode-dict data opts)
     ;; byte string
-    (let [i    (index-of data #b ":")
-          n    (int (slice data 0 i))
-          data (slice data (inc i))]
-      [(if (= n 0)
-         (string-fn #b "")
-         (string-fn (slice data 0 n)))
-       (when data
-         (slice data n))])))
+    (decode-byte-string data opts)))
 
 (defn decode
   "Decode the first value in the bencoded ``data`` bytes according to ``opts`` and
@@ -174,7 +191,7 @@
         be specified if ``:keywordize-keys`` is also specified
     :keyword ``:string-fn``: a function which will be called for each byte string which
         is not a map key; default  is :lpy:fn:`basilisp.core/identity`"
-  [data {:keys [keywordize-keys key-fn] :as opts}]
+  [data {:keys [keywordize-keys key-fn string-fn] :as opts}]
   (when (and keywordize-keys key-fn)
     (throw (ex-info "Can only specify either :keywordize-keys or :key-fn; not both"
                     {:keywordize-keys keywordize-keys
@@ -183,7 +200,7 @@
                keywordize-keys (-> (dissoc :keywordize-keys)
                                    (assoc :key-fn #(keyword (.decode % "utf-8")))))]
     (try
-      (decode-recur data opts)
+      (decode* data opts)
       (catch python/Exception e
         [nil data]))))
 
