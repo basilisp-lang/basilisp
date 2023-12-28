@@ -19,7 +19,10 @@ def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:
 
 
 @functools.singledispatch
-def _optimize_operator_call(fn: ast.AST, node: ast.Call) -> ast.AST:
+def _optimize_operator_call(  # pylint: disable=unused-argument
+    fn: ast.AST, node: ast.Call
+) -> ast.AST:
+    print(f"non operator call: {ast.unparse(node)}")
     return node
 
 
@@ -98,17 +101,6 @@ def _optimize_operator_call_attr(fn: ast.Attribute, node: ast.Call) -> ast.AST:
                 value=target, slice=ast.Index(value=index), ctx=ast.Load()
             )
 
-        if fn.attr == "setitem":
-            target, index, value = node.args
-            assert len(node.args) == 3
-            return ast.Assign(
-                targets=ast.Subscript(
-                    value=target, slice=ast.Index(value=index), ctx=ast.Store()
-                ),
-                annotation=None,
-                value=value,
-                simple=0,
-            )
     return node
 
 
