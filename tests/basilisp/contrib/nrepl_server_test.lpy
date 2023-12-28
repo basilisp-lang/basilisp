@@ -48,7 +48,7 @@
 
   :sock The socket connection to the server."
   `(with [sock# (socket/socket socket/AF_INET socket/SOCK_STREAM)]
-         (let [~client {:sock sock# :backlog* (atom {:items [] :fraction ""})}]
+         (let [~client {:sock sock# :backlog* (atom {:items [] :fraction nil})}]
            (.connect sock# (python/tuple ["127.0.0.1" *nrepl-port*]))
            ;; the high time out value is for accommodating the slow
            ;; execution on pypy.
@@ -59,9 +59,8 @@
   "Send ``value`` to the server the ``client`` is connected to."
   [client value]
   (let [{:keys [sock]} client
-        v (bc/encode value)
-        vb (python/bytes v "UTF-8")]
-    (.sendall sock vb)))
+        v (bc/encode value)]
+    (.sendall sock v)))
 
 (defn client-recv!
   "Receive and return nREPL response from the server the ``client`` is
@@ -72,8 +71,8 @@
     (if-let [item (first items)]
       (do (swap! backlog* update :items #(drop 1 %))
           item)
-      (let [data (python/str (.recv sock 8192) "UTF-8")
-            data (str data fraction)
+      (let [data (.recv sock 8192)
+            data (if fraction (+ data fraction) data)
             [items remaining :as response] (bc/decode-all data {:keywordize-keys true})
             item (first items)]
         (reset! backlog* {:items (drop 1 items) :fraction remaining})
@@ -85,20 +84,16 @@
       (with [sock (socket/socket socket/AF_INET socket/SOCK_STREAM)]
             (do
               (.connect sock #py ("127.0.0.1" *nrepl-port*))
-              (let [bb (bc/encode {:id 1 :op "clone"})
-                    bytes (python/bytes bb "UTF-8")]
-                (.sendall sock bytes)
-                (let [data (-> (.recv sock 1024)
-                               (python/str "UTF-8"))
+              (let [encoded (bc/encode {:id 1 :op "clone"})]
+                (.sendall sock encoded)
+                (let [data (.recv sock 1024)
                       [{:keys [id new-session status] :as msg} _] (bc/decode data {:keywordize-keys true})]
                   (is (= id 1))
                   (is (uuid-like? new-session))
                   (is (= status ["done"]))
-                  (.sendall sock (-> (bc/encode {:id 2 :op "close"})
-                                     (python/bytes "UTF-8")))
-                  (is (= [{:id 2 :status ["done"]} ""]
+                  (.sendall sock (bc/encode {:id 2 :op "close"}))
+                  (is (= [{:id 2 :status ["done"]} nil]
                          (-> (.recv sock 1024)
-                             (python/str "UTF-8")
                              (bc/decode {:keywordize-keys true}))))))))))
 
   (testing "describe"

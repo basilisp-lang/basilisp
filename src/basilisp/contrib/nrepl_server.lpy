@@ -348,7 +348,7 @@
   (fn [_request response]
     (debug :sending (:id _request) :response-keys (keys response))
     (try
-      (.sendall socket (python/bytes (bc/encode response) "UTF-8"))
+      (.sendall socket (bc/encode response))
       (catch python/TypeError e
         (error :bencode-cannot-decode (pr-str e))))))
 
@@ -386,11 +386,11 @@
         (if (= data zero-bytes)
           (do (info :socket-closing client-info)
               (.close socket))
-          (let [data (.decode data "UTF-8")
+          (let [;;data (.decode data "UTF-8")
                 data (if-let [p @pending]
-                       (let [s (str p data)]
+                       (let [b (+ p data)]
                          (reset! pending nil)
-                         s)
+                         b)
                        data)
                 [requests unprocessed] (bc/decode-all data {:keywordize-keys true})]
             (debug :requests requests)
