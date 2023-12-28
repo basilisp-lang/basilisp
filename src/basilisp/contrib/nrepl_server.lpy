@@ -4,7 +4,7 @@
   "A port of `nbb <https://github.com/babashka/nbb>`_'s nREPL server implementation to basilisp."
   (:require [basilisp.contrib.bencode :as bc]
             [basilisp.string :as str])
-  (:import [basilisp.__version__ :as ver]
+  (:import [importlib.metadata :as imeta]
            logging
            [basilisp.lang.runtime :as rt]
            socketserver
@@ -69,7 +69,7 @@
 
 (defn- handle-describe [request send-fn]
   (send-fn request
-           {"versions" {"basilisp" (let [version (py->lisp ver/VERSION)]
+           {"versions" {"basilisp" (let [version (imeta/version "basilisp")]
                                      (assoc (zipmap ["major" "minor" "incremental"]
                                                     version)
                                             "version-string" (str/join "." version)))
@@ -370,7 +370,7 @@
         handler                       (make-request-handler opts)
         response-handler              (make-reponse-handler socket)
         pending                       (atom nil)
-        zero-bytes                    (python/bytes "" "UTF-8")
+        zero-bytes                    #b ""
         client-info                   (py->lisp (.getsockname socket))
         client*                       (atom {:*1 nil :*2 nil ;; keeps track of the latest
                                              :*3 nil :*e nil ;; evaluation results
