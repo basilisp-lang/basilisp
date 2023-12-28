@@ -5,7 +5,6 @@
   (:require [basilisp.contrib.bencode :as bc]
             [basilisp.string :as str])
   (:import logging
-           [basilisp.lang.runtime :as rt]
            socketserver
            sys
            traceback
@@ -28,18 +27,18 @@
   ;; we want error to always output to `sys/stderr` unfiltered.
   `(.write sys/stderr (str ~(keyword (str *ns*) "error") " " (str/join " " [~@values]) \newline)))
 
-(definterface ^:private IReadWrite
+(definterface ^:private IStdOut
   ;; Pythonic interface for creating `sys/stdout` like File objects.
-  (read [])
+  (flush [])
   (write [value]))
 
 (deftype ^:private StreamOutFn [out-fn]
   ;; A type to use as replacement binding for writing to `sys/stdout`
   ;; stream, so that the output ``value`` is passed to ``out-fn``
   ;; instead.
-  IReadWrite
-  (read [_this]
-    (throw (python/RuntimeError (str ::logic-error " shouldn't be possible to get here..."))))
+  IStdOut
+  (flush [_self]
+    nil)
   (write [_self value]
     (out-fn value)))
 
@@ -68,7 +67,7 @@
 
 (defn- handle-describe [request send-fn]
   (send-fn request
-           {"versions" {"basilisp" (let [version rt/BASILISP-VERSION-STRING]
+           {"versions" {"basilisp" (let [version basilisp.lang.runtime/BASILISP-VERSION-STRING]
                                      (assoc (zipmap ["major" "minor" "incremental"]
                                                     version)
                                             "version-string" (str/join "." version)))
@@ -294,7 +293,7 @@
                             eval-ns)
         completions       (when-not (str/blank? prefix)
                             (seq (binding [*ns* completion-ns]
-                                   (rt/repl_completions prefix))))]
+                                   (basilisp.lang.runtime/repl_completions prefix))))]
     (send-fn request {"completions" (->> (map str completions)
                                          sort
                                          (map (fn [completion]

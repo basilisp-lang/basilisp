@@ -3,6 +3,7 @@
    [basilisp.contrib.bencode :as bc]
    [basilisp.io :as bio]
    [basilisp.contrib.nrepl-server :as nr]
+   [basilisp.set :as set]
    [basilisp.string :as str :refer [starts-with?]]
    [basilisp.test :refer [deftest are is testing]])
   (:import
@@ -13,13 +14,13 @@
    time))
 
 (def ^:dynamic *nrepl-port*
-  "The port the lpy:py:`with-server` is bound to."
+  "The port the :lpy:py:`with-server` is bound to."
   nil)
 
 (defmacro with-server
   [opts & body]
   "Create an nREPL server on a thread with
-  lpy:fn:`basilisp.nrepl-server/server-make` passing in ``opts``, bind
+  :lpy:fn:`basilisp.nrepl-server/server-make` passing in ``opts``, bind
   its port to `*nrepl-port*`, run ``body`` on the main thread, and
   then shutdown server."
   `(let [srv# (nr/server-make ~opts)]
@@ -43,7 +44,7 @@
 
   ``client`` is a map with the following keys:
 
-  :backlog* A helper atom for the lpy:fn:`client-rev!` to keep track
+  :backlog* A helper atom for the :lpy:fn:`client-rev!` to keep track
   of the arriving responses and any yet incomplete bencoded messages.
 
   :sock The socket connection to the server."
@@ -438,19 +439,19 @@
           ;; fqdn
           (client-send! client {:id (id-inc!) :op "info" :ns "xyz" :symbol "clojure.set/difference"})
           (let [response (client-recv! client)]
-            (is (= {:doc "Return a new set with elements from set ``s`` not in the ``others``. If no others\n  are provided, return ``s``."
+            (is (= {:doc (:doc (meta (resolve 'set/difference)))
                     :name "difference" :status ["done"] :id @id*}
                    (select-keys response [:doc :status :id :name]))))
           ;; alias
           (client-send! client {:id (id-inc!) :op "info" :ns "xyz" :symbol "set/union"})
           (let [response (client-recv! client)]
-            (is (= {:doc "Return a new set with elements in set ``s`` that are in the ``others``. If no others\n  are provided, return ``s``."
+            (is (= {:doc (:doc (meta (resolve 'set/union)))
                     :name "union" :status ["done"] :id @id*}
                    (select-keys response [:doc :status :id :name]))))
           ;; refer
           (client-send! client {:id (id-inc!) :op "info" :ns "xyz" :symbol "join"})
           (let [response (client-recv! client)]
-            (is (= {:doc "Perform a natural join on the maps in ``lrel`` and ``rrel`` using keys shared by\n  elements of each relation. If ``keymap`` is specified, join only on the given keys."
+            (is (= {:doc (:doc (meta (resolve 'set/join)))
                     :name "join" :status ["done"] :id @id*}
                    (select-keys response [:doc :status :id :name]))))
 

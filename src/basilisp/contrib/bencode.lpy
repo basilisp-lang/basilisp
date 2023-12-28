@@ -1,4 +1,4 @@
-;; Adapted from
+;; Decoding logic adapted from
 ;; https://github.com/babashka/nbb/blob/bca8b5017a06768eb35d02a2d6233ca9c6c2f692/src/nbb/impl/bencode.cljs
 (ns basilisp.contrib.bencode
   (:require
