@@ -1,4 +1,4 @@
-(ns tests.basilisp.stacktrace-test
+(ns tests.basilisp.test-stacktrace
   (:require [basilisp.stacktrace :as s]
             [basilisp.string :as str]
             [basilisp.test :refer [deftest are is testing]]))
