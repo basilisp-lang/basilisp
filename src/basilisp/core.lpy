@@ -1224,7 +1224,7 @@
   [x]
   (instance? basilisp.lang.interfaces/ICounted x))
 
-(defn ^:inline decimal?
+(defn ^:no-inline decimal?
   "Return ``true`` if ``x`` is a ``Decimal``\\."
   [x]
   (instance? decimal/Decimal x))
@@ -1391,7 +1391,7 @@
   [x]
   (instance? basilisp.lang.queue/PersistentQueue x))
 
-(defn ^:inline ratio?
+(defn ^:no-inline ratio?
   "Return ``true`` if ``x`` is a ``Fraction``\\."
   [x]
   (instance? fractions/Fraction x))
@@ -1441,7 +1441,7 @@
   [x]
   (operator/is- x true))
 
-(defn ^:inline uuid?
+(defn ^:no-inline uuid?
   "Return ``true`` if ``x`` is a UUID."
   [x]
   (instance? uuid/UUID x))
