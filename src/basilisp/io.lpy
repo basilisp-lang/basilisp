@@ -33,12 +33,10 @@
   (as-path [f]
     (if (contains? #{"file" ""} (.-scheme f))
       (let [path (.-path f)]
-        (if (and (= sys/platform "win32") (os.path/isabs path))
-          ;; On MS-Windows, extracting an absolute path from the URL
-          ;; incorrectly adds a leading `/', .e.g. /C:\xyz.
-          (pathlib/Path (subs path 1))
-
-          (pathlib/Path path)))
+        ;; On MS-Windows, extracting an absolute path from the URL
+        ;; incorrectly adds a leading `/', .e.g. /C:\xyz.
+        (pathlib/Path #?(:windows (if (os.path/isabs path) (subs path 1) path)
+                         :default path)))
       (throw
        (ex-info "Cannot coerce non-File URL to pathlib.Path"
                 {:file f})))))

@@ -7,6 +7,7 @@ import itertools
 import logging
 import math
 import numbers
+import platform
 import re
 import sys
 import threading
@@ -175,9 +176,11 @@ def _supported_python_versions_features() -> Iterable[kw.Keyword]:
 
 READER_COND_BASILISP_FEATURE_KW = kw.keyword("lpy")
 READER_COND_DEFAULT_FEATURE_KW = kw.keyword("default")
+READER_COND_PLATFORM = kw.keyword(platform.system().lower())
 READER_COND_DEFAULT_FEATURE_SET = lset.s(
     READER_COND_BASILISP_FEATURE_KW,
     READER_COND_DEFAULT_FEATURE_KW,
+    READER_COND_PLATFORM,
     *_supported_python_versions_features(),
 )
 
