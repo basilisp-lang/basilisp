@@ -73,7 +73,8 @@
           item)
       (let [data (.recv sock 8192)
             data (if fraction (+ data fraction) data)
-            [items remaining :as response] (bc/decode-all data {:keywordize-keys true})
+            [items remaining :as response] (bc/decode-all data {:keywordize-keys true
+                                                                :string-fn #(.decode % "utf-8")})
             item (first items)]
         (reset! backlog* {:items (drop 1 items) :fraction remaining})
         item))))
@@ -87,14 +88,16 @@
               (let [encoded (bc/encode {:id 1 :op "clone"})]
                 (.sendall sock encoded)
                 (let [data (.recv sock 1024)
-                      [{:keys [id new-session status] :as msg} _] (bc/decode data {:keywordize-keys true})]
+                      [{:keys [id new-session status] :as msg} _] (bc/decode data {:keywordize-keys true
+                                                                                   :string-fn #(.decode % "utf-8")})]
                   (is (= id 1))
                   (is (uuid-like? new-session))
                   (is (= status ["done"]))
                   (.sendall sock (bc/encode {:id 2 :op "close"}))
                   (is (= [{:id 2 :status ["done"]} nil]
                          (-> (.recv sock 1024)
-                             (bc/decode {:keywordize-keys true}))))))))))
+                             (bc/decode {:keywordize-keys true
+                                         :string-fn #(.decode % "utf-8")}))))))))))
 
   (testing "describe"
     (with-server {}
@@ -318,7 +321,7 @@
             {:id @id* :out "\n"}
             {:id @id* :ns "xyz" :value "6"}
             {:id @id* :ns "xyz" :status ["done"]})
-
+
           (client-send! client {:id (id-inc!) :op "eval" :code "(/ 3 0)"})
           (is (= {:id @id* :err "ZeroDivisionError('Fraction(3, 0)')"} (client-recv! client)))
           (let [{:keys [id ex status ns]} (client-recv! client)]

@@ -92,8 +92,7 @@ class TestnREPLServer:
             while not os.path.exists(tmpfilepath):
                 time.sleep(1)
                 retries -= 1
-                if retries < 0:
-                    break
+                assert 0 <= retries
 
             with open(tmpfilepath) as tf:
                 port = int(tf.readline())

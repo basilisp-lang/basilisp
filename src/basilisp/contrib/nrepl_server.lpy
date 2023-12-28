@@ -385,13 +385,13 @@
         (if (= data zero-bytes)
           (do (info :socket-closing client-info)
               (.close socket))
-          (let [;;data (.decode data "UTF-8")
-                data (if-let [p @pending]
-                       (let [b (+ p data)]
-                         (reset! pending nil)
-                         b)
-                       data)
-                [requests unprocessed] (bc/decode-all data {:keywordize-keys true})]
+          (let [data                   (if-let [p @pending]
+                                         (let [b (+ p data)]
+                                           (reset! pending nil)
+                                           b)
+                                         data)
+                [requests unprocessed] (bc/decode-all data {:keywordize-keys true
+                                                            :string-fn #(.decode % "utf-8")})]
             (debug :requests requests)
             (when (not (str/blank? unprocessed))
               (reset! pending unprocessed))
