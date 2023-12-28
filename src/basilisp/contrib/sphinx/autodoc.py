@@ -106,8 +106,9 @@ class NamespaceDocumenter(Documenter):
 
     def import_object(self, raiseerror: bool = False) -> bool:
         try:
-            importlib.import_module(self.modname)
+            importlib.import_module(self.modname.replace("-", "_"))
         except (ImportError, ModuleNotFoundError):
+            logger.exception(f"Error: can't import namespace {self.modname}")
             if raiseerror:
                 raise
             return False
@@ -242,7 +243,7 @@ class VarDocumenter(Documenter):
 
     def import_object(self, raiseerror: bool = False) -> bool:
         try:
-            importlib.import_module(self.modname)
+            importlib.import_module(self.modname.replace("-", "_"))
         except (ImportError, ModuleNotFoundError):
             if raiseerror:
                 raise
@@ -267,6 +268,10 @@ class VarDocumenter(Documenter):
             file = self.object.meta.val_at(_FILE_KW)
             return f"{file}:docstring of {self.object}"
         return f"docstring of {self.object}"
+
+    def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+        assert self.object is not None
+        return False, ()
 
     def add_directive_header(self, sig: str) -> None:
         assert self.object is not None
