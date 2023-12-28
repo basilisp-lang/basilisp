@@ -2004,6 +2004,7 @@ def _inline_fn_ast(
     macroed_form = reader.syntax_quote(unquoted_form)
     inline_fn_form = llist.l(
         SpecialForm.FN,
+        *([sym.symbol(genname(f"{name.name}-inline"))] if name is not None else []),
         vec.vector(binding.form for binding in inline_arity.params),
         macroed_form,
     )

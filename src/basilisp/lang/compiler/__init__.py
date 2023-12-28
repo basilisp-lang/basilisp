@@ -1,10 +1,10 @@
+import ast
 import itertools
 import os
 import sys
 import types
 from typing import Any, Callable, Iterable, List, Optional
 
-from basilisp import _pyast as ast
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
@@ -173,7 +173,7 @@ def compile_and_exec_form(
         )
     )
 
-    ast_module = ast.Module(body=form_ast)
+    ast_module = ast.Module(body=form_ast, type_ignores=[])
     ast_module = ctx.py_ast_optimizer.visit(ast_module)
     ast.fix_missing_locations(ast_module)
 
@@ -206,7 +206,7 @@ def _incremental_compile_module(
         map(_statementize, itertools.chain(py_ast.dependencies, [py_ast.node]))
     )
 
-    module = ast.Module(body=list(module_body))
+    module = ast.Module(body=list(module_body), type_ignores=[])
     module = optimizer.visit(module)
     ast.fix_missing_locations(module)
 
