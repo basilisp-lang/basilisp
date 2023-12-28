@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterable, List, Optional
 
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
-from basilisp.lang.compiler.analyzer import (
+from basilisp.lang.compiler.analyzer import (  # noqa
     GENERATE_AUTO_INLINES,
     INLINE_FUNCTIONS,
     WARN_ON_NON_DYNAMIC_SET,
