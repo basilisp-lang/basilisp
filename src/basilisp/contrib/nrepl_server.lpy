@@ -5,28 +5,26 @@
   (:require [basilisp.contrib.bencode :as bc]
             [basilisp.string :as str])
   (:import [basilisp.__version__ :as ver]
+           logging
            [basilisp.lang.runtime :as rt]
            socketserver
            sys
            traceback
            uuid))
 
-(def ^:private log-levels
-  "A compile time set used to determine which log levels should be
-  included in the output."
-  #{:warn})
+(def ^:private logger
+  "The logger for this namespace."
+  (logging/getLogger (namespace ::)))
 
-;; helper compile time macros to log ``values`` according to the level
-;; as filtered by `log-levels`.
 (defmacro ^:private debug [& values]
-  (when (some #{:debug} log-levels)
-    `(.write sys/stdout (str ~(keyword (str *ns*) "debug") " " (str/join " " [~@values]) \newline))))
+  (when (.isEnabledFor logger logging/DEBUG)
+    `(.debug logger (str/join " " [~@values]))))
 (defmacro ^:private info [& values]
-  (when (some #{:info} log-levels)
-    `(.write sys/stdout (str ~(keyword (str *ns*) "info") " " (str/join " " [~@values]) \newline))))
+  (when (.isEnabledFor logger logging/INFO)
+    `(.info logger (str/join " " [~@values]))))
 (defmacro ^:private warn [& values]
-  (when (some #{:warn} log-levels)
-    `(.write sys/stdout (str ~(keyword (str *ns*) "warn") " " (str/join " " [~@values]) \newline))))
+  (when (.isEnabledFor logger logging/WARNING))
+  `(.warning logger (str/join " " [~@values])))
 (defmacro ^:private error [& values]
   ;; we want error to always output to `sys/stderr` unfiltered.
   `(.write sys/stderr (str ~(keyword (str *ns*) "error") " " (str/join " " [~@values]) \newline)))
@@ -75,7 +73,7 @@
                                      (assoc (zipmap ["major" "minor" "incremental"]
                                                     version)
                                             "version-string" (str/join "." version)))
-                        "python" (let [version (.__getitem__ (.split sys/version " ") 0)]
+                        "python" (let [version (get (.split sys/version " ") 0)]
                                    (assoc (zipmap ["major" "minor" "incremental"]
                                                   (py->lisp (.split version ".")))
                                           "version-string" (py->lisp sys/version)))}
@@ -103,7 +101,7 @@
         message (or (:message data) (str e))]
     (swap! client* assoc :*e e)
     (send-fn request {"err" (str message)})
-    (send-fn request {"ex" (traceback/format_exc)
+    (send-fn request {"ex" (traceback/format-exc)
                       "status" ["eval-error"]
                       "ns" ns})))
 
@@ -154,7 +152,7 @@
   (do-handle-eval request send-fn))
 
 (defn- handle-clone [request send-fn]
-  (send-fn request {"new-session" (str (uuid/uuid4))
+  (send-fn request {"new-session" (str (random-uuid))
                     "status" ["done"]}))
 
 (defn handle-close [request send-fn]
