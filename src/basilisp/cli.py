@@ -244,6 +244,56 @@ def _subcommand(
     return _wrap_add_subcommand
 
 
+def nrepl_server(
+    _,
+    args: argparse.Namespace,
+):
+    opts = compiler.compiler_opts()
+    basilisp.init(opts)
+
+    ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts=opts)
+    eof = object()
+
+    ns = runtime.Namespace.get_or_create(runtime.CORE_NS_SYM)
+    host = runtime.lrepr(args.host)
+    port = args.port
+    port_filepath = runtime.lrepr(args.port_filepath)
+    eval_str(
+        (
+            "(require '[basilisp.contrib.nrepl-server :as nr])"
+            f"(nr/start-server! {{:host {host} :port {port} :nrepl-port-file {port_filepath}}})"
+        ),
+        ctx,
+        ns,
+        eof,
+    )
+
+
+@_subcommand(
+    "nrepl-server",
+    help="start the nREPL server",
+    description="Start the nREPL server.",
+    handler=nrepl_server,
+)
+def _add_nrepl_server_subcommand(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="the interface address to bind to, defaults to 127.0.0.1.",
+    )
+    parser.add_argument(
+        "--port",
+        default=0,
+        type=int,
+        help="the port to connect to, defaults to 0 (random available port).",
+    )
+    parser.add_argument(
+        "--port-filepath",
+        default=".nrepl-port",
+        help='the file path where the server port number is output to, defaults to ".nrepl-port".',
+    )
+
+
 def repl(
     _,
     args: argparse.Namespace,
@@ -445,6 +495,7 @@ def invoke_cli(args: Optional[Sequence[str]] = None) -> None:
     )
 
     subparsers = parser.add_subparsers(help="sub-commands")
+    _add_nrepl_server_subcommand(subparsers)
     _add_repl_subcommand(subparsers)
     _add_run_subcommand(subparsers)
     _add_test_subcommand(subparsers)

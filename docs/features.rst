@@ -20,7 +20,6 @@ Basilisp is still young and so lacks many features that more mature languages an
 There are many such planned features that will hopefully improve the ergonomics of the project for new developers.
 A few of those features include:
 
-* Built-in `nREPL <https://nrepl.org/nrepl/usage/server.html>`_ server
 * Project management tooling to facility dependency management/locking and packaging
 * Compatibility with the platform-agnostic components of Clojure
 
