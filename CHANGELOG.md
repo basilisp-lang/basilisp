@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for `bytes` literals using a `#b` prefix (#732)
  * Added support for Python 3.12 (#734)
  * Added a default reader conditional for the current platform (`windows`, `darwin`, `linux`, etc.) (#692)
+ * Added support for `bencode` binary encoding (part of #412)
 
 ### Changed
  * Basilisp now supports PyTest 7.0+ (#660)
