@@ -1187,6 +1187,7 @@ def get(m, k, default=None):  # pylint: disable=unused-argument
 @get.register(dict)
 @get.register(list)
 @get.register(str)
+@get.register(bytes)
 def _get_others(m, k, default=None):
     try:
         return m[k]

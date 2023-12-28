@@ -88,7 +88,6 @@ REPL
 ----
 
 Basilisp's REPL experience closely matches that of Clojure's.
-Basilisp does not currently support any programmatic REPL server such as `nREPL <https://nrepl.org/nrepl/index.html>`_ or pREPL, though support is planned (see `#412 <https://github.com/basilisp-lang/basilisp/issues/412>`_).
 
 .. _evaluation_differences:
 
