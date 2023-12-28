@@ -84,10 +84,10 @@
   (pr-str value))
 
 (defn- send-value [request send-fn v]
-  (let [{:keys [client*]} request
+  (let [{:keys [client*]}  request
         {:keys [*2 *3 *e]} @client*
-        [v opts] v
-        ns (:ns opts)]
+        [v opts]           v
+        ns                 (:ns opts)]
     (swap! client* assoc :*1 v :*2 *1 :*3 *2)
     (let [v (format-value (:nrepl.middleware.print/print request)
                           (:nrepl.middleware.print/options request)
@@ -97,8 +97,8 @@
 
 (defn- handle-error [send-fn request e]
   (let [{:keys [client* ns]} request
-        data (ex-data e)
-        message (or (:message data) (str e))]
+        data                 (ex-data e)
+        message              (or (:message data) (str e))]
     (swap! client* assoc :*e e)
     (send-fn request {"err" (str message)})
     (send-fn request {"ex" (traceback/format-exc)
@@ -121,32 +121,32 @@
   the corresponding ones found in ``client*``, and updates the latter
   according to the result."
   [{:keys [client* code ns file _column _line] :as request} send-fn]
-  (let [{:keys [*1 *2 *3 *e eval-ns]} @client*]
-    (let [out-stream (StreamOutFn #(send-fn request {"out" %}))
-          reader (io/StringIO code)
-          ctx (basilisp.lang.compiler.CompilerContext. (or file "nREPL input"))
-          eval-ns (if ns
-                    (create-ns (symbol ns))
-                    eval-ns)]
-      (binding [*ns* eval-ns
-                *out* out-stream
-                *1 *1 *2 *2 *3 *3 *e *e]
-        (try
-          (let [results (for [form (seq (basilisp.lang.reader/read reader
-                                                                   *resolver*
-                                                                   *data-readers*))]
-                          (basilisp.lang.compiler/compile-and-exec-form form
-                                                                        ctx
-                                                                        *ns*))
-                result (last results)]
-            (send-value request send-fn [result {:ns (str *ns*)}]))
-          (catch python/Exception e
-            (info :eval-exception e)
-            (handle-error send-fn (assoc request :ns (str *ns*)) e))
-          (finally
-            (swap! client* assoc :eval-ns *ns*)
-            (send-fn request {"ns" (str *ns*)
-                              "status" ["done"]})))))))
+  (let [{:keys [*1 *2 *3 *e eval-ns]} @client*
+        out-stream                    (StreamOutFn #(send-fn request {"out" %}))
+        reader                        (io/StringIO code)
+        ctx                           (basilisp.lang.compiler.CompilerContext. (or file "nREPL input"))
+        eval-ns                       (if ns
+                                        (create-ns (symbol ns))
+                                        eval-ns)]
+    (binding [*ns* eval-ns
+              *out* out-stream
+              *1 *1 *2 *2 *3 *3 *e *e]
+      (try
+        (let [results (for [form (seq (basilisp.lang.reader/read reader
+                                                                 *resolver*
+                                                                 *data-readers*))]
+                        (basilisp.lang.compiler/compile-and-exec-form form
+                                                                      ctx
+                                                                      *ns*))
+              result  (last results)]
+          (send-value request send-fn [result {:ns (str *ns*)}]))
+        (catch python/Exception e
+          (info :eval-exception e)
+          (handle-error send-fn (assoc request :ns (str *ns*)) e))
+        (finally
+          (swap! client* assoc :eval-ns *ns*)
+          (send-fn request {"ns" (str *ns*)
+                            "status" ["done"]}))))))
 
 (defn- handle-eval [request send-fn]
   (do-handle-eval request send-fn))
@@ -182,12 +182,11 @@
 
   [:other FORM] the ``symbol-str`` is of yet to be categorized FORM."
   [resolve-ns symbol-str]
-  (let [reader (io/StringIO symbol-str)
-        {:keys [form error]}
-        (try {:form (binding [*ns* resolve-ns]
-                      (first (seq (basilisp.lang.reader/read reader
-                                                             *resolver*
-                                                             *data-readers*))))}
+  (let [reader               (io/StringIO symbol-str)
+        {:keys [form error]} (try {:form (binding [*ns* resolve-ns]
+                                           (first (seq (basilisp.lang.reader/read reader
+                                                                                  *resolver*
+                                                                                  *data-readers*))))}
              (catch python/Exception e
                (info :symbol-identify-reader-error :input symbol-str :exception e)
                {:error (str e)}))]
@@ -228,36 +227,36 @@
 
   Serves both :eldoc and :info ``request`` :op's."
   [{:keys [ns client*] :as request} send-fn]
-  (let [mapping-type (-> request :op)
+  (let [mapping-type      (-> request :op)
         {:keys [eval-ns]} @client*]
     (try
-      (let [lookup-ns (if ns
-                        (create-ns (symbol ns))
-                        eval-ns)
-            sym-str (or (:sym request) ;; cider
-                        (:symbol request) ;; calva
-                        )
+      (let [lookup-ns      (if ns
+                             (create-ns (symbol ns))
+                             eval-ns)
+            sym-str        (or (:sym request) ;; cider
+                               (:symbol request) ;; calva
+                               )
             [tp var-maybe] (symbol-identify lookup-ns sym-str)
-            var-meta (when (= tp :var) (meta var-maybe))
+            var-meta       (when (= tp :var) (meta var-maybe))
             {:keys [arglists doc file ns line] symname :name} var-meta
-            ref (when (= tp :var) (var-get var-maybe))
-            response (when symname (case mapping-type
-                                     :eldoc (cond->
-                                                {"eldoc" (mapv #(mapv str %) arglists)
-                                                 "ns" (str ns)
-                                                 "type"  (if (fn? ref)
-                                                           "function"
-                                                           "variable")
-                                                 "name" (str symname)
-                                                 "status" ["done"]}
-                                              doc (assoc "docstring" doc))
-                                     :info {"doc" doc
-                                            "ns" (str ns)
-                                            "name" (str symname)
-                                            "file" file
-                                            "line" line
-                                            "arglists-str" (forms-join arglists)
-                                            "status" ["done"]}))
+            ref            (when (= tp :var) (var-get var-maybe))
+            response       (when symname (case mapping-type
+                                           :eldoc (cond->
+                                                      {"eldoc" (mapv #(mapv str %) arglists)
+                                                       "ns" (str ns)
+                                                       "type"  (if (fn? ref)
+                                                                 "function"
+                                                                 "variable")
+                                                       "name" (str symname)
+                                                       "status" ["done"]}
+                                                    doc (assoc "docstring" doc))
+                                           :info {"doc" doc
+                                                  "ns" (str ns)
+                                                  "name" (str symname)
+                                                  "file" file
+                                                  "line" line
+                                                  "arglists-str" (forms-join arglists)
+                                                  "status" ["done"]}))
             status (if (and (nil? symname) (= mapping-type :eldoc) )
                      ["done" "no-eldoc"]
                      ["done"])]
@@ -289,14 +288,14 @@
   If ``ns`` is not provided, then the ``client*`` :eval-ns is used
   instead."
   [{:keys [client* ns prefix] req-symbol :symbol :as request} send-fn]
-  (let [prefix (or prefix req-symbol)
+  (let [prefix            (or prefix req-symbol)
         {:keys [eval-ns]} @client*
-        completion-ns (if ns
-                        (create-ns (symbol ns))
-                        eval-ns)
-        completions (when-not (str/blank? prefix)
-                      (seq (binding [*ns* completion-ns]
-                             (rt/repl_completions prefix))))]
+        completion-ns     (if ns
+                            (create-ns (symbol ns))
+                            eval-ns)
+        completions       (when-not (str/blank? prefix)
+                            (seq (binding [*ns* completion-ns]
+                                   (rt/repl_completions prefix))))]
     (send-fn request {"completions" (->> (map str completions)
                                          sort
                                          (map (fn [completion]
@@ -307,11 +306,11 @@
                                                            {:type (name tp)}
                                                            (= tp :var)
                                                            (let [{:keys [ns macro]} (meta var-maybe)
-                                                                 ref (var-get var-maybe)
-                                                                 ref-tp (cond
-                                                                          macro "macro"
-                                                                          (fn? ref) "function"
-                                                                          :else "var")]
+                                                                 ref                (var-get var-maybe)
+                                                                 ref-tp             (cond
+                                                                                      macro "macro"
+                                                                                      (fn? ref) "function"
+                                                                                      :else "var")]
                                                              {:ns (str ns)
                                                               :type  ref-tp})
                                                            :else
@@ -367,15 +366,16 @@
   messages."
   (let [{:keys [recv-buffer-size]
          :or {recv-buffer-size 1024}} opts
-        socket (.-request tcp-req-handler)
-        handler (make-request-handler opts)
-        response-handler (make-reponse-handler socket)
-        pending (atom nil)
-        zero-bytes (python/bytes "" "UTF-8")
-        client-info (py->lisp (.getsockname socket))
-        client* (atom {:*1 nil :*2 nil :*3 nil :*e nil ;; keeps track of the latest evaulation results.
-                       :eval-ns nil ;; the last eval ns
-                       })]
+        socket                        (.-request tcp-req-handler)
+        handler                       (make-request-handler opts)
+        response-handler              (make-reponse-handler socket)
+        pending                       (atom nil)
+        zero-bytes                    (python/bytes "" "UTF-8")
+        client-info                   (py->lisp (.getsockname socket))
+        client*                       (atom {:*1 nil :*2 nil ;; keeps track of the latest
+                                             :*3 nil :*e nil ;; evaluation results
+                                             :eval-ns nil ;; the last eval ns
+                                             })]
     (try
       (info "Connection accepted" :info client-info)
       ;; Need to load the `clojure.core` alias because cider uses it
@@ -404,7 +404,7 @@
             (recur (.recv socket recv-buffer-size)))))
       (catch python/Exception e
         (error :client-connection-error :client client-info :exception e)
-        (error (traceback/format_exc))))))
+        (error (traceback/format-exc))))))
 
 (defn server-make [opts]
   "Create and return a `socketserver/TCPServer` serving nREPL clients
@@ -434,7 +434,7 @@
   2. The session uuids are ignored and only created to satisfy the
   initial clone op."
   (let [{:keys [host port] :or {host "127.0.0.1" port 0}} opts
-        handler (python/type (name (gensym "mytcphandler")) (python/tuple [socketserver/StreamRequestHandler])
+        handler (python/type (name (gensym "nREPLTCPHandler")) (python/tuple [socketserver/StreamRequestHandler])
                              #py {"handle" #(on-connect % opts)})]
     (socketserver/ThreadingTCPServer (python/tuple [host port]) handler)))
 
@@ -463,14 +463,17 @@
   ([]
    (start-server! {}))
   ([opts]
-   (let [{:keys [nrepl-port-file server*] :or {nrepl-port-file ".nrepl-port"}} opts
-         server (server-make opts)]
+   (let [{:keys [nrepl-port-file server*]
+          :or   {nrepl-port-file ".nrepl-port"}} opts
+         server                                  (server-make opts)]
      (when server* (reset! server* server))
      (try
        (let [[host port] (py->lisp (.-server-address server))]
          (println (format nrepl-server-signature port host host port))
          (spit nrepl-port-file (str port)))
        (.serve-forever server)
+       (catch python/KeyboardInterrupt _e
+         (println "Exiting in response to a keyboard interrupt..."))
        (catch python/Exception e
          (error :nrepl-server-error e)
-         (error (traceback/format_exc)))))))
+         (error (traceback/format-exc)))))))
