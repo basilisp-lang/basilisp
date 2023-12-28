@@ -22,7 +22,6 @@ def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:
 def _optimize_operator_call(  # pylint: disable=unused-argument
     fn: ast.AST, node: ast.Call
 ) -> ast.AST:
-    print(f"non operator call: {ast.unparse(node)}")
     return node
 
 
