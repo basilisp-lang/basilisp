@@ -486,3 +486,11 @@ Basilisp takes advantage of this in :lpy:ns:`basilisp.io`.
                        (throw e))))
          :lpy38+ (.unlink (as-path f) ** :missing-ok (if silently true false)))
       silently))
+
+Platform Reader Features
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Basilisp includes a specialized reader feature based on the current platform (Linux, MacOS, Windows, etc.).
+There exist cases where it may be required to use different APIs based on which platform is currently in use, so having a reader conditional to detect the current platform can simplify the development process across multiple platforms.
+The reader conditional name is always a keyword containing the lowercase version of the platform name as reported by ``platform.system()``.
+For example, if ``platform.system()`` returns the Python string ``"Windows"``, the platform specific reader conditional would be ``:windows``.
