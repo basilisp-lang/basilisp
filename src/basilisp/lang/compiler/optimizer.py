@@ -1,8 +1,7 @@
+import ast
 from collections import deque
 from contextlib import contextmanager
 from typing import Deque, Iterable, List, Optional, Set
-
-from basilisp import _pyast as ast
 
 
 def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:

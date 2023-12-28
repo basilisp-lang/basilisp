@@ -1,9 +1,9 @@
+import ast
 from enum import Enum
 from typing import Any, Dict, Optional, Union
 
 import attr
 
-from basilisp import _pyast as ast
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
 from basilisp.lang.compiler.nodes import Node
