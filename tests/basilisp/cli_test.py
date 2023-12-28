@@ -2,6 +2,8 @@ import io
 import os
 import re
 import tempfile
+import time
+from threading import Thread
 from typing import Optional, Sequence
 from unittest.mock import patch
 
@@ -66,6 +68,25 @@ class TestCompilerFlags:
     def test_invalid_flag(self, run_cli, val):
         with pytest.raises(SystemExit):
             run_cli(["run", "--warn-on-var-indirection", val, "-c", "(+ 1 2)"])
+
+
+def run_nrepl(run_cli, tmpfilepath):
+    try:
+        run_cli(["nrepl-server", "--port-filepath", tmpfilepath])
+    except Exception as e:
+        print(f":run-nrepl-error {e}")
+
+
+class TestnREPLServer:
+    def test_run_nrepl(self, run_cli):
+        with tempfile.TemporaryDirectory() as tmpdirpath:
+            tmpfilepath = os.path.join(tmpdirpath, ".nrepl-port-test")
+            thread = Thread(target=run_nrepl, args=[run_cli, tmpfilepath], daemon=True)
+            thread.start()
+            time.sleep(1)  # give server some time to settle down
+            with open(tmpfilepath) as tf:
+                port = int(tf.readline())
+                assert port > 0 and port < 65536
 
 
 class TestREPL:

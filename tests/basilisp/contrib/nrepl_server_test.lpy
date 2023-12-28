@@ -1,0 +1,598 @@
+(ns tests.basilisp.contrib.nrepl-server-test
+  (:require
+   [basilisp.contrib.bencode :as bc]
+   [basilisp.io :as bio]
+   [basilisp.contrib.nrepl-server :as nr]
+   [basilisp.string :as str :refer [starts-with?]]
+   [basilisp.test :refer [deftest are is testing]])
+  (:import
+   os
+   socket
+   tempfile
+   threading
+   time))
+
+(def ^:dynamic *nrepl-port*
+  "The port the lpy:py:`with-server` is bound to."
+  nil)
+
+(defmacro with-server
+  [opts & body]
+  "Create an nREPL server on a thread with
+  lpy:fn:`basilisp.nrepl-server/server-make` passing in ``opts``, bind
+  its port to `*nrepl-port*`, run ``body`` on the main thread, and
+  then shutdown server."
+  `(let [srv# (nr/server-make ~opts)]
+     (doto (threading/Thread
+            ~'**
+            :target (fn []
+                      (.serve-forever srv#))
+            :daemon true)
+       (.start))
+     (try
+       (binding [*nrepl-port* (second (.-server-address srv#))]
+         ~@body)
+       (finally
+         (doto srv#
+           (.shutdown)
+           (.server-close))))))
+
+(defmacro with-connect [client & body]
+  "Open up a connection to the nREPL-server at ``*nrepl-port*`` and
+  run ``body``, with the ``client`` exposed as an anaphoric binding.
+
+  ``client`` is a map with the following keys:
+
+  :backlog* A helper atom for the lpy:fn:`client-rev!` to keep track
+  of the arriving responses and any yet incomplete bencoded messages.
+
+  :sock The socket connection to the server."
+  `(with [sock# (socket/socket socket/AF_INET socket/SOCK_STREAM)]
+         (let [~client {:sock sock# :backlog* (atom {:items [] :fraction ""})}]
+           (.connect sock# (python/tuple ["127.0.0.1" *nrepl-port*]))
+           (.settimeout sock# 3)
+           ~@body)))
+
+(defn client-send!
+  "Send ``value`` to the server the ``client`` is connected to."
+  [client value]
+  (let [{:keys [sock]} client
+        v (bc/encode value)
+        vb (python/bytes v "UTF-8")]
+    (.sendall sock vb)))
+
+(defn client-recv!
+  "Receive and return nREPL response from the server the ``client`` is
+  connected to."
+  [client]
+  (let [{:keys [sock backlog*]} client
+        {:keys [items fraction]} @backlog*]
+    (if-let [item (first items)]
+      (do (swap! backlog* update :items #(drop 1 %))
+          item)
+      (let [data (python/str (.recv sock 8192) "UTF-8")
+            data (str data fraction)
+            [items remaining :as response] (bc/decode-all data {:keywordize-keys true})
+            item (first items)]
+        (reset! backlog* {:items (drop 1 items) :fraction remaining})
+        item))))
+
+(deftest nrepl-basic
+  (testing "basic"
+    (with-server {}
+      (with [sock (socket/socket socket/AF_INET socket/SOCK_STREAM)]
+            (do
+              (.connect sock #py ("127.0.0.1" *nrepl-port*))
+              (let [bb (bc/encode {:id 1 :op "clone"})
+                    bytes (python/bytes bb "UTF-8")]
+                (.sendall sock bytes)
+                (let [data (-> (.recv sock 1024)
+                               (python/str "UTF-8"))
+                      [{:keys [id new-session status] :as msg} _] (bc/decode data {:keywordize-keys true})]
+                  (is (= id 1))
+                  (is (uuid-like? new-session))
+                  (is (= status ["done"]))
+                  (.sendall sock (-> (bc/encode {:id 2 :op "close"})
+                                     (python/bytes "UTF-8")))
+                  (is (= [{:id 2 :status ["done"]} ""]
+                         (-> (.recv sock 1024)
+                             (python/str "UTF-8")
+                             (bc/decode {:keywordize-keys true}))))))))))
+
+  (testing "describe"
+    (with-server {}
+      (with-connect client
+        (client-send! client {:id 1 :op "clone"})
+        (let [{:keys [status]} (client-recv! client)]
+          (is (= ["done"] status)))
+        (client-send! client{:id 2 :op "describe"})
+        (let [{:keys [ops versions status]} (client-recv! client)]
+          (is (= ["done"] status))
+          (is (= {:clone {} :close {} :complete {} :describe {} :eldoc {} :eval {} :info {} :load-file {}} ops))
+          (let [{:keys [basilisp python]} versions]
+            (is (contains? basilisp :version-string))
+            (is (contains? python :version-string)))))))
+
+  (testing "unsupported"
+    (with-server {}
+      (with-connect client
+        (client-send! client {:id 1 :op "test-nrepl-server-unsupported"})
+        (let [{:keys [status]} (client-recv! client)]
+          (is (= ["error" "unknown-op" "done"] status)))))))
+
+(deftest nrepl-server-symbol-identify
+  (are [result symbol-ns symbol-str] (= result (nr/symbol-identify symbol-ns symbol-str))
+    [:keyword (keyword (str *ns*) "x")] *ns* "::x"
+    [:keyword (keyword "basilisp.test" "xyz")] (the-ns 'basilisp.test) "::xyz"
+    [:keyword (keyword "basilisp.contrib.nrepl-server" "x")] *ns* "::nr/x"
+
+    [:keyword (keyword "x")] *ns* ":x"
+    [:keyword (keyword "xyz.abc" "x")] *ns* ":xyz.abc/x"
+    [:keyword (keyword "nr" "x")] *ns* ":nr/x"
+
+    ;; ns
+    [:special-form 'if] *ns* "if" ;; special
+    [:var #'basilisp.string/starts-with?] *ns* "starts-with?" ;; refer
+    [:var #'basilisp.string/starts-with?] *ns* "str/starts-with?" ;; refer
+    [:var #'basilisp.string/starts-with?] *ns* "basilisp.string/starts-with?" ;; refer
+    [:var (ns-resolve *ns* 'client-send!)] *ns* "client-send!" ;; this ns fn
+    [:var #'basilisp.test/is] *ns* "is" ;; test ns refer macro
+    [:var #'basilisp.test/*test-section*] (the-ns 'basilisp.test) "*test-section*"
+
+    ;; other
+    [:other 'python/tuple] *ns* "python/tuple"
+    [:other 'xyz] *ns* "xyz"
+    [:other 'xyz] (the-ns 'basilisp.test) "xyz"
+
+    ;; unspecified behaviour that can lead to errors
+    [:error "AttributeError(\"'PersistentList' object has no attribute 'ns'\")"] *ns* "'abc" ;; passing in a symbol
+    ))
+
+(deftest nrepl-server-complete
+  (testing "basic"
+    ;; randomly interchange :prefix (cider) with :symbol (calva) below
+    (with-server {}
+      (with-connect client
+        (let [id* (atom 0)
+              id-inc! #(swap! id* inc)]
+          (client-send! client {:id (id-inc!) :op "clone"})
+          (let [{:keys [status]} (client-recv! client)]
+            (is (= ["done"] status)))
+
+          ;; basic lookup
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :prefix "apply"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "apply" :type "function" :ns "basilisp.core"}
+                                {:candidate "apply-kw" :type "function" :ns "basilisp.core"}
+                                {:candidate "apply-method" :type "macro" :ns "basilisp.core"}]}
+                 (client-recv! client)))
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :symbol "clojure.string/blank?"})
+          (is (= {:id @id* :status ["done"]
+                  :completions []}
+                 (client-recv! client)))
+
+          ;; current ns
+          (client-send! client {:id (id-inc!) :op "eval" :code "(def abc 1) (defn efg [] 2) (defmacro hij [] '(3)) 9"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "user" :value "9"}
+            {:id @id* :ns "user" :status ["done"]})
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :prefix "ab"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "abc" :ns "user" :type "var"}
+                                {:candidate "abs"  :ns "basilisp.core" :type "function"}]}
+                 (client-recv! client)))
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :prefix "ef"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "efg" :ns "user" :type "function"}]}
+                 (client-recv! client)))
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :prefix "hi"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "hij" :ns "user" :type "macro"}]}
+                 (client-recv! client)))
+
+          ;; create and reference another namespace
+          (client-send! client {:id (id-inc!) :op "eval" :code "(ns test.nrepl.ns) (def testme 1) testme"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "test.nrepl.ns" :value "1"}
+            {:id @id* :ns "test.nrepl.ns" :status ["done"]})
+          (client-send! client {:id (id-inc!) :op "complete" :prefix "testme"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "testme" :ns "test.nrepl.ns" :type "var"}]}
+                 (client-recv! client)))
+          ;; names from the user interface are not available from here
+          (client-send! client {:id (id-inc!) :op "complete" :prefix "ab"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "abs" :ns "basilisp.core" :type "function"}]}
+                 (client-recv! client)))
+          ;; but they are available if we specify the ns
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :prefix "ab"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "abc" :ns "user" :type "var"}
+                                {:candidate "abs" :ns "basilisp.core" :type "function"}]}
+                 (client-recv! client)))
+          ;; got back to user
+          (client-send! client {:id (id-inc!) :op "eval" :code "(in-ns 'user) 5"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "user" :value "5"}
+            {:id @id* :ns "user" :status ["done"]})
+          ;; look for completio in the test namespace
+          (client-send! client {:id (id-inc!) :op "complete" :ns "test.nrepl.ns" :prefix "testme"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "testme" :ns "test.nrepl.ns" :type "var"}]}
+                 (client-recv! client)))
+          ;; that completion to the test namespace is not available without a ns
+          (client-send! client {:id (id-inc!) :op "complete" :prefix "testme"})
+          (is (= {:id @id* :status ["done"]
+                  :completions []}
+                 (client-recv! client)))
+
+          ;; aliased ns and refers
+          ;;
+          ;; first test that fqn and aliased completion are not available yet
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :prefix "clojure.string/blank?"})
+          (is (= {:id @id* :status ["done"] :completions []}
+                 (client-recv! client)))
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :symbol "str/blank?"})
+          (is (= {:id @id* :status ["done"] :completions []}
+                 (client-recv! client)))
+          ;; require string ns
+          (client-send! client {:id (id-inc!) :op "eval" :code "(require '[clojure.string :as str :refer [join]])"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "user" :value "nil"}
+            {:id @id* :ns "user" :status ["done"]})
+          ;; test fqn, aliased and refer comletions to the string ns
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :prefix "clojure.string/blank?"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "clojure.string/blank?" :ns "basilisp.string" :type "function"}]}
+                 (client-recv! client)))
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :symbol "str/bl"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "str/blank?" :ns "basilisp.string" :type "function"}]}
+                 (client-recv! client)))
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :symbol "joi"})
+          (is (= {:id @id* :status ["done"]
+                  :completions [{:candidate "join" :ns "basilisp.string" :type "function"}]}
+                 (client-recv! client)))
+
+          ;; ns completions
+          (client-send! client {:id (id-inc!) :op "complete" :ns "user" :prefix "clojur"})
+          (is (= {:id @id* :status ["done"]
+                  :completions  [{:candidate "clojure.core/"}
+                                 {:candidate "clojure.string/"}]}
+                 (client-recv! client)))
+
+          ;; ns full names completions
+          (client-send! client {:id (id-inc!) :op "eval" :code "(require '[clojure.test :as test]) 1"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "user" :value "1"}
+            {:id @id* :ns "user" :status ["done"]})
+          (client-send! client {:id (id-inc!) :op "complete" :prefix "clojure.test/"})
+          (is (= {:id @id* :status ["done"]
+                  :completions  [{:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-failures*"}
+                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-name*"}
+                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-section*"}
+                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/are"}
+                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/deftest"}
+                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/gen-assert"}
+                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/is"}
+                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/testing"}
+                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/use-fixtures"}]}
+                 (client-recv! client)))
+          (client-send! client {:id (id-inc!) :op "complete" :prefix "test/"})
+          (is (= {:id @id* :status ["done"]
+                  :completions  [{:type "var" :ns "basilisp.test" :candidate "test/*test-failures*"}
+                                 {:type "var" :ns "basilisp.test" :candidate "test/*test-name*"}
+                                 {:type "var" :ns "basilisp.test" :candidate "test/*test-section*"}
+                                 {:type "macro" :ns "basilisp.test" :candidate "test/are"}
+                                 {:type "macro" :ns "basilisp.test" :candidate "test/deftest"}
+                                 {:type "var" :ns "basilisp.test" :candidate "test/gen-assert"}
+                                 {:type "macro" :ns "basilisp.test" :candidate "test/is"}
+                                 {:type "macro" :ns "basilisp.test" :candidate "test/testing"}
+                                 {:type "var" :ns "basilisp.test" :candidate "test/use-fixtures"}]}
+                 (client-recv! client))))))))
+
+(deftest nrepl-server-eval
+  (testing "basic"
+    (with-server {}
+      (with-connect client
+        (let [id* (atom 0)
+              id-inc! #(swap! id* inc)]
+          (client-send! client {:id (id-inc!) :op "clone"})
+          (let [{:keys [status]} (client-recv! client)]
+            (is (= ["done"] status)))
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(+ 1 3)"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "user" :value "4"}
+            {:id @id* :ns "user" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(println :hi \"there\")"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :out ":hi"}
+            {:id @id* :out " "}
+            {:id @id* :out "there"}
+            {:id @id* :out "\n"}
+            {:id @id* :ns "user" :value "nil"}
+            {:id @id* :ns "user" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :ns "xyz" :code "(ns xyz (:import [sys :as s])) (println s/__name__) (* 2 3)"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :out "sys"}
+            {:id @id* :out "\n"}
+            {:id @id* :ns "xyz" :value "6"}
+            {:id @id* :ns "xyz" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(/ 3 0)"})
+          (is (= {:id @id* :err "ZeroDivisionError('Fraction(3, 0)')"} (client-recv! client)))
+          (let [{:keys [id ex status ns]} (client-recv! client)]
+            (is (= @id* id))
+            (is (= "xyz" ns))
+            (is (= ["eval-error"] status))
+            (is (str/starts-with? ex "Traceback (most recent call last):")))
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "xyz" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(println :hey)\n(/ 4 0)"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :out ":hey"}
+            {:id @id* :out "\n"}
+            {:id @id* :err "ZeroDivisionError('Fraction(4, 0)')"})
+          (let [{:keys [id ex status ns]} (client-recv! client)]
+            (is (= @id* id))
+            (is (= "xyz" ns))
+            (is (= ["eval-error"] status))
+            (is (not= -1 (.find ex "File \"nREPL input\", line 2")) ex))
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "xyz" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "[*1 *2 *3 *e]"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "xyz" :value "[6 nil 4 ZeroDivisionError('Fraction(4, 0)')]"}
+            {:id @id* :ns "xyz" :status ["done"]})
+
+          ;; error with :file
+          (client-send! client {:id (id-inc!) :op "eval" :file "/hey/you.lpy" :code "1\n2\n(/ 5 0)"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :err "ZeroDivisionError('Fraction(5, 0)')"})
+          (let [{:keys [id ex status ns]} (client-recv! client)]
+            (is (= @id* id))
+            (is (= "xyz" ns))
+            (is (= ["eval-error"] status))
+            (is (not= -1 (.find ex "File \"/hey/you.lpy\", line 3")) ex))
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "xyz" :status ["done"]})
+
+          ;; error conditions
+          (client-send! client {:id (id-inc!) :op "eval" :code "(xyz"})
+          (let [{:keys [id err]} (client-recv! client)]
+            (is (= @id* id))
+            (is (str/starts-with? err "basilisp.lang.reader.SyntaxError")))
+          (let [{:keys [id ex status ns]} (client-recv! client)]
+            (is (= @id* id))
+            (is (= "xyz" ns))
+            (is (= ["eval-error"] status))
+            (is (str/starts-with? ex "Traceback (most recent call last):")))
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "xyz" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(+ 3 5)" :ns "not-there"})
+          (is (= {:id @id* :err "CompilerException(msg=\"unable to resolve symbol '+' in this context\", phase=<CompilerPhase.ANALYZING: :analyzing>, form=+, lisp_ast=None, py_ast=None)"} (client-recv! client)))
+          (let [{:keys [id ex status ns]} (client-recv! client)]
+            (is (= @id* id))
+            (is (= "not-there" ns))
+            (is (= ["eval-error"] status))
+            (is (str/starts-with? ex "Traceback (most recent call last):")))
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "not-there" :status ["done"]})))))
+
+  (testing "malformed"
+    (with-server {}
+      (with-connect client
+        (client-send! client {:id 1 :op "clone"})
+        (let [{:keys [status]} (client-recv! client)]
+          (is (= ["done"] status)))
+
+        ;; no code
+        (client-send! client {:id 2 :op "eval"})
+        (are [response] (= response (client-recv! client))
+          {:id 2 :ns "user" :value "nil"}
+          {:id 2 :ns "user" :status ["done"]})
+
+        ;; bad namespace
+        (client-send! client {:id 3 :op "eval" :code "(+ 3 5)" :ns "#,,"})
+        (is (= {:id 3 :err "CompilerException(msg=\"unable to resolve symbol '+' in this context\", phase=<CompilerPhase.ANALYZING: :analyzing>, form=+, lisp_ast=None, py_ast=None)"} (client-recv! client)))
+        (let [{:keys [id ex status ns]} (client-recv! client)]
+          (is (= 3 id))
+          (is (= "#,," ns))
+          (is (= ["eval-error"] status))
+          (is (str/starts-with? ex "Traceback (most recent call last):")))
+        (are [response] (= response (client-recv! client))
+          {:id 3 :ns "#,," :status ["done"]})))))
+
+(deftest nrepl-server-info
+  (testing "nrepl server info"
+    (with-server {}
+      (with-connect client
+        ;; cover both :sym (cider) with :symbol (calva) instances below.
+
+        (let [id* (atom 0)
+              id-inc! #(swap! id* inc)]
+          (client-send! client {:id (id-inc!) :op "clone"})
+          (let [{:keys [status]} (client-recv! client)]
+            (is (= ["done"] status)))
+          (client-send! client {:id (id-inc!) :op "info" :ns "user" :sym "sort-by"})
+          (let [{:keys [file line] :as response} (client-recv! client)
+                {:keys [doc]
+                 meta-file :file} (meta (resolve 'sort-by))]
+            (is (= {:ns "basilisp.core" :status ["done"] :id @id* :arglists-str "[keyfn coll]\n[keyfn cmp coll]"
+                    :doc doc :name "sort-by"}
+                   (select-keys response [:ns :status :id :arglists-str :doc :name])))
+            (is (= meta-file file)))
+
+          ;; test fqdn, aliases and refers
+          (client-send! client {:id (id-inc!) :op "eval"
+                                :code "(in-ns 'xyz) (ns xyz (:require [clojure.set :as set :refer [join]])) 6"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "xyz" :value "6"}
+            {:id @id* :ns "xyz" :status ["done"]})
+          ;; fqdn
+          (client-send! client {:id (id-inc!) :op "info" :ns "xyz" :symbol "clojure.set/difference"})
+          (let [response (client-recv! client)]
+            (is (= {:doc "Return a new set with elements from set ``s`` not in the ``others``. If no others\n  are provided, return ``s``."
+                    :name "difference" :status ["done"] :id @id*}
+                   (select-keys response [:doc :status :id :name]))))
+          ;; alias
+          (client-send! client {:id (id-inc!) :op "info" :ns "xyz" :symbol "set/union"})
+          (let [response (client-recv! client)]
+            (is (= {:doc "Return a new set with elements in set ``s`` that are in the ``others``. If no others\n  are provided, return ``s``."
+                    :name "union" :status ["done"] :id @id*}
+                   (select-keys response [:doc :status :id :name]))))
+          ;; refer
+          (client-send! client {:id (id-inc!) :op "info" :ns "xyz" :symbol "join"})
+          (let [response (client-recv! client)]
+            (is (= {:doc "Perform a natural join on the maps in ``lrel`` and ``rrel`` using keys shared by\n  elements of each relation. If ``keymap`` is specified, join only on the given keys."
+                    :name "join" :status ["done"] :id @id*}
+                   (select-keys response [:doc :status :id :name]))))
+
+          (client-send! client {:id (id-inc!) :op "info" :ns "user" :symbol "abcde"})
+          (let [response (client-recv! client)]
+            (is (= {:status ["done"] :id @id*}
+                   (select-keys response [:doc :status :id :name]))))
+
+          (client-send! client {:id (id-inc!) :op "info"})
+          (is (= {:id @id* :status ["done"]}
+                 (client-recv! client)))))))
+
+  (testing "nrepl server eldoc"
+    (with-server {}
+      (with-connect client
+        (let [id* (atom 0)
+              id-inc! #(swap! id* inc)]
+          (client-send! client {:id (id-inc!) :op "clone"})
+          (let [{:keys [status]} (client-recv! client)]
+            (is (= ["done"] status)))
+          (client-send! client {:id (id-inc!) :op "eldoc" :ns "user" :sym "sort-by"})
+          (let [{:keys [file line] :as response} (client-recv! client)]
+            (is (= {:ns "basilisp.core" :status ["done"] :id @id* :type "function"
+                    :docstring (:doc (meta (resolve 'sort-by))) :name "sort-by"
+                    :eldoc [["keyfn" "coll"] ["keyfn" "cmp" "coll"]]}
+                   response)))
+
+          (client-send! client {:id (id-inc!) :op "eldoc" :sym "doesnot-exists"})
+          (is (= {:id @id* :status ["done" "no-eldoc"]}
+                 (client-recv! client)))
+
+          (client-send! client {:id (id-inc!) :op "eldoc"})
+          (is (= {:id @id* :status ["done" "no-eldoc"]}
+                 (client-recv! client))))))))
+
+(deftest nrepl-server-load-file
+  (testing "basic"
+    (with-server {}
+      (with-connect client
+        (let [id* (atom 0)
+              id-inc! #(swap! id* inc)]
+          (client-send! client {:id (id-inc!) :op "clone"})
+          (let [{:keys [status]} (client-recv! client)]
+            (is (= ["done"] status)))
+          (client-send! client {:id (id-inc!) :op "load-file"
+                                :ns "user" :file "(ns abc.xyz (:require [clojure.string :as str]) (:import [sys :as s])) (defn afn []  (str/lower-case \"ABC\")) (afn)"
+                                :file-name "xyz.lpy" :file-path "/abc/xyz.lpy"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.xyz" :value "\"abc\""}
+            {:id @id* :ns "abc.xyz" :status ["done"]})
+
+
+          (client-send! client {:id (id-inc!) :op "eval" :ns "abc.xyz" :code "s/__name__"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.xyz" :value "\"sys\""}
+            {:id @id* :ns "abc.xyz" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(in-ns 'abc.other)"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.other" :value "abc.other"}
+            {:id @id* :ns "abc.other" :status ["done"]})
+          (client-send! client {:id (id-inc!) :op "load-file"
+                                :ns "user" :file "(ns abc.other) (defn afn [] 55) (+ 5 4)"
+                                :file-name "other.lpy" :file-path "/abc/other.lpy"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.other" :value "9"}
+            {:id @id* :ns "abc.other" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(afn)"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.other" :value "55"}
+            {:id @id* :ns "abc.other" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(abc.xyz/afn)"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.other" :value "\"abc\""}
+            {:id @id* :ns "abc.other" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "load-file" :ns "user" :file "(ns abc.third)\n\n(/ 3 0)"
+                                :file-name "third.lpy" :file-path "/abc/third.lpy"})
+          (is (= {:id @id* :err "ZeroDivisionError('Fraction(3, 0)')"} (client-recv! client)))
+          (let [{:keys [id ex status ns]} (client-recv! client)]
+            (is (= @id* id))
+            (is (= "abc.third" ns))
+            (is (= ["eval-error"] status))
+            (is (not= -1 (.find ex "File \"/abc/third.lpy\", line 3")) ex)
+            (is (str/starts-with? ex "Traceback (most recent call last):")))
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.third" :status ["done"]}))))
+
+    (testing "no file"
+      (with-server {}
+        (with-connect client
+          (client-send! client {:id 1 :op "clone"})
+          (let [{:keys [status]} (client-recv! client)]
+            (is (= ["done"] status)))
+          (client-send! client {:id 2 :op "load-file" :ns "user"})
+          (are [response] (= response (client-recv! client))
+            {:id 2 :ns "user" :value "nil"}
+            {:id 2 :ns "user" :status ["done"]}))))))
+
+(deftest nrepl-server-params
+  (testing "buffer size"
+    (with-server {:recv-buffer-size 5}
+      (with-connect client
+        (client-send! client {:id 1 :op "clone"})
+        (let [{:keys [status]} (client-recv! client)]
+          (is (= ["done"] status)))
+
+        (doseq [i (range 2 100)]
+          (client-send! client {:id i :op "info" :ns "user" :sym "sort-by"})
+          (let [{:keys [status]} (client-recv! client)]
+            (is (= ["done"] status)))))))
+
+  (testing "nrepl server port"
+    (is (thrown? python/OverflowError
+                 ;; just test any port number can be passed in, -1
+                 ;; will throw an exception.
+                 (with-server {:port -1}
+                   (throw python/ZeroDivisionError)))))
+
+  (testing "nrepl-server port file and address"
+    (let [server* (atom nil)
+          [fd filename] (tempfile/mkstemp "nrepl-server-port-test")]
+      (doto (threading/Thread
+             **
+             :target #(nr/start-server! {:server* server* :nrepl-port-file filename :host "0.0.0.0"})
+             :daemon true)
+        (.start))
+      (try
+        (time/sleep 1) ;; give some time to the server to settle down
+        (is @server*)
+        (is (bio/exists? filename))
+        (let [port-filename  (slurp filename)
+              server @server*
+              [host port] (py->lisp (.-server-address server))]
+          (is (= host "0.0.0.0"))
+          (is (= (str port) port-filename)))
+
+        (finally
+          (doto @server*
+            (.shutdown)
+            (.server-close))
+          (os/close fd)
+          (os/unlink filename))))))
