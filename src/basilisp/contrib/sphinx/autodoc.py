@@ -108,7 +108,7 @@ class NamespaceDocumenter(Documenter):
         try:
             importlib.import_module(self.modname.replace("-", "_"))
         except (ImportError, ModuleNotFoundError):
-            print(f"Error: can't import namespace {self.modname}")
+            logger.exception(f"Error: can't import namespace {self.modname}")
             if raiseerror:
                 raise
             return False

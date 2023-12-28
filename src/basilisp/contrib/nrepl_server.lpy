@@ -4,8 +4,7 @@
   "A port of `nbb <https://github.com/babashka/nbb>`_'s nREPL server implementation to basilisp."
   (:require [basilisp.contrib.bencode :as bc]
             [basilisp.string :as str])
-  (:import [importlib.metadata :as imeta]
-           logging
+  (:import logging
            [basilisp.lang.runtime :as rt]
            socketserver
            sys
@@ -69,7 +68,7 @@
 
 (defn- handle-describe [request send-fn]
   (send-fn request
-           {"versions" {"basilisp" (let [version (imeta/version "basilisp")]
+           {"versions" {"basilisp" (let [version rt/BASILISP-VERSION-STRING]
                                      (assoc (zipmap ["major" "minor" "incremental"]
                                                     version)
                                             "version-string" (str/join "." version)))
