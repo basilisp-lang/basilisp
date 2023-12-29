@@ -487,6 +487,8 @@ Basilisp takes advantage of this in :lpy:ns:`basilisp.io`.
          :lpy38+ (.unlink (as-path f) ** :missing-ok (if silently true false)))
       silently))
 
+.. _python_platform_reader_features:
+
 Platform Reader Features
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
