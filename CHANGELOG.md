@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.1.0b0]
 ### Added
  * Added rudimentary support for `clojure.stacktrace` with `print-cause-trace` (part of #721)
  * Added support for `bytes` literals using a `#b` prefix (#732)
@@ -390,6 +392,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.0b0]: https://github.com/chrisrink10/basilisp/compare/v0.1.0a2..v0.1.0b0
 [v0.1.0a2]: https://github.com/chrisrink10/basilisp/compare/v0.1.0a1..v0.1.0a2
 [v0.1.0a1]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev15..v0.1.0a1
 [v0.1.dev15]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev14..v0.1.dev15
