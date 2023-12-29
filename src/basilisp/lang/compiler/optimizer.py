@@ -26,7 +26,9 @@ def _optimize_operator_call(  # pylint: disable=unused-argument
 
 
 @_optimize_operator_call.register(ast.Attribute)
-def _optimize_operator_call_attr(fn: ast.Attribute, node: ast.Call) -> ast.AST:
+def _optimize_operator_call_attr(  # pylint: disable=too-many-return-statements
+    fn: ast.Attribute, node: ast.Call
+) -> ast.AST:
     """Optimize calls to the Python `operator` module down to use the raw Python
     operators.
 
