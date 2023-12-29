@@ -573,5 +573,5 @@ class BasilispDomain(Domain):
         target: str,
         node: pending_xref,
         contnode: Element,
-    ) -> list[tuple[str, Element]]:
+    ) -> List[Tuple[str, Element]]:
         raise NotImplementedError
