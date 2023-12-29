@@ -233,3 +233,25 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 junit_family = "legacy"
+
+[tool.ruff]
+exclude = [
+  ".cache",
+  ".env",
+  ".hg",
+  ".git",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".tox",
+  ".venv",
+  "build",
+  "dist",
+  "docs",
+  "htmlcov",
+  "junit",
+  "pip-wheel-metadata",
+  "lispcore.py",
+]
+
+[tool.ruff.lint]
+ignore = ["E731", "E741"]

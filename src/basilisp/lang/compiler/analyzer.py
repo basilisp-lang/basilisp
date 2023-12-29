@@ -1371,7 +1371,7 @@ def __deftype_or_reify_prop_or_method_arity(
             form=form,
         )
 
-    if not sum([is_classmethod, is_property, is_staticmethod]) in {0, 1}:
+    if sum([is_classmethod, is_property, is_staticmethod]) not in {0, 1}:
         raise AnalyzerException(
             f"{special_form} member may be only one of: :classmethod, :property, "
             "or :staticmethod",
