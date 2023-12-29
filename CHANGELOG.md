@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix issue with `ns-resolve` throwing an error on macros (#720)
  * Fix issue with py module `readerwritelock` locks handling (#722)
  * Fix issue with basilisp.io/writer :append mode not working (#741)
+ * Fix issue with attempting to inline functions which reference other Python modules that aren't available in the inline destination (#746)
 
 ### Removed
  * Removed the dependency `astor` for versions of Python 3.9+ (#736)
