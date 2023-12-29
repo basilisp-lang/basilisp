@@ -78,8 +78,7 @@
 
 (defn- clean-writer-mode
   [opts]
-  (let [append?    (:append opts)
-        mode       (:mode opts "")
+  (let [mode       (:mode opts "")
         clean-mode (cond
                      (:append opts)                 (str "a" mode)
                      (not (str/includes? mode "w")) (str "w" mode)

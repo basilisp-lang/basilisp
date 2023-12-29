@@ -78,7 +78,7 @@ Basilisp source files should always have a ``.lpy`` extension.
    Python ``__init__.py`` files are not required anywhere in Basilisp projects (including for nested namespaces), though you may need to use them if your project mixes Python and Basilisp sources.
 
 Basilisp apps can use any of Python's myriad dependency management options, including `pip <https://pip.pypa.io/en/stable/>`_, `Pipenv <https://pipenv.pypa.io/en/latest/>`_, and `Poetry <https://python-poetry.org/>`_.
-Basilisp itself uses Poetry and that is the recommended
+Basilisp itself uses Poetry and that is the recommended dependency management tool for new Basilisp projects.
 
 .. _bootstrapping:
 
