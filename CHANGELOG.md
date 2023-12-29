@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+ * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
+
 ## [v0.1.0b0]
 ### Added
  * Added rudimentary support for `clojure.stacktrace` with `print-cause-trace` (part of #721)
@@ -17,7 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
  * Basilisp now supports PyTest 7.0+ (#660)
- * Optimize calls to Python's `operator` module into their corresponding native operators (#???)
 
 ### Fixed
  * Fix issue with `case` evaluating all of its clauses expressions (#699)
