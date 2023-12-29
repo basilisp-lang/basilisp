@@ -198,7 +198,3 @@ The former can be configured via the environment variable ``BASILISP_USE_DEV_LOG
 
    export BASILISP_USE_DEV_LOGGER=true
    export BASILISP_LOGGING_LEVEL=INFO
-
-.. note::
-
-   If the logger isn't enabled in the first place, changing the logging level will not have any apparent impact.
