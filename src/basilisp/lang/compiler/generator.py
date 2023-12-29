@@ -1,3 +1,5 @@
+# pylint: disable=too-many-lines
+
 import ast
 import collections
 import contextlib
@@ -3479,6 +3481,7 @@ def _const_record_to_py_ast(form: IRecord, ctx: GeneratorContext) -> GeneratedPy
     form_seq = runtime.to_seq(form)
     assert form_seq is not None, "IRecord types must be iterable"
 
+    # pylint: disable=no-member
     keys, vals = [], []
     vals_deps: List[ast.AST] = []
     for k, v in form_seq:

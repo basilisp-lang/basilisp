@@ -5,7 +5,7 @@ import sys
 import types
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-from sphinx.ext.autodoc import (
+from sphinx.ext.autodoc import (  # pylint: disable=no-name-in-module
     ClassDocumenter,
     Documenter,
     ObjectMember,

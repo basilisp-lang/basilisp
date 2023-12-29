@@ -1,3 +1,5 @@
+# pylint: disable=too-many-branches,too-many-lines,too-many-return-statements
+
 import collections
 import contextlib
 import decimal
@@ -5,6 +7,7 @@ import functools
 import io
 import re
 import uuid
+from collections.abc import Hashable
 from datetime import datetime
 from fractions import Fraction
 from itertools import chain
@@ -14,7 +17,6 @@ from typing import (
     Collection,
     Deque,
     Dict,
-    Hashable,
     Iterable,
     List,
     MutableMapping,
@@ -695,6 +697,7 @@ def _read_map(
     d: MutableMapping[Any, Any] = {}
     process_key = _map_key_processor(namespace)
     try:
+        # pylint: disable=redefined-loop-name
         for k, v in partition(list(__read_map_elems(ctx)), 2):
             k = process_key(k)
             if k in d:
