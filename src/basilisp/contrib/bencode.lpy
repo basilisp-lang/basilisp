@@ -86,7 +86,7 @@
   - ``int``
   - ``str``, which is first decided to UTF-8 ``bytes``
   - keywords and symbols, which are first converted to strings (including namespace,
-    separated by '/') and then converted using the rules for ``str``s
+    separated by '/') and then converted using the rules for ``str`` s
   - Python ``list``
   - ``tuple``
   - Basilisp lists and vectors

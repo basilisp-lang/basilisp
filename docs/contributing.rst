@@ -45,6 +45,8 @@ Developers should generate their own lock file and update it regularly during de
 
 Additionally, `pyenv <https://github.com/pyenv/pyenv>`_ is recommended to manage versions of Python readily on your local development environment.
 Setup of ``pyenv`` is somewhat more specific to your environment, so see the documentation in the repository for more information.
+Developers should install all supported versions of Python and configure them for the project using ``pyenv local`` in the Basilisp source directory.
+The ``.python-version`` file is included in the project ``.gitignore``.
 
 .. _getting_started_development:
 
@@ -57,11 +59,20 @@ To prepare your `poetry` environment, you need to install dependencies:
 
    poetry install
 
-Afterwards, you can start up the REPL for development with a simple:
+Afterwards, you can open a new Poetry shell to start up the REPL for development.
+The ``make repl`` target _may_ be sufficient for local development, though developers working on the Basilisp compiler or standard library are encouraged to enable a more verbose set of configurations for detecting issues during development.
+The command below enables the highest level of logging and disables namespace caching, both of which can help reveal otherwise hidden issues during development.
 
 .. code-block:: bash
 
-   make repl
+   poetry shell
+   BASILISP_USE_DEV_LOGGER=true BASILISP_LOGGING_LEVEL=TRACE BASILISP_DO_NOT_CACHE_NAMESPACES=true basilisp repl
+
+Developers working on the Basilisp compiler should periodically update their dependencies to ensure no incompatibilities have been introduced into the codebase with new dependency versions.
+
+.. code-block:: bash
+
+   poetry update
 
 .. _linting_testing_and_type_checking:
 
@@ -69,11 +80,20 @@ Linting, Running Tests, and Type Checking
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Basilisp automates linting, running tests, and type checking using `Tox <https://github.com/tox-dev/tox>`_.
-All three steps can be performed using a provided ``make`` target:
+All three steps can be performed across all supported versions of CPython using a provided ``make`` target:
 
 .. code-block:: bash
 
    make test
+
+To run a more targeted CI check directly from within the Poetry shell, developers can use ``tox`` commands directly.
+For instance, to run only the tests for ``basilisp.io`` on Python 3.12, you could use the following command:
+
+.. code-block:: bash
+
+   tox run -e py312 -- tests/basilisp/test_io.lpy
+
+Developers are encouraged to investigate the available configurations in ``tox.ini`` to determine which CI targets they will have at their disposal.
 
 Testing is performed using `PyTest <https://github.com/pytest-dev/pytest/>`_.
 Type checking is performed by `MyPy <http://mypy-lang.org/>`_.

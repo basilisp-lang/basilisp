@@ -176,7 +176,7 @@ Debugging
 
 The compiler generates Python code by generating Python AST nodes, rather than emitting the raw Python code as text.
 This is convenient for the compiler, but inspecting Python AST nodes manually for bugs can be a bit of a challenge even with a debugger.
-For this reason, the Basilisp compiler can also use the `astor <https://github.com/berkerpeksag/astor>`_ library to generate raw Python code for visual inspection.
+For this reason, the Basilisp compiler can also use the `ast.unparse <https://docs.python.org/3/library/ast.html#ast.unparse>`_ (`astor <https://github.com/berkerpeksag/astor>`_ in versions of Python prior to 3.9) library to generate raw Python code for visual inspection.
 
 Currently, the compiler is configured to automatically generate Python code for all namespaces.
 This code generation isn't slow, but it does add an appreciable amount of time to the compilation of each individual namespace.
@@ -186,3 +186,19 @@ This setting will be changed to be off by default once Basilisp is in a stable r
 .. code-block:: bash
 
    export BASILISP_EMIT_GENERATED_PYTHON=false
+
+Logging
+^^^^^^^
+
+Basilisp ships with a disabled Python ``logger`` set to ``WARNING``.
+For development, it may be useful to enable the logger or to change its log level.
+The former can be configured via the environment variable ``BASILISP_USE_DEV_LOGGER``, while the latter may be set by ``BASILISP_LOGGING_LEVEL``.
+
+.. code-block:: bash
+
+   export BASILISP_USE_DEV_LOGGER=true
+   export BASILISP_LOGGING_LEVEL=INFO
+
+.. note::
+
+   If the logger isn't enabled in the first place, changing the logging level will not have any apparent impact.
