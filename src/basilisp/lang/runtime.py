@@ -1,3 +1,5 @@
+# pylint: disable=too-many-lines
+
 import contextlib
 import decimal
 import functools
@@ -193,6 +195,7 @@ class BasilispModule(types.ModuleType):
     __basilisp_bootstrapped__: bool = False
 
 
+# pylint: disable=attribute-defined-outside-init
 def _new_module(name: str, doc=None) -> BasilispModule:
     """Create a new empty Basilisp Python module.
     Modules are created for each Namespace when it is created."""

@@ -1,11 +1,11 @@
 import itertools
 from abc import ABC, abstractmethod
+from collections.abc import Hashable
 from typing import (
     AbstractSet,
     Any,
     Callable,
     Generic,
-    Hashable,
     Iterable,
     Iterator,
     Mapping,

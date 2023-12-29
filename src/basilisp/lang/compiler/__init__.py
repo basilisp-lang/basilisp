@@ -182,7 +182,7 @@ def compile_and_exec_form(
     bytecode = compile(ast_module, ctx.filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
-    exec(bytecode, ns.module.__dict__)
+    exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used
     try:
         return getattr(ns.module, final_wrapped_name)()
     finally:
@@ -215,7 +215,7 @@ def _incremental_compile_module(
     bytecode = compile(module, source_filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
-    exec(bytecode, ns.module.__dict__)
+    exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used
 
 
 def _bootstrap_module(
@@ -277,4 +277,4 @@ def compile_bytecode(
     and then proceeds to compile a collection of bytecodes into the module."""
     _bootstrap_module(gctx, optimizer, ns)
     for bytecode in code:
-        exec(bytecode, ns.module.__dict__)
+        exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used

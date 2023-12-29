@@ -130,7 +130,7 @@ class BasilispNamespace(SphinxDirective):
         return ret
 
 
-class BasilispObject(PyObject):
+class BasilispObject(PyObject):  # pylint: disable=abstract-method
     def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
         """Subclasses should implement this themselves."""
         return NotImplemented
@@ -196,7 +196,7 @@ class BasilispVar(BasilispObject):
         return f"{sig} ({prefix} in {modname})"
 
 
-class BasilispFunctionLike(BasilispObject):
+class BasilispFunctionLike(BasilispObject):  # pylint: disable=abstract-method
     option_spec: OptionSpec = BasilispObject.option_spec.copy()
 
     def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
@@ -314,14 +314,16 @@ class BasilispNamespaceIndex(Index):
 
             for ignore in ignores:
                 if nsname.startswith(ignore):
-                    nsname = nsname[len(ignore) :]
+                    nsname = nsname[  # pylint: disable=redefined-loop-name
+                        len(ignore) :
+                    ]
                     stripped = ignore
                     break
             else:
                 stripped = ""
 
             if not nsname:
-                nsname, stripped = stripped, ""
+                nsname, stripped = stripped, ""  # pylint: disable=redefined-loop-name
 
             entries = content[nsname[0].lower()]
 
@@ -562,3 +564,14 @@ class BasilispDomain(Domain):
         return make_refnode(
             builder, fromdocname, docname, node_id, contnode, title=title
         )
+
+    def resolve_any_xref(  # pylint: disable=too-many-arguments
+        self,
+        env: BuildEnvironment,
+        fromdocname: str,
+        builder: Builder,
+        target: str,
+        node: pending_xref,
+        contnode: Element,
+    ) -> List[Tuple[str, Element]]:
+        raise NotImplementedError

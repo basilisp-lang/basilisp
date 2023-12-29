@@ -368,7 +368,7 @@ def repl(
                 )
                 repl_module.mark_exception(e)
                 continue
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 traceback.print_exception(Exception, e, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
