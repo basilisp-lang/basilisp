@@ -254,6 +254,8 @@ class SymbolTable:
         ), "Only warn when logger is configured for WARNING level"
         ns = runtime.get_current_ns()
         for _, entry in self._table.items():
+            if entry.symbol.name.startswith("_"):
+                continue
             if entry.symbol in _NO_WARN_UNUSED_SYMS:
                 continue
             if entry.warn_if_unused and not entry.used:

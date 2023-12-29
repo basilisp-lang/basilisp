@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix an issue where the constructors of types created by `deftype` and `defrecord` could not be called if they contained `-` characters (#777) 
  * Fix issue with the variadic ampersand operator treated as a binding in macros (#772)
 
+### Changed
+ * Do not warn on unused bindings when their name begins with `_` (#756).
+
 ## [v0.1.0b0]
 ### Added
  * Added rudimentary support for `clojure.stacktrace` with `print-cause-trace` (part of #721)
