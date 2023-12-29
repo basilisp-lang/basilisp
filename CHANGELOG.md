@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
+ * Fix issue with keyword fn not testing for test membership in sets (#762)
 
 ## [v0.1.0b0]
 ### Added
