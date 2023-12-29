@@ -1,11 +1,10 @@
+import ast
 import itertools
 import os
+import sys
 import types
 from typing import Any, Callable, Iterable, List, Optional
 
-from astor import code_gen as codegen
-
-from basilisp import _pyast as ast
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
@@ -37,10 +36,33 @@ from basilisp.lang.util import genname
 _DEFAULT_FN = "__lisp_expr__"
 
 
-def to_py_str(t: ast.AST) -> str:
-    """Return a string of the Python code which would generate the input
-    AST node."""
-    return codegen.to_source(t)
+if sys.version_info >= (3, 9):
+    from ast import unparse
+
+    def to_py_str(t: ast.AST) -> str:
+        """Return a string of the Python code which would generate the input
+        AST node."""
+        return unparse(t) + "\n\n"
+
+else:
+    try:
+        from astor import code_gen as codegen
+
+        def to_py_str(t: ast.AST) -> str:
+            """Return a string of the Python code which would generate the input
+            AST node."""
+            return codegen.to_source(t)
+
+    except ImportError:
+        import warnings
+
+        def to_py_str(t: ast.AST) -> str:  # pylint: disable=unused-argument
+            warnings.warn(
+                "Unable to generate Python code from generated AST due to missing "
+                "dependency 'astor'",
+                RuntimeWarning,
+            )
+            return ""
 
 
 BytecodeCollector = Callable[[types.CodeType], None]
@@ -151,7 +173,7 @@ def compile_and_exec_form(
         )
     )
 
-    ast_module = ast.Module(body=form_ast)
+    ast_module = ast.Module(body=form_ast, type_ignores=[])
     ast_module = ctx.py_ast_optimizer.visit(ast_module)
     ast.fix_missing_locations(ast_module)
 
@@ -160,7 +182,7 @@ def compile_and_exec_form(
     bytecode = compile(ast_module, ctx.filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
-    exec(bytecode, ns.module.__dict__)
+    exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used
     try:
         return getattr(ns.module, final_wrapped_name)()
     finally:
@@ -184,7 +206,7 @@ def _incremental_compile_module(
         map(_statementize, itertools.chain(py_ast.dependencies, [py_ast.node]))
     )
 
-    module = ast.Module(body=list(module_body))
+    module = ast.Module(body=list(module_body), type_ignores=[])
     module = optimizer.visit(module)
     ast.fix_missing_locations(module)
 
@@ -193,7 +215,7 @@ def _incremental_compile_module(
     bytecode = compile(module, source_filename, "exec")
     if collect_bytecode:
         collect_bytecode(bytecode)
-    exec(bytecode, ns.module.__dict__)
+    exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used
 
 
 def _bootstrap_module(
@@ -255,4 +277,4 @@ def compile_bytecode(
     and then proceeds to compile a collection of bytecodes into the module."""
     _bootstrap_module(gctx, optimizer, ns)
     for bytecode in code:
-        exec(bytecode, ns.module.__dict__)
+        exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used

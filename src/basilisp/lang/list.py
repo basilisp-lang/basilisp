@@ -1,7 +1,7 @@
 from typing import Optional, TypeVar, cast
 
 from pyrsistent import PList, plist  # noqa # pylint: disable=unused-import
-from pyrsistent._plist import _EMPTY_PLIST
+from pyrsistent._plist import _EMPTY_PLIST  # pylint: disable=import-private-name
 
 from basilisp.lang.interfaces import IPersistentList, IPersistentMap, ISeq, IWithMeta
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr

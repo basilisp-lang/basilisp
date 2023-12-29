@@ -1,0 +1,13 @@
+(ns basilisp.stacktrace
+  "Prints stacktraces."
+  (:require [basilisp.string :as str])
+  (:import [traceback :as tb]))
+
+(defn print-cause-trace
+  "Prints the stacktrace of chained ``exc`` (cause), using ``n`` stack
+  frames (defaults to all)."
+  ([exc]
+   (print-cause-trace exc nil))
+  ([exc n]
+   (print (str/join " "  (tb/format_exception (python/type exc) exc (.-__traceback__ exc)
+                                              ** :limit n :chain true)))))

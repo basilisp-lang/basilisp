@@ -3,6 +3,7 @@ import pickle
 import pytest
 
 from basilisp.lang import map as lmap
+from basilisp.lang import set as lset
 from basilisp.lang.keyword import Keyword, complete, keyword
 
 
@@ -45,6 +46,10 @@ def test_keyword_as_function():
     assert 1 == kw(lmap.map({kw: 1}))
     assert "hi" == kw(lmap.map({kw: "hi"}))
     assert None is kw(lmap.map({"hi": kw}))
+
+    assert kw == kw(lset.s(kw))
+    assert None is kw(lset.s(1))
+    assert "hi" is kw(lset.s(1), default="hi")
 
 
 @pytest.mark.parametrize(

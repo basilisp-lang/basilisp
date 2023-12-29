@@ -11,7 +11,6 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
 import pytest
-from _pytest.monkeypatch import MonkeyPatch
 from dateutil import parser as dateparser
 
 from basilisp.lang import compiler as compiler
@@ -5402,7 +5401,7 @@ class TestSymbolResolution:
             lcompile("(Point/do-non-static 1 2)")
 
     def test_aliased_namespace_not_hidden_by_python_module(
-        self, lcompile: CompileFn, monkeypatch: MonkeyPatch
+        self, lcompile: CompileFn, monkeypatch: pytest.MonkeyPatch
     ):
         with TemporaryDirectory() as tmpdir:
             cwd = os.getcwd()

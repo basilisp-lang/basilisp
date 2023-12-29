@@ -265,8 +265,9 @@
 ;;;;;;;;;;;; full support for syntax quote begins here ;;;;;;;;;;;;
 
 (def
-  ^{:doc      "Return the length of ``coll`` as by Python's ``len`` builtin. If the
-               collection does not respond to ``__len__``\\, then count it manually."
+  ^{:doc      "Return the length of ``coll`` as by Python's ``len`` builtin, or 0 if
+               ``coll`` is nil. If the collection does not respond to ``__len__``\\,
+               then count it manually."
     :arglists '([coll])
     :inline   true}
   count
@@ -472,16 +473,25 @@
     (recur (rest s))
     (first s)))
 
+(defn  ^:inline nil?
+  "Return ``true`` if ``x`` is ``nil``\\, otherwise ``false``\\."
+  [x]
+  (operator/is- x nil))
+
 (defn str
-  "Create a string representation of ``o``."
+  "Create a string representation of ``o``.
+
+  Return the empty string if ``o`` is nil."
   ([] "")
-  ([o] (basilisp.lang.runtime/lstr o))
+  ([o] (if (nil? o) "" (basilisp.lang.runtime/lstr o)))
   ([o & args]
    (let [coerce (fn [in out]
-                  (if (seq (rest in))
-                    (recur (rest in)
-                           (conj out (basilisp.lang.runtime/lstr (first in))))
-                    (conj out (basilisp.lang.runtime/lstr (first in)))))
+                  (let [item (first in)
+                        repr (if (nil? item) "" (basilisp.lang.runtime/lstr item))]
+                    (if (seq (rest in))
+                      (recur (rest in)
+                             (conj out repr))
+                      (conj out repr))))
          strs   (coerce (conj args o) [])]
      (.join "" strs))))
 
@@ -1149,11 +1159,9 @@
   (basilisp.lang.runtime/compare x y))
 
 (defn sort
-  "Return a sorted sequence of the elements from ``coll``\\.
+  "Return a sorted sequence of the elements from ``coll`` using the ``cmp`` comparator\\.
 
-  Unlike in Clojure, this function does not use :lpy:fn:`compare` directly. Instead,
-  the heuristics that ``compare`` uses to produce three-way comparator return values
-  are used to guide sorting."
+  The :lpy:fn:`compare` fn is used in if ``cmp`` is not provided."
   ([coll]
    (basilisp.lang.runtime/sort coll))
   ([cmp coll]
@@ -1217,7 +1225,7 @@
   [x]
   (instance? basilisp.lang.interfaces/ICounted x))
 
-(defn ^:inline decimal?
+(defn ^:no-inline decimal?
   "Return ``true`` if ``x`` is a ``Decimal``\\."
   [x]
   (instance? decimal/Decimal x))
@@ -1314,11 +1322,6 @@
   [x]
   (and (integer? x) (neg? x)))
 
-(defn  ^:inline nil?
-  "Return ``true`` if ``x`` is ``nil``\\, otherwise ``false``\\."
-  [x]
-  (operator/is- x nil))
-
 (defn ^:inline some?
   "Return ``true`` if ``x`` is not ``nil``\\, otherwise ``false`` s."
   [x]
@@ -1389,7 +1392,7 @@
   [x]
   (instance? basilisp.lang.queue/PersistentQueue x))
 
-(defn ^:inline ratio?
+(defn ^:no-inline ratio?
   "Return ``true`` if ``x`` is a ``Fraction``\\."
   [x]
   (instance? fractions/Fraction x))
@@ -1439,7 +1442,7 @@
   [x]
   (operator/is- x true))
 
-(defn ^:inline uuid?
+(defn ^:no-inline uuid?
   "Return ``true`` if ``x`` is a UUID."
   [x]
   (instance? uuid/UUID x))
@@ -3234,7 +3237,9 @@
           (rest args)))
 
 (defn sort-by
-  "Return a sorted sequence of the elements from ``coll``\\."
+  "Return a sorted sequence of the elements from ``coll`` using the ``cmp`` comparator on (``keyfn`` item)\\.
+
+  The :lpy:fn:`compare` fn is used in if ``cmp`` is not provided."
   ([keyfn coll]
    (basilisp.lang.runtime/sort-by keyfn coll))
   ([keyfn cmp coll]
@@ -3423,7 +3428,8 @@
 
   The clauses are pairs of a matching value and a return value. The matching values are
   not evaluated and must be compile-time constants. Symbols will not be resolved. Lists
-  may be passed to match multiple compile time values to a single return value."
+  may be passed to match multiple compile time values to a single return value. The
+  dispatch is done in constant time."
   [expr & clauses]
   (when (< (count clauses) 2)
     (throw (ex-info "case expression must have at least one clause"
@@ -3434,7 +3440,7 @@
         pairs   (mapcat identity
                         (mapcat (fn [pair]
                                   (let [binding (first pair)
-                                        expr    (second pair)]
+                                        expr    `(fn [] ~(second pair))]
                                     (if (list? binding)
                                       (map #(vector (list 'quote %) expr) binding)
                                       [[(list 'quote binding) expr]])))
@@ -3449,7 +3455,7 @@
          ~(if (= default :basilisp.core.case/no-default)
             `(throw (python/ValueError (str "No case clause matches " ~expr-gs)))
             `~default)
-         (get m# ~expr-gs)))))
+         ((get m# ~expr-gs))))))
 
 (defmacro condp
   "Take a predicate and an expression and a series of clauses, call ``(pred test expr)``
@@ -3615,7 +3621,7 @@
         ;;  pairs - pairs of bindings; either symbol/seq pairs or modifier pairs
         gen-iter (fn gen-iter [pairs]
                    (if (seq pairs)
-                     (let [for-iter (gensym "for") 
+                     (let [for-iter (gensym "for")
                            seq-arg  (gensym "seq")
                            pair     (first pairs)
                            binding  (first pair)
@@ -3728,7 +3734,7 @@
            res#)
          (catch python/Exception e#
            (vreset! hit-except# true)
-           (when-not (. obj# (~'__exit__ (python/type e#) e# (. e# ~'__traceback__)))
+           (when-not (. obj# (~'__exit__ (python/type e#) e# (.- e# ~'__traceback__)))
              (throw e#)))
          (finally
            (when-not @hit-except#
@@ -4186,13 +4192,13 @@
   :lpy:var:`*print-sep*` (default is an ASCII space)."
   ([] (print ""))
   ([x]
-   (.write *out* (str x))
+   (.write *out* (basilisp.lang.runtime/lstr x))
    nil)
   ([x & args]
    (let [stdout    *out*
          sep       *print-sep*
-         repr-args (interpose sep (map str args))]
-     (.write stdout (str x))
+         repr-args (interpose sep (map basilisp.lang.runtime/lstr args))]
+     (.write stdout (basilisp.lang.runtime/lstr x))
      (.write stdout sep)
      (.write stdout (apply str repr-args))
      nil)))
@@ -4205,14 +4211,14 @@
   ([] (println ""))
   ([x]
    (let [stdout *out*]
-     (.write stdout (str x))
+     (.write stdout (basilisp.lang.runtime/lstr x))
      (.write stdout \newline)
      nil))
   ([x & args]
    (let [stdout    *out*
          sep       *print-sep*
-         repr-args (interpose sep (map str args))]
-     (.write stdout (str x))
+         repr-args (interpose sep (map basilisp.lang.runtime/lstr args))]
+     (.write stdout (basilisp.lang.runtime/lstr x))
      (.write stdout sep)
      (.write stdout (apply str repr-args))
      (.write stdout \newline)
@@ -4545,13 +4551,13 @@
   the root binding to ``val``\\, if provided. The namespace must exist. Return the Var."
   ([ns name]
    (let [ns (the-ns ns)
-         v  (basilisp.lang.runtime/Var ns name)]
-     (.intern ns v)))
+         v  (basilisp.lang.runtime/Var ns name ** :meta {:ns ns :name name})]
+     (.intern ns name v)))
   ([ns name val]
    (let [ns (the-ns ns)
-         v  (basilisp.lang.runtime/Var ns name)]
-     (.set-root v val)
-     (.intern ns v))))
+         v  (basilisp.lang.runtime/Var ns name ** :meta {:ns ns :name name})]
+     (.bind-root v val)
+     (.intern ns name v))))
 
 (defn ^:inline create-ns
   "Create a Namespace with the name ``ns-sym`` or return the existing one if it already
@@ -4654,7 +4660,13 @@
   Use of ``import`` directly is discouraged in favor of the ``:import`` directive in
   the :lpy:fn:`ns` macro."
   [& modules]
-  `(import* ~@modules))
+  ;; We need to use eval here, because there could have been an ns
+  ;; switch inside an eval earlier, and although *ns* is correctly set
+  ;; to the new ns, the global python namespace can still refer to the
+  ;; old python global ns where the import would have been evaluated
+  ;; otherwise.
+  (let [form `(import* ~@modules)]
+    `(eval '~form  *ns*)))
 
 (defn ^:private rewrite-clojure-libspec
   "Rewrite libspecs which point to namespaces starting with 'clojure.' to use a

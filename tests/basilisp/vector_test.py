@@ -163,6 +163,38 @@ def test_vector_with_meta():
 
 
 @pytest.mark.parametrize(
+    "result,v1,v2",
+    [
+        (False, vec.v(), vec.v()),
+        (False, vec.v(1), vec.v(1)),
+        (False, vec.v(1, 2), vec.v(1, 2)),
+        (True, vec.v(1, 2), vec.v(1, 3)),
+        (False, vec.v(1, 3), vec.v(1, 2)),
+        (True, vec.v(1, 2), vec.v(1, 2, 3)),
+        (False, vec.v(1, 2, 3), vec.v(1, 2)),
+    ],
+)
+def test_vector_less_than(result, v1, v2):
+    assert result == (v1 < v2)
+
+
+@pytest.mark.parametrize(
+    "result,v1,v2",
+    [
+        (False, vec.v(), vec.v()),
+        (False, vec.v(1), vec.v(1)),
+        (False, vec.v(1, 2), vec.v(1, 2)),
+        (False, vec.v(1, 2), vec.v(1, 3)),
+        (True, vec.v(1, 3), vec.v(1, 2)),
+        (False, vec.v(1, 2), vec.v(1, 2, 3)),
+        (True, vec.v(1, 2, 3), vec.v(1, 2)),
+    ],
+)
+def test_vector_greater_than(result, v1, v2):
+    assert result == (v1 > v2)
+
+
+@pytest.mark.parametrize(
     "o",
     [
         vec.v(),

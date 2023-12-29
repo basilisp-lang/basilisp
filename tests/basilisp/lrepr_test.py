@@ -173,6 +173,11 @@ def test_print_readably(lcompile: CompileFn):
             '#uuid "81f35603-0408-4b3d-bbc0-462e3702747f"',
             '(pr-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")',
         ),
+        ('#b ""', '(pr-str #b "")'),
+        (
+            r'#b "\x7fELF\x01\x01\x01\x00"',
+            r'(pr-str #b "\x7f\x45\x4c\x46\x01\x01\x01\x00")',
+        ),
         ('#"\\s"', '(pr-str #"\\s")'),
         (
             '#inst "2018-11-28T12:43:25.477000+00:00"',
@@ -205,6 +210,11 @@ def test_lrepr(lcompile: CompileFn, repr: str, code: str):
         (-float("inf"), "(read-string (pr-str ##-Inf))"),
         ("hi", '(read-string (pr-str "hi"))'),
         ("Hello\nworld!", '(read-string (pr-str "Hello\nworld!"))'),
+        (b"", '(read-string (pr-str #b ""))'),
+        (
+            b"\x7fELF\x01\x01\x01\x00",
+            r'(read-string (pr-str #b "\x7f\x45\x4c\x46\x01\x01\x01\x00"))',
+        ),
         (
             uuid.UUID("81f35603-0408-4b3d-bbc0-462e3702747f"),
             '(read-string (pr-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f"))',
@@ -253,6 +263,11 @@ def test_lrepr_round_trip_special_cases(lcompile: CompileFn):
         ("##-Inf", "(print-str ##-Inf)"),
         ("hi", '(print-str "hi")'),
         ("Hello\nworld!", '(print-str "Hello\nworld!")'),
+        ('#b ""', '(print-str #b "")'),
+        (
+            r'#b "\x7fELF\x01\x01\x01\x00"',
+            r'(print-str #b "\x7f\x45\x4c\x46\x01\x01\x01\x00")',
+        ),
         # In Clojure, (print-str #uuid "...") produces '#uuid "..."' but in Basilisp
         # print-str is tied directly to str (which in Clojure simply returns the string
         # part of the UUID).

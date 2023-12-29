@@ -1,3 +1,4 @@
+import platform
 import sys
 from decimal import Decimal
 from fractions import Fraction
@@ -39,6 +40,8 @@ def test_is_supported_python_version():
                     "lpy39-",
                     "lpy310-",
                     "lpy311-",
+                    "lpy312-",
+                    platform.system().lower(),
                 ],
             )
         ),
@@ -54,6 +57,8 @@ def test_is_supported_python_version():
                     "lpy38+",
                     "lpy310-",
                     "lpy311-",
+                    "lpy312-",
+                    platform.system().lower(),
                 ],
             )
         ),
@@ -64,11 +69,13 @@ def test_is_supported_python_version():
                     "lpy310",
                     "default",
                     "lpy",
+                    "lpy312-",
                     "lpy311-",
                     "lpy310+",
                     "lpy310-",
                     "lpy39+",
                     "lpy38+",
+                    platform.system().lower(),
                 ],
             )
         ),
@@ -80,10 +87,29 @@ def test_is_supported_python_version():
                     "default",
                     "lpy",
                     "lpy311+",
+                    "lpy312-",
                     "lpy311-",
                     "lpy310+",
                     "lpy39+",
                     "lpy38+",
+                    platform.system().lower(),
+                ],
+            )
+        ),
+        (3, 12): frozenset(
+            map(
+                kw.keyword,
+                [
+                    "lpy312",
+                    "default",
+                    "lpy",
+                    "lpy311+",
+                    "lpy312+",
+                    "lpy312-",
+                    "lpy311+",
+                    "lpy39+",
+                    "lpy38+",
+                    platform.system().lower(),
                 ],
             )
         ),
@@ -232,6 +258,14 @@ def test_apply():
     assert vec.v(vec.v(1, 2, 3), None, None, None) == runtime.apply(
         vec.v, [vec.v(1, 2, 3), [None, None, None]]
     )
+
+
+def test_count():
+    assert 0 == runtime.count(None)
+    assert 0 == runtime.count(vec.v())
+    assert 0 == runtime.count("")
+    assert 3 == runtime.count(vec.v(1, 2, 3))
+    assert 3 == runtime.count("123")
 
 
 def test_nth():

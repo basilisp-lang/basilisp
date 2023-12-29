@@ -1,3 +1,5 @@
+# pylint: disable=too-many-branches,too-many-lines,too-many-return-statements
+
 import collections
 import contextlib
 import decimal
@@ -5,6 +7,7 @@ import functools
 import io
 import re
 import uuid
+from collections.abc import Hashable
 from datetime import datetime
 from fractions import Fraction
 from itertools import chain
@@ -14,7 +17,6 @@ from typing import (
     Collection,
     Deque,
     Dict,
-    Hashable,
     Iterable,
     List,
     MutableMapping,
@@ -695,6 +697,7 @@ def _read_map(
     d: MutableMapping[Any, Any] = {}
     process_key = _map_key_processor(namespace)
     try:
+        # pylint: disable=redefined-loop-name
         for k, v in partition(list(__read_map_elems(ctx)), 2):
             k = process_key(k)
             if k in d:
@@ -843,7 +846,7 @@ _STR_ESCAPE_CHARS = {
 
 
 def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
-    """Return a string from the input stream.
+    """Return a UTF-8 encoded string from the input stream.
 
     If allow_arbitrary_escapes is True, do not throw a SyntaxError if an
     unknown escape sequence is encountered."""
@@ -867,6 +870,75 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
             reader.next_token()
             return "".join(s)
         s.append(token)
+
+
+_BYTES_ESCAPE_CHARS = {
+    '"': b'"',
+    "\\": b"\\",
+    "a": b"\a",
+    "b": b"\b",
+    "f": b"\f",
+    "n": b"\n",
+    "r": b"\r",
+    "t": b"\t",
+    "v": b"\v",
+}
+
+
+def _read_hex_byte(ctx: ReaderContext) -> bytes:
+    """Read a byte with a 2 digit hex code such as `\\xff`."""
+    reader = ctx.reader
+    c1 = reader.next_token()
+    c2 = reader.next_token()
+    try:
+        return bytes([int("".join(["0x", c1, c2]), base=16)])
+    except ValueError as e:
+        raise ctx.syntax_error(
+            f"Invalid byte representation for base 16: 0x{c1}{c2}"
+        ) from e
+
+
+def _read_byte_str(ctx: ReaderContext) -> bytes:
+    """Return a byte string from the input stream.
+
+    Byte strings have the same restrictions and semantics as byte literals in Python.
+    Individual characters must be within the ASCII range or must be valid escape sequences.
+    """
+    reader = ctx.reader
+
+    token = reader.peek()
+    while whitespace_chars.match(token):
+        token = reader.next_token()
+
+    if token != '"':
+        raise ctx.syntax_error(f"Expected '\"'; got '{token}' instead")
+
+    b: List[bytes] = []
+    while True:
+        token = reader.next_token()
+        if token == "":
+            raise ctx.eof_error("Unexpected EOF in byte string")
+        if ord(token) < 1 or ord(token) > 127:
+            raise ctx.eof_error("Byte strings must contain only ASCII characters")
+        if token == "\\":
+            token = reader.next_token()
+            escape_char = _BYTES_ESCAPE_CHARS.get(token, None)
+            if escape_char:
+                b.append(escape_char)
+                continue
+            elif token == "x":
+                b.append(_read_hex_byte(ctx))
+                continue
+            else:
+                # In Python, invalid escape sequences entered into byte strings are
+                # retained with backslash for debugging purposes, so we do the same.
+                b.append(b"\\")
+                b.append(token.encode("utf-8"))
+                continue
+        if token == '"':
+            reader.next_token()
+            return b"".join(b)
+        b.append(token.encode("utf-8"))
 
 
 @_with_loc
@@ -1380,7 +1452,7 @@ def _load_record_or_type(
         raise ctx.syntax_error("Records may only be constructed from Vectors and Maps")
 
 
-def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
+def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
     """Return a data structure evaluated as a reader
     macro from the input stream."""
     start = ctx.reader.advance()
@@ -1408,6 +1480,9 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:
         return _read_reader_conditional(ctx)
     elif token == "#":
         return _read_numeric_constant(ctx)
+    elif token == "b":
+        ctx.reader.advance()
+        return _read_byte_str(ctx)
     elif ns_name_chars.match(token):
         s = _read_sym(ctx)
         assert isinstance(s, sym.Symbol)

@@ -1,5 +1,5 @@
 (ns tests.basilisp.test-core-macros
-  (:import inspect os tempfile)
+  (:import inspect os socket tempfile)
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
@@ -326,6 +326,13 @@
   (is (= "also no" (case 'c :a "no" (b c d) "also no" "duh")))
   (is (= "also no" (case 'd :a "no" (b c d) "also no" "duh")))
   (is (= "duh" (case 'e :a "no" (b c d) "also no" "duh")))
+  (let [out* (atom [])]
+    (is (= 2 (case :2
+               :1 (do (swap! out* conj 1) 1)
+               :2 (do (swap! out* conj 2) 2)
+               :3 (do (swap! out* conj 3) 3)
+               (do (swap! out* conj 4) 4))))
+    (is (= [2] @out*)))
   (is (thrown? python/ValueError
                (case "da" :b "nope" :c "mega nope" :a "yes"))))
 
@@ -443,15 +450,21 @@
   (is (= #py ["A" "B" "C"] (.. "a,b,c" upper (split ",")))))
 
 (deftest with-test
-  (let [[fh filename] (tempfile/mkstemp)]
-    (try
-      (with-open [file (python/open filename "w")]
-        (.write file "Testing text"))
-      (with-open [file (python/open filename)]
-        (is (= "Testing text" (.read file))))
-      (finally
-        (os/close fh)
-        (os/unlink filename)))))
+  (testing "basic"
+    (let [[fh filename] (tempfile/mkstemp)]
+      (try
+        (with-open [file (python/open filename "w")]
+          (.write file "Testing text"))
+        (with-open [file (python/open filename)]
+          (is (= "Testing text" (.read file))))
+        (finally
+          (os/close fh)
+          (os/unlink filename)))))
+
+  (testing "exceptions"
+    (is (thrown? python/FloatingPointError
+                 (with [sock (socket/socket socket/AF_INET socket/SOCK_STREAM)]
+                       (throw python/FloatingPointError))))))
 
 (deftest if-let-test
   (is (= :a (if-let [a :a] a :b)))
@@ -1427,7 +1440,7 @@
     (is (= [[{:nested {:a "A"} :a "a" :b "b"}
              {:nested {:a "C"} :a "c" :b "d"}
              {:a "e" :b "e"}]
-            "AbCdnile"]
+            "AbCde"]
            (loop [items [{:nested {:a "A"} :a "a" :b "b"}
                          {:nested {:a "C"} :a "c" :b "d"}
                          {:a "e" :b "e"}]

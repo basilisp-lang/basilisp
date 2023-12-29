@@ -1,9 +1,14 @@
 import threading
 from functools import total_ordering
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Union
 
 from basilisp.lang import map as lmap
-from basilisp.lang.interfaces import IAssociative, ILispObject, IPersistentMap
+from basilisp.lang.interfaces import (
+    IAssociative,
+    ILispObject,
+    IPersistentMap,
+    IPersistentSet,
+)
 
 _LOCK = threading.Lock()
 _INTERN: IPersistentMap[int, "Keyword"] = lmap.PersistentMap.empty()
@@ -53,7 +58,9 @@ class Keyword(ILispObject):
             return False
         return self._ns < other._ns or self._name < other._name
 
-    def __call__(self, m: IAssociative, default=None):
+    def __call__(self, m: Union[IAssociative, IPersistentSet], default=None):
+        if isinstance(m, IPersistentSet):
+            return self if self in m else default
         try:
             return m.val_at(self, default)
         except AttributeError:

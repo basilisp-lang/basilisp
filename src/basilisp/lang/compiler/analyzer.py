@@ -1,3 +1,5 @@
+# pylint: disable=too-many-branches,too-many-lines,too-many-return-statements
+
 import builtins
 import collections
 import contextlib
@@ -333,7 +335,7 @@ class AnalyzerContext:
         self._func_ctx: Deque[FunctionContext] = collections.deque([])
         self._is_quoted: Deque[bool] = collections.deque([])
         self._opts = (
-            Maybe(opts).map(lmap.map).or_else_get(lmap.PersistentMap.empty())  # type: ignore
+            Maybe(opts).map(lmap.map).or_else_get(lmap.PersistentMap.empty())  # type: ignore[arg-type, unused-ignore]
         )
         self._recur_points: Deque[RecurPoint] = collections.deque([])
         self._should_macroexpand = should_macroexpand
@@ -864,7 +866,7 @@ def _await_ast(form: ISeq, ctx: AnalyzerContext) -> Await:
     )
 
 
-def _def_ast(  # pylint: disable=too-many-locals
+def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     form: ISeq, ctx: AnalyzerContext
 ) -> Def:
     assert form.first == SpecialForm.DEF
@@ -1369,7 +1371,7 @@ def __deftype_or_reify_prop_or_method_arity(
             form=form,
         )
 
-    if not sum([is_classmethod, is_property, is_staticmethod]) in {0, 1}:
+    if sum([is_classmethod, is_property, is_staticmethod]) not in {0, 1}:
         raise AnalyzerException(
             f"{special_form} member may be only one of: :classmethod, :property, "
             "or :staticmethod",
@@ -2004,6 +2006,7 @@ def _inline_fn_ast(
     macroed_form = reader.syntax_quote(unquoted_form)
     inline_fn_form = llist.l(
         SpecialForm.FN,
+        *([sym.symbol(genname(f"{name.name}-inline"))] if name is not None else []),
         vec.vector(binding.form for binding in inline_arity.params),
         macroed_form,
     )
@@ -2011,7 +2014,7 @@ def _inline_fn_ast(
 
 
 @_with_meta  # noqa: MC0001
-def _fn_ast(  # pylint: disable=too-many-locals
+def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
     form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
 ) -> Fn:
     assert form.first == SpecialForm.FN
@@ -3583,6 +3586,7 @@ def _const_node_type(_: Any) -> ConstType:
 
 for tp, const_type in {
     bool: ConstType.BOOL,
+    bytes: ConstType.BYTES,
     complex: ConstType.NUMBER,
     datetime: ConstType.INST,
     Decimal: ConstType.DECIMAL,
@@ -3612,6 +3616,7 @@ for tp, const_type in {
 
 
 @_analyze_form.register(bool)
+@_analyze_form.register(bytes)
 @_analyze_form.register(complex)
 @_analyze_form.register(datetime)
 @_analyze_form.register(Decimal)
@@ -3649,6 +3654,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
             form,
             (
                 bool,
+                bytes,
                 complex,
                 datetime,
                 Decimal,

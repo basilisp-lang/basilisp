@@ -33,12 +33,10 @@
   (as-path [f]
     (if (contains? #{"file" ""} (.-scheme f))
       (let [path (.-path f)]
-        (if (= sys/platform "win32")
-          ;; On MS-Windows, extracting the path from the URL
-          ;; incorrectly adds a leading `/', .e.g. /C:\xyz.
-          (pathlib/Path (subs path 1))
-
-          (pathlib/Path path)))
+        ;; On MS-Windows, extracting an absolute path from the URL
+        ;; incorrectly adds a leading `/', .e.g. /C:\xyz.
+        (pathlib/Path #?(:windows (if (os.path/isabs path) (subs path 1) path)
+                         :default path)))
       (throw
        (ex-info "Cannot coerce non-File URL to pathlib.Path"
                 {:file f})))))
@@ -80,7 +78,7 @@
 
 (defn- clean-writer-mode
   [opts]
-  (let [mode       (:mode opts "w")
+  (let [mode       (:mode opts "")
         clean-mode (cond
                      (:append opts)                 (str "a" mode)
                      (not (str/includes? mode "w")) (str "w" mode)
@@ -96,7 +94,8 @@
        (ex-info "Writers may only be open in write or append mode"
                 {:mode mode})))
 
-    (assoc opts :mode clean-mode)))
+    (-> (assoc opts :mode clean-mode)
+        (dissoc :append))))
 
 (defn- clean-binary-mode
   [opts]
@@ -324,6 +323,11 @@
 
   The writer instances returned are always text-based, not binary. In general, the
   writers should be compatible with Python's ``io.TextIOBase`` interface.
+
+  ``opts`` is an optional collection of keyword/value pairs
+  transmitted as a map to the writer. The acceptable keywords align
+  with those recognized by the fn:``open`` function. Moreover, setting the
+  :append option to true will configure the writer for append mode.
 
   Callers should take care to open a writer instance using
   :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed

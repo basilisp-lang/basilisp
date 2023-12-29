@@ -387,6 +387,61 @@ class TestString:
             read_str_first('"Start of a string')
 
 
+class TestByteString:
+    def test_must_include_quote(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(r"#b []")
+
+    @pytest.mark.parametrize(
+        "v,raw",
+        [
+            (b"", '#b""'),
+            (b"", '#b ""'),
+            (b'"', r'#b "\""'),
+            (b"\\", r'#b "\\"'),
+            (b"\a", r'#b "\a"'),
+            (b"\b", r'#b "\b"'),
+            (b"\f", r'#b "\f"'),
+            (b"\n", r'#b "\n"'),
+            (b"\r", r'#b "\r"'),
+            (b"\t", r'#b "\t"'),
+            (b"\v", r'#b "\v"'),
+            (
+                b"\x7f\x45\x4c\x46\x01\x01\x01\x00",
+                r'#b "\x7f\x45\x4c\x46\x01\x01\x01\x00"',
+            ),
+            (b"\x7fELF\x01\x01\x01\x00", r'#b "\x7fELF\x01\x01\x01\x00"'),
+            (b"Regular string but with bytes", '#b "Regular string but with bytes"'),
+            (
+                b"Byte string with 'inner string'",
+                "#b \"Byte string with 'inner string'\"",
+            ),
+            (
+                b'Byte string with "inner string"',
+                r'#b "Byte string with \"inner string\""',
+            ),
+        ],
+    )
+    def test_legal_byte_string(self, v: str, raw: str):
+        assert v == read_str_first(raw)
+
+    def test_cannot_include_non_ascii(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(rf'#b "{chr(432)}"')
+
+    def test_invalid_escape_remains(self):
+        assert b"\q" == read_str_first(r'#b "\q"')
+
+    @pytest.mark.parametrize("v", [r'#b "\xjj"', r'#b "\xf"', r'#b "\x"'])
+    def test_invalid_hex_escape_sequence(self, v: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(v)
+
+    def test_missing_terminating_quote(self):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first('#b "Start of a string')
+
+
 @pytest.mark.parametrize("s", ["", " ", "\t"])
 def test_whitespace(s: str):
     assert read_str_first(s) is None

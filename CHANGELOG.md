@@ -8,6 +8,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added CLI argument parser in `basilisp.cli-tools` namespace (#535)
 
+### Changed
+ * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
+
+### Fixed
+ * Fix issue with `(count nil)` throwing an exception (#759)
+ * Fix issue with keyword fn not testing for test membership in sets (#762)
+
+## [v0.1.0b0]
+### Added
+ * Added rudimentary support for `clojure.stacktrace` with `print-cause-trace` (part of #721)
+ * Added support for `bytes` literals using a `#b` prefix (#732)
+ * Added support for Python 3.12 (#734)
+ * Added a default reader conditional for the current platform (`windows`, `darwin`, `linux`, etc.) (#692)
+ * Added support for `bencode` binary encoding (part of #412)
+ * Ported nbb's nrepl-server module to basilisp (#412)
+
+### Changed
+ * Basilisp now supports PyTest 7.0+ (#660)
+
+### Fixed
+ * Fix issue with `case` evaluating all of its clauses expressions (#699)
+ * Fix issue with relative paths dropping their first character on MS-Windows (#703)
+ * Fix incompatibility with `(str nil)` returning "nil" (#706)
+ * Fix `sort-by` support for maps and boolean comparator fns (#709)
+ * Fix `sort` support for maps and boolean comparator fns (#711)
+ * Fix `(is (= exp act))` should only evaluate its args once on failure (#712)
+ * Fix issue with `with` failing with a traceback error when an exception is thrown (#714)
+ * Fix issue with `sort-*` family of funtions returning an error on an empty seq (#716)
+ * Fix issue with `intern` failing when used (#725)
+ * Fix issue with `ns` not being available after `in-ns` on the REPL (#718)
+ * Fixed issue with import modules aliasing using ns eval (#719)
+ * Fix issue with `ns-resolve` throwing an error on macros (#720)
+ * Fix issue with py module `readerwritelock` locks handling (#722)
+ * Fix issue with basilisp.io/writer :append mode not working (#741)
+ * Fix issue with attempting to inline functions which reference other Python modules that aren't available in the inline destination (#746)
+
+### Removed
+ * Removed the dependency `astor` for versions of Python 3.9+ (#736)
+ * Removed `basilisp.__version__` in favor of using `importlib.metadata` for version info (#617)
+ * Removed a shim to Python's `ast` module to support compatibility with Python 3.6 and 3.7 (#749)
+
+### Other
+ * Switch to PyLint and Ruff for linting from Prospector (#739)
+
 ## [v0.1.0a2]
 ### Added
  * Added support for fixtures in `basilisp.test` (#654)
@@ -360,6 +404,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.0b0]: https://github.com/chrisrink10/basilisp/compare/v0.1.0a2..v0.1.0b0
 [v0.1.0a2]: https://github.com/chrisrink10/basilisp/compare/v0.1.0a1..v0.1.0a2
 [v0.1.0a1]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev15..v0.1.0a1
 [v0.1.dev15]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev14..v0.1.dev15

@@ -5,7 +5,7 @@ Features
 
 Here are a few of Basilisp's great features:
 
-* Immutable data structures, backed by `Pyrsistent <https://github.com/tobgu/pyrsistent>`_
+* Immutable data structures, backed by `Immutables <https://github.com/MagicStack/immutables>`_ and `Pyrsistent <https://github.com/tobgu/pyrsistent>`_
 * Strong emphasis on functional programming concepts
 * Access to the vast array of existing Python libraries
 * Seamless :ref:`interoperability <python_interop>` between Python code and Basilisp code
@@ -20,7 +20,6 @@ Basilisp is still young and so lacks many features that more mature languages an
 There are many such planned features that will hopefully improve the ergonomics of the project for new developers.
 A few of those features include:
 
-* Built-in `nREPL <https://nrepl.org/nrepl/usage/server.html>`_ server
 * Project management tooling to facility dependency management/locking and packaging
 * Compatibility with the platform-agnostic components of Clojure
 

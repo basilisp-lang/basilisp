@@ -1,11 +1,15 @@
+# pylint: disable=too-many-lines
+
 import contextlib
 import decimal
 import functools
-import importlib
+import importlib.metadata
 import inspect
 import itertools
 import logging
 import math
+import numbers
+import platform
 import re
 import sys
 import threading
@@ -70,7 +74,11 @@ NS_VAR_NAME = "*ns*"
 NS_VAR_SYM = sym.symbol(NS_VAR_NAME, ns=CORE_NS)
 NS_VAR_NS = CORE_NS
 REPL_DEFAULT_NS = "basilisp.user"
-SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 8), (3, 9), (3, 10), (3, 11)})
+SUPPORTED_PYTHON_VERSIONS = frozenset({(3, 8), (3, 9), (3, 10), (3, 11), (3, 12)})
+BASILISP_VERSION_STRING = importlib.metadata.version("basilisp")
+BASILISP_VERSION = vec.vector(
+    (int(s) if s.isdigit() else s) for s in BASILISP_VERSION_STRING.split(".")
+)
 
 # Public basilisp.core symbol names
 COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
@@ -170,9 +178,11 @@ def _supported_python_versions_features() -> Iterable[kw.Keyword]:
 
 READER_COND_BASILISP_FEATURE_KW = kw.keyword("lpy")
 READER_COND_DEFAULT_FEATURE_KW = kw.keyword("default")
+READER_COND_PLATFORM = kw.keyword(platform.system().lower())
 READER_COND_DEFAULT_FEATURE_SET = lset.s(
     READER_COND_BASILISP_FEATURE_KW,
     READER_COND_DEFAULT_FEATURE_KW,
+    READER_COND_PLATFORM,
     *_supported_python_versions_features(),
 )
 
@@ -185,6 +195,7 @@ class BasilispModule(types.ModuleType):
     __basilisp_bootstrapped__: bool = False
 
 
+# pylint: disable=attribute-defined-outside-init
 def _new_module(name: str, doc=None) -> BasilispModule:
     """Create a new empty Basilisp Python module.
     Modules are created for each Namespace when it is created."""
@@ -227,8 +238,7 @@ class Var(RefBase):
         "_is_bound",
         "_tl",
         "_meta",
-        "_rlock",
-        "_wlock",
+        "_lock",
         "_watches",
         "_validator",
     )
@@ -247,9 +257,7 @@ class Var(RefBase):
         self._is_bound = False
         self._tl = None
         self._meta = meta
-        lock = RWLockFair()
-        self._rlock = lock.gen_rlock()
-        self._wlock = lock.gen_wlock()
+        self._lock = RWLockFair()
         self._watches = lmap.PersistentMap.empty()
         self._validator = None
 
@@ -280,7 +288,7 @@ class Var(RefBase):
         return self._dynamic
 
     def set_dynamic(self, dynamic: bool) -> None:
-        with self._wlock:
+        with self._lock.gen_wlock():
             if dynamic == self._dynamic:
                 return
 
@@ -308,18 +316,18 @@ class Var(RefBase):
 
     @property
     def root(self):
-        with self._rlock:
+        with self._lock.gen_rlock():
             return self._root
 
     def bind_root(self, val) -> None:
         """Atomically update the root binding of this Var to val."""
-        with self._wlock:
+        with self._lock.gen_wlock():
             self._set_root(val)
 
     def alter_root(self, f, *args) -> None:
         """Atomically alter the root binding of this Var to the result of calling
         f with the existing root value and any additional arguments."""
-        with self._wlock:
+        with self._lock.gen_wlock():
             self._set_root(f(self._root, *args))
 
     def push_bindings(self, val):
@@ -346,7 +354,7 @@ class Var(RefBase):
 
         For non-dynamic Vars, this will just be the root. For dynamic Vars, this will
         be any thread-local binding if one is defined. Otherwise, the root value."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             if self._dynamic:
                 assert self._tl is not None
                 if len(self._tl.bindings) > 0:
@@ -358,7 +366,7 @@ class Var(RefBase):
 
         If the Var is not dynamic, this is equivalent to binding the root value. If the
         Var is dynamic, this will set the thread-local bindings for the Var."""
-        with self._wlock:
+        with self._lock.gen_wlock():
             if self._dynamic:
                 assert self._tl is not None
                 self._validate(v)
@@ -550,8 +558,7 @@ class Namespace(ReferenceBase):
         "_name",
         "_module",
         "_meta",
-        "_rlock",
-        "_wlock",
+        "_lock",
         "_interns",
         "_refers",
         "_aliases",
@@ -566,9 +573,7 @@ class Namespace(ReferenceBase):
         self._module = Maybe(module).or_else(lambda: _new_module(name.as_python_sym()))
 
         self._meta: Optional[IPersistentMap] = None
-        lock = RWLockFair()
-        self._rlock = lock.gen_rlock()
-        self._wlock = lock.gen_wlock()
+        self._lock = RWLockFair()
 
         self._aliases: NamespaceMap = lmap.PersistentMap.empty()
         self._imports: ModuleMap = lmap.map(
@@ -604,20 +609,20 @@ class Namespace(ReferenceBase):
     def aliases(self) -> NamespaceMap:
         """A mapping between a symbolic alias and another Namespace. The
         fully qualified name of a namespace is also an alias for itself."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             return self._aliases
 
     @property
     def imports(self) -> ModuleMap:
         """A mapping of names to Python modules imported into the current
         namespace."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             return self._imports
 
     @property
     def import_aliases(self) -> AliasMap:
         """A mapping of a symbolic alias and a Python module name."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             return self._import_aliases
 
     @property
@@ -625,7 +630,7 @@ class Namespace(ReferenceBase):
         """A mapping between a symbolic name and a Var. The Var may point to
         code, data, or nothing, if it is unbound. Vars in `interns` are
         interned in _this_ namespace."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             return self._interns
 
     @property
@@ -633,7 +638,7 @@ class Namespace(ReferenceBase):
         """A mapping between a symbolic name and a Var. Vars in refers are
         interned in another namespace and are only referred to without an
         alias in this namespace."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             return self._refers
 
     def __repr__(self):
@@ -664,7 +669,7 @@ class Namespace(ReferenceBase):
 
     def add_alias(self, namespace: "Namespace", *aliases: sym.Symbol) -> None:
         """Add Symbol aliases for the given Namespace."""
-        with self._wlock:
+        with self._lock.gen_wlock():
             new_m = self._aliases
             for alias in aliases:
                 new_m = new_m.assoc(alias, namespace)
@@ -672,12 +677,12 @@ class Namespace(ReferenceBase):
 
     def get_alias(self, alias: sym.Symbol) -> "Optional[Namespace]":
         """Get the Namespace aliased by Symbol or None if it does not exist."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             return self._aliases.val_at(alias, None)
 
     def remove_alias(self, alias: sym.Symbol) -> None:
         """Remove the Namespace aliased by Symbol. Return None."""
-        with self._wlock:
+        with self._lock.gen_wlock():
             self._aliases = self._aliases.dissoc(alias)
 
     def intern(self, sym: sym.Symbol, var: Var, force: bool = False) -> Var:
@@ -685,20 +690,20 @@ class Namespace(ReferenceBase):
         If the Symbol already maps to a Var, this method _will not overwrite_
         the existing Var mapping unless the force keyword argument is given
         and is True."""
-        with self._wlock:
+        with self._lock.gen_wlock():
             old_var = self._interns.val_at(sym, None)
             if old_var is None or force:
                 self._interns = self._interns.assoc(sym, var)
             return self._interns.val_at(sym)
 
     def unmap(self, sym: sym.Symbol) -> None:
-        with self._wlock:
+        with self._lock.gen_wlock():
             self._interns = self._interns.dissoc(sym)
 
     def find(self, sym: sym.Symbol) -> Optional[Var]:
         """Find Vars mapped by the given Symbol input or None if no Vars are
         mapped by that Symbol."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             v = self._interns.val_at(sym, None)
             if v is None:
                 return self._refers.val_at(sym, None)
@@ -707,7 +712,7 @@ class Namespace(ReferenceBase):
     def add_import(self, sym: sym.Symbol, module: Module, *aliases: sym.Symbol) -> None:
         """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
         the aliases will be applied to the"""
-        with self._wlock:
+        with self._lock.gen_wlock():
             self._imports = self._imports.assoc(sym, module)
             if aliases:
                 m = self._import_aliases
@@ -721,7 +726,7 @@ class Namespace(ReferenceBase):
 
         First try to resolve a module directly with the given name. If no module
         can be resolved, attempt to resolve the module using import aliases."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             mod = self._imports.val_at(sym, None)
             if mod is None:
                 alias = self._import_aliases.get(sym, None)
@@ -733,17 +738,17 @@ class Namespace(ReferenceBase):
     def add_refer(self, sym: sym.Symbol, var: Var) -> None:
         """Refer var in this namespace under the name sym."""
         if not var.is_private:
-            with self._wlock:
+            with self._lock.gen_wlock():
                 self._refers = self._refers.assoc(sym, var)
 
     def get_refer(self, sym: sym.Symbol) -> Optional[Var]:
         """Get the Var referred by Symbol or None if it does not exist."""
-        with self._rlock:
+        with self._lock.gen_rlock():
             return self._refers.val_at(sym, None)
 
     def refer_all(self, other_ns: "Namespace") -> None:
         """Refer all the Vars in the other namespace."""
-        with self._wlock:
+        with self._lock.gen_wlock():
             final_refers = self._refers
             for s, var in other_ns.interns.items():
                 if not var.is_private:
@@ -767,6 +772,13 @@ class Namespace(ReferenceBase):
         if ns is not None:
             return ns_cache
         new_ns = Namespace(name, module=module)
+        # The `ns` macro is important for setting up an new namespace,
+        # but it becomes available only after basilisp.core has been
+        # loaded.
+        ns_var = Var.find_in_ns(CORE_NS_SYM, sym.symbol("ns"))
+        if ns_var:
+            new_ns.add_refer(sym.symbol("ns"), ns_var)
+
         return ns_cache.assoc(name, new_ns)
 
     @classmethod
@@ -1103,15 +1115,18 @@ def apply_kw(f, args):
 
 
 def count(coll) -> int:
-    try:
-        return len(coll)
-    except (AttributeError, TypeError):
+    if coll is None:
+        return 0
+    else:
         try:
-            return sum(1 for _ in coll)
-        except TypeError as e:
-            raise TypeError(
-                f"count not supported on object of type {type(coll)}"
-            ) from e
+            return len(coll)
+        except (AttributeError, TypeError):
+            try:
+                return sum(1 for _ in coll)
+            except TypeError as e:
+                raise TypeError(
+                    f"count not supported on object of type {type(coll)}"
+                ) from e
 
 
 __nth_sentinel = object()
@@ -1174,9 +1189,11 @@ def get(m, k, default=None):  # pylint: disable=unused-argument
     return default
 
 
+@get.register(bytes)
 @get.register(dict)
 @get.register(list)
 @get.register(str)
+@get.register(bytes)
 def _get_others(m, k, default=None):
     try:
         return m[k]
@@ -1372,16 +1389,38 @@ def _compare_sets(x: IPersistentSet, y) -> int:
     )
 
 
-def sort(coll, f=None) -> Optional[ISeq]:
-    """Return a sorted sequence of the elements in coll. If a comparator
-    function f is provided, compare elements in coll using f."""
-    return lseq.sequence(sorted(coll, key=Maybe(f).map(functools.cmp_to_key).value))
+def _fn_to_comparator(f):
+    """Coerce F comparator fn to a 3 way comparator fn."""
+
+    if f == compare:  # pylint: disable=comparison-with-callable
+        return f
+
+    def cmp(x, y):
+        r = f(x, y)
+        if isinstance(r, numbers.Number) and not isinstance(r, bool):
+            return r
+        elif r:
+            return -1
+        elif f(y, x):
+            return 1
+        else:
+            return 0
+
+    return cmp
 
 
-def sort_by(keyfn, coll, cmp=None) -> Optional[ISeq]:
-    """Return a sorted sequence of the elements in coll. If a comparator
-    function f is provided, compare elements in coll using f."""
-    if cmp is not None:
+def sort(coll, f=compare) -> Optional[ISeq]:
+    """Return a sorted sequence of the elements in coll. If a
+    comparator function f is provided, compare elements in coll
+    using f or use the `compare` fn if not.
+
+    The comparator fn can be either a boolean or 3-way comparison fn."""
+    seq = lseq.to_seq(coll)
+    if seq:
+        if isinstance(coll, IPersistentMap):
+            coll = seq
+
+        comparator = _fn_to_comparator(f)
 
         class key:
             __slots__ = ("obj",)
@@ -1390,26 +1429,66 @@ def sort_by(keyfn, coll, cmp=None) -> Optional[ISeq]:
                 self.obj = obj
 
             def __lt__(self, other):
-                return cmp(keyfn(self.obj), keyfn(other.obj)) < 0
+                return comparator(self.obj, other.obj) < 0
 
             def __gt__(self, other):
-                return cmp(keyfn(self.obj), keyfn(other.obj)) > 0
+                return comparator(self.obj, other.obj) > 0
 
             def __eq__(self, other):
-                return cmp(keyfn(self.obj), keyfn(other.obj)) == 0
+                return comparator(self.obj, other.obj) == 0
 
             def __le__(self, other):
-                return cmp(keyfn(self.obj), keyfn(other.obj)) <= 0
+                return comparator(self.obj, other.obj) <= 0
 
             def __ge__(self, other):
-                return cmp(keyfn(self.obj), keyfn(other.obj)) >= 0
+                return comparator(self.obj, other.obj) >= 0
 
             __hash__ = None  # type: ignore
 
+        return lseq.sequence(sorted(coll, key=key))
     else:
-        key = keyfn  # type: ignore
+        return llist.EMPTY
 
-    return lseq.sequence(sorted(coll, key=key))
+
+def sort_by(keyfn, coll, cmp=compare) -> Optional[ISeq]:
+    """Return a sorted sequence of the elements in coll. If a
+    comparator function cmp is provided, compare elements in coll
+    using cmp or use the `compare` fn if not.
+
+    The comparator fn can be either a boolean or 3-way comparison fn."""
+    seq = lseq.to_seq(coll)
+    if seq:
+        if isinstance(coll, IPersistentMap):
+            coll = seq
+
+        comparator = _fn_to_comparator(cmp)
+
+        class key:
+            __slots__ = ("obj",)
+
+            def __init__(self, obj):
+                self.obj = obj
+
+            def __lt__(self, other):
+                return comparator(keyfn(self.obj), keyfn(other.obj)) < 0
+
+            def __gt__(self, other):
+                return comparator(keyfn(self.obj), keyfn(other.obj)) > 0
+
+            def __eq__(self, other):
+                return comparator(keyfn(self.obj), keyfn(other.obj)) == 0
+
+            def __le__(self, other):
+                return comparator(keyfn(self.obj), keyfn(other.obj)) <= 0
+
+            def __ge__(self, other):
+                return comparator(keyfn(self.obj), keyfn(other.obj)) >= 0
+
+            __hash__ = None  # type: ignore
+
+        return lseq.sequence(sorted(coll, key=key))
+    else:
+        return llist.EMPTY
 
 
 def is_special_form(s: sym.Symbol) -> bool:
@@ -1806,7 +1885,8 @@ def resolve_alias(s: sym.Symbol, ns: Optional[Namespace] = None) -> sym.Symbol:
 def resolve_var(s: sym.Symbol, ns: Optional[Namespace] = None) -> Optional[Var]:
     """Resolve the aliased symbol to a Var from the specified namespace, or the
     current namespace if none is specified."""
-    return Var.find(resolve_alias(s, ns))
+    ns_qualified_sym = resolve_alias(s, ns)
+    return Var.find(resolve_alias(s, ns)) if ns_qualified_sym.ns else None
 
 
 #######################
@@ -1900,7 +1980,7 @@ def add_generated_python(
         which_ns = get_current_ns()
     v = Maybe(which_ns.find(sym.symbol(GENERATED_PYTHON_VAR_NAME))).or_else(
         lambda: Var.intern(
-            which_ns,  # type: ignore
+            which_ns,  # type: ignore[arg-type, unused-ignore]
             sym.symbol(GENERATED_PYTHON_VAR_NAME),
             "",
             dynamic=True,
@@ -2053,8 +2133,6 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     )
 
     # Version info
-    from basilisp.__version__ import VERSION
-
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(PYTHON_VERSION_VAR_NAME),
@@ -2072,7 +2150,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(BASILISP_VERSION_VAR_NAME),
-        vec.vector(VERSION),
+        BASILISP_VERSION,
         dynamic=True,
         meta=lmap.map(
             {

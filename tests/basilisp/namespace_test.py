@@ -32,6 +32,15 @@ def test_create_ns(ns_sym: sym.Symbol, ns_cache: atom.Atom[NamespaceMap]):
     assert isinstance(ns, Namespace)
     assert ns.name == ns_sym.name
     assert len(list(ns_cache.deref().keys())) == 2
+    assert ns.get_refer(sym.symbol("ns"))
+
+
+def test_in_ns(ns_sym: sym.Symbol):
+    in_ns = Var.find_in_ns(runtime.CORE_NS_SYM, sym.symbol("in-ns"))
+    assert in_ns
+    ns = in_ns.value(ns_sym)
+    assert isinstance(ns, Namespace)
+    assert ns.name == ns_sym.name
 
 
 @pytest.fixture

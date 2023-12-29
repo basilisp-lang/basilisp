@@ -1,8 +1,8 @@
+import ast
+import functools
 from collections import deque
 from contextlib import contextmanager
 from typing import Deque, Iterable, List, Optional, Set
-
-from basilisp import _pyast as ast
 
 
 def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:
@@ -16,6 +16,93 @@ def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:
             break
         new_nodes.append(node)
     return new_nodes
+
+
+@functools.singledispatch
+def _optimize_operator_call(  # pylint: disable=unused-argument
+    fn: ast.AST, node: ast.Call
+) -> ast.AST:
+    return node
+
+
+@_optimize_operator_call.register(ast.Attribute)
+def _optimize_operator_call_attr(  # pylint: disable=too-many-return-statements
+    fn: ast.Attribute, node: ast.Call
+) -> ast.AST:
+    """Optimize calls to the Python `operator` module down to use the raw Python
+    operators.
+
+    Using Python operators directly will allow for more direct bytecode to be
+    emitted by the Python compiler and take advantage of any additional performance
+    improvements in future versions of Python."""
+    if isinstance(fn.value, ast.Name) and fn.value.id == "operator":
+        binop = {
+            "add": ast.Add,
+            "and_": ast.BitAnd,
+            "floordiv": ast.FloorDiv,
+            "lshift": ast.LShift,
+            "mod": ast.Mod,
+            "mul": ast.Mult,
+            "matmul": ast.MatMult,
+            "or_": ast.BitOr,
+            "pow": ast.Pow,
+            "rshift": ast.RShift,
+            "sub": ast.Sub,
+            "truediv": ast.Div,
+            "xor": ast.BitXor,
+        }.get(fn.attr)
+        if binop is not None:
+            arg1, arg2 = node.args
+            assert len(node.args) == 2
+            return ast.BinOp(arg1, binop(), arg2)
+
+        unaryop = {"not_": ast.Not, "inv": ast.Invert, "invert": ast.Invert}.get(
+            fn.attr
+        )
+        if unaryop is not None:
+            arg = node.args[0]
+            assert len(node.args) == 1
+            return ast.UnaryOp(unaryop(), arg)
+
+        compareop = {
+            "lt": ast.Lt,
+            "le": ast.LtE,
+            "eq": ast.Eq,
+            "ne": ast.NotEq,
+            "gt": ast.Gt,
+            "ge": ast.GtE,
+            "is_": ast.Is,
+            "is_not": ast.IsNot,
+        }.get(fn.attr)
+        if compareop is not None:
+            arg1, arg2 = node.args
+            assert len(node.args) == 2
+            return ast.Compare(arg1, [compareop()], [arg2])
+
+        if fn.attr == "contains":
+            arg1, arg2 = node.args
+            assert len(node.args) == 2
+            return ast.Compare(arg2, [ast.In()], [arg1])
+
+        if fn.attr == "delitem":
+            target, index = node.args
+            assert len(node.args) == 2
+            return ast.Delete(
+                targets=[
+                    ast.Subscript(
+                        value=target, slice=ast.Index(value=index), ctx=ast.Del()
+                    )
+                ]
+            )
+
+        if fn.attr == "getitem":
+            target, index = node.args
+            assert len(node.args) == 2
+            return ast.Subscript(
+                value=target, slice=ast.Index(value=index), ctx=ast.Load()
+            )
+
+    return node
 
 
 class PythonASTOptimizer(ast.NodeTransformer):
@@ -37,6 +124,16 @@ class PythonASTOptimizer(ast.NodeTransformer):
     def _global_context(self) -> Set[str]:
         """Return the current Python `global` context."""
         return self._global_ctx[-1]
+
+    def visit_Call(self, node: ast.Call) -> ast.AST:
+        """Eliminate most calls to Python's `operator` module in favor of using native
+        operators."""
+        new_node = self.generic_visit(node)
+        if isinstance(new_node, ast.Call):
+            return ast.copy_location(
+                _optimize_operator_call(node.func, new_node), new_node
+            )
+        return new_node
 
     def visit_ExceptHandler(self, node: ast.ExceptHandler) -> Optional[ast.AST]:
         """Eliminate dead code from except handler bodies."""

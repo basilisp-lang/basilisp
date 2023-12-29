@@ -1,0 +1,227 @@
+;; Decoding logic adapted from
+;; https://github.com/babashka/nbb/blob/bca8b5017a06768eb35d02a2d6233ca9c6c2f692/src/nbb/impl/bencode.cljs
+(ns basilisp.contrib.bencode
+  (:require
+   [basilisp.string :as str]))
+
+(defprotocol BEncodeable
+  (to-bencode-encodeable* [this]
+    "Return an object which can be bencoded."))
+
+(defmacro ^:private ->bytes
+  "Convert a value into a string and encode it as UTF-8 bytes."
+  [v]
+  `(.encode (python/str ~v) "utf-8"))
+
+(extend-protocol BEncodeable
+  nil
+  (to-bencode-encodeable* [this]
+    #b "0:")
+  python/bytes
+  (to-bencode-encodeable* [this]
+    (.join (python/bytes) [(->bytes (python/len this)) #b ":" this]))
+  python/int
+  (to-bencode-encodeable* [this]
+    (.join (python/bytes) [#b "i" (->bytes this) #b "e"]))
+  python/str
+  (to-bencode-encodeable* [this]
+    (let [encoded (->bytes this)]
+      (.join (python/bytes) [(->bytes (python/len encoded)) #b ":" encoded]))))
+
+(defn ^:private encode-kw-or-sym
+  [o]
+  (to-bencode-encodeable*
+   (if-let [ns-str (namespace o)]
+     (str ns-str "/" (name o))
+     (name o))))
+
+(defn ^:private encode-sequential
+  [n]
+  (let [contents (.join (python/bytes) (map to-bencode-encodeable* n))]
+    (.join (python/bytes) [#b "l" contents #b "e"])))
+
+(defn ^:private encode-dict
+  [d]
+  (as-> d $
+    (into []
+          (map (fn [[k v]]
+                 [(cond
+                    (string? k) (->bytes k)
+                    (ident? k)  (->bytes
+                                 (if-let [ns-str (namespace k)]
+                                   (str ns-str "/" (name k))
+                                   (name k)))
+                    :else       (throw
+                                 (ex-info
+                                  "bencode dictionary keys must be one of: string, keywod, or symbol"
+                                  {:type (type k)
+                                   :key  k})))
+                  (to-bencode-encodeable* v)]))
+          $)
+    (python/sorted $ ** :key first)
+    (into [#b "d"]
+          (mapcat (fn [[k v]]
+                    [(to-bencode-encodeable* k) v]))
+          $)
+    (conj $ #b "e")
+    (.join (python/bytes) $)))
+
+(extend basilisp.lang.keyword/Keyword BEncodeable {:to-bencode-encodeable* encode-kw-or-sym})
+(extend basilisp.lang.symbol/Symbol   BEncodeable {:to-bencode-encodeable* encode-kw-or-sym})
+
+(extend python/dict BEncodeable {:to-bencode-encodeable* encode-dict})
+(extend basilisp.lang.interfaces/IPersistentMap BEncodeable {:to-bencode-encodeable* encode-dict})
+
+(extend python/list  BEncodeable {:to-bencode-encodeable* encode-sequential})
+(extend python/tuple BEncodeable {:to-bencode-encodeable* encode-sequential})
+(extend basilisp.lang.interfaces/IPersistentList   BEncodeable {:to-bencode-encodeable* encode-sequential})
+(extend basilisp.lang.interfaces/IPersistentVector BEncodeable {:to-bencode-encodeable* encode-sequential})
+
+(defn encode
+  "Encode the object ``d`` into a byte string using ``bencode`` encoding.
+
+  ``encode`` supports encoding the following types:
+
+  - ``bytes``
+  - ``int``
+  - ``str``, which is first decided to UTF-8 ``bytes``
+  - keywords and symbols, which are first converted to strings (including namespace,
+    separated by '/') and then converted using the rules for ``str`` s
+  - Python ``list``
+  - ``tuple``
+  - Basilisp lists and vectors
+  - ``dict``
+  - maps
+
+  Mapping type keys must one of: keywords, symbols, or strings.
+
+  This function does not support ``float`` because the ``bencode`` specification does
+  not support non-integer numerics.
+
+  Set types (including ``frozenset``, ``set``, or Basilisp's set types) are not
+  supported due to the requirement that lists retain their original element ordering."
+  [d]
+  (to-bencode-encodeable* d))
+
+
+(defmacro ^:private index-of
+  "Return the index of the first occurrence of character ``c`` (a byte string) in
+  byte string ``b``."
+  [b c]
+  `(.index ~b ~c))
+
+(defn- slice
+  "Returns the slice of the ``bytes`` from the ``start`` index to
+  the end of the array or to the ``end`` index if provided. Returns
+  `nil` if the slice is empty.
+
+  Throw a `python/EOFError` exception if any of the indices are out
+  of bounds."
+  ([bytes start]
+   (if (< (len bytes) start)
+     (throw (python/ValueError "out of input"))
+     (slice bytes start nil)))
+  ([bytes start end]
+   (if (and end (> end (len bytes)))
+     (throw (python/ValueError "out of input"))
+     (let [bs (get bytes (python/slice start end))]
+       (when (> (count bs) 0)
+         bs)))))
+
+(declare decode*)
+
+(defn ^:private decode-int
+  [data]
+  (let [data (slice data 1)
+        i    (index-of data #b "e")]
+    [(int (slice data 0 i))
+     (slice data (inc i))]))
+
+(defn ^:private decode-byte-string
+  [data {:keys [string-fn] :or {string-fn identity}}]
+  (let [i    (index-of data #b ":")
+        n    (int (slice data 0 i))
+        data (slice data (inc i))]
+    [(if (= n 0)
+       (string-fn #b "")
+       (string-fn (slice data 0 n)))
+     (when data
+       (slice data n))]))
+
+(defn ^:private decode-list
+  [data opts]
+  (let [data (slice data 1)]
+    (loop [data data v (transient [])]
+      (if (= (slice data 0 1) #b "e")
+        [(persistent! v) (slice data 1)]
+        (let [[value data] (decode* data opts)]
+          (recur data (conj! v value)))))))
+
+(defn ^:private decode-dict
+  [data {:keys [key-fn] :or {key-fn identity} :as opts}]
+  (let [data (slice data 1)]
+    (loop [data data m (transient {})]
+      (if (= (slice data 0 1) #b "e")
+        [(persistent! m) (slice data 1)]
+        (let [[k data] (decode-byte-string data {:string-fn key-fn})
+              [v data] (decode* data opts)]
+          (recur data (assoc! m k v)))))))
+
+(defn ^:private decode*
+  [data opts]
+  (case (slice data 0 1)
+    #b "i" (decode-int data)
+    #b "l" (decode-list data opts)
+    #b "d" (decode-dict data opts)
+    ;; byte string
+    (decode-byte-string data opts)))
+
+(defn decode
+  "Decode the first value in the bencoded ``data`` bytes according to ``opts`` and
+  return a [decoded* rest*] vector.
+
+  The decoded* item in the vector is the decoded value of the first item in ``data``
+  while rest* is the remaining unencoded values.
+
+  If ``data`` cannot be decoded (e.g. is incomplete or an error occurred), it returns
+  a [nil ``data``] vector.
+
+  ``opts`` is a map with the following optional supported keys.
+
+    :keyword ``:keywordize-keys``: if the decoded value is a map, keywordize its keys.
+    :keyword ``:key-fn``: a function which will be called for each key-in a map; cannot
+        be specified if ``:keywordize-keys`` is also specified
+    :keyword ``:string-fn``: a function which will be called for each byte string which
+        is not a map key; default  is :lpy:fn:`basilisp.core/identity`"
+  [data {:keys [keywordize-keys key-fn string-fn] :as opts}]
+  (when (and keywordize-keys key-fn)
+    (throw (ex-info "Can only specify either :keywordize-keys or :key-fn; not both"
+                    {:keywordize-keys keywordize-keys
+                     :key-fn          key-fn})))
+  (let [opts (cond-> opts
+               keywordize-keys (-> (dissoc :keywordize-keys)
+                                   (assoc :key-fn #(keyword (.decode % "utf-8")))))]
+    (try
+      (decode* data opts)
+      (catch python/Exception e
+        [nil data]))))
+
+(defn decode-all
+  "Decode all values in the bencoded ``data`` bytes and return them as
+  a [values* incomplete*] vector.
+
+  The values* item is a collection of the ``data`` decoded values,
+  while incomplete* is the rest of the ``data`` bytes that could not
+  be decoded or nil.
+
+  ``opts`` is a map supporting the same keys as :lpy:fn:`decode`."
+  ([data]
+   (decode-all data {}))
+  ([data opts]
+   (loop [items []
+          data  data]
+     (let [[item data] (decode data opts)]
+       (if (nil? item)
+         [items data]
+         (recur (conj items item) data))))))
+

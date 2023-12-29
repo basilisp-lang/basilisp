@@ -88,7 +88,6 @@ REPL
 ----
 
 Basilisp's REPL experience closely matches that of Clojure's.
-Basilisp does not currently support any programmatic REPL server such as `nREPL <https://nrepl.org/nrepl/index.html>`_ or pREPL, though support is planned (see `#412 <https://github.com/basilisp-lang/basilisp/issues/412>`_).
 
 .. _evaluation_differences:
 
@@ -193,7 +192,10 @@ Core Libraries
 Basilisp includes ports of some of the standard libraries from Clojure which should generally match the source in functionality.
 
 * :lpy:ns:`basilisp.data` is a port of ``clojure.data``
+* :lpy:ns:`basilisp.edn` is a port of ``clojure.edn``
+* :lpy:ns:`basilisp.io` is a port of ``clojure.java.io``
 * :lpy:ns:`basilisp.set` is a port of ``clojure.set``
+* :lpy:ns:`basilisp.shell` is a port of ``clojure.java.shell``
 * :lpy:ns:`basilisp.string` is a port of ``clojure.string``
 * :lpy:ns:`basilisp.test` is a port of ``clojure.test``
 * :lpy:ns:`basilisp.walk` is a port of ``clojure.walk``

@@ -123,7 +123,7 @@ def _is_namespace_package(path: str) -> bool:
     return no_inits and has_basilisp_files
 
 
-class BasilispImporter(MetaPathFinder, SourceLoader):
+class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstract-method
     """Python import hook to allow directly loading Basilisp code within
     Python."""
 

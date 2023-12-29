@@ -2,7 +2,6 @@ import platform
 import sys
 
 import pytest
-from _pytest.pytester import Pytester, RunResult
 
 from basilisp.lang import runtime
 from basilisp.lang import symbol as sym
@@ -10,7 +9,7 @@ from basilisp.lang import symbol as sym
 
 class TestTestrunner:
     @pytest.fixture
-    def run_result(self, pytester: Pytester) -> RunResult:
+    def run_result(self, pytester: pytest.Pytester) -> pytest.RunResult:
         code = """
         (ns test-testrunner
           (:require
@@ -40,13 +39,14 @@ class TestTestrunner:
             (ex-info "This test will count as an error." {})))
         """
         pytester.makefile(".lpy", test_testrunner=code)
+        pytester.syspathinsert()
         yield pytester.runpytest()
         runtime.Namespace.remove(sym.symbol("test-testrunner"))
 
-    def test_outcomes(self, run_result: RunResult):
+    def test_outcomes(self, run_result: pytest.RunResult):
         run_result.assert_outcomes(passed=1, failed=2)
 
-    def test_failure_repr(self, run_result: RunResult):
+    def test_failure_repr(self, run_result: pytest.RunResult):
         run_result.stdout.fnmatch_lines(
             [
                 "FAIL in (assertion-test) (test_testrunner.lpy:8)",
@@ -88,7 +88,7 @@ class TestTestrunner:
             "further investigation."
         ),
     )
-    def test_error_repr(self, run_result: RunResult):
+    def test_error_repr(self, run_result: pytest.RunResult):
         if sys.version_info < (3, 11):
             expected = [
                 "ERROR in (assertion-test) (test_testrunner.lpy:12)",
@@ -125,7 +125,7 @@ class TestTestrunner:
         )
 
 
-def test_fixtures(pytester: Pytester):
+def test_fixtures(pytester: pytest.Pytester):
     code = """
     (ns test-fixtures
       (:require
@@ -165,7 +165,8 @@ def test_fixtures(pytester: Pytester):
       (is false))
     """
     pytester.makefile(".lpy", test_fixtures=code)
-    result: pytester.RunResult = pytester.runpytest()
+    pytester.syspathinsert()
+    result: pytest.RunResult = pytester.runpytest()
     result.assert_outcomes(passed=1, failed=1)
 
     get_volatile = lambda vname: runtime.Var.find_safe(
@@ -187,7 +188,7 @@ def test_fixtures(pytester: Pytester):
     ],
 )
 def test_fixtures_with_errors(
-    pytester: Pytester,
+    pytester: pytest.Pytester,
     fixture: str,
     style: str,
     errors: int,
@@ -216,5 +217,6 @@ def test_fixtures_with_errors(
       (is false))
     """
     pytester.makefile(".lpy", test_fixtures_with_errors=code)
-    result: pytester.RunResult = pytester.runpytest()
+    pytester.syspathinsert()
+    result: pytest.RunResult = pytester.runpytest()
     result.assert_outcomes(passed=passes, failed=failures, errors=errors)
