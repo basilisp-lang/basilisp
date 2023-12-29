@@ -97,7 +97,7 @@ Developers are encouraged to investigate the available configurations in ``tox.i
 
 Testing is performed using `PyTest <https://github.com/pytest-dev/pytest/>`_.
 Type checking is performed by `MyPy <http://mypy-lang.org/>`_.
-Linting is performed using `Prospector <https://prospector.landscape.io/en/master/>`_.
+Linting is performed using `PyLint <https://github.com/pylint-dev/pylint>`_ and `Ruff <https://github.com/astral-sh/ruff>`_.
 Formatting is performed using `Black <https://github.com/psf/black>`_.
 
 New *code* contributions should include test coverage covering all new branches unless otherwise directed by the project maintainers.

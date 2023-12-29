@@ -106,7 +106,7 @@ class RefBase(IRef[T], ReferenceBase):
         if vf is not None:
             try:
                 res = vf(val)
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 res = False
 
             if not res:
