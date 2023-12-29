@@ -260,6 +260,14 @@ def test_apply():
     )
 
 
+def test_count():
+    assert 0 == runtime.count(None)
+    assert 0 == runtime.count(vec.v())
+    assert 0 == runtime.count("")
+    assert 3 == runtime.count(vec.v(1, 2, 3))
+    assert 3 == runtime.count("123")
+
+
 def test_nth():
     assert None is runtime.nth(None, 1)
     assert "not found" == runtime.nth(None, 4, "not found")

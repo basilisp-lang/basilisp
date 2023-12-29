@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+ * Fix issue with `(count nil)` throwing an exception (#759).
+
 ## [v0.1.0b0]
 ### Added
  * Added rudimentary support for `clojure.stacktrace` with `print-cause-trace` (part of #721)

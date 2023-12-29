@@ -1115,15 +1115,18 @@ def apply_kw(f, args):
 
 
 def count(coll) -> int:
-    try:
-        return len(coll)
-    except (AttributeError, TypeError):
+    if coll is None:
+        return 0
+    else:
         try:
-            return sum(1 for _ in coll)
-        except TypeError as e:
-            raise TypeError(
-                f"count not supported on object of type {type(coll)}"
-            ) from e
+            return len(coll)
+        except (AttributeError, TypeError):
+            try:
+                return sum(1 for _ in coll)
+            except TypeError as e:
+                raise TypeError(
+                    f"count not supported on object of type {type(coll)}"
+                ) from e
 
 
 __nth_sentinel = object()

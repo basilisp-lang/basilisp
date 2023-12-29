@@ -265,8 +265,9 @@
 ;;;;;;;;;;;; full support for syntax quote begins here ;;;;;;;;;;;;
 
 (def
-  ^{:doc      "Return the length of ``coll`` as by Python's ``len`` builtin. If the
-               collection does not respond to ``__len__``\\, then count it manually."
+  ^{:doc      "Return the length of ``coll`` as by Python's ``len`` builtin, or 0 if
+               ``coll`` is nil. If the collection does not respond to ``__len__``\\,
+               then count it manually."
     :arglists '([coll])
     :inline   true}
   count
