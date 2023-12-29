@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added support for passing through `:tag` metadata to the generated Python AST (#354)
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
@@ -59,7 +61,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for rewriting required namespaces starting with `clojure.` as `basilisp.` if the original name isn't found on the import path (#670, #676)
  * Added support for inlining simple functions (#673)
  * Added the `clojure.core` functions from v1.11 (#672)
- * Added support for passing through `:tag` metadata to the generated Python AST (#???)
 
 ### Changed
  * Set tighter bounds on dependency version ranges (#657)
