@@ -1,3 +1,5 @@
+# pylint: disable=too-many-branches,too-many-lines,too-many-return-statements
+
 import builtins
 import collections
 import contextlib
@@ -864,7 +866,7 @@ def _await_ast(form: ISeq, ctx: AnalyzerContext) -> Await:
     )
 
 
-def _def_ast(  # pylint: disable=too-many-locals
+def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     form: ISeq, ctx: AnalyzerContext
 ) -> Def:
     assert form.first == SpecialForm.DEF
@@ -2012,7 +2014,7 @@ def _inline_fn_ast(
 
 
 @_with_meta  # noqa: MC0001
-def _fn_ast(  # pylint: disable=too-many-locals
+def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
     form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
 ) -> Fn:
     assert form.first == SpecialForm.FN

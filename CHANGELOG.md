@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Removed `basilisp.__version__` in favor of using `importlib.metadata` for version info (#617)
  * Removed a shim to Python's `ast` module to support compatibility with Python 3.6 and 3.7 (#749)
 
+### Other
+ * Switch to PyLint and Ruff for linting from Prospector (#739)
+
 ## [v0.1.0a2]
 ### Added
  * Added support for fixtures in `basilisp.test` (#654)
