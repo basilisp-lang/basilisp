@@ -5,6 +5,7 @@ import os
 import sys
 import traceback
 import types
+from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, Type
 
 from basilisp import main as basilisp
@@ -489,7 +490,21 @@ def _add_version_subcommand(_: argparse.ArgumentParser) -> None:
     pass
 
 
+def run_script():
+    """Entrypoint to run the Basilisp script named by `sys.argv[1]` as by the
+    `basilisp run` subcommand.
+
+    This is provided as a shim for platforms where shebang lines cannot contain more
+    than one argument and thus `#!/usr/bin/env basilisp run` would be non-functional.
+
+    The current process is replaced as by `os.execlp`."""
+    # os.exec* functions do not perform shell expansion, so we must do so manually.
+    script_path = Path(sys.argv[1]).resolve()
+    os.execlp("basilisp", "basilisp", "run", script_path)
+
+
 def invoke_cli(args: Optional[Sequence[str]] = None) -> None:
+    """Entrypoint to run the Basilisp CLI."""
     parser = argparse.ArgumentParser(
         description="Basilisp is a Lisp dialect inspired by Clojure targeting Python 3."
     )
