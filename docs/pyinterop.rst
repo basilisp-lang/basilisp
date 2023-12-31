@@ -239,3 +239,9 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
 
    The reader applies ``:tag`` :ref:`metadata` automatically for symbols following the ``^`` symbol, but users may manually apply ``:tag`` metadata containing any valid expression.
    Python permits any valid expression in a variable annotation, so Basilisp likewise allows any valid expression.
+
+.. warning::
+
+   Due to the complexity of supporting multi-arity functions in Python, only return annotations are preserved on the arity dispatch function.
+   Return annotations are combined as by ``typing.Union``, so ``typing.Union[str, str] == str``.
+   The annotations for individual arity arguments are preserved in their compiled form, but they are challenging to access programmatically.

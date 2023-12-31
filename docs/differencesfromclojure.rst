@@ -167,7 +167,7 @@ Type Hinting
 ^^^^^^^^^^^^
 
 Type hints may be applied anywhere they are supported in Clojure (as the ``:tag`` metadata key), but the compiler does not currently use them for any purpose.
-Tags provided for ``def`` names, function arguments and return values, and :lpy:form:`let` locals will be applied to the resulting Python AST by the compiler.
+Tags provided for ``def`` names, function arguments and return values, and :lpy:form:`let` locals will be applied to the resulting Python AST by the compiler wherever possible.
 Particularly in the case of function arguments and return values, these tags maybe introspected from the Python `inspect <https://docs.python.org/3/library/inspect.html>`_ module.
 There is no need for type hints anywhere in Basilisp right now, however.
 
