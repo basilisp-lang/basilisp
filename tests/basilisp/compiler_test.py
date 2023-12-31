@@ -757,9 +757,23 @@ class TestDefType:
         pt = Point(1, 2, 3)
         assert "('Point', 1, 2, 3)" == str(pt)
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 10), reason="Fails for versions of Python before 3.10"
+    )
     def test_deftype_field_tag_annotations(self, lcompile: CompileFn):
         Point = lcompile("(deftype* Rectangle [^python/int x y])")
         hints = typing.get_type_hints(Point)
+        assert hints["x"] == int
+        assert "y" not in hints
+
+    @pytest.mark.skipif(
+        sys.version_info > (3, 9), reason="This version is intended for 3.8 and 3.9"
+    )
+    def test_deftype_field_tag_annotations_pre310(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        Point = lcompile("(deftype* Rectangle [^python/int x y])")
+        hints = typing.get_type_hints(Point, globalns=ns.module.__dict__)
         assert hints["x"] == int
         assert "y" not in hints
 
