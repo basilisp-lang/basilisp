@@ -1376,7 +1376,9 @@ def __deftype_or_reify_bases_to_py_ast(
 
 
 @_with_ast_loc
-def _deftype_to_py_ast(ctx: GeneratorContext, node: DefType) -> GeneratedPyAST:
+def _deftype_to_py_ast(  # pylint: disable=too-many-locals
+    ctx: GeneratorContext, node: DefType
+) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` expression."""
     assert node.op == NodeOp.DEFTYPE
     type_name = munge(node.name)
@@ -1404,7 +1406,6 @@ def _deftype_to_py_ast(ctx: GeneratorContext, node: DefType) -> GeneratedPyAST:
                 attr_default_kws = []
 
             tag: Optional[ast.AST] = None
-            tag_deps: Iterable[ast.AST]
             if (
                 field.tag is not None
                 and (tag_ast := gen_py_ast(ctx, field.tag)) is not None
