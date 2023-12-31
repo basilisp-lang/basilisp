@@ -741,6 +741,18 @@ class TestDefType:
         pt = Point(1, 2, 3)
         assert "('Point', 1, 2, 3)" == str(pt)
 
+    def test_deftype_field_tag_annotations(self, lcompile: CompileFn):
+        Point = lcompile("(deftype* Rectangle [^python/int x y])")
+        hints = typing.get_type_hints(Point)
+        assert hints["x"] == int
+        assert "y" not in hints
+
+    def test_deftype_field_with_complex_tag_annotations(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                '(deftype* Rectangle [^python/int x ^{:tag #(.upper "a float")} y])'
+            )
+
     @pytest.mark.parametrize(
         "code",
         [

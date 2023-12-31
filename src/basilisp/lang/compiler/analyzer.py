@@ -1820,6 +1820,7 @@ def _deftype_ast(  # pylint: disable=too-many-locals
                 local=LocalType.FIELD,
                 is_assignable=is_mutable,
                 env=ctx.get_node_env(),
+                tag=_tag_ast(_tag_meta(field), ctx),
                 init=analyze_form(ctx, field_default)
                 if field_default is not __DEFTYPE_DEFAULT_SENTINEL
                 else None,

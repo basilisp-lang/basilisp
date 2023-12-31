@@ -1403,12 +1403,33 @@ def _deftype_to_py_ast(ctx: GeneratorContext, node: DefType) -> GeneratedPyAST:
             else:
                 attr_default_kws = []
 
+            tag: Optional[ast.AST] = None
+            tag_deps: Iterable[ast.AST]
+            if (
+                field.tag is not None
+                and (tag_ast := gen_py_ast(ctx, field.tag)) is not None
+            ):
+                tag = tag_ast.node
+                # Functions without names will be generated with a '__' prefix which
+                # triggers Python's internal name mangling since the name is accessed
+                # in the context of a class definition. Without more complicated
+                # changes to the compiler, there's not an easy way to prevent this.
+                # For now, it is doubtful anyone would need to do this so just throw
+                # an error when any "complex" nodes are generated.
+                if tag_ast.dependencies:
+                    raise GeneratorException(
+                        f"error generating field '{field}'; cannot set function or "
+                        "other complex ^:tag values for deftype fields",
+                        lisp_ast=field,
+                    )
+
             type_nodes.append(
-                ast.Assign(
-                    targets=[ast.Name(id=safe_field, ctx=ast.Store())],
+                _tagged_assign(
+                    target=ast.Name(id=safe_field, ctx=ast.Store()),
                     value=ast.Call(
                         func=_ATTRIB_FIELD_FN_NAME, args=[], keywords=attr_default_kws
                     ),
+                    annotation=tag,
                 )
             )
             ctx.symbol_table.new_symbol(sym.symbol(field.name), safe_field, field.local)
