@@ -7,16 +7,13 @@ import subprocess
 import tempfile
 import time
 from threading import Thread
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence
 from unittest.mock import patch
 
 import attr
 import pytest
 
 from basilisp.cli import BOOL_FALSE, BOOL_TRUE, invoke_cli
-from basilisp.lang import map as lmap
-from basilisp.lang import runtime
-from basilisp.lang import symbol as sym
 from basilisp.prompt import Prompter
 
 
@@ -40,15 +37,6 @@ def isolated_filesystem():
             yield
         finally:
             os.chdir(wd)
-
-
-@pytest.fixture
-def cap_lisp_io() -> Tuple[io.StringIO, io.StringIO]:
-    with io.StringIO() as outbuf, io.StringIO() as errbuf:
-        stdout = runtime.resolve_var(sym.symbol("*out*", ns="basilisp.core"))
-        stderr = runtime.resolve_var(sym.symbol("*err*", ns="basilisp.core"))
-        with runtime.bindings(lmap.map({stdout: outbuf, stderr: errbuf})):
-            yield outbuf, errbuf
 
 
 @attr.frozen

@@ -1,9 +1,11 @@
+import io
 import sys
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import pytest
 
 from basilisp.lang import compiler as compiler
+from basilisp.lang import map as lmap
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
@@ -59,3 +61,14 @@ def lcompile(ns: runtime.Namespace, compiler_file_path: str) -> CompileFn:
         return last
 
     return _lcompile
+
+
+@pytest.fixture
+def cap_lisp_io() -> Tuple[io.StringIO, io.StringIO]:
+    """Capture the values of `*out*` and `*err*` during test execution, returning
+    `io.StringIO` for each."""
+    with io.StringIO() as outbuf, io.StringIO() as errbuf:
+        stdout = runtime.resolve_var(sym.symbol("*out*", ns="basilisp.core"))
+        stderr = runtime.resolve_var(sym.symbol("*err*", ns="basilisp.core"))
+        with runtime.bindings(lmap.map({stdout: outbuf, stderr: errbuf})):
+            yield outbuf, errbuf
