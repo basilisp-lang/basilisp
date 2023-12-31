@@ -1,6 +1,7 @@
 import asyncio
 import decimal
 import importlib
+import inspect
 import logging
 import os
 import re
@@ -2319,6 +2320,28 @@ class TestFunctionDef:
         assert Var.find_in_ns(sym.symbol(ns_name), sym.symbol("string-lower")) == fvar
         assert callable(fvar.value)
         assert "upper" == fvar.value("UPPER")
+
+    def test_single_arity_fn_sets_tag_ast(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        f = lcompile("(fn* ^python/str [^python/int i f] (str i f))")
+        sig = inspect.signature(f)
+        assert sig.return_annotation == str
+        params = {k.split("_")[0]: v for k, v in sig.parameters.items()}
+        assert params["i"].annotation == int
+        assert params["f"].annotation == inspect.Parameter.empty
+
+    def test_single_arity_fn_tag_ast_can_be_complex(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        f = lcompile(
+            '(fn* ^{:tag #(.lower "RETURN ANNO")} [^python/int i ^{:tag #(.upper "param anno")} f] (str i f))'
+        )
+        sig = inspect.signature(f)
+        assert sig.return_annotation() == "return anno"
+        params = {k.split("_")[0]: v for k, v in sig.parameters.items()}
+        assert params["i"].annotation == int
+        assert params["f"].annotation() == "PARAM ANNO"
 
     class TestFunctionKeywordArgSupport:
         def test_only_valid_kwarg_support_strategy(self, lcompile: CompileFn):
