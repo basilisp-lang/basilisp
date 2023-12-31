@@ -294,13 +294,17 @@ class TestDef:
         assert ns == meta.val_at(kw.keyword("ns"))
         assert "Super cool docstring" == meta.val_at(kw.keyword("doc"))
 
-    def test_sets_tag_ast(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_def_sets_tag_ast(self, lcompile: CompileFn, ns: runtime.Namespace):
         lcompile('(def ^python/str s "a string")')
         assert typing.get_type_hints(ns.module)["s"] == str
+        assert ns.find(sym.symbol("s")).meta.val_at(kw.keyword("tag")) == str
 
-    def test_tag_ast_can_be_complex(self, lcompile: CompileFn, ns: runtime.Namespace):
+    def test_def_tag_ast_can_be_complex(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
         lcompile('(def ^{:tag #(.lower "TAG FN")} s "a string")')
         assert typing.get_type_hints(ns.module)["s"]() == "tag fn"
+        assert ns.find(sym.symbol("s")).meta.val_at(kw.keyword("tag"))() == "tag fn"
 
     def test_may_only_provide_tag_metadata_on_def_symbol_or_fn(
         self, lcompile: CompileFn, ns: runtime.Namespace
@@ -3155,6 +3159,20 @@ class TestLet:
     def test_let_may_have_empty_body(self, lcompile: CompileFn):
         assert None is lcompile("(let* [])")
         assert None is lcompile("(let* [a :kw])")
+
+    def test_let_bindings_get_tag_ast(self, lcompile: CompileFn, ns: runtime.Namespace):
+        lcompile('(let [^python/str s "a string"] s)')
+        hints = typing.get_type_hints(ns.module)
+        let_var = next(iter(k for k in hints.keys() if k.startswith("s_")), None)
+        assert hints[let_var] == str
+
+    def test_let_binding_tag_ast_can_be_complex(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        lcompile('(let [^{:tag #(.lower "TAG FN")} s "a string"] s)')
+        hints = typing.get_type_hints(ns.module)
+        let_var = next(iter(k for k in hints.keys() if k.startswith("s_")), None)
+        assert hints[let_var]() == "tag fn"
 
     def test_let(self, lcompile: CompileFn):
         assert lcompile("(let* [a 1] a)") == 1
