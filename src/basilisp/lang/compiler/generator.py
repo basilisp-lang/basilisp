@@ -1883,9 +1883,14 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
             ret_ann = gen_py_ast(ctx, tag)
             ret_ann_asts.append(ret_ann.node)
             ret_ann_deps.extend(ret_ann.dependencies)
-        ret_ann_ast = ast.Subscript(
-            value=ast.Name(id="Union", ctx=ast.Load()),
-            slice=ast.Index(value=ast.Tuple(elts=ret_ann_asts, ctx=ast.Load())),
+        ret_ann_ast = (
+            ast.Subscript(
+                value=ast.Name(id="Union", ctx=ast.Load()),
+                slice=ast.Index(value=ast.Tuple(elts=ret_ann_asts, ctx=ast.Load())),
+                ctx=ast.Load(),
+            )
+            if ret_ann_asts
+            else None
         )
 
     return GeneratedPyAST(
@@ -2011,7 +2016,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
         ctx,
         py_fn_name,
         arity_to_name,
-        return_tags=(arity.tag for arity in arities),
+        return_tags=[arity.tag for arity in arities],
         default_name=rest_arity_name,
         max_fixed_arity=node.max_fixed_arity,
         meta_node=meta_node,

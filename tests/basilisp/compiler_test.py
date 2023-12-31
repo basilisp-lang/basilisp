@@ -2495,6 +2495,13 @@ class TestFunctionDef:
         with pytest.raises(runtime.RuntimeException):
             fvar.value(1, 2, 3)
 
+    def test_multi_arity_fn_sets_tag_ast(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        f = lcompile('(fn* (^python/str [] "s") (^python/int [i] i))')
+        sig = inspect.signature(f)
+        assert sig.return_annotation == typing.Union[str, int]
+
     def test_async_single_arity(self, lcompile: CompileFn):
         awaiter_var: runtime.Var = lcompile(
             """
