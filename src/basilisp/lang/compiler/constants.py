@@ -49,6 +49,7 @@ SYM_NO_WARN_ON_SHADOW_META_KEY = kw.keyword("no-warn-on-shadow")
 SYM_NO_WARN_WHEN_UNUSED_META_KEY = kw.keyword("no-warn-when-unused")
 SYM_REDEF_META_KEY = kw.keyword("redef")
 SYM_STATICMETHOD_META_KEY = kw.keyword("staticmethod")
+SYM_TAG_META_KEY = kw.keyword("tag")
 
 ARGLISTS_KW = kw.keyword("arglists")
 COL_KW = kw.keyword("col")
