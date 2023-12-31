@@ -313,6 +313,22 @@ class TestDef:
         with pytest.raises(compiler.CompilerException):
             lcompile("(def ^python/str f (fn ^python/int [a] a))")
 
+    def test_def_allows_fn_return_annotation_with_no_tag(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        var = lcompile("(def f (fn ^python/int [a] a))")
+        assert var.meta.val_at(kw.keyword("tag")) is None
+        sig = inspect.signature(var.value)
+        assert sig.return_annotation == int
+
+    def test_def_allows_tag_with_no_fn_return_annotation(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        var = lcompile("(def ^python/int f (fn [a] a))")
+        assert var.meta.val_at(kw.keyword("tag")) == int
+        sig = inspect.signature(var.value)
+        assert sig.return_annotation == inspect.Parameter.empty
+
     def test_no_warn_on_redef_meta(
         self, lcompile: CompileFn, ns: runtime.Namespace, caplog
     ):
