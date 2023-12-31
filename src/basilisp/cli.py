@@ -5,6 +5,7 @@ import os
 import sys
 import traceback
 import types
+from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, Type
 
 from basilisp import main as basilisp
@@ -26,15 +27,6 @@ BOOL_FALSE = frozenset({"false", "f", "0", "no", "n"})
 DEFAULT_COMPILER_OPTS = {k.name: v for k, v in compiler.compiler_opts().items()}
 
 
-def eval_file(filename: str, ctx: compiler.CompilerContext, ns: runtime.Namespace):
-    """Evaluate a file with the given name into a Python module AST node."""
-    last = None
-    for form in reader.read_file(filename, resolver=runtime.resolve_alias):
-        assert not isinstance(form, reader.ReaderConditional)
-        last = compiler.compile_and_exec_form(form, ctx, ns)
-    return last
-
-
 def eval_stream(stream, ctx: compiler.CompilerContext, ns: runtime.Namespace):
     """Evaluate the forms in stdin into a Python module AST node."""
     last = None
@@ -51,6 +43,11 @@ def eval_str(s: str, ctx: compiler.CompilerContext, ns: runtime.Namespace, eof: 
         assert not isinstance(form, reader.ReaderConditional)
         last = compiler.compile_and_exec_form(form, ctx, ns)
     return last
+
+
+def eval_file(filename: str, ctx: compiler.CompilerContext, ns: runtime.Namespace):
+    """Evaluate a file with the given name into a Python module AST node."""
+    return eval_str(f'(load-file "{filename}")', ctx, ns, eof=object())
 
 
 def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.ModuleType:
@@ -421,17 +418,11 @@ def run(
         ns.refer_all(core_ns)
 
         if args.code:
-            print(runtime.lrepr(eval_str(args.file_or_code, ctx, ns, eof)))
+            eval_str(args.file_or_code, ctx, ns, eof)
         elif args.file_or_code == STDIN_FILE_NAME:
-            print(
-                runtime.lrepr(
-                    eval_stream(
-                        io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8"), ctx, ns
-                    )
-                )
-            )
+            eval_stream(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8"), ctx, ns)
         else:
-            print(runtime.lrepr(eval_file(args.file_or_code, ctx, ns)))
+            eval_file(args.file_or_code, ctx, ns)
 
 
 @_subcommand(
@@ -489,7 +480,21 @@ def _add_version_subcommand(_: argparse.ArgumentParser) -> None:
     pass
 
 
+def run_script():
+    """Entrypoint to run the Basilisp script named by `sys.argv[1]` as by the
+    `basilisp run` subcommand.
+
+    This is provided as a shim for platforms where shebang lines cannot contain more
+    than one argument and thus `#!/usr/bin/env basilisp run` would be non-functional.
+
+    The current process is replaced as by `os.execlp`."""
+    # os.exec* functions do not perform shell expansion, so we must do so manually.
+    script_path = Path(sys.argv[1]).resolve()
+    os.execlp("basilisp", "basilisp", "run", script_path)
+
+
 def invoke_cli(args: Optional[Sequence[str]] = None) -> None:
+    """Entrypoint to run the Basilisp CLI."""
     parser = argparse.ArgumentParser(
         description="Basilisp is a Lisp dialect inspired by Clojure targeting Python 3."
     )

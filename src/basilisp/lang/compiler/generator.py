@@ -470,6 +470,17 @@ def _kwargs_ast(
     )
 
 
+def _tagged_assign(
+    target: ast.Name, value: ast.AST, annotation: Optional[ast.AST] = None
+) -> Union[ast.Assign, ast.AnnAssign]:
+    """Return a possibly annotated assignment."""
+    if annotation is not None:
+        return ast.AnnAssign(
+            target=target, annotation=annotation, value=value, simple=1
+        )
+    return ast.Assign(targets=[target], value=value)
+
+
 def _clean_meta(form: IMeta) -> LispForm:
     """Remove reader metadata from the form's meta map."""
     assert form.meta is not None, "Form must have non-null 'meta' attribute"
@@ -787,7 +798,9 @@ def __should_warn_on_redef(
 
 
 @_with_ast_loc
-def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
+def _def_to_py_ast(  # pylint: disable=too-many-locals
+    ctx: GeneratorContext, node: Def
+) -> GeneratedPyAST:
     """Return a Python AST Node for a `def` expression."""
     assert node.op == NodeOp.DEF
 
@@ -844,6 +857,14 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
             def_ast = gen_py_ast(ctx, node.init)
             is_defn = False
 
+        tag: Optional[ast.AST]
+        tag_deps: Iterable[ast.AST]
+        if node.tag is not None and (tag_ast := gen_py_ast(ctx, node.tag)) is not None:
+            tag = tag_ast.node
+            tag_deps = tag_ast.dependencies
+        else:
+            tag, tag_deps = None, []
+
         func = _INTERN_VAR_FN_NAME
         extra_args = [ast.Name(id=safe_name, ctx=ast.Load())]
         if is_defn:
@@ -857,6 +878,7 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
                     if node.env.func_ctx is not None
                     else [],
                     def_ast.dependencies,
+                    tag_deps,
                 )
             )
         else:
@@ -866,10 +888,12 @@ def _def_to_py_ast(ctx: GeneratorContext, node: Def) -> GeneratedPyAST:
                     [ast.Global(names=[safe_name])]
                     if node.env.func_ctx is not None
                     else [],
+                    tag_deps,
                     [
-                        ast.Assign(
-                            targets=[ast.Name(id=safe_name, ctx=ast.Store())],
+                        _tagged_assign(
+                            target=ast.Name(id=safe_name, ctx=ast.Store()),
                             value=def_ast.node,
+                            annotation=tag,
                         )
                     ],
                 )
@@ -923,7 +947,9 @@ def __deftype_classmethod_to_py_ast(
         class_sym = sym.symbol(node.class_local.name)
         ctx.symbol_table.new_symbol(class_sym, class_name, LocalType.ARG)
 
-        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
+        fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
+            ctx, node.params, node.body
+        )
         return GeneratedPyAST(
             node=ast.FunctionDef(
                 name=munge(node.name),
@@ -943,7 +969,8 @@ def __deftype_classmethod_to_py_ast(
                     chain([_PY_CLASSMETHOD_FN_NAME], __kwargs_support_decorator(node))
                 ),
                 returns=None,
-            )
+            ),
+            dependencies=fn_def_deps,
         )
 
 
@@ -961,7 +988,7 @@ def __deftype_property_to_py_ast(
         ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
 
         with ctx.new_this(this_sym):
-            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+            fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
                 ctx, node.params, node.body
             )
             return GeneratedPyAST(
@@ -981,7 +1008,8 @@ def __deftype_property_to_py_ast(
                     body=fn_body_ast,
                     decorator_list=[_PY_PROPERTY_FN_NAME],
                     returns=None,
-                )
+                ),
+                dependencies=fn_def_deps,
             )
 
 
@@ -1204,7 +1232,7 @@ def __deftype_method_arity_to_py_ast(
         ctx.symbol_table.new_symbol(this_sym, this_name, LocalType.THIS)
 
         with ctx.new_this(this_sym):
-            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+            fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
                 ctx, arity.params, arity.body
             )
             return GeneratedPyAST(
@@ -1229,7 +1257,8 @@ def __deftype_method_arity_to_py_ast(
                         )
                     ),
                     returns=None,
-                )
+                ),
+                dependencies=fn_def_deps,
             )
 
 
@@ -1255,7 +1284,9 @@ def __deftype_staticmethod_to_py_ast(
     assert node.op == NodeOp.DEFTYPE_STATICMETHOD
 
     with ctx.new_symbol_table(node.name, is_context_boundary=True):
-        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(ctx, node.params, node.body)
+        fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
+            ctx, node.params, node.body
+        )
         return GeneratedPyAST(
             node=ast.FunctionDef(
                 name=munge(node.name),
@@ -1273,7 +1304,8 @@ def __deftype_staticmethod_to_py_ast(
                     chain([_PY_STATICMETHOD_FN_NAME], __kwargs_support_decorator(node))
                 ),
                 returns=None,
-            )
+            ),
+            dependencies=fn_def_deps,
         )
 
 
@@ -1344,7 +1376,9 @@ def __deftype_or_reify_bases_to_py_ast(
 
 
 @_with_ast_loc
-def _deftype_to_py_ast(ctx: GeneratorContext, node: DefType) -> GeneratedPyAST:
+def _deftype_to_py_ast(  # pylint: disable=too-many-locals
+    ctx: GeneratorContext, node: DefType
+) -> GeneratedPyAST:
     """Return a Python AST Node for a `deftype*` expression."""
     assert node.op == NodeOp.DEFTYPE
     type_name = munge(node.name)
@@ -1371,12 +1405,32 @@ def _deftype_to_py_ast(ctx: GeneratorContext, node: DefType) -> GeneratedPyAST:
             else:
                 attr_default_kws = []
 
+            tag: Optional[ast.AST] = None
+            if (
+                field.tag is not None
+                and (tag_ast := gen_py_ast(ctx, field.tag)) is not None
+            ):
+                tag = tag_ast.node
+                # Functions without names will be generated with a '__' prefix which
+                # triggers Python's internal name mangling since the name is accessed
+                # in the context of a class definition. Without more complicated
+                # changes to the compiler, there's not an easy way to prevent this.
+                # For now, it is doubtful anyone would need to do this so just throw
+                # an error when any "complex" nodes are generated.
+                if tag_ast.dependencies:
+                    raise GeneratorException(
+                        f"error generating field '{field}'; cannot set function or "
+                        "other complex ^:tag values for deftype fields",
+                        lisp_ast=field,
+                    )
+
             type_nodes.append(
-                ast.Assign(
-                    targets=[ast.Name(id=safe_field, ctx=ast.Store())],
+                _tagged_assign(
+                    target=ast.Name(id=safe_field, ctx=ast.Store()),
                     value=ast.Call(
                         func=_ATTRIB_FIELD_FN_NAME, args=[], keywords=attr_default_kws
                     ),
+                    annotation=tag,
                 )
             )
             ctx.symbol_table.new_symbol(sym.symbol(field.name), safe_field, field.local)
@@ -1512,22 +1566,33 @@ def __fn_name(ctx: GeneratorContext, s: Optional[str]) -> str:
 
 def __fn_args_to_py_ast(
     ctx: GeneratorContext, params: Iterable[Binding], body: Do
-) -> Tuple[List[ast.arg], Optional[ast.arg], List[ast.AST]]:
+) -> Tuple[List[ast.arg], Optional[ast.arg], List[ast.AST], Iterable[ast.AST]]:
     """Generate a list of Python AST nodes from function method parameters."""
     fn_args, varg = [], None
     fn_body_ast: List[ast.AST] = []
+    fn_def_deps: List[ast.AST] = []
     for binding in params:
         assert binding.init is None, ":fn nodes cannot have binding :inits"
         assert varg is None, "Must have at most one variadic arg"
         arg_name = genname(munge(binding.name))
 
+        arg_tag: Optional[ast.AST]
+        if (
+            binding.tag is not None
+            and (arg_tag_ast := gen_py_ast(ctx, binding.tag)) is not None
+        ):
+            arg_tag = arg_tag_ast.node
+            fn_def_deps.extend(arg_tag_ast.dependencies)
+        else:
+            arg_tag = None
+
         if not binding.is_variadic:
-            fn_args.append(ast.arg(arg=arg_name, annotation=None))
+            fn_args.append(ast.arg(arg=arg_name, annotation=arg_tag))
             ctx.symbol_table.new_symbol(
                 sym.symbol(binding.name), arg_name, LocalType.ARG
             )
         else:
-            varg = ast.arg(arg=arg_name, annotation=None)
+            varg = ast.arg(arg=arg_name, annotation=arg_tag)
             safe_local = genname(munge(binding.name))
             fn_body_ast.append(
                 ast.Assign(
@@ -1547,7 +1612,7 @@ def __fn_args_to_py_ast(
     fn_body_ast.extend(map(statementize, body_ast.dependencies))
     fn_body_ast.append(ast.Return(value=body_ast.node))
 
-    return fn_args, varg, fn_body_ast
+    return fn_args, varg, fn_body_ast, fn_def_deps
 
 
 def __fn_decorator(
@@ -1617,7 +1682,7 @@ def __kwargs_support_decorator(
 
 
 @_with_ast_loc_deps
-def __single_arity_fn_to_py_ast(
+def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext,
     node: Fn,
     method: FnArity,
@@ -1640,15 +1705,29 @@ def __single_arity_fn_to_py_ast(
                 sym.symbol(lisp_fn_name), py_fn_name, LocalType.FN
             )
 
-        fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+        fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
             ctx, method.params, method.body
         )
         meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
+
+        ret_ann_tag: Optional[ast.AST]
+        ret_ann_deps: Iterable[ast.AST]
+        if (
+            method.tag is not None
+            and (ret_ann_ast := gen_py_ast(ctx, method.tag)) is not None
+        ):
+            ret_ann_tag = ret_ann_ast.node
+            ret_ann_deps = ret_ann_ast.dependencies
+        else:
+            ret_ann_tag, ret_ann_deps = None, []
+
         return GeneratedPyAST(
             node=ast.Name(id=py_fn_name, ctx=ast.Load()),
             dependencies=list(
                 chain(
                     meta_deps,
+                    fn_def_deps,
+                    ret_ann_deps,
                     [
                         py_fn_node(
                             name=py_fn_name,
@@ -1679,7 +1758,7 @@ def __single_arity_fn_to_py_ast(
                                     else [],
                                 )
                             ),
-                            returns=None,
+                            returns=ret_ann_tag,
                         )
                     ],
                 )
@@ -1699,6 +1778,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     ctx: GeneratorContext,
     name: str,
     arity_map: Mapping[int, str],
+    return_tags: Iterable[Optional[Node]],
     default_name: Optional[str] = None,
     max_fixed_arity: Optional[int] = None,
     meta_node: Optional[MetaNode] = None,
@@ -1816,6 +1896,25 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
 
     py_fn_node = ast.AsyncFunctionDef if is_async else ast.FunctionDef
     meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
+
+    ret_ann_ast: Optional[ast.AST] = None
+    ret_ann_deps: List[ast.AST] = []
+    if all(tag is not None for tag in return_tags):
+        ret_ann_asts: List[ast.AST] = []
+        for tag in cast(Iterable[Node], return_tags):
+            ret_ann = gen_py_ast(ctx, tag)
+            ret_ann_asts.append(ret_ann.node)
+            ret_ann_deps.extend(ret_ann.dependencies)
+        ret_ann_ast = (
+            ast.Subscript(
+                value=ast.Name(id="Union", ctx=ast.Load()),
+                slice=ast.Index(value=ast.Tuple(elts=ret_ann_asts, ctx=ast.Load())),
+                ctx=ast.Load(),
+            )
+            if ret_ann_asts
+            else None
+        )
+
     return GeneratedPyAST(
         node=ast.Name(id=name, ctx=ast.Load()),
         dependencies=chain(
@@ -1826,6 +1925,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                 )
             ],
             meta_deps,
+            ret_ann_deps,
             [
                 py_fn_node(
                     name=name,
@@ -1850,7 +1950,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                             ],
                         )
                     ),
-                    returns=None,
+                    returns=ret_ann_ast,
                 )
             ],
         ),
@@ -1878,6 +1978,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
     arity_to_name = {}
     rest_arity_name: Optional[str] = None
     fn_defs = []
+    all_arity_def_deps: List[ast.AST] = []
     for arity in arities:
         arity_name = (
             f"{py_fn_name}__arity{'_rest' if arity.is_variadic else arity.fixed_arity}"
@@ -1898,9 +1999,21 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                     sym.symbol(lisp_fn_name), py_fn_name, LocalType.FN
                 )
 
-            fn_args, varg, fn_body_ast = __fn_args_to_py_ast(
+            fn_args, varg, fn_body_ast, fn_def_deps = __fn_args_to_py_ast(
                 ctx, arity.params, arity.body
             )
+            all_arity_def_deps.extend(fn_def_deps)
+
+            ret_ann_tag: Optional[ast.AST]
+            if (
+                arity.tag is not None
+                and (ret_ann_ast := gen_py_ast(ctx, arity.tag)) is not None
+            ):
+                ret_ann_tag = ret_ann_ast.node
+                all_arity_def_deps.extend(ret_ann_ast.dependencies)
+            else:
+                ret_ann_tag = None
+
             fn_defs.append(
                 py_fn_node(
                     name=arity_name,
@@ -1917,7 +2030,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                     decorator_list=[_TRAMPOLINE_FN_NAME]
                     if ctx.recur_point.has_recur
                     else [],
-                    returns=None,
+                    returns=ret_ann_tag,
                 )
             )
 
@@ -1925,6 +2038,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
         ctx,
         py_fn_name,
         arity_to_name,
+        return_tags=[arity.tag for arity in arities],
         default_name=rest_arity_name,
         max_fixed_arity=node.max_fixed_arity,
         meta_node=meta_node,
@@ -1933,7 +2047,9 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
 
     return GeneratedPyAST(
         node=dispatch_fn_ast.node,
-        dependencies=list(chain(fn_defs, dispatch_fn_ast.dependencies)),
+        dependencies=list(
+            chain(all_arity_def_deps, fn_defs, dispatch_fn_ast.dependencies)
+        ),
     )
 
 
@@ -2157,12 +2273,24 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
             init_node = binding.init
             assert init_node is not None
             init_ast = gen_py_ast(ctx, init_node)
+
+            tag: Optional[ast.AST]
+            if (
+                binding.tag is not None
+                and (tag_ast := gen_py_ast(ctx, binding.tag)) is not None
+            ):
+                tag = tag_ast.node
+                let_body_ast.extend(tag_ast.dependencies)
+            else:
+                tag = None
+
             binding_name = genname(munge(binding.name))
             let_body_ast.extend(init_ast.dependencies)
             let_body_ast.append(
-                ast.Assign(
-                    targets=[ast.Name(id=binding_name, ctx=ast.Store())],
+                _tagged_assign(
+                    target=ast.Name(id=binding_name, ctx=ast.Store()),
                     value=init_ast.node,
+                    annotation=tag,
                 )
             )
             ctx.symbol_table.new_symbol(
@@ -3016,6 +3144,7 @@ def _interop_prop_to_py_ast(
     assert node.op == NodeOp.HOST_FIELD
 
     target_ast = gen_py_ast(ctx, node.target)
+    assert not target_ast.dependencies
 
     return GeneratedPyAST(
         node=ast.Attribute(
@@ -3661,16 +3790,25 @@ def _module_imports(ns: runtime.Namespace) -> Iterable[ast.Import]:
         yield ast.Import(names=[ast.alias(name=name, asname=alias)])
 
 
-def _from_module_import() -> ast.ImportFrom:
+def _from_module_imports() -> Iterable[ast.ImportFrom]:
     """Generate the Python From ... Import AST node for importing
     language support modules."""
-    return ast.ImportFrom(
-        module="basilisp.lang.runtime",
-        names=[
-            ast.alias(name="Var", asname=_VAR_ALIAS),
-        ],
-        level=0,
-    )
+    return [
+        ast.ImportFrom(
+            module="basilisp.lang.runtime",
+            names=[
+                ast.alias(name="Var", asname=_VAR_ALIAS),
+            ],
+            level=0,
+        ),
+        ast.ImportFrom(
+            module="typing",
+            names=[
+                ast.alias(name="Union", asname=None),
+            ],
+            level=0,
+        ),
+    ]
 
 
 def _ns_var(
@@ -3694,12 +3832,10 @@ def _ns_var(
     )
 
 
-def py_module_preamble(
-    ns: runtime.Namespace,
-) -> GeneratedPyAST:
+def py_module_preamble(ns: runtime.Namespace) -> GeneratedPyAST:
     """Bootstrap a new module with imports and other boilerplate."""
     preamble: List[ast.AST] = []
     preamble.extend(_module_imports(ns))
-    preamble.append(_from_module_import())
+    preamble.extend(_from_module_imports())
     preamble.append(_ns_var())
     return GeneratedPyAST(node=ast.Constant(None), dependencies=preamble)

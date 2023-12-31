@@ -44,7 +44,7 @@ class TestFailuresInfo(Exception):
 
     def __repr__(self):
         return (
-            "basilisp.contrib.pytest..testrunner.TestFailuresInfo"
+            "basilisp.contrib.pytest.testrunner.TestFailuresInfo"
             f"({self._msg}, {lrepr(self._data)})"
         )
 

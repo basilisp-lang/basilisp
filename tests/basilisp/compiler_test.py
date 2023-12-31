@@ -1,10 +1,12 @@
 import asyncio
 import decimal
 import importlib
+import inspect
 import logging
 import os
 import re
 import sys
+import typing
 import uuid
 from fractions import Fraction
 from tempfile import TemporaryDirectory
@@ -292,6 +294,40 @@ class TestDef:
         assert sym.symbol("unique-oeuene") == meta.val_at(kw.keyword("name"))
         assert ns == meta.val_at(kw.keyword("ns"))
         assert "Super cool docstring" == meta.val_at(kw.keyword("doc"))
+
+    def test_def_sets_tag_ast(self, lcompile: CompileFn, ns: runtime.Namespace):
+        lcompile('(def ^python/str s "a string")')
+        assert typing.get_type_hints(ns.module)["s"] == str
+        assert ns.find(sym.symbol("s")).meta.val_at(kw.keyword("tag")) == str
+
+    def test_def_tag_ast_can_be_complex(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        lcompile('(def ^{:tag #(.lower "TAG FN")} s "a string")')
+        assert typing.get_type_hints(ns.module)["s"]() == "tag fn"
+        assert ns.find(sym.symbol("s")).meta.val_at(kw.keyword("tag"))() == "tag fn"
+
+    def test_may_only_provide_tag_metadata_on_def_symbol_or_fn(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(def ^python/str f (fn ^python/int [a] a))")
+
+    def test_def_allows_fn_return_annotation_with_no_tag(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        var = lcompile("(def f (fn ^python/int [a] a))")
+        assert var.meta.val_at(kw.keyword("tag")) is None
+        sig = inspect.signature(var.value)
+        assert sig.return_annotation == int
+
+    def test_def_allows_tag_with_no_fn_return_annotation(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        var = lcompile("(def ^python/int f (fn [a] a))")
+        assert var.meta.val_at(kw.keyword("tag")) == int
+        sig = inspect.signature(var.value)
+        assert sig.return_annotation == inspect.Parameter.empty
 
     def test_no_warn_on_redef_meta(
         self, lcompile: CompileFn, ns: runtime.Namespace, caplog
@@ -720,6 +756,32 @@ class TestDefType:
         Point = lcompile(code)
         pt = Point(1, 2, 3)
         assert "('Point', 1, 2, 3)" == str(pt)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 10), reason="Fails for versions of Python before 3.10"
+    )
+    def test_deftype_field_tag_annotations(self, lcompile: CompileFn):
+        Point = lcompile("(deftype* Rectangle [^python/int x y])")
+        hints = typing.get_type_hints(Point)
+        assert hints["x"] == int
+        assert "y" not in hints
+
+    @pytest.mark.skipif(
+        sys.version_info > (3, 9), reason="This version is intended for 3.8 and 3.9"
+    )
+    def test_deftype_field_tag_annotations_pre310(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        Point = lcompile("(deftype* Rectangle [^python/int x y])")
+        hints = typing.get_type_hints(Point, globalns=ns.module.__dict__)
+        assert hints["x"] == int
+        assert "y" not in hints
+
+    def test_deftype_field_with_complex_tag_annotations(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile(
+                '(deftype* Rectangle [^python/int x ^{:tag #(.upper "a float")} y])'
+            )
 
     @pytest.mark.parametrize(
         "code",
@@ -2301,6 +2363,28 @@ class TestFunctionDef:
         assert callable(fvar.value)
         assert "upper" == fvar.value("UPPER")
 
+    def test_single_arity_fn_sets_tag_ast(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        f = lcompile("(fn* ^python/str [^python/int i f] (str i f))")
+        sig = inspect.signature(f)
+        assert sig.return_annotation == str
+        params = {k.split("_")[0]: v for k, v in sig.parameters.items()}
+        assert params["i"].annotation == int
+        assert params["f"].annotation == inspect.Parameter.empty
+
+    def test_single_arity_fn_tag_ast_can_be_complex(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        f = lcompile(
+            '(fn* ^{:tag #(.lower "RETURN ANNO")} [^python/int i ^{:tag #(.upper "param anno")} f] (str i f))'
+        )
+        sig = inspect.signature(f)
+        assert sig.return_annotation() == "return anno"
+        params = {k.split("_")[0]: v for k, v in sig.parameters.items()}
+        assert params["i"].annotation == int
+        assert params["f"].annotation() == "PARAM ANNO"
+
     class TestFunctionKeywordArgSupport:
         def test_only_valid_kwarg_support_strategy(self, lcompile: CompileFn):
             with pytest.raises(compiler.CompilerException):
@@ -2452,6 +2536,13 @@ class TestFunctionDef:
         )
         with pytest.raises(runtime.RuntimeException):
             fvar.value(1, 2, 3)
+
+    def test_multi_arity_fn_sets_tag_ast(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        f = lcompile('(fn* (^python/str [] "s") (^python/int [i] i))')
+        sig = inspect.signature(f)
+        assert sig.return_annotation == typing.Union[str, int]
 
     def test_async_single_arity(self, lcompile: CompileFn):
         awaiter_var: runtime.Var = lcompile(
@@ -3140,6 +3231,20 @@ class TestLet:
     def test_let_may_have_empty_body(self, lcompile: CompileFn):
         assert None is lcompile("(let* [])")
         assert None is lcompile("(let* [a :kw])")
+
+    def test_let_bindings_get_tag_ast(self, lcompile: CompileFn, ns: runtime.Namespace):
+        lcompile('(let [^python/str s "a string"] s)')
+        hints = typing.get_type_hints(ns.module)
+        let_var = next(iter(k for k in hints.keys() if k.startswith("s_")), None)
+        assert hints[let_var] == str
+
+    def test_let_binding_tag_ast_can_be_complex(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        lcompile('(let [^{:tag #(.lower "TAG FN")} s "a string"] s)')
+        hints = typing.get_type_hints(ns.module)
+        let_var = next(iter(k for k in hints.keys() if k.startswith("s_")), None)
+        assert hints[let_var]() == "tag fn"
 
     def test_let(self, lcompile: CompileFn):
         assert lcompile("(let* [a 1] a)") == 1

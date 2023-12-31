@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+ * Added support for passing through `:tag` metadata to the generated Python AST (#354)
  * Added CLI argument parser in `basilisp.cli-tools` namespace (#535)
 
 ### Changed
@@ -14,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
  * Fix issue with keyword fn not testing for test membership in sets (#762)
+ * Fix an issue for executing Basilisp scripts via a shebang where certain platforms may not support more than one argument in the shebang line (#764)
 
 ## [v0.1.0b0]
 ### Added

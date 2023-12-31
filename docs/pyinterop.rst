@@ -211,3 +211,37 @@ As you can see in the example above, this strategy fits neatly with the existing
 The ``:collect`` strategy is a better accompaniment to functions with positional arguments.
 With this strategy, Python keyword arguments are converted into a Basilisp map with de-munged keyword arguments and passed as the final positional argument of the function.
 You can use map destructuring on this final positional argument, just as you would with the map in the ``:apply`` case above.
+
+Type Hinting
+------------
+
+Basilisp supports passing type hints through to the underlying generated Python using type hints by applying the ``:tag`` metadata to certain syntax elements.
+
+In Clojure, these tags are type declarations for certain primitive types.
+In Clojurescript, tags are type *hints* and they are only necessary in extremely limited circumstances to help the compiler.
+In Basilisp, tags are not used by the compiler at all.
+Instead, tags applied to function arguments and return values in Basilisp are applied to the underlying Python objects and are introspectable at runtime using the Python `inspect <https://docs.python.org/3/library/inspect.html>`_ standard library module.
+
+Type hints may be applied to :lpy:form:`def` names, function arguments and return values, and :lpy:form:`let` local forms.
+
+.. code-block:: clojure
+
+   (def ^python/str s "a string")
+
+   (defn upper
+     ^python/str [^python/str s]
+     (.upper s))
+
+   (let [^python/int i 64]
+     (* i 2))
+
+.. note::
+
+   The reader applies ``:tag`` :ref:`metadata` automatically for symbols following the ``^`` symbol, but users may manually apply ``:tag`` metadata containing any valid expression.
+   Python permits any valid expression in a variable annotation, so Basilisp likewise allows any valid expression.
+
+.. warning::
+
+   Due to the complexity of supporting multi-arity functions in Python, only return annotations are preserved on the arity dispatch function.
+   Return annotations are combined as by ``typing.Union``, so ``typing.Union[str, str] == str``.
+   The annotations for individual arity arguments are preserved in their compiled form, but they are challenging to access programmatically.
