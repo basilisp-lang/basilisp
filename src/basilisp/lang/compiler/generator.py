@@ -1648,35 +1648,47 @@ def __fn_args_to_py_ast(
 def __fn_decorator(
     arities: Iterable[int],
     has_rest_arg: bool = False,
+    arity_map: Optional[ast.Dict] = None,
+    bind_self_arg: Optional[bool] = None,
 ) -> ast.Call:
     return ast.Call(
         func=_BASILISP_FN_FN_NAME,
         args=[],
-        keywords=[
-            ast.keyword(
-                arg="arities",
-                value=ast.Tuple(
-                    elts=list(
-                        chain(
-                            map(ast.Constant, arities),
-                            [
-                                ast.Call(
-                                    func=_NEW_KW_FN_NAME,
-                                    args=[
-                                        ast.Constant(hash(_REST_KW)),
-                                        ast.Constant("rest"),
-                                    ],
-                                    keywords=[],
+        keywords=list(
+            chain(
+                [
+                    ast.keyword(
+                        arg="arities",
+                        value=ast.Tuple(
+                            elts=list(
+                                chain(
+                                    map(ast.Constant, arities),
+                                    [
+                                        ast.Call(
+                                            func=_NEW_KW_FN_NAME,
+                                            args=[
+                                                ast.Constant(hash(_REST_KW)),
+                                                ast.Constant("rest"),
+                                            ],
+                                            keywords=[],
+                                        )
+                                    ]
+                                    if has_rest_arg
+                                    else [],
                                 )
-                            ]
-                            if has_rest_arg
-                            else [],
-                        )
-                    ),
-                    ctx=ast.Load(),
-                ),
+                            ),
+                            ctx=ast.Load(),
+                        ),
+                    )
+                ],
+                [ast.keyword(arg="arity_map", value=arity_map)]
+                if arity_map is not None
+                else [],
+                [ast.keyword(arg="bind_self", value=ast.Constant(bind_self_arg))]
+                if bind_self_arg
+                else [],
             )
-        ],
+        ),
     )
 
 
@@ -1827,8 +1839,6 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
             return default(*args)
         raise RuntimeError
     """
-    dispatch_map_name = f"{name}_dispatch_map"
-
     dispatch_keys, dispatch_vals = [], []
     for k, v in arity_map.items():
         dispatch_keys.append(ast.Constant(k))
@@ -1852,7 +1862,11 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
             targets=[ast.Name(id=arity_name, ctx=ast.Store())],
             value=ast.Call(
                 func=ast.Attribute(
-                    value=ast.Name(id=dispatch_map_name, ctx=ast.Load()),
+                    value=ast.Attribute(
+                        value=ast.Name(id="self", ctx=ast.Load()),
+                        attr="arity_map",
+                        ctx=ast.Load(),
+                    ),
                     attr="get",
                     ctx=ast.Load(),
                 ),
@@ -1948,12 +1962,6 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     return GeneratedPyAST(
         node=ast.Name(id=name, ctx=ast.Load()),
         dependencies=chain(
-            [
-                ast.Assign(
-                    targets=[ast.Name(id=dispatch_map_name, ctx=ast.Store())],
-                    value=ast.Dict(keys=dispatch_keys, values=dispatch_vals),
-                )
-            ],
             meta_deps,
             ret_ann_deps,
             [
@@ -1961,7 +1969,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                     name=name,
                     args=ast.arguments(
                         posonlyargs=[],
-                        args=[],
+                        args=[ast.arg(arg="self", annotation=None)],
                         kwarg=None,
                         vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
                         kwonlyargs=[],
@@ -1976,6 +1984,10 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                                 __fn_decorator(
                                     arity_map.keys(),
                                     has_rest_arg=default_name is not None,
+                                    arity_map=ast.Dict(
+                                        keys=dispatch_keys, values=dispatch_vals
+                                    ),
+                                    bind_self_arg=True,
                                 )
                             ],
                         )

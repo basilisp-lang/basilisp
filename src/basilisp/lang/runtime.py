@@ -1776,7 +1776,11 @@ def _fn_with_meta(f, meta: Optional[lmap.PersistentMap]):
     return wrapped_f
 
 
-def _basilisp_fn(arities: Tuple[Union[int, kw.Keyword]]):
+def _basilisp_fn(
+    arities: Tuple[Union[int, kw.Keyword]],
+    arity_map: Optional[Mapping[Union[int, kw.Keyword], Callable]] = None,
+    bind_self: bool = False,
+):
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
 
@@ -1784,7 +1788,10 @@ def _basilisp_fn(arities: Tuple[Union[int, kw.Keyword]]):
         assert not hasattr(f, "meta")
         f._basilisp_fn = True
         f.arities = lset.set(arities)
+        f.arity_map = lmap.map(arity_map) if arity_map is not None else None
         f.meta = None
+        if bind_self:
+            f = partial(f, f)
         f.with_meta = partial(_fn_with_meta, f)
         return f
 
