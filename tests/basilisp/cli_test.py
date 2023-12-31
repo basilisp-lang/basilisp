@@ -1,6 +1,7 @@
 import io
 import os
 import pathlib
+import platform
 import re
 import stat
 import subprocess
@@ -183,6 +184,13 @@ def test_version(run_cli):
     assert re.compile(r"^Basilisp (\d+)\.(\d+)\.(\w*)(\d+)\n$").match(result.out)
 
 
+@pytest.mark.skipif(
+    platform.system().lower() == "windows",
+    reason=(
+        "Shebangs are only supported virtually by Windows Python installations, "
+        "so this doesn't work natively on Windows"
+    ),
+)
 def test_run_script(tmp_path: pathlib.Path):
     script_path = tmp_path / "script.lpy"
     script_path.write_text(
