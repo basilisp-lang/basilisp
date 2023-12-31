@@ -125,3 +125,11 @@ Basilisp code will operate normally (calling into other Basilisp namespaces and 
 
    Manual bootstrapping is designed to be as simple as possible, but it is not the long term goal of this project's maintainers that it should be necessary.
    Eventually, we plan to release a tool akin to Python's Poetry, or similar tools in other languages that helps facilitate both dependency management and packaging in such a way that bootstrapping is completely transparent to the developer.
+
+Basilisp can also be invoked as a script using a shebang line which would circumvent the need to bootstrap using the methods above.
+For systems where the shebang line allows arguments, you can use ``#!/usr/bin/env basilisp run``, but for those where only one argument is permitted ``#!/usr/bin/env basilisp-run`` will work.
+
+.. code-block:: clojure
+
+   #!/usr/bin/env basilisp
+   (println "Hello world!")

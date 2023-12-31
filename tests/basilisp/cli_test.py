@@ -1,12 +1,17 @@
 import io
 import os
+import pathlib
+import platform
 import re
+import stat
+import subprocess
 import tempfile
 import time
 from threading import Thread
 from typing import Optional, Sequence
 from unittest.mock import patch
 
+import attr
 import pytest
 
 from basilisp.cli import BOOL_FALSE, BOOL_TRUE, invoke_cli
@@ -35,34 +40,53 @@ def isolated_filesystem():
             os.chdir(wd)
 
 
+@attr.frozen
+class CapturedIO:
+    out: str
+    err: str
+    lisp_out: str
+    lisp_err: str
+
+
 @pytest.fixture
-def run_cli(monkeypatch, capsys):
+def run_cli(monkeypatch, capsys, cap_lisp_io):
     def _run_cli(args: Sequence[str], input: Optional[str] = None):
         if input is not None:
             monkeypatch.setattr(
                 "sys.stdin", io.TextIOWrapper(io.BytesIO(input.encode("utf-8")))
             )
         invoke_cli([*args])
-        return capsys.readouterr()
+        python_io = capsys.readouterr()
+        lisp_out, lisp_err = cap_lisp_io
+        return CapturedIO(
+            out=python_io.out,
+            err=python_io.err,
+            lisp_out=lisp_out.getvalue(),
+            lisp_err=lisp_err.getvalue(),
+        )
 
     return _run_cli
 
 
 def test_debug_flag(run_cli):
-    result = run_cli(["run", "--disable-ns-cache", "true", "-c", "(+ 1 2)"])
-    assert "3\n" == result.out
+    result = run_cli(["run", "--disable-ns-cache", "true", "-c", "(println (+ 1 2))"])
+    assert "3\n" == result.lisp_out
     assert os.environ["BASILISP_DO_NOT_CACHE_NAMESPACES"].lower() == "true"
 
 
 class TestCompilerFlags:
     def test_no_flag(self, run_cli):
-        result = run_cli(["run", "--warn-on-var-indirection", "-c", "(+ 1 2)"])
-        assert "3\n" == result.out
+        result = run_cli(
+            ["run", "--warn-on-var-indirection", "-c", "(println (+ 1 2))"]
+        )
+        assert "3\n" == result.lisp_out
 
     @pytest.mark.parametrize("val", BOOL_TRUE | BOOL_FALSE)
     def test_valid_flag(self, run_cli, val):
-        result = run_cli(["run", "--warn-on-var-indirection", val, "-c", "(+ 1 2)"])
-        assert "3\n" == result.out
+        result = run_cli(
+            ["run", "--warn-on-var-indirection", val, "-c", "(println  (+ 1 2))"]
+        )
+        assert "3\n" == result.lisp_out
 
     @pytest.mark.parametrize("val", ["maybe", "not-no", "4"])
     def test_invalid_flag(self, run_cli, val):
@@ -141,20 +165,45 @@ class TestREPL:
 
 class TestRun:
     def test_run_code(self, run_cli):
-        result = run_cli(["run", "-c", "(+ 1 2)"])
-        assert "3\n" == result.out
+        result = run_cli(["run", "-c", "(println (+ 1 2))"])
+        assert "3\n" == result.lisp_out
 
     def test_run_file(self, isolated_filesystem, run_cli):
         with open("test.lpy", mode="w") as f:
-            f.write("(+ 1 2)")
+            f.write("(println (+ 1 2))")
         result = run_cli(["run", "test.lpy"])
-        assert "3\n" == result.out
+        assert "3\n" == result.lisp_out
 
     def test_run_stdin(self, run_cli):
-        result = run_cli(["run", "-"], input="(+ 1 2)")
-        assert "3\n" == result.out
+        result = run_cli(["run", "-"], input="(println (+ 1 2))")
+        assert "3\n" == result.lisp_out
 
 
 def test_version(run_cli):
     result = run_cli(["version"])
     assert re.compile(r"^Basilisp (\d+)\.(\d+)\.(\w*)(\d+)\n$").match(result.out)
+
+
+@pytest.mark.skipif(
+    platform.system().lower() == "windows",
+    reason=(
+        "Shebangs are only supported virtually by Windows Python installations, "
+        "so this doesn't work natively on Windows"
+    ),
+)
+def test_run_script(tmp_path: pathlib.Path):
+    script_path = tmp_path / "script.lpy"
+    script_path.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env basilisp-run",
+                "(ns test-run-script-ns ",
+                "  (:import os))",
+                "",
+                '(println "Hello world from Basilisp!")',
+            ]
+        )
+    )
+    script_path.chmod(script_path.stat().st_mode | stat.S_IEXEC)
+    res = subprocess.run([script_path.resolve()], check=True, capture_output=True)
+    assert res.stdout == b"Hello world from Basilisp!\n"

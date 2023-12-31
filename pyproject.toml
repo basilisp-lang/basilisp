@@ -59,6 +59,7 @@ pytest = ["pytest"]
 
 [tool.poetry.scripts]
 basilisp = "basilisp.cli:invoke_cli"
+basilisp-run = "basilisp.cli:run_script"
 
 [tool.poetry.plugins.pytest11]
 basilisp_test_runner = "basilisp.contrib.pytest.testrunner"
