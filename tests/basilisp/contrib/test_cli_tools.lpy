@@ -1,6 +1,6 @@
-(ns tests.basilisp.test-cli-tools
+(ns tests.basilisp.contrib.test-cli-tools
   (:require
-   [basilisp.cli-tools :as cli]
+   [basilisp.contrib.cli-tools :as cli]
    [basilisp.test :refer [deftest are is testing]]))
 
 (def ^:private base-parser-config

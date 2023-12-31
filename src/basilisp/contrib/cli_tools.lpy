@@ -1,4 +1,4 @@
-(ns basilisp.cli-tools
+(ns basilisp.contrib.cli-tools
   (:import
    argparse
    os

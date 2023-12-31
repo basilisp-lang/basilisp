@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added support for passing through `:tag` metadata to the generated Python AST (#354)
- * Added CLI argument parser in `basilisp.cli-tools` namespace (#535)
+ * Added CLI argument parser in `basilisp.contrib.cli-tools` namespace (#535)
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
