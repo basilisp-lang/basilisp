@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import sys
+import typing
 import uuid
 from fractions import Fraction
 from tempfile import TemporaryDirectory
@@ -292,6 +293,20 @@ class TestDef:
         assert sym.symbol("unique-oeuene") == meta.val_at(kw.keyword("name"))
         assert ns == meta.val_at(kw.keyword("ns"))
         assert "Super cool docstring" == meta.val_at(kw.keyword("doc"))
+
+    def test_sets_tag_ast(self, lcompile: CompileFn, ns: runtime.Namespace):
+        lcompile('(def ^python/str s "a string")')
+        assert typing.get_type_hints(ns.module)["s"] == str
+
+    def test_tag_ast_can_be_complex(self, lcompile: CompileFn, ns: runtime.Namespace):
+        lcompile('(def ^{:tag #(.lower "TAG FN")} s "a string")')
+        assert typing.get_type_hints(ns.module)["s"]() == "tag fn"
+
+    def test_may_only_provide_tag_metadata_on_def_symbol_or_fn(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(def ^python/str f (fn ^python/int [a] a))")
 
     def test_no_warn_on_redef_meta(
         self, lcompile: CompileFn, ns: runtime.Namespace, caplog

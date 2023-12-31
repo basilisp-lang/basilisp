@@ -131,5 +131,5 @@ For systems where the shebang line allows arguments, you can use ``#!/usr/bin/en
 
 .. code-block:: clojure
 
-   #!/usr/bin/env basilisp
+   #!/usr/bin/env basilisp-run
    (println "Hello world!")
