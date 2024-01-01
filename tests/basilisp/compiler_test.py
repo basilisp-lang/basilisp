@@ -609,6 +609,12 @@ class TestDefType:
         with pytest.raises(ExceptionType):
             lcompile(code)
 
+    def test_deftype_name_can_contain_dashes(self, lcompile: CompileFn):
+        cls = lcompile("(deftype* three-axis-point [x y z])")
+        o = lcompile("(three-axis-point. 1 2 3)")
+        assert isinstance(o, cls)
+        assert (o.x, o.y, o.z) == (1, 2, 3)
+
     def test_deftype_allows_empty_abstract_interface(self, lcompile: CompileFn):
         Point = lcompile(
             """
