@@ -11,11 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
+ * Allow vars to be callable to adhere to Clojure conventions (#767)
+ * Support symbols as fns for sets and maps (#775)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
  * Fix issue with keyword fn not testing for test membership in sets (#762)
  * Fix an issue for executing Basilisp scripts via a shebang where certain platforms may not support more than one argument in the shebang line (#764)
+ * Fix issue with keyword fns throwing type error on vectors (#770)
 
 ## [v0.1.0b0]
 ### Added
