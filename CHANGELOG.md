@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
+ * Allow vars to be callable to adhere to Clojure conventions (#767)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)

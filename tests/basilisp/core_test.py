@@ -951,6 +951,11 @@ def test_is_var():
     assert False is core.var__Q__(core.list_)
 
 
+def test_is_var_callable():
+    varlist = runtime.Var.find(sym.symbol("list", ns="basilisp.core"))
+    assert llist.l(2, 3) == varlist(2, 3)
+
+
 class TestExceptionData:
     def test_ex_cause_for_non_exception(self):
         assert None is core.ex_cause("a string")

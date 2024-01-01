@@ -1411,6 +1411,14 @@
   (testing "ns-not-exists"
     (is (thrown? python/AttributeError (intern 'ns-non-existant 'xyz)))))
 
+;;;;;;;;;;
+;; Vars ;;
+;;;;;;;;;;
+
+(deftest var-test
+  (testing "calling vars"
+    (is (= '(1 2) (#'basilisp.core/list 1 2)))))
+
 ;;;;;;;;;;;;;;;;;
 ;; Hierarchies ;;
 ;;;;;;;;;;;;;;;;;

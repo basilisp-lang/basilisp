@@ -275,6 +275,9 @@ class Var(RefBase):
     def __repr__(self):
         return f"#'{self.ns.name}/{self.name}"
 
+    def __call__(self, *args, **kwargs):
+        return self.value(*args, *kwargs)  # pylint: disable=not-callable
+
     @property
     def ns(self) -> "Namespace":
         return self._ns
