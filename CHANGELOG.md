@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix issue with `(count nil)` throwing an exception (#759)
  * Fix issue with keyword fn not testing for test membership in sets (#762)
  * Fix an issue for executing Basilisp scripts via a shebang where certain platforms may not support more than one argument in the shebang line (#764)
+ * Fix issue with keyword fns throwing type error on vectors (#770)
 
 ## [v0.1.0b0]
 ### Added

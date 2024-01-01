@@ -63,7 +63,7 @@ class Keyword(ILispObject):
             return self if self in m else default
         try:
             return m.val_at(self, default)
-        except AttributeError:
+        except (AttributeError, TypeError):
             return None
 
     def __reduce__(self):
