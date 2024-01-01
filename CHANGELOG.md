@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
- * Fix issue with keywords not testing for test membership in sets when called used as a function (#762)
+ * Fix issue with keywords not testing for membership in sets when used as a function (#762)
  * Fix an issue for executing Basilisp scripts via a shebang where certain platforms may not support more than one argument in the shebang line (#764)
  * Fix issue with keywords throwing `TypeError` when used as a function on vectors (#770)
  * Fix an issue where the constructors of types created by `deftype` and `defrecord` could not be called if they contained `-` characters (#777) 
