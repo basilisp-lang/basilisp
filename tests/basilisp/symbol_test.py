@@ -3,6 +3,8 @@ import pickle
 import pytest
 
 from basilisp.lang import map as lmap
+from basilisp.lang import set as lset
+from basilisp.lang import vector as lvector
 from basilisp.lang.keyword import keyword
 from basilisp.lang.symbol import Symbol, symbol
 
@@ -42,6 +44,21 @@ def test_symbol_with_meta():
     assert sym2 is not sym3
     assert sym2 == sym3
     assert sym3.meta == lmap.m(tag=keyword("macro"))
+
+
+def test_symbol_as_function():
+    sym = symbol("kw")
+    assert None is sym(None)
+
+    assert 1 == sym(lmap.map({sym: 1}))
+    assert "hi" == sym(lmap.map({sym: "hi"}))
+    assert None is sym(lmap.map({"hi": sym}))
+
+    assert sym == sym(lset.s(sym))
+    assert None is sym(lset.s(1))
+    assert "hi" is sym(lset.s(1), default="hi")
+
+    assert None is sym(lvector.v(1))
 
 
 @pytest.mark.parametrize(

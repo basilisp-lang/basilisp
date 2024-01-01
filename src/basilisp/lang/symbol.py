@@ -1,7 +1,13 @@
 from functools import total_ordering
-from typing import Optional
+from typing import Optional, Union
 
-from basilisp.lang.interfaces import ILispObject, IPersistentMap, IWithMeta
+from basilisp.lang.interfaces import (
+    IAssociative,
+    ILispObject,
+    IPersistentMap,
+    IPersistentSet,
+    IWithMeta,
+)
 from basilisp.lang.obj import lrepr
 from basilisp.lang.util import munge
 
@@ -70,6 +76,14 @@ class Symbol(ILispObject, IWithMeta):
         if other._ns is None:
             return False
         return self._ns < other._ns or self._name < other._name
+
+    def __call__(self, m: Union[IAssociative, IPersistentSet], default=None):
+        if isinstance(m, IPersistentSet):
+            return self if self in m else default
+        try:
+            return m.val_at(self, default)
+        except (AttributeError, TypeError):
+            return None
 
 
 def symbol(name: str, ns: Optional[str] = None, meta=None) -> Symbol:
