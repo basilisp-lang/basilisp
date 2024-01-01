@@ -82,6 +82,7 @@ BASILISP_VERSION = vec.vector(
 
 # Public basilisp.core symbol names
 COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
+COMMAND_LINE_ARGS_VAR_NAME = "*command-line-args*"
 DEFAULT_READER_FEATURES_VAR_NAME = "*default-reader-features*"
 GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
@@ -2078,6 +2079,22 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         sym.symbol(COMPILER_OPTIONS_VAR_NAME),
         compiler_opts,
         dynamic=True,
+    )
+
+    # Dynamic Var containing command line arguments passed via `basilisp run`
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(COMMAND_LINE_ARGS_VAR_NAME),
+        None,
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "The set of all currently supported "
+                    ":ref:`reader features <reader_conditions>`."
+                )
+            }
+        ),
     )
 
     # Dynamic Var for introspecting the default reader featureset

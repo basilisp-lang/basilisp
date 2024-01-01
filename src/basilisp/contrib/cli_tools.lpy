@@ -1,15 +1,16 @@
 (ns basilisp.contrib.cli-tools
   (:import
    argparse
+   functools
    os
    sys))
 
 (defn ^:private wrapped-namespace
-  "Wrap an `argparse.Namespace` object from the argument parser.
+  "Wrap an ``argparse.Namespace`` object from the argument parser.
 
-  `argparse` uses Namespace objects to collect arguments parsed from the command
+  ``argparse`` uses Namespace objects to collect arguments parsed from the command
   line. These objects are just bags of attributes, so we wrap them with an
-  implementation of `IPersistentMap` to make them easier to integrate with idiomatic
+  implementation of ``IPersistentMap`` to make them easier to integrate with idiomatic
   Basilisp code."
   [ns]
   (reify
@@ -75,21 +76,23 @@
 
 (defn ^:private argument-parser-kwargs
   [config]
-  {:prog         (:command config)
-   :description  (:description config)
-   :usage        (:usage config)
-   :epilog       (:epilogue config)
-   :add-help     (:include-help config true)
-   :allow-abbrev (:allow-abbrev config true)})
+  {:prog          (:command config)
+   :description   (:description config)
+   :usage         (:usage config)
+   :epilog        (:epilogue config)
+   :add-help      (:include-help config true)
+   :allow-abbrev  (:allow-abbrev config true)
+   :exit-on-error (:exit-on-error config true)})
 
 (defn ^:private argument-subparser-kwargs
   [{:keys [aliases] :as config}]
-  (cond-> {:help         (:help config)
-           :description  (:description config)
-           :usage        (:usage config)
-           :epilog       (:epilogue config)
-           :add-help     (:include-help config true)
-           :allow-abbrev (:allow-abbrev config true)}
+  (cond-> {:help          (:help config)
+           :description   (:description config)
+           :usage         (:usage config)
+           :epilog        (:epilogue config)
+           :add-help      (:include-help config true)
+           :allow-abbrev  (:allow-abbrev config true)
+           :exit-on-error (:exit-on-error config true)}
     aliases (assoc :aliases aliases)))
 
 (declare ^:private setup-parser)
@@ -105,7 +108,7 @@
 (def ^:private action-default-attrs
   "Actions are required to have a number of different argument defaults which are
   not all provided to the action constructor. Failing to respond to these values
-  with a meaningful value causes `argparse` to throw exceptions in certain cases."
+  with a meaningful value causes ``argparse`` to throw exceptions in certain cases."
   (->> (argparse/Action [] "dest")
        (python/vars)
        (.items)
@@ -120,10 +123,10 @@
 (defn ^:private cli-tools-assoc-action
   "Create a new CLI Tools Assoc Action.
 
-  Add actions allow users to define actions with `assoc`-like semantics on the
+  Add actions allow users to define actions with :lpy:fn:`assoc`-like semantics on the
   parsed options map.
 
-  The provided `assoc-fn` will be passed the entire options map, the relevant
+  The provided ``assoc-fn`` will be passed the entire options map, the relevant
   destination key, and the parsed option and should return a new options map."
   [assoc-fn]
   (fn ^{:kwargs :collect} AssocAction [{:keys [dest] :as kwargs}]
@@ -146,8 +149,8 @@
   Update actions allow users to define actions which update the current value
   stored in the options map.
 
-  The provided `update-fn` will be passed the current value of the given option
-  (or `nil` if no default is provided) and should return a new value for the
+  The provided ``update-fn`` will be passed the current value of the given option
+  (or ``nil`` if no default is provided) and should return a new value for the
   option."
   [update-fn]
   (fn ^{:kwargs :collect} UpdateAction [{:keys [dest] :as kwargs}]
@@ -167,9 +170,9 @@
 (defn ^:private cli-tools-action
   "Return a new Action for the argument definition.
 
-  Users may provide at most one of `:assoc-fn` or `:update-fn`. If both are given,
+  Users may provide at most one of ``:assoc-fn`` or ``:update-fn``. If both are given,
   an exception will be thrown. If neither is provided, a default assoc action will
-  be returned using `assoc` as the function."
+  be returned using :lpy:fn:`assoc` as the function."
   [{:keys [assoc-fn update-fn]}]
   (if update-fn
     (cli-tools-update-action update-fn)
@@ -204,14 +207,18 @@
         ;; from the CLI into its final value. We decompose that into a parse and
         ;; validate step in the argument config and re-compose those steps here.
         validate-fn (when-let [[f msg] (:validate argument)]
-                      (fn [v]
-                        (if-not (f v)
-                          (throw
-                           (argparse/ArgumentTypeError msg))
-                          v)))
+                      (functools/update-wrapper
+                       (fn [v]
+                         (if-not (f v)
+                           (throw
+                            (argparse/ArgumentTypeError msg))
+                           v))
+                       f))
         type-fn     (if-let [parse-fn (:parse-fn argument)]
-                      (cond->> parse-fn
-                        validate-fn (comp validate-fn))
+                      (if validate-fn
+                        (-> (comp validate-fn parse-fn)
+                            (functools/update-wrapper parse-fn))
+                        parse-fn)
                       validate-fn)
 
         ;; Prepare the keyword arguments for ArgumentParser.add_argument
@@ -241,7 +248,7 @@
     nil))
 
 (def ^:dynamic *create-default-handler*
-  "A function of one argument expecting an `argparse/ArgumentParser` instance
+  "A function of one argument expecting an ``argparse/ArgumentParser`` instance
   which returns a function of one argument which will receive the parsed arguments
   from the CLI.
 
@@ -447,14 +454,14 @@
                :commands []}]})
 
 (defn file-type
-  "Return a type function for a file-typed argument. The `mode` must be specified
-  and must be one of the allowed modes for Python's `open` builtin.
+  "Return a type function for a file-typed argument. The ``mode`` must be specified
+  and must be one of the allowed modes for Python's ``open`` builtin.
 
   If the user supplies the value '-', this function intelligently opens either
-  `*in*` for read-mode files or `*out*` for write-mode files.
+  :lpy:var:`*in*` for read-mode files or :lpy:var:`*out*` for write-mode files.
 
-  This function also supports the `bufsize`, `encoding`, and `errors` options of
-  `open`."
+  This function also supports the ``bufsize``, ``encoding``, and ``errors`` options
+  of ``open``."
   ([mode]
    (argparse/FileType mode))
   ([mode & {:as opts}]
@@ -476,20 +483,38 @@
                (apply-kw argparse/ArgumentParser))
       (setup-parser parser-or-config))))
 
+(defn ^:private args->map
+  "Transform an ``argparse.Namespace`` into a map."
+  [args]
+  (->> args
+       (python/vars)
+       (.items)
+       (into {} (map (fn [[k v]] [(keyword (demunge k)) v])))))
+
 (defn parse-args
   "Parse command line arguments using the supplied parser or CLI tools configuration
-  map. If no `args` are given, parse the arguments from Python's `sys/argv`."
+  map. If no ``args`` are given, parse the arguments from :lpy:var:`*command-line-args*`."
   ([parser-or-config]
-   (parse-args parser-or-config sys/argv))
+   (parse-args parser-or-config *command-line-args*))
   ([parser-or-config args]
    (-> (cli-parser parser-or-config)
        (.parse-args args)
-       (python/vars)
-       (.items)
-       (->> (reduce (fn [m [k v]]
-                      (assoc! m (keyword (demunge k)) v))
-                    (transient {})))
-       (persistent!))))
+       (args->map))))
+
+(defn parse-known-args
+  "Parse known command line arguments using the supplied parser or CLI tools
+  configuration map.
+
+  Returns a vector of ``[parsed-args remainder]`` where ``parsed-args`` is a map of
+  parsed arguments and ``remainder`` is a vector of unrecognized arguments.
+
+  If no ``args`` are given, parse the arguments from :lpy:var:`*command-line-args*`."
+  ([parser-or-config]
+   (parse-known-args parser-or-config *command-line-args*))
+  ([parser-or-config args]
+   (let [[parsed remainder] (-> (cli-parser parser-or-config)
+                                (.parse-known-args args))]
+     [(args->map parsed) (vec remainder)])))
 
 (defn ^:private execute-handler
   "Execute the handler defined in the arguments.
@@ -500,10 +525,10 @@
 
 (defn handle-args
   "Parse command line arguments using the supplied parser or CLI tools configuration
-  map (as by `parse-args`) and execute any command or sub-command handlers for the
+  map (as by :lpy:fn:`parse-args`) and execute any command or sub-command handlers for the
   parsed arguments.
 
-  If no `args` are given, parse the arguments from Python's `sys/argv`."
+  If no ``args`` are given, parse the arguments from :lpy:var:`*command-line-args*`."
   ([parser-or-config]
    (-> (cli-parser parser-or-config)
        (parse-args)
@@ -512,10 +537,3 @@
    (->(cli-parser parser-or-config)
       (parse-args args)
       (execute-handler))))
-
-(defmacro run-cli
-  "Create a new command-line parser using the configuration `config` and run it
-  automatically if this namespace is called as the Python `__main__`."
-  [config]
-  `(when (= __name__ "__main__")
-     (handle-args ~config)))
