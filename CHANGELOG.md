@@ -8,11 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added support for passing through `:tag` metadata to the generated Python AST (#354)
  * Added CLI argument parser in `basilisp.contrib.cli-tools` namespace (#535)
+ * Added support for calling symbols as functions on maps and sets (#775)
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
  * Allow vars to be callable to adhere to Clojure conventions (#767)
- * Support symbols as fns for sets and maps (#775)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
