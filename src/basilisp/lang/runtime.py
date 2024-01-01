@@ -2093,8 +2093,12 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         meta=lmap.map(
             {
                 _DOC_META_KEY: (
-                    "The set of all currently supported "
-                    ":ref:`reader features <reader_conditions>`."
+                    "A vector of command line arguments if this process was started "
+                    "with command line arguments as by ``basilisp run {file_or_code}`` "
+                    "or ``nil`` otherwise.\n\n"
+                    "Note that this value will differ from ``sys.argv`` since it will "
+                    "not include the coommand line arguments consumed by Basilisp's "
+                    "own CLI."
                 )
             }
         ),
