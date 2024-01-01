@@ -1464,7 +1464,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-locals
                                 _load_attr(_NS_VAR_VALUE),
                                 ast.Call(
                                     func=_NEW_SYM_FN_NAME,
-                                    args=[ast.Constant(type_name)],
+                                    args=[ast.Constant(node.name)],
                                     keywords=[],
                                 ),
                                 ast.Name(id=type_name, ctx=ast.Load()),
