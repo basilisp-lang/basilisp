@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix an issue for executing Basilisp scripts via a shebang where certain platforms may not support more than one argument in the shebang line (#764)
  * Fix issue with keywords throwing `TypeError` when used as a function on vectors (#770)
  * Fix an issue where the constructors of types created by `deftype` and `defrecord` could not be called if they contained `-` characters (#777) 
+ * Fix issue with the variadic ampersand operator treated as a binding in macros (#772)
 
 ## [v0.1.0b0]
 ### Added
