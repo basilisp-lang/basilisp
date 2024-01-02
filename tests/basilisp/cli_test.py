@@ -181,19 +181,19 @@ class TestRun:
         result = run_cli(["run", "-c", self.cli_args_code, *args])
         assert ret == result.lisp_out
 
-    def test_run_file(self, tmp_path: pathlib.Path, run_cli):
-        script_path = tmp_path / "test.lpy"
-        script_path.write_text("(println (+ 1 2))")
-        result = run_cli(["run", str(script_path)])
+    def test_run_file(self, isolated_filesystem, run_cli):
+        with open("test.lpy", mode="w") as f:
+            f.write("(println (+ 1 2))")
+        result = run_cli(["run", "test.lpy"])
         assert "3\n" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_file_with_args(
         self, tmp_path: pathlib.Path, run_cli, args: List[str], ret: str
     ):
-        script_path = tmp_path / "test.lpy"
-        script_path.write_text(self.cli_args_code)
-        result = run_cli(["run", str(script_path), *args])
+        with open("test.lpy", mode="w") as f:
+            f.write(self.cli_args_code)
+        result = run_cli(["run", "test.lpy", *args])
         assert ret == result.lisp_out
 
     def test_run_stdin(self, run_cli):
