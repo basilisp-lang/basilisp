@@ -189,7 +189,7 @@ class TestRun:
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_file_with_args(
-        self, tmp_path: pathlib.Path, run_cli, args: List[str], ret: str
+        self, isolated_filesystem, run_cli, args: List[str], ret: str
     ):
         with open("test.lpy", mode="w") as f:
             f.write(self.cli_args_code)
