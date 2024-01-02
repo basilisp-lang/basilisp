@@ -501,7 +501,7 @@ def run_script():
     The current process is replaced as by `os.execlp`."""
     # os.exec* functions do not perform shell expansion, so we must do so manually.
     script_path = Path(sys.argv[1]).resolve()
-    args = ["basilisp", "run", script_path]
+    args = ["basilisp", "run", str(script_path)]
     # Collect arguments sent to the script and pass them onto `basilisp run`
     if rest := sys.argv[2:]:
         args.append("--")
