@@ -2097,7 +2097,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
                     "with command line arguments as by ``basilisp run {file_or_code}`` "
                     "or ``nil`` otherwise.\n\n"
                     "Note that this value will differ from ``sys.argv`` since it will "
-                    "not include the coommand line arguments consumed by Basilisp's "
+                    "not include the command line arguments consumed by Basilisp's "
                     "own CLI."
                 )
             }
