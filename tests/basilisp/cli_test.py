@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import time
 from threading import Thread
-from typing import Optional, Sequence
+from typing import List, Optional, Sequence
 from unittest.mock import patch
 
 import attr
@@ -177,7 +177,7 @@ class TestRun:
         assert "3\n" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
-    def test_run_code_with_args(self, run_cli, args: list[str], ret: str):
+    def test_run_code_with_args(self, run_cli, args: List[str], ret: str):
         result = run_cli(["run", "-c", self.cli_args_code, *args])
         assert ret == result.lisp_out
 
@@ -189,7 +189,7 @@ class TestRun:
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_file_with_args(
-        self, tmp_path: pathlib.Path, run_cli, args: list[str], ret: str
+        self, tmp_path: pathlib.Path, run_cli, args: List[str], ret: str
     ):
         script_path = tmp_path / "test.lpy"
         script_path.write_text(self.cli_args_code)
@@ -201,7 +201,7 @@ class TestRun:
         assert "3\n" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
-    def test_run_stdin_with_args(self, run_cli, args: list[str], ret: str):
+    def test_run_stdin_with_args(self, run_cli, args: List[str], ret: str):
         result = run_cli(
             ["run", "-", *args],
             input=self.cli_args_code,
@@ -228,7 +228,7 @@ def test_version(run_cli):
         (["1", "hi", "yes"], b"[1 hi yes]\n"),
     ],
 )
-def test_run_script(tmp_path: pathlib.Path, args: list[str], ret: bytes):
+def test_run_script(tmp_path: pathlib.Path, args: List[str], ret: bytes):
     script_path = tmp_path / "script.lpy"
     script_path.write_text(
         "\n".join(
