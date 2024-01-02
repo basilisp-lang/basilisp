@@ -94,7 +94,11 @@
                                                    :help     "if provided, number of parallel workres"
                                                    :default  1
                                                    :validate [pos? "must be positive"]
-                                                   :parse-fn python/int}]}]})]
+                                                   :parse-fn python/int}
+                                                  {:flags     ["-v" "--verbose"]
+                                                   :help      "increase verbosity level; may be specified multiple times"
+                                                   :default   1
+                                                   :update-fn inc}]}]})]
     (are [args] (thrown? argparse/ArgumentError (parse-args parser args))
       ["run-all" "-p" "-1" "script.lpy"]
       ["run-all" "-p" "hi" "script.lpy"])
@@ -120,5 +124,8 @@
 
       ["run-all" "script.lpy"]                                        {:files    ["script.lpy"]
                                                                        :parallel 1}
+      ["run-all" "-vvv" "script.lpy"]                                 {:files    ["script.lpy"]
+                                                                       :parallel 1
+                                                                       :verboose 4}
       ["run-all" "-p" "3" "script1.lpy", "script2.lpy" "script3.lpy"] {:files    ["script1.lpy", "script2.lpy" "script3.lpy"]
                                                                        :parallel 3})))
