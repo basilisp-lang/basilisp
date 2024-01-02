@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added support for passing through `:tag` metadata to the generated Python AST (#354)
  * Added support for calling symbols as functions on maps and sets (#775)
- * Added support for passing command line arguments to Basilisp (#???)
+ * Added support for passing command line arguments to Basilisp (#779)
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
