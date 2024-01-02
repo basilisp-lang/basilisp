@@ -35,6 +35,13 @@
                      (->> (update base-parser-config :arguments conj))
                      (cli/cli-parser)))))
 
+  (testing "disallow name and dest"
+    (is (thrown? basilisp.lang.exception/ExceptionInfo
+                 (-> base-arg-config
+                     (assoc :dest "dest")
+                     (->> (update base-parser-config :arguments conj))
+                     (cli/cli-parser)))))
+
   (testing "disallow assoc-fn and update-fn"
     (is (thrown? basilisp.lang.exception/ExceptionInfo
                  (-> base-arg-config
@@ -61,7 +68,18 @@
                  :description   "Basilisp is a Lisp dialect inspired by Clojure targeting Python 3"
                  :exit-on-error false
                  :arguments     []
-                 :commands      [{:command     "run"
+                 :commands      [{:command       "compile"
+                                  :description   "Run multiple Basilisp scripts in parallel."
+                                  :help          "run multiple Basilisp scripts in parallel"
+                                  :exit-on-error false
+                                  :handler       identity
+                                  :arguments     [{:dest     "optimize"
+                                                   :flags    ["-o"]
+                                                   :help     "set the optimization level"
+                                                   :default  "standard"
+                                                   :parse-fn keyword
+                                                   :validate [#{:debug :standard :optimized} "must be one of: :debug, :standard, :optimized"]}]}
+                                 {:command     "run"
                                   :description "Run a Basilisp script from a file or run Basilisp code directly."
                                   :help        "run a Basilisp script or code"
                                   :handler     identity
@@ -100,11 +118,14 @@
                                                    :default   1
                                                    :update-fn inc}]}]})]
     (are [args] (thrown? argparse/ArgumentError (parse-args parser args))
+      ["compile" "-o" "kinda"]
       ["run-all" "-p" "-1" "script.lpy"]
       ["run-all" "-p" "hi" "script.lpy"])
 
     (are [args ret] (= ret (dissoc (parse-args parser args) :handler))
       [] {}
+
+      ["compile" "-o" "debug"] {:optimize :debug}
 
       ["run" "--in-ns" "basilisp.contrib.cli-tools" "cli_tools.lpy"] {:file-or-code          "cli_tools.lpy"
                                                                       :code                  false
@@ -123,9 +144,11 @@
                                                                       :warn-on-shadowed-name nil}
 
       ["run-all" "script.lpy"]                                        {:files    ["script.lpy"]
-                                                                       :parallel 1}
+                                                                       :parallel 1
+                                                                       :verbose  1}
       ["run-all" "-vvv" "script.lpy"]                                 {:files    ["script.lpy"]
                                                                        :parallel 1
-                                                                       :verboose 4}
+                                                                       :verbose 4}
       ["run-all" "-p" "3" "script1.lpy", "script2.lpy" "script3.lpy"] {:files    ["script1.lpy", "script2.lpy" "script3.lpy"]
-                                                                       :parallel 3})))
+                                                                       :parallel 3
+                                                                       :verbose  1})))

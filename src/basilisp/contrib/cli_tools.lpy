@@ -134,8 +134,9 @@
       (reify
         ^:abstract argparse/Action
         (^{:kwargs :collect} __call__ [self _ namespace values _ _]
-         (-> (wrapped-namespace namespace)
-             (assoc-fn dest values)))
+         (let [lisp-val (py->lisp values)]
+           (-> (wrapped-namespace namespace)
+               (assoc-fn dest lisp-val))))
         (__getattr__ [self name]
           (let [k (keyword (demunge name))]
             (if (contains? kwargs k)
@@ -179,13 +180,19 @@
     (cli-tools-assoc-action (or assoc-fn assoc))))
 
 (defn ^:private validate-argument
-  [{:keys [name flags nargs assoc-fn update-fn] :as argument}]
+  [{:keys [name flags dest nargs assoc-fn update-fn] :as argument}]
   (when (and name flags)
     (throw
      (ex-info (str "Arguments may either be positional (via :name) or "
                    "optional (via :flags), not both")
               {:name  name
                :flags flags})))
+  (when (and name dest)
+    (throw
+     (ex-info (str "Arguments may either provide a :name or :dest, "
+                   "not both")
+              {:name name
+               :dest dest})))
   (when update-fn
     (when assoc-fn
       (throw
@@ -222,18 +229,19 @@
                       validate-fn)
 
         ;; Prepare the keyword arguments for ArgumentParser.add_argument
-        kwargs  {:default (or (some-> (:env argument) (os/getenv))
-                              (:default argument))
-                 :const   true
-                 :action  (cli-tools-action argument)
-                 :nargs   (if-let [nargs (:nargs argument)]
-                            (cond-> nargs (keyword? nargs) (name))
-                            (if (:update-fn argument) 0 "?"))
-                 :type    type-fn
-                 :metavar (when-let [metavar (:metavar argument)]
-                            (cond-> metavar
-                              (vector? metavar) (python/tuple)))
-                 :help    (:help argument)}
+        kwargs  (cond-> {:default (or (some-> (:env argument) (os/getenv))
+                                      (:default argument))
+                         :const   true
+                         :action  (cli-tools-action argument)
+                         :nargs   (if-let [nargs (:nargs argument)]
+                                    (cond-> nargs (keyword? nargs) (name))
+                                    (if (:update-fn argument) 0 "?"))
+                         :type    type-fn
+                         :metavar (when-let [metavar (:metavar argument)]
+                                    (cond-> metavar
+                                      (vector? metavar) (python/tuple)))
+                         :help    (:help argument)}
+                  (:dest argument) (assoc :dest (:dest argument)))
 
         ;; Python's ArgumentParser.add_argument method takes variadic positional
         ;; arguments _and_ keyword arguments, which is a challenging combination
