@@ -13,6 +13,7 @@ from basilisp.lang import compiler as compiler
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.prompt import get_prompter
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
@@ -417,6 +418,11 @@ def run(
     with runtime.ns_bindings(args.in_ns) as ns:
         ns.refer_all(core_ns)
 
+        if args.args:
+            cli_args_var = core_ns.find(sym.symbol(runtime.COMMAND_LINE_ARGS_VAR_NAME))
+            assert cli_args_var is not None
+            cli_args_var.bind_root(vec.vector(args.args))
+
         if args.code:
             eval_str(args.file_or_code, ctx, ns, eof)
         elif args.file_or_code == STDIN_FILE_NAME:
@@ -444,6 +450,11 @@ def _add_run_subcommand(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         "--in-ns", default=runtime.REPL_DEFAULT_NS, help="namespace to use for the code"
+    )
+    parser.add_argument(
+        "args",
+        nargs=argparse.REMAINDER,
+        help="command line args made accessible to the script as basilisp.core/*command-line-args*",
     )
     _add_compiler_arg_group(parser)
     _add_debug_arg_group(parser)
@@ -490,7 +501,12 @@ def run_script():
     The current process is replaced as by `os.execlp`."""
     # os.exec* functions do not perform shell expansion, so we must do so manually.
     script_path = Path(sys.argv[1]).resolve()
-    os.execlp("basilisp", "basilisp", "run", script_path)
+    args = ["basilisp", "run", script_path]
+    # Collect arguments sent to the script and pass them onto `basilisp run`
+    if rest := sys.argv[2:]:
+        args.append("--")
+        args.extend(rest)
+    os.execvp("basilisp", args)
 
 
 def invoke_cli(args: Optional[Sequence[str]] = None) -> None:

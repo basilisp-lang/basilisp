@@ -164,19 +164,49 @@ class TestREPL:
 
 
 class TestRun:
+    cli_args_params = [
+        ([], "0\n"),
+        (["--"], "0\n"),
+        (["1", "2", "3"], "6\n"),
+        (["--", "1", "2", "3"], "6\n"),
+    ]
+    cli_args_code = "(println (apply + (map int *command-line-args*)))"
+
     def test_run_code(self, run_cli):
         result = run_cli(["run", "-c", "(println (+ 1 2))"])
         assert "3\n" == result.lisp_out
 
-    def test_run_file(self, isolated_filesystem, run_cli):
-        with open("test.lpy", mode="w") as f:
-            f.write("(println (+ 1 2))")
-        result = run_cli(["run", "test.lpy"])
+    @pytest.mark.parametrize("args,ret", cli_args_params)
+    def test_run_code_with_args(self, run_cli, args: list[str], ret: str):
+        result = run_cli(["run", "-c", self.cli_args_code, *args])
+        assert ret == result.lisp_out
+
+    def test_run_file(self, tmp_path: pathlib.Path, run_cli):
+        script_path = tmp_path / "test.lpy"
+        script_path.write_text("(println (+ 1 2))")
+        result = run_cli(["run", str(script_path)])
         assert "3\n" == result.lisp_out
+
+    @pytest.mark.parametrize("args,ret", cli_args_params)
+    def test_run_file_with_args(
+        self, tmp_path: pathlib.Path, run_cli, args: list[str], ret: str
+    ):
+        script_path = tmp_path / "test.lpy"
+        script_path.write_text(self.cli_args_code)
+        result = run_cli(["run", str(script_path), *args])
+        assert ret == result.lisp_out
 
     def test_run_stdin(self, run_cli):
         result = run_cli(["run", "-"], input="(println (+ 1 2))")
         assert "3\n" == result.lisp_out
+
+    @pytest.mark.parametrize("args,ret", cli_args_params)
+    def test_run_stdin_with_args(self, run_cli, args: list[str], ret: str):
+        result = run_cli(
+            ["run", "-", *args],
+            input=self.cli_args_code,
+        )
+        assert ret == result.lisp_out
 
 
 def test_version(run_cli):
@@ -191,7 +221,14 @@ def test_version(run_cli):
         "so this doesn't work natively on Windows"
     ),
 )
-def test_run_script(tmp_path: pathlib.Path):
+@pytest.mark.parametrize(
+    "args,ret",
+    [
+        ([], b"nil\n"),
+        (["1", "hi", "yes"], b"[1 hi yes]\n"),
+    ],
+)
+def test_run_script(tmp_path: pathlib.Path, args: list[str], ret: bytes):
     script_path = tmp_path / "script.lpy"
     script_path.write_text(
         "\n".join(
@@ -200,10 +237,12 @@ def test_run_script(tmp_path: pathlib.Path):
                 "(ns test-run-script-ns ",
                 "  (:import os))",
                 "",
-                '(println "Hello world from Basilisp!")',
+                "(println *command-line-args*)",
             ]
         )
     )
     script_path.chmod(script_path.stat().st_mode | stat.S_IEXEC)
-    res = subprocess.run([script_path.resolve()], check=True, capture_output=True)
-    assert res.stdout == b"Hello world from Basilisp!\n"
+    res = subprocess.run(
+        [script_path.resolve(), *args], check=True, capture_output=True
+    )
+    assert res.stdout == ret
