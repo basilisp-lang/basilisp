@@ -1456,3 +1456,10 @@
                       (conj coll m)
                       (conj accum a b))
                [coll (apply str accum)]))))))
+
+(defmacro ^:private variadic-fn []
+  `(fn [& r#] r#))
+
+(deftest macro-variadic-fn
+  (testing "defining variadic fn with ampersand"
+    (is (= '(2 3 4) ((variadic-fn) 2 3 4)))))

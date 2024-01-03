@@ -773,6 +773,14 @@ def test_syntax_quoted(test_ns: str, ns: runtime.Namespace):
         ),
     ) == read_str_first("`(~'my-symbol)"), "Do not resolve unquoted quoted syms"
 
+    assert llist.l(sym.symbol("quote"), sym.symbol("&")) == read_str_first(
+        "`&"
+    ), "do not resolve the not namespaced ampersand"
+
+    assert llist.l(
+        sym.symbol("quote"), sym.symbol("&", ns="test-ns")
+    ) == read_str_first("`test-ns/&"), "resolve fq namespaced ampersand"
+
 
 def test_syntax_quote_gensym():
     resolver = lambda s: sym.symbol(s.name, ns="test-ns")
