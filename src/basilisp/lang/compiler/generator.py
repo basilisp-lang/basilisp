@@ -697,6 +697,9 @@ _ATTRIB_FIELD_FN_NAME = _load_attr("attr.field")
 _COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
+_BASILISP_MULTI_ARITY_FN_FN_NAME = _load_attr(
+    f"{_RUNTIME_ALIAS}._basilisp_multi_arity_fn"
+)
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
 _BASILISP_TYPE_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_type")
 _BASILISP_WITH_META_INTERFACE_NAME = _load_attr(f"{_INTERFACES_ALIAS}.IWithMeta")
@@ -1844,103 +1847,6 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
         dispatch_keys.append(ast.Constant(k))
         dispatch_vals.append(ast.Name(id=v, ctx=ast.Load()))
 
-    # Async functions should return await, otherwise just return
-    handle_return = __handle_async_return if is_async else __handle_return
-
-    nargs_name = genname("nargs")
-    arity_name = genname("arity")
-    body = [
-        ast.Assign(
-            targets=[ast.Name(id=nargs_name, ctx=ast.Store())],
-            value=ast.Call(
-                func=ast.Name(id="len", ctx=ast.Load()),
-                args=[ast.Name(id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load())],
-                keywords=[],
-            ),
-        ),
-        ast.Assign(
-            targets=[ast.Name(id=arity_name, ctx=ast.Store())],
-            value=ast.Call(
-                func=ast.Attribute(
-                    value=ast.Attribute(
-                        value=ast.Name(id="self", ctx=ast.Load()),
-                        attr="arity_map",
-                        ctx=ast.Load(),
-                    ),
-                    attr="get",
-                    ctx=ast.Load(),
-                ),
-                args=[ast.Name(id=nargs_name, ctx=ast.Load())],
-                keywords=[],
-            ),
-        ),
-        ast.If(
-            test=ast.Compare(
-                left=ast.Constant(None),
-                ops=[ast.IsNot()],
-                comparators=[ast.Name(id=arity_name, ctx=ast.Load())],
-            ),
-            body=[
-                handle_return(
-                    ast.Call(
-                        func=ast.Name(id=arity_name, ctx=ast.Load()),
-                        args=[
-                            ast.Starred(
-                                value=ast.Name(
-                                    id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
-                                ),
-                                ctx=ast.Load(),
-                            )
-                        ],
-                        keywords=[],
-                    )
-                )
-            ],
-            orelse=[]
-            if default_name is None
-            else [
-                ast.If(
-                    test=ast.Compare(
-                        left=ast.Name(id=nargs_name, ctx=ast.Load()),
-                        ops=[ast.GtE()],
-                        comparators=[ast.Constant(max_fixed_arity)],
-                    ),
-                    body=[
-                        handle_return(
-                            ast.Call(
-                                func=ast.Name(id=default_name, ctx=ast.Load()),
-                                args=[
-                                    ast.Starred(
-                                        value=ast.Name(
-                                            id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
-                                        ),
-                                        ctx=ast.Load(),
-                                    )
-                                ],
-                                keywords=[],
-                            )
-                        )
-                    ],
-                    orelse=[],
-                )
-            ],
-        ),
-        ast.Raise(
-            exc=ast.Call(
-                func=_load_attr("basilisp.lang.runtime.RuntimeException"),
-                args=[
-                    ast.Constant(f"Wrong number of args passed to function: {name}"),
-                    ast.Name(id=nargs_name, ctx=ast.Load()),
-                ],
-                keywords=[],
-            ),
-            cause=None,
-        ),
-    ]
-
-    py_fn_node = ast.AsyncFunctionDef if is_async else ast.FunctionDef
-    meta_deps, meta_decorators = __fn_meta(ctx, meta_node)
-
     ret_ann_ast: Optional[ast.AST] = None
     ret_ann_deps: List[ast.AST] = []
     if all(tag is not None for tag in return_tags):
@@ -1959,40 +1865,103 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
             else None
         )
 
+    meta_py_ast: Optional[ast.AST] = None
+    meta_deps: List[ast.AST] = []
+    if meta_node is not None:
+        meta_ast = gen_py_ast(ctx, meta_node)
+        meta_py_ast = meta_ast.node
+        meta_deps.extend(meta_ast.dependencies)
+
     return GeneratedPyAST(
         node=ast.Name(id=name, ctx=ast.Load()),
         dependencies=chain(
             meta_deps,
             ret_ann_deps,
             [
-                py_fn_node(
-                    name=name,
-                    args=ast.arguments(
-                        posonlyargs=[],
-                        args=[ast.arg(arg="self", annotation=None)],
-                        kwarg=None,
-                        vararg=ast.arg(arg=_MULTI_ARITY_ARG_NAME, annotation=None),
-                        kwonlyargs=[],
-                        defaults=[],
-                        kw_defaults=[],
-                    ),
-                    body=body,
-                    decorator_list=list(
-                        chain(
-                            meta_decorators,
-                            [
-                                __fn_decorator(
-                                    arity_map.keys(),
-                                    has_rest_arg=default_name is not None,
-                                    arity_map=ast.Dict(
-                                        keys=dispatch_keys, values=dispatch_vals
-                                    ),
-                                    bind_self_arg=True,
+                _tagged_assign(
+                    target=ast.Name(id=name, ctx=ast.Store()),
+                    value=ast.Call(
+                        func=ast.Call(
+                            func=_BASILISP_MULTI_ARITY_FN_FN_NAME,
+                            args=[],
+                            keywords=list(
+                                chain(
+                                    [
+                                        ast.keyword(
+                                            arg="arities",
+                                            value=ast.Tuple(
+                                                elts=list(
+                                                    chain(
+                                                        map(
+                                                            ast.Constant,
+                                                            arity_map.keys(),
+                                                        ),
+                                                        [
+                                                            ast.Call(
+                                                                func=_NEW_KW_FN_NAME,
+                                                                args=[
+                                                                    ast.Constant(
+                                                                        hash(_REST_KW)
+                                                                    ),
+                                                                    ast.Constant(
+                                                                        "rest"
+                                                                    ),
+                                                                ],
+                                                                keywords=[],
+                                                            )
+                                                        ]
+                                                        if default_name is not None
+                                                        else [],
+                                                    )
+                                                ),
+                                                ctx=ast.Load(),
+                                            ),
+                                        ),
+                                        ast.keyword(
+                                            arg="arity_map",
+                                            value=ast.Dict(
+                                                keys=dispatch_keys, values=dispatch_vals
+                                            ),
+                                        ),
+                                    ],
+                                    [
+                                        ast.keyword(
+                                            arg="max_fixed_arity",
+                                            value=ast.Constant(max_fixed_arity),
+                                        ),
+                                        ast.keyword(
+                                            arg="default",
+                                            value=ast.Name(
+                                                id=default_name, ctx=ast.Load()
+                                            ),
+                                        ),
+                                    ]
+                                    if default_name is not None
+                                    else [],
                                 )
-                            ],
-                        )
+                            ),
+                        ),
+                        args=[
+                            ast.Call(
+                                func=_NEW_SYM_FN_NAME,
+                                args=[ast.Constant(name)],
+                                keywords=[],
+                            ),
+                            meta_py_ast
+                            if meta_py_ast is not None
+                            else ast.Constant(None),
+                        ],
+                        keywords=[],
                     ),
-                    returns=ret_ann_ast,
+                    annotation=ast.Subscript(
+                        value=ast.Name(id="Callable", ctx=ast.Load()),
+                        slice=ast.Tuple(
+                            elts=[ast.Ellipsis(), ret_ann_ast], ctx=ast.Load()
+                        ),
+                        ctx=ast.Load(),
+                    )
+                    if ret_ann_ast is not None
+                    else None,
                 )
             ],
         ),
@@ -3866,6 +3835,7 @@ def _from_module_imports() -> Iterable[ast.ImportFrom]:
         ast.ImportFrom(
             module="typing",
             names=[
+                ast.alias(name="Callable", asname=None),
                 ast.alias(name="Union", asname=None),
             ],
             level=0,

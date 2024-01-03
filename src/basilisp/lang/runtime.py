@@ -1777,9 +1777,8 @@ def _fn_with_meta(f, meta: Optional[lmap.PersistentMap]):
 
 
 def _basilisp_fn(
-    arities: Tuple[Union[int, kw.Keyword]],
+    arities: Tuple[Union[int, kw.Keyword], ...],
     arity_map: Optional[Mapping[Union[int, kw.Keyword], Callable]] = None,
-    bind_self: bool = False,
 ):
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
@@ -1790,12 +1789,62 @@ def _basilisp_fn(
         f.arities = lset.set(arities)
         f.arity_map = lmap.map(arity_map) if arity_map is not None else None
         f.meta = None
-        if bind_self:
-            f = partial(f, f)
         f.with_meta = partial(_fn_with_meta, f)
         return f
 
     return wrap_fn
+
+
+def _basilisp_multi_arity_fn(
+    arities: Tuple[Union[int, kw.Keyword], ...],
+    arity_map: Mapping[Union[int, kw.Keyword], Callable],
+    max_fixed_arity: Optional[int] = None,
+    default: Optional[Callable] = None,
+) -> Type:
+    class BasilispMultiArityFn:
+        __slots__ = ("_name", "arities", "arity_map", "meta")
+
+        def __init__(
+            self,
+            name: Optional[sym.Symbol],
+            meta: Optional[lmap.PersistentMap] = None,
+        ):
+            self._name = name
+            self.arities = lset.set(arities)
+            self.arity_map = lmap.map(arity_map)
+            self.meta = meta
+
+        _basilisp_fn = True
+
+        if max_fixed_arity is not None:
+            assert default is not None
+
+            def __call__(self, *args):
+                nargs = len(args)
+                arity = self.arity_map.get(nargs)
+                if arity is not None:
+                    return arity(*args)
+                if nargs > max_fixed_arity:
+                    return default(*args)
+                raise RuntimeException(
+                    f"Wrong number of args passed to function: {self._name}", nargs
+                )
+
+        else:
+
+            def __call__(self, *args):
+                nargs = len(args)
+                arity = self.arity_map.get(nargs)
+                if arity is not None:
+                    return arity(*args)
+                raise RuntimeException(
+                    f"Wrong number of args passed to function: {self._name}", nargs
+                )
+
+        def with_meta(self, meta: Optional[lmap.PersistentMap] = None):
+            return type(self)(None, meta)
+
+    return BasilispMultiArityFn
 
 
 def _basilisp_type(
