@@ -4374,7 +4374,24 @@
   this function."
   [& paths]
   (doseq [path (seq paths)]
-    (load-file (str path ".lpy"))))
+    (let [path-rel (if (.startswith path "/")
+                     path
+                     (let [nsname (.-name *ns*)
+                           dot-last (.rfind nsname ".")
+                           path-parent (-> (subs nsname 0 (if (= dot-last -1) (count nsname) dot-last))
+                                           (.replace "." "/"))]
+                       (str "/" path-parent "/" path)))
+          path-rel (.replace path-rel "-" "_")
+          path-abs (if-let [path-full (some (fn [p]
+                                              (let [pf (str p path-rel)]
+                                                (when (os.path/exists (str pf ".lpy"))
+                                                  pf)))
+                                            sys/path)]
+                     path-full
+                     (throw (python/FileNotFoundError (str "Could not locate `"
+                                                           (str (subs path-rel 1) ".lpy")
+                                                           "` on syspath."))))]
+      (load-file (str path-abs ".lpy")))))
 
 (defn ^:inline load-string
   "Read and evaluate the set of forms contained in the string ``s``\\."

@@ -2051,3 +2051,22 @@
       (eval '(ns test-core-fns.ns-with-import (:import [time :as time-alias])))
       (is (= *ns* (the-ns 'test-core-fns.ns-with-import)))
       (is (= "Thu Jan  1 00:00:01 1970" (eval '(time-alias/asctime (time-alias/gmtime 1))))))))
+
+
+;;;;;;;;;;
+;; load ;;
+;;;;;;;;;;
+
+(deftest load-test
+
+  (testing "relative load path"
+    (let [output (with-out-str (load "corpus/core-load-1"))]
+      (is (= ":core-load-1" output))))
+
+  (testing "absolute (/) load path"
+    ;; pytest add the top basilisp directory to the classpath
+    (let [output (with-out-str (load "/tests/basilisp/corpus/core-load-1"))]
+      (is (= ":core-load-1" output))))
+
+  (testing "non-existent load path"
+    (is (thrown? python/FileNotFoundError (load "corpus/core-load-99")))))
