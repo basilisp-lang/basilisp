@@ -4356,6 +4356,28 @@
   (with-open [f (python/open path ** :mode "r")]
     (load-reader f)))
 
+(defn- resolve-load-path [path]
+  "Resolve load ``path`` relative to the current namespace, or, if it
+  begins with \"/\", relative to the syspath, and return it.
+
+ Throw a python/FileNotFoundError if the ``path`` cannot be resolved."
+  (let [path-rel (if (.startswith path "/")
+                   path
+                   (let [path-parent (-> (name *ns*)
+                                         (.rsplit "." 1)
+                                         (first)
+                                         (.replace "." "/"))]
+                     (str "/" path-parent "/" path)))
+        path-rel (.replace path-rel "-" "_")]
+    (if-let [path-full (some (fn [p]
+                               (let [pf (str p path-rel)]
+                                 (when (os.path/exists (str pf ".lpy"))
+                                   pf)))
+                             sys/path)]
+      path-full
+      (throw (python/FileNotFoundError (str "Could not locate `"
+                                            (subs path-rel 1) ".lpy` on syspath."))))))
+
 (defn load
   "Read and evaluate the set of forms contained in the files identified by ``paths``.
 
@@ -4366,6 +4388,10 @@
   (which is generally preferred, but not right in every scenario). ``load`` will load
   the contents of the named file directly into the current namespace.
 
+  A path is interpreted relative to the syspath if it starts with a
+  forward slash or relative to the root directory of the current
+  namespace otherwise.
+
   Note that unlike ``require``\\, files loaded by ``load`` will not be cached and will
   thus incur compilation time on subsequent loads.
 
@@ -4374,7 +4400,7 @@
   this function."
   [& paths]
   (doseq [path (seq paths)]
-    (load-file (str path ".lpy"))))
+    (load-file (str (resolve-load-path path) ".lpy"))))
 
 (defn ^:inline load-string
   "Read and evaluate the set of forms contained in the string ``s``\\."

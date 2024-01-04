@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
  * Allow vars to be callable to adhere to Clojure conventions (#767)
+ * Adjust input path compatibility in basilisp.core/load input path to be relative to the namespace or the root path (#782)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
