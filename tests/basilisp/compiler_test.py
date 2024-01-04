@@ -2245,6 +2245,12 @@ class TestFunctionWarnUnusedName:
             f"symbol 'v' defined but not used ({ns}: 1)",
         ) in caplog.record_tuples
 
+    def test_single_arity_fn_underscore_log_if_warning_enabled(
+        self, lcompile: CompileFn, ns: runtime.Namespace, caplog
+    ):
+        lcompile("(fn [_v] (fn [v] v))", opts={compiler.WARN_ON_UNUSED_NAMES: True})
+        assert_no_logs(caplog)
+
     def test_multi_arity_fn_log_if_warning_enabled(
         self, lcompile: CompileFn, ns: runtime.Namespace, caplog
     ):

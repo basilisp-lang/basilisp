@@ -83,7 +83,7 @@
 
 (defn- send-value [request send-fn v]
   (let [{:keys [client*]}  request
-        {:keys [*2 *3 *e]} @client*
+        {:keys [*1 *2]} @client*
         [v opts]           v
         ns                 (:ns opts)]
     (swap! client* assoc :*1 v :*2 *1 :*3 *2)
@@ -337,7 +337,7 @@
       (warn "Unhandled operation" op)
       (send-fn request {"status" ["error" "unknown-op" "done"]}))))
 
-(defn- make-request-handler [opts]
+(defn- make-request-handler [_]
   (-> handle-request
       coerce-request-mw
       log-request-mw))
