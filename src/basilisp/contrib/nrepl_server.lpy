@@ -337,7 +337,7 @@
       (warn "Unhandled operation" op)
       (send-fn request {"status" ["error" "unknown-op" "done"]}))))
 
-(defn- make-request-handler [_opts]
+(defn- make-request-handler [_]
   (-> handle-request
       coerce-request-mw
       log-request-mw))

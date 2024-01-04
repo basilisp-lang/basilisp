@@ -15,7 +15,7 @@
 
 (extend-protocol BEncodeable
   nil
-  (to-bencode-encodeable* [_this]
+  (to-bencode-encodeable* [_]
     #b "0:")
   python/bytes
   (to-bencode-encodeable* [this]
@@ -203,7 +203,7 @@
                                    (assoc :key-fn #(keyword (.decode % "utf-8")))))]
     (try
       (decode* data opts)
-      (catch python/Exception _e
+      (catch python/Exception _
         [nil data]))))
 
 (defn decode-all
