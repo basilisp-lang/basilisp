@@ -1,5 +1,5 @@
 # pylint: disable=too-many-lines
-
+import builtins
 import contextlib
 import decimal
 import functools
@@ -867,7 +867,9 @@ class Namespace(ReferenceBase):
 
         candidates = filter(
             Namespace.__completion_matcher(prefix),
-            itertools.chain(aliases.items(), imports.items()),
+            itertools.chain(
+                aliases.items(), imports.items(), [(sym.symbol("python"), builtins)]
+            ),
         )
         if name_in_module is not None:
             for _, module in candidates:
