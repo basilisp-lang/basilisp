@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
  * Allow vars to be callable to adhere to Clojure conventions (#767)
- * Adjust input path compatibility in basilisp.core/load input path to be relative to the namespace or the root path (#782)
+ * Adjust input path compatibility in `basilisp.core/load` input path to be relative to the namespace or the root path (#782)
+ * No longer warn on unused bindings when their name begins with `_` (#756)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
@@ -23,8 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix an issue where the constructors of types created by `deftype` and `defrecord` could not be called if they contained `-` characters (#777) 
  * Fix issue with the variadic ampersand operator treated as a binding in macros (#772)
 
-### Changed
- * Do not warn on unused bindings when their name begins with `_` (#756).
+### Removed
+ * Removed support for PyPy 3.8 (#785)
 
 ## [v0.1.0b0]
 ### Added
