@@ -83,3 +83,21 @@ If you installed the `PyTest <https://docs.pytest.org/en/7.0.x/>`_ extra, you ca
    basilisp test
 
 Because Basilisp defers all testing logic to PyTest, you can use any standard PyTest arguments and flags from this entrypoint.
+
+.. _bootstrap_cli_command:
+
+Bootstrap Python Installation
+-----------------------------
+
+For some installations, it may be desirable to have Basilisp readily importable whenever the Python interpreter is started.
+You can enable that as described in :ref:`bootstrapping`:
+
+.. code-block:: bash
+
+   basilisp bootstrap
+
+If you would like to remove the bootstrapped Basilisp from your installation, you can remove it:
+
+.. code-block:: bash
+
+   basilisp bootstrap --uninstall

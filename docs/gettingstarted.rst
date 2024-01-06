@@ -133,3 +133,24 @@ For systems where the shebang line allows arguments, you can use ``#!/usr/bin/en
 
    #!/usr/bin/env basilisp-run
    (println "Hello world!")
+
+Finally, Basilisp has a command line option to bootstrap your Python installation such that Basilisp will already be importable whenever Python is started.
+This takes advantage of the ``.pth`` file feature supported by the `site <https://docs.python.org/3/library/site.html>`_ package.
+Specifically, any file with a ``.pth`` extension located in any of the known ``site-packages`` directories will be read at startup and, if any line of such a file starts with ``import``, it is executed.
+
+.. code-block:: bash
+
+   $ basilisp bootstrap
+   Your Python installation has been bootstrapped! You can undo this at any time with with `basilisp bootstrap --uninstall`.
+   $ python
+   Python 3.12.1 (main, Jan  3 2024, 10:01:43) [GCC 11.4.0] on linux
+   Type "help", "copyright", "credits" or "license" for more information.
+   >>> import importlib; importlib.import_module("basilisp.core")
+   <module 'basilisp.core' (/home/chris/Projects/basilisp/src/basilisp/core.lpy)>
+
+.. warning::
+
+   Code in ``.pth`` files is executed each time the Python interpreter is started.
+   The Python ``site`` documentation warns that "[i]ts impact should thus be kept to a minimum".
+   Bootstrapping Basilisp can take as long as 30 seconds (or perhaps longer) on the first run due to needing to compile :lpy:ns:`basilisp.core` to Python bytecode.
+   Subsequent startups should be considerable faster unless users have taken any measures to disable :ref:`namespace_caching`.

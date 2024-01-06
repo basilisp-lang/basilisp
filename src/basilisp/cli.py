@@ -2,7 +2,9 @@ import argparse
 import importlib.metadata
 import io
 import os
+import site
 import sys
+import textwrap
 import traceback
 import types
 from pathlib import Path
@@ -242,6 +244,61 @@ def _subcommand(
     return _wrap_add_subcommand
 
 
+def bootstrap_basilisp_installation(_, args: argparse.Namespace) -> None:
+    if args.quiet:
+        print_ = lambda v: v
+    else:
+        print_ = print
+
+    if args.uninstall:
+        if not (removed := basilisp.unbootstrap_python()):
+            print_("No Basilisp bootstrap files were found.")
+        else:
+            for file in removed:
+                print_(f"Removed '{file}'")
+    else:
+        basilisp.bootstrap_python()
+        print_(
+            "Your Python installation has been bootstrapped! You can undo this at any "
+            "time with with `basilisp bootstrap --uninstall`."
+        )
+
+
+@_subcommand(
+    "bootstrap",
+    help="bootstrap the Python installation to allow importing Basilisp namespaces",
+    description=textwrap.dedent(
+        """Bootstrap the Python installation to allow importing Basilisp namespaces"
+        without requiring an additional bootstrapping step.
+        
+        Python installations are bootstrapped by installing a `basilispbootstrap.pth`
+        file in your `site-packages` directory. Python installations execute `*.pth`
+        files found at startup.
+        
+        Bootstrapping your Python installation in this way can help avoid needing to
+        perform manual bootstrapping from Python code within your application.
+        
+        On the first startup, Basilisp will compile `basilisp.core` to byte code
+        which could take up to 30 seconds in some cases depending on your system and
+        which version of Python you are using. Subsequent startups should be
+        considerably faster so long as you allow Basilisp to cache bytecode for"""
+    ),
+    handler=bootstrap_basilisp_installation,
+)
+def _add_bootstrap_subcommand(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--uninstall",
+        action="store_true",
+        help="if true, remove any `.pth` files installed by Basilisp in all site-packages directories",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="if true, do not print out any",
+    )
+
+
 def nrepl_server(
     _,
     args: argparse.Namespace,
@@ -418,6 +475,10 @@ def run(
     with runtime.ns_bindings(args.in_ns) as ns:
         ns.refer_all(core_ns)
 
+        main_ns_var = core_ns.find(sym.symbol(runtime.MAIN_NS_VAR_NAME))
+        assert main_ns_var is not None
+        main_ns_var.bind_root(sym.symbol(args.in_ns))
+
         if args.args:
             cli_args_var = core_ns.find(sym.symbol(runtime.COMMAND_LINE_ARGS_VAR_NAME))
             assert cli_args_var is not None
@@ -516,6 +577,7 @@ def invoke_cli(args: Optional[Sequence[str]] = None) -> None:
     )
 
     subparsers = parser.add_subparsers(help="sub-commands")
+    _add_bootstrap_subcommand(subparsers)
     _add_nrepl_server_subcommand(subparsers)
     _add_repl_subcommand(subparsers)
     _add_run_subcommand(subparsers)
