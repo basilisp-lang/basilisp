@@ -1,13 +1,17 @@
 import importlib
 import os.path
+import pathlib
+import subprocess
 import sys
+import venv
 from multiprocessing import Process, get_start_method
 from tempfile import TemporaryDirectory
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from unittest.mock import patch
 
 import pytest
 
+import basilisp.main
 from basilisp import importer as importer
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
@@ -386,3 +390,43 @@ class TestImporter:
             assert (
                 "core.nested.child" == core_nested_child.find(sym.symbol("val")).value
             )
+
+
+@pytest.mark.parametrize(
+    "args,ret",
+    [
+        ([], b"package.test-run-ns-as-pymodule\nnil\n"),
+        (["1", "hi", "yes"], b"package.test-run-ns-as-pymodule\n[1 hi yes]\n"),
+    ],
+)
+def test_run_namespace_as_python_module(
+    tmp_path: pathlib.Path, args: List[str], ret: bytes
+):
+    basilisp.main.bootstrap_python([str(tmp_path)])
+
+    parent = tmp_path / "package"
+    parent.mkdir()
+    nsfile = parent / "test_run_ns_as_pymodule.lpy"
+
+    nsfile.write_text(
+        "\n".join(
+            [
+                "(ns package.test-run-ns-as-pymodule)",
+                "",
+                "(println *main-ns*)",
+                "(println *command-line-args*)",
+            ]
+        )
+    )
+    res = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "package.test_run_ns_as_pymodule",
+            *args,
+        ],
+        check=True,
+        capture_output=True,
+        env={**os.environ, "PYTHONPATH": f"{str(tmp_path)}:{os.environ['PYTHONPATH']}"},
+    )
+    assert res.stdout == ret

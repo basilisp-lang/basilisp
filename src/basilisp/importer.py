@@ -237,12 +237,15 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
             # Set the *main-ns* variable to the current namespace.
             main_ns_var = core_ns.find(sym.symbol(runtime.MAIN_NS_VAR_NAME))
             assert main_ns_var is not None
-            main_ns_var.bind_root(sym.symbol(fullname))
+            main_ns_var.bind_root(sym.symbol(demunge(fullname)))
 
             # Set command line args passed to the module
-            cli_args_var = core_ns.find(sym.symbol(runtime.COMMAND_LINE_ARGS_VAR_NAME))
-            assert cli_args_var is not None
-            cli_args_var.bind_root(vec.vector(sys.argv[1:]))
+            if pyargs := sys.argv[1:]:
+                cli_args_var = core_ns.find(
+                    sym.symbol(runtime.COMMAND_LINE_ARGS_VAR_NAME)
+                )
+                assert cli_args_var is not None
+                cli_args_var.bind_root(vec.vector(pyargs))
 
             # Basilisp can only ever product multiple `types.CodeType` objects for any
             # given module because it compiles each form as a separate unit, but
