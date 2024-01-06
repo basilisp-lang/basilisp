@@ -211,7 +211,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         with open(path, mode="w+b") as f:
             f.write(data)
 
-    def get_filename(self, fullname: str) -> str:  # pragma: no cover
+    def get_filename(self, fullname: str) -> str:
         try:
             cached = self._cache[fullname]
         except KeyError as e:
