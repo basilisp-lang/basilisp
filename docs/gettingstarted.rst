@@ -148,9 +148,22 @@ Specifically, any file with a ``.pth`` extension located in any of the known ``s
    >>> import importlib; importlib.import_module("basilisp.core")
    <module 'basilisp.core' (/home/chris/Projects/basilisp/src/basilisp/core.lpy)>
 
+This method also enables you to directly execute Basilisp scripts as Python modules using ``python -m {namespace}``.
+
+.. code-block:: bash
+
+   basilisp bootstrap  # if you haven't already done so
+   SITEPACKAGES="$(python -c 'import site; print(site.getsitepackages()[0])')" echo '(println "Hi!")' >> "$SITEPACKAGES/somescript.lpy"
+   python -m somescript
+
+.. note::
+
+   Most modern Python packaging tools do not permit arbitrary code to be installed during package installation, so this step must be performed manually.
+   It only needs to be run once per Python installation or virtualenv.
+
 .. warning::
 
    Code in ``.pth`` files is executed each time the Python interpreter is started.
    The Python ``site`` documentation warns that "[i]ts impact should thus be kept to a minimum".
-   Bootstrapping Basilisp can take as long as 30 seconds (or perhaps longer) on the first run due to needing to compile :lpy:ns:`basilisp.core` to Python bytecode.
+   Bootstrapping Basilisp can take as long as 30 seconds (or perhaps longer, though typically much shorter on modern systems) on the first run due to needing to compile :lpy:ns:`basilisp.core` to Python bytecode.
    Subsequent startups should be considerable faster unless users have taken any measures to disable :ref:`namespace_caching`.

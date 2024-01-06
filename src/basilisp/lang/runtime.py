@@ -2120,7 +2120,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
                     "executed as ``basilisp run {file}`` or ``python -m {namespace}`` "
                     "or ``nil`` otherwise.\n\n"
                     "This can be useful for detecting scripts similarly to how Python "
-                    'scripts use ``if __name__ == "__main__":``.'
+                    'scripts use the idiom ``if __name__ == "__main__":``.'
                 )
             }
         ),
