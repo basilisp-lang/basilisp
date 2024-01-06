@@ -2117,8 +2117,8 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
             {
                 _DOC_META_KEY: (
                     "The name of the main namespace as a symbol if this process was "
-                    "executed as ``basilisp run {file}`` or ``python -m {namespace}`` "
-                    "or ``nil`` otherwise.\n\n"
+                    "executed as ``basilisp run -n {namespace}`` or "
+                    "``python -m {namespace}`` or ``nil`` otherwise.\n\n"
                     "This can be useful for detecting scripts similarly to how Python "
                     'scripts use the idiom ``if __name__ == "__main__":``.'
                 )
