@@ -3,7 +3,6 @@ import os.path
 import pathlib
 import subprocess
 import sys
-import venv
 from multiprocessing import Process, get_start_method
 from tempfile import TemporaryDirectory
 from typing import List, Optional, Tuple
@@ -390,6 +389,55 @@ class TestImporter:
             assert (
                 "core.nested.child" == core_nested_child.find(sym.symbol("val")).value
             )
+
+    class TestExecuteModule:
+        def test_no_filename_if_no_module(self):
+            with pytest.raises(ImportError):
+                importer.BasilispImporter().get_filename("package.module")
+
+        def test_can_get_filename_when_module_exists(self, make_new_module):
+            make_new_module("package", "module.lpy", ns_name="package.module")
+            assert (
+                importer.BasilispImporter()
+                .get_filename("package.module")
+                .endswith("package/module.lpy")
+            )
+
+        def test_no_code_if_no_module(self):
+            with pytest.raises(ImportError):
+                importer.BasilispImporter().get_code("package.module")
+
+        @pytest.mark.parametrize(
+            "args,output",
+            [
+                (["whatever", "1", "2", "3"], "package.module\n[1 2 3]\n"),
+                ([], "package.module\nnil\n"),
+            ],
+        )
+        def test_execute_module_correctly(
+            self,
+            monkeypatch: pytest.MonkeyPatch,
+            make_new_module,
+            capsys,
+            args: List[str],
+            output: str,
+        ):
+            make_new_module(
+                "package",
+                "module.lpy",
+                module_text="""
+                (ns package.module)
+
+                (python/print *main-ns*)
+                (python/print *command-line-args*)""",
+            )
+
+            monkeypatch.setattr("sys.argv", ["whatever", "1", "2", "3"])
+
+            code = importer.BasilispImporter().get_code("package.module")
+            exec(code)
+            captured = capsys.readouterr()
+            assert captured.out == "package.module\n[1 2 3]\n"
 
 
 @pytest.mark.parametrize(
