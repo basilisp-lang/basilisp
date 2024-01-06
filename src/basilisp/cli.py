@@ -289,7 +289,8 @@ def bootstrap_basilisp_installation(_, args: argparse.Namespace) -> None:
         On the first startup, Basilisp will compile `basilisp.core` to byte code
         which could take up to 30 seconds in some cases depending on your system and
         which version of Python you are using. Subsequent startups should be
-        considerably faster so long as you allow Basilisp to cache bytecode for"""
+        considerably faster so long as you allow Basilisp to cache bytecode for
+        namespaces."""
     ),
     handler=bootstrap_basilisp_installation,
 )

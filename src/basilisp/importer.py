@@ -4,7 +4,6 @@ import marshal
 import os
 import os.path
 import sys
-import traceback
 import types
 from functools import lru_cache
 from importlib.abc import MetaPathFinder, SourceLoader
@@ -15,6 +14,7 @@ from basilisp.lang import compiler as compiler
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.runtime import BasilispModule
 from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import demunge
@@ -238,6 +238,11 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
             main_ns_var = core_ns.find(sym.symbol(runtime.MAIN_NS_VAR_NAME))
             assert main_ns_var is not None
             main_ns_var.bind_root(sym.symbol(fullname))
+
+            # Set command line args passed to the module
+            cli_args_var = core_ns.find(sym.symbol(runtime.COMMAND_LINE_ARGS_VAR_NAME))
+            assert cli_args_var is not None
+            cli_args_var.bind_root(vec.vector(sys.argv[1:]))
 
             # Basilisp can only ever product multiple `types.CodeType` objects for any
             # given module because it compiles each form as a separate unit, but
