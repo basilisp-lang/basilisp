@@ -2,7 +2,6 @@ import argparse
 import importlib.metadata
 import io
 import os
-import site
 import sys
 import textwrap
 import traceback
