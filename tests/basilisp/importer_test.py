@@ -408,6 +408,11 @@ def test_run_namespace_as_python_module(
     parent.mkdir()
     nsfile = parent / "test_run_ns_as_pymodule.lpy"
 
+    if (pythonpath := os.environ.get("PYTHONPATH")) is None:
+        pythonpath = str(tmp_path)
+    else:
+        pythonpath = f"{str(tmp_path)}:{pythonpath}"
+
     nsfile.write_text(
         "\n".join(
             [
@@ -427,6 +432,6 @@ def test_run_namespace_as_python_module(
         ],
         check=True,
         capture_output=True,
-        env={**os.environ, "PYTHONPATH": f"{str(tmp_path)}:{os.environ['PYTHONPATH']}"},
+        env={**os.environ, "PYTHONPATH": pythonpath},
     )
     assert res.stdout == ret
