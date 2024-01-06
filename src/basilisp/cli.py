@@ -53,6 +53,14 @@ def eval_file(filename: str, ctx: compiler.CompilerContext, ns: runtime.Namespac
     return eval_str(f'(load-file "{filename}")', ctx, ns, eof=object())
 
 
+def eval_namespace(
+    namespace: str, ctx: compiler.CompilerContext, ns: runtime.Namespace
+):
+    """Evaluate a file with the given name into a Python module AST node."""
+    path = "/" + "/".join(namespace.split("."))
+    return eval_str(f'(load "{path}")', ctx, ns, eof=object())
+
+
 def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.ModuleType:
     """Bootstrap the REPL with a few useful vars and returned the bootstrapped
     module so it's functions can be used by the REPL command."""
@@ -446,9 +454,19 @@ def _add_repl_subcommand(parser: argparse.ArgumentParser) -> None:
 
 
 def run(
-    _,
+    parser: argparse.ArgumentParser,
     args: argparse.Namespace,
 ):
+    target = args.file_or_ns_or_code
+    if args.load_namespace:
+        if args.in_ns is not None:
+            parser.error(
+                "argument --in-ns: not allowed with argument -n/--load-namespace"
+            )
+        in_ns = target
+    else:
+        in_ns = target if args.in_ns is not None else runtime.REPL_DEFAULT_NS
+
     opts = compiler.compiler_opts(
         warn_on_shadowed_name=args.warn_on_shadowed_name,
         warn_on_shadowed_var=args.warn_on_shadowed_var,
@@ -460,11 +478,7 @@ def run(
     ctx = compiler.CompilerContext(
         filename=CLI_INPUT_FILE_PATH
         if args.code
-        else (
-            STDIN_INPUT_FILE_PATH
-            if args.file_or_code == STDIN_FILE_NAME
-            else args.file_or_code
-        ),
+        else (STDIN_INPUT_FILE_PATH if target == STDIN_FILE_NAME else target),
         opts=opts,
     )
     eof = object()
@@ -472,12 +486,8 @@ def run(
     core_ns = runtime.Namespace.get(runtime.CORE_NS_SYM)
     assert core_ns is not None
 
-    with runtime.ns_bindings(args.in_ns) as ns:
+    with runtime.ns_bindings(in_ns) as ns:
         ns.refer_all(core_ns)
-
-        main_ns_var = core_ns.find(sym.symbol(runtime.MAIN_NS_VAR_NAME))
-        assert main_ns_var is not None
-        main_ns_var.bind_root(sym.symbol(args.in_ns))
 
         if args.args:
             cli_args_var = core_ns.find(sym.symbol(runtime.COMMAND_LINE_ARGS_VAR_NAME))
@@ -485,32 +495,62 @@ def run(
             cli_args_var.bind_root(vec.vector(args.args))
 
         if args.code:
-            eval_str(args.file_or_code, ctx, ns, eof)
-        elif args.file_or_code == STDIN_FILE_NAME:
+            eval_str(target, ctx, ns, eof)
+        elif args.load_namespace:
+            # Set the requested namespace as the *main-ns*
+            main_ns_var = core_ns.find(sym.symbol(runtime.MAIN_NS_VAR_NAME))
+            assert main_ns_var is not None
+            main_ns_var.bind_root(sym.symbol(target))
+
+            eval_namespace(target, ctx, ns)
+        elif target == STDIN_FILE_NAME:
             eval_stream(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8"), ctx, ns)
         else:
-            eval_file(args.file_or_code, ctx, ns)
+            eval_file(target, ctx, ns)
 
 
 @_subcommand(
     "run",
-    help="run a Basilisp script or code",
-    description="Run a Basilisp script or a line of code, if it is provided.",
+    help="run a Basilisp script or code or namespace",
+    description=textwrap.dedent(
+        """Run a Basilisp script or a line of code or load a Basilisp namespace.
+        
+        If `-c` is provided, execute the line of code as given. If `-n` is given,
+        interpret `file_or_ns_or_code` as a fully qualified Basilisp namespace
+        relative to `sys.path`. Otherwise, execute the file as a script relative to
+        the current working directory.
+        
+        `*main-ns*` will be set to the value provided for `-n`. In all other cases,
+        it will be `nil`."""
+    ),
     handler=run,
 )
 def _add_run_subcommand(parser: argparse.ArgumentParser):
     parser.add_argument(
-        "file_or_code",
-        help="file path to a Basilisp file or, if -c is provided, a string of Basilisp code",
+        "file_or_ns_or_code",
+        help=(
+            "file path to a Basilisp file, a string of Basilisp code, or a fully "
+            "qualified Basilisp namespace name"
+        ),
     )
-    parser.add_argument(
+
+    grp = parser.add_mutually_exclusive_group()
+    grp.add_argument(
         "-c",
         "--code",
         action="store_true",
         help="if provided, treat argument as a string of code",
     )
+    grp.add_argument(
+        "-n",
+        "--load-namespace",
+        action="store_true",
+        help="if provided, treat argument as the name of a namespace",
+    )
+
     parser.add_argument(
-        "--in-ns", default=runtime.REPL_DEFAULT_NS, help="namespace to use for the code"
+        "--in-ns",
+        help="namespace to use for the code (default: basilisp.user); ignored when `-n` is used",
     )
     parser.add_argument(
         "args",
