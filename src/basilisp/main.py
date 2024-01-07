@@ -66,7 +66,7 @@ def bootstrap_python(site_packages: Optional[List[str]] = None) -> None:
 
     Subsequent startups of the Python interpreter will have Basilisp already
     bootstrapped and available to run."""
-    if site_packages is None:
+    if site_packages is None:  # pragma: no cover
         site_packages = site.getsitepackages()
 
     assert site_packages, "Expected at least one site-package directory"
@@ -82,7 +82,7 @@ def unbootstrap_python(site_packages: Optional[List[str]] = None) -> List[str]:
     """Remove any `basilispbootstrap.pth` files found in any Python site-packages
     directory (as by ``site.getsitepackages()``). Return a list of removed
     filenames."""
-    if site_packages is None:
+    if site_packages is None:  # pragma: no cover
         site_packages = site.getsitepackages()
 
     assert site_packages, "Expected at least one site-package directory"
@@ -93,7 +93,7 @@ def unbootstrap_python(site_packages: Optional[List[str]] = None) -> List[str]:
         for file in p.glob("basilispbootstrap.pth"):
             try:
                 file.unlink()
-            except FileNotFoundError:
+            except FileNotFoundError:  # pragma: no cover
                 pass
             else:
                 removed.append(str(file))

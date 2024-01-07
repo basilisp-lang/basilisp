@@ -69,7 +69,49 @@ def run_cli(monkeypatch, capsys, cap_lisp_io):
 
 
 class TestBootstrap:
-    pass
+    def test_install(self, tmp_path: pathlib.Path, run_cli):
+        res = run_cli(["bootstrap", "--site-packages", str(tmp_path)])
+
+        bootstrap_file = tmp_path / "basilispbootstrap.pth"
+        assert bootstrap_file.exists()
+        assert bootstrap_file.read_text() == "import basilisp.sitecustomize"
+
+        assert res.out == (
+            "Your Python installation has been bootstrapped! You can undo this at any "
+            "time with with `basilisp bootstrap --uninstall`.\n"
+        )
+
+        res = run_cli(["bootstrap", "--uninstall", "--site-packages", str(tmp_path)])
+
+        assert not bootstrap_file.exists()
+
+        assert res.out == f"Removed '{bootstrap_file}'\n"
+
+    def test_install_quiet(self, tmp_path: pathlib.Path, run_cli, capsys):
+        run_cli(["bootstrap", "-q", "--site-packages", str(tmp_path)])
+
+        bootstrap_file = tmp_path / "basilispbootstrap.pth"
+        assert bootstrap_file.exists()
+        assert bootstrap_file.read_text() == "import basilisp.sitecustomize"
+
+        res = capsys.readouterr()
+        assert res.out == ""
+
+        run_cli(["bootstrap", "-q", "--uninstall", "--site-packages", str(tmp_path)])
+
+        assert not bootstrap_file.exists()
+
+        res = capsys.readouterr()
+        assert res.out == ""
+
+    def test_nothing_to_uninstall(self, tmp_path: pathlib.Path, run_cli, capsys):
+        bootstrap_file = tmp_path / "basilispbootstrap.pth"
+        assert not bootstrap_file.exists()
+
+        res = run_cli(["bootstrap", "--uninstall", "--site-packages", str(tmp_path)])
+
+        assert not bootstrap_file.exists()
+        assert res.out == "No Basilisp bootstrap files were found.\n"
 
 
 def test_debug_flag(run_cli):
