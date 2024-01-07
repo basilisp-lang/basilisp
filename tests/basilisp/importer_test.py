@@ -477,7 +477,7 @@ def test_run_namespace_as_python_module(
     parent.mkdir()
     nsfile = parent / "test_run_ns_as_pymodule.lpy"
 
-    pythonpath = f"{str(tmp_path)}:{':'.join(sys.path)}"
+    pythonpath = f"{str(tmp_path)}{os.pathsep}{os.pathsep.join(sys.path)}"
 
     nsfile.write_text(
         "\n".join(
