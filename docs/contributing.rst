@@ -84,7 +84,15 @@ All three steps can be performed across all supported versions of CPython using 
 
 .. code-block:: bash
 
+   make check
+
+Likewise, individual steps can be run across all supported verions using their respective targets:
+
+.. code-block::
+
+   make lint
    make test
+   make type-check
 
 To run a more targeted CI check directly from within the Poetry shell, developers can use ``tox`` commands directly.
 For instance, to run only the tests for ``basilisp.io`` on Python 3.12, you could use the following command:

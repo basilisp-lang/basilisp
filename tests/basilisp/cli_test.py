@@ -68,6 +68,52 @@ def run_cli(monkeypatch, capsys, cap_lisp_io):
     return _run_cli
 
 
+class TestBootstrap:
+    def test_install(self, tmp_path: pathlib.Path, run_cli):
+        res = run_cli(["bootstrap", "--site-packages", str(tmp_path)])
+
+        bootstrap_file = tmp_path / "basilispbootstrap.pth"
+        assert bootstrap_file.exists()
+        assert bootstrap_file.read_text() == "import basilisp.sitecustomize"
+
+        assert res.out == (
+            "Your Python installation has been bootstrapped! You can undo this at any "
+            "time with with `basilisp bootstrap --uninstall`.\n"
+        )
+
+        res = run_cli(["bootstrap", "--uninstall", "--site-packages", str(tmp_path)])
+
+        assert not bootstrap_file.exists()
+
+        assert res.out == f"Removed '{bootstrap_file}'\n"
+
+    def test_install_quiet(self, tmp_path: pathlib.Path, run_cli, capsys):
+        run_cli(["bootstrap", "-q", "--site-packages", str(tmp_path)])
+
+        bootstrap_file = tmp_path / "basilispbootstrap.pth"
+        assert bootstrap_file.exists()
+        assert bootstrap_file.read_text() == "import basilisp.sitecustomize"
+
+        res = capsys.readouterr()
+        assert res.out == ""
+
+        run_cli(["bootstrap", "-q", "--uninstall", "--site-packages", str(tmp_path)])
+
+        assert not bootstrap_file.exists()
+
+        res = capsys.readouterr()
+        assert res.out == ""
+
+    def test_nothing_to_uninstall(self, tmp_path: pathlib.Path, run_cli, capsys):
+        bootstrap_file = tmp_path / "basilispbootstrap.pth"
+        assert not bootstrap_file.exists()
+
+        res = run_cli(["bootstrap", "--uninstall", "--site-packages", str(tmp_path)])
+
+        assert not bootstrap_file.exists()
+        assert res.out == "No Basilisp bootstrap files were found.\n"
+
+
 def test_debug_flag(run_cli):
     result = run_cli(["run", "--disable-ns-cache", "true", "-c", "(println (+ 1 2))"])
     assert "3\n" == result.lisp_out
@@ -172,9 +218,17 @@ class TestRun:
     ]
     cli_args_code = "(println (apply + (map int *command-line-args*)))"
 
+    def test_run_ns_and_code_mutually_exclusive(self, run_cli):
+        with pytest.raises(SystemExit):
+            run_cli(["run", "-c", "-n"])
+
     def test_run_code(self, run_cli):
         result = run_cli(["run", "-c", "(println (+ 1 2))"])
         assert "3\n" == result.lisp_out
+
+    def test_run_code_main_ns(self, run_cli):
+        result = run_cli(["run", "-c", "(println *main-ns*)"])
+        assert "nil\n" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_code_with_args(self, run_cli, args: List[str], ret: str):
@@ -187,6 +241,12 @@ class TestRun:
         result = run_cli(["run", "test.lpy"])
         assert "3\n" == result.lisp_out
 
+    def test_run_file_main_ns(self, isolated_filesystem, run_cli):
+        with open("test.lpy", mode="w") as f:
+            f.write("(println *main-ns*)")
+        result = run_cli(["run", "test.lpy"])
+        assert "nil\n" == result.lisp_out
+
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_file_with_args(
         self, isolated_filesystem, run_cli, args: List[str], ret: str
@@ -196,9 +256,49 @@ class TestRun:
         result = run_cli(["run", "test.lpy", *args])
         assert ret == result.lisp_out
 
+    @pytest.fixture
+    def namespace_file(self, monkeypatch, tmp_path: pathlib.Path) -> pathlib.Path:
+        parent = tmp_path / "package"
+        parent.mkdir()
+        nsfile = parent / "core.lpy"
+        nsfile.touch()
+        monkeypatch.syspath_prepend(str(tmp_path))
+        yield nsfile
+
+    def test_cannot_run_namespace_with_in_ns_arg(
+        self, run_cli, namespace_file: pathlib.Path
+    ):
+        namespace_file.write_text("(println (+ 1 2))")
+        with pytest.raises(SystemExit):
+            run_cli(["run", "--in-ns", "otherpackage.core", "-n", "package.core"])
+
+    def test_run_namespace(self, run_cli, namespace_file: pathlib.Path):
+        namespace_file.write_text("(println (+ 1 2))")
+        result = run_cli(["run", "-n", "package.core"])
+        assert "3\n" == result.lisp_out
+
+    def test_run_namespace_main_ns(self, run_cli, namespace_file: pathlib.Path):
+        namespace_file.write_text(
+            "(ns package.core) (println (name *ns*)) (println *main-ns*)"
+        )
+        result = run_cli(["run", "-n", "package.core"])
+        assert "package.core\npackage.core\n" == result.lisp_out
+
+    @pytest.mark.parametrize("args,ret", cli_args_params)
+    def test_run_namespace_with_args(
+        self, run_cli, namespace_file: pathlib.Path, args: List[str], ret: str
+    ):
+        namespace_file.write_text(self.cli_args_code)
+        result = run_cli(["run", "-n", "package.core", *args])
+        assert ret == result.lisp_out
+
     def test_run_stdin(self, run_cli):
         result = run_cli(["run", "-"], input="(println (+ 1 2))")
         assert "3\n" == result.lisp_out
+
+    def test_run_stdin_main_ns(self, run_cli):
+        result = run_cli(["run", "-"], input="(println *main-ns*)")
+        assert "nil\n" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_stdin_with_args(self, run_cli, args: List[str], ret: str):
