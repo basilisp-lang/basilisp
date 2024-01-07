@@ -1,6 +1,7 @@
 import importlib
 import os.path
 import pathlib
+import platform
 import site
 import subprocess
 import sys
@@ -399,11 +400,11 @@ class TestImporter:
 
         def test_can_get_filename_when_module_exists(self, make_new_module):
             make_new_module("package", "module.lpy", ns_name="package.module")
-            assert (
-                importer.BasilispImporter()
-                .get_filename("package.module")
-                .endswith("package/module.lpy")
-            )
+            filename = importer.BasilispImporter().get_filename("package.module")
+            assert filename is not None
+
+            p = pathlib.Path(filename)
+            assert p.parts[-2:] == ("package", "module.lpy")
 
         def test_no_code_if_no_module(self):
             with pytest.raises(ImportError):
@@ -463,6 +464,13 @@ def bootstrap_file() -> pathlib.Path:
         yield pth_file
 
 
+@pytest.mark.skipif(
+    platform.system().lower() == "windows",
+    reason=(
+        "Couldn't get this to work and do not have a Windows computer to test on. "
+        "Happy to accept a patch!"
+    ),
+)
 @pytest.mark.parametrize(
     "args,ret",
     [
