@@ -1,8 +1,10 @@
 import importlib
 import os.path
 import pathlib
+import site
 import subprocess
 import sys
+import tempfile
 from multiprocessing import Process, get_start_method
 from tempfile import TemporaryDirectory
 from typing import List, Optional, Tuple
@@ -440,6 +442,27 @@ class TestImporter:
             assert captured.out == "package.module\n[1 2 3]\n"
 
 
+@pytest.fixture
+def bootstrap_file() -> pathlib.Path:
+    # Generate a bootstrap `.pth` file in the site-packages directory of the current
+    # installation.
+    #
+    # Unfortunately, there is no easy method to copy the current venv (which has
+    # Basilisp and it's dependencies installed) to avoid mutating the site-packages
+    # of the current environment, so instead we just generate a safe temp `.pth` file
+    # in that directory to avoid stomping over any intentionally installed `.pth`
+    # files.
+    site_package_dir = next(map(pathlib.Path, site.getsitepackages()), None)
+    assert site_package_dir is not None
+
+    with tempfile.NamedTemporaryFile(
+        dir=site_package_dir, prefix="basilispbootstrap", suffix=".pth", mode="w"
+    ) as pth_file:
+        pth_file.write("import basilisp.sitecustomize")
+        pth_file.flush()
+        yield pth_file
+
+
 @pytest.mark.parametrize(
     "args,ret",
     [
@@ -448,18 +471,13 @@ class TestImporter:
     ],
 )
 def test_run_namespace_as_python_module(
-    tmp_path: pathlib.Path, args: List[str], ret: bytes
+    bootstrap_file: pathlib.Path, tmp_path: pathlib.Path, args: List[str], ret: bytes
 ):
-    basilisp.main.bootstrap_python([str(tmp_path)])
-
     parent = tmp_path / "package"
     parent.mkdir()
     nsfile = parent / "test_run_ns_as_pymodule.lpy"
 
-    if (pythonpath := os.environ.get("PYTHONPATH")) is None:
-        pythonpath = str(tmp_path)
-    else:
-        pythonpath = f"{str(tmp_path)}:{pythonpath}"
+    pythonpath = f"{str(tmp_path)}:{':'.join(sys.path)}"
 
     nsfile.write_text(
         "\n".join(
@@ -472,12 +490,7 @@ def test_run_namespace_as_python_module(
         )
     )
     res = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "package.test_run_ns_as_pymodule",
-            *args,
-        ],
+        [sys.executable, "-m", "package.test_run_ns_as_pymodule", *args],
         check=True,
         capture_output=True,
         env={**os.environ, "PYTHONPATH": pythonpath},
