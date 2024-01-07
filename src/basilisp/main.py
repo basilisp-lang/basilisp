@@ -1,6 +1,8 @@
 import importlib
 import logging
-from typing import Optional
+import site
+from pathlib import Path
+from typing import List, Optional
 
 from basilisp import importer as importer
 from basilisp.lang import runtime as runtime
@@ -56,3 +58,43 @@ def bootstrap(
     if rest:
         fn_name = munge(rest[0])
         getattr(mod, fn_name)()
+
+
+def bootstrap_python(site_packages: Optional[List[str]] = None) -> None:
+    """Bootstrap a Python installation by installing a ``.pth`` file in the first
+    available ``site-packages`` directory (as by ``site.getsitepackages()``).
+
+    Subsequent startups of the Python interpreter will have Basilisp already
+    bootstrapped and available to run."""
+    if site_packages is None:  # pragma: no cover
+        site_packages = site.getsitepackages()
+
+    assert site_packages, "Expected at least one site-package directory"
+
+    for d in site_packages:
+        p = Path(d)
+        with open(p / "basilispbootstrap.pth", mode="w") as f:
+            f.write("import basilisp.sitecustomize")
+        break
+
+
+def unbootstrap_python(site_packages: Optional[List[str]] = None) -> List[str]:
+    """Remove any `basilispbootstrap.pth` files found in any Python site-packages
+    directory (as by ``site.getsitepackages()``). Return a list of removed
+    filenames."""
+    if site_packages is None:  # pragma: no cover
+        site_packages = site.getsitepackages()
+
+    assert site_packages, "Expected at least one site-package directory"
+
+    removed = []
+    for d in site_packages:
+        p = Path(d)
+        for file in p.glob("basilispbootstrap.pth"):
+            try:
+                file.unlink()
+            except FileNotFoundError:  # pragma: no cover
+                pass
+            else:
+                removed.append(str(file))
+    return removed

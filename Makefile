@@ -8,6 +8,17 @@ format:
 	@poetry run sh -c 'isort . && black .'
 
 
+.PHONY: check
+check:
+	@rm -f .coverage*
+	@TOX_SKIP_ENV='pypy3|safety|coverage' poetry run tox run-parallel -p auto
+
+
+.PHONY: lint
+lint:
+	@poetry run tox run-parallel -m lint
+
+
 .PHONY: repl
 repl:
 	@BASILISP_USE_DEV_LOGGER=true poetry run basilisp repl
@@ -16,7 +27,12 @@ repl:
 .PHONY: test
 test:
 	@rm -f .coverage*
-	@TOX_SKIP_ENV='pypy3|safety|coverage' poetry run tox run-parallel -p 4
+	@TOX_SKIP_ENV='pypy3' poetry run tox run-parallel -m test
+
+
+.PHONY: type-check
+type-check:
+	@poetry run tox run-parallel -m mypy
 
 
 lispcore.py:

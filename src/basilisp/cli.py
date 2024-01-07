@@ -3,6 +3,7 @@ import importlib.metadata
 import io
 import os
 import sys
+import textwrap
 import traceback
 import types
 from pathlib import Path
@@ -49,6 +50,14 @@ def eval_str(s: str, ctx: compiler.CompilerContext, ns: runtime.Namespace, eof: 
 def eval_file(filename: str, ctx: compiler.CompilerContext, ns: runtime.Namespace):
     """Evaluate a file with the given name into a Python module AST node."""
     return eval_str(f'(load-file "{filename}")', ctx, ns, eof=object())
+
+
+def eval_namespace(
+    namespace: str, ctx: compiler.CompilerContext, ns: runtime.Namespace
+):
+    """Evaluate a file with the given name into a Python module AST node."""
+    path = "/" + "/".join(namespace.split("."))
+    return eval_str(f'(load "{path}")', ctx, ns, eof=object())
 
 
 def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.ModuleType:
@@ -242,6 +251,71 @@ def _subcommand(
     return _wrap_add_subcommand
 
 
+def bootstrap_basilisp_installation(_, args: argparse.Namespace) -> None:
+    if args.quiet:
+        print_ = lambda v: v
+    else:
+        print_ = print
+
+    if args.uninstall:
+        if not (
+            removed := basilisp.unbootstrap_python(site_packages=args.site_packages)
+        ):
+            print_("No Basilisp bootstrap files were found.")
+        else:
+            for file in removed:
+                print_(f"Removed '{file}'")
+    else:
+        basilisp.bootstrap_python(site_packages=args.site_packages)
+        print_(
+            "Your Python installation has been bootstrapped! You can undo this at any "
+            "time with with `basilisp bootstrap --uninstall`."
+        )
+
+
+@_subcommand(
+    "bootstrap",
+    help="bootstrap the Python installation to allow importing Basilisp namespaces",
+    description=textwrap.dedent(
+        """Bootstrap the Python installation to allow importing Basilisp namespaces"
+        without requiring an additional bootstrapping step.
+        
+        Python installations are bootstrapped by installing a `basilispbootstrap.pth`
+        file in your `site-packages` directory. Python installations execute `*.pth`
+        files found at startup.
+        
+        Bootstrapping your Python installation in this way can help avoid needing to
+        perform manual bootstrapping from Python code within your application.
+        
+        On the first startup, Basilisp will compile `basilisp.core` to byte code
+        which could take up to 30 seconds in some cases depending on your system and
+        which version of Python you are using. Subsequent startups should be
+        considerably faster so long as you allow Basilisp to cache bytecode for
+        namespaces."""
+    ),
+    handler=bootstrap_basilisp_installation,
+)
+def _add_bootstrap_subcommand(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--uninstall",
+        action="store_true",
+        help="if true, remove any `.pth` files installed by Basilisp in all site-packages directories",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="if true, do not print out any",
+    )
+    # Allow specifying the "site-packages" directories via CLI argument for testing.
+    # Not intended to be used by end users.
+    parser.add_argument(
+        "--site-packages",
+        action="append",
+        help=argparse.SUPPRESS,
+    )
+
+
 def nrepl_server(
     _,
     args: argparse.Namespace,
@@ -389,9 +463,19 @@ def _add_repl_subcommand(parser: argparse.ArgumentParser) -> None:
 
 
 def run(
-    _,
+    parser: argparse.ArgumentParser,
     args: argparse.Namespace,
 ):
+    target = args.file_or_ns_or_code
+    if args.load_namespace:
+        if args.in_ns is not None:
+            parser.error(
+                "argument --in-ns: not allowed with argument -n/--load-namespace"
+            )
+        in_ns = target
+    else:
+        in_ns = target if args.in_ns is not None else runtime.REPL_DEFAULT_NS
+
     opts = compiler.compiler_opts(
         warn_on_shadowed_name=args.warn_on_shadowed_name,
         warn_on_shadowed_var=args.warn_on_shadowed_var,
@@ -403,11 +487,7 @@ def run(
     ctx = compiler.CompilerContext(
         filename=CLI_INPUT_FILE_PATH
         if args.code
-        else (
-            STDIN_INPUT_FILE_PATH
-            if args.file_or_code == STDIN_FILE_NAME
-            else args.file_or_code
-        ),
+        else (STDIN_INPUT_FILE_PATH if target == STDIN_FILE_NAME else target),
         opts=opts,
     )
     eof = object()
@@ -415,7 +495,7 @@ def run(
     core_ns = runtime.Namespace.get(runtime.CORE_NS_SYM)
     assert core_ns is not None
 
-    with runtime.ns_bindings(args.in_ns) as ns:
+    with runtime.ns_bindings(in_ns) as ns:
         ns.refer_all(core_ns)
 
         if args.args:
@@ -424,32 +504,62 @@ def run(
             cli_args_var.bind_root(vec.vector(args.args))
 
         if args.code:
-            eval_str(args.file_or_code, ctx, ns, eof)
-        elif args.file_or_code == STDIN_FILE_NAME:
+            eval_str(target, ctx, ns, eof)
+        elif args.load_namespace:
+            # Set the requested namespace as the *main-ns*
+            main_ns_var = core_ns.find(sym.symbol(runtime.MAIN_NS_VAR_NAME))
+            assert main_ns_var is not None
+            main_ns_var.bind_root(sym.symbol(target))
+
+            eval_namespace(target, ctx, ns)
+        elif target == STDIN_FILE_NAME:
             eval_stream(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8"), ctx, ns)
         else:
-            eval_file(args.file_or_code, ctx, ns)
+            eval_file(target, ctx, ns)
 
 
 @_subcommand(
     "run",
-    help="run a Basilisp script or code",
-    description="Run a Basilisp script or a line of code, if it is provided.",
+    help="run a Basilisp script or code or namespace",
+    description=textwrap.dedent(
+        """Run a Basilisp script or a line of code or load a Basilisp namespace.
+        
+        If `-c` is provided, execute the line of code as given. If `-n` is given,
+        interpret `file_or_ns_or_code` as a fully qualified Basilisp namespace
+        relative to `sys.path`. Otherwise, execute the file as a script relative to
+        the current working directory.
+        
+        `*main-ns*` will be set to the value provided for `-n`. In all other cases,
+        it will be `nil`."""
+    ),
     handler=run,
 )
 def _add_run_subcommand(parser: argparse.ArgumentParser):
     parser.add_argument(
-        "file_or_code",
-        help="file path to a Basilisp file or, if -c is provided, a string of Basilisp code",
+        "file_or_ns_or_code",
+        help=(
+            "file path to a Basilisp file, a string of Basilisp code, or a fully "
+            "qualified Basilisp namespace name"
+        ),
     )
-    parser.add_argument(
+
+    grp = parser.add_mutually_exclusive_group()
+    grp.add_argument(
         "-c",
         "--code",
         action="store_true",
         help="if provided, treat argument as a string of code",
     )
+    grp.add_argument(
+        "-n",
+        "--load-namespace",
+        action="store_true",
+        help="if provided, treat argument as the name of a namespace",
+    )
+
     parser.add_argument(
-        "--in-ns", default=runtime.REPL_DEFAULT_NS, help="namespace to use for the code"
+        "--in-ns",
+        help="namespace to use for the code (default: basilisp.user); ignored when `-n` is used",
     )
     parser.add_argument(
         "args",
@@ -516,6 +626,7 @@ def invoke_cli(args: Optional[Sequence[str]] = None) -> None:
     )
 
     subparsers = parser.add_subparsers(help="sub-commands")
+    _add_bootstrap_subcommand(subparsers)
     _add_nrepl_server_subcommand(subparsers)
     _add_repl_subcommand(subparsers)
     _add_run_subcommand(subparsers)

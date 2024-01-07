@@ -133,3 +133,38 @@ For systems where the shebang line allows arguments, you can use ``#!/usr/bin/en
 
    #!/usr/bin/env basilisp-run
    (println "Hello world!")
+
+Finally, Basilisp has a command line option to bootstrap your Python installation such that Basilisp will already be importable whenever Python is started.
+This takes advantage of the ``.pth`` file feature supported by the `site <https://docs.python.org/3/library/site.html>`_ package.
+Specifically, any file with a ``.pth`` extension located in any of the known ``site-packages`` directories will be read at startup and, if any line of such a file starts with ``import``, it is executed.
+
+.. code-block:: bash
+
+   $ basilisp bootstrap
+   Your Python installation has been bootstrapped! You can undo this at any time with with `basilisp bootstrap --uninstall`.
+   $ python
+   Python 3.12.1 (main, Jan  3 2024, 10:01:43) [GCC 11.4.0] on linux
+   Type "help", "copyright", "credits" or "license" for more information.
+   >>> import importlib; importlib.import_module("basilisp.core")
+   <module 'basilisp.core' (/home/chris/Projects/basilisp/src/basilisp/core.lpy)>
+
+This method also enables you to directly execute Basilisp scripts as Python modules using ``python -m {namespace}``.
+Basilisp namespaces run as a Python module directly via ``python -m`` are resolved within the context of the current ``sys.path`` of the active Python interpreter.
+
+.. code-block:: bash
+
+   basilisp bootstrap  # if you haven't already done so
+   SITEPACKAGES="$(python -c 'import site; print(site.getsitepackages()[0])')" echo '(println "Hi!")' >> "$SITEPACKAGES/somescript.lpy"
+   python -m somescript
+
+.. note::
+
+   Most modern Python packaging tools do not permit arbitrary code to be installed during package installation, so this step must be performed manually.
+   It only needs to be run once per Python installation or virtualenv.
+
+.. warning::
+
+   Code in ``.pth`` files is executed each time the Python interpreter is started.
+   The Python ``site`` documentation warns that "[i]ts impact should thus be kept to a minimum".
+   Bootstrapping Basilisp can take as long as 30 seconds (or perhaps longer, though typically much shorter on modern systems) on the first run due to needing to compile :lpy:ns:`basilisp.core` to Python bytecode.
+   Subsequent startups should be considerable faster unless users have taken any measures to disable :ref:`namespace_caching`.

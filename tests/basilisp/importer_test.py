@@ -1,13 +1,19 @@
 import importlib
 import os.path
+import pathlib
+import platform
+import site
+import subprocess
 import sys
+import tempfile
 from multiprocessing import Process, get_start_method
 from tempfile import TemporaryDirectory
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from unittest.mock import patch
 
 import pytest
 
+import basilisp.main
 from basilisp import importer as importer
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
@@ -386,3 +392,115 @@ class TestImporter:
             assert (
                 "core.nested.child" == core_nested_child.find(sym.symbol("val")).value
             )
+
+    class TestExecuteModule:
+        def test_no_filename_if_no_module(self):
+            with pytest.raises(ImportError):
+                importer.BasilispImporter().get_filename("package.module")
+
+        def test_can_get_filename_when_module_exists(self, make_new_module):
+            make_new_module("package", "module.lpy", ns_name="package.module")
+            filename = importer.BasilispImporter().get_filename("package.module")
+            assert filename is not None
+
+            p = pathlib.Path(filename)
+            assert p.parts[-2:] == ("package", "module.lpy")
+
+        def test_no_code_if_no_module(self):
+            with pytest.raises(ImportError):
+                importer.BasilispImporter().get_code("package.module")
+
+        @pytest.mark.parametrize(
+            "args,output",
+            [
+                (["whatever", "1", "2", "3"], "package.module\n[1 2 3]\n"),
+                ([], "package.module\nnil\n"),
+            ],
+        )
+        def test_execute_module_correctly(
+            self,
+            monkeypatch: pytest.MonkeyPatch,
+            make_new_module,
+            capsys,
+            args: List[str],
+            output: str,
+        ):
+            make_new_module(
+                "package",
+                "module.lpy",
+                module_text="""
+                (ns package.module)
+
+                (python/print *main-ns*)
+                (python/print *command-line-args*)""",
+            )
+
+            monkeypatch.setattr("sys.argv", ["whatever", "1", "2", "3"])
+
+            code = importer.BasilispImporter().get_code("package.module")
+            exec(code)
+            captured = capsys.readouterr()
+            assert captured.out == "package.module\n[1 2 3]\n"
+
+
+@pytest.fixture
+def bootstrap_file() -> pathlib.Path:
+    # Generate a bootstrap `.pth` file in the site-packages directory of the current
+    # installation.
+    #
+    # Unfortunately, there is no easy method to copy the current venv (which has
+    # Basilisp and it's dependencies installed) to avoid mutating the site-packages
+    # of the current environment, so instead we just generate a safe temp `.pth` file
+    # in that directory to avoid stomping over any intentionally installed `.pth`
+    # files.
+    site_package_dir = next(map(pathlib.Path, site.getsitepackages()), None)
+    assert site_package_dir is not None
+
+    with tempfile.NamedTemporaryFile(
+        dir=site_package_dir, prefix="basilispbootstrap", suffix=".pth", mode="w"
+    ) as pth_file:
+        pth_file.write("import basilisp.sitecustomize")
+        pth_file.flush()
+        yield pth_file
+
+
+@pytest.mark.skipif(
+    platform.system().lower() == "windows",
+    reason=(
+        "Couldn't get this to work and do not have a Windows computer to test on. "
+        "Happy to accept a patch!"
+    ),
+)
+@pytest.mark.parametrize(
+    "args,ret",
+    [
+        ([], b"package.test-run-ns-as-pymodule\nnil\n"),
+        (["1", "hi", "yes"], b"package.test-run-ns-as-pymodule\n[1 hi yes]\n"),
+    ],
+)
+def test_run_namespace_as_python_module(
+    bootstrap_file: pathlib.Path, tmp_path: pathlib.Path, args: List[str], ret: bytes
+):
+    parent = tmp_path / "package"
+    parent.mkdir()
+    nsfile = parent / "test_run_ns_as_pymodule.lpy"
+
+    pythonpath = f"{str(tmp_path)}{os.pathsep}{os.pathsep.join(sys.path)}"
+
+    nsfile.write_text(
+        "\n".join(
+            [
+                "(ns package.test-run-ns-as-pymodule)",
+                "",
+                "(println *main-ns*)",
+                "(println *command-line-args*)",
+            ]
+        )
+    )
+    res = subprocess.run(
+        [sys.executable, "-m", "package.test_run_ns_as_pymodule", *args],
+        check=True,
+        capture_output=True,
+        env={**os.environ, "PYTHONPATH": pythonpath},
+    )
+    assert res.stdout == ret

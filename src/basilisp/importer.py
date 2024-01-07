@@ -8,12 +8,13 @@ import types
 from functools import lru_cache
 from importlib.abc import MetaPathFinder, SourceLoader
 from importlib.machinery import ModuleSpec
-from typing import Iterable, List, Mapping, MutableMapping, Optional, cast
+from typing import Iterable, List, Mapping, MutableMapping, Optional, Sequence, cast
 
 from basilisp.lang import compiler as compiler
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.runtime import BasilispModule
 from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import demunge
@@ -133,7 +134,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
     def find_spec(
         self,
         fullname: str,
-        path,  # Optional[List[str]] # MyPy complains this is incompatible with supertype
+        path: Optional[Sequence[str]],
         target: Optional[types.ModuleType] = None,
     ) -> Optional[ModuleSpec]:
         """Find the ModuleSpec for the specified Basilisp module.
@@ -210,13 +211,73 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         with open(path, mode="w+b") as f:
             f.write(data)
 
-    def get_filename(self, fullname: str) -> str:  # pragma: no cover
+    def get_filename(self, fullname: str) -> str:
         try:
             cached = self._cache[fullname]
         except KeyError as e:
-            raise ImportError(f"Could not import module '{fullname}'") from e
-        spec = cached["spec"]
-        return spec.loader_state.filename
+            if (spec := self.find_spec(fullname, None)) is None:
+                raise ImportError(f"Could not import module '{fullname}'") from e
+        else:
+            spec = cached["spec"]
+            assert spec is not None, "spec must be defined here"
+        return spec.loader_state["filename"]
+
+    def get_code(self, fullname: str) -> Optional[types.CodeType]:
+        """Return code to load a Basilisp module.
+
+        This function is part of the ABC for `importlib.abc.ExecutionLoader` which is
+        what Python uses to execute modules at the command line as `python -m module`.
+        """
+        core_ns = runtime.Namespace.get(runtime.CORE_NS_SYM)
+        assert core_ns is not None
+
+        with runtime.ns_bindings("basilisp.namespace-executor") as ns:
+            ns.refer_all(core_ns)
+
+            # Set the *main-ns* variable to the current namespace.
+            main_ns_var = core_ns.find(sym.symbol(runtime.MAIN_NS_VAR_NAME))
+            assert main_ns_var is not None
+            main_ns_var.bind_root(sym.symbol(demunge(fullname)))
+
+            # Set command line args passed to the module
+            if pyargs := sys.argv[1:]:
+                cli_args_var = core_ns.find(
+                    sym.symbol(runtime.COMMAND_LINE_ARGS_VAR_NAME)
+                )
+                assert cli_args_var is not None
+                cli_args_var.bind_root(vec.vector(pyargs))
+
+            # Basilisp can only ever product multiple `types.CodeType` objects for any
+            # given module because it compiles each form as a separate unit, but
+            # `ExecutionLoader.get_code` expects a single `types.CodeType` object. To
+            # simulate this requirement, we generate a single `(load "...")` to execute
+            # in a synthetic namespace.
+            #
+            # The target namespace is free to interpret
+            code: List[types.CodeType] = []
+            path = "/" + "/".join(fullname.split("."))
+            forms = cast(
+                List[ReaderForm],
+                list(
+                    reader.read_str(f'(load "{path}")', resolver=runtime.resolve_alias)
+                ),
+            )
+            assert len(forms) == 1
+            try:
+                compiler.compile_and_exec_form(
+                    forms[0],
+                    compiler.CompilerContext(
+                        filename="<Basilisp Namespace Executor>",
+                        opts=runtime.get_compiler_opts(),
+                    ),
+                    ns,
+                    collect_bytecode=code.append,
+                )
+            except Exception as e:
+                raise ImportError(f"Could not import module '{fullname}'") from e
+            else:
+                assert len(code) == 1
+                return code[0]
 
     def create_module(self, spec: ModuleSpec):
         logger.debug(f"Creating Basilisp module '{spec.name}'")
@@ -234,7 +295,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         loader_state: Mapping[str, str],
         path_stats: Mapping[str, int],
         ns: runtime.Namespace,
-    ):
+    ) -> None:
         """Load and execute a cached Basilisp module."""
         filename = loader_state["filename"]
         cache_filename = loader_state["cache_filename"]
@@ -264,7 +325,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         loader_state: Mapping[str, str],
         path_stats: Mapping[str, int],
         ns: runtime.Namespace,
-    ):
+    ) -> None:
         """Load and execute a non-cached Basilisp module."""
         filename = loader_state["filename"]
         cache_filename = loader_state["cache_filename"]
@@ -302,7 +363,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         )
         self._cache_bytecode(filename, cache_filename, cache_file_bytes)
 
-    def exec_module(self, module):
+    def exec_module(self, module: types.ModuleType) -> None:
         """Compile the Basilisp module into Python code.
 
         Basilisp is fundamentally a form-at-a-time compilation, meaning that

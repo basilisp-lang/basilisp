@@ -9,11 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for passing through `:tag` metadata to the generated Python AST (#354)
  * Added support for calling symbols as functions on maps and sets (#775)
  * Added support for passing command line arguments to Basilisp (#779)
+ * Added support for autocompleting names in the `python/` pseudo-namespace for Python builtins at the REPL (#787)
+ * Added a subcommand for bootstrapping the Python installation with Basilisp (#790)
+ * Added support for executing Basilisp namespaces directly via `basilisp run` and by `python -m` (#791)
  * Added CLI argument parser in `basilisp.contrib.cli-tools` namespace (#535)
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
  * Allow vars to be callable to adhere to Clojure conventions (#767)
+ * Adjust input path compatibility in `basilisp.core/load` input path to be relative to the namespace or the root path (#782)
+ * No longer warn on unused bindings when their name begins with `_` (#756)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
@@ -21,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix an issue for executing Basilisp scripts via a shebang where certain platforms may not support more than one argument in the shebang line (#764)
  * Fix issue with keywords throwing `TypeError` when used as a function on vectors (#770)
  * Fix an issue where the constructors of types created by `deftype` and `defrecord` could not be called if they contained `-` characters (#777) 
+ * Fix issue with the variadic ampersand operator treated as a binding in macros (#772)
+
+### Removed
+ * Removed support for PyPy 3.8 (#785)
 
 ## [v0.1.0b0]
 ### Added

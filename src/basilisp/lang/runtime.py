@@ -1,5 +1,5 @@
 # pylint: disable=too-many-lines
-
+import builtins
 import contextlib
 import decimal
 import functools
@@ -86,6 +86,7 @@ COMMAND_LINE_ARGS_VAR_NAME = "*command-line-args*"
 DEFAULT_READER_FEATURES_VAR_NAME = "*default-reader-features*"
 GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
+MAIN_NS_VAR_NAME = "*main-ns*"
 PRINT_DUP_VAR_NAME = "*print-dup*"
 PRINT_LENGTH_VAR_NAME = "*print-length*"
 PRINT_LEVEL_VAR_NAME = "*print-level*"
@@ -867,7 +868,9 @@ class Namespace(ReferenceBase):
 
         candidates = filter(
             Namespace.__completion_matcher(prefix),
-            itertools.chain(aliases.items(), imports.items()),
+            itertools.chain(
+                aliases.items(), imports.items(), [(sym.symbol("python"), builtins)]
+            ),
         )
         if name_in_module is not None:
             for _, module in candidates:
@@ -2099,6 +2102,25 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
                     "Note that this value will differ from ``sys.argv`` since it will "
                     "not include the command line arguments consumed by Basilisp's "
                     "own CLI."
+                )
+            }
+        ),
+    )
+
+    # Dynamic Var containing command line arguments passed via `basilisp run`
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(MAIN_NS_VAR_NAME),
+        None,
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "The name of the main namespace as a symbol if this process was "
+                    "executed as ``basilisp run -n {namespace}`` or "
+                    "``python -m {namespace}`` or ``nil`` otherwise.\n\n"
+                    "This can be useful for detecting scripts similarly to how Python "
+                    'scripts use the idiom ``if __name__ == "__main__":``.'
                 )
             }
         ),

@@ -1,6 +1,8 @@
 (ns tests.basilisp.test-core-fns
-  (:import time)
+  (:import shutil
+           time)
   (:require
+   [basilisp.io :as bio]
    [basilisp.set :as set]
    [basilisp.test :refer [deftest are is testing]]))
 
@@ -2079,3 +2081,34 @@
       (eval '(ns test-core-fns.ns-with-import (:import [time :as time-alias])))
       (is (= *ns* (the-ns 'test-core-fns.ns-with-import)))
       (is (= "Thu Jan  1 00:00:01 1970" (eval '(time-alias/asctime (time-alias/gmtime 1))))))))
+
+
+;;;;;;;;;;
+;; load ;;
+;;;;;;;;;;
+
+(deftest load-test
+
+  (let [load-dir-test "tests/basilisp/corpus"
+        load-dir-filepath (str load-dir-test "/core_load_1.lpy")]
+    (try 
+      (when (bio/exists? load-dir-test)
+        (shutil/rmtree load-dir-test))
+      (bio/make-parents load-dir-filepath)
+      (spit load-dir-filepath "(print :core-load-1)")
+      
+      (testing "relative load path"
+        (let [output (with-out-str (load "corpus/core-load-1"))]
+          (is (= ":core-load-1" output))))
+
+      (testing "absolute (/) load path"
+        ;; pytest add the top basilisp directory to the classpath
+        (let [output (with-out-str (load "/tests/basilisp/corpus/core-load-1"))]
+          (is (= ":core-load-1" output))))
+
+      (testing "non-existent load path"
+        (is (thrown? python/FileNotFoundError (load "corpus/core-load-99"))))
+
+      (finally
+        (when (bio/exists? load-dir-test)
+          (shutil/rmtree load-dir-test))))))

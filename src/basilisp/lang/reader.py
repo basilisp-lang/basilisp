@@ -948,7 +948,9 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
     If a symbol appears in a syntax quoted form, the reader will attempt
     to resolve the symbol using the resolver in the ReaderContext `ctx`.
     The resolver will look into the current namespace for an alias or
-    namespace matching the symbol's namespace."""
+    namespace matching the symbol's namespace. If no namespace is specififed
+    for the symbol, it will be assigned to the current namespace, unless the
+    symbol is `&`."""
     ns, name = _read_namespaced(ctx, allowed_suffix="#")
     if not ctx.is_syntax_quoted and name.endswith("#"):
         raise ctx.syntax_error("Gensym may not appear outside syntax quote")
@@ -967,6 +969,8 @@ def _read_sym(ctx: ReaderContext) -> MaybeSymbol:
             return True
         elif name == "false":
             return False
+        elif name == "&":
+            return _AMPERSAND
     if ctx.is_syntax_quoted and not name.endswith("#"):
         return ctx.resolve(sym.symbol(name, ns))
     return sym.symbol(name, ns=ns)
