@@ -149,6 +149,7 @@ Specifically, any file with a ``.pth`` extension located in any of the known ``s
    <module 'basilisp.core' (/home/chris/Projects/basilisp/src/basilisp/core.lpy)>
 
 This method also enables you to directly execute Basilisp scripts as Python modules using ``python -m {namespace}``.
+Basilisp namespaces run as a Python module directly via ``python -m`` are resolved within the context of the current ``sys.path`` of the active Python interpreter.
 
 .. code-block:: bash
 
