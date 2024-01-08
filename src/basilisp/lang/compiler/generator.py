@@ -2138,6 +2138,8 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     then_ast = __if_body_to_py_ast(ctx, node.then, result_name)
     else_ast = __if_body_to_py_ast(ctx, node.else_, result_name)
 
+    # Suppress the duplicate assignment statement if the `if` statement test is already
+    # an ast.Name instance.
     if_test_deps: List[ast.AST] = []
     if isinstance(test_ast.node, ast.Name):
         test_name = test_ast.node.id
