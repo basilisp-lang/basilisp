@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Allow vars to be callable to adhere to Clojure conventions (#767)
  * Adjust input path compatibility in `basilisp.core/load` input path to be relative to the namespace or the root path (#782)
  * No longer warn on unused bindings when their name begins with `_` (#756)
+ * Improve the Python generation for `if` and `let*` forms to avoid unnecessary extra assignments (#792)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
