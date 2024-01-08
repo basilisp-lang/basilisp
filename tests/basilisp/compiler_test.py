@@ -2900,6 +2900,9 @@ class TestIf:
         """
         assert "YELLING" == lcompile(code)
 
+    def test_if_with_name(self, lcompile: CompileFn):
+        assert lcompile("(let* [a true] (if a :a :b))") == kw.keyword("a")
+
     def test_truthiness(self, lcompile: CompileFn):
         # Valid false values
         assert kw.keyword("b") == lcompile("(if false :a :b)")
@@ -3243,6 +3246,9 @@ class TestLet:
     def test_let_may_have_empty_body(self, lcompile: CompileFn):
         assert None is lcompile("(let* [])")
         assert None is lcompile("(let* [a :kw])")
+
+    def test_let_return_bound_name(self, lcompile: CompileFn):
+        assert lcompile("(let* [a :a b a] b)") == kw.keyword("a")
 
     def test_let_bindings_get_tag_ast(self, lcompile: CompileFn, ns: runtime.Namespace):
         lcompile('(let [^python/str s "a string"] s)')

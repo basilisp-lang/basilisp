@@ -2138,10 +2138,18 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
     then_ast = __if_body_to_py_ast(ctx, node.then, result_name)
     else_ast = __if_body_to_py_ast(ctx, node.else_, result_name)
 
-    test_name = genname(_IF_TEST_PREFIX)
-    test_assign = ast.Assign(
-        targets=[ast.Name(id=test_name, ctx=ast.Store())], value=test_ast.node
-    )
+    # Suppress the duplicate assignment statement if the `if` statement test is already
+    # an ast.Name instance.
+    if_test_deps: List[ast.AST] = []
+    if isinstance(test_ast.node, ast.Name):
+        test_name = test_ast.node.id
+    else:
+        test_name = genname(_IF_TEST_PREFIX)
+        if_test_deps.append(
+            ast.Assign(
+                targets=[ast.Name(id=test_name, ctx=ast.Store())], value=test_ast.node
+            )
+        )
 
     ifstmt = ast.If(
         test=ast.BoolOp(
@@ -2168,7 +2176,7 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST:
         node=ast.Name(id=result_name, ctx=ast.Load())
         if result_name is not None
         else _noop_node(),
-        dependencies=list(chain(test_ast.dependencies, [test_assign, ifstmt])),
+        dependencies=list(chain(test_ast.dependencies, if_test_deps, [ifstmt])),
     )
 
 
@@ -2297,19 +2305,23 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
                 sym.symbol(binding.name), binding_name, LocalType.LET
             )
 
-        let_result_name = genname(_LET_RESULT_PREFIX)
         body_ast = _synthetic_do_to_py_ast(ctx, node.body)
         let_body_ast.extend(map(statementize, body_ast.dependencies))
 
         if node.env.pos == NodeSyntacticPosition.EXPR:
-            let_body_ast.append(
-                ast.Assign(
-                    targets=[ast.Name(id=let_result_name, ctx=ast.Store())],
-                    value=body_ast.node,
+            if isinstance(body_ast.node, ast.Name):
+                let_result_node = body_ast.node
+            else:
+                let_result_name = genname(_LET_RESULT_PREFIX)
+                let_result_node = ast.Name(id=let_result_name, ctx=ast.Load())
+                let_body_ast.append(
+                    ast.Assign(
+                        targets=[ast.Name(id=let_result_name, ctx=ast.Store())],
+                        value=body_ast.node,
+                    )
                 )
-            )
             return GeneratedPyAST(
-                node=ast.Name(id=let_result_name, ctx=ast.Load()),
+                node=let_result_node,
                 dependencies=let_body_ast,
             )
         else:
