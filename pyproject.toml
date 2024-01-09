@@ -219,6 +219,7 @@ disable = [
 check_untyped_defs = true
 mypy_path = "src/"
 show_error_codes = true
+warn_redundant_casts = true
 warn_unused_configs = true
 warn_unused_ignores = true
 

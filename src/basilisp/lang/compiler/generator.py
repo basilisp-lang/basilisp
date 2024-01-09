@@ -135,14 +135,14 @@ _REST_KW = kw.keyword("rest")
 GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERATION)
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class SymbolTableEntry:
     context: LocalType
     munged: str
     symbol: sym.Symbol
 
 
-@attr.s(auto_attribs=True, slots=True)
+@attr.define
 class SymbolTable:
     name: str
     _is_context_boundary: bool = False
@@ -203,7 +203,7 @@ class RecurType(Enum):
     LOOP = kw.keyword("loop")
 
 
-@attr.s(auto_attribs=True, slots=True)
+@attr.define
 class RecurPoint:
     loop_id: str
     type: RecurType
@@ -313,7 +313,7 @@ class GeneratorContext:
         self._this.pop()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class GeneratedPyAST:
     node: ast.AST
     dependencies: Iterable[ast.AST] = ()

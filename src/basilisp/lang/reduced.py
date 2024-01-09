@@ -7,7 +7,7 @@ from basilisp.lang.interfaces import IDeref
 T = TypeVar("T")
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Reduced(IDeref[T]):
     value: T
 

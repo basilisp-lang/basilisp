@@ -175,13 +175,13 @@ _NO_WARN_UNUSED_SYMS = lset.s(_IGNORED_SYM, _MACRO_ENV_SYM, _MACRO_FORM_SYM)
 AnalyzerException = partial(CompilerException, phase=CompilerPhase.ANALYZING)
 
 
-@attr.s(auto_attribs=True, slots=True)
+@attr.define
 class RecurPoint:
     loop_id: str
     args: Collection[Binding] = ()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class SymbolTableEntry:
     binding: Binding
     used: bool = False
@@ -196,7 +196,7 @@ class SymbolTableEntry:
         return self.binding.local
 
 
-@attr.s(auto_attribs=True, slots=True)
+@attr.define
 class SymbolTable:
     name: str
     _is_context_boundary: bool = False

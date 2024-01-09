@@ -8,7 +8,16 @@ import types
 from functools import lru_cache
 from importlib.abc import MetaPathFinder, SourceLoader
 from importlib.machinery import ModuleSpec
-from typing import Iterable, List, Mapping, MutableMapping, Optional, Sequence, cast
+from typing import (
+    Any,
+    Iterable,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+    cast,
+)
 
 from basilisp.lang import compiler as compiler
 from basilisp.lang import reader as reader
@@ -191,22 +200,22 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
                     return ModuleSpec(fullname, None, is_package=True)
         return None
 
-    def invalidate_caches(self):
+    def invalidate_caches(self) -> None:
         super().invalidate_caches()
         self._cache = {}
 
-    def _cache_bytecode(self, source_path, cache_path, data):
+    def _cache_bytecode(self, source_path: str, cache_path: str, data: bytes) -> None:
         self.set_data(cache_path, data)
 
-    def path_stats(self, path):
+    def path_stats(self, path: str) -> Mapping[str, Any]:
         stat = os.stat(path)
         return {"mtime": int(stat.st_mtime), "size": stat.st_size}
 
-    def get_data(self, path):
+    def get_data(self, path: str) -> bytes:
         with open(path, mode="r+b") as f:
             return f.read()
 
-    def set_data(self, path, data):
+    def set_data(self, path: str, data: bytes) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, mode="w+b") as f:
             f.write(data)
@@ -279,7 +288,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
                 assert len(code) == 1
                 return code[0]
 
-    def create_module(self, spec: ModuleSpec):
+    def create_module(self, spec: ModuleSpec) -> BasilispModule:
         logger.debug(f"Creating Basilisp module '{spec.name}'")
         mod = BasilispModule(spec.name)
         mod.__file__ = spec.loader_state["filename"]
@@ -400,7 +409,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
                 self._exec_module(fullname, spec.loader_state, path_stats, ns)
 
 
-def hook_imports():
+def hook_imports() -> None:
     """Hook into Python's import machinery with a custom Basilisp code
     importer.
 
