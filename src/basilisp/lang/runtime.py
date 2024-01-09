@@ -973,6 +973,7 @@ def pop_thread_bindings() -> None:
 ###################
 
 T = TypeVar("T")
+X = TypeVar("X")
 
 
 @functools.singledispatch

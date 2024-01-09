@@ -1,10 +1,12 @@
 from typing import Callable, Optional, TypeVar
 
 import attr
+from typing_extensions import Concatenate, ParamSpec
 
 from basilisp.lang.interfaces import IDeref
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 @attr.define
@@ -22,6 +24,8 @@ class Volatile(IDeref[T]):
         self.value = v
         return self.value
 
-    def swap(self, f: Callable[..., T], *args, **kwargs) -> T:
+    def swap(
+        self, f: Callable[Concatenate[T, P], T], *args: P.args, **kwargs: P.kwargs
+    ) -> T:
         self.value = f(self.value, *args, **kwargs)
         return self.value

@@ -1,6 +1,7 @@
 from typing import Any, Callable, Optional, TypeVar
 
 from readerwriterlock.rwlock import RWLockable
+from typing_extensions import Concatenate, ParamSpec
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
@@ -14,17 +15,8 @@ from basilisp.lang.interfaces import (
     RefWatchKey,
 )
 
-try:
-    from typing import Protocol
-except ImportError:
-    AlterMeta = Callable[..., Optional[IPersistentMap]]
-else:
-
-    class AlterMeta(Protocol):  # type: ignore [no-redef]
-        def __call__(
-            self, meta: Optional[IPersistentMap], *args
-        ) -> Optional[IPersistentMap]:
-            ...
+P = ParamSpec("P")
+AlterMeta = Callable[Concatenate[Optional[IPersistentMap], P], Optional[IPersistentMap]]
 
 
 class ReferenceBase(IReference):
@@ -75,7 +67,7 @@ class RefBase(IRef[T], ReferenceBase):
             self._watches = self._watches.assoc(k, wf)
             return self
 
-    def _notify_watches(self, old: Any, new: Any):
+    def _notify_watches(self, old: Any, new: Any) -> None:
         for k, wf in self._watches.items():
             wf(k, self, old, new)
 
@@ -101,7 +93,7 @@ class RefBase(IRef[T], ReferenceBase):
             self._validate(self.deref(), vf=vf)
         self._validator = vf
 
-    def _validate(self, val: Any, vf: Optional[RefValidator] = None):
+    def _validate(self, val: Any, vf: Optional[RefValidator] = None) -> None:
         vf = vf or self._validator
         if vf is not None:
             try:
