@@ -30,7 +30,7 @@ class CompilerPhase(Enum):
     COMPILING_PYTHON = kw.keyword("compiling-python")
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class _loc:
     line: Optional[int] = None
     col: Optional[int] = None
@@ -46,7 +46,7 @@ class _loc:
         )
 
 
-@attr.s(auto_attribs=True, slots=True, str=False)
+@attr.define(str=False)
 class CompilerException(IExceptionInfo):
     msg: str
     phase: CompilerPhase

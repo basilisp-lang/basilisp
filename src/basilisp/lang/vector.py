@@ -1,5 +1,5 @@
 from functools import total_ordering
-from typing import Iterable, Optional, Sequence, TypeVar, Union
+from typing import TYPE_CHECKING, Iterable, Optional, Sequence, TypeVar, Union, cast
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 from pyrsistent.typing import PVectorEvolver
@@ -18,6 +18,9 @@ from basilisp.lang.interfaces import (
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
 from basilisp.util import partition
+
+if TYPE_CHECKING:
+    from typing import Tuple
 
 T = TypeVar("T")
 
@@ -46,7 +49,7 @@ class TransientVector(ITransientVector[T]):
         return self
 
     def assoc_transient(self, *kvs: T) -> "TransientVector[T]":
-        for i, v in partition(kvs, 2):
+        for i, v in cast("Sequence[Tuple[int, T]]", partition(kvs, 2)):
             self._inner.set(i, v)
         return self
 

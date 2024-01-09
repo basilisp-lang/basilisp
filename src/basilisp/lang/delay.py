@@ -8,17 +8,11 @@ from basilisp.lang.interfaces import IDeref
 T = TypeVar("T")
 
 
-# Use attrs `these` for now as there is an open bug around slotted
-# generic classes: https://github.com/python-attrs/attrs/issues/313
-@attr.s(
-    auto_attribs=True,
-    frozen=True,
-    these={"f": attr.ib(), "value": attr.ib(), "computed": attr.ib(default=False)},
-)
+@attr.frozen
 class _DelayState(Generic[T]):
     f: Callable[[], T]
     value: Optional[T]
-    computed: bool
+    computed: bool = False
 
 
 class Delay(IDeref[T]):

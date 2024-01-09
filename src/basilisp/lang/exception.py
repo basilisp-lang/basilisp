@@ -4,13 +4,7 @@ from basilisp.lang.interfaces import IExceptionInfo, IPersistentMap
 from basilisp.lang.obj import lrepr
 
 
-@attr.s(
-    auto_attribs=True,
-    eq=True,
-    repr=False,
-    slots=True,
-    str=False,
-)
+@attr.define(repr=False, str=False)
 class ExceptionInfo(IExceptionInfo):
     message: str
     data: IPersistentMap

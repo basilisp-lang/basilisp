@@ -5,19 +5,15 @@ from concurrent.futures import TimeoutError as _TimeoutError
 from typing import Callable, Optional, TypeVar
 
 import attr
+from typing_extensions import ParamSpec
 
 from basilisp.lang.interfaces import IBlockingDeref
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
-@attr.s(
-    auto_attribs=True,
-    eq=True,
-    frozen=True,
-    repr=False,
-    slots=True,
-)
+@attr.frozen(eq=True, repr=False)
 class Future(IBlockingDeref[T]):
     _future: "_Future[T]"
 
@@ -61,8 +57,8 @@ class ProcessPoolExecutor(_ProcessPoolExecutor):  # pragma: no cover
         super().__init__(max_workers=max_workers)
 
     # pylint: disable=arguments-differ
-    def submit(  # type: ignore
-        self, fn: Callable[..., T], *args, **kwargs
+    def submit(  # type: ignore[override]
+        self, fn: Callable[P, T], *args: P.args, **kwargs: P.kwargs
     ) -> "Future[T]":
         return Future(super().submit(fn, *args, **kwargs))
 
@@ -76,7 +72,7 @@ class ThreadPoolExecutor(_ThreadPoolExecutor):
         super().__init__(max_workers=max_workers, thread_name_prefix=thread_name_prefix)
 
     # pylint: disable=arguments-differ
-    def submit(  # type: ignore
-        self, fn: Callable[..., T], *args, **kwargs
+    def submit(  # type: ignore[override]
+        self, fn: Callable[P, T], *args: P.args, **kwargs: P.kwargs
     ) -> "Future[T]":
         return Future(super().submit(fn, *args, **kwargs))

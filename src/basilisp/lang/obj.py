@@ -6,10 +6,9 @@ from abc import ABC, abstractmethod
 from decimal import Decimal
 from fractions import Fraction
 from functools import singledispatch
+from itertools import islice
 from pathlib import Path
 from typing import Any, Callable, Iterable, Pattern, Tuple, Union
-
-from basilisp.util import take
 
 PrintCountSetting = Union[bool, int, None]
 
@@ -93,7 +92,7 @@ def map_lrepr(
     print_dup = kwargs["print_dup"]
     print_length = kwargs["print_length"]
     if not print_dup and isinstance(print_length, int):
-        items = list(take(entry_reprs(), print_length + 1))
+        items = list(islice(entry_reprs(), print_length + 1))
         if len(items) > print_length:
             items.pop()
             trailer.append(SURPASSED_PRINT_LENGTH)
@@ -125,7 +124,7 @@ def seq_lrepr(
     print_dup = kwargs["print_dup"]
     print_length = kwargs["print_length"]
     if not print_dup and isinstance(print_length, int):
-        items = list(take(iterable, print_length + 1))
+        items = list(islice(iterable, print_length + 1))
         if len(items) > print_length:
             items.pop()
             trailer.append(SURPASSED_PRINT_LENGTH)
