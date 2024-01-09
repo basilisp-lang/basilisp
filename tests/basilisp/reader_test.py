@@ -573,6 +573,9 @@ def test_map():
     with pytest.raises(reader.SyntaxError):
         read_str_first("{")
 
+    with pytest.raises(reader.SyntaxError):
+        read_str_first("{#py [] :some-keyword}")
+
     assert read_str_first("{}") == lmap.map({})
     assert read_str_first("{:a 1}") == lmap.map({kw.keyword("a"): 1})
     assert read_str_first('{:a 1 :b "string"}') == lmap.map(

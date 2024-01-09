@@ -168,8 +168,8 @@ class IReversible(Generic[T]):
 class ISeqable(Iterable[T]):
     """ISeqable types can produce sequences of their elements, but are not ISeqs.
 
-    All of the builtin collections are ISeqable, except Lists which directly
-    implement ISeq. Values of type ISeqable respond True to the `seqable?` predicate."""
+    All the builtin collections are ISeqable, except Lists which directly implement
+    ISeq. Values of type ISeqable respond True to the `seqable?` predicate."""
 
     __slots__ = ()
 
@@ -421,9 +421,9 @@ class IRecord(ILispObject):
         raise NotImplementedError()
 
 
-def seq_equals(s1, s2) -> bool:
-    """Return True if two sequences contain the exactly the same elements in the
-    same order. Return False if one sequence is shorter than the other."""
+def seq_equals(s1: Union["ISeq", ISequential], s2: Any) -> bool:
+    """Return True if two sequences contain exactly the same elements in the same
+    order. Return False if one sequence is shorter than the other."""
     assert isinstance(s1, (ISeq, ISequential))
 
     if not isinstance(s2, (ISeq, ISequential)):

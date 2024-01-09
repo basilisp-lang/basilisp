@@ -14,7 +14,7 @@ class Promise(IBlockingDeref[T]):
         self._is_delivered = False
         self._value: Optional[T] = None
 
-    def deliver(self, value: T):
+    def deliver(self, value: T) -> None:
         with self._condition:
             if not self._is_delivered:
                 self._is_delivered = True

@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Allow vars to be callable to adhere to Clojure conventions (#767)
  * Adjust input path compatibility in `basilisp.core/load` input path to be relative to the namespace or the root path (#782)
  * No longer warn on unused bindings when their name begins with `_` (#756)
+ * Improve the Python generation for `do`, `if`, `let*`, and `letfn*` forms to avoid unnecessary extra assignments (#793, #794, #799)
+ * Generate Python classes for `deftype*` and `reify*` forms using modern `@attr.define`, `@attr.frozen`, and `@attr.field` APIs (#799)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
@@ -30,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
  * Removed support for PyPy 3.8 (#785)
+
+### Other
+ * Improve the state of the Python type hints in `basilisp.lang.*` (#797)
+
 
 ## [v0.1.0b0]
 ### Added

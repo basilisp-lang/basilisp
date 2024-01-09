@@ -1,7 +1,6 @@
 import contextlib
 import time
-from itertools import islice
-from typing import Callable, Generic, Optional, TypeVar
+from typing import Callable, Generic, Iterable, Optional, Sequence, Tuple, TypeVar
 
 
 @contextlib.contextmanager
@@ -66,8 +65,8 @@ class Maybe(Generic[T]):
         return self._inner is not None
 
 
-def partition(coll, n: int):
-    """Partition coll into groups of size n."""
+def partition(coll: Sequence[T], n: int) -> Iterable[Tuple[T, ...]]:
+    """Partition `coll` into groups of size `n`."""
     assert n > 0
     start = 0
     stop = n
@@ -78,9 +77,3 @@ def partition(coll, n: int):
     if start < len(coll) < stop:
         stop = len(coll)
         yield tuple(e for e in coll[start:stop])
-
-
-def take(coll, n: int):
-    """Yield the first n elements of coll."""
-    assert n >= 0
-    yield from islice(coll, n)

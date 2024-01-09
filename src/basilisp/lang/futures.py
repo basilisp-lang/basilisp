@@ -11,13 +11,7 @@ from basilisp.lang.interfaces import IBlockingDeref
 T = TypeVar("T")
 
 
-@attr.s(
-    auto_attribs=True,
-    eq=True,
-    frozen=True,
-    repr=False,
-    slots=True,
-)
+@attr.frozen(eq=True, repr=False)
 class Future(IBlockingDeref[T]):
     _future: "_Future[T]"
 

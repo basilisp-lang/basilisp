@@ -7,7 +7,6 @@ import functools
 import io
 import re
 import uuid
-from collections.abc import Hashable
 from datetime import datetime
 from fractions import Fraction
 from itertools import chain
@@ -22,6 +21,7 @@ from typing import (
     MutableMapping,
     Optional,
     Pattern,
+    Sequence,
     Set,
     Tuple,
     TypeVar,
@@ -117,7 +117,7 @@ RawReaderForm = Union[ReaderForm, "ReaderConditional"]
 
 
 # pylint:disable=redefined-builtin
-@attr.s(auto_attribs=True, repr=False, slots=True, str=False)
+@attr.define(repr=False, str=False)
 class SyntaxError(Exception):
     message: str
     line: Optional[int] = None
@@ -418,7 +418,9 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
         feature_list: List[Tuple[kw.Keyword, ReaderForm]] = []
 
         try:
-            for k, v in partition(form, 2):
+            for k, v in partition(
+                cast(Sequence[Tuple[kw.Keyword, ReaderForm]], form), 2
+            ):
                 if not isinstance(k, kw.Keyword):
                     raise SyntaxError(
                         f"Reader conditional features must be keywords, not {type(k)}"
@@ -661,7 +663,7 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
 
 def _map_key_processor(
     namespace: Optional[str],
-) -> Callable[[Hashable], Hashable]:
+) -> Callable[[Any], Any]:
     """Return a map key processor.
 
     If no `namespace` is provided, return an identity function. If a `namespace`
@@ -700,9 +702,13 @@ def _read_map(
         # pylint: disable=redefined-loop-name
         for k, v in partition(list(__read_map_elems(ctx)), 2):
             k = process_key(k)
-            if k in d:
-                raise ctx.syntax_error(f"Duplicate key '{k}' in map literal")
-            d[k] = v
+            try:
+                if k in d:
+                    raise ctx.syntax_error(f"Duplicate key '{k}' in map literal")  # type: ignore[str-bytes-safe]
+            except TypeError as e:
+                raise ctx.syntax_error("Map keys must be hashable") from e
+            else:
+                d[k] = v
     except ValueError as e:
         raise ctx.syntax_error("Unexpected token '}'; expected map value") from e
     else:
