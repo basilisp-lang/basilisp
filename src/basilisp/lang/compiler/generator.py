@@ -14,6 +14,7 @@ from fractions import Fraction
 from functools import partial, wraps
 from itertools import chain
 from typing import (
+    TYPE_CHECKING,
     Callable,
     Collection,
     Deque,
@@ -106,6 +107,9 @@ from basilisp.lang.runtime import BasilispModule, Var
 from basilisp.lang.typing import CompilerOpts, LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
+
+if TYPE_CHECKING:
+    from typing import Any
 
 # Generator logging
 logger = logging.getLogger(__name__)
@@ -536,8 +540,8 @@ def _ast_with_loc(
 
 
 def _with_ast_loc(
-    f: PyASTGenerator[T_node, P_generator, T_pynode]
-) -> PyASTGenerator[T_node, P_generator, T_pynode]:
+    f: "PyASTGenerator[T_node, P_generator, T_pynode]",
+) -> "PyASTGenerator[T_node, P_generator, T_pynode]":
     """Wrap a generator function in a decorator to supply line and column
     information to the returned Python AST node. Dependency nodes will not
     be hydrated, functions whose returns need dependency nodes to be
@@ -557,8 +561,8 @@ def _with_ast_loc(
 
 
 def _with_ast_loc_deps(
-    f: PyASTGenerator[T_node, P_generator, T_pynode]
-) -> PyASTGenerator[T_node, P_generator, T_pynode]:
+    f: "PyASTGenerator[T_node, P_generator, T_pynode]",
+) -> "PyASTGenerator[T_node, P_generator, T_pynode]":
     """Wrap a generator function in a decorator to supply line and column
     information to the returned Python AST node and dependency nodes.
 
@@ -1336,7 +1340,7 @@ def __deftype_staticmethod_to_py_ast(
 
 
 T_deftypenode = TypeVar("T_deftypenode", bound=DefTypeMember)
-_DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, PyASTGenerator] = {
+_DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, "PyASTGenerator[Any, Any, ast.stmt]"] = {
     NodeOp.DEFTYPE_CLASSMETHOD: __deftype_classmethod_to_py_ast,
     NodeOp.DEFTYPE_METHOD: __deftype_method_to_py_ast,
     NodeOp.DEFTYPE_PROPERTY: __deftype_property_to_py_ast,
@@ -3381,7 +3385,7 @@ def _py_tuple_to_py_ast(
 ############
 
 
-_WITH_META_EXPR_HANDLER: Mapping[NodeOp, PyASTGenerator] = {
+_WITH_META_EXPR_HANDLER: Mapping[NodeOp, "PyASTGenerator[Any, Any, ast.expr]"] = {
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
     NodeOp.QUEUE: _queue_to_py_ast,
@@ -3760,7 +3764,7 @@ def _const_node_to_py_ast(
     return _const_val_to_py_ast(lisp_ast.val, ctx)
 
 
-_NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
+_NODE_HANDLERS: Mapping[NodeOp, "PyASTGenerator[Any, Any, ast.expr]"] = {
     NodeOp.AWAIT: _await_to_py_ast,
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,
