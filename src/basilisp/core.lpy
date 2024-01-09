@@ -7175,3 +7175,122 @@
      (.put-nowait tap-queue {:topic topic :val val})
      true
      (catch queue/Full _ false))))
+
+;;;;;;;;;;;
+;; Proxy ;;
+;;;;;;;;;;;
+
+(defmacro proxy [class-and-interfaces args & fs]
+  "Expands to code that creates an instance of a class that implements
+  the Basilisp interfaces in ``class-and-interfaces``. The methods
+  implementations are provided in ``fs``, while the ``args`` are
+  passed to superclass constructor of the instance. If no class is
+  specified in ``class-and-interfaces``, the proxy instance inherits
+  from `python/object`.
+
+  ``fs`` consists of class/interface method definitions and/or
+  multiarity interface method definitions
+
+  (method-name1 [args...] body)
+  (method-name2 ([args1...] body1)
+                ([args2...] body2) ...)
+  ...
+
+  A `this` argument is implicitly avaialble in method bodies, refering
+  to the proxy instance.
+
+  The single arity version can also accept python keyword args using
+  the meta :kwargs option, as follows
+
+  ^{:kwargs :collect} (method-name [args... {:as kwargs}])
+
+  The interfaces in ``class-and-interfaces`` can be regular classes or
+  abstract classes whose methods can be overriden in ``fs``.
+
+  Moreover, if a method in ``fs`` is not found in any of the methods
+  in ``class-and-interfaces``, it is added as a new method in the
+  proxy instance."
+  (let [class-nm (str (gensym (str "proxy--" (first class-and-interfaces))))
+        fname-fn-pairs
+        (for [f fs]
+          (if (list? (second f))
+            ;; multi-arity
+            ;;
+            ;; Create a single variadic fn that will switch to the
+            ;; correct body based on the number of arguments passed
+            ;; in.
+            (let [fname-fn-pair
+                  (let [vargs (gensym "args")
+                        fname (first f)
+                        ;; sort the different arities to ensure that
+                        ;; variadic arity comes last, courtesy of the
+                        ;; additional `&` symbol.
+                        fargs (sort-by count (rest f))
+                        fargs-last (last fargs)
+                        variadic-pos (try
+                                       (.index (first fargs-last) '&)
+                                       (catch python/ValueError _
+                                         nil))]
+                    [(str fname)
+                     `(fn [& ~vargs]
+                        ;; create a case form to switch to the right
+                        ;; body according to the number of arguments
+                        ;; passed to the fn.
+                        ;;
+                        ;; (case (count fn-args)
+                        ;;   n1 (do body1)
+                        ;;   n2 (do body2)
+                        ;;   (if-not (variadic? fn-args)
+                        ;;     (throw exception)
+                        ;;     (do variadic-body))
+                        ~(apply list 'case (list 'count vargs)
+                                (mapcat (fn [args-and-body]
+                                          (let [args (first args-and-body)
+                                                body (rest args-and-body)]
+                                            (if (and (= args-and-body fargs-last)
+                                                     variadic-pos)
+                                              `((if (<= (count ~vargs) ~variadic-pos)
+                                                  (throw (ex-info "Arguments passed to function does not match the variadic fn specification"
+                                                                  {:args-spec-expected (quote ~(first fargs-last))
+                                                                   :args-provided (drop 1 ~vargs)}))
+                                                  (let [~(into ['this] args) ~vargs]
+                                                    (do ~@body))))
+                                              [(inc (count args)) (list 'let [(into ['this] args) vargs]
+                                                                        `(do ~@body))])))
+                                        fargs)))])
+
+
+                  ;; Implementation of variadic functions for Basilisp
+                  ;; interfaces necessitates the inclusion of
+                  ;; additional arity method signatures, such as
+                  ;; method-name_arityN, to be registered for proper
+                  ;; functionality, even if their implementations are
+                  ;; nil.
+                  fname-fndummy-pairs
+                  (for [spec (rest f)]
+                    (let [fargs (first spec)
+                          argc (count fargs)
+                          variadic? (try
+                                      (.index fargs '&)
+                                      (catch python/ValueError _
+                                        nil))
+                          arity (if variadic?
+                                  "_rest"
+                                  (if (= argc 0) 0 (inc argc)))]
+                      [(str "_" (first f) "_arity" arity) nil]))]
+              (into [fname-fn-pair] fname-fndummy-pairs))
+
+            ;; single arity
+            (let [fmeta (meta f)
+                  fname (first f)
+                  fargs (second f)
+                  body `(do ~@(drop 2 f))]
+              [[(.replace (str fname) "-" "_") (with-meta `(fn ~(into ['this] fargs)
+                                                             ~body)
+                                                 fmeta)]])))
+
+        ;; convert to dictionary of fname-fn pairs
+        fns-dict
+        (into {} (apply concat fname-fn-pairs))]
+    `((python/type ~class-nm (python/tuple ~class-and-interfaces)
+                   (lisp->py ~fns-dict)) ~@args)))

@@ -1537,3 +1537,111 @@
 (deftest macro-variadic-fn
   (testing "defining variadic fn with ampersand"
     (is (= '(2 3 4) ((variadic-fn) 2 3 4)))))
+
+(definterface ITestProxySingleArg
+  (arg-simple [arg]))
+(definterface ITestProxySimpleVariadic
+  (variadic-simple [arg1 arg2 & more]))
+(definterface ITestProxyFullVariadic
+  (variadic-full [& more]))
+(definterface ITestProxyMultiArgs
+  (none [])
+  (one-arg [arg])
+  (multi [one two & more]))
+(definterface ITestProxyMultiVariadic
+  (variadic [])
+  (variadic [one two three & more])
+  (variadic [one]))
+
+(deftest proxy-test
+  (testing "proxy interface of simple fn with args"
+    (let [p (proxy [ITestProxySingleArg] []
+              (arg-simple [arg] arg))]
+      (is (= 5 (.arg-simple p 5)))
+
+      (is (thrown? python/TypeError (.arg-simple p)))
+      (is (thrown? python/TypeError (.arg-simple p 2 3)))))
+
+  (testing "proxy interface of simple variadic fn"
+    (let [p (proxy [ITestProxySimpleVariadic] []
+              (variadic-simple [arg1 arg2 & more] [arg1 arg2 more]))]
+      (is (= [5 6 nil] (.variadic-simple p 5 6)))
+      (is (= [5 6 '(2 3)] (.variadic-simple p 5 6 2 3)))
+
+      (is (thrown? python/TypeError (.variadic-simple p)))
+      (is (thrown? python/TypeError (.variadic-simple p 1)))))
+
+  (testing "proxy interface of full variadic fn"
+    (let [p (proxy [ITestProxyFullVariadic] []
+              (variadic-full [& more] more))]
+      (is (= '(5 6 2 3) (.variadic-full p 5 6 2 3)))))
+
+  (testing "proxy interface of functions with various length of args"
+    (let [p (proxy [ITestProxyMultiArgs] []
+              (none [] "hi")
+              (one-arg [arg] arg)
+              (multi [one two & more] {:one one
+                                       :two two
+                                       :more more}))]
+      (is (= "hi" (.none p)))
+      (is (= 5 (.one-arg p 5)))
+      (is (= {:one 5 :two 3 :more [4 6]}
+             (.multi p 5 3 4 6)))))
+
+  (testing "proxy interface with multiarity and variadic fns"
+    (let [p (proxy [ITestProxyMultiVariadic] []
+              (variadic
+                ([] 0)
+                ([one] one)
+                ([one two three & more] [one two three more])))]
+      (is (= 0 (.variadic p)))
+      (is (= 5 (.variadic p 5)))
+      (is (= [9 8 7 nil] (.variadic p 9 8 7)))
+      (is (= [9 8 7 '(3 4)] (.variadic p 9 8 7 3 4)))
+
+      (is (thrown? basilisp.lang.exception/ExceptionInfo (.variadic p 9 8)))))
+
+  (testing "proxy interfaces with simple fn and multiarity"
+    (let [p (proxy [ITestProxySingleArg ITestProxyMultiVariadic] []
+              (arg-simple [arg] arg)
+              (variadic
+                ([] 0)
+                ([one] one)
+                ([one two three & more] [one two three more])))]
+      (is (= 3 (.arg-simple p 3)))
+      (is (= 0 (.variadic p)))
+      (is (= 5 (.variadic p 5)))
+      (is (= [9 8 7 '(3 4)] (.variadic p 9 8 7 3 4)))))
+
+  (testing "simple proxy class with interface and `this` anaphora"
+    (let [p (proxy [io/StringIO ITestProxySingleArg] []
+              (arg-simple [arg] (.write this arg)))]
+      (is (= 2 (.arg-simple p "hi")))
+      (is (= "hi" (.getvalue p))))
+    )
+
+  (testing "simple proxy class with super constructor arg"
+    (let [p (proxy [io/StringIO ITestProxySingleArg] ["hello"]
+              (arg-simple [_] (.getvalue this)))]
+      (is (= "hello" (.arg-simple p nil)))))
+
+
+  (testing "simple proxy class with a new fn taking pythonic keyword args"
+    (let [p (proxy [io/StringIO] []
+              ^{:kwargs :collect} (xyz [arg1 {:as kwargs}]
+                                    [arg1 kwargs]))]
+      (is (= [1 {:kw1 2 :kw2 3}] (.xyz p 1 ** :kw1 2 :kw2 3)))))
+
+  (testing "proxy class overriding taking pythonic keyword args"
+    (let [encoding-default (.-encoding (io/TextIOWrapper (io/BufferedIOBase)))
+          p (proxy [io/TextIOWrapper] [(io/BufferedIOBase)])
+          p-override (proxy [io/TextIOWrapper] [(io/BufferedIOBase)]
+                       ^{:kwargs :collect} (reconfigure [{:as kwargs}]
+                                             kwargs))]
+      (is (nil? (.reconfigure p ** :encoding "ascii")))
+      (let [encoding-new (.-encoding p)]
+        (is (= "ascii" encoding-new))
+        (is (not= encoding-default encoding-new)))
+
+      (is (= {:encoding :xyz} (.reconfigure p-override ** :encoding :xyz)))
+      (is (= encoding-default (.-encoding p-override))))))
