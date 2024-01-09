@@ -2080,18 +2080,32 @@ class TestDefType:
                 lcompile(f"#{test_ns}.NewType{{:a 1 :b 2}}")
 
 
-def test_do(lcompile: CompileFn, ns: runtime.Namespace):
-    code = """
-    (do
-      (def first-name :Darth)
-      (def last-name "Vader"))
-    """
-    ns_name = ns.name
-    assert lcompile(code) == Var.find_in_ns(
-        sym.symbol(ns_name), sym.symbol("last-name")
-    )
-    assert lcompile("first-name") == kw.keyword("Darth")
-    assert lcompile("last-name") == "Vader"
+class TestDo:
+    def test_do(self, lcompile: CompileFn, ns: runtime.Namespace):
+        code = """
+        (do
+          (def first-name :Darth)
+          (def last-name "Vader"))
+        """
+        ns_name = ns.name
+        assert lcompile(code) == Var.find_in_ns(
+            sym.symbol(ns_name), sym.symbol("last-name")
+        )
+        assert lcompile("first-name") == kw.keyword("Darth")
+        assert lcompile("last-name") == "Vader"
+
+    def test_do_returning_name(self, lcompile: CompileFn, ns: runtime.Namespace):
+        assert (
+            lcompile(
+                """
+        (let* [a :a]
+          (do 
+            (def some-value a)
+            a))
+        """
+            )
+            == kw.keyword("a")
+        )
 
 
 class TestFunctionShadowName:
@@ -3452,6 +3466,10 @@ class TestLetFn:
     def test_letfn_may_have_empty_body(self, lcompile: CompileFn):
         assert None is lcompile("(letfn* [])")
         assert None is lcompile("(letfn* [a (fn* a [])])")
+
+    def test_let_return_bound_name(self, lcompile: CompileFn):
+        f = lcompile("(letfn* [a (fn* a [])] a)")
+        assert f() is None
 
     def test_letfn(self, lcompile: CompileFn):
         assert lcompile("(letfn* [a (fn* a [] 1)] (a))") == 1
