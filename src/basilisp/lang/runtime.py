@@ -1638,17 +1638,6 @@ def repl_completions(text: str) -> Iterable[str]:
 ####################
 
 
-@functools.singledispatch
-def _collect_args(args) -> ISeq:
-    """Collect Python starred arguments into a Basilisp list."""
-    raise TypeError("Python variadic arguments should always be a tuple")
-
-
-@_collect_args.register(tuple)
-def _collect_args_tuple(args: tuple) -> ISeq:
-    return llist.list(args)
-
-
 class _TrampolineArgs:
     __slots__ = ("_has_varargs", "_args", "_kwargs")
 

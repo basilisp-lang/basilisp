@@ -694,7 +694,6 @@ _FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
 _ATTR_CLASS_DECORATOR_NAME = _load_attr("attr.define")
 _ATTR_FROZEN_DECORATOR_NAME = _load_attr("attr.frozen")
 _ATTRIB_FIELD_FN_NAME = _load_attr("attr.field")
-_COLLECT_ARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._collect_args")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
@@ -1627,10 +1626,14 @@ def __fn_args_to_py_ast(
             fn_body_ast.append(
                 ast.Assign(
                     targets=[ast.Name(id=safe_local, ctx=ast.Store())],
-                    value=ast.Call(
-                        func=_COLLECT_ARGS_FN_NAME,
-                        args=[ast.Name(id=arg_name, ctx=ast.Load())],
-                        keywords=[],
+                    value=ast.IfExp(
+                        test=ast.Name(id=arg_name, ctx=ast.Load()),
+                        body=ast.Call(
+                            func=_NEW_LIST_FN_NAME,
+                            args=[ast.Name(id=arg_name, ctx=ast.Load())],
+                            keywords=[],
+                        ),
+                        orelse=ast.Constant(None),
                     ),
                 )
             )
