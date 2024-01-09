@@ -2313,6 +2313,12 @@ class TestFunctionDef:
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* ([] :a) ([m &] m))")
 
+    def test_variadic_arity_fn_collects_args_correctly(self, lcompile: CompileFn):
+        f = lcompile("(fn* [& args] args)")
+        assert f() is None
+        assert f(1) == llist.l(1)
+        assert f(1, 2, 3) == llist.l(1, 2, 3)
+
     def test_fn_argument_vector_is_vector(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn* () :a)")

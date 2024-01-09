@@ -1627,10 +1627,14 @@ def __fn_args_to_py_ast(
             fn_body_ast.append(
                 ast.Assign(
                     targets=[ast.Name(id=safe_local, ctx=ast.Store())],
-                    value=ast.Call(
-                        func=_COLLECT_ARGS_FN_NAME,
-                        args=[ast.Name(id=arg_name, ctx=ast.Load())],
-                        keywords=[],
+                    value=ast.IfExp(
+                        test=ast.Name(id=arg_name, ctx=ast.Load()),
+                        body=ast.Call(
+                            func=_NEW_LIST_FN_NAME,
+                            args=[ast.Name(id=arg_name, ctx=ast.Load())],
+                            keywords=[],
+                        ),
+                        orelse=ast.Constant(None),
                     ),
                 )
             )
