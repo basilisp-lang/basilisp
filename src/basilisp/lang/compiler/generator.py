@@ -1508,8 +1508,8 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-locals
 
 
 def _wrap_override_var_indirection(
-    f: PyASTGenerator[T_node, P_generator, T_pynode]
-) -> PyASTGenerator[T_node, P_generator, T_pynode]:
+    f: "PyASTGenerator[T_node, P_generator, T_pynode]",
+) -> "PyASTGenerator[T_node, P_generator, T_pynode]":
     """
     Wrap a Node generator to apply a special override requiring Var indirection
     for any Var accesses generated within top-level `do` blocks.
