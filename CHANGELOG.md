@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Removed support for PyPy 3.8 (#785)
 
 ### Other
- * Improve the state of the Python type hints in `basilisp.lang.*` (#???)
+ * Improve the state of the Python type hints in `basilisp.lang.*` (#797)
 
 
 ## [v0.1.0b0]
