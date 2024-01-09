@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix issue with keywords throwing `TypeError` when used as a function on vectors (#770)
  * Fix an issue where the constructors of types created by `deftype` and `defrecord` could not be called if they contained `-` characters (#777) 
  * Fix issue with the variadic ampersand operator treated as a binding in macros (#772)
- * Fix a bug where variadic args are bound to `nil` when no variadic arguments (#801)
+ * Fix a bug where variadic args are not correctly bound to `nil` when no variadic arguments are provided (#801)
 
 ### Removed
  * Removed support for PyPy 3.8 (#785)
