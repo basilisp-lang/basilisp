@@ -1,12 +1,14 @@
 from typing import Callable, Generic, Optional, TypeVar
 
 from readerwriterlock.rwlock import RWLockFair
+from typing_extensions import Concatenate, ParamSpec
 
 from basilisp.lang.interfaces import IPersistentMap, RefValidator
 from basilisp.lang.map import PersistentMap
 from basilisp.lang.reference import RefBase
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 class Atom(RefBase[T], Generic[T]):
@@ -58,7 +60,9 @@ class Atom(RefBase[T], Generic[T]):
                 self._notify_watches(oldval, v)
                 return v
 
-    def swap(self, f: Callable[..., T], *args, **kwargs) -> T:
+    def swap(
+        self, f: Callable[Concatenate[T, P], T], *args: P.args, **kwargs: P.kwargs
+    ) -> T:
         """Atomically swap the state of the Atom to the return value of
         `f(old, *args, **kwargs)`, returning the new value."""
         while True:

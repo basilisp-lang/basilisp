@@ -14,6 +14,7 @@ from fractions import Fraction
 from functools import partial, wraps
 from itertools import chain
 from typing import (
+    TYPE_CHECKING,
     Callable,
     Collection,
     Deque,
@@ -31,6 +32,7 @@ from typing import (
 )
 
 import attr
+from typing_extensions import Concatenate, ParamSpec
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -93,9 +95,9 @@ from basilisp.lang.compiler.nodes import (
     PyTuple,
 )
 from basilisp.lang.compiler.nodes import Queue as QueueNode
-from basilisp.lang.compiler.nodes import Quote, ReaderLispForm, Recur, Reify, Require
+from basilisp.lang.compiler.nodes import Quote, Recur, Reify, Require
 from basilisp.lang.compiler.nodes import Set as SetNode
-from basilisp.lang.compiler.nodes import SetBang, Throw, Try, VarRef
+from basilisp.lang.compiler.nodes import SetBang, T_withmeta, Throw, Try, VarRef
 from basilisp.lang.compiler.nodes import Vector as VectorNode
 from basilisp.lang.compiler.nodes import WithMeta, Yield
 from basilisp.lang.interfaces import IMeta, IRecord, ISeq, ISeqable, IType
@@ -105,6 +107,9 @@ from basilisp.lang.runtime import BasilispModule, Var
 from basilisp.lang.typing import CompilerOpts, LispForm
 from basilisp.lang.util import count, genname, munge
 from basilisp.util import Maybe
+
+if TYPE_CHECKING:
+    from typing import Any
 
 # Generator logging
 logger = logging.getLogger(__name__)
@@ -332,8 +337,11 @@ class GeneratedPyAST(Generic[T_pynode]):
 
 
 PyASTStream = Iterable[ast.AST]
-SimplePyASTGenerator = Callable[[GeneratorContext, ReaderLispForm], GeneratedPyAST]
-PyASTGenerator = Callable[[GeneratorContext, Node], GeneratedPyAST]
+T_node = TypeVar("T_node", bound=Node)
+P_generator = ParamSpec("P_generator")
+PyASTGenerator = Callable[
+    Concatenate[GeneratorContext, T_node, P_generator], GeneratedPyAST[T_pynode]
+]
 
 
 ####################
@@ -369,12 +377,19 @@ def _load_attr(name: str, ctx: PyASTCtx = ast.Load()) -> ast.Attribute:
     return attr_node(ast.Name(id=attrs[0], ctx=ast.Load()), 1)
 
 
-def _simple_ast_generator(gen_ast):
+P_simplegen = ParamSpec("P_simplegen")
+
+
+def _simple_ast_generator(
+    gen_ast: Callable[P_simplegen, ast.AST]
+) -> Callable[P_simplegen, GeneratedPyAST]:
     """Wrap simpler AST generators to return a GeneratedPyAST."""
 
     @wraps(gen_ast)
-    def wrapped_ast_generator(ctx: GeneratorContext, form: LispForm) -> GeneratedPyAST:
-        return GeneratedPyAST(node=gen_ast(ctx, form))
+    def wrapped_ast_generator(
+        *args: P_simplegen.args, **kwargs: P_simplegen.kwargs
+    ) -> GeneratedPyAST:
+        return GeneratedPyAST(node=gen_ast(*args, **kwargs))
 
     return wrapped_ast_generator
 
@@ -524,7 +539,9 @@ def _ast_with_loc(
     return py_ast
 
 
-def _with_ast_loc(f):
+def _with_ast_loc(
+    f: "PyASTGenerator[T_node, P_generator, T_pynode]",
+) -> "PyASTGenerator[T_node, P_generator, T_pynode]":
     """Wrap a generator function in a decorator to supply line and column
     information to the returned Python AST node. Dependency nodes will not
     be hydrated, functions whose returns need dependency nodes to be
@@ -532,15 +549,20 @@ def _with_ast_loc(f):
 
     @wraps(f)
     def with_lineno_and_col(
-        ctx: GeneratorContext, node: Node, *args, **kwargs
-    ) -> GeneratedPyAST:
+        ctx: GeneratorContext,
+        node: T_node,
+        *args: P_generator.args,
+        **kwargs: P_generator.kwargs,
+    ) -> GeneratedPyAST[T_pynode]:
         py_ast = f(ctx, node, *args, **kwargs)
         return _ast_with_loc(py_ast, node.env)
 
     return with_lineno_and_col
 
 
-def _with_ast_loc_deps(f):
+def _with_ast_loc_deps(
+    f: "PyASTGenerator[T_node, P_generator, T_pynode]",
+) -> "PyASTGenerator[T_node, P_generator, T_pynode]":
     """Wrap a generator function in a decorator to supply line and column
     information to the returned Python AST node and dependency nodes.
 
@@ -551,8 +573,11 @@ def _with_ast_loc_deps(f):
 
     @wraps(f)
     def with_lineno_and_col(
-        ctx: GeneratorContext, node: Node, *args, **kwargs
-    ) -> GeneratedPyAST:
+        ctx: GeneratorContext,
+        node: T_node,
+        *args: P_generator.args,
+        **kwargs: P_generator.kwargs,
+    ) -> GeneratedPyAST[T_pynode]:
         py_ast = f(ctx, node, *args, **kwargs)
         return _ast_with_loc(py_ast, node.env, include_dependencies=True)
 
@@ -847,9 +872,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
         assert node.init is not None  # silence MyPy
         if node.init.op == NodeOp.FN:
             assert isinstance(node.init, Fn)
-            def_ast = _fn_to_py_ast(  # type: ignore[call-arg]
-                ctx, node.init, def_name=defsym.name
-            )
+            def_ast = _fn_to_py_ast(ctx, node.init, def_name=defsym.name)
             is_defn = True
         elif (
             node.init.op == NodeOp.WITH_META
@@ -857,6 +880,7 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
             and node.init.expr.op == NodeOp.FN
         ):
             assert isinstance(node.init, WithMeta)
+            assert isinstance(node.init.expr, Fn)
             def_ast = _with_meta_to_py_ast(ctx, node.init, def_name=defsym.name)
             is_defn = True
         else:
@@ -1315,10 +1339,8 @@ def __deftype_staticmethod_to_py_ast(
         )
 
 
-DefTypeASTGenerator = Callable[
-    [GeneratorContext, DefTypeMember], GeneratedPyAST[ast.stmt]
-]
-_DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, DefTypeASTGenerator] = {
+T_deftypenode = TypeVar("T_deftypenode", bound=DefTypeMember)
+_DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, "PyASTGenerator[Any, Any, ast.stmt]"] = {
     NodeOp.DEFTYPE_CLASSMETHOD: __deftype_classmethod_to_py_ast,
     NodeOp.DEFTYPE_METHOD: __deftype_method_to_py_ast,
     NodeOp.DEFTYPE_PROPERTY: __deftype_property_to_py_ast,
@@ -1328,7 +1350,7 @@ _DEFTYPE_MEMBER_HANDLER: Mapping[NodeOp, DefTypeASTGenerator] = {
 
 def __deftype_member_to_py_ast(
     ctx: GeneratorContext,
-    node: DefTypeMember,
+    node: T_deftypenode,
 ) -> GeneratedPyAST[ast.stmt]:
     member_type = node.op
     handle_deftype_member = _DEFTYPE_MEMBER_HANDLER.get(member_type)
@@ -1485,7 +1507,9 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-locals
         )
 
 
-def _wrap_override_var_indirection(f: PyASTGenerator) -> PyASTGenerator:
+def _wrap_override_var_indirection(
+    f: "PyASTGenerator[T_node, P_generator, T_pynode]",
+) -> "PyASTGenerator[T_node, P_generator, T_pynode]":
     """
     Wrap a Node generator to apply a special override requiring Var indirection
     for any Var accesses generated within top-level `do` blocks.
@@ -1504,11 +1528,14 @@ def _wrap_override_var_indirection(f: PyASTGenerator) -> PyASTGenerator:
 
     @wraps(f)
     def _wrapped_do(
-        ctx: GeneratorContext, node: Node, *args, **kwargs
-    ) -> GeneratedPyAST:
+        ctx: GeneratorContext,
+        node: T_node,
+        *args: P_generator.args,
+        **kwargs: P_generator.kwargs,
+    ) -> GeneratedPyAST[T_pynode]:
         if isinstance(node, Do) and node.top_level:
             with ctx.with_var_indirection_override():
-                return f(ctx, node, *args, **kwargs)
+                return f(ctx, cast(T_node, node), *args, **kwargs)
         else:
             with ctx.with_var_indirection_override(False):
                 return f(ctx, node, *args, **kwargs)
@@ -3358,7 +3385,7 @@ def _py_tuple_to_py_ast(
 ############
 
 
-_WITH_META_EXPR_HANDLER = {
+_WITH_META_EXPR_HANDLER: Mapping[NodeOp, "PyASTGenerator[Any, Any, ast.expr]"] = {
     NodeOp.FN: _fn_to_py_ast,
     NodeOp.MAP: _map_to_py_ast,
     NodeOp.QUEUE: _queue_to_py_ast,
@@ -3369,7 +3396,10 @@ _WITH_META_EXPR_HANDLER = {
 
 
 def _with_meta_to_py_ast(
-    ctx: GeneratorContext, node: WithMeta, **kwargs
+    ctx: GeneratorContext,
+    node: WithMeta[T_withmeta],
+    *args: P_generator.args,
+    **kwargs: P_generator.kwargs,
 ) -> GeneratedPyAST[ast.expr]:
     """Generate a Python AST node for Python interop method calls."""
     assert node.op == NodeOp.WITH_META
@@ -3378,7 +3408,7 @@ def _with_meta_to_py_ast(
     assert (
         handle_expr is not None
     ), "No expression handler for with-meta child node type"
-    return handle_expr(ctx, node.expr, meta_node=node.meta, **kwargs)
+    return handle_expr(ctx, node.expr, meta_node=node.meta, *args, **kwargs)
 
 
 #################
@@ -3634,7 +3664,7 @@ def _const_record_to_py_ast(
         key_nodes = _kw_to_py_ast(k, ctx)
         keys.append(key_nodes.node)
         assert (
-            len(key_nodes.dependencies) == 0
+            not key_nodes.dependencies
         ), "Simple AST generators must emit no dependencies"
 
         val_nodes = _const_val_to_py_ast(v, ctx)
@@ -3734,7 +3764,7 @@ def _const_node_to_py_ast(
     return _const_val_to_py_ast(lisp_ast.val, ctx)
 
 
-_NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
+_NODE_HANDLERS: Mapping[NodeOp, "PyASTGenerator[Any, Any, ast.expr]"] = {
     NodeOp.AWAIT: _await_to_py_ast,
     NodeOp.CONST: _const_node_to_py_ast,
     NodeOp.DEF: _def_to_py_ast,
@@ -3759,7 +3789,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.PY_TUPLE: _py_tuple_to_py_ast,
     NodeOp.QUEUE: _queue_to_py_ast,
     NodeOp.QUOTE: _quote_to_py_ast,
-    NodeOp.RECUR: _recur_to_py_ast,  # type: ignore
+    NodeOp.RECUR: _recur_to_py_ast,
     NodeOp.REIFY: _reify_to_py_ast,
     NodeOp.REQUIRE: _require_to_py_ast,
     NodeOp.SET: _set_to_py_ast,
@@ -3769,7 +3799,7 @@ _NODE_HANDLERS: Mapping[NodeOp, PyASTGenerator] = {
     NodeOp.YIELD: _yield_to_py_ast,
     NodeOp.VAR: _var_sym_to_py_ast,
     NodeOp.VECTOR: _vec_to_py_ast,
-    NodeOp.WITH_META: _with_meta_to_py_ast,  # type: ignore
+    NodeOp.WITH_META: _with_meta_to_py_ast,
 }
 
 
