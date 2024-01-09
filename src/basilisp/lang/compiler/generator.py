@@ -1520,13 +1520,18 @@ def _do_to_py_ast(ctx: GeneratorContext, node: Do) -> GeneratedPyAST:
     )
 
     fn_body_ast: List[ast.AST] = []
-    do_result_name = genname(_DO_PREFIX)
     fn_body_ast.extend(map(statementize, body_ast.dependencies))
-    fn_body_ast.append(
-        ast.Assign(
-            targets=[ast.Name(id=do_result_name, ctx=ast.Store())], value=body_ast.node
+
+    if isinstance(body_ast.node, ast.Name):
+        do_result_name = body_ast.node.id
+    else:
+        do_result_name = genname(_DO_PREFIX)
+        fn_body_ast.append(
+            ast.Assign(
+                targets=[ast.Name(id=do_result_name, ctx=ast.Store())],
+                value=body_ast.node,
+            )
         )
-    )
 
     return GeneratedPyAST(
         node=ast.Name(id=do_result_name, ctx=ast.Load()), dependencies=fn_body_ast
@@ -2311,6 +2316,7 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
         if node.env.pos == NodeSyntacticPosition.EXPR:
             if isinstance(body_ast.node, ast.Name):
                 let_result_node = body_ast.node
+                assert isinstance(let_result_node.ctx, ast.Load)
             else:
                 let_result_name = genname(_LET_RESULT_PREFIX)
                 let_result_node = ast.Name(id=let_result_name, ctx=ast.Load())
@@ -2320,10 +2326,7 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST:
                         value=body_ast.node,
                     )
                 )
-            return GeneratedPyAST(
-                node=let_result_node,
-                dependencies=let_body_ast,
-            )
+            return GeneratedPyAST(node=let_result_node, dependencies=let_body_ast)
         else:
             let_body_ast.append(body_ast.node)
             return GeneratedPyAST(node=_noop_node(), dependencies=let_body_ast)
@@ -2356,21 +2359,23 @@ def _letfn_to_py_ast(ctx: GeneratorContext, node: LetFn) -> GeneratedPyAST:
                 )
             )
 
-        letfn_result_name = genname(_LETFN_RESULT_PREFIX)
         body_ast = _synthetic_do_to_py_ast(ctx, node.body)
         letfn_body_ast.extend(map(statementize, body_ast.dependencies))
 
         if node.env.pos == NodeSyntacticPosition.EXPR:
-            letfn_body_ast.append(
-                ast.Assign(
-                    targets=[ast.Name(id=letfn_result_name, ctx=ast.Store())],
-                    value=body_ast.node,
+            if isinstance(body_ast.node, ast.Name):
+                letfn_result_node = body_ast.node
+                assert isinstance(letfn_result_node.ctx, ast.Load)
+            else:
+                letfn_result_name = genname(_LETFN_RESULT_PREFIX)
+                letfn_result_node = ast.Name(id=letfn_result_name, ctx=ast.Load())
+                letfn_body_ast.append(
+                    ast.Assign(
+                        targets=[ast.Name(id=letfn_result_name, ctx=ast.Store())],
+                        value=body_ast.node,
+                    )
                 )
-            )
-            return GeneratedPyAST(
-                node=ast.Name(id=letfn_result_name, ctx=ast.Load()),
-                dependencies=letfn_body_ast,
-            )
+            return GeneratedPyAST(node=letfn_result_node, dependencies=letfn_body_ast)
         else:
             letfn_body_ast.append(body_ast.node)
             return GeneratedPyAST(node=_noop_node(), dependencies=letfn_body_ast)
