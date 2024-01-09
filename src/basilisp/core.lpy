@@ -26,7 +26,7 @@
 (def ^{:doc      "Create a list from the arguments."
        :arglists '([& args])}
   list
-  (fn* list [& args] args))
+  (fn* list [& args] (if args args '())))
 
 (def
   ^{:doc      "If ``seq`` is a Seq, return the first element from ``seq``. If ``seq``
