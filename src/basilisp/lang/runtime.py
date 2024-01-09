@@ -14,7 +14,7 @@ import re
 import sys
 import threading
 import types
-from collections.abc import Sequence
+from collections.abc import Sequence, Sized
 from fractions import Fraction
 from typing import (
     AbstractSet,
@@ -973,6 +973,7 @@ def pop_thread_bindings() -> None:
 ###################
 
 T = TypeVar("T")
+X = TypeVar("X")
 
 
 @functools.singledispatch
@@ -996,7 +997,7 @@ def _first_iseq(o: ISeq[T]) -> Optional[T]:
 
 
 @functools.singledispatch
-def rest(o) -> ISeq:
+def rest(o: Any) -> ISeq:
     """If o is a ISeq, return the elements after the first in o. If o is None,
     returns an empty seq. Otherwise, coerces o to a seq and returns the rest."""
     n = to_seq(o)
@@ -1052,7 +1053,7 @@ def _cons(seq, o) -> ISeq:
 
 
 @_cons.register(type(None))
-def _cons_none(_: None, o) -> ISeq:
+def _cons_none(_: None, o: T) -> ISeq[T]:
     return llist.l(o)
 
 
@@ -1071,12 +1072,9 @@ def cons(o, seq) -> ISeq:
 to_seq = lseq.to_seq
 
 
-def concat(*seqs) -> ISeq:
+def concat(*seqs: Any) -> ISeq:
     """Concatenate the sequences given by seqs into a single ISeq."""
-    allseqs = lseq.sequence(itertools.chain.from_iterable(filter(None, seqs)))
-    if allseqs is None:
-        return lseq.EMPTY
-    return allseqs
+    return lseq.sequence(itertools.chain.from_iterable(filter(None, seqs)))
 
 
 def apply(f, args):
@@ -1121,19 +1119,22 @@ def apply_kw(f, args):
     return f(*final, **kwargs)
 
 
+@functools.singledispatch
 def count(coll) -> int:
-    if coll is None:
-        return 0
-    else:
-        try:
-            return len(coll)
-        except (AttributeError, TypeError):
-            try:
-                return sum(1 for _ in coll)
-            except TypeError as e:
-                raise TypeError(
-                    f"count not supported on object of type {type(coll)}"
-                ) from e
+    try:
+        return sum(1 for _ in coll)
+    except TypeError as e:
+        raise TypeError(f"count not supported on object of type {type(coll)}") from e
+
+
+@count.register(type(None))
+def _count_none(_: None) -> int:
+    return 0
+
+
+@count.register(Sized)
+def _count_sized(coll: Sized):
+    return len(coll)
 
 
 __nth_sentinel = object()
@@ -1342,7 +1343,7 @@ def _divide_ints(x: int, y: LispNumber) -> LispNumber:
     return x / y
 
 
-def quotient(num, div) -> LispNumber:
+def quotient(num: LispNumber, div: LispNumber) -> LispNumber:
     """Return the integral quotient resulting from the division of num by div."""
     return math.trunc(num / div)
 
@@ -1404,7 +1405,7 @@ def _fn_to_comparator(f):
 
     def cmp(x, y):
         r = f(x, y)
-        if isinstance(r, numbers.Number) and not isinstance(r, bool):
+        if not isinstance(r, bool) and isinstance(r, numbers.Number):
             return r
         elif r:
             return -1

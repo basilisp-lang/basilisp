@@ -54,7 +54,7 @@ class Symbol(ILispObject, IWithMeta):
     def as_python_sym(self) -> str:
         if self.ns is not None:
             return f"{munge(self.ns)}.{munge(self.name)}"
-        return f"{munge(self.name)}"
+        return munge(self.name)
 
     def __eq__(self, other):
         if not isinstance(other, Symbol):
@@ -86,6 +86,8 @@ class Symbol(ILispObject, IWithMeta):
             return None
 
 
-def symbol(name: str, ns: Optional[str] = None, meta=None) -> Symbol:
+def symbol(
+    name: str, ns: Optional[str] = None, meta: Optional[IPersistentMap] = None
+) -> Symbol:
     """Create a new symbol."""
     return Symbol(name, ns=ns, meta=meta)

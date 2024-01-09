@@ -237,8 +237,13 @@ def _subcommand(
     help: Optional[str] = None,  # pylint: disable=redefined-builtin
     description: Optional[str] = None,
     handler: Handler,
-):
-    def _wrap_add_subcommand(f: Callable[[argparse.ArgumentParser], None]):
+) -> Callable[
+    [Callable[[argparse.ArgumentParser], None]],
+    Callable[["argparse._SubParsersAction"], None],
+]:
+    def _wrap_add_subcommand(
+        f: Callable[[argparse.ArgumentParser], None]
+    ) -> Callable[["argparse._SubParsersAction"], None]:
         def _wrapped_subcommand(subparsers: "argparse._SubParsersAction"):
             parser = subparsers.add_parser(
                 subcommand, help=help, description=description
@@ -279,14 +284,14 @@ def bootstrap_basilisp_installation(_, args: argparse.Namespace) -> None:
     description=textwrap.dedent(
         """Bootstrap the Python installation to allow importing Basilisp namespaces"
         without requiring an additional bootstrapping step.
-        
+
         Python installations are bootstrapped by installing a `basilispbootstrap.pth`
         file in your `site-packages` directory. Python installations execute `*.pth`
         files found at startup.
-        
+
         Bootstrapping your Python installation in this way can help avoid needing to
         perform manual bootstrapping from Python code within your application.
-        
+
         On the first startup, Basilisp will compile `basilisp.core` to byte code
         which could take up to 30 seconds in some cases depending on your system and
         which version of Python you are using. Subsequent startups should be
@@ -319,7 +324,7 @@ def _add_bootstrap_subcommand(parser: argparse.ArgumentParser) -> None:
 def nrepl_server(
     _,
     args: argparse.Namespace,
-):
+) -> None:
     opts = compiler.compiler_opts()
     basilisp.init(opts)
 
@@ -369,7 +374,7 @@ def _add_nrepl_server_subcommand(parser: argparse.ArgumentParser) -> None:
 def repl(
     _,
     args: argparse.Namespace,
-):
+) -> None:
     opts = compiler.compiler_opts(
         warn_on_shadowed_name=args.warn_on_shadowed_name,
         warn_on_shadowed_var=args.warn_on_shadowed_var,
@@ -465,7 +470,7 @@ def _add_repl_subcommand(parser: argparse.ArgumentParser) -> None:
 def run(
     parser: argparse.ArgumentParser,
     args: argparse.Namespace,
-):
+) -> None:
     target = args.file_or_ns_or_code
     if args.load_namespace:
         if args.in_ns is not None:
@@ -523,18 +528,18 @@ def run(
     help="run a Basilisp script or code or namespace",
     description=textwrap.dedent(
         """Run a Basilisp script or a line of code or load a Basilisp namespace.
-        
+
         If `-c` is provided, execute the line of code as given. If `-n` is given,
         interpret `file_or_ns_or_code` as a fully qualified Basilisp namespace
         relative to `sys.path`. Otherwise, execute the file as a script relative to
         the current working directory.
-        
+
         `*main-ns*` will be set to the value provided for `-n`. In all other cases,
         it will be `nil`."""
     ),
     handler=run,
 )
-def _add_run_subcommand(parser: argparse.ArgumentParser):
+def _add_run_subcommand(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "file_or_ns_or_code",
         help=(
@@ -570,7 +575,9 @@ def _add_run_subcommand(parser: argparse.ArgumentParser):
     _add_debug_arg_group(parser)
 
 
-def test(parser: argparse.ArgumentParser, args: argparse.Namespace):  # pragma: no cover
+def test(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> None:  # pragma: no cover
     try:
         import pytest
     except (ImportError, ModuleNotFoundError):
@@ -591,7 +598,7 @@ def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("args", nargs=-1)
 
 
-def version(_, __):
+def version(_, __) -> None:
     v = importlib.metadata.version("basilisp")
     print(f"Basilisp {v}")
 

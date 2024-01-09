@@ -1,5 +1,6 @@
 import functools
-from typing import Any, Callable, Iterable, Iterator, Optional, TypeVar
+import typing
+from typing import Callable, Iterable, Iterator, Optional, TypeVar
 
 from basilisp.lang.interfaces import (
     IPersistentMap,
@@ -249,7 +250,7 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         return self._gen is None
 
 
-def sequence(s: Iterable) -> ISeq[Any]:
+def sequence(s: Iterable[T]) -> ISeq[T]:
     """Create a Sequence from Iterable s."""
     try:
         i = iter(s)
@@ -258,7 +259,17 @@ def sequence(s: Iterable) -> ISeq[Any]:
         return EMPTY
 
 
-def _seq_or_nil(s: Optional[ISeq]) -> Optional[ISeq]:
+@typing.overload
+def _seq_or_nil(s: None) -> None:
+    ...
+
+
+@typing.overload
+def _seq_or_nil(s: ISeq) -> Optional[ISeq]:
+    ...
+
+
+def _seq_or_nil(s):
     """Return None if a ISeq is empty, the ISeq otherwise."""
     if s is None or s.is_empty:
         return None

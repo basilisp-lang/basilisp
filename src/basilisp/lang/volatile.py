@@ -7,7 +7,7 @@ from basilisp.lang.interfaces import IDeref
 T = TypeVar("T")
 
 
-@attr.s(auto_attribs=True, slots=True, these={"value": attr.ib()})
+@attr.define
 class Volatile(IDeref[T]):
     """A volatile reference container. Volatile references do not provide atomic
     semantics, but they may be useful as a mutable reference container in a

@@ -192,7 +192,7 @@ class Node(ABC, Generic[T]):
 
     def fix_missing_locations(
         self, form_loc: Optional[Tuple[int, int, int, int]] = None
-    ) -> "Node":
+    ) -> "Node[T]":
         """Return a transformed copy of this node with location in this node's
         environment updated to match the `form_loc` if given, or using its
         existing location otherwise. All child nodes will be recursively
@@ -325,7 +325,7 @@ class LocalType(Enum):
     THIS = kw.keyword("this")
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class NodeEnv:
     ns: Namespace
     file: str
@@ -337,7 +337,7 @@ class NodeEnv:
     func_ctx: Optional[FunctionContext] = None
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Await(Node[ReaderLispForm]):
     form: ReaderLispForm
     expr: Node
@@ -348,7 +348,7 @@ class Await(Node[ReaderLispForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Binding(Node[sym.Symbol], Assignable):
     form: sym.Symbol
     name: str
@@ -366,7 +366,7 @@ class Binding(Node[sym.Symbol], Assignable):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Catch(Node[SpecialForm]):
     form: SpecialForm
     class_: Union["MaybeClass", "MaybeHostForm"]
@@ -379,7 +379,7 @@ class Catch(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Const(Node[ReaderLispForm]):
     form: ReaderLispForm
     type: ConstType
@@ -393,7 +393,7 @@ class Const(Node[ReaderLispForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Def(Node[SpecialForm]):
     form: SpecialForm
     name: sym.Symbol
@@ -412,7 +412,7 @@ class Def(Node[SpecialForm]):
 DefTypeBase = Union["MaybeClass", "MaybeHostForm", "VarRef"]
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class DefType(Node[SpecialForm]):
     form: SpecialForm
     name: str
@@ -434,7 +434,7 @@ class DefType(Node[SpecialForm]):
         yield from deftype_or_reify_python_member_names(self.members)
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class DefTypeMember(Node[SpecialForm]):
     form: SpecialForm
     name: str
@@ -445,7 +445,7 @@ class DefTypeMember(Node[SpecialForm]):
         return munge(self.name)
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class DefTypeClassMethod(DefTypeMember):
     class_local: Binding
     params: Iterable[Binding]
@@ -459,7 +459,7 @@ class DefTypeClassMethod(DefTypeMember):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class DefTypeMethod(DefTypeMember):
     max_fixed_arity: int
     arities: IPersistentVector["DefTypeMethodArity"]
@@ -470,7 +470,7 @@ class DefTypeMethod(DefTypeMember):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class DefTypeMethodArity(Node[SpecialForm]):
     form: SpecialForm
     name: str
@@ -492,7 +492,7 @@ class DefTypeMethodArity(Node[SpecialForm]):
         return f"_{munge(self.name)}_arity{'_rest' if self.is_variadic else self.fixed_arity}"
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class DefTypeProperty(DefTypeMember):
     this_local: Binding
     params: Iterable[Binding]
@@ -503,7 +503,7 @@ class DefTypeProperty(DefTypeMember):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class DefTypeStaticMethod(DefTypeMember):
     params: Iterable[Binding]
     fixed_arity: int
@@ -519,7 +519,7 @@ class DefTypeStaticMethod(DefTypeMember):
 DefTypePythonMember = Union[DefTypeClassMethod, DefTypeProperty, DefTypeStaticMethod]
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Do(Node[SpecialForm]):
     form: SpecialForm
     statements: Iterable[Node]
@@ -532,7 +532,7 @@ class Do(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Fn(Node[SpecialForm]):
     form: SpecialForm
     max_fixed_arity: int
@@ -549,7 +549,7 @@ class Fn(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class FnArity(Node[SpecialForm]):
     form: SpecialForm
     loop_id: LoopID
@@ -565,7 +565,7 @@ class FnArity(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class HostCall(Node[SpecialForm]):
     form: SpecialForm
     method: str
@@ -579,7 +579,7 @@ class HostCall(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class HostField(Node[Union[SpecialForm, sym.Symbol]], Assignable):
     form: Union[SpecialForm, sym.Symbol]
     field: str
@@ -592,7 +592,7 @@ class HostField(Node[Union[SpecialForm, sym.Symbol]], Assignable):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class If(Node[SpecialForm]):
     form: SpecialForm
     test: Node
@@ -605,7 +605,7 @@ class If(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Import(Node[SpecialForm]):
     form: SpecialForm
     aliases: Iterable["ImportAlias"]
@@ -616,7 +616,7 @@ class Import(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class ImportAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
     form: Union[sym.Symbol, vec.PersistentVector]
     name: str
@@ -628,7 +628,7 @@ class ImportAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Invoke(Node[SpecialForm]):
     form: SpecialForm
     fn: Node
@@ -641,7 +641,7 @@ class Invoke(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Let(Node[SpecialForm]):
     form: SpecialForm
     bindings: Iterable[Binding]
@@ -653,7 +653,7 @@ class Let(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class LetFn(Node[SpecialForm]):
     form: SpecialForm
     bindings: Iterable[Binding]
@@ -665,7 +665,7 @@ class LetFn(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Local(Node[sym.Symbol], Assignable):
     form: sym.Symbol
     name: str
@@ -680,7 +680,7 @@ class Local(Node[sym.Symbol], Assignable):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Loop(Node[SpecialForm]):
     form: SpecialForm
     bindings: Iterable[Binding]
@@ -693,7 +693,7 @@ class Loop(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Map(Node[IPersistentMap]):
     form: IPersistentMap
     keys: Iterable[Node]
@@ -705,7 +705,7 @@ class Map(Node[IPersistentMap]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class MaybeClass(Node[sym.Symbol]):
     form: sym.Symbol
     class_: str
@@ -717,7 +717,7 @@ class MaybeClass(Node[sym.Symbol]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class MaybeHostForm(Node[sym.Symbol]):
     form: sym.Symbol
     class_: str
@@ -730,12 +730,7 @@ class MaybeHostForm(Node[sym.Symbol]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(
-    auto_attribs=True,
-    eq=True,
-    frozen=True,
-    slots=True,
-)
+@attr.frozen(eq=True)
 class PyDict(Node[dict]):
     form: dict
     keys: Iterable[Node]
@@ -747,12 +742,7 @@ class PyDict(Node[dict]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(
-    auto_attribs=True,
-    eq=True,
-    frozen=True,
-    slots=True,
-)
+@attr.frozen(eq=True)
 class PyList(Node[list]):
     form: list
     items: Iterable[Node]
@@ -763,12 +753,7 @@ class PyList(Node[list]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(
-    auto_attribs=True,
-    eq=True,
-    frozen=True,
-    slots=True,
-)
+@attr.frozen(eq=True)
 class PySet(Node[Union[frozenset, set]]):
     form: Union[frozenset, set]
     items: Iterable[Node]
@@ -779,7 +764,7 @@ class PySet(Node[Union[frozenset, set]]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class PyTuple(Node[tuple]):
     form: tuple
     items: Iterable[Node]
@@ -790,7 +775,7 @@ class PyTuple(Node[tuple]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Queue(Node[lqueue.PersistentQueue]):
     form: lqueue.PersistentQueue
     items: Iterable[Node]
@@ -801,7 +786,7 @@ class Queue(Node[lqueue.PersistentQueue]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Quote(Node[SpecialForm]):
     form: SpecialForm
     expr: Const
@@ -813,7 +798,7 @@ class Quote(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Recur(Node[SpecialForm]):
     form: SpecialForm
     exprs: Iterable[Node]
@@ -825,7 +810,7 @@ class Recur(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Reify(Node[SpecialForm]):
     form: SpecialForm
     interfaces: Iterable[DefTypeBase]
@@ -844,7 +829,7 @@ class Reify(Node[SpecialForm]):
         yield from deftype_or_reify_python_member_names(self.members)
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class RequireAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
     form: Union[sym.Symbol, vec.PersistentVector]
     name: str
@@ -856,7 +841,7 @@ class RequireAlias(Node[Union[sym.Symbol, vec.PersistentVector]]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Require(Node[SpecialForm]):
     form: SpecialForm
     aliases: Iterable[RequireAlias]
@@ -867,7 +852,7 @@ class Require(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Set(Node[IPersistentSet]):
     form: IPersistentSet
     items: Iterable[Node]
@@ -878,7 +863,7 @@ class Set(Node[IPersistentSet]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class SetBang(Node[SpecialForm]):
     form: SpecialForm
     target: Union[Assignable, Node]
@@ -890,7 +875,7 @@ class SetBang(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Throw(Node[SpecialForm]):
     form: SpecialForm
     exception: Node
@@ -901,7 +886,7 @@ class Throw(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Try(Node[SpecialForm]):
     form: SpecialForm
     body: Do
@@ -914,7 +899,7 @@ class Try(Node[SpecialForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class VarRef(Node[sym.Symbol], Assignable):
     form: sym.Symbol
     var: Var
@@ -927,7 +912,7 @@ class VarRef(Node[sym.Symbol], Assignable):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Vector(Node[IPersistentVector]):
     form: IPersistentVector
     items: Iterable[Node]
@@ -938,11 +923,14 @@ class Vector(Node[IPersistentVector]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
-class WithMeta(Node[LispForm]):
+T_withmeta = TypeVar("T_withmeta", Fn, Map, Queue, Reify, Set, Vector)
+
+
+@attr.frozen
+class WithMeta(Node[LispForm], Generic[T_withmeta]):
     form: LispForm
     meta: Union[Const, Map]
-    expr: Union[Fn, Map, Queue, Set, Vector]
+    expr: T_withmeta
     env: NodeEnv
     children: Sequence[kw.Keyword] = vec.v(META, EXPR)
     op: NodeOp = NodeOp.WITH_META
@@ -950,7 +938,7 @@ class WithMeta(Node[LispForm]):
     raw_forms: IPersistentVector[LispForm] = vec.PersistentVector.empty()
 
 
-@attr.s(auto_attribs=True, frozen=True, slots=True)
+@attr.frozen
 class Yield(Node[SpecialForm]):
     form: SpecialForm
     expr: Optional[Node]
