@@ -1,8 +1,6 @@
 import contextlib
 import time
-from typing import Callable, Generic, Optional, Tuple, TypeVar
-
-from typing_extensions import Iterable, Sequence
+from typing import Callable, Generic, Iterable, Optional, Sequence, Tuple, TypeVar
 
 
 @contextlib.contextmanager

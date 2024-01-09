@@ -1,6 +1,5 @@
 import functools
-import typing
-from typing import Callable, Iterable, Iterator, Optional, TypeVar
+from typing import Callable, Iterable, Iterator, Optional, TypeVar, overload
 
 from basilisp.lang.interfaces import (
     IPersistentMap,
@@ -259,12 +258,12 @@ def sequence(s: Iterable[T]) -> ISeq[T]:
         return EMPTY
 
 
-@typing.overload
+@overload
 def _seq_or_nil(s: None) -> None:
     ...
 
 
-@typing.overload
+@overload
 def _seq_or_nil(s: ISeq) -> Optional[ISeq]:
     ...
 
