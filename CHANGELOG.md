@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * No longer warn on unused bindings when their name begins with `_` (#756)
  * Improve the Python generation for `do`, `if`, `let*`, and `letfn*` forms to avoid unnecessary extra assignments (#793, #794, #799)
  * Generate Python classes for `deftype*` and `reify*` forms using modern `@attr.define`, `@attr.frozen`, and `@attr.field` APIs (#799)
+ * Generate Protocol functions with nicer names based on the protocol function and dispatch type (#803)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
