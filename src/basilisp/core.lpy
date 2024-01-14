@@ -3402,16 +3402,14 @@
 (defmacro case
   "Switch on ``expr`` to return a matching clause from the set of input clauses.
 
-  The input expression may be any valid Basilisp expression.
+  The input expression may be any valid Basilisp expression. A single default expression
+  can follow the clauses, and its value will be returned if no clause matches.
 
   The clauses are pairs of a matching value and a return value. The matching values are
   not evaluated and must be compile-time constants. Symbols will not be resolved. Lists
   may be passed to match multiple compile time values to a single return value. The
   dispatch is done in constant time."
   [expr & clauses]
-  (when (< (count clauses) 2)
-    (throw (ex-info "case expression must have at least one clause"
-                    {:clauses clauses})))
   (let [default (if (odd? (count clauses))
                   (last clauses)
                   :basilisp.core.case/no-default)
