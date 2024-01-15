@@ -1,4 +1,5 @@
 import itertools
+import os
 import re
 from decimal import Decimal
 from fractions import Fraction
@@ -1599,10 +1600,12 @@ class TestPrintFunctions:
         assert ':hi "there" 3' == core.pr_str(kw.keyword("hi"), "there", 3)
 
     def test_prn_str(self):
-        assert "\n" == core.prn_str()
-        assert '""\n' == core.prn_str("")
-        assert ":kw\n" == core.prn_str(kw.keyword("kw"))
-        assert ':hi "there" 3\n' == core.prn_str(kw.keyword("hi"), "there", 3)
+        assert os.linesep == core.prn_str()
+        assert '""' + os.linesep == core.prn_str("")
+        assert ":kw" + os.linesep == core.prn_str(kw.keyword("kw"))
+        assert ':hi "there" 3' + os.linesep == core.prn_str(
+            kw.keyword("hi"), "there", 3
+        )
 
     def test_print_str(self):
         assert "" == core.print_str()
@@ -1611,10 +1614,12 @@ class TestPrintFunctions:
         assert ":hi there 3" == core.print_str(kw.keyword("hi"), "there", 3)
 
     def test_println_str(self):
-        assert "\n" == core.println_str()
-        assert "\n" == core.println_str("")
-        assert ":kw\n" == core.println_str(kw.keyword("kw"))
-        assert ":hi there 3\n" == core.println_str(kw.keyword("hi"), "there", 3)
+        assert os.linesep == core.println_str()
+        assert os.linesep == core.println_str("")
+        assert ":kw" + os.linesep == core.println_str(kw.keyword("kw"))
+        assert ":hi there 3" + os.linesep == core.println_str(
+            kw.keyword("hi"), "there", 3
+        )
 
 
 class TestRegexFunctions:

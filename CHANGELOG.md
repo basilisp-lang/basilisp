@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Loosen the dependency specification for Immutables and Pyrsistent to allow for a wider version range (#805)
  * Allow `case` forms with only a default expression (#807)
  * Make `pr` a dynamic variable (#820)
+ * Emit OS specific line endings for the `println` and `prn` fns (#810)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)

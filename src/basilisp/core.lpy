@@ -4136,12 +4136,12 @@
 (defn prn
   "Same as :lpy:fn:`pr`, but appending a newline afterwards."
   ([]
-   (.write *out* \newline)
+   (.write *out* os/linesep)
    nil)
   ([x]
    (let [stdout *out*]
      (.write stdout (repr x))
-     (.write stdout \newline)
+     (.write stdout os/linesep)
      nil))
   ([x & args]
    (let [stdout    *out*
@@ -4150,7 +4150,7 @@
      (.write stdout (repr x))
      (.write stdout sep)
      (.write stdout (apply str repr-args))
-     (.write stdout \newline)
+     (.write stdout os/linesep)
      nil)))
 
 (defn pr-str
@@ -4191,7 +4191,7 @@
   ([x]
    (let [stdout *out*]
      (.write stdout (basilisp.lang.runtime/lstr x))
-     (.write stdout \newline)
+     (.write stdout os/linesep)
      nil))
   ([x & args]
    (let [stdout    *out*
@@ -4200,7 +4200,7 @@
      (.write stdout (basilisp.lang.runtime/lstr x))
      (.write stdout sep)
      (.write stdout (apply str repr-args))
-     (.write stdout \newline)
+     (.write stdout os/linesep)
      nil)))
 
 (defn print-str
