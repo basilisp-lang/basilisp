@@ -75,6 +75,7 @@ class TestCompleter:
                     "max",
                     "max-key",
                     "memfn",
+                    "memoize",
                     "merge",
                     "meta",
                     "methods",
