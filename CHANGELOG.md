@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
  * Improve the state of the Python type hints in `basilisp.lang.*` (#797, #784)
-
+ * Pin the Sphinx dependency version to fix Read The Docs builds (#814)
 
 ## [v0.1.0b0]
 ### Added
