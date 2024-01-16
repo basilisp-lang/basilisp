@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Generate Python classes for `deftype*` and `reify*` forms using modern `@attr.define`, `@attr.frozen`, and `@attr.field` APIs (#799)
  * Generate Protocol functions with nicer names based on the protocol function and dispatch type (#803)
  * Loosen the dependency specification for Immutables and Pyrsistent to allow for a wider version range (#805)
+ * Allow `case` forms with only a default expression (#807)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
