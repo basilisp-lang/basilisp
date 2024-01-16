@@ -70,3 +70,6 @@ lispcore.py
 .envrc
 poetry.lock
 **/*.~undo-tree~
+
+# Basilisp
+.nrepl-port
