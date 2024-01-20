@@ -1082,6 +1082,29 @@
     '(((1 2 (3)) (4)) (1 2 (3)) 1 2 (3) 3 (4) 4)                             seq? identity '((1 2 (3)) (4))
     '((:A (:B (:D) (:E)) (:C (:F))) (:B (:D) (:E)) (:D) (:E) (:C (:F)) (:F)) next rest     '(:A (:B (:D) (:E)) (:C (:F)))))
 
+(deftest memoize-test
+  (testing "single args"
+    (let [m1 (memoize (fn [a] (str a (random-uuid))))
+          a1 (m1 :a)
+          a2 (m1 :b)
+          an (m1 nil)]
+      (is (= a1 (m1 :a)))
+      (is (= a2 (m1 :b)))
+      (is (= an (m1 nil)))
+      (is (distinct? a1 a2 an))))
+
+  (testing "variadic"
+    (let [m1 (memoize (fn [& more] (str more (random-uuid))))
+          a0 (m1)
+          a1 (m1 :a)
+          a2 (m1 :a '(xyz))
+          an (m1 nil)]
+      (is (= a0 (m1)))
+      (is (= a1 (m1 :a)))
+      (is (= a2 (m1 :a '(xyz))))
+      (is (= an (m1 nil)))
+      (is (distinct? a0 a1 a2 an)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Associative Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;

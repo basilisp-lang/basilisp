@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for autocompleting names in the `python/` pseudo-namespace for Python builtins at the REPL (#787)
  * Added a subcommand for bootstrapping the Python installation with Basilisp (#790)
  * Added support for executing Basilisp namespaces directly via `basilisp run` and by `python -m` (#791)
+ * Added the `memoize` core fn (#812)
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
