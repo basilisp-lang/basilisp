@@ -3321,6 +3321,19 @@
              (concat '(fn* []) [expr]))
            exprs)))
 
+(defn memoize
+  "Retuns a fn that caches the results of the previous invocations of
+  `f`. The memoized fn keeps a cache of the mapping from arguments to
+  results."
+  [f]
+  (let [cache (atom {})]
+    (fn [& args]
+      (if-let [kv (find @cache args)]
+        (second kv)
+        (let [res (apply f args)]
+          (swap! cache assoc args res)
+          res)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Random Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;
