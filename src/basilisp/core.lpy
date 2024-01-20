@@ -4116,7 +4116,10 @@
   value bound to :lpy:var:`*print-sep*` (default is an ASCII space).
 
   Note that some dynamically created Basilisp forms (such keywords and symbols) and
-  Python objects may not be readable again."
+  Python objects may not be readable again.
+
+  It can be dynamically bound."
+  {:dynamic true}
   ([] nil)
   ([x]
    (.write *out* (repr x))
