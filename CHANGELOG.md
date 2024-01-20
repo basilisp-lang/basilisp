@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Generate Protocol functions with nicer names based on the protocol function and dispatch type (#803)
  * Loosen the dependency specification for Immutables and Pyrsistent to allow for a wider version range (#805)
  * Allow `case` forms with only a default expression (#807)
+ * Make `pr` a dynamic variable (#820)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
