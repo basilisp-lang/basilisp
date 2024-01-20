@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Generate Protocol functions with nicer names based on the protocol function and dispatch type (#803)
  * Loosen the dependency specification for Immutables and Pyrsistent to allow for a wider version range (#805)
  * Allow `case` forms with only a default expression (#807)
+ * Make `pr` a dynamic variable (#820)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
@@ -39,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
  * Improve the state of the Python type hints in `basilisp.lang.*` (#797, #784)
+ * Pin the `sphinxcontrib-*` dependencies versions to fix Read The Docs builds issue (#815)
 
 
 ## [v0.1.0b0]

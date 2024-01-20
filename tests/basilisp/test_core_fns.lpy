@@ -2107,3 +2107,11 @@
       (finally
         (when (bio/exists? load-dir-test)
           (shutil/rmtree load-dir-test))))))
+
+;;;;;;;;;;;;;;
+;; printing ;;
+;;;;;;;;;;;;;;
+
+(deftest pr-test
+  (testing "is dynamic"
+    (is (= '(1) (binding [pr (fn [& more] more)] (pr 1))))))
