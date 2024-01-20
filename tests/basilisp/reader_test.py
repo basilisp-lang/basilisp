@@ -1288,6 +1288,10 @@ def test_deref():
 
 def test_character_literal():
     assert "a" == read_str_first("\\a")
+    assert "[" == read_str_first("\\[")
+    assert "," == read_str_first("\\,")
+    assert "^" == read_str_first("\\^")
+    assert " " == read_str_first("\\ ")
     assert "Ω" == read_str_first("\\Ω")
 
     assert "Ω" == read_str_first("\\u03A9")
@@ -1300,6 +1304,7 @@ def test_character_literal():
     assert "\r" == read_str_first("\\return")
 
     assert vec.v("a") == read_str_first("[\\a]")
+    assert vec.v("]") == read_str_first("[\\]]")
     assert vec.v("Ω") == read_str_first("[\\Ω]")
 
     assert llist.l(sym.symbol("str"), "Ω") == read_str_first("(str \\u03A9)")

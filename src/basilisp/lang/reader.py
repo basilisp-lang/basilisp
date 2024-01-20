@@ -1293,7 +1293,7 @@ def _read_character(ctx: ReaderContext) -> str:
     """Read a character literal from the input stream.
 
     Character literals may appear as:
-      - \\a \\b \\c etc will yield 'a', 'b', and 'c' respectively
+      - \\a \\$ \\[ etc will yield 'a', '$', and '[' respectively
 
       - \\newline, \\space, \\tab, \\formfeed, \\backspace, \\return yield
         the named characters
@@ -1306,13 +1306,13 @@ def _read_character(ctx: ReaderContext) -> str:
     s: List[str] = []
     reader = ctx.reader
     token = reader.peek()
+    is_first_char = True
     while True:
-        if token == "" or whitespace_chars.match(token):
-            break
-        if not alphanumeric_chars.match(token):
+        if token == "" or (not is_first_char and not alphanumeric_chars.match(token)):
             break
         s.append(token)
         token = reader.next_token()
+        is_first_char = False
 
     char = "".join(s)
     special = _SPECIAL_CHARS.get(char, None)
