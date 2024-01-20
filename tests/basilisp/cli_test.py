@@ -116,7 +116,7 @@ class TestBootstrap:
 
 def test_debug_flag(run_cli):
     result = run_cli(["run", "--disable-ns-cache", "true", "-c", "(println (+ 1 2))"])
-    assert "3\n" == result.lisp_out
+    assert f"3{os.linesep}" == result.lisp_out
     assert os.environ["BASILISP_DO_NOT_CACHE_NAMESPACES"].lower() == "true"
 
 
@@ -125,14 +125,14 @@ class TestCompilerFlags:
         result = run_cli(
             ["run", "--warn-on-var-indirection", "-c", "(println (+ 1 2))"]
         )
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("val", BOOL_TRUE | BOOL_FALSE)
     def test_valid_flag(self, run_cli, val):
         result = run_cli(
             ["run", "--warn-on-var-indirection", val, "-c", "(println  (+ 1 2))"]
         )
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("val", ["maybe", "not-no", "4"])
     def test_invalid_flag(self, run_cli, val):
@@ -211,10 +211,10 @@ class TestREPL:
 
 class TestRun:
     cli_args_params = [
-        ([], "0\n"),
-        (["--"], "0\n"),
-        (["1", "2", "3"], "6\n"),
-        (["--", "1", "2", "3"], "6\n"),
+        ([], f"0{os.linesep}"),
+        (["--"], f"0{os.linesep}"),
+        (["1", "2", "3"], f"6{os.linesep}"),
+        (["--", "1", "2", "3"], f"6{os.linesep}"),
     ]
     cli_args_code = "(println (apply + (map int *command-line-args*)))"
 
@@ -224,11 +224,11 @@ class TestRun:
 
     def test_run_code(self, run_cli):
         result = run_cli(["run", "-c", "(println (+ 1 2))"])
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     def test_run_code_main_ns(self, run_cli):
         result = run_cli(["run", "-c", "(println *main-ns*)"])
-        assert "nil\n" == result.lisp_out
+        assert f"nil{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_code_with_args(self, run_cli, args: List[str], ret: str):
@@ -239,13 +239,13 @@ class TestRun:
         with open("test.lpy", mode="w") as f:
             f.write("(println (+ 1 2))")
         result = run_cli(["run", "test.lpy"])
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     def test_run_file_main_ns(self, isolated_filesystem, run_cli):
         with open("test.lpy", mode="w") as f:
             f.write("(println *main-ns*)")
         result = run_cli(["run", "test.lpy"])
-        assert "nil\n" == result.lisp_out
+        assert f"nil{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_file_with_args(
@@ -275,14 +275,14 @@ class TestRun:
     def test_run_namespace(self, run_cli, namespace_file: pathlib.Path):
         namespace_file.write_text("(println (+ 1 2))")
         result = run_cli(["run", "-n", "package.core"])
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     def test_run_namespace_main_ns(self, run_cli, namespace_file: pathlib.Path):
         namespace_file.write_text(
             "(ns package.core) (println (name *ns*)) (println *main-ns*)"
         )
         result = run_cli(["run", "-n", "package.core"])
-        assert "package.core\npackage.core\n" == result.lisp_out
+        assert f"package.core{os.linesep}package.core{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_namespace_with_args(
@@ -294,11 +294,11 @@ class TestRun:
 
     def test_run_stdin(self, run_cli):
         result = run_cli(["run", "-"], input="(println (+ 1 2))")
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     def test_run_stdin_main_ns(self, run_cli):
         result = run_cli(["run", "-"], input="(println *main-ns*)")
-        assert "nil\n" == result.lisp_out
+        assert f"nil{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_stdin_with_args(self, run_cli, args: List[str], ret: str):

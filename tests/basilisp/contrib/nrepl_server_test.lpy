@@ -312,14 +312,14 @@
             {:id @id* :out ":hi"}
             {:id @id* :out " "}
             {:id @id* :out "there"}
-            {:id @id* :out "\n"}
+            {:id @id* :out os/linesep}
             {:id @id* :ns "user" :value "nil"}
             {:id @id* :ns "user" :status ["done"]})
 
           (client-send! client {:id (id-inc!) :op "eval" :ns "xyz" :code "(ns xyz (:import [sys :as s])) (println s/__name__) (* 2 3)"})
           (are [response] (= response (client-recv! client))
             {:id @id* :out "sys"}
-            {:id @id* :out "\n"}
+            {:id @id* :out os/linesep}
             {:id @id* :ns "xyz" :value "6"}
             {:id @id* :ns "xyz" :status ["done"]})
 
@@ -336,7 +336,7 @@
           (client-send! client {:id (id-inc!) :op "eval" :code "(println :hey)\n(/ 4 0)"})
           (are [response] (= response (client-recv! client))
             {:id @id* :out ":hey"}
-            {:id @id* :out "\n"}
+            {:id @id* :out os/linesep}
             {:id @id* :err "ZeroDivisionError('Fraction(4, 0)')"})
           (let [{:keys [id ex status ns]} (client-recv! client)]
             (is (= @id* id))
