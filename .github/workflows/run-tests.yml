@@ -77,6 +77,55 @@ jobs:
           name: code-coverage
           path: coverage/.coverage.py*
 
+  min-deps-test:
+    # Run the TOX-ENV tests for the given OS and python VERSION, for
+    # the dependencies mentioned in DEPS-REGEX.
+    #
+    # The dependencies affected are expected to be found in
+    # `pyproject.toml` and have the following format
+    #
+    # <dependency-name> = "^..."
+    # or 
+    # <dependency-name> = ">=..."
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        version: ['3.8']
+        tox-env: ['py38']
+        deps-regex: ['attrs|immutables|prompt-toolkit|pyrsistent|python-dateutil|readerwriterlock|typing_extensions']
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.8
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+          path: |
+            .tox
+            ~/.cache/pip
+            ~/.cache/pypoetry
+            ~/.local/share/pypoetry
+          key: ${{ runner.os }}-python-min-deps-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
+      - name: Install Poetry
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Install Tox
+        run: |
+          pip install -U pip
+          pip install tox
+      - name: Run tests
+        env:
+          TOX_PARALLEL_NO_SPINNER: 1
+          TOX_SHOW_OUTPUT: "True"
+          TOXENV: ${{ matrix.tox-env }}
+        run: |
+          sed -i -E 's/(${{ matrix.deps-regex }})( = )"(\^|>=)([0-9])/\1\2"==\4/' pyproject.toml
+          git diff
+          tox run-parallel -p 2
+
   report-coverage:
     runs-on: ubuntu-latest
     needs: run-tests
