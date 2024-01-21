@@ -86,8 +86,9 @@ jobs:
     # following format
     #
     # <dependency-name> = "^..."
-    # or 
     # <dependency-name> = ">=..."
+    # <dependency-name> = { version = "^..." ...
+    # <dependency-name> = { version = ">=..." ...
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
@@ -108,7 +109,7 @@ jobs:
             ~/.cache/pip
             ~/.cache/pypoetry
             ~/.local/share/pypoetry
-          key: ${{ runner.os }}-python-min-deps-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
+          key: mdt-${{ runner.os }}-python-${{ matrix.version }}-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
       - name: Install Poetry
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: curl -sSL https://install.python-poetry.org | python3 -
@@ -122,9 +123,14 @@ jobs:
           TOX_SHOW_OUTPUT: "True"
           TOXENV: ${{ matrix.tox-env }}
         run: |
+          poetry lock
           DEPENDENCY_REGEX="$(poetry show -T --without=dev | awk '{print $1}' | paste -s -d '|' -)"
-          echo :deps $DEPENDENCY_REGEX
-          sed -i -E 's/('"$DEPENDENCY_REGEX"')( = )"(\^|>=)([0-9])/\1\2"==\4/' pyproject.toml
+          [[ -z "$DEPENDENCY_REGEX" ]] && { echo "Error: can't source dependencies" ; exit 1; }
+          echo ::deps $DEPENDENCY_REGEX
+          SEC_START="$(sed -n '\/^\[tool.poetry.dependencies\]$/=' pyproject.toml)"
+          SEC_END="$(sed -n '\/^\[tool.poetry.dev-dependencies\]$/=' pyproject.toml)"
+          echo ::pyproject.toml-section :line-start $SEC_START :line-end $SEC_END
+          sed -i -E ''$SEC_START,$SEC_END's/('$DEPENDENCY_REGEX')( = )(|\{ version = )"(\^|>=)([0-9])/\1\2\3"==\5/' pyproject.toml
           git diff
           tox run-parallel -p 2
 
