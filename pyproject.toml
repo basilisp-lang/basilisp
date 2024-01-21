@@ -37,7 +37,7 @@ prompt-toolkit = "^3.0.0"
 pyrsistent = ">=0.18.0,<1.0.0"
 python-dateutil = "^2.8.1"
 readerwriterlock = "^1.0.8"
-typing_extensions = "^4.9.0"
+typing-extensions = "^4.9.0"
 
 astor = { version = "^0.8.1", python = "<3.9", optional = true }
 pytest = { version = "^7.0.0", optional = true }

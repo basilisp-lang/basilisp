@@ -78,11 +78,12 @@ jobs:
           path: coverage/.coverage.py*
 
   min-deps-test:
-    # Run the TOX-ENV tests for the given OS and python VERSION, for
-    # the dependencies mentioned in DEPS-REGEX.
+    # Run the TOX-ENV tests for the given OS and python VERSION with
+    # the minimal possible Basilisp dependencies versions.
     #
-    # The dependencies affected are expected to be found in
-    # `pyproject.toml` and have the following format
+    # For dependencies to be elligible for minimal version testing,
+    # they should be declared in `pyproject.toml` as such in the
+    # following format
     #
     # <dependency-name> = "^..."
     # or 
@@ -93,12 +94,11 @@ jobs:
         os: [ubuntu-latest]
         version: ['3.8']
         tox-env: ['py38']
-        deps-regex: ['attrs|immutables|prompt-toolkit|pyrsistent|python-dateutil|readerwriterlock|typing_extensions']
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.8
+          python-version: ${{ matrix.version }}
       - name: Cache dependencies
         id: cache-deps
         uses: actions/cache@v3
@@ -122,7 +122,8 @@ jobs:
           TOX_SHOW_OUTPUT: "True"
           TOXENV: ${{ matrix.tox-env }}
         run: |
-          sed -i -E 's/(${{ matrix.deps-regex }})( = )"(\^|>=)([0-9])/\1\2"==\4/' pyproject.toml
+          DEPENDENCY_REGEX="$(poetry show -T --without=dev | awk '{print $1}' | paste -s -d '|' -)"
+          sed -i -E 's/('"$DEPENDENCY_REGEX"')( = )"(\^|>=)([0-9])/\1\2"==\4/' pyproject.toml
           git diff
           tox run-parallel -p 2
 
