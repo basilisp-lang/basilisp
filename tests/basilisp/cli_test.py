@@ -159,7 +159,7 @@ class TestnREPLServer:
             # the high retries number is to address the slowness when
             # running on pypy.
             retries = 60
-            while not os.path.exists(tmpfilepath):
+            while not os.path.exists(tmpfilepath) or os.stat(tmpfilepath).st_size == 0:
                 time.sleep(1)
                 retries -= 1
                 assert 0 <= retries
