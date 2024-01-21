@@ -1094,14 +1094,16 @@
   (operator/mod num div))
 
 (defn ^:inline quot
-  "Returns the quotient of ``num`` and ``div``\\."
-  [num div]
-  (basilisp.lang.runtime/quotient num div))
+  "Returns the quotient of ``num`` and ``div``\\.
 
-(defn ^:inline rem
+  The result is rounded towards negative infinity."
+  [num div]
+  (operator/floordiv num div))
+
+(defn rem
   "Returns the remainder of ``num`` and ``div``\\."
   [num div]
-  (- num (* div (quot num div))))
+  (math/remainder num div))
 
 (defn ^:inline inc
   "Increment the argument by 1."

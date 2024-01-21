@@ -1342,11 +1342,6 @@ def _divide_ints(x: int, y: LispNumber) -> LispNumber:
     return x / y
 
 
-def quotient(num: LispNumber, div: LispNumber) -> LispNumber:
-    """Return the integral quotient resulting from the division of num by div."""
-    return math.trunc(num / div)
-
-
 @functools.singledispatch
 def compare(x, y) -> int:
     """Return either -1, 0, or 1 to indicate the relationship between x and y.
