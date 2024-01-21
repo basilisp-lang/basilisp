@@ -5,11 +5,10 @@ import sys
 import types
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-from sphinx.ext.autodoc import (  # pylint: disable=no-name-in-module
+from sphinx.ext.autodoc import (
     ClassDocumenter,
     Documenter,
     ObjectMember,
-    ObjectMembers,
     bool_option,
     exclude_members_option,
     identity,
@@ -126,7 +125,7 @@ class NamespaceDocumenter(Documenter):
         assert self.object is not None
         return _get_doc(self.object)
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
         assert self.object is not None
         interns = self.object.interns
 
@@ -145,7 +144,7 @@ class NamespaceDocumenter(Documenter):
         return False, selected
 
     def filter_members(
-        self, members: ObjectMembers, want_all: bool
+        self, members: List[ObjectMember], want_all: bool
     ) -> List[Tuple[str, Any, bool]]:
         filtered = []
         for name, val in members:
@@ -269,9 +268,9 @@ class VarDocumenter(Documenter):
             return f"{file}:docstring of {self.object}"
         return f"docstring of {self.object}"
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
         assert self.object is not None
-        return False, ()
+        return False, []
 
     def add_directive_header(self, sig: str) -> None:
         assert self.object is not None
@@ -364,7 +363,7 @@ class ProtocolDocumenter(VarDocumenter):
             and member.meta.val_at(_PROTOCOL_KW) is True
         )
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
         assert self.object is not None
         assert want_all
         ns = self.object.ns
@@ -382,7 +381,7 @@ class ProtocolDocumenter(VarDocumenter):
         )
 
     def filter_members(
-        self, members: ObjectMembers, want_all: bool
+        self, members: List[ObjectMember], want_all: bool
     ) -> List[Tuple[str, Any, bool]]:
         filtered = []
         for name, val in members:
@@ -419,7 +418,7 @@ class TypeDocumenter(VarDocumenter):
             and issubclass(member.value, IType)
         )
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
         return ClassDocumenter.get_object_members(self, want_all)
 
 
