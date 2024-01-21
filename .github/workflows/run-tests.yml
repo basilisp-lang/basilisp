@@ -123,6 +123,7 @@ jobs:
           TOXENV: ${{ matrix.tox-env }}
         run: |
           DEPENDENCY_REGEX="$(poetry show -T --without=dev | awk '{print $1}' | paste -s -d '|' -)"
+          echo :deps $DEPENDENCY_REGEX
           sed -i -E 's/('"$DEPENDENCY_REGEX"')( = )"(\^|>=)([0-9])/\1\2"==\4/' pyproject.toml
           git diff
           tox run-parallel -p 2
