@@ -37,6 +37,12 @@ class TestTestrunner:
         (deftest error-test
           (throw
             (ex-info "This test will count as an error." {})))
+
+        ;; syntax quote expands lists to seqs.
+        (defmacro syntax-quote-test-make []
+          `(deftest syntax-quote-seq-test
+             (is (= 5 4))))
+        (syntax-quote-test-make)
         """
         pytester.makefile(".lpy", test_testrunner=code)
         pytester.syspathinsert()
@@ -44,7 +50,7 @@ class TestTestrunner:
         runtime.Namespace.remove(sym.symbol("test-testrunner"))
 
     def test_outcomes(self, run_result: pytest.RunResult):
-        run_result.assert_outcomes(passed=1, failed=2)
+        run_result.assert_outcomes(passed=1, failed=3)
 
     def test_failure_repr(self, run_result: pytest.RunResult):
         run_result.stdout.fnmatch_lines(
@@ -77,6 +83,17 @@ class TestTestrunner:
                 "",
                 '    expected: "true"',
                 "      actual: false",
+            ],
+            consecutive=True,
+        )
+
+        run_result.stdout.fnmatch_lines(
+            [
+                "FAIL in (syntax-quote-seq-test) (test_testrunner.lpy)",
+                "    Test failure: (basilisp.core/= 5 4)",
+                "",
+                "    expected: 5",
+                "      actual: 4",
             ],
             consecutive=True,
         )

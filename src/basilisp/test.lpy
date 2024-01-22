@@ -73,7 +73,7 @@
   "Implementation detail of :lpy:fn:`is` for generating macros."
   (fn [expr _ _]
     (cond
-      (list? expr) (first expr)
+      (and (sequential? expr) (not (vector? expr))) (symbol (name (first expr)))
       :else        :default)))
 
 (defmethod gen-assert '=

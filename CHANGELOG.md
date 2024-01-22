@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix issue with the variadic ampersand operator treated as a binding in macros (#772)
  * Fix a bug the variadic arg symbol was not correctly bound to `nil` when no variadic arguments were provided (#801)
  * Fix a bug where the quotient of very large numbers was incorrect (#822)
+ * Fix a bug where `basilisp.test/is` may fail to generate expected/actual info on failures when declared inside a macro (#829)
 
 ### Removed
  * Removed support for PyPy 3.8 (#785)
