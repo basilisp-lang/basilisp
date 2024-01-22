@@ -29,11 +29,6 @@ classifiers = [
 ]
 include = ["README.md", "LICENSE"]
 
-# Ensure that [tool.poetry.dependencies] and
-# [tool.poetry.dev-dependencies] are kept adjacent to each other in
-# that order. This arrangement is essential for the min-deps-test CI
-# job to effectively enforce minimal dependencies versions for its
-# testing.
 [tool.poetry.dependencies]
 python = "^3.8"
 attrs = ">=20.2.0"
