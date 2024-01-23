@@ -78,8 +78,9 @@ jobs:
           path: coverage/.coverage.py*
 
   min-deps-test:
-    # Run the TOX-ENV tests for the given OS and python VERSION with
-    # the minimal possible Basilisp dependencies versions.
+    # Attempt to run the TOX-ENV tests for the given OS and python
+    # VERSION with the minimal possible Basilisp dependencies
+    # versions.
     #
     # For dependencies to be elligible for minimum version testing,
     # they should be declared in `pyproject.toml` as such in the
@@ -89,14 +90,6 @@ jobs:
     # <dependency-name> = ">=..."
     # <dependency-name> = { version = "^..." ...
     # <dependency-name> = { version = ">=..." ...
-    #
-    # Note that the intention is to modify only the lines in
-    # [tool.poetry.dependencies]. However, the current implementation
-    # for simplicity will blindly alter all lines starting with the
-    # above patterns in the file. While this includes
-    # [tool.poetry.dev-dependencies] too (which is deemed acceptable),
-    # it is important to consistently assess that no other section is
-    # adversely affected in the future.
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
