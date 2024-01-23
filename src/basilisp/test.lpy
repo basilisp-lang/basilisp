@@ -73,12 +73,20 @@
   "Implementation detail of :lpy:fn:`is` for generating macros."
   (fn [expr _ _]
     (cond
-      (list? expr) (first expr)
-      :else        :default)))
+      (vector? expr)     :default
+      (sequential? expr) (let [maybe-f (first expr)]
+                           (if (and (symbol? maybe-f)
+                                    (or (= 'basilisp.core/= maybe-f)
+                                        (#{'thrown-with-msg? 'thrown?} (symbol (name maybe-f)))))
+                             (symbol (name maybe-f))
+                             maybe-f))
+      :else              :default)))
 
+;; clojure.test does not special case '=, but this means that its expected/actual
+;; results just show expected `expr` and `(not expr)`
 (defmethod gen-assert '=
   [expr msg line-num]
-  `(let [actual# ~(nth expr 2)
+  `(let [actual#   ~(nth expr 2)
          expected# ~(second expr)]
      (when-not (= expected# actual#)
        (vswap! *test-failures*
@@ -121,6 +129,50 @@
                   :line         ~line-num
                   :type         :failure})))))
 
+(defmethod gen-assert 'thrown-with-msg?
+  [expr msg line-num]
+  (let [exc-type (second expr)
+        pattern  (nth expr 2)
+        body     (nthnext expr 3)]
+    `(try
+       (let [result# (do ~@body)]
+         (vswap! *test-failures*
+                 conj
+                 {:test-name    *test-name*
+                  :test-section *test-section*
+                  :message      ~msg
+                  :expr         (quote ~expr)
+                  :actual       result#
+                  :expected     (quote ~exc-type)
+                  :line         ~line-num
+                  :type         :failure}))
+       (catch ~exc-type e#
+         ;; Use python/str rather than Basilisp str to get the raw "message"
+         ;; from the exception.
+         (let [string-exc# (python/str e#)]
+           (when-not (re-find ~pattern string-exc#)
+             (vswap! *test-failures*
+                     conj
+                     {:test-name    *test-name*
+                      :test-section *test-section*
+                      :message      "Regex pattern did not match"
+                      :expr         (quote ~expr)
+                      :actual       string-exc#
+                      :expected     ~pattern
+                      :line         ~line-num
+                      :type         :failure}))))
+       (catch python/Exception e#
+         (vswap! *test-failures*
+                 conj
+                 {:test-name    *test-name*
+                  :test-section *test-section*
+                  :message      (str "Expected " ~exc-type "; got " (python/type e#) " instead")
+                  :expr         (quote ~expr)
+                  :actual       e#
+                  :expected     ~exc-type
+                  :line         ~line-num
+                  :type         :failure})))))
+
 (defmethod gen-assert :default
   [expr msg line-num]
   `(let [computed# ~expr]
@@ -148,6 +200,10 @@
     is the expected value and the second element is the actual value
   - ``(is (thrown? ExceptionType expr))`` generates a basic assertion that ``expr``
     does generate an exception of the type ``ExceptionType``
+  - ``(is (thrown-with-msg? ExceptionType pattern expr))`` generates a basic assertion
+    that ``expr`` does generate an exception of the type ``ExceptionType`` and that
+    the stringified exception (as by ``python/str``) matches the regular expression
+    ``pattern`` using :lpy:fn:`re-find`
   - ``(is expr)`` is the most basic assertion type that just asserts that ``expr`` is
     truthy
 

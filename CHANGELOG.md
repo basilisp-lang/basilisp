@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added a subcommand for bootstrapping the Python installation with Basilisp (#790)
  * Added support for executing Basilisp namespaces directly via `basilisp run` and by `python -m` (#791)
  * Added the `memoize` core fn (#812)
+ * Added support for `thrown-with-msg?` assertions to `basilisp.test/is` (#831)
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
@@ -37,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix issue with the variadic ampersand operator treated as a binding in macros (#772)
  * Fix a bug the variadic arg symbol was not correctly bound to `nil` when no variadic arguments were provided (#801)
  * Fix a bug where the quotient of very large numbers was incorrect (#822)
+ * Fix a bug where `basilisp.test/is` may fail to generate expected/actual info on failures when declared inside a macro (#829)
 
 ### Removed
  * Removed support for PyPy 3.8 (#785)
