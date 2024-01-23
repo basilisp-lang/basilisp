@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Make `pr` a dynamic variable (#820)
  * Emit OS specific line endings for the `println` and `prn` fns (#810)
  * Support any character in character literals (#816)
+ * Loosen `typing-extensions` dependency's minimal version to 4.7.0 (#809)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
