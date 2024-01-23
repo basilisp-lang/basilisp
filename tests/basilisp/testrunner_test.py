@@ -22,7 +22,15 @@ class TestTestrunner:
             (is (= "string" "string"))
             (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (ex-info "Exception" {}))))
             (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (python/Exception))))
-            (is (throw (ex-info "Uncaught exception" {}))))
+            (is (throw (ex-info "Uncaught exception" {})))
+            (is (thrown-with-msg?
+                  basilisp.lang.exception/ExceptionInfo
+                  #"Caught exception"
+                  (throw (ex-info "Caught exception message" {}))))
+            (is (thrown-with-msg?
+                  basilisp.lang.exception/ExceptionInfo
+                  #"Known exception"
+                  (throw (ex-info "Unexpected exception" {})))))
 
           (testing "are assertions"
             (are [exp actual] (= exp actual)
@@ -37,6 +45,12 @@ class TestTestrunner:
         (deftest error-test
           (throw
             (ex-info "This test will count as an error." {})))
+        
+        ;; Test that syntax quoted forms still get expanded correctly into assertions
+        (defmacro syntax-quote-test-make []
+          `(deftest syntax-quote-seq-test
+             (is (= 5 4))))
+        (syntax-quote-test-make)
         """
         pytester.makefile(".lpy", test_testrunner=code)
         pytester.syspathinsert()
@@ -44,7 +58,7 @@ class TestTestrunner:
         runtime.Namespace.remove(sym.symbol("test-testrunner"))
 
     def test_outcomes(self, run_result: pytest.RunResult):
-        run_result.assert_outcomes(passed=1, failed=2)
+        run_result.assert_outcomes(passed=1, failed=3)
 
     def test_failure_repr(self, run_result: pytest.RunResult):
         run_result.stdout.fnmatch_lines(
@@ -65,7 +79,19 @@ class TestTestrunner:
                 "",
                 "    expected: <class 'basilisp.lang.exception.ExceptionInfo'>",
                 "      actual: Exception()",
-            ]
+            ],
+            consecutive=True,
+        )
+
+        run_result.stdout.fnmatch_lines(
+            [
+                "FAIL in (assertion-test) (test_testrunner.lpy:17)",
+                "     is assertions :: Regex pattern did not match",
+                "",
+                '    expected: #"Known exception"',
+                '      actual: "Unexpected exception {}"',
+            ],
+            consecutive=True,
         )
 
         run_result.stdout.fnmatch_lines(
@@ -77,6 +103,17 @@ class TestTestrunner:
                 "",
                 '    expected: "true"',
                 "      actual: false",
+            ],
+            consecutive=True,
+        )
+
+        run_result.stdout.fnmatch_lines(
+            [
+                "FAIL in (syntax-quote-seq-test) (test_testrunner.lpy)",
+                "    Test failure: (basilisp.core/= 5 4)",
+                "",
+                "    expected: 5",
+                "      actual: 4",
             ],
             consecutive=True,
         )
@@ -95,7 +132,7 @@ class TestTestrunner:
                 "",
                 "Traceback (most recent call last):",
                 '  File "*test_testrunner.lpy", line 12, in assertion_test',
-                '    (is (throw (ex-info "Uncaught exception" {}))))',
+                '    (is (throw (ex-info "Uncaught exception" {})))',
                 "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
             ]
         else:
@@ -104,8 +141,7 @@ class TestTestrunner:
                 "",
                 "Traceback (most recent call last):",
                 '  File "*test_testrunner.lpy", line 12, in assertion_test',
-                '    (is (throw (ex-info "Uncaught exception" {}))))',
-                "    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+                '    (is (throw (ex-info "Uncaught exception" {})))',
                 "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
             ]
 
@@ -118,7 +154,7 @@ class TestTestrunner:
             [
                 "ERROR in (error-test) (test_testrunner.lpy)",
                 "Traceback (most recent call last):",
-                '  File "*test_testrunner.lpy", line 25, in error_test',
+                '  File "*test_testrunner.lpy", line 33, in error_test',
                 "    (throw",
                 "basilisp.lang.exception.ExceptionInfo: This test will count as an error. {}",
             ]
