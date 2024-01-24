@@ -147,7 +147,8 @@ class NamespaceDocumenter(Documenter):
         self, members: List[ObjectMember], want_all: bool
     ) -> List[Tuple[str, Any, bool]]:
         filtered = []
-        for name, val in members:
+        for member in members:
+            name, val = member.__name__, member.object
             assert isinstance(val, runtime.Var)
             if self.options.exclude_members and name in self.options.exclude_members:
                 continue
@@ -384,7 +385,8 @@ class ProtocolDocumenter(VarDocumenter):
         self, members: List[ObjectMember], want_all: bool
     ) -> List[Tuple[str, Any, bool]]:
         filtered = []
-        for name, val in members:
+        for member in members:
+            name, val = member.__name__, member.object
             assert isinstance(val, runtime.Var)
             if val.meta is not None:
                 if val.meta.val_at(_PRIVATE_KW):

@@ -21,6 +21,8 @@ Numeric Literals
 
 The Basilisp reader reads a wide range of numeric literals.
 
+.. _integer_numbers:
+
 Integers
 ^^^^^^^^
 
@@ -35,10 +37,21 @@ Integers
     basilisp.user=> (python/type 1N)
     <class 'int'>
 
-Integers are represented using numeric ``0-9`` and may be prefixed with any number of negative signs ``-``.
-The resulting integer will have the correct sign after resolving all of the supplied ``-`` signs.
+Integers are represented using numeric ``0-9`` and may be prefixed with a single negative sign ``-``.
 For interoperability support with Clojure, Basilisp integers may also be declared with the ``N`` suffix, like ``1N``.
 In Clojure, this syntax signals a ``BigInteger``, but Python's default ``int`` type supports arbitrary precision by default so there is no difference between ``1`` and ``1N`` in Basilisp.
+
+Integer literals may be specified in arbitrary bases between 2 and 36 by using the syntax ``[base]r[value]``.
+For example, in base 2 ``2r1001``, base 12 ``12r918a32``, and base 36 ``36r81jdk3kdp``.
+Arbitrary base literals do not distinguish between upper and lower case characters, so ``p`` and ``P`` are the same for bases which support ``P`` as a digit.
+Arbitrary base literals do not support the ``N`` suffix because ``N`` is a valid digit for some bases.
+
+For common bases such as octal and hex, there is a custom syntax.
+Octal literals can be specified with a ``0`` prefix; for example, the octal literal ``0777`` corresponds to the base 10 integer 511.
+Hex literals can be specified with a ``0x`` prefix; for example, the hex literal ``0xFACE`` corresponds to the base 10 integer 64206.
+Both octal and hex literals support the ``N`` suffix and it is treated the same as with base 10 integers.
+
+.. _floating_point_numbers:
 
 Floating Point
 ^^^^^^^^^^^^^^
@@ -55,10 +68,29 @@ Floating Point
    <class 'decimal.Decimal'>
 
 Floating point values are represented using ``0-9`` and a trailing decimal value, separated by a ``.`` character.
-Like integers, floating point values may be prefixed with an arbitrary number of negative signs ``-`` and the final read value will have the correct sign after resolving the negations.
+Like integers, floating point values may be prefixed with a single negative sign ``-``.
 By default floating point values are represented by Python's ``float`` type, which does **not** support arbitrary precision by default.
 Like in Clojure, floating point literals may be specified with a single ``M`` suffix to specify an arbitrary-precision floating point value.
 In Basilisp, a floating point number declared with a trailing ``M`` will return Python's `Decimal <https://docs.python.org/3/library/decimal.html>`_ type, which supports arbitrary floating point arithmetic.
+
+.. _scientific_notation:
+
+Scientific Notation
+^^^^^^^^^^^^^^^^^^^
+
+::
+
+   basilisp.user=> 2e6
+   2000000
+   basilisp.user=> 3.14e-1
+   0.31400000000000006
+
+Basilisp supports scientific notation using the ``e`` syntax common to many programming languages.
+The significand (the number to the left of the ``e`` ) may be an integer or floating point and may be prefixed with a single negative sign ``-``.
+The exponent (the number to the right of the ``e`` ) must be an integer and may be prefixed with a single negative sign ``-``.
+The resulting value will be either an integer or float depending on the type of the significand.
+
+.. _complex_numbers:
 
 Complex
 ^^^^^^^
@@ -76,7 +108,24 @@ Complex
 
 Basilisp includes support for complex literals to match the Python VM hosts it.
 Complex literals may be specified as integer or floating point values with a ``J`` suffix.
-Like integers and floats, complex values may be prefixed with an arbitrary number of negative signs ``-`` and the final read value will have the correct sign after resolving the negations.
+Like integers and floats, complex values may be prefixed with a single negative sign ``-``.
+
+.. _ratios:
+
+Ratios
+^^^^^^
+
+::
+
+   basilisp.user=> 22/7
+   22/7
+   basilisp.user=> -3/8
+   -3/8
+
+Basilisp includes support for ratios.
+Ratios are represented as the division of 2 integers which cannot be reduced to an integer.
+As with integers and floats, the numerator of a ratio may be prefixed with a single negative sign ``-`` -- a negative sign may not appear in the denominator.
+In Basilisp, ratios are backed by Python's `Fraction <https://docs.python.org/3/library/fractions.html>`_ type, which is highly interoperable with other Python numeric types.
 
 .. _strings:
 
@@ -101,6 +150,7 @@ String literals are always read with the UTF-8 encoding.
 String literals may contain the following escape sequences: ``\\``, ``\a``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\v``.
 Their meanings match the equivalent escape sequences supported in `Python string literals <https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`_\.
 
+.. _byte_strings
 
 Byte Strings
 ------------

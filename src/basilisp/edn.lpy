@@ -88,7 +88,7 @@
   basilisp.lang.reader/ns-name-chars)
 
 (def ^:private num-chars
-  basilisp.lang.reader/num-chars)
+  #"[0-9]")
 
 (def ^:private unicode-char
   basilisp.lang.reader/unicode-char)

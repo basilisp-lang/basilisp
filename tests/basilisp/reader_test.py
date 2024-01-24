@@ -1,5 +1,6 @@
 import io
 import math
+from fractions import Fraction
 from typing import Optional
 
 import pytest
@@ -148,7 +149,9 @@ class TestComplex:
         "v,raw",
         [
             (0.0j, "0.0J"),
+            (0.0j, "0.J"),
             (0.093_873_72j, "0.09387372J"),
+            (1.0j, "1.J"),
             (1.0j, "1.0J"),
             (1.332j, "1.332J"),
             (-1.332j, "-1.332J"),
@@ -173,6 +176,7 @@ class TestInt:
             ("100", 100),
             ("99927273", 99_927_273),
             ("0", 0),
+            ("-0", 0),
             ("-1", -1),
             ("-538282", -538_282),
         ],
@@ -204,10 +208,13 @@ class TestFloat:
         "raw,v",
         [
             ("0.0", 0.0),
+            ("-0.0", 0.0),
             ("0.09387372", 0.093_873_72),
+            ("1.", 1.0),
             ("1.0", 1.0),
             ("1.332", 1.332),
             ("-1.332", -1.332),
+            ("-1.", -1.0),
             ("-1.0", -1.0),
             ("-0.332", -0.332),
         ],
@@ -217,6 +224,126 @@ class TestFloat:
 
     @pytest.mark.parametrize("raw", ["0..11", "0.111.9"])
     def test_malformed_float(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
+
+
+class TestOctalLiteral:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("00", 0o0),
+            ("00N", 0o0),
+            ("-00", -0o0),
+            ("-03", -0o3),
+            ("03", 0o3),
+            ("0666", 0o666),
+            ("-0666", -0o666),
+            ("0666N", 0o666),
+            ("-0666N", -0o666),
+        ],
+    )
+    def test_legal_octal_literal(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize("raw", ["089", "01.", "0639"])
+    def test_malformed_octal_literal(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
+
+
+class TestHexLiteral:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("0x3", 0x3),
+            ("-0x3", -0x3),
+            ("0X3", 0x3),
+            ("0x0", 0x0),
+            ("0x0N", 0x0),
+            ("0xFACE", 0xFACE),
+            ("-0xFACE", -0xFACE),
+            ("0XFACE", 0xFACE),
+            ("0xFACEN", 0xFACE),
+            ("-0xFACEN", -0xFACE),
+            ("0xface", 0xFACE),
+            ("-0xface", -0xFACE),
+            ("0Xface", 0xFACE),
+            ("0xfaceN", 0xFACE),
+            ("-0xfaceN", -0xFACE),
+        ],
+    )
+    def test_legal_hex_literal(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize("raw", ["0x", "0x.", "0x3.", "0xFA-E"])
+    def test_malformed_hex_literal(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
+
+
+class TestArbitraryBaseLiteral:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("2r0", int("0", base=2)),
+            ("-2r0", -int("0", base=2)),
+            ("16rFACE", 0xFACE),
+            ("-16rFACE", -0xFACE),
+        ],
+    )
+    def test_legal_arbitrary_base_literal(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize("raw", ["1r1", "37r42", "0r53", "6r799", "6r", "432r382"])
+    def test_malformed_arbitrary_base_literal(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
+
+
+class TestScientificNotationLiteral:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("-0e4", -0e4),
+            ("0e0", 0e0),
+            ("0e12", 0e12),
+            ("-2e-6", -2e-6),
+            ("2e6", 2e6),
+            ("2E6", 2e6),
+            ("-2e6", -2e6),
+            ("-2E6", -2e6),
+            ("2.e6", 2.0e6),
+            ("-2.e6", -2.0e6),
+            ("3.14e8", 3.14e8),
+            ("3.14e-8", 3.14e-8),
+            ("0.443e12", 0.443e12),
+        ],
+    )
+    def test_legal_scientific_notation_literal(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize("raw", ["2e-3.6", "2e--4"])
+    def test_malformed_scientific_notation_literal(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
+
+
+class TestRatios:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("22/7", Fraction(22, 7)),
+            ("-22/7", Fraction(-22, 7)),
+            ("0/3", 0),
+            ("1/3", Fraction(1, 3)),
+        ],
+    )
+    def test_legal_arbitrary_base_literal(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize("raw", ["22/-7", "1/0"])
+    def test_malformed_ratio(self, raw: str):
         with pytest.raises(reader.SyntaxError):
             read_str_first(raw)
 
@@ -430,7 +557,7 @@ class TestByteString:
             read_str_first(rf'#b "{chr(432)}"')
 
     def test_invalid_escape_remains(self):
-        assert b"\q" == read_str_first(r'#b "\q"')
+        assert rb"\q" == read_str_first(r'#b "\q"')
 
     @pytest.mark.parametrize("v", [r'#b "\xjj"', r'#b "\xf"', r'#b "\x"'])
     def test_invalid_hex_escape_sequence(self, v: str):
