@@ -754,7 +754,7 @@ MaybeSymbol = Union[bool, None, sym.Symbol]
 MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
 
 
-def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
+def _read_num(  # noqa: C901  # pylint: disable=too-many-locals,too-many-statements
     ctx: ReaderContext,
 ) -> MaybeNumber:
     """Return a numeric (complex, Decimal, float, int, Fraction) from the input stream."""
@@ -812,9 +812,9 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
         except ZeroDivisionError as e:
             raise ctx.syntax_error(f"Invalid ratio format: {s}") from e
     elif (match := scientific_notation_literal.fullmatch(s)) is not None:
-        m = float(v) if "." in (v := match.group(1)) else int(v)
-        n = int(match.group(2))
-        res = m * (10**n)
+        sig = float(m) if "." in (m := match.group(1)) else int(m)
+        exp = int(match.group(2))
+        res = sig * (10**exp)
         return -res if neg else res
     elif (match := arbitrary_base_literal.fullmatch(s)) is not None:
         base = int(match.group(1))
