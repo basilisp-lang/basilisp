@@ -102,7 +102,7 @@ jobs:
         with:
           python-version: ${{ matrix.version }}
       - name: Cache dependencies
-        id: cache-deps
+        id: min-deps-test-cache-deps
         uses: actions/cache@v3
         with:
           path: |
@@ -110,9 +110,9 @@ jobs:
             ~/.cache/pip
             ~/.cache/pypoetry
             ~/.local/share/pypoetry
-          key: mdt-${{ runner.os }}-python-${{ matrix.version }}-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
+          key: min-deps-test-${{ runner.os }}-python-${{ matrix.version }}-poetry-${{ hashFiles('pyproject.toml', 'tox.ini') }}
       - name: Install Poetry
-        if: steps.cache-deps.outputs.cache-hit != 'true'
+        if: steps.min-deps-test-cache-deps.outputs.cache-hit != 'true'
         run: curl -sSL https://install.python-poetry.org | python3 -
       - name: Install Tox
         run: |
