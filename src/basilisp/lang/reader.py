@@ -67,7 +67,15 @@ from basilisp.util import Maybe, partition
 ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|\.")
 alphanumeric_chars = re.compile(r"\w")
 begin_num_chars = re.compile(r"[0-9\-]")
-num_chars = re.compile("[0-9]")
+maybe_num_chars = re.compile(r"[0-9A-Za-z/\.]")
+integer_literal = re.compile(r"(-?(?:\d|[1-9]\d+))N?")
+float_literal = re.compile(r"(-?(?:\d|[1-9]\d+)(?:\.\d*)?)M?")
+complex_literal = re.compile(r"-?(\d+(?:\.\d*)?)J")
+arbitrary_base_literal = re.compile(r"-?(\d{1,2})r([0-9A-Za-z]+)")
+octal_literal = re.compile("-?0([0-7]+)N?")
+hex_literal = re.compile("-?0[Xx]([0-9A-Fa-f]+)N?")
+ratio_literal = re.compile(r"(-?\d+)/(\d+)")
+scientific_notation_literal = re.compile(r"-?(\d+(?:\.\d*)?)[Ee](-?\d+)")
 whitespace_chars = re.compile(r"[\s,]")
 newline_chars = re.compile("(\r\n|\r|\n)")
 fn_macro_args = re.compile("(%)(&|[0-9])?")
@@ -746,18 +754,13 @@ MaybeSymbol = Union[bool, None, sym.Symbol]
 MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
 
 
-def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
+def _read_num(  # noqa: C901  # pylint: disable=too-many-locals,too-many-statements
     ctx: ReaderContext,
 ) -> MaybeNumber:
     """Return a numeric (complex, Decimal, float, int, Fraction) from the input stream."""
     chars: List[str] = []
     reader = ctx.reader
 
-    is_complex = False
-    is_decimal = False
-    is_float = False
-    is_integer = False
-    is_ratio = False
     while True:
         token = reader.peek()
         if token == "-":
@@ -774,68 +777,62 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
                 return _read_sym(ctx)
             chars.append(token)
             continue
-        elif token == ".":
-            if is_float:
-                raise ctx.syntax_error(
-                    "Found extra '.' in float; expected decimal portion"
-                )
-            is_float = True
-        elif token == "J":
-            if is_complex:
-                raise ctx.syntax_error("Found extra 'J' suffix in complex literal")
-            is_complex = True
-        elif token == "M":
-            if is_decimal:
-                raise ctx.syntax_error("Found extra 'M' suffix in decimal literal")
-            is_decimal = True
-        elif token == "N":
-            if is_integer:
-                raise ctx.syntax_error("Found extra 'N' suffix in integer literal")
-            is_integer = True
-        elif token == "/":
-            if is_ratio:
-                raise ctx.syntax_error("Found extra '/' in ratio literal")
-            is_ratio = True
-        elif not num_chars.match(token):
+        elif not maybe_num_chars.match(token):
             break
         reader.next_token()
         chars.append(token)
 
-    assert len(chars) > 0, "Must have at least one digit in integer or float"
+    assert len(chars) > 0, "Must have at least one digit in number"
 
     s = "".join(chars)
-    if (
-        sum(
-            [
-                is_complex and is_decimal,
-                is_complex and is_integer,
-                is_complex and is_ratio,
-                is_decimal or is_float,
-                is_integer,
-                is_ratio,
-            ]
-        )
-        > 1
-    ):
-        raise ctx.syntax_error(f"Invalid number format: {s}")
+    neg = s.startswith("-")
 
-    if is_complex:
-        imaginary = float(s[:-1]) if is_float else int(s[:-1])
-        return complex(0, imaginary)
-    elif is_decimal:
+    if (match := integer_literal.fullmatch(s)) is not None:
+        return int(match.group(1))
+    elif (match := float_literal.fullmatch(s)) is not None:
+        if s.endswith("M"):
+            try:
+                return decimal.Decimal(match.group(1))
+            except decimal.InvalidOperation:  # pragma: no cover
+                raise ctx.syntax_error(f"Invalid number format: {s}") from None
+        else:
+            return float(match.group(1))
+    elif (match := octal_literal.fullmatch(s)) is not None:
+        v = int(match.group(1), base=8)
+        return -v if neg else v
+    elif (match := hex_literal.fullmatch(s)) is not None:
+        v = int(match.group(1), base=16)
+        return -v if neg else v
+    elif (match := ratio_literal.fullmatch(s)) is not None:
+        num, denominator = match.groups()
+        if (numerator := int(num)) == 0:
+            return 0
         try:
-            return decimal.Decimal(s[:-1])
-        except decimal.InvalidOperation:
-            raise ctx.syntax_error(f"Invalid number format: {s}") from None
-    elif is_float:
-        return float(s)
-    elif is_ratio:
-        assert "/" in s, "Ratio must contain one '/' character"
-        num, denominator = s.split("/")
-        return Fraction(numerator=int(num), denominator=int(denominator))
-    elif is_integer:
-        return int(s[:-1])
-    return int(s)
+            return Fraction(numerator=numerator, denominator=int(denominator))
+        except ZeroDivisionError as e:
+            raise ctx.syntax_error(f"Invalid ratio format: {s}") from e
+    elif (match := scientific_notation_literal.fullmatch(s)) is not None:
+        sig = float(m) if "." in (m := match.group(1)) else int(m)
+        exp = int(match.group(2))
+        res = sig * (10**exp)
+        return -res if neg else res
+    elif (match := arbitrary_base_literal.fullmatch(s)) is not None:
+        base = int(match.group(1))
+        if not 2 <= base <= 36:
+            raise ctx.syntax_error(
+                f"Invalid base {base} for integer literal {s}: must be between 2 and 36"
+            )
+        try:
+            v = int(match.group(2), base=base)
+        except ValueError as e:
+            raise ctx.syntax_error(f"Invalid number format: {s}") from e
+        else:
+            return -v if neg else v
+    elif (match := complex_literal.fullmatch(s)) is not None:
+        imaginary_raw = match.group(1)
+        imaginary = float(imaginary_raw) if "." in imaginary_raw else int(imaginary_raw)
+        return complex(0, -imaginary if neg else imaginary)
+    raise ctx.syntax_error(f"Invalid number format: {s}")
 
 
 _STR_ESCAPE_CHARS = {
