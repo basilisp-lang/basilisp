@@ -5447,26 +5447,25 @@
 
         ;; Fetch all the remaining keys in the map which do not
         ;; correspond to special functionality.
-        remaining (->> [:as :or :strs :syms]
-                       (concat kw-keys)
-                       (apply dissoc arg))
-
         ;; Destructuring forms may be nested arbitrarily, so generate the
         ;; definitions for any nested destructured forms as well.
-        children (map #(vector % (destructure-def %)) (keys remaining))]
-    {:name alias
-     :type :map
-     :keys kws
-     :strs strs
-     :syms syms
-
+        children (->> [:as :or :strs :syms]
+                      (concat kw-keys)
+                      (apply dissoc arg)
+                      (map (fn [arg]
+                             ;; The val in this case is actually the key from
+                             ;; the source data structure
+                             (let [k (key arg)
+                                   v (val arg)]
+                               {:key     v
+                                :binding (destructure-def k)}))))]
+    {:name        alias
+     :type        :map
+     :keys        kws
+     :strs        strs
+     :syms        syms
      :or-bindings or-bindings
-     :remaining   (->> children
-                       (filter #(not= :symbol (:type (second %))))
-                       (map first)
-                       (apply dissoc remaining))
-
-     :children (map second children)}))
+     :children    children}))
 
 (defmethod destructure-def :symbol
   [arg]
@@ -5529,8 +5528,13 @@
 
 (defmethod destructure-binding :map
   [ddef]
-  (let [fn-arg (:name ddef)
-        ors    (:or-bindings ddef)
+  (let [fn-arg   (:name ddef)
+        ors      (:or-bindings ddef)
+        children (group-by
+                  #(if (= (get-in % [:binding :type]) :symbol)
+                     :symbol
+                     :other)
+                  (:children ddef))
 
         kw-binding (fn [arg]
                      (let [kw-ns      (namespace arg)
@@ -5558,28 +5562,25 @@
                           [arg `(or (get ~fn-arg (quote ~k)) ~or-binding)]
                           [arg `(get ~fn-arg (quote ~k))])))
 
-        rem-binding (fn [arg]
-                      (let [binding    (key arg)
-                            key        (val arg)
-                            or-binding (get ors binding)]
-                        (if or-binding
-                          [binding `(or (get ~fn-arg (quote ~key)) ~or-binding)]
-                          [binding `(get ~fn-arg ~key)])))
+        named-binding (fn [arg]
+                        (let [binding    (get-in arg [:binding :name])
+                              key        (:key arg)
+                              or-binding (get ors binding)]
+                          (if or-binding
+                            [binding `(or (get ~fn-arg (quote ~key)) ~or-binding)]
+                            [binding `(get ~fn-arg ~key)])))
 
         child-binding (fn [child]
-                        (let [alias (name (:name child))
-                              arg   (symbol alias)
-                              k     (keyword alias)]
-                          [arg `(get ~fn-arg ~k)]))
-
-        non-sym-children (filter #(not= :symbol (:type %)) (:children ddef))]
+                        (let [arg (get-in child [:binding :name])
+                              k   (:key child)]
+                          [arg `(get ~fn-arg ~k)]))]
     (concat
      (mapcat kw-binding (:keys ddef))
      (mapcat (partial map-binding name) (:strs ddef))
      (mapcat sym-binding (:syms ddef))
-     (mapcat rem-binding (:remaining ddef))
-     (mapcat child-binding non-sym-children)
-     (mapcat destructure-binding non-sym-children))))
+     (mapcat named-binding (:symbol children))
+     (mapcat child-binding (:other children))
+     (mapcat (comp destructure-binding :binding) (:other children)))))
 
 (defmethod destructure-binding :default
   [ddef]
