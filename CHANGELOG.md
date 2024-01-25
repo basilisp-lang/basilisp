@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug the variadic arg symbol was not correctly bound to `nil` when no variadic arguments were provided (#801)
  * Fix a bug where the quotient of very large numbers was incorrect (#822)
  * Fix a bug where `basilisp.test/is` may fail to generate expected/actual info on failures when declared inside a macro (#829)
+ * Fix a bug where sequential destructuring bindings do not bind names correctly when nested within associative destructuring bindings (#834)
 
 ### Removed
  * Removed support for PyPy 3.8 (#785)
