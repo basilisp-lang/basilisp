@@ -196,7 +196,7 @@ For functions which do support keyword arguments, two strategies are supported f
 
 The ``:apply`` strategy is appropriate in situations where there are few or no positional arguments defined on your function.
 With this strategy, the compiler converts the Python dict of string keys and values into a sequential stream of de-munged keyword and value pairs which are applied to the function.
-As you can see in the example above, this strategy fits neatly with the existing support for destructuring key and value pairs from rest arguments in a function definition.
+As you can see in the example above, this strategy fits neatly with the existing support for :ref:`destructuring` key and value pairs from rest arguments in a function definition.
 
 .. warning::
 
@@ -210,7 +210,7 @@ As you can see in the example above, this strategy fits neatly with the existing
 
 The ``:collect`` strategy is a better accompaniment to functions with positional arguments.
 With this strategy, Python keyword arguments are converted into a Basilisp map with de-munged keyword arguments and passed as the final positional argument of the function.
-You can use map destructuring on this final positional argument, just as you would with the map in the ``:apply`` case above.
+You can use :ref:`associative_destructuring` on this final positional argument, just as you would with the map in the ``:apply`` case above.
 
 Type Hinting
 ------------
