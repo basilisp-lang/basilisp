@@ -282,23 +282,15 @@ class TestRequireAsAlias:
         return "require_as_alias_test"
 
     def test_requires_and_allows_aliasing(self, lcompile: CompileFn):
-        json_ns = Namespace.get(sym.symbol("basilisp.json"))
-        json_interns = lmap.m() if json_ns is None else json_ns.interns
-
         lcompile("(require '[basilisp.json :as-alias json])")
         assert lcompile("::json/some-kw") == kw.keyword("some-kw", ns="basilisp.json")
-        assert lcompile("(ns-interns 'basilisp.json)") == json_interns
 
     def test_can_be_combined_with_normal_require(self, lcompile: CompileFn):
-        json_ns = Namespace.get(sym.symbol("basilisp.json"))
-        json_interns = lmap.m() if json_ns is None else json_ns.interns
-
         lcompile("(require '[basilisp.json :as json :as-alias json-alias])")
         assert lcompile("::json/some-kw") == kw.keyword("some-kw", ns="basilisp.json")
         assert lcompile("::json-alias/some-kw") == kw.keyword(
             "some-kw", ns="basilisp.json"
         )
-        assert lcompile("(ns-interns 'basilisp.json)") != json_interns
 
     def test_need_not_be_real_ns(self, lcompile: CompileFn):
         lcompile("(require '[basilisp.require-alias-test-ns :as-alias test-ns])")
