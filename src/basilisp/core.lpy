@@ -4723,6 +4723,9 @@
   Optional keys:
 
   - ``:as ns-alias`` a symbol which will alias the Namespace when required (if given)
+  - ``:as-alias ns-alias`` a symbol which will alias the Namespace when required; if
+    the namespace does not exist, it will be created as an empty namespace; if it does
+    exist, it will not be loaded
   - ``:refer [sym1, sym2]`` a sequence of symbols naming Vars to refer
   - ``:refer :all`` if every Var should be referred
   - ``:only [sym1, sym2]`` a sequence of symbols naming Vars to refer
@@ -4761,6 +4764,9 @@
     ;; rewrote the namespace on require.
     (when-let [original-ns (:original-namespace libspec)]
       (.add-alias requiring-ns (the-ns required-ns-sym) original-ns))
+    ;; If an `:as-alias` is requested, apply that as well.
+    (when-let [as-alias (:as-alias libspec)]
+      (.add-alias requiring-ns (the-ns required-ns-sym) as-alias))
     ;; Reset the namespace to the requiring namespace, since it was likely changed
     ;; during the require process
     (set! *ns* requiring-ns)))
@@ -4812,6 +4818,9 @@
   Vector libspec arguments must be one of:
 
   - ``:as name`` which will alias the imported namespace to the symbol name
+  - ``:as-alias name`` which will alias the namespace to the symbol name but not
+    require the namespace, which can be useful for namespaces used primarily for
+    keywords; the namespace need not exist at all; can be combined with ``:as``
   - ``:refer [& syms]`` which will refer syms in the local namespace directly
   - ``:refer :all`` which will refer all symbols from the namespace directly
 
@@ -4820,22 +4829,27 @@
   [& args]
   (let [current-ns *ns*]
     (doseq [libspec (map require-libspec args)]
-      (require-lib current-ns libspec)
+      (if (and (:as-alias libspec) (not (:as libspec)))
+        (let [alias-target (or (find-ns (:namespace libspec))
+                               (create-ns (:namespace libspec)))]
+          (.add-alias current-ns alias-target (:as-alias libspec)))
+        (do
+          (require-lib current-ns libspec)
 
-      ;; Add refers
-      (let [new-ns    (the-ns (:namespace libspec))
-            refer-opt (:refer libspec)]
-        (cond
-          (= :all refer-opt)
-          (.refer-all current-ns new-ns)
+          ;; Add refers
+          (let [new-ns    (the-ns (:namespace libspec))
+                refer-opt (:refer libspec)]
+            (cond
+              (= :all refer-opt)
+              (.refer-all current-ns new-ns)
 
-          (seq refer-opt)
-          (let [new-ns-interns (ns-interns new-ns)]
-            (doseq [var-sym refer-opt]
-              (let [var (get new-ns-interns var-sym)]
-                (.add-refer current-ns var-sym var))))
+              (seq refer-opt)
+              (let [new-ns-interns (ns-interns new-ns)]
+                (doseq [var-sym refer-opt]
+                  (let [var (get new-ns-interns var-sym)]
+                    (.add-refer current-ns var-sym var))))
 
-          :else nil)))
+              :else nil)))))
     nil))
 
 (defn refer
@@ -4926,7 +4940,25 @@
          [basilisp.string :as str])
        (:use
          [basilisp.set :only [intersection]])
-       (:import inspect))"
+       (:import inspect))
+
+  Flags and contents of each of the various sections are detailed further at each of
+  their respective function definitions.
+
+   - ``:refer-basilisp`` (``:refer-clojure`` is also accepted) controls how names from
+     :lpy:ns:`basilisp.core` are exposed in the namespace. Refer to :lpy:fn:`refer` for
+     usage.
+   - ``:require`` imports other Basilisp namespaces. Refer to :lpy:fn:`require` for
+     usage.
+   - ``:use`` is a variant of ``:require``, although ``:require`` is preferred in most
+     cases. See :lpy:fn:`use` for usage.
+   - ``:import`` imports Python modules and packages. Refer to :lpy:fn:`import` for
+     usage.
+
+  Use of the ``ns`` macro to control requires and imports is recommended in all cases.
+  The various functions that ``ns`` delegates to and whose documentation are referred
+  to above are generally useful for interactive usage at the REPL but not appropriate
+  for usage in a larger application."
   [name & opts]
   (when-not (and (symbol? name) (nil? (namespace name)))
     (throw (ex-info "Namespace name must be a non-namespaced symbol"
@@ -4966,8 +4998,8 @@
        ~@imports)))
 
 (defn requiring-resolve
-  "Resolve the namespaced symbol ``sym`` as by ``resolve``\\. If resolution fails,
-  attempts to require ``sym`` 's namespace (as by ``require``\\) before resolving
+  "Resolve the namespaced symbol ``sym`` as by :lpy:fn:`resolve`\\. If resolution fails,
+  attempts to require ``sym`` 's namespace (as by :lpy:fn:`require`\\) before resolving
   again."
   [sym]
   (if (qualified-symbol? sym)

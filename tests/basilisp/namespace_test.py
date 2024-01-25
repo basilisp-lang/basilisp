@@ -8,7 +8,7 @@ from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang.runtime import Namespace, NamespaceMap, Var
-from tests.basilisp.helpers import get_or_create_ns
+from tests.basilisp.helpers import CompileFn, get_or_create_ns
 
 
 @pytest.fixture
@@ -270,6 +270,34 @@ def test_alias(ns_cache: atom.Atom[NamespaceMap]):
     ns1.remove_alias(sym.symbol("n2"))
 
     assert None is ns1.get_alias(sym.symbol("n2"))
+
+
+class TestRequireAsAlias:
+    @pytest.fixture
+    def test_ns(self) -> str:
+        return "basilisp.require-as-alias-test"
+
+    @pytest.fixture
+    def compiler_file_path(self) -> str:
+        return "require_as_alias_test"
+
+    def test_requires_and_allows_aliasing(self, lcompile: CompileFn):
+        lcompile("(require '[basilisp.json :as-alias json])")
+        assert lcompile("::json/some-kw") == kw.keyword("some-kw", ns="basilisp.json")
+
+    def test_can_be_combined_with_normal_require(self, lcompile: CompileFn):
+        lcompile("(require '[basilisp.json :as json :as-alias json-alias])")
+        assert lcompile("::json/some-kw") == kw.keyword("some-kw", ns="basilisp.json")
+        assert lcompile("::json-alias/some-kw") == kw.keyword(
+            "some-kw", ns="basilisp.json"
+        )
+
+    def test_need_not_be_real_ns(self, lcompile: CompileFn):
+        lcompile("(require '[basilisp.require-alias-test-ns :as-alias test-ns])")
+        assert lcompile("::test-ns/some-kw") == kw.keyword(
+            "some-kw", ns="basilisp.require-alias-test-ns"
+        )
+        assert lcompile("(ns-publics 'basilisp.require-alias-test-ns)") == lmap.m()
 
 
 class TestCompletion:
