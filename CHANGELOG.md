@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for `thrown-with-msg?` assertions to `basilisp.test/is` (#831)
  * Added support for reading scientific notation literals, octal and hex integer literals, and arbitrary base (2-36) integer literals (#769)
  * Added support for passing trailing maps to functions which accept Basilisp keyword arguments (#663)
+ * Added support for loading namespaces as an alias only (#664)
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
