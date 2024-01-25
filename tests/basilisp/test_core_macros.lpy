@@ -825,10 +825,34 @@
       (is (= ["a" :c m] (f m)))
       (is (= ["a" "d" m1] (f m1)))))
 
+  (testing "destructuring sequential values nested in associative vals"
+    (let [v1 [{:a 1 :b 2 :c 3 :vec [4 5 6 7 8]}]
+          v2 [{:a 1 :b 2 :vec [4 5 6 7 8]}]
+          v3 [{:a 1 :vec [4]}]
+
+          f (fn [[{a :a b :b c :c [d e & f :as v] :vec :or {b 14 c 34}}]]
+              [a b c d e f v])]
+      (is (= [1 2 3 4 5 '(6 7 8) [4 5 6 7 8]] (f v1)))
+      (is (= [1 2 34 4 5 '(6 7 8) [4 5 6 7 8]] (f v2)))
+      (is (= [1 14 34 4 nil nil [4]] (f v3)))))
+
   (testing "keyword rest arguments"
     (let [f (fn [a b & {:keys [c]}] [a b c])]
       (is (= [:a :b "rest arg"] (f :a :b :c "rest arg")))
-      (is (= [:a :b "rest arg"] (f :a :b :d "other" :c "rest arg"))))))
+      (is (= [:a :b "rest arg"] (f :a :b :d "other" :c "rest arg")))))
+
+  (testing "trailing map keyword args"
+    (let [f (fn [a b & {:keys [c d] :as kwargs}]
+              [a b c d kwargs])]
+      (is (= [:a :b 1 2 {:c 1 :d 2}] (f :a :b :c 1 :d 2)))
+      (is (= [:a :b 1 2 {:c 1 :d 2}] (f :a :b :c 1 {:d 2})))
+      (is (= [:a :b 1 2 {:c 1 :d 2}] (f :a :b {:c 1 :d 2})))
+      (is (= [:a :b 3 2 {:c 3 :d 2}] (f :a :b :c 1 {:c 3 :d 2})))
+      (is (= [:a :b nil 2 {:d 2}] (f :a :b :d 2)))
+      (is (= [:a :b nil 2 {:d 2}] (f :a :b {:d 2})))
+      (is (= [:a :b 1 nil {:c 1}] (f :a :b :c 1)))
+      (is (= [:a :b 1 nil {:c 1}] (f :a :b {:c 1})))
+      (is (= [:a :b nil nil nil] (f :a :b))))))
 
 (deftest let-sequential-destructuring
   (testing "destructuring first"
@@ -1074,7 +1098,18 @@
                        :b      "bb"}
               :a      "a"
               :b      "b"}
-             m)))))
+             m))))
+
+  (testing "destructuring sequential values nested in associative vals"
+    (let [v1 [{:a 1 :b 2 :c 3 :vec [4 5 6 7 8]}]
+          v2 [{:a 1 :b 2 :vec [4 5 6 7 8]}]
+          v3 [{:a 1 :vec [4]}]]
+      (let [[{a :a b :b c :c [d e & f :as v] :vec :or {b 14 c 34}}] v1]
+        (is (= [1 2 3 4 5 '(6 7 8) [4 5 6 7 8]] [a b c d e f v])))
+      (let [[{a :a b :b c :c [d e & f :as v] :vec :or {b 14 c 34}}] v2]
+        (is (= [1 2 34 4 5 '(6 7 8) [4 5 6 7 8]] [a b c d e f v])))
+      (let [[{a :a b :b c :c [d e & f :as v] :vec :or {b 14 c 34}}] v3]
+        (is (= [1 14 34 4 nil nil [4]] [a b c d e f v]))))))
 
 (deftest letfn-sequential-destructuring
   (testing "destructuring first"
@@ -1238,6 +1273,16 @@
                 [a c m])]
         (is (= ["a" :c m] (f m)))
         (is (= ["a" "d" m1] (f m1))))))
+
+  (testing "destructuring sequential values nested in associative vals"
+    (let [v1 [{:a 1 :b 2 :c 3 :vec [4 5 6 7 8]}]
+          v2 [{:a 1 :b 2 :vec [4 5 6 7 8]}]
+          v3 [{:a 1 :vec [4]}]]
+      (letfn [(f [[{a :a b :b c :c [d e & f :as v] :vec :or {b 14 c 34}}]]
+                [a b c d e f v])]
+        (is (= [1 2 3 4 5 '(6 7 8) [4 5 6 7 8]] (f v1)))
+        (is (= [1 2 34 4 5 '(6 7 8) [4 5 6 7 8]] (f v2)))
+        (is (= [1 14 34 4 nil nil [4]] (f v3))))))
 
   (testing "keyword rest arguments"
     (letfn [(f [a b & {:keys [c]}] [a b c])]
@@ -1456,7 +1501,26 @@
                       (first (rest items))
                       (conj coll m)
                       (conj accum a b))
-               [coll (apply str accum)]))))))
+               [coll (apply str accum)])))))
+
+  (testing "destructuring sequential values nested in associative vals"
+    (let [colls [[{:a 1 :b 2 :c 3 :vec [4 5 6 7 8]}]
+                 [{:a 1 :b 2 :vec [4 5 6 7 8]}]
+                 [{:a 1 :vec [4]}]]]
+      (is (= [colls
+              [[1 2 3 4 5 '(6 7 8) [4 5 6 7 8]]
+               [1 2 34 4 5 '(6 7 8) [4 5 6 7 8]]
+               [1 14 34 4 nil nil [4]]]]
+             (loop [items                                                         colls
+                    [{a :a b :b c :c [d e & f :as v] :vec :or {b 14 c 34}} :as m] (first items)
+                    coll                                                          []
+                    accum                                                         []]
+               (if m
+                 (recur (rest items)
+                        (first (rest items))
+                        (conj coll m)
+                        (conj accum [a b c d e f v]))
+                 [coll accum])))))))
 
 (defmacro ^:private variadic-fn []
   `(fn [& r#] r#))

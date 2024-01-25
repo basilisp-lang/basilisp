@@ -147,7 +147,7 @@ For properties which are explicitly *not* read only, you can mutate their value 
    In most cases, Basilisp's method and property access features should be sufficient.
    However, in case it is not, Python's :ref:`builtins <python_builtins>` such as `getattr` and `setattr` are still available and can supplement Basilisp's interoperability features.
 
-.. _keyword_arguments:
+.. _py_interop_keyword_arguments:
 
 Keyword Arguments
 -----------------
@@ -185,7 +185,7 @@ For functions which do support keyword arguments, two strategies are supported f
 
 .. note::
 
-   Basilisp functions support a variant of keyword arguments via destructuring support provided by ``fn`` and ``defn``.
+   Basilisp functions support a variant of :ref:`keyword_arguments` via destructuring support provided by ``fn`` and ``defn``.
    The ``:apply`` strategy relies on that style of keyword argument support to idiomatically integrate with Basilisp functions.
 
 .. code-block:: clojure
@@ -196,7 +196,7 @@ For functions which do support keyword arguments, two strategies are supported f
 
 The ``:apply`` strategy is appropriate in situations where there are few or no positional arguments defined on your function.
 With this strategy, the compiler converts the Python dict of string keys and values into a sequential stream of de-munged keyword and value pairs which are applied to the function.
-As you can see in the example above, this strategy fits neatly with the existing support for destructuring key and value pairs from rest arguments in a function definition.
+As you can see in the example above, this strategy fits neatly with the existing support for :ref:`destructuring` key and value pairs from rest arguments in a function definition.
 
 .. warning::
 
@@ -210,7 +210,7 @@ As you can see in the example above, this strategy fits neatly with the existing
 
 The ``:collect`` strategy is a better accompaniment to functions with positional arguments.
 With this strategy, Python keyword arguments are converted into a Basilisp map with de-munged keyword arguments and passed as the final positional argument of the function.
-You can use map destructuring on this final positional argument, just as you would with the map in the ``:apply`` case above.
+You can use :ref:`associative_destructuring` on this final positional argument, just as you would with the map in the ``:apply`` case above.
 
 Type Hinting
 ------------
