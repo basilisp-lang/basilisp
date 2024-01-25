@@ -1,0 +1,202 @@
+(ns basilisp.reflect
+  "Runtime reflection of Python objects."
+  (:import inspect
+           types))
+
+(defn ^:private qualname->sym
+  "Canonicalize a Python ``__qualname__`` as a symbol."
+  [qualname]
+  (let [[namespace-or-name maybe-name] (.rsplit qualname "." 1)]
+    (if (nil? maybe-name)
+      (symbol namespace-or-name)
+      (symbol namespace-or-name maybe-name))))
+
+(defprotocol Reflectable
+  (reflect* [this]
+    "Reflect on ``this`` and return a map describing the object."))
+
+(defn members->map
+  "Given a seq of 2-tuples of ``member-name, member``, return a mapping of the
+  member name converted to a symbol and the member."
+  [m]
+  (into {}
+        (map (fn [[member-name member]]
+               [(symbol member-name) (py->lisp member)]))
+        m))
+
+(defn ^:private ^:inline py-property?
+  "Return ``true`` if this object is an instance of a Python ``property``."
+  [o]
+  (instance? python/property o))
+
+(def ^:private method-like?
+  "Predicate for determining if a class member can be treated similar to a method.
+
+  Note that Python supports many different class member types beyond simple methods.
+  It may be useful or even necessary to use :lpy:fn:`reflect` to assess the specific
+  type of a method-like class member."
+  (some-fn inspect/ismethod inspect/isfunction inspect/ismethoddescriptor inspect/isbuiltin))
+
+(extend-protocol Reflectable
+  types/ModuleType
+  (reflect* [this]
+    (let [is-basilisp-module? (instance? basilisp.lang.runtime/BasilispModule this)
+          members-by-group    (group-by (fn [[_ member]]
+                                          (cond
+                                            (inspect/ismodule member)   :modules
+                                            (inspect/isclass member)    :classes
+                                            (inspect/isfunction member) :functions
+                                            :else                       :attributes))
+                                        (inspect/getmembers this))]
+      {:name                (symbol (python/getattr this "__name__"))
+       :file                (python/getattr this "__file__" nil)
+       :package             (python/getattr this "__package__" nil)
+       :is-basilisp-module? is-basilisp-module?
+       :basilisp-ns         (when is-basilisp-module?
+                              (python/getattr this "__basilisp_namespace__"))
+       :modules             (members->map (:modules members-by-group))
+       :classes             (members->map (:classes members-by-group))
+       :functions           (members->map (:functions members-by-group))
+       :attributes          (members->map (:attributes members-by-group))}))
+  python/type
+  (reflect* [this]
+    (let [members-by-group (group-by (fn [[_ member]]
+                                       (cond
+                                         (method-like? member) :methods
+                                         (py-property? member) :properties
+                                         :else                 :attributes))
+                                     (inspect/getmembers this))]
+      {:qualified-name (qualname->sym (python/getattr this "__qualname__"))
+       :name           (symbol (python/getattr this "__name__"))
+       :bases          (set (bases this))
+       :supers         (supers this)
+       :subclasses     (subclasses this)
+       :attributes     (members->map (:attributes members-by-group))
+       :methods        (members->map (:methods members-by-group))
+       :properties     (members->map (:properties members-by-group))}))
+  python/object
+  (reflect* [this]
+    (reflect* (python/type this)))
+  nil
+  (reflect* [this]
+    nil))
+
+;;;;;;;;;;;;;;;
+;; Callables ;;
+;;;;;;;;;;;;;;;
+
+(def ^:private inspect-sig-kind-mapping
+  {inspect.Parameter/POSITIONAL_ONLY       :positional-only
+   inspect.Parameter/POSITIONAL_OR_KEYWORD :positional-or-keyword
+   inspect.Parameter/VAR_POSITIONAL        :var-positional
+   inspect.Parameter/KEYWORD_ONLY          :keyword-only
+   inspect.Parameter/VAR_KEYWORD           :var-keyword})
+
+(defn ^:private signature->map
+  "Convert a Python ``inspect.Signature`` object into a map.
+
+  Signature maps include the following keys:
+
+   :keyword ``:parameters``: an vector of maps describing parameters to the callable
+       in the strict order they were defined; parameter map keys are defined below
+   :keyword ``:return-annotation``: the return annotation of the callable object or
+       ``::empty`` if no return annotation is defined
+
+  Parameter maps include the following keys:
+
+   :keyword ``:name``: the name of the parameter coerced to a symbol; the symbol
+       will not be demunged
+   :keyword ``:default``: the default value of this parameter if one is defined or
+       ``::empty`` otherwise
+   :keyword ``:annotation``: the annotation of this parameter if one is defined or
+       ``::empty`` otherwise
+   :keyword ``:kind``: the kind of Python parameter this is coerced to a keyword
+
+  In cases where a field may contain a reference to the ``inspect.Signature.empty``
+  or ``inspect.Parameter.empty`` singletons, the corresponding Basilisp value is the
+  namespaced keyword ``::empty``.
+  "
+  [^inspect/Signature sig]
+  (let [return-anno (.-return-annotation sig)]
+    {:parameters        (mapv (fn [[param-name ^inspect/Parameter param]]
+                                (let [default (.-default param)
+                                      anno    (.-annotation param)
+                                      kind    (.-kind param)]
+                                  {:name       (symbol param-name)
+                                   :default    (if (operator/is default inspect.Parameter/empty)
+                                                 ::empty
+                                                 default)
+                                   :annotation (if (operator/is anno inspect.Parameter/empty)
+                                                 ::empty
+                                                 anno)
+                                   :kind       (get inspect-sig-kind-mapping kind)}))
+                              (.items (.-parameters sig)))
+     :return-annotation (if (operator/is return-anno inspect.Signature/empty)
+                          ::empty
+                          return-anno)}))
+
+(defn ^:private signature
+  "Return the signature of a potentially callable object as a map if the signature
+  can be determined, ``nil`` otherwise.
+
+  Signature maps contain the keys as described in :lpy:fn:`signature->map`."
+  [f]
+  (try
+    (-> (inspect/signature f)
+        (signature->map))
+    (catch python/TypeError _ nil)
+    (catch python/ValueError _ nil)))
+
+(defn ^:private reflect-callable
+  [f]
+  {:qualified-name        (qualname->sym (python/getattr f "__qualname__"))
+   :name                  (symbol (python/getattr f "__name__"))
+   :signature             (signature f)
+   :module                (inspect/getmodule f)
+   :doc                   (inspect/getdoc f)
+   :file                  (try
+                            (inspect/getfile f)
+                            (catch python/TypeError _ nil))
+   :is-basilisp-fn?       (python/getattr f "_basilisp_fn" false)
+   :is-class?             (inspect/isclass f)
+   :is-method?            (inspect/ismethod f)
+   :is-function?          (inspect/isfunction f)
+   :is-generator-fn?      (inspect/isgeneratorfunction f)
+   :is-generator?         (inspect/isgenerator f)
+   :is-coroutine?         (inspect/iscoroutine f)
+   :is-awaitable?         (inspect/isawaitable f)
+   :is-async-gen-fn?      (inspect/isasyncgenfunction f)
+   :is-builtin?           (inspect/isbuiltin f)
+   :is-method-wrapper?    (inspect/ismethodwrapper f)
+   :is-routine?           (inspect/isroutine f)
+   :is-method-descriptor? (inspect/ismethoddescriptor f)})
+
+(extend types/FunctionType              Reflectable {:reflect* reflect-callable})
+(extend types/LambdaType                Reflectable {:reflect* reflect-callable})
+(extend types/CoroutineType             Reflectable {:reflect* reflect-callable})
+(extend types/MethodType                Reflectable {:reflect* reflect-callable})
+(extend types/BuiltinFunctionType       Reflectable {:reflect* reflect-callable})
+(extend types/BuiltinMethodType         Reflectable {:reflect* reflect-callable})
+(extend types/WrapperDescriptorType     Reflectable {:reflect* reflect-callable})
+(extend types/MethodWrapperType         Reflectable {:reflect* reflect-callable})
+(extend types/MethodDescriptorType      Reflectable {:reflect* reflect-callable})
+(extend types/ClassMethodDescriptorType Reflectable {:reflect* reflect-callable})
+
+;;;;;;;;;;;;;;;;;;;;;;
+;; Public Interface ;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+(defn reflect
+  "Reflect the object ``o`` and return details about its type as a map.
+
+  If ``o`` is a Python class (that is, it is an instance of ``type``), then [...]
+
+  If ``o`` is a callable (function, coroutine, method, builtin, etc.), then [...]
+
+  If ``o`` is a Python module, then [...]
+
+  If ``o`` is an object, then return the results of ``(reflect (type o))``.
+
+  If ``o`` is ``nil``, return ``nil``."
+  [o]
+  (reflect* o))
