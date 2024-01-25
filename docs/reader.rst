@@ -150,7 +150,7 @@ String literals are always read with the UTF-8 encoding.
 String literals may contain the following escape sequences: ``\\``, ``\a``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\v``.
 Their meanings match the equivalent escape sequences supported in `Python string literals <https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`_\.
 
-.. _byte_strings
+.. _byte_strings:
 
 Byte Strings
 ------------
