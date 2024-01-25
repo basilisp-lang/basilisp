@@ -5587,6 +5587,21 @@
    (ex-info "Invalid destructuring argument type"
             {:type (:type ddef)})))
 
+(defn -collect-keyword-args
+  "Implementation detail for associative destructuring of function keyword arguments.
+
+  Collect all keyword arguments into a single map. Support trailing map arguments which
+  are joined into the final map."
+  [kwargs]
+  (when (seq kwargs)
+    (let [rest-args-vec  (vec kwargs)
+          final-rest-arg (peek rest-args-vec)]
+      (->> (if (map? final-rest-arg)
+             (mapcat identity final-rest-arg)
+             [final-rest-arg])
+           (concat (pop rest-args-vec))
+           (apply hash-map)))))
+
 (defn ^:private fn-arity-with-destructuring
   "Take a function arity definition (an argument vector and 0 or more body expressions)
   whose argument vector may or may not require destructuring and return a function
@@ -5619,7 +5634,7 @@
         rest-binding (concat
                       (let [rest-arg (second rest-defs)]
                         (when (= :map (:type rest-arg))
-                          `[~(:name rest-arg) (apply hash-map ~(:name rest-arg))]))
+                          `[~(:name rest-arg) (-collect-keyword-args ~(:name rest-arg))]))
                       (->> rest-defs
                            (filter #(not= :symbol (:type %)))
                            (mapcat destructure-binding)))
@@ -5643,7 +5658,7 @@
 (defmacro ^:no-warn-on-redef fn
   "Return an anonymous (but possibly named) function.
 
-  Function argument vectors support sequential and associative destructuring."
+  Function argument vectors support sequential and associative :ref:`destructuring` ."
   [& body]
   (let [name    (when (symbol? (first body))
                   (first body))
@@ -5687,7 +5702,7 @@
     (apply list orig-name expr bindings)))
 
 (defmacro ^:no-warn-on-redef let
-  "Let bindings with destructuring support."
+  ":lpy:form:`let` bindings with :ref:`destructuring` support."
   [bindings & body]
   `(let* [~@(->> (partition 2 bindings)
                  (mapcat destructure))]
@@ -5703,7 +5718,9 @@
       (plus-two 3))
 
   Functions defined in ``letfn`` bindings may refer to each other regardless of their
-  order of definition."
+  order of definition.
+
+  See :lpy:form:`letfn` for more details."
   [bindings & body]
   `(letfn* [~@(mapcat (fn [fn-body]
                         [(first fn-body) (cons `fn fn-body)])
@@ -5731,7 +5748,7 @@
     [binding-vec new-body]))
 
 (defmacro ^:no-warn-on-redef loop
-  "Loop bindings with destructuring support."
+  ":lpy:form:`loop` bindings with :ref:`destructuring` support."
   [bindings & body]
   (let [[bindings body] (loop-with-destructuring bindings body)]
     `(loop* ~bindings

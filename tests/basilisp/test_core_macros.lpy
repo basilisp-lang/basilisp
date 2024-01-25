@@ -828,7 +828,19 @@
   (testing "keyword rest arguments"
     (let [f (fn [a b & {:keys [c]}] [a b c])]
       (is (= [:a :b "rest arg"] (f :a :b :c "rest arg")))
-      (is (= [:a :b "rest arg"] (f :a :b :d "other" :c "rest arg"))))))
+      (is (= [:a :b "rest arg"] (f :a :b :d "other" :c "rest arg")))))
+
+  (testing "trailing map keyword args"
+    (let [f (fn [a b & {:keys [c d] :as kwargs}]
+              [a b c d kwargs])]
+      (is (= [:a :b 1 2 {:c 1 :d 2}] (f :a :b :c 1 :d 2)))
+      (is (= [:a :b 1 2 {:c 1 :d 2}] (f :a :b :c 1 {:d 2})))
+      (is (= [:a :b 1 2 {:c 1 :d 2}] (f :a :b {:c 1 :d 2})))
+      (is (= [:a :b nil 2 {:d 2}] (f :a :b :d 2)))
+      (is (= [:a :b nil 2 {:d 2}] (f :a :b {:d 2})))
+      (is (= [:a :b 1 nil {:c 1}] (f :a :b :c 1)))
+      (is (= [:a :b 1 nil {:c 1}] (f :a :b {:c 1})))
+      (is (= [:a :b nil nil nil] (f :a :b))))))
 
 (deftest let-sequential-destructuring
   (testing "destructuring first"
