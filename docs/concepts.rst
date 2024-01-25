@@ -60,7 +60,7 @@ Destructuring
 The most common type of name binding encountered in Basilisp code is that of a single symbol to a value.
 For example, below the name ``a`` is bound to the result of the expression ``(+ 1 2)``::
 
-   (let [a (+ 1 2]
+   (let [a (+ 1 2)]
      a)
 
 In many cases this form of name binding is sufficient.
