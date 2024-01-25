@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.1.0b1]
 ### Added
  * Added support for passing through `:tag` metadata to the generated Python AST (#354)
  * Added support for calling symbols as functions on maps and sets (#775)
@@ -441,6 +443,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.0b1]: https://github.com/chrisrink10/basilisp/compare/v0.1.0b0..v0.1.0b1
 [v0.1.0b0]: https://github.com/chrisrink10/basilisp/compare/v0.1.0a2..v0.1.0b0
 [v0.1.0a2]: https://github.com/chrisrink10/basilisp/compare/v0.1.0a1..v0.1.0a2
 [v0.1.0a1]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev15..v0.1.0a1
