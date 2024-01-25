@@ -106,6 +106,19 @@ Associative Destructuring
 
 TBD
 
+.. _nested_destructuring:
+
+Nested Destructuring
+^^^^^^^^^^^^^^^^^^^^
+
+Both associative and sequential destructuring binding forms may be nested within one another.
+
+.. code-block::
+
+   (let [[{:keys [a] [e f] :d} [b c]] [{:a 1 :d [4 5]} [:b :c]]]
+     [a b c e f])
+   ;;=> [1 :b :c 4 5]
+
 .. _references_and_refs:
 
 References and Refs
