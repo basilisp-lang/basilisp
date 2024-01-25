@@ -104,7 +104,37 @@ Sequential destructuring may also be nested:
 Associative Destructuring
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Associative destructuring is used to bind values from associative types.
+The binding form for associative destructuring is a map.
+
 TBD
+
+.. _keyword_arguments:
+
+Keyword Arguments
+^^^^^^^^^^^^^^^^^
+
+Basilisp functions can be defined with support for keyword arguments by defining the "rest" argument in an :lpy:fn:`defn` or :lpy:fn:`fn` form with associative destructuring.
+Callers can pass interleaved key/value pairs as positional arguments to the function and the destructuring logic will collect them into a single map argument.
+If a single trailing map argument is passed by callers, that will be
+
+.. note::
+
+   Basilisp keyword arguments are distinct from Python keyword arguments.
+   Basilisp functions can be :ref:`defined with Python compatible keyword arguments <basilisp_functions_with_kwargs>` but
+
+.. warning::
+
+   The trailing map passed to functions accepting keyword arguments will silently overwrite values passed positionally.
+   Callers should take care when using the trailing map calling convention.
+
+   .. code-block::
+
+      (defn f [& {:keys [a b] :as kwargs}]
+        [a b kwargs])
+
+      (f :a 1 {:b 2 :a 3})
+      ;;=> [3 2 {:a 3 :b 2}]
 
 .. _nested_destructuring:
 

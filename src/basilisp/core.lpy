@@ -532,7 +532,7 @@
 (def
   ^{:macro    true
     :doc      "Define a new macro function. The arguments and syntax of ``defmacro``
-               are identical to that of `defn`.
+               are identical to that of :lpy:fn:`defn`.
 
                When the compiler encounters a new macro function invocation, it
                immediately invokes that function during compilation and substitutes
@@ -5659,7 +5659,9 @@
 (defmacro ^:no-warn-on-redef fn
   "Return an anonymous (but possibly named) function.
 
-  Function argument vectors support sequential and associative :ref:`destructuring` ."
+  Function argument vectors support sequential and associative :ref:`destructuring` .
+
+  See :lpy:form:`fn` for more details."
   [& body]
   (let [name    (when (symbol? (first body))
                   (first body))

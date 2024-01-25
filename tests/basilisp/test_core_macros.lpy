@@ -836,6 +836,7 @@
       (is (= [:a :b 1 2 {:c 1 :d 2}] (f :a :b :c 1 :d 2)))
       (is (= [:a :b 1 2 {:c 1 :d 2}] (f :a :b :c 1 {:d 2})))
       (is (= [:a :b 1 2 {:c 1 :d 2}] (f :a :b {:c 1 :d 2})))
+      (is (= [:a :b 3 2 {:c 3 :d 2}] (f :a :b :c 1 {:c 3 :d 2})))
       (is (= [:a :b nil 2 {:d 2}] (f :a :b :d 2)))
       (is (= [:a :b nil 2 {:d 2}] (f :a :b {:d 2})))
       (is (= [:a :b 1 nil {:c 1}] (f :a :b :c 1)))

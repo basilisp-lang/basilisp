@@ -147,7 +147,7 @@ For properties which are explicitly *not* read only, you can mutate their value 
    In most cases, Basilisp's method and property access features should be sufficient.
    However, in case it is not, Python's :ref:`builtins <python_builtins>` such as `getattr` and `setattr` are still available and can supplement Basilisp's interoperability features.
 
-.. _keyword_arguments:
+.. _py_interop_keyword_arguments:
 
 Keyword Arguments
 -----------------
@@ -185,7 +185,7 @@ For functions which do support keyword arguments, two strategies are supported f
 
 .. note::
 
-   Basilisp functions support a variant of keyword arguments via destructuring support provided by ``fn`` and ``defn``.
+   Basilisp functions support a variant of :ref:`keyword_arguments` via destructuring support provided by ``fn`` and ``defn``.
    The ``:apply`` strategy relies on that style of keyword argument support to idiomatically integrate with Basilisp functions.
 
 .. code-block:: clojure
