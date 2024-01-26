@@ -145,6 +145,7 @@ logger = logging.getLogger(__name__)
 # Analyzer options
 GENERATE_AUTO_INLINES = kw.keyword("generate-auto-inlines")
 INLINE_FUNCTIONS = kw.keyword("inline-functions")
+WARN_ON_ARITY_MISMATCH = kw.keyword("warn-on-arity-mismatch")
 WARN_ON_SHADOWED_NAME = kw.keyword("warn-on-shadowed-name")
 WARN_ON_SHADOWED_VAR = kw.keyword("warn-on-shadowed-var")
 WARN_ON_UNUSED_NAMES = kw.keyword("warn-on-unused-names")
@@ -361,6 +362,12 @@ class AnalyzerContext:
     def should_inline_functions(self) -> bool:
         """If True, function calls may be inlined if an inline def is provided."""
         return self._opts.val_at(INLINE_FUNCTIONS, True)
+
+    @property
+    def warn_on_arity_mismatch(self) -> bool:
+        """If True, warn when a Basilisp function invocation is detected with an
+        unsupported number of arguments."""
+        return self._opts.val_at(WARN_ON_ARITY_MISMATCH, True)
 
     @property
     def warn_on_unused_names(self) -> bool:
@@ -2461,6 +2468,26 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
         fn = _analyze_form(form.first, ctx)
 
     if fn.op == NodeOp.VAR and isinstance(fn, VarRef):
+        if ctx.warn_on_arity_mismatch and getattr(fn.var.value, "_basilisp_fn", False):
+            arities: Optional[Tuple[Union[int, kw.Keyword]]] = getattr(
+                fn.var.value, "arities", None
+            )
+            if arities is not None:
+                has_variadic = kw.keyword("rest") in arities
+                fixed_arities = frozenset(
+                    filter(lambda v: v is not kw.keyword("rest"), arities)
+                )
+                # This count could be off by 1 for cases where kwargs are being passed,
+                # but only Basilisp functions intended to be called by Python code
+                # (e.g. with a :kwargs strategy) should ever be called with kwargs,
+                # so this seems unlikely enough.
+                num_args = runtime.count(form.rest)
+                if num_args not in fixed_arities and not has_variadic:
+                    logger.warning(
+                        f"calling function {fn.var} with {num_args} arguments; "
+                        f"expected any of: {', '.join(map(str, arities))}"
+                    )
+
         if _is_macro(fn.var) and ctx.should_macroexpand:
             try:
                 macro_env = ctx.symbol_table.as_env_map()

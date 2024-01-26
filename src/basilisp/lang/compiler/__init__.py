@@ -10,6 +10,7 @@ from basilisp.lang import runtime as runtime
 from basilisp.lang.compiler.analyzer import (  # noqa
     GENERATE_AUTO_INLINES,
     INLINE_FUNCTIONS,
+    WARN_ON_ARITY_MISMATCH,
     WARN_ON_NON_DYNAMIC_SET,
     WARN_ON_SHADOWED_NAME,
     WARN_ON_SHADOWED_VAR,
@@ -32,6 +33,7 @@ from basilisp.lang.compiler.generator import statementize as _statementize
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
 from basilisp.lang.typing import CompilerOpts, ReaderForm
 from basilisp.lang.util import genname
+from basilisp.util import Maybe
 
 _DEFAULT_FN = "__lisp_expr__"
 
@@ -97,6 +99,7 @@ class CompilerContext:
 def compiler_opts(  # pylint: disable=too-many-arguments
     generate_auto_inlines: Optional[bool] = None,
     inline_functions: Optional[bool] = None,
+    warn_on_arity_mismatch: Optional[bool] = None,
     warn_on_shadowed_name: Optional[bool] = None,
     warn_on_shadowed_var: Optional[bool] = None,
     warn_on_unused_names: Optional[bool] = None,
@@ -108,15 +111,16 @@ def compiler_opts(  # pylint: disable=too-many-arguments
     return lmap.map(
         {
             # Analyzer options
-            GENERATE_AUTO_INLINES: generate_auto_inlines or True,
-            INLINE_FUNCTIONS: inline_functions or True,
-            WARN_ON_SHADOWED_NAME: warn_on_shadowed_name or False,
-            WARN_ON_SHADOWED_VAR: warn_on_shadowed_var or False,
-            WARN_ON_UNUSED_NAMES: warn_on_unused_names or True,
-            WARN_ON_NON_DYNAMIC_SET: warn_on_non_dynamic_set or True,
+            GENERATE_AUTO_INLINES: Maybe(generate_auto_inlines).or_else_get(True),
+            INLINE_FUNCTIONS: Maybe(inline_functions).or_else_get(True),
+            WARN_ON_ARITY_MISMATCH: Maybe(warn_on_arity_mismatch).or_else_get(True),
+            WARN_ON_SHADOWED_NAME: Maybe(warn_on_shadowed_name).or_else_get(False),
+            WARN_ON_SHADOWED_VAR: Maybe(warn_on_shadowed_var).or_else_get(False),
+            WARN_ON_UNUSED_NAMES: Maybe(warn_on_unused_names).or_else_get(True),
+            WARN_ON_NON_DYNAMIC_SET: Maybe(warn_on_non_dynamic_set).or_else_get(True),
             # Generator options
-            USE_VAR_INDIRECTION: use_var_indirection or False,
-            WARN_ON_VAR_INDIRECTION: warn_on_var_indirection or True,
+            USE_VAR_INDIRECTION: Maybe(use_var_indirection).or_else_get(False),
+            WARN_ON_VAR_INDIRECTION: Maybe(warn_on_var_indirection).or_else_get(True),
         }
     )
 
