@@ -137,9 +137,6 @@ _INTERFACE_KW = kw.keyword("interface")
 _REST_KW = kw.keyword("rest")
 
 
-GeneratorException = partial(CompilerException, phase=CompilerPhase.CODE_GENERATION)
-
-
 @attr.frozen
 class SymbolTableEntry:
     context: LocalType
@@ -316,6 +313,25 @@ class GeneratorContext:
         self._this.append(this)
         yield
         self._this.pop()
+
+    def GeneratorException(
+        self,
+        msg: str,
+        form: Union[LispForm, None, ISeq] = None,
+        lisp_ast: Optional[Node] = None,
+        py_ast: Optional[ast.AST] = None,
+    ) -> CompilerException:
+        """Return a CompilerException annotated with the current filename and
+        :code-generation compiler phase set. The remaining keyword arguments are
+        passed directly to the constructor."""
+        return CompilerException(
+            msg,
+            phase=CompilerPhase.CODE_GENERATION,
+            filename=self.filename,
+            form=form,
+            lisp_ast=lisp_ast,
+            py_ast=py_ast,
+        )
 
 
 T_pynode = TypeVar("T_pynode", ast.expr, ast.stmt)
@@ -1459,7 +1475,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-locals
                 # For now, it is doubtful anyone would need to do this so just throw
                 # an error when any "complex" nodes are generated.
                 if tag_ast.dependencies:
-                    raise GeneratorException(
+                    raise ctx.GeneratorException(
                         f"error generating field '{field}'; cannot set function or "
                         "other complex ^:tag values for deftype fields",
                         lisp_ast=field,
@@ -2873,7 +2889,7 @@ def _set_bang_to_py_ast(
         target_ast = _local_sym_to_py_ast(ctx, target, is_assigning=True)
         assign_ast = [ast.Assign(targets=[target_ast.node], value=val_ast.node)]
     else:  # pragma: no cover
-        raise GeneratorException(
+        raise ctx.GeneratorException(
             f"invalid set! target type {type(target)}", lisp_ast=target
         )
 
@@ -3452,14 +3468,18 @@ def _with_meta_to_py_ast(
 
 
 @functools.singledispatch
-def _const_val_to_py_ast(form: object, _: GeneratorContext) -> GeneratedPyAST[ast.expr]:
+def _const_val_to_py_ast(
+    form: object, ctx: GeneratorContext
+) -> GeneratedPyAST[ast.expr]:
     """Generate Python AST nodes for constant Lisp forms.
 
     Nested values in collections for :const nodes are not analyzed, so recursive
     structures need to call into this function to generate Python AST nodes for
     nested elements. For top-level :const Lisp AST nodes, see
     `_const_node_to_py_ast`."""
-    raise GeneratorException(f"No constant handler is defined for type {type(form)}")
+    raise ctx.GeneratorException(
+        f"No constant handler is defined for type {type(form)}"
+    )
 
 
 def _collection_literal_to_py_ast(

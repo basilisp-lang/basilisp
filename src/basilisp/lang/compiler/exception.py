@@ -9,9 +9,15 @@ from basilisp.lang import map as lmap
 from basilisp.lang.compiler.nodes import Node
 from basilisp.lang.interfaces import IExceptionInfo, IMeta, IPersistentMap, ISeq
 from basilisp.lang.obj import lrepr
-from basilisp.lang.reader import READER_COL_KW, READER_LINE_KW
+from basilisp.lang.reader import (
+    READER_COL_KW,
+    READER_END_COL_KW,
+    READER_END_LINE_KW,
+    READER_LINE_KW,
+)
 from basilisp.lang.typing import LispForm
 
+_FILE = kw.keyword("file")
 _PHASE = kw.keyword("phase")
 _FORM = kw.keyword("form")
 _LISP_AST = kw.keyword("lisp_ast")
@@ -40,9 +46,9 @@ class _loc:
     def __bool__(self):
         return (
             self.line is not None
-            and self.col is not None
-            and self.end_line is not None
-            and self.end_col is not None
+            or self.col is not None
+            or self.end_line is not None
+            or self.end_col is not None
         )
 
 
@@ -50,6 +56,7 @@ class _loc:
 class CompilerException(IExceptionInfo):
     msg: str
     phase: CompilerPhase
+    filename: Optional[str] = None
     form: Union[LispForm, None, ISeq] = None
     lisp_ast: Optional[Node] = None
     py_ast: Optional[ast.AST] = None
@@ -57,6 +64,8 @@ class CompilerException(IExceptionInfo):
     @property
     def data(self) -> IPersistentMap:
         d: Dict[kw.Keyword, Any] = {_PHASE: self.phase.value}
+        if self.filename is not None:
+            d[_FILE] = self.filename
         loc = None
         if self.form is not None:
             d[_FORM] = self.form
@@ -64,16 +73,28 @@ class CompilerException(IExceptionInfo):
                 _loc(
                     self.form.meta.val_at(READER_LINE_KW),
                     self.form.meta.val_at(READER_COL_KW),
+                    self.form.meta.val_at(READER_END_LINE_KW),
+                    self.form.meta.val_at(READER_END_COL_KW),
                 )
                 if isinstance(self.form, IMeta) and self.form.meta
                 else None
             )
         if self.lisp_ast is not None:  # pragma: no cover
             d[_LISP_AST] = self.lisp_ast
-            loc = loc or _loc(self.lisp_ast.env.line, self.lisp_ast.env.col)
+            loc = loc or _loc(
+                self.lisp_ast.env.line,
+                self.lisp_ast.env.col,
+                self.lisp_ast.env.end_line,
+                self.lisp_ast.env.end_col,
+            )
         if self.py_ast is not None:  # pragma: no cover
             d[_PY_AST] = self.py_ast
-            loc = loc or _loc(self.py_ast.lineno, self.py_ast.col_offset)
+            loc = loc or _loc(
+                self.py_ast.lineno,
+                self.py_ast.col_offset,
+                self.py_ast.end_lineno,
+                self.py_ast.end_col_offset,
+            )
         if loc:  # pragma: no cover
             d[_LINE] = loc.line
             d[_COL] = loc.col
