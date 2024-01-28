@@ -1198,7 +1198,7 @@ def __deftype_classmethod(
             class_local=cls_binding,
             env=ctx.get_node_env(),
         )
-        method.visit(_assert_no_recur)
+        method.visit(partial(_assert_no_recur, ctx))
         return method
 
 
@@ -1263,7 +1263,7 @@ def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-lo
                 loop_id=loop_id,
                 env=ctx.get_node_env(),
             )
-            method.visit(_assert_recur_is_tail)
+            method.visit(partial(_assert_recur_is_tail, ctx))
             return method
 
 
@@ -1329,7 +1329,7 @@ def __deftype_or_reify_property(
             ),
             env=ctx.get_node_env(),
         )
-        prop.visit(_assert_no_recur)
+        prop.visit(partial(_assert_no_recur, ctx))
         return prop
 
 
@@ -1367,7 +1367,7 @@ def __deftype_staticmethod(
             ),
             env=ctx.get_node_env(),
         )
-        method.visit(_assert_no_recur)
+        method.visit(partial(_assert_no_recur, ctx))
         return method
 
 
@@ -1976,7 +1976,7 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
                 # form itself is a sequence with no meaningful metadata.
                 env=ctx.get_node_env(),
             )
-            method.visit(_assert_recur_is_tail)
+            method.visit(partial(_assert_recur_is_tail, ctx))
             return method
 
 
@@ -2452,7 +2452,7 @@ def __handle_macroexpanded_ast(
     # Verify that macroexpanded code also does not have any non-tail
     # recur forms
     if ctx.recur_point is not None:
-        _assert_recur_is_tail(expanded_ast)
+        _assert_recur_is_tail(ctx, expanded_ast)
 
     return expanded_ast.assoc(
         raw_forms=cast(vec.PersistentVector, expanded_ast.raw_forms).cons(original)
@@ -2733,7 +2733,7 @@ def _loop_ast(form: ISeq, ctx: AnalyzerContext) -> Loop:
                 loop_id=loop_id,
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             )
-            loop_node.visit(_assert_recur_is_tail)
+            loop_node.visit(partial(_assert_recur_is_tail, ctx))
             return loop_node
 
 
@@ -2758,20 +2758,20 @@ def _quote_ast(form: ISeq, ctx: AnalyzerContext) -> Quote:
         )
 
 
-def _assert_no_recur(node: Node) -> None:
+def _assert_no_recur(ctx: AnalyzerContext, node: Node) -> None:
     """Assert that `recur` forms do not appear in any position of this or
     child AST nodes."""
     if node.op == NodeOp.RECUR:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "recur must appear in tail position", form=node.form, lisp_ast=node
         )
     elif node.op in {NodeOp.FN, NodeOp.LOOP}:
         pass
     else:
-        node.visit(_assert_no_recur)
+        node.visit(partial(_assert_no_recur, ctx))
 
 
-def _assert_recur_is_tail(node: Node) -> None:
+def _assert_recur_is_tail(ctx: AnalyzerContext, node: Node) -> None:
     """Assert that `recur` forms only appear in the tail position of this
     or child AST nodes.
 
@@ -2780,8 +2780,8 @@ def _assert_recur_is_tail(node: Node) -> None:
     if node.op == NodeOp.DO:
         assert isinstance(node, Do)
         for child in node.statements:
-            _assert_no_recur(child)
-        _assert_recur_is_tail(node.ret)
+            _assert_no_recur(ctx, child)
+        _assert_recur_is_tail(ctx, node.ret)
     elif node.op in {
         NodeOp.FN,
         NodeOp.FN_ARITY,
@@ -2789,38 +2789,38 @@ def _assert_recur_is_tail(node: Node) -> None:
         NodeOp.DEFTYPE_METHOD_ARITY,
     }:
         assert isinstance(node, (Fn, FnArity, DefTypeMethod, DefTypeMethodArity))
-        node.visit(_assert_recur_is_tail)
+        node.visit(partial(_assert_recur_is_tail, ctx))
     elif node.op == NodeOp.IF:
         assert isinstance(node, If)
-        _assert_no_recur(node.test)
-        _assert_recur_is_tail(node.then)
-        _assert_recur_is_tail(node.else_)
+        _assert_no_recur(ctx, node.test)
+        _assert_recur_is_tail(ctx, node.then)
+        _assert_recur_is_tail(ctx, node.else_)
     elif node.op in {NodeOp.LET, NodeOp.LETFN}:
         assert isinstance(node, (Let, LetFn))
         for binding in node.bindings:
             assert binding.init is not None
-            _assert_no_recur(binding.init)
-        _assert_recur_is_tail(node.body)
+            _assert_no_recur(ctx, binding.init)
+        _assert_recur_is_tail(ctx, node.body)
     elif node.op == NodeOp.LOOP:
         assert isinstance(node, Loop)
         for binding in node.bindings:
             assert binding.init is not None
-            _assert_no_recur(binding.init)
+            _assert_no_recur(ctx, binding.init)
     elif node.op == NodeOp.RECUR:
         pass
     elif node.op == NodeOp.REIFY:
         assert isinstance(node, Reify)
         for child in node.members:
-            _assert_recur_is_tail(child)
+            _assert_recur_is_tail(ctx, child)
     elif node.op == NodeOp.TRY:
         assert isinstance(node, Try)
-        _assert_recur_is_tail(node.body)
+        _assert_recur_is_tail(ctx, node.body)
         for catch in node.catches:
-            _assert_recur_is_tail(catch)
+            _assert_recur_is_tail(ctx, catch)
         if node.finally_:
-            _assert_no_recur(node.finally_)
+            _assert_no_recur(ctx, node.finally_)
     else:
-        node.visit(_assert_no_recur)
+        node.visit(partial(_assert_no_recur, ctx))
 
 
 def _recur_ast(form: ISeq, ctx: AnalyzerContext) -> Recur:

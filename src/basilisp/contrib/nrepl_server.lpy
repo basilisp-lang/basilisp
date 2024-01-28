@@ -122,7 +122,7 @@
   (let [{:keys [*1 *2 *3 *e eval-ns]} @client*
         out-stream                    (StreamOutFn #(send-fn request {"out" %}))
         reader                        (io/StringIO code)
-        ctx                           (basilisp.lang.compiler.CompilerContext. (or file "nREPL input"))
+        ctx                           (basilisp.lang.compiler.CompilerContext. (or file "<nREPL Input>"))
         eval-ns                       (if ns
                                         (create-ns (symbol ns))
                                         eval-ns)]
