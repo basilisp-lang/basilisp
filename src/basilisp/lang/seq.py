@@ -259,13 +259,11 @@ def sequence(s: Iterable[T]) -> ISeq[T]:
 
 
 @overload
-def _seq_or_nil(s: None) -> None:
-    ...
+def _seq_or_nil(s: None) -> None: ...
 
 
 @overload
-def _seq_or_nil(s: ISeq) -> Optional[ISeq]:
-    ...
+def _seq_or_nil(s: ISeq) -> Optional[ISeq]: ...
 
 
 def _seq_or_nil(s):
