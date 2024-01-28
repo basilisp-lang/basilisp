@@ -7215,22 +7215,39 @@
         (for [f fs]
           (if (list? (second f))
             ;; multi-arity
-            ;;
-            ;; Create a single variadic fn that will switch to the
-            ;; correct body based on the number of arguments passed
-            ;; in.
-            (let [fname-fn-pair
-                  (let [vargs (gensym "args")
-                        fname (first f)
-                        ;; sort the different arities to ensure that
-                        ;; variadic arity comes last, courtesy of the
-                        ;; additional `&` symbol.
-                        fargs (sort-by count (rest f))
-                        fargs-last (last fargs)
-                        variadic-pos (try
-                                       (.index (first fargs-last) '&)
-                                       (catch python/ValueError _
-                                         nil))]
+            (let [fname (first f)
+                  ;; Implementation of variadic functions for Basilisp
+                  ;; interfaces necessitates the inclusion of
+                  ;; additional arity method signatures, such as
+                  ;; method-name_arityN, to be registered for proper
+                  ;; functionality.
+                  arity-fns
+                  (->> (for [spec (rest f)]
+                         (let [fargs        (first spec)
+                               argc         (count fargs)
+                               variadic-pos (try
+                                              (.index fargs '&)
+                                              (catch python/ValueError _
+                                                nil))
+                               ;; setting varidiac fn to infinity will
+                               ;; help with the sorting to position
+                               ;; the variadic fn last.
+                               arity        (if variadic-pos math/inf argc)
+                               farity       (if variadic-pos
+                                              "_rest"
+                                              (if (= argc 0) 0 (inc argc)))]
+                           {:fnname (str "_" fname "_arity" farity)
+                            :fargs fargs
+                            :arity arity
+                            :variadic-pos variadic-pos
+                            :fun `(fn ~(into ['this] fargs)
+                                    ~@(rest spec))}))
+                       (sort-by :arity))
+                  ;; Create a single variadic fn that will switch to the
+                  ;; correct body based on the number of arguments passed
+                  ;; in.
+                  fname-fn-pair
+                  (let [vargs (gensym "args")]
                     [(str fname)
                      `(fn [& ~vargs]
                         ;; create a case form to switch to the right
@@ -7243,51 +7260,26 @@
                         ;;   (if-not (variadic? fn-args)
                         ;;     (throw exception)
                         ;;     (do variadic-body))
-                        ~(apply list 'case (list 'count vargs)
-                                (mapcat (fn [args-and-body]
-                                          (let [args (first args-and-body)
-                                                body (rest args-and-body)]
-                                            (if (and (= args-and-body fargs-last)
-                                                     variadic-pos)
-                                              `((if (<= (count ~vargs) ~variadic-pos)
-                                                  (throw (ex-info "Arguments passed to function does not match the variadic fn specification"
-                                                                  {:args-spec-expected (quote ~(first fargs-last))
-                                                                   :args-provided (drop 1 ~vargs)}))
-                                                  (let [~(into ['this] args) ~vargs]
-                                                    (do ~@body))))
-                                              [(inc (count args)) (list 'let [(into ['this] args) vargs]
-                                                                        `(do ~@body))])))
-                                        fargs)))])
-
-
-                  ;; Implementation of variadic functions for Basilisp
-                  ;; interfaces necessitates the inclusion of
-                  ;; additional arity method signatures, such as
-                  ;; method-name_arityN, to be registered for proper
-                  ;; functionality, even if their implementations are
-                  ;; nil.
-                  fname-fndummy-pairs
-                  (for [spec (rest f)]
-                    (let [fargs (first spec)
-                          argc (count fargs)
-                          variadic? (try
-                                      (.index fargs '&)
-                                      (catch python/ValueError _
-                                        nil))
-                          arity (if variadic?
-                                  "_rest"
-                                  (if (= argc 0) 0 (inc argc)))]
-                      [(str "_" (first f) "_arity" arity) nil]))]
-              (into [fname-fn-pair] fname-fndummy-pairs))
+                        ~(apply list `case `(count ~vargs)
+                                (mapcat (fn [{:keys [fun fargs arity variadic-pos]}]
+                                          (if variadic-pos
+                                            `((if (<= (count ~vargs) ~variadic-pos)
+                                                (throw (ex-info "Arguments passed to function does not match the variadic fn specification"
+                                                                {:args-spec-expected (quote ~fargs)
+                                                                 :args-provided (drop 1 ~vargs)}))
+                                                (apply ~fun ~vargs)))
+                                            [(inc (count fargs)) `(apply ~fun ~vargs)]))
+                                        arity-fns)))])]
+              (into [fname-fn-pair] (for [details arity-fns]
+                                      [(:fnname details) (:fun details)])))
 
             ;; single arity
             (let [fmeta (meta f)
                   fname (first f)
-                  fargs (second f)
-                  body `(do ~@(drop 2 f))]
-              [[(.replace (str fname) "-" "_") (with-meta `(fn ~(into ['this] fargs)
-                                                             ~body)
-                                                 fmeta)]])))
+                  fargs (second f)]
+              [[(munge fname) (with-meta `(fn ~(into ['this] fargs)
+                                            ~@(drop 2 f))
+                                fmeta)]])))
 
         ;; convert to dictionary of fname-fn pairs
         fns-dict

@@ -1549,15 +1549,18 @@
   (one-arg [arg])
   (multi [one two & more]))
 (definterface ITestProxyMultiVariadic
-  (variadic [])
-  (variadic [one two three & more])
-  (variadic [one]))
+  (multi [])
+  (multi [one two three & more])
+  (multi [one]))
 
 (deftest proxy-test
   (testing "proxy interface of simple fn with args"
     (let [p (proxy [ITestProxySingleArg] []
-              (arg-simple [arg] arg))]
-      (is (= 5 (.arg-simple p 5)))
+              (arg-simple [atm*]
+                (swap! atm* inc)
+                @atm*))
+          atm (atom 5)]
+      (is (= 6 (.arg-simple p atm)))
 
       (is (thrown? python/TypeError (.arg-simple p)))
       (is (thrown? python/TypeError (.arg-simple p 2 3)))))
@@ -1590,28 +1593,31 @@
 
   (testing "proxy interface with multiarity and variadic fns"
     (let [p (proxy [ITestProxyMultiVariadic] []
-              (variadic
+              (multi
                 ([] 0)
-                ([one] one)
-                ([one two three & more] [one two three more])))]
-      (is (= 0 (.variadic p)))
-      (is (= 5 (.variadic p 5)))
-      (is (= [9 8 7 nil] (.variadic p 9 8 7)))
-      (is (= [9 8 7 '(3 4)] (.variadic p 9 8 7 3 4)))
+                ([atm]
+                 (swap! atm inc)
+                 @atm)
+                ([one two three & more] [one two three more])))
+          atm (atom 9)]
+      (is (= 0 (.multi p)))
+      (is (= 10 (.multi p atm)))
+      (is (= [9 8 7 nil] (.multi p 9 8 7)))
+      (is (= [9 8 7 '(3 4)] (.multi p 9 8 7 3 4)))
 
-      (is (thrown? basilisp.lang.exception/ExceptionInfo (.variadic p 9 8)))))
+      (is (thrown? basilisp.lang.exception/ExceptionInfo (.multi p 9 8)))))
 
   (testing "proxy interfaces with simple fn and multiarity"
     (let [p (proxy [ITestProxySingleArg ITestProxyMultiVariadic] []
               (arg-simple [arg] arg)
-              (variadic
+              (multi
                 ([] 0)
                 ([one] one)
                 ([one two three & more] [one two three more])))]
       (is (= 3 (.arg-simple p 3)))
-      (is (= 0 (.variadic p)))
-      (is (= 5 (.variadic p 5)))
-      (is (= [9 8 7 '(3 4)] (.variadic p 9 8 7 3 4)))))
+      (is (= 0 (.multi p)))
+      (is (= 5 (.multi p 5)))
+      (is (= [9 8 7 '(3 4)] (.multi p 9 8 7 3 4)))))
 
   (testing "simple proxy class with interface and `this` anaphora"
     (let [p (proxy [io/StringIO ITestProxySingleArg] []
