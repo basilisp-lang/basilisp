@@ -173,9 +173,6 @@ _MACRO_FORM_SYM = sym.symbol("&form")
 _NO_WARN_UNUSED_SYMS = lset.s(_IGNORED_SYM, _MACRO_ENV_SYM, _MACRO_FORM_SYM)
 
 
-AnalyzerException = partial(CompilerException, phase=CompilerPhase.ANALYZING)
-
-
 @attr.define
 class RecurPoint:
     loop_id: str
@@ -1426,8 +1423,8 @@ def __deftype_or_reify_prop_or_method_arity(
             form=args,
         )
 
-    kwarg_meta = __fn_kwargs_support(form.first) or (
-        isinstance(form, IMeta) and __fn_kwargs_support(form)
+    kwarg_meta = __fn_kwargs_support(ctx, form.first) or (
+        isinstance(form, IMeta) and __fn_kwargs_support(ctx, form)
     )
     kwarg_support = None if isinstance(kwarg_meta, bool) else kwarg_meta
 
@@ -1980,7 +1977,7 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
             return method
 
 
-def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
+def __fn_kwargs_support(ctx: AnalyzerContext, o: IMeta) -> Optional[KeywordArgSupport]:
     if o.meta is None:
         return None
 
@@ -1991,7 +1988,7 @@ def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
     try:
         return KeywordArgSupport(kwarg_support)
     except ValueError as e:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "fn keyword argument support metadata :kwarg must be one of: #{:apply :collect}",
             form=kwarg_support,
         ) from e
@@ -2091,9 +2088,9 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
                 _inline_meta(name) or isinstance(form, IMeta) and _inline_meta(form)
             )
             kwarg_support = (
-                __fn_kwargs_support(name)
+                __fn_kwargs_support(ctx, name)
                 or isinstance(form, IMeta)
-                and __fn_kwargs_support(form)
+                and __fn_kwargs_support(ctx, form)
             )
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
@@ -2102,7 +2099,7 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
             name_node = None
             is_async = isinstance(form, IMeta) and _is_async(form)
             inline = isinstance(form, IMeta) and _inline_meta(form)
-            kwarg_support = isinstance(form, IMeta) and __fn_kwargs_support(form)
+            kwarg_support = isinstance(form, IMeta) and __fn_kwargs_support(ctx, form)
         else:
             raise ctx.AnalyzerException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
