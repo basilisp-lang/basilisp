@@ -2483,12 +2483,14 @@ def _do_warn_on_arity_mismatch(
             if has_variadic and (max_fixed_arity is None or num_args > max_fixed_arity):
                 return
             if num_args not in fixed_arities:
+                report_arities = cast(Set[Union[int, str]], set(fixed_arities))
                 if has_variadic:
-                    fixed_arities.discard(max_fixed_arity)
-                    fixed_arities.add(f"{max_fixed_arity}+")
+                    report_arities.discard(cast(int, max_fixed_arity))
+                    report_arities.add(f"{max_fixed_arity}+")
+                loc = f"{fn.env.file}:{fn.env.line}"
                 logger.warning(
-                    f"calling function {fn.var} with {num_args} arguments; "
-                    f"expected any of: {', '.join(map(str, fixed_arities))}"
+                    f"calling function {fn.var} ({loc}) with {num_args} arguments; "
+                    f"expected any of: {', '.join(map(str, report_arities))}",
                 )
 
 
