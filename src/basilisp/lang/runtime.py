@@ -1760,7 +1760,7 @@ def _fn_with_meta(f, meta: Optional[lmap.PersistentMap]):
     return wrapped_f
 
 
-def _basilisp_fn(arities: Tuple[Union[int, kw.Keyword]]):
+def _basilisp_fn(arities: Tuple[Union[int, kw.Keyword], ...]):
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
 

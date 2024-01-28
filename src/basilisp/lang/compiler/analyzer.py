@@ -2473,19 +2473,22 @@ def _do_warn_on_arity_mismatch(
         )
         if arities is not None:
             has_variadic = REST_KW in arities
-            fixed_arities = frozenset(filter(lambda v: v is not REST_KW, arities))
+            fixed_arities = set(filter(lambda v: v != REST_KW, arities))
             max_fixed_arity = max(fixed_arities) if fixed_arities else None
             # This count could be off by 1 for cases where kwargs are being passed,
             # but only Basilisp functions intended to be called by Python code
             # (e.g. with a :kwargs strategy) should ever be called with kwargs,
             # so this seems unlikely enough.
             num_args = runtime.count(form.rest)
-            if has_variadic and max_fixed_arity is None or num_args > max_fixed_arity:
+            if has_variadic and (max_fixed_arity is None or num_args > max_fixed_arity):
                 return
             if num_args not in fixed_arities:
+                if has_variadic:
+                    fixed_arities.discard(max_fixed_arity)
+                    fixed_arities.add(f"{max_fixed_arity}+")
                 logger.warning(
                     f"calling function {fn.var} with {num_args} arguments; "
-                    f"expected any of: {', '.join(map(str, arities))}"
+                    f"expected any of: {', '.join(map(str, fixed_arities))}"
                 )
 
 
