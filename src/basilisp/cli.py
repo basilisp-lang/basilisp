@@ -490,9 +490,11 @@ def run(
     )
     basilisp.init(opts)
     ctx = compiler.CompilerContext(
-        filename=CLI_INPUT_FILE_PATH
-        if args.code
-        else (STDIN_INPUT_FILE_PATH if target == STDIN_FILE_NAME else target),
+        filename=(
+            CLI_INPUT_FILE_PATH
+            if args.code
+            else (STDIN_INPUT_FILE_PATH if target == STDIN_FILE_NAME else target)
+        ),
         opts=opts,
     )
     eof = object()

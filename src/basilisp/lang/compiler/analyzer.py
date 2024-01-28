@@ -1823,9 +1823,11 @@ def _deftype_ast(  # pylint: disable=too-many-locals
                 is_assignable=is_mutable,
                 env=ctx.get_node_env(),
                 tag=_tag_ast(_tag_meta(field), ctx),
-                init=analyze_form(ctx, field_default)
-                if field_default is not __DEFTYPE_DEFAULT_SENTINEL
-                else None,
+                init=(
+                    analyze_form(ctx, field_default)
+                    if field_default is not __DEFTYPE_DEFAULT_SENTINEL
+                    else None
+                ),
             )
             param_nodes.append(binding)
             ctx.put_new_symbol(field, binding, warn_if_unused=False)
@@ -3051,9 +3053,11 @@ def _try_ast(form: ISeq, ctx: AnalyzerContext) -> Try:
         ),
         catches=vec.vector(catches),
         finally_=finally_,
-        children=vec.v(BODY, CATCHES, FINALLY)
-        if finally_ is not None
-        else vec.v(BODY, CATCHES),
+        children=(
+            vec.v(BODY, CATCHES, FINALLY)
+            if finally_ is not None
+            else vec.v(BODY, CATCHES)
+        ),
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 

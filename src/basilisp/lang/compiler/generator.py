@@ -420,38 +420,42 @@ def _class_ast(  # pylint: disable=too-many-arguments
         body=body,
         decorator_list=list(
             chain(
-                []
-                if verified_abstract
-                else [
-                    ast.Call(
-                        func=_BASILISP_TYPE_FN_NAME,
-                        args=[],
-                        keywords=[
-                            ast.keyword(
-                                arg="fields",
-                                value=ast.Tuple(
-                                    elts=[ast.Constant(e) for e in fields],
-                                    ctx=ast.Load(),
+                (
+                    []
+                    if verified_abstract
+                    else [
+                        ast.Call(
+                            func=_BASILISP_TYPE_FN_NAME,
+                            args=[],
+                            keywords=[
+                                ast.keyword(
+                                    arg="fields",
+                                    value=ast.Tuple(
+                                        elts=[ast.Constant(e) for e in fields],
+                                        ctx=ast.Load(),
+                                    ),
                                 ),
-                            ),
-                            ast.keyword(
-                                arg="interfaces",
-                                value=ast.Tuple(elts=list(bases), ctx=ast.Load()),
-                            ),
-                            ast.keyword(
-                                arg="artificially_abstract_bases",
-                                value=ast.Set(elts=list(artificially_abstract_bases)),
-                            ),
-                            ast.keyword(
-                                arg="members",
-                                value=ast.Tuple(
-                                    elts=[ast.Constant(e) for e in members],
-                                    ctx=ast.Load(),
+                                ast.keyword(
+                                    arg="interfaces",
+                                    value=ast.Tuple(elts=list(bases), ctx=ast.Load()),
                                 ),
-                            ),
-                        ],
-                    )
-                ],
+                                ast.keyword(
+                                    arg="artificially_abstract_bases",
+                                    value=ast.Set(
+                                        elts=list(artificially_abstract_bases)
+                                    ),
+                                ),
+                                ast.keyword(
+                                    arg="members",
+                                    value=ast.Tuple(
+                                        elts=[ast.Constant(e) for e in members],
+                                        ctx=ast.Load(),
+                                    ),
+                                ),
+                            ],
+                        )
+                    ]
+                ),
                 [
                     ast.Call(
                         func=(
@@ -903,9 +907,11 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
             # complaining that we assign the value prior to global declaration.
             def_dependencies = list(
                 chain(
-                    [ast.Global(names=[safe_name])]
-                    if node.env.func_ctx is not None
-                    else [],
+                    (
+                        [ast.Global(names=[safe_name])]
+                        if node.env.func_ctx is not None
+                        else []
+                    ),
                     def_ast.dependencies,
                     tag_deps,
                 )
@@ -914,9 +920,11 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
             def_dependencies = list(
                 chain(
                     def_ast.dependencies,
-                    [ast.Global(names=[safe_name])]
-                    if node.env.func_ctx is not None
-                    else [],
+                    (
+                        [ast.Global(names=[safe_name])]
+                        if node.env.func_ctx is not None
+                        else []
+                    ),
                     tag_deps,
                     [
                         _tagged_assign(
@@ -948,9 +956,11 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
             keywords=list(
                 chain(
                     dynamic_kwarg,
-                    []
-                    if meta_ast is None
-                    else [ast.keyword(arg="meta", value=meta_ast.node)],
+                    (
+                        []
+                        if meta_ast is None
+                        else [ast.keyword(arg="meta", value=meta_ast.node)]
+                    ),
                 )
             ),
         ),
@@ -1135,34 +1145,36 @@ def __multi_arity_deftype_dispatch_method(
                     )
                 )
             ],
-            orelse=[]
-            if default_name is None
-            else [
-                ast.If(
-                    test=ast.Compare(
-                        left=ast.Name(id=nargs_name, ctx=ast.Load()),
-                        ops=[ast.GtE()],
-                        comparators=[ast.Constant(max_fixed_arity)],
-                    ),
-                    body=[
-                        ast.Return(
-                            value=ast.Call(
-                                func=_load_attr(f"{method_prefix}.{default_name}"),
-                                args=[
-                                    ast.Starred(
-                                        value=ast.Name(
-                                            id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
-                                        ),
-                                        ctx=ast.Load(),
-                                    )
-                                ],
-                                keywords=[],
+            orelse=(
+                []
+                if default_name is None
+                else [
+                    ast.If(
+                        test=ast.Compare(
+                            left=ast.Name(id=nargs_name, ctx=ast.Load()),
+                            ops=[ast.GtE()],
+                            comparators=[ast.Constant(max_fixed_arity)],
+                        ),
+                        body=[
+                            ast.Return(
+                                value=ast.Call(
+                                    func=_load_attr(f"{method_prefix}.{default_name}"),
+                                    args=[
+                                        ast.Starred(
+                                            value=ast.Name(
+                                                id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
+                                            ),
+                                            ctx=ast.Load(),
+                                        )
+                                    ],
+                                    keywords=[],
+                                )
                             )
-                        )
-                    ],
-                    orelse=[],
-                )
-            ],
+                        ],
+                        orelse=[],
+                    )
+                ]
+            ),
         ),
         ast.Raise(
             exc=ast.Call(
@@ -1662,18 +1674,20 @@ def __fn_decorator(
                     elts=list(
                         chain(
                             map(ast.Constant, arities),
-                            [
-                                ast.Call(
-                                    func=_NEW_KW_FN_NAME,
-                                    args=[
-                                        ast.Constant(hash(_REST_KW)),
-                                        ast.Constant("rest"),
-                                    ],
-                                    keywords=[],
-                                )
-                            ]
-                            if has_rest_arg
-                            else [],
+                            (
+                                [
+                                    ast.Call(
+                                        func=_NEW_KW_FN_NAME,
+                                        args=[
+                                            ast.Constant(hash(_REST_KW)),
+                                            ast.Constant("rest"),
+                                        ],
+                                        keywords=[],
+                                    )
+                                ]
+                                if has_rest_arg
+                                else []
+                            ),
                         )
                     ),
                     ctx=ast.Load(),
@@ -1780,15 +1794,19 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                                     meta_decorators,
                                     [
                                         __fn_decorator(
-                                            (len(fn_args),)
-                                            if not method.is_variadic
-                                            else (),
+                                            (
+                                                (len(fn_args),)
+                                                if not method.is_variadic
+                                                else ()
+                                            ),
                                             has_rest_arg=method.is_variadic,
                                         )
                                     ],
-                                    [_TRAMPOLINE_FN_NAME]
-                                    if ctx.recur_point.has_recur
-                                    else [],
+                                    (
+                                        [_TRAMPOLINE_FN_NAME]
+                                        if ctx.recur_point.has_recur
+                                        else []
+                                    ),
                                 )
                             ),
                             returns=ret_ann_tag,
@@ -1885,34 +1903,36 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                     )
                 )
             ],
-            orelse=[]
-            if default_name is None
-            else [
-                ast.If(
-                    test=ast.Compare(
-                        left=ast.Name(id=nargs_name, ctx=ast.Load()),
-                        ops=[ast.GtE()],
-                        comparators=[ast.Constant(max_fixed_arity)],
-                    ),
-                    body=[
-                        handle_return(
-                            ast.Call(
-                                func=ast.Name(id=default_name, ctx=ast.Load()),
-                                args=[
-                                    ast.Starred(
-                                        value=ast.Name(
-                                            id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
-                                        ),
-                                        ctx=ast.Load(),
-                                    )
-                                ],
-                                keywords=[],
+            orelse=(
+                []
+                if default_name is None
+                else [
+                    ast.If(
+                        test=ast.Compare(
+                            left=ast.Name(id=nargs_name, ctx=ast.Load()),
+                            ops=[ast.GtE()],
+                            comparators=[ast.Constant(max_fixed_arity)],
+                        ),
+                        body=[
+                            handle_return(
+                                ast.Call(
+                                    func=ast.Name(id=default_name, ctx=ast.Load()),
+                                    args=[
+                                        ast.Starred(
+                                            value=ast.Name(
+                                                id=_MULTI_ARITY_ARG_NAME, ctx=ast.Load()
+                                            ),
+                                            ctx=ast.Load(),
+                                        )
+                                    ],
+                                    keywords=[],
+                                )
                             )
-                        )
-                    ],
-                    orelse=[],
-                )
-            ],
+                        ],
+                        orelse=[],
+                    )
+                ]
+            ),
         ),
         ast.Raise(
             exc=ast.Call(
@@ -2060,9 +2080,9 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                         kw_defaults=[],
                     ),
                     body=fn_body_ast,
-                    decorator_list=[_TRAMPOLINE_FN_NAME]
-                    if ctx.recur_point.has_recur
-                    else [],
+                    decorator_list=(
+                        [_TRAMPOLINE_FN_NAME] if ctx.recur_point.has_recur else []
+                    ),
                     returns=ret_ann_tag,
                 )
             )
@@ -2127,21 +2147,27 @@ def __if_body_to_py_ast(
         assert isinstance(node, Do)
         if_body = _synthetic_do_to_py_ast(ctx, node.assoc(is_body=True))
         return GeneratedPyAST(
-            node=ast.Assign(
-                targets=[ast.Name(id=result_name, ctx=ast.Store())], value=if_body.node
-            )
-            if result_name is not None
-            else if_body.node,
+            node=(
+                ast.Assign(
+                    targets=[ast.Name(id=result_name, ctx=ast.Store())],
+                    value=if_body.node,
+                )
+                if result_name is not None
+                else if_body.node
+            ),
             dependencies=list(map(statementize, if_body.dependencies)),
         )
     else:
         py_ast = gen_py_ast(ctx, node)
         return GeneratedPyAST(
-            node=ast.Assign(
-                targets=[ast.Name(id=result_name, ctx=ast.Store())], value=py_ast.node
-            )
-            if result_name is not None
-            else py_ast.node,
+            node=(
+                ast.Assign(
+                    targets=[ast.Name(id=result_name, ctx=ast.Store())],
+                    value=py_ast.node,
+                )
+                if result_name is not None
+                else py_ast.node
+            ),
             dependencies=py_ast.dependencies,
         )
 
@@ -2206,9 +2232,11 @@ def _if_to_py_ast(ctx: GeneratorContext, node: If) -> GeneratedPyAST[ast.expr]:
     )
 
     return GeneratedPyAST(
-        node=ast.Name(id=result_name, ctx=ast.Load())
-        if result_name is not None
-        else _noop_node(),
+        node=(
+            ast.Name(id=result_name, ctx=ast.Load())
+            if result_name is not None
+            else _noop_node()
+        ),
         dependencies=list(chain(test_ast.dependencies, if_test_deps, [ifstmt])),
     )
 
@@ -2265,15 +2293,17 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
                             ),
                             last,
                         ],
-                        [
-                            ast.Call(
-                                func=_NEW_SYM_FN_NAME,
-                                args=[ast.Constant(alias.alias)],
-                                keywords=[],
-                            )
-                        ]
-                        if alias.alias is not None
-                        else [],
+                        (
+                            [
+                                ast.Call(
+                                    func=_NEW_SYM_FN_NAME,
+                                    args=[ast.Constant(alias.alias)],
+                                    keywords=[],
+                                )
+                            ]
+                            if alias.alias is not None
+                            else []
+                        ),
                     )
                 ),
                 keywords=[],
@@ -2735,15 +2765,17 @@ def _require_to_py_ast(_: GeneratorContext, node: Require) -> GeneratedPyAST[ast
                             args=list(
                                 chain(
                                     [ast.Constant(alias.name)],
-                                    [
-                                        ast.Call(
-                                            func=_NEW_SYM_FN_NAME,
-                                            args=[ast.Constant(alias.alias)],
-                                            keywords=[],
-                                        )
-                                    ]
-                                    if alias.alias is not None
-                                    else [],
+                                    (
+                                        [
+                                            ast.Call(
+                                                func=_NEW_SYM_FN_NAME,
+                                                args=[ast.Constant(alias.alias)],
+                                                keywords=[],
+                                            )
+                                        ]
+                                        if alias.alias is not None
+                                        else []
+                                    ),
                                 )
                             ),
                             keywords=[],
