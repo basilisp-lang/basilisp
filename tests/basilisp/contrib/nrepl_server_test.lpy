@@ -342,7 +342,7 @@
             (is (= @id* id))
             (is (= "xyz" ns))
             (is (= ["eval-error"] status))
-            (is (not= -1 (.find ex "File \"nREPL input\", line 2")) ex))
+            (is (not= -1 (.find ex "File \"<nREPL Input>\", line 2")) ex))
           (are [response] (= response (client-recv! client))
             {:id @id* :ns "xyz" :status ["done"]})
 
