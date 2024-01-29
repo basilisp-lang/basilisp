@@ -2487,9 +2487,14 @@ def _do_warn_on_arity_mismatch(
                 if has_variadic:
                     report_arities.discard(cast(int, max_fixed_arity))
                     report_arities.add(f"{max_fixed_arity}+")
-                loc = f"{fn.env.file}:{fn.env.line}"
+                loc = (
+                    f" ({fn.env.file}:{fn.env.line})"
+                    if fn.env.line is not None
+                    else f" ({fn.env.file})"
+                )
+                print(fn, arities)
                 logger.warning(
-                    f"calling function {fn.var} ({loc}) with {num_args} arguments; "
+                    f"calling function {fn.var}{loc} with {num_args} arguments; "
                     f"expected any of: {', '.join(map(str, report_arities))}",
                 )
 

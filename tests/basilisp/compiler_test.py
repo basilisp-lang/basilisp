@@ -5841,7 +5841,30 @@ class TestWarnOnArityMismatch:
         assert (
             "basilisp.lang.compiler.analyzer",
             logging.WARNING,
-            f"calling function {var} ({compiler_file_path}:1) with 1 arguments; expected any of: 0, 2+",
+            f"calling function {var} ({compiler_file_path}:1) with 1 arguments; expected any of: 0, 2, 4+",
+        ) in caplog.record_tuples
+
+    def test_warning_on_arity_mismatch_variadic_with_partial(
+        self,
+        lcompile: CompileFn,
+        ns: runtime.Namespace,
+        compiler_file_path: str,
+        caplog,
+    ):
+        var = lcompile(
+            """
+            (defn dazhqpe ([] :none) ([a b] [a b]) ([a b c d & others] [a b c d others]))
+            (def zjpqeee (partial dazhqpe :a :b :c))
+            """
+        )
+        lcompile(
+            "(fn* [] (zjpqeee))",
+            opts={compiler.WARN_ON_ARITY_MISMATCH: True},
+        )
+        assert (
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            f"calling function {var} ({compiler_file_path}:1) with 0 arguments; expected any of: 1+",
         ) in caplog.record_tuples
 
 

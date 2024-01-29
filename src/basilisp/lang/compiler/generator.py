@@ -1808,11 +1808,7 @@ def __single_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
                                     meta_decorators,
                                     [
                                         __fn_decorator(
-                                            (
-                                                (len(fn_args),)
-                                                if not method.is_variadic
-                                                else ()
-                                            ),
+                                            (len(fn_args),),
                                             has_rest_arg=method.is_variadic,
                                         )
                                     ],
@@ -1845,6 +1841,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
     arity_map: Mapping[int, str],
     return_tags: Iterable[Optional[Node]],
     default_name: Optional[str] = None,
+    rest_arity_fixed_arity: Optional[int] = None,
     max_fixed_arity: Optional[int] = None,
     meta_node: Optional[MetaNode] = None,
     is_async: bool = False,
@@ -2011,7 +2008,16 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
                             meta_decorators,
                             [
                                 __fn_decorator(
-                                    arity_map.keys(),
+                                    list(
+                                        chain(
+                                            arity_map.keys(),
+                                            (
+                                                [rest_arity_fixed_arity]
+                                                if rest_arity_fixed_arity is not None
+                                                else []
+                                            ),
+                                        )
+                                    ),
                                     has_rest_arg=default_name is not None,
                                 )
                             ],
@@ -2044,6 +2050,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
 
     arity_to_name = {}
     rest_arity_name: Optional[str] = None
+    rest_arity_fixed_arity: Optional[int] = None
     fn_defs = []
     all_arity_def_deps: List[ast.AST] = []
     for arity in arities:
@@ -2052,6 +2059,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
         )
         if arity.is_variadic:
             rest_arity_name = arity_name
+            rest_arity_fixed_arity = arity.fixed_arity
         else:
             arity_to_name[arity.fixed_arity] = arity_name
 
@@ -2107,6 +2115,7 @@ def __multi_arity_fn_to_py_ast(  # pylint: disable=too-many-locals
         arity_to_name,
         return_tags=[arity.tag for arity in arities],
         default_name=rest_arity_name,
+        rest_arity_fixed_arity=rest_arity_fixed_arity,
         max_fixed_arity=node.max_fixed_arity,
         meta_node=meta_node,
         is_async=node.is_async,

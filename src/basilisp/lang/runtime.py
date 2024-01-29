@@ -61,7 +61,7 @@ from basilisp.lang.interfaces import (
     ITransientSet,
 )
 from basilisp.lang.reference import RefBase, ReferenceBase
-from basilisp.lang.typing import CompilerOpts, LispNumber
+from basilisp.lang.typing import BasilispFunction, CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
 from basilisp.util import Maybe
 
@@ -1286,12 +1286,27 @@ def _conj_ipersistentcollection(coll: IPersistentCollection, *xs):
     return coll.cons(*xs)
 
 
+def _update_arities(f: BasilispFunction, num_args: int) -> None:
+    """Partial applications change the number of arities a function appears to have."""
+    existing_arities: IPersistentSet[Union[kw.Keyword, int]] = f.arities
+    new_arities: Set[Union[kw.Keyword, int]] = set()
+    for arity in existing_arities:
+        if isinstance(arity, kw.Keyword):
+            new_arities.add(arity)
+        elif arity > num_args:
+            new_arities.add(arity - num_args)
+    f.arities = lset.set(new_arities)
+
+
 def partial(f, *args, **kwargs):
     """Return a function which is the partial application of f with args and kwargs."""
 
     @functools.wraps(f)
     def partial_f(*inner_args, **inner_kwargs):
         return f(*itertools.chain(args, inner_args), **{**kwargs, **inner_kwargs})
+
+    if hasattr(partial_f, "_basilisp_fn"):
+        _update_arities(cast(BasilispFunction, partial_f), len(args))
 
     return partial_f
 
@@ -1760,11 +1775,13 @@ def _fn_with_meta(f, meta: Optional[lmap.PersistentMap]):
     return wrapped_f
 
 
-def _basilisp_fn(arities: Tuple[Union[int, kw.Keyword], ...]):
+def _basilisp_fn(
+    arities: Tuple[Union[int, kw.Keyword], ...]
+) -> Callable[..., BasilispFunction]:
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
 
-    def wrap_fn(f):
+    def wrap_fn(f) -> BasilispFunction:
         assert not hasattr(f, "meta")
         f._basilisp_fn = True
         f.arities = lset.set(arities)
