@@ -579,6 +579,33 @@
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(deftest partial-test
+  (testing "no arguments"
+    (let [f-no-args (fn [] :no-args)]
+      (is (identical? f-no-args (partial f-no-args)))))
+
+  (testing "with arguments"
+    (let [f ^{:meta-tag :value}
+          (fn
+            ([] :no-args)
+            ([a b] [a b])
+            ([a b c d & rest]
+             [a b c d rest]))]
+      (is (= #{0 2 4 :rest} (.-arities f)))
+      (is (= {:meta-tag :value} (meta f)))
+
+      (let [new-f      (partial f :a)
+            new-f-meta (with-meta new-f {:different-tag :yes})]
+        (is (= #{1 3 :rest} (.-arities new-f)))
+        (is (nil? (meta new-f)))
+        (is (= {:different-tag :yes} (meta new-f-meta)))
+        (is (= [:a :c] (new-f-meta :c)))
+
+        (let [partial-of-partial (partial new-f-meta :b)]
+          (is (= #{2 :rest} (.-arities partial-of-partial)))
+          (is (nil? (meta partial-of-partial)))
+          (is (= [:a :b :e :f '(:g :h)] (partial-of-partial :e :f :g :h))))))))
+
 (deftest reduce-test
   (testing "with no init"
     (are [coll f res] (= res (reduce f coll))

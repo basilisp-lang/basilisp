@@ -54,6 +54,7 @@ from basilisp.lang.compiler.constants import (
     LINE_KW,
     NAME_KW,
     NS_KW,
+    REST_KW,
     SYM_ABSTRACT_META_KEY,
     SYM_ASYNC_META_KEY,
     SYM_CLASSMETHOD_META_KEY,
@@ -145,6 +146,7 @@ logger = logging.getLogger(__name__)
 # Analyzer options
 GENERATE_AUTO_INLINES = kw.keyword("generate-auto-inlines")
 INLINE_FUNCTIONS = kw.keyword("inline-functions")
+WARN_ON_ARITY_MISMATCH = kw.keyword("warn-on-arity-mismatch")
 WARN_ON_SHADOWED_NAME = kw.keyword("warn-on-shadowed-name")
 WARN_ON_SHADOWED_VAR = kw.keyword("warn-on-shadowed-var")
 WARN_ON_UNUSED_NAMES = kw.keyword("warn-on-unused-names")
@@ -361,6 +363,12 @@ class AnalyzerContext:
     def should_inline_functions(self) -> bool:
         """If True, function calls may be inlined if an inline def is provided."""
         return self._opts.val_at(INLINE_FUNCTIONS, True)
+
+    @property
+    def warn_on_arity_mismatch(self) -> bool:
+        """If True, warn when a Basilisp function invocation is detected with an
+        unsupported number of arguments."""
+        return self._opts.val_at(WARN_ON_ARITY_MISMATCH, True)
 
     @property
     def warn_on_unused_names(self) -> bool:
@@ -2456,6 +2464,40 @@ def __handle_macroexpanded_ast(
     )
 
 
+def _do_warn_on_arity_mismatch(
+    fn: VarRef, form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
+) -> None:
+    if ctx.warn_on_arity_mismatch and getattr(fn.var.value, "_basilisp_fn", False):
+        arities: Optional[Tuple[Union[int, kw.Keyword]]] = getattr(
+            fn.var.value, "arities", None
+        )
+        if arities is not None:
+            has_variadic = REST_KW in arities
+            fixed_arities = set(filter(lambda v: v != REST_KW, arities))
+            max_fixed_arity = max(fixed_arities) if fixed_arities else None
+            # This count could be off by 1 for cases where kwargs are being passed,
+            # but only Basilisp functions intended to be called by Python code
+            # (e.g. with a :kwargs strategy) should ever be called with kwargs,
+            # so this seems unlikely enough.
+            num_args = runtime.count(form.rest)
+            if has_variadic and (max_fixed_arity is None or num_args > max_fixed_arity):
+                return
+            if num_args not in fixed_arities:
+                report_arities = cast(Set[Union[int, str]], set(fixed_arities))
+                if has_variadic:
+                    report_arities.discard(cast(int, max_fixed_arity))
+                    report_arities.add(f"{max_fixed_arity}+")
+                loc = (
+                    f" ({fn.env.file}:{fn.env.line})"
+                    if fn.env.line is not None
+                    else f" ({fn.env.file})"
+                )
+                logger.warning(
+                    f"calling function {fn.var}{loc} with {num_args} arguments; "
+                    f"expected any of: {', '.join(sorted(map(str, report_arities)))}",
+                )
+
+
 def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -> Node:
     with ctx.expr_pos():
         fn = _analyze_form(form.first, ctx)
@@ -2491,6 +2533,8 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                     form=form,
                     phase=CompilerPhase.INLINING,
                 ) from e
+
+        _do_warn_on_arity_mismatch(fn, form, ctx)
 
     args, kwargs = _call_args_ast(form.rest, ctx)
     return Invoke(

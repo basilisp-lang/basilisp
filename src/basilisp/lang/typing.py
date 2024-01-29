@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
-from typing import Pattern, Union
+from typing import Optional, Pattern, Protocol, Union
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -11,7 +11,13 @@ from basilisp.lang import queue as lqueue
 from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
-from basilisp.lang.interfaces import IPersistentMap, IRecord, ISeq, IType
+from basilisp.lang.interfaces import (
+    IPersistentMap,
+    IPersistentSet,
+    IRecord,
+    ISeq,
+    IType,
+)
 
 CompilerOpts = IPersistentMap[kw.Keyword, bool]
 
@@ -43,3 +49,13 @@ LispForm = Union[
 PyCollectionForm = Union[dict, list, set, tuple]
 ReaderForm = Union[LispForm, IRecord, ISeq, IType, PyCollectionForm]
 SpecialForm = Union[llist.PersistentList, ISeq]
+
+
+class BasilispFunction(Protocol):
+    _basilisp_fn: bool
+    arities: IPersistentSet[Union[kw.Keyword, int]]
+    meta: Optional[IPersistentMap]
+
+    def __call__(self, *args, **kwargs): ...
+
+    def with_meta(self, meta: Optional[IPersistentMap]) -> "BasilispFunction": ...

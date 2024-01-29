@@ -137,6 +137,19 @@ def _add_compiler_arg_group(parser: argparse.ArgumentParser) -> None:
         ),
     )
     group.add_argument(
+        "--warn-on-arity-mismatch",
+        action="store",
+        nargs="?",
+        const=os.getenv("BASILISP_WARN_ON_ARITY_MISMATCH"),
+        type=_to_bool,
+        help=(
+            "if true, emit warnings if a Basilisp function invocation is detected with "
+            "an unsupported number of arguments "
+            "(env: BASILISP_WARN_ON_ARITY_MISMATCH; default: "
+            f"{DEFAULT_COMPILER_OPTS['warn-on-arity-mismatch']})"
+        ),
+    )
+    group.add_argument(
         "--warn-on-shadowed-name",
         action="store",
         nargs="?",

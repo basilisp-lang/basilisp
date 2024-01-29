@@ -5805,6 +5805,115 @@ class TestSymbolResolution:
             runtime.Namespace.remove(third_ns_name)
 
 
+class TestWarnOnArityMismatch:
+    def test_warning_on_arity_mismatch(
+        self,
+        lcompile: CompileFn,
+        ns: runtime.Namespace,
+        compiler_file_path: str,
+        caplog,
+    ):
+        var = lcompile("(defn jdkdka [a b c] [a b c])")
+        lcompile(
+            "(fn* [] (jdkdka :a :b))",
+            opts={compiler.WARN_ON_ARITY_MISMATCH: True},
+        )
+        assert (
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            f"calling function {var} ({compiler_file_path}:1) with 2 arguments; expected any of: 3",
+        ) in caplog.record_tuples
+
+    def test_warning_on_arity_mismatch_variadic(
+        self,
+        lcompile: CompileFn,
+        ns: runtime.Namespace,
+        compiler_file_path: str,
+        caplog,
+    ):
+        var = lcompile(
+            "(defn pqkdha ([] :none) ([a b] [a b]) ([a b c d & others] [a b c d others]))"
+        )
+        lcompile(
+            "(fn* [] (pqkdha :a))",
+            opts={compiler.WARN_ON_ARITY_MISMATCH: True},
+        )
+        assert (
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            f"calling function {var} ({compiler_file_path}:1) with 1 arguments; expected any of: 0, 2, 4+",
+        ) in caplog.record_tuples
+
+    def test_warning_on_arity_mismatch_variadic_with_partial(
+        self,
+        lcompile: CompileFn,
+        ns: runtime.Namespace,
+        compiler_file_path: str,
+        caplog,
+    ):
+        var = lcompile(
+            """
+            (defn dazhqpe ([] :none) ([a b] [a b]) ([a b c d & others] [a b c d others]))
+            (def zjpqeee (partial dazhqpe :a :b :c))
+            """
+        )
+        lcompile(
+            "(fn* [] (zjpqeee))",
+            opts={compiler.WARN_ON_ARITY_MISMATCH: True},
+        )
+        assert (
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            f"calling function {var} ({compiler_file_path}:1) with 0 arguments; expected any of: 1+",
+        ) in caplog.record_tuples
+
+    def test_no_runtime_warning_on_arity_mismatch_variadic_with_partial(
+        self,
+        lcompile: CompileFn,
+        ns: runtime.Namespace,
+        compiler_file_path: str,
+        caplog,
+    ):
+        # This case is tricky to detect at compile time, so we implemented a runtime
+        # check instead.
+        lcompile(
+            """
+            (defn klkpqkc [a] a)
+            (def yyqeken (partial klkpqkc :a))
+            """
+        )
+        assert not list(
+            filter(
+                lambda rec: re.match(
+                    "invalid partial function application of 'klkpqkc' detected",
+                    rec[2],
+                ),
+                caplog.record_tuples,
+            )
+        )
+
+    def test_runtime_warning_on_arity_mismatch_variadic_with_partial(
+        self,
+        lcompile: CompileFn,
+        ns: runtime.Namespace,
+        compiler_file_path: str,
+        caplog,
+    ):
+        # This case is tricky to detect at compile time, so we implemented a runtime
+        # check instead.
+        lcompile(
+            """
+            (defn ueqhenn [])
+            (def pqencka (partial ueqhenn :a))
+            """
+        )
+        assert (
+            "basilisp.lang.runtime",
+            logging.WARNING,
+            "invalid partial function application of 'ueqhenn' detected: 1 arguments given; expected any of: 0",
+        ) in caplog.record_tuples
+
+
 class TestWarnOnVarIndirection:
     @pytest.fixture
     def other_ns(self, lcompile: CompileFn, ns: runtime.Namespace):

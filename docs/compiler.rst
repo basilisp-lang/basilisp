@@ -35,6 +35,12 @@ Warnings
 
 The following settings enable and disable warnings from the Basilisp compiler during compilation.
 
+* ``warn-on-arity-mismatch`` - if ``true``, emit warnings if a Basilisp function invocation is detected with an unsupported number of arguments
+
+  * Environment Variable: ``BASILISP_WARN_ON_ARITY_MISMATCH``
+  * Default: ``true``
+
+
 * ``warn-on-shadowed-name`` - if ``true``, emit warnings if a local name is shadowed by another local name
 
   * Environment Variable: ``BASILISP_WARN_ON_SHADOWED_NAME``
