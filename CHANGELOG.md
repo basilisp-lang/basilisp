@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added filename metadata to compiler exceptions (#844)
+
+### Fixed
+ * Fix a bug where `basilisp.lang.compiler.exception.CompilerException` would nearly always suppress line information in it's `data` map (#845)
 
 ## [v0.1.0b1]
 ### Added

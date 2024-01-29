@@ -342,7 +342,7 @@
             (is (= @id* id))
             (is (= "xyz" ns))
             (is (= ["eval-error"] status))
-            (is (not= -1 (.find ex "File \"nREPL input\", line 2")) ex))
+            (is (not= -1 (.find ex "File \"<nREPL Input>\", line 2")) ex))
           (are [response] (= response (client-recv! client))
             {:id @id* :ns "xyz" :status ["done"]})
 
@@ -377,7 +377,7 @@
             {:id @id* :ns "xyz" :status ["done"]})
 
           (client-send! client {:id (id-inc!) :op "eval" :code "(+ 3 5)" :ns "not-there"})
-          (is (= {:id @id* :err "CompilerException(msg=\"unable to resolve symbol '+' in this context\", phase=<CompilerPhase.ANALYZING: :analyzing>, form=+, lisp_ast=None, py_ast=None)"} (client-recv! client)))
+          (is (= {:id @id* :err "CompilerException(msg=\"unable to resolve symbol '+' in this context\", phase=<CompilerPhase.ANALYZING: :analyzing>, filename='<nREPL Input>', form=+, lisp_ast=None, py_ast=None)"} (client-recv! client)))
           (let [{:keys [id ex status ns]} (client-recv! client)]
             (is (= @id* id))
             (is (= "not-there" ns))
@@ -401,7 +401,7 @@
 
         ;; bad namespace
         (client-send! client {:id 3 :op "eval" :code "(+ 3 5)" :ns "#,,"})
-        (is (= {:id 3 :err "CompilerException(msg=\"unable to resolve symbol '+' in this context\", phase=<CompilerPhase.ANALYZING: :analyzing>, form=+, lisp_ast=None, py_ast=None)"} (client-recv! client)))
+        (is (= {:id 3 :err "CompilerException(msg=\"unable to resolve symbol '+' in this context\", phase=<CompilerPhase.ANALYZING: :analyzing>, filename='<nREPL Input>', form=+, lisp_ast=None, py_ast=None)"} (client-recv! client)))
         (let [{:keys [id ex status ns]} (client-recv! client)]
           (is (= 3 id))
           (is (= "#,," ns))
