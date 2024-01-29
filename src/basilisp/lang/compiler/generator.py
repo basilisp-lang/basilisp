@@ -3231,7 +3231,6 @@ def _interop_prop_to_py_ast(
     assert node.op == NodeOp.HOST_FIELD
 
     target_ast = gen_py_ast(ctx, node.target)
-    assert not target_ast.dependencies
 
     return GeneratedPyAST(
         node=ast.Attribute(

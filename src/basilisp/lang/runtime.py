@@ -1303,14 +1303,15 @@ def _update_signature_for_partial(f: BasilispFunction, num_args: int) -> None:
             new_arities.add(arity)
         elif arity > num_args:
             new_arities.add(arity - num_args)
-    if not new_arities and num_args in existing_arities:
-        new_arities.add(0)
     if not new_arities:
-        logger.warning(
-            f"invalid partial function application of '{f.__name__}' detected: "  # type: ignore[attr-defined]
-            f"{num_args} arguments given; expected any of: "
-            f"{', '.join(sorted(map(str, existing_arities)))}"
-        )
+        if num_args in existing_arities:
+            new_arities.add(0)
+        else:
+            logger.warning(
+                f"invalid partial function application of '{f.__name__}' detected: "  # type: ignore[attr-defined]
+                f"{num_args} arguments given; expected any of: "
+                f"{', '.join(sorted(map(str, existing_arities)))}"
+            )
     f.arities = lset.set(new_arities)
     f.meta = None
     f.with_meta = partial(_fn_with_meta, f)  # type: ignore[method-assign]
