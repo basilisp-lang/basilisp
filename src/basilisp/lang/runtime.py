@@ -1286,8 +1286,12 @@ def _conj_ipersistentcollection(coll: IPersistentCollection, *xs):
     return coll.cons(*xs)
 
 
-def _update_arities(f: BasilispFunction, num_args: int) -> None:
-    """Partial applications change the number of arities a function appears to have."""
+def _update_arities_for_partial(f: BasilispFunction, num_args: int) -> None:
+    """Update the `arities` property of a wrapped function.
+
+    Partial applications change the number of arities a function appears to have.
+    This function computes the new `arities` set for the partial function by removing
+    any now-invalid fixed arities from the original function's set."""
     existing_arities: IPersistentSet[Union[kw.Keyword, int]] = f.arities
     new_arities: Set[Union[kw.Keyword, int]] = set()
     for arity in existing_arities:
@@ -1306,7 +1310,7 @@ def partial(f, *args, **kwargs):
         return f(*itertools.chain(args, inner_args), **{**kwargs, **inner_kwargs})
 
     if hasattr(partial_f, "_basilisp_fn"):
-        _update_arities(cast(BasilispFunction, partial_f), len(args))
+        _update_arities_for_partial(cast(BasilispFunction, partial_f), len(args))
 
     return partial_f
 
