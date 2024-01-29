@@ -209,7 +209,7 @@ class RecurType(Enum):
 class RecurPoint:
     loop_id: str
     type: RecurType
-    binding_names: Optional[Collection[str]] = None
+    binding_names: Optional[Iterable[str]] = None
     is_variadic: Optional[bool] = None
     has_recur: bool = False
 
@@ -273,7 +273,7 @@ class GeneratorContext:
             return False
 
     @property
-    def recur_point(self):
+    def recur_point(self) -> RecurPoint:
         return self._recur_points[-1]
 
     @contextlib.contextmanager
@@ -281,7 +281,7 @@ class GeneratorContext:
         self,
         loop_id: str,
         type_: RecurType,
-        binding_names: Optional[Collection[str]] = None,
+        binding_names: Optional[Iterable[str]] = None,
         is_variadic: Optional[bool] = None,
     ):
         self._recur_points.append(
@@ -305,7 +305,7 @@ class GeneratorContext:
             self._st.pop()
 
     @property
-    def current_this(self):
+    def current_this(self) -> sym.Symbol:
         return self._this[-1]
 
     @contextlib.contextmanager
@@ -2567,6 +2567,7 @@ def __loop_recur_to_py_ast(
 ) -> GeneratedPyAST[ast.expr]:
     """Return a Python AST node for `recur` occurring inside a `loop`."""
     assert node.op == NodeOp.RECUR
+    assert ctx.recur_point.binding_names is not None
 
     recur_deps: List[ast.AST] = []
     recur_targets: List[ast.Name] = []
