@@ -1286,12 +1286,16 @@ def _conj_ipersistentcollection(coll: IPersistentCollection, *xs):
     return coll.cons(*xs)
 
 
-def _update_arities_for_partial(f: BasilispFunction, num_args: int) -> None:
-    """Update the `arities` property of a wrapped function.
+def _update_signature_for_partial(f: BasilispFunction, num_args: int) -> None:
+    """Update the various properties of a Basilisp function for wrapped partials.
 
     Partial applications change the number of arities a function appears to have.
     This function computes the new `arities` set for the partial function by removing
-    any now-invalid fixed arities from the original function's set."""
+    any now-invalid fixed arities from the original function's set.
+
+    Additionally, partials do not take the meta from the wrapped function, so that
+    value should be cleared and the `with-meta` method should be replaced with a
+    new method."""
     existing_arities: IPersistentSet[Union[kw.Keyword, int]] = f.arities
     new_arities: Set[Union[kw.Keyword, int]] = set()
     for arity in existing_arities:
@@ -1299,7 +1303,17 @@ def _update_arities_for_partial(f: BasilispFunction, num_args: int) -> None:
             new_arities.add(arity)
         elif arity > num_args:
             new_arities.add(arity - num_args)
+    if not new_arities and num_args in existing_arities:
+        new_arities.add(0)
+    if not new_arities:
+        logger.warning(
+            f"invalid partial function application of '{f.__name__}' detected: "  # type: ignore[attr-defined]
+            f"{num_args} arguments given; expected any of: "
+            f"{', '.join(sorted(map(str, existing_arities)))}"
+        )
     f.arities = lset.set(new_arities)
+    f.meta = None
+    f.with_meta = partial(_fn_with_meta, f)  # type: ignore[method-assign]
 
 
 def partial(f, *args, **kwargs):
@@ -1307,10 +1321,10 @@ def partial(f, *args, **kwargs):
 
     @functools.wraps(f)
     def partial_f(*inner_args, **inner_kwargs):
-        return f(*itertools.chain(args, inner_args), **{**kwargs, **inner_kwargs})
+        return f(*args, *inner_args, **{**kwargs, **inner_kwargs})
 
     if hasattr(partial_f, "_basilisp_fn"):
-        _update_arities_for_partial(cast(BasilispFunction, partial_f), len(args))
+        _update_signature_for_partial(cast(BasilispFunction, partial_f), len(args))
 
     return partial_f
 

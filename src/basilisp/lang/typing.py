@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
-from typing import Callable, Optional, Pattern, Protocol, Union
+from typing import Optional, Pattern, Protocol, Union
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -17,7 +17,6 @@ from basilisp.lang.interfaces import (
     IRecord,
     ISeq,
     IType,
-    IWithMeta,
 )
 
 CompilerOpts = IPersistentMap[kw.Keyword, bool]

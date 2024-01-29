@@ -2492,10 +2492,9 @@ def _do_warn_on_arity_mismatch(
                     if fn.env.line is not None
                     else f" ({fn.env.file})"
                 )
-                print(fn, arities)
                 logger.warning(
                     f"calling function {fn.var}{loc} with {num_args} arguments; "
-                    f"expected any of: {', '.join(map(str, report_arities))}",
+                    f"expected any of: {', '.join(sorted(map(str, report_arities)))}",
                 )
 
 
