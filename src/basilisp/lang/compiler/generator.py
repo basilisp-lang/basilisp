@@ -45,6 +45,8 @@ from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import (
     DEFAULT_COMPILER_FILE_PATH,
+    INTERFACE_KW,
+    REST_KW,
     SYM_DYNAMIC_META_KEY,
     SYM_NO_WARN_ON_REDEF_META_KEY,
     SYM_REDEF_META_KEY,
@@ -131,10 +133,6 @@ _SET_BANG_TEMP_PREFIX = "set_bang_val"
 _THROW_PREFIX = "lisp_throw"
 _TRY_PREFIX = "lisp_try"
 _NS_VAR = "_NS"
-
-# Keyword constants used in generating code
-_INTERFACE_KW = kw.keyword("interface")
-_REST_KW = kw.keyword("rest")
 
 
 @attr.frozen
@@ -1417,7 +1415,7 @@ def __deftype_or_reify_bases_to_py_ast(
                         ast.Call(
                             func=_NEW_KW_FN_NAME,
                             args=[
-                                ast.Constant(hash(_INTERFACE_KW)),
+                                ast.Constant(hash(INTERFACE_KW)),
                                 ast.Constant("interface"),
                             ],
                             keywords=[],
@@ -1695,7 +1693,7 @@ def __fn_decorator(
                                     ast.Call(
                                         func=_NEW_KW_FN_NAME,
                                         args=[
-                                            ast.Constant(hash(_REST_KW)),
+                                            ast.Constant(hash(REST_KW)),
                                             ast.Constant("rest"),
                                         ],
                                         keywords=[],

@@ -52,6 +52,8 @@ SYM_STATICMETHOD_META_KEY = kw.keyword("staticmethod")
 SYM_TAG_META_KEY = kw.keyword("tag")
 
 ARGLISTS_KW = kw.keyword("arglists")
+INTERFACE_KW = kw.keyword("interface")
+REST_KW = kw.keyword("rest")
 COL_KW = kw.keyword("col")
 DOC_KW = kw.keyword("doc")
 FILE_KW = kw.keyword("file")

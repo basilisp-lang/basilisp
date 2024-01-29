@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added filename metadata to compiler exceptions (#844)
- * Added a compile-time warning for attemping to call a function with an unsupported number of arguments (#671)
+ * Added a compile-time warning for attempting to call a function with an unsupported number of arguments (#671)
 
 ### Fixed
  * Fix a bug where `basilisp.lang.compiler.exception.CompilerException` would nearly always suppress line information in it's `data` map (#845)
