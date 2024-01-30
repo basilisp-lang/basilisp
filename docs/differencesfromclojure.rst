@@ -133,13 +133,6 @@ Libs
 
 Support for Clojure libs is `planned <https://github.com/basilisp-lang/basilisp/issues/668>`_\.
 
-.. _core_lib_differences:
-
-core
-----------
-
-The :lpy:fn:`quot` function utilizes the ``\\`` operator, resulting in a floor operation towards negative infinity. In contrast, Clojure rounds the result towards zero. Consequently, negative results exhibit a difference of -1 between Basilisp and Clojure.
-
 .. _refs_and_transactions_differences:
 
 Refs and Transactions

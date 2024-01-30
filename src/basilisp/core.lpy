@@ -1089,21 +1089,25 @@
   (python/abs x))
 
 (defn ^:inline mod
-  "Returns the modulo of ``num`` and ``div``\\."
+  "Returns the modulo of ``num`` and ``div``\\.
+
+  It uses floored division for calculating the quotient."
   [num div]
   (operator/mod num div))
 
 (defn ^:inline quot
   "Returns the quotient of ``num`` and ``div``\\.
 
-  The result is rounded towards negative infinity."
+  The division result is truncated."
   [num div]
-  (operator/floordiv num div))
+  (int (/ num div)))
 
-(defn rem
-  "Returns the remainder of ``num`` and ``div``\\."
+(defn ^:inline rem
+  "Returns the remainder of ``num`` and ``div``\\.
+
+  It uses truncated division for calculating the quotient."
   [num div]
-  (math/remainder num div))
+  (- num (* div (int (/ num div)))))
 
 (defn ^:inline inc
   "Increment the argument by 1."

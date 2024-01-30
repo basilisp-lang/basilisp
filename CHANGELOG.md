@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * Cause exceptions arising from compilation issues during macroexpansion will no longer be nested for each level of macroexpansion (#852)
  * Support for optional metadata argument in `defmulti` (#857)
+ * Aligned `rem` and `quot` methodologies with corresponding Clojure fns (#848)
 
 ### Fixed
  * Fix a bug where `basilisp.lang.compiler.exception.CompilerException` would nearly always suppress line information in it's `data` map (#845)
