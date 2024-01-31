@@ -9,7 +9,7 @@ import attr
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
 from basilisp.lang.compiler.nodes import Node
-from basilisp.lang.exception import format_exception, format_source_context
+from basilisp.lang.exception import format_exception
 from basilisp.lang.interfaces import IExceptionInfo, IMeta, IPersistentMap, ISeq
 from basilisp.lang.obj import lrepr
 from basilisp.lang.reader import (
@@ -18,6 +18,7 @@ from basilisp.lang.reader import (
     READER_END_LINE_KW,
     READER_LINE_KW,
 )
+from basilisp.lang.source import format_source_context
 from basilisp.lang.typing import LispForm
 
 _FILE = kw.keyword("file")

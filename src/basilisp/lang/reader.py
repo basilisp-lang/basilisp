@@ -41,7 +41,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import util as langutil
 from basilisp.lang import vector as vec
-from basilisp.lang.exception import format_exception, format_source_context
+from basilisp.lang.exception import format_exception
 from basilisp.lang.interfaces import (
     ILispObject,
     ILookup,
@@ -63,6 +63,7 @@ from basilisp.lang.runtime import (
     get_current_ns,
     lrepr,
 )
+from basilisp.lang.source import format_source_context
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
