@@ -4,7 +4,6 @@ import io
 import os
 import sys
 import textwrap
-import traceback
 import types
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, Type
@@ -459,7 +458,7 @@ def repl(
                 repl_module.mark_exception(e)
                 continue
             except Exception as e:  # pylint: disable=broad-exception-caught
-                traceback.print_exception(Exception, e, e.__traceback__)
+                runtime.basilisp_except_hook(type(e), e, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
 
