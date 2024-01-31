@@ -157,13 +157,12 @@ class SyntaxError(Exception):
 
 
 @format_exception.register(SyntaxError)
-def format_syntax_error(
+def format_syntax_error(  # pylint: disable=unused-argumentma
     e: SyntaxError, tp: Type[Exception], tb: TracebackType
-) -> list[str]:
+) -> List[str]:
     context_exc: Optional[BaseException] = e.__cause__
 
-    lines = []
-    lines.append("\n")
+    lines = ["\n"]
     if context_exc is not None:
         lines.append(f"  exception: {type(context_exc)} from {type(e)}\n")
     else:

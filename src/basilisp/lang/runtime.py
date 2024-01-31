@@ -46,6 +46,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.atom import Atom
+from basilisp.lang.exception import print_exception
 from basilisp.lang.interfaces import (
     IAssociative,
     IBlockingDeref,
@@ -84,6 +85,8 @@ BASILISP_VERSION = vec.vector(
 COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
 COMMAND_LINE_ARGS_VAR_NAME = "*command-line-args*"
 DEFAULT_READER_FEATURES_VAR_NAME = "*default-reader-features*"
+DEFAULT_EXCEPT_HOOK_VAR_NAME = "default-except-hook"
+EXCEPT_HOOK_VAR_NAME = "*except-hook*"
 GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
 MAIN_NS_VAR_NAME = "*main-ns*"
@@ -2030,6 +2033,26 @@ def print_generated_python() -> bool:
     )
 
 
+###################
+# Traceback Hooks #
+###################
+
+
+def basilisp_except_hook(
+    tp: Type[BaseException],
+    e: BaseException,
+    tb: Optional[types.TracebackType],
+) -> None:
+    """Basilisp except hook which is installed as `sys.excepthook` to print any
+    unhandled tracebacks."""
+    ns_sym = sym.symbol(EXCEPT_HOOK_VAR_NAME, ns=CORE_NS)
+    return (
+        Maybe(Var.find(ns_sym))
+        .map(lambda hook: hook(e, tp, tb))
+        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {ns_sym} not bound!"))
+    )
+
+
 #########################
 # Bootstrap the Runtime #
 #########################
@@ -2127,7 +2150,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         ),
     )
 
-    # Dynamic Var containing command line arguments passed via `basilisp run`
+    # Dynamic Var containing the name of the main namespace (if one is given)
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(MAIN_NS_VAR_NAME),
@@ -2157,6 +2180,38 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
                 _DOC_META_KEY: (
                     "The set of all currently supported "
                     ":ref:`reader features <reader_conditions>`."
+                )
+            }
+        ),
+    )
+
+    # Var containing the original traceback printer
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(DEFAULT_EXCEPT_HOOK_VAR_NAME),
+        print_exception,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    f"The default value of :lpy:var:`{EXCEPT_HOOK_VAR_NAME}`."
+                )
+            }
+        ),
+    )
+
+    # Dynamic Var containing the current traceback printer
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(EXCEPT_HOOK_VAR_NAME),
+        print_exception,
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "A function which controls the printing of exceptions. "
+                    "The default function has special handling for compiler errors "
+                    "and reader syntax errors. All other exception types are printed "
+                    "as by `traceback.print_exception <https://docs.python.org/3/library/traceback.html#traceback.print_exception>`_."
                 )
             }
         ),

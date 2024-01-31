@@ -1,6 +1,7 @@
 import importlib
 import logging
 import site
+import sys
 from pathlib import Path
 from typing import List, Optional
 
@@ -29,6 +30,7 @@ def init(opts: Optional[CompilerOpts] = None) -> None:
     """
     runtime.init_ns_var()
     runtime.bootstrap_core(opts if opts is not None else compiler_opts())
+    sys.excepthook = runtime.basilisp_except_hook
     importer.hook_imports()
     importlib.import_module("basilisp.core")
 

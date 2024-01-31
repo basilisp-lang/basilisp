@@ -1,7 +1,7 @@
 import functools
 import traceback
 from types import TracebackType
-from typing import Optional, Type
+from typing import List, Optional, Type
 
 import attr
 
@@ -26,7 +26,7 @@ class ExceptionInfo(IExceptionInfo):
 @functools.singledispatch
 def format_exception(
     e: Optional[Exception], tp: Optional[Type[Exception]], tb: Optional[TracebackType]
-) -> list[str]:
+) -> List[str]:
     """Format an exception into something readable, returning a list of newline
     terminated strings.
 
@@ -46,6 +46,3 @@ def print_exception(
     `basilisp.lang.reader.SyntaxError` have special handling to print useful information
     on exceptions."""
     print("".join(format_exception(e, tp, tb)))
-
-
-basilisp_excepthook = print_exception

@@ -1,6 +1,6 @@
 import linecache
 import os
-from typing import Optional
+from typing import List, Optional
 
 try:
     import pygments.formatters
@@ -46,7 +46,7 @@ def format_source_context(
     end_line: Optional[int] = None,
     num_context_lines: int = 5,
     show_cause_marker: bool = True,
-) -> list[str]:
+) -> List[str]:
     """Format source code context with line numbers and identifiers for the affected
     line(s)."""
     assert num_context_lines >= 0

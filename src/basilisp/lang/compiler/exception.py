@@ -2,7 +2,7 @@ import ast
 import linecache
 from enum import Enum
 from types import TracebackType
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 import attr
 
@@ -113,12 +113,11 @@ class CompilerException(IExceptionInfo):
 @format_exception.register(CompilerException)
 def format_compiler_exception(  # pylint: disable=unused-argument
     e: CompilerException, tp: Type[Exception], tb: TracebackType
-) -> list[str]:
-    """Return context notes for a Compiler Exception"""
+) -> List[str]:
+    """Format a compiler exception as a list of newline-terminated strings."""
     context_exc: Optional[BaseException] = e.__cause__
 
-    lines = []
-    lines.append("\n")
+    lines = ["\n"]
     if context_exc is not None:
         lines.append(f"  exception: {type(context_exc)} from {type(e)}\n")
     else:

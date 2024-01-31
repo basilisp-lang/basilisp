@@ -2,7 +2,6 @@
 
 import os
 import re
-import traceback
 from functools import partial
 from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Optional, Type
@@ -103,8 +102,7 @@ class PromptToolkitPrompter(Prompter):
                 event.current_buffer.insert_text("\n")
             except reader.SyntaxError as e:
                 run_in_terminal(
-                    partial(
-                        print_exception,
+                    lambda: runtime.basilisp_except_hook(
                         reader.SyntaxError,
                         e,
                         e.__traceback__,
