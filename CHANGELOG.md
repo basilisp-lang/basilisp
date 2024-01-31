@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
  * Fix a bug where `basilisp.lang.compiler.exception.CompilerException` would nearly always suppress line information in it's `data` map (#845)
  * Fix a bug where the function returned by `partial` retained the meta, arities, and `with_meta` method of the wrapped function rather than creating new ones (#847)
+ * Fix a bug where exceptions arising while reading reader conditional forms did not include line and column information (#854)
 
 ## [v0.1.0b1]
 ### Added
