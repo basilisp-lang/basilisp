@@ -454,9 +454,7 @@ def repl(
                 repl_module.mark_exception(e)
                 continue
             except compiler.CompilerException as e:
-                print_exception(
-                    compiler.CompilerException, e, e.__traceback__
-                )
+                print_exception(compiler.CompilerException, e, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
             except Exception as e:  # pylint: disable=broad-exception-caught

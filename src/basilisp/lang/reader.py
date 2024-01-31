@@ -33,7 +33,6 @@ from typing import (
 
 import attr
 
-from basilisp.lang.exception import format_exception, format_source_context
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
@@ -42,6 +41,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import util as langutil
 from basilisp.lang import vector as vec
+from basilisp.lang.exception import format_exception, format_source_context
 from basilisp.lang.interfaces import (
     ILispObject,
     ILookup,

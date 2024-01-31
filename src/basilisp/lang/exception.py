@@ -26,8 +26,8 @@ class ExceptionInfo(IExceptionInfo):
 
 
 try:
-    import pygments.lexers
     import pygments.formatters
+    import pygments.lexers
     import pygments.styles
 except ImportError:
 
@@ -37,6 +37,10 @@ except ImportError:
 else:
 
     def _get_formatter_name() -> Optional[str]:
+        """Get the Pygments formatter name for formatting the source code by
+        inspecting various environment variables set by terminals.
+
+        If `BASILISP_NO_COLOR` is set to a truthy value, use no formatting."""
         if os.environ.get("BASILISP_NO_COLOR", "false").lower() in {"1", "true"}:
             return None
         elif os.environ.get("COLORTERM", "") in ("truecolor", "24bit"):
@@ -47,8 +51,9 @@ else:
             return "terminal"
 
     def _format_source(s: str) -> str:
-        if (formatter_name := _get_formatter_name()) is not None:
-            return s
+        """Format source code for terminal output."""
+        if (formatter_name := _get_formatter_name()) is None:
+            return f"{s}\n"
         return pygments.highlight(
             s,
             lexer=pygments.lexers.get_lexer_by_name("clojure"),

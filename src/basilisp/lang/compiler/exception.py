@@ -6,10 +6,10 @@ from typing import Any, Dict, Optional, Type, Union
 
 import attr
 
-from basilisp.lang.exception import format_exception, format_source_context
 from basilisp.lang import keyword as kw
 from basilisp.lang import map as lmap
 from basilisp.lang.compiler.nodes import Node
+from basilisp.lang.exception import format_exception, format_source_context
 from basilisp.lang.interfaces import IExceptionInfo, IMeta, IPersistentMap, ISeq
 from basilisp.lang.obj import lrepr
 from basilisp.lang.reader import (
