@@ -2046,11 +2046,13 @@ def basilisp_except_hook(
     """Basilisp except hook which is installed as `sys.excepthook` to print any
     unhandled tracebacks."""
     ns_sym = sym.symbol(EXCEPT_HOOK_VAR_NAME, ns=CORE_NS)
-    return (
-        Maybe(Var.find(ns_sym))
-        .map(lambda hook: hook(e, tp, tb))
-        .or_else_raise(lambda: RuntimeException(f"Dynamic Var {ns_sym} not bound!"))
-    )
+    if (hook := Var.find(ns_sym)) is not None:
+        hook(e, tp, tb)
+    else:
+        # Emit an error to stderr and fall back to the default Python except hook
+        # if no hook is currently defined in Basilisp.
+        sys.stderr.write(f"Dynamic Var {ns_sym} not bound!")
+        sys.__excepthook__(tp, e, tb)
 
 
 #########################

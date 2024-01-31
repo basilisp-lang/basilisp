@@ -20,7 +20,7 @@ else:
         If `BASILISP_NO_COLOR` is set to a truthy value, use no formatting."""
         if os.environ.get("BASILISP_NO_COLOR", "false").lower() in {"1", "true"}:
             return None
-        elif os.environ.get("COLORTERM", "") in ("truecolor", "24bit"):
+        elif os.environ.get("COLORTERM", "") in {"truecolor", "24bit"}:
             return "terminal16m"
         elif "256" in os.environ.get("TERM", ""):
             return "terminal256"

@@ -1,5 +1,4 @@
 import ast
-import linecache
 from enum import Enum
 from types import TracebackType
 from typing import Any, Dict, List, Optional, Type, Union
@@ -111,7 +110,7 @@ class CompilerException(IExceptionInfo):
 
 
 @format_exception.register(CompilerException)
-def format_compiler_exception(  # pylint: disable=unused-argument
+def format_compiler_exception(  # pylint: disable=too-many-branches,unused-argument
     e: CompilerException, tp: Type[Exception], tb: TracebackType
 ) -> List[str]:
     """Format a compiler exception as a list of newline-terminated strings."""

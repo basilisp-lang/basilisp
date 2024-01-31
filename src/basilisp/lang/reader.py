@@ -157,7 +157,7 @@ class SyntaxError(Exception):
 
 
 @format_exception.register(SyntaxError)
-def format_syntax_error(  # pylint: disable=unused-argumentma
+def format_syntax_error(  # pylint: disable=unused-argument
     e: SyntaxError, tp: Type[Exception], tb: TracebackType
 ) -> List[str]:
     context_exc: Optional[BaseException] = e.__cause__
