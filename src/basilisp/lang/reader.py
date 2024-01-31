@@ -1484,10 +1484,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
     elif token == "!":
         return _read_comment(ctx)
     elif token == "?":
-        try:
-            return _read_reader_conditional(ctx)
-        except SyntaxError as e:
-            raise ctx.syntax_error(e.message).with_traceback(e.__traceback__) from None
+        return _read_reader_conditional(ctx)
     elif token == "#":
         return _read_numeric_constant(ctx)
     elif token == "b":
@@ -1502,9 +1499,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
             try:
                 return f(v)
             except SyntaxError as e:
-                raise ctx.syntax_error(e.message).with_traceback(
-                    e.__traceback__
-                ) from None
+                raise ctx.syntax_error(e.message).with_traceback(e.__traceback__)
         elif s.ns is None and "." in s.name:
             return _load_record_or_type(ctx, s, v)
         else:
