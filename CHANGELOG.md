@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added filename metadata to compiler exceptions (#844)
  * Added a compile-time warning for attempting to call a function with an unsupported number of arguments (#671)
 
+### Changed
+ * Cause exceptions arising from compilation issues during macroexpansion will no longer be nested for each level of macroexpansion (#852)  
+
 ### Fixed
  * Fix a bug where `basilisp.lang.compiler.exception.CompilerException` would nearly always suppress line information in it's `data` map (#845)
  * Fix a bug where the function returned by `partial` retained the meta, arities, and `with_meta` method of the wrapped function rather than creating new ones (#847)
