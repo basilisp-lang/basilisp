@@ -806,10 +806,10 @@ def _call_args_ast(
 
                     kw_map[munged_k] = _analyze_form(v, ctx)
 
-            except ValueError:
+            except ValueError as e:
                 raise ctx.AnalyzerException(
                     "keyword arguments must appear in key/value pairs", form=form
-                ) from ValueError
+                ) from e
             else:
                 kwargs = lmap.map(kw_map)
         else:
@@ -2509,6 +2509,12 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                 expanded = fn.var.value(macro_env, form, *form.rest)
                 return __handle_macroexpanded_ast(form, expanded, ctx)
             except Exception as e:
+                if isinstance(e, CompilerException) and (  # pylint: disable=no-member
+                    e.phase == CompilerPhase.MACROEXPANSION
+                ):
+                    # Do not chain macroexpansion exceptions since they don't
+                    # actually add anything of value over the cause exception
+                    raise
                 raise CompilerException(
                     "error occurred during macroexpansion",
                     filename=ctx.filename,
