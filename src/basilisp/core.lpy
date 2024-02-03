@@ -5247,7 +5247,9 @@
 ;;;;;;;;;;;;;;;;;;
 
 (defmacro defmulti
-  "Define a new multimethod with the given dispatch function.
+  "Define a new multimethod with the given ``name`` and a ``body`` consisting of an
+  optional docstring, optional metadata map, a dispatch function and options of key/value
+  pairs.
 
   Multimethod dispatch functions should be defined with the same arity or arities as
   the registered methods. The provided dispatch function will be called first on all
@@ -5286,12 +5288,18 @@
   [name & body]
   (let [doc         (when (string? (first body))
                       (first body))
-        name        (if doc
-                      (vary-meta name assoc :doc doc)
-                      name)
         body        (if doc
                       (rest body)
                       body)
+        mt          (when (map? (first body))
+                      (first body))
+        body        (if mt
+                      (rest body)
+                      body)
+        name        (vary-meta name merge mt)
+        name        (if doc
+                      (vary-meta name assoc :doc doc)
+                      name)
         dispatch-fn (first body)
         opts        (apply hash-map (rest body))]
     `(def ~name (basilisp.lang.multifn/MultiFunction (quote ~name)

@@ -93,3 +93,18 @@
     (testing "cannot establish conflicting preference"
       (is (thrown? basilisp.lang.runtime/RuntimeException)
           (prefer-method os-lineage :os/bsd :os/unix)))))
+
+(defmulti args-test1 "test1" :x)
+(defmulti args-test2 {:test 2} :x)
+(defmulti args-test3 "test3" {:test 3} :x)
+(defmulti args-test4 "test4" {:doc "other"} :x)
+
+(deftest multi-args-optional-test
+  (let [mt1 (meta #'args-test1)
+        mt2 (meta #'args-test2)
+        mt3 (meta #'args-test3)
+        mt4 (meta #'args-test4)]
+    (is (= "test1" (:doc mt1)))
+    (is (= 2 (:test mt2)))
+    (is (= {:doc "test3" :test 3} (select-keys mt3 [:doc :test])))
+    (is (= "test4" (:doc mt4)))))
