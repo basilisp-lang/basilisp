@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added a compile-time warning for attempting to call a function with an unsupported number of arguments (#671)
 
 ### Changed
- * Cause exceptions arising from compilation issues during macroexpansion will no longer be nested for each level of macroexpansion (#852)  
+ * Cause exceptions arising from compilation issues during macroexpansion will no longer be nested for each level of macroexpansion (#852)
+ * Support for optional metadata argument in `defmulti` (#857)
 
 ### Fixed
  * Fix a bug where `basilisp.lang.compiler.exception.CompilerException` would nearly always suppress line information in it's `data` map (#845)
