@@ -954,6 +954,9 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     def_loc = _loc(form) or _loc(name) or (None, None)
     if def_loc == (None, None):
         logger.warning(f"def line and column metadata not provided for Var {name}")
+    if name.meta is None:
+        logger.warning(f"def name symbol has no metadata for Var {name}")
+        name = name.with_meta(lmap.EMPTY)
     def_node_env = ctx.get_node_env(pos=ctx.syntax_position)
     def_meta = _clean_meta(
         name.meta.update(  # type: ignore [union-attr]
