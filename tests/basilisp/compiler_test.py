@@ -259,6 +259,17 @@ class TestDef:
         assert var.root == runtime.Unbound(var)
         assert not var.is_bound
 
+    def test_def_name_with_no_metadata(
+        self, lcompile: CompileFn, ns: runtime.Namespace
+    ):
+        var = lcompile(
+            """
+        (defmacro defxyz [v] `(def ~(symbol "xyz") ~v))
+        (defxyz :val)
+        """
+        )
+        assert var.root == kw.keyword("val")
+
     def test_recursive_def(self, lcompile: CompileFn, ns: runtime.Namespace):
         lcompile("(def a a)")
         var = Var.find_in_ns(sym.symbol(ns.name), sym.symbol("a"))
