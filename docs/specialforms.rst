@@ -375,7 +375,7 @@ Primary Special Forms
    Throw the exception named by ``exc``.
    The semantics of ``throw`` are identical to those of Python's `raise <https://docs.python.org/3/reference/simple_stmts.html#the-raise-statement>`_ statement with exception.
    Unlike Python's ``raise``, an exception is always required.
-   A second optional cause exception may be provided after the exception to be thrown -- this is a direct Basilisp equivalent to ``from`` semantics to Python's ``throw`` statement.
+   A second optional cause exception may be provided after the exception to be thrown -- this is a direct Basilisp equivalent to ``from`` semantics to Python's ``raise`` statement.
    The cause may be ``nil`` to suppress cause chaining.
 
    .. note::

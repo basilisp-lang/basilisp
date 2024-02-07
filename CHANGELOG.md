@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added filename metadata to compiler exceptions (#844)
  * Added a compile-time warning for attempting to call a function with an unsupported number of arguments (#671)
- * Added support for a explicit cause exception chaining to the `throw` special form (#???)
+ * Added support for explicit cause exception chaining to the `throw` special form (#862)
 
 ### Changed
  * Cause exceptions arising from compilation issues during macroexpansion will no longer be nested for each level of macroexpansion (#852)
