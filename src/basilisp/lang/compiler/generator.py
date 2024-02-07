@@ -2938,11 +2938,23 @@ def _throw_to_py_ast(ctx: GeneratorContext, node: Throw) -> GeneratedPyAST[ast.e
     assert node.op == NodeOp.THROW
 
     exc_ast = gen_py_ast(ctx, node.exception)
-    raise_body = ast.Raise(exc=exc_ast.node, cause=None)
+
+    cause: Optional[ast.AST]
+    cause_deps: Iterable[ast.AST]
+    if (
+        node.cause is not None
+        and (cause_ast := gen_py_ast(ctx, node.cause)) is not None
+    ):
+        cause = cause_ast.node
+        cause_deps = cause_ast.dependencies
+    else:
+        cause, cause_deps = None, []
+
+    raise_body = ast.Raise(exc=exc_ast.node, cause=cause)
 
     return GeneratedPyAST(
         node=_noop_node(),
-        dependencies=list(chain(exc_ast.dependencies, [raise_body])),
+        dependencies=list(chain(exc_ast.dependencies, cause_deps, [raise_body])),
     )
 
 

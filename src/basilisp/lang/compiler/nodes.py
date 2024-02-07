@@ -879,6 +879,7 @@ class SetBang(Node[SpecialForm]):
 class Throw(Node[SpecialForm]):
     form: SpecialForm
     exception: Node
+    cause: Optional[Node]
     env: NodeEnv
     children: Sequence[kw.Keyword] = vec.v(EXCEPTION)
     op: NodeOp = NodeOp.THROW
