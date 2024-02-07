@@ -3026,11 +3026,27 @@ def _set_bang_ast(form: ISeq, ctx: AnalyzerContext) -> SetBang:
 
 def _throw_ast(form: ISeq, ctx: AnalyzerContext) -> Throw:
     assert form.first == SpecialForm.THROW
+    nelems = count(form)
+
+    if nelems < 2 or nelems > 3:
+        raise ctx.AnalyzerException(
+            "throw forms must contain exactly 2 or 3 elements: (throw exc [cause])",
+            form=form,
+        )
+
     with ctx.expr_pos():
         exc = _analyze_form(runtime.nth(form, 1), ctx)
+
+    if nelems == 3:
+        with ctx.expr_pos():
+            cause = _analyze_form(runtime.nth(form, 2), ctx)
+    else:
+        cause = None
+
     return Throw(
         form=form,
         exception=exc,
+        cause=cause,
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 

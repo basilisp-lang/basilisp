@@ -5134,15 +5134,72 @@ def test_syntax_quoting(test_ns: str, lcompile: CompileFn, resolver: reader.Reso
     )
 
 
-def test_throw(lcompile: CompileFn):
-    with pytest.raises(AttributeError):
-        lcompile("(throw (python/AttributeError))")
+class TestThrow:
+    def test_throw_not_enough_args(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(throw)")
 
-    with pytest.raises(TypeError):
-        lcompile("(throw (python/TypeError))")
+    def test_throw_too_many_args(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(throw (python/ValueError) nil :a)")
 
-    with pytest.raises(ValueError):
-        lcompile("(throw (python/ValueError))")
+    def test_throw(self, lcompile: CompileFn):
+        with pytest.raises(AttributeError):
+            lcompile("(throw (python/AttributeError))")
+
+        with pytest.raises(TypeError):
+            lcompile("(throw (python/TypeError))")
+
+        with pytest.raises(ValueError):
+            lcompile("(throw (python/ValueError))")
+
+    def test_throw_chained(self, lcompile: CompileFn):
+        try:
+            lcompile(
+                """
+            (try
+              (/ 1.0 0)
+              (catch python/ZeroDivisionError e
+                (throw (python/ValueError "lol") e)))
+            """
+            )
+        except ValueError as e:
+            assert str(e) == "lol"
+            assert e.__suppress_context__ is True
+            assert isinstance(e.__cause__, ZeroDivisionError)
+            assert isinstance(e.__context__, ZeroDivisionError)
+
+    def test_throw_suppress_chain(self, lcompile: CompileFn):
+        try:
+            lcompile(
+                """
+            (try
+              (/ 1.0 0)
+              (catch python/ZeroDivisionError e
+                (throw (python/ValueError "lol") nil)))
+            """
+            )
+        except ValueError as e:
+            assert str(e) == "lol"
+            assert e.__suppress_context__ is True
+            assert e.__cause__ is None
+            assert isinstance(e.__context__, ZeroDivisionError)
+
+    def test_throw_context_only(self, lcompile: CompileFn):
+        try:
+            lcompile(
+                """
+            (try
+              (/ 1.0 0)
+              (catch python/ZeroDivisionError e
+                (throw (python/ValueError "lol"))))
+            """
+            )
+        except ValueError as e:
+            assert str(e) == "lol"
+            assert e.__suppress_context__ is False
+            assert e.__cause__ is None
+            assert isinstance(e.__context__, ZeroDivisionError)
 
 
 class TestTryCatch:

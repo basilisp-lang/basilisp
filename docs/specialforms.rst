@@ -370,11 +370,21 @@ Primary Special Forms
       The Basilisp compiler makes attempts to verify whether a ``set!`` is legal at compile time, but there are cases which must be deferred to runtime due to the dynamic nature of the language.
       In particular, due to the non-lexical nature of dynamic Var bindings, it can be difficult to establish if a Var is thread-bound when it is ``set!``, so this check is deferred to runtime.
 
-.. lpy:specialform:: (throw exc)
+.. lpy:specialform:: (throw exc cause?)
 
    Throw the exception named by ``exc``.
    The semantics of ``throw`` are identical to those of Python's `raise <https://docs.python.org/3/reference/simple_stmts.html#the-raise-statement>`_ statement with exception.
-   Unlike Python's ``raise``, an exception is always required and no explicit exception chaining is permitted (as by the ``from`` keyword in Python).
+   Unlike Python's ``raise``, an exception is always required.
+   A second optional cause exception may be provided after the exception to be thrown -- this is a direct Basilisp equivalent to ``from`` semantics to Python's ``throw`` statement.
+   The cause may be ``nil`` to suppress cause chaining.
+
+   .. note::
+
+      Cause exceptions are stored in the ``__cause__`` attribute on thrown exceptions.
+      Contrast this with the case where during the handling of an exception ``a`` , a second exception ``b`` is raised.
+      Without explicit chaining, ``a`` would be stored in the ``__context__`` attribute of ``b``.
+      Standard Python exception formatting language will show both cause and context exceptions, but describes each differently.
+      For more details, see Python's documentation on `exception context <https://docs.python.org/3/library/exceptions.html#exception-context>`_.
 
 .. lpy:specialform:: (try *exprs *catch-exprs finally?)
 
