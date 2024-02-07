@@ -253,10 +253,10 @@ Arithmetic division
 
 :lpy:fn:`basilisp.core/quot`, :lpy:fn:`basilisp.core/rem` and :lpy:fn:`basilisp.core/mod` functions.
 
-The python native quotient ``//`` and modulo ``%`` operators may yield different results compared to their Java counterpart's long division and modulo operators. The discrepancy arises from Python's choise of floored division (`src <http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_, `archived <https://web.archive.org/web/20100827160949/http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_) while Java employs truncated division for its calculations (refer to the to the `Wikipedia Modulo page <https://en.wikipedia.org/wiki/Modulo>`_ for a a comprehensive list of available division formulae).
+The Python native quotient ``//`` and modulo ``%`` operators may yield different results compared to their Java counterpart's long division and modulo operators. The discrepancy arises from Python's choice of floored division (`src <http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_, `archived <https://web.archive.org/web/20100827160949/http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_) while Java employs truncated division for its calculations (refer to the to the `Wikipedia Modulo page <https://en.wikipedia.org/wiki/Modulo>`_ for a a comprehensive list of available division formulae).
 
-In Clojure, the :lpy:fn:`clojure.core/quot` function utilizes Java's long division operator, and the ``%`` operator is employed in defining the :lpy:fn:`clojure.core/rem` function. The :lpy:fn:`clojure.core/mod` fn is subsequently established through floored division based on the latter.
+In Clojure, the ``clojure.core/quot`` function utilizes Java's long division operator, and the ``%`` operator is employed in defining the ``clojure.core/rem`` function. The ``clojure.core/mod`` function is subsequently established through floored division based on the latter.
 
 Basilisp has chosen to adopt the same mathematical formulae as Clojure for these three functions, rather than using the Python's built in operators under all cases. This approach offers the advantage of enhanced cross-platform compatibility without requiring modification, and ensures compatibility with examples in  `ClojureDocs <https://clojuredocs.org/>`_.
 
-Users still have the option to use the native :lpy:fn:`operator/floordiv`, i.e. Python's ``//``  operator, if they prefer so.
+Users still have the option to use the native `operator/floordiv <https://docs.python.org/3/library/operator.html#operator.floordiv>`_, i.e. Python's ``//``  operator, if they prefer so.
