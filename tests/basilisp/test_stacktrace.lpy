@@ -76,11 +76,11 @@
   (try
     (exception-test)
     (catch python/ZeroDivisionError e
-      (is (= "builtins.ZeroDivisionError: Fraction(5, 0)\n"
-             (with-out-str (s/print-throwable e))))))
+      (is (= "builtins.ZeroDivisionError: Fraction(5, 0)"
+             (str/trim (with-out-str (s/print-throwable e)))))))
 
   (try
     (throw (ex-info "Super bad exception" {:severity :bad!}))
     (catch python/Exception e
-      (is (= "basilisp.lang.exception.ExceptionInfo: Super bad exception {:severity :bad!}\n"
-             (with-out-str (s/print-throwable e)))))))
+      (is (= "basilisp.lang.exception.ExceptionInfo: Super bad exception {:severity :bad!}"
+             (str/trim (with-out-str (s/print-throwable e))))))))
