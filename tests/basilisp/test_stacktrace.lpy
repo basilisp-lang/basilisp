@@ -71,3 +71,16 @@
         (is (= "Traceback (most recent call last):" (first trace)))
         (is (= ["    raise ZeroDivisionError('Fraction(%s, 0)' % numerator)"
                 " ZeroDivisionError: Fraction(5, 0)" ] (take-last 2 trace)))))))
+
+(deftest print-throwable
+  (try
+    (exception-test)
+    (catch python/ZeroDivisionError e
+      (is (= "builtins.ZeroDivisionError: Fraction(5, 0)\n"
+             (with-out-str (s/print-throwable e))))))
+
+  (try
+    (throw (ex-info "Super bad exception" {:severity :bad!}))
+    (catch python/Exception e
+      (is (= "basilisp.lang.exception.ExceptionInfo: Super bad exception {:severity :bad!}\n"
+             (with-out-str (s/print-throwable e)))))))

@@ -68,9 +68,12 @@
 
   Prints the :lpy:fn:`ex-data` map if present."
   [exc]
-  (let [exc-type (type exc)]
+  (let [exc-type (type exc)
+        data-str (if-let [d (ex-data exc)]
+                   (str " " d)
+                   "")]
     (println
-     (str (.-__module__ exc-type) "." (.-__qualname__ exc-type) ": " (ex-message exc)))))
+     (str (.-__module__ exc-type) "." (.-__qualname__ exc-type) ": " (ex-message exc) data-str))))
 
 (defn e
   "REPL utility for printing the root cause (via :lpy:fn:`root-cause`) of :lpy:var:`*e`
