@@ -1,13 +1,71 @@
 (ns basilisp.stacktrace
-  "Prints stacktraces."
+  "Utility functions for printing stack traces."
   (:require [basilisp.string :as str])
   (:import [traceback :as tb]))
 
+(defn root-cause
+  "Return the root cause exception of the possible chain of exceptions ``exc``."
+  [^python/BaseException exc]
+  (loop [e exc]
+    (if-let [cause (.-__cause__ e)]
+      (recur cause)
+      e)))
+
+(defn context
+  "Return any context exception to the exception ``exc``."
+  [^python/BaseException exc]
+  (.-__context__ exc))
+
+(defn print-stack-trace
+  "Prints up to ``n`` stack frames from the traceback of the exception ``exc``, not
+  including chained exceptions (causes and context exceptions).
+
+  To print exception tracebacks including causes, use :lpy:fn:`print-cause-trace`.
+
+  If ``n`` is not given, return all frames."
+  ([exc]
+   (print-stack-trace exc nil))
+  ([exc n]
+   (->> (tb/format_exception (python/type exc)
+                             exc
+                             (.-__traceback__ exc)
+                             **
+                             :limit n
+                             :chain false)
+        (str/join " ")
+        print)))
+
 (defn print-cause-trace
-  "Prints the stacktrace of chained ``exc`` (cause), using ``n`` stack
-  frames (defaults to all)."
+  "Prints up to ``n`` stack frames from the traceback of the exception ``exc``,
+  including chained exceptions (causes and context exceptions).
+
+  To print only the trace for the given exception, use :lpy:fn:`print-stack-trace`.
+
+  If ``n`` is not given, return all frames."
   ([exc]
    (print-cause-trace exc nil))
   ([exc n]
-   (print (str/join " "  (tb/format_exception (python/type exc) exc (.-__traceback__ exc)
-                                              ** :limit n :chain true)))))
+   (->> (tb/format_exception (python/type exc)
+                             exc
+                             (.-__traceback__ exc)
+                             **
+                             :limit n
+                             :chain true)
+        (str/join " ")
+        print)))
+
+(defn print-throwable
+  "Print the type and message of exception ``exc``.
+
+  Prints the :lpy:fn:`ex-data` map if present."
+  [exc]
+  (let [exc-type (type exc)]
+    (println
+     (str (.-__module__ exc-type) "." (.-__qualname__ exc-type) ": " (ex-message exc)))))
+
+(defn e
+  "REPL utility for printing the root cause (via :lpy:fn:`root-cause`) of :lpy:var:`*e`
+  if an exception is bound."
+  []
+  (when *e
+    (print-stack-trace (root-cause *e))))

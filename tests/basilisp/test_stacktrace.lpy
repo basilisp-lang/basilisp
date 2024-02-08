@@ -7,7 +7,34 @@
 (defn- exception-test []
   (/ 5 0))
 
-(deftest stacktrace-basic
+(defn- chained-exception []
+  (try
+    (/ 5.0 0)
+    (catch python/ZeroDivisionError e
+      (throw (python/ValueError "Division by zero") e))))
+
+(defn- context-exception []
+  (try
+    (/ 5.0 0)
+    (catch python/ZeroDivisionError e
+      (throw (python/ValueError "Division by zero")))))
+
+(deftest root-cause-test
+  (testing "no root cause"
+    (try
+      (exception-test)
+      (catch python/ZeroDivisionError e
+        (is (identical? e (s/root-cause e))))))
+
+  (testing "with root cause"
+    (try
+      (chained-exception)
+      (catch python/ZeroDivisionError _
+        (is false))
+      (catch python/ValueError e
+        (is (instance? python/ZeroDivisionError (s/root-cause e)))))))
+
+(deftest print-cause-trace-test
   (try
     (exception-test)
     (catch python/Exception e
