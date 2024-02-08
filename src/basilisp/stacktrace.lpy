@@ -12,9 +12,18 @@
       e)))
 
 (defn context
-  "Return any context exception to the exception ``exc``."
-  [^python/BaseException exc]
-  (.-__context__ exc))
+  "Return any context exception to the exception ``exc``.
+
+  Context exceptions may be the same as cause exceptions. Typically, when throwing an
+  exception with an explicit cause the context exception is suppressed (via
+  ``BaseException.__suppress_context__``). If called with one argument, this function
+  will use the value of ``__suppress_context__`` for ``suppress-context?``. If called
+  with two arguments, the caller can specify if context should be returned or suppressed."
+  ([^python/BaseException exc]
+   (context exc (.-__suppress_context__ exc)))
+  ([^python/BaseException exc suppress-context?]
+   (when-not suppress-context?
+     (.-__context__ exc))))
 
 (defn print-stack-trace
   "Prints up to ``n`` stack frames from the traceback of the exception ``exc``, not

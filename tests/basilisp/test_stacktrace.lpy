@@ -34,6 +34,25 @@
       (catch python/ValueError e
         (is (instance? python/ZeroDivisionError (s/root-cause e)))))))
 
+(deftest context-test
+  (testing "context only exception"
+    (try
+      (context-exception)
+      (catch python/ZeroDivisionError _
+        (is false))
+      (catch python/ValueError e
+        (is (identical? e (s/root-cause e)))
+        (is (instance? python/ZeroDivisionError (s/context e))))))
+
+  (testing "explicit cause exception"
+    (try
+      (chained-exception)
+      (catch python/ValueError e
+        (is (instance? python/ZeroDivisionError (s/root-cause e)))
+        (is (instance? python/ZeroDivisionError (s/context e false)))
+        (is (identical? (s/root-cause e) (s/context e false)))
+        (is (nil? (s/context e)))))))
+
 (deftest print-cause-trace-test
   (try
     (exception-test)
