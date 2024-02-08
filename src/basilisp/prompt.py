@@ -2,6 +2,7 @@
 
 import os
 import re
+import sys
 from functools import partial
 from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Optional, Type
@@ -102,7 +103,7 @@ class PromptToolkitPrompter(Prompter):
             except reader.SyntaxError as e:
                 run_in_terminal(
                     partial(
-                        runtime.basilisp_except_hook,
+                        sys.excepthook,
                         reader.SyntaxError,
                         e,
                         e.__traceback__,

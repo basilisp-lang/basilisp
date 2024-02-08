@@ -448,17 +448,15 @@ def repl(
                 prompter.print(runtime.lrepr(result))
                 repl_module.mark_repl_result(result)
             except reader.SyntaxError as e:
-                runtime.basilisp_except_hook(reader.SyntaxError, e, e.__traceback__)
+                sys.excepthook(reader.SyntaxError, e, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
             except compiler.CompilerException as e:
-                runtime.basilisp_except_hook(
-                    compiler.CompilerException, e, e.__traceback__
-                )
+                sys.excepthook(compiler.CompilerException, e, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
             except Exception as e:  # pylint: disable=broad-exception-caught
-                runtime.basilisp_except_hook(type(e), e, e.__traceback__)
+                sys.excepthook(type(e), e, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
 
