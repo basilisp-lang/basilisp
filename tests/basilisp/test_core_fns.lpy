@@ -2211,3 +2211,17 @@
         (.flush *out*)
         (is (= (bio-write expected os/linesep "ab" os/linesep "ab" " " 1 os/linesep)
                (.getvalue bio)))))))
+
+;;;;;;;;;;;;;;;;
+;; arithmetic ;;
+;;;;;;;;;;;;;;;;
+
+(deftest arithmetic-equality-test
+  (testing "int and float type equality"
+    (is (not= 1 1.00001))
+    (is (= 1 1.0000000000000000000000009)))
+
+  (testing "== is an alias of ="
+    (let [f 1.0000000000000000000000009]
+      (is (= 1 f))
+      (is (== 1 f)))))
