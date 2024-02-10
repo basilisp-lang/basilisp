@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for explicit cause exception chaining to the `throw` special form (#862)
  * Added `basilisp.stacktrace` namespace (#721)
  * Added support for `*flush-on-newline*` to flush the `prn` and `println` output stream after the last newline (#865)
+ * Added support for binding destructuring in `for` bindings (#774)
 
 ### Changed
  * Cause exceptions arising from compilation issues during macroexpansion will no longer be nested for each level of macroexpansion (#852)
