@@ -3509,12 +3509,12 @@
   For comprehensions consist of a vector of bindings, with optional modifiers, and a
   user specified body in an implicit ``do`` block.
 
-  Symbol bindings look like standard ``let`` bindings without destructuring. Values
-  bound to symbols should be sequences or otherwise seqable. The body of the ``for``
-  comprehension will be executed with the given symbol bound to successive values of the
-  sequence. If multiple sequences are bound to symbols, iteration will proceed in a
-  nested fashion with latest sequences iterated first and earlier sequences iterated
-  later (as nested ``for`` loops in procedural languages).
+  Symbol bindings look like standard ``let`` bindings. Values bound to symbols should be
+  sequences or otherwise seqable. The body of the ``for`` comprehension will be executed
+  with the given symbol bound to successive values of the sequence. If multiple sequences
+  are bound to symbols, iteration will proceed in a nested fashion with latest sequences
+  iterated first and earlier sequences iterated later (as nested ``for`` loops in
+  procedural languages).
 
   For example, a simple non-nested for comprehension will yield::
 
@@ -3554,10 +3554,6 @@
 
     (not (even? (count bindings)))
     (throw (ex-info "for expression must have an even number of bindings"
-                    {:bindings bindings}))
-
-    (not (symbol? (first bindings)))
-    (throw (ex-info "for expression bindings must start with symbol binding"
                     {:bindings bindings})))
 
   (let [;; Generate the body of a for binding iterator, applying any relevant
@@ -3626,7 +3622,7 @@
                            ;; (which will be applied to this iterator) and additional
                            ;; bindings (which will be generated as new, inner iterators).
                            groups        (split-with (fn [pair]
-                                                       (not (symbol? (first pair))))
+                                                       (keyword? (first pair)))
                                                      (rest pairs))
                            mods          (first groups)
                            rest-bindings (second groups)
