@@ -246,7 +246,7 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
    Return annotations are combined as by ``typing.Union``, so ``typing.Union[str, str] == str``.
    The annotations for individual arity arguments are preserved in their compiled form, but they are challenging to access programmatically.
 
-.. _arithmeticdivision
+.. _arithmeticdivision:
 
 Arithmetic division
 -------------------

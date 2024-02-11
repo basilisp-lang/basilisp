@@ -817,7 +817,7 @@
 (defn =
   "Return ``true`` if ``x`` and ``y`` are equal, otherwise ``false``\\.
 
-  Number equality follows Python's `=` semantics whereby \"a
+  Number equality follows Python's ``=`` semantics whereby \"a
   comparison between numbers of different types behaves as though the
   exact values of those numbers were being compared\"."
   ([_] true)
@@ -833,10 +833,10 @@
   [& args]
   (not (apply = args)))
 
-(defmacro ==
+(defn ==
   "Alias for lpy:fn:`=`."
   [& args]
-  `(= ~@args))
+  (apply = args))
 
 (defn >
   "Return ``true`` if arguments are monotonically decreasing, otherwise ``false``\\."
