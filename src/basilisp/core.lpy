@@ -4098,6 +4098,13 @@
 
 (def ^:dynamic *print-sep* " ")
 
+(def ^:dynamic *flush-on-newline*
+  "Indicates whether the `:lpy:fn:prn` and `:lpy:fn:println` functions
+  should flush the output stream after the last newline is written.
+
+  Defaults to true."
+  true)
+
 (defn ^:inline repr
   "Return the reader representation of an object."
   [x]
@@ -4153,14 +4160,20 @@
      nil)))
 
 (defn prn
-  "Same as :lpy:fn:`pr`, but appending a newline afterwards."
+  "Same as :lpy:fn:`pr`, but appending a newline afterwards.
+
+  Observes :lpy:var:`*flush-on-newline*`."
   ([]
    (.write *out* os/linesep)
+   (when *flush-on-newline*
+       (.flush *out*))
    nil)
   ([x]
    (let [stdout *out*]
      (.write stdout (repr x))
      (.write stdout os/linesep)
+     (when *flush-on-newline*
+       (.flush stdout))
      nil))
   ([x & args]
    (let [stdout    *out*
@@ -4170,6 +4183,8 @@
      (.write stdout sep)
      (.write stdout (apply str repr-args))
      (.write stdout os/linesep)
+     (when *flush-on-newline*
+       (.flush *out*))
      nil)))
 
 (defn pr-str
@@ -4205,12 +4220,16 @@
   "Print the arguments to the stream bound to :lpy:var:`*out*` in a format which is
   readable by humans. ``println`` always prints a trailing newline. Multiple arguments
   will be separated by the string value bound to :lpy:var:`*print-sep*` (default is an
-  ASCII space)."
+  ASCII space).
+
+  Observes :lpy:var:`*flush-on-newline*`."
   ([] (println ""))
   ([x]
    (let [stdout *out*]
      (.write stdout (basilisp.lang.runtime/lstr x))
      (.write stdout os/linesep)
+     (when *flush-on-newline*
+       (.flush stdout))
      nil))
   ([x & args]
    (let [stdout    *out*
@@ -4220,6 +4239,8 @@
      (.write stdout sep)
      (.write stdout (apply str repr-args))
      (.write stdout os/linesep)
+     (when *flush-on-newline*
+       (.flush stdout))
      nil)))
 
 (defn print-str
