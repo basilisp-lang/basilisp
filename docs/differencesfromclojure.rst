@@ -32,6 +32,23 @@ Type Differences
 
   * Sorted sets, sorted maps, and array maps are not implemented (support is tracked in `#416 <https://github.com/basilisp-lang/basilisp/issues/416>`_).
 
+.. _arithmetic_comparison:
+
+Arithmetic Comparison
+---------------------
+
+Basilisp, in contrast to Clojure, does not distinguish between integer (``int``) and floating point (``float``) as `separate categories for equality comparison purposes <https://clojure.org/guides/equality>`_ where the ``=`` comparison between any ``int`` and ``float`` returns ``false``. Instead, it adopts Python's ``=`` comparison operator semantics, where the ``int`` is optimistically converted to a ``float`` before the comparison. However, beware that this conversion can lead to `certain caveats in comparison <https://stackoverflow.com/a/30100743>`_ where in rare cases seemingly exact ``int`` and ``float`` numbers may still compare to ``false`` due to limitations in floating point number representation.
+
+In Clojure, this optimistic equality comparison is performed by the ``==`` function. In Basilisp, ``==`` is aliased to behave the same as ``=``.
+
+.. note::
+
+   Basilisp's ``=`` will perform as expected when using Python `Decimal <https://docs.python.org/3/library/decimal.html>`__ typed :ref:`floating_point_numbers`.
+
+.. seealso::
+
+   Python's `floating point arithmetic <https://docs.python.org/3/tutorial/floatingpoint.html>`_ documentation
+
 .. _concurrent_programming:
 
 Concurrent Programming

@@ -815,7 +815,11 @@
   (operator/is_ x y))
 
 (defn =
-  "Return ``true`` if ``x`` and ``y`` are equal, otherwise ``false``\\."
+  "Return ``true`` if ``x`` and ``y`` are equal, otherwise ``false``\\.
+
+  Number equality follows Python's ``=`` semantics whereby \"a
+  comparison between numbers of different types behaves as though the
+  exact values of those numbers were being compared\"."
   ([_] true)
   ([x & args]
    (if (seq (rest args))
@@ -828,6 +832,11 @@
   "Return ``true`` if ``x`` and ``y`` are not equal, otherwise ``false``\\."
   [& args]
   (not (apply = args)))
+
+(defn ==
+  "Alias for lpy:fn:`=`."
+  [& args]
+  (apply = args))
 
 (defn >
   "Return ``true`` if arguments are monotonically decreasing, otherwise ``false``\\."
