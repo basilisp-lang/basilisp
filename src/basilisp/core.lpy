@@ -7200,28 +7200,39 @@
   to the proxy instance.
 
   The single arity version can also accept python keyword args using
-  the meta :kwargs option, as follows
+  the meta :kwargs option, such as :collect, as follows
 
   ^{:kwargs :collect} (method-name [args... {:as kwargs}])
 
   The interfaces in ``class-and-interfaces`` can be regular classes or
-  abstract classes whose methods can be overriden in ``fs``.
+  abstract classes whose methods can be shadowed/overriden in ``fs``.
 
   Moreover, if a method in ``fs`` is not found in any of the methods
   in ``class-and-interfaces``, it is added as a new method in the
   proxy instance."
   (let [class-nm (str (gensym (str "proxy--" (first class-and-interfaces))))
-        fname-fn-pairs
+        ;; The idea here is to create let bindings to the functions
+        ;; required to implement the interfaces or new methods, and
+        ;; associate these bindigns to method names in `python/type`.
+        ;;
+        ;; (let [binding1 (fn method-name1 ['this args...] body)
+        ;;       binding2 (fn method-name2 (['this args1...] body1)
+        ;;                                 (['this args2...] body2))
+        ;;       ...]
+        ;;  (python/type proxy-xyz (class-and-interfaces)
+        ;;    {"method-name1" bidning1, "method-name2" binding2, ...}))
+        bindings-and-mappings
         (for [f fs]
           (if (list? (second f))
             ;; multi-arity
             (let [fname (first f)
-                  ;; Implementation of variadic functions for Basilisp
-                  ;; interfaces necessitates the inclusion of
-                  ;; additional arity method signatures, such as
-                  ;; method-name_arityN, to be registered for proper
-                  ;; functionality.
-                  arity-fns
+                  ;; Implementation of a multi arity function for a
+                  ;; Basilisp interface does not only require a single
+                  ;; multiarity function implemented, but also necessitates
+                  ;; the inclusion of additional arity method
+                  ;; signatures, such as method-name_arityN, to be
+                  ;; implemented for proper functionality.
+                  arity-fns-additional
                   (->> (for [spec (rest f)]
                          (let [fargs        (first spec)
                                argc         (count fargs)
@@ -7235,54 +7246,61 @@
                                arity        (if variadic-pos math/inf argc)
                                farity       (if variadic-pos
                                               "_rest"
-                                              (if (= argc 0) 0 (inc argc)))]
-                           {:fnname (str "_" fname "_arity" farity)
+                                              (if (= argc 0) 0 (inc argc)))
+                               fnname (str "_" fname "_arity" farity)]
+                           {:fnname fnname
+                            :binding-name (gensym fnname)
                             :fargs fargs
                             :arity arity
                             :variadic-pos variadic-pos
-                            :fun `(fn ~(into ['this] fargs)
+                            :fun `(fn ~(symbol fnname) ~(into ['this] fargs)
                                     ~@(rest spec))}))
                        (sort-by :arity))
-                  ;; Create a single variadic fn that will switch to the
-                  ;; correct body based on the number of arguments passed
-                  ;; in.
-                  fname-fn-pair
-                  (let [vargs (gensym "args")]
-                    [(str fname)
-                     `(fn [& ~vargs]
-                        ;; create a case form to switch to the right
-                        ;; body according to the number of arguments
-                        ;; passed to the fn.
-                        ;;
-                        ;; (case (count fn-args)
-                        ;;   n1 (do body1)
-                        ;;   n2 (do body2)
-                        ;;   (if-not (variadic? fn-args)
-                        ;;     (throw exception)
-                        ;;     (do variadic-body))
-                        ~(apply list `case `(count ~vargs)
-                                (mapcat (fn [{:keys [fun fargs arity variadic-pos]}]
-                                          (if variadic-pos
-                                            `((if (<= (count ~vargs) ~variadic-pos)
-                                                (throw (ex-info "Arguments passed to function does not match the variadic fn specification"
-                                                                {:args-spec-expected (quote ~fargs)
-                                                                 :args-provided (drop 1 ~vargs)}))
-                                                (apply ~fun ~vargs)))
-                                            [(inc (count fargs)) `(apply ~fun ~vargs)]))
-                                        arity-fns)))])]
-              (into [fname-fn-pair] (for [details arity-fns]
-                                      [(:fnname details) (:fun details)])))
+                  ;; e.g. ( [method-name-arityN-binding (fn method-name_arityN [this args1...] body)],
+                  ;;        [method-name-arityY-binding (fn method-name_arityY [this args2...] body)] ...)
+                  binding-to-fn-pairs  (for [{:keys [binding-name fun]} arity-fns-additional]
+                                         [binding-name fun])
+                  ;; e.g. ( [method-name_arityN method-name-arityN-binding],
+                  ;;        [method-name_arityY method-name-arityY-binding] ...)
+                  fname-to-binding-pairs (for [{:keys [fnname binding-name]} arity-fns-additional]
+                                           [(munge fnname) binding-name])
+                  ;; the main multiarity function, it refers to the
+                  ;; above function bindings.
+                  ;; (fn method-name2 ([this args1...] (method-name-arityN-binding this args1...)
+                  ;;                  ([this args2...] (method-name_arityY-binding this args2...))]
+                  multiarity-fn (->> (for [{:keys [binding-name fargs variadic-pos]} arity-fns-additional]
+                                       (let [args (into ['this] fargs)]
+                                         (if variadic-pos
+                                           (let [singles (take (inc variadic-pos) args)
+                                                 variadic (last args)]
+                                             `(~args
+                                               (apply ~binding-name ~@singles ~variadic)))
+                                           `(~args
+                                             (~binding-name ~@args)))))
+                                     (concat `(fn ~fname)))
+                  multiarity-binding-name (gensym fname)
+                  ;; add the multiarity binding pair to the end,
+                  ;; because the function it defines can refer back to
+                  ;; the other bindings.
+                  binding-to-fn-pairs (conj (into [] binding-to-fn-pairs) [multiarity-binding-name multiarity-fn])
+                  ;; add multiarity method name to the list
+                  fname-to-binding-pairs (cons [(munge (str fname)) multiarity-binding-name] fname-to-binding-pairs)]
+              {:binding-to-fn-pairs binding-to-fn-pairs
+               :fname-to-binding-pairs fname-to-binding-pairs})
 
             ;; single arity
             (let [fmeta (meta f)
                   fname (first f)
-                  fargs (second f)]
-              [[(munge fname) (with-meta `(fn ~(into ['this] fargs)
-                                            ~@(drop 2 f))
-                                fmeta)]])))
+                  fargs (second f)
+                  binding-name (gensym fname)
+                  fn-def (with-meta `(fn ~fname ~(into ['this] fargs)
+                                       ~@(drop 2 f))
+                           fmeta)]
+              {:binding-to-fn-pairs [ [binding-name fn-def] ]
+               :fname-to-binding-pairs [[(munge fname) binding-name]]})))
 
-        ;; convert to dictionary of fname-fn pairs
-        fns-dict
-        (into {} (apply concat fname-fn-pairs))]
-    `((python/type ~class-nm (python/tuple ~class-and-interfaces)
-                   (lisp->py ~fns-dict)) ~@args)))
+        let-bindings (apply concat (map :binding-to-fn-pairs bindings-and-mappings))
+        fns-dict     (into {} (apply concat (map :fname-to-binding-pairs bindings-and-mappings)))]
+    `(let ~(into [] (apply concat let-bindings))
+       ((python/type ~class-nm (python/tuple ~class-and-interfaces)
+                     (lisp->py ~fns-dict)) ~@args))))

@@ -1547,11 +1547,11 @@
 (definterface ITestProxyMultiArgs
   (none [])
   (one-arg [arg])
-  (multi [one two & more]))
+  (multi-a [one two & more]))
 (definterface ITestProxyMultiVariadic
-  (multi [])
-  (multi [one two three & more])
-  (multi [one]))
+  (multi-a [])
+  (multi-a [one two three & more])
+  (multi-a [one]))
 
 (deftest proxy-test
   (testing "proxy interface of simple fn with args"
@@ -1583,41 +1583,41 @@
     (let [p (proxy [ITestProxyMultiArgs] []
               (none [] "hi")
               (one-arg [arg] arg)
-              (multi [one two & more] {:one one
-                                       :two two
-                                       :more more}))]
+              (multi-a [one two & more] {:one one
+                                         :two two
+                                         :more more}))]
       (is (= "hi" (.none p)))
       (is (= 5 (.one-arg p 5)))
       (is (= {:one 5 :two 3 :more [4 6]}
-             (.multi p 5 3 4 6)))))
+             (.multi-a p 5 3 4 6)))))
 
   (testing "proxy interface with multiarity and variadic fns"
     (let [p (proxy [ITestProxyMultiVariadic] []
-              (multi
+              (multi-a
                 ([] 0)
                 ([atm]
                  (swap! atm inc)
                  @atm)
                 ([one two three & more] [one two three more])))
           atm (atom 9)]
-      (is (= 0 (.multi p)))
-      (is (= 10 (.multi p atm)))
-      (is (= [9 8 7 nil] (.multi p 9 8 7)))
-      (is (= [9 8 7 '(3 4)] (.multi p 9 8 7 3 4)))
+      (is (= 0 (.multi-a p)))
+      (is (= 10 (.multi-a p atm)))
+      (is (= [9 8 7 nil] (.multi-a p 9 8 7)))
+      (is (= [9 8 7 '(3 4)] (.multi-a p 9 8 7 3 4)))
 
-      (is (thrown? basilisp.lang.exception/ExceptionInfo (.multi p 9 8)))))
+      (is (thrown? basilisp.lang.runtime/RuntimeException (.multi-a p 9 8)))))
 
   (testing "proxy interfaces with simple fn and multiarity"
     (let [p (proxy [ITestProxySingleArg ITestProxyMultiVariadic] []
               (arg-simple [arg] arg)
-              (multi
+              (multi-a
                 ([] 0)
                 ([one] one)
                 ([one two three & more] [one two three more])))]
       (is (= 3 (.arg-simple p 3)))
-      (is (= 0 (.multi p)))
-      (is (= 5 (.multi p 5)))
-      (is (= [9 8 7 '(3 4)] (.multi p 9 8 7 3 4)))))
+      (is (= 0 (.multi-a p)))
+      (is (= 5 (.multi-a p 5)))
+      (is (= [9 8 7 '(3 4)] (.multi-a p 9 8 7 3 4)))))
 
   (testing "simple proxy class with interface and `this` anaphora"
     (let [p (proxy [io/StringIO ITestProxySingleArg] []
