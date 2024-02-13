@@ -5,11 +5,13 @@ import contextlib
 import decimal
 import functools
 import io
+import os
 import re
 import uuid
 from datetime import datetime
 from fractions import Fraction
 from itertools import chain
+from types import TracebackType
 from typing import (
     Any,
     Callable,
@@ -24,6 +26,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TypeVar,
     Union,
     cast,
@@ -39,6 +42,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import util as langutil
 from basilisp.lang import vector as vec
+from basilisp.lang.exception import format_exception
 from basilisp.lang.interfaces import (
     ILispObject,
     ILookup,
@@ -60,6 +64,7 @@ from basilisp.lang.runtime import (
     get_current_ns,
     lrepr,
 )
+from basilisp.lang.source import format_source_context
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
@@ -150,6 +155,51 @@ class SyntaxError(Exception):
         else:
             details = ", ".join(f"{key}: {val}" for key, val in keys.items())
             return f"{self.message} ({details})"
+
+
+@format_exception.register(SyntaxError)
+def format_syntax_error(  # pylint: disable=unused-argument
+    e: SyntaxError, tp: Type[Exception], tb: TracebackType
+) -> List[str]:
+    context_exc: Optional[BaseException] = e.__cause__
+
+    lines = [os.linesep]
+    if context_exc is not None:
+        lines.append(f"  exception: {type(context_exc)} from {type(e)}{os.linesep}")
+    else:
+        lines.append(f"  exception: {type(e)}{os.linesep}")
+    if context_exc is None:
+        lines.append(f"    message: {e.message}{os.linesep}")
+    else:
+        lines.append(f"    message: {e.message}: {context_exc}{os.linesep}")
+
+    if e.line is not None and e.col:
+        line_num = f"{e.line}:{e.col}"
+    elif e.line is not None:
+        line_num = str(e.line)
+    else:
+        line_num = ""
+
+    if e.filename is not None:
+        lines.append(
+            f"   location: {e.filename}:{line_num or 'NO_SOURCE_LINE'}{os.linesep}"
+        )
+    elif line_num:
+        lines.append(f"      lines: {line_num}{os.linesep}")
+
+    # Print context source lines around the error. Use the current exception to
+    # derive source lines, but use the inner cause exception to place a marker
+    # around the error.
+    if (
+        e.filename is not None
+        and e.line is not None
+        and (context_lines := format_source_context(e.filename, e.line))
+    ):
+        lines.append(f"    context:{os.linesep}")
+        lines.append(os.linesep)
+        lines.extend(context_lines)
+
+    return lines
 
 
 class UnexpectedEOFError(SyntaxError):

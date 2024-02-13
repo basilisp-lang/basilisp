@@ -4171,7 +4171,7 @@
   ([]
    (.write *out* os/linesep)
    (when *flush-on-newline*
-       (.flush *out*))
+     (.flush *out*))
    nil)
   ([x]
    (let [stdout *out*]
@@ -4402,11 +4402,12 @@
   (with-open [f (python/open path ** :mode "r")]
     (load-reader f)))
 
-(defn- resolve-load-path [path]
+(defn- resolve-load-path
   "Resolve load ``path`` relative to the current namespace, or, if it
   begins with \"/\", relative to the syspath, and return it.
 
- Throw a python/FileNotFoundError if the ``path`` cannot be resolved."
+  Throw a ``python/FileNotFoundError`` if the ``path`` cannot be resolved."
+  [path]
   (let [path-rel (if (.startswith path "/")
                    path
                    (let [path-parent (-> (name *ns*)

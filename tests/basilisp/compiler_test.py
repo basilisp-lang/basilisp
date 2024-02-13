@@ -6,9 +6,11 @@ import logging
 import os
 import re
 import sys
+import textwrap
 import typing
 import uuid
 from fractions import Fraction
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
@@ -26,6 +28,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import SYM_INLINE_META_KW, SYM_PRIVATE_META_KEY
+from basilisp.lang.exception import format_exception
 from basilisp.lang.interfaces import IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.util import demunge
@@ -49,7 +52,7 @@ def test_ns() -> str:
 
 @pytest.fixture
 def compiler_file_path() -> str:
-    return "compiler_test"
+    return "<Compiler Test>"
 
 
 @pytest.fixture
@@ -68,6 +71,107 @@ def async_to_sync(asyncf, *args, **kwargs):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     return loop.run_until_complete(asyncf(*args, **kwargs))
+
+
+class TestExceptionFormat:
+    def test_no_cause_exception(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException) as e:
+            lcompile("(let* [a 3] b)")
+
+        assert [
+            f"{os.linesep}",
+            f"  exception: <class 'basilisp.lang.compiler.exception.CompilerException'>{os.linesep}",
+            f"      phase: :analyzing{os.linesep}",
+            f"    message: unable to resolve symbol 'b' in this context{os.linesep}",
+            f"       form: b{os.linesep}",
+            f"   location: <Compiler Test>:1{os.linesep}",
+        ] == format_exception(e.value)
+
+    def test_exception_with_cause(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException) as e:
+            lcompile("(fn*)")
+
+        assert [
+            f"{os.linesep}",
+            f"  exception: <class 'IndexError'> from <class 'basilisp.lang.compiler.exception.CompilerException'>{os.linesep}",
+            f"      phase: :analyzing{os.linesep}",
+            f"    message: fn form must match: (fn* name? [arg*] body*) or (fn* name? method*): Index 1 out of bounds{os.linesep}",
+            f"       form: (fn*){os.linesep}",
+            f"   location: <Compiler Test>:1{os.linesep}",
+        ] == format_exception(e.value)
+
+    def test_macroexpansion_exception_with_cause(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException) as e:
+            lcompile("(let [a 3]\nb)")
+
+        assert [
+            f"{os.linesep}",
+            f"  exception: <class 'basilisp.lang.compiler.exception.CompilerException'> from <class 'basilisp.lang.compiler.exception.CompilerException'>{os.linesep}",
+            f"      phase: :macroexpansion{os.linesep}",
+            f"    message: error occurred during macroexpansion: unable to resolve symbol 'b' in this context{os.linesep}",
+            f"       form: (let [a 3] b){os.linesep}",
+            f"   location: <Compiler Test>:1-2{os.linesep}",
+        ] == format_exception(e.value)
+
+    def test_macroexpansion_non_compiler_error(self, lcompile: CompileFn):
+        lcompile("(defmacro badmacro [arg] `[~(.append arg)])")
+
+        with pytest.raises(compiler.CompilerException) as e:
+            lcompile("(badmacro :kw)")
+
+        assert [
+            f"{os.linesep}",
+            f"  exception: <class 'AttributeError'> from <class 'basilisp.lang.compiler.exception.CompilerException'>{os.linesep}",
+            f"      phase: :macroexpansion{os.linesep}",
+            f"    message: error occurred during macroexpansion: 'Keyword' object has no attribute 'append'{os.linesep}",
+            f"       form: (badmacro :kw){os.linesep}",
+            f"   location: <Compiler Test>:1{os.linesep}",
+        ] == format_exception(e.value)
+
+    class TestExceptionsWithSourceContext:
+        @pytest.fixture
+        def source_file(self, tmp_path: Path) -> Path:
+            return tmp_path / "compiler_test.lpy"
+
+        @pytest.fixture
+        def compiler_file_path(self, source_file: Path) -> str:
+            return str(source_file)
+
+        def test_shows_source_context(
+            self, monkeypatch, source_file: Path, lcompile: CompileFn
+        ):
+            source_file.write_text(
+                textwrap.dedent(
+                    """
+                    (ns compiler-test)
+                
+                    (let [a :b]
+                      b)
+                    """
+                )
+            )
+            monkeypatch.setenv("BASILISP_NO_COLOR", "true")
+            monkeypatch.syspath_prepend(source_file.parent)
+
+            with pytest.raises(compiler.CompilerException) as e:
+                lcompile("(require 'compiler-test)")
+
+            assert re.fullmatch(
+                f"{os.linesep}"
+                f"  exception: <class 'basilisp.lang.compiler.exception.CompilerException'> from <class 'basilisp.lang.compiler.exception.CompilerException'>{os.linesep}"
+                f"      phase: :macroexpansion{os.linesep}"
+                f"    message: error occurred during macroexpansion: unable to resolve symbol 'b' in this context{os.linesep}"
+                f"       form: \(let \[a :b\] b\){os.linesep}"
+                f"   location: [^:]*:3-5{os.linesep}"
+                f"    context:{os.linesep}"
+                f"{os.linesep}"
+                f" 1   \| {os.linesep}"
+                f" 2   \| \(ns compiler-test\){os.linesep}"
+                f" 3 > \| {os.linesep}"
+                f" 4 > \| \(let \[a :b\]{os.linesep}"
+                f" 5   \|   b\){os.linesep}",
+                "".join(format_exception(e.value)),
+            )
 
 
 class TestLiterals:

@@ -18,6 +18,7 @@ from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
+from basilisp.lang.exception import print_exception
 
 _USER_DATA_HOME = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
 BASILISP_USER_DATA = os.path.abspath(os.path.join(_USER_DATA_HOME, "basilisp"))
@@ -103,7 +104,7 @@ class PromptToolkitPrompter(Prompter):
             except reader.SyntaxError as e:
                 run_in_terminal(
                     partial(
-                        traceback.print_exception,
+                        print_exception,
                         reader.SyntaxError,
                         e,
                         e.__traceback__,
