@@ -4,7 +4,6 @@ import io
 import os
 import sys
 import textwrap
-import traceback
 import types
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, Type

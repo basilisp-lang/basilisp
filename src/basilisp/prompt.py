@@ -2,7 +2,6 @@
 
 import os
 import re
-import traceback
 from functools import partial
 from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Optional, Type
