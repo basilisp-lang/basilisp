@@ -196,7 +196,7 @@ class TestREPL:
                     "",
                     "  exception: <class 'basilisp.lang.reader.UnexpectedEOFError'>",
                     "    message: Unexpected EOF in list",
-                    "      lines: 1:7",
+                    "       line: 1:7",
                     "",
                 )
             )
