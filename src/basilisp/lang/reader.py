@@ -159,7 +159,9 @@ class SyntaxError(Exception):
 
 @format_exception.register(SyntaxError)
 def format_syntax_error(  # pylint: disable=unused-argument
-    e: SyntaxError, tp: Type[Exception], tb: TracebackType
+    e: SyntaxError,
+    tp: Optional[Type[Exception]] = None,
+    tb: Optional[TracebackType] = None,
 ) -> List[str]:
     context_exc: Optional[BaseException] = e.__cause__
 
@@ -185,7 +187,7 @@ def format_syntax_error(  # pylint: disable=unused-argument
             f"   location: {e.filename}:{line_num or 'NO_SOURCE_LINE'}{os.linesep}"
         )
     elif line_num:
-        lines.append(f"      lines: {line_num}{os.linesep}")
+        lines.append(f"       line: {line_num}{os.linesep}")
 
     # Print context source lines around the error. Use the current exception to
     # derive source lines, but use the inner cause exception to place a marker

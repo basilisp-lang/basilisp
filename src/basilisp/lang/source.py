@@ -60,7 +60,7 @@ def format_source_context(
         elif end_line is not None and end_line != line:
             cause_range = range(line, end_line)
         else:
-            cause_range = range(line, line)
+            cause_range = range(line, line + 1)
 
         if source_lines := linecache.getlines(filename):
             start = max(0, line - num_context_lines)

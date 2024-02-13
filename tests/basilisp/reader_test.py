@@ -1,6 +1,10 @@
 import io
 import math
+import os
+import re
+import textwrap
 from fractions import Fraction
+from pathlib import Path
 from typing import Optional
 
 import pytest
@@ -15,6 +19,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import util as langutil
 from basilisp.lang import vector as vec
+from basilisp.lang.exception import format_exception
 from basilisp.lang.interfaces import IPersistentSet
 
 
@@ -123,6 +128,68 @@ def test_stream_reader_loc():
 
     assert "" == sreader.next_token()
     assert (3, 2) == sreader.loc
+
+
+class TestSyntaxErrorFormat:
+    def test_no_cause_exception(self):
+        with pytest.raises(reader.SyntaxError) as e:
+            read_str_first("[:a :b :c")
+
+        assert [
+            f"{os.linesep}",
+            f"  exception: <class 'basilisp.lang.reader.UnexpectedEOFError'>{os.linesep}",
+            f"    message: Unexpected EOF in vector{os.linesep}",
+            f"       line: 1:10{os.linesep}",
+        ] == format_exception(e.value)
+
+    def test_exception_with_cause(self):
+        with pytest.raises(reader.SyntaxError) as e:
+            read_str_first("{:a 1 :a}")
+
+        assert [
+            f"{os.linesep}",
+            f"  exception: <class 'ValueError'> from <class 'basilisp.lang.reader.SyntaxError'>{os.linesep}",
+            f"    message: Unexpected token '}}'; expected map value: not enough values to unpack (expected 2, got 1){os.linesep}",
+            f"       line: 1:10{os.linesep}",
+        ] == format_exception(e.value)
+
+    class TestExceptionsWithSourceContext:
+        @pytest.fixture
+        def source_file(self, tmp_path: Path) -> Path:
+            return tmp_path / "reader_test.lpy"
+
+        def test_shows_source_context(self, monkeypatch, source_file: Path):
+            source_file.write_text(
+                textwrap.dedent(
+                    """
+                    (ns reader-test)
+
+                    (let [a :b]
+                      a
+                    """
+                ).strip()
+            )
+            monkeypatch.setenv("BASILISP_NO_COLOR", "true")
+            monkeypatch.syspath_prepend(source_file.parent)
+
+            with pytest.raises(reader.SyntaxError) as e:
+                list(reader.read_file(source_file))
+
+            assert re.fullmatch(
+                (
+                    rf"{os.linesep}"
+                    rf"  exception: <class 'basilisp\.lang\.reader\.UnexpectedEOFError'>{os.linesep}"
+                    rf"    message: Unexpected EOF in list{os.linesep}"
+                    rf"   location: [^:]*:4:4{os.linesep}"
+                    rf"    context:{os.linesep}"
+                    rf"{os.linesep}"
+                    rf" 1   \| \(ns reader-test\){os.linesep}"
+                    rf" 2   \| {os.linesep}"
+                    rf" 3   \| \(let \[a :b\]{os.linesep}"
+                    rf" 4 > \|   a{os.linesep}"
+                ),
+                "".join(format_exception(e.value)),
+            )
 
 
 class TestComplex:
