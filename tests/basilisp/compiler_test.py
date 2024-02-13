@@ -148,7 +148,7 @@ class TestExceptionFormat:
                     (let [a :b]
                       b)
                     """
-                )
+                ).lstrip()
             )
             monkeypatch.setenv("BASILISP_NO_COLOR", "true")
             monkeypatch.syspath_prepend(source_file.parent)
@@ -157,19 +157,20 @@ class TestExceptionFormat:
                 lcompile("(require 'compiler-test)")
 
             assert re.fullmatch(
-                f"{os.linesep}"
-                f"  exception: <class 'basilisp.lang.compiler.exception.CompilerException'> from <class 'basilisp.lang.compiler.exception.CompilerException'>{os.linesep}"
-                f"      phase: :macroexpansion{os.linesep}"
-                f"    message: error occurred during macroexpansion: unable to resolve symbol 'b' in this context{os.linesep}"
-                f"       form: \(let \[a :b\] b\){os.linesep}"
-                f"   location: [^:]*:3-5{os.linesep}"
-                f"    context:{os.linesep}"
-                f"{os.linesep}"
-                f" 1   \| {os.linesep}"
-                f" 2   \| \(ns compiler-test\){os.linesep}"
-                f" 3 > \| {os.linesep}"
-                f" 4 > \| \(let \[a :b\]{os.linesep}"
-                f" 5   \|   b\){os.linesep}",
+                (
+                    rf"{os.linesep}"
+                    rf"  exception: <class 'basilisp.lang.compiler.exception.CompilerException'> from <class 'basilisp.lang.compiler.exception.CompilerException'>{os.linesep}"
+                    rf"      phase: :macroexpansion{os.linesep}"
+                    rf"    message: error occurred during macroexpansion: unable to resolve symbol 'b' in this context{os.linesep}"
+                    rf"       form: \(let \[a :b\] b\){os.linesep}"
+                    rf"   location: [^:]*:3-5{os.linesep}"
+                    rf"    context:{os.linesep}"
+                    rf"{os.linesep}"
+                    rf" 1   \| \(ns compiler-test\){os.linesep}"
+                    rf" 2   \| {os.linesep}"
+                    rf" 3 > \| \(let \[a :b\]{os.linesep}"
+                    rf" 4 > \|   b\){os.linesep}"
+                ),
                 "".join(format_exception(e.value)),
             )
 
