@@ -86,7 +86,6 @@ BASILISP_VERSION = vec.vector(
 COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
 COMMAND_LINE_ARGS_VAR_NAME = "*command-line-args*"
 DEFAULT_READER_FEATURES_VAR_NAME = "*default-reader-features*"
-DEFAULT_EXCEPT_HOOK_VAR_NAME = "default-except-hook"
 EXCEPT_HOOK_VAR_NAME = "*except-hook*"
 GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
@@ -2197,20 +2196,6 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
                 _DOC_META_KEY: (
                     "The set of all currently supported "
                     ":ref:`reader features <reader_conditions>`."
-                )
-            }
-        ),
-    )
-
-    # Var containing the original traceback printer
-    Var.intern(
-        CORE_NS_SYM,
-        sym.symbol(DEFAULT_EXCEPT_HOOK_VAR_NAME),
-        print_exception,
-        meta=lmap.map(
-            {
-                _DOC_META_KEY: (
-                    f"The default value of :lpy:var:`{EXCEPT_HOOK_VAR_NAME}`."
                 )
             }
         ),
