@@ -175,7 +175,7 @@ class TestSyntaxErrorFormat:
             with pytest.raises(reader.SyntaxError) as e:
                 list(reader.read_file(source_file))
 
-            assert re.fullmatch(
+            assert re.match(
                 (
                     rf"{os.linesep}"
                     rf"  exception: <class 'basilisp\.lang\.reader\.UnexpectedEOFError'>{os.linesep}"

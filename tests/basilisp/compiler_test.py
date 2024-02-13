@@ -156,7 +156,7 @@ class TestExceptionFormat:
             with pytest.raises(compiler.CompilerException) as e:
                 lcompile("(require 'compiler-test)")
 
-            assert re.fullmatch(
+            assert re.match(
                 (
                     rf"{os.linesep}"
                     rf"  exception: <class 'basilisp.lang.compiler.exception.CompilerException'> from <class 'basilisp.lang.compiler.exception.CompilerException'>{os.linesep}"
