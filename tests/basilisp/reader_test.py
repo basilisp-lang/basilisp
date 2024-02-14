@@ -175,6 +175,7 @@ class TestSyntaxErrorFormat:
             with pytest.raises(reader.SyntaxError) as e:
                 list(reader.read_file(source_file))
 
+            assert "".join(format_exception(e.value))  == ""
             assert re.match(
                 (
                     rf"{os.linesep}"
