@@ -163,7 +163,7 @@ class TestExceptionFormat:
                     rf"      phase: :macroexpansion{os.linesep}"
                     rf"    message: error occurred during macroexpansion: unable to resolve symbol 'b' in this context{os.linesep}"
                     rf"       form: \(let \[a :b\] b\){os.linesep}"
-                    rf"   location: [^:]*:3-5{os.linesep}"
+                    rf"   location: (?:\w:)?[^:]*:3-5{os.linesep}"
                     rf"    context:{os.linesep}"
                     rf"{os.linesep}"
                     rf" 1   \| \(ns compiler-test\){os.linesep}"

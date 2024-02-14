@@ -1,7 +1,6 @@
 import io
 import math
 import os
-import platform
 import re
 import textwrap
 from fractions import Fraction
@@ -176,14 +175,12 @@ class TestSyntaxErrorFormat:
             with pytest.raises(reader.SyntaxError) as e:
                 list(reader.read_file(source_file))
 
-            if platform.system().lower() == "windows":
-                assert "".join(format_exception(e.value)) == ""
             assert re.match(
                 (
                     rf"{os.linesep}"
                     rf"  exception: <class 'basilisp\.lang\.reader\.UnexpectedEOFError'>{os.linesep}"
                     rf"    message: Unexpected EOF in list{os.linesep}"
-                    rf"   location: [^:]*:4:4{os.linesep}"
+                    rf"   location: (?:\w:)?[^:]*:4:4{os.linesep}"
                     rf"    context:{os.linesep}"
                     rf"{os.linesep}"
                     rf" 1   \| \(ns reader-test\){os.linesep}"
