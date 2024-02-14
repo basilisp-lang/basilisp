@@ -3,10 +3,9 @@
 import os
 import re
 import traceback
-import types
 from functools import partial
 from types import MappingProxyType
-from typing import Any, Callable, Iterable, Mapping, Optional, Type
+from typing import Any, Iterable, Mapping, Optional, Type
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application import run_in_terminal

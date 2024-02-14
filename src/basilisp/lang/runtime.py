@@ -2039,14 +2039,9 @@ def print_generated_python() -> bool:
 ###################
 
 
-def create_basilisp_except_hook() -> ExceptionPrinter:
-    """Create an except hook which is suitable to being installed as `sys.excepthook`
-    to print any unhandled tracebacks.
-
-    This function must be called after bootstrapping `basilisp.core`."""
-    ns_sym = sym.symbol(EXCEPT_HOOK_VAR_NAME, ns=CORE_NS)
-    hook_var = Var.find(ns_sym)
-    assert hook_var is not None
+def _create_except_hook_fn(hook_var: Var) -> ExceptionPrinter:
+    """Create an except hook function which is mostly compatible with
+    `traceback.print_exception` which uses the function from the Var `hook_var`."""
 
     def basilisp_except_hook(
         tp: Type[BaseException],
@@ -2056,19 +2051,30 @@ def create_basilisp_except_hook() -> ExceptionPrinter:
         if (hook := hook_var.value) is not None:
             try:
                 hook(tp, e, tb)
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 print(
-                    f"Exception occurred in Basilisp except hook {ns_sym}",
-                    file=sys.__stderr__,
+                    f"Exception occurred in Basilisp except hook {hook_var}",
+                    file=sys.stderr,
                 )
                 sys.__excepthook__(tp, e, tb)
         else:
             # Emit an error to stderr and fall back to the default Python except hook
             # if no hook is currently defined in Basilisp.
-            print(f"Dynamic Var {ns_sym} not bound!", file=sys.__stderr__)
+            print(f"Dynamic Var {hook_var} not bound!", file=sys.stderr)
             sys.__excepthook__(tp, e, tb)
 
     return basilisp_except_hook
+
+
+def create_basilisp_except_hook() -> ExceptionPrinter:
+    """Create an except hook which is suitable to being installed as `sys.excepthook`
+    to print any unhandled tracebacks.
+
+    This function must be called after bootstrapping `basilisp.core`."""
+    ns_sym = sym.symbol(EXCEPT_HOOK_VAR_NAME, ns=CORE_NS)
+    hook_var = Var.find(ns_sym)
+    assert hook_var is not None
+    return _create_except_hook_fn(hook_var)
 
 
 def get_basilisp_repl_exception_hook() -> ExceptionPrinter:
@@ -2079,28 +2085,7 @@ def get_basilisp_repl_exception_hook() -> ExceptionPrinter:
     ns_sym = sym.symbol(REPL_EXCEPT_HOOK_VAR_NAME, ns=CORE_NS)
     hook_var = Var.find(ns_sym)
     assert hook_var is not None
-
-    def basilisp_except_hook(
-        tp: Type[BaseException],
-        e: BaseException,
-        tb: Optional[types.TracebackType],
-    ) -> None:
-        if (hook := hook_var.value) is not None:
-            try:
-                hook(tp, e, tb)
-            except Exception:
-                print(
-                    f"Exception occurred in Basilisp REPL except hook {ns_sym}",
-                    file=sys.__stderr__,
-                )
-                sys.__excepthook__(tp, e, tb)
-        else:
-            # Emit an error to stderr and fall back to the default Python except hook
-            # if no hook is currently defined in Basilisp.
-            print(f"Dynamic Var {ns_sym} not bound!", file=sys.__stderr__)
-            sys.__excepthook__(tp, e, tb)
-
-    return basilisp_except_hook
+    return _create_except_hook_fn(hook_var)
 
 
 #########################

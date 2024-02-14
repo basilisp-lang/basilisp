@@ -1,5 +1,6 @@
 import platform
 import sys
+import traceback
 from decimal import Decimal
 from fractions import Fraction
 
@@ -740,4 +741,53 @@ class TestResolveAlias:
                 "non-existent-alias-var", ns="wee.woo"
             ) == runtime.resolve_alias(
                 sym.symbol("non-existent-alias-var", ns="wee.woo"), ns=ns
+            )
+
+
+class TestExceptHook:
+    @pytest.fixture
+    def hook_var(self) -> runtime.Var:
+        ns_name = "basilisp.except-hook-test"
+        ns_sym = sym.symbol(ns_name)
+        yield runtime.Var.intern(ns_sym, sym.symbol("*except-hook*"), None)
+
+    def test_hook_value_is_nil(self, hook_var: runtime.Var, capsys):
+        hook = runtime._create_except_hook_fn(hook_var)
+
+        try:
+            raise ValueError("Woo!")
+        except ValueError as e:
+            hook(ValueError, e, e.__traceback__)
+
+        res = capsys.readouterr()
+        assert f"Dynamic Var {hook_var} not bound!" in res.err
+
+    def test_hook_throws_exception(self, hook_var: runtime.Var, capsys):
+        def _bad_except_hook(tp, e, tb):
+            raise TypeError("I'm bad at my job!")
+
+        hook_var.bind_root(_bad_except_hook)
+        hook = runtime._create_except_hook_fn(hook_var)
+
+        try:
+            raise ValueError("Woo!")
+        except ValueError as e:
+            hook(ValueError, e, e.__traceback__)
+
+        res = capsys.readouterr()
+        assert f"Exception occurred in Basilisp except hook {hook_var}" in res.err
+
+    def test_hook_success(self, hook_var: runtime.Var, capsys):
+        hook_var.bind_root(traceback.print_exception)
+        hook = runtime._create_except_hook_fn(hook_var)
+
+        try:
+            raise ValueError("Woo!")
+        except ValueError as e:
+            hook(ValueError, e, e.__traceback__)
+
+            res = capsys.readouterr()
+            assert (
+                "".join(traceback.format_exception(ValueError, e, e.__traceback__))
+                == res.err
             )
