@@ -1,4 +1,5 @@
 import functools
+import sys
 import traceback
 from types import TracebackType
 from typing import List, Optional, Type
@@ -25,7 +26,9 @@ class ExceptionInfo(IExceptionInfo):
 
 @functools.singledispatch
 def format_exception(
-    e: Optional[Exception], tp: Optional[Type[Exception]], tb: Optional[TracebackType]
+    e: Optional[BaseException],
+    tp: Optional[Type[BaseException]] = None,
+    tb: Optional[TracebackType] = None,
 ) -> List[str]:
     """Format an exception into something readable, returning a list of newline
     terminated strings.
@@ -33,11 +36,18 @@ def format_exception(
     For the majority of Python exceptions, this will just be the result from calling
     `traceback.format_exception`. For Basilisp specific compilation errors, a custom
     output will be returned."""
+    if isinstance(e, BaseException):  # pragma: no cover
+        if tp is None:
+            tp = type(e)
+        if tb is None:
+            tb = e.__traceback__
     return traceback.format_exception(tp, e, tb)
 
 
 def print_exception(
-    e: Optional[Exception], tp: Optional[Type[Exception]], tb: Optional[TracebackType]
+    e: Optional[BaseException],
+    tp: Optional[Type[BaseException]] = None,
+    tb: Optional[TracebackType] = None,
 ) -> None:
     """Print the given exception `e` using Basilisp's own exception formatting.
 
@@ -45,4 +55,4 @@ def print_exception(
     traceback formatting. `basilisp.lang.compiler.CompilerException` and
     `basilisp.lang.reader.SyntaxError` have special handling to print useful information
     on exceptions."""
-    print("".join(format_exception(e, tp, tb)))
+    print("".join(format_exception(e, tp, tb)), file=sys.stderr)

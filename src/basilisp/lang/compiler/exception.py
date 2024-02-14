@@ -1,4 +1,5 @@
 import ast
+import os
 from enum import Enum
 from types import TracebackType
 from typing import Any, Dict, List, Optional, Type, Union
@@ -59,7 +60,7 @@ class _loc:
 class CompilerException(IExceptionInfo):
     msg: str
     phase: CompilerPhase
-    filename: Optional[str] = None
+    filename: str
     form: Union[LispForm, None, ISeq] = None
     lisp_ast: Optional[Node] = None
     py_ast: Optional[ast.AST] = None
@@ -67,8 +68,7 @@ class CompilerException(IExceptionInfo):
     @property
     def data(self) -> IPersistentMap:
         d: Dict[kw.Keyword, Any] = {_PHASE: self.phase.value}
-        if self.filename is not None:
-            d[_FILE] = self.filename
+        d[_FILE] = self.filename
         loc = None
         if self.form is not None:
             d[_FORM] = self.form
@@ -111,28 +111,30 @@ class CompilerException(IExceptionInfo):
 
 @format_exception.register(CompilerException)
 def format_compiler_exception(  # pylint: disable=too-many-branches,unused-argument
-    e: CompilerException, tp: Type[Exception], tb: TracebackType
+    e: CompilerException,
+    tp: Optional[Type[Exception]] = None,
+    tb: Optional[TracebackType] = None,
 ) -> List[str]:
     """Format a compiler exception as a list of newline-terminated strings."""
     context_exc: Optional[BaseException] = e.__cause__
 
-    lines = ["\n"]
+    lines = [os.linesep]
     if context_exc is not None:
-        lines.append(f"  exception: {type(context_exc)} from {type(e)}\n")
+        lines.append(f"  exception: {type(context_exc)} from {type(e)}{os.linesep}")
     else:
-        lines.append(f"  exception: {type(e)}\n")
-    lines.append(f"      phase: {e.phase.value}\n")
+        lines.append(f"  exception: {type(e)}{os.linesep}")
+    lines.append(f"      phase: {e.phase.value}{os.linesep}")
     if context_exc is None:
-        lines.append(f"    message: {e.msg}\n")
+        lines.append(f"    message: {e.msg}{os.linesep}")
     elif e.phase in {CompilerPhase.MACROEXPANSION, CompilerPhase.INLINING}:
         if isinstance(context_exc, CompilerException):
-            lines.append(f"    message: {e.msg}: {context_exc.msg}\n")
+            lines.append(f"    message: {e.msg}: {context_exc.msg}{os.linesep}")
         else:
-            lines.append(f"    message: {e.msg}: {context_exc}\n")
+            lines.append(f"    message: {e.msg}: {context_exc}{os.linesep}")
     else:
-        lines.append(f"    message: {e.msg}: {context_exc}\n")
+        lines.append(f"    message: {e.msg}: {context_exc}{os.linesep}")
     if e.form is not None:
-        lines.append(f"       form: {e.form!r}\n")
+        lines.append(f"       form: {e.form!r}{os.linesep}")
 
     d = e.data
     line = d.val_at(_LINE)
@@ -144,23 +146,18 @@ def format_compiler_exception(  # pylint: disable=too-many-branches,unused-argum
     else:
         line_nums = ""
 
-    if e.filename is not None:
-        lines.append(f"   location: {e.filename}:{line_nums or 'NO_SOURCE_LINE'}\n")
-    elif line_nums:
-        lines.append(f"      lines: {line_nums}\n")
+    lines.append(
+        f"   location: {e.filename}:{line_nums or 'NO_SOURCE_LINE'}{os.linesep}"
+    )
 
     # Print context source lines around the error. Use the current exception to
     # derive source lines, but use the inner cause exception to place a marker
     # around the error.
-    if (
-        e.filename is not None
-        and line is not None
-        and (
-            context_lines := format_source_context(e.filename, line, end_line=end_line)
-        )
+    if line is not None and (
+        context_lines := format_source_context(e.filename, line, end_line=end_line)
     ):
-        lines.append("    context:\n")
-        lines.append("\n")
+        lines.append(f"    context:{os.linesep}")
+        lines.append(os.linesep)
         lines.extend(context_lines)
 
     return lines

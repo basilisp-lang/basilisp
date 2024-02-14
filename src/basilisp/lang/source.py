@@ -6,14 +6,14 @@ try:
     import pygments.formatters
     import pygments.lexers
     import pygments.styles
-except ImportError:
+except ImportError:  # pragma: no cover
 
     def _format_source(s: str) -> str:
-        return f"{s}\n"
+        return f"{s}{os.linesep}"
 
 else:
 
-    def _get_formatter_name() -> Optional[str]:
+    def _get_formatter_name() -> Optional[str]:  # pragma: no cover
         """Get the Pygments formatter name for formatting the source code by
         inspecting various environment variables set by terminals.
 
@@ -27,10 +27,10 @@ else:
         else:
             return "terminal"
 
-    def _format_source(s: str) -> str:
+    def _format_source(s: str) -> str:  # pragma: no cover
         """Format source code for terminal output."""
         if (formatter_name := _get_formatter_name()) is None:
-            return f"{s}\n"
+            return f"{s}{os.linesep}"
         return pygments.highlight(
             s,
             lexer=pygments.lexers.get_lexer_by_name("clojure"),
@@ -60,7 +60,7 @@ def format_source_context(
         elif end_line is not None and end_line != line:
             cause_range = range(line, end_line)
         else:
-            cause_range = range(line, line)
+            cause_range = range(line, line + 1)
 
         if source_lines := linecache.getlines(filename):
             start = max(0, line - num_context_lines)

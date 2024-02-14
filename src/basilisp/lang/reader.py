@@ -5,6 +5,7 @@ import contextlib
 import decimal
 import functools
 import io
+import os
 import re
 import uuid
 from datetime import datetime
@@ -158,19 +159,21 @@ class SyntaxError(Exception):
 
 @format_exception.register(SyntaxError)
 def format_syntax_error(  # pylint: disable=unused-argument
-    e: SyntaxError, tp: Type[Exception], tb: TracebackType
+    e: SyntaxError,
+    tp: Optional[Type[Exception]] = None,
+    tb: Optional[TracebackType] = None,
 ) -> List[str]:
     context_exc: Optional[BaseException] = e.__cause__
 
-    lines = ["\n"]
+    lines = [os.linesep]
     if context_exc is not None:
-        lines.append(f"  exception: {type(context_exc)} from {type(e)}\n")
+        lines.append(f"  exception: {type(context_exc)} from {type(e)}{os.linesep}")
     else:
-        lines.append(f"  exception: {type(e)}\n")
+        lines.append(f"  exception: {type(e)}{os.linesep}")
     if context_exc is None:
-        lines.append(f"    message: {e.message}\n")
+        lines.append(f"    message: {e.message}{os.linesep}")
     else:
-        lines.append(f"    message: {e.message}: {context_exc}\n")
+        lines.append(f"    message: {e.message}: {context_exc}{os.linesep}")
 
     if e.line is not None and e.col:
         line_num = f"{e.line}:{e.col}"
@@ -180,9 +183,11 @@ def format_syntax_error(  # pylint: disable=unused-argument
         line_num = ""
 
     if e.filename is not None:
-        lines.append(f"   location: {e.filename}:{line_num or 'NO_SOURCE_LINE'}\n")
+        lines.append(
+            f"   location: {e.filename}:{line_num or 'NO_SOURCE_LINE'}{os.linesep}"
+        )
     elif line_num:
-        lines.append(f"      lines: {line_num}\n")
+        lines.append(f"       line: {line_num}{os.linesep}")
 
     # Print context source lines around the error. Use the current exception to
     # derive source lines, but use the inner cause exception to place a marker
@@ -192,8 +197,8 @@ def format_syntax_error(  # pylint: disable=unused-argument
         and e.line is not None
         and (context_lines := format_source_context(e.filename, e.line))
     ):
-        lines.append("    context:\n")
-        lines.append("\n")
+        lines.append(f"    context:{os.linesep}")
+        lines.append(os.linesep)
         lines.extend(context_lines)
 
     return lines
