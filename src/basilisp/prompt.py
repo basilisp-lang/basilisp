@@ -2,9 +2,11 @@
 
 import os
 import re
+import traceback
+import types
 from functools import partial
 from types import MappingProxyType
-from typing import Any, Iterable, Mapping, Optional, Type
+from typing import Any, Callable, Iterable, Mapping, Optional, Type
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application import run_in_terminal
@@ -17,7 +19,7 @@ from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
-from basilisp.lang.exception import print_exception
+from basilisp.lang.exception import ExceptionPrinter
 
 _USER_DATA_HOME = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
 BASILISP_USER_DATA = os.path.abspath(os.path.join(_USER_DATA_HOME, "basilisp"))
@@ -30,7 +32,13 @@ BASILISP_REPL_HISTORY_FILE_PATH = os.getenv(
 
 
 class Prompter:
-    __slots__ = ()
+    __slots__ = ("_print_exception",)
+
+    def __init__(
+        self,
+        print_exception: ExceptionPrinter = traceback.print_exception,
+    ):
+        self._print_exception = print_exception
 
     def prompt(self, msg: str) -> str:
         """Prompt the user for input with the input string `msg`."""
@@ -65,7 +73,11 @@ class PromptToolkitPrompter(Prompter):
 
     __slots__ = ("_session",)
 
-    def __init__(self):
+    def __init__(
+        self,
+        print_exception: ExceptionPrinter = traceback.print_exception,
+    ):
+        super().__init__(print_exception)
         self._session: PromptSession = PromptSession(
             auto_suggest=AutoSuggestFromHistory(),
             completer=REPLCompleter(),
@@ -76,8 +88,7 @@ class PromptToolkitPrompter(Prompter):
             **self._style_settings,
         )
 
-    @staticmethod
-    def _get_key_bindings() -> KeyBindings:
+    def _get_key_bindings(self) -> KeyBindings:
         """Return `KeyBindings` which override the builtin `enter` handler to
         allow multi-line input.
 
@@ -103,7 +114,7 @@ class PromptToolkitPrompter(Prompter):
             except reader.SyntaxError as e:
                 run_in_terminal(
                     partial(
-                        print_exception,
+                        self._print_exception,
                         reader.SyntaxError,
                         e,
                         e.__traceback__,
@@ -162,12 +173,14 @@ else:
     _DEFAULT_PROMPTER = StyledPromptToolkitPrompter
 
 
-def get_prompter() -> Prompter:
+def get_prompter(
+    print_exception: ExceptionPrinter = traceback.print_exception,
+) -> Prompter:
     """Return a Prompter instance for reading user input from the REPL.
 
     Prompter instances may be stateful, so the Prompter instance returned by
     this function can be reused within a single REPL session."""
-    return _DEFAULT_PROMPTER()
+    return _DEFAULT_PROMPTER(print_exception)
 
 
 __all__ = ["Prompter", "get_prompter"]

@@ -14,7 +14,6 @@ from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
-from basilisp.lang.exception import print_exception
 from basilisp.prompt import get_prompter
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
@@ -396,8 +395,9 @@ def repl(
         warn_on_var_indirection=args.warn_on_var_indirection,
     )
     basilisp.init(opts)
+    print_exception = runtime.get_basilisp_repl_exception_hook()
     ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts=opts)
-    prompter = get_prompter()
+    prompter = get_prompter(print_exception=print_exception)
     eof = object()
 
     # Bind user-settable dynamic Vars to their existing value to allow users to
@@ -449,15 +449,15 @@ def repl(
                 prompter.print(runtime.lrepr(result))
                 repl_module.mark_repl_result(result)
             except reader.SyntaxError as e:
-                print_exception(e, reader.SyntaxError, e.__traceback__)
+                print_exception(reader.SyntaxError, e, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
             except compiler.CompilerException as e:
-                print_exception(e, compiler.CompilerException, e.__traceback__)
+                print_exception(compiler.CompilerException, e, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
             except Exception as e:  # pylint: disable=broad-exception-caught
-                print_exception(e, Exception, e.__traceback__)
+                print_exception(type(e), e, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
 

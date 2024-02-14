@@ -176,7 +176,7 @@ class TestKeyBindings:
 
     @pytest.fixture(scope="class")
     def handler(self) -> Binding:
-        kb = PromptToolkitPrompter._get_key_bindings()
+        kb = PromptToolkitPrompter()._get_key_bindings()
         handler, *_ = kb.get_bindings_for_keys((Keys.ControlM,))
         return handler
 

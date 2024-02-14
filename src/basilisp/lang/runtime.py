@@ -9,10 +9,10 @@ import itertools
 import logging
 import math
 import numbers
-import os
 import platform
 import re
 import sys
+import textwrap
 import threading
 import types
 from collections.abc import Sequence, Sized
@@ -47,7 +47,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.atom import Atom
-from basilisp.lang.exception import print_exception
+from basilisp.lang.exception import ExceptionPrinter, print_exception
 from basilisp.lang.interfaces import (
     IAssociative,
     IBlockingDeref,
@@ -87,6 +87,7 @@ COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
 COMMAND_LINE_ARGS_VAR_NAME = "*command-line-args*"
 DEFAULT_READER_FEATURES_VAR_NAME = "*default-reader-features*"
 EXCEPT_HOOK_VAR_NAME = "*except-hook*"
+REPL_EXCEPT_HOOK_VAR_NAME = "*repl-except-hook*"
 GENERATED_PYTHON_VAR_NAME = "*generated-python*"
 PRINT_GENERATED_PY_VAR_NAME = "*print-generated-python*"
 MAIN_NS_VAR_NAME = "*main-ns*"
@@ -2038,7 +2039,7 @@ def print_generated_python() -> bool:
 ###################
 
 
-def create_basilisp_except_hook():
+def create_basilisp_except_hook() -> ExceptionPrinter:
     """Create an except hook which is suitable to being installed as `sys.excepthook`
     to print any unhandled tracebacks.
 
@@ -2054,16 +2055,49 @@ def create_basilisp_except_hook():
     ) -> None:
         if (hook := hook_var.value) is not None:
             try:
-                hook(e, tp, tb)
+                hook(tp, e, tb)
             except Exception:
-                sys.__stderr__.write(
-                    f"Exception occurred in Basilisp except hook {ns_sym}{os.linesep}"
+                print(
+                    f"Exception occurred in Basilisp except hook {ns_sym}",
+                    file=sys.__stderr__,
                 )
                 sys.__excepthook__(tp, e, tb)
         else:
             # Emit an error to stderr and fall back to the default Python except hook
             # if no hook is currently defined in Basilisp.
-            sys.__stderr__.write(f"Dynamic Var {ns_sym} not bound!{os.linesep}")
+            print(f"Dynamic Var {ns_sym} not bound!", file=sys.__stderr__)
+            sys.__excepthook__(tp, e, tb)
+
+    return basilisp_except_hook
+
+
+def get_basilisp_repl_exception_hook() -> ExceptionPrinter:
+    """Create an exception hook which can be used to print exception tracebacks for
+    interactive REPL sessions.
+
+    This function must be called after bootstrapping `basilisp.core`."""
+    ns_sym = sym.symbol(REPL_EXCEPT_HOOK_VAR_NAME, ns=CORE_NS)
+    hook_var = Var.find(ns_sym)
+    assert hook_var is not None
+
+    def basilisp_except_hook(
+        tp: Type[BaseException],
+        e: BaseException,
+        tb: Optional[types.TracebackType],
+    ) -> None:
+        if (hook := hook_var.value) is not None:
+            try:
+                hook(tp, e, tb)
+            except Exception:
+                print(
+                    f"Exception occurred in Basilisp REPL except hook {ns_sym}",
+                    file=sys.__stderr__,
+                )
+                sys.__excepthook__(tp, e, tb)
+        else:
+            # Emit an error to stderr and fall back to the default Python except hook
+            # if no hook is currently defined in Basilisp.
+            print(f"Dynamic Var {ns_sym} not bound!", file=sys.__stderr__)
             sys.__excepthook__(tp, e, tb)
 
     return basilisp_except_hook
@@ -2201,7 +2235,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         ),
     )
 
-    # Dynamic Var containing the current traceback printer
+    # Dynamic Vars containing the current traceback printers
     Var.intern(
         CORE_NS_SYM,
         sym.symbol(EXCEPT_HOOK_VAR_NAME),
@@ -2209,11 +2243,63 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         dynamic=True,
         meta=lmap.map(
             {
-                _DOC_META_KEY: (
-                    "A function which controls the printing of exceptions. "
-                    "The default function has special handling for compiler errors "
-                    "and reader syntax errors. All other exception types are printed "
-                    "as by `traceback.print_exception <https://docs.python.org/3/library/traceback.html#traceback.print_exception>`_."
+                _DOC_META_KEY: textwrap.indent(
+                    textwrap.dedent(
+                        f"""
+                    A function of 3 arguments which controls the printing of unhandled
+                    exceptions.
+
+                    The three arguments should be in order: an exception *type*, an
+                    exception *instance*, and an exception *traceback* (e.g. the value
+                    of the ``__traceback__`` attribute). In the majority of cases, only
+                    the second argument is needed but nevertheless ``sys.excepthook``
+                    is called with all 3 in that order.
+
+                    The default function has special handling for compiler errors
+                    and reader syntax errors. All other exception types are printed
+                    as by `traceback.print_exception <https://docs.python.org/3/library/traceback.html#traceback.print_exception>`_.
+
+                    After bootstrapping the runtime, Python's `sys.excepthook <https://docs.python.org/3/library/sys.html#sys.excepthook>`_
+                    will use the function bound to this Var for printing any unhandled
+                    exceptions, including those not originating from Basilisp code.
+
+                    For controlling the display of exceptions occurring during REPL
+                    sessions, see :lpy:var:`{REPL_EXCEPT_HOOK_VAR_NAME}`.
+                    """
+                    ).strip(),
+                    "  ",
+                )
+            }
+        ),
+    )
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(REPL_EXCEPT_HOOK_VAR_NAME),
+        print_exception,
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: textwrap.indent(
+                    textwrap.dedent(
+                        f"""
+                    A function of 3 arguments which controls the printing of exceptions
+                    thrown during interactive REPL sessions.
+
+                    The three arguments should be in order: an exception *type*, an
+                    exception *instance*, and an exception *traceback* (e.g. the value
+                    of the ``__traceback__`` attribute). In the majority of cases, only
+                    the second argument is needed but nevertheless ``sys.excepthook``
+                    is called with all 3 in that order.
+
+                    The default function has special handling for compiler errors
+                    and reader syntax errors. All other exception types are printed
+                    as by `traceback.print_exception <https://docs.python.org/3/library/traceback.html#traceback.print_exception>`_.
+
+                    This Var is distinct from :lpy:var:`{EXCEPT_HOOK_VAR_NAME}`, which controls
+                    printing unhandled exceptions occurring outside the REPL context.
+                    """
+                    ).strip(),
+                    "  ",
                 )
             }
         ),
