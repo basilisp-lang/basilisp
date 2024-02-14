@@ -4,7 +4,6 @@ import io
 import os
 import sys
 import textwrap
-import traceback
 import types
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, Type
@@ -15,6 +14,7 @@ from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
+from basilisp.lang.exception import print_exception
 from basilisp.prompt import get_prompter
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
@@ -449,17 +449,15 @@ def repl(
                 prompter.print(runtime.lrepr(result))
                 repl_module.mark_repl_result(result)
             except reader.SyntaxError as e:
-                traceback.print_exception(reader.SyntaxError, e, e.__traceback__)
+                print_exception(e, reader.SyntaxError, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
             except compiler.CompilerException as e:
-                traceback.print_exception(
-                    compiler.CompilerException, e, e.__traceback__
-                )
+                print_exception(e, compiler.CompilerException, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
             except Exception as e:  # pylint: disable=broad-exception-caught
-                traceback.print_exception(Exception, e, e.__traceback__)
+                print_exception(e, Exception, e.__traceback__)
                 repl_module.mark_exception(e)
                 continue
 

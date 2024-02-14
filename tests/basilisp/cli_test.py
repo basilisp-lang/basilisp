@@ -191,17 +191,35 @@ class TestREPL:
         result = run_cli(["repl"], input="(+ 1 2")
         assert "basilisp.user=> basilisp.user=> " == result.out
         assert (
-            "basilisp.lang.reader.UnexpectedEOFError: Unexpected EOF in list "
-            "(line: 1, col: 7)" in result.err
+            os.linesep.join(
+                (
+                    "",
+                    "  exception: <class 'basilisp.lang.reader.UnexpectedEOFError'>",
+                    "    message: Unexpected EOF in list",
+                    "       line: 1:7",
+                    "",
+                )
+            )
+            in result.err
         )
 
     def test_compiler_error(self, run_cli):
         result = run_cli(["repl"], input="(fn*)")
         assert "basilisp.user=> basilisp.user=> " == result.out
         assert (
-            "basilisp.lang.compiler.exception.CompilerException: fn form "
-            "must match: (fn* name? [arg*] body*) or (fn* name? method*)"
-        ) in result.err
+            os.linesep.join(
+                (
+                    "",
+                    "  exception: <class 'IndexError'> from <class 'basilisp.lang.compiler.exception.CompilerException'>",
+                    "      phase: :analyzing",
+                    "    message: fn form must match: (fn* name? [arg*] body*) or (fn* name? method*): Index 1 out of bounds",
+                    "       form: (fn*)",
+                    "   location: <REPL Input>:1",
+                    "",
+                )
+            )
+            in result.err
+        )
 
     def test_other_exception(self, run_cli):
         result = run_cli(["repl"], input='(throw (python/Exception "CLI test"))')
