@@ -14,8 +14,8 @@ from unittest.mock import patch
 import attr
 import pytest
 
+from basilisp import prompt
 from basilisp.cli import BOOL_FALSE, BOOL_TRUE, invoke_cli
-from basilisp.prompt import Prompter
 
 
 @pytest.fixture(autouse=True)
@@ -172,7 +172,10 @@ class TestnREPLServer:
 class TestREPL:
     @pytest.fixture(scope="class", autouse=True)
     def prompter(self):
-        with patch("basilisp.cli.get_prompter", return_value=Prompter()):
+        key_bindings = prompt.create_key_bindings()
+        with patch(
+            "basilisp.cli.get_prompter", return_value=prompt.Prompter(key_bindings)
+        ):
             yield
 
     def test_no_input(self, run_cli):

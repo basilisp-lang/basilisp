@@ -1,5 +1,9 @@
 (ns basilisp.stacktrace
-  "Utility functions for printing stack traces."
+  "Utility functions for printing stack traces.
+
+  Stack traces printed by the functions in this namespace do not respect the function
+  bound to :lpy:var:`*except-hook*`. There is no special handling for reader syntax
+  errors or compiler exceptions."
   (:require [basilisp.string :as str])
   (:import [traceback :as tb]))
 

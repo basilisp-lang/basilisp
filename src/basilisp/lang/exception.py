@@ -1,8 +1,9 @@
 import functools
 import sys
 import traceback
+import types
 from types import TracebackType
-from typing import List, Optional, Type
+from typing import Callable, List, Optional, Type
 
 import attr
 
@@ -24,6 +25,11 @@ class ExceptionInfo(IExceptionInfo):
         return f"{self.message} {lrepr(self.data)}"
 
 
+ExceptionPrinter = Callable[
+    [Type[BaseException], BaseException, Optional[types.TracebackType]], None
+]
+
+
 @functools.singledispatch
 def format_exception(
     e: Optional[BaseException],
@@ -36,7 +42,7 @@ def format_exception(
     For the majority of Python exceptions, this will just be the result from calling
     `traceback.format_exception`. For Basilisp specific compilation errors, a custom
     output will be returned."""
-    if isinstance(e, BaseException):
+    if isinstance(e, BaseException):  # pragma: no cover
         if tp is None:
             tp = type(e)
         if tb is None:
@@ -45,9 +51,9 @@ def format_exception(
 
 
 def print_exception(
+    tp: Optional[Type[BaseException]],
     e: Optional[BaseException],
-    tp: Optional[Type[BaseException]] = None,
-    tb: Optional[TracebackType] = None,
+    tb: Optional[TracebackType],
 ) -> None:
     """Print the given exception `e` using Basilisp's own exception formatting.
 

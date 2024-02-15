@@ -101,6 +101,7 @@ branch = true
 omit = [
     "*/__version__.py",
     "*/basilisp/contrib/sphinx/*",
+    "*/basilisp/sitecustomize.py",
 ]
 
 [tool.coverage.paths]

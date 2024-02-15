@@ -355,13 +355,14 @@
       log-response-mw
       response-for-mw))
 
-(defn- on-connect [tcp-req-handler opts]
+(defn- on-connect
   "Serve a new nREPL connection as found in ``tcp-req-handler`` according to ``opts``.
 
   ``opts`` is a map of options with the following optional keys.
 
   :recv-buffer-size The buffer size to using for incoming nREPL
   messages."
+  [tcp-req-handler opts]
   (let [{:keys [recv-buffer-size]
          :or {recv-buffer-size 1024}} opts
         socket                        (.-request tcp-req-handler)
