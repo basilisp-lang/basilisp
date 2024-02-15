@@ -1096,6 +1096,12 @@
     {:a 1 :b 2} [:a :b] [1 2]
     {:a 0 :b 1} [:a :b] (range)))
 
+(deftest merge-with-test
+  (is (= nil (merge-with conj)))
+  (is (= nil (merge-with str nil)))
+  (is (= {:a 0 :b "235" :c "46" :d 7 :z 8} (merge-with str {:a 0 :b 2} {:b 3 :c 4 :z 8} {:b 5 :c 6 :d 7})))
+  (is (= {:a 0 :b [2 5] :c 7} (merge-with conj {:a 0 :b [2]} nil {:b 5 :c 7}))))
+
 (deftest trampoline-test
   (let [a (atom [])]
     (trampoline (fn [v]

@@ -1077,7 +1077,7 @@ to_seq = lseq.to_seq
 
 def concat(*seqs: Any) -> ISeq:
     """Concatenate the sequences given by seqs into a single ISeq."""
-    return lseq.sequence(itertools.chain.from_iterable(filter(None, seqs)))
+    return lseq.sequence(itertools.chain.from_iterable(filter(None, map(to_seq, seqs))))
 
 
 def apply(f, args):
