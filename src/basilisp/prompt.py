@@ -31,13 +31,10 @@ BASILISP_REPL_HISTORY_FILE_PATH = os.getenv(
 
 
 class Prompter:
-    __slots__ = ("_print_exception",)
+    __slots__ = ("_key_bindings",)
 
-    def __init__(
-        self,
-        print_exception: ExceptionPrinter = traceback.print_exception,
-    ):
-        self._print_exception = print_exception
+    def __init__(self, key_bindings: KeyBindings):
+        self._key_bindings = key_bindings
 
     def prompt(self, msg: str) -> str:
         """Prompt the user for input with the input string `msg`."""
@@ -46,6 +43,46 @@ class Prompter:
     def print(self, msg: str) -> None:
         """Print the message to standard out."""
         print(msg)
+
+
+def create_key_bindings(
+    print_exception: ExceptionPrinter = traceback.print_exception,
+) -> KeyBindings:
+    """Return `KeyBindings` which override the builtin `enter` handler to
+    allow multi-line input.
+
+    Inputs are read by the reader to determine if they represent valid
+    Basilisp syntax. If an `UnexpectedEOFError` is raised, then allow multiline
+    input. If a more general `SyntaxError` is raised, then the exception will
+    be printed to the terminal. In all other cases, handle the input normally."""
+    kb = KeyBindings()
+    _eof = object()
+
+    @kb.add("enter")
+    def _(event: KeyPressEvent) -> None:
+        try:
+            list(
+                reader.read_str(
+                    event.current_buffer.text,
+                    resolver=runtime.resolve_alias,
+                    eof=_eof,
+                )
+            )
+        except reader.UnexpectedEOFError:
+            event.current_buffer.insert_text("\n")
+        except reader.SyntaxError as e:
+            run_in_terminal(
+                partial(
+                    print_exception,
+                    reader.SyntaxError,
+                    e,
+                    e.__traceback__,
+                )
+            )
+        else:
+            event.current_buffer.validate_and_handle()
+
+    return kb
 
 
 _DELIMITED_WORD_PATTERN = re.compile(r"([^\[\](){\}\s]+)")
@@ -72,57 +109,17 @@ class PromptToolkitPrompter(Prompter):
 
     __slots__ = ("_session",)
 
-    def __init__(
-        self,
-        print_exception: ExceptionPrinter = traceback.print_exception,
-    ):
-        super().__init__(print_exception)
+    def __init__(self, key_bindings: KeyBindings):
+        super().__init__(key_bindings)
         self._session: PromptSession = PromptSession(
             auto_suggest=AutoSuggestFromHistory(),
             completer=REPLCompleter(),
             history=FileHistory(BASILISP_REPL_HISTORY_FILE_PATH),
-            key_bindings=self._get_key_bindings(),
+            key_bindings=self._key_bindings,
             lexer=self._prompt_toolkit_lexer,
             multiline=True,
             **self._style_settings,
         )
-
-    def _get_key_bindings(self) -> KeyBindings:
-        """Return `KeyBindings` which override the builtin `enter` handler to
-        allow multi-line input.
-
-        Inputs are read by the reader to determine if they represent valid
-        Basilisp syntax. If an `UnexpectedEOFError` is raised, then allow multiline
-        input. If a more general `SyntaxError` is raised, then the exception will
-        be printed to the terminal. In all other cases, handle the input normally."""
-        kb = KeyBindings()
-        _eof = object()
-
-        @kb.add("enter")
-        def _(event: KeyPressEvent) -> None:
-            try:
-                list(
-                    reader.read_str(
-                        event.current_buffer.text,
-                        resolver=runtime.resolve_alias,
-                        eof=_eof,
-                    )
-                )
-            except reader.UnexpectedEOFError:
-                event.current_buffer.insert_text("\n")
-            except reader.SyntaxError as e:
-                run_in_terminal(
-                    partial(
-                        self._print_exception,
-                        reader.SyntaxError,
-                        e,
-                        e.__traceback__,
-                    )
-                )
-            else:
-                event.current_buffer.validate_and_handle()
-
-        return kb
 
     _prompt_toolkit_lexer: Optional["PygmentsLexer"] = None
     _style_settings: Mapping[str, Any] = MappingProxyType({})
@@ -179,7 +176,8 @@ def get_prompter(
 
     Prompter instances may be stateful, so the Prompter instance returned by
     this function can be reused within a single REPL session."""
-    return _DEFAULT_PROMPTER(print_exception)
+    key_bindings = create_key_bindings(print_exception)
+    return _DEFAULT_PROMPTER(key_bindings)
 
 
 __all__ = ["Prompter", "get_prompter"]

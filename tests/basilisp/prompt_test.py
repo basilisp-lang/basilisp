@@ -8,7 +8,12 @@ from prompt_toolkit.key_binding.key_bindings import Binding
 from prompt_toolkit.keys import Keys
 
 from basilisp.lang.runtime import Namespace
-from basilisp.prompt import PromptToolkitPrompter, REPLCompleter, get_prompter
+from basilisp.prompt import (
+    PromptToolkitPrompter,
+    REPLCompleter,
+    create_key_bindings,
+    get_prompter,
+)
 
 try:
     import pygments
@@ -176,7 +181,7 @@ class TestKeyBindings:
 
     @pytest.fixture(scope="class")
     def handler(self) -> Binding:
-        kb = PromptToolkitPrompter()._get_key_bindings()
+        kb = create_key_bindings()
         handler, *_ = kb.get_bindings_for_keys((Keys.ControlM,))
         return handler
 
