@@ -247,6 +247,12 @@ def test_concat():
     s1 = runtime.concat(llist.l(1, 2, 3), vec.v(4, 5, 6))
     assert s1 == llist.l(1, 2, 3, 4, 5, 6)
 
+    s1 = runtime.concat(lmap.map({"a": 1}), lmap.map({"b": 2}))
+    assert s1 == llist.l(vec.v("a", 1), vec.v("b", 2))
+
+    s1 = runtime.concat(vec.v(1, 2), None, "ab")
+    assert s1 == llist.l(1, 2, "a", "b")
+
 
 def test_apply():
     assert vec.v() == runtime.apply(vec.v, [[]])

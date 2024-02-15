@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where the function returned by `partial` retained the meta, arities, and `with_meta` method of the wrapped function rather than creating new ones (#847)
  * Fix a bug where exceptions arising while reading reader conditional forms did not include line and column information (#854)
  * Fix a bug where names `def`'ed without reader metadata would cause the compiler to throw an exception (#850) 
+ * Fix an issue where `concat` on maps was iterating over the keys instead of the key/value pairs (#871)
 
 ## [v0.1.0b1]
 ### Added
