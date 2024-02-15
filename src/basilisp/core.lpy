@@ -3264,13 +3264,14 @@
   the merged result will be the result of calling ``(f current-val
   next-val)``."
   [f & maps]
-  (reduce (fn [acc kv]
-            (let [k (first  kv)
-                  v (second kv)]
-              (if (contains? acc k)
-                (update acc k f v)
-                (assoc acc k v))))
-          (first maps) (apply concat (rest maps))))
+  (when (some identity maps)
+    (reduce (fn [acc kv]
+              (let [k (first  kv)
+                    v (second kv)]
+                (if (contains? acc k)
+                  (update acc k f v)
+                  (assoc acc k v))))
+            (first maps) (apply concat (rest maps)))))
 
 (defn trampoline
   "Trampoline ``f`` with starting arguments. If ``f`` returns a function (as determined
