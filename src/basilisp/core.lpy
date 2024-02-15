@@ -3258,6 +3258,20 @@
              (transient {})
              maps))))
 
+(defn merge-with
+  "Merge maps together from left to right as by :lpy:fn:`conj`. If a
+  duplicate key appears in a map, the resulting value of that key in
+  the merged result will be the result of calling ``(f current-val
+  next-val)``."
+  [f & maps]
+  (reduce (fn [acc kv]
+            (let [k (first  kv)
+                  v (second kv)]
+              (if (contains? acc k)
+                (update acc k f v)
+                (assoc acc k v))))
+          (first maps) (apply concat (rest maps))))
+
 (defn trampoline
   "Trampoline ``f`` with starting arguments. If ``f`` returns a function (as determined
   by :lpy:fn:`fn?`), call its return value with no arguments, repeating that process
