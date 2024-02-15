@@ -5,6 +5,7 @@ import decimal
 import functools
 import importlib.metadata
 import inspect
+import io
 import itertools
 import logging
 import math
@@ -2028,6 +2029,162 @@ def print_generated_python() -> bool:
         .map(lambda v: v.value)
         .or_else_raise(lambda: RuntimeException(f"Dynamic Var {ns_sym} not bound!"))
     )
+
+
+############
+# IO Proxy #
+############
+
+
+class IOProxy(io.TextIOWrapper):  # pragma: no cover
+    """
+    Proxy class which proxies all `io.TextIOWrapper` methods down to the current
+    (potentially thread-local) value of the wrapped Var (which should itself be either
+    an `io.TextIOWrapper` or some other file-like object).
+
+    This is intended to be installed in place of the Python standard streams (such
+    as `sys.stdout`) to proxy calls back to the buffer stored in the corresponding
+    `basilisp.core` dynamic Var (such as `*out*`). Because Python functions still
+    rely on the `sys` references (and are obviously unaware of Basilisp), setting
+    those references to a proxy class which uses the buffer underlying Basilisp's
+    own stream Vars enables Basilisp code to capture inputs and outputs of both Python
+    and Basilisp code.
+
+    This also reduces the risk of drifting between `sys` and `basilisp.core` streams,
+    since the Python variant should always track Basilisp unless some other code
+    hijacks the `sys` streams.
+    """
+
+    def __init__(self, var: Var):
+        self._var = var
+
+    @property
+    def name(self):
+        return self._var.value.name
+
+    @property
+    def buffer(self):
+        return self._var.value.buffer
+
+    @property
+    def encoding(self):
+        return self._var.value.encoding
+
+    @property
+    def errors(self):
+        return self._var.value.errors
+
+    @property
+    def newlines(self):
+        return self._var.value.newlines
+
+    @property
+    def mode(self):
+        return self._var.value.mode
+
+    @property
+    def closed(self):
+        return self._var.value.closed
+
+    @property
+    def line_buffering(self):
+        return self._var.value.line_buffering
+
+    @property
+    def write_through(self):
+        return self._var.value.write_through
+
+    def reconfigure(
+        self,
+        *,
+        encoding=None,
+        errors=None,
+        newline=None,
+        line_buffering=None,
+        write_through=None,
+    ):
+        self._var.value.reconfigure(
+            encoding=encoding,
+            errors=errors,
+            newline=newline,
+            line_buffering=line_buffering,
+            write_through=write_through,
+        )
+
+    def __enter__(self):
+        return self._var.value.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._var.value.__exit__(exc_type, exc_val, exc_tb)
+
+    def __iter__(self):
+        return self._var.value.__iter__()
+
+    def __next__(self):
+        return self._var.value.__next__()
+
+    def __del__(self):
+        self._var.value.__del__()
+
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        return (
+            f"<{self.__class__.__module__}.{self.__class__.__qualname__} "
+            f"{self._var} buffer={self._var.value.__repr__()}>"
+        )
+
+    def __hash__(self):
+        return self._var.value.__hash__()
+
+    def writelines(self, __lines):
+        self._var.value.writelines(__lines)
+
+    def readline(self, __size=-1):
+        return self._var.value.readline(__size)
+
+    def readlines(self, __hint=-1):
+        return self._var.value.readlines(__hint)
+
+    def seek(self, __cookie, __whence=0):
+        return self._var.value.seek(__cookie, __whence)
+
+    def detach(self):
+        return self._var.value.detach()
+
+    def write(self, __s):
+        return self._var.value.write(__s)
+
+    def read(self, __size=...):
+        return self._var.value.read(__size)
+
+    def close(self):
+        self._var.value.close()
+
+    def fileno(self):
+        return self._var.value.fileno()
+
+    def flush(self):
+        self._var.value.flush()
+
+    def isatty(self):
+        return self._var.value.isatty()
+
+    def readable(self):
+        return self._var.value.readable()
+
+    def seekable(self):
+        return self._var.value.seekable()
+
+    def tell(self):
+        return self._var.value.tell()
+
+    def truncate(self, __size=...):
+        return self._var.value.truncate(__size)
+
+    def writable(self):
+        return self._var.value.writable()
 
 
 #########################

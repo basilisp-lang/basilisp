@@ -4104,6 +4104,8 @@
   value."
   sys/stdin)
 
+(python/setattr sys "stdin" (basilisp.lang.runtime/IOProxy #'*in*))
+
 (def ^:dynamic *out*
   "The current value of *standard out* used by Basilisp.
 
@@ -4112,6 +4114,8 @@
   value."
   sys/stdout)
 
+(python/setattr sys "stdout" (basilisp.lang.runtime/IOProxy #'*out*))
+
 (def ^:dynamic *err*
   "The current value of *standard error* used by Basilisp.
 
@@ -4119,6 +4123,8 @@
   generally respects ``sys.stderr``), though all Basilisp code should respect the
   value."
   sys/stderr)
+
+(python/setattr sys "stderr" (basilisp.lang.runtime/IOProxy #'*err*))
 
 (def ^:dynamic *print-sep* " ")
 
