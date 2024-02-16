@@ -1,4 +1,6 @@
+import io
 import platform
+import subprocess
 import sys
 from decimal import Decimal
 from fractions import Fraction
@@ -17,7 +19,7 @@ from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import SpecialForm
 from basilisp.lang.interfaces import ISeq
-from tests.basilisp.helpers import get_or_create_ns
+from tests.basilisp.helpers import CompileFn, get_or_create_ns
 
 
 def test_is_supported_python_version():
@@ -747,3 +749,44 @@ class TestResolveAlias:
             ) == runtime.resolve_alias(
                 sym.symbol("non-existent-alias-var", ns="wee.woo"), ns=ns
             )
+
+
+class TestIOProxy:
+    """PyTest captures the standard streams in a way that makes testing Basilisp's
+    own stream hooks nearly impossible. Testing with a subprocess is easier."""
+
+    def test_hooked_stdout(self):
+        res = subprocess.run(
+            [
+                "basilisp",
+                "run",
+                "-c",
+                '(print (with-out-str (python/print "Hello from Python stdout!")))',
+            ],
+            check=True,
+            capture_output=True,
+        )
+        assert res.stdout == b"Hello from Python stdout!\n"
+        assert res.stderr == b""
+
+    def test_hooked_stderr(self):
+        res = subprocess.run(
+            [
+                "basilisp",
+                "run",
+                "-c",
+                """
+                (import io
+                        sys)
+
+                (print
+                  (binding [*err* (io/StringIO)]
+                    (python/print "Hello from Python stderr!" ** :file sys/stderr)
+                    (.getvalue *err*)))
+                """,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        assert res.stdout == b"Hello from Python stderr!\n"
+        assert res.stderr == b""
