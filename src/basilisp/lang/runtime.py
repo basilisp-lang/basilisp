@@ -2103,7 +2103,7 @@ class IOProxy(io.TextIOWrapper):  # pragma: no cover
     def write_through(self):
         return self._var.value.write_through
 
-    def reconfigure(
+    def reconfigure(  # pylint: disable=too-many-arguments
         self,
         *,
         encoding=None,
