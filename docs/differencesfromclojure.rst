@@ -150,6 +150,15 @@ Libs
 
 Support for Clojure libs is `planned <https://github.com/basilisp-lang/basilisp/issues/668>`_\.
 
+.. _core_lib_differences:
+
+basilisp.core
+-------------
+
+- :lpy:fn:`basilisp.core/int` coerces its argument to an integer. When given a string input, Basilisp will try to interpret it as a base 10 number, whereas in Clojure, it will return its ASCII/Unicode index if it is a character (or fail if it is a string).
+
+- :lpy:fn:`basilisp.core/float` coerces its argument to a floating-point number. When given a string input, Basilisp will try to parse it as a floating-point number, whereas Clojure will raise an error if the input is a character or a string.
+
 .. _refs_and_transactions_differences:
 
 Refs and Transactions

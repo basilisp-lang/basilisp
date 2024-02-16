@@ -1604,12 +1604,16 @@
   (python/float x))
 
 (defn ^:inline float
-  "Coerce ``x`` to a float."
+  "Coerce ``x`` to a float.
+
+  If ``x`` is string, it is parsed as a floating point number."
   [x]
   (python/float x))
 
 (defn ^:inline int
-  "Coerce ``x`` to an integer."
+  "Coerce ``x`` to an integer.
+
+  If ``x`` is string, it is parsed as a base 10 number."
   [x]
   (python/int x))
 
