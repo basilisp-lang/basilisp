@@ -1,4 +1,5 @@
 import io
+import os
 import platform
 import subprocess
 import sys
@@ -766,7 +767,7 @@ class TestIOProxy:
             check=True,
             capture_output=True,
         )
-        assert res.stdout == b"Hello from Python stdout!\n"
+        assert res.stdout.decode("utf-8") == f"Hello from Python stdout!{os.linesep}"
         assert res.stderr == b""
 
     def test_hooked_stderr(self):
@@ -788,5 +789,5 @@ class TestIOProxy:
             check=True,
             capture_output=True,
         )
-        assert res.stdout == b"Hello from Python stderr!\n"
+        assert res.stdout.decode("utf-8") == f"Hello from Python stderr!{os.linesep}"
         assert res.stderr == b""
