@@ -2058,6 +2058,15 @@ class IOProxy(io.TextIOWrapper):  # pragma: no cover
     def __init__(self, var: Var):
         self._var = var
 
+    @classmethod
+    def for_standard_stream(cls, var: Var, member: str) -> "IOProxy":
+        """Create an IOProxy object for one of the 3 Python standard streams:
+        `sys.stdin`, `sys.stdout`, or `sys.stderr`."""
+        assert member in {"stdin", "stdout", "stderr"}
+        proxy = cls(var)
+        setattr(sys, member, proxy)
+        return proxy
+
     @property
     def name(self):
         return self._var.value.name

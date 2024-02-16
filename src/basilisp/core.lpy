@@ -4104,8 +4104,6 @@
   value."
   sys/stdin)
 
-(python/setattr sys "stdin" (basilisp.lang.runtime/IOProxy #'*in*))
-
 (def ^:dynamic *out*
   "The current value of *standard out* used by Basilisp.
 
@@ -4113,8 +4111,6 @@
   generally respects ``sys.stdout``), though all Basilisp code should respect the
   value."
   sys/stdout)
-
-(python/setattr sys "stdout" (basilisp.lang.runtime/IOProxy #'*out*))
 
 (def ^:dynamic *err*
   "The current value of *standard error* used by Basilisp.
@@ -4124,7 +4120,22 @@
   value."
   sys/stderr)
 
-(python/setattr sys "stderr" (basilisp.lang.runtime/IOProxy #'*err*))
+;; Proxy objects for the Python standard streams.
+;;
+;; Without holding a reference to these objects as a Var, they are garbage collected
+;; any time their reference count otherwise reaches 0 (as can be the case while
+;; running PyTest, which commonly reassigns the standard streams to capture output).
+;; The IOProxy class will attempt to close the underlying stream when it is garbage
+;; collected, which is problematic for most use cases.
+
+(def ^:private py-stdin-proxy
+  (basilisp.lang.runtime.IOProxy/for-standard-stream #'*in* "stdin"))
+
+(def ^:private py-stdout-proxy
+  (basilisp.lang.runtime.IOProxy/for-standard-stream #'*out* "stdout"))
+
+(def ^:private py-stderr-proxy
+  (basilisp.lang.runtime.IOProxy/for-standard-stream #'*err* "stderr"))
 
 (def ^:dynamic *print-sep* " ")
 
