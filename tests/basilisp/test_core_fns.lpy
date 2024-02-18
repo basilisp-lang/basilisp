@@ -233,6 +233,14 @@
 ;; Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(deftest fnext-test
+  (is (= nil (fnext [])))
+  (is (= nil (fnext [1])))
+  (is (= nil (fnext [1 nil])))
+
+  (is (= 2 (fnext [1 2])))
+  (is (= [2] (fnext [1 [2] 3]))))
+
 (deftest bounded-count-test
   (are [x n y] (= x (bounded-count n y))
     0 5 []
