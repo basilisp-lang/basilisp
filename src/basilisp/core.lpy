@@ -461,6 +461,11 @@
   [v]
   (next (first v)))
 
+(defn ^:inline fnext
+  "Return the result of calling ``(first (next v))``\\."
+  [v]
+  (first (next v)))
+
 (defn ^:inline nnext
   "Return the result of calling ``(next (next v))``\\."
   [v]
