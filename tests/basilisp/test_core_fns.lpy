@@ -2156,7 +2156,19 @@
 
 (deftest pr-test
   (testing "is dynamic"
-    (is (= '(1) (binding [pr (fn [& more] more)] (pr 1))))))
+    (is (= '(1) (binding [pr (fn [& more] more)] (pr 1)))))
+
+  (testing "with *print-namespace-maps*"
+    (are [res m b] (contains? res (binding [*print-namespace-maps* b] (pr-str m)))
+      #{"{:a/x 5}"} {:a/x 5} false
+      #{"#:a{:x 5}"} {:a/x 5} true
+      #{"{:x 5}"} {:x 5} true
+      #{"{:a/y 6 :a/x 5}" "{:a/x 5 :a/y 6}"} {:a/x 5 :a/y 6} false
+      #{"#:a{:y 6 :x 5}" "#:a{:x 5 :y 6}"} {:a/x 5 :a/y 6} true
+      #{"{:a/x 5 :b/y 6}" "{:b/y 6 :a/x 5}"} {:a/x 5 :b/y 6} true
+      #{"#:a{y 6 x 5}" "#:a{x 5 y 6}"} {'a/x 5 'a/y 6} true
+      #{"#:a{y 6 :x 5}" "#:a{:x 5 y 6}"} {:a/x 5 'a/y 6} true
+      #{"{y 6 :a/x 5}" "{:a/x 5 y 6}"} {:a/x 5 'y 6} true)))
 
 (defn- bio-write
   "Helper fn to write the ``strings`` to the ByteIO buffer ``bio``

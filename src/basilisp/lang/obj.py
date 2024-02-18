@@ -21,6 +21,7 @@ PRINT_DUP = False
 PRINT_LENGTH: PrintCountSetting = 50
 PRINT_LEVEL: PrintCountSetting = None
 PRINT_META = False
+PRINT_NAMESPACE_MAPS = False
 PRINT_READABLY = True
 PRINT_SEPARATOR = " "
 
@@ -78,7 +79,7 @@ class LispObject(ABC):
         return lrepr(self, **kwargs)
 
 
-def map_lrepr(
+def map_lrepr(  # pylint: disable=too-many-locals
     entries: Callable[[], Iterable[Tuple[Any, Any]]],
     start: str,
     end: str,
@@ -89,20 +90,49 @@ def map_lrepr(
     with the start and end string supplied. The entries argument must be a
     callable which will produce tuples of key-value pairs.
 
+    If the keyword argument print_namespace_maps is True and all keys
+    are symbols or keywords and they share the same namespace, then
+    print the namespace of the keys at the beginning of the map
+    instead of beside the keys.
+
     The keyword arguments will be passed along to lrepr for the sequence
-    elements."""
+    elements.
+
+    """
+    from basilisp.lang import keyword as kw  # pylint: disable=cyclic-import
+    from basilisp.lang import symbol as sym  # pylint: disable=cyclic-import
+
     print_level = kwargs["print_level"]
     if isinstance(print_level, int) and print_level < 1:
         return SURPASSED_PRINT_LEVEL
 
     kwargs = _process_kwargs(**kwargs)
 
+    def check_same_ns():
+        nses = set()
+        for k, _ in entries():
+            if isinstance(k, (kw.Keyword, sym.Symbol)):
+                nses.add(k.ns)
+                if len(nses) > 1:
+                    break
+        return next(iter(nses)) if len(nses) == 1 else None
+
+    print_namespace_maps = kwargs["print_namespace_maps"]
+    ns_same = check_same_ns() if print_namespace_maps else None
+    key_ns_drop = ns_same is not None
+
     kw_items = kwargs.copy()
     kw_items["human_readable"] = False
 
     def entry_reprs():
         for k, v in entries():
-            yield f"{lrepr(k, **kw_items)} {lrepr(v, **kw_items)}"
+            key = k
+            if key_ns_drop:
+                if isinstance(k, kw.Keyword):
+                    key = kw.Keyword(k.name)
+                elif isinstance(k, sym.Symbol):
+                    key = sym.Symbol(k.name)
+            yield f"{lrepr(key, **kw_items)} {lrepr(v, **kw_items)}"
 
     trailer = []
     print_dup = kwargs["print_dup"]
@@ -121,7 +151,7 @@ def map_lrepr(
     if print_meta and meta:
         return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
 
-    return f"{start}{seq_lrepr}{end}"
+    return f"{'#:'+ns_same if ns_same else ''}{start}{seq_lrepr}{end}"
 
 
 def seq_lrepr(
@@ -172,6 +202,7 @@ def lrepr(  # pylint: disable=too-many-arguments
     print_length: PrintCountSetting = PRINT_LENGTH,
     print_level: PrintCountSetting = PRINT_LEVEL,
     print_meta: bool = PRINT_META,
+    print_namespace_maps: bool = PRINT_NAMESPACE_MAPS,
     print_readably: bool = PRINT_READABLY,
 ) -> str:
     """Return a string representation of a Lisp object.
@@ -185,6 +216,10 @@ def lrepr(  # pylint: disable=too-many-arguments
                     or no limit if bound to a logical falsey value (default: 50)
     - print_level: the depth of the object graph to print, starting with 0, or
                    no limit if bound to a logical falsey value (default: nil)
+    - print_namespace_maps: if logical true, and the object is a map consisting
+                            exclusively with keys of symbols or keywords all
+                            belonging to the same namespace, print the namespace
+                            at the beginning of the map instead of beside the keys.
     - print_meta: if logical true, print objects meta in a way that can be
                   read back by the reader (default: false)
     - print_readably: if logical false, print strings and characters with
@@ -206,6 +241,7 @@ def _lrepr_lisp_obj(  # pylint: disable=too-many-arguments
     print_length: PrintCountSetting = PRINT_LENGTH,
     print_level: PrintCountSetting = PRINT_LEVEL,
     print_meta: bool = PRINT_META,
+    print_namespace_maps: bool = PRINT_NAMESPACE_MAPS,
     print_readably: bool = PRINT_READABLY,
 ) -> str:  # pragma: no cover
     return o._lrepr(
@@ -214,6 +250,7 @@ def _lrepr_lisp_obj(  # pylint: disable=too-many-arguments
         print_length=print_length,
         print_level=print_level,
         print_meta=print_meta,
+        print_namespace_maps=print_namespace_maps,
         print_readably=print_readably,
     )
 

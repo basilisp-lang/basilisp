@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added `merge-with` core function (#860)
  * Added `fnext` core function (#879)
  * Added `INamed` interface for Keywords and Symbols (#884)
+ * Added `*print-namespace-maps*` dynamic var support (#882)
 
 ### Changed
  * Cause exceptions arising from compilation issues during macroexpansion will no longer be nested for each level of macroexpansion (#852)

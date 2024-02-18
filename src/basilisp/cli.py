@@ -422,6 +422,7 @@ def repl(
                     runtime.PRINT_READABLY_VAR_NAME,
                     runtime.PRINT_LEVEL_VAR_NAME,
                     runtime.PRINT_META_VAR_NAME,
+                    runtime.PRINT_NAMESPACE_MAPS_VAR_NAME,
                 ],
             )
         }
