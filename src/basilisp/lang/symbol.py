@@ -47,6 +47,10 @@ class Symbol(ILispObject, INamed, IWithMeta):
     def ns(self) -> Optional[str]:
         return self._ns
 
+    @classmethod
+    def with_name(cls, name: str, ns: Optional[str] = None) -> "Symbol":
+        return Symbol(name, ns=ns)
+
     @property
     def meta(self) -> Optional[IPersistentMap]:
         return self._meta

@@ -35,6 +35,10 @@ class Keyword(ILispObject, INamed):
     def ns(self) -> Optional[str]:
         return self._ns
 
+    @classmethod
+    def with_name(cls, name: str, ns: Optional[str] = None) -> "Keyword":
+        return keyword(name, ns=ns)
+
     def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         if self._ns is not None:
             return f":{self._ns}/{self._name}"
