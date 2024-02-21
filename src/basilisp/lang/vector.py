@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Iterable, Optional, Sequence, TypeVar, Union, 
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 from pyrsistent.typing import PVectorEvolver
+from typing_extensions import Unpack
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,
@@ -15,6 +16,7 @@ from basilisp.lang.interfaces import (
     IWithMeta,
     seq_equals,
 )
+from basilisp.lang.obj import PrintSettings
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
 from basilisp.util import partition
@@ -144,7 +146,7 @@ class PersistentVector(
                 return False
         return False
 
-    def _lrepr(self, **kwargs) -> str:
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         return _seq_lrepr(self._inner, "[", "]", meta=self._meta, **kwargs)
 
     @property

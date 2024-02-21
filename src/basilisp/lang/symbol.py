@@ -1,19 +1,22 @@
 from functools import total_ordering
 from typing import Optional, Union
 
+from typing_extensions import Unpack
+
 from basilisp.lang.interfaces import (
     IAssociative,
     ILispObject,
+    INamed,
     IPersistentMap,
     IPersistentSet,
     IWithMeta,
 )
-from basilisp.lang.obj import lrepr
+from basilisp.lang.obj import PrintSettings, lrepr
 from basilisp.lang.util import munge
 
 
 @total_ordering
-class Symbol(ILispObject, IWithMeta):
+class Symbol(ILispObject, INamed, IWithMeta):
     __slots__ = ("_name", "_ns", "_meta", "_hash")
 
     def __init__(
@@ -24,7 +27,7 @@ class Symbol(ILispObject, IWithMeta):
         self._meta = meta
         self._hash = hash((ns, name))
 
-    def _lrepr(self, **kwargs) -> str:
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         print_meta = kwargs["print_meta"]
 
         if self._ns is not None:

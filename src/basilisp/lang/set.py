@@ -3,6 +3,7 @@ from typing import AbstractSet, Iterable, Optional, TypeVar
 
 from immutables import Map as _Map
 from immutables import MapMutation
+from typing_extensions import Unpack
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,
@@ -13,6 +14,7 @@ from basilisp.lang.interfaces import (
     ITransientSet,
     IWithMeta,
 )
+from basilisp.lang.obj import PrintSettings
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
 
@@ -111,7 +113,7 @@ class PersistentSet(
     def __len__(self):
         return len(self._inner)
 
-    def _lrepr(self, **kwargs):
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]):
         return _seq_lrepr(self._inner, "#{", "}", meta=self._meta, **kwargs)
 
     issubset = _PySet.__le__
