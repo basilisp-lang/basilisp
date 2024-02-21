@@ -15,7 +15,7 @@ from typing import (
     Union,
 )
 
-from typing_extensions import Unpack
+from typing_extensions import Self, Unpack
 
 from basilisp.lang.obj import LispObject as _LispObject
 from basilisp.lang.obj import PrintSettings, seq_lrepr
@@ -98,14 +98,11 @@ class IMeta(ABC):
         raise NotImplementedError()
 
 
-T_with_meta = TypeVar("T_with_meta", bound="IWithMeta")
-
-
 class IWithMeta(IMeta):
     __slots__ = ()
 
     @abstractmethod
-    def with_meta(self: T_with_meta, meta: "Optional[IPersistentMap]") -> T_with_meta:
+    def with_meta(self, meta: "Optional[IPersistentMap]") -> Self:
         raise NotImplementedError()
 
 
@@ -120,6 +117,12 @@ class INamed(ABC):
     @property
     @abstractmethod
     def ns(self) -> Optional[str]:
+        raise NotImplementedError()
+
+    @classmethod
+    @abstractmethod
+    def with_name(cls, name: str, ns: Optional[str] = None) -> Self:
+        """Create a new instance of this INamed with `name` and optional `ns`."""
         raise NotImplementedError()
 
 
