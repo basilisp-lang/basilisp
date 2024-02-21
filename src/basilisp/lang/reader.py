@@ -33,6 +33,7 @@ from typing import (
 )
 
 import attr
+from typing_extensions import Unpack
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -56,6 +57,7 @@ from basilisp.lang.interfaces import (
     IType,
     IWithMeta,
 )
+from basilisp.lang.obj import PrintSettings
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.runtime import (
     READER_COND_DEFAULT_FEATURE_SET,
@@ -520,7 +522,7 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
                 return form
         return self.FEATURE_NOT_PRESENT
 
-    def _lrepr(self, **kwargs) -> str:
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         return _seq_lrepr(
             chain.from_iterable(self._feature_vec),
             "#?@(" if self.is_splicing else "#?(",

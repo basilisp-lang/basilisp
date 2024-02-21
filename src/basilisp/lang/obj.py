@@ -8,7 +8,9 @@ from fractions import Fraction
 from functools import singledispatch
 from itertools import islice
 from pathlib import Path
-from typing import Any, Callable, Iterable, Pattern, Tuple, Union
+from typing import Any, Callable, Iterable, Pattern, Tuple, Union, cast
+
+from typing_extensions import TypedDict, Unpack
 
 PrintCountSetting = Union[bool, int, None]
 
@@ -23,17 +25,28 @@ PRINT_READABLY = True
 PRINT_SEPARATOR = " "
 
 
-def _dec_print_level(lvl: PrintCountSetting):
+class PrintSettings(TypedDict, total=False):
+    human_readable: bool
+    print_dup: bool
+    print_length: PrintCountSetting
+    print_level: PrintCountSetting
+    print_meta: bool
+    print_readably: bool
+
+
+def _dec_print_level(lvl: PrintCountSetting) -> PrintCountSetting:
     """Decrement the print level if it is numeric."""
     if isinstance(lvl, int):
         return lvl - 1
     return lvl
 
 
-def _process_kwargs(**kwargs):
+def _process_kwargs(**kwargs: Unpack[PrintSettings]) -> PrintSettings:
     """Process keyword arguments, decreasing the print-level. Should be called
     after examining the print level for the current level."""
-    return dict(kwargs, print_level=_dec_print_level(kwargs["print_level"]))
+    return cast(
+        PrintSettings, dict(kwargs, print_level=_dec_print_level(kwargs["print_level"]))
+    )
 
 
 class LispObject(ABC):
@@ -53,13 +66,13 @@ class LispObject(ABC):
         return self.lrepr(human_readable=True)
 
     @abstractmethod
-    def _lrepr(self, **kwargs) -> str:
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         """Private Lisp representation method. Callers (including object
         internal callers) should not call this method directly, but instead
         should use the module function .lrepr()."""
         raise NotImplementedError()
 
-    def lrepr(self, **kwargs) -> str:
+    def lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         """Return a string representation of this Lisp object which can be
         read by the reader."""
         return lrepr(self, **kwargs)
@@ -70,7 +83,7 @@ def map_lrepr(
     start: str,
     end: str,
     meta=None,
-    **kwargs,
+    **kwargs: Unpack[PrintSettings],
 ) -> str:
     """Produce a Lisp representation of an associative collection, bookended
     with the start and end string supplied. The entries argument must be a
@@ -109,7 +122,11 @@ def map_lrepr(
 
 
 def seq_lrepr(
-    iterable: Iterable[Any], start: str, end: str, meta=None, **kwargs
+    iterable: Iterable[Any],
+    start: str,
+    end: str,
+    meta=None,
+    **kwargs: Unpack[PrintSettings],
 ) -> str:
     """Produce a Lisp representation of a sequential collection, bookended
     with the start and end string supplied. The keyword arguments will be
@@ -224,22 +241,22 @@ def _lrepr_str(
 
 
 @lrepr.register(list)
-def _lrepr_py_list(o: list, **kwargs) -> str:
+def _lrepr_py_list(o: list, **kwargs: Unpack[PrintSettings]) -> str:
     return f"#py {seq_lrepr(o, '[', ']', **kwargs)}"
 
 
 @lrepr.register(dict)
-def _lrepr_py_dict(o: dict, **kwargs) -> str:
+def _lrepr_py_dict(o: dict, **kwargs: Unpack[PrintSettings]) -> str:
     return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
 
 
 @lrepr.register(set)
-def _lrepr_py_set(o: set, **kwargs) -> str:
+def _lrepr_py_set(o: set, **kwargs: Unpack[PrintSettings]) -> str:
     return f"#py {seq_lrepr(o, '#{', '}', **kwargs)}"
 
 
 @lrepr.register(tuple)
-def _lrepr_py_tuple(o: tuple, **kwargs) -> str:
+def _lrepr_py_tuple(o: tuple, **kwargs: Unpack[PrintSettings]) -> str:
     return f"#py {seq_lrepr(o, '(', ')', **kwargs)}"
 
 

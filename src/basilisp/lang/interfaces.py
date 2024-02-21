@@ -15,8 +15,10 @@ from typing import (
     Union,
 )
 
+from typing_extensions import Unpack
+
 from basilisp.lang.obj import LispObject as _LispObject
-from basilisp.lang.obj import seq_lrepr
+from basilisp.lang.obj import PrintSettings, seq_lrepr
 
 T = TypeVar("T")
 
@@ -104,6 +106,20 @@ class IWithMeta(IMeta):
 
     @abstractmethod
     def with_meta(self: T_with_meta, meta: "Optional[IPersistentMap]") -> T_with_meta:
+        raise NotImplementedError()
+
+
+class INamed(ABC):
+    __slots__ = ()
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def ns(self) -> Optional[str]:
         raise NotImplementedError()
 
 
@@ -407,11 +423,11 @@ class IRecord(ILispObject):
         """Class method constructor from an IPersistentMap instance."""
         raise NotImplementedError()
 
-    def _lrepr(self, **kwargs) -> str:
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         return self._record_lrepr(kwargs)
 
     @abstractmethod
-    def _record_lrepr(self, kwargs: Mapping) -> str:
+    def _record_lrepr(self, kwargs: PrintSettings) -> str:
         """Translation method converting Python keyword arguments into a
         Python dict.
 
@@ -487,7 +503,7 @@ class ISeq(ILispObject, ISeqable[T]):
     def seq(self) -> "Optional[ISeq[T]]":
         return self
 
-    def _lrepr(self, **kwargs):
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]):
         return seq_lrepr(iter(self), "(", ")", **kwargs)
 
     def __eq__(self, other):

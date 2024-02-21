@@ -3,6 +3,7 @@ from typing import Callable, Iterable, Mapping, Optional, Tuple, TypeVar, Union,
 
 from immutables import Map as _Map
 from immutables import MapMutation
+from typing_extensions import Unpack
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,
@@ -14,6 +15,7 @@ from basilisp.lang.interfaces import (
     ITransientMap,
     IWithMeta,
 )
+from basilisp.lang.obj import PrintSettings
 from basilisp.lang.obj import map_lrepr as _map_lrepr
 from basilisp.lang.seq import sequence
 from basilisp.lang.vector import MapEntry
@@ -160,7 +162,7 @@ class PersistentMap(
     def __len__(self):
         return len(self._inner)
 
-    def _lrepr(self, **kwargs):
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]):
         return _map_lrepr(
             self._inner.items, start="{", end="}", meta=self._meta, **kwargs
         )
