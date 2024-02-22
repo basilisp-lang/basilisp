@@ -2877,19 +2877,22 @@ def _recur_ast(form: ISeq, ctx: AnalyzerContext) -> Recur:
     assert form.first == SpecialForm.RECUR
 
     if ctx.recur_point is None:
-        raise ctx.AnalyzerException("no recur point defined for recur", form=form)
+        if ctx.should_allow_unresolved_symbols:
+            loop_id = genname("macroexpand-recur")
+        else:
+            raise ctx.AnalyzerException("no recur point defined for recur", form=form)
+    else:
+        if len(ctx.recur_point.args) != count(form.rest):
+            raise ctx.AnalyzerException(
+                "recur arity does not match last recur point arity", form=form
+            )
 
-    if len(ctx.recur_point.args) != count(form.rest):
-        raise ctx.AnalyzerException(
-            "recur arity does not match last recur point arity", form=form
-        )
+        loop_id = ctx.recur_point.loop_id
 
     with ctx.expr_pos():
         exprs = vec.vector(map(lambda form: _analyze_form(form, ctx), form.rest))
 
-    return Recur(
-        form=form, exprs=exprs, loop_id=ctx.recur_point.loop_id, env=ctx.get_node_env()
-    )
+    return Recur(form=form, exprs=exprs, loop_id=loop_id, env=ctx.get_node_env())
 
 
 @_with_meta
