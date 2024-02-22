@@ -3942,6 +3942,19 @@ class TestRecur:
         assert ":ba" == lcompile('(rev-str "a" :b)')
         assert "3:ba" == lcompile('(rev-str "a" :b 3)')
 
+    def test_can_macroexpand_recur(self, lcompile: CompileFn):
+        lcompile(
+            """
+            (defmacro maybe-loop [& body]
+              `(loop [x# true]
+                (if x#
+                  (do ~@body)
+                  :done)))
+
+            (macroexpand-1 '(maybe-loop (recur false)))
+        """
+        )
+
     def test_recur_arity_must_match_recur_point(self, lcompile: CompileFn):
         with pytest.raises(compiler.CompilerException):
             lcompile("(fn [s] (recur :a :b))")
