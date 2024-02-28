@@ -1703,7 +1703,9 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
                     "and cannot be checked for abstractness; deferring to runtime",
                 )
                 unverifiably_abstract.add(interface)
-                if _is_artificially_abstract(interface.form):
+                if isinstance(interface.form, IMeta) and _is_artificially_abstract(
+                    interface.form
+                ):
                     artificially_abstract.add(interface)
                 continue
 
@@ -1745,7 +1747,9 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
                 )
 
             all_interface_methods.update(interface_names)
-        elif _is_artificially_abstract(interface.form):
+        elif isinstance(interface.form, IMeta) and _is_artificially_abstract(
+            interface.form
+        ):
             # Given that artificially abstract bases aren't real `abc.ABC`s and do
             # not annotate their `abstractmethod`s, we can't assert right now that
             # any the type will satisfy the artificially abstract base. However,
@@ -3197,7 +3201,7 @@ def _var_ast(form: ISeq, ctx: AnalyzerContext) -> VarRef:
         raise ctx.AnalyzerException(f"cannot resolve var {var_sym}", form=form)
 
     return VarRef(
-        form=var_sym,
+        form=form,
         var=var,
         return_var=True,
         env=ctx.get_node_env(pos=ctx.syntax_position),
