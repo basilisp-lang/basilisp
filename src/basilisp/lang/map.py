@@ -33,7 +33,7 @@ from basilisp.lang.obj import (
     SURPASSED_PRINT_LEVEL,
     PrintSettings,
     lrepr,
-    process_kwargs,
+    process_lrepr_kwargs,
 )
 from basilisp.lang.seq import sequence
 from basilisp.lang.vector import MapEntry
@@ -129,7 +129,8 @@ def map_lrepr(  # pylint: disable=too-many-locals
     entries: Callable[[], Iterable[Tuple[Any, Any]]],
     start: str,
     end: str,
-    meta=None,
+    py_map: bool = False,
+    meta: Optional[IPersistentMap] = None,
     **kwargs: Unpack[PrintSettings],
 ) -> str:
     """Produce a Lisp representation of an associative collection, bookended
@@ -137,9 +138,12 @@ def map_lrepr(  # pylint: disable=too-many-locals
     callable which will produce tuples of key-value pairs.
 
     If the keyword argument print_namespace_maps is True and all keys
-    are instances of `basilisp.lang.interfaces.INamed` and they share
-    the same namespace, then print the namespace of the keys at the
-    beginning of the map instead of beside the keys.
+    share the same namespace, then print the namespace of the keys at
+    the beginning of the map instead of beside the keys.
+
+    if py_map is True then do not print any meta or namespace
+    information before the map (default: False).
+
 
     The keyword arguments will be passed along to lrepr for the sequence
     elements.
@@ -149,36 +153,47 @@ def map_lrepr(  # pylint: disable=too-many-locals
     if isinstance(print_level, int) and print_level < 1:
         return SURPASSED_PRINT_LEVEL
 
-    kwargs = process_kwargs(**kwargs)
+    kwargs = process_lrepr_kwargs(**kwargs)
 
     def check_same_ns():
+        """Check whether all keys in entries belong to the same
+        namespace. If they do, return the namespace name; otherwise,
+        return None.
+        """
         nses = set()
         for k, _ in entries():
             if isinstance(k, INamed):
                 nses.add(k.ns)
-                if len(nses) > 1:
-                    break
+            else:
+                nses.add(None)
+            if len(nses) > 1:
+                break
         return next(iter(nses)) if len(nses) == 1 else None
 
-    print_namespace_maps = kwargs["print_namespace_maps"]
-    ns_same = check_same_ns() if print_namespace_maps else None
-    key_ns_drop = ns_same is not None
+    ns_name_shared = (
+        check_same_ns() if not py_map and kwargs["print_namespace_maps"] else None
+    )
+
+    entries_updated = entries
+    if ns_name_shared:
+
+        def entries_ns_remove():
+            for k, v in entries():
+                yield (k.with_name(k.name), v)
+
+        entries_updated = entries_ns_remove
 
     kw_items = kwargs.copy()
     kw_items["human_readable"] = False
 
     def entry_reprs():
-        for k, v in entries():
-            key = k
-            if key_ns_drop:
-                if isinstance(k, INamed):
-                    key = k.with_name(k.name)
-            yield f"{lrepr(key, **kw_items)} {lrepr(v, **kw_items)}"
+        for k, v in entries_updated():
+            yield f"{lrepr(k, **kw_items)} {lrepr(v, **kw_items)}"
 
     trailer = []
     print_dup = kwargs["print_dup"]
     print_length = kwargs["print_length"]
-    if not print_dup and isinstance(print_length, int):
+    if not py_map and not print_dup and isinstance(print_length, int):
         items = list(islice(entry_reprs(), print_length + 1))
         if len(items) > print_length:
             items.pop()
@@ -188,16 +203,18 @@ def map_lrepr(  # pylint: disable=too-many-locals
 
     seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
 
-    print_meta = kwargs["print_meta"]
-    if print_meta and meta:
-        return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
+    ns_prefix = ("#:" + ns_name_shared) if ns_name_shared else ""
+    if kwargs["print_meta"] and meta:
+        kwargs_meta = kwargs
+        kwargs_meta["print_level"] = None
+        return f"^{lrepr(meta,**kwargs_meta)} {ns_prefix}{start}{seq_lrepr}{end}"
 
-    return f"{('#:'+ns_same) if ns_same else ''}{start}{seq_lrepr}{end}"
+    return f"{ns_prefix}{start}{seq_lrepr}{end}"
 
 
 @lrepr.register(dict)
 def _lrepr_py_dict(o: dict, **kwargs: Unpack[PrintSettings]) -> str:
-    return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
+    return f"#py {map_lrepr(o.items, '{', '}', py_map=True, **kwargs)}"
 
 
 class PersistentMap(
@@ -257,7 +274,11 @@ class PersistentMap(
 
     def _lrepr(self, **kwargs: Unpack[PrintSettings]):
         return map_lrepr(
-            self._inner.items, start="{", end="}", meta=self._meta, **kwargs
+            self._inner.items,
+            start="{",
+            end="}",
+            meta=self._meta,
+            **kwargs,
         )
 
     @property

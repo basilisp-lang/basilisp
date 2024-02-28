@@ -2159,16 +2159,39 @@
     (is (= '(1) (binding [pr (fn [& more] more)] (pr 1)))))
 
   (testing "with *print-namespace-maps*"
+    (is (= "#py {:a/x 5}" (binding [*print-namespace-maps* false] (pr-str #py {:a/x 5}))))
+    (is (= "#py {:a/x 5}" (binding [*print-namespace-maps* true] (pr-str #py {:a/x 5}))))
+
     (are [res m b] (contains? res (binding [*print-namespace-maps* b] (pr-str m)))
       #{"{:a/x 5}"} {:a/x 5} false
       #{"#:a{:x 5}"} {:a/x 5} true
       #{"{:x 5}"} {:x 5} true
+      #{"{1 2}"} {1 2} false
+      #{"{1 2}"} {1 2} true
       #{"{:a/y 6 :a/x 5}" "{:a/x 5 :a/y 6}"} {:a/x 5 :a/y 6} false
       #{"#:a{:y 6 :x 5}" "#:a{:x 5 :y 6}"} {:a/x 5 :a/y 6} true
+      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"} {:a/x 5 6 6} false
+      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"} {:a/x 5 6 6} true
       #{"{:a/x 5 :b/y 6}" "{:b/y 6 :a/x 5}"} {:a/x 5 :b/y 6} true
       #{"#:a{y 6 x 5}" "#:a{x 5 y 6}"} {'a/x 5 'a/y 6} true
       #{"#:a{y 6 :x 5}" "#:a{:x 5 y 6}"} {:a/x 5 'a/y 6} true
-      #{"{y 6 :a/x 5}" "{:a/x 5 y 6}"} {:a/x 5 'y 6} true)))
+      #{"{y 6 :a/x 5}" "{:a/x 5 y 6}"} {:a/x 5 'y 6} true)
+
+    (are [res m pnm pm] (= res (binding [*print-namespace-maps* pnm
+                                         *print-meta*           pm]
+                                 (pr-str m)))
+      "^{:m 1} {:a/x 5}"     ^{:m 1} {:a/x 5}   false true
+      "^{:m 1} #:a{:x 5}"    ^{:m 1} {:a/x 5}   true true
+      "^#:l{:m 1} #:a{:x 5}" ^{:l/m 1} {:a/x 5} true true)
+
+    (are [res m pl] (= res (binding [*print-namespace-maps* true
+                                     *print-meta*           true
+                                     *print-level* pl]
+                             (pr-str m)))
+      "#"                                ^{:m 1} {:a/x 5} 0
+      "^{:m 1} #:a{:x 5}"                ^{:m 1} {:a/x 5} 1
+      "^{:m 1} #:a{:x #}"                ^{:m 1} {:a/x ^{:x 22} {:b 36}} 1
+      "^{:m 1} #:a{:x ^{:x 22} {:b 36}}" ^{:m 1} {:a/x ^{:x 22} {:b 36}} 2)))
 
 (defn- bio-write
   "Helper fn to write the ``strings`` to the ByteIO buffer ``bio``

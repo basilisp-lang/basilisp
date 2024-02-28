@@ -43,7 +43,7 @@ def _dec_print_level(lvl: PrintCountSetting) -> PrintCountSetting:
     return lvl
 
 
-def process_kwargs(**kwargs: Unpack[PrintSettings]) -> PrintSettings:
+def process_lrepr_kwargs(**kwargs: Unpack[PrintSettings]) -> PrintSettings:
     """Process keyword arguments, decreasing the print-level. Should be called
     after examining the print level for the current level."""
     return cast(
@@ -94,7 +94,7 @@ def seq_lrepr(
     if isinstance(print_level, int) and print_level < 1:
         return SURPASSED_PRINT_LEVEL
 
-    kwargs = process_kwargs(**kwargs)
+    kwargs = process_lrepr_kwargs(**kwargs)
 
     trailer = []
     print_dup = kwargs["print_dup"]
@@ -143,9 +143,9 @@ def lrepr(  # pylint: disable=too-many-arguments
     - print_level: the depth of the object graph to print, starting with 0, or
                    no limit if bound to a logical falsey value (default: nil)
     - print_namespace_maps: if logical true, and the object is a map consisting
-                            exclusively with keys of symbols or keywords all
-                            belonging to the same namespace, print the namespace
-                            at the beginning of the map instead of beside the keys.
+                            with keys belonging to the same namespace, print the
+                            namespace at the beginning of the map instead of
+                            beside the keys (default: false)
     - print_meta: if logical true, print objects meta in a way that can be
                   read back by the reader (default: false)
     - print_readably: if logical false, print strings and characters with

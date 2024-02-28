@@ -2201,8 +2201,7 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
         meta=lmap.map(
             {
                 _DOC_META_KEY: (
-                    "Indicates to print the namespace of keys in a map exclusively"
-                    " consisting of only symbols or keywords belonging to the same"
+                    "Indicates to print the namespace of keys in a map belonging to the same"
                     " namespace, at the beginning of the map instead of beside the keys."
                     " Defaults to false."
                 )
