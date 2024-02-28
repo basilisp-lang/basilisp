@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where names `def`'ed without reader metadata would cause the compiler to throw an exception (#850) 
  * Fix an issue where `concat` on maps was iterating over the keys instead of the key/value pairs (#871)
  * Fix a bug where the compiler would throw an exception partially macroexpanding forms with `recur` forms provided as arguments (#856)
+ * Fix a bug where the original `(var ...)` form is not retained during analysis, causing it to be lost in calls to `macroexpand` (#888)
 
 ## [v0.1.0b1]
 ### Added
