@@ -343,7 +343,7 @@ def test_version(run_cli):
     "args,ret",
     [
         ([], b"nil\n"),
-        (["1", "hi", "yes"], b"[1 hi yes]\n"),
+        (["1", "hi", "yes"], b'["1" "hi" "yes"]\n'),
     ],
 )
 def test_run_script(tmp_path: pathlib.Path, args: List[str], ret: bytes):

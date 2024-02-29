@@ -97,9 +97,12 @@ def map_lrepr(
 
     kwargs = _process_kwargs(**kwargs)
 
+    kw_items = kwargs
+    kw_items["human_readable"] = False
+
     def entry_reprs():
         for k, v in entries():
-            yield f"{lrepr(k, **kwargs)} {lrepr(v, **kwargs)}"
+            yield f"{lrepr(k, **kw_items)} {lrepr(v, **kw_items)}"
 
     trailer = []
     print_dup = kwargs["print_dup"]
@@ -148,7 +151,9 @@ def seq_lrepr(
     else:
         items = iterable  # type: ignore
 
-    items = list(map(lambda o: lrepr(o, **kwargs), items))
+    kw_items = kwargs
+    kw_items["human_readable"] = False
+    items = list(map(lambda o: lrepr(o, **kw_items), items))
     seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
 
     print_meta = kwargs["print_meta"]
