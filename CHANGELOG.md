@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix an issue where `concat` on maps was iterating over the keys instead of the key/value pairs (#871)
  * Fix a bug where the compiler would throw an exception partially macroexpanding forms with `recur` forms provided as arguments (#856)
  * Fix a bug where the original `(var ...)` form is not retained during analysis, causing it to be lost in calls to `macroexpand` (#888)
+ * Fix issue with the reader var macro failing in syntax quote when unquoting a symbol, e.g. `(#'~symbol) (#889)
 
 ## [v0.1.0b1]
 ### Added

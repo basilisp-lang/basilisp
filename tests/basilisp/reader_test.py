@@ -970,6 +970,30 @@ def test_syntax_quoted(test_ns: str, ns: runtime.Namespace):
         ),
     ) == read_str_first("`(~'my-symbol)"), "Do not resolve unquoted quoted syms"
 
+    assert llist.l(
+        reader._SEQ,
+        llist.l(
+            reader._CONCAT,
+            llist.l(
+                reader._LIST,
+                llist.l(
+                    reader._SEQ,
+                    llist.l(
+                        reader._CONCAT,
+                        llist.l(
+                            reader._LIST,
+                            llist.l(sym.symbol("quote"), sym.symbol("var")),
+                        ),
+                        llist.l(
+                            reader._LIST,
+                            llist.l(sym.symbol("quote"), sym.symbol("a-symbol")),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ) == read_str_first("`(#'~'a-symbol)"), "Reader var macro works with unquote"
+
     assert llist.l(sym.symbol("quote"), sym.symbol("&")) == read_str_first(
         "`&"
     ), "do not resolve the not namespaced ampersand"

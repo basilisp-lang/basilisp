@@ -1527,7 +1527,11 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
         return _read_namespaced_map(ctx)
     elif token == "'":
         ctx.reader.advance()
-        s = _read_sym(ctx)
+        token_next = ctx.reader.peek()
+        if token_next == "~":
+            s = _read_unquote(ctx)
+        else:
+            s = _read_sym(ctx)
         return llist.l(_VAR, s)
     elif token == '"':
         return _read_regex(ctx)
