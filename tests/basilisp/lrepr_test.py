@@ -343,7 +343,10 @@ def test_lstr(lcompile: CompileFn, s: str, code: str):
         ('[:ab 2 "xyz"]', '(str [:ab 2 "xyz"])'),
         ('#{"xyz"}', '(str #{"xyz"})'),
         ('{"a" "b"}', '(str {"a" "b"})'),
-        ('{"a" ["b" :c 1 false]}', '(str {"a" ["b" :c 1 false]})'),
+        (
+            '{"a" ["b" :c 1 false ("x") {"y" "z"}]}',
+            '(str {"a" ["b" :c 1 false (seq ["x"]) {"y" "z"}]})',
+        ),
     ],
 )
 def test_str(lcompile: CompileFn, s: str, code: str):

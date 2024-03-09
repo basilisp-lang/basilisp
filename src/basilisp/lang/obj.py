@@ -97,7 +97,7 @@ def map_lrepr(
 
     kwargs = _process_kwargs(**kwargs)
 
-    kw_items = kwargs
+    kw_items = kwargs.copy()
     kw_items["human_readable"] = False
 
     def entry_reprs():
@@ -151,7 +151,7 @@ def seq_lrepr(
     else:
         items = iterable  # type: ignore
 
-    kw_items = kwargs
+    kw_items = kwargs.copy()
     kw_items["human_readable"] = False
     items = list(map(lambda o: lrepr(o, **kw_items), items))
     seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
