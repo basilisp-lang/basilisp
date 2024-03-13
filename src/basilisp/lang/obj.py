@@ -8,7 +8,7 @@ from fractions import Fraction
 from functools import singledispatch
 from itertools import islice
 from pathlib import Path
-from typing import Any, Callable, Iterable, Pattern, Tuple, Union, cast
+from typing import Any, Iterable, Pattern, Union, cast
 
 from typing_extensions import TypedDict, Unpack
 
@@ -21,6 +21,7 @@ PRINT_DUP = False
 PRINT_LENGTH: PrintCountSetting = 50
 PRINT_LEVEL: PrintCountSetting = None
 PRINT_META = False
+PRINT_NAMESPACE_MAPS = False
 PRINT_READABLY = True
 PRINT_SEPARATOR = " "
 
@@ -31,6 +32,7 @@ class PrintSettings(TypedDict, total=False):
     print_length: PrintCountSetting
     print_level: PrintCountSetting
     print_meta: bool
+    print_namespace_maps: bool
     print_readably: bool
 
 
@@ -41,7 +43,7 @@ def _dec_print_level(lvl: PrintCountSetting) -> PrintCountSetting:
     return lvl
 
 
-def _process_kwargs(**kwargs: Unpack[PrintSettings]) -> PrintSettings:
+def process_lrepr_kwargs(**kwargs: Unpack[PrintSettings]) -> PrintSettings:
     """Process keyword arguments, decreasing the print-level. Should be called
     after examining the print level for the current level."""
     return cast(
@@ -78,52 +80,6 @@ class LispObject(ABC):
         return lrepr(self, **kwargs)
 
 
-def map_lrepr(
-    entries: Callable[[], Iterable[Tuple[Any, Any]]],
-    start: str,
-    end: str,
-    meta=None,
-    **kwargs: Unpack[PrintSettings],
-) -> str:
-    """Produce a Lisp representation of an associative collection, bookended
-    with the start and end string supplied. The entries argument must be a
-    callable which will produce tuples of key-value pairs.
-
-    The keyword arguments will be passed along to lrepr for the sequence
-    elements."""
-    print_level = kwargs["print_level"]
-    if isinstance(print_level, int) and print_level < 1:
-        return SURPASSED_PRINT_LEVEL
-
-    kwargs = _process_kwargs(**kwargs)
-
-    kw_items = kwargs.copy()
-    kw_items["human_readable"] = False
-
-    def entry_reprs():
-        for k, v in entries():
-            yield f"{lrepr(k, **kw_items)} {lrepr(v, **kw_items)}"
-
-    trailer = []
-    print_dup = kwargs["print_dup"]
-    print_length = kwargs["print_length"]
-    if not print_dup and isinstance(print_length, int):
-        items = list(islice(entry_reprs(), print_length + 1))
-        if len(items) > print_length:
-            items.pop()
-            trailer.append(SURPASSED_PRINT_LENGTH)
-    else:
-        items = list(entry_reprs())
-
-    seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
-
-    print_meta = kwargs["print_meta"]
-    if print_meta and meta:
-        return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
-
-    return f"{start}{seq_lrepr}{end}"
-
-
 def seq_lrepr(
     iterable: Iterable[Any],
     start: str,
@@ -138,7 +94,7 @@ def seq_lrepr(
     if isinstance(print_level, int) and print_level < 1:
         return SURPASSED_PRINT_LEVEL
 
-    kwargs = _process_kwargs(**kwargs)
+    kwargs = process_lrepr_kwargs(**kwargs)
 
     trailer = []
     print_dup = kwargs["print_dup"]
@@ -172,6 +128,7 @@ def lrepr(  # pylint: disable=too-many-arguments
     print_length: PrintCountSetting = PRINT_LENGTH,
     print_level: PrintCountSetting = PRINT_LEVEL,
     print_meta: bool = PRINT_META,
+    print_namespace_maps: bool = PRINT_NAMESPACE_MAPS,
     print_readably: bool = PRINT_READABLY,
 ) -> str:
     """Return a string representation of a Lisp object.
@@ -185,6 +142,10 @@ def lrepr(  # pylint: disable=too-many-arguments
                     or no limit if bound to a logical falsey value (default: 50)
     - print_level: the depth of the object graph to print, starting with 0, or
                    no limit if bound to a logical falsey value (default: nil)
+    - print_namespace_maps: if logical true, and the object is a map consisting
+                            with keys belonging to the same namespace, print the
+                            namespace at the beginning of the map instead of
+                            beside the keys (default: false)
     - print_meta: if logical true, print objects meta in a way that can be
                   read back by the reader (default: false)
     - print_readably: if logical false, print strings and characters with
@@ -206,6 +167,7 @@ def _lrepr_lisp_obj(  # pylint: disable=too-many-arguments
     print_length: PrintCountSetting = PRINT_LENGTH,
     print_level: PrintCountSetting = PRINT_LEVEL,
     print_meta: bool = PRINT_META,
+    print_namespace_maps: bool = PRINT_NAMESPACE_MAPS,
     print_readably: bool = PRINT_READABLY,
 ) -> str:  # pragma: no cover
     return o._lrepr(
@@ -214,6 +176,7 @@ def _lrepr_lisp_obj(  # pylint: disable=too-many-arguments
         print_length=print_length,
         print_level=print_level,
         print_meta=print_meta,
+        print_namespace_maps=print_namespace_maps,
         print_readably=print_readably,
     )
 
@@ -248,11 +211,6 @@ def _lrepr_str(
 @lrepr.register(list)
 def _lrepr_py_list(o: list, **kwargs: Unpack[PrintSettings]) -> str:
     return f"#py {seq_lrepr(o, '[', ']', **kwargs)}"
-
-
-@lrepr.register(dict)
-def _lrepr_py_dict(o: dict, **kwargs: Unpack[PrintSettings]) -> str:
-    return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
 
 
 @lrepr.register(set)

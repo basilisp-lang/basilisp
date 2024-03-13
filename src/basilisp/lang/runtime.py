@@ -91,6 +91,7 @@ PRINT_DUP_VAR_NAME = "*print-dup*"
 PRINT_LENGTH_VAR_NAME = "*print-length*"
 PRINT_LEVEL_VAR_NAME = "*print-level*"
 PRINT_META_VAR_NAME = "*print-meta*"
+PRINT_NAMESPACE_MAPS_VAR_NAME = "*print-namespace-maps*"
 PRINT_READABLY_VAR_NAME = "*print-readably*"
 PYTHON_VERSION_VAR_NAME = "*python-version*"
 BASILISP_VERSION_VAR_NAME = "*basilisp-version*"
@@ -1636,6 +1637,7 @@ def lrepr(o, human_readable: bool = False) -> str:
             sym.symbol(PRINT_LEVEL_VAR_NAME)
         ).value,
         print_meta=core_ns.find(sym.symbol(PRINT_META_VAR_NAME)).value,  # type: ignore
+        print_namespace_maps=core_ns.find(sym.symbol(PRINT_NAMESPACE_MAPS_VAR_NAME)).value,  # type: ignore
         print_readably=core_ns.find(  # type: ignore
             sym.symbol(PRINT_READABLY_VAR_NAME)
         ).value,
@@ -2190,6 +2192,21 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     )
     Var.intern(
         CORE_NS_SYM, sym.symbol(PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
+    )
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(PRINT_NAMESPACE_MAPS_VAR_NAME),
+        lobj.PRINT_NAMESPACE_MAPS,
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "Indicates to print the namespace of keys in a map belonging to the same"
+                    " namespace, at the beginning of the map instead of beside the keys."
+                    " Defaults to false."
+                )
+            }
+        ),
     )
     Var.intern(
         CORE_NS_SYM,
