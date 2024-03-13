@@ -440,7 +440,7 @@ class TestImporter:
             code = importer.BasilispImporter().get_code("package.module")
             exec(code)
             captured = capsys.readouterr()
-            assert captured.out == "package.module\n[1 2 3]\n"
+            assert captured.out == 'package.module\n["1" "2" "3"]\n'
 
 
 @pytest.fixture
@@ -475,7 +475,7 @@ def bootstrap_file() -> pathlib.Path:
     "args,ret",
     [
         ([], b"package.test-run-ns-as-pymodule\nnil\n"),
-        (["1", "hi", "yes"], b"package.test-run-ns-as-pymodule\n[1 hi yes]\n"),
+        (["1", "hi", "yes"], b'package.test-run-ns-as-pymodule\n["1" "hi" "yes"]\n'),
     ],
 )
 def test_run_namespace_as_python_module(
