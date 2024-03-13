@@ -129,7 +129,6 @@ def map_lrepr(  # pylint: disable=too-many-locals
     entries: Callable[[], Iterable[Tuple[Any, Any]]],
     start: str,
     end: str,
-    py_map: bool = False,
     meta: Optional[IPersistentMap] = None,
     **kwargs: Unpack[PrintSettings],
 ) -> str:
@@ -140,10 +139,6 @@ def map_lrepr(  # pylint: disable=too-many-locals
     If the keyword argument print_namespace_maps is True and all keys
     share the same namespace, then print the namespace of the keys at
     the beginning of the map instead of beside the keys.
-
-    if py_map is True then do not print any meta or namespace
-    information before the map (default: False).
-
 
     The keyword arguments will be passed along to lrepr for the sequence
     elements.
@@ -170,9 +165,7 @@ def map_lrepr(  # pylint: disable=too-many-locals
                 break
         return next(iter(nses)) if len(nses) == 1 else None
 
-    ns_name_shared = (
-        check_same_ns() if not py_map and kwargs["print_namespace_maps"] else None
-    )
+    ns_name_shared = check_same_ns() if kwargs["print_namespace_maps"] else None
 
     entries_updated = entries
     if ns_name_shared:
@@ -193,7 +186,7 @@ def map_lrepr(  # pylint: disable=too-many-locals
     trailer = []
     print_dup = kwargs["print_dup"]
     print_length = kwargs["print_length"]
-    if not py_map and not print_dup and isinstance(print_length, int):
+    if not print_dup and isinstance(print_length, int):
         items = list(islice(entry_reprs(), print_length + 1))
         if len(items) > print_length:
             items.pop()
@@ -214,7 +207,7 @@ def map_lrepr(  # pylint: disable=too-many-locals
 
 @lrepr.register(dict)
 def _lrepr_py_dict(o: dict, **kwargs: Unpack[PrintSettings]) -> str:
-    return f"#py {map_lrepr(o.items, '{', '}', py_map=True, **kwargs)}"
+    return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
 
 
 class PersistentMap(

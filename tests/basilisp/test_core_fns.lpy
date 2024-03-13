@@ -2160,7 +2160,7 @@
 
   (testing "with *print-namespace-maps*"
     (is (= "#py {:a/x 5}" (binding [*print-namespace-maps* false] (pr-str #py {:a/x 5}))))
-    (is (= "#py {:a/x 5}" (binding [*print-namespace-maps* true] (pr-str #py {:a/x 5}))))
+    (is (= "#py #:a{:x 5}" (binding [*print-namespace-maps* true] (pr-str #py {:a/x 5}))))
 
     (are [res m b] (contains? res (binding [*print-namespace-maps* b] (pr-str m)))
       #{"{:a/x 5}"} {:a/x 5} false
