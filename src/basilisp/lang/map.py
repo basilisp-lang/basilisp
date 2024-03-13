@@ -1,5 +1,16 @@
 from builtins import map as pymap
-from typing import Callable, Iterable, Mapping, Optional, Tuple, TypeVar, Union, cast
+from itertools import islice
+from typing import (
+    Any,
+    Callable,
+    Iterable,
+    Mapping,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from immutables import Map as _Map
 from immutables import MapMutation
@@ -9,14 +20,21 @@ from basilisp.lang.interfaces import (
     IEvolveableCollection,
     ILispObject,
     IMapEntry,
+    INamed,
     IPersistentMap,
     IPersistentVector,
     ISeq,
     ITransientMap,
     IWithMeta,
 )
-from basilisp.lang.obj import PrintSettings
-from basilisp.lang.obj import map_lrepr as _map_lrepr
+from basilisp.lang.obj import (
+    PRINT_SEPARATOR,
+    SURPASSED_PRINT_LENGTH,
+    SURPASSED_PRINT_LEVEL,
+    PrintSettings,
+    lrepr,
+    process_kwargs,
+)
 from basilisp.lang.seq import sequence
 from basilisp.lang.vector import MapEntry
 from basilisp.util import partition
@@ -107,6 +125,81 @@ class TransientMap(ITransientMap[K, V]):
         return PersistentMap(self._inner.finish())
 
 
+def map_lrepr(  # pylint: disable=too-many-locals
+    entries: Callable[[], Iterable[Tuple[Any, Any]]],
+    start: str,
+    end: str,
+    meta=None,
+    **kwargs: Unpack[PrintSettings],
+) -> str:
+    """Produce a Lisp representation of an associative collection, bookended
+    with the start and end string supplied. The entries argument must be a
+    callable which will produce tuples of key-value pairs.
+
+    If the keyword argument print_namespace_maps is True and all keys
+    are instances of `basilisp.lang.interfaces.INamed` and they share
+    the same namespace, then print the namespace of the keys at the
+    beginning of the map instead of beside the keys.
+
+    The keyword arguments will be passed along to lrepr for the sequence
+    elements.
+
+    """
+    print_level = kwargs["print_level"]
+    if isinstance(print_level, int) and print_level < 1:
+        return SURPASSED_PRINT_LEVEL
+
+    kwargs = process_kwargs(**kwargs)
+
+    def check_same_ns():
+        nses = set()
+        for k, _ in entries():
+            if isinstance(k, INamed):
+                nses.add(k.ns)
+                if len(nses) > 1:
+                    break
+        return next(iter(nses)) if len(nses) == 1 else None
+
+    print_namespace_maps = kwargs["print_namespace_maps"]
+    ns_same = check_same_ns() if print_namespace_maps else None
+    key_ns_drop = ns_same is not None
+
+    kw_items = kwargs.copy()
+    kw_items["human_readable"] = False
+
+    def entry_reprs():
+        for k, v in entries():
+            key = k
+            if key_ns_drop:
+                if isinstance(k, INamed):
+                    key = k.with_name(k.name)
+            yield f"{lrepr(key, **kw_items)} {lrepr(v, **kw_items)}"
+
+    trailer = []
+    print_dup = kwargs["print_dup"]
+    print_length = kwargs["print_length"]
+    if not print_dup and isinstance(print_length, int):
+        items = list(islice(entry_reprs(), print_length + 1))
+        if len(items) > print_length:
+            items.pop()
+            trailer.append(SURPASSED_PRINT_LENGTH)
+    else:
+        items = list(entry_reprs())
+
+    seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
+
+    print_meta = kwargs["print_meta"]
+    if print_meta and meta:
+        return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
+
+    return f"{('#:'+ns_same) if ns_same else ''}{start}{seq_lrepr}{end}"
+
+
+@lrepr.register(dict)
+def _lrepr_py_dict(o: dict, **kwargs: Unpack[PrintSettings]) -> str:
+    return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
+
+
 class PersistentMap(
     IPersistentMap[K, V], IEvolveableCollection[TransientMap], ILispObject, IWithMeta
 ):
@@ -163,7 +256,7 @@ class PersistentMap(
         return len(self._inner)
 
     def _lrepr(self, **kwargs: Unpack[PrintSettings]):
-        return _map_lrepr(
+        return map_lrepr(
             self._inner.items, start="{", end="}", meta=self._meta, **kwargs
         )
 

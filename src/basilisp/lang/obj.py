@@ -8,7 +8,7 @@ from fractions import Fraction
 from functools import singledispatch
 from itertools import islice
 from pathlib import Path
-from typing import Any, Callable, Iterable, Pattern, Tuple, Union, cast
+from typing import Any, Iterable, Pattern, Union, cast
 
 from typing_extensions import TypedDict, Unpack
 
@@ -32,6 +32,7 @@ class PrintSettings(TypedDict, total=False):
     print_length: PrintCountSetting
     print_level: PrintCountSetting
     print_meta: bool
+    print_namespace_maps: bool
     print_readably: bool
 
 
@@ -42,7 +43,7 @@ def _dec_print_level(lvl: PrintCountSetting) -> PrintCountSetting:
     return lvl
 
 
-def _process_kwargs(**kwargs: Unpack[PrintSettings]) -> PrintSettings:
+def process_kwargs(**kwargs: Unpack[PrintSettings]) -> PrintSettings:
     """Process keyword arguments, decreasing the print-level. Should be called
     after examining the print level for the current level."""
     return cast(
@@ -79,81 +80,6 @@ class LispObject(ABC):
         return lrepr(self, **kwargs)
 
 
-def map_lrepr(  # pylint: disable=too-many-locals
-    entries: Callable[[], Iterable[Tuple[Any, Any]]],
-    start: str,
-    end: str,
-    meta=None,
-    **kwargs: Unpack[PrintSettings],
-) -> str:
-    """Produce a Lisp representation of an associative collection, bookended
-    with the start and end string supplied. The entries argument must be a
-    callable which will produce tuples of key-value pairs.
-
-    If the keyword argument print_namespace_maps is True and all keys
-    are symbols or keywords and they share the same namespace, then
-    print the namespace of the keys at the beginning of the map
-    instead of beside the keys.
-
-    The keyword arguments will be passed along to lrepr for the sequence
-    elements.
-
-    """
-    from basilisp.lang import keyword as kw  # pylint: disable=cyclic-import
-    from basilisp.lang import symbol as sym  # pylint: disable=cyclic-import
-
-    print_level = kwargs["print_level"]
-    if isinstance(print_level, int) and print_level < 1:
-        return SURPASSED_PRINT_LEVEL
-
-    kwargs = _process_kwargs(**kwargs)
-
-    def check_same_ns():
-        nses = set()
-        for k, _ in entries():
-            if isinstance(k, (kw.Keyword, sym.Symbol)):
-                nses.add(k.ns)
-                if len(nses) > 1:
-                    break
-        return next(iter(nses)) if len(nses) == 1 else None
-
-    print_namespace_maps = kwargs["print_namespace_maps"]
-    ns_same = check_same_ns() if print_namespace_maps else None
-    key_ns_drop = ns_same is not None
-
-    kw_items = kwargs.copy()
-    kw_items["human_readable"] = False
-
-    def entry_reprs():
-        for k, v in entries():
-            key = k
-            if key_ns_drop:
-                if isinstance(k, kw.Keyword):
-                    key = kw.Keyword(k.name)
-                elif isinstance(k, sym.Symbol):
-                    key = sym.Symbol(k.name)
-            yield f"{lrepr(key, **kw_items)} {lrepr(v, **kw_items)}"
-
-    trailer = []
-    print_dup = kwargs["print_dup"]
-    print_length = kwargs["print_length"]
-    if not print_dup and isinstance(print_length, int):
-        items = list(islice(entry_reprs(), print_length + 1))
-        if len(items) > print_length:
-            items.pop()
-            trailer.append(SURPASSED_PRINT_LENGTH)
-    else:
-        items = list(entry_reprs())
-
-    seq_lrepr = PRINT_SEPARATOR.join(items + trailer)
-
-    print_meta = kwargs["print_meta"]
-    if print_meta and meta:
-        return f"^{lrepr(meta, **kwargs)} {start}{seq_lrepr}{end}"
-
-    return f"{'#:'+ns_same if ns_same else ''}{start}{seq_lrepr}{end}"
-
-
 def seq_lrepr(
     iterable: Iterable[Any],
     start: str,
@@ -168,7 +94,7 @@ def seq_lrepr(
     if isinstance(print_level, int) and print_level < 1:
         return SURPASSED_PRINT_LEVEL
 
-    kwargs = _process_kwargs(**kwargs)
+    kwargs = process_kwargs(**kwargs)
 
     trailer = []
     print_dup = kwargs["print_dup"]
@@ -285,11 +211,6 @@ def _lrepr_str(
 @lrepr.register(list)
 def _lrepr_py_list(o: list, **kwargs: Unpack[PrintSettings]) -> str:
     return f"#py {seq_lrepr(o, '[', ']', **kwargs)}"
-
-
-@lrepr.register(dict)
-def _lrepr_py_dict(o: dict, **kwargs: Unpack[PrintSettings]) -> str:
-    return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
 
 
 @lrepr.register(set)
