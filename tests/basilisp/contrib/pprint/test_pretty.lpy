@@ -14,7 +14,15 @@
 
 (ns tests.basilisp.contrib.pprint.test-pretty)
 
-(in-ns 'tests.basilisp.test-pprint)
+;; temporary hack for passing paralell coverage testing in CI
+;;
+;; (in-ns 'tests.basilisp.test-pprint)
+(use 'basilisp.pprint)
+(require '[basilisp.string :as str])
+(use '[basilisp.test :only (deftest is are run-tests)]
+      'tests.basilisp.contrib.pprint.test-helper
+      'basilisp.pprint)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -110,7 +118,7 @@ Usage: *hello*
 
   (binding [*print-pprint-dispatch* simple-dispatch]
     (write (var Foo) :stream nil))
-  "#'tests.basilisp.test-pprint/Foo"
+  "#'tests.basilisp.contrib.pprint.test-pretty/Foo"
 )
 
 
