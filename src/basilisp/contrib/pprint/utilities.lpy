@@ -1,0 +1,333 @@
+;;; utilities.clj -- part of the pretty printer for Clojure
+
+;   Copyright (c) Rich Hickey. All rights reserved.
+;   The use and distribution terms for this software are covered by the
+;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;   which can be found in the file epl-v10.html at the root of this distribution.
+;   By using this software in any fashion, you are agreeing to be bound by
+;   the terms of this license.
+;   You must not remove this notice, or any other, from this software.
+
+;; Author: Tom Faulhaber
+;; April 3, 2009
+
+;; This module implements some utility function used in formatting and pretty
+;; printing. The functions here could go in a more general purpose library,
+;; perhaps.
+
+(in-ns 'basilisp.pprint)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Basilisp support
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; A mock version of array-map, that returns a hash map created out of
+;; sequential key value pairs in ``vecs``, just to partially satisify
+;; the user of this function in the original pprint implementation.
+;;
+;; https://github.com/basilisp-lang/basilisp/issues/416
+(defn- array-map
+  [& vecs]
+  (into {} (partition 2 vecs)))
+
+;; There is no planned support for STM functions in Basilisp, create
+;; trivial version of them around an atom.
+;;
+;; https://github.com/basilisp-lang/basilisp/issues/129
+(defmacro ^:private ref
+  [x]
+  `(atom ~x))
+(defmacro ^:private ref-set
+  [ref val]
+  `(reset! ~ref ~val))
+(defmacro ^:private dosync
+  [& body]
+  `(do ~@body))
+(defmacro ^:private alter
+  [ref fun & args]
+  `(swap! ~ref ~fun ~@args))
+
+
+;; Below is a simplified implementation of the missing `defstruct` fns
+;; implemented using records.
+;;
+;; https://github.com/basilisp-lang/basilisp/issues/375
+(defmacro ^:private create-struct
+  [nm & keywords]
+  (let [keys (map (comp symbol name) keywords)
+        rec-name (gensym (str "struct--" nm))
+        keys-count (count keys)
+        pad (repeat keys-count nil)]
+    `(let [rec#  (defrecord  ~rec-name [~@keys])]
+       (fn [& args#]
+         (let [rec-args# (if (= (count args#) ~keys-count)
+                           args#
+                           (first (partition ~keys-count 1 (quote ~pad) args#)))]
+           (apply rec# rec-args#))))))
+(defmacro ^:private defstruct
+  [nm attr-map? & keywords]
+  (if (map? attr-map?)
+    `(def ~nm ~attr-map? (create-struct ~nm ~@keywords))
+    (let [keywords (concat [attr-map?] keywords)]
+      `(def ~nm (create-struct ~nm ~@keywords)))))
+(defn- struct
+  [s & args]
+  (apply s args))
+
+;; Below is a draft of the missing `proxy` that satisifies the pprint
+;; implementation.
+;;
+;; https://github.com/basilisp-lang/basilisp/issues/425
+(import math)
+(defmacro ^:private proxy [class-and-interfaces args & fs]
+  "Expands to code that creates an instance of a class that implements
+  the Basilisp interfaces in ``class-and-interfaces``. The methods
+  implementations are provided in ``fs``, while the ``args`` are
+  passed to superclass constructor of the instance. If no class is
+  specified in ``class-and-interfaces``, the proxy instance inherits
+  from `python/object`.
+
+  ``fs`` consists of class/interface method definitions and/or
+  multiarity interface method definitions
+
+  (method-name1 [args...] body)
+  (method-name2 ([args1...] body1)
+                ([args2...] body2) ...)
+  ...
+
+  A `this` argument is implicitly avaialble in method bodies, refering
+  to the proxy instance.
+
+  The single arity version can also accept python keyword args using
+  the meta :kwargs option, such as :collect, as follows
+
+  ^{:kwargs :collect} (method-name [args... {:as kwargs}])
+
+  The interfaces in ``class-and-interfaces`` can be regular classes or
+  abstract classes whose methods can be shadowed/overriden in ``fs``.
+
+  Moreover, if a method in ``fs`` is not found in any of the methods
+  in ``class-and-interfaces``, it is added as a new method in the
+  proxy instance."
+  (let [class-nm (str (gensym (str "proxy--" (first class-and-interfaces))))
+        ;; The idea here is to create let bindings to the functions
+        ;; required to implement the interfaces or new methods, and
+        ;; associate these bindigns to method names in `python/type`.
+        ;;
+        ;; (let [binding1 (fn method-name1 ['this args...] body)
+        ;;       binding2 (fn method-name2 (['this args1...] body1)
+        ;;                                 (['this args2...] body2))
+        ;;       ...]
+        ;;  (python/type proxy-xyz (class-and-interfaces)
+        ;;    {"method-name1" bidning1, "method-name2" binding2, ...}))
+        bindings-and-mappings
+        (for [f fs]
+          (if (list? (second f))
+            ;; multi-arity
+            (let [fname (first f)
+                  ;; Implementation of a multi arity function for a
+                  ;; Basilisp interface does not only require a single
+                  ;; multiarity function implemented, but also necessitates
+                  ;; the inclusion of additional arity method
+                  ;; signatures, such as method-name_arityN, to be
+                  ;; implemented for proper functionality.
+                  arity-fns-additional
+                  (->> (for [spec (rest f)]
+                         (let [fargs        (first spec)
+                               argc         (count fargs)
+                               variadic-pos (try
+                                              (.index fargs '&)
+                                              (catch python/ValueError _
+                                                nil))
+                               ;; setting varidiac fn to infinity will
+                               ;; help with the sorting to position
+                               ;; the variadic fn last.
+                               arity        (if variadic-pos math/inf argc)
+                               farity       (if variadic-pos
+                                              "_rest"
+                                              (if (= argc 0) 0 (inc argc)))
+                               fnname (str "_" fname "_arity" farity)]
+                           {:fnname fnname
+                            :binding-name (gensym fnname)
+                            :fargs fargs
+                            :arity arity
+                            :variadic-pos variadic-pos
+                            :fun `(fn ~(symbol fnname) ~(into ['this] fargs)
+                                    ~@(rest spec))}))
+                       (sort-by :arity))
+                  ;; e.g. ( [method-name-arityN-binding (fn method-name_arityN [this args1...] body)],
+                  ;;        [method-name-arityY-binding (fn method-name_arityY [this args2...] body)] ...)
+                  binding-to-fn-pairs  (for [{:keys [binding-name fun]} arity-fns-additional]
+                                         [binding-name fun])
+                  ;; e.g. ( [method-name_arityN method-name-arityN-binding],
+                  ;;        [method-name_arityY method-name-arityY-binding] ...)
+                  fname-to-binding-pairs (for [{:keys [fnname binding-name]} arity-fns-additional]
+                                           [(munge fnname) binding-name])
+                  ;; the main multiarity function, it refers to the
+                  ;; above function bindings.
+                  ;; (fn method-name2 ([this args1...] (method-name-arityN-binding this args1...)
+                  ;;                  ([this args2...] (method-name_arityY-binding this args2...))]
+                  multiarity-fn (->> (for [{:keys [binding-name fargs variadic-pos]} arity-fns-additional]
+                                       (let [args (into ['this] fargs)]
+                                         (if variadic-pos
+                                           (let [singles (take (inc variadic-pos) args)
+                                                 variadic (last args)]
+                                             `(~args
+                                               (apply ~binding-name ~@singles ~variadic)))
+                                           `(~args
+                                             (~binding-name ~@args)))))
+                                     (concat `(fn ~fname)))
+                  multiarity-binding-name (gensym fname)
+                  ;; add the multiarity binding pair to the end,
+                  ;; because the function it defines can refer back to
+                  ;; the other bindings.
+                  binding-to-fn-pairs (conj (into [] binding-to-fn-pairs) [multiarity-binding-name multiarity-fn])
+                  ;; add multiarity method name to the list
+                  fname-to-binding-pairs (cons [(munge (str fname)) multiarity-binding-name] fname-to-binding-pairs)]
+              {:binding-to-fn-pairs binding-to-fn-pairs
+               :fname-to-binding-pairs fname-to-binding-pairs})
+
+            ;; single arity
+            (let [fmeta (meta f)
+                  fname (first f)
+                  fargs (second f)
+                  binding-name (gensym fname)
+                  fn-def (with-meta `(fn ~fname ~(into ['this] fargs)
+                                       ~@(drop 2 f))
+                           fmeta)]
+              {:binding-to-fn-pairs [ [binding-name fn-def] ]
+               :fname-to-binding-pairs [[(munge fname) binding-name]]})))
+
+        let-bindings (apply concat (map :binding-to-fn-pairs bindings-and-mappings))
+        fns-dict     (into {} (apply concat (map :fname-to-binding-pairs bindings-and-mappings)))]
+    `(let ~(into [] (apply concat let-bindings))
+       ((python/type ~class-nm (python/tuple ~class-and-interfaces)
+                     (lisp->py ~fns-dict)) ~@args))))
+
+
+;; the `lift-ns` and its dependency `strip-ns` are private functions in
+;; clojure.core required by pprint, taken from
+;; https://github.com/clojure/clojure/blob/08a2d9bdd013143a87e50fa82e9740e2ab4ee2c2/src/clj/clojure/core_print.clj
+(defn- strip-ns
+  [named]
+  (if (symbol? named)
+    (symbol nil (name named))
+    (keyword nil (name named))))
+(defn- lift-ns
+  "Returns [lifted-ns lifted-kvs] or nil if m can't be lifted."
+  [m]
+  (when *print-namespace-maps*
+    (loop [ns nil
+           [[k v :as entry] & entries] (seq m)
+           kvs []]
+      (if entry
+        (when (qualified-ident? k)
+          (if ns
+            (when (= ns (namespace k))
+              (recur ns entries (conj kvs [(strip-ns k) v])))
+            (when-let [new-ns (namespace k)]
+              (recur new-ns entries (conj kvs [(strip-ns k) v])))))
+        [ns kvs]))))
+
+;; The java.io.Writer interface required by the original pprint
+;; implementation.
+(definterface ^:private Writer
+  (flush [])
+  (write [x])
+  (write [cbuf off len]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Helper functions for digesting formats in the various
+;;; phases of their lives.
+;;; These functions are actually pretty general.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn- map-passing-context [func initial-context lis]
+  (loop [context initial-context
+         lis lis
+         acc []]
+    (if (empty? lis)
+      [acc context]
+      (let [this (first lis)
+            remainder (next lis)
+            [result new-context] (apply func [this context])]
+        (recur new-context remainder (conj acc result))))))
+
+(defn- consume [func initial-context]
+  (loop [context initial-context
+         acc []]
+    (let [[result new-context] (apply func [context])]
+      (if (not result)
+        [acc new-context]
+      (recur new-context (conj acc result))))))
+
+(defn- consume-while [func initial-context]
+  (loop [context initial-context
+         acc []]
+    (let [[result continue new-context] (apply func [context])]
+      (if (not continue)
+        [acc context]
+      (recur new-context (conj acc result))))))
+
+(defn- unzip-map
+  "Take a map that has pairs in the value slots and produce a pair of
+  maps, the first having all the first elements of the pairs and the
+  second all the second elements of the pairs"
+  [m]
+  [(into {} (for [[k [v1 v2]] m] [k v1]))
+   (into {} (for [[k [v1 v2]] m] [k v2]))])
+
+(defn- tuple-map
+  "For all the values, v, in the map, replace them with [v v1]"
+  [m v1]
+  (into {} (for [[k v] m] [k [v v1]])))
+
+(defn- rtrim
+  "Trim all instances of c from the end of sequence s"
+  [s c]
+  (let [len (count s)]
+    (if (and (pos? len) (= (nth s (dec (count s))) c))
+      (loop [n (dec len)]
+        (cond 
+         (neg? n) ""
+         (not (= (nth s n) c)) (subs s 0 (inc n))
+         true (recur (dec n))))
+      s)))
+
+(defn- ltrim
+  "Trim all instances of c from the beginning of sequence s"
+  [s c]
+  (let [len (count s)]
+    (if (and (pos? len) (= (nth s 0) c))
+      (loop [n 0]
+        (if (or (= n len) (not (= (nth s n) c)))
+          (subs s n)
+          (recur (inc n))))
+      s)))
+
+(defn- prefix-count
+  "Return the number of times that val occurs at the start of sequence aseq,
+  if val is a seq itself, count the number of times any element of val
+  occurs at the beginning of aseq"
+  [aseq val]
+  (let [test (if (coll? val) (set val) #{val})]
+    (loop [pos 0]
+     (if (or (= pos (count aseq)) (not (test (nth aseq pos))))
+       pos
+       (recur (inc pos))))))
+
+(defn- prerr
+  "Println to *err*"
+  [& args]
+  (binding [*out* *err*]
+    (apply println args)))
+
+(defmacro ^{:private true} prlabel
+  "Print args to *err* in name = value format"
+  [prefix arg & more-args]
+  `(prerr ~@(cons (list 'quote prefix) (mapcat #(list (list 'quote %) "=" %)
+                                                  (cons arg (seq more-args))))))
+
+;; Flush the pretty-print buffer without flushing the underlying stream
+(definterface PrettyFlush
+  (^void ppflush []))
