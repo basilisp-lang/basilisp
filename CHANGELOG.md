@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added several missing functions to `basilisp.core` (#956)
+ * Ported `clojure.pprint` to Basilisp (#513)
 
 ### Fixed
  * Fixed an issue where attempting to run a namespace from the CLI could fail in certain cases (#957)
