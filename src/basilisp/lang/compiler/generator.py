@@ -3247,7 +3247,7 @@ def _interop_prop_to_py_ast(
     return GeneratedPyAST(
         node=ast.Attribute(
             value=target_ast.node,
-            attr=munge(node.field),
+            attr=munge(node.field, True),
             ctx=ast.Store() if is_assigning else ast.Load(),
         ),
         dependencies=target_ast.dependencies,

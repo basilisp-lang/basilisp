@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where the original `(var ...)` form is not retained during analysis, causing it to be lost in calls to `macroexpand` (#888)
  * Fix issue with the reader var macro failing in syntax quote when unquoting a symbol, e.g. `(#'~symbol) (#889)
  * Fix issue where `(str seq)` was printing seq string items without quotation marks (#891)
+ * Fix issue where interop failed to access property name matching a builtins name (#896)
 
 ## [v0.1.0b1]
 ### Added

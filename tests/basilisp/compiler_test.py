@@ -3332,6 +3332,13 @@ class TestPythonInterop:
         assert "sym" == lcompile("(.-name 'some.ns/sym)")
         assert "sym" == lcompile("(.- 'some.ns/sym name)")
         assert "sym" == lcompile("(. 'some.ns/sym -name)")
+        assert 5 == lcompile(
+            '(.-abc (python/type "ip-test" (python/tuple) #py {"abc" 5}))'
+        )
+        # when prop name matches a bultins name
+        assert 6 == lcompile(
+            '(.-str (python/type "ip-test" (python/tuple) #py {"str" 6}))'
+        )
 
         with pytest.raises(AttributeError):
             lcompile("(.-fake 'some.ns/sym)")
