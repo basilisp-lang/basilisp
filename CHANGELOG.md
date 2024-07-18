@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
  * Fix a bug where `.` characters were not allowed in keyword names (#899)
+ * Fix a bug where nested quotation marks were not escaped properly by various print functions and at the REPL (#894)
 
 ## [v0.1.0b2]
 ### Added
