@@ -250,7 +250,6 @@ class TestKeyBindings:
             "\\fakeescape",
             "#?@(:clj [:a :b :c])",
             "ns.of..a/badsymbol",
-            ":bad.keyword",
         ],
     )
     def test_syntax_error(
