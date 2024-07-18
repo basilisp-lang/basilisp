@@ -204,8 +204,9 @@ def _lrepr_str(
     if human_readable:
         return o
     if print_readably is None or print_readably is False:
-        return f'"{o}"'
-    return f'"{o.encode("unicode_escape").decode("utf-8")}"'
+        return o
+    escaped = o.encode("unicode_escape").replace(b'"', rb"\"").decode("utf-8")
+    return f'"{escaped}"'
 
 
 @lrepr.register(list)
