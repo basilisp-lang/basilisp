@@ -422,6 +422,7 @@ class TestKeyword:
             ("kw", ":kw"),
             ("kebab-kw", ":kebab-kw"),
             ("underscore_kw", ":underscore_kw"),
+            ("dotted.kw", ":dotted.kw"),
             ("kw?", ":kw?"),
             ("+", ":+"),
             ("?", ":?"),
@@ -460,7 +461,7 @@ class TestKeyword:
         assert kw.keyword(k, ns=ns) == read_str_first(raw)
 
     @pytest.mark.parametrize(
-        "v", ["://", ":ns//kw", ":some/ns/sym", ":ns/sym/", ":/kw", ":dotted.kw"]
+        "v", ["://", ":ns//kw", ":some/ns/sym", ":ns/sym/", ":/kw"]
     )
     def test_illegal_symbol(self, v: str):
         with pytest.raises(reader.SyntaxError):

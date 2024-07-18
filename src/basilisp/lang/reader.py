@@ -1044,9 +1044,6 @@ def _read_kw(ctx: ReaderContext) -> kw.Keyword:
         should_autoresolve = False
 
     ns, name = _read_namespaced(ctx)
-    if "." in name:
-        raise ctx.syntax_error("Found '.' in keyword name")
-
     if should_autoresolve:
         current_ns = get_current_ns()
         if ns is not None:
