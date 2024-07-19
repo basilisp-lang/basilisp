@@ -50,11 +50,15 @@ You can then establish a connection from your IDE to the server address.
 
 - from `Emacs`, using `CIDER <https://github.com/clojure-emacs/cider>`_
 
-  `M-x cider-connect-clj`
+  .. code-block::
+
+     M-x cider-connect-clj
 
 - from `Visual Studio Code`, using `Calva <https://calva.io/>`_
 
-  `REPL` -> `Connect to a running REPL in your project` -> `Generic`
+  .. code-block::
+
+     REPL -> Connect to a running REPL in your project -> Generic
 
 .. _run_basilisp_code:
 

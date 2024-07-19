@@ -50,6 +50,8 @@ from basilisp.lang.compiler.constants import (
     COL_KW,
     DEFAULT_COMPILER_FILE_PATH,
     DOC_KW,
+    END_COL_KW,
+    END_LINE_KW,
     FILE_KW,
     LINE_KW,
     NAME_KW,
@@ -951,8 +953,8 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     # is likely to have metadata. In rare cases, we may not be able to get
     # any metadata. This may happen if the form and name were both generated
     # programmatically.
-    def_loc = _loc(form) or _loc(name) or (None, None)
-    if def_loc == (None, None):
+    def_loc = _loc(form) or _loc(name) or (None, None, None, None)
+    if def_loc == (None, None, None, None):
         logger.warning(f"def line and column metadata not provided for Var {name}")
     if name.meta is None:
         logger.warning(f"def name symbol has no metadata for Var {name}")
@@ -963,8 +965,10 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
             lmap.map(
                 {
                     COL_KW: def_loc[1],
+                    END_COL_KW: def_loc[3],
                     FILE_KW: def_node_env.file,
                     LINE_KW: def_loc[0],
+                    END_LINE_KW: def_loc[2],
                     NAME_KW: name,
                     NS_KW: current_ns,
                 }
