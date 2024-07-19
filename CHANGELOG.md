@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added `:end-line` and `:end-col` metadata to forms during compilation (#903)
+
 ### Fixed
  * Fix a bug where `.` characters were not allowed in keyword names (#899)
  * Fix a bug where nested quotation marks were not escaped properly by various print functions and at the REPL (#894)
