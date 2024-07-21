@@ -104,8 +104,8 @@ class PromptToolkitPrompter(Prompter):
                 run_in_terminal(
                     partial(
                         print_exception,
-                        reader.SyntaxError,
                         e,
+                        reader.SyntaxError,
                         e.__traceback__,
                     )
                 )
