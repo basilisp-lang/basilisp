@@ -798,14 +798,14 @@ def expressionize(
 
     return ast_FunctionDef(
         name=fn_name,
-        args=ast.arguments(  # type: ignore[call-overload]
+        args=ast.arguments(
             posonlyargs=[],
-            args=args,
-            kwarg=None,
+            args=list(args),
             vararg=vargs,
             kwonlyargs=[],
-            defaults=[],
             kw_defaults=[],
+            kwarg=None,
+            defaults=[],
         ),
         body=body_nodes,
         decorator_list=[],
