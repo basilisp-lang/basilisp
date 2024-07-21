@@ -370,7 +370,8 @@ Primary Special Forms
       The Basilisp compiler makes attempts to verify whether a ``set!`` is legal at compile time, but there are cases which must be deferred to runtime due to the dynamic nature of the language.
       In particular, due to the non-lexical nature of dynamic Var bindings, it can be difficult to establish if a Var is thread-bound when it is ``set!``, so this check is deferred to runtime.
 
-.. lpy:specialform:: (throw exc cause?)
+.. lpy:specialform:: (throw exc)
+                     (throw exc cause)
 
    Throw the exception named by ``exc``.
    The semantics of ``throw`` are identical to those of Python's `raise <https://docs.python.org/3/reference/simple_stmts.html#the-raise-statement>`_ statement with exception.

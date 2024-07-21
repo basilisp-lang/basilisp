@@ -60,7 +60,7 @@ To prepare your `poetry` environment, you need to install dependencies:
    poetry install
 
 Afterwards, you can open a new Poetry shell to start up the REPL for development.
-The ``make repl`` target _may_ be sufficient for local development, though developers working on the Basilisp compiler or standard library are encouraged to enable a more verbose set of configurations for detecting issues during development.
+The ``make repl`` target *may* be sufficient for local development, though developers working on the Basilisp compiler or standard library are encouraged to enable a more verbose set of configurations for detecting issues during development.
 The command below enables the highest level of logging and disables namespace caching, both of which can help reveal otherwise hidden issues during development.
 
 .. code-block:: bash

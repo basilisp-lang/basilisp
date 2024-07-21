@@ -13,7 +13,7 @@ Since the compiler cannot reason about larger units of code, it cannot make infe
 
 There are three steps to the Basilisp compiler: analysis, generation, and optimization.
 After a Basilisp form is read in by the :ref:`reader`, it is passed off to the analyzer to produce an abstract syntax tree.
-The generator reads the AST and produces Python code (_not_ bytecode) using Python's builtin `ast <https://docs.python.org/3/library/ast.html>`_ module.
+The generator reads the AST and produces Python code (*not* bytecode) using Python's builtin `ast <https://docs.python.org/3/library/ast.html>`_ module.
 Afterwards, the compiler passes the generated AST through a quick optimization phase to remove redundant branches and other artifacts of code generation.
 From there, the compiler injects the compiled code into a dynamically-generated Python module which is associated with a Basilisp Namespace and executes the code so the generated objects are available.
 
