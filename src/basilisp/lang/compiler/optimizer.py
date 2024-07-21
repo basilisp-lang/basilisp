@@ -4,12 +4,14 @@ from collections import deque
 from contextlib import contextmanager
 from typing import Deque, Iterable, List, Optional, Set
 
+from basilisp.lang.compiler.utils import ast_FunctionDef, ast_index
 
-def _filter_dead_code(nodes: Iterable[ast.AST]) -> List[ast.AST]:
+
+def _filter_dead_code(nodes: Iterable[ast.stmt]) -> List[ast.stmt]:
     """Return a list of body nodes, trimming out unreachable code (any
     statements appearing after `break`, `continue`, `raise`, and `return`
     nodes)."""
-    new_nodes: List[ast.AST] = []
+    new_nodes: List[ast.stmt] = []
     for node in nodes:
         if isinstance(node, (ast.Break, ast.Continue, ast.Raise, ast.Return)):
             new_nodes.append(node)
@@ -89,18 +91,14 @@ def _optimize_operator_call_attr(  # pylint: disable=too-many-return-statements
             assert len(node.args) == 2
             return ast.Delete(
                 targets=[
-                    ast.Subscript(
-                        value=target, slice=ast.Index(value=index), ctx=ast.Del()
-                    )
+                    ast.Subscript(value=target, slice=ast_index(index), ctx=ast.Del())
                 ]
             )
 
         if fn.attr == "getitem":
             target, index = node.args
             assert len(node.args) == 2
-            return ast.Subscript(
-                value=target, slice=ast.Index(value=index), ctx=ast.Load()
-            )
+            return ast.Subscript(value=target, slice=ast_index(index), ctx=ast.Load())
 
     return node
 
@@ -161,7 +159,7 @@ class PythonASTOptimizer(ast.NodeTransformer):
             new_node = self.generic_visit(node)
         assert isinstance(new_node, ast.FunctionDef)
         return ast.copy_location(
-            ast.FunctionDef(
+            ast_FunctionDef(
                 name=new_node.name,
                 args=new_node.args,
                 body=_filter_dead_code(new_node.body),

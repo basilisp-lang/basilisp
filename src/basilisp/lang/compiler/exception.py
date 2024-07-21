@@ -63,7 +63,7 @@ class CompilerException(IExceptionInfo):
     filename: str
     form: Union[LispForm, None, ISeq] = None
     lisp_ast: Optional[Node] = None
-    py_ast: Optional[ast.AST] = None
+    py_ast: Optional[Union[ast.expr, ast.stmt]] = None
 
     @property
     def data(self) -> IPersistentMap:

@@ -1,5 +1,4 @@
 # pylint: disable=too-many-branches,too-many-lines,too-many-return-statements
-import ast
 import builtins
 import collections
 import contextlib
@@ -616,7 +615,6 @@ class AnalyzerContext:
         msg: str,
         form: Union[LispForm, None, ISeq] = None,
         lisp_ast: Optional[Node] = None,
-        py_ast: Optional[ast.AST] = None,
     ) -> CompilerException:
         """Return a CompilerException annotated with the current filename and
         :analyzer compiler phase set. The remaining keyword arguments are passed
@@ -627,7 +625,6 @@ class AnalyzerContext:
             filename=self.filename,
             form=form,
             lisp_ast=lisp_ast,
-            py_ast=py_ast,
         )
 
 
