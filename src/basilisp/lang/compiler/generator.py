@@ -1641,7 +1641,7 @@ def __fn_args_to_py_ast(
         assert varg is None, "Must have at most one variadic arg"
         arg_name = genname(munge(binding.name))
 
-        arg_tag: Optional[ast.AST]
+        arg_tag: Optional[ast.expr]
         if (
             binding.tag is not None
             and (arg_tag_ast := gen_py_ast(ctx, binding.tag)) is not None
@@ -2377,7 +2377,7 @@ def _let_to_py_ast(ctx: GeneratorContext, node: Let) -> GeneratedPyAST[ast.expr]
             assert init_node is not None
             init_ast = gen_py_ast(ctx, init_node)
 
-            tag: Optional[ast.AST]
+            tag: Optional[ast.expr]
             if (
                 binding.tag is not None
                 and (tag_ast := gen_py_ast(ctx, binding.tag)) is not None
