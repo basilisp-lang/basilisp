@@ -135,7 +135,7 @@ For systems where the shebang line allows arguments, you can use ``#!/usr/bin/en
    (println "Hello world!")
 
 Finally, Basilisp has a command line option to bootstrap your Python installation such that Basilisp will already be importable whenever Python is started.
-This takes advantage of the ``.pth`` file feature supported by the `site <https://docs.python.org/3/library/site.html>`_ package.
+This takes advantage of the ``.pth`` file feature supported by the :external:py:mod:`site` package.
 Specifically, any file with a ``.pth`` extension located in any of the known ``site-packages`` directories will be read at startup and, if any line of such a file starts with ``import``, it is executed.
 
 .. code-block:: bash

@@ -71,7 +71,7 @@ Floating point values are represented using ``0-9`` and a trailing decimal value
 Like integers, floating point values may be prefixed with a single negative sign ``-``.
 By default floating point values are represented by Python's ``float`` type, which does **not** support arbitrary precision by default.
 Like in Clojure, floating point literals may be specified with a single ``M`` suffix to specify an arbitrary-precision floating point value.
-In Basilisp, a floating point number declared with a trailing ``M`` will return Python's `Decimal <https://docs.python.org/3/library/decimal.html>`_ type, which supports arbitrary floating point arithmetic.
+In Basilisp, a floating point number declared with a trailing ``M`` will return Python's :external:py:class:`decimal.Decimal` type, which supports arbitrary floating point arithmetic.
 
 .. _scientific_notation:
 
@@ -125,7 +125,7 @@ Ratios
 Basilisp includes support for ratios.
 Ratios are represented as the division of 2 integers which cannot be reduced to an integer.
 As with integers and floats, the numerator of a ratio may be prefixed with a single negative sign ``-`` -- a negative sign may not appear in the denominator.
-In Basilisp, ratios are backed by Python's `Fraction <https://docs.python.org/3/library/fractions.html>`_ type, which is highly interoperable with other Python numeric types.
+In Basilisp, ratios are backed by Python's :external:py:class:`fractions.Fraction` type, which is highly interoperable with other Python numeric types.
 
 .. _strings:
 
@@ -391,7 +391,7 @@ Reader macros are always dispatched using the ``#`` character.
 * ``#'form`` is rewritten as ``(var form)``.
 * ``#_form`` causes the reader to completely ignore ``form``.
 * ``#!form`` is treated as a single-line comment (like ``;form``) as a convenience to support `shebangs <https://en.wikipedia.org/wiki/Shebang_(Unix)>`_ at the top of Basilisp scripts.
-* ``#"str"`` causes the reader to interpret ``"str"`` as a regex and return a Python `re.pattern <https://docs.python.org/3/library/re.html>`_.
+* ``#"str"`` causes the reader to interpret ``"str"`` as a regex and return a Python :external:py:mod:`re.pattern <re>`.
 * ``#(...)`` causes the reader to interpret the contents of the list as an anonymous function. Anonymous functions specified in this way can name arguments using ``%1``, ``%2``, etc. and rest args as ``%&``. For anonymous functions with only one argument, ``%`` can be used in place of ``%1``.
 
 .. _data_readers:
@@ -407,8 +407,8 @@ User-specified data reader symbols must include a namespace, but builtin data re
 
 Basilisp supports a few builtin data readers:
 
-* ``#inst "2018-09-14T15:11:20.253-00:00"`` yields a Python `datetime <https://docs.python.org/3/library/datetime.html#datetime-objects>`_ object.
-* ``#uuid "c3598794-20b4-48db-b76e-242f4405743f"`` yields a Python `UUID <https://docs.python.org/3/library/uuid.html#uuid.UUID>`_ object.
+* ``#inst "2018-09-14T15:11:20.253-00:00"`` yields a Python :external:py:class:`datetime.datetime` object.
+* ``#uuid "c3598794-20b4-48db-b76e-242f4405743f"`` yields a Python :external:py:class`uuid.UUID` object.
 
 One of the benefits of choosing Basilisp is convenient built-in Python language interop.
 However, the immutable data structures of Basilisp may not always play nicely with code written for (and expecting to be used by) other Python code.

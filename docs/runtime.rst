@@ -33,7 +33,7 @@ Under the hood, this magic macro will do a bunch of convenient setup that users 
 First, it will refer the public contents of :lpy:ns:`basilisp.core`, allowing unqualified references to all functions in that namespace anywhere within the new namespace.
 Secondly, it will require the namespace :lpy:ns:`basilisp.string` which makes the functions from that namespace available in the current namespace using the shortened prefix ``str``.
 That means within the newly created namespace you will be able to refer to :lpy:fn:`basilisp.string/alpha?` as simply ``str/alpha?``.
-Afterwards, the ``ns`` macro will import the Python module `datetime <https://docs.python.org/3/library/datetime.html>`_, which we can use in a similar way, referring to objects as ``datetime/date`` for instance.
+Afterwards, the ``ns`` macro will import the Python module :external:py:mod:`datetime`, which we can use in a similar way, referring to objects as ``datetime/date`` for instance.
 Finally, ``ns`` will set the dynamic Var :lpy:var:`basilisp.core/*ns*` to ``myproject.ns``, which informs the compiler that any new Vars or functions defined right now should be associated with ``myproject.ns``, not any other namespace.
 
 .. note::

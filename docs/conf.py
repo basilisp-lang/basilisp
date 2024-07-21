@@ -6,21 +6,11 @@
 # full list see the documentation:
 # http://www.sphinx-doc.org/en/master/config
 
-# -- Path setup --------------------------------------------------------------
-
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-#
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
-
 
 # -- Project information -----------------------------------------------------
 
 project = "Basilisp"
-copyright = "2018-2023, Chris Rink"
+copyright = "2018-2024, Chris Rink"
 author = "Chris Rink"
 
 # The short X.Y version
@@ -37,7 +27,11 @@ release = ""
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["sphinx.ext.autodoc", "basilisp.contrib.sphinx"]
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.intersphinx",
+    "basilisp.contrib.sphinx",
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -74,13 +68,18 @@ highlight_language = "clojure"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_rtd_theme"
+html_theme = "furo"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {"collapse_navigation": False}
+html_title = "Basilisp"
+html_theme_options = {
+    "source_repository": "https://github.com/basilisp-lang/basilisp/",
+    "source_branch": "main",
+    "source_directory": "docs/",
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -145,7 +144,7 @@ texinfo_documents = [
         "Basilisp Documentation",
         author,
         "Basilisp",
-        "One line description of project.",
+        "A Clojure-like lisp written for Python",
         "Miscellaneous",
     )
 ]
@@ -167,4 +166,8 @@ epub_title = project
 # A list of files that should not be packed into the epub file.
 epub_exclude_files = ["search.html"]
 
-# -- Extension configuration -------------------------------------------------
+# -- Options for Intersphinx -------------------------------------------------
+
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+}

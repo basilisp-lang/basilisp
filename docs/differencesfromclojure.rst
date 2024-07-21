@@ -43,7 +43,7 @@ In Clojure, this optimistic equality comparison is performed by the ``==`` funct
 
 .. note::
 
-   Basilisp's ``=`` will perform as expected when using Python `Decimal <https://docs.python.org/3/library/decimal.html>`__ typed :ref:`floating_point_numbers`.
+   Basilisp's ``=`` will perform as expected when using Python :external:py:class:`decimal.Decimal` typed :ref:`floating_point_numbers`.
 
 .. seealso::
 
@@ -79,8 +79,8 @@ Reader
 
   * Python integers natively support unlimited precision, so there is no difference between regular integers and those suffixed with ``N`` (which are read as ``BigInt``\s in Clojure).
   * Floating point numbers are read as Python ``float``\s by default and subject to the limitations of that type on the current Python VM.
-    Floating point numbers suffixed with ``M`` are read as Python `Decimal <https://docs.python.org/3/library/decimal.html#decimal.Decimal>`_ types and support user-defined precision.
-  * Ratios are supported and are read in as Python `Fraction <https://docs.python.org/3/library/fractions.html#fractions.Fraction>`_ types.
+    Floating point numbers suffixed with ``M`` are read as Python :external:py:class:`decimal.Decimal` types and support user-defined precision.
+  * Ratios are supported and are read in as Python :external:py:class:`fractions.Fraction` types.
   * Python natively supports Complex numbers.
     The reader will return a complex number for any integer or floating point literal suffixed with ``J``.
 
@@ -97,7 +97,7 @@ Reader
 Regular Expressions
 -------------------
 
-Basilisp regular expressions use Python's `regular expression <https://docs.python.org/3/library/re.html>`_ syntax and engine.
+Basilisp regular expressions use Python's :external:py:mod:`regular expression <re>` syntax and engine.
 
 .. _repl_differences:
 
@@ -194,7 +194,7 @@ Type Hinting
 
 Type hints may be applied anywhere they are supported in Clojure (as the ``:tag`` metadata key), but the compiler does not currently use them for any purpose.
 Tags provided for ``def`` names, function arguments and return values, and :lpy:form:`let` locals will be applied to the resulting Python AST by the compiler wherever possible.
-Particularly in the case of function arguments and return values, these tags maybe introspected from the Python `inspect <https://docs.python.org/3/library/inspect.html>`_ module.
+Particularly in the case of function arguments and return values, these tags maybe introspected from the Python :external:py:mod:`inspect` module.
 There is no need for type hints anywhere in Basilisp right now, however.
 
 .. _compilation_differences:

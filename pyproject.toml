@@ -54,7 +54,7 @@ pytest-pycharm = "*"
 # to maintain consistent output during both development and publishing on
 # Read The Docs.
 sphinx = "^7.1.0"
-sphinx-rtd-theme = "^2.0.0"
+furo = "==2024.04.27"
 tox = "*"
 
 [tool.poetry.extras]
