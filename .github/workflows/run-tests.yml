@@ -83,7 +83,7 @@ jobs:
     # VERSION with the minimal possible Basilisp dependencies
     # versions.
     #
-    # For dependencies to be elligible for minimum version testing,
+    # For dependencies to be eligible for minimum version testing,
     # they should be declared in `pyproject.toml` as such in the
     # following format
     #
