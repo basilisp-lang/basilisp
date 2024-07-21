@@ -233,7 +233,7 @@ nil
     basilisp.user=> (python/type nil)
     <class 'NoneType'>
 
-The special value ``nil`` correspond's to Python's ``None``.
+The special value ``nil`` corresponds to Python's ``None``.
 
 .. _whitespace:
 
@@ -327,7 +327,7 @@ Maps
     {1 "2" :three 3}
 
 Maps are denoted with the ``{}`` characters.
-Sets may contain 0 or more heterogenous key-value pairs.
+Maps may contain 0 or more heterogenous key-value pairs.
 Basilisp maps are modeled after Clojure's persistent map implementation.
 
 .. _sets:
@@ -354,7 +354,7 @@ Line Comments
 Line comments are specified with the ``;`` character.
 All of the text to the end of the line are ignored.
 
-For a convenience in writing shell scripts with Basilisp, the standard \*NIX `shebang <https://en.wikipedia.org/wiki/Shebang_(Unix)>` (``#!``) is also treated as a single-line comment.
+For a convenience in writing shell scripts with Basilisp, the standard \*NIX `shebang <https://en.wikipedia.org/wiki/Shebang_(Unix)>`_ (``#!``) is also treated as a single-line comment.
 
 .. _metadata:
 
@@ -390,7 +390,7 @@ Reader macros are always dispatched using the ``#`` character.
 
 * ``#'form`` is rewritten as ``(var form)``.
 * ``#_form`` causes the reader to completely ignore ``form``.
-* ``#!form`` is treated as a single-line comment (like ``;form``) as a convenience to support `shebangs <https://en.wikipedia.org/wiki/Shebang_(Unix)>` at the top of Basilisp scripts.
+* ``#!form`` is treated as a single-line comment (like ``;form``) as a convenience to support `shebangs <https://en.wikipedia.org/wiki/Shebang_(Unix)>`_ at the top of Basilisp scripts.
 * ``#"str"`` causes the reader to interpret ``"str"`` as a regex and return a Python `re.pattern <https://docs.python.org/3/library/re.html>`_.
 * ``#(...)`` causes the reader to interpret the contents of the list as an anonymous function. Anonymous functions specified in this way can name arguments using ``%1``, ``%2``, etc. and rest args as ``%&``. For anonymous functions with only one argument, ``%`` can be used in place of ``%1``.
 
