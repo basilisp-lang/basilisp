@@ -511,7 +511,8 @@
   "Create a new symbol with ``name`` and optional namespace ``ns``.
 
   ``name`` may be keyword, symbol, string, or Var. If ``name`` is a keyword or symbol with a
-  namespace, the namespace will be included in the resulting value.
+  namespace, the namespace will be included in the resulting value. If ``name`` is a Var,
+  the Var's namespace will always be the namespace of the resulting value.
 
   If ``ns`` is not ``nil``, then both ``name`` and ``ns`` must be strings."
   ([name]
