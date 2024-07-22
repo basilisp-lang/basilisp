@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
  * Fix a bug where `.` characters were not allowed in keyword names (#899)
  * Fix a bug where nested quotation marks were not escaped properly by various print functions and at the REPL (#894)
- * Fixed a bug that caused a syntax error when presenting any filepath that includes the MS-Windows `\` file separator to the cli run command (#912)
+ * Fix a bug that caused a syntax error when presenting any filepath that includes the MS-Windows `\` file separator to the cli run command (#912)
+ * Fix a bug where the core functions `symbol` and `keyword` would not accept non-string data types (#911)
 
 ### Other
  * Update Sphinx documentation theme (#909)
