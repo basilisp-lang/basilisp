@@ -508,19 +508,29 @@
    (basilisp.lang.queue/queue coll)))
 
 (defn symbol
-  "Create a new symbol with ``name`` and optional namespace ``ns``."
+  "Create a new symbol with ``name`` and optional namespace ``ns``.
+
+  ``name`` may be keyword, symbol, string, or Var. If ``name`` is a keyword or symbol with a
+  namespace, the namespace will be included in the resulting value.
+
+  If ``ns`` is not ``nil``, then both ``name`` and ``ns`` must be strings."
   ([name]
-   (basilisp.lang.symbol/symbol name))
+   (basilisp.lang.runtime/symbol-from-name name))
   ([ns name]
-   (basilisp.lang.symbol/symbol name ns)))
+   (basilisp.lang.runtime/symbol name ns)))
 
 (defn keyword
   "Create a new keyword with ``name`` and optional namespace ``ns``\\. Keywords will
-  have the colon prefix added automatically, so it should not be provided."
+  have the colon prefix added automatically, so it should not be provided.
+
+  ``name`` may be keyword, symbol, or string. If ``name`` is a keyword or symbol with a
+  namespace, the namespace will be included in the resulting value.
+
+  If ``ns`` is not ``nil``, then both ``name`` and ``ns`` must be strings."
   ([name]
-   (basilisp.lang.keyword/keyword name))
+   (basilisp.lang.runtime/keyword-from-name name))
   ([ns name]
-   (basilisp.lang.keyword/keyword name ns)))
+   (basilisp.lang.runtime/keyword name ns)))
 
 (defn name
   "Return the name of a string, symbol, or keyword."

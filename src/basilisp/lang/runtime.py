@@ -26,6 +26,7 @@ from typing import (
     Iterator,
     List,
     Mapping,
+    NoReturn,
     Optional,
     Set,
     Tuple,
@@ -974,6 +975,69 @@ def pop_thread_bindings() -> None:
 ###################
 
 T = TypeVar("T")
+
+
+def keyword(name: Any, ns: Any = None) -> kw.Keyword:
+    """Return a new keyword with runtime type checks for name and namespace."""
+    if not isinstance(name, str):
+        raise TypeError(f"Keyword name must be a string, not '{type(name)}'")
+    if not isinstance(ns, (type(None), str)):
+        raise TypeError(f"Keyword namespace must be a string or nil, not '{type(ns)}")
+    return kw.keyword(name, ns)
+
+
+@functools.singledispatch
+def keyword_from_name(o: Any) -> NoReturn:
+    raise TypeError(f"Cannot create keyword from '{type(o)}'")
+
+
+@keyword_from_name.register(kw.Keyword)
+def _keyword_from_name_keyword(o: kw.Keyword) -> kw.Keyword:
+    return o
+
+
+@keyword_from_name.register(sym.Symbol)
+def _keyword_from_name_symbol(o: sym.Symbol) -> kw.Keyword:
+    return kw.keyword(o.name, ns=o.ns)
+
+
+@keyword_from_name.register(str)
+def _keyword_from_name_str(o: str) -> kw.Keyword:
+    return kw.keyword(o)
+
+
+def symbol(name: Any, ns: Any = None) -> sym.Symbol:
+    """Return a new symbol with runtime type checks for name and namespace."""
+    if not isinstance(name, str):
+        raise TypeError(f"Symbol name must be a string, not '{type(name)}'")
+    if not isinstance(ns, (type(None), str)):
+        raise TypeError(f"Symbol namespace must be a string or nil, not '{type(ns)}")
+    return sym.symbol(name, ns)
+
+
+@functools.singledispatch
+def symbol_from_name(o: Any) -> NoReturn:
+    raise TypeError(f"Cannot create symbol from '{type(o)}'")
+
+
+@symbol_from_name.register(kw.Keyword)
+def _symbol_from_name_keyword(o: kw.Keyword) -> sym.Symbol:
+    return sym.symbol(o.name, ns=o.ns)
+
+
+@symbol_from_name.register(sym.Symbol)
+def _symbol_from_name_symbol(o: sym.Symbol) -> sym.Symbol:
+    return o
+
+
+@symbol_from_name.register(str)
+def _symbol_from_name_str(o: str) -> sym.Symbol:
+    return sym.symbol(o)
+
+
+@symbol_from_name.register(Var)
+def _symbol_from_name_var(o: Var) -> sym.Symbol:
+    return sym.symbol(o.name.name, ns=o.ns.name)
 
 
 @functools.singledispatch
