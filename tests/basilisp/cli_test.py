@@ -253,11 +253,22 @@ class TestRun:
         result = run_cli(["run", "-c", self.cli_args_code, *args])
         assert ret == result.lisp_out
 
-    def test_run_file(self, isolated_filesystem, run_cli):
+    def test_run_file_rel(self, isolated_filesystem, run_cli):
         with open("test.lpy", mode="w") as f:
             f.write("(println (+ 1 2))")
         result = run_cli(["run", "test.lpy"])
         assert f"3{os.linesep}" == result.lisp_out
+
+    def test_run_file_abs(self, isolated_filesystem, run_cli):
+        with open("test.lpy", mode="w") as f:
+            f.write("(println (+ 1 3))")
+        full_path = os.path.abspath("test.lpy")
+        result = run_cli(["run", full_path])
+        assert f"4{os.linesep}" == result.lisp_out
+
+    def test_run_file_not_found(self, isolated_filesystem, run_cli):
+        with pytest.raises(FileNotFoundError):
+            run_cli(["run", "xyz.lpy"])
 
     def test_run_file_main_ns(self, isolated_filesystem, run_cli):
         with open("test.lpy", mode="w") as f:

@@ -49,7 +49,12 @@ def eval_str(s: str, ctx: compiler.CompilerContext, ns: runtime.Namespace, eof: 
 
 def eval_file(filename: str, ctx: compiler.CompilerContext, ns: runtime.Namespace):
     """Evaluate a file with the given name into a Python module AST node."""
-    return eval_str(f'(load-file "{filename}")', ctx, ns, eof=object())
+    if os.path.exists(filename):
+        return eval_str(
+            f'(load-file "{Path(filename).as_posix()}")', ctx, ns, eof=object()
+        )
+    else:
+        raise FileNotFoundError(f"Error: The file {filename} does not exist.")
 
 
 def eval_namespace(
