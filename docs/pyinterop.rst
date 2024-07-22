@@ -220,7 +220,7 @@ Basilisp supports passing type hints through to the underlying generated Python 
 In Clojure, these tags are type declarations for certain primitive types.
 In Clojurescript, tags are type *hints* and they are only necessary in extremely limited circumstances to help the compiler.
 In Basilisp, tags are not used by the compiler at all.
-Instead, tags applied to function arguments and return values in Basilisp are applied to the underlying Python objects and are introspectable at runtime using the Python `inspect <https://docs.python.org/3/library/inspect.html>`_ standard library module.
+Instead, tags applied to function arguments and return values in Basilisp are applied to the underlying Python objects and are introspectable at runtime using the Python :external:py:mod:`inspect` standard library module.
 
 Type hints may be applied to :lpy:form:`def` names, function arguments and return values, and :lpy:form:`let` local forms.
 
@@ -259,4 +259,4 @@ In Clojure, the ``clojure.core/quot`` function utilizes Java's long division ope
 
 Basilisp has chosen to adopt the same mathematical formulae as Clojure for these three functions, rather than using the Python's built in operators under all cases. This approach offers the advantage of enhanced cross-platform compatibility without requiring modification, and ensures compatibility with examples in  `ClojureDocs <https://clojuredocs.org/>`_.
 
-Users still have the option to use the native `operator/floordiv <https://docs.python.org/3/library/operator.html#operator.floordiv>`_, i.e. Python's ``//``  operator, if they prefer so.
+Users still have the option to use the native :external:py:func:`operator.floordiv`, i.e. Python's ``//``  operator, if they prefer so.

@@ -12,7 +12,7 @@ We accept the following types of contributions:
   Bugs may sometimes be fixed in unreleased code, so be sure to look at the `CHANGELOG <https://github.com/basilisp-lang/basilisp/blob/main/CHANGELOG.md>`_ in the ``main`` branch to see if the fix has simply not yet been released.
 
 * **Feature Requests:** Submit a new issue on GitHub reporting a feature request.
-  Because Basilisp targets a high degree of compatibility with Clojure, feature requests should generally be for features from Clojure which have not yet been implemented in Basilisp.
+  Basilisp targets a reasonable degree of compatibility with Clojure, so feature requests should generally be for features from Clojure which have not yet been implemented in Basilisp.
   Occasionally, new features outside of the scope of Clojure compatibility may be covered, in particular if the feature is related to a Python ecosystem affordance.
 
 * **Documentation:** Documentation is hard.
