@@ -220,14 +220,15 @@ class TestExceptionFormat:
             with pytest.raises(compiler.CompilerException) as e:
                 lcompile("(require 'compiler-test)")
 
+            formatted = format_exception(e.value)
             assert re.match(
                 (
                     rf"{os.linesep}"
                     rf"  exception: <class 'basilisp.lang.compiler.exception.CompilerException'> from <class 'basilisp.lang.compiler.exception.CompilerException'>{os.linesep}"
                     rf"      phase: :macroexpansion{os.linesep}"
                     rf"    message: error occurred during macroexpansion: unable to resolve symbol 'b' in this context{os.linesep}"
-                    rf"       form: \(let \[a :b] b\){os.linesep}"
-                    rf"   location: (?:\w:)?[^:]*:3-5{os.linesep}"
+                    rf"       form: \(let \[a :b\] b\){os.linesep}"
+                    rf"   location: (?:\w:)?[^:]*:3-4{os.linesep}"
                     rf"    context:{os.linesep}"
                     rf"{os.linesep}"
                     rf" 1   \| \(ns compiler-test\){os.linesep}"
@@ -235,7 +236,7 @@ class TestExceptionFormat:
                     rf" 3 > \| \(let \[a :b]{os.linesep}"
                     rf" 4 > \|   b\){os.linesep}"
                 ),
-                "".join(format_exception(e.value)),
+                "".join(formatted),
             )
 
 
@@ -470,7 +471,7 @@ class TestDef:
 
         assert 1 == meta.val_at(kw.keyword("line"))
         assert compiler_file_path == meta.val_at(kw.keyword("file"))
-        assert 1 == meta.val_at(kw.keyword("col"))
+        assert 0 == meta.val_at(kw.keyword("col"))
         assert sym.symbol("unique-oeuene") == meta.val_at(kw.keyword("name"))
         assert ns == meta.val_at(kw.keyword("ns"))
         assert "Super cool docstring" == meta.val_at(kw.keyword("doc"))

@@ -225,13 +225,13 @@ class StreamReader:
         self._stream = stream
         self._pushback_depth = pushback_depth
         self._idx = -2
-        init_buffer = [self._stream.read(1), self._stream.read(1)]
-        self._buffer = collections.deque(init_buffer, pushback_depth)
         self._line = collections.deque([1], pushback_depth)
-        self._col = collections.deque([1], pushback_depth)
+        self._col = collections.deque([0], pushback_depth)
+        self._buffer = collections.deque([self._stream.read(1)], pushback_depth)
 
-        for c in init_buffer[1:]:
-            self._update_loc(c)
+        # Load up an extra character
+        self._buffer.append(self._stream.read(1))
+        self._update_loc()
 
     @property
     def name(self) -> Optional[str]:
@@ -249,13 +249,10 @@ class StreamReader:
     def loc(self) -> Tuple[int, int]:
         return self.line, self.col
 
-    def _update_loc(self, c):
+    def _update_loc(self):
         """Update the internal line and column buffers after a new character
-        is added.
-
-        The column number is set to 0, so the first character on the next line
-        is column number 1."""
-        if newline_chars.match(c):
+        is added."""
+        if newline_chars.match(self._buffer[-1]):
             self._col.append(0)
             self._line.append(self._line[-1] + 1)
         else:
@@ -289,7 +286,7 @@ class StreamReader:
             self._idx += 1
         else:
             c = self._stream.read(1)
-            self._update_loc(c)
+            self._update_loc()
             self._buffer.append(c)
         return self.peek()
 

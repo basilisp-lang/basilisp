@@ -58,7 +58,7 @@ def format_source_context(
         if not show_cause_marker:
             cause_range = None
         elif end_line is not None and end_line != line:
-            cause_range = range(line, end_line)
+            cause_range = range(line, end_line + 1)
         else:
             cause_range = range(line, line + 1)
 

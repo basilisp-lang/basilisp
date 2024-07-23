@@ -581,12 +581,12 @@ def _ast_with_loc(
                 dep.end_lineno = env.end_line
 
     if env.col is not None and env.end_col is not None:
-        py_ast.node.col_offset = env.col - 1
-        py_ast.node.end_col_offset = env.end_col - 1
+        py_ast.node.col_offset = env.col
+        py_ast.node.end_col_offset = env.end_col
         if include_dependencies:
             for dep in py_ast.dependencies:
-                dep.col_offset = env.col - 1
-                dep.end_col_offset = env.end_col - 1
+                dep.col_offset = env.col
+                dep.end_col_offset = env.end_col
 
     return py_ast
 
