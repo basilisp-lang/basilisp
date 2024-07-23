@@ -177,7 +177,7 @@ def format_syntax_error(  # pylint: disable=unused-argument
     else:
         lines.append(f"    message: {e.message}: {context_exc}{os.linesep}")
 
-    if e.line is not None and e.col:
+    if e.line is not None and e.col is not None:
         line_num = f"{e.line}:{e.col}"
     elif e.line is not None:
         line_num = str(e.line)
@@ -225,13 +225,13 @@ class StreamReader:
         self._stream = stream
         self._pushback_depth = pushback_depth
         self._idx = -2
-        init_buffer = [self._stream.read(1), self._stream.read(1)]
-        self._buffer = collections.deque(init_buffer, pushback_depth)
         self._line = collections.deque([1], pushback_depth)
-        self._col = collections.deque([1], pushback_depth)
+        self._col = collections.deque([0], pushback_depth)
+        self._buffer = collections.deque([self._stream.read(1)], pushback_depth)
 
-        for c in init_buffer[1:]:
-            self._update_loc(c)
+        # Load up an extra character
+        self._buffer.append(self._stream.read(1))
+        self._update_loc()
 
     @property
     def name(self) -> Optional[str]:
@@ -239,23 +239,24 @@ class StreamReader:
 
     @property
     def col(self) -> int:
+        """Return the column of the character returned by `peek`."""
         return self._col[self._idx]
 
     @property
     def line(self) -> int:
+        """Return the line of the character returned by `peek`."""
         return self._line[self._idx]
 
     @property
     def loc(self) -> Tuple[int, int]:
+        """Return the location of the character returned by `peek` as a tuple of
+        (line, col)."""
         return self.line, self.col
 
-    def _update_loc(self, c):
-        """Update the internal line and column buffers after a new character
-        is added.
-
-        The column number is set to 0, so the first character on the next line
-        is column number 1."""
-        if newline_chars.match(c):
+    def _update_loc(self):
+        """Update the internal line and column buffers after a new character is
+        added."""
+        if newline_chars.match(self._buffer[-2]):
             self._col.append(0)
             self._line.append(self._line[-1] + 1)
         else:
@@ -289,8 +290,8 @@ class StreamReader:
             self._idx += 1
         else:
             c = self._stream.read(1)
-            self._update_loc(c)
             self._buffer.append(c)
+            self._update_loc()
         return self.peek()
 
 

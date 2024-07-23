@@ -57,77 +57,106 @@ def test_stream_reader():
     sreader = reader.StreamReader(io.StringIO("12345"))
 
     assert "1" == sreader.peek()
-    assert (1, 1) == sreader.loc
+    assert (1, 0) == sreader.loc
 
     assert "2" == sreader.next_char()
-    assert (1, 2) == sreader.loc
+    assert (1, 1) == sreader.loc
 
     assert "2" == sreader.peek()
-    assert (1, 2) == sreader.loc
+    assert (1, 1) == sreader.loc
 
     sreader.pushback()
     assert "1" == sreader.peek()
-    assert (1, 1) == sreader.loc
+    assert (1, 0) == sreader.loc
 
     assert "2" == sreader.next_char()
-    assert (1, 2) == sreader.loc
+    assert (1, 1) == sreader.loc
 
     assert "3" == sreader.next_char()
-    assert (1, 3) == sreader.loc
+    assert (1, 2) == sreader.loc
 
     assert "4" == sreader.next_char()
-    assert (1, 4) == sreader.loc
+    assert (1, 3) == sreader.loc
 
     assert "5" == sreader.next_char()
-    assert (1, 5) == sreader.loc
+    assert (1, 4) == sreader.loc
 
     assert "" == sreader.next_char()
-    assert (1, 6) == sreader.loc
+    assert (1, 5) == sreader.loc
 
 
 def test_stream_reader_loc():
     s = str("i=1\n" "b=2\n" "i")
     sreader = reader.StreamReader(io.StringIO(s))
+    assert (1, 0) == sreader.loc
 
     assert "i" == sreader.peek()
-    assert (1, 1) == sreader.loc
+    assert (1, 0) == sreader.loc
 
     assert "=" == sreader.next_char()
-    assert (1, 2) == sreader.loc
+    assert (1, 1) == sreader.loc
 
     assert "=" == sreader.peek()
-    assert (1, 2) == sreader.loc
+    assert (1, 1) == sreader.loc
 
     sreader.pushback()
     assert "i" == sreader.peek()
+    assert (1, 0) == sreader.loc
+
+    assert "=" == sreader.next_char()
     assert (1, 1) == sreader.loc
 
-    assert "=" == sreader.next_char()
+    assert "1" == sreader.next_char()
     assert (1, 2) == sreader.loc
 
-    assert "1" == sreader.next_char()
+    assert "\n" == sreader.next_char()
     assert (1, 3) == sreader.loc
 
-    assert "\n" == sreader.next_char()
+    assert "b" == sreader.next_char()
     assert (2, 0) == sreader.loc
 
-    assert "b" == sreader.next_char()
+    assert "=" == sreader.next_char()
     assert (2, 1) == sreader.loc
 
-    assert "=" == sreader.next_char()
+    assert "2" == sreader.next_char()
     assert (2, 2) == sreader.loc
 
-    assert "2" == sreader.next_char()
+    assert "\n" == sreader.next_char()
     assert (2, 3) == sreader.loc
 
-    assert "\n" == sreader.next_char()
+    assert "i" == sreader.next_char()
     assert (3, 0) == sreader.loc
 
-    assert "i" == sreader.next_char()
+    assert "" == sreader.next_char()
     assert (3, 1) == sreader.loc
 
-    assert "" == sreader.next_char()
-    assert (3, 2) == sreader.loc
+
+class TestReaderLines:
+    def test_reader_lines_from_str(self, tmp_path):
+        _, _, l = list(reader.read_str("1\n2\n(/ 5 0)"))
+
+        assert (3, 3, 0, 7) == (
+            l.meta.get(reader.READER_LINE_KW),
+            l.meta.get(reader.READER_END_LINE_KW),
+            l.meta.get(reader.READER_COL_KW),
+            l.meta.get(reader.READER_END_COL_KW),
+        )
+
+    def test_reader_lines_from_file(self, tmp_path):
+        filename = tmp_path / "test.lpy"
+
+        with open(filename, mode="w", encoding="utf-8") as f:
+            f.write("1\n2\n(/ 5 0)")
+
+        with open(filename, mode="r", encoding="utf-8") as f:
+            _, _, l = list(reader.read(f))
+
+        assert (3, 3, 0, 7) == (
+            l.meta.get(reader.READER_LINE_KW),
+            l.meta.get(reader.READER_END_LINE_KW),
+            l.meta.get(reader.READER_COL_KW),
+            l.meta.get(reader.READER_END_COL_KW),
+        )
 
 
 class TestSyntaxErrorFormat:
@@ -139,7 +168,7 @@ class TestSyntaxErrorFormat:
             f"{os.linesep}",
             f"  exception: <class 'basilisp.lang.reader.UnexpectedEOFError'>{os.linesep}",
             f"    message: Unexpected EOF in vector{os.linesep}",
-            f"       line: 1:10{os.linesep}",
+            f"       line: 1:9{os.linesep}",
         ] == format_exception(e.value)
 
     def test_exception_with_cause(self):
@@ -150,7 +179,7 @@ class TestSyntaxErrorFormat:
             f"{os.linesep}",
             f"  exception: <class 'ValueError'> from <class 'basilisp.lang.reader.SyntaxError'>{os.linesep}",
             f"    message: Unexpected char '}}'; expected map value: not enough values to unpack (expected 2, got 1){os.linesep}",
-            f"       line: 1:10{os.linesep}",
+            f"       line: 1:9{os.linesep}",
         ] == format_exception(e.value)
 
     class TestExceptionsWithSourceContext:
@@ -175,12 +204,13 @@ class TestSyntaxErrorFormat:
             with pytest.raises(reader.SyntaxError) as e:
                 list(reader.read_file(source_file))
 
+            v = format_exception(e.value)
             assert re.match(
                 (
                     rf"{os.linesep}"
                     rf"  exception: <class 'basilisp\.lang\.reader\.UnexpectedEOFError'>{os.linesep}"
                     rf"    message: Unexpected EOF in list{os.linesep}"
-                    rf"   location: (?:\w:)?[^:]*:4:4{os.linesep}"
+                    rf"   location: (?:\w:)?[^:]*:4:3{os.linesep}"
                     rf"    context:{os.linesep}"
                     rf"{os.linesep}"
                     rf" 1   \| \(ns reader-test\){os.linesep}"
@@ -188,7 +218,43 @@ class TestSyntaxErrorFormat:
                     rf" 3   \| \(let \[a :b\]{os.linesep}"
                     rf" 4 > \|   a{os.linesep}"
                 ),
-                "".join(format_exception(e.value)),
+                "".join(v),
+            )
+
+        def test_shows_source_context_(self, monkeypatch, source_file: Path):
+            source_file.write_text(
+                textwrap.dedent(
+                    """
+                    (ns reader-test)
+
+                    (let [a :b]
+                      a
+                    """
+                ).strip()
+                + "\n"
+            )
+            monkeypatch.setenv("BASILISP_NO_COLOR", "true")
+            monkeypatch.syspath_prepend(source_file.parent)
+
+            with pytest.raises(reader.SyntaxError) as e:
+                list(reader.read_file(source_file))
+
+            v = format_exception(e.value)
+            assert re.match(
+                (
+                    rf"{os.linesep}"
+                    rf"  exception: <class 'basilisp\.lang\.reader\.UnexpectedEOFError'>{os.linesep}"
+                    rf"    message: Unexpected EOF in list{os.linesep}"
+                    rf"   location: (?:\w:)?[^:]*:5:0{os.linesep}"
+                    rf"    context:{os.linesep}"
+                    rf"{os.linesep}"
+                    rf" 1   \| \(ns reader-test\){os.linesep}"
+                    rf" 2   \| {os.linesep}"
+                    rf" 3   \| \(let \[a :b\]{os.linesep}"
+                    rf" 4   \|   a{os.linesep}"
+                    rf" 5 > \|"
+                ),
+                "".join(v),
             )
 
 
@@ -1168,8 +1234,8 @@ def test_meta():
     assert issubmap(s.meta, lmap.map({kw.keyword("tag"): sym.symbol("str")}))
     assert issubmap(s.meta, lmap.map({reader.READER_LINE_KW: 1}))
     assert issubmap(s.meta, lmap.map({reader.READER_END_LINE_KW: 1}))
-    assert issubmap(s.meta, lmap.map({reader.READER_COL_KW: 6}))
-    assert issubmap(s.meta, lmap.map({reader.READER_END_COL_KW: 7}))
+    assert issubmap(s.meta, lmap.map({reader.READER_COL_KW: 5}))
+    assert issubmap(s.meta, lmap.map({reader.READER_END_COL_KW: 6}))
 
     s = read_str_first("^:dynamic *ns*")
     assert s == sym.symbol("*ns*")

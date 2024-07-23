@@ -1,6 +1,7 @@
+import itertools
 import linecache
 import os
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
 try:
     import pygments.formatters
@@ -40,7 +41,7 @@ else:
         )
 
 
-def format_source_context(
+def format_source_context(  # pylint: disable=too-many-locals
     filename: str,
     line: int,
     end_line: Optional[int] = None,
@@ -58,15 +59,25 @@ def format_source_context(
         if not show_cause_marker:
             cause_range = None
         elif end_line is not None and end_line != line:
-            cause_range = range(line, end_line)
+            cause_range = range(line, end_line + 1)
         else:
             cause_range = range(line, line + 1)
 
         if source_lines := linecache.getlines(filename):
-            start = max(0, line - num_context_lines)
-            end = min((end_line or line) + num_context_lines, len(source_lines))
+            selected_lines: Iterable[str]
+            if end_line is None and line > len(source_lines):
+                end = len(source_lines) + 1
+                start = max(end - num_context_lines, 0)
+                selected_lines = itertools.chain(
+                    source_lines[start:end], itertools.repeat("\n")
+                )
+            else:
+                start = max(0, line - num_context_lines)
+                end = min((end_line or line) + num_context_lines, len(source_lines))
+                selected_lines = source_lines[start:end]
+
             num_justify = max(len(str(start)), len(str(end))) + 1
-            for n, source_line in zip(range(start, end), source_lines[start:end]):
+            for n, source_line in zip(range(start, end), selected_lines):
                 if cause_range is None:
                     line_marker = " "
                 elif n + 1 in cause_range:
