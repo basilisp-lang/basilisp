@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
  * Updated dozens of type annotations in the compiler to satisfy MyPy 1.11 (#910)
+ * Update the `StreamReader` methods to stop using the term "token" to refer to individual UTF-8 characters (#915)
 
 ### Fixed
  * Fix a bug where `.` characters were not allowed in keyword names (#899)

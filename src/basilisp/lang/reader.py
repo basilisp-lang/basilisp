@@ -267,22 +267,24 @@ class StreamReader:
         return self._buffer[self._idx]
 
     def pushback(self) -> None:
-        """Push one character back onto the stream, allowing it to be
-        read again."""
+        """Push one character back onto the stream, allowing it to be read again."""
         if abs(self._idx - 1) > self._pushback_depth:
             raise IndexError("Exceeded pushback depth")
         self._idx -= 1
 
     def advance(self) -> str:
-        """Advance the current token pointer by one and return the
-        previous token value from before advancing the counter."""
+        """Advance the current character pointer by one and return the previous
+        character value from before advancing the counter.
+
+        Equivalent to calling `peek`, then `next_char`, then returning the result of
+        the previous `peek`."""
         cur = self.peek()
-        self.next_token()
+        self.next_char()
         return cur
 
-    def next_token(self) -> str:
-        """Advance the stream forward by one character and return the
-        next token in the stream."""
+    def next_char(self) -> str:
+        """Advance the stream forward by one character and return the next character
+        in the stream."""
         if self._idx < StreamReader.DEFAULT_INDEX:
             self._idx += 1
         else:
@@ -565,15 +567,15 @@ def _with_loc(f: W) -> W:
 def _read_namespaced(
     ctx: ReaderContext, allowed_suffix: Optional[str] = None
 ) -> Tuple[Optional[str], str]:
-    """Read a namespaced token from the input stream."""
+    """Read a namespaced token (keyword or symbol) from the input stream."""
     ns: List[str] = []
     name: List[str] = []
     reader = ctx.reader
     has_ns = False
     while True:
-        token = reader.peek()
-        if token == "/":
-            reader.next_token()
+        char = reader.peek()
+        if char == "/":
+            reader.next_char()
             if has_ns:
                 raise ctx.syntax_error("Found '/'; expected word character")
             elif len(name) == 0:
@@ -584,12 +586,12 @@ def _read_namespaced(
                 has_ns = True
                 ns = name
                 name = []
-        elif ns_name_chars.match(token) or (name and token == "'"):
-            reader.next_token()
-            name.append(token)
-        elif allowed_suffix is not None and token == allowed_suffix:
-            reader.next_token()
-            name.append(token)
+        elif ns_name_chars.match(char) or (name and char == "'"):
+            reader.next_char()
+            name.append(char)
+        elif allowed_suffix is not None and char == allowed_suffix:
+            reader.next_char()
+            name.append(char)
         else:
             break
 
@@ -612,7 +614,7 @@ def _read_coll(
         [Collection[Any]],
         Union[llist.PersistentList, lset.PersistentSet, vec.PersistentVector],
     ],
-    end_token: str,
+    end_char: str,
     coll_name: str,
 ):
     """Read a collection from the input stream and create the
@@ -620,14 +622,14 @@ def _read_coll(
     coll: List = []
     reader = ctx.reader
     while True:
-        token = reader.peek()
-        if token == "":
+        char = reader.peek()
+        if char == "":
             raise ctx.eof_error(f"Unexpected EOF in {coll_name}")
-        if whitespace_chars.match(token):
+        if whitespace_chars.match(char):
             reader.advance()
             continue
-        if token == end_token:
-            reader.next_token()
+        if char == end_char:
+            reader.next_char()
             return f(coll)
         elem = _read_next(ctx)
         if elem is COMMENT or isinstance(elem, Comment):
@@ -691,14 +693,14 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
     reader conditionals."""
     reader = ctx.reader
     while True:
-        token = reader.peek()
-        if token == "":
+        char = reader.peek()
+        if char == "":
             raise ctx.eof_error("Unexpected EOF in map}")
-        if whitespace_chars.match(token):
+        if whitespace_chars.match(char):
             reader.advance()
             continue
-        if token == "}":
-            reader.next_token()
+        if char == "}":
+            reader.next_char()
             return
         v = _read_next(ctx)
         if v is COMMENT or isinstance(v, Comment):
@@ -772,7 +774,7 @@ def _read_map(
             else:
                 d[k] = v
     except ValueError as e:
-        raise ctx.syntax_error("Unexpected token '}'; expected map value") from e
+        raise ctx.syntax_error("Unexpected char '}'; expected map value") from e
     else:
         return lmap.map(d)
 
@@ -794,9 +796,9 @@ def _read_namespaced_map(ctx: ReaderContext) -> lmap.PersistentMap:
                 "be specified as keywords without namespaces"
             )
 
-    token = ctx.reader.peek()
-    while whitespace_chars.match(token):
-        token = ctx.reader.next_token()
+    char = ctx.reader.peek()
+    while whitespace_chars.match(char):
+        char = ctx.reader.next_char()
 
     return _read_map(ctx, namespace=map_ns)
 
@@ -816,10 +818,10 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-locals,too-many-stateme
     reader = ctx.reader
 
     while True:
-        token = reader.peek()
-        if token == "-":
-            following_token = reader.next_token()
-            if not begin_num_chars.match(following_token):
+        char = reader.peek()
+        if char == "-":
+            following_char = reader.next_char()
+            if not begin_num_chars.match(following_char):
                 reader.pushback()
                 try:
                     for _ in chars:
@@ -829,12 +831,12 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-locals,too-many-stateme
                         "Requested to pushback too many characters onto StreamReader"
                     ) from e
                 return _read_sym(ctx)
-            chars.append(token)
+            chars.append(char)
             continue
-        elif not maybe_num_chars.match(token):
+        elif not maybe_num_chars.match(char):
             break
-        reader.next_token()
-        chars.append(token)
+        reader.next_char()
+        chars.append(char)
 
     assert len(chars) > 0, "Must have at least one digit in number"
 
@@ -910,23 +912,23 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
     s: List[str] = []
     reader = ctx.reader
     while True:
-        token = reader.next_token()
-        if token == "":
+        char = reader.next_char()
+        if char == "":
             raise ctx.eof_error("Unexpected EOF in string")
-        if token == "\\":
-            token = reader.next_token()
-            escape_char = _STR_ESCAPE_CHARS.get(token, None)
+        if char == "\\":
+            char = reader.next_char()
+            escape_char = _STR_ESCAPE_CHARS.get(char, None)
             if escape_char:
                 s.append(escape_char)
                 continue
             if allow_arbitrary_escapes:
                 s.append("\\")
             else:
-                raise ctx.syntax_error(f"Unknown escape sequence: \\{token}")
-        if token == '"':
-            reader.next_token()
+                raise ctx.syntax_error(f"Unknown escape sequence: \\{char}")
+        if char == '"':
+            reader.next_char()
             return "".join(s)
-        s.append(token)
+        s.append(char)
 
 
 _BYTES_ESCAPE_CHARS = {
@@ -945,8 +947,8 @@ _BYTES_ESCAPE_CHARS = {
 def _read_hex_byte(ctx: ReaderContext) -> bytes:
     """Read a byte with a 2 digit hex code such as `\\xff`."""
     reader = ctx.reader
-    c1 = reader.next_token()
-    c2 = reader.next_token()
+    c1 = reader.next_char()
+    c2 = reader.next_char()
     try:
         return bytes([int("".join(["0x", c1, c2]), base=16)])
     except ValueError as e:
@@ -963,39 +965,39 @@ def _read_byte_str(ctx: ReaderContext) -> bytes:
     """
     reader = ctx.reader
 
-    token = reader.peek()
-    while whitespace_chars.match(token):
-        token = reader.next_token()
+    char = reader.peek()
+    while whitespace_chars.match(char):
+        char = reader.next_char()
 
-    if token != '"':
-        raise ctx.syntax_error(f"Expected '\"'; got '{token}' instead")
+    if char != '"':
+        raise ctx.syntax_error(f"Expected '\"'; got '{char}' instead")
 
     b: List[bytes] = []
     while True:
-        token = reader.next_token()
-        if token == "":
+        char = reader.next_char()
+        if char == "":
             raise ctx.eof_error("Unexpected EOF in byte string")
-        if ord(token) < 1 or ord(token) > 127:
+        if ord(char) < 1 or ord(char) > 127:
             raise ctx.eof_error("Byte strings must contain only ASCII characters")
-        if token == "\\":
-            token = reader.next_token()
-            escape_char = _BYTES_ESCAPE_CHARS.get(token, None)
+        if char == "\\":
+            char = reader.next_char()
+            escape_char = _BYTES_ESCAPE_CHARS.get(char, None)
             if escape_char:
                 b.append(escape_char)
                 continue
-            elif token == "x":
+            elif char == "x":
                 b.append(_read_hex_byte(ctx))
                 continue
             else:
                 # In Python, invalid escape sequences entered into byte strings are
                 # retained with backslash for debugging purposes, so we do the same.
                 b.append(b"\\")
-                b.append(token.encode("utf-8"))
+                b.append(char.encode("utf-8"))
                 continue
-        if token == '"':
-            reader.next_token()
+        if char == '"':
+            reader.next_char()
             return b"".join(b)
-        b.append(token.encode("utf-8"))
+        b.append(char.encode("utf-8"))
 
 
 @_with_loc
@@ -1353,31 +1355,31 @@ def _read_character(ctx: ReaderContext) -> str:
 
     s: List[str] = []
     reader = ctx.reader
-    token = reader.peek()
+    char = reader.peek()
     is_first_char = True
     while True:
-        if token == "" or (not is_first_char and not alphanumeric_chars.match(token)):
+        if char == "" or (not is_first_char and not alphanumeric_chars.match(char)):
             break
-        s.append(token)
-        token = reader.next_token()
+        s.append(char)
+        char = reader.next_char()
         is_first_char = False
 
-    char = "".join(s)
-    special = _SPECIAL_CHARS.get(char, None)
+    character = "".join(s)
+    special = _SPECIAL_CHARS.get(character, None)
     if special is not None:
         return special
 
-    match = unicode_char.match(char)
+    match = unicode_char.match(character)
     if match is not None:
         try:
             return chr(int(f"0x{match.group(1)}", 16))
         except (ValueError, OverflowError):
-            raise ctx.syntax_error(f"Unsupported character \\u{char}") from None
+            raise ctx.syntax_error(f"Unsupported character \\u{character}") from None
 
-    if len(char) > 1:
-        raise ctx.syntax_error(f"Unsupported character \\{char}")
+    if len(character) > 1:
+        raise ctx.syntax_error(f"Unsupported character \\{character}")
 
-    return char
+    return character
 
 
 def _read_regex(ctx: ReaderContext) -> Pattern:
@@ -1424,23 +1426,22 @@ def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional
     reader = ctx.reader
     start = reader.advance()
     assert start == "?"
-    token = reader.peek()
+    char = reader.peek()
 
-    if token == "@":
+    if char == "@":
         is_splicing = True
         ctx.reader.advance()
-    elif token == "(":
+    elif char == "(":
         is_splicing = False
     else:
         raise ctx.syntax_error(
-            f"Unexpected token '{token}'; expected opening "
-            "'(' for reader conditional"
+            f"Unexpected char '{char}'; expected opening '(' for reader conditional"
         )
 
-    open_token = reader.advance()
-    if open_token != "(":
+    open_char = reader.advance()
+    if open_char != "(":
         raise ctx.syntax_error(
-            f"Expected opening '(' for reader conditional; got '{open_token}'"
+            f"Expected opening '(' for reader conditional; got '{open_char}'"
         )
 
     feature_list = _read_coll(ctx, llist.list, ")", "reader conditional")
@@ -1515,40 +1516,40 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
     macro from the input stream."""
     start = ctx.reader.advance()
     assert start == "#"
-    token = ctx.reader.peek()
-    if token == "{":
+    char = ctx.reader.peek()
+    if char == "{":
         return _read_set(ctx)
-    elif token == "(":
+    elif char == "(":
         return _read_function(ctx)
-    elif token == ":":
+    elif char == ":":
         return _read_namespaced_map(ctx)
-    elif token == "'":
+    elif char == "'":
         ctx.reader.advance()
-        token_next = ctx.reader.peek()
-        if token_next == "~":
+        char_next = ctx.reader.peek()
+        if char_next == "~":
             s = _read_unquote(ctx)
         else:
             s = _read_sym(ctx)
         return llist.l(_VAR, s)
-    elif token == '"':
+    elif char == '"':
         return _read_regex(ctx)
-    elif token == "_":
+    elif char == "_":
         ctx.reader.advance()
         _read_next(ctx)  # Ignore the entire next form
         return COMMENT
-    elif token == "!":
+    elif char == "!":
         return _read_comment(ctx)
-    elif token == "?":
+    elif char == "?":
         try:
             return _read_reader_conditional(ctx)
         except SyntaxError as e:
             raise ctx.syntax_error(e.message).with_traceback(e.__traceback__) from None
-    elif token == "#":
+    elif char == "#":
         return _read_numeric_constant(ctx)
-    elif token == "b":
+    elif char == "b":
         ctx.reader.advance()
         return _read_byte_str(ctx)
-    elif ns_name_chars.match(token):
+    elif ns_name_chars.match(char):
         s = _read_sym(ctx)
         assert isinstance(s, sym.Symbol)
         v = _read_next_consuming_comment(ctx)
@@ -1565,7 +1566,7 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
         else:
             raise ctx.syntax_error(f"No data reader found for tag #{s}")
 
-    raise ctx.syntax_error(f"Unexpected token '{token}' in reader macro")
+    raise ctx.syntax_error(f"Unexpected char '{char}' in reader macro")
 
 
 def _read_comment(ctx: ReaderContext) -> LispReaderForm:
@@ -1575,11 +1576,11 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
     start = reader.advance()
     assert start in {";", "!"}
     while True:
-        token = reader.peek()
-        if newline_chars.match(token):
+        char = reader.peek()
+        if newline_chars.match(char):
             reader.advance()
             return COMMENT
-        if token == "":
+        if char == "":
             return ctx.eof
         reader.advance()
 
@@ -1599,52 +1600,52 @@ def _read_next_consuming_comment(ctx: ReaderContext) -> RawReaderForm:
 def _read_next_consuming_whitespace(ctx: ReaderContext) -> LispReaderForm:
     """Read the next full form from the input stream, consuming any whitespace."""
     reader = ctx.reader
-    token = reader.peek()
-    while whitespace_chars.match(token):
-        token = reader.next_token()
+    char = reader.peek()
+    while whitespace_chars.match(char):
+        char = reader.next_char()
     return _read_next(ctx)
 
 
 def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
     """Read the next full form from the input stream."""
     reader = ctx.reader
-    token = reader.peek()
-    if token == "(":
+    char = reader.peek()
+    if char == "(":
         return _read_list(ctx)
-    elif token == "[":
+    elif char == "[":
         return _read_vector(ctx)
-    elif token == "{":
+    elif char == "{":
         return _read_map(ctx)
-    elif begin_num_chars.match(token):
+    elif begin_num_chars.match(char):
         return _read_num(ctx)
-    elif whitespace_chars.match(token):
+    elif whitespace_chars.match(char):
         return _read_next_consuming_whitespace(ctx)
-    elif token == ":":
+    elif char == ":":
         return _read_kw(ctx)
-    elif token == '"':
+    elif char == '"':
         return _read_str(ctx)
-    elif token == "'":
+    elif char == "'":
         return _read_quoted(ctx)
-    elif token == "\\":
+    elif char == "\\":
         return _read_character(ctx)
-    elif ns_name_chars.match(token):
+    elif ns_name_chars.match(char):
         return _read_sym(ctx)
-    elif token == "#":
+    elif char == "#":
         return _read_reader_macro(ctx)
-    elif token == "^":
+    elif char == "^":
         return _read_meta(ctx)  # type: ignore
-    elif token == ";":
+    elif char == ";":
         return _read_comment(ctx)
-    elif token == "`":
+    elif char == "`":
         return _read_syntax_quoted(ctx)
-    elif token == "~":
+    elif char == "~":
         return _read_unquote(ctx)
-    elif token == "@":
+    elif char == "@":
         return _read_deref(ctx)
-    elif token == "":
+    elif char == "":
         return ctx.eof
     else:
-        raise ctx.syntax_error(f"Unexpected token '{token}'")
+        raise ctx.syntax_error(f"Unexpected char '{char}'")
 
 
 def syntax_quote(  # pylint: disable=too-many-arguments
