@@ -110,7 +110,7 @@ def test_stream_reader_loc():
     assert (1, 2) == sreader.loc
 
     assert "\n" == sreader.next_char()
-    assert (2, 0) == sreader.loc
+    assert (1, 3) == sreader.loc
 
     assert "b" == sreader.next_char()
     assert (2, 0) == sreader.loc
@@ -122,7 +122,7 @@ def test_stream_reader_loc():
     assert (2, 2) == sreader.loc
 
     assert "\n" == sreader.next_char()
-    assert (3, 0) == sreader.loc
+    assert (2, 3) == sreader.loc
 
     assert "i" == sreader.next_char()
     assert (3, 0) == sreader.loc

@@ -531,7 +531,7 @@ class TestDef:
             """
         (def unique-djhvyz :a)
         (def unique-djhvyz :b)
-        """
+        """.strip()
         )
         assert_matching_logs(
             "basilisp.lang.compiler.analyzer",
@@ -2477,7 +2477,7 @@ class TestFunctionWarnUnusedName:
         (fn
           ([] :a)
           ([v] (fn [v] v)))
-        """,
+        """.strip(),
             opts={compiler.WARN_ON_UNUSED_NAMES: True},
         )
         assert_matching_logs(
@@ -3617,7 +3617,7 @@ class TestLetUnusedNames:
         (let [v 4]
           (let [v 5]
             v))
-        """,
+        """.strip(),
             opts={compiler.WARN_ON_UNUSED_NAMES: True},
         )
         assert_matching_logs(
@@ -3833,7 +3833,7 @@ class TestLetFnUnusedNames:
         (letfn* [v (fn* v [] 4)]
           (letfn* [v (fn* v [] 5)]
             (v)))
-        """,
+        """.strip(),
             opts={compiler.WARN_ON_UNUSED_NAMES: True},
         )
         assert_matching_logs(
