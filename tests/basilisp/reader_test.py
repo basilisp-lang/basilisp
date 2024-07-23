@@ -131,17 +131,32 @@ def test_stream_reader_loc():
     assert (3, 1) == sreader.loc
 
 
-def test_reader_lines(tmp_path):
-    filename = tmp_path / "test.lpy"
+class TestReaderLines:
+    def test_reader_lines_from_str(self, tmp_path):
+        _, _, l = list(reader.read_str("1\n2\n(/ 5 0)"))
 
-    with open(filename, mode="w", encoding="utf-8") as f:
-        f.write("1\n2\n(/ 5 0)")
+        assert (3, 3, 0, 7) == (
+            l.meta.get(reader.READER_LINE_KW),
+            l.meta.get(reader.READER_END_LINE_KW),
+            l.meta.get(reader.READER_COL_KW),
+            l.meta.get(reader.READER_END_COL_KW),
+        )
 
-    with open(filename, mode="r", encoding="utf-8") as f:
-        _, _, l = list(reader.read(f))
+    def test_reader_lines_from_file(self, tmp_path):
+        filename = tmp_path / "test.lpy"
 
-    #  _, _, l = list(reader.read_str("1\n2\n(/ 5 0)"))
-    l.meta
+        with open(filename, mode="w", encoding="utf-8") as f:
+            f.write("1\n2\n(/ 5 0)")
+
+        with open(filename, mode="r", encoding="utf-8") as f:
+            _, _, l = list(reader.read(f))
+
+        assert (3, 3, 0, 7) == (
+            l.meta.get(reader.READER_LINE_KW),
+            l.meta.get(reader.READER_END_LINE_KW),
+            l.meta.get(reader.READER_COL_KW),
+            l.meta.get(reader.READER_END_COL_KW),
+        )
 
 
 class TestSyntaxErrorFormat:
@@ -189,6 +204,7 @@ class TestSyntaxErrorFormat:
             with pytest.raises(reader.SyntaxError) as e:
                 list(reader.read_file(source_file))
 
+            v = format_exception(e.value)
             assert re.match(
                 (
                     rf"{os.linesep}"
@@ -202,7 +218,7 @@ class TestSyntaxErrorFormat:
                     rf" 3   \| \(let \[a :b\]{os.linesep}"
                     rf" 4 > \|   a{os.linesep}"
                 ),
-                "".join(format_exception(e.value)),
+                "".join(v),
             )
 
 
