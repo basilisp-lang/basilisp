@@ -239,19 +239,23 @@ class StreamReader:
 
     @property
     def col(self) -> int:
+        """Return the column of the character returned by `peek`."""
         return self._col[self._idx]
 
     @property
     def line(self) -> int:
+        """Return the line of the character returned by `peek`."""
         return self._line[self._idx]
 
     @property
     def loc(self) -> Tuple[int, int]:
+        """Return the location of the character returned by `peek` as a tuple of
+        (line, col)."""
         return self.line, self.col
 
     def _update_loc(self):
-        """Update the internal line and column buffers after a new character
-        is added."""
+        """Update the internal line and column buffers after a new character is
+        added."""
         if newline_chars.match(self._buffer[-1]):
             self._col.append(0)
             self._line.append(self._line[-1] + 1)
@@ -286,8 +290,8 @@ class StreamReader:
             self._idx += 1
         else:
             c = self._stream.read(1)
-            self._update_loc()
             self._buffer.append(c)
+            self._update_loc()
         return self.peek()
 
 

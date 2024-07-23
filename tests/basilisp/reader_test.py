@@ -88,6 +88,7 @@ def test_stream_reader():
 def test_stream_reader_loc():
     s = str("i=1\n" "b=2\n" "i")
     sreader = reader.StreamReader(io.StringIO(s))
+    assert (1, 0) == sreader.loc
 
     assert "i" == sreader.peek()
     assert (1, 0) == sreader.loc
@@ -109,7 +110,7 @@ def test_stream_reader_loc():
     assert (1, 2) == sreader.loc
 
     assert "\n" == sreader.next_char()
-    assert (1, 3) == sreader.loc
+    assert (2, 0) == sreader.loc
 
     assert "b" == sreader.next_char()
     assert (2, 0) == sreader.loc
@@ -121,13 +122,26 @@ def test_stream_reader_loc():
     assert (2, 2) == sreader.loc
 
     assert "\n" == sreader.next_char()
-    assert (2, 3) == sreader.loc
+    assert (3, 0) == sreader.loc
 
     assert "i" == sreader.next_char()
     assert (3, 0) == sreader.loc
 
     assert "" == sreader.next_char()
     assert (3, 1) == sreader.loc
+
+
+def test_reader_lines(tmp_path):
+    filename = tmp_path / "test.lpy"
+
+    with open(filename, mode="w", encoding="utf-8") as f:
+        f.write("1\n2\n(/ 5 0)")
+
+    with open(filename, mode="r", encoding="utf-8") as f:
+        _, _, l = list(reader.read(f))
+
+    #  _, _, l = list(reader.read_str("1\n2\n(/ 5 0)"))
+    l.meta
 
 
 class TestSyntaxErrorFormat:
