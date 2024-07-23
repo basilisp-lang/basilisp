@@ -37,7 +37,7 @@ from tests.basilisp.helpers import CompileFn, get_or_create_ns
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_module():
-    """Disable the `print_generated_python` flag so we can safely capture
+    """Disable the `print_generated_python` flag, so we can safely capture
     stderr and stdout for tests which require those facilities."""
     orig = runtime.print_generated_python
     runtime.print_generated_python = Mock(return_value=False)
@@ -83,7 +83,11 @@ def assert_matching_logs(
 
         __tracebackhide__ = True
         for t in caplog.record_tuples:
-            if t[0] == logger_name and t[1] == log_level and pattern.match(t[2]):
+            if (
+                t[0] == logger_name
+                and t[1] == log_level
+                and pattern.match(t[2]) is not None
+            ):
                 return
 
         pytest.fail(
@@ -112,7 +116,7 @@ def assert_no_matching_logs(
         for t in caplog.record_tuples:
             if t[0] != logger_name or t[1] != log_level:
                 continue
-            if pattern.match(t[2]):
+            if pattern.match(t[2]) is not None:
                 pytest.fail(
                     "\n".join(
                         (
@@ -222,13 +226,13 @@ class TestExceptionFormat:
                     rf"  exception: <class 'basilisp.lang.compiler.exception.CompilerException'> from <class 'basilisp.lang.compiler.exception.CompilerException'>{os.linesep}"
                     rf"      phase: :macroexpansion{os.linesep}"
                     rf"    message: error occurred during macroexpansion: unable to resolve symbol 'b' in this context{os.linesep}"
-                    rf"       form: \(let \[a :b\] b\){os.linesep}"
+                    rf"       form: \(let \[a :b] b\){os.linesep}"
                     rf"   location: (?:\w:)?[^:]*:3-5{os.linesep}"
                     rf"    context:{os.linesep}"
                     rf"{os.linesep}"
                     rf" 1   \| \(ns compiler-test\){os.linesep}"
                     rf" 2   \| {os.linesep}"
-                    rf" 3 > \| \(let \[a :b\]{os.linesep}"
+                    rf" 3 > \| \(let \[a :b]{os.linesep}"
                     rf" 4 > \|   b\){os.linesep}"
                 ),
                 "".join(format_exception(e.value)),
@@ -3635,7 +3639,7 @@ class TestLetUnusedNames:
         assert_no_matching_logs(
             "basilisp.lang.compiler.analyzer",
             logging.WARNING,
-            f"symbol 'v' defined but not used \({ns}: \d+\)",
+            rf"symbol 'v' defined but not used \({ns}: \d+\)",
         )
 
 
@@ -5589,7 +5593,7 @@ class TestTryCatch:
             )
 
 
-def test_unquote(lcompile: runtime.Namespace):
+def test_unquote(lcompile: CompileFn):
     with pytest.raises(compiler.CompilerException):
         lcompile("~s")
 
@@ -5760,7 +5764,7 @@ class TestSymbolResolution:
     ):
         # This behavior is peculiar and perhaps even _wrong_, but it matches how
         # Clojure treats Vars defined in functions. Of course, generally speaking,
-        # Vars should not be defined like this so I suppose it's not a huge deal.
+        # Vars should not be defined like this, so I suppose it's not a huge deal.
         fn = lcompile(code)
 
         resolved_var = ns.find(sym.symbol("a"))
@@ -6164,7 +6168,7 @@ class TestWarnOnArityMismatch:
         assert_matching_logs(
             "basilisp.lang.compiler.analyzer",
             logging.WARNING,
-            f"calling function {var} \({compiler_file_path}:\d+\) with 0 arguments; expected any of: 1+",
+            rf"calling function {var} \({compiler_file_path}:\d+\) with 0 arguments; expected any of: 1+",
         )
 
     def test_no_runtime_warning_on_arity_mismatch_variadic_with_partial(
@@ -6239,7 +6243,7 @@ class TestWarnOnVarIndirection:
         assert_matching_logs(
             "basilisp.lang.compiler.generator",
             logging.WARNING,
-            f"could not resolve a direct link to Var 'm' \({ns}:\d+\)",
+            rf"could not resolve a direct link to Var 'm' \({ns}:\d+\)",
         )
 
     def test_no_warning_for_cross_ns_reference_if_warning_disabled(
@@ -6255,7 +6259,7 @@ class TestWarnOnVarIndirection:
         assert_no_matching_logs(
             "basilisp.lang.compiler.generator",
             logging.WARNING,
-            f"could not resolve a direct link to Var 'm' \({ns}:\d+\)",
+            rf"could not resolve a direct link to Var 'm' \({ns}:\d+\)",
         )
 
     def test_warning_for_cross_ns_alias_reference(
@@ -6275,7 +6279,7 @@ class TestWarnOnVarIndirection:
         assert_no_matching_logs(
             "basilisp.lang.compiler.generator",
             logging.WARNING,
-            "could not resolve a direct link to Var 'm' \(test:\d+\)",
+            r"could not resolve a direct link to Var 'm' \(test:\d+\)",
         )
 
     def test_warning_on_imported_name(
