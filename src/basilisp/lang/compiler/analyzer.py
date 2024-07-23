@@ -66,10 +66,12 @@ from basilisp.lang.compiler.constants import (
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
     SYM_NO_INLINE_META_KEY,
+    SYM_NO_WARN_ON_REDEF_META_KEY,
     SYM_NO_WARN_ON_SHADOW_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
     SYM_PRIVATE_META_KEY,
     SYM_PROPERTY_META_KEY,
+    SYM_REDEF_META_KEY,
     SYM_STATICMETHOD_META_KEY,
     SYM_TAG_META_KEY,
     VAR_IS_PROTOCOL_META_KEY,
@@ -899,6 +901,27 @@ def _await_ast(form: ISeq, ctx: AnalyzerContext) -> Await:
     )
 
 
+def __should_warn_on_redef(
+    current_ns: runtime.Namespace,
+    defsym: sym.Symbol,
+    def_meta: Optional[lmap.PersistentMap],
+) -> bool:
+    """Return True if the compiler should emit a warning about this name being redefined."""
+    if def_meta is not None and def_meta.val_at(SYM_NO_WARN_ON_REDEF_META_KEY, False):
+        return False
+
+    if defsym not in current_ns.interns:
+        return False
+
+    var = current_ns.find(defsym)
+    assert var is not None, f"Var {defsym} cannot be none here"
+
+    if var.meta is not None and var.meta.val_at(SYM_REDEF_META_KEY):
+        return False
+    else:
+        return bool(var.is_bound)
+
+
 def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     form: ISeq, ctx: AnalyzerContext
 ) -> Def:
@@ -995,6 +1018,13 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     # Generation fails later if we use the same symbol we received, since
     # its meta may contain values which fail to compile.
     bare_name = sym.symbol(name.name)
+
+    # Warn if this symbol is potentially being redefined (if the Var was
+    # previously bound)
+    if __should_warn_on_redef(current_ns, bare_name, def_meta):
+        logger.warning(
+            f"redefining Var '{bare_name}' in namespace {current_ns}:{def_loc[0]}"
+        )
 
     ns_sym = sym.symbol(current_ns.name)
     var = Var.intern_unbound(

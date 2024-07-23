@@ -48,7 +48,6 @@ from basilisp.lang.compiler.constants import (
     INTERFACE_KW,
     REST_KW,
     SYM_DYNAMIC_META_KEY,
-    SYM_NO_WARN_ON_REDEF_META_KEY,
     SYM_REDEF_META_KEY,
     VAR_IS_PROTOCOL_META_KEY,
 )
@@ -827,30 +826,6 @@ def _await_to_py_ast(ctx: GeneratorContext, node: Await) -> GeneratedPyAST[ast.e
     )
 
 
-def __should_warn_on_redef(
-    ctx: GeneratorContext,
-    defsym: sym.Symbol,
-    safe_name: str,
-    def_meta: lmap.PersistentMap,
-) -> bool:
-    """Return True if the compiler should emit a warning about this name being redefined."""
-    no_warn_on_redef = def_meta.val_at(SYM_NO_WARN_ON_REDEF_META_KEY, False)
-    if no_warn_on_redef:
-        return False
-
-    current_ns = ctx.current_ns
-    if defsym in current_ns.interns:
-        var = current_ns.find(defsym)
-        assert var is not None, f"Var {defsym} cannot be none here"
-
-        if var.meta is not None and var.meta.val_at(SYM_REDEF_META_KEY):
-            return False
-        else:
-            return bool(var.is_bound)
-    else:
-        return safe_name in current_ns.module.__dict__
-
-
 @_with_ast_loc
 def _def_to_py_ast(  # pylint: disable=too-many-locals
     ctx: GeneratorContext, node: Def
@@ -877,14 +852,6 @@ def _def_to_py_ast(  # pylint: disable=too-many-locals
         if is_dynamic
         else []
     )
-
-    # Warn if this symbol is potentially being redefined (if the Var was
-    # previously bound)
-    if node.var.is_bound and __should_warn_on_redef(ctx, defsym, safe_name, def_meta):
-        logger.warning(
-            f"redefining local Python name '{safe_name}' in module "
-            f"'{ctx.current_ns.module.__name__}' ({node.env.ns}:{node.env.line})"
-        )
 
     if node.init is not None:
         # Since Python function definitions always take the form `def name(...):`,
