@@ -59,7 +59,7 @@ def test_stream_reader():
     assert "1" == sreader.peek()
     assert (1, 1) == sreader.loc
 
-    assert "2" == sreader.next_token()
+    assert "2" == sreader.next_char()
     assert (1, 2) == sreader.loc
 
     assert "2" == sreader.peek()
@@ -69,19 +69,19 @@ def test_stream_reader():
     assert "1" == sreader.peek()
     assert (1, 1) == sreader.loc
 
-    assert "2" == sreader.next_token()
+    assert "2" == sreader.next_char()
     assert (1, 2) == sreader.loc
 
-    assert "3" == sreader.next_token()
+    assert "3" == sreader.next_char()
     assert (1, 3) == sreader.loc
 
-    assert "4" == sreader.next_token()
+    assert "4" == sreader.next_char()
     assert (1, 4) == sreader.loc
 
-    assert "5" == sreader.next_token()
+    assert "5" == sreader.next_char()
     assert (1, 5) == sreader.loc
 
-    assert "" == sreader.next_token()
+    assert "" == sreader.next_char()
     assert (1, 6) == sreader.loc
 
 
@@ -92,7 +92,7 @@ def test_stream_reader_loc():
     assert "i" == sreader.peek()
     assert (1, 1) == sreader.loc
 
-    assert "=" == sreader.next_token()
+    assert "=" == sreader.next_char()
     assert (1, 2) == sreader.loc
 
     assert "=" == sreader.peek()
@@ -102,31 +102,31 @@ def test_stream_reader_loc():
     assert "i" == sreader.peek()
     assert (1, 1) == sreader.loc
 
-    assert "=" == sreader.next_token()
+    assert "=" == sreader.next_char()
     assert (1, 2) == sreader.loc
 
-    assert "1" == sreader.next_token()
+    assert "1" == sreader.next_char()
     assert (1, 3) == sreader.loc
 
-    assert "\n" == sreader.next_token()
+    assert "\n" == sreader.next_char()
     assert (2, 0) == sreader.loc
 
-    assert "b" == sreader.next_token()
+    assert "b" == sreader.next_char()
     assert (2, 1) == sreader.loc
 
-    assert "=" == sreader.next_token()
+    assert "=" == sreader.next_char()
     assert (2, 2) == sreader.loc
 
-    assert "2" == sreader.next_token()
+    assert "2" == sreader.next_char()
     assert (2, 3) == sreader.loc
 
-    assert "\n" == sreader.next_token()
+    assert "\n" == sreader.next_char()
     assert (3, 0) == sreader.loc
 
-    assert "i" == sreader.next_token()
+    assert "i" == sreader.next_char()
     assert (3, 1) == sreader.loc
 
-    assert "" == sreader.next_token()
+    assert "" == sreader.next_char()
     assert (3, 2) == sreader.loc
 
 
@@ -149,7 +149,7 @@ class TestSyntaxErrorFormat:
         assert [
             f"{os.linesep}",
             f"  exception: <class 'ValueError'> from <class 'basilisp.lang.reader.SyntaxError'>{os.linesep}",
-            f"    message: Unexpected token '}}'; expected map value: not enough values to unpack (expected 2, got 1){os.linesep}",
+            f"    message: Unexpected char '}}'; expected map value: not enough values to unpack (expected 2, got 1){os.linesep}",
             f"       line: 1:10{os.linesep}",
         ] == format_exception(e.value)
 
