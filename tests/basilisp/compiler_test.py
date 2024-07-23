@@ -201,8 +201,13 @@ class TestExceptionFormat:
         def compiler_file_path(self, source_file: Path) -> str:
             return str(source_file)
 
+        @pytest.mark.parametrize("include_newline", [True, False])
         def test_shows_source_context(
-            self, monkeypatch, source_file: Path, lcompile: CompileFn
+            self,
+            monkeypatch,
+            source_file: Path,
+            lcompile: CompileFn,
+            include_newline: bool,
         ):
             source_file.write_text(
                 textwrap.dedent(
@@ -213,6 +218,7 @@ class TestExceptionFormat:
                       b)
                     """
                 ).lstrip()
+                + ("\n" if include_newline else "")
             )
             monkeypatch.setenv("BASILISP_NO_COLOR", "true")
             monkeypatch.syspath_prepend(source_file.parent)

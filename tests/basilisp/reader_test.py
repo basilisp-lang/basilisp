@@ -221,6 +221,42 @@ class TestSyntaxErrorFormat:
                 "".join(v),
             )
 
+        def test_shows_source_context_(self, monkeypatch, source_file: Path):
+            source_file.write_text(
+                textwrap.dedent(
+                    """
+                    (ns reader-test)
+
+                    (let [a :b]
+                      a
+                    """
+                ).strip()
+                + "\n"
+            )
+            monkeypatch.setenv("BASILISP_NO_COLOR", "true")
+            monkeypatch.syspath_prepend(source_file.parent)
+
+            with pytest.raises(reader.SyntaxError) as e:
+                list(reader.read_file(source_file))
+
+            v = format_exception(e.value)
+            assert re.match(
+                (
+                    rf"{os.linesep}"
+                    rf"  exception: <class 'basilisp\.lang\.reader\.UnexpectedEOFError'>{os.linesep}"
+                    rf"    message: Unexpected EOF in list{os.linesep}"
+                    rf"   location: (?:\w:)?[^:]*:5:0{os.linesep}"
+                    rf"    context:{os.linesep}"
+                    rf"{os.linesep}"
+                    rf" 1   \| \(ns reader-test\){os.linesep}"
+                    rf" 2   \| {os.linesep}"
+                    rf" 3   \| \(let \[a :b\]{os.linesep}"
+                    rf" 4   \|   a{os.linesep}"
+                    rf" 5 > \|"
+                ),
+                "".join(v),
+            )
+
 
 class TestComplex:
     @pytest.mark.parametrize(

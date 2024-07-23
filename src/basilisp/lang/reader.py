@@ -177,7 +177,7 @@ def format_syntax_error(  # pylint: disable=unused-argument
     else:
         lines.append(f"    message: {e.message}: {context_exc}{os.linesep}")
 
-    if e.line is not None and e.col:
+    if e.line is not None and e.col is not None:
         line_num = f"{e.line}:{e.col}"
     elif e.line is not None:
         line_num = str(e.line)
