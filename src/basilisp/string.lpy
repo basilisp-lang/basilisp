@@ -1,9 +1,9 @@
 (ns basilisp.string
   "String manipulation utilities.
 
-  The functions in this namespace generally are a thin wrapper around Python ``str``
-  methods and may thus generally be assumed to have the same return values as the
-  corresponding methods."
+  The functions in this namespace generally are a thin wrapper around Python
+  :external:py:class:`str` methods and may thus generally be assumed to have the same
+  return values as the corresponding methods."
   (:import
    re
    typing))
@@ -11,8 +11,8 @@
 (defn alpha?
   "Return ``true`` if ``s`` is strictly alphabetic and there is at least one character.
 
-  This function uses Python's underlying ``str.isalpha`` and, thus, it respects
-  unicode."
+  This function uses Python's underlying :external:py:meth:`str.isalpha` and, thus, it
+  respects unicode."
   [s]
   (.isalpha s))
 
@@ -20,7 +20,7 @@
   "Return ``true`` if ``s`` is strictly alphanumeric and there is at least one
   character.
 
-  This function uses Python's underlying ``str.isalnum`` and, thus, it respects
+  This function uses Python's underlying :external:py:meth:`str.isalnum` and, thus, it respects
   unicode."
   [s]
   (.isalnum s))
@@ -138,7 +138,7 @@
                 :type    (python/type pattern)})))))
 
 (defn split-lines
-  "Split ``s`` on universal newlines as by Python's ``str.splitlines``."
+  "Split ``s`` on universal newlines as by Python's :external:py:meth:`str.splitlines`."
   [s]
   (vec (.splitlines s)))
 
@@ -171,15 +171,15 @@
 
   ``match`` and ``replacement`` can be either:
 
-  - ``str`` and ``str``
-  - ``re.Pattern`` and (``str`` or a function)
+  - :external:py:class:`str` and :external:py:class:`str`
+  - :external:py:class:`re.Pattern` and (:external:py:class:`str` or a function)
 
   If ``match`` is a regex pattern and ``replacement`` is a function, that function will
   be called once for every non-overlapping occurrence of match. The function should
   accept one string argument and return a replacement string.
 
   If both ``match`` and ``replacement`` are strings, this function behaves as the
-  Python builtin ``str.replace``."
+  Python builtin :external:py:meth:`str.replace`."
   [s match replacement]
   (cond
     (and (instance? typing/Pattern match)
@@ -206,15 +206,15 @@
 
   ``match`` and ``replacement`` can be either:
 
-  - ``str`` and ``str``
-  - ``re.Pattern`` and (``str`` or a function)
+  - :external:py:class:`str` and :external:py:class:`str`
+  - :external:py:class:`re.Pattern` and (:external:py:class:`str` or a function)
 
   If ``match`` is a regex pattern and ``replacement`` is a function, that function will
   be called once for every non-overlapping occurrence of match. The function should
   accept one string argument and return a replacement string.
 
   If both ``match`` and ``replacement`` are strings, this function behaves as the
-  Python builtin ``str.replace`` with the ``count`` argument set to 1."
+  Python builtin :external:py:meth:`str.replace` with the ``count`` argument set to 1."
   [s match replacement]
   (cond
     (and (instance? typing/Pattern match)
