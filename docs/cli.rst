@@ -92,7 +92,7 @@ Run Basilisp as an Application
 
 Python applications don't have nearly as many constraints on their entrypoints as do Java applications.
 Nevertheless, developers may have a clear entrypoint in mind when designing their application code.
-In such cases, it may be desirable to take advantage of the computed Python ``sys.path`` to invoke your entrypoint.
+In such cases, it may be desirable to take advantage of the computed Python :external:py:data:`sys.path` to invoke your entrypoint.
 To do so, you can use the ``basilisp run -n`` flag to invoke an namespace directly:
 
 .. code-block:: bash

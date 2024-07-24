@@ -8,3 +8,5 @@ sphinxcontrib-devhelp>=1.0.6,<2.0.0
 sphinxcontrib-htmlhelp>=2.0.5,<3.0.0
 sphinxcontrib-qthelp>=1.0.7,<2.0.0
 sphinxcontrib-serializinghtml>=1.1.10,<2.0.0
+sphinx-copybutton>=0.5.2,<1.0.0
+sphinxext-opengraph>=0.9.1,<1.0.0

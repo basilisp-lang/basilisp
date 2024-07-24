@@ -1213,20 +1213,21 @@
   (instance? basilisp.lang.interfaces/IAssociative x))
 
 (defn ^:inline bytes?
-  "Return ``true`` if ``x`` is a byte array (the Python ``bytearray`` type).
+  "Return ``true`` if ``x`` is a byte array (the Python :external:py:class:`bytearray`
+  type).
 
   Note that Python supplies byte string and byte array objects in its standard library.
   This function complies with Clojure's standard library in returning true iff ``x`` is
-  a Python ``bytearray``\\. To check if an object is a Python ``bytes``\\, use
-  :lpy:fn:`byte-string?` ."
+  a Python ``bytearray``\\. To check if an object is a Python
+  :external:py:class:`bytes`\\, use :lpy:fn:`byte-string?` ."
   [x]
   (instance? python/bytearray x))
 
 (defn ^:inline byte-string?
-  "Return ``true`` if ``x`` is a byte string (the Python ``bytes`` type).
+  "Return ``true`` if ``x`` is a byte string (the Python :external:py:class:`bytes` type).
 
   Note that Python supplies byte string and byte array objects in its standard library.
-  To check if an object is a Python ``bytearray``, use ``bytes?``\\."
+  To check if an object is a Python :external:py:class:`bytearray`, use ``bytes?``\\."
   [x]
   (instance? python/bytes x))
 
@@ -1257,7 +1258,7 @@
   (instance? basilisp.lang.interfaces/ICounted x))
 
 (defn ^:no-inline decimal?
-  "Return ``true`` if ``x`` is a ``Decimal``\\."
+  "Return ``true`` if ``x`` is a :external:py:class:`decimal.Decimal`\\."
   [x]
   (instance? decimal/Decimal x))
 
@@ -1278,7 +1279,7 @@
   [x]
   (operator/is- x false))
 
-(def ^{:doc "Return ``true`` if ``o`` is a float.
+(def ^{:doc "Return ``true`` if ``o`` is a :external:py:class:`float`\\.
 
              Same as :lpy:fn:`float?`. Python does not distinguish between single and
              double precision floating point numbers, so all floating points are called
@@ -1316,7 +1317,7 @@
   [x]
   (math/isinf x))
 
-(def ^{:doc "Return ``true`` if ``x`` is an integer.
+(def ^{:doc "Return ``true`` if ``x`` is an :external:py:class`int`\\.
 
              Note that unlike Clojure, Basilisp uses Python integers and there is no
              distinction between standard and fixed-precision integers."}
@@ -1379,27 +1380,27 @@
   (and (integer? x) (pos? x)))
 
 (defn ^:inline py-dict?
-  "Return ``true`` if ``x`` is a Python ``dict``\\."
+  "Return ``true`` if ``x`` is a Python :external:py:class:`dict`\\."
   [x]
   (instance? python/dict x))
 
 (defn ^:inline py-frozenset?
-  "Return ``true`` if ``x`` is a Python ``frozenset``\\."
+  "Return ``true`` if ``x`` is a Python :external:py:class:`frozenset`\\."
   [x]
   (instance? python/frozenset x))
 
 (defn ^:inline py-list?
-  "Return ``true`` if ``x`` is a Python ``list``\\."
+  "Return ``true`` if ``x`` is a Python :external:py:class:`list`\\."
   [x]
   (instance? python/list x))
 
 (defn ^:inline py-set?
-  "Return ``true`` if ``x`` is a Python ``set``\\."
+  "Return ``true`` if ``x`` is a Python :external:py:class:`set`\\."
   [x]
   (instance? python/set x))
 
 (defn ^:inline py-tuple?
-  "Return ``true`` if ``x`` is a Python ``tuple``\\."
+  "Return ``true`` if ``x`` is a Python :external:py:class:`tuple`\\."
   [x]
   (instance? python/tuple x))
 
@@ -1424,7 +1425,7 @@
   (instance? basilisp.lang.queue/PersistentQueue x))
 
 (defn ^:no-inline ratio?
-  "Return ``true`` if ``x`` is a ``Fraction``\\."
+  "Return ``true`` if ``x`` is a :external:py:class:`fractions.Fraction`\\."
   [x]
   (instance? fractions/Fraction x))
 
@@ -1474,12 +1475,12 @@
   (operator/is- x true))
 
 (defn ^:no-inline uuid?
-  "Return ``true`` if ``x`` is a UUID."
+  "Return ``true`` if ``x`` is a :external:py:class:`uuid.UUID`."
   [x]
   (instance? uuid/UUID x))
 
 (defn uuid-like?
-  "Return ``true`` if ``x`` is coercible to a UUID.
+  "Return ``true`` if ``x`` is coercible to a :external:py:class:`uuid.UUID`.
 
   Python's UUID constructor supports byte sequences in big- and little-endian byte
   orders. This function checks only for big-endian bytes."
@@ -1553,7 +1554,7 @@
 ;;;;;;;;;;;;;;;;;;;
 
 (defn bigdec
-  "Coerce ``x`` to a Python ``decimal.Decimal``\\."
+  "Coerce ``x`` to a Python :external:py:class:`decimal.Decimal`\\."
   [x]
   (decimal/Decimal x))
 
@@ -1561,7 +1562,8 @@
   "Coerce ``x`` to an integer.
 
   Python's builtin ``int`` type is arbitrary precision, so there is no difference
-  between ``bigint``\\, ``biginteger``\\, and Python's builtin ``int``\\."
+  between ``bigint``\\, ``biginteger``\\, and Python's builtin
+  :external:py:class:`int`\\."
   [x]
   (python/int x))
 
@@ -1569,7 +1571,8 @@
   "Coerce ``x`` to an integer.
 
   Python's builtin ``int`` type is arbitrary precision, so there is no difference
-  between ``bigint``\\, ``biginteger``\\, and Python's builtin ``int``\\."
+  between ``bigint``\\, ``biginteger``\\, and Python's builtin
+  :external:py:class:`int`\\."
   [x]
   (python/int x))
 
@@ -1588,7 +1591,7 @@
        (python/ValueError (str "cannot coerce " (python/repr x) " to byte"))))))
 
 (defn byte-string
-  "Coerce ``x`` to a byte string (Python ``bytes`` object).
+  "Coerce ``x`` to a byte string (Python :external:py:class:`bytes` object).
 
   Arguments shall be interpreted exactly as with that object's constructor."
   ([x]
@@ -1601,8 +1604,8 @@
 (defn char
   "Coerce ``x`` to a string of length 1.
 
-  Natural integers are treated as ordinals and passed to Python's ``chr``. Strings of
-  length 1 are returned as such. Other types will result in a ``ValueError``\\."
+  Natural integers are treated as ordinals and passed to Python's :external:py:func:`chr`.
+  Strings of length 1 are returned as such. Other types will result in a ``ValueError``\\."
   [x]
   (cond
     (instance? python/int x) (python/chr x)
@@ -1614,36 +1617,38 @@
 (defn ^:inline double
   "Coerce ``x`` to a float.
 
-  Python does not differentiate between ``float`` and ``double``. Python ``float`` s are
-  double precision."
+  Python does not differentiate between ``float`` and ``double``. Python
+  :external:py:class:`float`\\s are double precision."
   [x]
   (python/float x))
 
 (defn ^:inline float
-  "Coerce ``x`` to a float.
+  "Coerce ``x`` to a :external:py:class:`float`\\.
 
   If ``x`` is string, it is parsed as a floating point number."
   [x]
   (python/float x))
 
 (defn ^:inline int
-  "Coerce ``x`` to an integer.
+  "Coerce ``x`` to an :external:py:class:`int`\\.
 
   If ``x`` is string, it is parsed as a base 10 number."
   [x]
   (python/int x))
 
 (defn ^:inline long
-  "Coerce ``x`` to an integer.
+  "Coerce ``x`` to an :external:py:class:`int`\\.
 
-  Python does not support `long` types, so the value is coerced to an integer."
+  Python does not support `long` types, so the value is coerced to an integer as by
+  :lpy:fn:`int`\\."
   [x]
   (python/int x))
 
 (defn ^:inline short
-  "Coerce ``x`` to an integer.
+  "Coerce ``x`` to an :external:py:class:`int`\\.
 
-  Python does not support `short` types, so the value is coerced to an integer."
+  Python does not support `short` types, so the value is coerced to an integer as by
+  :lpy:fn:`int`\\."
   [x]
   (python/int x))
 
@@ -1672,7 +1677,7 @@
 
 (defcopy unchecked-add
   "Same as :lpy:fn:`+`. Python integers are unlimited precision, so unchecked
-  arithmetic is onlyprovided for compatibility with platforms without unlimited
+  arithmetic is only provided for compatibility with platforms without unlimited
   precision integers."
   +)
 (defcopy unchecked-add-int
@@ -3255,7 +3260,8 @@
           (rest args)))
 
 (defn sort-by
-  "Return a sorted sequence of the elements from ``coll`` using the ``cmp`` comparator on (``keyfn`` item)\\.
+  "Return a sorted sequence of the elements from ``coll`` using the ``cmp`` comparator
+  on (``keyfn`` item)\\.
 
   The :lpy:fn:`compare` fn is used in if ``cmp`` is not provided."
   ([keyfn coll]
@@ -4100,8 +4106,8 @@
 ;;;;;;;;;;;;;;;;;;;;
 
 (defn file-seq
-  "Return a seq of ``pathlib.Path`` objects for all files and subdirectories of
-  ``dir``\\."
+  "Return a seq of :external:py:class:`pathlib.Path` objects for all files and
+  subdirectories of ``dir``\\."
   [dir]
   (-> (pathlib/Path dir)
       (.resolve)
@@ -4116,33 +4122,33 @@
   "The current value of *standard in* used by Basilisp.
 
   Note that binding a new value to this Var will not affect *Python* code (which
-  generally respects ``sys.stdin``), though all Basilisp code should respect the
-  value."
+  generally respects :external:py:data:`sys.stdin`\\), though all Basilisp code should
+  respect the value."
   sys/stdin)
 
 (def ^:dynamic *out*
   "The current value of *standard out* used by Basilisp.
 
   Note that binding a new value to this Var will not affect *Python* code (which
-  generally respects ``sys.stdout``), though all Basilisp code should respect the
-  value."
+  generally respects :external:py:data:`sys.stdout`\\), though all Basilisp code should
+  respect the value."
   sys/stdout)
 
 (def ^:dynamic *err*
   "The current value of *standard error* used by Basilisp.
 
   Note that binding a new value to this Var will not affect *Python* code (which
-  generally respects ``sys.stderr``), though all Basilisp code should respect the
-  value."
+  generally respects :external:py:data:`sys.stderr`\\), though all Basilisp code should
+  respect the value."
   sys/stderr)
 
 (def ^:dynamic *print-sep* " ")
 
 (def ^:dynamic *flush-on-newline*
-  "Indicates whether the `:lpy:fn:prn` and `:lpy:fn:println` functions
-  should flush the output stream after the last newline is written.
+  "Indicates whether the :lpy:fn:`prn` and :lpy:fn:`println` functions should flush the
+  output stream after the last newline is written.
 
-  Defaults to true."
+  Defaults to ``true``\\."
   true)
 
 (defn ^:inline repr
@@ -4162,8 +4168,8 @@
   nil)
 
 (defmacro with-in-str
-  "Evaluate body with :lpy:var:`*in*` bound to a ``io.StringIO`` instance containing
-  the string ``s``\\."
+  "Evaluate body with :lpy:var:`*in*` bound to a :external:py:class:`io.StringIO`
+  instance containing the string ``s``\\."
   [s & body]
   `(binding [*in* (io/StringIO ~s)]
      ~@body))
@@ -4361,9 +4367,10 @@
   Callers may bind a map of readers to :lpy:var:`*data-readers*` to customize the data
   readers used reading this string.
 
-  The stream must satisfy the interface of ``io.TextIOBase``\\, but does not require any
-  pushback capabilities. The default ``basilisp.lang.reader.StreamReader`` can wrap any
-  object implementing ``TextIOBase`` and provide pushback capabilities."
+  The stream must satisfy the interface of :external:py:class:`io.TextIOBase`\\, but
+  does not require any pushback capabilities. The default
+  ``basilisp.lang.reader.StreamReader`` can wrap any object implementing ``TextIOBase``
+  and provide pushback capabilities."
   ([]
    (read *in*))
   ([stream]
@@ -4401,7 +4408,8 @@
                                                    namespace))))
 
 (defn load-reader
-  "Read and evaluate the set of forms in the ``io.TextIOBase`` instance ``reader``.
+  "Read and evaluate the set of forms in the :external:py:class:`io.TextIOBase` instance
+  ``reader``.
 
   Most often this is useful if you want to split your namespace across multiple source
   files. :lpy:fn:`require` will try to force you into a namespace-per-file paradigm
@@ -4441,7 +4449,7 @@
   "Resolve load ``path`` relative to the current namespace, or, if it
   begins with \"/\", relative to the syspath, and return it.
 
-  Throw a ``python/FileNotFoundError`` if the ``path`` cannot be resolved."
+  Throw a :external:py:exc:`FileNotFoundError` if the ``path`` cannot be resolved."
   [path]
   (let [path-rel (if (.startswith path "/")
                    path
@@ -5081,12 +5089,12 @@
 ;;;;;;;;;;;;;;;;;;;;;
 
 (defn re-pattern
-  "Return a new ``re.Pattern`` instance."
+  "Return a new :external:py:class:`re.Pattern` instance."
   [s]
   (re/compile s))
 
 (defn re-find
-  "Returns the first match of a string to a pattern using ``re.search``\\.
+  "Returns the first match of a string to a pattern using :external:py:func:`re.search`\\.
 
   If the string matches the pattern exactly and there are no match groups, return the
   string. Otherwise, return a vector with the string in the first position and the
@@ -5100,7 +5108,7 @@
           (vec (cons (.group match 0) groups)))))))
 
 (defn re-matches
-  "Returns a match of a string to a pattern using ``re.fullmatch``\\.
+  "Returns a match of a string to a pattern using :external:py:func:`re.fullmatch`\\.
 
   If the string matches the pattern exactly and there are no match groups, return the
   string. Otherwise, return a vector with the string in the first position and the
@@ -5123,7 +5131,8 @@
                      (lazy-re-seq (rest iter))))))))
 
 (defn re-seq
-  "Returns a lazy sequence of matches of a string to a pattern using ``re.finditer``\\.
+  "Returns a lazy sequence of matches of a string to a pattern using
+  :external:py:func:`re.finditer`\\.
 
   If the string matches the pattern exactly and there are no match groups, return the
   string. Otherwise, return a vector with the string in the first position and the
@@ -5900,13 +5909,10 @@
 
 (defn parse-double
   "Parse the string argument ``s`` as a floating point number as by Python's
-  builtin |float|_ function, returning the float if the string contains one,
-  or ``nil`` otherwise.
+  builtin :external:py:class:`float` function, returning the float if the string
+  contains one, or ``nil`` otherwise.
 
-  This function will throw a ``TypeError`` for non-string types.
-
-  .. |float| replace:: ``float``
-  .. _float: https://docs.python.org/3/library/functions.html#float"
+  This function will throw a ``TypeError`` for non-string types."
   [s]
   (if (string? s)
     (try
@@ -5916,13 +5922,10 @@
 
 (defn parse-long
   "Parse the string argument ``s`` as an integer (base 10) as by Python's builtin
-  |int|_ function, returning the integer if the string contains one, or ``nil``
-  otherwise.
+  :external:py:class:`int` function, returning the integer if the string contains one,
+  or ``nil`` otherwise.
 
-  This function will throw a ``TypeError`` for non-string types.
-
-  .. |int| replace:: ``int``
-  .. _int: https://docs.python.org/3/library/functions.html#int"
+  This function will throw a ``TypeError`` for non-string types."
   [s]
   (if (string? s)
     (try
@@ -5931,8 +5934,8 @@
     (throw (parsing-error s))))
 
 (defn parse-boolean
-  "Parse the string argument ``s`` as either boolean ``true`` or ``false``
-  returning the boolean if the string contains one, or ``nil`` otherwise.
+  "Parse the string argument ``s`` as either boolean ``true`` or ``false`` returning the
+  boolean if the string contains one, or ``nil`` otherwise.
 
   This function will throw a ``TypeError`` for non-string types."
   [s]
@@ -5941,13 +5944,10 @@
     (throw (parsing-error s))))
 
 (defn parse-uuid
-  "Parse the string argument ``s`` as a UUID as by Python's |uuid.UUID|_\\,
-  returning the UUID if the string contains one, or ``nil`` otherwise.
+  "Parse the string argument ``s`` as a :external:py:class:`uuid.UUID`, returning the
+  UUID if the string contains one, or ``nil`` otherwise.
 
-  This function will throw a ``TypeError`` for non-string types.
-
-  .. |uuid.UUID| replace:: ``uuid.UUID``
-  .. _uuid.UUID: https://docs.python.org/3/library/uuid.html"
+  This function will throw a ``TypeError`` for non-string types."
   [s]
   (if (string? s)
     (try
@@ -5960,8 +5960,10 @@
 ;;;;;;;;;;;;;;;;
 
 (defmulti munge
-  "Munge the input value into a Python-safe string. Converts keywords and
-  symbols into strings as by `name` prior to munging. Returns a string."
+  "Munge the input value into a Python-safe string. Converts keywords and symbols into
+  strings as by :lpy:fn:`name` prior to munging.
+
+  Returns a string."
   python/type)
 
 (defmethod munge basilisp.lang.keyword/Keyword
@@ -6081,9 +6083,9 @@
   implementation of an interface (perhaps via :lpy:fn:`deftype`) and supply
   implementations for all of the abstract methods.
 
-  The generated interface derives from Python's ``abc.ABC`` and all method definitions
-  are declared as ``abc.abstractmethod`` s and thus must be implemented by a concrete
-  type.
+  The generated interface derives from Python's :external:py:class:`abc.ABC` and all
+  method definitions are declared as :external:py:func:`abc.abstractmethod` s and thus
+  must be implemented by a concrete type.
 
   Interfaces created by ``definterface`` cannot be declared as properties, class
   methods, or static methods, as with :lpy:fn:`deftype`."
@@ -6159,8 +6161,8 @@
   macros).
 
   Despite their differences from interfaces, Protocols do also generate a standard
-  Python interface type (deriving from ``abc.ABC``) which is used for efficient dispatch
-  for implementing types.
+  Python interface type (deriving from :external:py:class:`abc.ABC`) which is used for
+  efficient dispatch for implementing types.
 
   Method signatures are in the form::
 

@@ -1,7 +1,7 @@
 ;; adapted from
 ;; https://github.com/babashka/nbb/blob/bca8b5017a06768eb35d02a2d6233ca9c6c2f692/src/nbb/impl/nrepl_server.cljs
 (ns basilisp.contrib.nrepl-server
-  "A port of `nbb <https://github.com/babashka/nbb>`_'s nREPL server implementation to basilisp."
+  "A port of `nbb <https://github.com/babashka/nbb>`_ 's nREPL server implementation to Basilisp."
   (:require [basilisp.contrib.bencode :as bc]
             [basilisp.string :as str])
   (:import logging
@@ -104,20 +104,19 @@
                       "ns" ns})))
 
 (defn- do-handle-eval
-  "Evaluate the ``request`` ``code`` of ``file`` in the ``ns`` namespace
-  according to the current state of the ``client*`` and sends its
-  result with ``send-fn``.
+  "Evaluate the ``request`` ``code`` of ``file`` in the ``ns`` namespace according
+  to the current state of the ``client*`` and sends its result with ``send-fn``.
 
-  The result sent is either the last evaluated value or exception,
-  followed by the \"done\" status.
+  The result sent is either the last evaluated value or exception, followed by
+  the \"done\" status.
 
-  If ``ns`` is not provided, then it uses the ``client``'s :eval-ns as
-  the evaluation namespace. The latter is updated with the current
-  namespace after evaluation is completed.
+  If ``ns`` is not provided, then it uses the ``client``'s ``:eval-ns`` as the
+  evaluation namespace. The latter is updated with the current namespace after
+  evaluation is completed.
 
-  It binds the `*1`, `*2`, `*3` and `*e` variables for evaluation from
-  the corresponding ones found in ``client*``, and updates the latter
-  according to the result."
+  It binds the ``*1``, ``*2``, ``*3`` and ``*e`` variables for evaluation from
+  the corresponding ones found in ``client*``, and updates the latter according
+  to the result."
   [{:keys [client* code ns file _column _line] :as request} send-fn]
   (let [{:keys [*1 *2 *3 *e eval-ns]} @client*
         out-stream                    (StreamOutFn #(send-fn request {"out" %}))
@@ -163,22 +162,17 @@
   (throw (python/NotImplementedError)))
 
 (defn- symbol-identify
-  "Return a vector of information about ``symbol-str`` as might be
-  resolved in ``resolve-ns``.
+  "Return a vector of information about ``symbol-str`` as might be resolved
+  in ``resolve-ns``.
 
-  The returned vector can be one of
+  The returned vector can be one of:
 
-  [:keyword KEYWORD] the ``symbol-str`` is this KEYWORD.
-
-  [:nil FORM] the ``symbol-str`` is this nil FORM.
-
-  [:special-form FORM] the ``symbol-str`` this special FORM.
-
-  [:var VAR] the ``symbol-str`` is this VAR.
-
-  [:error ERROR] there was this ERROR when trying to parse ``symbol-str``.
-
-  [:other FORM] the ``symbol-str`` is of yet to be categorized FORM."
+  - ``[:keyword KEYWORD]`` the ``symbol-str`` is this ``KEYWORD``
+  - ``[:nil FORM]`` the ``symbol-str`` is this nil ``FORM``
+  - ``[:special-form FORM]`` the ``symbol-str`` this special ``FORM``
+  - ``[:var VAR]`` the ``symbol-str`` is this ``VAR``
+  - ``[:error ERROR]`` there was this ``ERROR`` when trying to parse ``symbol-str``
+  - ``[:other FORM]`` the ``symbol-str`` is of yet to be categorized ``FORM``."
   [resolve-ns symbol-str]
   (let [reader               (io/StringIO symbol-str)
         {:keys [form error]} (try {:form (binding [*ns* resolve-ns]
@@ -219,9 +213,8 @@
        (str/join \newline)))
 
 (defn- handle-lookup
-  "Look up :sym (CIDER) or :symbol (calva) from ``request`` in
-  ``ns`` (or if not provided :eval-ns from ``client*``) and pass
-  results to ``send-fn``.
+  "Look up ``:sym`` (CIDER) or ``:symbol`` (calva) from ``request`` in ``ns``
+  (or if not provided ``:eval-ns`` from ``client*``) and pass results to ``send-fn``.
 
   Serves both :eldoc and :info ``request`` :op's."
   [{:keys [ns client*] :as request} send-fn]
@@ -270,8 +263,8 @@
            {"status" status "ex" (str e)}))))))
 
 (defn- handle-load-file
-  "Evaluate code in ``file`` from ``file-path`` and sends the result
-  using the ``send-fn``."
+  "Evaluate code in ``file`` from ``file-path`` and sends the result using the
+  ``send-fn``."
   [{:keys [file _file-name file-path] :as request} send-fn]
   (do-handle-eval (assoc request
                          :file (or file-path "<unspecified filepath>")
@@ -279,12 +272,10 @@
                   send-fn))
 
 (defn- handle-complete
-  "Calculates the name completion candidates for ``prefix`` (or
-  ``req-symbol``) in namespace ``ns`` for ``client*`` and sends the
-  completions using ``send-fn``.
+  "Calculates the name completion candidates for ``prefix`` (or ``req-symbol``) in
+  namespace ``ns`` for ``client*`` and sends the completions using ``send-fn``.
 
-  If ``ns`` is not provided, then the ``client*`` :eval-ns is used
-  instead."
+  If ``ns`` is not provided, then the ``client*`` :eval-ns is used instead."
   [{:keys [client* ns prefix] req-symbol :symbol :as request} send-fn]
   (let [prefix            (or prefix req-symbol)
         {:keys [eval-ns]} @client*
@@ -317,17 +308,17 @@
                       "status" ["done"]})))
 
 (def ops
-  "A list of operations supported by the nrepl server."
-  {:eval handle-eval
-   :describe handle-describe
-   :info handle-lookup
-   :eldoc handle-lookup
-   :clone handle-clone
-   :close handle-close
+  "A list of operations supported by the nREPL server."
+  {:eval      handle-eval
+   :describe  handle-describe
+   :info      handle-lookup
+   :eldoc     handle-lookup
+   :clone     handle-clone
+   :close     handle-close
+   :load-file handle-load-file
+   :complete  handle-complete
    ;; :macroexpand handle-macroexpand
    ;; :classpath handle-classpath
-   :load-file handle-load-file
-   :complete handle-complete
    })
 
 (defn- handle-request [{:keys [op] :as request} send-fn]
@@ -358,10 +349,9 @@
 (defn- on-connect [tcp-req-handler opts]
   "Serve a new nREPL connection as found in ``tcp-req-handler`` according to ``opts``.
 
-  ``opts`` is a map of options with the following optional keys.
+  ``opts`` is a map of options with the following optional keys:
 
-  :recv-buffer-size The buffer size to using for incoming nREPL
-  messages."
+  - ``:recv-buffer-size`` The buffer size to using for incoming nREPL messages."
   (let [{:keys [recv-buffer-size]
          :or {recv-buffer-size 1024}} opts
         socket                        (.-request tcp-req-handler)
@@ -405,32 +395,32 @@
         (error (traceback/format-exc))))))
 
 (defn server-make
-  "Create and return a `socketserver/TCPServer` serving nREPL clients
-  according to ``opts`` at 127.0.0.1 at a random available port.
+  "Create and return a :external:py:class:`socketserver.TCPServer` serving nREPL
+  clients according to ``opts``.
 
-  See `ops` for the operation supported by the server.
+  See :lpy:var:`ops` for the operations supported by the server.
 
-  The nREPL starts at the `user` namespace and binds `*1`, `*2`, `*3`
+  The nREPL starts at the ``user`` namespace and binds `*1`, `*2`, `*3`
   and `*e` to the ultimate, penultimate, antepenultimate evaluation
   result and last exception message respectively.
 
-  ``opts`` is a map of options with the following optional keys
+  ``opts`` is a map of options with the following optional keys:
 
-  :host The host address to bind to, defaults to 127.0.0.1.
-
-  :port The port number to listen to, defaults to 0 which means to
-  pickup a random available port.
+   :keyword ``:host``: The host address to bind to, defaults to ``127.0.0.1``
+   :keyword ``:port``: The port number to listen to, defaults to ``0`` which means
+       to pickup a random available port.
 
   See :lpy:fn:`on-connect` for additionally supported ``opts`` keys.
 
-  Known limitations:
+  .. warning::
 
-  1. All client connections share the same environment at the moment,
-  which is the env that the server runs in. This could change in the
-  future to isolate the clients interactions from each other.
+     All client connections share the same environment at the moment, which is the
+     env that the server runs in. This could change in the future to isolate the
+     clients interactions from each other.
 
-  2. The session uuids are ignored and only created to satisfy the
-  initial clone op."
+  .. note::
+
+     The session UUIDs are ignored and only created to satisfy the initial clone op."
   [opts]
   (let [{:keys [host port] :or {host "127.0.0.1" port 0}} opts
         handler (python/type (name (gensym "nREPLTCPHandler")) (python/tuple [socketserver/StreamRequestHandler])
@@ -438,27 +428,30 @@
     (socketserver/ThreadingTCPServer (python/tuple [host port]) handler)))
 
 (def ^:private nrepl-server-signature
-  "The de facto signature nrepl started message that is used by IDEs to
-  identify the host and port number the server is running on."
+  "The de facto signature nrepl started message that is used by IDEs to identify the
+  host and port number the server is running on."
   "nREPL server started on port %s on host %s - nrepl://%s:%s")
 
 (defn start-server!
-  "Create an nREPL server with :lpy:fn:`server-make` (of which see)
-  according to ``opts`` if given, and serve clients for ever.
+  "Create an nREPL server with :lpy:fn:`server-make` according to ``opts`` and
+  serve clients forever.
 
-  It prints out the `nrepl-server-signature` message at startup for
+  It prints out the :lpy:var:`nrepl-server-signature` message at startup for
   IDEs to pickup the host number to connect to.
 
-  ``opts`` is a map of options with the following optional keys
+  ``opts`` is a map of options with the following optional keys:
 
-  :nrepl-port-file The file to write the port number to, it defaults
-  to .nrepl-port.
+   :keyword ``:host``: The host address to bind to, defaults to ``127.0.0.1``
+   :keyword ``:port``: The port number to listen to, defaults to ``0`` which means
+       to pickup a random available port.
+   :keyword ``:nrepl-port-file``: The file to write the port number to, it defaults
+       to .nrepl-port.
+   :keyword ``:server*``: An atom to hold the server reference as returned from
+       :lpy:fn:`server-make` , useful for testing.
 
-  :server* An atom to hold the server reference as returned from
-  :lpy:fn:`server-make`, useful for testing.
+  .. seealso::
 
-  also see :lpy:fn:`server-make` for additionally supported
-  ``opts`` keys."
+     :lpy:fn:`server-make`"
   ([]
    (start-server! {}))
   ([opts]
