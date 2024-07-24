@@ -1,48 +1,79 @@
 (ns basilisp.repl
-  (:import inspect))
+  ":ref:`repl` utilities for inspecting docstrings and source code of Basilisp and
+  Python objects."
+  (:import inspect
+           linecache
+           [basilisp.lang.source :as source-utils]))
 
 (defn mark-repl-result
-  "Mark the REPL result and move each result to the next slot
-  down."
+  "Mark the REPL result and move each result to the next slot down."
   [result]
   (set! *3 basilisp.repl/*2)
   (set! *2 basilisp.repl/*1)
   (set! *1 result))
 
 (defn mark-exception
-  "Set the variable *e to the last exception at the REPL."
+  "Set the variable ``*e`` to the last exception at the REPL."
   [e]
   (set! *e e))
 
-(defn pydoc
-  "Print the Python docstring for a function."
-  [o]
-  (println (inspect/getdoc o)))
-
 (defn print-doc
-  "Print the docstring from an interned var."
+  "Print the docstring from an object.
+
+  If the object is a Basilisp Var, print the ``:doc`` metadata. Otherwise, print
+  the docstring as by :py:func:`inspect.getdoc`."
   [v]
-  (let [var-meta (meta v)]
-    (println "------------------------")
-    (println (cond->> (name v)
-               (namespace v) (str (namespace v) "/")))
-    (when var-meta
-      (when-let [arglists (:arglists var-meta)]
-        (println arglists))
-      (when-let [docstring (:doc var-meta)]
-        (println " " docstring)))))
+  (cond
+    (var? v)
+    (let [var-meta (meta v)]
+      (println "------------------------")
+      (println (cond->> (name v)
+                 (namespace v) (str (namespace v) "/")))
+      (when var-meta
+        (when-let [arglists (:arglists var-meta)]
+          (println arglists))
+        (when-let [docstring (:doc var-meta)]
+          (println " " docstring))))
+
+    :else
+    (println (inspect/getdoc v))))
 
 (defmacro doc
-  "Print the docstring from an interned Var if found."
-  [s]
-  `(print-doc (resolve (quote ~s))))
+  "Print the docstring from an interned Var if found.
+
+  ``v`` must be a symbol which resolves to a Var."
+  [v]
+  `(print-doc (resolve (quote ~v))))
+
+(defn ^:private format-source
+  [v]
+  (when-let [{:keys [file line end-line]} (meta v)]
+    (when (and line end-line)
+      (->> (source-utils/format-source-context file
+                                               (max (dec line) 0)
+                                               **
+                                               :end-line end-line
+                                               :num-context-lines 0
+                                               :show-cause-marker false)
+           (.join "")))))
 
 (defn print-source
-  "Print the source forms for a function."
-  [_]
-  (throw (python/NotImplementedError)))
+  "Print the source forms for a function.
+
+  If the object is a Basilisp Var, print the Lisp source code. Otherwise, print
+  the Python source code as by :py:func:`inspect.getsource`."
+  [o]
+  (cond
+    (var? o)
+    (when-let [formatted-source (format-source o)]
+      (println formatted-source))
+
+    :else
+    (println (inspect/getsource o))))
 
 (defmacro source
-  "Print the source code for a form if found."
+  "Print the source code for an interned Var if found.
+
+  ``v`` must be a symbol which resolves to a Var."
   [s]
   `(print-source (resolve (quote ~s))))

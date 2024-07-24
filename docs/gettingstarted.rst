@@ -17,7 +17,7 @@ Once Basilisp is installed, you can enter into the REPL using::
 
     basilisp repl
 
-In Basilisp's REPL, you now have the full power of Basilisp at your disposal.
+In Basilisp's :ref:`repl`, you now have the full power of Basilisp at your disposal.
 It is customary to write a ``Hello, World!`` when starting out in a new language, so we'll do that here::
 
     basilisp.user=> (print "Hello, World!")

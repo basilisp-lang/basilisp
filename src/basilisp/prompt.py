@@ -27,6 +27,10 @@ BASILISP_REPL_HISTORY_FILE_PATH = os.getenv(
     "BASILISP_REPL_HISTORY_FILE_PATH",
     os.path.join(BASILISP_USER_DATA, ".basilisp_history"),
 )
+BASILISP_NO_COLOR = os.environ.get("BASILISP_NO_COLOR", "false").lower() in {
+    "1",
+    "true",
+}
 
 
 class Prompter:
@@ -159,7 +163,8 @@ else:
             tokens = list(pygments.lex(msg, lexer=self._pygments_lexer))
             print_formatted_text(PygmentsTokens(tokens), **self._style_settings)
 
-    _DEFAULT_PROMPTER = StyledPromptToolkitPrompter
+    if not BASILISP_NO_COLOR:
+        _DEFAULT_PROMPTER = StyledPromptToolkitPrompter
 
 
 def get_prompter() -> Prompter:
