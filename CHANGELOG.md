@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added `:end-line` and `:end-col` metadata to forms during compilation (#903)
+ * Added `basilisp.repl/source` to allow inspecting source code from the REPL (#205)
 
 ### Changed
  * Updated dozens of type annotations in the compiler to satisfy MyPy 1.11 (#910)
@@ -21,8 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where reader column offset numbering began at 1, rather than 0 (#905)
 
 ### Other
+ * Add REPL documentation module (#205)
  * Update Sphinx documentation theme (#909)
- * Fix a few minor documentation issues (#907)
+ * Update documentation to directly reference Python documentation and fix many other minor issues and misspellings (#907, #919)
 
 ## [v0.1.0b2]
 ### Added

@@ -1,6 +1,7 @@
 ;; Decoding logic adapted from
 ;; https://github.com/babashka/nbb/blob/bca8b5017a06768eb35d02a2d6233ca9c6c2f692/src/nbb/impl/bencode.cljs
 (ns basilisp.contrib.bencode
+  "Support for bencode encoding and decoding."
   (:require
    [basilisp.string :as str]))
 
@@ -82,24 +83,24 @@
 
   ``encode`` supports encoding the following types:
 
-  - ``bytes``
-  - ``int``
-  - ``str``, which is first decided to UTF-8 ``bytes``
+  - :external:py:class:`bytes`
+  - :external:py:class:`int`
+  - :external:py:class:`str` , which is first decoded to UTF-8 ``bytes``
   - keywords and symbols, which are first converted to strings (including namespace,
     separated by '/') and then converted using the rules for ``str`` s
-  - Python ``list``
-  - ``tuple``
-  - Basilisp lists and vectors
-  - ``dict``
-  - maps
+  - :external:py:class:`list`
+  - :external:py:class:`tuple`
+  - :external:py:class:`dict`
+  - Basilisp lists, vectors, and maps
 
   Mapping type keys must one of: keywords, symbols, or strings.
 
   This function does not support ``float`` because the ``bencode`` specification does
   not support non-integer numerics.
 
-  Set types (including ``frozenset``, ``set``, or Basilisp's set types) are not
-  supported due to the requirement that lists retain their original element ordering."
+  Set types (including :external:py:class:`frozenset` , :external:py:class:`set`, or
+  Basilisp's set types) are not supported due to the requirement that lists retain
+  their original element ordering."
   [d]
   (to-bencode-encodeable* d))
 
@@ -111,11 +112,10 @@
   `(.index ~b ~c))
 
 (defn- slice
-  "Returns the slice of the ``bytes`` from the ``start`` index to
-  the end of the array or to the ``end`` index if provided. Returns
-  `nil` if the slice is empty.
+  "Returns the slice of the ``bytes`` from the ``start`` index to the end of the
+  array or to the ``end`` index if provided. Returns ``nil`` if the slice is empty.
 
-  Throw a `python/EOFError` exception if any of the indices are out
+  Throw a :external:py:exc:`python.EOFError` exception if any of the indices are out
   of bounds."
   ([bytes start]
    (if (< (len bytes) start)
@@ -178,13 +178,13 @@
 
 (defn decode
   "Decode the first value in the bencoded ``data`` bytes according to ``opts`` and
-  return a [decoded* rest*] vector.
+  return a ``[decoded* rest*]`` vector.
 
   The decoded* item in the vector is the decoded value of the first item in ``data``
   while rest* is the remaining unencoded values.
 
   If ``data`` cannot be decoded (e.g. is incomplete or an error occurred), it returns
-  a [nil ``data``] vector.
+  a ``[nil data]`` vector.
 
   ``opts`` is a map with the following optional supported keys.
 
@@ -207,12 +207,12 @@
         [nil data]))))
 
 (defn decode-all
-  "Decode all values in the bencoded ``data`` bytes and return them as
-  a [values* incomplete*] vector.
+  "Decode all values in the bencoded ``data`` bytes and return them as a
+  ``[values* incomplete*]`` vector.
 
-  The values* item is a collection of the ``data`` decoded values,
-  while incomplete* is the rest of the ``data`` bytes that could not
-  be decoded or nil.
+  The ``values*`` item is a collection of the ``data`` decoded values, while
+  ``incomplete*`` is the rest of the ``data`` bytes that could not be decoded
+  or ``nil``.
 
   ``opts`` is a map supporting the same keys as :lpy:fn:`decode`."
   ([data]

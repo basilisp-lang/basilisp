@@ -57,6 +57,9 @@ pytest-pycharm = "*"
 # to maintain consistent output during both development and publishing on
 # Read The Docs.
 sphinx = "^7.1.0"
+sphinx-autobuild = { version = "^2024.04.16", python = ">=3.9" }
+sphinx-copybutton = "^0.5.2"
+sphinxext-opengraph = "^v0.9.1"
 furo = "^2023.08.19"
 tox = "*"
 

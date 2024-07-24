@@ -30,6 +30,8 @@ release = ""
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
+    "sphinxext.opengraph",
+    "sphinx_copybutton",
     "basilisp.contrib.sphinx",
 ]
 
