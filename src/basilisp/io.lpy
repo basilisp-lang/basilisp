@@ -15,7 +15,7 @@
 
 (defprotocol Coercions
   (as-path [f]
-    "Coerce ``f`` to a ``pathlib.Path`` instance.
+    "Coerce ``f`` to a :external:py:class:`pathlib.Path` instance.
 
     Callers should generally prefer :lpy:fn:`basilisp.io/path` to this function."))
 
@@ -42,7 +42,7 @@
                 {:file f})))))
 
 (defn path
-  "Coerce ``p`` to a ``pathlib.Path`` instance.
+  "Coerce ``p`` to a :external:py:class:`pathlib.Path` instance.
 
   When multiple arguments are provided, treat the first as the parent path and
   each subsequent argument as a child path, joining all paths together as one."
@@ -293,26 +293,28 @@
   "Open a reader instance on the file or path ``f``.
 
   The reader instances returned are always text-based, not binary. In general, the
-  readers should be compatible with Python's ``io.TextIOBase`` interface.
+  readers should be compatible with Python's :external:py:class:`io.TextIOBase`
+  interface.
 
   Callers should take care to open a reader instance using
   :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed
-  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
-  ``io.StringIO``, opening a reader without assigning it to a name for the duration of
-  its use may trigger garbage collection of the reader which closes the underlying
-  buffer, discarding the contents and invalidating the buffer.
+  afterwards. Note that for in-memory IO buffers such as :external:py:class:`io.BytesIO`
+  and :external:py:class:`io.StringIO`, opening a reader without assigning it to a name
+  for the duration of its use may trigger garbage collection of the reader which closes
+  the underlying buffer, discarding the contents and invalidating the buffer.
 
   Default implementations are available for:
 
-  - ``io/TextIOBase`` (only if ``(.readable f)`` is ``true``)
-  - ``io/RawIOBase``
-  - ``io/BufferedIOBase``
-  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
-    local filesystem path via ``pathlib``)
-  - ``python/bytes``
-  - ``pathlib/Path``
-  - ``urllib.parse.ParseResult``
-  - ``urllib.request/Request``"
+  - :external:py:class:`io.TextIOBase` (only if ``(.readable f)`` is ``true``)
+  - :external:py:class:`io.RawIOBase`
+  - :external:py:class:`io.BufferedIOBase`
+  - :external:py:class:`str` (first resolved as a URL via
+    :external:py:func:`urllib.parse.urlparse`, then as a local filesystem path via
+    :external:py:mod:`pathlib`)
+  - :external:py:class:`bytes`
+  - :external:py:class:`pathlib.Path`
+  - :external:py:class:`urllib.parse.ParseResult`
+  - :external:py:class:`urllib.request.Request`"
   [f & opts]
   (->> (apply hash-map opts)
        (clean-reader-mode)
@@ -322,29 +324,31 @@
   "Open a writer instance on the file or path ``f``.
 
   The writer instances returned are always text-based, not binary. In general, the
-  writers should be compatible with Python's ``io.TextIOBase`` interface.
+  writers should be compatible with Python's :external:py:class:`io.TextIOBase`
+  interface.
 
   ``opts`` is an optional collection of keyword/value pairs
   transmitted as a map to the writer. The acceptable keywords align
-  with those recognized by the fn:``open`` function. Moreover, setting the
+  with those recognized by the :lpy:fn:`open` function. Moreover, setting the
   :append option to true will configure the writer for append mode.
 
   Callers should take care to open a writer instance using
   :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed
-  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
-  ``io.StringIO``, opening a writer without assigning it to a name for the duration of
-  its use may trigger garbage collection of the writer which closes the underlying
-  buffer, discarding the contents and invalidating the buffer.
+  afterwards. Note that for in-memory IO buffers such as :external:py:class:`io.BytesIO`
+  and :external:py:class:`io.StringIO`, opening a writer without assigning it to a name
+  for the duration of its use may trigger garbage collection of the writer which closes
+  the underlying buffer, discarding the contents and invalidating the buffer.
 
   Default implementations are available for:
 
-  - ``io/TextIOBase`` (only if ``(.writable f)`` is ``true``)
-  - ``io/RawIOBase``
-  - ``io/BufferedIOBase``
-  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
-    local filesystem path via ``pathlib``)
-  - ``pathlib/Path``
-  - ``urllib.parse.ParseResult``"
+  - :external:py:class:`io.TextIOBase` (only if ``(.writable f)`` is ``true``)
+  - :external:py:class:`io.RawIOBase`
+  - :external:py:class:`io.BufferedIOBase`
+  - :external:py:class:`str` (first resolved as a URL via
+    :external:py:func:`urllib.parse.urlparse`, then as a local filesystem path via
+    :external:py:mod:`pathlib`)
+  - :external:py:class:`pathlib.Path`
+  - :external:py:class:`urllib.parse.ParseResult`"
   [f & opts]
   (->> (apply hash-map opts)
        (clean-writer-mode)
@@ -354,25 +358,26 @@
   "Open an input stream instance on the file or path ``f``.
 
   The input stream instances returned are always binary, not text-based. In general,
-  the input streams should be compatible with Python's ``io.BufferedIOBase`` interface.
+  the input streams should be compatible with Python's :external:py:class:`io.BufferedIOBase` interface.
 
   Callers should take care to open a reader instance using
   :lpy:fn`basilisp.core/with-open` to ensure that any resources are properly closed
-  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
-  ``io.StringIO``, opening an input stream without assigning it to a name for the
+  afterwards. Note that for in-memory IO buffers such as :external:py:class:`io.BytesIO` and
+  :external:py:class:`io.StringIO`, opening an input stream without assigning it to a name for the
   duration of its use may trigger garbage collection of the input stream which closes
   the underlying buffer, discarding the contents and invalidating the buffer.
 
   Default implementations are available for:
 
-  - ``io/RawIOBase``
-  - ``io/BufferedIOBase``
-  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
-    local filesystem path via ``pathlib``)
-  - ``python/bytes``
-  - ``pathlib/Path``
-  - ``urllib.parse.ParseResult``
-  - ``urllib.request/Request``"
+  - :external:py:class:`io.RawIOBase`
+  - :external:py:class:`io.BufferedIOBase`
+  - :external:py:class:`str` (first resolved as a URL via
+    :external:py:func:`urllib.parse.urlparse`, then as a local filesystem path via
+    :external:py:mod:`pathlib`)
+  - :external:py:class:`bytes`
+  - :external:py:class:`pathlib.Path`
+  - :external:py:class:`urllib.parse.ParseResult`
+  - :external:py:class:`urllib.request.Request`"
   [f & opts]
   (->> (apply hash-map opts)
        (clean-reader-mode)
@@ -383,23 +388,24 @@
   "Open an output stream instance on the file or path ``f``.
 
   The output stream instances returned are always binary, not text-based. In general,
-  the output streams should be compatible with Python's ``io.BufferedIOBase`` interface.
+  the output streams should be compatible with Python's :external:py:class:`io.BufferedIOBase` interface.
 
   Callers should take care to open a writer instance using
   :lpy:fn:`basilisp.core/with-open` to ensure that any resources are properly closed
-  afterwards. Note that for in-memory IO buffers such as ``io.BytesIO`` and
-  ``io.StringIO``, opening an output stream without assigning it to a name for the
+  afterwards. Note that for in-memory IO buffers such as :external:py:class:`io.BytesIO` and
+  :external:py:class:`io.StringIO`, opening an output stream without assigning it to a name for the
   duration of its use may trigger garbage collection of the output stream which closes
   the underlying buffer, discarding the contents and invalidating the buffer.
 
   Default implementations are available for:
 
-  - ``io/RawIOBase``
-  - ``io/BufferedIOBase``
-  - ``python/str`` (first resolved as a URL via ``urllib.parse.urlparse``, then as a
-    local filesystem path via ``pathlib``)
-  - ``pathlib/Path``
-  - ``urllib.parse.ParseResult``"
+  - :external:py:class:`io.RawIOBase`
+  - :external:py:class:`io.BufferedIOBase`
+  - :external:py:class:`str` (first resolved as a URL via
+    :external:py:func:`urllib.parse.urlparse`, then as a local filesystem path via
+    :external:py:mod:`pathlib`)
+  - :external:py:class:`pathlib.Path`
+  - :external:py:class:`urllib.parse.ParseResult`"
   [f & opts]
   (->> (apply hash-map opts)
        (clean-writer-mode)
@@ -482,25 +488,25 @@
 
   ``input`` may be one of:
 
-  - ``io/TextIOBase``
-  - ``io/BufferedIOBase``
-  - ``pathlib/Path``
-  - ``python/bytes``
-  - ``python/str`` (assumed to be the contents to copy; not treated as a file path)
+  - :external:py:class:`io.TextIOBase`
+  - :external:py:class:`io.BufferedIOBase`
+  - :external:py:class:`pathlib.Path`
+  - :external:py:class:`bytes`
+  - :external:py:class:`str` (assumed to be the contents to copy; not treated as a file path)
 
   ``output`` may be one of:
 
-  - ``io/TextIOBase``
-  - ``io/BufferedIOBase``
-  - ``pathlib/Path``
+  - :external:py:class:`io.TextIOBase`
+  - :external:py:class:`io.BufferedIOBase`
+  - :external:py:class:`pathlib.Path`
 
   Options include:
 
     :keyword ``:encoding``: used only when converting from binary to text buffers
     :keyword ``:buffer-size``: the buffer size of chunks when copying files manually
 
-  The default implementation where both arguments are ``pathlib/Path`` objects defer to
-  Python's ``shutil/copyfile`` which provides default fast-path platform-specific
+  The default implementation where both arguments are :external:py:class:`pathlib.Path` objects defer to
+  Python's :external:py:func:`shutil.copyfile` which provides default fast-path platform-specific
   implementations wherever available in Python 3.8+.
 
   Additional implementations may be added by providing additional methods (via
