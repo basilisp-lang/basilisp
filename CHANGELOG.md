@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
  * Add REPL documentation module (#205)
  * Update Sphinx documentation theme (#909)
- * Fix a few minor documentation issues (#907, #???)
+ * Update documentation to directly reference Python documentation and fix many other minor issues and misspellings (#907, #919)
 
 ## [v0.1.0b2]
 ### Added
