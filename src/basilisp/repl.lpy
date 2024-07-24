@@ -13,7 +13,7 @@
   (set! *1 result))
 
 (defn mark-exception
-  "Set the variable ``*e`` to the last exception at the REPL."
+  "Set the variable :lpy:var:`basilisp.core/*e` to the last exception at the REPL."
   [e]
   (set! *e e))
 
@@ -21,7 +21,7 @@
   "Print the docstring from an object.
 
   If the object is a Basilisp Var, print the ``:doc`` metadata. Otherwise, print
-  the docstring as by :py:func:`inspect.getdoc`."
+  the docstring as by :external:py:func:`inspect.getdoc`."
   [v]
   (cond
     (var? v)
@@ -61,7 +61,7 @@
   "Print the source forms for a function.
 
   If the object is a Basilisp Var, print the Lisp source code. Otherwise, print
-  the Python source code as by :py:func:`inspect.getsource`."
+  the Python source code as by :external:py:func:`inspect.getsource`."
   [o]
   (cond
     (var? o)

@@ -3,10 +3,10 @@
 
   This namespace includes functions for performing basic JSON encoding from
   and decoding to Basilisp builtin data structures. It is built on top of Python's
-  builtin ``json`` module. The builtin ``json`` module is not intended to be extended
-  in the way that is done here. As such, it is not the fastest JSON decoder or
-  encoder available, but it is builtin so it is readily available for quick
-  encoding and decoding needs."
+  builtin :external:py:mod:`json` module. The builtin :external:py:mod:`json` module
+  is not intended to be extended in the way that is done here. As such, it is not
+  the fastest JSON decoder or encoder available, but it is builtin so it is readily
+  available for quick encoding and decoding needs."
   (:refer-basilisp :exclude [read])
   (:import
    datetime
