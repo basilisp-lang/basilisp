@@ -3,7 +3,7 @@
 REPL
 ====
 
-The REPL is an interactive programming environment which Basilisp users can interact with the programmable runtime environment in real time.
+The REPL is an interactive programming environment which Basilisp users can manipulate the runtime environment in real time, iteratively developing and changing their code one line at a time.
 You can start up the REPL from a command-line using the command:
 
 .. code-block:: shell
@@ -58,6 +58,12 @@ This namespace includes some utilities for introspecting the runtime environment
       (print-doc (var map))
       (source filter)
       (print-source (var filter))
+
+.. lpy:currentns:: basilisp.core
+
+.. seealso::
+
+   :lpy:fn:`require`, :lpy:fn:`refer`, :lpy:fn:`use`
 
 .. _repl_creature_comforts:
 
