@@ -2176,12 +2176,12 @@
 
   (let [load-dir-test "tests/basilisp/corpus"
         load-dir-filepath (str load-dir-test "/core_load_1.lpy")]
-    (try 
+    (try
       (when (bio/exists? load-dir-test)
         (shutil/rmtree load-dir-test))
       (bio/make-parents load-dir-filepath)
       (spit load-dir-filepath "(print :core-load-1)")
-      
+
       (testing "relative load path"
         (let [output (with-out-str (load "corpus/core-load-1"))]
           (is (= ":core-load-1" output))))

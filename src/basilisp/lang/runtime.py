@@ -59,6 +59,7 @@ from basilisp.lang.interfaces import (
     IPersistentStack,
     IPersistentVector,
     ISeq,
+    ITransientAssociative,
     ITransientSet,
 )
 from basilisp.lang.reference import RefBase, ReferenceBase
@@ -728,7 +729,7 @@ class Namespace(ReferenceBase):
                 self._import_aliases = m
 
     def get_import(self, sym: sym.Symbol) -> Optional[BasilispModule]:
-        """Return the module if a moduled named by sym has been imported into
+        """Return the module if a module named by sym has been imported into
         this Namespace, None otherwise.
 
         First try to resolve a module directly with the given name. If no module
@@ -1251,8 +1252,13 @@ def _contains_none(_, __):
 
 
 @contains.register(IAssociative)
-def _contains_iassociative(coll, k):
+def _contains_iassociative(coll: IAssociative, k):
     return coll.contains(k)
+
+
+@contains.register(ITransientAssociative)
+def _contains_itransientassociative(coll: ITransientAssociative, k):
+    return coll.contains_transient(k)
 
 
 @functools.singledispatch

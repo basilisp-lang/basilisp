@@ -52,12 +52,14 @@ def process_lrepr_kwargs(**kwargs: Unpack[PrintSettings]) -> PrintSettings:
 
 
 class LispObject(ABC):
-    """Abstract base class for Lisp objects which would like to customize
-    their `str` and Python `repr` representation.
+    """Abstract base class for Lisp objects which would like to customize their
+    ``__str__`` and Python ``__repr__`` representation.
 
-    Callers should use `ILispObject` in `basilisp.lang.interfaces` as their
-    main interface. This interface is defined here so it may be used in
-    `isinstance` checks below."""
+    .. note::
+
+       Callers should use :py:class:`basilisp.lang.interfaces.ILispObject` as their
+       main interface. This interface is defined here so it may be used in
+       ``isinstance`` checks below without a circular dependency."""
 
     __slots__ = ()
 
@@ -71,7 +73,7 @@ class LispObject(ABC):
     def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         """Private Lisp representation method. Callers (including object
         internal callers) should not call this method directly, but instead
-        should use the module function .lrepr()."""
+        should use the module function :py:meth:`lrepr` ."""
         raise NotImplementedError()
 
     def lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:

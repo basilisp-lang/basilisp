@@ -1118,11 +1118,18 @@ class TestAssociativeFunctions:
         assert False is core.contains__Q__(None, "a")
         assert True is core.contains__Q__(lmap.map({"a": 1}), "a")
         assert False is core.contains__Q__(lmap.map({"a": 1}), "b")
+        assert True is core.contains__Q__(lmap.map({"a": 1}).to_transient(), "a")
+        assert False is core.contains__Q__(lmap.map({"a": 1}).to_transient(), "b")
         assert True is core.contains__Q__(vec.v(1, 2, 3), 0)
         assert True is core.contains__Q__(vec.v(1, 2, 3), 1)
         assert True is core.contains__Q__(vec.v(1, 2, 3), 2)
         assert False is core.contains__Q__(vec.v(1, 2, 3), 3)
         assert False is core.contains__Q__(vec.v(1, 2, 3), -1)
+        assert True is core.contains__Q__(vec.v(1, 2, 3).to_transient(), 0)
+        assert True is core.contains__Q__(vec.v(1, 2, 3).to_transient(), 1)
+        assert True is core.contains__Q__(vec.v(1, 2, 3).to_transient(), 2)
+        assert False is core.contains__Q__(vec.v(1, 2, 3).to_transient(), 3)
+        assert False is core.contains__Q__(vec.v(1, 2, 3).to_transient(), -1)
 
     def test_disj(self):
         assert None is core.disj(None)

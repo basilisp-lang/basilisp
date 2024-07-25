@@ -8,7 +8,7 @@ docs:
 
 .PHONY: livedocs
 livedocs:
-	@poetry run sphinx-autobuild "$(DOCSOURCEDIR)" "$(DOCBUILDDIR)" -b html
+	@poetry run sphinx-autobuild "$(DOCSOURCEDIR)" "$(DOCBUILDDIR)" -b html --watch "./src"
 
 
 .PHONY: format

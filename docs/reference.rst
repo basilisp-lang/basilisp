@@ -6,6 +6,7 @@ Reference
    :caption: Contents:
 
    api
+   interfaces
    cli
    repl
    reader
