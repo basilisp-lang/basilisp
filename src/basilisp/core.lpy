@@ -907,10 +907,10 @@
 (defn deref
   "Dereference a delay or atom and returns its contents.
 
-  If ``o`` is an object implementing ``IBlockingDeref`` and ``timeout-s`` and
-  ``timeout-val`` are supplied, ``deref`` will wait at most ``timeout-s`` seconds,
-  returning ``timeout-val`` if ``timeout-s`` seconds elapse and ``o`` has not
-  returned."
+  If ``o`` is an object implementing :py:class:`basilisp.lang.interfaces.IBlockingDeref`
+  and ``timeout-s`` and ``timeout-val`` are supplied, ``deref`` will wait at most
+  ``timeout-s`` seconds, returning ``timeout-val`` if ``timeout-s`` seconds elapse and
+  ``o`` has not returned."
   ([o]
    (basilisp.lang.runtime/deref o))
   ([o timeout-s timeout-val]
@@ -1208,7 +1208,7 @@
   true)
 
 (defn ^:inline associative?
-  "Return ``true`` if ``x`` implements ``IAssociative``  ."
+  "Return ``true`` if ``x`` implements :py:class:`basilisp.lang.interfaces.IAssociative`."
   [x]
   (instance? basilisp.lang.interfaces/IAssociative x))
 
@@ -1243,7 +1243,7 @@
   (instance? python/type x))
 
 (defn ^:inline coll?
-  "Return ``true`` if ``x`` implements ``IPersistentCollection``\\."
+  "Return ``true`` if ``x`` implements :py:class:`basilisp.lang.interfaces.IPersistentCollection`\\."
   [x]
   (instance? basilisp.lang.interfaces/IPersistentCollection x))
 
@@ -1325,7 +1325,7 @@
   integer?)
 
 (defn ^:inline map-entry?
-  "Return ``true`` if ``x`` implements ``IMapEntry``\\."
+  "Return ``true`` if ``x`` implements :py:class:`basilisp.lang.interfaces.IMapEntry`\\."
   [x]
   (instance? basilisp.lang.interfaces/IMapEntry x))
 
@@ -1440,17 +1440,18 @@
   (or (integer? x) (float? x)))
 
 (defn ^:inline reversible?
-  "Return ``true`` if x implements ``IReversible``\\."
+  "Return ``true`` if x implements :py:class:`basilisp.lang.interfaces.IReversible`\\."
   [x]
   (instance? basilisp.lang.interfaces/IReversible x))
 
 (defn ^:inline seqable?
-  "Return ``true`` if an ``ISeq`` can be produced from ``x``\\."
+  "Return ``true`` if an :py:class:`basilisp.lang.interfaces.ISeq` can be produced from
+  ``x``\\."
   [x]
   (instance? basilisp.lang.interfaces/ISeqable x))
 
 (defn ^:inline sequential?
-  "Return ``true`` if ``x`` implements ``ISequential``\\."
+  "Return ``true`` if ``x`` implements :py:class:`basilisp.lang.interfaces.ISequential`\\."
   [x]
   (instance? basilisp.lang.interfaces/ISequential x))
 
@@ -2002,8 +2003,9 @@
     (or (.- ex __cause__) (.- ex __context__))))
 
 (defn ex-data
-  "Return the data map of ``ex`` if is an instance of ``IExceptionInfo``\\, otherwise
-  it returns ``nil``\\."
+  "Return the data map of ``ex`` if is an instance of
+  :py:class:`basilisp.lang.interfaces.IExceptionInfo`\\, otherwise it returns
+  ``nil``\\."
   [ex]
   (when (instance? basilisp.lang.interfaces/IExceptionInfo ex)
     (.-data ex)))

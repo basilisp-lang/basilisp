@@ -6,7 +6,7 @@ Interfaces
    :caption: Contents:
 
 Basilisp (like Clojure) is defined by interfaces.
-All of the built-in data types are implement 0 or more of these interfaces and :lpy:ns:`basilisp.core` functions typically operate on these interfaces, rather than concrete data types (with some exceptions).
+All of the built-in data types are implement 0 or more of these Python interfaces and :lpy:ns:`basilisp.core` functions typically operate on these interfaces, rather than concrete data types (with some exceptions).
 
 In day-to-day usage, you will not typically need to use these interfaces, but they are nevertheless helpful for understanding the abstractions Basilisp is built upon.
 
