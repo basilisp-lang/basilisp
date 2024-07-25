@@ -19,6 +19,9 @@ In day-to-day usage, you will not typically need to use these interfaces, but th
 
    Abstract base class for Lisp objects which would like to customize their ``__str__`` and Python ``__repr__`` representation.
 
+   .. automethod:: _lrepr
+   .. automethod:: lrepr
+
 .. lpy:currentns::  basilisp.core
 
 .. automodule:: basilisp.lang.interfaces

@@ -73,7 +73,7 @@ class LispObject(ABC):
     def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         """Private Lisp representation method. Callers (including object
         internal callers) should not call this method directly, but instead
-        should use the module function .lrepr()."""
+        should use the module function :py:meth:`lrepr` ."""
         raise NotImplementedError()
 
     def lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
