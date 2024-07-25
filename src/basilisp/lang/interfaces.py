@@ -30,6 +30,7 @@ class IDeref(Generic[T], ABC):
     .. seealso::
 
        :py:class:`IBlockingDeref`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -45,6 +46,7 @@ class IBlockingDeref(IDeref[T]):
     .. seealso::
 
        :py:class:`IDeref`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -59,7 +61,11 @@ class ICounted(Sized, ABC):
     constant time.
 
     All the builtin collections are ``ICounted``, except Lists whose length is
-    determined by counting all the elements in the list in linear time."""
+    determined by counting all the elements in the list in linear time.
+
+    .. seealso::
+
+       :lpy:fn:`counted?`"""
 
     __slots__ = ()
 
@@ -68,7 +74,11 @@ class IIndexed(ICounted, ABC):
     """``IIndexed`` is a marker interface for types can be accessed by index.
 
     Of the builtin collections, only Vectors are ``IIndexed`` . ``IIndexed`` types
-    respond ``True`` to the :lpy:fn:`indexed?` predicate."""
+    respond ``True`` to the :lpy:fn:`indexed?` predicate.
+
+    .. seealso::
+
+       :lpy:fn:`indexed?`"""
 
     __slots__ = ()
 
@@ -84,6 +94,7 @@ class IExceptionInfo(Exception, Generic[T_ExceptionInfo], ABC):
     .. seealso::
 
        :lpy:fn:`ex-data`"""
+
     __slots__ = ()
 
     @property
@@ -102,7 +113,8 @@ class IMapEntry(Generic[K, V], ABC):
 
     .. seealso::
 
-       :lpy:fn:`key` , :lpy:fn:`val`"""
+       :lpy:fn:`key` , :lpy:fn:`val` , :lpy:fn:`map-entry?`"""
+
     __slots__ = ()
 
     @property
@@ -126,6 +138,7 @@ class IMeta(ABC):
     .. seealso::
 
        :lpy:fn:`meta`"""
+
     __slots__ = ()
 
     @property
@@ -141,6 +154,7 @@ class IWithMeta(IMeta):
     .. seealso::
 
        :lpy:fn:`with-meta`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -155,6 +169,7 @@ class INamed(ABC):
     .. seealso::
 
        :lpy:fn:`name` , :lpy:fn:`namespace`"""
+
     __slots__ = ()
 
     @property
@@ -184,6 +199,7 @@ class IReference(IMeta):
     .. seealso::
 
        :lpy:fn:`alter-meta!` , :lpy:fn:`reset-meta!`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -212,6 +228,7 @@ class IRef(IDeref[T]):
 
        :lpy:fn:`add-watch` , :lpy:fn:`remove-watch` , :lpy:fn:`get-validator` ,
        :lpy:fn:`set-validator!`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -257,7 +274,7 @@ class ISeqable(Iterable[T]):
 
     .. seealso::
 
-       :ref:`seqs` , :lpy:fn:`seqable?`"""
+       :ref:`seqs` , :lpy:fn:`seq` , :lpy:fn:`seqable?`"""
 
     __slots__ = ()
 
@@ -284,6 +301,7 @@ class ILookup(Generic[K, V], ABC):
     .. seealso::
 
        :lpy:fn:`get`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -298,7 +316,8 @@ class IPersistentCollection(ISeqable[T]):
 
     .. seealso::
 
-       :lpy:fn:`conj` , :lpy:fn:`empty`"""
+       :lpy:fn:`conj` , :lpy:fn:`empty` , :lpy:fn:`coll?`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -312,8 +331,14 @@ class IPersistentCollection(ISeqable[T]):
 
 
 class IAssociative(ILookup[K, V], IPersistentCollection[IMapEntry[K, V]]):
-    """``IAssociative`` types support associative operations
+    """``IAssociative`` types support a persistent data structure variant of
+    associative operations.
+
+    .. seealso::
+
+       :lpy:fn:`assoc` , :lpy:fn:`contains?`, :lpy:fn:`find` , :lpy:fn:`associative?`
     """
+
     __slots__ = ()
 
     @abstractmethod
@@ -330,6 +355,14 @@ class IAssociative(ILookup[K, V], IPersistentCollection[IMapEntry[K, V]]):
 
 
 class IPersistentStack(IPersistentCollection[T]):
+    """``IPersistentStack`` types support a persistent data structure variant of
+    classical stack operations.
+
+    .. seealso::
+
+       :lpy:fn:`pop` , :lpy:fn:`peek`
+    """
+
     __slots__ = ()
 
     @abstractmethod
@@ -342,10 +375,18 @@ class IPersistentStack(IPersistentCollection[T]):
 
 
 class IPersistentList(ISequential, IPersistentStack[T]):
+    """``IPersistentList`` is a marker interface for a singly-linked list."""
+
     __slots__ = ()
 
 
 class IPersistentMap(ICounted, Mapping[K, V], IAssociative[K, V]):
+    """``IPersistentMap`` types support creating and modifying persistent maps.
+
+    .. seealso::
+
+       :lpy:fn:`conj` , :lpy:fn:`dissoc` , :lpy:fn:`map?`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -360,6 +401,12 @@ class IPersistentMap(ICounted, Mapping[K, V], IAssociative[K, V]):
 
 
 class IPersistentSet(AbstractSet[T], ICounted, IPersistentCollection[T]):
+    """``IPersistentSet`` types support creating and modifying persistent sets.
+
+    .. seealso::
+
+       :lpy:fn:`disj` , :lpy:fn:`set?`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -375,6 +422,12 @@ class IPersistentVector(
     ISequential,
     IPersistentStack[T],
 ):
+    """``IPersistentVector`` types support creating and modifying persistent vectors.
+
+    .. seealso::
+
+       :lpy:fn:`vector?`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -395,12 +448,27 @@ T_tcoll_co = TypeVar("T_tcoll_co", bound="ITransientCollection", covariant=True)
 
 # Including ABC as a base seems to cause catastrophic meltdown.
 class IEvolveableCollection(Generic[T_tcoll_co]):
+    """``IEvolveableCollection`` types support creating transient variants of persistent
+    data structures which can be modified efficiently and then returned back into
+    persistent data structures once modification is complete.
+
+    .. seealso::
+
+       :lpy:fn:`transient`"""
+
     @abstractmethod
     def to_transient(self) -> T_tcoll_co:
         raise NotImplementedError()
 
 
 class ITransientCollection(Generic[T]):
+    """``ITransientCollection`` types support efficient modification of otherwise
+    persistent data structures.
+
+    .. seealso::
+
+       :lpy:fn:`conj!` , :lpy:fn:`persistent!`"""
+
     __slots__ = ()
 
     @abstractmethod
@@ -412,14 +480,18 @@ class ITransientCollection(Generic[T]):
         raise NotImplementedError()
 
 
-T_tassoc = TypeVar("T_tassoc", bound="ITransientAssociative")
-
-
 class ITransientAssociative(ILookup[K, V], ITransientCollection[IMapEntry[K, V]]):
+    """``ITransientAssociative`` types are the transient counterpart of
+    :py:class:`IAssociative` types.
+
+    .. seealso::
+
+       :lpy:fn:`assoc!` , :lpy:fn:`contains?`, :lpy:fn:`find`"""
+
     __slots__ = ()
 
     @abstractmethod
-    def assoc_transient(self: T_tassoc, *kvs) -> T_tassoc:
+    def assoc_transient(self, *kvs) -> Self:
         raise NotImplementedError()
 
     @abstractmethod
@@ -431,31 +503,39 @@ class ITransientAssociative(ILookup[K, V], ITransientCollection[IMapEntry[K, V]]
         raise NotImplementedError()
 
 
-T_tmap = TypeVar("T_tmap", bound="ITransientMap")
-
-
 class ITransientMap(ICounted, ITransientAssociative[K, V]):
+    """``ITransientMap`` types are the transient counterpart of
+    :py:class:`IPersistentMap` types.
+
+    .. seealso::
+
+       :lpy:fn:`dissoc!`"""
+
     __slots__ = ()
 
     @abstractmethod
     def cons_transient(
-        self: T_tmap, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]", None]
-    ) -> T_tmap:
+        self, *elems: Union[IMapEntry[K, V], "IPersistentMap[K, V]", None]
+    ) -> Self:
         raise NotImplementedError()
 
     @abstractmethod
-    def dissoc_transient(self: T_tmap, *ks: K) -> T_tmap:
+    def dissoc_transient(self, *ks: K) -> Self:
         raise NotImplementedError()
-
-
-T_tset = TypeVar("T_tset", bound="ITransientSet")
 
 
 class ITransientSet(ICounted, ITransientCollection[T]):
+    """``ITransientSet`` types are the transient counterpart of
+    :py:class:`IPersistentSet` types.
+
+    .. seealso::
+
+       :lpy:fn:`disj!`"""
+
     __slots__ = ()
 
     @abstractmethod
-    def disj_transient(self: T_tset, *elems: T) -> T_tset:
+    def disj_transient(self, *elems: T) -> Self:
         raise NotImplementedError()
 
 
@@ -466,6 +546,9 @@ class ITransientVector(
     ITransientAssociative[int, T],
     IIndexed,
 ):
+    """``ITransientVector`` types are the transient counterpart of
+    :py:class:`IPersistentVector` types."""
+
     __slots__ = ()
 
     @abstractmethod
@@ -532,11 +615,16 @@ def seq_equals(s1: Union["ISeq", ISequential], s2: Any) -> bool:
 
 
 class ISeq(ILispObject, ISeqable[T]):
-    """
+    """``ISeq`` types represent a potentially infinite sequence of elements.
+
     .. seealso::
 
-       :ref:`seqs`
+       :ref:`seqs` , :lpy:fn:`lazy-seq` , :lpy:fn:`seq` , :lpy:fn:`first` ,
+       :lpy:fn:`rest` , :lpy:fn:`next` , :lpy:fn:`second` , :lpy:fn:`seq?` ,
+       :lpy:fn:`nfirst` , :lpy:fn:`fnext` , :lpy:fn:`nnext` , :lpy:fn:`empty?` ,
+       :lpy:fn:`seq?`
     """
+
     __slots__ = ()
 
     class _SeqIter(Iterator[T]):
