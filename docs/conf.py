@@ -193,7 +193,9 @@ def lpy_linkcode_resolve(filename, lines):
         return None
 
     try:
+        print(filename)
         p = pathlib.Path(filename).relative_to(_base_dir)
+        print(p)
     except ValueError:
         return None
 
