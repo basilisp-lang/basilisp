@@ -183,6 +183,9 @@ _base_dir = pathlib.Path(
     os.getenv("READTHEDOCS_REPOSITORY_PATH", str(_docs_dir.parent))
 )
 _vcs_branch = os.getenv("READTHEDOCS_GIT_IDENTIFIER", "main")
+print(_docs_dir)
+print(_base_dir)
+print(_vcs_branch)
 
 
 def lpy_linkcode_resolve(filename, lines):
