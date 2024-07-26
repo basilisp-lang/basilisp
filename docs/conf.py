@@ -8,6 +8,7 @@
 import os
 import pathlib
 import re
+import sys
 
 # -- Project information -----------------------------------------------------
 
@@ -179,25 +180,31 @@ intersphinx_mapping = {
 # -- Options for Basilisp's custom linkcode ----------------------------------
 
 _docs_dir = pathlib.Path.cwd()
-_base_dir = pathlib.Path(
-    os.getenv("READTHEDOCS_REPOSITORY_PATH", str(_docs_dir.parent))
-)
+_rtd_base_dir = os.getenv("READTHEDOCS_REPOSITORY_PATH")
 _vcs_branch = os.getenv("READTHEDOCS_GIT_IDENTIFIER", "main")
-print(_docs_dir)
-print(_base_dir)
-print(_vcs_branch)
 
 
 def lpy_linkcode_resolve(filename, lines):
     if not filename:
         return None
 
-    try:
-        print(filename)
-        p = pathlib.Path(filename).relative_to(_base_dir)
-        print(p)
-    except ValueError:
-        return None
+    # If not on ReadTheDocs, assume the current working directory is ./docs in the
+    # repository root.
+    #
+    # On ReadTheDocs, the package gets installed. We need to get the path relative
+    # to wherever it's installed in `sys.path`.
+    if _rtd_base_dir is None:
+        pth = pathlib.Path(filename).relative_to(_docs_dir.parent)
+    else:
+        pth = None
+        for path in sys.path:
+            try:
+                pth = pathlib.Path(filename).relative_to(path)
+            except ValueError:
+                continue
+
+        if pth is None:
+            return None
 
     line_anchor = ""
     if lines and (match := re.match(r"(\d+)(?::(\d+))?", lines)) is not None:
@@ -207,6 +214,4 @@ def lpy_linkcode_resolve(filename, lines):
         else:
             line_anchor = f"#L{start_line}-L{end_line}"
 
-    return (
-        f"https://github.com/basilisp-lang/basilisp/blob/{_vcs_branch}/{p}{line_anchor}"
-    )
+    return f"https://github.com/basilisp-lang/basilisp/blob/{_vcs_branch}/{pth}{line_anchor}"
