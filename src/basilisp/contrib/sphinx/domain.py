@@ -131,6 +131,14 @@ class BasilispNamespace(SphinxDirective):
 
 
 class BasilispObject(PyObject):  # pylint: disable=abstract-method
+    option_spec: OptionSpec = PyObject.option_spec.copy()
+    option_spec.update(
+        {
+            "filename": directives.unchanged,
+            "lines": directives.unchanged,
+        }
+    )
+
     def handle_signature(self, sig: str, signode: desc_signature) -> Tuple[str, str]:
         """Subclasses should implement this themselves."""
         return NotImplemented
@@ -157,9 +165,14 @@ class BasilispObject(PyObject):  # pylint: disable=abstract-method
                     ("single", indextext, node_id, "", None)
                 )
 
+    def _add_source_annotations(self, signode: desc_signature) -> None:
+        for metadata in ("filename", "lines"):
+            if val := self.options.get(metadata):
+                signode[metadata] = val
+
 
 class BasilispVar(BasilispObject):
-    option_spec: OptionSpec = PyObject.option_spec.copy()
+    option_spec: OptionSpec = BasilispObject.option_spec.copy()
     option_spec.update(
         {
             "dynamic": directives.unchanged,
@@ -180,6 +193,8 @@ class BasilispVar(BasilispObject):
             signode += addnodes.desc_annotation(prefix, prefix)
 
         signode += addnodes.desc_name(sig, sig)
+
+        self._add_source_annotations(signode)
 
         type_ = self.options.get("type")
         if type_:
@@ -203,6 +218,8 @@ class BasilispFunctionLike(BasilispObject):  # pylint: disable=abstract-method
         prefix = self.get_signature_prefix(sig)
         if prefix:
             signode += addnodes.desc_annotation(prefix, prefix)
+
+        self._add_source_annotations(signode)
 
         sig_sexp = runtime.first(reader.read_str(sig))
         assert isinstance(sig_sexp, IPersistentList)
@@ -281,6 +298,8 @@ class BasilispClassLike(BasilispObject):
         prefix = self.get_signature_prefix(sig)
         if prefix:
             signode += addnodes.desc_annotation(prefix, prefix)
+
+        self._add_source_annotations(signode)
 
         signode += addnodes.desc_name(sig, sig)
         return sig, prefix

@@ -5,7 +5,9 @@
 # This file does only contain a selection of the most common options. For a
 # full list see the documentation:
 # http://www.sphinx-doc.org/en/master/config
-
+import os
+import pathlib
+import re
 
 # -- Project information -----------------------------------------------------
 
@@ -173,3 +175,33 @@ epub_exclude_files = ["search.html"]
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
 }
+
+# -- Options for Basilisp's custom linkcode ----------------------------------
+
+_docs_dir = pathlib.Path.cwd()
+_base_dir = pathlib.Path(
+    os.getenv("READTHEDOCS_REPOSITORY_PATH", str(_docs_dir.parent))
+)
+_vcs_branch = os.getenv("READTHEDOCS_GIT_IDENTIFIER", "main")
+
+
+def lpy_linkcode_resolve(filename, lines):
+    if not filename:
+        return None
+
+    try:
+        p = pathlib.Path(filename).relative_to(_base_dir)
+    except ValueError:
+        return None
+
+    line_anchor = ""
+    if lines and (match := re.match(r"(\d+)(?::(\d+))?", lines)) is not None:
+        start_line = match.group(1)
+        if (end_line := match.group(2)) is None:
+            line_anchor = f"#L{start_line}"
+        else:
+            line_anchor = f"#L{start_line}-L{end_line}"
+
+    return (
+        f"https://github.com/basilisp-lang/basilisp/blob/{_vcs_branch}/{p}{line_anchor}"
+    )
