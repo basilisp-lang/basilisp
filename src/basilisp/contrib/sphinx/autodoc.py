@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # Var metadata used for annotations
 _DOC_KW = kw.keyword("doc")
 _LINE_KW = kw.keyword("line")
+_END_LINE_KW = kw.keyword("end-line")
 _PRIVATE_KW = kw.keyword("private")
 _DYNAMIC_KW = kw.keyword("dynamic")
 _DEPRECATED_KW = kw.keyword("deprecated")
@@ -279,6 +280,13 @@ class VarDocumenter(Documenter):
         super().add_directive_header(sig)
 
         if self.object.meta is not None:
+            if (file := self.object.meta.val_at(_FILE_KW)) is not None:
+                self.add_line(f"   :filename: {file}", sourcename)
+            if isinstance(line := self.object.meta.val_at(_LINE_KW), int):
+                if isinstance(end_line := self.object.meta.val_at(_END_LINE_KW), int):
+                    self.add_line(f"   :lines: {line}:{end_line}", sourcename)
+                else:
+                    self.add_line(f"   :lines: {line}", sourcename)
             if self.object.meta.val_at(_DYNAMIC_KW):
                 self.add_line("   :dynamic:", sourcename)
             if self.object.meta.val_at(_DEPRECATED_KW):
