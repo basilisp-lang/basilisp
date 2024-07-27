@@ -905,7 +905,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn deref
-  "Dereference a delay or atom and returns its contents.
+  "Dereference a delay, atom, promise, future, volatile, or Var and returns its contents.
 
   If ``o`` is an object implementing :py:class:`basilisp.lang.interfaces.IBlockingDeref`
   and ``timeout-s`` and ``timeout-val`` are supplied, ``deref`` will wait at most
@@ -953,7 +953,7 @@
 
 (defn swap-vals!
   "Atomically swap the value of an atom to the return value of ``(apply f
-  current-value args)`` `. The function ``f`` may be called multiple times while
+  current-value args)``. The function ``f`` may be called multiple times while
   swapping, so should be free of side effects. Return a vector containing the new
   value and the old value in that order."
   [atom f & args]

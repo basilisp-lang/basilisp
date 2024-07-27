@@ -11,9 +11,6 @@ The Basilisp reader performs a job which is a combination of the traditional lex
 The reader takes a file or string and produces a stream of Basilisp data structures.
 Typically the reader streams its results to the compiler, but end-users may also take advantage of the reader directly from within Basilisp.
 
-.. contents:: Reader Literals
-   :depth: 2
-
 .. _numeric_literals:
 
 Numeric Literals
@@ -356,7 +353,7 @@ All of the text to the end of the line are ignored.
 
 For a convenience in writing shell scripts with Basilisp, the standard \*NIX `shebang <https://en.wikipedia.org/wiki/Shebang_(Unix)>`_ (``#!``) is also treated as a single-line comment.
 
-.. _metadata:
+.. _reader_metadata:
 
 Metadata
 --------
@@ -379,6 +376,10 @@ Metadata applied to a form must be one of: :ref:`maps`, :ref:`symbols`, :ref:`ke
 * Symbol metadata will be normalized to a Map with the symbol as the value for the key ``:tag``.
 * Keyword metadata will be normalized to a Map with the keyword as the key with the value of ``true``.
 * Map metadata will not be modified when it is read.
+
+.. seealso::
+
+   :ref:`metadata`
 
 .. _reader_macros:
 
@@ -461,6 +462,10 @@ In nearly all cases, this will be the return value from a macro function, which 
 .. warning::
 
    Using any of these special syntax quoting characters outside of a syntax quote context will result in a compiler error.
+
+.. seealso::
+
+   :ref:`macros`
 
 .. _reader_conditions:
 
