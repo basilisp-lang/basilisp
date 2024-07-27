@@ -152,7 +152,20 @@ Note that this functionality already exists as :lpy:fn:`with-out-str`, but it se
 
 .. seealso::
 
-   :lpy:fn:`binding`, :lpy:fn:`bound-fn`, :lpy:fn:`bound-fn*`, :lpy:fn:`get-thread-bindings`, :lpy:fn:`pop-thread-bindings`, :lpy:fn:`push-thread-bindings`, :lpy:fn:`with-bindings`, :lpy:fn:`with-bindings*`
+   :lpy:fn:`binding`
+
+
+.. _binding_conveyance:
+
+Binding Conveyance
+##################
+
+Basilisp supports the concept of "binding conveyance" which allows copying the active set of dynamic Var bindings in the current thread when submitting work to another thread.
+Both :lpy:fn:`future` and :lpy:fn:`pmap` support this feature natively.
+
+.. seealso::
+
+    :lpy:fn:`bound-fn`, :lpy:fn:`bound-fn*`, :lpy:fn:`get-thread-bindings`, :lpy:fn:`pop-thread-bindings`, :lpy:fn:`push-thread-bindings`, :lpy:fn:`with-bindings`, :lpy:fn:`with-bindings*`
 
 .. _private_vars:
 

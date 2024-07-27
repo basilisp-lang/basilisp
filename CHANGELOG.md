@@ -24,7 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
  * Add REPL documentation module (#205)
  * Add documentation module for Basilisp interfaces (#920)
- * Add GitHub source links to generated API documentation (#921)
+ * Add GitHub source links to generated API documentation (#921) 
+ * Update Concepts documentation module with See Also links for most sections (#???)
  * Update Sphinx documentation theme (#909)
  * Update documentation to directly reference Python documentation and fix many other minor issues and misspellings (#907, #919)
 

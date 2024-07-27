@@ -65,6 +65,27 @@ This namespace includes some utilities for introspecting the runtime environment
 
    :lpy:fn:`require`, :lpy:fn:`refer`, :lpy:fn:`use`
 
+.. _taps:
+
+Taps
+^^^^
+
+Basilisp supports the concept of "taps" as a convenient, non-blocking method of monitoring the operation of some function at runtime.
+Taps are implemented as a simple in-process publish/subscribe mechanism.
+Users can add tap functions using :lpy:fn:`add-tap` which subscribe to a topic (typically a keyword) or which use the default ``:basilisp.core.tap/default``.
+Functions can then emit tap events at runtime into the queue using :lpy:fn:`tap>` with a topic and a background thread will call any tap functions which have subscribed to the topic.
+Taps can be removed using :lpy:fn:`remove-tap`.
+
+.. warning::
+
+   The background thread uses a :external:py:class:`queue.Queue` to store and process its results.
+   The queue size is limited to 1024 items by default to avoid excessive memory consumption.
+   Users can configure the queue size by setting the environment variable ``BASILISP_TAP_QUEUE_SIZE`` to an integer value.
+
+.. seealso::
+
+   :lpy:fn:`tap>`, :lpy:fn:`add-tap`, :lpy:fn:`remove-tap`
+
 .. _repl_creature_comforts:
 
 Creature Comforts
