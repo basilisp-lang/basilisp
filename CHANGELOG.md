@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where reader column offset numbering began at 1, rather than 0 (#905)
 
 ### Other
- * Add REPL documentation module (#205, #925)
+ * Add several sections to Concepts documentation module (#666)
+ * Add REPL documentation module (#250)
  * Add documentation module for Basilisp interfaces (#920)
  * Add GitHub source links to generated API documentation (#921)
  * Update Concepts documentation module with See Also links for most sections (#925)
