@@ -2523,26 +2523,8 @@
   [x]
   (fn [& ^:no-warn-when-unused args] x))
 
+;; redefined later
 (defn reduce
-  "Reduce ``coll`` by ``f``\\.
-
-  If ``val`` is not supplied and ``coll`` has no elements, ``f`` will be called with no
-  arguments and the result will be returned.
-
-  If ``val`` is not supplied and ``coll`` has one element, the result of
-  ``(f (first val))`` is returned.
-
-  If ``val`` is not supplied and ``coll`` has elements, repeatedly reduce ``coll`` by
-  calling ``f`` on successive elements in ``coll``\\.
-
-  If ``val`` is supplied and ``coll`` has no elements, return ``val` and ``f`` will not
-  be called.
-
-  If ``val`` is supplied and ``coll`` has elements, repeatedly reduce ``coll`` by
-  calling ``f`` on successive elements in ``coll``\\, starting with ``val``\\.
-
-  If ``f`` returns a ``reduced`` value at any point, reduction will terminate and the
-  reduced value will be returned immediately."
   ([f coll]
    (if (seq coll)
      (if (seq (rest coll))
@@ -2559,19 +2541,8 @@
        (reduce-coll val coll)
        val))))
 
+;; redefined later
 (defn reduce-kv
-  "Reduce an associative ``coll`` by ``f``\\. ``f`` must be a function of 3 arguments:
-  the initially supplied value ``init`` (in later invocations, the return from previous
-  invocations), the key of an entry of ``coll``\\, and the value of an entry of
-  ``coll``\\.
-
-  If ``coll`` has no elements, ``init`` is returned and ``f`` is not called.
-
-  If ``f`` returns a :lpy:fn:`reduced` value at any point, reduction will terminate and
-  the reduced value will be returned immediately.
-
-  ``reduce-kv`` may reduce vectors in addition to maps. Vectors have non-negative
-  integer keys."
   [f init coll]
   (if (seq coll)
     (loop [in-coll    coll
@@ -7223,3 +7194,104 @@
      (.put-nowait tap-queue {:topic topic :val val})
      true
      (catch queue/Full _ false))))
+
+(defprotocol SeqReduce
+  "Protocol impl of reduce that's faster than first/next iteration. Called by reduce."
+  (seq-reduce-impl [s f init]))
+
+(extend-protocol SeqReduce
+  nil
+  (seq-reduce-impl [s f init] init)
+
+  basilisp.lang.interfaces/ILispObject
+  (seq-reduce-impl [s f init]
+    (loop [out init
+           s (seq s)]
+      (cond
+        (reduced? out) @out
+        s (recur (f out (first s)) (next s))
+        :else (unreduced out)))))
+
+(defn- seq-reduce
+  ([s f]
+   (if-let [s (seq s)]
+     (seq-reduce-impl (next s) f (first s))
+     (f)))
+  ([s f init]
+   (seq-reduce-impl (seq s) f init)))
+
+(defprotocol CollReduce
+  "Protocol impl of reduce"
+  (coll-reduce [s f] [s f init]))
+
+(extend-protocol CollReduce
+  nil
+  (coll-reduce [s f] (f))
+  (coll-reduce [s f init] init)
+
+  basilisp.lang.interfaces/ILispObject
+  (coll-reduce [s f] (seq-reduce s f))
+  (coll-reduce [s f init] (seq-reduce s f init))
+
+  basilisp.lang.interfaces/IReduce
+  (coll-reduce [s f] (.reduce s f))
+  (coll-reduce [s f init] (.reduce s f init)))
+
+(defn reduce
+  "Reduce ``coll`` by ``f``\\.
+
+  If ``val`` is not supplied and ``coll`` has no elements, ``f`` will be called with no
+  arguments and the result will be returned.
+
+  If ``val`` is not supplied and ``coll`` has one element, the result of
+  ``(f (first val))`` is returned.
+
+  If ``val`` is not supplied and ``coll`` has elements, repeatedly reduce ``coll`` by
+  calling ``f`` on successive elements in ``coll``\\.
+
+  If ``val`` is supplied and ``coll`` has no elements, return ``val` and ``f`` will not
+  be called.
+
+  If ``val`` is supplied and ``coll`` has elements, repeatedly reduce ``coll`` by
+  calling ``f`` on successive elements in ``coll``\\, starting with ``val``\\.
+
+  If ``f`` returns a ``reduced`` value at any point, reduction will terminate and the
+  reduced value will be returned immediately."
+  ([f coll] (coll-reduce coll f))
+  ([f val coll] (coll-reduce coll f val)))
+
+(defprotocol KVReduce
+  (kv-reduce [s f init]))
+
+(extend-protocol KVReduce
+  nil
+  (kv-reduce [s f init] init)
+
+  basilisp.lang.interfaces/ILispObject
+  (kv-reduce [s f init]
+    (reduce
+      (fn [acc cur]
+        (f acc (key cur) (val cur)))
+      init
+      s))
+
+  basilisp.lang.interfaces/IReduceKV
+  (kv-reduce [s f init] (.reduce_kv s f init)))
+
+(defn reduce-kv
+  "Reduce an associative ``coll`` by ``f``\\. ``f`` must be a function of 3 arguments:
+  the initially supplied value ``init`` (in later invocations, the return from previous
+  invocations), the key of an entry of ``coll``\\, and the value of an entry of
+  ``coll``\\.
+
+  If ``coll`` has no elements, ``init`` is returned and ``f`` is not called.
+
+  If ``f`` returns a :lpy:fn:`reduced` value at any point, reduction will terminate and
+  the reduced value will be returned immediately.
+
+  ``reduce-kv`` may reduce vectors in addition to maps. Vectors have non-negative
+  integer keys."
+  [f init coll]
+  (if (seq coll)
+    (kv-reduce coll f init)
+    init))
