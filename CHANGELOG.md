@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where the core functions `symbol` and `keyword` would not accept non-string data types (#911)
  * Fix a bug where the compiler would emit warnings on when a Var was redef'ed even if that Var was initially defined with `^:redef` metadata (#916)
  * Fix a bug where reader column offset numbering began at 1, rather than 0 (#905)
+ * Fix a bug where `basilisp.core/boolean` was returning the boolean coercions like Python rather than like Basilisp (#928)
 
 ### Other
  * Add several sections to Concepts documentation module (#666)

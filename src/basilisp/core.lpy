@@ -478,7 +478,7 @@
     (recur (rest s))
     (first s)))
 
-(defn  ^:inline nil?
+(defn ^:inline nil?
   "Return ``true`` if ``x`` is ``nil``\\, otherwise ``false``\\."
   [x]
   (operator/is- x nil))
@@ -1578,9 +1578,14 @@
   (python/int x))
 
 (defn ^:inline boolean
-  "Coerce ``x`` to a boolean."
+  "Coerce ``x`` to a boolean.
+
+  Only ``false`` and ``nil`` are logical false and will return ``false``\\. All
+  other values will return ``true``\\."
   [x]
-  (python/bool x))
+  (if (or (nil? x) (false? x))
+    false
+    true))
 
 (defn byte
   "Coerce ``x`` to a byte."
@@ -2088,6 +2093,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn bounded-count
+  "Return the count (as by :lpy:fn:`count`) of any ``coll`` for which ``counted?``
+  returns ``true``, otherwise return the lesser of ``n`` and the length of
+  ``coll``\\."
   [n coll]
   (if (counted? coll)
     (count coll)

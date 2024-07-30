@@ -126,6 +126,36 @@
           (is (= v1 v2))
           (is (= {:tag vector} (meta v2))))))))
 
+(deftest boolean-test
+  (testing "logical false values"
+    (are [v] (false? (boolean v))
+      false
+      nil))
+
+  (testing "logical true values"
+    (are [v] (true? (boolean v))
+      true
+      1
+      0
+      -1
+      1.0
+      0.0
+      -1.0
+      ""
+      "false"
+      []
+      [false]
+      #{}
+      #{false}
+      {}
+      {false false}
+      '()
+      '(false false)
+      :kw
+      :ns/kw
+      'sym
+      'ns/sym)))
+
 (deftest compare-test
   (testing "nil"
     (are [res x y] (= res (compare x y))
