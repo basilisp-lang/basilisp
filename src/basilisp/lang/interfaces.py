@@ -374,6 +374,18 @@ class IPersistentStack(IPersistentCollection[T]):
         raise NotImplementedError()
 
 
+class IReduce:
+    @abstractmethod
+    def reduce(self, f, init):
+        raise NotImplementedError()
+
+
+class IReduceKV:
+    @abstractmethod
+    def reduce_kv(self, f, init):
+        raise NotImplementedError()
+
+
 class IPersistentList(ISequential, IPersistentStack[T]):
     """``IPersistentList`` is a marker interface for a singly-linked list."""
 

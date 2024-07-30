@@ -11,6 +11,8 @@ from basilisp.lang.interfaces import (
     IMapEntry,
     IPersistentMap,
     IPersistentVector,
+    IReduce,
+    IReduceKV,
     ISeq,
     ITransientVector,
     IWithMeta,
@@ -18,6 +20,7 @@ from basilisp.lang.interfaces import (
 )
 from basilisp.lang.obj import PrintSettings
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
+from basilisp.lang.reduced import Reduced
 from basilisp.lang.seq import sequence
 from basilisp.util import partition
 
@@ -80,9 +83,17 @@ class TransientVector(ITransientVector[T]):
         return PersistentVector(self._inner.persistent())
 
 
+reduce_init_obj = object()
+
+
 @total_ordering
 class PersistentVector(
-    IPersistentVector[T], IEvolveableCollection[TransientVector], ILispObject, IWithMeta
+    IPersistentVector[T],
+    IEvolveableCollection[TransientVector],
+    IReduce,
+    IReduceKV,
+    ILispObject,
+    IWithMeta,
 ):
     """Basilisp Vector. Delegates internally to a pyrsistent.PVector object.
     Do not instantiate directly. Instead use the v() and vec() factory
@@ -207,6 +218,30 @@ class PersistentVector(
 
     def to_transient(self) -> TransientVector:
         return TransientVector(self._inner.evolver())
+
+    def reduce(self, f, init=reduce_init_obj):
+        if reduce_init_obj == init:
+            if len(self) == 0:
+                return f()
+            else:
+                init = self._inner[0]
+                for item in self._inner[1:]:
+                    init = f(init, item)
+                    if isinstance(init, Reduced):
+                        return init.deref()
+        else:
+            for item in self._inner:
+                init = f(init, item)
+                if isinstance(init, Reduced):
+                    return init.deref()
+        return init
+
+    def reduce_kv(self, f, init):
+        for idx, item in enumerate(self._inner):
+            init = f(init, idx, item)
+            if isinstance(init, Reduced):
+                return init.deref()
+        return init
 
 
 K = TypeVar("K")
