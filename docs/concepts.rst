@@ -222,11 +222,39 @@ Macros created with ``defmacro`` automatically have access to two additional par
 Metadata
 --------
 
-TBD
+Basilisp symbols and collection types support optional metadata.
+As the name implies, metadata describes the data contained in a collection or the symbol.
+Users will most frequently encounter metadata used either as a hint for the compiler or as an artifact added to a symbol after compilation.
+However, metadata is reified at runtime and available for use for purposes other than compiler hints.
+
+.. note::
+
+   Metadata is not considered when comparing two objects for equality or when generating their hash codes.
+
+.. note::
+
+   Despite the fact that metadata is not considered for object equality, object metadata is nevertheless immutably linked to the object.
+   Changing the metadata of an object as by :lpy:fn:`with-meta` or :lpy:fn:`vary-meta` will result in a different object.
+
+.. code-block::
+
+   (def m ^:kw ^python/str ^{:map :yes} {:data []})
+
+   ;; will emit compiler metadata since we're inspecting the metadata of the Var
+   (meta #'m)                                         ;; => {:end-col 48 :ns basilisp.user :end-line 1 :col 0 :file "<REPL Input>" :line 1 :name m}
+
+   ;; will emit the metadata we created when we def'ed m
+   (meta m)                                           ;; => {:kw true :tag <class 'str'> :map :yes}
+
+   ;; with-meta replaces the metadata on a copy
+   (meta (with-meta m {:kw false}))                   ;; => {:kw false}
+
+   ;; source object metadata remains unchanged
+   (meta m)                                           ;; => {:kw true :tag <class 'str'> :map :yes}
 
 .. seealso::
 
-   :ref:`Reading metadata on literals <reader_metadata>`, :lpy:fn:`meta`, :lpy:fn:`with-meta`, :lpy:fn:`vary-meta`, :lpy:fn:`alter-meta!`, :lpy:fn:`reset-meta!`
+   :ref:`Reading metadata on literals <reader_metadata>`, :lpy:fn:`meta`, :lpy:fn:`with-meta`, :lpy:fn:`vary-meta`
 
 .. _delays:
 
@@ -240,18 +268,11 @@ Once a delay has been evaluated, it caches its results and returns the cached re
 
 .. code-block::
 
-   basilisp.user=> (def d (delay (println "evaluating") (+ 1 2 3)))
-   #'basilisp.user/d
-
-   basilisp.user=> d
-   <basilisp.lang.delay.Delay object at 0x1077803a0>
-
-   basilisp.user=> (force d)
-   evaluating
-   6
-
-   basilisp.user=> (force d)
-   6
+   (def d (delay (println "evaluating") (+ 1 2 3)))
+   (force d)                                          ;; prints "evaluating"
+                                                      ;; => 6
+   (force d)                                          ;; does not print
+                                                      ;; => 6
 
 .. seealso::
 
@@ -266,6 +287,16 @@ Promises are containers for receiving a deferred result, typically from another 
 The value of a promise can be written exactly once using :lpy:fn:`deliver`.
 Threads may await the results of the promise using a blocking :lpy:fn:`deref` call.
 
+.. code-block::
+
+   (def p (promise))
+   (realized? p)                      ;; => false
+   @(future (deliver p (+ 1 2 3)))
+   (realized? p)                      ;; => true
+   @p                                 ;; => 6
+   (deliver p 7)                      ;; => nil
+   @p                                 ;; => 6
+
 .. seealso::
 
    :lpy:fn:`promise`, :lpy:fn:`deliver`, :lpy:fn:`realized?`, :lpy:fn:`deref`
@@ -275,29 +306,119 @@ Threads may await the results of the promise using a blocking :lpy:fn:`deref` ca
 Atoms
 -----
 
-TBD
+Atoms are mutable, thread-safe reference containers which are useful for storing state that may need to be accessed (and changed) by multiple threads.
+New atoms can be created with a default value using :lpy:fn:`atom`.
+The state can be mutated in a thread-safe way using :lpy:fn:`swap!` and :lpy:fn:`reset!` (among others) without needing to coordinate with other threads.
+Read the value of the atom using :lpy:fn:`deref`.
+
+.. code-block::
+
+   (def a (atom 0))
+   (swap! a inc)       ;; => 1
+   @a                  ;; => 1
+   (swap! a #(+ 3 %))  ;; => 4
+   @a                  ;; => 4
+   (reset! a 0)        ;; => 0
+   @a                  ;; => 0
+
+Atoms are designed to contain one of Basilisp's immutable :ref:`data_structures`.
+The ``swap!`` function in particular uses the :lpy:fn:`compare-and-set!` function to atomically swap in the results of applying the provided function to the existing value.
+``swap!`` attempts to compare and set the value in a loop until it succeeds.
+Since atoms may be accessed by multiple threads simultaneously, it is possible that the value of an atom has changed between when the state was polled and when the function finished computing its final result.
+Update functions should therefore be free of side-effects since they may be called multiple times.
+
+.. note::
+
+   Atoms implement :py:class:`basilisp.lang.interfaces.IRef` and :py:class:`basilisp.lang.interfaces.IReference` and therefore support validators, watchers, and mutable metadata.
 
 .. seealso::
 
-   :lpy:fn:`atom`, :lpy:fn:`compare-and-set!`, :lpy:fn:`reset!`, :lpy:fn:`reset-vals!`, :lpy:fn:`swap!`, :lpy:fn:`swap-vals!`, :lpy:fn:`deref`, :ref:`references_and_refs`
+   :lpy:fn:`atom`, :lpy:fn:`compare-and-set!`, :lpy:fn:`reset!`, :lpy:fn:`reset-vals!`, :lpy:fn:`swap!`, :lpy:fn:`swap-vals!`, :lpy:fn:`deref`, :ref:`reference_types`
 
-.. _references_and_refs:
+.. _reference_types:
 
-References and Refs
--------------------
+Reference Types
+---------------
 
-TBD
+Basilisp's built-in reference types :ref:`vars` and :ref:`atoms` include support for metadata, validation, and watchers.
+
+Unlike :ref:`metadata` on data structures, reference type metadata is mutable.
+The identity of a reference type is the container, rather than the contained value, so it makes sense that if the value of a container can change so can the metadata.
+:ref:`Var metadata <var_metadata>` is typically set at compile-time by a combination of compiler provided metadata and user metadata (typically via :lpy:form:`def`).
+On the other hand, :ref:`atom <atoms>` have no metadata by default.
+Metadata can be mutated using :lpy:fn:`alter-meta!` and :lpy:fn:`reset-meta!`.
+
+Both Vars and atoms support validation of their contained value at the time it is set using a validator function.
+Validator functions are functions of one argument returning either a single boolean value (where ``false`` indicates the value is invalid) or throwing an exception upon failure.
+The validator will be called with the new proposed value of a ref before that value is applied.
+
+.. code-block::
+
+   (def a (atom 0))
+   (set-validator! a (fn [v] (= 0 (mod v 2))))
+   (swap! a inc)                                ;; => throws basilisp.lang.exception.ExceptionInfo: Invalid reference state {:data 1 :validator <...>}
+   (swap! a #(+ 2 %))                           ;; => 2
+
+Vars and atoms also feature support for watch functions which will be called on changes to the contained value.
+Watch functions are functions of 4 arguments (watch key, reference value, old value, and new value).
+Unlike validators, watches may not veto proposed changes to the contained value and any return value will be ignored.
+A watch can be added to a reference using :lpy:fn:`add-watch` using a key and watches may be removed using :lpy:fn:`remove-watch` using the same key.
+
+.. code-block::
+
+   (def a (atom 0))
+   (add-watch a :print (fn [_ r old new] (println r "changed from" old "to" new)))
+   (swap! a inc)                 ;; => prints "<basilisp.lang.atom.Atom object at 0x113b01070> changed from 0 to 1"
+                                 ;; => 1
+
+.. note::
+
+   Watch functions are called synchronously after a value change in an nondeterministic order.
+
+.. warning::
+
+   By the time a watch function is called, it is possible that the contained value has changed again, so users should use the provided arguments for the new and old value rather than attempting to :lpy:fn:`deref` the ref.
 
 .. seealso::
 
-   :lpy:fn:`alter-meta!`, :lpy:fn:`reset-meta!`, :lpy:fn:`add-watch`, :lpy:fn:`remove-watch`, :lpy:fn:`get-validator`, :lpy:fn:`set-validator!`
+   :ref:`atoms`, :ref:`vars`, :lpy:fn:`alter-meta!`, :lpy:fn:`reset-meta!`, :lpy:fn:`add-watch`, :lpy:fn:`remove-watch`, :lpy:fn:`get-validator`, :lpy:fn:`set-validator!`
 
 .. _transients:
 
 Transients
 ----------
 
-TBD
+Basilisp supports creating transient versions of most of its :ref:`persistent collections <data_structures>` using the :lpy:fn:`transient` function.
+Transient versions of persistent data structures use local mutability to improve throughput for common data manipulation operations.
+Because transients are mutable, they are intended to be used in local, single-threaded contexts where you may be constructing or modifying a collection.
+
+Despite their mutability, the APIs for mutating transient collections are intentionally quite similar to that of standard persistent data structures.
+Unlike classical data structure mutation APIs, you may not simply hang on to a single reference and issue repeated function calls or methods to that same data structure.
+Instead, you use the transient-compatible variants of the existing persistent data structure functions (those ending with a ``!``) such as :lpy:fn:`assoc!`, :lpy:fn:`conj!`, etc.
+As with the persistent data structures, you must use the return value from each of these functions as the input to subsequent operations.
+
+Once you have completed modifying a transient, you should call :lpy:fn:`persistent!` to freeze the data structure back into its persistent variant.
+After freezing a transient back into a persistent data structure, references to the transient are no longer guaranteed to be valid and may throw exceptions.
+
+Many :lpy:ns:`basilisp.core` functions already use transients under the hood by default.
+Take for example this definition of a function to merge an arbitrary number of maps (much like :lpy:fn:`merge`).
+
+.. code-block::
+
+   (defn merge [& maps]
+     (when (some identity maps)
+      (persistent!
+       (reduce #(conj! %1 %2) (transient {}) maps))))
+
+.. note::
+
+   You can create transient versions of maps, sets, and vectors.
+   Lists may not be made transient, since there would be no benefit.
+
+.. warning::
+
+   Transient data structures are not thread-safe and must therefore not be modified by multiple threads at once.
+   It is the user's responsibility to ensure synchronization mutations to transients across threads.
 
 .. seealso::
 
@@ -308,7 +429,13 @@ TBD
 Volatiles
 ---------
 
-TBD
+Volatiles are mutable, *non-thread-safe* reference containers which are useful for storing state that is mutable and is only changed in a single thread.
+Create a new volatile using :lpy:fn:`volatile!`.
+The stored value can be modified using :lpy:fn:`vswap!` and :lpy:fn:`vreset!`.
+
+.. note::
+
+   Volatiles are most frequently used for creating performant stateful :ref:`transducers`.
 
 .. seealso::
 
@@ -358,24 +485,13 @@ TBD
 
    :lpy:fn:`defprotocol`, :lpy:fn:`protocol?`, :lpy:fn:`extend`, :lpy:fn:`extend-protocol`, :lpy:fn:`extend-type`, :lpy:fn:`extenders`, :lpy:fn:`extends?`, :lpy:fn:`satisfies?`
 
-.. _data_types:
+.. _data_types_and_records:
 
-Data Types
-----------
-
-TBD
-
-.. seealso::
-
-   :lpy:fn:`deftype`
-
-.. _records:
-
-Records
--------
+Data Types and Records
+----------------------
 
 TBD
 
 .. seealso::
 
-   :ref:`records` , :lpy:fn:`defrecord` , :lpy:fn:`record?`
+   :lpy:fn:`deftype`, :lpy:fn:`defrecord` , :lpy:fn:`record?`
