@@ -87,15 +87,19 @@ Keywords are symbolic identifiers which always evaluate to themselves.
 Keywords consist of a name and an optional namespace, both of which are strings.
 The textual representation of a keyword includes a single leading ``:``, which is not part of the name or namespace.
 
-Keywords are also functions of one or 2 arguments, roughly equivalent to calling :lpy:fn:`get` on the first argument with the keyword and an optional default.
+Keywords are also functions of one or 2 arguments, roughly equivalent to calling :lpy:fn:`get` on a map or set with an optional default value argument.
+If the first argument is a :ref:`map <maps>`, then looks up the value associated with the keyword in the map.
+If the first argument is a :ref:`set <sets>`, then looks up if the keyword is a member of the set and returns itself if so.
+Returns the default value or ``nil`` (if no default value is specified) if either check fails.
 
 .. code-block::
 
    (def m {:kw 1 :other 2})
    (:kw m)            ;; => 1
    (get m :kw)        ;; => 1
-   (:some-kw m 3)     ;; => nil
-   (get m :some-kw 3) ;; ==> 3
+   (:some-kw m)       ;; => nil
+   (:some-kw m 3)     ;; => 3
+   (get m :some-kw 3) ;; => 3
 
 .. note::
 
@@ -117,11 +121,31 @@ Symbols
 Symbols are symbolic identifiers which are typically used to refer to something else.
 Symbols consist of a name and an optional namespace, both strings.
 
-Symbols, like :ref:`keywords`, can also be called like a function of similar functionality to :lpy:fn:`get`.
+Symbols, like :ref:`keywords`, can also be called like a function similar to :lpy:fn:`get` on a map or set with an optional default value argument.
+If the first argument is a :ref:`map <maps>`, then looks up the value associated with the symbol in the map.
+If the first argument is a :ref:`set <sets>`, then looks up if the symbol is a member of the set and returns itself if so.
+Returns the default value or ``nil`` (if no default value is specified) if either check fails.
+
+.. code-block::
+
+   (def m {'sym 1 'other 2})
+   ('sym m)            ;; => 1
+   (get m 'sym)        ;; => 1
+   ('some-sym m)       ;; => nil
+   ('some-sym m 3)     ;; => 3
+   (get m 'sym 3)      ;; => 3
+
+.. note::
+
+   Basilisp will always try to resolve unquoted symbols, so be sure to wrap symbols in as ``(quote sym)`` or ``'sym`` if you just want a symbol.
+
+.. warning::
+
+   Symbols can be created programmatically via :lpy:fn:`symbol` which may not be able to be read back by the :ref:`reader`, so use caution when creating symbols programmatically.
 
 .. seealso::
 
-   :lpy:fn:`symbol`, :lpy:fn:`name`, :lpy:fn:`namespace`, :lpy:fn:`gensym`
+   :lpy:fn:`symbol`, :lpy:fn:`name`, :lpy:fn:`namespace`, :lpy:fn:`gensym`, :lpy:form:`quote`
 
 .. _collection_types:
 
@@ -144,8 +168,8 @@ Lists
 #####
 
 Lists are singly-linked lists.
-Lists directly implement :py:class:`basilisp.lang.interfaces.ISeq`.
-You get the count of a list in ``O(n)`` time via :lpy:fn:`count`.
+Unlike most other Basilisp collections, Lists directly implement :py:class:`basilisp.lang.interfaces.ISeq` (see :ref:`seqs`).
+You can get the count of a list in ``O(n)`` time via :lpy:fn:`count`.
 Items added via :lpy:fn:`conj` are added to the front of the list.
 
 .. seealso::
@@ -158,7 +182,7 @@ Queues
 ######
 
 Queues are doubly-linked lists.
-You get the count of a list in ``O(1)`` time via :lpy:fn:`count`.
+You get the count of a queue in ``O(1)`` time via :lpy:fn:`count`.
 Items added via :lpy:fn:`conj` are added to the end of the queue.
 
 .. seealso::
@@ -173,7 +197,18 @@ Vectors
 Vectors are sequential collections much more similar to Python lists or arrays in other languages.
 Vectors return their count in ``O(1)`` time via :lpy:fn:`count`.
 :lpy:fn:`conj` adds items to the end of a vector.
+Random access to vector elements by index (via :lpy:fn:`get` or :lpy:fn:`nth`) is ``O(log32(n))``.
 You can reverse a vector in constant time using :lpy:fn:`rseq`.
+
+Vectors be called like a function similar to :lpy:fn:`nth` with an index and an optional default value, returning the value at the specified index if found.
+Returns the default value or ``nil`` (if no default value is specified) otherwise.
+
+.. code-block::
+
+   (def v [:a :b :c])
+   (v 0)                ;; => :a
+   (v 5)                ;; => nil
+   (v 5 :g)             ;; => :g
 
 .. seealso::
 
@@ -184,14 +219,55 @@ You can reverse a vector in constant time using :lpy:fn:`rseq`.
 Maps
 ####
 
-TBD
+Maps are unordered, associative collections which map arbitrary keys to values.
+Keys must be hashable.
+Maps return their count in ``O(1)`` time via :lpy:fn:`count`.
+Random access to map values is ``O(log(n))``.
+
+:lpy:fn:`conj` accepts any of the following types, adding new keys or replacing keys as appropriate:
+
+- Another map; values will be merged in from left to right with keys from the rightmost map taking precedence in the instance of a conflict
+- A map entry
+- 2 element vector; the first element will be treated as the key and the second the value
+
+Calling :lpy:fn:`seq` on a map yields successive map entries, which are roughly equivalent to 2 element vectors.
+
+Maps be called like a function similar to :lpy:fn:`get` with a key and an optional default value, returning the value at the specified key if found.
+Returns the default value or ``nil`` (if no default value is specified) otherwise.
+
+.. code-block::
+
+   (def m {:a 0 :b 1})
+   (m :a)               ;; => 0
+   (m :g)               ;; => nil
+   (m :g 5)             ;; => 5
+
+.. seealso::
+
+   :lpy:fn:`hash-map`, :lpy:fn:`assoc`, :lpy:fn:`assoc-in`, :lpy:fn:`get`, :lpy:fn:`get-in`, :lpy:fn:`find`, :lpy:fn:`update`, :lpy:fn:`update-in`, :lpy:fn:`dissoc`, :lpy:fn:`merge`, :lpy:fn:`merge-with`, :lpy:fn:`map-entry`, :lpy:fn:`key`, :lpy:fn:`val`, :lpy:fn:`keys`, :lpy:fn:`vals`, :lpy:fn:`select-keys`, :lpy:fn:`update-keys`, :lpy:fn:`update-vals`, :lpy:fn:`map?`
 
 .. _sets:
 
 Sets
 ####
 
-TBD
+Sets are unordered groups of unique values.
+Values must be hashable.
+Sets return their count in ``O(1)`` time via :lpy:fn:`count.`
+
+Sets be called like a function similar to :lpy:fn:`get` with a key and an optional default value, returning the value if it exists in the set.
+Returns the default value or ``nil`` (if no default value is specified) otherwise.
+
+.. code-block::
+
+   (def s #{:a :b :c})
+   (s :a)                ;; => :a
+   (s :g)                ;; => nil
+   (s :g :g)             ;; => :g
+
+.. seealso::
+
+   :lpy:fn:`hash-set`, :lpy:fn:`set`, :lpy:fn:`disj`, :lpy:fn:`contains?`, :lpy:fn:`set?`
 
 .. _seqs:
 
