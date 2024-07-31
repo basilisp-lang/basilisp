@@ -213,14 +213,14 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
             if self._obj is not None:
                 o = self._obj
                 self._obj = None
-                # Consume any additional lazy sequences returned immediately so we have a
-                # "real" concrete sequence to proxy to.
+                # Consume any additional lazy sequences returned immediately, so we
+                # have a "real" concrete sequence to proxy to.
                 #
-                # The common idiom with LazySeqs is to return (cons value (lazy-seq ...))
-                # from the generator function, so this will only result in evaluating away
-                # instances where _another_ LazySeq is returned rather than a cons cell
-                # with a concrete first value. This loop will not consume the LazySeq in
-                # the rest position of the cons.
+                # The common idiom with LazySeqs is to return
+                # (cons value (lazy-seq ...)) from the generator function, so this will
+                # only result in evaluating away instances where _another_ LazySeq is
+                # returned rather than a cons cell with a concrete first value. This
+                # loop will not consume the LazySeq in the rest position of the cons.
                 while isinstance(o, LazySeq):
                     o = o._compute_seq()  # type: ignore
                 self._seq = to_seq(o)
