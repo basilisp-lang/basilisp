@@ -2523,39 +2523,18 @@
   [x]
   (fn [& ^:no-warn-when-unused args] x))
 
-;; redefined later
-(defn reduce
+;; reduce is defined after loading basilisp.core.protocols
+(defn- reduce1
+  "Internal implementation of reduce which uses seq iteration and doesn't check for
+  reduced?"
   ([f coll]
-   (if (seq coll)
-     (if (seq (rest coll))
-       (reduce f (first coll) (rest coll))
-       (first coll))
+   (if-let [s (seq coll)]
+     (reduce1 f (first s) (next s))
      (f)))
   ([f val coll]
-   (let [reduce-coll (fn [out in]
-                       (cond
-                         (reduced? out) @out
-                         (seq in)      (recur (f out (first in)) (rest in))
-                         :else         (unreduced out)))]
-     (if (seq coll)
-       (reduce-coll val coll)
-       val))))
-
-;; redefined later
-(defn reduce-kv
-  [f init coll]
-  (if (seq coll)
-    (loop [in-coll    coll
-           assoc-coll init]
-      (let [entry (first in-coll)
-            k     (key entry)
-            v     (val entry)
-            rem   (rest in-coll)]
-        (cond
-          (reduced? assoc-coll) @assoc-coll
-          (seq rem)             (recur rem (f assoc-coll k v))
-          :else                 (unreduced (f assoc-coll k v)))))
-    init))
+   (if-let [s (seq coll)]
+     (recur f (f val (first s)) (next s))
+     val)))
 
 (defn comp
   "Return a function which is the composition of all the functions given as arguments.
@@ -2570,7 +2549,7 @@
      ([x y z] (f (g x y z)))
      ([x y z & args] (f (apply g x y z args)))))
   ([f g & args]
-   (reduce comp f (cons g args))))
+   (reduce1 comp f (cons g args))))
 
 (defn juxt
   "Return a function which takes any number of arguments and applies each of the
@@ -2578,10 +2557,10 @@
   values from each function."
   [& args]
   (fn [& inner-args]
-    (reduce (fn [v f]
-              (conj v (apply f inner-args)))
-            []
-            args)))
+    (reduce1 (fn [v f]
+               (conj v (apply f inner-args)))
+             []
+             args)))
 
 (defn partial
   "Return a function which is the partial application of ``f`` with ``args``\\."
@@ -2626,13 +2605,13 @@
    (fn [& args]
      (every? pred args)))
   ([pred & preds]
-   (let [comp-pred (reduce (fn [f g]
-                             (fn [v]
-                               (if (and (f v) (g v))
-                                 true
-                                 false)))
-                           pred
-                           preds)]
+   (let [comp-pred (reduce1 (fn [f g]
+                              (fn [v]
+                                (if (and (f v) (g v))
+                                  true
+                                  false)))
+                            pred
+                            preds)]
      (fn [& args]
        (every? comp-pred args)))))
 
@@ -2657,11 +2636,11 @@
    (fn [& args]
      (some f args)))
   ([f & fs]
-   (let [comp-f (reduce (fn [f g]
-                          (fn [v]
-                            (or (f v) (g v))))
-                        f
-                        fs)]
+   (let [comp-f (reduce1 (fn [f g]
+                           (fn [v]
+                             (or (f v) (g v))))
+                         f
+                         fs)]
      (fn [& args]
        (some comp-f args)))))
 
@@ -2927,25 +2906,25 @@
   "Return a map whose keys are the elements of ``coll`` and whose values are the counts
   for the number of times the key appears in ``coll``\\."
   [coll]
-  (reduce (fn [m v]
-            (if (contains? m v)
-              (update m v inc)
-              (assoc m v 1)))
-          {}
-          coll))
+  (reduce1 (fn [m v]
+             (if (contains? m v)
+               (update m v inc)
+               (assoc m v 1)))
+           {}
+           coll))
 
 (defn group-by
   "Return a map whose keys are the result of calling ``f`` on each element in ``coll``
   and whose values are vectors of the values which produced the corresponding key, in
   the order they were added."
   [f coll]
-  (reduce (fn [m v]
-            (let [group (f v)]
-              (if (contains? m group)
-                (update m group conj v)
-                (assoc m group [v]))))
-          {}
-          coll))
+  (reduce1 (fn [m v]
+             (let [group (f v)]
+               (if (contains? m group)
+                 (update m group conj v)
+                 (assoc m group [v]))))
+           {}
+           coll))
 
 (defn interpose
   "Return a lazy sequence of elements of ``coll`` separated by ``sep``\\. If ``coll`` is
@@ -3222,23 +3201,23 @@
   "Return the arg for which ``(k arg)`` is the smallest number. If multiple values
   return the same number, return the last."
   [k & args]
-  (reduce (fn [cur nxt]
-            (if (<= (k nxt) (k cur))
-              nxt
-              cur))
-          (first args)
-          (rest args)))
+  (reduce1 (fn [cur nxt]
+             (if (<= (k nxt) (k cur))
+               nxt
+               cur))
+           (first args)
+           (rest args)))
 
 (defn max-key
   "Return the arg for which ``(k arg)`` is the largest number. If multiple values
   return the same number, return the last."
   [k & args]
-  (reduce (fn [cur nxt]
-            (if (>= (k nxt) (k cur))
-              nxt
-              cur))
-          (first args)
-          (rest args)))
+  (reduce1 (fn [cur nxt]
+             (if (>= (k nxt) (k cur))
+               nxt
+               cur))
+           (first args)
+           (rest args)))
 
 (defn sort-by
   "Return a sorted sequence of the elements from ``coll`` using the ``cmp`` comparator
@@ -3261,9 +3240,9 @@
   [& maps]
   (when (some identity maps)
     (persistent!
-     (reduce #(conj! %1 %2)
-             (transient {})
-             maps))))
+     (reduce1 #(conj! %1 %2)
+              (transient {})
+              maps))))
 
 (defn merge-with
   "Merge maps together from left to right as by :lpy:fn:`conj`. If a
@@ -3272,13 +3251,13 @@
   next-val)``."
   [f & maps]
   (when (some identity maps)
-    (reduce (fn [acc kv]
-              (let [k (first  kv)
-                    v (second kv)]
-                (if (contains? acc k)
-                  (update acc k f v)
-                  (assoc acc k v))))
-            (first maps) (apply concat (rest maps)))))
+    (reduce1 (fn [acc kv]
+               (let [k (first  kv)
+                     v (second kv)]
+                 (if (contains? acc k)
+                   (update acc k f v)
+                   (assoc acc k v))))
+             (first maps) (apply concat (rest maps)))))
 
 (defn trampoline
   "Trampoline ``f`` with starting arguments. If ``f`` returns a function (as determined
@@ -3801,12 +3780,12 @@
     (throw
      (ex-info "Expected an even number of bindings"
               {:bindings bindings})))
-  (let [var-bindings (reduce (fn [v pair]
-                               (let [vvar (first pair)
-                                     vval (second pair)]
-                                 (conj v `(var ~vvar) vval)))
-                             []
-                             (partition 2 bindings))]
+  (let [var-bindings (reduce1 (fn [v pair]
+                                (let [vvar (first pair)
+                                      vval (second pair)]
+                                  (conj v `(var ~vvar) vval)))
+                              []
+                              (partition 2 bindings))]
     `(do
        (push-thread-bindings (hash-map ~@var-bindings))
        (try
@@ -3892,11 +3871,11 @@
                              :let [vvar (first v)
                                    vval (second v)]]
                        (.bind-root vvar vval)))
-        originals  (reduce (fn [m elem]
-                             (let [vvar (first elem)]
-                               (assoc m vvar (.-root vvar))))
-                           {}
-                           bindings-map)]
+        originals  (reduce1 (fn [m elem]
+                              (let [vvar (first elem)]
+                                (assoc m vvar (.-root vvar))))
+                            {}
+                            bindings-map)]
     (redef-vars bindings-map)
     (try
       (f)
@@ -3924,12 +3903,12 @@
     (throw
      (ex-info "Expected an even number of bindings"
               {:bindings bindings})))
-  (let [var-bindings (reduce (fn [v pair]
-                               (let [vvar (first pair)
-                                     vval (second pair)]
-                                 (conj v `(var ~vvar) vval)))
-                             []
-                             (partition 2 bindings))]
+  (let [var-bindings (reduce1 (fn [v pair]
+                                (let [vvar (first pair)
+                                      vval (second pair)]
+                                  (conj v `(var ~vvar) vval)))
+                              []
+                              (partition 2 bindings))]
     `(with-redefs-fn
        ~(apply hash-map var-bindings)
        (fn []
@@ -4653,14 +4632,14 @@
 (defn ns-aliases
   "Return a map of Basilisp namespaces which are aliased in the current namespace."
   [ns]
-  (reduce (fn [m entry]
-            (let [alias     (key entry)
-                  namespace (symbol (name (val entry)))]
-              (if (= alias namespace)
-                m
-                (assoc m alias namespace))))
-          {}
-          (.-aliases (the-ns ns))))
+  (reduce1 (fn [m entry]
+             (let [alias     (key entry)
+                   namespace (symbol (name (val entry)))]
+               (if (= alias namespace)
+                 m
+                 (assoc m alias namespace))))
+           {}
+           (.-aliases (the-ns ns))))
 
 (defn ^:inline ns-imports
   "Return a set of Python modules which are imported in the current namespace."
@@ -4687,12 +4666,12 @@
 
   Public vars are Vars which are declared without ``:private`` metadata."
   [ns]
-  (reduce (fn [m entry]
-            (if (:private (meta (val entry)))
-              m
-              (assoc m (key entry) (val entry))))
-          {}
-          (ns-interns (the-ns ns))))
+  (reduce1 (fn [m entry]
+             (if (:private (meta (val entry)))
+               m
+               (assoc m (key entry) (val entry))))
+           {}
+           (ns-interns (the-ns ns))))
 
 (defn ^:inline ns-refers
   "Return a map of symbols to Vars which are referred in the current namespace."
@@ -4842,11 +4821,11 @@
                               (contains? only (key entry))))
       (seq exclude) (remove (fn [entry]
                               (contains? exclude (key entry))))
-      (seq rename)  (reduce (fn [m entry]
-                              (if (rename (key entry))
-                                (assoc m (rename (key entry)) (val entry))
-                                m))
-                            {}))))
+      (seq rename)  (reduce1 (fn [m entry]
+                               (if (rename (key entry))
+                                 (assoc m (rename (key entry)) (val entry))
+                                 m))
+                             {}))))
 
 (defn ^:private refer-lib
   "Refer Vars into ``requiring-ns`` as described by ``libspec``\\.
@@ -5021,15 +5000,15 @@
   (let [doc  (when (string? (first opts))
                (first opts))
         opts (if doc (rest opts) opts)
-        opts (reduce (fn [m opt]
-                       (let [opt-name (first opt)
-                             options  (rest opt)]
-                         (when-not (keyword? opt-name)
-                           (throw (ex-info "Namespace option must be a keyword"
-                                           {:option opt-name})))
-                         (assoc m opt-name (vec options))))
-                     {}
-                     opts)
+        opts (reduce1 (fn [m opt]
+                        (let [opt-name (first opt)
+                              options  (rest opt)]
+                          (when-not (keyword? opt-name)
+                            (throw (ex-info "Namespace option must be a keyword"
+                                            {:option opt-name})))
+                          (assoc m opt-name (vec options))))
+                      {}
+                      opts)
 
         refer-filters (when-let [filters (or (:refer-basilisp opts)
                                              (:refer-clojure opts))]
@@ -5156,7 +5135,7 @@
    (not-empty
     (let [hierarchy-ancestors (get-in h [:ancestors tag] #{})]
       (if (class? tag)
-        (reduce conj hierarchy-ancestors (supers tag))
+        (reduce1 conj hierarchy-ancestors (supers tag))
         hierarchy-ancestors)))))
 
 (defn descendants
@@ -5194,7 +5173,7 @@
    (not-empty
     (let [hierarchy-ancestors (get-in h [:parents tag] #{})]
       (if (class? tag)
-        (reduce conj hierarchy-ancestors (bases tag))
+        (reduce1 conj hierarchy-ancestors (bases tag))
         hierarchy-ancestors)))))
 
 (defn isa?
@@ -5251,20 +5230,20 @@
      {:parents     (as-> (get-in h [:parents tag] #{}) $
                      (conj $ parent)
                      (assoc (:parents h) tag $))
-      :ancestors   (reduce (fn [ancestors descendant]
-                             (->> (get ancestors descendant)
-                                  (apply conj parent-ancestors parent)
-                                  (set)
-                                  (assoc ancestors descendant)))
-                           (:ancestors h)
-                           (conj cur-descendants tag))
-      :descendants (reduce (fn [descendants ancestor]
-                             (->> (get descendants ancestor)
-                                  (apply conj cur-descendants tag)
-                                  (set)
-                                  (assoc descendants ancestor)))
-                           (:descendants h)
-                           (conj parent-ancestors parent))})))
+      :ancestors   (reduce1 (fn [ancestors descendant]
+                              (->> (get ancestors descendant)
+                                   (apply conj parent-ancestors parent)
+                                   (set)
+                                   (assoc ancestors descendant)))
+                            (:ancestors h)
+                            (conj cur-descendants tag))
+      :descendants (reduce1 (fn [descendants ancestor]
+                              (->> (get descendants ancestor)
+                                   (apply conj cur-descendants tag)
+                                   (set)
+                                   (assoc descendants ancestor)))
+                            (:descendants h)
+                            (conj parent-ancestors parent))})))
 
 (defn underive
   "Remove a parent/child relationship between ``tag`` and ``parent`` originally created
@@ -5294,9 +5273,9 @@
                     (let [tag     (first pair)
                           parents (second pair)]
                       (map #(vector tag %) parents))))
-          (reduce (fn [h pair]
-                    (derive h (first pair) (second pair)))
-                  (make-hierarchy))))))
+          (reduce1 (fn [h pair]
+                     (derive h (first pair) (second pair)))
+                   (make-hierarchy))))))
 
 ;;;;;;;;;;;;;;;;;;
 ;; Multimethods ;;
@@ -5418,84 +5397,6 @@
   [multifn]
   (.remove-all-methods multifn)
   multifn)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Associative Functions ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn replace
-  "Replace elements of the vector/seq ``coll`` with matching elements from the
-  associative collection ``smap``\\, if they exist.
-
-  Return a transducer if no collection is provided."
-  ([smap]
-   (fn [rf]
-     (fn
-       ([] (rf))
-       ([result] (rf result))
-       ([result input]
-        (->> (if-let [newv (get smap input)]
-               newv
-               input)
-             (rf result))))))
-  ([smap coll]
-   (if (vector? coll)
-     (persistent!
-      (reduce (fn [res v]
-                (->> (if-let [newv (get smap v)]
-                       newv
-                       v)
-                     (conj! res)))
-              (transient [])
-              coll))
-     (map (fn [v]
-            (if-let [newv (get smap v)]
-              newv
-              v))
-          coll))))
-
-(defn select-keys
-  "Return a map with only the keys of ``m`` which are in ``ks``\\."
-  [m ks]
-  (persistent!
-   (reduce (fn [new-map k]
-             (if (contains? m k)
-               (assoc! new-map k (get m k))
-               new-map))
-           (transient {})
-           ks)))
-
-(defn update-keys
-  "Update the keys in map ``m`` by applying a function of one argument, ``f``\\,
-  to every key.
-
-  ``f`` must return a unique key for every input key, otherwise the behavior of
-  this function is undefined."
-  [m f]
-  (with-meta
-    (persistent!
-     (reduce-kv (fn [m k v]
-                  (assoc! m (f k) v))
-                (transient {})
-                m))
-    (meta m)))
-
-(defn update-vals
-  "Update the values in map ``m`` by applying a function of one argument, ``f``\\,
-  to every value."
-  [m f]
-  (with-meta
-    (persistent!
-     (reduce-kv (fn [m k v]
-                  (assoc! m k (f v)))
-                ;; using the incoming map as a base means we could potentially
-                ;; share structure
-                (transient
-                 (if (instance? basilisp.lang.interfaces/IEvolveableCollection m)
-                   m
-                   {}))
-                m))
-    (meta m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Destructuring Support ;;
@@ -6039,17 +5940,17 @@
                      (map (fn [{:keys [method-name] :as arity}]
                             (assoc arity :python-name (munge method-name)))
                           arities))))
-         (reduce (fn [m {:keys [method-name python-name args docstring]}]
-                   (let [method (->>  args
-                                      (map #(vary-meta % assoc :no-warn-when-unused true))
-                                      (apply vector)
-                                      (list 'fn* method-name)
-                                      (eval)
-                                      (abc/abstractmethod))]
-                     (when docstring
-                       (set! (.- method __doc__) docstring))
-                     (assoc m python-name method)))
-                 {})
+         (reduce1 (fn [m {:keys [method-name python-name args docstring]}]
+                    (let [method (->>  args
+                                       (map #(vary-meta % assoc :no-warn-when-unused true))
+                                       (apply vector)
+                                       (list 'fn* method-name)
+                                       (eval)
+                                       (abc/abstractmethod))]
+                      (when docstring
+                        (set! (.- method __doc__) docstring))
+                      (assoc m python-name method)))
+                  {})
          (lisp->py)
          (python/type interface-name extends))))
 
@@ -6265,12 +6166,12 @@
                                    {:missing-methods (->> proto-method-names
                                                           (remove impl-method-names)
                                                           (set))}))))
-               (let [proto-method-arity-map (reduce-kv (fn [m k v]
-                                                         (assoc m k (.-arities v)))
+               (let [proto-method-arity-map (reduce1 (fn [m kv]
+                                                         (assoc m (key kv) (.-arities (val kv))))
                                                        {}
                                                        proto-methods)
-                     impl-method-arity-map  (reduce-kv (fn [m k v]
-                                                         (assoc m k (.-arities v)))
+                     impl-method-arity-map  (reduce1 (fn [m kv]
+                                                         (assoc m (key kv) (.-arities (val kv))))
                                                        {}
                                                        method-map)]
                  (doseq [proto-method proto-method-arity-map
@@ -6323,17 +6224,17 @@
   ``extend``\\."
   [target-type methods]
   (->> (group-by first methods)
-       (reduce (fn [m [method-name arities]]
-                 (let [genned-method-name (symbol
-                                           (str (name method-name)
-                                                "-"
-                                                (if (nil? target-type)
-                                                  "nil"
-                                                  (name target-type))))]
-                   (->> (map rest arities)
-                        (apply list `fn genned-method-name)
-                        (assoc! m (keyword (name method-name))))))
-               (transient {}))
+       (reduce1 (fn [m [method-name arities]]
+                  (let [genned-method-name (symbol
+                                            (str (name method-name)
+                                                 "-"
+                                                 (if (nil? target-type)
+                                                   "nil"
+                                                   (name target-type))))]
+                    (->> (map rest arities)
+                         (apply list `fn genned-method-name)
+                         (assoc! m (keyword (name method-name))))))
+                (transient {}))
        (persistent!)))
 
 (defmacro extend-protocol
@@ -6890,6 +6791,54 @@
     (.write writer content)
     nil))
 
+;;;;;;;;;;;;
+;; Reduce ;;
+;;;;;;;;;;;;
+
+
+(require 'basilisp.core.protocols)
+
+(defn reduce
+  "Reduce ``coll`` by ``f``\\.
+
+  If ``val`` is not supplied and ``coll`` has no elements, ``f`` will be called with no
+  arguments and the result will be returned.
+
+  If ``val`` is not supplied and ``coll`` has one element, the result of
+  ``(f (first val))`` is returned.
+
+  If ``val`` is not supplied and ``coll`` has elements, repeatedly reduce ``coll`` by
+  calling ``f`` on successive elements in ``coll``\\.
+
+  If ``val`` is supplied and ``coll`` has no elements, return ``val` and ``f`` will not
+  be called.
+
+  If ``val`` is supplied and ``coll`` has elements, repeatedly reduce ``coll`` by
+  calling ``f`` on successive elements in ``coll``\\, starting with ``val``\\.
+
+  If ``f`` returns a ``reduced`` value at any point, reduction will terminate and the
+  reduced value will be returned immediately."
+  ([f coll] (basilisp.core.protocols/coll-reduce coll f))
+  ([f val coll] (basilisp.core.protocols/coll-reduce coll f val)))
+
+(defn reduce-kv
+  "Reduce an associative ``coll`` by ``f``\\. ``f`` must be a function of 3 arguments:
+  the initially supplied value ``init`` (in later invocations, the return from previous
+  invocations), the key of an entry of ``coll``\\, and the value of an entry of
+  ``coll``\\.
+
+  If ``coll`` has no elements, ``init`` is returned and ``f`` is not called.
+
+  If ``f`` returns a :lpy:fn:`reduced` value at any point, reduction will terminate and
+  the reduced value will be returned immediately.
+
+  ``reduce-kv`` may reduce vectors in addition to maps. Vectors have non-negative
+  integer keys."
+  [f init coll]
+  (if (seq coll)
+    (basilisp.core.protocols/kv-reduce coll f init)
+    init))
+
 ;;;;;;;;;;;;;;;;;
 ;; Transducers ;;
 ;;;;;;;;;;;;;;;;;
@@ -7109,6 +7058,84 @@
      (when (somef ret)
        (cons (vf ret) (iteration step :somef somef :vf vf :kf kf :initk (kf ret)))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Associative Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn replace
+  "Replace elements of the vector/seq ``coll`` with matching elements from the
+  associative collection ``smap``\\, if they exist.
+
+  Return a transducer if no collection is provided."
+  ([smap]
+   (fn [rf]
+     (fn
+       ([] (rf))
+       ([result] (rf result))
+       ([result input]
+        (->> (if-let [newv (get smap input)]
+               newv
+               input)
+             (rf result))))))
+  ([smap coll]
+   (if (vector? coll)
+     (persistent!
+      (reduce (fn [res v]
+                (->> (if-let [newv (get smap v)]
+                       newv
+                       v)
+                     (conj! res)))
+              (transient [])
+              coll))
+     (map (fn [v]
+            (if-let [newv (get smap v)]
+              newv
+              v))
+          coll))))
+
+(defn select-keys
+  "Return a map with only the keys of ``m`` which are in ``ks``\\."
+  [m ks]
+  (persistent!
+   (reduce (fn [new-map k]
+             (if (contains? m k)
+               (assoc! new-map k (get m k))
+               new-map))
+           (transient {})
+           ks)))
+
+(defn update-keys
+  "Update the keys in map ``m`` by applying a function of one argument, ``f``\\,
+  to every key.
+
+  ``f`` must return a unique key for every input key, otherwise the behavior of
+  this function is undefined."
+  [m f]
+  (with-meta
+    (persistent!
+     (reduce-kv (fn [m k v]
+                  (assoc! m (f k) v))
+                (transient {})
+                m))
+    (meta m)))
+
+(defn update-vals
+  "Update the values in map ``m`` by applying a function of one argument, ``f``\\,
+  to every value."
+  [m f]
+  (with-meta
+    (persistent!
+     (reduce-kv (fn [m k v]
+                  (assoc! m k (f v)))
+                ;; using the incoming map as a base means we could potentially
+                ;; share structure
+                (transient
+                 (if (instance? basilisp.lang.interfaces/IEvolveableCollection m)
+                   m
+                   {}))
+                m))
+    (meta m)))
+
 ;;;;;;;;;;
 ;; Taps ;;
 ;;;;;;;;;;
@@ -7194,104 +7221,3 @@
      (.put-nowait tap-queue {:topic topic :val val})
      true
      (catch queue/Full _ false))))
-
-(defprotocol SeqReduce
-  "Protocol impl of reduce that's faster than first/next iteration. Called by reduce."
-  (seq-reduce-impl [s f init]))
-
-(extend-protocol SeqReduce
-  nil
-  (seq-reduce-impl [s f init] init)
-
-  basilisp.lang.interfaces/ILispObject
-  (seq-reduce-impl [s f init]
-    (loop [out init
-           s (seq s)]
-      (cond
-        (reduced? out) @out
-        s (recur (f out (first s)) (next s))
-        :else (unreduced out)))))
-
-(defn- seq-reduce
-  ([s f]
-   (if-let [s (seq s)]
-     (seq-reduce-impl (next s) f (first s))
-     (f)))
-  ([s f init]
-   (seq-reduce-impl (seq s) f init)))
-
-(defprotocol CollReduce
-  "Protocol impl of reduce"
-  (coll-reduce [s f] [s f init]))
-
-(extend-protocol CollReduce
-  nil
-  (coll-reduce [s f] (f))
-  (coll-reduce [s f init] init)
-
-  basilisp.lang.interfaces/ILispObject
-  (coll-reduce [s f] (seq-reduce s f))
-  (coll-reduce [s f init] (seq-reduce s f init))
-
-  basilisp.lang.interfaces/IReduce
-  (coll-reduce [s f] (.reduce s f))
-  (coll-reduce [s f init] (.reduce s f init)))
-
-(defn reduce
-  "Reduce ``coll`` by ``f``\\.
-
-  If ``val`` is not supplied and ``coll`` has no elements, ``f`` will be called with no
-  arguments and the result will be returned.
-
-  If ``val`` is not supplied and ``coll`` has one element, the result of
-  ``(f (first val))`` is returned.
-
-  If ``val`` is not supplied and ``coll`` has elements, repeatedly reduce ``coll`` by
-  calling ``f`` on successive elements in ``coll``\\.
-
-  If ``val`` is supplied and ``coll`` has no elements, return ``val` and ``f`` will not
-  be called.
-
-  If ``val`` is supplied and ``coll`` has elements, repeatedly reduce ``coll`` by
-  calling ``f`` on successive elements in ``coll``\\, starting with ``val``\\.
-
-  If ``f`` returns a ``reduced`` value at any point, reduction will terminate and the
-  reduced value will be returned immediately."
-  ([f coll] (coll-reduce coll f))
-  ([f val coll] (coll-reduce coll f val)))
-
-(defprotocol KVReduce
-  (kv-reduce [s f init]))
-
-(extend-protocol KVReduce
-  nil
-  (kv-reduce [s f init] init)
-
-  basilisp.lang.interfaces/ILispObject
-  (kv-reduce [s f init]
-    (reduce
-      (fn [acc cur]
-        (f acc (key cur) (val cur)))
-      init
-      s))
-
-  basilisp.lang.interfaces/IReduceKV
-  (kv-reduce [s f init] (.reduce_kv s f init)))
-
-(defn reduce-kv
-  "Reduce an associative ``coll`` by ``f``\\. ``f`` must be a function of 3 arguments:
-  the initially supplied value ``init`` (in later invocations, the return from previous
-  invocations), the key of an entry of ``coll``\\, and the value of an entry of
-  ``coll``\\.
-
-  If ``coll`` has no elements, ``init`` is returned and ``f`` is not called.
-
-  If ``f`` returns a :lpy:fn:`reduced` value at any point, reduction will terminate and
-  the reduced value will be returned immediately.
-
-  ``reduce-kv`` may reduce vectors in addition to maps. Vectors have non-negative
-  integer keys."
-  [f init coll]
-  (if (seq coll)
-    (kv-reduce coll f init)
-    init))
