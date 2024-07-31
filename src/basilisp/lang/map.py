@@ -212,9 +212,6 @@ def _lrepr_py_dict(o: dict, **kwargs: Unpack[PrintSettings]) -> str:
     return f"#py {map_lrepr(o.items, '{', '}', **kwargs)}"
 
 
-reduce_init_obj = object()
-
-
 class PersistentMap(
     IPersistentMap[K, V],
     IEvolveableCollection[TransientMap],
