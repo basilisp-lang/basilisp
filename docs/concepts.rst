@@ -5,10 +5,154 @@ Concepts
 
 .. lpy:currentns:: basilisp.core
 
+This document outlines some of the key high-level concepts of Basilisp, most of which behave identically to their Clojure counterparts.
+The sections below tend to focus on how each of these concepts can be applied while using Basilisp.
+For those looking for more of a philosophical discussion of each of these concepts, you may find the corresponding `Clojure documentation <https://clojure.org/reference>`_ enlightening as it frequently emphasizes the *motivations* for the various concepts more heavily than this documentation.
+
 .. _data_structures:
 
 Data Structures
 ---------------
+
+Basilisp provides a comprehensive set of immutable data structures and a set of scalar types inherited from the host Python environment.
+
+.. _nil:
+
+nil
+^^^
+
+The value ``nil`` corresponds to Python's ``None``.
+Any type is potentially ``nil``, though many Basilisp functions are intended to handle ``nil`` values gracefully.
+Only the value ``nil`` and the :ref:`boolean <boolean_values>` value ``false`` are considered logical false in conditions.
+
+.. seealso::
+
+   :lpy:fn:`nil?`
+
+.. _boolean_values:
+
+Boolean Values
+^^^^^^^^^^^^^^
+
+The values ``true`` and ``false`` correspond to Python's ``True`` and ``False``, respectively.
+They are singleton instances of :external:py:class:`bool`
+Only the values ``nil`` and ``false`` are considered logical false in conditions.
+
+.. seealso::
+
+   :lpy:fn:`false?`, :lpy:fn:`true?`
+
+.. _numbers:
+
+Numbers
+^^^^^^^
+
+Basilisp exposes all of the built-in numeric types from Python and operations with those values match Python unless otherwise noted.
+
+Integral values correspond to Python's arbitrary precision :external:py:class:`int` type.
+
+Floating point values are represented by :external:py:class:`float`.
+For fixed-point arithmetic with user specified precision (corresponding with Clojure's ``BigDecimal`` type float suffixed with an ``M``), Basilisp uses Python's :external:py:class:`decimal.Decimal` class.
+
+Complex numbers are backed by Python's :external:py:class:`complex`.
+
+Ratios are represented by Python's :external:py:class:`fractions.Fraction` type.
+
+.. seealso::
+
+   :ref:`arithmetic_division`
+
+.. _strings_and_byte_strings:
+
+Strings and Byte Strings
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Basilisp exposes both Python's base :external:py:class:`str` and :external:py:class:`bytes` types.
+
+.. note::
+
+   Basilisp does not have a first class character type since there is no equivalent in Python.
+   :ref:`reader_character_literals` can be read from source code, but will be converted into single-character strings.
+
+.. seealso::
+
+   :lpy:ns:`basilisp.string` for an idiomatic string manipulation library
+
+.. _keywords:
+
+Keywords
+^^^^^^^^
+
+Keywords are symbolic identifiers which always evaluate to themselves.
+Keywords consist of a name and an optional namespace, both of which are strings.
+The textual representation of a keyword includes a single leading ``:``, which is not part of the name or namespace.
+
+Keywords are also functions of one or 2 arguments, roughly equivalent to calling :lpy:fn:`get` on the first argument with the keyword and an optional default.
+
+.. code-block::
+
+   (def m {:kw 1 :other 2})
+   (:kw m)            ;; => 1
+   (get m :kw)        ;; => 1
+   (:some-kw m 3)     ;; => nil
+   (get m :some-kw 3) ;; ==> 3
+
+.. note::
+
+   Keyword values are interned and keywords are compared by identity, not by value.
+
+.. warning::
+
+   Keywords can be created programmatically via :lpy:fn:`keyword` which may not be able to be read back by the :ref:`reader`, so use caution when creating keywords programmatically.
+
+.. seealso::
+
+   :lpy:fn:`keyword`, :lpy:fn:`name`, :lpy:fn:`namespace`, :lpy:fn:`keyword?`
+
+.. _symbols:
+
+Symbols
+^^^^^^^
+
+Symbols are symbolic identifiers which are typically used to refer to something else.
+Symbols consist of a name and an optional namespace, both strings.
+
+Symbols, like :ref:`keywords`, can also be called like a function of similar functionality to :lpy:fn:`get`.
+
+.. seealso::
+
+   :lpy:fn:`symbol`, :lpy:fn:`name`, :lpy:fn:`namespace`, :lpy:fn:`gensym`
+
+.. _collection_types:
+
+Collection Types
+^^^^^^^^^^^^^^^^
+
+.. _lists:
+
+Lists
+#####
+
+TBD
+
+.. _vectors:
+
+Vectors
+#######
+
+TBD
+
+.. _maps:
+
+Maps
+####
+
+TBD
+
+.. _sets:
+
+Sets
+####
 
 TBD
 

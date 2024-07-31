@@ -43,7 +43,7 @@ In Clojure, this optimistic equality comparison is performed by the ``==`` funct
 
 .. note::
 
-   Basilisp's ``=`` will perform as expected when using Python :external:py:class:`decimal.Decimal` typed :ref:`floating_point_numbers`.
+   Basilisp's ``=`` will perform as expected when using Python :external:py:class:`decimal.Decimal` typed :ref:`floating-point numbers <numbers>`.
 
 .. seealso::
 
@@ -75,7 +75,7 @@ That said, there are some fundamental differences and omissions in Basilisp that
 Reader
 ------
 
-* :ref:`Numbers <numeric_literals>`
+* :ref:`Numbers <reader_numeric_literals>`
 
   * Python integers natively support unlimited precision, so there is no difference between regular integers and those suffixed with ``N`` (which are read as ``BigInt``\s in Clojure).
   * Floating point numbers are read as Python ``float``\s by default and subject to the limitations of that type on the current Python VM.
@@ -84,7 +84,7 @@ Reader
   * Python natively supports Complex numbers.
     The reader will return a complex number for any integer or floating point literal suffixed with ``J``.
 
-* :ref:`Characters <character_literals>`
+* :ref:`Characters <reader_character_literals>`
 
   * Python does not support character types, so characters are returned as single-character strings.
 

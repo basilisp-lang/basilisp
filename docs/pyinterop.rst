@@ -243,15 +243,15 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
 .. warning::
 
    Due to the complexity of supporting multi-arity functions in Python, only return annotations are preserved on the arity dispatch function.
-   Return annotations are combined as by ``typing.Union``, so ``typing.Union[str, str] == str``.
+   Return annotations are combined as by :external:py:obj:`typing.Union`, so ``typing.Union[str, str] == str``.
    The annotations for individual arity arguments are preserved in their compiled form, but they are challenging to access programmatically.
 
-.. _arithmeticdivision:
+.. _arithmetic_division:
 
-Arithmetic division
+Arithmetic Division
 -------------------
 
-:lpy:fn:`basilisp.core/quot`, :lpy:fn:`basilisp.core/rem` and :lpy:fn:`basilisp.core/mod` functions.
+.. lpy:currentns:: basilisp.core
 
 The Python native quotient ``//`` and modulo ``%`` operators may yield different results compared to their Java counterpart's long division and modulo operators. The discrepancy arises from Python's choice of floored division (`src <http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_, `archived <https://web.archive.org/web/20100827160949/http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_) while Java employs truncated division for its calculations (refer to the to the `Wikipedia Modulo page <https://en.wikipedia.org/wiki/Modulo>`_ for a a comprehensive list of available division formulae).
 
@@ -260,3 +260,7 @@ In Clojure, the ``clojure.core/quot`` function utilizes Java's long division ope
 Basilisp has chosen to adopt the same mathematical formulae as Clojure for these three functions, rather than using the Python's built in operators under all cases. This approach offers the advantage of enhanced cross-platform compatibility without requiring modification, and ensures compatibility with examples in  `ClojureDocs <https://clojuredocs.org/>`_.
 
 Users still have the option to use the native :external:py:func:`operator.floordiv`, i.e. Python's ``//``  operator, if they prefer so.
+
+.. seealso::
+
+   :lpy:fn:`quot`, :lpy:fn:`rem`, :lpy:fn:`mod`

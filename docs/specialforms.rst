@@ -155,7 +155,7 @@ Primary Special Forms
    .. note::
 
       In Basilisp, only :ref:`nil` and :ref:`false <boolean_values>` are considered false by ``if`` -- all other expressions are truthy.
-      This differs from Python, where many objects may be considered falsey if they are empty (such as lists, sets, and strings).
+      This differs from Python, where many objects may be considered logical false if they are empty (such as lists, sets, and strings).
 
    .. seealso::
 
@@ -291,7 +291,7 @@ Primary Special Forms
    Return the forms of ``expr`` unevaluated, rather than executing the expression.
    This is particularly useful in when writing macros.
 
-   May also be shortened with the :ref:`special character <special_chars>` ``'``, as ``'form``.
+   May also be shortened with the :ref:`special character <reader_special_chars>` ``'``, as ``'form``.
 
    .. seealso::
 
