@@ -2524,12 +2524,12 @@
   (fn [& ^:no-warn-when-unused args] x))
 
 ;; reduce is defined after loading basilisp.core.protocols
-(defn- reduce1
+(defn- reduce*
   "Internal implementation of reduce which uses seq iteration and doesn't check for
   reduced?"
   ([f coll]
    (if-let [s (seq coll)]
-     (reduce1 f (first s) (next s))
+     (reduce* f (first s) (next s))
      (f)))
   ([f val coll]
    (if-let [s (seq coll)]
@@ -2549,7 +2549,7 @@
      ([x y z] (f (g x y z)))
      ([x y z & args] (f (apply g x y z args)))))
   ([f g & args]
-   (reduce1 comp f (cons g args))))
+   (reduce* comp f (cons g args))))
 
 (defn juxt
   "Return a function which takes any number of arguments and applies each of the
@@ -2557,7 +2557,7 @@
   values from each function."
   [& args]
   (fn [& inner-args]
-    (reduce1 (fn [v f]
+    (reduce* (fn [v f]
                (conj v (apply f inner-args)))
              []
              args)))
@@ -2605,7 +2605,7 @@
    (fn [& args]
      (every? pred args)))
   ([pred & preds]
-   (let [comp-pred (reduce1 (fn [f g]
+   (let [comp-pred (reduce* (fn [f g]
                               (fn [v]
                                 (if (and (f v) (g v))
                                   true
@@ -2636,7 +2636,7 @@
    (fn [& args]
      (some f args)))
   ([f & fs]
-   (let [comp-f (reduce1 (fn [f g]
+   (let [comp-f (reduce* (fn [f g]
                            (fn [v]
                              (or (f v) (g v))))
                          f
@@ -2906,7 +2906,7 @@
   "Return a map whose keys are the elements of ``coll`` and whose values are the counts
   for the number of times the key appears in ``coll``\\."
   [coll]
-  (reduce1 (fn [m v]
+  (reduce* (fn [m v]
              (if (contains? m v)
                (update m v inc)
                (assoc m v 1)))
@@ -2918,7 +2918,7 @@
   and whose values are vectors of the values which produced the corresponding key, in
   the order they were added."
   [f coll]
-  (reduce1 (fn [m v]
+  (reduce* (fn [m v]
              (let [group (f v)]
                (if (contains? m group)
                  (update m group conj v)
@@ -3201,7 +3201,7 @@
   "Return the arg for which ``(k arg)`` is the smallest number. If multiple values
   return the same number, return the last."
   [k & args]
-  (reduce1 (fn [cur nxt]
+  (reduce* (fn [cur nxt]
              (if (<= (k nxt) (k cur))
                nxt
                cur))
@@ -3212,7 +3212,7 @@
   "Return the arg for which ``(k arg)`` is the largest number. If multiple values
   return the same number, return the last."
   [k & args]
-  (reduce1 (fn [cur nxt]
+  (reduce* (fn [cur nxt]
              (if (>= (k nxt) (k cur))
                nxt
                cur))
@@ -3240,7 +3240,7 @@
   [& maps]
   (when (some identity maps)
     (persistent!
-     (reduce1 #(conj! %1 %2)
+     (reduce* #(conj! %1 %2)
               (transient {})
               maps))))
 
@@ -3251,7 +3251,7 @@
   next-val)``."
   [f & maps]
   (when (some identity maps)
-    (reduce1 (fn [acc kv]
+    (reduce* (fn [acc kv]
                (let [k (first  kv)
                      v (second kv)]
                  (if (contains? acc k)
@@ -3780,7 +3780,7 @@
     (throw
      (ex-info "Expected an even number of bindings"
               {:bindings bindings})))
-  (let [var-bindings (reduce1 (fn [v pair]
+  (let [var-bindings (reduce* (fn [v pair]
                                 (let [vvar (first pair)
                                       vval (second pair)]
                                   (conj v `(var ~vvar) vval)))
@@ -3871,7 +3871,7 @@
                              :let [vvar (first v)
                                    vval (second v)]]
                        (.bind-root vvar vval)))
-        originals  (reduce1 (fn [m elem]
+        originals  (reduce* (fn [m elem]
                               (let [vvar (first elem)]
                                 (assoc m vvar (.-root vvar))))
                             {}
@@ -3903,7 +3903,7 @@
     (throw
      (ex-info "Expected an even number of bindings"
               {:bindings bindings})))
-  (let [var-bindings (reduce1 (fn [v pair]
+  (let [var-bindings (reduce* (fn [v pair]
                                 (let [vvar (first pair)
                                       vval (second pair)]
                                   (conj v `(var ~vvar) vval)))
@@ -4632,7 +4632,7 @@
 (defn ns-aliases
   "Return a map of Basilisp namespaces which are aliased in the current namespace."
   [ns]
-  (reduce1 (fn [m entry]
+  (reduce* (fn [m entry]
              (let [alias     (key entry)
                    namespace (symbol (name (val entry)))]
                (if (= alias namespace)
@@ -4666,7 +4666,7 @@
 
   Public vars are Vars which are declared without ``:private`` metadata."
   [ns]
-  (reduce1 (fn [m entry]
+  (reduce* (fn [m entry]
              (if (:private (meta (val entry)))
                m
                (assoc m (key entry) (val entry))))
@@ -4821,7 +4821,7 @@
                               (contains? only (key entry))))
       (seq exclude) (remove (fn [entry]
                               (contains? exclude (key entry))))
-      (seq rename)  (reduce1 (fn [m entry]
+      (seq rename)  (reduce* (fn [m entry]
                                (if (rename (key entry))
                                  (assoc m (rename (key entry)) (val entry))
                                  m))
@@ -5000,7 +5000,7 @@
   (let [doc  (when (string? (first opts))
                (first opts))
         opts (if doc (rest opts) opts)
-        opts (reduce1 (fn [m opt]
+        opts (reduce* (fn [m opt]
                         (let [opt-name (first opt)
                               options  (rest opt)]
                           (when-not (keyword? opt-name)
@@ -5135,7 +5135,7 @@
    (not-empty
     (let [hierarchy-ancestors (get-in h [:ancestors tag] #{})]
       (if (class? tag)
-        (reduce1 conj hierarchy-ancestors (supers tag))
+        (reduce* conj hierarchy-ancestors (supers tag))
         hierarchy-ancestors)))))
 
 (defn descendants
@@ -5173,7 +5173,7 @@
    (not-empty
     (let [hierarchy-ancestors (get-in h [:parents tag] #{})]
       (if (class? tag)
-        (reduce1 conj hierarchy-ancestors (bases tag))
+        (reduce* conj hierarchy-ancestors (bases tag))
         hierarchy-ancestors)))))
 
 (defn isa?
@@ -5230,14 +5230,14 @@
      {:parents     (as-> (get-in h [:parents tag] #{}) $
                      (conj $ parent)
                      (assoc (:parents h) tag $))
-      :ancestors   (reduce1 (fn [ancestors descendant]
+      :ancestors   (reduce* (fn [ancestors descendant]
                               (->> (get ancestors descendant)
                                    (apply conj parent-ancestors parent)
                                    (set)
                                    (assoc ancestors descendant)))
                             (:ancestors h)
                             (conj cur-descendants tag))
-      :descendants (reduce1 (fn [descendants ancestor]
+      :descendants (reduce* (fn [descendants ancestor]
                               (->> (get descendants ancestor)
                                    (apply conj cur-descendants tag)
                                    (set)
@@ -5273,7 +5273,7 @@
                     (let [tag     (first pair)
                           parents (second pair)]
                       (map #(vector tag %) parents))))
-          (reduce1 (fn [h pair]
+          (reduce* (fn [h pair]
                      (derive h (first pair) (second pair)))
                    (make-hierarchy))))))
 
@@ -5940,7 +5940,7 @@
                      (map (fn [{:keys [method-name] :as arity}]
                             (assoc arity :python-name (munge method-name)))
                           arities))))
-         (reduce1 (fn [m {:keys [method-name python-name args docstring]}]
+         (reduce* (fn [m {:keys [method-name python-name args docstring]}]
                     (let [method (->>  args
                                        (map #(vary-meta % assoc :no-warn-when-unused true))
                                        (apply vector)
@@ -6166,11 +6166,11 @@
                                    {:missing-methods (->> proto-method-names
                                                           (remove impl-method-names)
                                                           (set))}))))
-               (let [proto-method-arity-map (reduce1 (fn [m kv]
+               (let [proto-method-arity-map (reduce* (fn [m kv]
                                                          (assoc m (key kv) (.-arities (val kv))))
                                                        {}
                                                        proto-methods)
-                     impl-method-arity-map  (reduce1 (fn [m kv]
+                     impl-method-arity-map  (reduce* (fn [m kv]
                                                          (assoc m (key kv) (.-arities (val kv))))
                                                        {}
                                                        method-map)]
@@ -6224,7 +6224,7 @@
   ``extend``\\."
   [target-type methods]
   (->> (group-by first methods)
-       (reduce1 (fn [m [method-name arities]]
+       (reduce* (fn [m [method-name arities]]
                   (let [genned-method-name (symbol
                                             (str (name method-name)
                                                  "-"

@@ -83,7 +83,7 @@ class TransientVector(ITransientVector[T]):
         return PersistentVector(self._inner.persistent())
 
 
-reduce_init_obj = object()
+_reduce_sentinel_obj = object()
 
 
 @total_ordering
@@ -219,8 +219,8 @@ class PersistentVector(
     def to_transient(self) -> TransientVector:
         return TransientVector(self._inner.evolver())
 
-    def reduce(self, f, init=reduce_init_obj):
-        if reduce_init_obj == init:
+    def reduce(self, f, init=_reduce_sentinel_obj):
+        if init is _reduce_sentinel_obj:
             if len(self) == 0:
                 return f()
             else:
