@@ -58,5 +58,5 @@
       s))
 
   basilisp.lang.interfaces/IReduceKV
-  (kv-reduce [s f init] (.reduce_kv s f init)))
+  (kv-reduce [s f init] (.reduce-kv s f init)))
 
