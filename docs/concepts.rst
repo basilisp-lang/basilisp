@@ -128,19 +128,56 @@ Symbols, like :ref:`keywords`, can also be called like a function of similar fun
 Collection Types
 ^^^^^^^^^^^^^^^^
 
+Basilisp includes the following data structures, all of which are both immutable and persistent.
+APIs which "modify" collections in fact produce new collections which may or may not share some structure with the original collection.
+As a result of their immutability, all of these collections are thread-safe.
+
+Many of Basilisp's built-in collection types support creating :ref:`transient <transients>` versions of themselves for more efficient modification in a tight loop.
+
+.. seealso::
+
+   :lpy:fn:`count`, :lpy:fn:`conj`, :lpy:fn:`seq`
+
 .. _lists:
 
 Lists
 #####
 
-TBD
+Lists are singly-linked lists.
+Lists directly implement :py:class:`basilisp.lang.interfaces.ISeq`.
+You get the count of a list in ``O(n)`` time via :lpy:fn:`count`.
+Items added via :lpy:fn:`conj` are added to the front of the list.
+
+.. seealso::
+
+   :lpy:fn:`list`, :lpy:fn:`peek`, :lpy:fn:`pop`, :lpy:fn:`list?`
+
+.. _queues:
+
+Queues
+######
+
+Queues are doubly-linked lists.
+You get the count of a list in ``O(1)`` time via :lpy:fn:`count`.
+Items added via :lpy:fn:`conj` are added to the end of the queue.
+
+.. seealso::
+
+   :lpy:fn:`queue`, :lpy:fn:`peek`, :lpy:fn:`pop`, :lpy:fn:`queue?`
 
 .. _vectors:
 
 Vectors
 #######
 
-TBD
+Vectors are sequential collections much more similar to Python lists or arrays in other languages.
+Vectors return their count in ``O(1)`` time via :lpy:fn:`count`.
+:lpy:fn:`conj` adds items to the end of a vector.
+You can reverse a vector in constant time using :lpy:fn:`rseq`.
+
+.. seealso::
+
+   :lpy:fn:`vector`, :lpy:fn:`vec`, :lpy:fn:`get`, :lpy:fn:`nth`, :lpy:fn:`peek`, :lpy:fn:`pop`, :lpy:fn:`rseq`, :lpy:fn:`vector?`
 
 .. _maps:
 
