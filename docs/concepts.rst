@@ -160,7 +160,7 @@ Many of Basilisp's built-in collection types support creating :ref:`transient <t
 
 .. seealso::
 
-   :lpy:fn:`count`, :lpy:fn:`conj`, :lpy:fn:`seq`
+   :lpy:fn:`count`, :lpy:fn:`conj`, :lpy:fn:`seq`, :lpy:fn:`empty`, :lpy:fn:`not-empty`, :lpy:fn:`empty?`
 
 .. _lists:
 
@@ -274,11 +274,19 @@ Returns the default value or ``nil`` (if no default value is specified) otherwis
 Seqs
 ----
 
-TBD
+Seqs are an interface for sequential types that approximates a classical singly linked list.
+However, because the functionality is defined in terms of an interface, many other data types can also be manipulated as seqs.
+The :lpy:fn:`seq` function creates an optimal Seq for the specific input type.
+
+Most of Basilisp's Seq functions operate on seqs lazily, rather than eagerly.
+This is frequently a desired behavior, but can be confusing when debugging or exploring data at the REPL.
+You can force a Seq to be fully realized by collecting it into a concrete :ref:`collection type <collection_types>` or by using :lpy:fn:`doall`.
+
+Lazy seqs can be created using using the :lpy:fn:`lazy-seq` macro.
 
 .. seealso::
 
-   :lpy:fn:`lazy-seq`, :lpy:fn:`seq`, :lpy:fn:`first`, :lpy:fn:`rest`, :lpy:fn:`next`, :lpy:fn:`second`, :lpy:fn:`seq?`, :lpy:fn:`nfirst`, :lpy:fn:`fnext`, :lpy:fn:`nnext`, :lpy:fn:`empty?`, :lpy:fn:`seq?`, :py:class:`basilisp.lang.interfaces.ISeq`
+   :lpy:fn:`lazy-seq`, :lpy:fn:`seq`, :lpy:fn:`first`, :lpy:fn:`rest`, :lpy:fn:`cons`, :lpy:fn:`next`, :lpy:fn:`second`, :lpy:fn:`seq?`, :lpy:fn:`nfirst`, :lpy:fn:`fnext`, :lpy:fn:`nnext`, :lpy:fn:`empty?`, :lpy:fn:`seq?`, :py:class:`basilisp.lang.interfaces.ISeq`, :py:class:`basilisp.lang.interfaces.ISeqable`
 
 .. _destructuring:
 
