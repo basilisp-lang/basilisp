@@ -374,7 +374,7 @@ class IPersistentStack(IPersistentCollection[T]):
         raise NotImplementedError()
 
 
-class IReduce:
+class IReduce(ABC):
     """``IReduce`` types define custom implementations of ``reduce``.
 
     Only vectors are ``IReduce`` by default, providing faster iteration than relying on
