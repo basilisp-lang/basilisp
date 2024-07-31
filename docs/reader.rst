@@ -18,6 +18,10 @@ Numeric Literals
 
 The Basilisp reader reads a wide range of numeric literals.
 
+.. seealso::
+
+   :ref:`numbers`
+
 .. _reader_integer_numbers:
 
 Integers
@@ -147,6 +151,10 @@ String literals are always read with the UTF-8 encoding.
 String literals may contain the following escape sequences: ``\\``, ``\a``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\v``.
 Their meanings match the equivalent escape sequences supported in `Python string literals <https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`_\.
 
+.. seealso::
+
+   :ref:`strings_and_byte_strings`
+
 .. _reader_byte_strings:
 
 Byte Strings
@@ -170,11 +178,13 @@ Byte string literals may contain the following escape sequences: ``\\``, ``\a``,
 Byte strings may also characters using a hex escape code as ``\xhh`` where ``hh`` is a hexadecimal value.
 Their meanings match the equivalent escape sequences supported in `Python byte string literals <https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`_\.
 
-
 .. warning::
 
    As in Python, byte string literals may not include any characters outside of the ASCII range.
 
+.. seealso::
+
+   :ref:`strings_and_byte_strings`
 
 .. _reader_character_literals:
 
@@ -311,6 +321,10 @@ Lists may contain 0 or more other heterogeneous elements.
 Basilisp lists are classical Lisp singly-linked lists.
 Non-empty list literals are not required to be prefixed by the quote ``'`` character for the reader, but they are shown quoted since the REPL also compiles the expression.
 
+.. seealso::
+
+   :ref:`lists`
+
 .. _reader_vectors:
 
 Vectors
@@ -326,6 +340,10 @@ Vectors
 Vectors are denoted with the ``[]`` characters.
 Vectors may contain 0 or more other heterogeneous elements.
 Basilisp vectors are modeled after Clojure's persistent vector implementation.
+
+.. seealso::
+
+   :ref:`vectors`
 
 .. _reader_maps:
 
@@ -343,6 +361,10 @@ Maps are denoted with the ``{}`` characters.
 Maps may contain 0 or more heterogenous key-value pairs.
 Basilisp maps are modeled after Clojure's persistent map implementation.
 
+.. seealso::
+
+   :ref:`maps`
+
 .. _reader_sets:
 
 Sets
@@ -358,6 +380,10 @@ Sets
 Sets are denoted with the ``#{}`` characters.
 Sets may contain 0 or more other heterogeneous elements.
 Basilisp sets are modeled after Clojure's persistent set implementation.
+
+.. seealso::
+
+   :ref:`sets`
 
 .. _reader_line_comments:
 
