@@ -2433,7 +2433,7 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
                 raise ctx.AnalyzerException(
                     "import alias must take the form: [module :as alias]", form=f
                 )
-            module_name = f.val_at(0)
+            module_name = f.val_at(0)  # type: ignore[assignment]
             if not isinstance(module_name, sym.Symbol):
                 raise ctx.AnalyzerException(
                     "Python module name must be a symbol", form=f
@@ -2975,7 +2975,7 @@ def _require_ast(form: ISeq, ctx: AnalyzerContext) -> Require:
                 raise ctx.AnalyzerException(
                     "require alias must take the form: [namespace :as alias]", form=f
                 )
-            module_name = f.val_at(0)
+            module_name = f.val_at(0)  # type: ignore[assignment]
             if not isinstance(module_name, sym.Symbol):
                 raise ctx.AnalyzerException(
                     "Basilisp namespace name must be a symbol", form=f

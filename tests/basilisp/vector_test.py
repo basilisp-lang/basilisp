@@ -101,6 +101,16 @@ def test_entry():
     assert None is vec.PersistentVector.empty().entry(-1)
 
 
+def test_vector_callable():
+    assert "a" == vec.v("a")(0)
+    assert "b" == vec.v("a", "b")(1)
+    assert None is vec.v("a", "b")(2)
+    assert "b" == vec.v("a", "b")(-1)
+    assert None is vec.PersistentVector.empty()(0)
+    assert None is vec.PersistentVector.empty()(1)
+    assert None is vec.PersistentVector.empty()(-1)
+
+
 def test_val_at():
     assert "a" == vec.v("a").val_at(0)
     assert "b" == vec.v("a", "b").val_at(1)
