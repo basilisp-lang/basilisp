@@ -274,15 +274,24 @@ Returns the default value or ``nil`` (if no default value is specified) otherwis
 Seqs
 ----
 
-Seqs are an interface for sequential types that approximates a classical singly linked list.
-However, because the functionality is defined in terms of an interface, many other data types can also be manipulated as seqs.
-The :lpy:fn:`seq` function creates an optimal Seq for the specific input type.
+Seqs are an interface for sequential types that generalizes iteration to that of a singly-linked list.
+However, because the functionality is defined in terms of an interface, many other data types can also be manipulated as Seqs.
+The :lpy:fn:`seq` function creates an optimal Seq for the specific input type -- all built-in collection types are "Seqable".
 
-Most of Basilisp's Seq functions operate on seqs lazily, rather than eagerly.
+Most of Basilisp's Seq functions operate on Seqs lazily, rather than eagerly.
 This is frequently a desired behavior, but can be confusing when debugging or exploring data at the REPL.
-You can force a Seq to be fully realized by collecting it into a concrete :ref:`collection type <collection_types>` or by using :lpy:fn:`doall`.
+You can force a Seq to be fully realized by collecting it into a concrete :ref:`collection type <collection_types>` or by using :lpy:fn:`doall` (among other options).
+
+Seqs bear more than a passing resemblance to a stateful iterator type, but have some distinct advantages.
+In particular, Seqs are immutable once realized and thread-safe, meaning Seqs can be be easily passed around with abandon.
 
 Lazy seqs can be created using using the :lpy:fn:`lazy-seq` macro.
+
+.. warning::
+
+   There are several possible gotchas when using Seqs over mutable Python :py:class:`collections.abc.Iterable` types.
+   Because Seqs are immutable, Seqs created from mutable collections can diverge from their source collection if that collection is modified after realizing the Seq.
+   Also, because Seqs are realized lazily, it is possible that a Seq created from a mutable collection will capture changes to that collection after the initial Seq is created.
 
 .. seealso::
 
