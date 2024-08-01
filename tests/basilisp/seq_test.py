@@ -6,7 +6,7 @@ from basilisp.lang import vector as vec
 
 
 def test_to_sequence():
-    assert lseq.EMPTY is lseq.sequence([])
+    assert lseq.EMPTY == lseq.sequence([])
     assert lseq.sequence([]).is_empty
     assert llist.l(None) == lseq.sequence([None])
     assert not lseq.sequence([None]).is_empty
@@ -34,7 +34,8 @@ def test_lazy_sequence():
     s = lseq.LazySeq(lambda: lseq.sequence([1]))
     assert not s.is_empty
     assert 1 == s.first
-    assert lseq.EMPTY is s.rest
+    assert lseq.EMPTY == s.rest
+    assert s.rest.is_empty
     assert s.is_realized
     assert not s.is_empty, "LazySeq has been realized and is not empty"
 
@@ -64,7 +65,8 @@ def test_lazy_sequence():
     t = r.rest
     assert not t.is_empty
     assert 3 == t.first
-    assert lseq.EMPTY is t.rest
+    assert lseq.EMPTY == t.rest
+    assert t.rest.is_empty
     assert t.is_realized
     assert not t.is_empty, "LazySeq has been realized and is not empty"
 
@@ -77,7 +79,8 @@ def test_empty_sequence():
     assert None is empty.first
     assert empty.rest == empty
     assert llist.l(1) == empty.cons(1)
-    assert lseq.EMPTY is empty
+    assert lseq.EMPTY == empty
+    assert empty.is_empty
     assert True is bool(lseq.sequence([]))
 
 
@@ -85,7 +88,8 @@ def test_sequence():
     s = lseq.sequence([1])
     assert not s.is_empty
     assert 1 == s.first
-    assert lseq.EMPTY is s.rest
+    assert lseq.EMPTY == s.rest
+    assert s.rest.is_empty
     assert llist.l(2, 1) == s.cons(2)
     assert [1, 2, 3] == [e for e in lseq.sequence([1, 2, 3])]
     assert llist.l(1, 2, 3) == lseq.sequence([1, 2, 3])
