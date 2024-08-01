@@ -572,7 +572,7 @@ class IRecord(ILispObject):
 
     .. seealso::
 
-       :ref:`records` , :lpy:fn:`defrecord` , :lpy:fn:`record?`
+       :ref:`data_types_and_records` , :lpy:fn:`defrecord` , :lpy:fn:`record?`
     """
 
     __slots__ = ()
@@ -696,6 +696,6 @@ class IType(ABC):
 
     .. seealso::
 
-       :ref:`data_types`"""
+       :ref:`data_types_and_records`"""
 
     __slots__ = ()

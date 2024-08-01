@@ -5,23 +5,298 @@ Concepts
 
 .. lpy:currentns:: basilisp.core
 
+This document outlines some of the key high-level concepts of Basilisp, most of which behave identically to their Clojure counterparts.
+The sections below tend to focus on how each of these concepts can be applied while using Basilisp.
+For those looking for more of a philosophical discussion of each of these concepts, you may find the corresponding `Clojure documentation <https://clojure.org/reference>`_ enlightening as it frequently emphasizes the *motivations* for the various concepts more heavily than this documentation.
+
 .. _data_structures:
 
 Data Structures
 ---------------
 
-TBD
+Basilisp provides a comprehensive set of immutable data structures and a set of scalar types inherited from the host Python environment.
+
+.. _nil:
+
+nil
+^^^
+
+The value ``nil`` corresponds to Python's ``None``.
+Any type is potentially ``nil``, though many Basilisp functions are intended to handle ``nil`` values gracefully.
+Only the value ``nil`` and the :ref:`boolean <boolean_values>` value ``false`` are considered logical false in conditions.
+
+.. seealso::
+
+   :lpy:fn:`nil?`
+
+.. _boolean_values:
+
+Boolean Values
+^^^^^^^^^^^^^^
+
+The values ``true`` and ``false`` correspond to Python's ``True`` and ``False``, respectively.
+They are singleton instances of :external:py:class:`bool`
+Only the values ``nil`` and ``false`` are considered logical false in conditions.
+
+.. seealso::
+
+   :lpy:fn:`false?`, :lpy:fn:`true?`
+
+.. _numbers:
+
+Numbers
+^^^^^^^
+
+Basilisp exposes all of the built-in numeric types from Python and operations with those values match Python unless otherwise noted.
+
+Integral values correspond to Python's arbitrary precision :external:py:class:`int` type.
+
+Floating point values are represented by :external:py:class:`float`.
+For fixed-point arithmetic with user specified precision (corresponding with Clojure's ``BigDecimal`` type float suffixed with an ``M``), Basilisp uses Python's :external:py:class:`decimal.Decimal` class.
+
+Complex numbers are backed by Python's :external:py:class:`complex`.
+
+Ratios are represented by Python's :external:py:class:`fractions.Fraction` type.
+
+.. seealso::
+
+   :ref:`arithmetic_division`
+
+.. _strings_and_byte_strings:
+
+Strings and Byte Strings
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Basilisp's string type is Python's base :external:py:class:`str` type.
+Python's byte string type :external:py:class:`bytes` is also supported.
+
+.. note::
+
+   Basilisp does not have a first class character type since there is no equivalent in Python.
+   :ref:`reader_character_literals` can be read from source code, but will be converted into single-character strings.
+
+.. seealso::
+
+   :lpy:ns:`basilisp.string` for an idiomatic string manipulation library
+
+.. _keywords:
+
+Keywords
+^^^^^^^^
+
+Keywords are symbolic identifiers which always evaluate to themselves.
+Keywords consist of a name and an optional namespace, both of which are strings.
+The textual representation of a keyword includes a single leading ``:``, which is not part of the name or namespace.
+
+Keywords are also functions of one or 2 arguments, roughly equivalent to calling :lpy:fn:`get` on a map or set with an optional default value argument.
+If the first argument is a :ref:`map <maps>`, then looks up the value associated with the keyword in the map.
+If the first argument is a :ref:`set <sets>`, then looks up if the keyword is a member of the set and returns itself if so.
+Returns the default value or ``nil`` (if no default value is specified) if either check fails.
+
+.. code-block::
+
+   (def m {:kw 1 :other 2})
+   (:kw m)            ;; => 1
+   (get m :kw)        ;; => 1
+   (:some-kw m)       ;; => nil
+   (:some-kw m 3)     ;; => 3
+   (get m :some-kw 3) ;; => 3
+
+.. note::
+
+   Keyword values are interned and keywords are compared by identity, not by value.
+
+.. warning::
+
+   Keywords can be created programmatically via :lpy:fn:`keyword` which may not be able to be read back by the :ref:`reader`, so use caution when creating keywords programmatically.
+
+.. seealso::
+
+   :lpy:fn:`keyword`, :lpy:fn:`name`, :lpy:fn:`namespace`, :lpy:fn:`keyword?`
+
+.. _symbols:
+
+Symbols
+^^^^^^^
+
+Symbols are symbolic identifiers which are typically used to refer to something else.
+Symbols consist of a name and an optional namespace, both strings.
+
+Symbols, like :ref:`keywords`, can also be called like a function similar to :lpy:fn:`get` on a map or set with an optional default value argument.
+If the first argument is a :ref:`map <maps>`, then looks up the value associated with the symbol in the map.
+If the first argument is a :ref:`set <sets>`, then looks up if the symbol is a member of the set and returns itself if so.
+Returns the default value or ``nil`` (if no default value is specified) if either check fails.
+
+.. code-block::
+
+   (def m {'sym 1 'other 2})
+   ('sym m)            ;; => 1
+   (get m 'sym)        ;; => 1
+   ('some-sym m)       ;; => nil
+   ('some-sym m 3)     ;; => 3
+   (get m 'sym 3)      ;; => 3
+
+.. note::
+
+   Basilisp will always try to resolve unquoted symbols, so be sure to wrap symbols in as ``(quote sym)`` or ``'sym`` if you just want a symbol.
+
+.. warning::
+
+   Symbols can be created programmatically via :lpy:fn:`symbol` which may not be able to be read back by the :ref:`reader`, so use caution when creating symbols programmatically.
+
+.. seealso::
+
+   :lpy:fn:`symbol`, :lpy:fn:`name`, :lpy:fn:`namespace`, :lpy:fn:`gensym`, :lpy:form:`quote`
+
+.. _collection_types:
+
+Collection Types
+^^^^^^^^^^^^^^^^
+
+Basilisp includes the following data structures, all of which are both immutable and persistent.
+APIs which "modify" collections in fact produce new collections which may or may not share some structure with the original collection.
+As a result of their immutability, all of these collections are thread-safe.
+
+Many of Basilisp's built-in collection types support creating :ref:`transient <transients>` versions of themselves for more efficient modification in a tight loop.
+
+.. seealso::
+
+   :lpy:fn:`count`, :lpy:fn:`conj`, :lpy:fn:`seq`, :lpy:fn:`empty`, :lpy:fn:`not-empty`, :lpy:fn:`empty?`
+
+.. _lists:
+
+Lists
+#####
+
+Lists are singly-linked lists.
+Unlike most other Basilisp collections, Lists directly implement :py:class:`basilisp.lang.interfaces.ISeq` (see :ref:`seqs`).
+You can get the count of a list in ``O(n)`` time via :lpy:fn:`count`.
+Items added via :lpy:fn:`conj` are added to the front of the list.
+
+.. seealso::
+
+   :lpy:fn:`list`, :lpy:fn:`peek`, :lpy:fn:`pop`, :lpy:fn:`list?`
+
+.. _queues:
+
+Queues
+######
+
+Queues are doubly-linked lists.
+You get the count of a queue in ``O(1)`` time via :lpy:fn:`count`.
+Items added via :lpy:fn:`conj` are added to the end of the queue.
+
+.. seealso::
+
+   :lpy:fn:`queue`, :lpy:fn:`peek`, :lpy:fn:`pop`, :lpy:fn:`queue?`
+
+.. _vectors:
+
+Vectors
+#######
+
+Vectors are sequential collections much more similar to Python lists or arrays in other languages.
+Vectors return their count in ``O(1)`` time via :lpy:fn:`count`.
+:lpy:fn:`conj` adds items to the end of a vector.
+Random access to vector elements by index (via :lpy:fn:`get` or :lpy:fn:`nth`) is ``O(log32(n))``.
+You can reverse a vector in constant time using :lpy:fn:`rseq`.
+
+Vectors be called like a function similar to :lpy:fn:`nth` with an index and an optional default value, returning the value at the specified index if found.
+Returns the default value or ``nil`` (if no default value is specified) otherwise.
+
+.. code-block::
+
+   (def v [:a :b :c])
+   (v 0)                ;; => :a
+   (v 5)                ;; => nil
+   (v 5 :g)             ;; => :g
+
+.. seealso::
+
+   :lpy:fn:`vector`, :lpy:fn:`vec`, :lpy:fn:`get`, :lpy:fn:`nth`, :lpy:fn:`peek`, :lpy:fn:`pop`, :lpy:fn:`rseq`, :lpy:fn:`vector?`
+
+.. _maps:
+
+Maps
+####
+
+Maps are unordered, associative collections which map arbitrary keys to values.
+Keys must be hashable.
+Maps return their count in ``O(1)`` time via :lpy:fn:`count`.
+Random access to map values is ``O(log(n))``.
+
+:lpy:fn:`conj` accepts any of the following types, adding new keys or replacing keys as appropriate:
+
+- Another map; values will be merged in from left to right with keys from the rightmost map taking precedence in the instance of a conflict
+- A map entry
+- 2 element vector; the first element will be treated as the key and the second the value
+
+Calling :lpy:fn:`seq` on a map yields successive map entries, which are roughly equivalent to 2 element vectors.
+
+Maps be called like a function similar to :lpy:fn:`get` with a key and an optional default value, returning the value at the specified key if found.
+Returns the default value or ``nil`` (if no default value is specified) otherwise.
+
+.. code-block::
+
+   (def m {:a 0 :b 1})
+   (m :a)               ;; => 0
+   (m :g)               ;; => nil
+   (m :g 5)             ;; => 5
+
+.. seealso::
+
+   :lpy:fn:`hash-map`, :lpy:fn:`assoc`, :lpy:fn:`assoc-in`, :lpy:fn:`get`, :lpy:fn:`get-in`, :lpy:fn:`find`, :lpy:fn:`update`, :lpy:fn:`update-in`, :lpy:fn:`dissoc`, :lpy:fn:`merge`, :lpy:fn:`merge-with`, :lpy:fn:`map-entry`, :lpy:fn:`key`, :lpy:fn:`val`, :lpy:fn:`keys`, :lpy:fn:`vals`, :lpy:fn:`select-keys`, :lpy:fn:`update-keys`, :lpy:fn:`update-vals`, :lpy:fn:`map?`
+
+.. _sets:
+
+Sets
+####
+
+Sets are unordered groups of unique values.
+Values must be hashable.
+Sets return their count in ``O(1)`` time via :lpy:fn:`count.`
+
+Sets be called like a function similar to :lpy:fn:`get` with a key and an optional default value, returning the value if it exists in the set.
+Returns the default value or ``nil`` (if no default value is specified) otherwise.
+
+.. code-block::
+
+   (def s #{:a :b :c})
+   (s :a)                ;; => :a
+   (s :g)                ;; => nil
+   (s :g :g)             ;; => :g
+
+.. seealso::
+
+   :lpy:fn:`hash-set`, :lpy:fn:`set`, :lpy:fn:`disj`, :lpy:fn:`contains?`, :lpy:fn:`set?`
 
 .. _seqs:
 
 Seqs
 ----
 
-TBD
+Seqs are an interface for sequential types that generalizes iteration to that of a singly-linked list.
+However, because the functionality is defined in terms of an interface, many other data types can also be manipulated as Seqs.
+The :lpy:fn:`seq` function creates an optimal Seq for the specific input type -- all built-in collection types are "Seqable".
+
+Most of Basilisp's Seq functions operate on Seqs lazily, rather than eagerly.
+This is frequently a desired behavior, but can be confusing when debugging or exploring data at the REPL.
+You can force a Seq to be fully realized by collecting it into a concrete :ref:`collection type <collection_types>` or by using :lpy:fn:`doall` (among other options).
+
+Seqs bear more than a passing resemblance to a stateful iterator type, but have some distinct advantages.
+In particular, Seqs are immutable once realized and thread-safe, meaning Seqs can be be easily passed around with abandon.
+
+Lazy seqs can be created using using the :lpy:fn:`lazy-seq` macro.
+
+.. warning::
+
+   There are several possible gotchas when using Seqs over mutable Python :py:class:`collections.abc.Iterable` types.
+   Because Seqs are immutable, Seqs created from mutable collections can diverge from their source collection if that collection is modified after realizing the Seq.
+   Also, because Seqs are realized lazily, it is possible that a Seq created from a mutable collection will capture changes to that collection after the initial Seq is created.
 
 .. seealso::
 
-   :lpy:fn:`lazy-seq`, :lpy:fn:`seq`, :lpy:fn:`first`, :lpy:fn:`rest`, :lpy:fn:`next`, :lpy:fn:`second`, :lpy:fn:`seq?`, :lpy:fn:`nfirst`, :lpy:fn:`fnext`, :lpy:fn:`nnext`, :lpy:fn:`empty?`, :lpy:fn:`seq?`, :py:class:`basilisp.lang.interfaces.ISeq`
+   :lpy:fn:`lazy-seq`, :lpy:fn:`seq`, :lpy:fn:`first`, :lpy:fn:`rest`, :lpy:fn:`cons`, :lpy:fn:`next`, :lpy:fn:`second`, :lpy:fn:`seq?`, :lpy:fn:`nfirst`, :lpy:fn:`fnext`, :lpy:fn:`nnext`, :lpy:fn:`empty?`, :lpy:fn:`seq?`, :py:class:`basilisp.lang.interfaces.ISeq`, :py:class:`basilisp.lang.interfaces.ISeqable`
 
 .. _destructuring:
 
