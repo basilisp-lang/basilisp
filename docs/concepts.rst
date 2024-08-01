@@ -67,7 +67,8 @@ Ratios are represented by Python's :external:py:class:`fractions.Fraction` type.
 Strings and Byte Strings
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Basilisp exposes both Python's base :external:py:class:`str` and :external:py:class:`bytes` types.
+Basilisp's string type is Python's base :external:py:class:`str` type.
+Python's byte string type :external:py:class:`bytes` is also supported.
 
 .. note::
 
