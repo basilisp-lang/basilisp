@@ -1,6 +1,6 @@
 import functools
 import threading
-from typing import Callable, Iterable, Iterator, Optional, TypeVar, overload
+from typing import Callable, Iterable, Optional, TypeVar, overload
 
 from basilisp.lang.interfaces import (
     IPersistentMap,
@@ -60,7 +60,7 @@ class Cons(ISeq[T], ISequential, IWithMeta):
 
     def __init__(
         self,
-        first,
+        first: T,
         seq: Optional[ISeq[T]] = None,
         meta: Optional[IPersistentMap] = None,
     ) -> None:
@@ -91,57 +91,6 @@ class Cons(ISeq[T], ISequential, IWithMeta):
         return Cons(self._first, seq=self._rest, meta=meta)
 
 
-class _Sequence(IWithMeta, ISequential, ISeq[T]):
-    """Sequences are a thin wrapper over Python Iterable values so they can
-    satisfy the Basilisp `ISeq` interface.
-
-    Sequences are singly linked lists which lazily traverse the input Iterable.
-
-    Do not directly instantiate a Sequence. Instead use the `sequence` function
-    below."""
-
-    __slots__ = ("_first", "_seq", "_rest", "_meta")
-
-    def __init__(
-        self, s: Iterator[T], first: T, *, meta: Optional[IPersistentMap] = None
-    ) -> None:
-        self._seq = s
-        self._first = first
-        self._rest: Optional[ISeq] = None
-        self._meta = meta
-
-    @property
-    def meta(self) -> Optional[IPersistentMap]:
-        return self._meta
-
-    def with_meta(self, meta: Optional[IPersistentMap]) -> "_Sequence[T]":
-        return _Sequence(self._seq, self._first, meta=meta)
-
-    @property
-    def is_empty(self) -> bool:
-        return False
-
-    @property
-    def first(self) -> Optional[T]:
-        return self._first
-
-    @property
-    def rest(self) -> "ISeq[T]":
-        if self._rest:
-            return self._rest
-
-        try:
-            n = next(self._seq)
-            self._rest = _Sequence(self._seq, n)
-        except StopIteration:
-            self._rest = EMPTY
-
-        return self._rest
-
-    def cons(self, elem):
-        return Cons(elem, self)
-
-
 LazySeqGenerator = Callable[[], Optional[ISeq[T]]]
 
 
@@ -150,21 +99,20 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
     with a function that can either return None or a Seq. If a Seq is returned,
     the LazySeq is a proxy to that Seq.
 
-    Callers should never provide the `obj` or `seq` arguments -- these are provided
-    only to support `with_meta` returning a new LazySeq instance."""
+    Callers should never provide the `seq` argument -- this is provided only to
+    support `with_meta` returning a new LazySeq instance."""
 
     __slots__ = ("_gen", "_obj", "_seq", "_lock", "_meta")
 
     def __init__(
         self,
         gen: Optional[LazySeqGenerator],
-        obj: Optional[ISeq[T]] = None,
         seq: Optional[ISeq[T]] = None,
         *,
         meta: Optional[IPersistentMap] = None,
     ) -> None:
         self._gen: Optional[LazySeqGenerator] = gen
-        self._obj: Optional[ISeq[T]] = obj
+        self._obj: Optional[ISeq[T]] = None
         self._seq: Optional[ISeq[T]] = seq
         self._lock = threading.RLock()
         self._meta = meta
@@ -174,7 +122,7 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         return self._meta
 
     def with_meta(self, meta: Optional[IPersistentMap]) -> "LazySeq[T]":
-        return LazySeq(self._gen, obj=self._obj, seq=self._seq, meta=meta)
+        return LazySeq(None, seq=self.seq(), meta=meta)
 
     # LazySeqs have a fairly complex inner state, in spite of the simple interface.
     # Calls from Basilisp code should be providing the only generator seed function.
@@ -255,11 +203,17 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
 
 def sequence(s: Iterable[T]) -> ISeq[T]:
     """Create a Sequence from Iterable s."""
-    try:
-        i = iter(s)
-        return _Sequence(i, next(i))
-    except StopIteration:
-        return EMPTY
+    i = iter(s)
+
+    def _next_elem() -> ISeq[T]:
+        try:
+            e = next(i)
+        except StopIteration:
+            return EMPTY
+        else:
+            return Cons(e, LazySeq(_next_elem))
+
+    return LazySeq(_next_elem)
 
 
 @overload
