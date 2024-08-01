@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where `basilisp.core/boolean` was returning the boolean coercions like Python rather than like Basilisp (#928)
  * Fix a bug where Basilisp vectors were not callable (#932)
  * Fix a bug where `basilisp.lang.seq.LazySeq` instances were not thread-safe (#934)
- * Fix a bug where `basilisp.lang.seq._Sequence` instances were not thread-safe (#936)
+ * Fix a bug where Seqs wrapping Python Iterable instances were not thread-safe (#936)
 
 ### Other
  * Add several sections to Concepts documentation module (#666)
