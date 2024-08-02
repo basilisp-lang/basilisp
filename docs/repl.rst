@@ -22,6 +22,10 @@ The default REPL namespace is ``basilisp.user``, but users can modify that at st
 
    REPL is an acronym meaning ``Read-Eval-Print-Loop`` which is refreshingly self-descriptive.
 
+.. seealso::
+
+   :ref:`start_an_nREPL_session`
+
 .. _repl_utilities:
 
 REPL Utilities
