@@ -3,10 +3,13 @@ import itertools
 import os
 import sys
 import types
+from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional
 
+from basilisp.lang import list as llist
 from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
+from basilisp.lang import symbol as sym
 from basilisp.lang.compiler.analyzer import (  # noqa
     GENERATE_AUTO_INLINES,
     INLINE_FUNCTIONS,
@@ -282,3 +285,36 @@ def compile_bytecode(
     _bootstrap_module(gctx, optimizer, ns)
     for bytecode in code:
         exec(bytecode, ns.module.__dict__)  # pylint: disable=exec-used
+
+
+_LOAD_SYM = sym.symbol("load", ns=runtime.CORE_NS)
+_LOAD_FILE_SYM = sym.symbol("load-file", ns=runtime.CORE_NS)
+
+
+def load(
+    path: str,
+    ctx: CompilerContext,
+    ns: runtime.Namespace,
+    collect_bytecode: Optional[BytecodeCollector] = None,
+) -> Any:
+    """Call :lpy:fn:`basilisp.core/load` with the given ``path``, returning the
+    result."""
+    return compile_and_exec_form(
+        llist.l(_LOAD_SYM, path), ctx, ns, collect_bytecode=collect_bytecode
+    )
+
+
+def load_file(
+    path: Path,
+    ctx: CompilerContext,
+    ns: runtime.Namespace,
+    collect_bytecode: Optional[BytecodeCollector] = None,
+) -> Any:
+    """Call :lpy:fn:`basilisp.core/load-file` with the given ``path``, returning the
+    result."""
+    return compile_and_exec_form(
+        llist.l(_LOAD_FILE_SYM, path.as_posix()),
+        ctx,
+        ns,
+        collect_bytecode=collect_bytecode,
+    )

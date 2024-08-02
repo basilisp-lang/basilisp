@@ -10,16 +10,21 @@ from typing import Any, Callable, Optional, Sequence, Type
 
 from basilisp import main as basilisp
 from basilisp.lang import compiler as compiler
+from basilisp.lang import keyword as kw
+from basilisp.lang import list as llist
+from basilisp.lang import map as lmap
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.exception import print_exception
+from basilisp.lang.util import munge
 from basilisp.prompt import get_prompter
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
 REPL_INPUT_FILE_PATH = "<REPL Input>"
 REPL_NS = "basilisp.repl"
+NREPL_SERVER_NS = "basilisp.contrib.nrepl-server"
 STDIN_INPUT_FILE_PATH = "<stdin>"
 STDIN_FILE_NAME = "-"
 
@@ -49,10 +54,8 @@ def eval_str(s: str, ctx: compiler.CompilerContext, ns: runtime.Namespace, eof: 
 
 def eval_file(filename: str, ctx: compiler.CompilerContext, ns: runtime.Namespace):
     """Evaluate a file with the given name into a Python module AST node."""
-    if os.path.exists(filename):
-        return eval_str(
-            f'(load-file "{Path(filename).as_posix()}")', ctx, ns, eof=object()
-        )
+    if (path := Path(filename)).exists():
+        return compiler.load_file(path, ctx, ns)
     else:
         raise FileNotFoundError(f"Error: The file {filename} does not exist.")
 
@@ -62,14 +65,23 @@ def eval_namespace(
 ):
     """Evaluate a file with the given name into a Python module AST node."""
     path = "/" + "/".join(namespace.split("."))
-    return eval_str(f'(load "{path}")', ctx, ns, eof=object())
+    return compiler.load(path, ctx, ns)
 
 
 def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.ModuleType:
     """Bootstrap the REPL with a few useful vars and returned the bootstrapped
     module so it's functions can be used by the REPL command."""
-    ns = runtime.Namespace.get_or_create(sym.symbol(which_ns))
-    eval_str(f"(ns {sym.symbol(which_ns)} (:use basilisp.repl))", ctx, ns, object())
+    which_ns_sym = sym.symbol(which_ns)
+    ns = runtime.Namespace.get_or_create(which_ns_sym)
+    compiler.compile_and_exec_form(
+        llist.l(
+            sym.symbol("ns", ns=runtime.CORE_NS),
+            which_ns_sym,
+            llist.l(kw.keyword("use"), sym.symbol(REPL_NS)),
+        ),
+        ctx,
+        ns,
+    )
     return importlib.import_module(REPL_NS)
 
 
@@ -345,22 +357,15 @@ def nrepl_server(
 ) -> None:
     opts = compiler.compiler_opts()
     basilisp.init(opts)
-
-    ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts=opts)
-    eof = object()
-
-    ns = runtime.Namespace.get_or_create(runtime.CORE_NS_SYM)
-    host = runtime.lrepr(args.host)
-    port = args.port
-    port_filepath = runtime.lrepr(args.port_filepath)
-    eval_str(
-        (
-            "(require '[basilisp.contrib.nrepl-server :as nr])"
-            f"(nr/start-server! {{:host {host} :port {port} :nrepl-port-file {port_filepath}}})"
-        ),
-        ctx,
-        ns,
-        eof,
+    nrepl_server_mod = importlib.import_module(munge(NREPL_SERVER_NS))
+    nrepl_server_mod.start_server__BANG__(
+        lmap.map(
+            {
+                kw.keyword("host"): args.host,
+                kw.keyword("port"): args.port,
+                kw.keyword("nrepl-port-file"): args.port_filepath,
+            }
+        )
     )
 
 
