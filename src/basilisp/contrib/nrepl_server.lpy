@@ -66,32 +66,31 @@
 (declare ops)
 
 (defn- handle-describe [request send-fn]
-  (send-fn request
-           {"versions" {"basilisp" (let [version basilisp.lang.runtime/BASILISP-VERSION-STRING]
-                                     (assoc (zipmap ["major" "minor" "incremental"]
-                                                    version)
-                                            "version-string" (str/join "." version)))
-                        "python" (let [version (get (.split sys/version " ") 0)]
-                                   (assoc (zipmap ["major" "minor" "incremental"]
-                                                  (py->lisp (.split version ".")))
-                                          "version-string" (py->lisp sys/version)))}
-            "ops" (zipmap (map name (keys ops)) (repeat {}))
-            "status" ["done"]}))
+  (let [basilisp-version   (-> (zipmap ["major" "minor" "incremental"] *basilisp-version*)
+                               (assoc "version-string" (str/join "." *basilisp-version*)))
+        python-version-vec (vec (take 3 *python-version*))
+        python-version     (-> (zipmap ["major" "minor" "incremental"] python-version-vec)
+                               (assoc "version-string" (str/join "." *python-version*)))]
+    (send-fn request
+             {"versions" {"basilisp" basilisp-version
+                          "python"   python-version}
+              "ops"      (zipmap (map name (keys ops)) (repeat {}))
+              "status"   ["done"]})))
 
 (defn- format-value [_nrepl-pprint _pprint-options value]
   (pr-str value))
 
 (defn- send-value [request send-fn v]
-  (let [{:keys [client*]}  request
-        {:keys [*1 *2]} @client*
-        [v opts]           v
-        ns                 (:ns opts)]
+  (let [{:keys [client*]} request
+        {:keys [*1 *2]}   @client*
+        [v opts]          v
+        ns                (:ns opts)]
     (swap! client* assoc :*1 v :*2 *1 :*3 *2)
     (let [v (format-value (:nrepl.middleware.print/print request)
                           (:nrepl.middleware.print/options request)
                           v)]
       (send-fn request {"value" (str v)
-                        "ns" (str ns)}))))
+                        "ns"    (str ns)}))))
 
 (defn- handle-error [send-fn request e]
   (let [{:keys [client* ns]} request
@@ -99,9 +98,9 @@
         message              (or (:message data) (str e))]
     (swap! client* assoc :*e e)
     (send-fn request {"err" (str message)})
-    (send-fn request {"ex" (traceback/format-exc)
+    (send-fn request {"ex"     (traceback/format-exc)
                       "status" ["eval-error"]
-                      "ns" ns})))
+                      "ns"     ns})))
 
 (defn- do-handle-eval
   "Evaluate the ``request`` ``code`` of ``file`` in the ``ns`` namespace according
@@ -125,9 +124,12 @@
         eval-ns                       (if ns
                                         (create-ns (symbol ns))
                                         eval-ns)]
-    (binding [*ns* eval-ns
+    (binding [*ns*  eval-ns
               *out* out-stream
-              *1 *1 *2 *2 *3 *3 *e *e]
+              *1    *1
+              *2    *2
+              *3    *3
+              *e    *e]
       (try
         (let [results (for [form (seq (basilisp.lang.reader/read reader
                                                                  *resolver*
@@ -142,7 +144,7 @@
           (handle-error send-fn (assoc request :ns (str *ns*)) e))
         (finally
           (swap! client* assoc :eval-ns *ns*)
-          (send-fn request {"ns" (str *ns*)
+          (send-fn request {"ns"     (str *ns*)
                             "status" ["done"]}))))))
 
 (defn- handle-eval [request send-fn]
@@ -179,9 +181,9 @@
                                            (first (seq (basilisp.lang.reader/read reader
                                                                                   *resolver*
                                                                                   *data-readers*))))}
-             (catch python/Exception e
-               (info :symbol-identify-reader-error :input symbol-str :exception e)
-               {:error (str e)}))]
+                                  (catch python/Exception e
+                                    (info :symbol-identify-reader-error :input symbol-str :exception e)
+                                    {:error (str e)}))]
 
     (cond
       error
@@ -201,12 +203,9 @@
                                      (catch python/Exception e
                                        {:error (str e)}))]
         (cond
-          var
-          [:var var]
-          error
-          [:error error]
-          :else
-          [:other form])))))
+          var   [:var var]
+          error [:error error]
+          :else [:other form])))))
 
 (defn- forms-join [forms]
   (->> (map pr-str forms)
@@ -221,36 +220,40 @@
   (let [mapping-type      (-> request :op)
         {:keys [eval-ns]} @client*]
     (try
-      (let [lookup-ns      (if ns
-                             (create-ns (symbol ns))
-                             eval-ns)
-            sym-str        (or (:sym request) ;; cider
-                               (:symbol request) ;; calva
-                               )
+      (let [lookup-ns (if ns
+                        (create-ns (symbol ns))
+                        eval-ns)
+            sym-str   (or (:sym request) ;; cider
+                          (:symbol request) ;; calva
+                          )
+
             [tp var-maybe] (symbol-identify lookup-ns sym-str)
             var-meta       (when (= tp :var) (meta var-maybe))
+
             {:keys [arglists doc file ns line] symname :name} var-meta
-            ref            (when (= tp :var) (var-get var-maybe))
-            response       (when symname (case mapping-type
-                                           :eldoc (cond->
-                                                      {"eldoc" (mapv #(mapv str %) arglists)
-                                                       "ns" (str ns)
-                                                       "type"  (if (fn? ref)
-                                                                 "function"
-                                                                 "variable")
-                                                       "name" (str symname)
-                                                       "status" ["done"]}
-                                                    doc (assoc "docstring" doc))
-                                           :info {"doc" doc
-                                                  "ns" (str ns)
-                                                  "name" (str symname)
-                                                  "file" file
-                                                  "line" line
-                                                  "arglists-str" (forms-join arglists)
-                                                  "status" ["done"]}))
-            status (if (and (nil? symname) (= mapping-type :eldoc) )
-                     ["done" "no-eldoc"]
-                     ["done"])]
+
+            ref      (when (= tp :var) (var-get var-maybe))
+            response (when symname
+                       (case mapping-type
+                         :eldoc (cond->
+                                    {"eldoc"  (mapv #(mapv str %) arglists)
+                                     "ns"     (str ns)
+                                     "type"   (if (fn? ref)
+                                                "function"
+                                                "variable")
+                                     "name"   (str symname)
+                                     "status" ["done"]}
+                                  doc (assoc "docstring" doc))
+                         :info  {"doc"          doc
+                                 "ns"           (str ns)
+                                 "name"         (str symname)
+                                 "file"         file
+                                 "line"         line
+                                 "arglists-str" (forms-join arglists)
+                                 "status"       ["done"]}))
+            status   (if (and (nil? symname) (= mapping-type :eldoc) )
+                       ["done" "no-eldoc"]
+                       ["done"])]
         (debug :lookup :sym sym-str :doc doc :args arglists)
         (send-fn request (assoc response :status status)))
       (catch python/Exception e
@@ -353,22 +356,26 @@
 
   - ``:recv-buffer-size`` The buffer size to using for incoming nREPL messages."
   (let [{:keys [recv-buffer-size]
-         :or {recv-buffer-size 1024}} opts
-        socket                        (.-request tcp-req-handler)
-        handler                       (make-request-handler opts)
-        response-handler              (make-reponse-handler socket)
-        pending                       (atom nil)
-        zero-bytes                    #b ""
-        client-info                   (py->lisp (.getsockname socket))
-        client*                       (atom {:*1 nil :*2 nil ;; keeps track of the latest
-                                             :*3 nil :*e nil ;; evaluation results
-                                             :eval-ns nil ;; the last eval ns
-                                             })]
+         :or   {recv-buffer-size 1024}} opts
+        socket                          (.-request tcp-req-handler)
+        handler                         (make-request-handler opts)
+        response-handler                (make-reponse-handler socket)
+        pending                         (atom nil)
+        zero-bytes                      #b ""
+        client-info                     (py->lisp (.getsockname socket))
+        client*                         (atom {;; keeps track of latest evaluation results
+                                               :*1      nil
+                                               :*2      nil
+                                               :*3      nil
+                                               :*e      nil
+                                               ;; the last eval ns
+                                               :eval-ns nil
+                                               })]
     (try
       (info "Connection accepted" :info client-info)
       ;; Need to load the `clojure.core` alias because cider uses it
       ;; to test for availability of features.
-      (eval (read-string "(ns user (:require clojure.core))"))
+      (eval '(ns user (:require clojure.core)))
       (swap! client* assoc :eval-ns *ns*)
       (loop [data (.recv socket recv-buffer-size)]
         (if (= data zero-bytes)
@@ -380,7 +387,7 @@
                                            b)
                                          data)
                 [requests unprocessed] (bc/decode-all data {:keywordize-keys true
-                                                            :string-fn #(.decode % "utf-8")})]
+                                                            :string-fn       #(.decode % "utf-8")})]
             (debug :requests requests)
             (when (not (str/blank? unprocessed))
               (reset! pending unprocessed))
@@ -423,7 +430,8 @@
      The session UUIDs are ignored and only created to satisfy the initial clone op."
   [opts]
   (let [{:keys [host port] :or {host "127.0.0.1" port 0}} opts
-        handler (python/type (name (gensym "nREPLTCPHandler")) (python/tuple [socketserver/StreamRequestHandler])
+        handler (python/type (name (gensym "nREPLTCPHandler"))
+                             #py (socketserver/StreamRequestHandler)
                              #py {"handle" #(on-connect % opts)})]
     (socketserver/ThreadingTCPServer (python/tuple [host port]) handler)))
 

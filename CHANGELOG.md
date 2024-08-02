@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where Basilisp vectors were not callable (#932)
  * Fix a bug where `basilisp.lang.seq.LazySeq` instances were not thread-safe (#934)
  * Fix a bug where Seqs wrapping Python Iterable instances were not thread-safe (#936)
+ * Fix several bugs where code was being executed from a string with interpolated variables, which could've allowed for code (#938)
 
 ### Other
  * Add several sections to Concepts documentation module (#666)
