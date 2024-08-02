@@ -727,34 +727,196 @@ TBD
 
    :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`halt-when`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`, :lpy:fn:`cat`
 
-.. _hierarchies:
-
-Hierarchies
------------
-
-TBD
-
-.. seealso::
-
-   :lpy:fn:`make-hierarchy`, :lpy:fn:`ancestors`, :lpy:fn:`descendents`, :lpy:fn:`parents`, :lpy:fn:`isa?`, :lpy:fn:`derive`, :lpy:fn:`underive`
-
 .. _multimethods:
 
 Multimethods
 ------------
 
-TBD
+Multimethods are a form of runtime polymorphism that may feel familiar to users of type-based multiple dispatch.
+Multimethods are strictly more powerful than strictly type-based dispatch systems, however.
+Multimethods dispatch to methods via a user-defined dispatch function which has access to the full runtime value of every argument passed to the final function.
+The value returned from a dispatch function can be any hashable value.
+
+Methods are selected by looking up the returned dispatch value in a mapping of dispatch values to methods.
+Dispatch values are compared to the stored method mappings using :lpy:fn:`isa?` which naturally supports both the usage of the :ref:`hierarchy <hierarchies>` system for sophisticated hierarchical data relationships and the Python type system.
+If no method is found for the dispatch value, the default dispatch value (which defaults to ``:default`` but may be selected when the multimethod is defined) will be used to look up a method.
+If no method is found after consulting the default value, a :external:py:exc:`NotImplementedError` exception will be thrown.
+
+Users can create new multimethods using the :lpy:fn:`defmulti` macro, specifying a dispatch function, an optional default dispatch value, and a hierarchy to use for :lpy:fn:`isa?` calls.
+Methods can be added with the :lpy:fn:`defmethod` macro.
+Methods can be introspected using :lpy:fn:`methods` and :lpy:fn:`get-method`.
+Methods can be individually removed using :lpy:fn:`remove-method` or completely removed using :lpy:fn:`remove-all-methods`.
+
+It is possible using both hierarchies and Python's type system that there might be multiple methods corresponding to a single dispatch value.
+Where such an ambiguity exists, Basilisp allows users to disambiguate which method should be selected when a conflict arises between 2 method dispatch keys using :lpy:fn:`prefer-method`.
+Users can get the mapping of method preferences by calling :lpy:fn:`prefers` on the multimethod.
+
+The following example shows a basic multimethod using a keyword to dispatch methods based on a single key in a map like a discriminated union.
+The :ref:`hierarchies` section shows a more advanced example using hierarchies for method dispatch.
+
+.. code-block::
+
+   (defmulti calc :type)
+
+   (defmethod calc :add
+     [{:keys [vals]}]
+     (apply + vals))
+
+   (defmethod calc :mult
+     [{:keys [vals]}]
+     (apply * vals))
+
+   (defmethod calc :default
+     [{:keys [vals]}]
+     (map inc vals))
+
+   (calc {:type :add :vals [1 2 3]})      ;; => 6
+   (calc {:type :mult :vals [4 5 6]})     ;; => 120
+   (calc {:type :default :vals [4 5 6]})  ;; => (5 6 7)
+   (calc {:vals [4 5 6]})                 ;; => (5 6 7)
+
+.. note::
+
+   If your primary use case for a multimethod is dispatching on the input type of the first argument of a multimethod, consider using a :ref:`protocol <protocols>` instead.
+   Protocols are almost always faster for single-argument type based dispatch and require no manual specification of the dispatch function.
 
 .. seealso::
 
    :lpy:fn:`defmulti`, :lpy:fn:`defmethod`, :lpy:fn:`methods`, :lpy:fn:`get-method`, :lpy:fn:`prefer-method`, :lpy:fn:`prefers`, :lpy:fn:`remove-method`, :lpy:fn:`remove-all-methods`
+
+.. _hierarchies:
+
+Hierarchies
+^^^^^^^^^^^
+
+Basilisp supports creating ad-hoc hierarchies which define relationships as data.
+Hierarchies are particularly useful for :ref:`multimethods`, but may also be used in other contexts.
+
+Create a new hierarchy with :lpy:fn:`make-hierarchy`.
+Define relationships within that hierarchy using :lpy:fn:`derive`.
+Relationships are between tags and their parent where tags are valid Python types or a namespace qualified-keyword and parents are namespace-qualified keywords.
+This allows users to slot concrete host types into hierarchies, which is particularly useful in the context of :ref:`multimethods`.
+Note however that hierarchies do not allow Python types to be defined as parents, because that would ultimately cause the hierarchy to diverge from the true class hierarchy on the host.
+
+Hierarchy relationships can be removed using :lpy:fn:`underive`.
+It is possible to explore the relationships in the hierarchy using :lpy:fn:`parents`, :lpy:fn:`ancestors`, and :lpy:fn:`descendants`.
+Users can test whether a hierarchy element is a descendant (or equal to) another using :lpy:fn:`isa?`.
+
+The example below combines multimethods and hierarchies to show how they can be used together.
+
+.. code-block::
+
+   (def m {:os :os/osx})
+
+   (def ^:redef os-hierarchy
+     (-> (make-hierarchy)
+         (derive :os/osx :os/unix)))
+
+   (defmulti os-lineage
+     :os                         ;; the keyword :os is our dispatch function
+     :hierarchy #'os-hierarchy)  ;; note that :hierarchies passed to multimethods must be passed as references (Var or atom)
+
+   (defmethod os-lineage :os/unix
+     [_]
+     "unix")
+
+   (defmethod os-lineage :os/bsd
+     [_]
+     "bsd")
+
+   (defmethod os-lineage :default
+     [_]
+     "operating system")
+
+   (os-lineage m)                  ;; => "unix"
+   (os-lineage {:os :os/windows})  ;; => "operating system"
+
+   ;; add a new parent to :os/osx which creates ambiguity in the hierarchy
+   (alter-var-root #'os-hierarchy derive :os/osx :os/bsd)
+
+   (os-lineage m)  ;; => basilisp.lang.runtime.RuntimeException
+
+   ;; set method preference to disambiguate
+   (prefer-method os-lineage :os/unix :os/bsd)
+
+   (os-lineage m)                  ;; => "unix"
+   (os-lineage {:os :os/windows})  ;; => "operating system"
+
+.. note::
+
+   If no hierarchy argument is provided to hierarchy functions, a default global hierarchy is used.
+   To avoid conflating hierarchies, you should create your own hierarchy which you pass to the various hierarchy library functions.
+
+.. warning::
+
+   Hierarchies returned by :lpy:fn:`make-hierarchy` are immutable.
+   To modify a hierarchy as by :lpy:fn:`derive` or :lpy:fn:`underive`, treat it like Basilisp's other immutable data structures:
+
+   .. code-block::
+
+      (let [h (-> (make-hierarchy)
+                  (derive ::banana ::fruit)
+                  (derive ::apple ::fruit))]
+        ;; ...
+        )
+
+   For hierarchies that need to be modified at runtime, consider storing the hierarchy in a Ref such as an :ref:`atom <atoms>` and using ``(swap! a derive ...)`` to update the hierarchy.
+
+.. warning::
+
+   :lpy:fn:`isa?` is not the same as :lpy:fn:`instance?`.
+   The former operates on both hierarchy members and valid Python types, but cannot check if an object is an instance of a certain type.
+   In this way it is much more like the Python :external:py:func:`issubclass`.
+
+.. seealso::
+
+   :lpy:fn:`make-hierarchy`, :lpy:fn:`ancestors`, :lpy:fn:`descendents`, :lpy:fn:`parents`, :lpy:fn:`isa?`, :lpy:fn:`derive`, :lpy:fn:`underive`
 
 .. _protocols:
 
 Protocols
 ---------
 
-TBD
+Most of Basilisp's core functionality is written in terms of interfaces and abstractions, rather than concrete types.
+The base interface types are (necessarily) all written in Python, however.
+Basilisp cannot generate such interface types however, which limits its ability to create similar abstractions.
+
+Protocols are the Basilisp-native solution to defining interfaces.
+Protocols are defined as a set of functions and their associated signatures without any defined implementation (and optional docstrings).
+Once created a protocol defines both an interface (a :external:py:class:`abc.ABC`) and a series of stub functions that dispatch to actual implementations based on the type of the first argument.
+
+Users can define implementations protocol methods for any type using :lpy:fn:`extend` or the convenience macros :lpy:fn:`extend-protocol` and :lpy:fn:`extend-type`.
+Type dispatch respects the Python type hierarchy, so implementations may be defined against other interface types or parent types and the most specific implementation will always be selected for the provided object.
+You can fetch the collection of types which explicitly implement a Protocol using :lpy:fn:`extenders` (this will not include types which inherit from the Protocol interface, however).
+However, it is possible to check if a type extends a protocol (including those types which inherit from the interface) using :lpy:fn:`extends?`.
+It is possible to check if a type satisfies (e.g. implements) a Protocol using :lpy:fn:`satisfies?`.
+
+Because Protocols ultimately generate an interface type, they may be used as an interface type of :ref:`data_types_and_records`.
+Likewise, this enables Python code to participate in Protocols by referencing the generated interface.
+
+Protocols provide a natural solution to many different problems.
+As an example, :lpy:ns:`basilisp.json` uses Protocol-based dispatch for converting values into their final JSON representation.
+Protocols allow other code to participate in that serialization without needing to modify the source.
+Suppose you wanted to serialize :external:py:class:`datetime.datetime` instances out as Unix Epochs rather than as ISO-8601 formatted strings, you could provide a custom protocol implementation to do just that.
+
+.. code-block::
+
+   ;; Abbreviated protocol definition copied from basilisp.json
+   (defprotocol JSONEncodeable
+     (to-json-encodeable* [this opts]))
+
+   (basilisp.json/write-str {:some-val (datetime.datetime/now)})  ;; => "{\"some-val\": \"2024-08-02T16:42:10.803582\"}"
+
+   (extend-protocol basilisp.json/JSONEncodeable
+     datetime/datetime
+     (to-json-encodeable* [this _]
+       (.timestamp this)))
+
+   (basilisp.json/write-str {:some-val (datetime.datetime/now)})  ;; => "{\"some-val\": 1722631254.803805}"
+
+.. note::
+
+   Users *must* provide a ``self`` or ``this`` argument to arguments in :lpy:fn:`defprotocol` invocations.
 
 .. seealso::
 
