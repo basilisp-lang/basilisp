@@ -68,8 +68,7 @@
 (defn- handle-describe [request send-fn]
   (let [basilisp-version   (-> (zipmap ["major" "minor" "incremental"] *basilisp-version*)
                                (assoc "version-string" (str/join "." *basilisp-version*)))
-        python-version-vec (vec (take 3 *python-version*))
-        python-version     (-> (zipmap ["major" "minor" "incremental"] python-version-vec)
+        python-version     (-> (zipmap ["major" "minor" "incremental"] *python-version*)
                                (assoc "version-string" (str/join "." *python-version*)))]
     (send-fn request
              {"versions" {"basilisp" basilisp-version
@@ -311,7 +310,8 @@
                       "status" ["done"]})))
 
 (def ops
-  "A list of operations supported by the nREPL server."
+  "A map of operations supported by the nREPL server (as keywords) to function
+  handlers for those operations."
   {:eval      handle-eval
    :describe  handle-describe
    :info      handle-lookup

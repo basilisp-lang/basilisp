@@ -18,12 +18,13 @@ from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.exception import print_exception
+from basilisp.lang.util import munge
 from basilisp.prompt import get_prompter
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
 REPL_INPUT_FILE_PATH = "<REPL Input>"
 REPL_NS = "basilisp.repl"
-NREPL_SERVER_NS = "basilisp.contrib.nrepl_server"
+NREPL_SERVER_NS = "basilisp.contrib.nrepl-server"
 STDIN_INPUT_FILE_PATH = "<stdin>"
 STDIN_FILE_NAME = "-"
 
@@ -356,7 +357,7 @@ def nrepl_server(
 ) -> None:
     opts = compiler.compiler_opts()
     basilisp.init(opts)
-    nrepl_server_mod = importlib.import_module(NREPL_SERVER_NS)
+    nrepl_server_mod = importlib.import_module(munge(NREPL_SERVER_NS))
     nrepl_server_mod.start_server__BANG__(
         lmap.map(
             {
