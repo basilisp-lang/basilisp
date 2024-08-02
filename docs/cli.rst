@@ -45,22 +45,30 @@ Start from an editor with a Clojure extension supporting Basilisp
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. note::
+
    The extension's ``Jack-in`` command is used to start an nREPL session and connect your editor to it.
 
-With Emacs `CIDER v1.14 <https://docs.cider.mx/cider/platforms/basilisp.html>`_ and Visual Studio Code `Calva v2.0.453 <https://calva.io/basilisp/>`_ or later, you can ``Jack-in`` to a Basilisp project directly. The extensions also recognize Basilisp ``.lpy`` files as Clojure files.
+With Emacs `CIDER v1.14 <https://docs.cider.mx/cider/platforms/basilisp.html>`_ and Visual Studio Code `Calva v2.0.453 <https://calva.io/basilisp/>`_ or later, you can ``Jack-in`` to a Basilisp project directly.
+The extensions also recognize Basilisp ``.lpy`` files as Clojure files.
 
 To ``Jack-in`` to a Basilisp project
 
 1. Ensure that a ``basilisp.edn`` file is present at the root of your project, even if it is empty.
-2. Run the ``Jack-in`` command in your editor and select ``Basilisp`` if prompted. The Editor should then start the server and connect to it.
+2. Run the ``Jack-in`` command in your editor and select ``Basilisp`` if prompted.
+   The Editor should then start the server and connect to it.
 
 Start from an editor with a Clojure extension not yet supporting Basilisp
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. note::
-   The extension's ``connect`` command is used to connect your editor to a running nREPL server. It requires the port number where the server is running at.
+
+   The extension's ``connect`` command is used to connect your editor to a running nREPL server.
+   It requires the port number where the server is running at.
 
 .. note::
-   Basilisp code files use the ``.lpy`` filename suffix. You might need to adjust your editor's extension settings to recognize this suffix as a Clojure file. Alternatively, you can evaluate code inside ``.clj`` files, though importing these files from other Basilisp files might not be possible due to the different file extension.
+
+   Basilisp code files use the ``.lpy`` filename suffix.
+   You might need to adjust your editor's extension settings to recognize this suffix as a Clojure file.
+   Alternatively, you can evaluate code inside ``.clj`` files, though importing these files from other Basilisp files might not be possible due to the different file extension.
 
 If your editor extension does not yet support Basilisp, or if you prefer more control over the nREPL server, you can start the server from the command line and connect to using your extension's ``connect`` command.
 
@@ -90,7 +98,8 @@ To start the server on a specific port, use
 
 Some extensions can connect to a running server automatically by looking for a ``.nrepl-port`` file at the root of the project. This file contains the port the server is listening on.
 
-The ``nrepl-server`` command will generate this file in the current working directory where the server is started. If your extension's ``connect`` command looks for this file, run the server command from the root of the project, so that is generated in there
+The ``nrepl-server`` command will generate this file in the current working directory where the server is started.
+If your extension's ``connect`` command looks for this file, run the server command from the root of the project, so that is generated in there
 
 .. code-block:: bash
 
@@ -98,13 +107,14 @@ The ``nrepl-server`` command will generate this file in the current working dire
    basilisp nrepl-server
    #=> nREPL server started on port 632128 on host 127.0.0.1 - nrepl://127.0.0.1:63128
 
-Alternatively, specify the full path where this file should be generated
+Alternatively, specify the full path where this file should be generated using the ``--port-filepath`` CLI option
 
 .. code-block:: bash
 
    basilisp nrepl-server --port-filepath <project-root-directory>/.nrepl-port
    #=> nREPL server started on port 62079 on host 127.0.0.1 - nrepl://127.0.0.1:62079
 
+.. _run_basilisp_code:
 
 Run Basilisp Code
 -----------------
