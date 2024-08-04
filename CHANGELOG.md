@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where `basilisp.lang.seq.LazySeq` instances were not thread-safe (#934)
  * Fix a bug where Seqs wrapping Python Iterable instances were not thread-safe (#936)
  * Fix several bugs where code was being executed from a string with interpolated variables, which could've allowed for code (#938)
+ * Fix a bug where record types and data readers whose fully qualified name started with a "b" could not be read (#947)
 
 ### Other
  * Add several sections to Concepts documentation module (#666)
