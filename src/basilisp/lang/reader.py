@@ -1547,12 +1547,12 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
             raise ctx.syntax_error(e.message).with_traceback(e.__traceback__) from None
     elif char == "#":
         return _read_numeric_constant(ctx)
-    elif char == "b":
-        ctx.reader.advance()
-        return _read_byte_str(ctx)
     elif ns_name_chars.match(char):
         s = _read_sym(ctx)
         assert isinstance(s, sym.Symbol)
+        if s.ns is None and s.name == "b":
+            return _read_byte_str(ctx)
+
         v = _read_next_consuming_comment(ctx)
         if s in ctx.data_readers:
             f = ctx.data_readers[s]
