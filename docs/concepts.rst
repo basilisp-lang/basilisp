@@ -938,7 +938,11 @@ Implementing Interfaces and Protocols
 Each of the methods Basilisp supports for creating custom data types may implement 0 or more Python interfaces and Basilisp protocols.
 Types are required to implement every function defined by an interface or protocol.
 
-Types may also optionally declare :external:py:class:`object` as a superclass and implement 0 or more `"dunder" methods <https://docs.python.org/3/reference/datamodel.html>`_ without implementing every such method.
+Types may also optionally implement 0 or more `"dunder" methods <https://docs.python.org/3/reference/datamodel.html>`_ without implementing every such method.
+
+.. note::
+
+   It is not necessary to declare :external:py:class:`object` as a superclass, but doing so carries no penalty.
 
 .. warning::
 
@@ -1010,6 +1014,8 @@ Whereas :ref:`deftype` defines a true Python class which may be instantiated dir
 Types defined via ``reify`` may not include fields.
 Instead, reified types close over their environment, which can provide many of the same benefits as fields.
 
+Reify is likely to be most useful for creating one-off types implementing some Python type, rather than for creating types that are going to be created and used frequently by consumers of your code.
+
 Reified types always implement :py:class:`basilisp.lang.interfaces.IWithMeta` and any metadata applied to the ``reify`` form are transferred to the created object.
 
 .. note::
@@ -1031,6 +1037,7 @@ There are some key differences from ``deftype`` types, however.
 - ``defrecord`` fields may not be marked ``^:mutable``, nor may they provide a default via ``^:default``.
 - Types created by ``defrecord`` may not include :external:py:func:`classmethod`, :external:py:class:`property`, or :external:py:func:`staticmethod` methods.
 - Given a defrecord type ``Point``, a constructor function ``map->Point`` will be created alongside the record type which can construct a new ``Point`` record from a map in addition to the positional constructor ``->Point``.
+- Record literals may be constructed using their fully-qualified name as a :ref:`data reader <data_readers>` using a vector literal for a positional constructor or a map for a map based constructor.
 
 .. code-block::
 
@@ -1039,8 +1046,12 @@ There are some key differences from ``deftype`` types, however.
    (def p (map->Point {:x 1 :y 2 :z 3}))   ;; => #basilisp.user.Point{:z 3 :x 1 :y 2}
    (:x p)                                  ;; => 1
    (dissoc p :x)                           ;; => {:z 3 :y 2}
+
    (def p1 (assoc p :name "Best point"))   ;; => #basilisp.user.Point{:z 3 :x 1 :name "Best point" :y 2}
    (dissoc p1 :name)                       ;; => #basilisp.user.Point{:z 3 :x 1 :y 2}
+
+   #basilisp.user.Point[4 5 6]             ;; => #basilisp.user.Point{:z 6 :x 4 :y 5}
+   #basilisp.user.Point{:x 4 :y 5 :z 6}    ;; => #basilisp.user.Point{:z 6 :x 4 :y 5}
 
 .. note::
 
