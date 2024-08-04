@@ -927,8 +927,99 @@ Suppose you wanted to serialize :external:py:class:`datetime.datetime` instances
 Data Types and Records
 ----------------------
 
+Basilisp allows defining custom data types which implement 0 or more Python interfaces and 0 or more :ref:`protocols`.
+Such types may be valuable when interacting with other Python code.
+
+.. _implementing_interfaces_and_protocols:
+
+Implementing Interfaces and Protocols
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Each of the methods Basilisp supports for creating custom data types may implement 0 or more Python interfaces and Basilisp protocols.
+Types are required to implement every function defined by an interface or protocol.
+
+Types may also optionally declare :external:py:class:`object` as a superclass and implement 0 or more `"dunder" methods <https://docs.python.org/3/reference/datamodel.html>`_ without implementing every such method.
+
+.. warning::
+
+   Python, unlike Java, does not have a true "interface" type.
+   The best approximation is :external:py:class:`abc.ABC`, although this type is merely advisory and many libraries and applications eschew its use.
+
+   For the cases where a host type is not defined as an ``abc.ABC`` instance, users can override the compiler check by setting the ``^:abstract`` meta key on the interface type symbol passed to the ``deftype`` form.
+   For example, take :external:py:class:`argparse.Action` which is required to be implemented for customizing :external:py:mod:`argparse` actions, but which is not defined as an ``abc.ABC``:
+
+   .. code-block::
+
+      (import* argparse)
+
+      (reify
+        ^:abstract argparse/Action
+        (__call__ [this]
+          ;; ...
+          ))
+
+.. _deftype:
+
+``deftype``
+^^^^^^^^^^^
+
+In many cases it is desirable or necessary to define a Python class (or object instance which is a subtype of some type) to interact with a Python library.
+To facilitate this, Basilisp includes the :lpy:fn:`deftype` macro for creating Python classes which optionally implement Python interfaces or Basilisp protocols.
+
+Types defined via ``deftype`` may include 0 or more fields which are required at object instantiation.
+Fields defined in ``deftype`` forms are immutable by default.
+Attempting to set a field using :lpy:form:`set!` will result in a compile-time error.
+However, it is possible to mark a field as mutable by using the ``^:mutable`` metadata on a ``deftype`` field at compile time.
+Mutable fields may be ``set!`` from within class methods.
+Fields may be referred to freely by name from within method definitions as in Java (and unlike in Python where they must be qualified with ``self``).
+
+.. warning::
+
+   Python is known for taking a rather lax stance on object mutability as compared to many other languages and runtimes.
+   As a consequence of the language and VM not enforcing true immutability, even immutable fields may still be modified by other means.
+   Users should not take the immutable default state of ``deftype`` fields as a guarantee, but rather as a principled approach to reducing the surface area of potential bugs due to mutability.
+
+Types created by ``deftype`` automatically have some basic sensible defaults added via `attrs <https://www.attrs.org/en/stable/>`_, such as constructor (whose argument order matches that of the defined fields) and Python ``__str__`` and ``__repr__`` methods.
+User supplied versions of methods besides ``__init__`` may override the generated variants in all cases.
+
+Methods may be defined with multiple arities.
+``deftype`` methods may be :ref:`defined with support for Python kwargs <basilisp_functions_with_kwargs>` exactly like plain functions.
+Methods may be declared as by :external:py:func:`classmethod` and :external:py:func:`staticmethod` using the ``^:classmethod`` and ``^:staticmethod`` metadata respectively on the method name.
+Static and classmethods may be defined with multiple arities.
+Methods may also be declared as properties as by :external:py:class:`property` using the ``^:property`` metadata on the method name.
+Property methods must be single arity.
+
+.. note::
+
+   Method definitions must include a ``self`` or ``this`` parameter.
+
+.. note::
+
+   Methods support tail recursion via :lpy:form:`recur`.
+   When recurring, users should *not* pass the ``this`` or ``self`` parameter.
+
+.. _reify:
+
+``reify``
+^^^^^^^^^
+
+Whereas :ref:`deftype` defines a true Python class which may be instantiated directly, :lpy:fn:`reify` defines an anonymous type implementing the named interfaces and protocols and returns an instance of that type immediately.
+Types defined via ``reify`` may not include fields.
+Instead, reified types close over their environment, which can provide many of the same benefits as fields.
+
+Reified types always implement :py:class:`basilisp.lang.interfaces.IWithMeta` and any metadata applied to the ``reify`` form are transferred to the created object.
+
+.. note::
+
+   While ``reify`` and ``deftype`` are broadly similar, ``reify`` types may not define class or static methods.
+
+.. _defrecord:
+
+``defrecord``
+^^^^^^^^^^^^^
+
 TBD
 
 .. seealso::
 
-   :lpy:fn:`deftype`, :lpy:fn:`defrecord` , :lpy:fn:`record?`
+   :lpy:fn:`deftype`, :lpy:fn:`defrecord`, :lpy:fn:`reify`, :lpy:fn:`record?`

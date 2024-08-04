@@ -212,6 +212,8 @@ The ``:collect`` strategy is a better accompaniment to functions with positional
 With this strategy, Python keyword arguments are converted into a Basilisp map with de-munged keyword arguments and passed as the final positional argument of the function.
 You can use :ref:`associative_destructuring` on this final positional argument, just as you would with the map in the ``:apply`` case above.
 
+.. _type_hinting:
+
 Type Hinting
 ------------
 
