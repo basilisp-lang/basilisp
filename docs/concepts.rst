@@ -950,7 +950,7 @@ Types may also optionally declare :external:py:class:`object` as a superclass an
 
    .. code-block::
 
-      (import* argparse)
+      (import argparse)
 
       (reify
         ^:abstract argparse/Action
@@ -972,6 +972,7 @@ Attempting to set a field using :lpy:form:`set!` will result in a compile-time e
 However, it is possible to mark a field as mutable by using the ``^:mutable`` metadata on a ``deftype`` field at compile time.
 Mutable fields may be ``set!`` from within class methods.
 Fields may be referred to freely by name from within method definitions as in Java (and unlike in Python where they must be qualified with ``self``).
+Fields may also specify defaults by providing the default value as a ``^:default`` metadata value.
 
 .. warning::
 
@@ -988,6 +989,8 @@ Methods may be declared as by :external:py:func:`classmethod` and :external:py:f
 Static and classmethods may be defined with multiple arities.
 Methods may also be declared as properties as by :external:py:class:`property` using the ``^:property`` metadata on the method name.
 Property methods must be single arity.
+
+Given a new type ``deftype`` named ``Point``, a new constructor function ``->Point`` will be created alongside the record type which accepts the full set of declared fields in the order they are declared.
 
 .. note::
 
@@ -1018,7 +1021,32 @@ Reified types always implement :py:class:`basilisp.lang.interfaces.IWithMeta` an
 ``defrecord``
 ^^^^^^^^^^^^^
 
-TBD
+Basilisp offers a record type, created via :lpy:fn:`defrecord`, which is broadly similar to the types created by :ref:`deftype`.
+Record types are designed to be object types which can interact more readily with the core Basilisp library as a result of implementing the map interface directly.
+Records may be created from maps and fields in may be accessed, updated, and removed using standard :ref:`map <maps>` library functions.
+
+There are some key differences from ``deftype`` types, however.
+
+- Record types automatically implement :py:class:`basilisp.lang.interfaces.IPersistentMap`, :py:class:`basilisp.lang.interfaces.IWithMeta`, :py:class:`basilisp.lang.interfaces.IRecord`, and support for equality and hashing implemented via Python ``object`` methods.
+- ``defrecord`` fields may not be marked ``^:mutable``, nor may they provide a default via ``^:default``.
+- Types created by ``defrecord`` may not include :external:py:func:`classmethod`, :external:py:class:`property`, or :external:py:func:`staticmethod` methods.
+- Given a defrecord type ``Point``, a constructor function ``map->Point`` will be created alongside the record type which can construct a new ``Point`` record from a map in addition to the positional constructor ``->Point``.
+
+.. code-block::
+
+   (defrecord Point [x y z])
+   (->Point 1 2 3)                         ;; => #basilisp.user.Point{:z 3 :x 1 :y 2}
+   (def p (map->Point {:x 1 :y 2 :z 3}))   ;; => #basilisp.user.Point{:z 3 :x 1 :y 2}
+   (:x p)                                  ;; => 1
+   (dissoc p :x)                           ;; => {:z 3 :y 2}
+   (def p1 (assoc p :name "Best point"))   ;; => #basilisp.user.Point{:z 3 :x 1 :name "Best point" :y 2}
+   (dissoc p1 :name)                       ;; => #basilisp.user.Point{:z 3 :x 1 :y 2}
+
+.. note::
+
+   Users may add arbitrary extra fields onto a record (as by :lpy:fn:`assoc`) without changing its type.
+   If a field required by the record definition is removed as by :lpy:fn:`dissoc`, the record type will be downgraded to a standard map.
+   Extra fields which are not part of the record may be removed without changing the type.
 
 .. seealso::
 
