@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * Updated dozens of type annotations in the compiler to satisfy MyPy 1.11 (#910)
  * Update the `StreamReader` methods to stop using the term "token" to refer to individual UTF-8 characters (#915)
+ * Update the list of Python dunder methods which are allowed to be implemented for all `deftype*` and `reify*` types (#943)
 
 ### Fixed
  * Fix a bug where `.` characters were not allowed in keyword names (#899)
