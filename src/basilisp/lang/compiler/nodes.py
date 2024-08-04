@@ -428,6 +428,7 @@ class DefType(Node[SpecialForm]):
     verified_abstract: bool = False
     artificially_abstract: IPersistentSet[DefTypeBase] = lset.PersistentSet.empty()
     is_frozen: bool = True
+    use_weakref_slot: bool = True
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.v(FIELDS, MEMBERS)
     op: NodeOp = NodeOp.DEFTYPE
@@ -823,6 +824,7 @@ class Reify(Node[SpecialForm]):
     env: NodeEnv
     verified_abstract: bool = False
     artificially_abstract: IPersistentSet[DefTypeBase] = lset.PersistentSet.empty()
+    use_weakref_slot: bool = True
     meta: NodeMeta = None
     children: Sequence[kw.Keyword] = vec.v(MEMBERS)
     op: NodeOp = NodeOp.REIFY

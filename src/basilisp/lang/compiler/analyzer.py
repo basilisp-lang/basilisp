@@ -5,6 +5,7 @@ import contextlib
 import functools
 import inspect
 import logging
+import platform
 import re
 import sys
 import uuid
@@ -27,6 +28,7 @@ from typing import (
     Pattern,
     Set,
     Tuple,
+    Type,
     TypeVar,
     Union,
     cast,
@@ -56,6 +58,7 @@ from basilisp.lang.compiler.constants import (
     NAME_KW,
     NS_KW,
     REST_KW,
+    SYM_ABSTRACT_MEMBERS_META_KEY,
     SYM_ABSTRACT_META_KEY,
     SYM_ASYNC_META_KEY,
     SYM_CLASSMETHOD_META_KEY,
@@ -136,7 +139,7 @@ from basilisp.lang.compiler.nodes import (
     Yield,
     deftype_or_reify_python_member_names,
 )
-from basilisp.lang.interfaces import IMeta, IRecord, ISeq, IType, IWithMeta
+from basilisp.lang.interfaces import IMeta, INamed, IRecord, ISeq, IType, IWithMeta
 from basilisp.lang.runtime import Var
 from basilisp.lang.typing import CompilerOpts, LispForm, ReaderForm
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, count, genname, is_abstract, munge
@@ -662,6 +665,7 @@ def _meta_getter(meta_kw: kw.Keyword) -> MetaGetter:
 
 
 _is_artificially_abstract = _bool_meta_getter(SYM_ABSTRACT_META_KEY)
+_artificially_abstract_members = _meta_getter(SYM_ABSTRACT_MEMBERS_META_KEY)
 _is_async = _bool_meta_getter(SYM_ASYNC_META_KEY)
 _is_mutable = _bool_meta_getter(SYM_MUTABLE_META_KEY)
 _is_py_classmethod = _bool_meta_getter(SYM_CLASSMETHOD_META_KEY)
@@ -1666,16 +1670,77 @@ _var_is_protocol = _bool_meta_getter(VAR_IS_PROTOCOL_META_KEY)
 
 def __is_deftype_member(mem) -> bool:
     """Return True if `mem` names a valid `deftype*` member."""
-    return (
-        inspect.isfunction(mem)
-        or isinstance(mem, (property, staticmethod))
-        or inspect.ismethod(mem)
-    )
+    return inspect.isroutine(mem) or isinstance(mem, (property, staticmethod))
 
 
 def __is_reify_member(mem) -> bool:
     """Return True if `mem` names a valid `reify*` member."""
-    return inspect.isfunction(mem) or isinstance(mem, property)
+    return inspect.isroutine(mem) or isinstance(mem, property)
+
+
+if platform.python_implementation() == "CPython":
+
+    def __is_type_weakref(tp: Type) -> bool:
+        return getattr(tp, "__weakrefoffset__", 0) > 0
+
+else:
+
+    def __is_type_weakref(tp: Type) -> bool:  # pylint: disable=unused-argument
+        return True
+
+
+def __get_artificially_abstract_members(
+    ctx: AnalyzerContext, special_form: sym.Symbol, interface: DefTypeBase
+) -> Set[str]:
+    if (
+        declared_abstract_members := _artificially_abstract_members(
+            cast(IMeta, interface.form)
+        )
+    ) is None:
+        return set()
+
+    if not isinstance(declared_abstract_members, lset.PersistentSet):
+        raise ctx.AnalyzerException(
+            f"{special_form} artificially abstract members",
+            form=interface.form,
+        )
+
+    members = set()
+    for mem in declared_abstract_members:
+        if isinstance(mem, INamed):
+            if mem.ns is not None:
+                logger.warning(
+                    "Unexpected namespace for artificially abstract member to "
+                    f"{special_form}: {mem}"
+                )
+            members.add(mem.name)
+        elif isinstance(mem, str):
+            members.add(mem)
+        else:
+            raise ctx.AnalyzerException(
+                f"{special_form} artificially abstract member names must be one of: "
+                f"str, keyword, or symbol; got {type(mem)}",
+                form=interface.form,
+            )
+    return members
+
+
+@attr.define
+class _TypeAbstractness:
+    """
+    :ivar is_statically_verified_as_abstract: a boolean value which, if True,
+        indicates that all bases have been statically verified abstract; if False,
+        indicates at least one base could not be statically verified
+    :ivar artificially_abstract_supertypes: the set of all super-types which have
+        been marked as artificially abstract
+    :ivar supertype_already_weakref: if True, a supertype is already marked as
+        weakref and therefore the resulting type cannot add "__weakref__" to the
+        slots list to enable weakref support
+    """
+
+    is_statically_verified_as_abstract: bool
+    artificially_abstract_supertypes: lset.PersistentSet[DefTypeBase]
+    supertype_already_weakref: bool
 
 
 def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-locals
@@ -1684,13 +1749,9 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
     members: Iterable[DefTypeMember],
-) -> Tuple[bool, lset.PersistentSet[DefTypeBase]]:
-    """Return a tuple of two items indicating the abstractness of the `deftype*` or
-    `reify*` super-types. The first element is a boolean value which, if True,
-    indicates that all bases have been statically verified abstract. If False, that
-    value indicates at least one base could not be statically verified. The second
-    element is the set of all super-types which have been marked as artificially
-    abstract.
+) -> _TypeAbstractness:
+    """Return an object indicating the abstractness of the `deftype*` or `reify*`
+    super-types.
 
     In certain cases, such as in macro definitions and potentially inside of
     functions, the compiler will be unable to resolve the named super-type as an
@@ -1708,6 +1769,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
     For normal compile-time errors, an `AnalyzerException` will be raised."""
     assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
 
+    supertype_possibly_weakref = []
     unverifiably_abstract = set()
     artificially_abstract: Set[DefTypeBase] = set()
     artificially_abstract_base_members: Set[str] = set()
@@ -1752,7 +1814,35 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
         if interface_type is object:
             continue
 
-        if is_abstract(interface_type):
+        if isinstance(interface.form, IMeta) and _is_artificially_abstract(
+            interface.form
+        ):
+            # Given that artificially abstract bases aren't real `abc.ABC`s and do
+            # not annotate their `abstractmethod`s, we can't assert right now that
+            # any the type will satisfy the artificially abstract base. However,
+            # we can collect any defined methods into a set for artificial bases
+            # and assert that any extra methods are included in that set below.
+            artificially_abstract.add(interface)
+            artificially_abstract_base_members.update(
+                map(
+                    lambda v: v[0],
+                    inspect.getmembers(interface_type, predicate=is_member),
+                )
+            )
+            # The meta key :abstract-members will give users the escape hatch to force
+            # the compiler to recognize those members as abstract members.
+            #
+            # When dealing with artificially abstract members, it may be the case
+            # that members of superclasses of a specific type don't actually declare
+            # abstract member methods expected by subclasses. One particular (major)
+            # instance is that of `io.IOBase` which does not declare "read" or "write"
+            # as abstract members but whose documentation declares both methods should
+            # be considered part of the interface.
+            artificially_abstract_base_members.update(
+                __get_artificially_abstract_members(ctx, special_form, interface)
+            )
+            supertype_possibly_weakref.append(__is_type_weakref(interface_type))
+        elif is_abstract(interface_type):
             interface_names: FrozenSet[str] = interface_type.__abstractmethods__
             interface_property_names: FrozenSet[str] = frozenset(
                 method
@@ -1778,21 +1868,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
                 )
 
             all_interface_methods.update(interface_names)
-        elif isinstance(interface.form, IMeta) and _is_artificially_abstract(
-            interface.form
-        ):
-            # Given that artificially abstract bases aren't real `abc.ABC`s and do
-            # not annotate their `abstractmethod`s, we can't assert right now that
-            # any the type will satisfy the artificially abstract base. However,
-            # we can collect any defined methods into a set for artificial bases
-            # and assert that any extra methods are included in that set below.
-            artificially_abstract.add(interface)
-            artificially_abstract_base_members.update(
-                map(
-                    lambda v: v[0],
-                    inspect.getmembers(interface_type, predicate=is_member),
-                )
-            )
+            supertype_possibly_weakref.append(__is_type_weakref(interface_type))
         else:
             raise ctx.AnalyzerException(
                 f"{special_form} interface must be Python abstract class or object",
@@ -1807,13 +1883,22 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
         if extra_methods and not extra_methods.issubset(
             artificially_abstract_base_members
         ):
+            expected_methods = (
+                all_interface_methods | artificially_abstract_base_members
+            ) - OBJECT_DUNDER_METHODS
+            expected_method_str = ", ".join(expected_methods)
             extra_method_str = ", ".join(extra_methods)
             raise ctx.AnalyzerException(
                 f"{special_form} definition for interface includes members not "
-                f"part of defined interfaces: {extra_method_str}"
+                f"part of defined interfaces: {extra_method_str}; expected one of: "
+                f"{expected_method_str}"
             )
 
-    return not unverifiably_abstract, lset.set(artificially_abstract)
+    return _TypeAbstractness(
+        is_statically_verified_as_abstract=not unverifiably_abstract,
+        artificially_abstract_supertypes=lset.set(artificially_abstract),
+        supertype_already_weakref=any(supertype_possibly_weakref),
+    )
 
 
 __DEFTYPE_DEFAULT_SENTINEL = object()
@@ -1900,10 +1985,7 @@ def _deftype_ast(  # pylint: disable=too-many-locals
         interfaces, members = __deftype_or_reify_impls(
             runtime.nthrest(form, 3), ctx, SpecialForm.DEFTYPE
         )
-        (
-            verified_abstract,
-            artificially_abstract,
-        ) = __deftype_and_reify_impls_are_all_abstract(
+        type_abstractness = __deftype_and_reify_impls_are_all_abstract(
             ctx, SpecialForm.DEFTYPE, map(lambda f: f.name, fields), interfaces, members
         )
         return DefType(
@@ -1912,9 +1994,10 @@ def _deftype_ast(  # pylint: disable=too-many-locals
             interfaces=vec.vector(interfaces),
             fields=vec.vector(param_nodes),
             members=vec.vector(members),
-            verified_abstract=verified_abstract,
-            artificially_abstract=artificially_abstract,
+            verified_abstract=type_abstractness.is_statically_verified_as_abstract,
+            artificially_abstract=type_abstractness.artificially_abstract_supertypes,
             is_frozen=is_frozen,
+            use_weakref_slot=not type_abstractness.supertype_already_weakref,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
@@ -2946,18 +3029,16 @@ def _reify_ast(form: ISeq, ctx: AnalyzerContext) -> Reify:
         interfaces, members = __deftype_or_reify_impls(
             runtime.nthrest(form, 1), ctx, SpecialForm.REIFY
         )
-        (
-            verified_abstract,
-            artificially_abstract,
-        ) = __deftype_and_reify_impls_are_all_abstract(
+        type_abstractness = __deftype_and_reify_impls_are_all_abstract(
             ctx, SpecialForm.REIFY, (), interfaces, members
         )
         return Reify(
             form=form,
             interfaces=vec.vector(interfaces),
             members=vec.vector(members),
-            verified_abstract=verified_abstract,
-            artificially_abstract=artificially_abstract,
+            verified_abstract=type_abstractness.is_statically_verified_as_abstract,
+            artificially_abstract=type_abstractness.artificially_abstract_supertypes,
+            use_weakref_slot=not type_abstractness.supertype_already_weakref,
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
