@@ -433,6 +433,7 @@ def _class_ast(  # pylint: disable=too-many-arguments
     artificially_abstract_bases: Iterable[ast.expr] = (),
     is_frozen: bool = True,
     use_slots: bool = True,
+    use_weakref_slot: bool = True,
 ) -> ast.ClassDef:
     """Return a Python class definition for `deftype` and `reify` special forms."""
     return ast_ClassDef(
@@ -489,6 +490,15 @@ def _class_ast(  # pylint: disable=too-many-arguments
                         keywords=[
                             ast.keyword(arg="eq", value=ast.Constant(False)),
                             ast.keyword(arg="slots", value=ast.Constant(use_slots)),
+                            *(
+                                []
+                                if use_weakref_slot
+                                else [
+                                    ast.keyword(
+                                        arg="weakref_slot", value=ast.Constant(False)
+                                    )
+                                ]
+                            ),
                         ],
                     ),
                 ],
@@ -1489,6 +1499,7 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-locals
                             artificially_abstract_bases=artificially_abstract_bases,
                             is_frozen=node.is_frozen,
                             use_slots=True,
+                            use_weakref_slot=node.use_weakref_slot,
                         ),
                         ast.Call(
                             func=_INTERN_VAR_FN_NAME,
@@ -2708,6 +2719,7 @@ def _reify_to_py_ast(
                             artificially_abstract_bases=artificially_abstract_bases,
                             is_frozen=True,
                             use_slots=True,
+                            use_weakref_slot=node.use_weakref_slot,
                         )
                     ],
                 )
