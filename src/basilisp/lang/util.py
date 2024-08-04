@@ -213,11 +213,11 @@ OBJECT_DUNDER_METHODS = frozenset(
         "__truediv__",
         "__trunc__",
         "__xor__",
-    } |
+    }
+    |
     # Support for ABCs
-    {
-        "__subclasshook__"
-    } |
+    {"__subclasshook__"}
+    |
     # Support for pickling
     {
         "__getnewargs_ex__",
