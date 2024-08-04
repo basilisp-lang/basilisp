@@ -151,7 +151,6 @@ OBJECT_DUNDER_METHODS = frozenset(
         "__imod__",
         "__imul__",
         "__index__",
-        "__init__",
         "__init_subclass__",
         "__instancecheck__",
         "__int__",
