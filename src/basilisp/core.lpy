@@ -3388,9 +3388,9 @@
            exprs)))
 
 (defn memoize
-  "Retuns a fn that caches the results of the previous invocations of
-  `f`. The memoized fn keeps a cache of the mapping from arguments to
-  results."
+  "Retuns a fn that caches the results of the previous invocations of ``f``.
+
+  The memoized fn keeps a cache of the mapping from arguments to results."
   [f]
   (let [cache (atom {})]
     (fn [& args]

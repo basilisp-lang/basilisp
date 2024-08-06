@@ -81,7 +81,7 @@ Python's byte string type :external:py:class:`bytes` is also supported.
 
 .. seealso::
 
-   :lpy:ns:`basilisp.string` for an idiomatic string manipulation library
+   :lpy:fn:`format`, :lpy:fn:`subs`, :lpy:ns:`basilisp.string` for an idiomatic string manipulation library
 
 .. _keywords:
 
@@ -312,16 +312,58 @@ Although most of these functions accept most or all of the builtin collection ty
 
 Many of these functions may accept Seqs and return another Seq, but still others accept a Seq and return some other concrete collection type.
 
+Basilisp includes both the Clojure-compatible :lpy:fn:`apply` for applying a sequence as arguments to a function, but also the Python specific :lpy:fn:`apply-kw` for applying a map to Python functions accepting keyword arguments.
+The :lpy:fn:`apply-method` macro is another Basilisp extension which enables easier application of sequences to Python methods.
+
+.. note::
+
+   When used alone, Seq library functions consume and produce Seqs.
+   If multiple such functions are needed and used together, an intermediate Seq will be created for each function application.
+
+   As an alternative, many of the Seq functions in the core library support being used in a :ref:`transducer <transducers>`.
+   Transducers can often be more efficient in these cases since they do not require creating an intermediate Seq for each step.
+
 .. seealso::
 
    Below is a non-exhaustive list of some of the built-in Seq library functions.
 
-   :lpy:fn:`iterate`, :lpy:fn:`range`, :lpy:fn:`reduce`, :lpy:fn:`reduce-kv`, :lpy:fn:`map`, :lpy:fn:`map-indexed`, :lpy:fn:`mapcat`, :lpy:fn:`filter`, :lpy:fn:`remove`, :lpy:fn:`keep`, :lpy:fn:`keep-indexed`, :lpy:fn:`take`, :lpy:fn:`take-while`, :lpy:fn:`drop`, :lpy:fn:`drop-while`, :lpy:fn:`drop-last`, :lpy:fn:`butlast`, :lpy:fn:`split-at`, :lpy:fn:`split-with`, :lpy:fn:`group-by`, :lpy:fn:`interpose`, :lpy:fn:`interleave`, :lpy:fn:`cycle`, :lpy:fn:`repeat`, :lpy:fn:`repeatedly`, :lpy:fn:`take-nth`, :lpy:fn:`partition`, :lpy:fn:`partition-all`, :lpy:fn:`partition-by`, :lpy:fn:`distinct`, :lpy:fn:`dedupe`, :lpy:fn:`flatten`, :lpy:fn:`take-last`
+   :lpy:fn:`iterate`, :lpy:fn:`range`, :lpy:fn:`reduce`, :lpy:fn:`reduce-kv`, :lpy:fn:`map`, :lpy:fn:`map-indexed`, :lpy:fn:`mapcat`, :lpy:fn:`filter`, :lpy:fn:`remove`, :lpy:fn:`keep`, :lpy:fn:`keep-indexed`, :lpy:fn:`take`, :lpy:fn:`take-while`, :lpy:fn:`drop`, :lpy:fn:`drop-while`, :lpy:fn:`drop-last`, :lpy:fn:`butlast`, :lpy:fn:`split-at`, :lpy:fn:`split-with`, :lpy:fn:`group-by`, :lpy:fn:`interpose`, :lpy:fn:`interleave`, :lpy:fn:`cycle`, :lpy:fn:`repeat`, :lpy:fn:`repeatedly`, :lpy:fn:`take-nth`, :lpy:fn:`partition`, :lpy:fn:`partition-all`, :lpy:fn:`partition-by`, :lpy:fn:`distinct`, :lpy:fn:`dedupe`, :lpy:fn:`flatten`, :lpy:fn:`take-last`, :lpy:fn:`for`
 
 .. _other_useful_functions:
 
 Other Useful Functions
 ----------------------
+
+.. _control_structures:
+
+Control Structures
+^^^^^^^^^^^^^^^^^^
+
+Basilisp features many variations on traditional programming control structures such as ``if`` and ``while`` loops thanks to the magic of :ref:`macros`.
+Using these control structure variants in preference to raw :lpy:form:`if` s can often help clarify the meaning of your code while also using reducing the amount of code you have to write.
+
+In addition to the stalwart :lpy:fn:`condp`, :lpy:fn:`and`, and :lpy:fn:`or`, Basilisp also features threading macros which help writing clear and concise code.
+Threading macros can help transform deeply nested expressions into a much more readable pipeline of expressions whose source order matches the execution order at runtime.
+
+
+.. seealso::
+
+   Control structures: :lpy:fn:`if-not`, :lpy:fn:`if-let`, :lpy:fn:`if-some`, :lpy:fn:`when`, :lpy:fn:`when-let`, :lpy:fn:`when-first`, :lpy:fn:`when-some`, :lpy:fn:`when-not`, :lpy:fn:`cond`, :lpy:fn:`and`, :lpy:fn:`or`, :lpy:fn:`not`, :lpy:fn:`dotimes`, :lpy:fn:`while`, :lpy:fn:`case`, :lpy:fn:`condp`, :lpy:fn:`with`, :lpy:fn:`doto`
+
+   Threading macros: :lpy:fn:`->`, :lpy:fn:`->>`, :lpy:fn:`some->`, :lpy:fn:`some->>`, :lpy:fn:`cond->`, :lpy:fn:`cond->>`, :lpy:fn:`as->`
+
+.. _function_composition:
+
+Function Composition
+^^^^^^^^^^^^^^^^^^^^
+
+Basilisp core includes many functions which facilitate function composition, which are particularly helpful when dealing with higher-order functions.
+
+In addition to the Clojure-compatible :lpy:fn:`partial` function for partial application, Basilisp includes :lpy:fn:`partial-kw` for working with Python functions which accept keyword arguments.
+
+.. seealso::
+
+   :lpy:fn:`complement`, :lpy:fn:`constantly`, :lpy:fn:`comp`, :lpy:fn:`juxt`, :lpy:fn:`every?`, :lpy:fn:`every-pred`, :lpy:fn:`not-every?`, :lpy:fn:`some-fn`, :lpy:fn:`not-any?`, :lpy:fn:`trampoline`
 
 .. _exceptions:
 
@@ -330,7 +372,8 @@ Exceptions
 
 Basilisp includes some utility functions for creating exceptions and extracting information from caught exceptions.
 Typically, Basilisp programs create new exceptions using :lpy:fn:`ex-info` (which creates an instance of :py:class:`basilisp.lang.interfaces.IExceptionInfo`).
-Get the cause of an exception using :lpy:fn:`ex-cause` and the message with :lpy:fn:`ex-message`.
+
+Get the cause of any exception using :lpy:fn:`ex-cause` and the message with :lpy:fn:`ex-message`.
 For instances of ``IExceptionInfo``, get the data map using :lpy:fn:`ex-data`.
 
 .. seealso::
@@ -343,17 +386,24 @@ Futures
 ^^^^^^^
 
 The Basilisp standard library includes support for futures executed on threads or processes backed by Python's :external:py:mod:`concurrent.futures` module.
-By default, futures are run on a thread-pool executor (bound to the dynamic Var :lpy:var:`*executor-pool*`) which is most appropriate for IO-bound work.
+By default, futures are run on a thread-pool executor (bound to the dynamic Var :lpy:var:`*executor-pool*`).
 Callers can submit futures using either the :lpy:fn:`future` macro or the :lpy:fn:`future-call` function.
+
+Users wishing to quickly parallelize work across multiple threads or processes can reach for :lpy:fn:`pmap` instead.
+Like the built-in :lpy:fn:`map`, ``pmap`` executes the provided function across the input collection(s) using ``future`` and, thus, using the current pool bound to ``*executor-pool*``.
 
 .. note::
 
+   The default executor pool used by futures is a thread-pool, which is most appropriate for IO-bound work.
    Due to the Python GIL, the utility of a thread-pool for CPU bound work is extremely limited.
+
    For CPU bound tasks, consider binding :lpy:var:`*executor-pool*` to a process pool worker (an instance of ``basilisp.lang.futures.ProcessPoolExecutor``).
 
 .. seealso::
 
-   :lpy:fn:`future`, :lpy:fn:`future-call`, :lpy:fn:`future-cancel`, :lpy:fn:`future?`, :lpy:fn:`future-cancelled?`, :lpy:fn:`future-done?`
+   Using futures directly: :lpy:fn:`future`, :lpy:fn:`future-call`, :lpy:fn:`future-cancel`, :lpy:fn:`future?`, :lpy:fn:`future-cancelled?`, :lpy:fn:`future-done?`
+
+   Executing futures on a :ref:`Seq <seqs>`: :lpy:fn:`pmap`, :lpy:fn:`pcalls`, :lpy:fn:`pvalues`, :lpy:fn:`*pmap-cpu-count*`
 
 .. _python_type_hierarchy_functions:
 
@@ -365,15 +415,6 @@ Basilisp includes several functions which can be used to introspect the Python t
 .. seealso::
 
    :lpy:fn:`class`, :lpy:fn:`cast`, :lpy:fn:`bases`, :lpy:fn:`supers`, :lpy:fn:`subclasses`
-
-.. _higher_order_functions:
-
-Higher-Order Functions
-^^^^^^^^^^^^^^^^^^^^^^
-
-.. seealso::
-
-   :lpy:fn:`complement`, :lpy:fn:`constantly`, :lpy:fn:`comp`, :lpy:fn:`juxt`, :lpy:fn:`partial`, :lpy:fn:`partial-kw`, :lpy:fn:`every?`, :lpy:fn:`every-pred`, :lpy:fn:`not-every?`, :lpy:fn:`some-fn`, :lpy:fn:`not-any?`, :lpy:fn:`trampoline`
 
 .. _destructuring:
 

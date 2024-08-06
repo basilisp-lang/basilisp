@@ -45,6 +45,10 @@ Primary Special Forms
       While it is entirely legal to ``def`` a value within a function, the results of interning the Var within the function still apply to the current namespace.
       Within a function or method context, users should use the :lpy:form:`let` special form to bind a value to a name in that scope.
 
+   .. seealso::
+
+      :lpy:fn:`defn`, :lpy:fn:`defn-`, :lpy:fn:`defmacro`, :lpy:fn:`defasync`, :lpy:fn:`declare`, :lpy:fn:`defonce`
+
 .. lpy:specialform:: (deftype name fields superclass+impls)
 
    Define a new data type (a Python class) with the given set of fields which implement 0 or more Python interfaces and Basilisp protocols.
@@ -178,7 +182,7 @@ Primary Special Forms
 
    .. seealso::
 
-      :ref:`accessing_object_methods_and_props`
+      :ref:`accessing_object_methods_and_props`, :lpy:fn:`..`
 
 .. lpy:specialform:: (.- obj attr)
                      (.-attr obj)
