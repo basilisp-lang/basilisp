@@ -62,6 +62,10 @@ Ratios are represented by Python's :external:py:class:`fractions.Fraction` type.
 
    :ref:`arithmetic_division`
 
+   Arithmetic functions: :lpy:fn:`+`, :lpy:fn:`-`, :lpy:fn:`*`, :lpy:fn:`/`, :lpy:fn:`abs`, :lpy:fn:`mod`, :lpy:fn:`quot`, :lpy:fn:`rem`, :lpy:fn:`inc`, :lpy:fn:`dec`, :lpy:fn:`min`, :lpy:fn:`max`
+
+   Ratio functions: :lpy:fn:`numerator`, :lpy:fn:`denominator`
+
 .. _strings_and_byte_strings:
 
 Strings and Byte Strings
@@ -297,6 +301,79 @@ Lazy seqs can be created using using the :lpy:fn:`lazy-seq` macro.
 .. seealso::
 
    :lpy:fn:`lazy-seq`, :lpy:fn:`seq`, :lpy:fn:`first`, :lpy:fn:`rest`, :lpy:fn:`cons`, :lpy:fn:`next`, :lpy:fn:`second`, :lpy:fn:`seq?`, :lpy:fn:`nfirst`, :lpy:fn:`fnext`, :lpy:fn:`nnext`, :lpy:fn:`empty?`, :lpy:fn:`seq?`, :py:class:`basilisp.lang.interfaces.ISeq`, :py:class:`basilisp.lang.interfaces.ISeqable`
+
+.. _working_with_seqs:
+
+Working with Seqs
+^^^^^^^^^^^^^^^^^
+
+A significant portion of Basilisp's core library operates on Seqs.
+Although most of these functions accept most or all of the builtin collection types, they typically call :lpy:fn:`seq` on the input collection argument and operate on the resulting Seq instance instead.
+
+Many of these functions may accept Seqs and return another Seq, but still others accept a Seq and return some other concrete collection type.
+
+.. seealso::
+
+   Below is a non-exhaustive list of some of the built-in Seq library functions.
+
+   :lpy:fn:`iterate`, :lpy:fn:`range`, :lpy:fn:`reduce`, :lpy:fn:`reduce-kv`, :lpy:fn:`map`, :lpy:fn:`map-indexed`, :lpy:fn:`mapcat`, :lpy:fn:`filter`, :lpy:fn:`remove`, :lpy:fn:`keep`, :lpy:fn:`keep-indexed`, :lpy:fn:`take`, :lpy:fn:`take-while`, :lpy:fn:`drop`, :lpy:fn:`drop-while`, :lpy:fn:`drop-last`, :lpy:fn:`butlast`, :lpy:fn:`split-at`, :lpy:fn:`split-with`, :lpy:fn:`group-by`, :lpy:fn:`interpose`, :lpy:fn:`interleave`, :lpy:fn:`cycle`, :lpy:fn:`repeat`, :lpy:fn:`repeatedly`, :lpy:fn:`take-nth`, :lpy:fn:`partition`, :lpy:fn:`partition-all`, :lpy:fn:`partition-by`, :lpy:fn:`distinct`, :lpy:fn:`dedupe`, :lpy:fn:`flatten`, :lpy:fn:`take-last`
+
+.. _other_useful_functions:
+
+Other Useful Functions
+----------------------
+
+.. _exceptions:
+
+Exceptions
+^^^^^^^^^^
+
+Basilisp includes some utility functions for creating exceptions and extracting information from caught exceptions.
+Typically, Basilisp programs create new exceptions using :lpy:fn:`ex-info` (which creates an instance of :py:class:`basilisp.lang.interfaces.IExceptionInfo`).
+Get the cause of an exception using :lpy:fn:`ex-cause` and the message with :lpy:fn:`ex-message`.
+For instances of ``IExceptionInfo``, get the data map using :lpy:fn:`ex-data`.
+
+.. seealso::
+
+   :lpy:fn:`ex-info`, :lpy:fn:`ex-cause`, :lpy:fn:`ex-data`, :lpy:fn:`ex-message`, :lpy:ns:`basilisp.stacktrace`
+
+.. _futures:
+
+Futures
+^^^^^^^
+
+The Basilisp standard library includes support for futures executed on threads or processes backed by Python's :external:py:mod:`concurrent.futures` module.
+By default, futures are run on a thread-pool executor (bound to the dynamic Var :lpy:var:`*executor-pool*`) which is most appropriate for IO-bound work.
+Callers can submit futures using either the :lpy:fn:`future` macro or the :lpy:fn:`future-call` function.
+
+.. note::
+
+   Due to the Python GIL, the utility of a thread-pool for CPU bound work is extremely limited.
+   For CPU bound tasks, consider binding :lpy:var:`*executor-pool*` to a process pool worker (an instance of ``basilisp.lang.futures.ProcessPoolExecutor``).
+
+.. seealso::
+
+   :lpy:fn:`future`, :lpy:fn:`future-call`, :lpy:fn:`future-cancel`, :lpy:fn:`future?`, :lpy:fn:`future-cancelled?`, :lpy:fn:`future-done?`
+
+.. _python_type_hierarchy_functions:
+
+Python Type Hierarchy Functions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Basilisp includes several functions which can be used to introspect the Python type hierarchy.
+
+.. seealso::
+
+   :lpy:fn:`class`, :lpy:fn:`cast`, :lpy:fn:`bases`, :lpy:fn:`supers`, :lpy:fn:`subclasses`
+
+.. _higher_order_functions:
+
+Higher-Order Functions
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. seealso::
+
+   :lpy:fn:`complement`, :lpy:fn:`constantly`, :lpy:fn:`comp`, :lpy:fn:`juxt`, :lpy:fn:`partial`, :lpy:fn:`partial-kw`, :lpy:fn:`every?`, :lpy:fn:`every-pred`, :lpy:fn:`not-every?`, :lpy:fn:`some-fn`, :lpy:fn:`not-any?`, :lpy:fn:`trampoline`
 
 .. _destructuring:
 
@@ -725,7 +802,7 @@ TBD
 
 .. seealso::
 
-   :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`halt-when`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`, :lpy:fn:`cat`
+   :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`halt-when`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`, :lpy:fn:`cat`, :lpy:fn:`reduced`, :lpy:fn:`reduced?`, :lpy:fn:`ensure-reduced`, :lpy:fn:`unreduced`
 
 .. _multimethods:
 
@@ -952,9 +1029,14 @@ Types may also optionally implement 0 or more Python `"dunder" methods <https://
 
       (reify
         ^:abstract argparse/Action
-        (__call__ [this]
+        (__call__ [this parser namespace values option-string]
           ;; ...
           ))
+
+.. warning::
+
+   The Basilisp compiler is not currently able to verify that the signature of implemented methods matches the interface or superclass method signature.
+   Support for this feature is tracked in GitHub issue `#949 <https://github.com/basilisp-lang/basilisp/issues/949>`_.
 
 .. _deftype:
 
@@ -970,7 +1052,11 @@ Attempting to set a field using :lpy:form:`set!` will result in a compile-time e
 However, it is possible to mark a field as mutable by using the ``^:mutable`` metadata on a ``deftype`` field at compile time.
 Mutable fields may be ``set!`` from within class methods.
 Fields may be referred to freely by name from within method definitions as in Java (and unlike in Python where they must be qualified with ``self``).
-Fields may also specify defaults by providing the default value as a ``^:default`` metadata value.
+
+.. note::
+
+   Fields may also specify defaults by providing the default value as a ``^:default`` metadata value.
+   Adding default values to ``deftype`` fields is a Basilisp extension which is not supported by Clojure.
 
 .. warning::
 
