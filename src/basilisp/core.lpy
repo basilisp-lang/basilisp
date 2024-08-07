@@ -1535,8 +1535,8 @@
   "Return a set of subclasses of ``cls``\\.
 
   This set is not guaranteed to be exhaustive because classes only retain a weak
-  reference to their subclasses, so it is possible subclasses of cls have been garbage
-  collected."
+  reference to their subclasses, so it is possible subclasses of ``cls`` have been
+  garbage collected."
   [cls]
   (set (.__subclasses__ cls)))
 
@@ -3388,9 +3388,9 @@
            exprs)))
 
 (defn memoize
-  "Retuns a fn that caches the results of the previous invocations of
-  `f`. The memoized fn keeps a cache of the mapping from arguments to
-  results."
+  "Retuns a fn that caches the results of the previous invocations of ``f``.
+
+  The memoized fn keeps a cache of the mapping from arguments to results."
   [f]
   (let [cache (atom {})]
     (fn [& args]

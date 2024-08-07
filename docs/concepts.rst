@@ -62,6 +62,10 @@ Ratios are represented by Python's :external:py:class:`fractions.Fraction` type.
 
    :ref:`arithmetic_division`
 
+   Arithmetic functions: :lpy:fn:`+`, :lpy:fn:`-`, :lpy:fn:`*`, :lpy:fn:`/`, :lpy:fn:`abs`, :lpy:fn:`mod`, :lpy:fn:`quot`, :lpy:fn:`rem`, :lpy:fn:`inc`, :lpy:fn:`dec`, :lpy:fn:`min`, :lpy:fn:`max`
+
+   Ratio functions: :lpy:fn:`numerator`, :lpy:fn:`denominator`
+
 .. _strings_and_byte_strings:
 
 Strings and Byte Strings
@@ -77,7 +81,7 @@ Python's byte string type :external:py:class:`bytes` is also supported.
 
 .. seealso::
 
-   :lpy:ns:`basilisp.string` for an idiomatic string manipulation library
+   :lpy:fn:`format`, :lpy:fn:`subs`, :lpy:ns:`basilisp.string` for an idiomatic string manipulation library
 
 .. _keywords:
 
@@ -297,6 +301,127 @@ Lazy seqs can be created using using the :lpy:fn:`lazy-seq` macro.
 .. seealso::
 
    :lpy:fn:`lazy-seq`, :lpy:fn:`seq`, :lpy:fn:`first`, :lpy:fn:`rest`, :lpy:fn:`cons`, :lpy:fn:`next`, :lpy:fn:`second`, :lpy:fn:`seq?`, :lpy:fn:`nfirst`, :lpy:fn:`fnext`, :lpy:fn:`nnext`, :lpy:fn:`empty?`, :lpy:fn:`seq?`, :py:class:`basilisp.lang.interfaces.ISeq`, :py:class:`basilisp.lang.interfaces.ISeqable`
+
+.. _working_with_seqs:
+
+Working with Seqs
+^^^^^^^^^^^^^^^^^
+
+A significant portion of Basilisp's core library operates on Seqs.
+Although most of these functions accept most or all of the builtin collection types, they typically call :lpy:fn:`seq` on the input collection argument and operate on the resulting Seq instance instead.
+
+Many of these functions may accept Seqs and return another Seq, but still others accept a Seq and return some other concrete collection type.
+
+Basilisp includes both the Clojure-compatible :lpy:fn:`apply` for applying a sequence as arguments to a function, but also the Python specific :lpy:fn:`apply-kw` for applying a map to Python functions accepting keyword arguments.
+The :lpy:fn:`apply-method` macro is another Basilisp extension which enables easier application of sequences to Python methods.
+
+.. note::
+
+   When used alone, Seq library functions consume and produce Seqs.
+   If multiple such functions are needed and used together, an intermediate Seq will be created for each function application.
+
+   As an alternative, many of the Seq functions in the core library support being used in a :ref:`transducer <transducers>`.
+   Transducers can often be more efficient in these cases since they do not require creating an intermediate Seq for each step.
+
+.. seealso::
+
+   Below is a non-exhaustive list of some of the built-in Seq library functions.
+
+   :lpy:fn:`iterate`, :lpy:fn:`range`, :lpy:fn:`reduce`, :lpy:fn:`reduce-kv`, :lpy:fn:`map`, :lpy:fn:`map-indexed`, :lpy:fn:`mapcat`, :lpy:fn:`filter`, :lpy:fn:`remove`, :lpy:fn:`keep`, :lpy:fn:`keep-indexed`, :lpy:fn:`take`, :lpy:fn:`take-while`, :lpy:fn:`drop`, :lpy:fn:`drop-while`, :lpy:fn:`drop-last`, :lpy:fn:`butlast`, :lpy:fn:`split-at`, :lpy:fn:`split-with`, :lpy:fn:`group-by`, :lpy:fn:`interpose`, :lpy:fn:`interleave`, :lpy:fn:`cycle`, :lpy:fn:`repeat`, :lpy:fn:`repeatedly`, :lpy:fn:`take-nth`, :lpy:fn:`partition`, :lpy:fn:`partition-all`, :lpy:fn:`partition-by`, :lpy:fn:`distinct`, :lpy:fn:`dedupe`, :lpy:fn:`flatten`, :lpy:fn:`take-last`, :lpy:fn:`for`
+
+.. _other_useful_functions:
+
+Other Useful Functions
+----------------------
+
+The sections below detail various useful groups of functions provided by Basilisp.
+
+However, not every group of functions in the core library is detailed below and, of those which are detailed, the included list of functions is not exhaustive.
+
+.. _control_structures:
+
+Control Structures
+^^^^^^^^^^^^^^^^^^
+
+Basilisp features many variations on traditional programming control structures such as ``if`` and ``while`` loops thanks to the magic of :ref:`macros`.
+Using these control structure variants in preference to raw :lpy:form:`if` s can often help clarify the meaning of your code while also using reducing the amount of code you have to write.
+
+In addition to the stalwart :lpy:fn:`condp`, :lpy:fn:`and`, and :lpy:fn:`or`, Basilisp also features threading macros which help writing clear and concise code.
+Threading macros can help transform deeply nested expressions into a much more readable pipeline of expressions whose source order matches the execution order at runtime.
+
+.. seealso::
+
+   Control structures: :lpy:fn:`if-not`, :lpy:fn:`if-let`, :lpy:fn:`if-some`, :lpy:fn:`when`, :lpy:fn:`when-let`, :lpy:fn:`when-first`, :lpy:fn:`when-some`, :lpy:fn:`when-not`, :lpy:fn:`cond`, :lpy:fn:`and`, :lpy:fn:`or`, :lpy:fn:`not`, :lpy:fn:`dotimes`, :lpy:fn:`while`, :lpy:fn:`case`, :lpy:fn:`condp`, :lpy:fn:`with`, :lpy:fn:`doto`
+
+   Threading macros: :lpy:fn:`->`, :lpy:fn:`->>`, :lpy:fn:`some->`, :lpy:fn:`some->>`, :lpy:fn:`cond->`, :lpy:fn:`cond->>`, :lpy:fn:`as->`
+
+.. _function_composition:
+
+Function Composition
+^^^^^^^^^^^^^^^^^^^^
+
+Basilisp core includes many functions which facilitate function composition, which are particularly helpful when dealing with higher-order functions.
+
+In addition to the Clojure-compatible :lpy:fn:`partial` function for partial application, Basilisp includes :lpy:fn:`partial-kw` for working with Python functions which accept keyword arguments.
+
+.. seealso::
+
+   :lpy:fn:`complement`, :lpy:fn:`constantly`, :lpy:fn:`comp`, :lpy:fn:`juxt`, :lpy:fn:`every?`, :lpy:fn:`every-pred`, :lpy:fn:`not-every?`, :lpy:fn:`some-fn`, :lpy:fn:`not-any?`, :lpy:fn:`trampoline`
+
+.. _regular_expressions:
+
+Regular Expressions
+^^^^^^^^^^^^^^^^^^^
+
+Basilisp core includes support for regular expressions which are backed by Python's :external:py:mod:`re` module.
+Pattern literals can be created using the ``#"pattern"`` :ref:`reader macro <reader_macros>` syntax or via :lpy:fn:`re-pattern` if the pattern string is not a literal.
+Check for matches using :lpy:fn:`re-find`, :lpy:fn:`re-matches`, or :lpy:fn:`re-seq`.
+
+.. code-block::
+
+   (re-matches #"$(\d+(?:\.\d{2})?)" "$123.60")                              ;; => nil
+   (re-matches #"\$(\d+(?:\.\d{2})?)" "$123.60")                             ;; => ["$123.60" "123.60"]
+   (re-matches #"\$(\d+(?:\.\d{2})?)" "I spent $123.60 today")               ;; => nil
+   (re-find #"\$(\d+(?:\.\d{2})?)" "I spent $123.60 today")                  ;; => ["$123.60" "123.60"]
+
+.. seealso::
+
+   :lpy:fn:`re-pattern`, :lpy:fn:`re-find`, :lpy:fn:`re-matches`, :lpy:fn:`re-seq`
+
+.. _futures:
+
+Futures
+^^^^^^^
+
+The Basilisp standard library includes support for futures executed on threads or processes backed by Python's :external:py:mod:`concurrent.futures` module.
+By default, futures are run on a thread-pool executor (bound to the dynamic Var :lpy:var:`*executor-pool*`).
+Callers can submit futures using either the :lpy:fn:`future` macro or the :lpy:fn:`future-call` function.
+
+Users wishing to quickly parallelize work across multiple threads or processes can reach for :lpy:fn:`pmap` instead.
+Like the built-in :lpy:fn:`map`, ``pmap`` executes the provided function across the input collection(s) using ``future`` and, thus, using the current pool bound to ``*executor-pool*``.
+
+.. note::
+
+   The default executor pool used by futures is a thread-pool, which is most appropriate for IO-bound work.
+   Due to the Python GIL, the utility of a thread-pool for CPU bound work is extremely limited.
+
+   For CPU bound tasks, consider binding :lpy:var:`*executor-pool*` to a process pool worker (an instance of ``basilisp.lang.futures.ProcessPoolExecutor``).
+
+.. seealso::
+
+   Using futures directly: :lpy:fn:`future`, :lpy:fn:`future-call`, :lpy:fn:`future-cancel`, :lpy:fn:`future?`, :lpy:fn:`future-cancelled?`, :lpy:fn:`future-done?`
+
+   Executing futures on a :ref:`Seq <seqs>`: :lpy:fn:`pmap`, :lpy:fn:`pcalls`, :lpy:fn:`pvalues`, :lpy:fn:`*pmap-cpu-count*`
+
+.. _various_functions:
+
+Various Functions
+^^^^^^^^^^^^^^^^^
+
+- Functions for throwing and introspecting exceptions: :lpy:fn:`ex-info`, :lpy:fn:`ex-cause`, :lpy:fn:`ex-data`, :lpy:fn:`ex-message`, :lpy:ns:`basilisp.stacktrace`
+- Functions for generating random data: :lpy:fn:`rand`, :lpy:fn:`rand-int`, :lpy:fn:`rand-nth`, :lpy:fn:`random-uuid`, :lpy:fn:`random-sample`, :lpy:fn:`shuffle`
+- Functions which can be used to introspect the Python type hierarchy: :lpy:fn:`class`, :lpy:fn:`cast`, :lpy:fn:`bases`, :lpy:fn:`supers`, :lpy:fn:`subclasses`
+- Functions for parsing values from strings: :lpy:fn:`parse-double`, :lpy:fn:`parse-long`, :lpy:fn:`parse-boolean`, :lpy:fn:`parse-uuid`
 
 .. _destructuring:
 
@@ -725,7 +850,7 @@ TBD
 
 .. seealso::
 
-   :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`halt-when`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`, :lpy:fn:`cat`
+   :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`halt-when`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`, :lpy:fn:`cat`, :lpy:fn:`reduced`, :lpy:fn:`reduced?`, :lpy:fn:`ensure-reduced`, :lpy:fn:`unreduced`
 
 .. _multimethods:
 
@@ -952,9 +1077,14 @@ Types may also optionally implement 0 or more Python `"dunder" methods <https://
 
       (reify
         ^:abstract argparse/Action
-        (__call__ [this]
+        (__call__ [this parser namespace values option-string]
           ;; ...
           ))
+
+.. warning::
+
+   The Basilisp compiler is not currently able to verify that the signature of implemented methods matches the interface or superclass method signature.
+   Support for this feature is tracked in GitHub issue `#949 <https://github.com/basilisp-lang/basilisp/issues/949>`_.
 
 .. _deftype:
 
@@ -970,7 +1100,11 @@ Attempting to set a field using :lpy:form:`set!` will result in a compile-time e
 However, it is possible to mark a field as mutable by using the ``^:mutable`` metadata on a ``deftype`` field at compile time.
 Mutable fields may be ``set!`` from within class methods.
 Fields may be referred to freely by name from within method definitions as in Java (and unlike in Python where they must be qualified with ``self``).
-Fields may also specify defaults by providing the default value as a ``^:default`` metadata value.
+
+.. note::
+
+   Fields may also specify defaults by providing the default value as a ``^:default`` metadata value.
+   Adding default values to ``deftype`` fields is a Basilisp extension which is not supported by Clojure.
 
 .. warning::
 
