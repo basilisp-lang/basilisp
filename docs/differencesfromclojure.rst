@@ -92,7 +92,7 @@ Reader
 
   * The reader will return the native Python data type corresponding to the Clojure type in functionality if the value is prefixed with ``#py``.
 
-.. _regular_expressions:
+.. _regular_expression_differences:
 
 Regular Expressions
 -------------------

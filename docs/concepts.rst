@@ -334,6 +334,10 @@ The :lpy:fn:`apply-method` macro is another Basilisp extension which enables eas
 Other Useful Functions
 ----------------------
 
+The sections below detail various useful groups of functions provided by Basilisp.
+
+However, not every group of functions in the core library is detailed below and, of those which are detailed, the included list of functions is not exhaustive.
+
 .. _control_structures:
 
 Control Structures
@@ -344,7 +348,6 @@ Using these control structure variants in preference to raw :lpy:form:`if` s can
 
 In addition to the stalwart :lpy:fn:`condp`, :lpy:fn:`and`, and :lpy:fn:`or`, Basilisp also features threading macros which help writing clear and concise code.
 Threading macros can help transform deeply nested expressions into a much more readable pipeline of expressions whose source order matches the execution order at runtime.
-
 
 .. seealso::
 
@@ -365,20 +368,25 @@ In addition to the Clojure-compatible :lpy:fn:`partial` function for partial app
 
    :lpy:fn:`complement`, :lpy:fn:`constantly`, :lpy:fn:`comp`, :lpy:fn:`juxt`, :lpy:fn:`every?`, :lpy:fn:`every-pred`, :lpy:fn:`not-every?`, :lpy:fn:`some-fn`, :lpy:fn:`not-any?`, :lpy:fn:`trampoline`
 
-.. _exceptions:
+.. _regular_expressions:
 
-Exceptions
-^^^^^^^^^^
+Regular Expressions
+^^^^^^^^^^^^^^^^^^^
 
-Basilisp includes some utility functions for creating exceptions and extracting information from caught exceptions.
-Typically, Basilisp programs create new exceptions using :lpy:fn:`ex-info` (which creates an instance of :py:class:`basilisp.lang.interfaces.IExceptionInfo`).
+Basilisp core includes support for regular expressions which are backed by Python's :external:py:mod:`re` module.
+Pattern literals can be created using the ``#"pattern"`` :ref:`reader macro <reader_macros>` syntax or via :lpy:fn:`re-pattern` if the pattern string is not a literal.
+Check for matches using :lpy:fn:`re-find`, :lpy:fn:`re-matches`, or :lpy:fn:`re-seq`.
 
-Get the cause of any exception using :lpy:fn:`ex-cause` and the message with :lpy:fn:`ex-message`.
-For instances of ``IExceptionInfo``, get the data map using :lpy:fn:`ex-data`.
+.. code-block::
+
+   (re-matches #"$(\d+(?:\.\d{2})?)" "$123.60")                              ;; => nil
+   (re-matches #"\$(\d+(?:\.\d{2})?)" "$123.60")                             ;; => ["$123.60" "123.60"]
+   (re-matches #"\$(\d+(?:\.\d{2})?)" "I spent $123.60 today")               ;; => nil
+   (re-find #"\$(\d+(?:\.\d{2})?)" "I spent $123.60 today")                  ;; => ["$123.60" "123.60"]
 
 .. seealso::
 
-   :lpy:fn:`ex-info`, :lpy:fn:`ex-cause`, :lpy:fn:`ex-data`, :lpy:fn:`ex-message`, :lpy:ns:`basilisp.stacktrace`
+   :lpy:fn:`re-pattern`, :lpy:fn:`re-find`, :lpy:fn:`re-matches`, :lpy:fn:`re-seq`
 
 .. _futures:
 
@@ -405,16 +413,15 @@ Like the built-in :lpy:fn:`map`, ``pmap`` executes the provided function across 
 
    Executing futures on a :ref:`Seq <seqs>`: :lpy:fn:`pmap`, :lpy:fn:`pcalls`, :lpy:fn:`pvalues`, :lpy:fn:`*pmap-cpu-count*`
 
-.. _python_type_hierarchy_functions:
+.. _various_functions:
 
-Python Type Hierarchy Functions
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Various Functions
+^^^^^^^^^^^^^^^^^
 
-Basilisp includes several functions which can be used to introspect the Python type hierarchy.
-
-.. seealso::
-
-   :lpy:fn:`class`, :lpy:fn:`cast`, :lpy:fn:`bases`, :lpy:fn:`supers`, :lpy:fn:`subclasses`
+- Functions for throwing and introspecting exceptions: :lpy:fn:`ex-info`, :lpy:fn:`ex-cause`, :lpy:fn:`ex-data`, :lpy:fn:`ex-message`, :lpy:ns:`basilisp.stacktrace`
+- Functions for generating random data: :lpy:fn:`rand`, :lpy:fn:`rand-int`, :lpy:fn:`rand-nth`, :lpy:fn:`random-uuid`, :lpy:fn:`random-sample`, :lpy:fn:`shuffle`
+- Functions which can be used to introspect the Python type hierarchy: :lpy:fn:`class`, :lpy:fn:`cast`, :lpy:fn:`bases`, :lpy:fn:`supers`, :lpy:fn:`subclasses`
+- Functions for parsing values from strings: :lpy:fn:`parse-double`, :lpy:fn:`parse-long`, :lpy:fn:`parse-boolean`, :lpy:fn:`parse-uuid`
 
 .. _destructuring:
 
