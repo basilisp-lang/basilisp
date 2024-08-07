@@ -846,11 +846,71 @@ The stored value can be modified using :lpy:fn:`vswap!` and :lpy:fn:`vreset!`.
 Transducers
 -----------
 
-TBD
+Transducers are a tool for structuring pipelines of transformations on sequences of data which have some key advantages over simply composing :ref:`seq <working_with_seqs>` Seq operations:
+
+1. Transducers are often more efficient than their equivalent composed Seq operations since they do not create intermediate Seqs for each step in the pipeline.
+2. Transducers are composable.
+3. Transducers are reusable.
+
+Many of the Seq library functions provide an arity for creating a transducer directly which mirrors the functionality of its classical Seq usage.
+For example:
+
+.. code-block::
+
+   (map :price)          ;; returns a transducer which fetches the :price key from a map
+   (filter pos?)         ;; returns a transducer which filters only positive values
+   (random-sample 0.10)  ;; returns a transducer which returns 10% of the values
+
+Each step above can be used as a transducer on its own, but one of the key benefits of transducers is composition.
+Transducing functions can be combined using the standard :lpy:fn:`comp` function:
+
+.. code-block::
+
+   (comp
+     (map :price)
+     (filter pos?)
+     (random-sample 0.10))
+
+When combined using ``comp``, these transducers are run not in the classical order of function composition (from outside in) but rather in the order they appear in the source.
+The transducer above is equivalent to writing the following in classical Seq library functions:
+
+.. code-block::
+
+   (random-sample 0.10 (filter pos? (map :price coll)))
+
+   ;; or simplified using the ->> macro
+   (->> coll
+        (map :price)
+        (filter pos?)
+        (random-sample 0.10))
+
+.. _applying_transducers:
+
+Applying Transducers
+^^^^^^^^^^^^^^^^^^^^
+
+Once you've created a transducer function, you'll want to use it!
+The Basilisp core library provides a number of different tools for applying transducers to sequence or collection.
+
+For a straightforward replacement of the :lpy:fn:`reduce` function, you can use :lpy:fn:`transduce`.
+``transduce`` will consume the input collection eagerly just as ``reduce`` would.
+
+For a non-caching lazy sequence, reach for :lpy:fn:`eduction`.
+For cases which you may only ever intend to iterate over a sequence once and do not need its results cached, this may be more efficient.
+
+Use :lpy:fn:`into` to transform one collection type into another using transducers.
+``into`` always utilizes :ref:`transients` whenever possible to efficiently build the output collection type.
+
+Finally, :lpy:fn:`sequence` creates a lazy sequence of applying the transducer functions to an input sequence.
+Note that although the input sequence is consumed lazily, each step in the transducer is run for every consumed element from the sequence.
 
 .. seealso::
 
-   :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`halt-when`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`, :lpy:fn:`cat`, :lpy:fn:`reduced`, :lpy:fn:`reduced?`, :lpy:fn:`ensure-reduced`, :lpy:fn:`unreduced`
+   `Clojure's documentation on Transducers <https://clojure.org/reference/transducers>`_
+
+   Functions for applying transducers: :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`,  :lpy:fn:`reduced`, :lpy:fn:`reduced?`, :lpy:fn:`ensure-reduced`, :lpy:fn:`unreduced`
+
+   Functions which can return transducers: :lpy:fn:`halt-when`, :lpy:fn:`cat`,
 
 .. _multimethods:
 
