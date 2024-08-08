@@ -866,10 +866,11 @@ Transducing functions can be combined using the standard :lpy:fn:`comp` function
 
 .. code-block::
 
-   (comp
-     (map :price)
-     (filter pos?)
-     (random-sample 0.10))
+   (def xform
+     (comp
+       (map :price)
+       (filter pos?)
+       (random-sample 0.10)))
 
 When combined using ``comp``, these transducers are run not in the classical order of function composition (from outside in) but rather in the order they appear in the source.
 The transducer above is equivalent to writing the following in classical Seq library functions:
@@ -904,13 +905,25 @@ Use :lpy:fn:`into` to transform one collection type into another using transduce
 Finally, :lpy:fn:`sequence` creates a lazy sequence of applying the transducer functions to an input sequence.
 Note that although the input sequence is consumed lazily, each step in the transducer is run for every consumed element from the sequence.
 
+.. _early_transducer_termination:
+
+Early Termination
+^^^^^^^^^^^^^^^^^
+
+Transducers (and reducers in general) can be terminated early by wrapping the return value in a call to :lpy:fn:`reduced` (or use the utility function :lpy:fn:`ensure-reduced` if to avoid double wrapping the final value).
+Transducers and :lpy:fn:`reduce` check for reduced values (as by :lpy:fn:`reduced?`) and return the wrapped value if one is encountered.
+
+The :lpy:fn:`halt-when` transducer makes use of this pattern.
+
 .. seealso::
 
    `Clojure's documentation on Transducers <https://clojure.org/reference/transducers>`_
 
-   Functions for applying transducers: :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`,  :lpy:fn:`reduced`, :lpy:fn:`reduced?`, :lpy:fn:`ensure-reduced`, :lpy:fn:`unreduced`
+   Functions for applying transducers: :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`
 
-   Functions which can return transducers: :lpy:fn:`halt-when`, :lpy:fn:`cat`,
+   Functions for terminating transducers early: :lpy:fn:`reduced`, :lpy:fn:`reduced?`, :lpy:fn:`ensure-reduced`, :lpy:fn:`unreduced`
+
+   Functions which can return transducers: :lpy:fn:`halt-when`, :lpy:fn:`cat`, :lpy:fn:`map`, :lpy:fn:`map-indexed`, :lpy:fn:`mapcat`, :lpy:fn:`filter`, :lpy:fn:`remove`, :lpy:fn:`keep`, :lpy:fn:`keep-indexed`, :lpy:fn:`take`, :lpy:fn:`take-while`, :lpy:fn:`drop`, :lpy:fn:`drop-while`, :lpy:fn:`drop-last`, :lpy:fn:`interpose`, :lpy:fn:`take-nth`, :lpy:fn:`partition-all`, :lpy:fn:`partition-by`, :lpy:fn:`distinct`, :lpy:fn:`dedupe`
 
 .. _multimethods:
 
