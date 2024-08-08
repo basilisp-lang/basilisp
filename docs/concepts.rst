@@ -846,7 +846,7 @@ The stored value can be modified using :lpy:fn:`vswap!` and :lpy:fn:`vreset!`.
 Transducers
 -----------
 
-Transducers are a tool for structuring pipelines of transformations on sequences of data which have some key advantages over simply composing :ref:`seq <working_with_seqs>` Seq operations:
+Transducers are a tool for structuring pipelines of transformations on sequences of data which have some key advantages over simply composing :ref:`Seq <working_with_seqs>` operations:
 
 1. Transducers are often more efficient than their equivalent composed Seq operations since they do not create intermediate Seqs for each step in the pipeline.
 2. Transducers are composable.
@@ -858,8 +858,8 @@ For example:
 .. code-block::
 
    (map :price)          ;; returns a transducer which fetches the :price key from a map
+   (keep identity)       ;; returns a transducer which returns only non-nil values
    (filter pos?)         ;; returns a transducer which filters only positive values
-   (random-sample 0.10)  ;; returns a transducer which returns 10% of the values
 
 Each step above can be used as a transducer on its own, but one of the key benefits of transducers is composition.
 Transducing functions can be combined using the standard :lpy:fn:`comp` function:
@@ -869,21 +869,21 @@ Transducing functions can be combined using the standard :lpy:fn:`comp` function
    (def xform
      (comp
        (map :price)
-       (filter pos?)
-       (random-sample 0.10)))
+       (keep identity)
+       (filter pos?)))
 
 When combined using ``comp``, these transducers are run not in the classical order of function composition (from outside in) but rather in the order they appear in the source.
 The transducer above is equivalent to writing the following in classical Seq library functions:
 
 .. code-block::
 
-   (random-sample 0.10 (filter pos? (map :price coll)))
+   (filter pos? (keep identity (map :price coll)))
 
    ;; or simplified using the ->> macro
    (->> coll
         (map :price)
-        (filter pos?)
-        (random-sample 0.10))
+        (keep identity)
+        (filter pos?))
 
 .. _applying_transducers:
 
@@ -893,14 +893,44 @@ Applying Transducers
 Once you've created a transducer function, you'll want to use it!
 The Basilisp core library provides a number of different tools for applying transducers to sequence or collection.
 
+Imagine we have an input dataset that looks like this with the given transducer:
+
+.. code-block::
+
+   (def xform
+     (comp
+       (filter #(= (:category %) :hardware))
+       (filter :quantity)
+       (map #(assoc % :total (* (:price %) (:quantity %))))))
+
+   (def data [{:price 0.17 :name "M6-0.5" :quantity nil :category :hardware}
+              {:price 8.99 :name "Hammer" :quantity nil :category :tools}
+              {:price 0.20 :name "M6-0.75" :quantity 10 :category :hardware}
+              {:price 0.22 :name "M6-1.0" :quantity 5 :category :hardware}
+              {:price 0.24 :name "M6-1.25" :quantity nil :category :hardware}
+              {:price 0.27 :name "M6-1.5" :quantity 7 :category :hardware}
+              {:price 0.29 :name "M6-2.0" :quantity 12 :category :hardware}])
+
 For a straightforward replacement of the :lpy:fn:`reduce` function, you can use :lpy:fn:`transduce`.
 ``transduce`` will consume the input collection eagerly just as ``reduce`` would.
+Using the dataset above, we may be interested in calculating the total value of all of the in-stock items:
 
-For a non-caching lazy sequence, reach for :lpy:fn:`eduction`.
-For cases which you may only ever intend to iterate over a sequence once and do not need its results cached, this may be more efficient.
+.. code-block::
+
+   ;; note how we combine the existing xform with a new transducing function
+   ;; to extract just the total value of each item out
+   (transduce (comp xform (map :total)) + data)   ;; => 8.469999999999999
 
 Use :lpy:fn:`into` to transform one collection type into another using transducers.
 ``into`` always utilizes :ref:`transients` whenever possible to efficiently build the output collection type.
+Using the previous transducer and functions again, we could collect all of the in-stock item names into a vector:
+
+.. code-block::
+
+   (into [] (comp xform (map :name)) data)  ;; => ["M6-0.75" "M6-1.0" "M6-1.5" "M6-2.0"]
+
+For a non-caching lazy sequence, reach for :lpy:fn:`eduction`.
+For cases which you may only ever intend to iterate over a sequence once and do not need its results cached, this may be more efficient.
 
 Finally, :lpy:fn:`sequence` creates a lazy sequence of applying the transducer functions to an input sequence.
 Note that although the input sequence is consumed lazily, each step in the transducer is run for every consumed element from the sequence.
