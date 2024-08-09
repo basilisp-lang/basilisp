@@ -373,6 +373,45 @@ Threading macros come in three basic variants, each of which can be useful in di
 - ``->>`` is called "thread-last"; successive values will be slotted in as the *last* argument in the next expression
 - ``as->`` is called "thread-as"; allows users to select where in the subsequent expression the previous expression will be slotted
 
+.. code-block::
+
+   ;; without threading, successive updates or modifications to maps and other
+   ;; persistent data structures would be quite challenging to read
+   (update (assoc user :most-recent-login (datetime.datetime/now)) :num-logins inc)
+
+   ;; thread-first macro can help unnest the above logic and make clearer the
+   ;; order of execution
+   (-> user
+       (assoc :most-recent-login (datetime.datetime/now))
+       (update :num-logins inc))
+
+   ;; likewise, thread-last is frequently useful for seq library functions
+   (take 3 (sort (map inc (filter non-neg? coll))))
+
+   ;; note that in threading macros functions with no arguments may elide
+   ;; parentheses -- the macro will ensure they are added
+   (->> coll
+        (filter non-neg?)
+        (map inc)
+        sort
+        (take 3))
+
+   ;; thread-as is particularly useful for heterogeneous operations when the
+   ;; argument of successive invocations is not in a consistent position
+   (assoc user :historical-names (conj (:historical-names user) name)))
+
+   ;; this is a bit of a contrived example since it could more easily be
+   ;; accomplished by using `update`, but this pattern frequently pops up
+   ;; dealing with real world data
+   (as-> (:historical-names user) $
+     (conj $ name)
+     (assoc user :historical-names $))
+
+Two variants of thread-first and thread-last are also included:
+
+- ``some`` variants only thread successive values when the previous value is not ``nil``
+- ``cond`` variants only thread successive values when some other condition evaluates to logical true
+
 .. note::
 
    "Threading macros" are unrelated to the concept of "threads" used for concurrent execution within a program.
