@@ -614,7 +614,7 @@ def seq_equals(s1: Union["ISeq", ISequential], s2: Any) -> bool:
     return True
 
 
-class ISeq(ILispObject, ISeqable[T]):
+class ISeq(ILispObject, IPersistentCollection[T]):
     """``ISeq`` types represent a potentially infinite sequence of elements.
 
     .. seealso::
@@ -667,7 +667,7 @@ class ISeq(ILispObject, ISeqable[T]):
         raise NotImplementedError()
 
     @abstractmethod
-    def cons(self, elem: T) -> "ISeq[T]":
+    def cons(self, *elem: T) -> "ISeq[T]":
         raise NotImplementedError()
 
     def seq(self) -> "Optional[ISeq[T]]":

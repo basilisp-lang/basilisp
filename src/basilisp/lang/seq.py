@@ -3,7 +3,6 @@ import threading
 from typing import Callable, Iterable, Optional, TypeVar, overload
 
 from basilisp.lang.interfaces import (
-    IPersistentCollection,
     IPersistentMap,
     ISeq,
     ISeqable,
@@ -14,7 +13,7 @@ from basilisp.util import Maybe
 
 T = TypeVar("T")
 
-class _EmptySequence(IWithMeta, ISequential, ISeq[T], IPersistentCollection):
+class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
     __slots__ = ("_meta",)
 
     def __init__(self, meta: Optional[IPersistentMap] = None):
@@ -48,8 +47,8 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T], IPersistentCollection):
     def rest(self) -> ISeq[T]:
         return self
 
-    def cons(self, *elems: T) -> ISeq[T]:
-        l = self
+    def cons(self, *elems: T) -> ISeq[T]: # type: ignore[override]
+        l: ISeq = self
         for elem in elems:
             l = Cons(elem, l)
         return l
@@ -61,7 +60,7 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T], IPersistentCollection):
 EMPTY: ISeq = _EmptySequence()
 
 
-class Cons(ISeq[T], ISequential, IWithMeta, IPersistentCollection):
+class Cons(ISeq[T], ISequential, IWithMeta):
     __slots__ = ("_first", "_rest", "_meta")
 
     def __init__(
@@ -107,7 +106,7 @@ class Cons(ISeq[T], ISequential, IWithMeta, IPersistentCollection):
 LazySeqGenerator = Callable[[], Optional[ISeq[T]]]
 
 
-class LazySeq(IWithMeta, ISequential, ISeq[T], IPersistentCollection):
+class LazySeq(IWithMeta, ISequential, ISeq[T]):
     """LazySeqs are wrappers for delaying sequence computation. Create a LazySeq
     with a function that can either return None or a Seq. If a Seq is returned,
     the LazySeq is a proxy to that Seq.
@@ -205,8 +204,8 @@ class LazySeq(IWithMeta, ISequential, ISeq[T], IPersistentCollection):
         except AttributeError:
             return EMPTY
 
-    def cons(self, *elems: T) -> ISeq[T]:
-        l = self
+    def cons(self, *elems: T) -> ISeq[T]: # type: ignore[override]
+        l: ISeq = self
         for elem in elems:
             l = Cons(elem, l)
         return l
