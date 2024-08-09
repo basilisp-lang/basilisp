@@ -3130,7 +3130,9 @@
 
 (defn partition-by
   "Return a lazy sequence of partitions, splitting ``coll`` each time ``f`` returns a
-  different value."
+  different value.
+
+  Returns a stateful transducer if no collection is provided."
   ([f]
    (fn [rf]
      (let [prev (volatile! :basilisp.core.partition-by/default)
