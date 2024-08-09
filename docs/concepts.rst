@@ -346,8 +346,75 @@ Control Structures
 Basilisp features many variations on traditional programming control structures such as ``if`` and ``while`` loops thanks to the magic of :ref:`macros`.
 Using these control structure variants in preference to raw :lpy:form:`if` s can often help clarify the meaning of your code while also using reducing the amount of code you have to write.
 
-In addition to the stalwart :lpy:fn:`condp`, :lpy:fn:`and`, and :lpy:fn:`or`, Basilisp also features threading macros which help writing clear and concise code.
+Of particular note are the ``when`` variants, which may be useful when you are only checking for a single condition:
+
+.. code-block:: clojure
+
+   (when (some neg? coll)
+     (throw (ex-info "Negative values are not permitted" {:values coll})))
+
+Users may also find the ``let`` variants of ``if`` and ``when`` particularly useful for binding a name for use conditionally:
+
+.. code-block::
+
+   ;; note that the return value from `re-matches` will not be bound if the return
+   ;; value is `nil` or `false`, so we can safely destructure the return here
+   (defn parse-num
+     [s]
+     (when-let [[_ num] (re-matches #"(\d+)" s)]
+       (int num)))
+
+Basilisp also features threading macros which help writing clear and concise code.
 Threading macros can help transform deeply nested expressions into a much more readable pipeline of expressions whose source order matches the execution order at runtime.
+
+Threading macros come in three basic variants, each of which can be useful in different circumstances:
+
+- ``->`` is called "thread-first"; successive values will be slotted in as the *first* argument in the next expression
+- ``->>`` is called "thread-last"; successive values will be slotted in as the *last* argument in the next expression
+- ``as->`` is called "thread-as"; allows users to select where in the subsequent expression the previous expression will be slotted
+
+.. code-block::
+
+   ;; without threading, successive updates or modifications to maps and other
+   ;; persistent data structures would be quite challenging to read
+   (update (assoc user :most-recent-login (datetime.datetime/now)) :num-logins inc)
+
+   ;; thread-first macro can help unnest the above logic and make clearer the
+   ;; order of execution
+   (-> user
+       (assoc :most-recent-login (datetime.datetime/now))
+       (update :num-logins inc))
+
+   ;; likewise, thread-last is frequently useful for seq library functions
+   (take 3 (sort (map inc (filter non-neg? coll))))
+
+   ;; note that in threading macros functions with no arguments may elide
+   ;; parentheses -- the macro will ensure they are added
+   (->> coll
+        (filter non-neg?)
+        (map inc)
+        sort
+        (take 3))
+
+   ;; thread-as is particularly useful for heterogeneous operations when the
+   ;; argument of successive invocations is not in a consistent position
+   (assoc user :historical-names (conj (:historical-names user) name)))
+
+   ;; this is a bit of a contrived example since it could more easily be
+   ;; accomplished by using `update`, but this pattern frequently pops up
+   ;; dealing with real world data
+   (as-> (:historical-names user) $
+     (conj $ name)
+     (assoc user :historical-names $))
+
+Two variants of thread-first and thread-last are also included:
+
+- ``some`` variants only thread successive values when the previous value is not ``nil``
+- ``cond`` variants only thread successive values when some other condition evaluates to logical true
+
+.. note::
+
+   "Threading macros" are unrelated to the concept of "threads" used for concurrent execution within a program.
 
 .. seealso::
 
@@ -418,6 +485,7 @@ Like the built-in :lpy:fn:`map`, ``pmap`` executes the provided function across 
 Various Functions
 ^^^^^^^^^^^^^^^^^
 
+- Functions used for printing: :lpy:fn:`pr`, :lpy:fn:`pr-str`, :lpy:fn:`prn`, :lpy:fn:`prn-str`, :lpy:fn:`print`, :lpy:fn:`print-str`, :lpy:fn:`println`, :lpy:fn:`println-str`, :lpy:fn:`printf`, :lpy:fn:`with-in-str`, :lpy:fn:`with-out-str`, :lpy:fn:`flush`, :lpy:fn:`newline`
 - Functions for throwing and introspecting exceptions: :lpy:fn:`ex-info`, :lpy:fn:`ex-cause`, :lpy:fn:`ex-data`, :lpy:fn:`ex-message`, :lpy:ns:`basilisp.stacktrace`
 - Functions for generating random data: :lpy:fn:`rand`, :lpy:fn:`rand-int`, :lpy:fn:`rand-nth`, :lpy:fn:`random-uuid`, :lpy:fn:`random-sample`, :lpy:fn:`shuffle`
 - Functions which can be used to introspect the Python type hierarchy: :lpy:fn:`class`, :lpy:fn:`cast`, :lpy:fn:`bases`, :lpy:fn:`supers`, :lpy:fn:`subclasses`
@@ -846,11 +914,114 @@ The stored value can be modified using :lpy:fn:`vswap!` and :lpy:fn:`vreset!`.
 Transducers
 -----------
 
-TBD
+Transducers are a tool for structuring pipelines of transformations on sequences of data which have some key advantages over simply composing :ref:`Seq <working_with_seqs>` operations:
+
+1. Transducers are often more efficient than their equivalent composed Seq operations since they do not create intermediate Seqs for each step in the pipeline.
+2. Transducers are composable.
+3. Transducers are reusable.
+
+Many of the Seq library functions provide an arity for creating a transducer directly which mirrors the functionality of its classical Seq usage.
+For example:
+
+.. code-block::
+
+   (map :price)          ;; returns a transducer which fetches the :price key from a map
+   (keep identity)       ;; returns a transducer which returns only non-nil values
+   (filter pos?)         ;; returns a transducer which filters only positive values
+
+Each step above can be used as a transducer on its own, but one of the key benefits of transducers is composition.
+Transducing functions can be combined using the standard :lpy:fn:`comp` function:
+
+.. code-block::
+
+   (def xform
+     (comp
+       (map :price)
+       (keep identity)
+       (filter pos?)))
+
+When combined using ``comp``, these transducers are run not in the classical order of function composition (from outside in) but rather in the order they appear in the source.
+The transducer above is equivalent to writing the following in classical Seq library functions:
+
+.. code-block::
+
+   (filter pos? (keep identity (map :price coll)))
+
+   ;; or simplified using the ->> macro
+   (->> coll
+        (map :price)
+        (keep identity)
+        (filter pos?))
+
+.. _applying_transducers:
+
+Applying Transducers
+^^^^^^^^^^^^^^^^^^^^
+
+Once you've created a transducer function, you'll want to use it!
+The Basilisp core library provides a number of different tools for applying transducers to sequence or collection.
+
+Imagine we have an input dataset that looks like this with the given transducer:
+
+.. code-block::
+
+   (def xform
+     (comp
+       (filter #(= (:category %) :hardware))
+       (filter :quantity)
+       (map #(assoc % :total (* (:price %) (:quantity %))))))
+
+   (def data [{:price 0.17 :name "M6-0.5" :quantity nil :category :hardware}
+              {:price 8.99 :name "Hammer" :quantity nil :category :tools}
+              {:price 0.20 :name "M6-0.75" :quantity 10 :category :hardware}
+              {:price 0.22 :name "M6-1.0" :quantity 5 :category :hardware}
+              {:price 0.24 :name "M6-1.25" :quantity nil :category :hardware}
+              {:price 0.27 :name "M6-1.5" :quantity 7 :category :hardware}
+              {:price 0.29 :name "M6-2.0" :quantity 12 :category :hardware}])
+
+For a straightforward replacement of the :lpy:fn:`reduce` function, you can use :lpy:fn:`transduce`.
+``transduce`` will consume the input collection eagerly just as ``reduce`` would.
+Using the dataset above, we may be interested in calculating the total value of all of the in-stock items:
+
+.. code-block::
+
+   ;; note how we combine the existing xform with a new transducing function
+   ;; to extract just the total value of each item out
+   (transduce (comp xform (map :total)) + data)   ;; => 8.469999999999999
+
+Use :lpy:fn:`into` to transform one collection type into another using transducers.
+``into`` always utilizes :ref:`transients` whenever possible to efficiently build the output collection type.
+Using the previous transducer and functions again, we could collect all of the in-stock item names into a vector:
+
+.. code-block::
+
+   (into [] (comp xform (map :name)) data)  ;; => ["M6-0.75" "M6-1.0" "M6-1.5" "M6-2.0"]
+
+For a non-caching lazy sequence, reach for :lpy:fn:`eduction`.
+For cases which you may only ever intend to iterate over a sequence once and do not need its results cached, this may be more efficient.
+
+Finally, :lpy:fn:`sequence` creates a lazy sequence of applying the transducer functions to an input sequence.
+Note that although the input sequence is consumed lazily, each step in the transducer is run for every consumed element from the sequence.
+
+.. _early_transducer_termination:
+
+Early Termination
+^^^^^^^^^^^^^^^^^
+
+Transducers (and reducers in general) can be terminated early by wrapping the return value in a call to :lpy:fn:`reduced` (or use the utility function :lpy:fn:`ensure-reduced` if to avoid double wrapping the final value).
+Transducers and :lpy:fn:`reduce` check for reduced values (as by :lpy:fn:`reduced?`) and return the wrapped value if one is encountered.
+
+The :lpy:fn:`halt-when` transducer makes use of this pattern.
 
 .. seealso::
 
-   :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`halt-when`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`, :lpy:fn:`cat`, :lpy:fn:`reduced`, :lpy:fn:`reduced?`, :lpy:fn:`ensure-reduced`, :lpy:fn:`unreduced`
+   `Clojure's documentation on Transducers <https://clojure.org/reference/transducers>`_
+
+   Functions for applying transducers: :lpy:fn:`eduction`, :lpy:fn:`completing`, :lpy:fn:`sequence`, :lpy:fn:`transduce`, :lpy:fn:`into`
+
+   Functions for terminating transducers early: :lpy:fn:`reduced`, :lpy:fn:`reduced?`, :lpy:fn:`ensure-reduced`, :lpy:fn:`unreduced`
+
+   Functions which can return transducers: :lpy:fn:`halt-when`, :lpy:fn:`cat`, :lpy:fn:`map`, :lpy:fn:`map-indexed`, :lpy:fn:`mapcat`, :lpy:fn:`filter`, :lpy:fn:`remove`, :lpy:fn:`keep`, :lpy:fn:`keep-indexed`, :lpy:fn:`take`, :lpy:fn:`take-while`, :lpy:fn:`drop`, :lpy:fn:`drop-while`, :lpy:fn:`drop-last`, :lpy:fn:`interpose`, :lpy:fn:`take-nth`, :lpy:fn:`partition-all`, :lpy:fn:`partition-by`, :lpy:fn:`distinct`, :lpy:fn:`dedupe`
 
 .. _multimethods:
 
