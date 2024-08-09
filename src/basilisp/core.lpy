@@ -1183,7 +1183,7 @@
   If ``num`` is an integer or simplifies to an integer, return that value."
   [num]
   (let [frac (fractions/Fraction num)]
-    (if (.is-integer frac)
+    (if #?(:lpy312+ (.is-integer frac) :lpy311- (= (denominator frac) 1))
       (python/int frac)
       (let [ratio (.as-integer-ratio frac)]
         (fractions/Fraction (first ratio) (second ratio))))))
