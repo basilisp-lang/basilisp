@@ -64,7 +64,9 @@ Ratios are represented by Python's :external:py:class:`fractions.Fraction` type.
 
    Arithmetic functions: :lpy:fn:`+`, :lpy:fn:`-`, :lpy:fn:`*`, :lpy:fn:`/`, :lpy:fn:`abs`, :lpy:fn:`mod`, :lpy:fn:`quot`, :lpy:fn:`rem`, :lpy:fn:`inc`, :lpy:fn:`dec`, :lpy:fn:`min`, :lpy:fn:`max`
 
-   Ratio functions: :lpy:fn:`numerator`, :lpy:fn:`denominator`
+   Ratio functions: :lpy:fn:`numerator`, :lpy:fn:`denominator`, :lpy:fn:`rationalize`
+
+   Decimal functions: :lpy:fn:`with-precision`
 
 .. _strings_and_byte_strings:
 
@@ -116,7 +118,7 @@ Returns the default value or ``nil`` (if no default value is specified) if eithe
 
 .. seealso::
 
-   :lpy:fn:`keyword`, :lpy:fn:`name`, :lpy:fn:`namespace`, :lpy:fn:`keyword?`
+   :lpy:fn:`keyword`, :lpy:fn:`name`, :lpy:fn:`namespace`, :lpy:fn:`keyword?`, :lpy:fn:`find-keyword`
 
 .. _symbols:
 
@@ -314,6 +316,7 @@ Many of these functions may accept Seqs and return another Seq, but still others
 
 Basilisp includes both the Clojure-compatible :lpy:fn:`apply` for applying a sequence as arguments to a function, but also the Python specific :lpy:fn:`apply-kw` for applying a map to Python functions accepting keyword arguments.
 The :lpy:fn:`apply-method` macro is another Basilisp extension which enables easier application of sequences to Python methods.
+:lpy:fn:`apply-method-kw` is the Python keyword argument equivalent of ``apply-method``.
 
 .. note::
 
@@ -433,7 +436,7 @@ In addition to the Clojure-compatible :lpy:fn:`partial` function for partial app
 
 .. seealso::
 
-   :lpy:fn:`complement`, :lpy:fn:`constantly`, :lpy:fn:`comp`, :lpy:fn:`juxt`, :lpy:fn:`every?`, :lpy:fn:`every-pred`, :lpy:fn:`not-every?`, :lpy:fn:`some-fn`, :lpy:fn:`not-any?`, :lpy:fn:`trampoline`
+   :lpy:fn:`complement`, :lpy:fn:`constantly`, :lpy:fn:`comp`, :lpy:fn:`juxt`, :lpy:fn:`fnil`, :lpy:fn:`every?`, :lpy:fn:`every-pred`, :lpy:fn:`not-every?`, :lpy:fn:`some-fn`, :lpy:fn:`not-any?`, :lpy:fn:`trampoline`
 
 .. _regular_expressions:
 

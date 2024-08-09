@@ -1,11 +1,12 @@
 import pickle
+import secrets
 
 import pytest
 
 from basilisp.lang import map as lmap
 from basilisp.lang import set as lset
 from basilisp.lang import vector as lvector
-from basilisp.lang.keyword import Keyword, complete, keyword
+from basilisp.lang.keyword import Keyword, complete, find_keyword, keyword
 
 
 def test_keyword_identity_equals():
@@ -14,6 +15,17 @@ def test_keyword_identity_equals():
 
     assert keyword("kw", ns="some.ns") is not keyword("kw", ns="other.ns")
     assert keyword("kw", ns="some.ns") is not keyword("kw")
+
+
+def test_find_keyword():
+    existing_kw = keyword("existing")
+    existing_ns_kw = keyword("existing", ns="with-ns")
+
+    assert existing_kw is find_keyword("existing")
+    assert existing_ns_kw is find_keyword("existing", ns="with-ns")
+
+    assert None is find_keyword(f"k{secrets.token_hex(4)}")
+    assert None is find_keyword(f"k{secrets.token_hex(4)}", ns="any-ns")
 
 
 def test_keyword_name_and_ns():

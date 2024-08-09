@@ -668,6 +668,22 @@ class TestIsIdent:
     def test_is_not_qualified_ident(self, v):
         assert False is core.qualified_ident__Q__(v)
 
+    @pytest.mark.parametrize(
+        "v",
+        [
+            kw.keyword("kw", ns="ns"),
+            kw.keyword("kw", ns="qualified.ns"),
+            sym.symbol("sym", ns="ns"),
+            sym.symbol("sym", ns="qualified.ns"),
+        ],
+    )
+    def test_is_simple_ident(self, v):
+        assert False is core.simple_ident__Q__(v)
+
+    @pytest.mark.parametrize("v", [kw.keyword("kw"), sym.symbol("sym")])
+    def test_is_not_simple_ident(self, v):
+        assert True is core.simple_ident__Q__(v)
+
     @pytest.mark.parametrize("v", [kw.keyword("kw"), kw.keyword("kw", ns="ns")])
     def test_is_keyword(self, v):
         assert True is core.keyword__Q__(v)
