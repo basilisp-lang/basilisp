@@ -138,8 +138,6 @@ def keyword_from_hash(kw_hash: int, name: str, ns: Optional[str] = None) -> Keyw
 def find_keyword(name: str, ns: Optional[str] = None) -> Optional[Keyword]:
     """Return the already-interned keyword named by `name` and `ns`, if one exists.
     If the keyword with that name is not interned, return None."""
-    global _INTERN
-
     with _LOCK:
         return _INTERN.val_at(hash_kw(name, ns))
 

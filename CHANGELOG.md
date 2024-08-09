@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
- * Added several missing functions to `basilisp.core` (#???)
+ * Added several missing functions to `basilisp.core` (#956)
 
 ## [v0.1.0]
 ### Added
