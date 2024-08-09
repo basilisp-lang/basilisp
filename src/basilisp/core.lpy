@@ -3522,7 +3522,7 @@
   `(apply (. ~o ~(symbol (str "-" method))) ~@args))
 
 (defmacro apply-method-kw
-  "Apply keyword arguments to a method call. Equivalent to (apply-kw (.-method o) ... args)."
+  "Apply keyword arguments to a method call. Equivalent to ``(apply-kw (.-method o) ... args)``\\."
   [o method & args]
   `(apply-kw (. ~o ~(symbol (str "-" method))) ~@args))
 
