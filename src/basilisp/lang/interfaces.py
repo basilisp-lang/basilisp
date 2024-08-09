@@ -374,6 +374,43 @@ class IPersistentStack(IPersistentCollection[T]):
         raise NotImplementedError()
 
 
+class IReduce(ABC):
+    """``IReduce`` types define custom implementations of ``reduce``.
+
+    Only vectors are ``IReduce`` by default, providing faster iteration than relying on
+    ``seq``.
+
+    .. seealso::
+
+       :lpy:fn:`reduce`
+    """
+
+    __slots__ = ()
+
+    @abstractmethod
+    def reduce(self: Self, f: Callable[[T, Any], Any], init: Optional[T]):
+        raise NotImplementedError()
+
+
+class IReduceKV:
+    """``IReduceKV`` types define custom implementations of ``reduce-kv``.
+
+    Both vectors and maps are ``IReduceKV`` by default, providing faster iteration than
+    relying on ``seq``. Maps iterate over the key-value pairs as expected, and vectors
+    iterate over the index-item pairs of the vector.
+
+    .. seealso::
+
+       :lpy:fn:`reduce-kv`
+    """
+
+    __slots__ = ()
+
+    @abstractmethod
+    def reduce_kv(self: Self, f: Callable[[T, Any, Any], Any], init: T):
+        raise NotImplementedError()
+
+
 class IPersistentList(ISequential, IPersistentStack[T]):
     """``IPersistentList`` is a marker interface for a singly-linked list."""
 
