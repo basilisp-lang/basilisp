@@ -3,6 +3,7 @@ import threading
 from typing import Callable, Iterable, Optional, TypeVar, overload
 
 from basilisp.lang.interfaces import (
+    IPersistentCollection,
     IPersistentMap,
     ISeq,
     ISeqable,
@@ -13,8 +14,7 @@ from basilisp.util import Maybe
 
 T = TypeVar("T")
 
-
-class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
+class _EmptySequence(IWithMeta, ISequential, ISeq[T], IPersistentCollection):
     __slots__ = ("_meta",)
 
     def __init__(self, meta: Optional[IPersistentMap] = None):
@@ -48,14 +48,20 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
     def rest(self) -> ISeq[T]:
         return self
 
-    def cons(self, elem: T) -> ISeq[T]:
-        return Cons(elem, self)
+    def cons(self, *elems: T) -> ISeq[T]:
+        l = self
+        for elem in elems:
+            l = Cons(elem, l)
+        return l
 
+    @staticmethod
+    def empty():
+        return EMPTY
 
 EMPTY: ISeq = _EmptySequence()
 
 
-class Cons(ISeq[T], ISequential, IWithMeta):
+class Cons(ISeq[T], ISequential, IWithMeta, IPersistentCollection):
     __slots__ = ("_first", "_rest", "_meta")
 
     def __init__(
@@ -80,8 +86,15 @@ class Cons(ISeq[T], ISequential, IWithMeta):
     def rest(self) -> ISeq[T]:
         return self._rest
 
-    def cons(self, elem: T) -> "Cons[T]":
-        return Cons(elem, self)
+    def cons(self, *elems: T) -> "Cons[T]":
+        l = self
+        for elem in elems:
+            l = Cons(elem, l)
+        return l
+
+    @staticmethod
+    def empty():
+        return EMPTY
 
     @property
     def meta(self) -> Optional[IPersistentMap]:
@@ -94,7 +107,7 @@ class Cons(ISeq[T], ISequential, IWithMeta):
 LazySeqGenerator = Callable[[], Optional[ISeq[T]]]
 
 
-class LazySeq(IWithMeta, ISequential, ISeq[T]):
+class LazySeq(IWithMeta, ISequential, ISeq[T], IPersistentCollection):
     """LazySeqs are wrappers for delaying sequence computation. Create a LazySeq
     with a function that can either return None or a Seq. If a Seq is returned,
     the LazySeq is a proxy to that Seq.
@@ -192,13 +205,20 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         except AttributeError:
             return EMPTY
 
-    def cons(self, elem):
-        return Cons(elem, self)
+    def cons(self, *elems: T) -> ISeq[T]:
+        l = self
+        for elem in elems:
+            l = Cons(elem, l)
+        return l
 
     @property
     def is_realized(self):
         with self._lock:
             return self._gen is None
+
+    @staticmethod
+    def empty():
+        return EMPTY
 
 
 def sequence(s: Iterable[T]) -> ISeq[T]:

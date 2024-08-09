@@ -299,9 +299,11 @@
                different positions depending on the type of ``coll``\\. ``conj`` returns
                the same type as ``coll``\\. If ``coll`` is ``nil``\\, return a list with
                ``xs`` conjoined."
-    :arglists '([coll x] [coll x & xs])}
+    :arglists '([] [coll] [coll x] [coll x & xs])}
   conj
   (fn conj
+    ([] [])
+    ([coll] coll)
     ([coll x]
      (basilisp.lang.runtime/conj coll x))
     ([coll x & xs]
