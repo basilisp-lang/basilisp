@@ -2706,7 +2706,7 @@ def _reify_to_py_ast(
                             ),
                             verified_abstract=node.verified_abstract,
                             artificially_abstract_bases=artificially_abstract_bases,
-                            is_frozen=True,
+                            is_frozen=False,
                             use_slots=True,
                         )
                     ],

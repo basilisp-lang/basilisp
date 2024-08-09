@@ -165,7 +165,8 @@
           (is (= {:id @id* :status ["done"]
                   :completions [{:candidate "apply" :type "function" :ns "basilisp.core"}
                                 {:candidate "apply-kw" :type "function" :ns "basilisp.core"}
-                                {:candidate "apply-method" :type "macro" :ns "basilisp.core"}]}
+                                {:candidate "apply-method" :type "macro" :ns "basilisp.core"}
+                                {:candidate "apply-method-kw" :type "macro" :ns "basilisp.core"}]}
                  (client-recv! client)))
           (client-send! client {:id (id-inc!) :op "complete" :ns "user" :symbol "clojure.string/blank?"})
           (is (= {:id @id* :status ["done"]
