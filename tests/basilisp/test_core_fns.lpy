@@ -1,5 +1,6 @@
 (ns tests.basilisp.test-core-fns
-  (:import os
+  (:import datetime
+           os
            shutil
            time)
   (:require
@@ -54,6 +55,21 @@
       nil  nil
       :kw  :kw
       'sym 'sym)))
+
+(deftest rationalize-test
+  (are [res v] (= res (rationalize v))
+    0    0
+    0    0.0
+    1    1
+    1    1.0
+    -1   -1
+    -1   -1.0
+    2    4/2
+    -2   -4/2
+    3/2  1.5
+    -3/2 -1.5
+    3/2  6/4
+    -3/2 -6/4))
 
 (deftest vary-meta-test
   (testing "with lists"
@@ -682,6 +698,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest run!-test
+  (testing "empty collection"
+    (let [a (atom 0)]
+      (run! #(swap! a + %) [])
+      (is (= @a 0))))
+
+  (testing "non-empty collection"
+    (let [a (atom 0)]
+      (run! #(swap! a + %) (range 5))
+      (is (= @a 10)))))
 
 (deftest partial-test
   (testing "no arguments"
@@ -2226,7 +2253,7 @@
 
 
 ;;;;;;;;;;
-;; eval ;;
+;; Eval ;;
 ;;;;;;;;;;
 
 (deftest eval-test
@@ -2244,7 +2271,7 @@
 
 
 ;;;;;;;;;;
-;; load ;;
+;; Load ;;
 ;;;;;;;;;;
 
 (deftest load-test
@@ -2274,7 +2301,7 @@
           (shutil/rmtree load-dir-test))))))
 
 ;;;;;;;;;;;;;;
-;; printing ;;
+;; Printing ;;
 ;;;;;;;;;;;;;;
 
 (deftest pr-test
@@ -2385,7 +2412,7 @@
                (.getvalue bio)))))))
 
 ;;;;;;;;;;;;;;;;
-;; arithmetic ;;
+;; Arithmetic ;;
 ;;;;;;;;;;;;;;;;
 
 (deftest arithmetic-equality-test
@@ -2397,3 +2424,19 @@
     (let [f 1.0000000000000000000000009]
       (is (= 1 f))
       (is (== 1 f)))))
+
+;;;;;;;;;;;
+;; Insts ;;
+;;;;;;;;;;;
+
+(deftest inst?-test
+  (is (inst? (datetime.datetime/now)))
+  (is (not (inst? (datetime.date/today))))
+  (is (not (inst? (datetime/time))))
+  (is (not (inst? (python/object)))))
+
+(deftest inst-ms-test
+  (is (= 0 (inst-ms
+            (datetime.datetime/fromtimestamp 0 datetime.timezone/utc))))
+  (is (= 1723235558968
+         (inst-ms #inst "2024-08-09T20:32:38.968-00:00"))))

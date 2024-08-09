@@ -3,6 +3,7 @@
 (import* abc
          atexit
          collections
+         datetime
          decimal
          fractions
          functools
@@ -534,6 +535,16 @@
    (basilisp.lang.runtime/keyword-from-name name))
   ([ns name]
    (basilisp.lang.runtime/keyword name ns)))
+
+(defn find-keyword
+  "Return the keyword named by ``name`` and optionally ``ns`` if it has already been
+  interned.
+
+  Return ``nil`` otherwise."
+  ([name]
+   (basilisp.lang.keyword/find-keyword name))
+  ([ns name]
+   (basilisp.lang.keyword/find-keyword name ns)))
 
 (defn name
   "Return the name of a string, symbol, or keyword."
@@ -1166,6 +1177,17 @@
   [frac]
   (.-denominator frac))
 
+(defn rationalize
+  "Return the lowest ratio of ``num``.
+
+  If ``num`` is an integer or simplifies to an integer, return that value."
+  [num]
+  (let [frac (fractions/Fraction num)]
+    (if #?(:lpy312+ (.is-integer frac) :lpy311- (= (denominator frac) 1))
+      (python/int frac)
+      (let [ratio (.as-integer-ratio frac)]
+        (fractions/Fraction (first ratio) (second ratio))))))
+
 (defn ^:inline compare
   "Return either -1, 0, or 1 to indicate the relationship between ``x`` and ``y``\\.
 
@@ -1456,6 +1478,11 @@
   "Return ``true`` if ``x`` implements :py:class:`basilisp.lang.interfaces.ISequential`\\."
   [x]
   (instance? basilisp.lang.interfaces/ISequential x))
+
+(defn simple-ident?
+  "Return ``true`` if ``x`` is either a keyword or symbol without a namespace."
+  [x]
+  (and (ident? x) (nil? (namespace x))))
 
 (defn simple-keyword?
   "Return ``true`` if ``x`` is a keyword with no namespace."
@@ -2615,12 +2642,12 @@
             args)))
 
 (defn fnil
-  "Given a function `f`, return a new function which replaces a `nil` first argument
-  with the value `x`. Higher arity variants will replace their corresponding `nil`
+  "Given a function ``f``, return a new function which replaces a ``nil`` first argument
+  with the value ``x``. Higher arity variants will replace their corresponding ``nil``
   argument with the provided default value for that argument position.
 
-  The function returned from `fnil` supports any number of arguments greater than or
-  equal to the arity of the `fnil` that is called."
+  The function returned from ``fnil`` supports any number of arguments greater than or
+  equal to the arity of the ``fnil`` that is called."
   ([f x]
    (fn [a & args]
      (apply f (or a x) args)))
@@ -2646,7 +2673,7 @@
   If multiple arguments are given, they are interpreted as key/value pairs and will
   be converted into a hash-map before being partially applied to the function.
 
-  This function applies keyword arguments via `apply-kw`. As a consequence, Lisp
+  This function applies keyword arguments via :lpy:fn:`apply-kw`. As a consequence, Lisp
   keywords will be converted to munged Python strings (via :lpy:fn:`name`), meaning
   namespaces will be lost and identifiers which are not valid Python syntax will be
   converted to safe Python identifiers."
@@ -3495,7 +3522,7 @@
   `(apply (. ~o ~(symbol (str "-" method))) ~@args))
 
 (defmacro apply-method-kw
-  "Apply keyword arguments to a method call. Equivalent to (apply-kw (.-method o) ... args)."
+  "Apply keyword arguments to a method call. Equivalent to ``(apply-kw (.-method o) ... args)``\\."
   [o method & args]
   `(apply-kw (. ~o ~(symbol (str "-" method))) ~@args))
 
@@ -3730,6 +3757,16 @@
   [bindings & body]
   `(dorun (for ~bindings ~@body)))
 
+(defn run!
+  "Runs the procedure ``(proc elem)`` for each element in ``coll`` (presumably for
+  side-effects)
+
+  Returns ``nil`` in all cases."
+  [proc coll]
+  (doseq [elem coll]
+    (proc elem))
+  nil)
+
 (defmacro ..
   "Expand into nested method calls on the returned objects from previous method calls.
 
@@ -3822,6 +3859,66 @@
                ``with`` blocks)."
        :macro true}
   with-open with)
+
+(def ^:private decimal-rounding-modes
+  {"CEILING"      decimal/ROUND_CEILING
+   "DOWN"         decimal/ROUND_DOWN
+   "FLOOR"        decimal/ROUND_FLOOR
+   "HALF_DOWN"    decimal/ROUND_HALF_DOWN
+   "HALF_EVEN"    decimal/ROUND_HALF_EVEN
+   "HALF_UP"      decimal/ROUND_HALF_UP
+   "UP"           decimal/ROUND_UP
+   "ZERO_FIVE_UP" decimal/ROUND_05UP})
+
+(defn local-decimal-context
+  "Return a :external:py:func:`decimal.localcontext` context manager which sets
+  the precision and rounding behavior of :external:py:class:`decimal.Decimal` instances
+  in the current thread as by :external:py:func:`decimal.setcontext`.
+
+  .. warning::
+
+     This function is an implementation detail of :lpy:fn:`with-precision` and it is not
+     considered part of the public API. Use at your own peril."
+  ([precision]
+   (local-decimal-context precision nil))
+  ([precision rounding]
+   (let [current-ctx (.copy (decimal/getcontext))]
+     (when-not (nil? rounding)
+       (when-not (contains? decimal-rounding-modes rounding)
+         (throw
+          (python/ValueError
+           (str "Unexpected rounding mode "
+                rounding
+                "; expected one of: "
+                (.join ", " (keys decimal-rounding-modes)))))))
+     (set! (.-prec current-ctx) precision)
+     (when-let [rounding (decimal-rounding-modes rounding)]
+       (set! (.-rounding current-ctx) rounding))
+     (decimal/localcontext current-ctx))))
+
+(defmacro with-precision
+  "Set the current precision and (optionally) rounding behavior of
+  :external:py:class:`decimal.Decimal` instances in the current thread while executing
+  ``exprs``\\.
+
+  Rounding should be a symbol and may be one of:
+  - ``CEILING``
+  - ``FLOOR``
+  - ``UP``
+  - ``DOWN``
+  - ``HALF_UP``
+  - ``HALF_EVEN``
+  - ``HALF_DOWN``
+  - ``ZERO_FIVE_UP`` (corresponding with Python's :external:py:obj:`decimal.ROUND_05UP`)"
+  [precision & exprs]
+  (let [rounding-kwarg (first exprs)
+        rounding       (when (= rounding-kwarg :rounding)
+                         (name (second exprs)))
+        exprs          (if rounding
+                         (nthrest exprs 2)
+                         exprs)]
+    `(with [ctx# (local-decimal-context ~precision ~@(filter identity [rounding]))]
+           ~@exprs)))
 
 (defn ^:inline get-thread-bindings
   "Return the current thread-local bindings as a map of Var/value pairs."
@@ -4112,6 +4209,26 @@
 ;; String Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;
 
+(def char-escape-string
+  "Return the escape string for an escape character, or ``nil`` if the provided
+  character is not an escape character."
+  {\newline   "\\n"
+   \space     "\\ "
+   \tab       "\\t"
+   \formfeed  "\\f"
+   \backspace "\\b"
+   \return    "\\r"})
+
+(def char-name-string
+  "Return the name of an escape character, or ``nil`` if the provided character
+  is not an escape character."
+  {\newline   "newline"
+   \space     "space"
+   \tab       "tab"
+   \formfeed  "formfeed"
+   \backspace "backspace"
+   \return    "return"})
+
 (defn format
   "Format a string as by Python's ``%`` operator."
   [fmt & args]
@@ -4191,6 +4308,11 @@
   "Return the reader representation of an object."
   [x]
   (basilisp.lang.runtime/lrepr x))
+
+(defn ^:inline read-line
+  "Read the next line from the buffer currently bound to :lpy:var:`*in*`."
+  []
+  (.rstrip (.readline *in*)))
 
 (defn ^:inline flush
   "Flush the buffer currently bound to :lpy:var:`*out*`."
@@ -6902,6 +7024,38 @@
          ((.- ~type-name ~'create) m#))
 
        ~type-name)))
+
+;;;;;;;;;;;
+;; Insts ;;
+;;;;;;;;;;;
+
+(def ^:private unix-epoch
+  (datetime.datetime/fromtimestamp 0 datetime.timezone/utc))
+
+(defprotocol Inst
+  (inst-ms* [inst]
+    "Return the number of milliseconds since the Unix epoch
+    (January 1, 1970 00:00:00 UTC)."))
+
+(extend-protocol Inst
+  datetime/datetime
+  (inst-ms* [inst]
+    (-> inst
+        (- unix-epoch)
+        (.total-seconds)
+        (* 1000)
+        (int))))
+
+(defn ^:inline inst-ms
+  "Return the number of milliseconds since the Unix epoch
+  (January 1, 1970 00:00:00 UTC) as an integer."
+  [inst]
+  (inst-ms* inst))
+
+(defn ^:inline inst?
+  "Return ``true`` if ``x`` satisfies protocol :lpy:proto:`Inst`\\."
+  [x]
+  (satisfies? Inst x))
 
 ;;;;;;;;;;;;;;;;;;
 ;; IO Utilities ;;

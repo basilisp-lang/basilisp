@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+ * Added several missing functions to `basilisp.core` (#956)
  * Added CLI argument parser in `basilisp.contrib.cli-tools` namespace (#535)
 
 ## [v0.1.0]
