@@ -346,8 +346,36 @@ Control Structures
 Basilisp features many variations on traditional programming control structures such as ``if`` and ``while`` loops thanks to the magic of :ref:`macros`.
 Using these control structure variants in preference to raw :lpy:form:`if` s can often help clarify the meaning of your code while also using reducing the amount of code you have to write.
 
-In addition to the stalwart :lpy:fn:`condp`, :lpy:fn:`and`, and :lpy:fn:`or`, Basilisp also features threading macros which help writing clear and concise code.
+Of particular note are the ``when`` variants, which may be useful when you are only checking for a single condition:
+
+.. code-block:: clojure
+
+   (when (some neg? coll)
+     (throw (ex-info "Negative values are not permitted" {:values coll})))
+
+Users may also find the ``let`` variants of ``if`` and ``when`` particularly useful for binding a name for use conditionally:
+
+.. code-block::
+
+   ;; note that the return value from `re-matches` will not be bound if the return
+   ;; value is `nil` or `false`, so we can safely destructure the return here
+   (defn parse-num
+     [s]
+     (when-let [[_ num] (re-matches #"(\d+)" s)]
+       (int num)))
+
+Basilisp also features threading macros which help writing clear and concise code.
 Threading macros can help transform deeply nested expressions into a much more readable pipeline of expressions whose source order matches the execution order at runtime.
+
+Threading macros come in three basic variants, each of which can be useful in different circumstances:
+
+- ``->`` is called "thread-first"; successive values will be slotted in as the *first* argument in the next expression
+- ``->>`` is called "thread-last"; successive values will be slotted in as the *last* argument in the next expression
+- ``as->`` is called "thread-as"; allows users to select where in the subsequent expression the previous expression will be slotted
+
+.. note::
+
+   "Threading macros" are unrelated to the concept of "threads" used for concurrent execution within a program.
 
 .. seealso::
 
@@ -418,6 +446,7 @@ Like the built-in :lpy:fn:`map`, ``pmap`` executes the provided function across 
 Various Functions
 ^^^^^^^^^^^^^^^^^
 
+- Functions used for printing: :lpy:fn:`pr`, :lpy:fn:`pr-str`, :lpy:fn:`prn`, :lpy:fn:`prn-str`, :lpy:fn:`print`, :lpy:fn:`print-str`, :lpy:fn:`println`, :lpy:fn:`println-str`, :lpy:fn:`printf`, :lpy:fn:`with-in-str`, :lpy:fn:`with-out-str`, :lpy:fn:`flush`, :lpy:fn:`newline`
 - Functions for throwing and introspecting exceptions: :lpy:fn:`ex-info`, :lpy:fn:`ex-cause`, :lpy:fn:`ex-data`, :lpy:fn:`ex-message`, :lpy:ns:`basilisp.stacktrace`
 - Functions for generating random data: :lpy:fn:`rand`, :lpy:fn:`rand-int`, :lpy:fn:`rand-nth`, :lpy:fn:`random-uuid`, :lpy:fn:`random-sample`, :lpy:fn:`shuffle`
 - Functions which can be used to introspect the Python type hierarchy: :lpy:fn:`class`, :lpy:fn:`cast`, :lpy:fn:`bases`, :lpy:fn:`supers`, :lpy:fn:`subclasses`
