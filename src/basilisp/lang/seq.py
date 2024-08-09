@@ -13,6 +13,7 @@ from basilisp.util import Maybe
 
 T = TypeVar("T")
 
+
 class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
     __slots__ = ("_meta",)
 
@@ -47,7 +48,7 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
     def rest(self) -> ISeq[T]:
         return self
 
-    def cons(self, *elems: T) -> ISeq[T]: # type: ignore[override]
+    def cons(self, *elems: T) -> ISeq[T]:  # type: ignore[override]
         l: ISeq = self
         for elem in elems:
             l = Cons(elem, l)
@@ -56,6 +57,7 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
     @staticmethod
     def empty():
         return EMPTY
+
 
 EMPTY: ISeq = _EmptySequence()
 
@@ -204,7 +206,7 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         except AttributeError:
             return EMPTY
 
-    def cons(self, *elems: T) -> ISeq[T]: # type: ignore[override]
+    def cons(self, *elems: T) -> ISeq[T]:  # type: ignore[override]
         l: ISeq = self
         for elem in elems:
             l = Cons(elem, l)

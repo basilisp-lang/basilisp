@@ -663,6 +663,7 @@
       (cons nil (lazy-seq))
       (cons nil (empty (lazy-seq)))
       (empty (cons nil (lazy-seq)))))
+
   (testing "conj"
     (are [expected form] (= expected form)
       '()          (lazy-seq)
@@ -671,6 +672,7 @@
       '(0 1 2)     (conj (conj (lazy-seq '(2)) 1) 0)
       '(1 2 3)     (conj (lazy-seq) 3 2 1)
       '(0 1 2 3 4) (conj (lazy-seq '(1 2 3 4)) 0)))
+
   (testing "corecursion"
     ;; here we're just generally checking that we don't blow the stack, so
     ;; 50 is an arbitrarily chosen limit which hopefully tests that adequately
