@@ -40,6 +40,7 @@ class TestCompleter:
             "max",
             "max-key",
             "merge",
+            "merge-with",
             "meta",
             "methods",
             "min",
@@ -75,7 +76,9 @@ class TestCompleter:
                     "max",
                     "max-key",
                     "memfn",
+                    "memoize",
                     "merge",
+                    "merge-with",
                     "meta",
                     "methods",
                     "min",
@@ -247,7 +250,6 @@ class TestKeyBindings:
             "\\fakeescape",
             "#?@(:clj [:a :b :c])",
             "ns.of..a/badsymbol",
-            ":bad.keyword",
         ],
     )
     def test_syntax_error(

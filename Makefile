@@ -1,6 +1,14 @@
+DOCSOURCEDIR = "./docs"
+DOCBUILDDIR = "./docs/_build"
+
 .PHONY: docs
 docs:
-	@poetry run sphinx-build -M html "./docs" "./docs/_build"
+	@poetry run sphinx-build -M html "$(DOCSOURCEDIR)" "$(DOCBUILDDIR)"
+
+
+.PHONY: livedocs
+livedocs:
+	@poetry run sphinx-autobuild "$(DOCSOURCEDIR)" "$(DOCBUILDDIR)" -b html --watch "./src"
 
 
 .PHONY: format

@@ -134,8 +134,12 @@ def test_rest():
     assert lseq.EMPTY is runtime.rest(llist.l())
     assert lseq.EMPTY is runtime.rest(llist.l(1))
     assert llist.l(2, 3) == runtime.rest(llist.l(1, 2, 3))
-    assert lseq.EMPTY is runtime.rest(vec.v(1).seq())
-    assert lseq.EMPTY is runtime.rest(vec.v(1))
+    v1 = runtime.rest(vec.v(1).seq())
+    assert lseq.EMPTY == v1
+    assert v1.is_empty
+    v2 = runtime.rest(vec.v(1))
+    assert lseq.EMPTY == v2
+    assert v2.is_empty
     assert llist.l(2, 3) == runtime.rest(vec.v(1, 2, 3))
 
 
@@ -236,7 +240,8 @@ def test_to_seq():
 
 def test_concat():
     s1 = runtime.concat()
-    assert lseq.EMPTY is s1
+    assert lseq.EMPTY == s1
+    assert s1.is_empty
 
     s1 = runtime.concat(llist.PersistentList.empty(), llist.PersistentList.empty())
     assert lseq.EMPTY == s1
@@ -246,6 +251,12 @@ def test_concat():
 
     s1 = runtime.concat(llist.l(1, 2, 3), vec.v(4, 5, 6))
     assert s1 == llist.l(1, 2, 3, 4, 5, 6)
+
+    s1 = runtime.concat(lmap.map({"a": 1}), lmap.map({"b": 2}))
+    assert s1 == llist.l(vec.v("a", 1), vec.v("b", 2))
+
+    s1 = runtime.concat(vec.v(1, 2), None, "ab")
+    assert s1 == llist.l(1, 2, "a", "b")
 
 
 def test_apply():

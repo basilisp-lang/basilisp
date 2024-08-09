@@ -1,6 +1,7 @@
 from typing import Optional, TypeVar
 
 from pyrsistent import PDeque, pdeque  # noqa # pylint: disable=unused-import
+from typing_extensions import Unpack
 
 from basilisp.lang.interfaces import (
     ILispObject,
@@ -10,6 +11,7 @@ from basilisp.lang.interfaces import (
     IWithMeta,
     seq_equals,
 )
+from basilisp.lang.obj import PrintSettings
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
 
@@ -47,7 +49,7 @@ class PersistentQueue(IPersistentList[T], IWithMeta, ILispObject):
     def __len__(self):
         return len(self._inner)
 
-    def _lrepr(self, **kwargs) -> str:
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         return _seq_lrepr(self._inner, "#queue (", ")", meta=self._meta, **kwargs)
 
     @property

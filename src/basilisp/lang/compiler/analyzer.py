@@ -1,5 +1,4 @@
 # pylint: disable=too-many-branches,too-many-lines,too-many-return-statements
-
 import builtins
 import collections
 import contextlib
@@ -50,10 +49,13 @@ from basilisp.lang.compiler.constants import (
     COL_KW,
     DEFAULT_COMPILER_FILE_PATH,
     DOC_KW,
+    END_COL_KW,
+    END_LINE_KW,
     FILE_KW,
     LINE_KW,
     NAME_KW,
     NS_KW,
+    REST_KW,
     SYM_ABSTRACT_META_KEY,
     SYM_ASYNC_META_KEY,
     SYM_CLASSMETHOD_META_KEY,
@@ -64,10 +66,12 @@ from basilisp.lang.compiler.constants import (
     SYM_MACRO_META_KEY,
     SYM_MUTABLE_META_KEY,
     SYM_NO_INLINE_META_KEY,
+    SYM_NO_WARN_ON_REDEF_META_KEY,
     SYM_NO_WARN_ON_SHADOW_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
     SYM_PRIVATE_META_KEY,
     SYM_PROPERTY_META_KEY,
+    SYM_REDEF_META_KEY,
     SYM_STATICMETHOD_META_KEY,
     SYM_TAG_META_KEY,
     VAR_IS_PROTOCOL_META_KEY,
@@ -145,6 +149,7 @@ logger = logging.getLogger(__name__)
 # Analyzer options
 GENERATE_AUTO_INLINES = kw.keyword("generate-auto-inlines")
 INLINE_FUNCTIONS = kw.keyword("inline-functions")
+WARN_ON_ARITY_MISMATCH = kw.keyword("warn-on-arity-mismatch")
 WARN_ON_SHADOWED_NAME = kw.keyword("warn-on-shadowed-name")
 WARN_ON_SHADOWED_VAR = kw.keyword("warn-on-shadowed-var")
 WARN_ON_UNUSED_NAMES = kw.keyword("warn-on-unused-names")
@@ -171,9 +176,6 @@ _IGNORED_SYM = sym.symbol("_")
 _MACRO_ENV_SYM = sym.symbol("&env")
 _MACRO_FORM_SYM = sym.symbol("&form")
 _NO_WARN_UNUSED_SYMS = lset.s(_IGNORED_SYM, _MACRO_ENV_SYM, _MACRO_FORM_SYM)
-
-
-AnalyzerException = partial(CompilerException, phase=CompilerPhase.ANALYZING)
 
 
 @attr.define
@@ -364,6 +366,12 @@ class AnalyzerContext:
     def should_inline_functions(self) -> bool:
         """If True, function calls may be inlined if an inline def is provided."""
         return self._opts.val_at(INLINE_FUNCTIONS, True)
+
+    @property
+    def warn_on_arity_mismatch(self) -> bool:
+        """If True, warn when a Basilisp function invocation is detected with an
+        unsupported number of arguments."""
+        return self._opts.val_at(WARN_ON_ARITY_MISMATCH, True)
 
     @property
     def warn_on_unused_names(self) -> bool:
@@ -604,6 +612,23 @@ class AnalyzerContext:
             ns=self.current_ns, file=self.filename, pos=pos, func_ctx=self.func_ctx
         )
 
+    def AnalyzerException(
+        self,
+        msg: str,
+        form: Union[LispForm, None, ISeq] = None,
+        lisp_ast: Optional[Node] = None,
+    ) -> CompilerException:
+        """Return a CompilerException annotated with the current filename and
+        :analyzer compiler phase set. The remaining keyword arguments are passed
+        directly to the constructor."""
+        return CompilerException(
+            msg,
+            phase=CompilerPhase.ANALYZING,
+            filename=self.filename,
+            form=form,
+            lisp_ast=lisp_ast,
+        )
+
 
 ####################
 # Private Utilities
@@ -744,7 +769,7 @@ def _call_args_ast(
     with ctx.expr_pos():
         nmarkers = sum(int(e == STAR_STAR) for e in form)
         if nmarkers > 1:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "function and method invocations may have at most 1 keyword argument marker '**'",
                 form=form,
             )
@@ -769,23 +794,23 @@ def _call_args_ast(
                     elif isinstance(k, str):
                         munged_k = munge(k, allow_builtins=True)
                     else:
-                        raise AnalyzerException(
+                        raise ctx.AnalyzerException(
                             f"keys for keyword arguments must be keywords or strings, not '{type(k)}'",
                             form=k,
                         )
 
                     if munged_k in kw_map:
-                        raise AnalyzerException(
+                        raise ctx.AnalyzerException(
                             "duplicate keyword argument key in function or method invocation",
                             form=k,
                         )
 
                     kw_map[munged_k] = _analyze_form(v, ctx)
 
-            except ValueError:
-                raise AnalyzerException(
+            except ValueError as e:
+                raise ctx.AnalyzerException(
                     "keyword arguments must appear in key/value pairs", form=form
-                ) from ValueError
+                ) from e
             else:
                 kwargs = lmap.map(kw_map)
         else:
@@ -843,8 +868,8 @@ def _with_meta(gen_node: LispAnalyzer[T_form, T_node]) -> LispAnalyzer[T_form, T
 
 
 @functools.singledispatch
-def _analyze_form(form: Union[ReaderForm, ISeq], _: AnalyzerContext):
-    raise AnalyzerException(f"Unexpected form type {type(form)}", form=form)
+def _analyze_form(form: Union[ReaderForm, ISeq], ctx: AnalyzerContext):
+    raise ctx.AnalyzerException(f"Unexpected form type {type(form)}", form=form)  # type: ignore[arg-type]
 
 
 ################
@@ -856,13 +881,13 @@ def _await_ast(form: ISeq, ctx: AnalyzerContext) -> Await:
     assert form.first == SpecialForm.AWAIT
 
     if not ctx.is_async_ctx:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "await forms may not appear in non-async context", form=form
         )
 
     nelems = count(form)
     if nelems != 2:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "await forms must contain 2 elements, as in: (await expr)", form=form
         )
 
@@ -876,6 +901,27 @@ def _await_ast(form: ISeq, ctx: AnalyzerContext) -> Await:
     )
 
 
+def __should_warn_on_redef(
+    current_ns: runtime.Namespace,
+    defsym: sym.Symbol,
+    def_meta: Optional[lmap.PersistentMap],
+) -> bool:
+    """Return True if the compiler should emit a warning about this name being redefined."""
+    if def_meta is not None and def_meta.val_at(SYM_NO_WARN_ON_REDEF_META_KEY, False):
+        return False
+
+    if defsym not in current_ns.interns:
+        return False
+
+    var = current_ns.find(defsym)
+    assert var is not None, f"Var {defsym} cannot be none here"
+
+    if var.meta is not None and var.meta.val_at(SYM_REDEF_META_KEY):
+        return False
+    else:
+        return bool(var.is_bound)
+
+
 def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     form: ISeq, ctx: AnalyzerContext
 ) -> Def:
@@ -883,14 +929,14 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
 
     nelems = count(form)
     if nelems not in (2, 3, 4):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "def forms must have between 2 and 4 elements, as in: (def name docstring? init?)",
             form=form,
         )
 
     name = runtime.nth(form, 1)
     if not isinstance(name, sym.Symbol):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"def names must be symbols, not {type(name)}", form=name
         )
 
@@ -910,7 +956,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
         init_idx = 3
         doc = runtime.nth(form, 2)
         if not isinstance(doc, str):
-            raise AnalyzerException("def docstring must be a string", form=doc)
+            raise ctx.AnalyzerException("def docstring must be a string", form=doc)
         children = vec.v(INIT)
 
     # Cache the current namespace
@@ -927,17 +973,22 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     # is likely to have metadata. In rare cases, we may not be able to get
     # any metadata. This may happen if the form and name were both generated
     # programmatically.
-    def_loc = _loc(form) or _loc(name) or (None, None)
-    if def_loc == (None, None):
+    def_loc = _loc(form) or _loc(name) or (None, None, None, None)
+    if def_loc == (None, None, None, None):
         logger.warning(f"def line and column metadata not provided for Var {name}")
+    if name.meta is None:
+        logger.warning(f"def name symbol has no metadata for Var {name}")
+        name = name.with_meta(lmap.EMPTY)
     def_node_env = ctx.get_node_env(pos=ctx.syntax_position)
     def_meta = _clean_meta(
         name.meta.update(  # type: ignore [union-attr]
             lmap.map(
                 {
                     COL_KW: def_loc[1],
+                    END_COL_KW: def_loc[3],
                     FILE_KW: def_node_env.file,
                     LINE_KW: def_loc[0],
+                    END_LINE_KW: def_loc[2],
                     NAME_KW: name,
                     NS_KW: current_ns,
                 }
@@ -967,6 +1018,13 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
     # Generation fails later if we use the same symbol we received, since
     # its meta may contain values which fail to compile.
     bare_name = sym.symbol(name.name)
+
+    # Warn if this symbol is potentially being redefined (if the Var was
+    # previously bound)
+    if __should_warn_on_redef(current_ns, bare_name, def_meta):
+        logger.warning(
+            f"redefining Var '{bare_name}' in namespace {current_ns}:{def_loc[0]}"
+        )
 
     ns_sym = sym.symbol(current_ns.name)
     var = Var.intern_unbound(
@@ -998,7 +1056,7 @@ def _def_ast(  # pylint: disable=too-many-locals,too-many-statements
             if tag_ast is not None and any(
                 arity.tag is not None for arity in init.arities
             ):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "def'ed Var :tag conflicts with defined function :tag",
                     form=form,
                 )
@@ -1073,7 +1131,7 @@ def __deftype_method_param_bindings(
     param_nodes = []
     for i, s in enumerate(params):
         if not isinstance(s, sym.Symbol):
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} method parameter name must be a symbol", form=s
             )
 
@@ -1100,7 +1158,7 @@ def __deftype_method_param_bindings(
             vargs_sym = params[vargs_idx + 1]
 
             if not isinstance(vargs_sym, sym.Symbol):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     f"{special_form} method rest parameter name must be a symbol",
                     form=vargs_sym,
                 )
@@ -1116,7 +1174,7 @@ def __deftype_method_param_bindings(
             param_nodes.append(binding)
             ctx.put_new_symbol(vargs_sym, binding)
         except IndexError:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "Expected variadic argument name after '&'", form=params
             ) from None
 
@@ -1137,12 +1195,12 @@ def __deftype_classmethod(
         try:
             cls_arg = args[0]
         except IndexError as e:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "deftype* class method must include 'cls' argument", form=args
             ) from e
         else:
             if not isinstance(cls_arg, sym.Symbol):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "deftype* class method 'cls' argument must be a symbol",
                     form=args,
                 )
@@ -1179,7 +1237,7 @@ def __deftype_classmethod(
             class_local=cls_binding,
             env=ctx.get_node_env(),
         )
-        method.visit(_assert_no_recur)
+        method.visit(partial(_assert_no_recur, ctx))
         return method
 
 
@@ -1198,13 +1256,13 @@ def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-lo
         try:
             this_arg = args[0]
         except IndexError as e:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} method must include 'this' or 'self' argument",
                 form=args,
             ) from e
         else:
             if not isinstance(this_arg, sym.Symbol):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     f"{special_form} method 'this' argument must be a symbol", form=args
                 )
             this_binding = Binding(
@@ -1244,7 +1302,7 @@ def __deftype_or_reify_method(  # pylint: disable=too-many-arguments,too-many-lo
                 loop_id=loop_id,
                 env=ctx.get_node_env(),
             )
-            method.visit(_assert_recur_is_tail)
+            method.visit(partial(_assert_recur_is_tail, ctx))
             return method
 
 
@@ -1262,13 +1320,13 @@ def __deftype_or_reify_property(
         try:
             this_arg = args[0]
         except IndexError as e:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} property must include 'this' or 'self' argument",
                 form=args,
             ) from e
         else:
             if not isinstance(this_arg, sym.Symbol):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     f"{special_form} property 'this' argument must be a symbol",
                     form=args,
                 )
@@ -1286,7 +1344,7 @@ def __deftype_or_reify_property(
         )
 
         if len(param_nodes) > 0:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} properties may not specify arguments", form=form
             )
 
@@ -1310,7 +1368,7 @@ def __deftype_or_reify_property(
             ),
             env=ctx.get_node_env(),
         )
-        prop.visit(_assert_no_recur)
+        prop.visit(partial(_assert_no_recur, ctx))
         return prop
 
 
@@ -1348,7 +1406,7 @@ def __deftype_staticmethod(
             ),
             env=ctx.get_node_env(),
         )
-        method.visit(_assert_no_recur)
+        method.visit(partial(_assert_no_recur, ctx))
         return method
 
 
@@ -1371,7 +1429,7 @@ def __deftype_or_reify_prop_or_method_arity(
     assert special_form in {SpecialForm.DEFTYPE, SpecialForm.REIFY}
 
     if not isinstance(form.first, sym.Symbol):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"{special_form} method must be named by symbol: (name [& args] & body)",
             form=form.first,
         )
@@ -1388,13 +1446,13 @@ def __deftype_or_reify_prop_or_method_arity(
     )
 
     if special_form == SpecialForm.REIFY and (is_classmethod or is_staticmethod):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"{special_form} does not support classmethod or staticmethod members",
             form=form,
         )
 
     if sum([is_classmethod, is_property, is_staticmethod]) not in {0, 1}:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"{special_form} member may be only one of: :classmethod, :property, "
             "or :staticmethod",
             form=form,
@@ -1402,13 +1460,13 @@ def __deftype_or_reify_prop_or_method_arity(
 
     args = runtime.nth(form, 1)
     if not isinstance(args, vec.PersistentVector):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"{special_form} member arguments must be vector, not {type(args)}",
             form=args,
         )
 
-    kwarg_meta = __fn_kwargs_support(form.first) or (
-        isinstance(form, IMeta) and __fn_kwargs_support(form)
+    kwarg_meta = __fn_kwargs_support(ctx, form.first) or (
+        isinstance(form, IMeta) and __fn_kwargs_support(ctx, form)
     )
     kwarg_support = None if isinstance(kwarg_meta, bool) else kwarg_meta
 
@@ -1418,7 +1476,7 @@ def __deftype_or_reify_prop_or_method_arity(
         )
     elif is_property:
         if kwarg_support is not None:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} properties may not declare keyword argument support",
                 form=form,
             )
@@ -1450,7 +1508,7 @@ def __deftype_or_reify_method_node_from_arities(
     for arity in arities:
         if arity.is_variadic:
             if num_variadic > 0:
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     f"{special_form} method may have at most 1 variadic arity",
                     form=arity.form,
                 )
@@ -1458,7 +1516,7 @@ def __deftype_or_reify_method_node_from_arities(
             num_variadic += 1
         else:
             if arity.fixed_arity in fixed_arities:
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     f"{special_form} may not have multiple methods with the same "
                     "fixed arity",
                     form=arity.form,
@@ -1468,7 +1526,7 @@ def __deftype_or_reify_method_node_from_arities(
     if fixed_arity_for_variadic is not None and any(
         fixed_arity_for_variadic < arity for arity in fixed_arities
     ):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "variadic arity may not have fewer fixed arity arguments than any other arities",
             form=form,
         )
@@ -1478,7 +1536,7 @@ def __deftype_or_reify_method_node_from_arities(
     ), "arities must have the same name defined"
 
     if len(arities) > 1 and any(arity.kwarg_support is not None for arity in arities):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"multi-arity {special_form} methods may not declare support for "
             "keyword arguments",
             form=form,
@@ -1504,14 +1562,14 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
         return [], []
 
     if not isinstance(form.first, kw.Keyword) or form.first != IMPLEMENTS:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"{special_form} forms must declare which interfaces they implement",
             form=form,
         )
 
     implements = runtime.nth(form, 1)
     if not isinstance(implements, vec.PersistentVector):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"{special_form} interfaces must be declared as "
             ":implements [Interface1 Interface2 ...]",
             form=implements,
@@ -1521,12 +1579,12 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
     interfaces = []
     for iface in implements:
         if not isinstance(iface, sym.Symbol):
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} interfaces must be symbols", form=iface
             )
 
         if iface in interface_names:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} interfaces may only appear once in :implements vector",
                 form=iface,
             )
@@ -1534,7 +1592,7 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
 
         current_interface = _analyze_form(iface, ctx)
         if not isinstance(current_interface, (MaybeClass, MaybeHostForm, VarRef)):
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} interface implementation must be an existing interface",
                 form=iface,
             )
@@ -1550,7 +1608,7 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
     py_members: MutableMapping[str, DefTypePythonMember] = {}
     for elem in runtime.nthrest(form, 2):
         if not isinstance(elem, ISeq):
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} must consist of interface or protocol names and methods",
                 form=elem,
             )
@@ -1561,14 +1619,14 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
             member, (DefTypeClassMethod, DefTypeProperty, DefTypeStaticMethod)
         ):
             if member.name in py_members:
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     f"{special_form} class methods, properties, and static methods "
                     "may only have one arity defined",
                     form=elem,
                     lisp_ast=member,
                 )
             elif member.name in methods:
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     f"{special_form} class method, property, or static method name "
                     "already defined as a method",
                     form=elem,
@@ -1577,7 +1635,7 @@ def __deftype_or_reify_impls(  # pylint: disable=too-many-branches,too-many-loca
             py_members[member.name] = member
         else:
             if member.name in py_members:
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     f"{special_form} method name already defined as a class method, "
                     "property, or static method",
                     form=elem,
@@ -1621,6 +1679,7 @@ def __is_reify_member(mem) -> bool:
 
 
 def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-locals
+    ctx: AnalyzerContext,
     special_form: sym.Symbol,
     fields: Iterable[str],
     interfaces: Iterable[DefTypeBase],
@@ -1675,7 +1734,9 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
                     "and cannot be checked for abstractness; deferring to runtime",
                 )
                 unverifiably_abstract.add(interface)
-                if _is_artificially_abstract(interface.form):
+                if isinstance(interface.form, IMeta) and _is_artificially_abstract(
+                    interface.form
+                ):
                     artificially_abstract.add(interface)
                 continue
 
@@ -1701,7 +1762,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
             interface_method_names = interface_names - interface_property_names
             if not interface_method_names.issubset(member_names):
                 missing_methods = ", ".join(interface_method_names - member_names)
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     f"{special_form} definition missing interface members for "
                     f"interface {interface.form}: {missing_methods}",
                     form=interface.form,
@@ -1709,7 +1770,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
                 )
             elif not interface_property_names.issubset(all_member_names):
                 missing_fields = ", ".join(interface_property_names - field_names)
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     f"{special_form} definition missing interface properties for "
                     f"interface {interface.form}: {missing_fields}",
                     form=interface.form,
@@ -1717,7 +1778,9 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
                 )
 
             all_interface_methods.update(interface_names)
-        elif _is_artificially_abstract(interface.form):
+        elif isinstance(interface.form, IMeta) and _is_artificially_abstract(
+            interface.form
+        ):
             # Given that artificially abstract bases aren't real `abc.ABC`s and do
             # not annotate their `abstractmethod`s, we can't assert right now that
             # any the type will satisfy the artificially abstract base. However,
@@ -1731,7 +1794,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
                 )
             )
         else:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} interface must be Python abstract class or object",
                 form=interface.form,
                 lisp_ast=interface,
@@ -1745,7 +1808,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
             artificially_abstract_base_members
         ):
             extra_method_str = ", ".join(extra_methods)
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"{special_form} definition for interface includes members not "
                 f"part of defined interfaces: {extra_method_str}"
             )
@@ -1763,7 +1826,7 @@ def _deftype_ast(  # pylint: disable=too-many-locals
 
     nelems = count(form)
     if nelems < 3:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "deftype forms must have 3 or more elements, as in: "
             "(deftype* name fields :implements [bases+impls])",
             form=form,
@@ -1771,7 +1834,7 @@ def _deftype_ast(  # pylint: disable=too-many-locals
 
     name = runtime.nth(form, 1)
     if not isinstance(name, sym.Symbol):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"deftype* names must be symbols, not {type(name)}", form=name
         )
     ctx.put_new_symbol(
@@ -1784,7 +1847,7 @@ def _deftype_ast(  # pylint: disable=too-many-locals
 
     fields = runtime.nth(form, 2)
     if not isinstance(fields, vec.PersistentVector):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"deftype* fields must be vector, not {type(fields)}", form=fields
         )
 
@@ -1794,7 +1857,9 @@ def _deftype_ast(  # pylint: disable=too-many-locals
         param_nodes = []
         for field in fields:
             if not isinstance(field, sym.Symbol):
-                raise AnalyzerException("deftype* fields must be symbols", form=field)
+                raise ctx.AnalyzerException(
+                    "deftype* fields must be symbols", form=field
+                )
 
             field_default = (
                 Maybe(field.meta)
@@ -1806,7 +1871,7 @@ def _deftype_ast(  # pylint: disable=too-many-locals
             if not has_defaults and field_default is not __DEFTYPE_DEFAULT_SENTINEL:
                 has_defaults = True
             elif has_defaults and field_default is __DEFTYPE_DEFAULT_SENTINEL:
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "deftype* fields without defaults may not appear after fields "
                     "without defaults",
                     form=field,
@@ -1823,9 +1888,11 @@ def _deftype_ast(  # pylint: disable=too-many-locals
                 is_assignable=is_mutable,
                 env=ctx.get_node_env(),
                 tag=_tag_ast(_tag_meta(field), ctx),
-                init=analyze_form(ctx, field_default)
-                if field_default is not __DEFTYPE_DEFAULT_SENTINEL
-                else None,
+                init=(
+                    analyze_form(ctx, field_default)
+                    if field_default is not __DEFTYPE_DEFAULT_SENTINEL
+                    else None
+                ),
             )
             param_nodes.append(binding)
             ctx.put_new_symbol(field, binding, warn_if_unused=False)
@@ -1837,7 +1904,7 @@ def _deftype_ast(  # pylint: disable=too-many-locals
             verified_abstract,
             artificially_abstract,
         ) = __deftype_and_reify_impls_are_all_abstract(
-            SpecialForm.DEFTYPE, map(lambda f: f.name, fields), interfaces, members
+            ctx, SpecialForm.DEFTYPE, map(lambda f: f.name, fields), interfaces, members
         )
         return DefType(
             form=form,
@@ -1872,7 +1939,7 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
     with ctx.new_symbol_table("fn-method", is_context_boundary=True):
         params = form.first
         if not isinstance(params, vec.PersistentVector):
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "function arity arguments must be a vector", form=params
             )
         return_tag = _tag_ast(_tag_meta(params), ctx)
@@ -1881,7 +1948,7 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
         param_nodes = []
         for i, s in enumerate(params):
             if not isinstance(s, sym.Symbol):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "function arity parameter name must be a symbol", form=s
                 )
 
@@ -1906,7 +1973,7 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
             try:
                 vargs_sym = params[vargs_idx + 1]
                 if not isinstance(vargs_sym, sym.Symbol):
-                    raise AnalyzerException(
+                    raise ctx.AnalyzerException(
                         "function rest parameter name must be a symbol", form=vargs_sym
                     )
 
@@ -1922,7 +1989,7 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
                 param_nodes.append(binding)
                 ctx.put_new_symbol(vargs_sym, binding)
             except IndexError:
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "Expected variadic argument name after '&'", form=params
                 ) from None
 
@@ -1952,11 +2019,11 @@ def __fn_method_ast(  # pylint: disable=too-many-locals
                 # form itself is a sequence with no meaningful metadata.
                 env=ctx.get_node_env(),
             )
-            method.visit(_assert_recur_is_tail)
+            method.visit(partial(_assert_recur_is_tail, ctx))
             return method
 
 
-def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
+def __fn_kwargs_support(ctx: AnalyzerContext, o: IMeta) -> Optional[KeywordArgSupport]:
     if o.meta is None:
         return None
 
@@ -1967,7 +2034,7 @@ def __fn_kwargs_support(o: IMeta) -> Optional[KeywordArgSupport]:
     try:
         return KeywordArgSupport(kwarg_support)
     except ValueError as e:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "fn keyword argument support metadata :kwarg must be one of: #{:apply :collect}",
             form=kwarg_support,
         ) from e
@@ -2001,19 +2068,19 @@ def _inline_fn_ast(
     inline_arity = arities[0]
 
     if num_variadic != 0:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "functions with variadic arity may not be inlined",
             form=form,
         )
 
     if len(arities) != 1:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "multi-arity functions cannot be inlined",
             form=form,
         )
 
     if len(inline_arity.body.statements) > 0:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "cannot generate an inline function for functions with more than one "
             "body expression",
             form=form,
@@ -2051,7 +2118,7 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
         try:
             name = runtime.nth(form, idx)
         except IndexError as e:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
                 form=form,
             ) from e
@@ -2067,9 +2134,9 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
                 _inline_meta(name) or isinstance(form, IMeta) and _inline_meta(form)
             )
             kwarg_support = (
-                __fn_kwargs_support(name)
+                __fn_kwargs_support(ctx, name)
                 or isinstance(form, IMeta)
-                and __fn_kwargs_support(form)
+                and __fn_kwargs_support(ctx, form)
             )
             ctx.put_new_symbol(name, name_node, warn_if_unused=False)
             idx += 1
@@ -2078,9 +2145,9 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
             name_node = None
             is_async = isinstance(form, IMeta) and _is_async(form)
             inline = isinstance(form, IMeta) and _inline_meta(form)
-            kwarg_support = isinstance(form, IMeta) and __fn_kwargs_support(form)
+            kwarg_support = isinstance(form, IMeta) and __fn_kwargs_support(ctx, form)
         else:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
                 form=form,
             )
@@ -2088,7 +2155,7 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
         try:
             arity_or_args = runtime.nth(form, idx)
         except IndexError as e:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "fn form expects either multiple arities or a vector of arguments",
                 form=form,
             ) from e
@@ -2109,7 +2176,7 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
                 )
             )
         else:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "fn form must match: (fn* name? [arg*] body*) or (fn* name? method*)",
                 form=form,
             )
@@ -2118,7 +2185,7 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
         assert nmethods > 0, "fn must have at least one arity"
 
         if kwarg_support is not None and nmethods > 1:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "multi-arity functions may not declare support for keyword arguments",
                 form=form,
             )
@@ -2129,14 +2196,14 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
         for arity in arities:
             if arity.is_variadic:
                 if num_variadic > 0:
-                    raise AnalyzerException(
+                    raise ctx.AnalyzerException(
                         "fn may have at most 1 variadic arity", form=arity.form
                     )
                 fixed_arity_for_variadic = arity.fixed_arity
                 num_variadic += 1
             else:
                 if arity.fixed_arity in fixed_arities:
-                    raise AnalyzerException(
+                    raise ctx.AnalyzerException(
                         "fn may not have multiple methods with the same fixed arity",
                         form=arity.form,
                     )
@@ -2145,7 +2212,7 @@ def _fn_ast(  # pylint: disable=too-many-locals,too-many-statements
         if fixed_arity_for_variadic is not None and any(
             fixed_arity_for_variadic < arity for arity in fixed_arities
         ):
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "variadic arity may not have fewer fixed arity arguments than any other arities",
                 form=form,
             )
@@ -2184,7 +2251,7 @@ def _host_call_ast(form: ISeq, ctx: AnalyzerContext) -> HostCall:
     assert method.name.startswith(".")
 
     if not count(form) >= 2:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "host interop calls must be 2 or more elements long", form=form
         )
 
@@ -2212,18 +2279,18 @@ def _host_prop_ast(form: ISeq, ctx: AnalyzerContext) -> HostField:
         try:
             field = runtime.nth(form, 2)
         except IndexError as e:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "host interop prop must be exactly 3 elems long: (.- target field)",
                 form=form,
             ) from e
         else:
             if not isinstance(field, sym.Symbol):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "host interop field must be a symbol", form=form
                 )
 
         if not nelems == 3:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "host interop prop must be exactly 3 elems long: (.- target field)",
                 form=form,
             )
@@ -2237,7 +2304,7 @@ def _host_prop_ast(form: ISeq, ctx: AnalyzerContext) -> HostField:
         )
     else:
         if not nelems == 2:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "host interop prop must be exactly 2 elements long: (.-field target)",
                 form=form,
             )
@@ -2264,7 +2331,7 @@ def _host_interop_ast(form: ISeq, ctx: AnalyzerContext) -> Union[HostCall, HostF
         # more specific.
         if maybe_m_or_f.name.startswith("-"):
             if nelems != 3:
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "host field accesses must be exactly 3 elements long", form=form
                 )
 
@@ -2289,7 +2356,9 @@ def _host_interop_ast(form: ISeq, ctx: AnalyzerContext) -> Union[HostCall, HostF
         # Likewise, I emit :host-call for forms like (. target (method arg1 ...)).
         method = maybe_m_or_f.first
         if not isinstance(method, sym.Symbol):
-            raise AnalyzerException("host call method must be a symbol", form=method)
+            raise ctx.AnalyzerException(
+                "host call method must be a symbol", form=method
+            )
 
         args, kwargs = _call_args_ast(maybe_m_or_f.rest, ctx)
         return HostCall(
@@ -2301,7 +2370,7 @@ def _host_interop_ast(form: ISeq, ctx: AnalyzerContext) -> Union[HostCall, HostF
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
     else:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "host interop forms must take the form: "
             "(. instance (method args*)), "
             "(. instance method args*), "
@@ -2315,7 +2384,7 @@ def _if_ast(form: ISeq, ctx: AnalyzerContext) -> If:
 
     nelems = count(form)
     if nelems not in (3, 4):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "if forms must have either 3 or 4 elements, as in: (if test then else?)",
             form=form,
         )
@@ -2361,17 +2430,23 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
             )
         elif isinstance(f, vec.PersistentVector):
             if len(f) != 3:
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "import alias must take the form: [module :as alias]", form=f
                 )
-            module_name = f.val_at(0)
+            module_name = f.val_at(0)  # type: ignore[assignment]
             if not isinstance(module_name, sym.Symbol):
-                raise AnalyzerException("Python module name must be a symbol", form=f)
+                raise ctx.AnalyzerException(
+                    "Python module name must be a symbol", form=f
+                )
             if not AS == f.val_at(1):
-                raise AnalyzerException("expected :as alias for Python import", form=f)
+                raise ctx.AnalyzerException(
+                    "expected :as alias for Python import", form=f
+                )
             module_alias_sym = f.val_at(2)
             if not isinstance(module_alias_sym, sym.Symbol):
-                raise AnalyzerException("Python module alias must be a symbol", form=f)
+                raise ctx.AnalyzerException(
+                    "Python module alias must be a symbol", form=f
+                )
             module_alias = module_alias_sym.name
 
             ctx.put_new_symbol(
@@ -2385,7 +2460,7 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
                 symbol_table=ctx.symbol_table.context_boundary,
             )
         else:
-            raise AnalyzerException("symbol or vector expected for import*", form=f)
+            raise ctx.AnalyzerException("symbol or vector expected for import*", form=f)
 
         aliases.append(
             ImportAlias(
@@ -2420,11 +2495,45 @@ def __handle_macroexpanded_ast(
     # Verify that macroexpanded code also does not have any non-tail
     # recur forms
     if ctx.recur_point is not None:
-        _assert_recur_is_tail(expanded_ast)
+        _assert_recur_is_tail(ctx, expanded_ast)
 
     return expanded_ast.assoc(
         raw_forms=cast(vec.PersistentVector, expanded_ast.raw_forms).cons(original)
     )
+
+
+def _do_warn_on_arity_mismatch(
+    fn: VarRef, form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext
+) -> None:
+    if ctx.warn_on_arity_mismatch and getattr(fn.var.value, "_basilisp_fn", False):
+        arities: Optional[Tuple[Union[int, kw.Keyword]]] = getattr(
+            fn.var.value, "arities", None
+        )
+        if arities is not None:
+            has_variadic = REST_KW in arities
+            fixed_arities = set(filter(lambda v: v != REST_KW, arities))
+            max_fixed_arity = max(fixed_arities) if fixed_arities else None
+            # This count could be off by 1 for cases where kwargs are being passed,
+            # but only Basilisp functions intended to be called by Python code
+            # (e.g. with a :kwargs strategy) should ever be called with kwargs,
+            # so this seems unlikely enough.
+            num_args = runtime.count(form.rest)
+            if has_variadic and (max_fixed_arity is None or num_args > max_fixed_arity):
+                return
+            if num_args not in fixed_arities:
+                report_arities = cast(Set[Union[int, str]], set(fixed_arities))
+                if has_variadic:
+                    report_arities.discard(cast(int, max_fixed_arity))
+                    report_arities.add(f"{max_fixed_arity}+")
+                loc = (
+                    f" ({fn.env.file}:{fn.env.line})"
+                    if fn.env.line is not None
+                    else f" ({fn.env.file})"
+                )
+                logger.warning(
+                    f"calling function {fn.var}{loc} with {num_args} arguments; "
+                    f"expected any of: {', '.join(sorted(map(str, report_arities)))}",
+                )
 
 
 def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -> Node:
@@ -2438,8 +2547,15 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                 expanded = fn.var.value(macro_env, form, *form.rest)
                 return __handle_macroexpanded_ast(form, expanded, ctx)
             except Exception as e:
+                if isinstance(e, CompilerException) and (  # pylint: disable=no-member
+                    e.phase == CompilerPhase.MACROEXPANSION
+                ):
+                    # Do not chain macroexpansion exceptions since they don't
+                    # actually add anything of value over the cause exception
+                    raise
                 raise CompilerException(
                     "error occurred during macroexpansion",
+                    filename=ctx.filename,
                     form=form,
                     phase=CompilerPhase.MACROEXPANSION,
                 ) from e
@@ -2457,9 +2573,12 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
             except Exception as e:
                 raise CompilerException(
                     "error occurred during inlining",
+                    filename=ctx.filename,
                     form=form,
                     phase=CompilerPhase.INLINING,
                 ) from e
+
+        _do_warn_on_arity_mismatch(fn, form, ctx)
 
     args, kwargs = _call_args_ast(form.rest, ctx)
     return Invoke(
@@ -2476,15 +2595,15 @@ def _let_ast(form: ISeq, ctx: AnalyzerContext) -> Let:
     nelems = count(form)
 
     if nelems < 2:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "let forms must have bindings vector and 0 or more body forms", form=form
         )
 
     bindings = runtime.nth(form, 1)
     if not isinstance(bindings, vec.PersistentVector):
-        raise AnalyzerException("let bindings must be a vector", form=bindings)
+        raise ctx.AnalyzerException("let bindings must be a vector", form=bindings)
     elif len(bindings) % 2 != 0:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "let bindings must appear in name-value pairs", form=bindings
         )
 
@@ -2492,7 +2611,9 @@ def _let_ast(form: ISeq, ctx: AnalyzerContext) -> Let:
         binding_nodes = []
         for name, value in partition(bindings, 2):
             if not isinstance(name, sym.Symbol):
-                raise AnalyzerException("let binding name must be a symbol", form=name)
+                raise ctx.AnalyzerException(
+                    "let binding name must be a symbol", form=name
+                )
 
             binding = Binding(
                 form=name,
@@ -2541,7 +2662,9 @@ def __letfn_fn_body(form: ISeq, ctx: AnalyzerContext) -> Fn:
 
     fn_name = runtime.nth(form, 1)
     if not isinstance(fn_name, sym.Symbol):
-        raise AnalyzerException("letfn function name must be a symbol", form=fn_name)
+        raise ctx.AnalyzerException(
+            "letfn function name must be a symbol", form=fn_name
+        )
 
     fn_rest = runtime.nthrest(form, 2)
 
@@ -2557,7 +2680,7 @@ def __letfn_fn_body(form: ISeq, ctx: AnalyzerContext) -> Fn:
     )
 
     if not isinstance(fn_body, Fn):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "letfn bindings must be functions", form=form, lisp_ast=fn_body
         )
 
@@ -2571,15 +2694,15 @@ def _letfn_ast(  # pylint: disable=too-many-locals
     nelems = count(form)
 
     if nelems < 2:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "letfn forms must have bindings vector and 0 or more body forms", form=form
         )
 
     bindings = runtime.nth(form, 1)
     if not isinstance(bindings, vec.PersistentVector):
-        raise AnalyzerException("letfn bindings must be a vector", form=bindings)
+        raise ctx.AnalyzerException("letfn bindings must be a vector", form=bindings)
     elif len(bindings) % 2 != 0:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "letfn bindings must appear in name-value pairs", form=bindings
         )
 
@@ -2590,12 +2713,12 @@ def _letfn_ast(  # pylint: disable=too-many-locals
         empty_binding_nodes = []
         for name, value in partition(bindings, 2):
             if not isinstance(name, sym.Symbol):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "letfn binding name must be a symbol", form=name
                 )
 
             if not isinstance(value, llist.PersistentList):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "letfn binding value must be a list", form=value
                 )
 
@@ -2648,15 +2771,15 @@ def _loop_ast(form: ISeq, ctx: AnalyzerContext) -> Loop:
     nelems = count(form)
 
     if nelems < 2:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "loop forms must have bindings vector and 0 or more body forms", form=form
         )
 
     bindings = runtime.nth(form, 1)
     if not isinstance(bindings, vec.PersistentVector):
-        raise AnalyzerException("loop bindings must be a vector", form=bindings)
+        raise ctx.AnalyzerException("loop bindings must be a vector", form=bindings)
     elif len(bindings) % 2 != 0:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "loop bindings must appear in name-value pairs", form=bindings
         )
 
@@ -2665,7 +2788,9 @@ def _loop_ast(form: ISeq, ctx: AnalyzerContext) -> Loop:
         binding_nodes = []
         for name, value in partition(bindings, 2):
             if not isinstance(name, sym.Symbol):
-                raise AnalyzerException("loop binding name must be a symbol", form=name)
+                raise ctx.AnalyzerException(
+                    "loop binding name must be a symbol", form=name
+                )
 
             binding = Binding(
                 form=name,
@@ -2693,7 +2818,7 @@ def _loop_ast(form: ISeq, ctx: AnalyzerContext) -> Loop:
                 loop_id=loop_id,
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             )
-            loop_node.visit(_assert_recur_is_tail)
+            loop_node.visit(partial(_assert_recur_is_tail, ctx))
             return loop_node
 
 
@@ -2702,7 +2827,7 @@ def _quote_ast(form: ISeq, ctx: AnalyzerContext) -> Quote:
     nelems = count(form)
 
     if nelems != 2:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "quote forms must have exactly two elements: (quote form)", form=form
         )
 
@@ -2718,20 +2843,20 @@ def _quote_ast(form: ISeq, ctx: AnalyzerContext) -> Quote:
         )
 
 
-def _assert_no_recur(node: Node) -> None:
+def _assert_no_recur(ctx: AnalyzerContext, node: Node) -> None:
     """Assert that `recur` forms do not appear in any position of this or
     child AST nodes."""
     if node.op == NodeOp.RECUR:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "recur must appear in tail position", form=node.form, lisp_ast=node
         )
     elif node.op in {NodeOp.FN, NodeOp.LOOP}:
         pass
     else:
-        node.visit(_assert_no_recur)
+        node.visit(partial(_assert_no_recur, ctx))
 
 
-def _assert_recur_is_tail(node: Node) -> None:
+def _assert_recur_is_tail(ctx: AnalyzerContext, node: Node) -> None:
     """Assert that `recur` forms only appear in the tail position of this
     or child AST nodes.
 
@@ -2740,8 +2865,8 @@ def _assert_recur_is_tail(node: Node) -> None:
     if node.op == NodeOp.DO:
         assert isinstance(node, Do)
         for child in node.statements:
-            _assert_no_recur(child)
-        _assert_recur_is_tail(node.ret)
+            _assert_no_recur(ctx, child)
+        _assert_recur_is_tail(ctx, node.ret)
     elif node.op in {
         NodeOp.FN,
         NodeOp.FN_ARITY,
@@ -2749,57 +2874,60 @@ def _assert_recur_is_tail(node: Node) -> None:
         NodeOp.DEFTYPE_METHOD_ARITY,
     }:
         assert isinstance(node, (Fn, FnArity, DefTypeMethod, DefTypeMethodArity))
-        node.visit(_assert_recur_is_tail)
+        node.visit(partial(_assert_recur_is_tail, ctx))
     elif node.op == NodeOp.IF:
         assert isinstance(node, If)
-        _assert_no_recur(node.test)
-        _assert_recur_is_tail(node.then)
-        _assert_recur_is_tail(node.else_)
+        _assert_no_recur(ctx, node.test)
+        _assert_recur_is_tail(ctx, node.then)
+        _assert_recur_is_tail(ctx, node.else_)
     elif node.op in {NodeOp.LET, NodeOp.LETFN}:
         assert isinstance(node, (Let, LetFn))
         for binding in node.bindings:
             assert binding.init is not None
-            _assert_no_recur(binding.init)
-        _assert_recur_is_tail(node.body)
+            _assert_no_recur(ctx, binding.init)
+        _assert_recur_is_tail(ctx, node.body)
     elif node.op == NodeOp.LOOP:
         assert isinstance(node, Loop)
         for binding in node.bindings:
             assert binding.init is not None
-            _assert_no_recur(binding.init)
+            _assert_no_recur(ctx, binding.init)
     elif node.op == NodeOp.RECUR:
         pass
     elif node.op == NodeOp.REIFY:
         assert isinstance(node, Reify)
         for child in node.members:
-            _assert_recur_is_tail(child)
+            _assert_recur_is_tail(ctx, child)
     elif node.op == NodeOp.TRY:
         assert isinstance(node, Try)
-        _assert_recur_is_tail(node.body)
+        _assert_recur_is_tail(ctx, node.body)
         for catch in node.catches:
-            _assert_recur_is_tail(catch)
+            _assert_recur_is_tail(ctx, catch)
         if node.finally_:
-            _assert_no_recur(node.finally_)
+            _assert_no_recur(ctx, node.finally_)
     else:
-        node.visit(_assert_no_recur)
+        node.visit(partial(_assert_no_recur, ctx))
 
 
 def _recur_ast(form: ISeq, ctx: AnalyzerContext) -> Recur:
     assert form.first == SpecialForm.RECUR
 
     if ctx.recur_point is None:
-        raise AnalyzerException("no recur point defined for recur", form=form)
+        if ctx.should_allow_unresolved_symbols:
+            loop_id = genname("macroexpand-recur")
+        else:
+            raise ctx.AnalyzerException("no recur point defined for recur", form=form)
+    else:
+        if len(ctx.recur_point.args) != count(form.rest):
+            raise ctx.AnalyzerException(
+                "recur arity does not match last recur point arity", form=form
+            )
 
-    if len(ctx.recur_point.args) != count(form.rest):
-        raise AnalyzerException(
-            "recur arity does not match last recur point arity", form=form
-        )
+        loop_id = ctx.recur_point.loop_id
 
     with ctx.expr_pos():
         exprs = vec.vector(map(lambda form: _analyze_form(form, ctx), form.rest))
 
-    return Recur(
-        form=form, exprs=exprs, loop_id=ctx.recur_point.loop_id, env=ctx.get_node_env()
-    )
+    return Recur(form=form, exprs=exprs, loop_id=loop_id, env=ctx.get_node_env())
 
 
 @_with_meta
@@ -2808,7 +2936,7 @@ def _reify_ast(form: ISeq, ctx: AnalyzerContext) -> Reify:
 
     nelems = count(form)
     if nelems < 3:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "reify forms must have 3 or more elements, as in: "
             "(reify* :implements [bases+impls])",
             form=form,
@@ -2822,7 +2950,7 @@ def _reify_ast(form: ISeq, ctx: AnalyzerContext) -> Reify:
             verified_abstract,
             artificially_abstract,
         ) = __deftype_and_reify_impls_are_all_abstract(
-            SpecialForm.REIFY, (), interfaces, members
+            ctx, SpecialForm.REIFY, (), interfaces, members
         )
         return Reify(
             form=form,
@@ -2844,24 +2972,28 @@ def _require_ast(form: ISeq, ctx: AnalyzerContext) -> Require:
             module_alias = None
         elif isinstance(f, vec.PersistentVector):
             if len(f) != 3:
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "require alias must take the form: [namespace :as alias]", form=f
                 )
-            module_name = f.val_at(0)
+            module_name = f.val_at(0)  # type: ignore[assignment]
             if not isinstance(module_name, sym.Symbol):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "Basilisp namespace name must be a symbol", form=f
                 )
             if not AS == f.val_at(1):
-                raise AnalyzerException("expected :as alias for Basilisp alias", form=f)
+                raise ctx.AnalyzerException(
+                    "expected :as alias for Basilisp alias", form=f
+                )
             module_alias_sym = f.val_at(2)
             if not isinstance(module_alias_sym, sym.Symbol):
-                raise AnalyzerException(
+                raise ctx.AnalyzerException(
                     "Basilisp namespace alias must be a symbol", form=f
                 )
             module_alias = module_alias_sym.name
         else:
-            raise AnalyzerException("symbol or vector expected for require*", form=f)
+            raise ctx.AnalyzerException(
+                "symbol or vector expected for require*", form=f
+            )
 
         aliases.append(
             RequireAlias(
@@ -2884,7 +3016,7 @@ def _set_bang_ast(form: ISeq, ctx: AnalyzerContext) -> SetBang:
     nelems = count(form)
 
     if nelems != 3:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "set! forms must contain exactly 3 elements: (set! target value)", form=form
         )
 
@@ -2892,13 +3024,15 @@ def _set_bang_ast(form: ISeq, ctx: AnalyzerContext) -> SetBang:
         target = _analyze_form(runtime.nth(form, 1), ctx)
 
     if not isinstance(target, Assignable):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             f"cannot set! targets of type {type(target)}", form=target
         )
 
     if not target.is_assignable:
-        raise AnalyzerException(
-            "cannot set! target which is not assignable", form=target
+        raise ctx.AnalyzerException(
+            "cannot set! target which is not assignable",
+            form=form,
+            lisp_ast=cast(Node, target),
         )
 
     # Vars may only be set if they are (1) dynamic, and (2) already have a thread
@@ -2930,11 +3064,27 @@ def _set_bang_ast(form: ISeq, ctx: AnalyzerContext) -> SetBang:
 
 def _throw_ast(form: ISeq, ctx: AnalyzerContext) -> Throw:
     assert form.first == SpecialForm.THROW
+    nelems = count(form)
+
+    if nelems < 2 or nelems > 3:
+        raise ctx.AnalyzerException(
+            "throw forms must contain exactly 2 or 3 elements: (throw exc [cause])",
+            form=form,
+        )
+
     with ctx.expr_pos():
         exc = _analyze_form(runtime.nth(form, 1), ctx)
+
+    if nelems == 3:
+        with ctx.expr_pos():
+            cause = _analyze_form(runtime.nth(form, 2), ctx)
+    else:
+        cause = None
+
     return Throw(
         form=form,
         exception=exc,
+        cause=cause,
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -2944,20 +3094,20 @@ def _catch_ast(form: ISeq, ctx: AnalyzerContext) -> Catch:
     nelems = count(form)
 
     if nelems < 4:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "catch forms must contain at least 4 elements: (catch class local body*)",
             form=form,
         )
 
     catch_cls = _analyze_form(runtime.nth(form, 1), ctx)
     if not isinstance(catch_cls, (MaybeClass, MaybeHostForm)):
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "catch forms must name a class type to catch", form=catch_cls
         )
 
     local_name = runtime.nth(form, 2)
     if not isinstance(local_name, sym.Symbol):
-        raise AnalyzerException("catch local must be a symbol", form=local_name)
+        raise ctx.AnalyzerException("catch local must be a symbol", form=local_name)
 
     with ctx.new_symbol_table("catch"):
         catch_binding = Binding(
@@ -2995,7 +3145,7 @@ def _try_ast(form: ISeq, ctx: AnalyzerContext) -> Try:
         if isinstance(expr, (llist.PersistentList, ISeq)):
             if expr.first == SpecialForm.CATCH:
                 if finally_:
-                    raise AnalyzerException(
+                    raise ctx.AnalyzerException(
                         "catch forms may not appear after finally forms in a try",
                         form=expr,
                     )
@@ -3003,7 +3153,7 @@ def _try_ast(form: ISeq, ctx: AnalyzerContext) -> Try:
                 continue
             elif expr.first == SpecialForm.FINALLY:
                 if finally_ is not None:
-                    raise AnalyzerException(
+                    raise ctx.AnalyzerException(
                         "try forms may not contain multiple finally forms", form=expr
                     )
                 # Finally values are never returned
@@ -3025,11 +3175,11 @@ def _try_ast(form: ISeq, ctx: AnalyzerContext) -> Try:
         lisp_node = _analyze_form(expr, ctx)
 
         if catches:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "try body expressions may not appear after catch forms", form=expr
             )
         if finally_:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 "try body expressions may not appear after finally forms", form=expr
             )
 
@@ -3051,9 +3201,11 @@ def _try_ast(form: ISeq, ctx: AnalyzerContext) -> Try:
         ),
         catches=vec.vector(catches),
         finally_=finally_,
-        children=vec.v(BODY, CATCHES, FINALLY)
-        if finally_ is not None
-        else vec.v(BODY, CATCHES),
+        children=(
+            vec.v(BODY, CATCHES, FINALLY)
+            if finally_ is not None
+            else vec.v(BODY, CATCHES)
+        ),
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 
@@ -3063,13 +3215,13 @@ def _var_ast(form: ISeq, ctx: AnalyzerContext) -> VarRef:
 
     nelems = count(form)
     if nelems != 2:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "var special forms must contain 2 elements: (var sym)", form=form
         )
 
     var_sym = runtime.nth(form, 1)
     if not isinstance(var_sym, sym.Symbol):
-        raise AnalyzerException("vars may only be resolved for symbols", form=form)
+        raise ctx.AnalyzerException("vars may only be resolved for symbols", form=form)
 
     if var_sym.ns is None:
         var = runtime.resolve_var(sym.symbol(var_sym.name, ctx.current_ns.name))
@@ -3077,10 +3229,10 @@ def _var_ast(form: ISeq, ctx: AnalyzerContext) -> VarRef:
         var = runtime.resolve_var(var_sym)
 
     if var is None:
-        raise AnalyzerException(f"cannot resolve var {var_sym}", form=form)
+        raise ctx.AnalyzerException(f"cannot resolve var {var_sym}", form=form)
 
     return VarRef(
-        form=var_sym,
+        form=form,
         var=var,
         return_var=True,
         env=ctx.get_node_env(pos=ctx.syntax_position),
@@ -3091,13 +3243,13 @@ def _yield_ast(form: ISeq, ctx: AnalyzerContext) -> Yield:
     assert form.first == SpecialForm.YIELD
 
     if ctx.func_ctx is None:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "yield forms may not appear in function context", form=form
         )
 
     nelems = count(form)
     if nelems not in {1, 2}:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "yield forms must contain 1 or 2 elements, as in: (yield [expr])", form=form
         )
 
@@ -3230,7 +3382,7 @@ def __resolve_namespaced_symbol_in_ns(
         # Then allow builtins
         safe_name = munge(form.name, allow_builtins=True)
         if safe_name not in vars(ns_module):
-            raise AnalyzerException("can't identify aliased form", form=form)
+            raise ctx.AnalyzerException("can't identify aliased form", form=form)
 
         # Aliased imports generate code which uses the import alias, so we
         # don't need to care if this is an import or an alias.
@@ -3245,12 +3397,12 @@ def __resolve_namespaced_symbol_in_ns(
         aliased_ns: runtime.Namespace = which_ns.aliases[ns_sym]
         v = Var.find_in_ns(aliased_ns, sym.symbol(form.name))
         if v is None:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"unable to resolve symbol '{sym.symbol(form.name, ns_sym.name)}' in this context",
                 form=form,
             )
         elif v.meta is not None and v.meta.val_at(SYM_PRIVATE_META_KEY, False):
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"cannot resolve private Var {form.name} from namespace {form.ns}",
                 form=form,
             )
@@ -3282,7 +3434,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
         class_ = munge(form.name, allow_builtins=True)
         target = getattr(builtins, class_, None)
         if target is None:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"cannot resolve builtin function '{class_}'", form=form
             )
         return MaybeClass(
@@ -3296,14 +3448,14 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
     if v is not None:
         # Disallow global references to Vars defined with :private metadata
         if v.meta is not None and v.meta.val_at(SYM_PRIVATE_META_KEY, False):
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"cannot resolve private Var {form.name} from namespace {form.ns}",
                 form=form,
             )
         return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position))
 
     if "." in form.name and form.name != _DOUBLE_DOT_MACRO_NAME:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "symbol names may not contain the '.' operator", form=form
         )
 
@@ -3315,7 +3467,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
         try:
             return _resolve_nested_symbol(ctx, form)
         except CompilerException:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"unable to resolve symbol '{form}' in this context", form=form
             ) from None
     elif ctx.should_allow_unresolved_symbols:
@@ -3350,7 +3502,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
         member = getattr(maybe_type_or_class.value, safe_name, None)
 
         if member is None:
-            raise AnalyzerException(
+            raise ctx.AnalyzerException(
                 f"unable to resolve static or class member '{form}' in this context",
                 form=form,
             )
@@ -3367,7 +3519,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
-    raise AnalyzerException(
+    raise ctx.AnalyzerException(
         f"unable to resolve symbol '{form}' in this context", form=form
     )
 
@@ -3390,7 +3542,7 @@ def __resolve_bare_symbol(
         )
 
     if "." in form.name:
-        raise AnalyzerException(
+        raise ctx.AnalyzerException(
             "symbol names may not contain the '.' operator", form=form
         )
 
@@ -3417,7 +3569,7 @@ def __resolve_bare_symbol(
         return _const_node(form, ctx)
 
     assert munged not in vars(current_ns.module)
-    raise AnalyzerException(
+    raise ctx.AnalyzerException(
         f"unable to resolve symbol '{form}' in this context", form=form
     )
 

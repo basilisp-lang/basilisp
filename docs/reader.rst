@@ -11,15 +11,18 @@ The Basilisp reader performs a job which is a combination of the traditional lex
 The reader takes a file or string and produces a stream of Basilisp data structures.
 Typically the reader streams its results to the compiler, but end-users may also take advantage of the reader directly from within Basilisp.
 
-.. contents:: Reader Literals
-   :depth: 2
-
-.. _numeric_literals:
+.. _reader_numeric_literals:
 
 Numeric Literals
 ----------------
 
 The Basilisp reader reads a wide range of numeric literals.
+
+.. seealso::
+
+   :ref:`numbers`
+
+.. _reader_integer_numbers:
 
 Integers
 ^^^^^^^^
@@ -35,10 +38,21 @@ Integers
     basilisp.user=> (python/type 1N)
     <class 'int'>
 
-Integers are represented using numeric ``0-9`` and may be prefixed with any number of negative signs ``-``.
-The resulting integer will have the correct sign after resolving all of the supplied ``-`` signs.
+Integers are represented using numeric ``0-9`` and may be prefixed with a single negative sign ``-``.
 For interoperability support with Clojure, Basilisp integers may also be declared with the ``N`` suffix, like ``1N``.
 In Clojure, this syntax signals a ``BigInteger``, but Python's default ``int`` type supports arbitrary precision by default so there is no difference between ``1`` and ``1N`` in Basilisp.
+
+Integer literals may be specified in arbitrary bases between 2 and 36 by using the syntax ``[base]r[value]``.
+For example, in base 2 ``2r1001``, base 12 ``12r918a32``, and base 36 ``36r81jdk3kdp``.
+Arbitrary base literals do not distinguish between upper and lower case characters, so ``p`` and ``P`` are the same for bases which support ``P`` as a digit.
+Arbitrary base literals do not support the ``N`` suffix because ``N`` is a valid digit for some bases.
+
+For common bases such as octal and hex, there is a custom syntax.
+Octal literals can be specified with a ``0`` prefix; for example, the octal literal ``0777`` corresponds to the base 10 integer 511.
+Hex literals can be specified with a ``0x`` prefix; for example, the hex literal ``0xFACE`` corresponds to the base 10 integer 64206.
+Both octal and hex literals support the ``N`` suffix and it is treated the same as with base 10 integers.
+
+.. _reader_floating_point_numbers:
 
 Floating Point
 ^^^^^^^^^^^^^^
@@ -55,10 +69,29 @@ Floating Point
    <class 'decimal.Decimal'>
 
 Floating point values are represented using ``0-9`` and a trailing decimal value, separated by a ``.`` character.
-Like integers, floating point values may be prefixed with an arbitrary number of negative signs ``-`` and the final read value will have the correct sign after resolving the negations.
+Like integers, floating point values may be prefixed with a single negative sign ``-``.
 By default floating point values are represented by Python's ``float`` type, which does **not** support arbitrary precision by default.
 Like in Clojure, floating point literals may be specified with a single ``M`` suffix to specify an arbitrary-precision floating point value.
-In Basilisp, a floating point number declared with a trailing ``M`` will return Python's `Decimal <https://docs.python.org/3/library/decimal.html>`_ type, which supports arbitrary floating point arithmetic.
+In Basilisp, a floating point number declared with a trailing ``M`` will return Python's :external:py:class:`decimal.Decimal` type, which supports user specified precision.
+
+.. _reader_scientific_notation:
+
+Scientific Notation
+^^^^^^^^^^^^^^^^^^^
+
+::
+
+   basilisp.user=> 2e6
+   2000000
+   basilisp.user=> 3.14e-1
+   0.31400000000000006
+
+Basilisp supports scientific notation using the ``e`` syntax common to many programming languages.
+The significand (the number to the left of the ``e`` ) may be an integer or floating point and may be prefixed with a single negative sign ``-``.
+The exponent (the number to the right of the ``e`` ) must be an integer and may be prefixed with a single negative sign ``-``.
+The resulting value will be either an integer or float depending on the type of the significand.
+
+.. _reader_complex_numbers:
 
 Complex
 ^^^^^^^
@@ -76,9 +109,26 @@ Complex
 
 Basilisp includes support for complex literals to match the Python VM hosts it.
 Complex literals may be specified as integer or floating point values with a ``J`` suffix.
-Like integers and floats, complex values may be prefixed with an arbitrary number of negative signs ``-`` and the final read value will have the correct sign after resolving the negations.
+Like integers and floats, complex values may be prefixed with a single negative sign ``-``.
 
-.. _strings:
+.. _reader_ratios:
+
+Ratios
+^^^^^^
+
+::
+
+   basilisp.user=> 22/7
+   22/7
+   basilisp.user=> -3/8
+   -3/8
+
+Basilisp includes support for ratios.
+Ratios are represented as the division of 2 integers which cannot be reduced to an integer.
+As with integers and floats, the numerator of a ratio may be prefixed with a single negative sign ``-`` -- a negative sign may not appear in the denominator.
+In Basilisp, ratios are backed by Python's :external:py:class:`fractions.Fraction` type, which is highly interoperable with other Python numeric types.
+
+.. _reader_strings:
 
 Strings
 -------
@@ -101,6 +151,11 @@ String literals are always read with the UTF-8 encoding.
 String literals may contain the following escape sequences: ``\\``, ``\a``, ``\b``, ``\f``, ``\n``, ``\r``, ``\t``, ``\v``.
 Their meanings match the equivalent escape sequences supported in `Python string literals <https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`_\.
 
+.. seealso::
+
+   :ref:`strings_and_byte_strings`
+
+.. _reader_byte_strings:
 
 Byte Strings
 ------------
@@ -123,13 +178,15 @@ Byte string literals may contain the following escape sequences: ``\\``, ``\a``,
 Byte strings may also characters using a hex escape code as ``\xhh`` where ``hh`` is a hexadecimal value.
 Their meanings match the equivalent escape sequences supported in `Python byte string literals <https://docs.python.org/3/reference/lexical_analysis.html#string-and-bytes-literals>`_\.
 
-
 .. warning::
 
    As in Python, byte string literals may not include any characters outside of the ASCII range.
 
+.. seealso::
 
-.. _character_literals:
+   :ref:`strings_and_byte_strings`
+
+.. _reader_character_literals:
 
 Character Literals
 ------------------
@@ -153,7 +210,7 @@ Unicode code points may be specified as ``\uXXXX`` where ``XXXX`` corresponds to
 
 Otherwise, characters may be specified as ``\a``, which will simply yield the character as a string.
 
-.. _boolean_values:
+.. _reader_boolean_values:
 
 Boolean Values
 --------------
@@ -171,7 +228,11 @@ Boolean Values
 
 The special values ``true`` and ``false`` correspond to Python's ``True`` and ``False`` respectively.
 
-.. _nil:
+.. seealso::
+
+   :ref:`boolean_values`
+
+.. _reader_nil:
 
 nil
 ---
@@ -183,9 +244,13 @@ nil
     basilisp.user=> (python/type nil)
     <class 'NoneType'>
 
-The special value ``nil`` correspond's to Python's ``None``.
+The special value ``nil`` corresponds to Python's ``None``.
 
-.. _whitespace:
+.. seealso::
+
+   :ref:`nil`
+
+.. _reader_whitespace:
 
 Whitespace
 ----------
@@ -194,7 +259,7 @@ Characters typically considered as whitespace are also considered whitespace by 
 Additionally, the ``,`` character is considered whitespace and will be ignored.
 This allows users to optionally comma-separate collection-literal elements and key-value pairs in map literals.
 
-.. _symbols:
+.. _reader_symbols:
 
 Symbols
 -------
@@ -211,7 +276,11 @@ Symbols may optionally include a namespace, which is delineated from the *name* 
 
 Symbols may be represented with most word characters and some punctuation marks which are typically reserved in other languages, such as: ``-``, ``+``, ``*``, ``?``, ``=``, ``!``, ``&``, ``%``, ``>``, and ``<``.
 
-.. _keywords:
+.. seealso::
+
+   :ref:`symbols`
+
+.. _reader_keywords:
 
 Keywords
 --------
@@ -227,11 +296,15 @@ Keywords are denoted by the ``:`` prefix character.
 Keywords can be viewed as a mix between :ref:`strings` and :ref:`symbols` in that they are often used as symbolic identifiers, but more typically for data rather than for code.
 Like Symbols, keywords can contain an optional namespace, also delineated from the *name* of the keyword by a ``/`` character.
 
-Keywords may be represented with most word characters and some punctuation marks which are typically reserved in other languages, such as: ``-``, ``+``, ``*``, ``?``, ``=``, ``!``, ``&``, ``%``, ``>``, and ``<``.
+Keywords may be represented with most word characters and some punctuation marks which are typically reserved in other languages, such as: ``.``, ``-``, ``+``, ``*``, ``?``, ``=``, ``!``, ``&``, ``%``, ``>``, and ``<``.
 
-Keyword values are interned and keywords are compared by identity, not by value.
+Keywords prefixed with a double colon ``::`` are will have their namespace automatically resolved to the current namespace or, if an alias is specified, to the full name associated with the given alias in the current namespace.
 
-.. _lists:
+.. seealso::
+
+   :ref:`keywords`
+
+.. _reader_lists:
 
 Lists
 -----
@@ -248,7 +321,11 @@ Lists may contain 0 or more other heterogeneous elements.
 Basilisp lists are classical Lisp singly-linked lists.
 Non-empty list literals are not required to be prefixed by the quote ``'`` character for the reader, but they are shown quoted since the REPL also compiles the expression.
 
-.. _vectors:
+.. seealso::
+
+   :ref:`lists`
+
+.. _reader_vectors:
 
 Vectors
 -------
@@ -264,7 +341,11 @@ Vectors are denoted with the ``[]`` characters.
 Vectors may contain 0 or more other heterogeneous elements.
 Basilisp vectors are modeled after Clojure's persistent vector implementation.
 
-.. _maps:
+.. seealso::
+
+   :ref:`vectors`
+
+.. _reader_maps:
 
 Maps
 ----
@@ -277,10 +358,14 @@ Maps
     {1 "2" :three 3}
 
 Maps are denoted with the ``{}`` characters.
-Sets may contain 0 or more heterogenous key-value pairs.
+Maps may contain 0 or more heterogenous key-value pairs.
 Basilisp maps are modeled after Clojure's persistent map implementation.
 
-.. _sets:
+.. seealso::
+
+   :ref:`maps`
+
+.. _reader_sets:
 
 Sets
 ----
@@ -296,7 +381,11 @@ Sets are denoted with the ``#{}`` characters.
 Sets may contain 0 or more other heterogeneous elements.
 Basilisp sets are modeled after Clojure's persistent set implementation.
 
-.. _line_comments:
+.. seealso::
+
+   :ref:`sets`
+
+.. _reader_line_comments:
 
 Line Comments
 -------------
@@ -304,9 +393,9 @@ Line Comments
 Line comments are specified with the ``;`` character.
 All of the text to the end of the line are ignored.
 
-For a convenience in writing shell scripts with Basilisp, the standard \*NIX `shebang <https://en.wikipedia.org/wiki/Shebang_(Unix)>` (``#!``) is also treated as a single-line comment.
+For a convenience in writing shell scripts with Basilisp, the standard \*NIX `shebang <https://en.wikipedia.org/wiki/Shebang_(Unix)>`_ (``#!``) is also treated as a single-line comment.
 
-.. _metadata:
+.. _reader_metadata:
 
 Metadata
 --------
@@ -330,6 +419,10 @@ Metadata applied to a form must be one of: :ref:`maps`, :ref:`symbols`, :ref:`ke
 * Keyword metadata will be normalized to a Map with the keyword as the key with the value of ``true``.
 * Map metadata will not be modified when it is read.
 
+.. seealso::
+
+   :ref:`metadata`
+
 .. _reader_macros:
 
 Reader Macros
@@ -340,8 +433,8 @@ Reader macros are always dispatched using the ``#`` character.
 
 * ``#'form`` is rewritten as ``(var form)``.
 * ``#_form`` causes the reader to completely ignore ``form``.
-* ``#!form`` is treated as a single-line comment (like ``;form``) as a convenience to support `shebangs <https://en.wikipedia.org/wiki/Shebang_(Unix)>` at the top of Basilisp scripts.
-* ``#"str"`` causes the reader to interpret ``"str"`` as a regex and return a Python `re.pattern <https://docs.python.org/3/library/re.html>`_.
+* ``#!form`` is treated as a single-line comment (like ``;form``) as a convenience to support `shebangs <https://en.wikipedia.org/wiki/Shebang_(Unix)>`_ at the top of Basilisp scripts.
+* ``#"str"`` causes the reader to interpret ``"str"`` as a regex and return a Python :external:py:mod:`re.pattern <re>`.
 * ``#(...)`` causes the reader to interpret the contents of the list as an anonymous function. Anonymous functions specified in this way can name arguments using ``%1``, ``%2``, etc. and rest args as ``%&``. For anonymous functions with only one argument, ``%`` can be used in place of ``%1``.
 
 .. _data_readers:
@@ -357,8 +450,8 @@ User-specified data reader symbols must include a namespace, but builtin data re
 
 Basilisp supports a few builtin data readers:
 
-* ``#inst "2018-09-14T15:11:20.253-00:00"`` yields a Python `datetime <https://docs.python.org/3/library/datetime.html#datetime-objects>`_ object.
-* ``#uuid "c3598794-20b4-48db-b76e-242f4405743f"`` yields a Python `UUID <https://docs.python.org/3/library/uuid.html#uuid.UUID>`_ object.
+* ``#inst "2018-09-14T15:11:20.253-00:00"`` yields a Python :external:py:class:`datetime.datetime` object.
+* ``#uuid "c3598794-20b4-48db-b76e-242f4405743f"`` yields a Python :external:py:class`uuid.UUID` object.
 
 One of the benefits of choosing Basilisp is convenient built-in Python language interop.
 However, the immutable data structures of Basilisp may not always play nicely with code written for (and expecting to be used by) other Python code.
@@ -372,7 +465,7 @@ Python literals use the matching syntax to the corresponding Python data type, w
 * ``#py {}`` produces a Python `dict <https://docs.python.org/3/library/stdtypes.html#dict>`_ type.
 * ``#py #{}`` produces a Python `set <https://docs.python.org/3/library/stdtypes.html#set>`_ type.
 
-.. _special_chars:
+.. _reader_special_chars:
 
 Special Characters
 ------------------
@@ -411,6 +504,10 @@ In nearly all cases, this will be the return value from a macro function, which 
 .. warning::
 
    Using any of these special syntax quoting characters outside of a syntax quote context will result in a compiler error.
+
+.. seealso::
+
+   :ref:`macros`
 
 .. _reader_conditions:
 

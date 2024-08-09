@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Iterable, Optional, Sequence, TypeVar, Union, 
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 from pyrsistent.typing import PVectorEvolver
+from typing_extensions import Unpack
 
 from basilisp.lang.interfaces import (
     IEvolveableCollection,
@@ -15,6 +16,7 @@ from basilisp.lang.interfaces import (
     IWithMeta,
     seq_equals,
 )
+from basilisp.lang.obj import PrintSettings
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.seq import sequence
 from basilisp.util import partition
@@ -121,6 +123,9 @@ class PersistentVector(
     def __len__(self):
         return len(self._inner)
 
+    def __call__(self, k: int, default: Optional[T] = None) -> Optional[T]:
+        return self.val_at(k, default=default)
+
     def __lt__(self, other):
         """Return true if the `self` vector is shorter than the
         `other` vector, or the first unequal element in `self` when
@@ -144,7 +149,7 @@ class PersistentVector(
                 return False
         return False
 
-    def _lrepr(self, **kwargs) -> str:
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         return _seq_lrepr(self._inner, "[", "]", meta=self._meta, **kwargs)
 
     @property
@@ -163,16 +168,16 @@ class PersistentVector(
     def assoc(self, *kvs: T) -> "PersistentVector[T]":
         return PersistentVector(self._inner.mset(*kvs))  # type: ignore[arg-type]
 
-    def contains(self, k):
+    def contains(self, k: int) -> bool:
         return 0 <= k < len(self._inner)
 
-    def entry(self, k):
+    def entry(self, k: int) -> Optional[IMapEntry[int, T]]:
         try:
             return MapEntry.of(k, self._inner[k])
         except IndexError:
             return None
 
-    def val_at(self, k, default=None):
+    def val_at(self, k: int, default: Optional[T] = None) -> Optional[T]:
         try:
             return self._inner[k]
         except IndexError:

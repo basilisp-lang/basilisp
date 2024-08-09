@@ -6,13 +6,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+ * Added CLI argument parser in `basilisp.contrib.cli-tools` namespace (#535)
+
+## [v0.1.0]
+### Added
+ * Added `:end-line` and `:end-col` metadata to forms during compilation (#903)
+ * Added `basilisp.repl/source` to allow inspecting source code from the REPL (#205)
+ * Added `conj` 1 and 0 arities (#954)
+
+### Changed
+ * Updated dozens of type annotations in the compiler to satisfy MyPy 1.11 (#910)
+ * Update the `StreamReader` methods to stop using the term "token" to refer to individual UTF-8 characters (#915)
+ * Update the list of Python dunder methods which are allowed to be implemented for all `deftype*` and `reify*` types (#943)
+ * ISeq now inherits from IPersistentCollection so `coll?`, `empty`, and `conj` can now be used with sequences (#954)
+
+### Fixed
+ * Fix a bug where `.` characters were not allowed in keyword names (#899)
+ * Fix a bug where nested quotation marks were not escaped properly by various print functions and at the REPL (#894)
+ * Fix a bug that caused a syntax error when presenting any filepath that includes the MS-Windows `\` file separator to the cli run command (#912)
+ * Fix a bug where the core functions `symbol` and `keyword` would not accept non-string data types (#911)
+ * Fix a bug where the compiler would emit warnings on when a Var was redef'ed even if that Var was initially defined with `^:redef` metadata (#916)
+ * Fix a bug where reader column offset numbering began at 1, rather than 0 (#905)
+ * Fix a bug where `basilisp.core/boolean` was returning the boolean coercions like Python rather than like Basilisp (#928)
+ * Fix a bug where Basilisp vectors were not callable (#932)
+ * Fix a bug where `basilisp.lang.seq.LazySeq` instances were not thread-safe (#934)
+ * Fix a bug where Seqs wrapping Python Iterable instances were not thread-safe (#936)
+ * Fix several bugs where code was being executed from a string with interpolated variables, which could've allowed for code (#938)
+ * Fix a bug where record types and data readers whose fully qualified name started with a "b" could not be read (#947)
+
+### Other
+ * Add several sections to Concepts documentation module (#666)
+ * Add REPL documentation module (#250)
+ * Add documentation module for Basilisp interfaces (#920)
+ * Add GitHub source links to generated API documentation (#921)
+ * Update Concepts documentation module with See Also links for most sections (#925)
+ * Update Sphinx documentation theme (#909)
+ * Update documentation to directly reference Python documentation and fix many other minor issues and misspellings (#907, #919)
+
+## [v0.1.0b2]
+### Added
+ * Added filename metadata to compiler exceptions (#844)
+ * Added a compile-time warning for attempting to call a function with an unsupported number of arguments (#671)
+ * Added support for explicit cause exception chaining to the `throw` special form (#862)
+ * Added `basilisp.stacktrace` namespace (#721)
+ * Added support for `*flush-on-newline*` to flush the `prn` and `println` output stream after the last newline (#865)
+ * Added support for binding destructuring in `for` bindings (#774)
+ * Added `==` as an alias to `=` (#859)
+ * Added custom exception formatting for `basilisp.lang.compiler.exception.CompilerException` and `basilisp.lang.reader.SyntaxError` to show more useful details to users on errors (#870)
+ * Added `merge-with` core function (#860)
+ * Added `fnext` core function (#879)
+ * Added `INamed` interface for Keywords and Symbols (#884)
+ * Added `*print-namespace-maps*` dynamic var support (#882)
+
+### Changed
+ * Cause exceptions arising from compilation issues during macroexpansion will no longer be nested for each level of macroexpansion (#852)
+ * Support for optional metadata argument in `defmulti` (#857)
+ * Aligned `rem` and `quot` methodologies with corresponding Clojure fns (#848)
+
+### Fixed
+ * Fix a bug where `basilisp.lang.compiler.exception.CompilerException` would nearly always suppress line information in it's `data` map (#845)
+ * Fix a bug where the function returned by `partial` retained the meta, arities, and `with_meta` method of the wrapped function rather than creating new ones (#847)
+ * Fix a bug where exceptions arising while reading reader conditional forms did not include line and column information (#854)
+ * Fix a bug where names `def`'ed without reader metadata would cause the compiler to throw an exception (#850)
+ * Fix an issue where `concat` on maps was iterating over the keys instead of the key/value pairs (#871)
+ * Fix a bug where the compiler would throw an exception partially macroexpanding forms with `recur` forms provided as arguments (#856)
+ * Fix a bug where the original `(var ...)` form is not retained during analysis, causing it to be lost in calls to `macroexpand` (#888)
+ * Fix issue with the reader var macro failing in syntax quote when unquoting a symbol, e.g. `(#'~symbol) (#889)
+ * Fix issue where `(str seq)` was printing seq string items without quotation marks (#891)
+ * Fix issue where interop failed to access property name matching a builtins name (#896)
+
+## [v0.1.0b1]
+### Added
  * Added support for passing through `:tag` metadata to the generated Python AST (#354)
  * Added support for calling symbols as functions on maps and sets (#775)
  * Added support for passing command line arguments to Basilisp (#779)
  * Added support for autocompleting names in the `python/` pseudo-namespace for Python builtins at the REPL (#787)
  * Added a subcommand for bootstrapping the Python installation with Basilisp (#790)
  * Added support for executing Basilisp namespaces directly via `basilisp run` and by `python -m` (#791)
- * Added CLI argument parser in `basilisp.contrib.cli-tools` namespace (#535)
+ * Added the `memoize` core fn (#812)
+ * Added support for `thrown-with-msg?` assertions to `basilisp.test/is` (#831)
+ * Added support for reading scientific notation literals, octal and hex integer literals, and arbitrary base (2-36) integer literals (#769)
+ * Added support for passing trailing maps to functions which accept Basilisp keyword arguments (#663)
+ * Added support for loading namespaces as an alias only (#664)
 
 ### Changed
  * Optimize calls to Python's `operator` module into their corresponding native operators (#754)
@@ -21,21 +96,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * No longer warn on unused bindings when their name begins with `_` (#756)
  * Improve the Python generation for `do`, `if`, `let*`, and `letfn*` forms to avoid unnecessary extra assignments (#793, #794, #799)
  * Generate Python classes for `deftype*` and `reify*` forms using modern `@attr.define`, `@attr.frozen`, and `@attr.field` APIs (#799)
+ * Generate Protocol functions with nicer names based on the protocol function and dispatch type (#803)
+ * Loosen the dependency specification for Immutables and Pyrsistent to allow for a wider version range (#805)
+ * Allow `case` forms with only a default expression (#807)
+ * Make `pr` a dynamic variable (#820)
+ * Emit OS specific line endings for the `println` and `prn` fns (#810)
+ * Support any character in character literals (#816)
+ * Loosen `typing-extensions` dependency's minimal version to 4.7.0 (#809)
 
 ### Fixed
  * Fix issue with `(count nil)` throwing an exception (#759)
  * Fix issue with keywords not testing for membership in sets when used as a function (#762)
  * Fix an issue for executing Basilisp scripts via a shebang where certain platforms may not support more than one argument in the shebang line (#764)
  * Fix issue with keywords throwing `TypeError` when used as a function on vectors (#770)
- * Fix an issue where the constructors of types created by `deftype` and `defrecord` could not be called if they contained `-` characters (#777) 
+ * Fix an issue where the constructors of types created by `deftype` and `defrecord` could not be called if they contained `-` characters (#777)
  * Fix issue with the variadic ampersand operator treated as a binding in macros (#772)
+ * Fix a bug the variadic arg symbol was not correctly bound to `nil` when no variadic arguments were provided (#801)
+ * Fix a bug where the quotient of very large numbers was incorrect (#822)
+ * Fix a bug where `basilisp.test/is` may fail to generate expected/actual info on failures when declared inside a macro (#829)
+ * Fix a bug where sequential destructuring bindings do not bind names correctly when nested within associative destructuring bindings (#834)
 
 ### Removed
  * Removed support for PyPy 3.8 (#785)
 
 ### Other
  * Improve the state of the Python type hints in `basilisp.lang.*` (#797, #784)
-
+ * Update Sphinx and its associated contrib libraries to `^7.1.0` (#815)
 
 ## [v0.1.0b0]
 ### Added
@@ -393,7 +479,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where comment literals were not be fully removed from reader outputs (#196)
  * Fixed a bug where comment literals caused syntax errors inside collection literals (#196)
  * Imported namespaces no longer create extra namespaces bound to munged Python module names (#216)
- * Fixed a bug where `import*`s would not work within other forms 
+ * Fixed a bug where `import*`s would not work within other forms
  * Fixed a bug where the Basilisp import hook could be added to `sys.meta_path` multiple times (#213)
  * Fixed a bug where keywords could not be used in function position (#174)
  * Fixed a bug where macro symbols were not resolved using the same heuristics as other symbols (#183)
@@ -426,6 +512,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.0]: https://github.com/basilisp-lang/basilisp/compare/v0.1.0b2..v0.1.0
+[v0.1.0b2]: https://github.com/basilisp-lang/basilisp/compare/v0.1.0b1..v0.1.0b2
+[v0.1.0b1]: https://github.com/basilisp-lang/basilisp/compare/v0.1.0b0..v0.1.0b1
 [v0.1.0b0]: https://github.com/chrisrink10/basilisp/compare/v0.1.0a2..v0.1.0b0
 [v0.1.0a2]: https://github.com/chrisrink10/basilisp/compare/v0.1.0a1..v0.1.0a2
 [v0.1.0a1]: https://github.com/chrisrink10/basilisp/compare/v0.1.dev15..v0.1.0a1

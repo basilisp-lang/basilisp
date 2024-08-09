@@ -45,6 +45,10 @@ Primary Special Forms
       While it is entirely legal to ``def`` a value within a function, the results of interning the Var within the function still apply to the current namespace.
       Within a function or method context, users should use the :lpy:form:`let` special form to bind a value to a name in that scope.
 
+   .. seealso::
+
+      :lpy:fn:`defn`, :lpy:fn:`defn-`, :lpy:fn:`defmacro`, :lpy:fn:`defasync`, :lpy:fn:`declare`, :lpy:fn:`defonce`
+
 .. lpy:specialform:: (deftype name fields superclass+impls)
 
    Define a new data type (a Python class) with the given set of fields which implement 0 or more Python interfaces and Basilisp protocols.
@@ -155,7 +159,7 @@ Primary Special Forms
    .. note::
 
       In Basilisp, only :ref:`nil` and :ref:`false <boolean_values>` are considered false by ``if`` -- all other expressions are truthy.
-      This differs from Python, where many objects may be considered falsey if they are empty (such as lists, sets, and strings).
+      This differs from Python, where many objects may be considered logical false if they are empty (such as lists, sets, and strings).
 
    .. seealso::
 
@@ -178,7 +182,7 @@ Primary Special Forms
 
    .. seealso::
 
-      :ref:`accessing_object_methods_and_props`
+      :ref:`accessing_object_methods_and_props`, :lpy:fn:`..`
 
 .. lpy:specialform:: (.- obj attr)
                      (.-attr obj)
@@ -291,7 +295,7 @@ Primary Special Forms
    Return the forms of ``expr`` unevaluated, rather than executing the expression.
    This is particularly useful in when writing macros.
 
-   May also be shortened with the :ref:`special character <special_chars>` ``'``, as ``'form``.
+   May also be shortened with the :ref:`special character <reader_special_chars>` ``'``, as ``'form``.
 
    .. seealso::
 
@@ -371,10 +375,21 @@ Primary Special Forms
       In particular, due to the non-lexical nature of dynamic Var bindings, it can be difficult to establish if a Var is thread-bound when it is ``set!``, so this check is deferred to runtime.
 
 .. lpy:specialform:: (throw exc)
+                     (throw exc cause)
 
    Throw the exception named by ``exc``.
    The semantics of ``throw`` are identical to those of Python's `raise <https://docs.python.org/3/reference/simple_stmts.html#the-raise-statement>`_ statement with exception.
-   Unlike Python's ``raise``, an exception is always required and no explicit exception chaining is permitted (as by the ``from`` keyword in Python).
+   Unlike Python's ``raise``, an exception is always required.
+   A second optional cause exception may be provided after the exception to be thrown -- this is a direct Basilisp equivalent to ``from`` semantics to Python's ``raise`` statement.
+   The cause may be ``nil`` to suppress cause chaining.
+
+   .. note::
+
+      Cause exceptions are stored in the ``__cause__`` attribute on thrown exceptions.
+      Contrast this with the case where during the handling of an exception ``a`` , a second exception ``b`` is raised.
+      Without explicit chaining, ``a`` would be stored in the ``__context__`` attribute of ``b``.
+      Standard Python exception formatting language will show both cause and context exceptions, but describes each differently.
+      For more details, see Python's documentation on `exception context <https://docs.python.org/3/library/exceptions.html#exception-context>`_.
 
 .. lpy:specialform:: (try *exprs *catch-exprs finally?)
 

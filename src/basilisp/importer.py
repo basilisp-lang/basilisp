@@ -265,16 +265,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
             # The target namespace is free to interpret
             code: List[types.CodeType] = []
             path = "/" + "/".join(fullname.split("."))
-            forms = cast(
-                List[ReaderForm],
-                list(
-                    reader.read_str(f'(load "{path}")', resolver=runtime.resolve_alias)
-                ),
-            )
-            assert len(forms) == 1
             try:
-                compiler.compile_and_exec_form(
-                    forms[0],
+                compiler.load(
+                    path,
                     compiler.CompilerContext(
                         filename="<Basilisp Namespace Executor>",
                         opts=runtime.get_compiler_opts(),

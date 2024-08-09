@@ -26,7 +26,7 @@
 (def ^{:doc      "Create a list from the arguments."
        :arglists '([& args])}
   list
-  (fn* list [& args] args))
+  (fn* list [& args] (if args args '())))
 
 (def
   ^{:doc      "If ``seq`` is a Seq, return the first element from ``seq``. If ``seq``
@@ -299,9 +299,11 @@
                different positions depending on the type of ``coll``\\. ``conj`` returns
                the same type as ``coll``\\. If ``coll`` is ``nil``\\, return a list with
                ``xs`` conjoined."
-    :arglists '([coll x] [coll x & xs])}
+    :arglists '([] [coll] [coll x] [coll x & xs])}
   conj
   (fn conj
+    ([] [])
+    ([coll] coll)
     ([coll x]
      (basilisp.lang.runtime/conj coll x))
     ([coll x & xs]
@@ -461,6 +463,11 @@
   [v]
   (next (first v)))
 
+(defn ^:inline fnext
+  "Return the result of calling ``(first (next v))``\\."
+  [v]
+  (first (next v)))
+
 (defn ^:inline nnext
   "Return the result of calling ``(next (next v))``\\."
   [v]
@@ -473,7 +480,7 @@
     (recur (rest s))
     (first s)))
 
-(defn  ^:inline nil?
+(defn ^:inline nil?
   "Return ``true`` if ``x`` is ``nil``\\, otherwise ``false``\\."
   [x]
   (operator/is- x nil))
@@ -503,19 +510,30 @@
    (basilisp.lang.queue/queue coll)))
 
 (defn symbol
-  "Create a new symbol with ``name`` and optional namespace ``ns``."
+  "Create a new symbol with ``name`` and optional namespace ``ns``.
+
+  ``name`` may be keyword, symbol, string, or Var. If ``name`` is a keyword or symbol with a
+  namespace, the namespace will be included in the resulting value. If ``name`` is a Var,
+  the Var's namespace will always be the namespace of the resulting value.
+
+  If ``ns`` is not ``nil``, then both ``name`` and ``ns`` must be strings."
   ([name]
-   (basilisp.lang.symbol/symbol name))
+   (basilisp.lang.runtime/symbol-from-name name))
   ([ns name]
-   (basilisp.lang.symbol/symbol name ns)))
+   (basilisp.lang.runtime/symbol name ns)))
 
 (defn keyword
   "Create a new keyword with ``name`` and optional namespace ``ns``\\. Keywords will
-  have the colon prefix added automatically, so it should not be provided."
+  have the colon prefix added automatically, so it should not be provided.
+
+  ``name`` may be keyword, symbol, or string. If ``name`` is a keyword or symbol with a
+  namespace, the namespace will be included in the resulting value.
+
+  If ``ns`` is not ``nil``, then both ``name`` and ``ns`` must be strings."
   ([name]
-   (basilisp.lang.keyword/keyword name))
+   (basilisp.lang.runtime/keyword-from-name name))
   ([ns name]
-   (basilisp.lang.keyword/keyword name ns)))
+   (basilisp.lang.runtime/keyword name ns)))
 
 (defn name
   "Return the name of a string, symbol, or keyword."
@@ -532,7 +550,7 @@
 (def
   ^{:macro    true
     :doc      "Define a new macro function. The arguments and syntax of ``defmacro``
-               are identical to that of `defn`.
+               are identical to that of :lpy:fn:`defn`.
 
                When the compiler encounters a new macro function invocation, it
                immediately invokes that function during compilation and substitutes
@@ -815,7 +833,11 @@
   (operator/is_ x y))
 
 (defn =
-  "Return ``true`` if ``x`` and ``y`` are equal, otherwise ``false``\\."
+  "Return ``true`` if ``x`` and ``y`` are equal, otherwise ``false``\\.
+
+  Number equality follows Python's ``=`` semantics whereby \"a
+  comparison between numbers of different types behaves as though the
+  exact values of those numbers were being compared\"."
   ([_] true)
   ([x & args]
    (if (seq (rest args))
@@ -828,6 +850,11 @@
   "Return ``true`` if ``x`` and ``y`` are not equal, otherwise ``false``\\."
   [& args]
   (not (apply = args)))
+
+(defn ==
+  "Alias for lpy:fn:`=`."
+  [& args]
+  (apply = args))
 
 (defn >
   "Return ``true`` if arguments are monotonically decreasing, otherwise ``false``\\."
@@ -880,12 +907,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn deref
-  "Dereference a delay or atom and returns its contents.
+  "Dereference a delay, atom, promise, future, volatile, or Var and returns its contents.
 
-  If ``o`` is an object implementing ``IBlockingDeref`` and ``timeout-s`` and
-  ``timeout-val`` are supplied, ``deref`` will wait at most ``timeout-s`` seconds,
-  returning ``timeout-val`` if ``timeout-s`` seconds elapse and ``o`` has not
-  returned."
+  If ``o`` is an object implementing :py:class:`basilisp.lang.interfaces.IBlockingDeref`
+  and ``timeout-s`` and ``timeout-val`` are supplied, ``deref`` will wait at most
+  ``timeout-s`` seconds, returning ``timeout-val`` if ``timeout-s`` seconds elapse and
+  ``o`` has not returned."
   ([o]
    (basilisp.lang.runtime/deref o))
   ([o timeout-s timeout-val]
@@ -928,7 +955,7 @@
 
 (defn swap-vals!
   "Atomically swap the value of an atom to the return value of ``(apply f
-  current-value args)`` `. The function ``f`` may be called multiple times while
+  current-value args)``. The function ``f`` may be called multiple times while
   swapping, so should be free of side effects. Return a vector containing the new
   value and the old value in that order."
   [atom f & args]
@@ -1089,19 +1116,25 @@
   (python/abs x))
 
 (defn ^:inline mod
-  "Returns the modulo of ``num`` and ``div``\\."
+  "Returns the modulo of ``num`` and ``div``\\.
+
+  It uses floored division for calculating the quotient."
   [num div]
   (operator/mod num div))
 
 (defn ^:inline quot
-  "Returns the quotient of ``num`` and ``div``\\."
+  "Returns the quotient of ``num`` and ``div``\\.
+
+  The division result is truncated."
   [num div]
-  (basilisp.lang.runtime/quotient num div))
+  (int (/ num div)))
 
 (defn ^:inline rem
-  "Returns the remainder of ``num`` and ``div``\\."
+  "Returns the remainder of ``num`` and ``div``\\.
+
+  It uses truncated division for calculating the quotient."
   [num div]
-  (- num (* div (quot num div))))
+  (- num (* div (int (/ num div)))))
 
 (defn ^:inline inc
   "Increment the argument by 1."
@@ -1177,25 +1210,26 @@
   true)
 
 (defn ^:inline associative?
-  "Return ``true`` if ``x`` implements ``IAssociative``  ."
+  "Return ``true`` if ``x`` implements :py:class:`basilisp.lang.interfaces.IAssociative`."
   [x]
   (instance? basilisp.lang.interfaces/IAssociative x))
 
 (defn ^:inline bytes?
-  "Return ``true`` if ``x`` is a byte array (the Python ``bytearray`` type).
+  "Return ``true`` if ``x`` is a byte array (the Python :external:py:class:`bytearray`
+  type).
 
   Note that Python supplies byte string and byte array objects in its standard library.
   This function complies with Clojure's standard library in returning true iff ``x`` is
-  a Python ``bytearray``\\. To check if an object is a Python ``bytes``\\, use
-  :lpy:fn:`byte-string?` ."
+  a Python ``bytearray``\\. To check if an object is a Python
+  :external:py:class:`bytes`\\, use :lpy:fn:`byte-string?` ."
   [x]
   (instance? python/bytearray x))
 
 (defn ^:inline byte-string?
-  "Return ``true`` if ``x`` is a byte string (the Python ``bytes`` type).
+  "Return ``true`` if ``x`` is a byte string (the Python :external:py:class:`bytes` type).
 
   Note that Python supplies byte string and byte array objects in its standard library.
-  To check if an object is a Python ``bytearray``, use ``bytes?``\\."
+  To check if an object is a Python :external:py:class:`bytearray`, use ``bytes?``\\."
   [x]
   (instance? python/bytes x))
 
@@ -1211,7 +1245,7 @@
   (instance? python/type x))
 
 (defn ^:inline coll?
-  "Return ``true`` if ``x`` implements ``IPersistentCollection``\\."
+  "Return ``true`` if ``x`` implements :py:class:`basilisp.lang.interfaces.IPersistentCollection`\\."
   [x]
   (instance? basilisp.lang.interfaces/IPersistentCollection x))
 
@@ -1226,7 +1260,7 @@
   (instance? basilisp.lang.interfaces/ICounted x))
 
 (defn ^:no-inline decimal?
-  "Return ``true`` if ``x`` is a ``Decimal``\\."
+  "Return ``true`` if ``x`` is a :external:py:class:`decimal.Decimal`\\."
   [x]
   (instance? decimal/Decimal x))
 
@@ -1247,7 +1281,7 @@
   [x]
   (operator/is- x false))
 
-(def ^{:doc "Return ``true`` if ``o`` is a float.
+(def ^{:doc "Return ``true`` if ``o`` is a :external:py:class:`float`\\.
 
              Same as :lpy:fn:`float?`. Python does not distinguish between single and
              double precision floating point numbers, so all floating points are called
@@ -1285,7 +1319,7 @@
   [x]
   (math/isinf x))
 
-(def ^{:doc "Return ``true`` if ``x`` is an integer.
+(def ^{:doc "Return ``true`` if ``x`` is an :external:py:class`int`\\.
 
              Note that unlike Clojure, Basilisp uses Python integers and there is no
              distinction between standard and fixed-precision integers."}
@@ -1293,7 +1327,7 @@
   integer?)
 
 (defn ^:inline map-entry?
-  "Return ``true`` if ``x`` implements ``IMapEntry``\\."
+  "Return ``true`` if ``x`` implements :py:class:`basilisp.lang.interfaces.IMapEntry`\\."
   [x]
   (instance? basilisp.lang.interfaces/IMapEntry x))
 
@@ -1348,27 +1382,27 @@
   (and (integer? x) (pos? x)))
 
 (defn ^:inline py-dict?
-  "Return ``true`` if ``x`` is a Python ``dict``\\."
+  "Return ``true`` if ``x`` is a Python :external:py:class:`dict`\\."
   [x]
   (instance? python/dict x))
 
 (defn ^:inline py-frozenset?
-  "Return ``true`` if ``x`` is a Python ``frozenset``\\."
+  "Return ``true`` if ``x`` is a Python :external:py:class:`frozenset`\\."
   [x]
   (instance? python/frozenset x))
 
 (defn ^:inline py-list?
-  "Return ``true`` if ``x`` is a Python ``list``\\."
+  "Return ``true`` if ``x`` is a Python :external:py:class:`list`\\."
   [x]
   (instance? python/list x))
 
 (defn ^:inline py-set?
-  "Return ``true`` if ``x`` is a Python ``set``\\."
+  "Return ``true`` if ``x`` is a Python :external:py:class:`set`\\."
   [x]
   (instance? python/set x))
 
 (defn ^:inline py-tuple?
-  "Return ``true`` if ``x`` is a Python ``tuple``\\."
+  "Return ``true`` if ``x`` is a Python :external:py:class:`tuple`\\."
   [x]
   (instance? python/tuple x))
 
@@ -1393,7 +1427,7 @@
   (instance? basilisp.lang.queue/PersistentQueue x))
 
 (defn ^:no-inline ratio?
-  "Return ``true`` if ``x`` is a ``Fraction``\\."
+  "Return ``true`` if ``x`` is a :external:py:class:`fractions.Fraction`\\."
   [x]
   (instance? fractions/Fraction x))
 
@@ -1408,17 +1442,18 @@
   (or (integer? x) (float? x)))
 
 (defn ^:inline reversible?
-  "Return ``true`` if x implements ``IReversible``\\."
+  "Return ``true`` if x implements :py:class:`basilisp.lang.interfaces.IReversible`\\."
   [x]
   (instance? basilisp.lang.interfaces/IReversible x))
 
 (defn ^:inline seqable?
-  "Return ``true`` if an ``ISeq`` can be produced from ``x``\\."
+  "Return ``true`` if an :py:class:`basilisp.lang.interfaces.ISeq` can be produced from
+  ``x``\\."
   [x]
   (instance? basilisp.lang.interfaces/ISeqable x))
 
 (defn ^:inline sequential?
-  "Return ``true`` if ``x`` implements ``ISequential``\\."
+  "Return ``true`` if ``x`` implements :py:class:`basilisp.lang.interfaces.ISequential`\\."
   [x]
   (instance? basilisp.lang.interfaces/ISequential x))
 
@@ -1443,12 +1478,12 @@
   (operator/is- x true))
 
 (defn ^:no-inline uuid?
-  "Return ``true`` if ``x`` is a UUID."
+  "Return ``true`` if ``x`` is a :external:py:class:`uuid.UUID`."
   [x]
   (instance? uuid/UUID x))
 
 (defn uuid-like?
-  "Return ``true`` if ``x`` is coercible to a UUID.
+  "Return ``true`` if ``x`` is coercible to a :external:py:class:`uuid.UUID`.
 
   Python's UUID constructor supports byte sequences in big- and little-endian byte
   orders. This function checks only for big-endian bytes."
@@ -1502,8 +1537,8 @@
   "Return a set of subclasses of ``cls``\\.
 
   This set is not guaranteed to be exhaustive because classes only retain a weak
-  reference to their subclasses, so it is possible subclasses of cls have been garbage
-  collected."
+  reference to their subclasses, so it is possible subclasses of ``cls`` have been
+  garbage collected."
   [cls]
   (set (.__subclasses__ cls)))
 
@@ -1522,7 +1557,7 @@
 ;;;;;;;;;;;;;;;;;;;
 
 (defn bigdec
-  "Coerce ``x`` to a Python ``decimal.Decimal``\\."
+  "Coerce ``x`` to a Python :external:py:class:`decimal.Decimal`\\."
   [x]
   (decimal/Decimal x))
 
@@ -1530,7 +1565,8 @@
   "Coerce ``x`` to an integer.
 
   Python's builtin ``int`` type is arbitrary precision, so there is no difference
-  between ``bigint``\\, ``biginteger``\\, and Python's builtin ``int``\\."
+  between ``bigint``\\, ``biginteger``\\, and Python's builtin
+  :external:py:class:`int`\\."
   [x]
   (python/int x))
 
@@ -1538,14 +1574,20 @@
   "Coerce ``x`` to an integer.
 
   Python's builtin ``int`` type is arbitrary precision, so there is no difference
-  between ``bigint``\\, ``biginteger``\\, and Python's builtin ``int``\\."
+  between ``bigint``\\, ``biginteger``\\, and Python's builtin
+  :external:py:class:`int`\\."
   [x]
   (python/int x))
 
 (defn ^:inline boolean
-  "Coerce ``x`` to a boolean."
+  "Coerce ``x`` to a boolean.
+
+  Only ``false`` and ``nil`` are logical false and will return ``false``\\. All
+  other values will return ``true``\\."
   [x]
-  (python/bool x))
+  (if (or (nil? x) (false? x))
+    false
+    true))
 
 (defn byte
   "Coerce ``x`` to a byte."
@@ -1557,7 +1599,7 @@
        (python/ValueError (str "cannot coerce " (python/repr x) " to byte"))))))
 
 (defn byte-string
-  "Coerce ``x`` to a byte string (Python ``bytes`` object).
+  "Coerce ``x`` to a byte string (Python :external:py:class:`bytes` object).
 
   Arguments shall be interpreted exactly as with that object's constructor."
   ([x]
@@ -1570,8 +1612,8 @@
 (defn char
   "Coerce ``x`` to a string of length 1.
 
-  Natural integers are treated as ordinals and passed to Python's ``chr``. Strings of
-  length 1 are returned as such. Other types will result in a ``ValueError``\\."
+  Natural integers are treated as ordinals and passed to Python's :external:py:func:`chr`.
+  Strings of length 1 are returned as such. Other types will result in a ``ValueError``\\."
   [x]
   (cond
     (instance? python/int x) (python/chr x)
@@ -1583,32 +1625,38 @@
 (defn ^:inline double
   "Coerce ``x`` to a float.
 
-  Python does not differentiate between ``float`` and ``double``. Python ``float`` s are
-  double precision."
+  Python does not differentiate between ``float`` and ``double``. Python
+  :external:py:class:`float`\\s are double precision."
   [x]
   (python/float x))
 
 (defn ^:inline float
-  "Coerce ``x`` to a float."
+  "Coerce ``x`` to a :external:py:class:`float`\\.
+
+  If ``x`` is string, it is parsed as a floating point number."
   [x]
   (python/float x))
 
 (defn ^:inline int
-  "Coerce ``x`` to an integer."
+  "Coerce ``x`` to an :external:py:class:`int`\\.
+
+  If ``x`` is string, it is parsed as a base 10 number."
   [x]
   (python/int x))
 
 (defn ^:inline long
-  "Coerce ``x`` to an integer.
+  "Coerce ``x`` to an :external:py:class:`int`\\.
 
-  Python does not support `long` types, so the value is coerced to an integer."
+  Python does not support `long` types, so the value is coerced to an integer as by
+  :lpy:fn:`int`\\."
   [x]
   (python/int x))
 
 (defn ^:inline short
-  "Coerce ``x`` to an integer.
+  "Coerce ``x`` to an :external:py:class:`int`\\.
 
-  Python does not support `short` types, so the value is coerced to an integer."
+  Python does not support `short` types, so the value is coerced to an integer as by
+  :lpy:fn:`int`\\."
   [x]
   (python/int x))
 
@@ -1637,7 +1685,7 @@
 
 (defcopy unchecked-add
   "Same as :lpy:fn:`+`. Python integers are unlimited precision, so unchecked
-  arithmetic is onlyprovided for compatibility with platforms without unlimited
+  arithmetic is only provided for compatibility with platforms without unlimited
   precision integers."
   +)
 (defcopy unchecked-add-int
@@ -1962,8 +2010,9 @@
     (or (.- ex __cause__) (.- ex __context__))))
 
 (defn ex-data
-  "Return the data map of ``ex`` if is an instance of ``IExceptionInfo``\\, otherwise
-  it returns ``nil``\\."
+  "Return the data map of ``ex`` if is an instance of
+  :py:class:`basilisp.lang.interfaces.IExceptionInfo`\\, otherwise it returns
+  ``nil``\\."
   [ex]
   (when (instance? basilisp.lang.interfaces/IExceptionInfo ex)
     (.-data ex)))
@@ -2046,6 +2095,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn bounded-count
+  "Return the count (as by :lpy:fn:`count`) of any ``coll`` for which ``counted?``
+  returns ``true``, otherwise return the lesser of ``n`` and the length of
+  ``coll``\\."
   [n coll]
   (if (counted? coll)
     (count coll)
@@ -3097,7 +3149,9 @@
 
 (defn partition-by
   "Return a lazy sequence of partitions, splitting ``coll`` each time ``f`` returns a
-  different value."
+  different value.
+
+  Returns a stateful transducer if no collection is provided."
   ([f]
    (fn [rf]
      (let [prev (volatile! :basilisp.core.partition-by/default)
@@ -3237,7 +3291,8 @@
           (rest args)))
 
 (defn sort-by
-  "Return a sorted sequence of the elements from ``coll`` using the ``cmp`` comparator on (``keyfn`` item)\\.
+  "Return a sorted sequence of the elements from ``coll`` using the ``cmp`` comparator
+  on (``keyfn`` item)\\.
 
   The :lpy:fn:`compare` fn is used in if ``cmp`` is not provided."
   ([keyfn coll]
@@ -3259,6 +3314,21 @@
      (reduce #(conj! %1 %2)
              (transient {})
              maps))))
+
+(defn merge-with
+  "Merge maps together from left to right as by :lpy:fn:`conj`. If a
+  duplicate key appears in a map, the resulting value of that key in
+  the merged result will be the result of calling ``(f current-val
+  next-val)``."
+  [f & maps]
+  (when (some identity maps)
+    (reduce (fn [acc kv]
+              (let [k (first  kv)
+                    v (second kv)]
+                (if (contains? acc k)
+                  (update acc k f v)
+                  (assoc acc k v))))
+            (first maps) (apply concat (rest maps)))))
 
 (defn trampoline
   "Trampoline ``f`` with starting arguments. If ``f`` returns a function (as determined
@@ -3337,6 +3407,19 @@
     ~@(map (fn [expr]
              (concat '(fn* []) [expr]))
            exprs)))
+
+(defn memoize
+  "Retuns a fn that caches the results of the previous invocations of ``f``.
+
+  The memoized fn keeps a cache of the mapping from arguments to results."
+  [f]
+  (let [cache (atom {})]
+    (fn [& args]
+      (if-let [kv (find @cache args)]
+        (second kv)
+        (let [res (apply f args)]
+          (swap! cache assoc args res)
+          res)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; Random Functions ;;
@@ -3424,16 +3507,14 @@
 (defmacro case
   "Switch on ``expr`` to return a matching clause from the set of input clauses.
 
-  The input expression may be any valid Basilisp expression.
+  The input expression may be any valid Basilisp expression. A single default expression
+  can follow the clauses, and its value will be returned if no clause matches.
 
   The clauses are pairs of a matching value and a return value. The matching values are
   not evaluated and must be compile-time constants. Symbols will not be resolved. Lists
   may be passed to match multiple compile time values to a single return value. The
   dispatch is done in constant time."
   [expr & clauses]
-  (when (< (count clauses) 2)
-    (throw (ex-info "case expression must have at least one clause"
-                    {:clauses clauses})))
   (let [default (if (odd? (count clauses))
                   (last clauses)
                   :basilisp.core.case/no-default)
@@ -3514,12 +3595,12 @@
   For comprehensions consist of a vector of bindings, with optional modifiers, and a
   user specified body in an implicit ``do`` block.
 
-  Symbol bindings look like standard ``let`` bindings without destructuring. Values
-  bound to symbols should be sequences or otherwise seqable. The body of the ``for``
-  comprehension will be executed with the given symbol bound to successive values of the
-  sequence. If multiple sequences are bound to symbols, iteration will proceed in a
-  nested fashion with latest sequences iterated first and earlier sequences iterated
-  later (as nested ``for`` loops in procedural languages).
+  Symbol bindings look like standard ``let`` bindings. Values bound to symbols should be
+  sequences or otherwise seqable. The body of the ``for`` comprehension will be executed
+  with the given symbol bound to successive values of the sequence. If multiple sequences
+  are bound to symbols, iteration will proceed in a nested fashion with latest sequences
+  iterated first and earlier sequences iterated later (as nested ``for`` loops in
+  procedural languages).
 
   For example, a simple non-nested for comprehension will yield::
 
@@ -3559,10 +3640,6 @@
 
     (not (even? (count bindings)))
     (throw (ex-info "for expression must have an even number of bindings"
-                    {:bindings bindings}))
-
-    (not (symbol? (first bindings)))
-    (throw (ex-info "for expression bindings must start with symbol binding"
                     {:bindings bindings})))
 
   (let [;; Generate the body of a for binding iterator, applying any relevant
@@ -3631,7 +3708,7 @@
                            ;; (which will be applied to this iterator) and additional
                            ;; bindings (which will be generated as new, inner iterators).
                            groups        (split-with (fn [pair]
-                                                       (not (symbol? (first pair))))
+                                                       (keyword? (first pair)))
                                                      (rest pairs))
                            mods          (first groups)
                            rest-bindings (second groups)
@@ -4065,8 +4142,8 @@
 ;;;;;;;;;;;;;;;;;;;;
 
 (defn file-seq
-  "Return a seq of ``pathlib.Path`` objects for all files and subdirectories of
-  ``dir``\\."
+  "Return a seq of :external:py:class:`pathlib.Path` objects for all files and
+  subdirectories of ``dir``\\."
   [dir]
   (-> (pathlib/Path dir)
       (.resolve)
@@ -4081,27 +4158,34 @@
   "The current value of *standard in* used by Basilisp.
 
   Note that binding a new value to this Var will not affect *Python* code (which
-  generally respects ``sys.stdin``), though all Basilisp code should respect the
-  value."
+  generally respects :external:py:data:`sys.stdin`\\), though all Basilisp code should
+  respect the value."
   sys/stdin)
 
 (def ^:dynamic *out*
   "The current value of *standard out* used by Basilisp.
 
   Note that binding a new value to this Var will not affect *Python* code (which
-  generally respects ``sys.stdout``), though all Basilisp code should respect the
-  value."
+  generally respects :external:py:data:`sys.stdout`\\), though all Basilisp code should
+  respect the value."
   sys/stdout)
 
 (def ^:dynamic *err*
   "The current value of *standard error* used by Basilisp.
 
   Note that binding a new value to this Var will not affect *Python* code (which
-  generally respects ``sys.stderr``), though all Basilisp code should respect the
-  value."
+  generally respects :external:py:data:`sys.stderr`\\), though all Basilisp code should
+  respect the value."
   sys/stderr)
 
 (def ^:dynamic *print-sep* " ")
+
+(def ^:dynamic *flush-on-newline*
+  "Indicates whether the :lpy:fn:`prn` and :lpy:fn:`println` functions should flush the
+  output stream after the last newline is written.
+
+  Defaults to ``true``\\."
+  true)
 
 (defn ^:inline repr
   "Return the reader representation of an object."
@@ -4120,8 +4204,8 @@
   nil)
 
 (defmacro with-in-str
-  "Evaluate body with :lpy:var:`*in*` bound to a ``io.StringIO`` instance containing
-  the string ``s``\\."
+  "Evaluate body with :lpy:var:`*in*` bound to a :external:py:class:`io.StringIO`
+  instance containing the string ``s``\\."
   [s & body]
   `(binding [*in* (io/StringIO ~s)]
      ~@body))
@@ -4140,7 +4224,10 @@
   value bound to :lpy:var:`*print-sep*` (default is an ASCII space).
 
   Note that some dynamically created Basilisp forms (such keywords and symbols) and
-  Python objects may not be readable again."
+  Python objects may not be readable again.
+
+  It can be dynamically bound."
+  {:dynamic true}
   ([] nil)
   ([x]
    (.write *out* (repr x))
@@ -4155,14 +4242,20 @@
      nil)))
 
 (defn prn
-  "Same as :lpy:fn:`pr`, but appending a newline afterwards."
+  "Same as :lpy:fn:`pr`, but appending a newline afterwards.
+
+  Observes :lpy:var:`*flush-on-newline*`."
   ([]
-   (.write *out* \newline)
+   (.write *out* os/linesep)
+   (when *flush-on-newline*
+     (.flush *out*))
    nil)
   ([x]
    (let [stdout *out*]
      (.write stdout (repr x))
-     (.write stdout \newline)
+     (.write stdout os/linesep)
+     (when *flush-on-newline*
+       (.flush stdout))
      nil))
   ([x & args]
    (let [stdout    *out*
@@ -4171,7 +4264,9 @@
      (.write stdout (repr x))
      (.write stdout sep)
      (.write stdout (apply str repr-args))
-     (.write stdout \newline)
+     (.write stdout os/linesep)
+     (when *flush-on-newline*
+       (.flush *out*))
      nil)))
 
 (defn pr-str
@@ -4207,12 +4302,16 @@
   "Print the arguments to the stream bound to :lpy:var:`*out*` in a format which is
   readable by humans. ``println`` always prints a trailing newline. Multiple arguments
   will be separated by the string value bound to :lpy:var:`*print-sep*` (default is an
-  ASCII space)."
+  ASCII space).
+
+  Observes :lpy:var:`*flush-on-newline*`."
   ([] (println ""))
   ([x]
    (let [stdout *out*]
      (.write stdout (basilisp.lang.runtime/lstr x))
-     (.write stdout \newline)
+     (.write stdout os/linesep)
+     (when *flush-on-newline*
+       (.flush stdout))
      nil))
   ([x & args]
    (let [stdout    *out*
@@ -4221,7 +4320,9 @@
      (.write stdout (basilisp.lang.runtime/lstr x))
      (.write stdout sep)
      (.write stdout (apply str repr-args))
-     (.write stdout \newline)
+     (.write stdout os/linesep)
+     (when *flush-on-newline*
+       (.flush stdout))
      nil)))
 
 (defn print-str
@@ -4302,9 +4403,10 @@
   Callers may bind a map of readers to :lpy:var:`*data-readers*` to customize the data
   readers used reading this string.
 
-  The stream must satisfy the interface of ``io.TextIOBase``\\, but does not require any
-  pushback capabilities. The default ``basilisp.lang.reader.StreamReader`` can wrap any
-  object implementing ``TextIOBase`` and provide pushback capabilities."
+  The stream must satisfy the interface of :external:py:class:`io.TextIOBase`\\, but
+  does not require any pushback capabilities. The default
+  ``basilisp.lang.reader.StreamReader`` can wrap any object implementing ``TextIOBase``
+  and provide pushback capabilities."
   ([]
    (read *in*))
   ([stream]
@@ -4342,7 +4444,8 @@
                                                    namespace))))
 
 (defn load-reader
-  "Read and evaluate the set of forms in the ``io.TextIOBase`` instance ``reader``.
+  "Read and evaluate the set of forms in the :external:py:class:`io.TextIOBase` instance
+  ``reader``.
 
   Most often this is useful if you want to split your namespace across multiple source
   files. :lpy:fn:`require` will try to force you into a namespace-per-file paradigm
@@ -4378,11 +4481,12 @@
   (with-open [f (python/open path ** :mode "r")]
     (load-reader f)))
 
-(defn- resolve-load-path [path]
+(defn- resolve-load-path
   "Resolve load ``path`` relative to the current namespace, or, if it
   begins with \"/\", relative to the syspath, and return it.
 
- Throw a python/FileNotFoundError if the ``path`` cannot be resolved."
+  Throw a :external:py:exc:`FileNotFoundError` if the ``path`` cannot be resolved."
+  [path]
   (let [path-rel (if (.startswith path "/")
                    path
                    (let [path-parent (-> (name *ns*)
@@ -4729,6 +4833,9 @@
   Optional keys:
 
   - ``:as ns-alias`` a symbol which will alias the Namespace when required (if given)
+  - ``:as-alias ns-alias`` a symbol which will alias the Namespace when required; if
+    the namespace does not exist, it will be created as an empty namespace; if it does
+    exist, it will not be loaded
   - ``:refer [sym1, sym2]`` a sequence of symbols naming Vars to refer
   - ``:refer :all`` if every Var should be referred
   - ``:only [sym1, sym2]`` a sequence of symbols naming Vars to refer
@@ -4767,6 +4874,9 @@
     ;; rewrote the namespace on require.
     (when-let [original-ns (:original-namespace libspec)]
       (.add-alias requiring-ns (the-ns required-ns-sym) original-ns))
+    ;; If an `:as-alias` is requested, apply that as well.
+    (when-let [as-alias (:as-alias libspec)]
+      (.add-alias requiring-ns (the-ns required-ns-sym) as-alias))
     ;; Reset the namespace to the requiring namespace, since it was likely changed
     ;; during the require process
     (set! *ns* requiring-ns)))
@@ -4818,6 +4928,9 @@
   Vector libspec arguments must be one of:
 
   - ``:as name`` which will alias the imported namespace to the symbol name
+  - ``:as-alias name`` which will alias the namespace to the symbol name but not
+    require the namespace, which can be useful for namespaces used primarily for
+    keywords; the namespace need not exist at all; can be combined with ``:as``
   - ``:refer [& syms]`` which will refer syms in the local namespace directly
   - ``:refer :all`` which will refer all symbols from the namespace directly
 
@@ -4826,22 +4939,27 @@
   [& args]
   (let [current-ns *ns*]
     (doseq [libspec (map require-libspec args)]
-      (require-lib current-ns libspec)
+      (if (and (:as-alias libspec) (not (:as libspec)))
+        (let [alias-target (or (find-ns (:namespace libspec))
+                               (create-ns (:namespace libspec)))]
+          (.add-alias current-ns alias-target (:as-alias libspec)))
+        (do
+          (require-lib current-ns libspec)
 
-      ;; Add refers
-      (let [new-ns    (the-ns (:namespace libspec))
-            refer-opt (:refer libspec)]
-        (cond
-          (= :all refer-opt)
-          (.refer-all current-ns new-ns)
+          ;; Add refers
+          (let [new-ns    (the-ns (:namespace libspec))
+                refer-opt (:refer libspec)]
+            (cond
+              (= :all refer-opt)
+              (.refer-all current-ns new-ns)
 
-          (seq refer-opt)
-          (let [new-ns-interns (ns-interns new-ns)]
-            (doseq [var-sym refer-opt]
-              (let [var (get new-ns-interns var-sym)]
-                (.add-refer current-ns var-sym var))))
+              (seq refer-opt)
+              (let [new-ns-interns (ns-interns new-ns)]
+                (doseq [var-sym refer-opt]
+                  (let [var (get new-ns-interns var-sym)]
+                    (.add-refer current-ns var-sym var))))
 
-          :else nil)))
+              :else nil)))))
     nil))
 
 (defn refer
@@ -4932,7 +5050,25 @@
          [basilisp.string :as str])
        (:use
          [basilisp.set :only [intersection]])
-       (:import inspect))"
+       (:import inspect))
+
+  Flags and contents of each of the various sections are detailed further at each of
+  their respective function definitions.
+
+   - ``:refer-basilisp`` (``:refer-clojure`` is also accepted) controls how names from
+     :lpy:ns:`basilisp.core` are exposed in the namespace. Refer to :lpy:fn:`refer` for
+     usage.
+   - ``:require`` imports other Basilisp namespaces. Refer to :lpy:fn:`require` for
+     usage.
+   - ``:use`` is a variant of ``:require``, although ``:require`` is preferred in most
+     cases. See :lpy:fn:`use` for usage.
+   - ``:import`` imports Python modules and packages. Refer to :lpy:fn:`import` for
+     usage.
+
+  Use of the ``ns`` macro to control requires and imports is recommended in all cases.
+  The various functions that ``ns`` delegates to and whose documentation are referred
+  to above are generally useful for interactive usage at the REPL but not appropriate
+  for usage in a larger application."
   [name & opts]
   (when-not (and (symbol? name) (nil? (namespace name)))
     (throw (ex-info "Namespace name must be a non-namespaced symbol"
@@ -4972,8 +5108,8 @@
        ~@imports)))
 
 (defn requiring-resolve
-  "Resolve the namespaced symbol ``sym`` as by ``resolve``\\. If resolution fails,
-  attempts to require ``sym`` 's namespace (as by ``require``\\) before resolving
+  "Resolve the namespaced symbol ``sym`` as by :lpy:fn:`resolve`\\. If resolution fails,
+  attempts to require ``sym`` 's namespace (as by :lpy:fn:`require`\\) before resolving
   again."
   [sym]
   (if (qualified-symbol? sym)
@@ -4989,12 +5125,12 @@
 ;;;;;;;;;;;;;;;;;;;;;
 
 (defn re-pattern
-  "Return a new ``re.Pattern`` instance."
+  "Return a new :external:py:class:`re.Pattern` instance."
   [s]
   (re/compile s))
 
 (defn re-find
-  "Returns the first match of a string to a pattern using ``re.search``\\.
+  "Returns the first match of a string to a pattern using :external:py:func:`re.search`\\.
 
   If the string matches the pattern exactly and there are no match groups, return the
   string. Otherwise, return a vector with the string in the first position and the
@@ -5008,7 +5144,7 @@
           (vec (cons (.group match 0) groups)))))))
 
 (defn re-matches
-  "Returns a match of a string to a pattern using ``re.fullmatch``\\.
+  "Returns a match of a string to a pattern using :external:py:func:`re.fullmatch`\\.
 
   If the string matches the pattern exactly and there are no match groups, return the
   string. Otherwise, return a vector with the string in the first position and the
@@ -5031,7 +5167,8 @@
                      (lazy-re-seq (rest iter))))))))
 
 (defn re-seq
-  "Returns a lazy sequence of matches of a string to a pattern using ``re.finditer``\\.
+  "Returns a lazy sequence of matches of a string to a pattern using
+  :external:py:func:`re.finditer`\\.
 
   If the string matches the pattern exactly and there are no match groups, return the
   string. Otherwise, return a vector with the string in the first position and the
@@ -5221,7 +5358,9 @@
 ;;;;;;;;;;;;;;;;;;
 
 (defmacro defmulti
-  "Define a new multimethod with the given dispatch function.
+  "Define a new multimethod with the given ``name`` and a ``body`` consisting of an
+  optional docstring, optional metadata map, a dispatch function and options of key/value
+  pairs.
 
   Multimethod dispatch functions should be defined with the same arity or arities as
   the registered methods. The provided dispatch function will be called first on all
@@ -5260,12 +5399,18 @@
   [name & body]
   (let [doc         (when (string? (first body))
                       (first body))
-        name        (if doc
-                      (vary-meta name assoc :doc doc)
-                      name)
         body        (if doc
                       (rest body)
                       body)
+        mt          (when (map? (first body))
+                      (first body))
+        body        (if mt
+                      (rest body)
+                      body)
+        name        (vary-meta name merge mt)
+        name        (if doc
+                      (vary-meta name assoc :doc doc)
+                      name)
         dispatch-fn (first body)
         opts        (apply hash-map (rest body))]
     `(def ~name (basilisp.lang.multifn/MultiFunction (quote ~name)
@@ -5453,26 +5598,25 @@
 
         ;; Fetch all the remaining keys in the map which do not
         ;; correspond to special functionality.
-        remaining (->> [:as :or :strs :syms]
-                       (concat kw-keys)
-                       (apply dissoc arg))
-
         ;; Destructuring forms may be nested arbitrarily, so generate the
         ;; definitions for any nested destructured forms as well.
-        children (map #(vector % (destructure-def %)) (keys remaining))]
-    {:name alias
-     :type :map
-     :keys kws
-     :strs strs
-     :syms syms
-
+        children (->> [:as :or :strs :syms]
+                      (concat kw-keys)
+                      (apply dissoc arg)
+                      (map (fn [arg]
+                             ;; The val in this case is actually the key from
+                             ;; the source data structure
+                             (let [k (key arg)
+                                   v (val arg)]
+                               {:key     v
+                                :binding (destructure-def k)}))))]
+    {:name        alias
+     :type        :map
+     :keys        kws
+     :strs        strs
+     :syms        syms
      :or-bindings or-bindings
-     :remaining   (->> children
-                       (filter #(not= :symbol (:type (second %))))
-                       (map first)
-                       (apply dissoc remaining))
-
-     :children (map second children)}))
+     :children    children}))
 
 (defmethod destructure-def :symbol
   [arg]
@@ -5535,8 +5679,13 @@
 
 (defmethod destructure-binding :map
   [ddef]
-  (let [fn-arg (:name ddef)
-        ors    (:or-bindings ddef)
+  (let [fn-arg   (:name ddef)
+        ors      (:or-bindings ddef)
+        children (group-by
+                  #(if (= (get-in % [:binding :type]) :symbol)
+                     :symbol
+                     :other)
+                  (:children ddef))
 
         kw-binding (fn [arg]
                      (let [kw-ns      (namespace arg)
@@ -5564,34 +5713,46 @@
                           [arg `(or (get ~fn-arg (quote ~k)) ~or-binding)]
                           [arg `(get ~fn-arg (quote ~k))])))
 
-        rem-binding (fn [arg]
-                      (let [binding    (key arg)
-                            key        (val arg)
-                            or-binding (get ors binding)]
-                        (if or-binding
-                          [binding `(or (get ~fn-arg (quote ~key)) ~or-binding)]
-                          [binding `(get ~fn-arg ~key)])))
+        named-binding (fn [arg]
+                        (let [binding    (get-in arg [:binding :name])
+                              key        (:key arg)
+                              or-binding (get ors binding)]
+                          (if or-binding
+                            [binding `(or (get ~fn-arg (quote ~key)) ~or-binding)]
+                            [binding `(get ~fn-arg ~key)])))
 
         child-binding (fn [child]
-                        (let [alias (name (:name child))
-                              arg   (symbol alias)
-                              k     (keyword alias)]
-                          [arg `(get ~fn-arg ~k)]))
-
-        non-sym-children (filter #(not= :symbol (:type %)) (:children ddef))]
+                        (let [arg (get-in child [:binding :name])
+                              k   (:key child)]
+                          [arg `(get ~fn-arg ~k)]))]
     (concat
      (mapcat kw-binding (:keys ddef))
      (mapcat (partial map-binding name) (:strs ddef))
      (mapcat sym-binding (:syms ddef))
-     (mapcat rem-binding (:remaining ddef))
-     (mapcat child-binding non-sym-children)
-     (mapcat destructure-binding non-sym-children))))
+     (mapcat named-binding (:symbol children))
+     (mapcat child-binding (:other children))
+     (mapcat (comp destructure-binding :binding) (:other children)))))
 
 (defmethod destructure-binding :default
   [ddef]
   (throw
    (ex-info "Invalid destructuring argument type"
             {:type (:type ddef)})))
+
+(defn -collect-keyword-args
+  "Implementation detail for associative destructuring of function keyword arguments.
+
+  Collect all keyword arguments into a single map. Support trailing map arguments which
+  are joined into the final map."
+  [kwargs]
+  (when (seq kwargs)
+    (let [rest-args-vec  (vec kwargs)
+          final-rest-arg (peek rest-args-vec)]
+      (->> (if (map? final-rest-arg)
+             (mapcat identity final-rest-arg)
+             [final-rest-arg])
+           (concat (pop rest-args-vec))
+           (apply hash-map)))))
 
 (defn ^:private fn-arity-with-destructuring
   "Take a function arity definition (an argument vector and 0 or more body expressions)
@@ -5625,7 +5786,7 @@
         rest-binding (concat
                       (let [rest-arg (second rest-defs)]
                         (when (= :map (:type rest-arg))
-                          `[~(:name rest-arg) (apply hash-map ~(:name rest-arg))]))
+                          `[~(:name rest-arg) (-collect-keyword-args ~(:name rest-arg))]))
                       (->> rest-defs
                            (filter #(not= :symbol (:type %)))
                            (mapcat destructure-binding)))
@@ -5649,7 +5810,9 @@
 (defmacro ^:no-warn-on-redef fn
   "Return an anonymous (but possibly named) function.
 
-  Function argument vectors support sequential and associative destructuring."
+  Function argument vectors support sequential and associative :ref:`destructuring` .
+
+  See :lpy:form:`fn` for more details."
   [& body]
   (let [name    (when (symbol? (first body))
                   (first body))
@@ -5693,7 +5856,7 @@
     (apply list orig-name expr bindings)))
 
 (defmacro ^:no-warn-on-redef let
-  "Let bindings with destructuring support."
+  ":lpy:form:`let` bindings with :ref:`destructuring` support."
   [bindings & body]
   `(let* [~@(->> (partition 2 bindings)
                  (mapcat destructure))]
@@ -5709,7 +5872,9 @@
       (plus-two 3))
 
   Functions defined in ``letfn`` bindings may refer to each other regardless of their
-  order of definition."
+  order of definition.
+
+  See :lpy:form:`letfn` for more details."
   [bindings & body]
   `(letfn* [~@(mapcat (fn [fn-body]
                         [(first fn-body) (cons `fn fn-body)])
@@ -5737,7 +5902,7 @@
     [binding-vec new-body]))
 
 (defmacro ^:no-warn-on-redef loop
-  "Loop bindings with destructuring support."
+  ":lpy:form:`loop` bindings with :ref:`destructuring` support."
   [bindings & body]
   (let [[bindings body] (loop-with-destructuring bindings body)]
     `(loop* ~bindings
@@ -5780,13 +5945,10 @@
 
 (defn parse-double
   "Parse the string argument ``s`` as a floating point number as by Python's
-  builtin |float|_ function, returning the float if the string contains one,
-  or ``nil`` otherwise.
+  builtin :external:py:class:`float` function, returning the float if the string
+  contains one, or ``nil`` otherwise.
 
-  This function will throw a ``TypeError`` for non-string types.
-
-  .. |float| replace:: ``float``
-  .. _float: https://docs.python.org/3/library/functions.html#float"
+  This function will throw a ``TypeError`` for non-string types."
   [s]
   (if (string? s)
     (try
@@ -5796,13 +5958,10 @@
 
 (defn parse-long
   "Parse the string argument ``s`` as an integer (base 10) as by Python's builtin
-  |int|_ function, returning the integer if the string contains one, or ``nil``
-  otherwise.
+  :external:py:class:`int` function, returning the integer if the string contains one,
+  or ``nil`` otherwise.
 
-  This function will throw a ``TypeError`` for non-string types.
-
-  .. |int| replace:: ``int``
-  .. _int: https://docs.python.org/3/library/functions.html#int"
+  This function will throw a ``TypeError`` for non-string types."
   [s]
   (if (string? s)
     (try
@@ -5811,8 +5970,8 @@
     (throw (parsing-error s))))
 
 (defn parse-boolean
-  "Parse the string argument ``s`` as either boolean ``true`` or ``false``
-  returning the boolean if the string contains one, or ``nil`` otherwise.
+  "Parse the string argument ``s`` as either boolean ``true`` or ``false`` returning the
+  boolean if the string contains one, or ``nil`` otherwise.
 
   This function will throw a ``TypeError`` for non-string types."
   [s]
@@ -5821,13 +5980,10 @@
     (throw (parsing-error s))))
 
 (defn parse-uuid
-  "Parse the string argument ``s`` as a UUID as by Python's |uuid.UUID|_\\,
-  returning the UUID if the string contains one, or ``nil`` otherwise.
+  "Parse the string argument ``s`` as a :external:py:class:`uuid.UUID`, returning the
+  UUID if the string contains one, or ``nil`` otherwise.
 
-  This function will throw a ``TypeError`` for non-string types.
-
-  .. |uuid.UUID| replace:: ``uuid.UUID``
-  .. _uuid.UUID: https://docs.python.org/3/library/uuid.html"
+  This function will throw a ``TypeError`` for non-string types."
   [s]
   (if (string? s)
     (try
@@ -5840,8 +5996,10 @@
 ;;;;;;;;;;;;;;;;
 
 (defmulti munge
-  "Munge the input value into a Python-safe string. Converts keywords and
-  symbols into strings as by `name` prior to munging. Returns a string."
+  "Munge the input value into a Python-safe string. Converts keywords and symbols into
+  strings as by :lpy:fn:`name` prior to munging.
+
+  Returns a string."
   python/type)
 
 (defmethod munge basilisp.lang.keyword/Keyword
@@ -5966,9 +6124,9 @@
   implementation of an interface (perhaps via :lpy:fn:`deftype`) and supply
   implementations for all of the abstract methods.
 
-  The generated interface derives from Python's ``abc.ABC`` and all method definitions
-  are declared as ``abc.abstractmethod`` s and thus must be implemented by a concrete
-  type.
+  The generated interface derives from Python's :external:py:class:`abc.ABC` and all
+  method definitions are declared as :external:py:func:`abc.abstractmethod` s and thus
+  must be implemented by a concrete type.
 
   Interfaces created by ``definterface`` cannot be declared as properties, class
   methods, or static methods, as with :lpy:fn:`deftype`."
@@ -6044,8 +6202,8 @@
   macros).
 
   Despite their differences from interfaces, Protocols do also generate a standard
-  Python interface type (deriving from ``abc.ABC``) which is used for efficient dispatch
-  for implementing types.
+  Python interface type (deriving from :external:py:class:`abc.ABC`) which is used for
+  efficient dispatch for implementing types.
 
   Method signatures are in the form::
 
@@ -6180,12 +6338,12 @@
                    (let [impl-method-arities (get impl-method-arity-map proto-method-name)]
                      (when (not= impl-method-arities proto-method-arities)
                        (throw (ex-info "target-type must implement all protocol method arities"
-                                       {:proto-method    proto-method-name
+                                       {:proto-method         proto-method-name
                                         :proto-method-arities proto-method-arity-map
-                                        :impl-method-arities impl-method-arity-map
-                                        :missing-arities (->> proto-method-arities
-                                                              (remove impl-method-arities)
-                                                              (set))}))))))
+                                        :impl-method-arities  impl-method-arity-map
+                                        :missing-arities      (->> proto-method-arities
+                                                                   (remove impl-method-arities)
+                                                                   (set))}))))))
                (doseq [method-def method-map
                        :let       [[method-name fn] method-def]]
                  (let [dispatch-method (get proto-methods method-name)]
@@ -6223,12 +6381,18 @@
   "Convert a vector of method definitions (as expected by ``extend-protocol`` and
   ``extend-type``\\) into a map of method definitions which can be passed to
   ``extend``\\."
-  [methods]
+  [target-type methods]
   (->> (group-by first methods)
        (reduce (fn [m [method-name arities]]
-                 (->> (map rest arities)
-                      (apply list `fn)
-                      (assoc! m (keyword (name method-name)))))
+                 (let [genned-method-name (symbol
+                                           (str (name method-name)
+                                                "-"
+                                                (if (nil? target-type)
+                                                  "nil"
+                                                  (name target-type))))]
+                   (->> (map rest arities)
+                        (apply list `fn genned-method-name)
+                        (assoc! m (keyword (name method-name))))))
                (transient {}))
        (persistent!)))
 
@@ -6273,7 +6437,7 @@
   `(do ~@(map (fn [[target-type methods]]
                 `(extend ~target-type
                    ~proto
-                   ~(extend-map methods)))
+                   ~(extend-map target-type methods)))
               (sym-and-method-groups specs))))
 
 (defmacro extend-type
@@ -6308,7 +6472,7 @@
   [target-type & specs]
   `(extend ~target-type
      ~@(mapcat (fn [[proto methods]]
-                 [proto (extend-map methods)])
+                 [proto (extend-map target-type methods)])
                (sym-and-method-groups specs))))
 
 (defn extenders

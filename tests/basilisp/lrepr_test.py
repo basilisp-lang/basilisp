@@ -147,7 +147,7 @@ def test_print_meta(lcompile: CompileFn, s: str, code: str):
 
 
 def test_print_readably(lcompile: CompileFn):
-    assert '"Hello\nworld!"' == lcompile(
+    assert "Hello\nworld!" == lcompile(
         '(binding [*print-readably* false] (pr-str "Hello\\nworld!"))'
     )
 
@@ -169,6 +169,7 @@ def test_print_readably(lcompile: CompileFn):
         ("##-Inf", "(pr-str ##-Inf)"),
         ('"hi"', '(pr-str "hi")'),
         ('"Hello\\nworld!"', '(pr-str "Hello\nworld!")'),
+        (r'"\"Hello world!\""', r'(pr-str "\"Hello world!\"")'),
         (
             '#uuid "81f35603-0408-4b3d-bbc0-462e3702747f"',
             '(pr-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")',
@@ -177,6 +178,10 @@ def test_print_readably(lcompile: CompileFn):
         (
             r'#b "\x7fELF\x01\x01\x01\x00"',
             r'(pr-str #b "\x7f\x45\x4c\x46\x01\x01\x01\x00")',
+        ),
+        (
+            '#uuid "81f35603-0408-4b3d-bbc0-462e3702747f"',
+            '(pr-str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")',
         ),
         ('#"\\s"', '(pr-str #"\\s")'),
         (
@@ -210,6 +215,7 @@ def test_lrepr(lcompile: CompileFn, repr: str, code: str):
         (-float("inf"), "(read-string (pr-str ##-Inf))"),
         ("hi", '(read-string (pr-str "hi"))'),
         ("Hello\nworld!", '(read-string (pr-str "Hello\nworld!"))'),
+        ('"Hello world!"', r'(read-string (pr-str "\"Hello world!\""))'),
         (b"", '(read-string (pr-str #b ""))'),
         (
             b"\x7fELF\x01\x01\x01\x00",
@@ -263,6 +269,7 @@ def test_lrepr_round_trip_special_cases(lcompile: CompileFn):
         ("##-Inf", "(print-str ##-Inf)"),
         ("hi", '(print-str "hi")'),
         ("Hello\nworld!", '(print-str "Hello\nworld!")'),
+        ('"Hello world!"', r'(print-str "\"Hello world!\"")'),
         ('#b ""', '(print-str #b "")'),
         (
             r'#b "\x7fELF\x01\x01\x01\x00"',
@@ -294,4 +301,57 @@ def test_lrepr_round_trip_special_cases(lcompile: CompileFn):
     ],
 )
 def test_lstr(lcompile: CompileFn, s: str, code: str):
+    assert s == lcompile(code)
+
+
+@pytest.mark.parametrize(
+    "s,code",
+    [
+        ("true", "(str true)"),
+        ("false", "(str false)"),
+        ("", "(str nil)"),
+        ("4J", "(str 4J)"),
+        ("37.8J", "(str 37.8J)"),
+        ("37.8J", "(str 37.8J)"),
+        ("8837", "(str 8837)"),
+        ("0.64", "(str 0.64)"),
+        ("3.14", "(str 3.14M)"),
+        ("22/7", "(str 22/7)"),
+        ("##NaN", "(str ##NaN)"),
+        ("##Inf", "(str ##Inf)"),
+        ("##-Inf", "(str ##-Inf)"),
+        ("hi", '(str "hi")'),
+        ("Hello\nworld!", '(str "Hello\nworld!")'),
+        ('"Hello world!"', r'(str "\"Hello world!\"")'),
+        ('#b ""', '(str #b "")'),
+        (
+            r'#b "\x7fELF\x01\x01\x01\x00"',
+            r'(str #b "\x7f\x45\x4c\x46\x01\x01\x01\x00")',
+        ),
+        (
+            "81f35603-0408-4b3d-bbc0-462e3702747f",
+            '(str #uuid "81f35603-0408-4b3d-bbc0-462e3702747f")',
+        ),
+        ('#"\\s"', '(str #"\\s")'),
+        (
+            '#inst "2018-11-28T12:43:25.477000+00:00"',
+            '(str #inst "2018-11-28T12:43:25.477-00:00")',
+        ),
+        ('#py ["a" 1 false]', '(str #py ["a" 1 false])'),
+        ('#py ("a" 1 false)', '(str #py ("a" 1 false))'),
+        ('#py {"a" "b"}', '(str #py {"a" "b"})'),
+        ("#py #{}", "(str #py #{})"),
+        ("abc", '(str "abc")'),
+        ("false", "(str false)"),
+        ("123", "(str 123)"),
+        ('[:ab 2 "xyz"]', '(str [:ab 2 "xyz"])'),
+        ('#{"xyz"}', '(str #{"xyz"})'),
+        ('{"a" "b"}', '(str {"a" "b"})'),
+        (
+            '{"a" ["b" :c 1 false ("x") {"y" "z"}]}',
+            '(str {"a" ["b" :c 1 false (seq ["x"]) {"y" "z"}]})',
+        ),
+    ],
+)
+def test_str(lcompile: CompileFn, s: str, code: str):
     assert s == lcompile(code)

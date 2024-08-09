@@ -88,7 +88,7 @@
   basilisp.lang.reader/ns-name-chars)
 
 (def ^:private num-chars
-  basilisp.lang.reader/num-chars)
+  #"[0-9]")
 
 (def ^:private unicode-char
   basilisp.lang.reader/unicode-char)
@@ -117,7 +117,7 @@
       (cond
         (= c "/")
         (do
-          (.next-token reader)
+          (.next-char reader)
           (cond
             has-ns
             (throw
@@ -139,7 +139,7 @@
         (or (re-matches ns-name-chars c)
             (and (seq name) (= c "'")))
         (do
-          (.next-token reader)
+          (.next-char reader)
           (recur ns (conj name c) has-ns))
 
         :else
@@ -173,7 +173,7 @@
 
         (= c end-token)
         (do
-          (.next-token reader)
+          (.next-char reader)
           (f (remove #(identical? comment %) objs)))
 
         :else
@@ -309,7 +309,7 @@
     (let [c (.peek reader)]
       (cond
         (= c "-")
-        (let [following-token (.next-token reader)]
+        (let [following-token (.next-char reader)]
           (if-not (re-matches begin-num-chars following-token)
             (do
               (.pushback reader)
@@ -329,12 +329,12 @@
            (ex-info "Found extra '.' in float; expected decimal portion"
                     {:error :extra-decimal-point-in-float}))
           (do
-            (.next-token reader)
+            (.next-char reader)
             (recur (conj chars c) true)))
 
         (re-matches num-chars c)
         (do
-          (.next-token reader)
+          (.next-char reader)
           (recur (conj chars c) is-float))
 
         :else
@@ -346,7 +346,7 @@
 (defmethod read-sym-or-num :whitespace
   [reader opts]
   (while (re-matches whitespace-chars (.peek reader))
-    (.next-token reader))
+    (.next-char reader))
   (read-next reader opts))
 
 (defmethod read-sym-or-num :sym-or-singleton
@@ -400,7 +400,7 @@
 
         (= c "}")
         (do
-          (.next-token reader)
+          (.next-char reader)
           (try
             (->> objs
                  (remove #(or (identical? comment %)
@@ -428,7 +428,7 @@
   [reader _]
   (assert (= (.peek reader) "\""))  ;; can use assert since peek does not modify reader
   (loop [s []]
-    (let [c (.next-token reader)]
+    (let [c (.next-char reader)]
       (cond
         (= c "")
         (throw
@@ -437,7 +437,7 @@
                    :string (str/join s)}))
 
         (= c "\\")
-        (let [escape-char (.next-token reader)]
+        (let [escape-char (.next-char reader)]
           (if-let [replacement (get str-escape-chars escape-char)]
             (recur (conj s replacement))
             (throw
@@ -447,7 +447,7 @@
 
         (= c "\"")
         (do
-          (.next-token reader)
+          (.next-char reader)
           (str/join s))
 
         :default

@@ -5,11 +5,13 @@ import contextlib
 import decimal
 import functools
 import io
+import os
 import re
 import uuid
 from datetime import datetime
 from fractions import Fraction
 from itertools import chain
+from types import TracebackType
 from typing import (
     Any,
     Callable,
@@ -24,12 +26,14 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TypeVar,
     Union,
     cast,
 )
 
 import attr
+from typing_extensions import Unpack
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -39,6 +43,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import util as langutil
 from basilisp.lang import vector as vec
+from basilisp.lang.exception import format_exception
 from basilisp.lang.interfaces import (
     ILispObject,
     ILookup,
@@ -52,6 +57,7 @@ from basilisp.lang.interfaces import (
     IType,
     IWithMeta,
 )
+from basilisp.lang.obj import PrintSettings
 from basilisp.lang.obj import seq_lrepr as _seq_lrepr
 from basilisp.lang.runtime import (
     READER_COND_DEFAULT_FEATURE_SET,
@@ -60,6 +66,7 @@ from basilisp.lang.runtime import (
     get_current_ns,
     lrepr,
 )
+from basilisp.lang.source import format_source_context
 from basilisp.lang.typing import IterableLispForm, LispForm, ReaderForm
 from basilisp.lang.util import munge
 from basilisp.util import Maybe, partition
@@ -67,7 +74,15 @@ from basilisp.util import Maybe, partition
 ns_name_chars = re.compile(r"\w|-|\+|\*|\?|/|\=|\\|!|&|%|>|<|\$|\.")
 alphanumeric_chars = re.compile(r"\w")
 begin_num_chars = re.compile(r"[0-9\-]")
-num_chars = re.compile("[0-9]")
+maybe_num_chars = re.compile(r"[0-9A-Za-z/\.]")
+integer_literal = re.compile(r"(-?(?:\d|[1-9]\d+))N?")
+float_literal = re.compile(r"(-?(?:\d|[1-9]\d+)(?:\.\d*)?)M?")
+complex_literal = re.compile(r"-?(\d+(?:\.\d*)?)J")
+arbitrary_base_literal = re.compile(r"-?(\d{1,2})r([0-9A-Za-z]+)")
+octal_literal = re.compile("-?0([0-7]+)N?")
+hex_literal = re.compile("-?0[Xx]([0-9A-Fa-f]+)N?")
+ratio_literal = re.compile(r"(-?\d+)/(\d+)")
+scientific_notation_literal = re.compile(r"-?(\d+(?:\.\d*)?)[Ee](-?\d+)")
 whitespace_chars = re.compile(r"[\s,]")
 newline_chars = re.compile("(\r\n|\r|\n)")
 fn_macro_args = re.compile("(%)(&|[0-9])?")
@@ -144,6 +159,53 @@ class SyntaxError(Exception):
             return f"{self.message} ({details})"
 
 
+@format_exception.register(SyntaxError)
+def format_syntax_error(  # pylint: disable=unused-argument
+    e: SyntaxError,
+    tp: Optional[Type[Exception]] = None,
+    tb: Optional[TracebackType] = None,
+) -> List[str]:
+    context_exc: Optional[BaseException] = e.__cause__
+
+    lines = [os.linesep]
+    if context_exc is not None:
+        lines.append(f"  exception: {type(context_exc)} from {type(e)}{os.linesep}")
+    else:
+        lines.append(f"  exception: {type(e)}{os.linesep}")
+    if context_exc is None:
+        lines.append(f"    message: {e.message}{os.linesep}")
+    else:
+        lines.append(f"    message: {e.message}: {context_exc}{os.linesep}")
+
+    if e.line is not None and e.col is not None:
+        line_num = f"{e.line}:{e.col}"
+    elif e.line is not None:
+        line_num = str(e.line)
+    else:
+        line_num = ""
+
+    if e.filename is not None:
+        lines.append(
+            f"   location: {e.filename}:{line_num or 'NO_SOURCE_LINE'}{os.linesep}"
+        )
+    elif line_num:
+        lines.append(f"       line: {line_num}{os.linesep}")
+
+    # Print context source lines around the error. Use the current exception to
+    # derive source lines, but use the inner cause exception to place a marker
+    # around the error.
+    if (
+        e.filename is not None
+        and e.line is not None
+        and (context_lines := format_source_context(e.filename, e.line))
+    ):
+        lines.append(f"    context:{os.linesep}")
+        lines.append(os.linesep)
+        lines.extend(context_lines)
+
+    return lines
+
+
 class UnexpectedEOFError(SyntaxError):
     """Syntax Error type raised when the reader encounters an unexpected EOF
     reading a form.
@@ -163,13 +225,13 @@ class StreamReader:
         self._stream = stream
         self._pushback_depth = pushback_depth
         self._idx = -2
-        init_buffer = [self._stream.read(1), self._stream.read(1)]
-        self._buffer = collections.deque(init_buffer, pushback_depth)
         self._line = collections.deque([1], pushback_depth)
-        self._col = collections.deque([1], pushback_depth)
+        self._col = collections.deque([0], pushback_depth)
+        self._buffer = collections.deque([self._stream.read(1)], pushback_depth)
 
-        for c in init_buffer[1:]:
-            self._update_loc(c)
+        # Load up an extra character
+        self._buffer.append(self._stream.read(1))
+        self._update_loc()
 
     @property
     def name(self) -> Optional[str]:
@@ -177,23 +239,24 @@ class StreamReader:
 
     @property
     def col(self) -> int:
+        """Return the column of the character returned by `peek`."""
         return self._col[self._idx]
 
     @property
     def line(self) -> int:
+        """Return the line of the character returned by `peek`."""
         return self._line[self._idx]
 
     @property
     def loc(self) -> Tuple[int, int]:
+        """Return the location of the character returned by `peek` as a tuple of
+        (line, col)."""
         return self.line, self.col
 
-    def _update_loc(self, c):
-        """Update the internal line and column buffers after a new character
-        is added.
-
-        The column number is set to 0, so the first character on the next line
-        is column number 1."""
-        if newline_chars.match(c):
+    def _update_loc(self):
+        """Update the internal line and column buffers after a new character is
+        added."""
+        if newline_chars.match(self._buffer[-2]):
             self._col.append(0)
             self._line.append(self._line[-1] + 1)
         else:
@@ -205,28 +268,30 @@ class StreamReader:
         return self._buffer[self._idx]
 
     def pushback(self) -> None:
-        """Push one character back onto the stream, allowing it to be
-        read again."""
+        """Push one character back onto the stream, allowing it to be read again."""
         if abs(self._idx - 1) > self._pushback_depth:
             raise IndexError("Exceeded pushback depth")
         self._idx -= 1
 
     def advance(self) -> str:
-        """Advance the current token pointer by one and return the
-        previous token value from before advancing the counter."""
+        """Advance the current character pointer by one and return the previous
+        character value from before advancing the counter.
+
+        Equivalent to calling `peek`, then `next_char`, then returning the result of
+        the previous `peek`."""
         cur = self.peek()
-        self.next_token()
+        self.next_char()
         return cur
 
-    def next_token(self) -> str:
-        """Advance the stream forward by one character and return the
-        next token in the stream."""
+    def next_char(self) -> str:
+        """Advance the stream forward by one character and return the next character
+        in the stream."""
         if self._idx < StreamReader.DEFAULT_INDEX:
             self._idx += 1
         else:
             c = self._stream.read(1)
-            self._update_loc(c)
             self._buffer.append(c)
+            self._update_loc()
         return self.peek()
 
 
@@ -460,7 +525,7 @@ class ReaderConditional(ILookup[kw.Keyword, ReaderForm], ILispObject):
                 return form
         return self.FEATURE_NOT_PRESENT
 
-    def _lrepr(self, **kwargs) -> str:
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         return _seq_lrepr(
             chain.from_iterable(self._feature_vec),
             "#?@(" if self.is_splicing else "#?(",
@@ -503,15 +568,15 @@ def _with_loc(f: W) -> W:
 def _read_namespaced(
     ctx: ReaderContext, allowed_suffix: Optional[str] = None
 ) -> Tuple[Optional[str], str]:
-    """Read a namespaced token from the input stream."""
+    """Read a namespaced token (keyword or symbol) from the input stream."""
     ns: List[str] = []
     name: List[str] = []
     reader = ctx.reader
     has_ns = False
     while True:
-        token = reader.peek()
-        if token == "/":
-            reader.next_token()
+        char = reader.peek()
+        if char == "/":
+            reader.next_char()
             if has_ns:
                 raise ctx.syntax_error("Found '/'; expected word character")
             elif len(name) == 0:
@@ -522,12 +587,12 @@ def _read_namespaced(
                 has_ns = True
                 ns = name
                 name = []
-        elif ns_name_chars.match(token) or (name and token == "'"):
-            reader.next_token()
-            name.append(token)
-        elif allowed_suffix is not None and token == allowed_suffix:
-            reader.next_token()
-            name.append(token)
+        elif ns_name_chars.match(char) or (name and char == "'"):
+            reader.next_char()
+            name.append(char)
+        elif allowed_suffix is not None and char == allowed_suffix:
+            reader.next_char()
+            name.append(char)
         else:
             break
 
@@ -550,7 +615,7 @@ def _read_coll(
         [Collection[Any]],
         Union[llist.PersistentList, lset.PersistentSet, vec.PersistentVector],
     ],
-    end_token: str,
+    end_char: str,
     coll_name: str,
 ):
     """Read a collection from the input stream and create the
@@ -558,14 +623,14 @@ def _read_coll(
     coll: List = []
     reader = ctx.reader
     while True:
-        token = reader.peek()
-        if token == "":
+        char = reader.peek()
+        if char == "":
             raise ctx.eof_error(f"Unexpected EOF in {coll_name}")
-        if whitespace_chars.match(token):
+        if whitespace_chars.match(char):
             reader.advance()
             continue
-        if token == end_token:
-            reader.next_token()
+        if char == end_char:
+            reader.next_char()
             return f(coll)
         elem = _read_next(ctx)
         if elem is COMMENT or isinstance(elem, Comment):
@@ -629,14 +694,14 @@ def __read_map_elems(ctx: ReaderContext) -> Iterable[RawReaderForm]:
     reader conditionals."""
     reader = ctx.reader
     while True:
-        token = reader.peek()
-        if token == "":
+        char = reader.peek()
+        if char == "":
             raise ctx.eof_error("Unexpected EOF in map}")
-        if whitespace_chars.match(token):
+        if whitespace_chars.match(char):
             reader.advance()
             continue
-        if token == "}":
-            reader.next_token()
+        if char == "}":
+            reader.next_char()
             return
         v = _read_next(ctx)
         if v is COMMENT or isinstance(v, Comment):
@@ -710,7 +775,7 @@ def _read_map(
             else:
                 d[k] = v
     except ValueError as e:
-        raise ctx.syntax_error("Unexpected token '}'; expected map value") from e
+        raise ctx.syntax_error("Unexpected char '}'; expected map value") from e
     else:
         return lmap.map(d)
 
@@ -732,9 +797,9 @@ def _read_namespaced_map(ctx: ReaderContext) -> lmap.PersistentMap:
                 "be specified as keywords without namespaces"
             )
 
-    token = ctx.reader.peek()
-    while whitespace_chars.match(token):
-        token = ctx.reader.next_token()
+    char = ctx.reader.peek()
+    while whitespace_chars.match(char):
+        char = ctx.reader.next_char()
 
     return _read_map(ctx, namespace=map_ns)
 
@@ -746,23 +811,18 @@ MaybeSymbol = Union[bool, None, sym.Symbol]
 MaybeNumber = Union[complex, decimal.Decimal, float, Fraction, int, MaybeSymbol]
 
 
-def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
+def _read_num(  # noqa: C901  # pylint: disable=too-many-locals,too-many-statements
     ctx: ReaderContext,
 ) -> MaybeNumber:
     """Return a numeric (complex, Decimal, float, int, Fraction) from the input stream."""
     chars: List[str] = []
     reader = ctx.reader
 
-    is_complex = False
-    is_decimal = False
-    is_float = False
-    is_integer = False
-    is_ratio = False
     while True:
-        token = reader.peek()
-        if token == "-":
-            following_token = reader.next_token()
-            if not begin_num_chars.match(following_token):
+        char = reader.peek()
+        if char == "-":
+            following_char = reader.next_char()
+            if not begin_num_chars.match(following_char):
                 reader.pushback()
                 try:
                     for _ in chars:
@@ -772,70 +832,64 @@ def _read_num(  # noqa: C901  # pylint: disable=too-many-statements
                         "Requested to pushback too many characters onto StreamReader"
                     ) from e
                 return _read_sym(ctx)
-            chars.append(token)
+            chars.append(char)
             continue
-        elif token == ".":
-            if is_float:
-                raise ctx.syntax_error(
-                    "Found extra '.' in float; expected decimal portion"
-                )
-            is_float = True
-        elif token == "J":
-            if is_complex:
-                raise ctx.syntax_error("Found extra 'J' suffix in complex literal")
-            is_complex = True
-        elif token == "M":
-            if is_decimal:
-                raise ctx.syntax_error("Found extra 'M' suffix in decimal literal")
-            is_decimal = True
-        elif token == "N":
-            if is_integer:
-                raise ctx.syntax_error("Found extra 'N' suffix in integer literal")
-            is_integer = True
-        elif token == "/":
-            if is_ratio:
-                raise ctx.syntax_error("Found extra '/' in ratio literal")
-            is_ratio = True
-        elif not num_chars.match(token):
+        elif not maybe_num_chars.match(char):
             break
-        reader.next_token()
-        chars.append(token)
+        reader.next_char()
+        chars.append(char)
 
-    assert len(chars) > 0, "Must have at least one digit in integer or float"
+    assert len(chars) > 0, "Must have at least one digit in number"
 
     s = "".join(chars)
-    if (
-        sum(
-            [
-                is_complex and is_decimal,
-                is_complex and is_integer,
-                is_complex and is_ratio,
-                is_decimal or is_float,
-                is_integer,
-                is_ratio,
-            ]
-        )
-        > 1
-    ):
-        raise ctx.syntax_error(f"Invalid number format: {s}")
+    neg = s.startswith("-")
 
-    if is_complex:
-        imaginary = float(s[:-1]) if is_float else int(s[:-1])
-        return complex(0, imaginary)
-    elif is_decimal:
+    if (match := integer_literal.fullmatch(s)) is not None:
+        return int(match.group(1))
+    elif (match := float_literal.fullmatch(s)) is not None:
+        if s.endswith("M"):
+            try:
+                return decimal.Decimal(match.group(1))
+            except decimal.InvalidOperation:  # pragma: no cover
+                raise ctx.syntax_error(f"Invalid number format: {s}") from None
+        else:
+            return float(match.group(1))
+    elif (match := octal_literal.fullmatch(s)) is not None:
+        v = int(match.group(1), base=8)
+        return -v if neg else v
+    elif (match := hex_literal.fullmatch(s)) is not None:
+        v = int(match.group(1), base=16)
+        return -v if neg else v
+    elif (match := ratio_literal.fullmatch(s)) is not None:
+        num, denominator = match.groups()
+        if (numerator := int(num)) == 0:
+            return 0
         try:
-            return decimal.Decimal(s[:-1])
-        except decimal.InvalidOperation:
-            raise ctx.syntax_error(f"Invalid number format: {s}") from None
-    elif is_float:
-        return float(s)
-    elif is_ratio:
-        assert "/" in s, "Ratio must contain one '/' character"
-        num, denominator = s.split("/")
-        return Fraction(numerator=int(num), denominator=int(denominator))
-    elif is_integer:
-        return int(s[:-1])
-    return int(s)
+            return Fraction(numerator=numerator, denominator=int(denominator))
+        except ZeroDivisionError as e:
+            raise ctx.syntax_error(f"Invalid ratio format: {s}") from e
+    elif (match := scientific_notation_literal.fullmatch(s)) is not None:
+        sig = float(m) if "." in (m := match.group(1)) else int(m)
+        exp = int(match.group(2))
+        res = sig * (10**exp)
+        return -res if neg else res
+    elif (match := arbitrary_base_literal.fullmatch(s)) is not None:
+        base = int(match.group(1))
+        if not 2 <= base <= 36:
+            raise ctx.syntax_error(
+                f"Invalid base {base} for integer literal {s}: must be between 2 and 36"
+            )
+        try:
+            v = int(match.group(2), base=base)
+        except ValueError as e:
+            raise ctx.syntax_error(f"Invalid number format: {s}") from e
+        else:
+            return -v if neg else v
+    elif (match := complex_literal.fullmatch(s)) is not None:
+        imaginary_raw = match.group(1)
+        imaginary = float(imaginary_raw) if "." in imaginary_raw else int(imaginary_raw)
+        return complex(0, -imaginary if neg else imaginary)
+    raise ctx.syntax_error(f"Invalid number format: {s}")
 
 
 _STR_ESCAPE_CHARS = {
@@ -859,23 +913,23 @@ def _read_str(ctx: ReaderContext, allow_arbitrary_escapes: bool = False) -> str:
     s: List[str] = []
     reader = ctx.reader
     while True:
-        token = reader.next_token()
-        if token == "":
+        char = reader.next_char()
+        if char == "":
             raise ctx.eof_error("Unexpected EOF in string")
-        if token == "\\":
-            token = reader.next_token()
-            escape_char = _STR_ESCAPE_CHARS.get(token, None)
+        if char == "\\":
+            char = reader.next_char()
+            escape_char = _STR_ESCAPE_CHARS.get(char, None)
             if escape_char:
                 s.append(escape_char)
                 continue
             if allow_arbitrary_escapes:
                 s.append("\\")
             else:
-                raise ctx.syntax_error(f"Unknown escape sequence: \\{token}")
-        if token == '"':
-            reader.next_token()
+                raise ctx.syntax_error(f"Unknown escape sequence: \\{char}")
+        if char == '"':
+            reader.next_char()
             return "".join(s)
-        s.append(token)
+        s.append(char)
 
 
 _BYTES_ESCAPE_CHARS = {
@@ -894,8 +948,8 @@ _BYTES_ESCAPE_CHARS = {
 def _read_hex_byte(ctx: ReaderContext) -> bytes:
     """Read a byte with a 2 digit hex code such as `\\xff`."""
     reader = ctx.reader
-    c1 = reader.next_token()
-    c2 = reader.next_token()
+    c1 = reader.next_char()
+    c2 = reader.next_char()
     try:
         return bytes([int("".join(["0x", c1, c2]), base=16)])
     except ValueError as e:
@@ -912,39 +966,39 @@ def _read_byte_str(ctx: ReaderContext) -> bytes:
     """
     reader = ctx.reader
 
-    token = reader.peek()
-    while whitespace_chars.match(token):
-        token = reader.next_token()
+    char = reader.peek()
+    while whitespace_chars.match(char):
+        char = reader.next_char()
 
-    if token != '"':
-        raise ctx.syntax_error(f"Expected '\"'; got '{token}' instead")
+    if char != '"':
+        raise ctx.syntax_error(f"Expected '\"'; got '{char}' instead")
 
     b: List[bytes] = []
     while True:
-        token = reader.next_token()
-        if token == "":
+        char = reader.next_char()
+        if char == "":
             raise ctx.eof_error("Unexpected EOF in byte string")
-        if ord(token) < 1 or ord(token) > 127:
+        if ord(char) < 1 or ord(char) > 127:
             raise ctx.eof_error("Byte strings must contain only ASCII characters")
-        if token == "\\":
-            token = reader.next_token()
-            escape_char = _BYTES_ESCAPE_CHARS.get(token, None)
+        if char == "\\":
+            char = reader.next_char()
+            escape_char = _BYTES_ESCAPE_CHARS.get(char, None)
             if escape_char:
                 b.append(escape_char)
                 continue
-            elif token == "x":
+            elif char == "x":
                 b.append(_read_hex_byte(ctx))
                 continue
             else:
                 # In Python, invalid escape sequences entered into byte strings are
                 # retained with backslash for debugging purposes, so we do the same.
                 b.append(b"\\")
-                b.append(token.encode("utf-8"))
+                b.append(char.encode("utf-8"))
                 continue
-        if token == '"':
-            reader.next_token()
+        if char == '"':
+            reader.next_char()
             return b"".join(b)
-        b.append(token.encode("utf-8"))
+        b.append(char.encode("utf-8"))
 
 
 @_with_loc
@@ -993,9 +1047,6 @@ def _read_kw(ctx: ReaderContext) -> kw.Keyword:
         should_autoresolve = False
 
     ns, name = _read_namespaced(ctx)
-    if "." in name:
-        raise ctx.syntax_error("Found '.' in keyword name")
-
     if should_autoresolve:
         current_ns = get_current_ns()
         if ns is not None:
@@ -1293,7 +1344,7 @@ def _read_character(ctx: ReaderContext) -> str:
     """Read a character literal from the input stream.
 
     Character literals may appear as:
-      - \\a \\b \\c etc will yield 'a', 'b', and 'c' respectively
+      - \\a \\$ \\[ etc will yield 'a', '$', and '[' respectively
 
       - \\newline, \\space, \\tab, \\formfeed, \\backspace, \\return yield
         the named characters
@@ -1305,31 +1356,31 @@ def _read_character(ctx: ReaderContext) -> str:
 
     s: List[str] = []
     reader = ctx.reader
-    token = reader.peek()
+    char = reader.peek()
+    is_first_char = True
     while True:
-        if token == "" or whitespace_chars.match(token):
+        if char == "" or (not is_first_char and not alphanumeric_chars.match(char)):
             break
-        if not alphanumeric_chars.match(token):
-            break
-        s.append(token)
-        token = reader.next_token()
+        s.append(char)
+        char = reader.next_char()
+        is_first_char = False
 
-    char = "".join(s)
-    special = _SPECIAL_CHARS.get(char, None)
+    character = "".join(s)
+    special = _SPECIAL_CHARS.get(character, None)
     if special is not None:
         return special
 
-    match = unicode_char.match(char)
+    match = unicode_char.match(character)
     if match is not None:
         try:
             return chr(int(f"0x{match.group(1)}", 16))
         except (ValueError, OverflowError):
-            raise ctx.syntax_error(f"Unsupported character \\u{char}") from None
+            raise ctx.syntax_error(f"Unsupported character \\u{character}") from None
 
-    if len(char) > 1:
-        raise ctx.syntax_error(f"Unsupported character \\{char}")
+    if len(character) > 1:
+        raise ctx.syntax_error(f"Unsupported character \\{character}")
 
-    return char
+    return character
 
 
 def _read_regex(ctx: ReaderContext) -> Pattern:
@@ -1376,23 +1427,22 @@ def _read_reader_conditional_preserving(ctx: ReaderContext) -> ReaderConditional
     reader = ctx.reader
     start = reader.advance()
     assert start == "?"
-    token = reader.peek()
+    char = reader.peek()
 
-    if token == "@":
+    if char == "@":
         is_splicing = True
         ctx.reader.advance()
-    elif token == "(":
+    elif char == "(":
         is_splicing = False
     else:
         raise ctx.syntax_error(
-            f"Unexpected token '{token}'; expected opening "
-            "'(' for reader conditional"
+            f"Unexpected char '{char}'; expected opening '(' for reader conditional"
         )
 
-    open_token = reader.advance()
-    if open_token != "(":
+    open_char = reader.advance()
+    if open_char != "(":
         raise ctx.syntax_error(
-            f"Expected opening '(' for reader conditional; got '{open_token}'"
+            f"Expected opening '(' for reader conditional; got '{open_char}'"
         )
 
     feature_list = _read_coll(ctx, llist.list, ")", "reader conditional")
@@ -1467,48 +1517,57 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
     macro from the input stream."""
     start = ctx.reader.advance()
     assert start == "#"
-    token = ctx.reader.peek()
-    if token == "{":
+    char = ctx.reader.peek()
+    if char == "{":
         return _read_set(ctx)
-    elif token == "(":
+    elif char == "(":
         return _read_function(ctx)
-    elif token == ":":
+    elif char == ":":
         return _read_namespaced_map(ctx)
-    elif token == "'":
+    elif char == "'":
         ctx.reader.advance()
-        s = _read_sym(ctx)
+        char_next = ctx.reader.peek()
+        if char_next == "~":
+            s = _read_unquote(ctx)
+        else:
+            s = _read_sym(ctx)
         return llist.l(_VAR, s)
-    elif token == '"':
+    elif char == '"':
         return _read_regex(ctx)
-    elif token == "_":
+    elif char == "_":
         ctx.reader.advance()
         _read_next(ctx)  # Ignore the entire next form
         return COMMENT
-    elif token == "!":
+    elif char == "!":
         return _read_comment(ctx)
-    elif token == "?":
-        return _read_reader_conditional(ctx)
-    elif token == "#":
+    elif char == "?":
+        try:
+            return _read_reader_conditional(ctx)
+        except SyntaxError as e:
+            raise ctx.syntax_error(e.message).with_traceback(e.__traceback__) from None
+    elif char == "#":
         return _read_numeric_constant(ctx)
-    elif token == "b":
-        ctx.reader.advance()
-        return _read_byte_str(ctx)
-    elif ns_name_chars.match(token):
+    elif ns_name_chars.match(char):
         s = _read_sym(ctx)
         assert isinstance(s, sym.Symbol)
+        if s.ns is None and s.name == "b":
+            return _read_byte_str(ctx)
+
         v = _read_next_consuming_comment(ctx)
         if s in ctx.data_readers:
             f = ctx.data_readers[s]
             try:
                 return f(v)
             except SyntaxError as e:
-                raise ctx.syntax_error(e.message).with_traceback(e.__traceback__)
+                raise ctx.syntax_error(e.message).with_traceback(
+                    e.__traceback__
+                ) from None
         elif s.ns is None and "." in s.name:
             return _load_record_or_type(ctx, s, v)
         else:
             raise ctx.syntax_error(f"No data reader found for tag #{s}")
 
-    raise ctx.syntax_error(f"Unexpected token '{token}' in reader macro")
+    raise ctx.syntax_error(f"Unexpected char '{char}' in reader macro")
 
 
 def _read_comment(ctx: ReaderContext) -> LispReaderForm:
@@ -1518,11 +1577,11 @@ def _read_comment(ctx: ReaderContext) -> LispReaderForm:
     start = reader.advance()
     assert start in {";", "!"}
     while True:
-        token = reader.peek()
-        if newline_chars.match(token):
+        char = reader.peek()
+        if newline_chars.match(char):
             reader.advance()
             return COMMENT
-        if token == "":
+        if char == "":
             return ctx.eof
         reader.advance()
 
@@ -1542,52 +1601,52 @@ def _read_next_consuming_comment(ctx: ReaderContext) -> RawReaderForm:
 def _read_next_consuming_whitespace(ctx: ReaderContext) -> LispReaderForm:
     """Read the next full form from the input stream, consuming any whitespace."""
     reader = ctx.reader
-    token = reader.peek()
-    while whitespace_chars.match(token):
-        token = reader.next_token()
+    char = reader.peek()
+    while whitespace_chars.match(char):
+        char = reader.next_char()
     return _read_next(ctx)
 
 
 def _read_next(ctx: ReaderContext) -> LispReaderForm:  # noqa: C901 MC0001
     """Read the next full form from the input stream."""
     reader = ctx.reader
-    token = reader.peek()
-    if token == "(":
+    char = reader.peek()
+    if char == "(":
         return _read_list(ctx)
-    elif token == "[":
+    elif char == "[":
         return _read_vector(ctx)
-    elif token == "{":
+    elif char == "{":
         return _read_map(ctx)
-    elif begin_num_chars.match(token):
+    elif begin_num_chars.match(char):
         return _read_num(ctx)
-    elif whitespace_chars.match(token):
+    elif whitespace_chars.match(char):
         return _read_next_consuming_whitespace(ctx)
-    elif token == ":":
+    elif char == ":":
         return _read_kw(ctx)
-    elif token == '"':
+    elif char == '"':
         return _read_str(ctx)
-    elif token == "'":
+    elif char == "'":
         return _read_quoted(ctx)
-    elif token == "\\":
+    elif char == "\\":
         return _read_character(ctx)
-    elif ns_name_chars.match(token):
+    elif ns_name_chars.match(char):
         return _read_sym(ctx)
-    elif token == "#":
+    elif char == "#":
         return _read_reader_macro(ctx)
-    elif token == "^":
+    elif char == "^":
         return _read_meta(ctx)  # type: ignore
-    elif token == ";":
+    elif char == ";":
         return _read_comment(ctx)
-    elif token == "`":
+    elif char == "`":
         return _read_syntax_quoted(ctx)
-    elif token == "~":
+    elif char == "~":
         return _read_unquote(ctx)
-    elif token == "@":
+    elif char == "@":
         return _read_deref(ctx)
-    elif token == "":
+    elif char == "":
         return ctx.eof
     else:
-        raise ctx.syntax_error(f"Unexpected token '{token}'")
+        raise ctx.syntax_error(f"Unexpected char '{char}'")
 
 
 def syntax_quote(  # pylint: disable=too-many-arguments

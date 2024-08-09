@@ -2,20 +2,24 @@ import threading
 from functools import total_ordering
 from typing import Iterable, Optional, Union
 
+from typing_extensions import Unpack
+
 from basilisp.lang import map as lmap
 from basilisp.lang.interfaces import (
     IAssociative,
     ILispObject,
+    INamed,
     IPersistentMap,
     IPersistentSet,
 )
+from basilisp.lang.obj import PrintSettings
 
 _LOCK = threading.Lock()
 _INTERN: IPersistentMap[int, "Keyword"] = lmap.PersistentMap.empty()
 
 
 @total_ordering
-class Keyword(ILispObject):
+class Keyword(ILispObject, INamed):
     __slots__ = ("_name", "_ns", "_hash")
 
     def __init__(self, name: str, ns: Optional[str] = None) -> None:
@@ -31,7 +35,11 @@ class Keyword(ILispObject):
     def ns(self) -> Optional[str]:
         return self._ns
 
-    def _lrepr(self, **kwargs) -> str:
+    @classmethod
+    def with_name(cls, name: str, ns: Optional[str] = None) -> "Keyword":
+        return keyword(name, ns=ns)
+
+    def _lrepr(self, **kwargs: Unpack[PrintSettings]) -> str:
         if self._ns is not None:
             return f":{self._ns}/{self._name}"
         return f":{self._name}"

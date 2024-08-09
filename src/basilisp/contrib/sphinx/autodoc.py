@@ -5,11 +5,10 @@ import sys
 import types
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-from sphinx.ext.autodoc import (  # pylint: disable=no-name-in-module
+from sphinx.ext.autodoc import (
     ClassDocumenter,
     Documenter,
     ObjectMember,
-    ObjectMembers,
     bool_option,
     exclude_members_option,
     identity,
@@ -38,6 +37,7 @@ logger = logging.getLogger(__name__)
 # Var metadata used for annotations
 _DOC_KW = kw.keyword("doc")
 _LINE_KW = kw.keyword("line")
+_END_LINE_KW = kw.keyword("end-line")
 _PRIVATE_KW = kw.keyword("private")
 _DYNAMIC_KW = kw.keyword("dynamic")
 _DEPRECATED_KW = kw.keyword("deprecated")
@@ -126,7 +126,7 @@ class NamespaceDocumenter(Documenter):
         assert self.object is not None
         return _get_doc(self.object)
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
         assert self.object is not None
         interns = self.object.interns
 
@@ -145,10 +145,11 @@ class NamespaceDocumenter(Documenter):
         return False, selected
 
     def filter_members(
-        self, members: ObjectMembers, want_all: bool
+        self, members: List[ObjectMember], want_all: bool
     ) -> List[Tuple[str, Any, bool]]:
         filtered = []
-        for name, val in members:
+        for member in members:
+            name, val = member.__name__, member.object
             assert isinstance(val, runtime.Var)
             if self.options.exclude_members and name in self.options.exclude_members:
                 continue
@@ -269,9 +270,9 @@ class VarDocumenter(Documenter):
             return f"{file}:docstring of {self.object}"
         return f"docstring of {self.object}"
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
         assert self.object is not None
-        return False, ()
+        return False, []
 
     def add_directive_header(self, sig: str) -> None:
         assert self.object is not None
@@ -279,6 +280,13 @@ class VarDocumenter(Documenter):
         super().add_directive_header(sig)
 
         if self.object.meta is not None:
+            if (file := self.object.meta.val_at(_FILE_KW)) is not None:
+                self.add_line(f"   :filename: {file}", sourcename)
+            if isinstance(line := self.object.meta.val_at(_LINE_KW), int):
+                if isinstance(end_line := self.object.meta.val_at(_END_LINE_KW), int):
+                    self.add_line(f"   :lines: {line}:{end_line}", sourcename)
+                else:
+                    self.add_line(f"   :lines: {line}", sourcename)
             if self.object.meta.val_at(_DYNAMIC_KW):
                 self.add_line("   :dynamic:", sourcename)
             if self.object.meta.val_at(_DEPRECATED_KW):
@@ -364,7 +372,7 @@ class ProtocolDocumenter(VarDocumenter):
             and member.meta.val_at(_PROTOCOL_KW) is True
         )
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
         assert self.object is not None
         assert want_all
         ns = self.object.ns
@@ -382,10 +390,11 @@ class ProtocolDocumenter(VarDocumenter):
         )
 
     def filter_members(
-        self, members: ObjectMembers, want_all: bool
+        self, members: List[ObjectMember], want_all: bool
     ) -> List[Tuple[str, Any, bool]]:
         filtered = []
-        for name, val in members:
+        for member in members:
+            name, val = member.__name__, member.object
             assert isinstance(val, runtime.Var)
             if val.meta is not None:
                 if val.meta.val_at(_PRIVATE_KW):
@@ -419,7 +428,7 @@ class TypeDocumenter(VarDocumenter):
             and issubclass(member.value, IType)
         )
 
-    def get_object_members(self, want_all: bool) -> Tuple[bool, ObjectMembers]:
+    def get_object_members(self, want_all: bool) -> Tuple[bool, List[ObjectMember]]:
         return ClassDocumenter.get_object_members(self, want_all)
 
 

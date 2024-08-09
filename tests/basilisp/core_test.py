@@ -1,4 +1,5 @@
 import itertools
+import os
 import re
 from decimal import Decimal
 from fractions import Fraction
@@ -390,6 +391,18 @@ class TestArithmetic:
             (4, 10, 6),
             (0, 10, 10),
             (0, 10, -1),
+            (1, 5, 2),
+            (1, -5, 2),
+            (-1, 5, -2),
+            (-1, -5, -2),
+            (2, 5, 3),
+            (1, -5, 3),
+            (-1, 5, -3),
+            (-2, -5, -3),
+            (1, 5, 4),
+            (3, -5, 4),
+            (-3, 5, -4),
+            (-1, -5, -4),
             (3, -21, 4),
             (3, -2, 5),
             (2, -10, 3),
@@ -406,6 +419,18 @@ class TestArithmetic:
         "result,x,y",
         [
             (0, 1, 2),
+            (2, 5, 2),
+            (-2, -5, 2),
+            (-2, 5, -2),
+            (2, -5, -2),
+            (1, 5, 3),
+            (-1, -5, 3),
+            (-1, 5, -3),
+            (1, -5, -3),
+            (1, 5, 4),
+            (-1, -5, 4),
+            (-1, 5, -4),
+            (1, -5, -4),
             (1, 2, 2),
             (1, 3, 2),
             (2, 4, 2),
@@ -417,13 +442,38 @@ class TestArithmetic:
             (-3, -10, 3),
             (-3, 10, -3),
             (3, 10, 3),
+            (
+                44879032948094820938438942938402938402984209842098984209449032094205874758758475837584759347,
+                448790329480948209384389429384029384029842098420989842094490320942058747587584758375847593471,
+                10,
+            ),
         ],
     )
     def test_quot(self, result, x, y):
         assert result == core.quot(x, y)
 
     @pytest.mark.parametrize(
-        "result,x,y", [(1, 10, 9), (0, 2, 2), (-1, -10, 3), (-1, -21, 4)]
+        "result,x,y",
+        [
+            (1, 10, 9),
+            (0, 2, 2),
+            (1, 5, 2),
+            (-1, -5, 2),
+            (1, 5, -2),
+            (-1, -5, -2),
+            (2, 5, 3),
+            (-2, -5, 3),
+            (2, 5, -3),
+            (-2, -5, -3),
+            (1, 5, 4),
+            (-1, -5, 4),
+            (1, 5, -4),
+            (-1, -5, -4),
+            (1, 3, 2),
+            (-1, -3, 2),
+            (-1, -10, 3),
+            (-1, -21, 4),
+        ],
     )
     def test_rem(self, result, x, y):
         assert result == core.rem(x, y)
@@ -1068,11 +1118,18 @@ class TestAssociativeFunctions:
         assert False is core.contains__Q__(None, "a")
         assert True is core.contains__Q__(lmap.map({"a": 1}), "a")
         assert False is core.contains__Q__(lmap.map({"a": 1}), "b")
+        assert True is core.contains__Q__(lmap.map({"a": 1}).to_transient(), "a")
+        assert False is core.contains__Q__(lmap.map({"a": 1}).to_transient(), "b")
         assert True is core.contains__Q__(vec.v(1, 2, 3), 0)
         assert True is core.contains__Q__(vec.v(1, 2, 3), 1)
         assert True is core.contains__Q__(vec.v(1, 2, 3), 2)
         assert False is core.contains__Q__(vec.v(1, 2, 3), 3)
         assert False is core.contains__Q__(vec.v(1, 2, 3), -1)
+        assert True is core.contains__Q__(vec.v(1, 2, 3).to_transient(), 0)
+        assert True is core.contains__Q__(vec.v(1, 2, 3).to_transient(), 1)
+        assert True is core.contains__Q__(vec.v(1, 2, 3).to_transient(), 2)
+        assert False is core.contains__Q__(vec.v(1, 2, 3).to_transient(), 3)
+        assert False is core.contains__Q__(vec.v(1, 2, 3).to_transient(), -1)
 
     def test_disj(self):
         assert None is core.disj(None)
@@ -1599,10 +1656,12 @@ class TestPrintFunctions:
         assert ':hi "there" 3' == core.pr_str(kw.keyword("hi"), "there", 3)
 
     def test_prn_str(self):
-        assert "\n" == core.prn_str()
-        assert '""\n' == core.prn_str("")
-        assert ":kw\n" == core.prn_str(kw.keyword("kw"))
-        assert ':hi "there" 3\n' == core.prn_str(kw.keyword("hi"), "there", 3)
+        assert os.linesep == core.prn_str()
+        assert '""' + os.linesep == core.prn_str("")
+        assert ":kw" + os.linesep == core.prn_str(kw.keyword("kw"))
+        assert ':hi "there" 3' + os.linesep == core.prn_str(
+            kw.keyword("hi"), "there", 3
+        )
 
     def test_print_str(self):
         assert "" == core.print_str()
@@ -1611,10 +1670,12 @@ class TestPrintFunctions:
         assert ":hi there 3" == core.print_str(kw.keyword("hi"), "there", 3)
 
     def test_println_str(self):
-        assert "\n" == core.println_str()
-        assert "\n" == core.println_str("")
-        assert ":kw\n" == core.println_str(kw.keyword("kw"))
-        assert ":hi there 3\n" == core.println_str(kw.keyword("hi"), "there", 3)
+        assert os.linesep == core.println_str()
+        assert os.linesep == core.println_str("")
+        assert ":kw" + os.linesep == core.println_str(kw.keyword("kw"))
+        assert ":hi there 3" + os.linesep == core.println_str(
+            kw.keyword("hi"), "there", 3
+        )
 
 
 class TestRegexFunctions:

@@ -22,7 +22,7 @@ def init(opts: Optional[CompilerOpts] = None) -> None:
 
     Basilisp only needs to be initialized once per Python VM invocation. Subsequent
     imports of Basilisp namespaces will work using Python's standard ``import``
-    statement and ``importlib.import_module`` function.
+    statement and :external:py:func:`importlib.import_module` function.
 
     If you want to execute a Basilisp file which is stored in a well-formed package
     or module structure, you probably want to use :py:func:`bootstrap`.
@@ -42,7 +42,7 @@ def bootstrap(
 
     Basilisp only needs to be initialized once per Python VM invocation. Subsequent
     imports of Basilisp namespaces will work using Python's standard ``import``
-    statement and ``importlib.import_module`` function.
+    statement and :external:py:func:`importlib.import_module` function.
 
     ``target`` must be a string naming a Basilisp namespace. Namespace references may
     be given exactly as they are found in Basilisp code. ``target`` may optionally
@@ -62,7 +62,8 @@ def bootstrap(
 
 def bootstrap_python(site_packages: Optional[List[str]] = None) -> None:
     """Bootstrap a Python installation by installing a ``.pth`` file in the first
-    available ``site-packages`` directory (as by ``site.getsitepackages()``).
+    available ``site-packages`` directory (as by
+    :external:py:func:`site.getsitepackages`).
 
     Subsequent startups of the Python interpreter will have Basilisp already
     bootstrapped and available to run."""
@@ -80,8 +81,8 @@ def bootstrap_python(site_packages: Optional[List[str]] = None) -> None:
 
 def unbootstrap_python(site_packages: Optional[List[str]] = None) -> List[str]:
     """Remove any `basilispbootstrap.pth` files found in any Python site-packages
-    directory (as by ``site.getsitepackages()``). Return a list of removed
-    filenames."""
+    directory (as by :external:py:func:`site.getsitepackages`). Return a list of
+    removed filenames."""
     if site_packages is None:  # pragma: no cover
         site_packages = site.getsitepackages()
 

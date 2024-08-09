@@ -13,7 +13,7 @@ Since the compiler cannot reason about larger units of code, it cannot make infe
 
 There are three steps to the Basilisp compiler: analysis, generation, and optimization.
 After a Basilisp form is read in by the :ref:`reader`, it is passed off to the analyzer to produce an abstract syntax tree.
-The generator reads the AST and produces Python code (_not_ bytecode) using Python's builtin `ast <https://docs.python.org/3/library/ast.html>`_ module.
+The generator reads the AST and produces Python code (*not* bytecode) using Python's builtin :external:py:mod:`ast` module.
 Afterwards, the compiler passes the generated AST through a quick optimization phase to remove redundant branches and other artifacts of code generation.
 From there, the compiler injects the compiled code into a dynamically-generated Python module which is associated with a Basilisp Namespace and executes the code so the generated objects are available.
 
@@ -34,6 +34,12 @@ Warnings
 ^^^^^^^^
 
 The following settings enable and disable warnings from the Basilisp compiler during compilation.
+
+* ``warn-on-arity-mismatch`` - if ``true``, emit warnings if a Basilisp function invocation is detected with an unsupported number of arguments
+
+  * Environment Variable: ``BASILISP_WARN_ON_ARITY_MISMATCH``
+  * Default: ``true``
+
 
 * ``warn-on-shadowed-name`` - if ``true``, emit warnings if a local name is shadowed by another local name
 
@@ -176,7 +182,7 @@ Debugging
 
 The compiler generates Python code by generating Python AST nodes, rather than emitting the raw Python code as text.
 This is convenient for the compiler, but inspecting Python AST nodes manually for bugs can be a bit of a challenge even with a debugger.
-For this reason, the Basilisp compiler can also use the `ast.unparse <https://docs.python.org/3/library/ast.html#ast.unparse>`_ (`astor <https://github.com/berkerpeksag/astor>`_ in versions of Python prior to 3.9) library to generate raw Python code for visual inspection.
+For this reason, the Basilisp compiler can also use the :external:py:func:`ast.unparse` (`astor <https://github.com/berkerpeksag/astor>`_ in versions of Python prior to 3.9) library to generate raw Python code for visual inspection.
 
 Currently, the compiler is configured to automatically generate Python code for all namespaces.
 This code generation isn't slow, but it does add an appreciable amount of time to the compilation of each individual namespace.

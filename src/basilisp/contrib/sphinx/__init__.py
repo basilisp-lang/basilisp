@@ -1,5 +1,6 @@
 from sphinx.application import Sphinx
 
+from basilisp.contrib.sphinx import linkcode
 from basilisp.contrib.sphinx.autodoc import (
     NamespaceDocumenter,
     ProtocolDocumenter,
@@ -37,6 +38,9 @@ def setup(app: Sphinx) -> None:
     app.add_autodocumenter(ProtocolDocumenter)
     app.add_autodocumenter(TypeDocumenter)
     app.add_autodocumenter(RecordDocumenter)
+
+    app.connect("doctree-read", linkcode.doctree_read)
+    app.add_config_value("lpy_linkcode_resolve", None, "")
 
 
 __all__ = ("setup",)

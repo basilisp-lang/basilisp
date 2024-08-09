@@ -26,6 +26,7 @@ from typing import (
     Iterator,
     List,
     Mapping,
+    NoReturn,
     Optional,
     Set,
     Tuple,
@@ -58,10 +59,11 @@ from basilisp.lang.interfaces import (
     IPersistentStack,
     IPersistentVector,
     ISeq,
+    ITransientAssociative,
     ITransientSet,
 )
 from basilisp.lang.reference import RefBase, ReferenceBase
-from basilisp.lang.typing import CompilerOpts, LispNumber
+from basilisp.lang.typing import BasilispFunction, CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
 from basilisp.util import Maybe
 
@@ -91,6 +93,7 @@ PRINT_DUP_VAR_NAME = "*print-dup*"
 PRINT_LENGTH_VAR_NAME = "*print-length*"
 PRINT_LEVEL_VAR_NAME = "*print-level*"
 PRINT_META_VAR_NAME = "*print-meta*"
+PRINT_NAMESPACE_MAPS_VAR_NAME = "*print-namespace-maps*"
 PRINT_READABLY_VAR_NAME = "*print-readably*"
 PYTHON_VERSION_VAR_NAME = "*python-version*"
 BASILISP_VERSION_VAR_NAME = "*basilisp-version*"
@@ -726,7 +729,7 @@ class Namespace(ReferenceBase):
                 self._import_aliases = m
 
     def get_import(self, sym: sym.Symbol) -> Optional[BasilispModule]:
-        """Return the module if a moduled named by sym has been imported into
+        """Return the module if a module named by sym has been imported into
         this Namespace, None otherwise.
 
         First try to resolve a module directly with the given name. If no module
@@ -975,6 +978,69 @@ def pop_thread_bindings() -> None:
 T = TypeVar("T")
 
 
+def keyword(name: Any, ns: Any = None) -> kw.Keyword:
+    """Return a new keyword with runtime type checks for name and namespace."""
+    if not isinstance(name, str):
+        raise TypeError(f"Keyword name must be a string, not '{type(name)}'")
+    if not isinstance(ns, (type(None), str)):
+        raise TypeError(f"Keyword namespace must be a string or nil, not '{type(ns)}")
+    return kw.keyword(name, ns)
+
+
+@functools.singledispatch
+def keyword_from_name(o: Any) -> NoReturn:
+    raise TypeError(f"Cannot create keyword from '{type(o)}'")
+
+
+@keyword_from_name.register(kw.Keyword)
+def _keyword_from_name_keyword(o: kw.Keyword) -> kw.Keyword:
+    return o
+
+
+@keyword_from_name.register(sym.Symbol)
+def _keyword_from_name_symbol(o: sym.Symbol) -> kw.Keyword:
+    return kw.keyword(o.name, ns=o.ns)
+
+
+@keyword_from_name.register(str)
+def _keyword_from_name_str(o: str) -> kw.Keyword:
+    return kw.keyword(o)
+
+
+def symbol(name: Any, ns: Any = None) -> sym.Symbol:
+    """Return a new symbol with runtime type checks for name and namespace."""
+    if not isinstance(name, str):
+        raise TypeError(f"Symbol name must be a string, not '{type(name)}'")
+    if not isinstance(ns, (type(None), str)):
+        raise TypeError(f"Symbol namespace must be a string or nil, not '{type(ns)}")
+    return sym.symbol(name, ns)
+
+
+@functools.singledispatch
+def symbol_from_name(o: Any) -> NoReturn:
+    raise TypeError(f"Cannot create symbol from '{type(o)}'")
+
+
+@symbol_from_name.register(kw.Keyword)
+def _symbol_from_name_keyword(o: kw.Keyword) -> sym.Symbol:
+    return sym.symbol(o.name, ns=o.ns)
+
+
+@symbol_from_name.register(sym.Symbol)
+def _symbol_from_name_symbol(o: sym.Symbol) -> sym.Symbol:
+    return o
+
+
+@symbol_from_name.register(str)
+def _symbol_from_name_str(o: str) -> sym.Symbol:
+    return sym.symbol(o)
+
+
+@symbol_from_name.register(Var)
+def _symbol_from_name_var(o: Var) -> sym.Symbol:
+    return sym.symbol(o.name.name, ns=o.ns.name)
+
+
 @functools.singledispatch
 def first(o):
     """If o is a ISeq, return the first element from o. If o is None, return
@@ -1073,7 +1139,7 @@ to_seq = lseq.to_seq
 
 def concat(*seqs: Any) -> ISeq:
     """Concatenate the sequences given by seqs into a single ISeq."""
-    return lseq.sequence(itertools.chain.from_iterable(filter(None, seqs)))
+    return lseq.sequence(itertools.chain.from_iterable(filter(None, map(to_seq, seqs))))
 
 
 def apply(f, args):
@@ -1186,8 +1252,13 @@ def _contains_none(_, __):
 
 
 @contains.register(IAssociative)
-def _contains_iassociative(coll, k):
+def _contains_iassociative(coll: IAssociative, k):
     return coll.contains(k)
+
+
+@contains.register(ITransientAssociative)
+def _contains_itransientassociative(coll: ITransientAssociative, k):
+    return coll.contains_transient(k)
 
 
 @functools.singledispatch
@@ -1286,12 +1357,46 @@ def _conj_ipersistentcollection(coll: IPersistentCollection, *xs):
     return coll.cons(*xs)
 
 
+def _update_signature_for_partial(f: BasilispFunction, num_args: int) -> None:
+    """Update the various properties of a Basilisp function for wrapped partials.
+
+    Partial applications change the number of arities a function appears to have.
+    This function computes the new `arities` set for the partial function by removing
+    any now-invalid fixed arities from the original function's set.
+
+    Additionally, partials do not take the meta from the wrapped function, so that
+    value should be cleared and the `with-meta` method should be replaced with a
+    new method."""
+    existing_arities: IPersistentSet[Union[kw.Keyword, int]] = f.arities
+    new_arities: Set[Union[kw.Keyword, int]] = set()
+    for arity in existing_arities:
+        if isinstance(arity, kw.Keyword):
+            new_arities.add(arity)
+        elif arity > num_args:
+            new_arities.add(arity - num_args)
+    if not new_arities:
+        if num_args in existing_arities:
+            new_arities.add(0)
+        else:
+            logger.warning(
+                f"invalid partial function application of '{f.__name__}' detected: "  # type: ignore[attr-defined]
+                f"{num_args} arguments given; expected any of: "
+                f"{', '.join(sorted(map(str, existing_arities)))}"
+            )
+    f.arities = lset.set(new_arities)
+    f.meta = None
+    f.with_meta = partial(_fn_with_meta, f)  # type: ignore[method-assign]
+
+
 def partial(f, *args, **kwargs):
     """Return a function which is the partial application of f with args and kwargs."""
 
     @functools.wraps(f)
     def partial_f(*inner_args, **inner_kwargs):
-        return f(*itertools.chain(args, inner_args), **{**kwargs, **inner_kwargs})
+        return f(*args, *inner_args, **{**kwargs, **inner_kwargs})
+
+    if hasattr(partial_f, "_basilisp_fn"):
+        _update_signature_for_partial(cast(BasilispFunction, partial_f), len(args))
 
     return partial_f
 
@@ -1340,11 +1445,6 @@ def _divide_ints(x: int, y: LispNumber) -> LispNumber:
     if isinstance(y, int):
         return Fraction(x, y)
     return x / y
-
-
-def quotient(num: LispNumber, div: LispNumber) -> LispNumber:
-    """Return the integral quotient resulting from the division of num by div."""
-    return math.trunc(num / div)
 
 
 @functools.singledispatch
@@ -1607,6 +1707,7 @@ def lrepr(o, human_readable: bool = False) -> str:
             sym.symbol(PRINT_LEVEL_VAR_NAME)
         ).value,
         print_meta=core_ns.find(sym.symbol(PRINT_META_VAR_NAME)).value,  # type: ignore
+        print_namespace_maps=core_ns.find(sym.symbol(PRINT_NAMESPACE_MAPS_VAR_NAME)).value,  # type: ignore
         print_readably=core_ns.find(  # type: ignore
             sym.symbol(PRINT_READABLY_VAR_NAME)
         ).value,
@@ -1636,17 +1737,6 @@ def repl_completions(text: str) -> Iterable[str]:
 ####################
 # Compiler Support #
 ####################
-
-
-@functools.singledispatch
-def _collect_args(args) -> ISeq:
-    """Collect Python starred arguments into a Basilisp list."""
-    raise TypeError("Python variadic arguments should always be a tuple")
-
-
-@_collect_args.register(tuple)
-def _collect_args_tuple(args: tuple) -> ISeq:
-    return llist.list(args)
 
 
 class _TrampolineArgs:
@@ -1776,11 +1866,13 @@ def _fn_with_meta(f, meta: Optional[lmap.PersistentMap]):
     return wrapped_f
 
 
-def _basilisp_fn(arities: Tuple[Union[int, kw.Keyword]]):
+def _basilisp_fn(
+    arities: Tuple[Union[int, kw.Keyword], ...]
+) -> Callable[..., BasilispFunction]:
     """Create a Basilisp function, setting meta and supplying a with_meta
     method implementation."""
 
-    def wrap_fn(f):
+    def wrap_fn(f) -> BasilispFunction:
         assert not hasattr(f, "meta")
         f._basilisp_fn = True
         f.arities = lset.set(arities)
@@ -2170,6 +2262,21 @@ def bootstrap_core(compiler_opts: CompilerOpts) -> None:
     )
     Var.intern(
         CORE_NS_SYM, sym.symbol(PRINT_META_VAR_NAME), lobj.PRINT_META, dynamic=True
+    )
+    Var.intern(
+        CORE_NS_SYM,
+        sym.symbol(PRINT_NAMESPACE_MAPS_VAR_NAME),
+        lobj.PRINT_NAMESPACE_MAPS,
+        dynamic=True,
+        meta=lmap.map(
+            {
+                _DOC_META_KEY: (
+                    "Indicates to print the namespace of keys in a map belonging to the same"
+                    " namespace, at the beginning of the map instead of beside the keys."
+                    " Defaults to false."
+                )
+            }
+        ),
     )
     Var.intern(
         CORE_NS_SYM,

@@ -25,6 +25,7 @@ Contents
    features
    gettingstarted
    differencesfromclojure
+   concepts
    reference
    releasenotes
    contributing

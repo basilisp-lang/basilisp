@@ -147,7 +147,7 @@ For properties which are explicitly *not* read only, you can mutate their value 
    In most cases, Basilisp's method and property access features should be sufficient.
    However, in case it is not, Python's :ref:`builtins <python_builtins>` such as `getattr` and `setattr` are still available and can supplement Basilisp's interoperability features.
 
-.. _keyword_arguments:
+.. _py_interop_keyword_arguments:
 
 Keyword Arguments
 -----------------
@@ -185,7 +185,7 @@ For functions which do support keyword arguments, two strategies are supported f
 
 .. note::
 
-   Basilisp functions support a variant of keyword arguments via destructuring support provided by ``fn`` and ``defn``.
+   Basilisp functions support a variant of :ref:`keyword_arguments` via destructuring support provided by ``fn`` and ``defn``.
    The ``:apply`` strategy relies on that style of keyword argument support to idiomatically integrate with Basilisp functions.
 
 .. code-block:: clojure
@@ -196,7 +196,7 @@ For functions which do support keyword arguments, two strategies are supported f
 
 The ``:apply`` strategy is appropriate in situations where there are few or no positional arguments defined on your function.
 With this strategy, the compiler converts the Python dict of string keys and values into a sequential stream of de-munged keyword and value pairs which are applied to the function.
-As you can see in the example above, this strategy fits neatly with the existing support for destructuring key and value pairs from rest arguments in a function definition.
+As you can see in the example above, this strategy fits neatly with the existing support for :ref:`destructuring` key and value pairs from rest arguments in a function definition.
 
 .. warning::
 
@@ -210,7 +210,9 @@ As you can see in the example above, this strategy fits neatly with the existing
 
 The ``:collect`` strategy is a better accompaniment to functions with positional arguments.
 With this strategy, Python keyword arguments are converted into a Basilisp map with de-munged keyword arguments and passed as the final positional argument of the function.
-You can use map destructuring on this final positional argument, just as you would with the map in the ``:apply`` case above.
+You can use :ref:`associative_destructuring` on this final positional argument, just as you would with the map in the ``:apply`` case above.
+
+.. _type_hinting:
 
 Type Hinting
 ------------
@@ -220,7 +222,7 @@ Basilisp supports passing type hints through to the underlying generated Python 
 In Clojure, these tags are type declarations for certain primitive types.
 In Clojurescript, tags are type *hints* and they are only necessary in extremely limited circumstances to help the compiler.
 In Basilisp, tags are not used by the compiler at all.
-Instead, tags applied to function arguments and return values in Basilisp are applied to the underlying Python objects and are introspectable at runtime using the Python `inspect <https://docs.python.org/3/library/inspect.html>`_ standard library module.
+Instead, tags applied to function arguments and return values in Basilisp are applied to the underlying Python objects and are introspectable at runtime using the Python :external:py:mod:`inspect` standard library module.
 
 Type hints may be applied to :lpy:form:`def` names, function arguments and return values, and :lpy:form:`let` local forms.
 
@@ -243,5 +245,24 @@ Type hints may be applied to :lpy:form:`def` names, function arguments and retur
 .. warning::
 
    Due to the complexity of supporting multi-arity functions in Python, only return annotations are preserved on the arity dispatch function.
-   Return annotations are combined as by ``typing.Union``, so ``typing.Union[str, str] == str``.
+   Return annotations are combined as by :external:py:obj:`typing.Union`, so ``typing.Union[str, str] == str``.
    The annotations for individual arity arguments are preserved in their compiled form, but they are challenging to access programmatically.
+
+.. _arithmetic_division:
+
+Arithmetic Division
+-------------------
+
+.. lpy:currentns:: basilisp.core
+
+The Python native quotient ``//`` and modulo ``%`` operators may yield different results compared to their Java counterpart's long division and modulo operators. The discrepancy arises from Python's choice of floored division (`src <http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_, `archived <https://web.archive.org/web/20100827160949/http://python-history.blogspot.com/2010/08/why-pythons-integer-division-floors.html>`_) while Java employs truncated division for its calculations (refer to the to the `Wikipedia Modulo page <https://en.wikipedia.org/wiki/Modulo>`_ for a a comprehensive list of available division formulae).
+
+In Clojure, the ``clojure.core/quot`` function utilizes Java's long division operator, and the ``%`` operator is employed in defining the ``clojure.core/rem`` function. The ``clojure.core/mod`` function is subsequently established through floored division based on the latter.
+
+Basilisp has chosen to adopt the same mathematical formulae as Clojure for these three functions, rather than using the Python's built in operators under all cases. This approach offers the advantage of enhanced cross-platform compatibility without requiring modification, and ensures compatibility with examples in  `ClojureDocs <https://clojuredocs.org/>`_.
+
+Users still have the option to use the native :external:py:func:`operator.floordiv`, i.e. Python's ``//``  operator, if they prefer so.
+
+.. seealso::
+
+   :lpy:fn:`quot`, :lpy:fn:`rem`, :lpy:fn:`mod`

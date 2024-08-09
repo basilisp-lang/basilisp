@@ -116,7 +116,7 @@ class TestBootstrap:
 
 def test_debug_flag(run_cli):
     result = run_cli(["run", "--disable-ns-cache", "true", "-c", "(println (+ 1 2))"])
-    assert "3\n" == result.lisp_out
+    assert f"3{os.linesep}" == result.lisp_out
     assert os.environ["BASILISP_DO_NOT_CACHE_NAMESPACES"].lower() == "true"
 
 
@@ -125,14 +125,14 @@ class TestCompilerFlags:
         result = run_cli(
             ["run", "--warn-on-var-indirection", "-c", "(println (+ 1 2))"]
         )
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("val", BOOL_TRUE | BOOL_FALSE)
     def test_valid_flag(self, run_cli, val):
         result = run_cli(
             ["run", "--warn-on-var-indirection", val, "-c", "(println  (+ 1 2))"]
         )
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("val", ["maybe", "not-no", "4"])
     def test_invalid_flag(self, run_cli, val):
@@ -159,7 +159,7 @@ class TestnREPLServer:
             # the high retries number is to address the slowness when
             # running on pypy.
             retries = 60
-            while not os.path.exists(tmpfilepath):
+            while not os.path.exists(tmpfilepath) or os.stat(tmpfilepath).st_size == 0:
                 time.sleep(1)
                 retries -= 1
                 assert 0 <= retries
@@ -191,17 +191,35 @@ class TestREPL:
         result = run_cli(["repl"], input="(+ 1 2")
         assert "basilisp.user=> basilisp.user=> " == result.out
         assert (
-            "basilisp.lang.reader.UnexpectedEOFError: Unexpected EOF in list "
-            "(line: 1, col: 7)" in result.err
+            os.linesep.join(
+                (
+                    "",
+                    "  exception: <class 'basilisp.lang.reader.UnexpectedEOFError'>",
+                    "    message: Unexpected EOF in list",
+                    "       line: 1:6",
+                    "",
+                )
+            )
+            in result.err
         )
 
     def test_compiler_error(self, run_cli):
         result = run_cli(["repl"], input="(fn*)")
         assert "basilisp.user=> basilisp.user=> " == result.out
         assert (
-            "basilisp.lang.compiler.exception.CompilerException: fn form "
-            "must match: (fn* name? [arg*] body*) or (fn* name? method*)"
-        ) in result.err
+            os.linesep.join(
+                (
+                    "",
+                    "  exception: <class 'IndexError'> from <class 'basilisp.lang.compiler.exception.CompilerException'>",
+                    "      phase: :analyzing",
+                    "    message: fn form must match: (fn* name? [arg*] body*) or (fn* name? method*): Index 1 out of bounds",
+                    "       form: (fn*)",
+                    "   location: <REPL Input>:1",
+                    "",
+                )
+            )
+            in result.err
+        )
 
     def test_other_exception(self, run_cli):
         result = run_cli(["repl"], input='(throw (python/Exception "CLI test"))')
@@ -211,10 +229,10 @@ class TestREPL:
 
 class TestRun:
     cli_args_params = [
-        ([], "0\n"),
-        (["--"], "0\n"),
-        (["1", "2", "3"], "6\n"),
-        (["--", "1", "2", "3"], "6\n"),
+        ([], f"0{os.linesep}"),
+        (["--"], f"0{os.linesep}"),
+        (["1", "2", "3"], f"6{os.linesep}"),
+        (["--", "1", "2", "3"], f"6{os.linesep}"),
     ]
     cli_args_code = "(println (apply + (map int *command-line-args*)))"
 
@@ -224,28 +242,39 @@ class TestRun:
 
     def test_run_code(self, run_cli):
         result = run_cli(["run", "-c", "(println (+ 1 2))"])
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     def test_run_code_main_ns(self, run_cli):
         result = run_cli(["run", "-c", "(println *main-ns*)"])
-        assert "nil\n" == result.lisp_out
+        assert f"nil{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_code_with_args(self, run_cli, args: List[str], ret: str):
         result = run_cli(["run", "-c", self.cli_args_code, *args])
         assert ret == result.lisp_out
 
-    def test_run_file(self, isolated_filesystem, run_cli):
+    def test_run_file_rel(self, isolated_filesystem, run_cli):
         with open("test.lpy", mode="w") as f:
             f.write("(println (+ 1 2))")
         result = run_cli(["run", "test.lpy"])
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
+
+    def test_run_file_abs(self, isolated_filesystem, run_cli):
+        with open("test.lpy", mode="w") as f:
+            f.write("(println (+ 1 3))")
+        full_path = os.path.abspath("test.lpy")
+        result = run_cli(["run", full_path])
+        assert f"4{os.linesep}" == result.lisp_out
+
+    def test_run_file_not_found(self, isolated_filesystem, run_cli):
+        with pytest.raises(FileNotFoundError):
+            run_cli(["run", "xyz.lpy"])
 
     def test_run_file_main_ns(self, isolated_filesystem, run_cli):
         with open("test.lpy", mode="w") as f:
             f.write("(println *main-ns*)")
         result = run_cli(["run", "test.lpy"])
-        assert "nil\n" == result.lisp_out
+        assert f"nil{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_file_with_args(
@@ -275,14 +304,14 @@ class TestRun:
     def test_run_namespace(self, run_cli, namespace_file: pathlib.Path):
         namespace_file.write_text("(println (+ 1 2))")
         result = run_cli(["run", "-n", "package.core"])
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     def test_run_namespace_main_ns(self, run_cli, namespace_file: pathlib.Path):
         namespace_file.write_text(
             "(ns package.core) (println (name *ns*)) (println *main-ns*)"
         )
         result = run_cli(["run", "-n", "package.core"])
-        assert "package.core\npackage.core\n" == result.lisp_out
+        assert f"package.core{os.linesep}package.core{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_namespace_with_args(
@@ -294,11 +323,11 @@ class TestRun:
 
     def test_run_stdin(self, run_cli):
         result = run_cli(["run", "-"], input="(println (+ 1 2))")
-        assert "3\n" == result.lisp_out
+        assert f"3{os.linesep}" == result.lisp_out
 
     def test_run_stdin_main_ns(self, run_cli):
         result = run_cli(["run", "-"], input="(println *main-ns*)")
-        assert "nil\n" == result.lisp_out
+        assert f"nil{os.linesep}" == result.lisp_out
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_stdin_with_args(self, run_cli, args: List[str], ret: str):
@@ -325,7 +354,7 @@ def test_version(run_cli):
     "args,ret",
     [
         ([], b"nil\n"),
-        (["1", "hi", "yes"], b"[1 hi yes]\n"),
+        (["1", "hi", "yes"], b'["1" "hi" "yes"]\n'),
     ],
 )
 def test_run_script(tmp_path: pathlib.Path, args: List[str], ret: bytes):

@@ -59,15 +59,15 @@ class RefBase(IRef[T], ReferenceBase):
     Implementers must have the `_validators` and `_watches` properties defined.
     """
 
-    _validator: Optional[RefValidator]
-    _watches: IPersistentMap
+    _validator: Optional[RefValidator[T]]
+    _watches: IPersistentMap[RefWatchKey, RefWatcher[T]]
 
-    def add_watch(self, k: RefWatchKey, wf: RefWatcher) -> "RefBase[T]":
+    def add_watch(self, k: RefWatchKey, wf: RefWatcher[T]) -> "RefBase[T]":
         with self._lock.gen_wlock():
             self._watches = self._watches.assoc(k, wf)
             return self
 
-    def _notify_watches(self, old: Any, new: Any) -> None:
+    def _notify_watches(self, old: T, new: T) -> None:
         for k, wf in self._watches.items():
             wf(k, self, old, new)
 
@@ -76,10 +76,10 @@ class RefBase(IRef[T], ReferenceBase):
             self._watches = self._watches.dissoc(k)
             return self
 
-    def get_validator(self) -> Optional[RefValidator]:
+    def get_validator(self) -> Optional[RefValidator[T]]:
         return self._validator
 
-    def set_validator(self, vf: Optional[RefValidator] = None) -> None:
+    def set_validator(self, vf: Optional[RefValidator[T]] = None) -> None:
         # We cannot use a write lock here since we're calling `self.deref()` which
         # attempts to acquire the read lock for the Ref and will deadlock if the
         # lock is not reentrant.
@@ -93,7 +93,7 @@ class RefBase(IRef[T], ReferenceBase):
             self._validate(self.deref(), vf=vf)
         self._validator = vf
 
-    def _validate(self, val: Any, vf: Optional[RefValidator] = None) -> None:
+    def _validate(self, val: Any, vf: Optional[RefValidator[T]] = None) -> None:
         vf = vf or self._validator
         if vf is not None:
             try:

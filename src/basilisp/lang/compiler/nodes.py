@@ -21,7 +21,12 @@ from basilisp.lang import queue as lqueue
 from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
-from basilisp.lang.interfaces import IPersistentMap, IPersistentSet, IPersistentVector
+from basilisp.lang.interfaces import (
+    IPersistentMap,
+    IPersistentSet,
+    IPersistentVector,
+    ISeq,
+)
 from basilisp.lang.runtime import Namespace, Var, to_lisp
 from basilisp.lang.typing import LispForm
 from basilisp.lang.typing import ReaderForm as ReaderLispForm
@@ -879,6 +884,7 @@ class SetBang(Node[SpecialForm]):
 class Throw(Node[SpecialForm]):
     form: SpecialForm
     exception: Node
+    cause: Optional[Node]
     env: NodeEnv
     children: Sequence[kw.Keyword] = vec.v(EXCEPTION)
     op: NodeOp = NodeOp.THROW
@@ -900,8 +906,8 @@ class Try(Node[SpecialForm]):
 
 
 @attr.frozen
-class VarRef(Node[sym.Symbol], Assignable):
-    form: sym.Symbol
+class VarRef(Node[Union[sym.Symbol, ISeq]], Assignable):
+    form: Union[sym.Symbol, ISeq]
     var: Var
     env: NodeEnv
     return_var: bool = False

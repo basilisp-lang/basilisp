@@ -33,7 +33,7 @@ Under the hood, this magic macro will do a bunch of convenient setup that users 
 First, it will refer the public contents of :lpy:ns:`basilisp.core`, allowing unqualified references to all functions in that namespace anywhere within the new namespace.
 Secondly, it will require the namespace :lpy:ns:`basilisp.string` which makes the functions from that namespace available in the current namespace using the shortened prefix ``str``.
 That means within the newly created namespace you will be able to refer to :lpy:fn:`basilisp.string/alpha?` as simply ``str/alpha?``.
-Afterwards, the ``ns`` macro will import the Python module `datetime <https://docs.python.org/3/library/datetime.html>`_, which we can use in a similar way, referring to objects as ``datetime/date`` for instance.
+Afterwards, the ``ns`` macro will import the Python module :external:py:mod:`datetime`, which we can use in a similar way, referring to objects as ``datetime/date`` for instance.
 Finally, ``ns`` will set the dynamic Var :lpy:var:`basilisp.core/*ns*` to ``myproject.ns``, which informs the compiler that any new Vars or functions defined right now should be associated with ``myproject.ns``, not any other namespace.
 
 .. note::
@@ -106,7 +106,7 @@ See the documentation for :lpy:fn:`require` for more details.
 Vars
 ----
 
-Vars are mutable :ref:`reference types <references_and_refs>` which hold a reference to something.
+Vars are mutable :ref:`reference types <reference_types>` which hold a reference to something.
 Users typically interact with Vars with the :lpy:form:`def` form and the :lpy:fn:`basilisp.core/defn` macro which create Vars to hold he result of the expression or function.
 All values created with these forms are stored in Vars and interned in a Namespace so they can be looked up later.
 The Basilisp compiler uses Vars interned in Namespaces during name resolution to determine if a name is referring to a local name (perhaps in a :lpy:form:`let` binding or as a function argument) or if it refers to a Var.
@@ -117,6 +117,38 @@ Specific metadata keys given during the creation of a Var can enable specific fe
 .. seealso::
 
    :lpy:fn:`alter-var-root`, :lpy:fn:`find-var`, :lpy:fn:`thread-bound?`, :lpy:fn:`var-get`, :lpy:fn:`var-set`, :lpy:fn:`with-redefs`, :lpy:fn:`with-redefs-fn`
+
+.. _var_metadata:
+
+Metadata
+^^^^^^^^
+
+Whenever a Var is defined as by :lpy:form:`def`, the compiler typically adds some metadata about where the Var was defined.
+The following is a non-exhaustive list of potential metadata keys that may be set by the compiler.
+
+All Vars might get the following keys:
+
+- ``:ns`` the :ref:`namespace <namespaces>` the Var is interned in
+- ``:name`` the name of the Var as a symbol
+- ``:file`` the name of the source file where the Var was defined, or if it was defined in a REPL or via a string (such as by :lpy:fn:`eval`) then a descriptive string surrounded by ``<...>``
+- ``:line``, ``:col``, ``:end-line``, ``:end-col`` location metadata about where in ``:file`` the Var was defined
+- ``:doc`` the docstring provided at the time the Var was interned, if one
+- ``:tag`` typically a return value for functions or type hint for values
+
+Users may provide the following metadata which the compiler will pass through:
+
+- ``:redef`` (see :ref:`compiler` for more details)
+- ``:private`` (see :ref:`private_vars` below)
+- ``:dynamic`` (see :ref:`dynamic_vars` below)
+
+Vars containing functions (typically defined via some variant of :lpy:fn:`defn` or :lpy:fn:`defmacro`) might get the following keys:
+
+- ``:macro`` if the function is a macro and eligible to be called during macroexpansion
+- ``:arglists`` a sequence of the argument vectors for each defined arity of the function
+
+.. seealso::
+
+   :ref:`reference_types`
 
 .. _dynamic_vars:
 
@@ -152,7 +184,20 @@ Note that this functionality already exists as :lpy:fn:`with-out-str`, but it se
 
 .. seealso::
 
-   :lpy:fn:`binding`, :lpy:fn:`bound-fn`, :lpy:fn:`bound-fn*`, :lpy:fn:`get-thread-bindings`, :lpy:fn:`pop-thread-bindings`, :lpy:fn:`push-thread-bindings`, :lpy:fn:`with-bindings`, :lpy:fn:`with-bindings*`
+   :lpy:fn:`binding`
+
+
+.. _binding_conveyance:
+
+Binding Conveyance
+##################
+
+Basilisp supports the concept of "binding conveyance" which allows copying the active set of dynamic Var bindings in the current thread when submitting work to another thread.
+Both :lpy:fn:`future` and :lpy:fn:`pmap` support this feature natively.
+
+.. seealso::
+
+    :lpy:fn:`bound-fn`, :lpy:fn:`bound-fn*`, :lpy:fn:`get-thread-bindings`, :lpy:fn:`pop-thread-bindings`, :lpy:fn:`push-thread-bindings`, :lpy:fn:`with-bindings`, :lpy:fn:`with-bindings*`
 
 .. _private_vars:
 

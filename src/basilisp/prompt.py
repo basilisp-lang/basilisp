@@ -2,7 +2,6 @@
 
 import os
 import re
-import traceback
 from functools import partial
 from types import MappingProxyType
 from typing import Any, Iterable, Mapping, Optional, Type
@@ -18,6 +17,7 @@ from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
+from basilisp.lang.exception import print_exception
 
 _USER_DATA_HOME = os.getenv("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
 BASILISP_USER_DATA = os.path.abspath(os.path.join(_USER_DATA_HOME, "basilisp"))
@@ -27,6 +27,10 @@ BASILISP_REPL_HISTORY_FILE_PATH = os.getenv(
     "BASILISP_REPL_HISTORY_FILE_PATH",
     os.path.join(BASILISP_USER_DATA, ".basilisp_history"),
 )
+BASILISP_NO_COLOR = os.environ.get("BASILISP_NO_COLOR", "false").lower() in {
+    "1",
+    "true",
+}
 
 
 class Prompter:
@@ -103,9 +107,9 @@ class PromptToolkitPrompter(Prompter):
             except reader.SyntaxError as e:
                 run_in_terminal(
                     partial(
-                        traceback.print_exception,
-                        reader.SyntaxError,
+                        print_exception,
                         e,
+                        reader.SyntaxError,
                         e.__traceback__,
                     )
                 )
@@ -159,7 +163,8 @@ else:
             tokens = list(pygments.lex(msg, lexer=self._pygments_lexer))
             print_formatted_text(PygmentsTokens(tokens), **self._style_settings)
 
-    _DEFAULT_PROMPTER = StyledPromptToolkitPrompter
+    if not BASILISP_NO_COLOR:
+        _DEFAULT_PROMPTER = StyledPromptToolkitPrompter
 
 
 def get_prompter() -> Prompter:

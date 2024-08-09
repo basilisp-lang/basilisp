@@ -1,10 +1,59 @@
 (ns tests.basilisp.test-core-fns
-  (:import shutil
+  (:import os
+           shutil
            time)
   (:require
    [basilisp.io :as bio]
    [basilisp.set :as set]
    [basilisp.test :refer [deftest are is testing]]))
+
+(deftest keyword-test
+  (testing "name only"
+    (are [res name] (= res (keyword name))
+      (keyword "") ""
+      :name        "name"
+      :ns/name     :ns/name
+      :ns/name     'ns/name)
+
+    (are [v] (thrown? python/TypeError (keyword v))
+      nil
+      #'basilisp.core/map))
+
+  (testing "name and namespace"
+    (are [res ns name] (= res (keyword ns name))
+      (keyword "" "") ""          ""
+      :name           nil         "name"
+      :ns/name        "ns"        "name"
+      :dotted.ns/name "dotted.ns" "name")
+
+    (are [ns name] (thrown? python/TypeError (keyword ns name))
+      nil nil
+      :kw :kw
+      'sym 'sym)))
+
+(deftest symbol-test
+  (testing "name only"
+    (are [res name] (= res (symbol name))
+      (symbol "")        ""
+      'name              "name"
+      'ns/name           :ns/name
+      'ns/name           'ns/name
+      'basilisp.core/map #'basilisp.core/map)
+
+    (are [v] (thrown? python/TypeError (symbol v))
+      nil))
+
+  (testing "name and namespace"
+    (are [res ns name] (= res (symbol ns name))
+      (symbol "" "") ""          ""
+      'name           nil         "name"
+      'ns/name        "ns"        "name"
+      'dotted.ns/name "dotted.ns" "name")
+
+    (are [ns name] (thrown? python/TypeError (symbol ns name))
+      nil  nil
+      :kw  :kw
+      'sym 'sym)))
 
 (deftest vary-meta-test
   (testing "with lists"
@@ -76,6 +125,36 @@
         (let [v2 (vary-meta v1 dissoc :vector)]
           (is (= v1 v2))
           (is (= {:tag vector} (meta v2))))))))
+
+(deftest boolean-test
+  (testing "logical false values"
+    (are [v] (false? (boolean v))
+      false
+      nil))
+
+  (testing "logical true values"
+    (are [v] (true? (boolean v))
+      true
+      1
+      0
+      -1
+      1.0
+      0.0
+      -1.0
+      ""
+      "false"
+      []
+      [false]
+      #{}
+      #{false}
+      {}
+      {false false}
+      '()
+      '(false false)
+      :kw
+      :ns/kw
+      'sym
+      'ns/sym)))
 
 (deftest compare-test
   (testing "nil"
@@ -231,6 +310,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest fnext-test
+  (is (= nil (fnext [])))
+  (is (= nil (fnext [1])))
+  (is (= nil (fnext [1 nil])))
+
+  (is (= 2 (fnext [1 2])))
+  (is (= [2] (fnext [1 [2] 3]))))
 
 (deftest bounded-count-test
   (are [x n y] (= x (bounded-count n y))
@@ -569,6 +656,23 @@
    (iterate inc 2)))
 
 (deftest lazy-seq-test
+  (testing "is collection"
+    (are [x] (coll? x)
+      (lazy-seq)
+      (empty (lazy-seq))
+      (cons nil (lazy-seq))
+      (cons nil (empty (lazy-seq)))
+      (empty (cons nil (lazy-seq)))))
+
+  (testing "conj"
+    (are [expected form] (= expected form)
+      '()          (lazy-seq)
+      '()          (conj (lazy-seq))
+      '(0 1 2)     (conj (lazy-seq '(2)) 1 0)
+      '(0 1 2)     (conj (conj (lazy-seq '(2)) 1) 0)
+      '(1 2 3)     (conj (lazy-seq) 3 2 1)
+      '(0 1 2 3 4) (conj (lazy-seq '(1 2 3 4)) 0)))
+
   (testing "corecursion"
     ;; here we're just generally checking that we don't blow the stack, so
     ;; 50 is an arbitrarily chosen limit which hopefully tests that adequately
@@ -578,6 +682,33 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest partial-test
+  (testing "no arguments"
+    (let [f-no-args (fn [] :no-args)]
+      (is (identical? f-no-args (partial f-no-args)))))
+
+  (testing "with arguments"
+    (let [f ^{:meta-tag :value}
+          (fn
+            ([] :no-args)
+            ([a b] [a b])
+            ([a b c d & rest]
+             [a b c d rest]))]
+      (is (= #{0 2 4 :rest} (.-arities f)))
+      (is (= {:meta-tag :value} (meta f)))
+
+      (let [new-f      (partial f :a)
+            new-f-meta (with-meta new-f {:different-tag :yes})]
+        (is (= #{1 3 :rest} (.-arities new-f)))
+        (is (nil? (meta new-f)))
+        (is (= {:different-tag :yes} (meta new-f-meta)))
+        (is (= [:a :c] (new-f-meta :c)))
+
+        (let [partial-of-partial (partial new-f-meta :b)]
+          (is (= #{2 :rest} (.-arities partial-of-partial)))
+          (is (nil? (meta partial-of-partial)))
+          (is (= [:a :b :e :f '(:g :h)] (partial-of-partial :e :f :g :h))))))))
 
 (deftest reduce-test
   (testing "with no init"
@@ -1096,6 +1227,12 @@
     {:a 1 :b 2} [:a :b] [1 2]
     {:a 0 :b 1} [:a :b] (range)))
 
+(deftest merge-with-test
+  (is (= nil (merge-with conj)))
+  (is (= nil (merge-with str nil)))
+  (is (= {:a 0 :b "235" :c "46" :d 7 :z 8} (merge-with str {:a 0 :b 2} {:b 3 :c 4 :z 8} {:b 5 :c 6 :d 7})))
+  (is (= {:a 0 :b [2 5] :c 7} (merge-with conj {:a 0 :b [2]} nil {:b 5 :c 7}))))
+
 (deftest trampoline-test
   (let [a (atom [])]
     (trampoline (fn [v]
@@ -1109,6 +1246,29 @@
   (are [res branch? children root] (= res (tree-seq branch? children root))
     '(((1 2 (3)) (4)) (1 2 (3)) 1 2 (3) 3 (4) 4)                             seq? identity '((1 2 (3)) (4))
     '((:A (:B (:D) (:E)) (:C (:F))) (:B (:D) (:E)) (:D) (:E) (:C (:F)) (:F)) next rest     '(:A (:B (:D) (:E)) (:C (:F)))))
+
+(deftest memoize-test
+  (testing "single args"
+    (let [m1 (memoize (fn [a] (str a (random-uuid))))
+          a1 (m1 :a)
+          a2 (m1 :b)
+          an (m1 nil)]
+      (is (= a1 (m1 :a)))
+      (is (= a2 (m1 :b)))
+      (is (= an (m1 nil)))
+      (is (distinct? a1 a2 an))))
+
+  (testing "variadic"
+    (let [m1 (memoize (fn [& more] (str more (random-uuid))))
+          a0 (m1)
+          a1 (m1 :a)
+          a2 (m1 :a '(xyz))
+          an (m1 nil)]
+      (is (= a0 (m1)))
+      (is (= a1 (m1 :a)))
+      (is (= a2 (m1 :a '(xyz))))
+      (is (= an (m1 nil)))
+      (is (distinct? a0 a1 a2 an)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Associative Functions ;;
@@ -2091,12 +2251,12 @@
 
   (let [load-dir-test "tests/basilisp/corpus"
         load-dir-filepath (str load-dir-test "/core_load_1.lpy")]
-    (try 
+    (try
       (when (bio/exists? load-dir-test)
         (shutil/rmtree load-dir-test))
       (bio/make-parents load-dir-filepath)
       (spit load-dir-filepath "(print :core-load-1)")
-      
+
       (testing "relative load path"
         (let [output (with-out-str (load "corpus/core-load-1"))]
           (is (= ":core-load-1" output))))
@@ -2112,3 +2272,128 @@
       (finally
         (when (bio/exists? load-dir-test)
           (shutil/rmtree load-dir-test))))))
+
+;;;;;;;;;;;;;;
+;; printing ;;
+;;;;;;;;;;;;;;
+
+(deftest pr-test
+  (testing "is dynamic"
+    (is (= '(1) (binding [pr (fn [& more] more)] (pr 1)))))
+
+  (testing "with *print-namespace-maps*"
+    (is (= "#py {:a/x 5}" (binding [*print-namespace-maps* false] (pr-str #py {:a/x 5}))))
+    (is (= "#py #:a{:x 5}" (binding [*print-namespace-maps* true] (pr-str #py {:a/x 5}))))
+
+    (are [res m b] (contains? res (binding [*print-namespace-maps* b] (pr-str m)))
+      #{"{:a/x 5}"} {:a/x 5} false
+      #{"#:a{:x 5}"} {:a/x 5} true
+      #{"{:x 5}"} {:x 5} true
+      #{"{1 2}"} {1 2} false
+      #{"{1 2}"} {1 2} true
+      #{"{:a/y 6 :a/x 5}" "{:a/x 5 :a/y 6}"} {:a/x 5 :a/y 6} false
+      #{"#:a{:y 6 :x 5}" "#:a{:x 5 :y 6}"} {:a/x 5 :a/y 6} true
+      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"} {:a/x 5 6 6} false
+      #{"{6 6 :a/x 5}" "{:a/x 5 6 6}"} {:a/x 5 6 6} true
+      #{"{:a/x 5 :b/y 6}" "{:b/y 6 :a/x 5}"} {:a/x 5 :b/y 6} true
+      #{"#:a{y 6 x 5}" "#:a{x 5 y 6}"} {'a/x 5 'a/y 6} true
+      #{"#:a{y 6 :x 5}" "#:a{:x 5 y 6}"} {:a/x 5 'a/y 6} true
+      #{"{y 6 :a/x 5}" "{:a/x 5 y 6}"} {:a/x 5 'y 6} true)
+
+    (are [res m pnm pm] (= res (binding [*print-namespace-maps* pnm
+                                         *print-meta*           pm]
+                                 (pr-str m)))
+      "^{:m 1} {:a/x 5}"     ^{:m 1} {:a/x 5}   false true
+      "^{:m 1} #:a{:x 5}"    ^{:m 1} {:a/x 5}   true true
+      "^#:l{:m 1} #:a{:x 5}" ^{:l/m 1} {:a/x 5} true true)
+
+    (are [res m pl] (= res (binding [*print-namespace-maps* true
+                                     *print-meta*           true
+                                     *print-level* pl]
+                             (pr-str m)))
+      "#"                                ^{:m 1} {:a/x 5} 0
+      "^{:m 1} #:a{:x 5}"                ^{:m 1} {:a/x 5} 1
+      "^{:m 1} #:a{:x #}"                ^{:m 1} {:a/x ^{:x 22} {:b 36}} 1
+      "^{:m 1} #:a{:x ^{:x 22} {:b 36}}" ^{:m 1} {:a/x ^{:x 22} {:b 36}} 2)))
+
+(defn- bio-write
+  "Helper fn to write the ``strings`` to the ByteIO buffer ``bio``
+  and return the contents of the buffer."
+  [bio & strings]
+  (.write bio (python/bytes (apply str strings) "UTF-8"))
+  (.getvalue bio))
+
+(deftest flush-on-newline-test
+  ;; :line-buffering false :newline ""
+  ;;
+  ;;   the above options instruct the TextIOWrapper to internally
+  ;;   disable (1) flushing on newlines and (2) universal newlines
+  ;;   mode.
+
+  (testing "prn newline flushing"
+    (let [bio      (io/BytesIO)
+          expected (io/BytesIO)]
+      (binding [*out* (io/TextIOWrapper bio ** :line-buffering false :newline "")
+                *flush-on-newline* true]
+        (prn)
+        (is (= (bio-write expected os/linesep) (.getvalue bio)))
+        (prn "ab")
+        (is (= (bio-write expected "\"ab\"" os/linesep) (.getvalue bio)))
+        (prn "ab" 1)
+        (is (= (bio-write expected "\"ab\"" " " 1 os/linesep) (.getvalue bio))))))
+
+  (testing "prn newline not flushing"
+    (let [bio      (io/BytesIO)
+          expected (io/BytesIO)]
+      (binding [*out* (io/TextIOWrapper bio ** :line-buffering false :newline "")
+                *flush-on-newline* false]
+        (prn)
+        (is (= #b "" (.getvalue bio)))
+        (prn "ab")
+        (is (= #b "" (.getvalue bio)))
+        (prn "ab" 1)
+        (is (= #b "" (.getvalue bio)))
+        (.flush *out*)
+        (is (= (bio-write expected os/linesep "\"ab\"" os/linesep "\"ab\"" " " 1 os/linesep)
+               (.getvalue bio))))))
+
+  (testing "println newline flushing"
+    (let [bio      (io/BytesIO)
+          expected (io/BytesIO)]
+      (binding [*out* (io/TextIOWrapper bio ** :line-buffering false :newline "")
+                *flush-on-newline* true]
+        (println)
+        (is (= (bio-write expected os/linesep) (.getvalue bio)))
+        (println "ab")
+        (is (= (bio-write expected "ab" os/linesep) (.getvalue bio)))
+        (println "ab" 1)
+        (is (= (bio-write expected "ab" " " 1 os/linesep) (.getvalue bio))))))
+
+  (testing "println newline not flushing"
+    (let [bio      (io/BytesIO)
+          expected (io/BytesIO)]
+      (binding [*out* (io/TextIOWrapper bio ** :line-buffering false :newline "")
+                *flush-on-newline* false]
+        (println)
+        (is (= #b "" (.getvalue bio)))
+        (println "ab")
+        (is (= #b "" (.getvalue bio)))
+        (println "ab" 1)
+        (is (= #b "" (.getvalue bio)))
+        (.flush *out*)
+        (is (= (bio-write expected os/linesep "ab" os/linesep "ab" " " 1 os/linesep)
+               (.getvalue bio)))))))
+
+;;;;;;;;;;;;;;;;
+;; arithmetic ;;
+;;;;;;;;;;;;;;;;
+
+(deftest arithmetic-equality-test
+  (testing "int and float type equality"
+    (is (not= 1 1.00001))
+    (is (= 1 1.0000000000000000000000009)))
+
+  (testing "== is an alias of ="
+    (let [f 1.0000000000000000000000009]
+      (is (= 1 f))
+      (is (== 1 f)))))

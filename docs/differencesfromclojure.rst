@@ -32,6 +32,23 @@ Type Differences
 
   * Sorted sets, sorted maps, and array maps are not implemented (support is tracked in `#416 <https://github.com/basilisp-lang/basilisp/issues/416>`_).
 
+.. _arithmetic_comparison:
+
+Arithmetic Comparison
+---------------------
+
+Basilisp, in contrast to Clojure, does not distinguish between integer (``int``) and floating point (``float``) as `separate categories for equality comparison purposes <https://clojure.org/guides/equality>`_ where the ``=`` comparison between any ``int`` and ``float`` returns ``false``. Instead, it adopts Python's ``=`` comparison operator semantics, where the ``int`` is optimistically converted to a ``float`` before the comparison. However, beware that this conversion can lead to `certain caveats in comparison <https://stackoverflow.com/a/30100743>`_ where in rare cases seemingly exact ``int`` and ``float`` numbers may still compare to ``false`` due to limitations in floating point number representation.
+
+In Clojure, this optimistic equality comparison is performed by the ``==`` function. In Basilisp, ``==`` is aliased to behave the same as ``=``.
+
+.. note::
+
+   Basilisp's ``=`` will perform as expected when using Python :external:py:class:`decimal.Decimal` typed :ref:`floating-point numbers <numbers>`.
+
+.. seealso::
+
+   Python's `floating point arithmetic <https://docs.python.org/3/tutorial/floatingpoint.html>`_ documentation
+
 .. _concurrent_programming:
 
 Concurrent Programming
@@ -58,16 +75,16 @@ That said, there are some fundamental differences and omissions in Basilisp that
 Reader
 ------
 
-* :ref:`Numbers <numeric_literals>`
+* :ref:`Numbers <reader_numeric_literals>`
 
   * Python integers natively support unlimited precision, so there is no difference between regular integers and those suffixed with ``N`` (which are read as ``BigInt``\s in Clojure).
   * Floating point numbers are read as Python ``float``\s by default and subject to the limitations of that type on the current Python VM.
-    Floating point numbers suffixed with ``M`` are read as Python `Decimal <https://docs.python.org/3/library/decimal.html#decimal.Decimal>`_ types and support user-defined precision.
-  * Ratios are supported and are read in as Python `Fraction <https://docs.python.org/3/library/fractions.html#fractions.Fraction>`_ types.
+    Floating point numbers suffixed with ``M`` are read as Python :external:py:class:`decimal.Decimal` types and support user-defined precision.
+  * Ratios are supported and are read in as Python :external:py:class:`fractions.Fraction` types.
   * Python natively supports Complex numbers.
     The reader will return a complex number for any integer or floating point literal suffixed with ``J``.
 
-* :ref:`Characters <character_literals>`
+* :ref:`Characters <reader_character_literals>`
 
   * Python does not support character types, so characters are returned as single-character strings.
 
@@ -75,12 +92,12 @@ Reader
 
   * The reader will return the native Python data type corresponding to the Clojure type in functionality if the value is prefixed with ``#py``.
 
-.. _regular_expressions:
+.. _regular_expression_differences:
 
 Regular Expressions
 -------------------
 
-Basilisp regular expressions use Python's `regular expression <https://docs.python.org/3/library/re.html>`_ syntax and engine.
+Basilisp regular expressions use Python's :external:py:mod:`regular expression <re>` syntax and engine.
 
 .. _repl_differences:
 
@@ -133,6 +150,15 @@ Libs
 
 Support for Clojure libs is `planned <https://github.com/basilisp-lang/basilisp/issues/668>`_\.
 
+.. _core_lib_differences:
+
+basilisp.core
+-------------
+
+- :lpy:fn:`basilisp.core/int` coerces its argument to an integer. When given a string input, Basilisp will try to interpret it as a base 10 number, whereas in Clojure, it will return its ASCII/Unicode index if it is a character (or fail if it is a string).
+
+- :lpy:fn:`basilisp.core/float` coerces its argument to a floating-point number. When given a string input, Basilisp will try to parse it as a floating-point number, whereas Clojure will raise an error if the input is a character or a string.
+
 .. _refs_and_transactions_differences:
 
 Refs and Transactions
@@ -168,7 +194,7 @@ Type Hinting
 
 Type hints may be applied anywhere they are supported in Clojure (as the ``:tag`` metadata key), but the compiler does not currently use them for any purpose.
 Tags provided for ``def`` names, function arguments and return values, and :lpy:form:`let` locals will be applied to the resulting Python AST by the compiler wherever possible.
-Particularly in the case of function arguments and return values, these tags maybe introspected from the Python `inspect <https://docs.python.org/3/library/inspect.html>`_ module.
+Particularly in the case of function arguments and return values, these tags maybe introspected from the Python :external:py:mod:`inspect` module.
 There is no need for type hints anywhere in Basilisp right now, however.
 
 .. _compilation_differences:

@@ -1,5 +1,10 @@
 import io
 import math
+import os
+import re
+import textwrap
+from fractions import Fraction
+from pathlib import Path
 from typing import Optional
 
 import pytest
@@ -14,6 +19,7 @@ from basilisp.lang import set as lset
 from basilisp.lang import symbol as sym
 from basilisp.lang import util as langutil
 from basilisp.lang import vector as vec
+from basilisp.lang.exception import format_exception
 from basilisp.lang.interfaces import IPersistentSet
 
 
@@ -51,77 +57,205 @@ def test_stream_reader():
     sreader = reader.StreamReader(io.StringIO("12345"))
 
     assert "1" == sreader.peek()
+    assert (1, 0) == sreader.loc
+
+    assert "2" == sreader.next_char()
     assert (1, 1) == sreader.loc
 
-    assert "2" == sreader.next_token()
-    assert (1, 2) == sreader.loc
-
     assert "2" == sreader.peek()
-    assert (1, 2) == sreader.loc
+    assert (1, 1) == sreader.loc
 
     sreader.pushback()
     assert "1" == sreader.peek()
+    assert (1, 0) == sreader.loc
+
+    assert "2" == sreader.next_char()
     assert (1, 1) == sreader.loc
 
-    assert "2" == sreader.next_token()
+    assert "3" == sreader.next_char()
     assert (1, 2) == sreader.loc
 
-    assert "3" == sreader.next_token()
+    assert "4" == sreader.next_char()
     assert (1, 3) == sreader.loc
 
-    assert "4" == sreader.next_token()
+    assert "5" == sreader.next_char()
     assert (1, 4) == sreader.loc
 
-    assert "5" == sreader.next_token()
+    assert "" == sreader.next_char()
     assert (1, 5) == sreader.loc
-
-    assert "" == sreader.next_token()
-    assert (1, 6) == sreader.loc
 
 
 def test_stream_reader_loc():
     s = str("i=1\n" "b=2\n" "i")
     sreader = reader.StreamReader(io.StringIO(s))
+    assert (1, 0) == sreader.loc
 
     assert "i" == sreader.peek()
+    assert (1, 0) == sreader.loc
+
+    assert "=" == sreader.next_char()
     assert (1, 1) == sreader.loc
 
-    assert "=" == sreader.next_token()
-    assert (1, 2) == sreader.loc
-
     assert "=" == sreader.peek()
-    assert (1, 2) == sreader.loc
+    assert (1, 1) == sreader.loc
 
     sreader.pushback()
     assert "i" == sreader.peek()
+    assert (1, 0) == sreader.loc
+
+    assert "=" == sreader.next_char()
     assert (1, 1) == sreader.loc
 
-    assert "=" == sreader.next_token()
+    assert "1" == sreader.next_char()
     assert (1, 2) == sreader.loc
 
-    assert "1" == sreader.next_token()
+    assert "\n" == sreader.next_char()
     assert (1, 3) == sreader.loc
 
-    assert "\n" == sreader.next_token()
+    assert "b" == sreader.next_char()
     assert (2, 0) == sreader.loc
 
-    assert "b" == sreader.next_token()
+    assert "=" == sreader.next_char()
     assert (2, 1) == sreader.loc
 
-    assert "=" == sreader.next_token()
+    assert "2" == sreader.next_char()
     assert (2, 2) == sreader.loc
 
-    assert "2" == sreader.next_token()
+    assert "\n" == sreader.next_char()
     assert (2, 3) == sreader.loc
 
-    assert "\n" == sreader.next_token()
+    assert "i" == sreader.next_char()
     assert (3, 0) == sreader.loc
 
-    assert "i" == sreader.next_token()
+    assert "" == sreader.next_char()
     assert (3, 1) == sreader.loc
 
-    assert "" == sreader.next_token()
-    assert (3, 2) == sreader.loc
+
+class TestReaderLines:
+    def test_reader_lines_from_str(self, tmp_path):
+        _, _, l = list(reader.read_str("1\n2\n(/ 5 0)"))
+
+        assert (3, 3, 0, 7) == (
+            l.meta.get(reader.READER_LINE_KW),
+            l.meta.get(reader.READER_END_LINE_KW),
+            l.meta.get(reader.READER_COL_KW),
+            l.meta.get(reader.READER_END_COL_KW),
+        )
+
+    def test_reader_lines_from_file(self, tmp_path):
+        filename = tmp_path / "test.lpy"
+
+        with open(filename, mode="w", encoding="utf-8") as f:
+            f.write("1\n2\n(/ 5 0)")
+
+        with open(filename, mode="r", encoding="utf-8") as f:
+            _, _, l = list(reader.read(f))
+
+        assert (3, 3, 0, 7) == (
+            l.meta.get(reader.READER_LINE_KW),
+            l.meta.get(reader.READER_END_LINE_KW),
+            l.meta.get(reader.READER_COL_KW),
+            l.meta.get(reader.READER_END_COL_KW),
+        )
+
+
+class TestSyntaxErrorFormat:
+    def test_no_cause_exception(self):
+        with pytest.raises(reader.SyntaxError) as e:
+            read_str_first("[:a :b :c")
+
+        assert [
+            f"{os.linesep}",
+            f"  exception: <class 'basilisp.lang.reader.UnexpectedEOFError'>{os.linesep}",
+            f"    message: Unexpected EOF in vector{os.linesep}",
+            f"       line: 1:9{os.linesep}",
+        ] == format_exception(e.value)
+
+    def test_exception_with_cause(self):
+        with pytest.raises(reader.SyntaxError) as e:
+            read_str_first("{:a 1 :a}")
+
+        assert [
+            f"{os.linesep}",
+            f"  exception: <class 'ValueError'> from <class 'basilisp.lang.reader.SyntaxError'>{os.linesep}",
+            f"    message: Unexpected char '}}'; expected map value: not enough values to unpack (expected 2, got 1){os.linesep}",
+            f"       line: 1:9{os.linesep}",
+        ] == format_exception(e.value)
+
+    class TestExceptionsWithSourceContext:
+        @pytest.fixture
+        def source_file(self, tmp_path: Path) -> Path:
+            return tmp_path / "reader_test.lpy"
+
+        def test_shows_source_context(self, monkeypatch, source_file: Path):
+            source_file.write_text(
+                textwrap.dedent(
+                    """
+                    (ns reader-test)
+
+                    (let [a :b]
+                      a
+                    """
+                ).strip()
+            )
+            monkeypatch.setenv("BASILISP_NO_COLOR", "true")
+            monkeypatch.syspath_prepend(source_file.parent)
+
+            with pytest.raises(reader.SyntaxError) as e:
+                list(reader.read_file(source_file))
+
+            v = format_exception(e.value)
+            assert re.match(
+                (
+                    rf"{os.linesep}"
+                    rf"  exception: <class 'basilisp\.lang\.reader\.UnexpectedEOFError'>{os.linesep}"
+                    rf"    message: Unexpected EOF in list{os.linesep}"
+                    rf"   location: (?:\w:)?[^:]*:4:3{os.linesep}"
+                    rf"    context:{os.linesep}"
+                    rf"{os.linesep}"
+                    rf" 1   \| \(ns reader-test\){os.linesep}"
+                    rf" 2   \| {os.linesep}"
+                    rf" 3   \| \(let \[a :b\]{os.linesep}"
+                    rf" 4 > \|   a{os.linesep}"
+                ),
+                "".join(v),
+            )
+
+        def test_shows_source_context_(self, monkeypatch, source_file: Path):
+            source_file.write_text(
+                textwrap.dedent(
+                    """
+                    (ns reader-test)
+
+                    (let [a :b]
+                      a
+                    """
+                ).strip()
+                + "\n"
+            )
+            monkeypatch.setenv("BASILISP_NO_COLOR", "true")
+            monkeypatch.syspath_prepend(source_file.parent)
+
+            with pytest.raises(reader.SyntaxError) as e:
+                list(reader.read_file(source_file))
+
+            v = format_exception(e.value)
+            assert re.match(
+                (
+                    rf"{os.linesep}"
+                    rf"  exception: <class 'basilisp\.lang\.reader\.UnexpectedEOFError'>{os.linesep}"
+                    rf"    message: Unexpected EOF in list{os.linesep}"
+                    rf"   location: (?:\w:)?[^:]*:5:0{os.linesep}"
+                    rf"    context:{os.linesep}"
+                    rf"{os.linesep}"
+                    rf" 1   \| \(ns reader-test\){os.linesep}"
+                    rf" 2   \| {os.linesep}"
+                    rf" 3   \| \(let \[a :b\]{os.linesep}"
+                    rf" 4   \|   a{os.linesep}"
+                    rf" 5 > \|"
+                ),
+                "".join(v),
+            )
 
 
 class TestComplex:
@@ -148,7 +282,9 @@ class TestComplex:
         "v,raw",
         [
             (0.0j, "0.0J"),
+            (0.0j, "0.J"),
             (0.093_873_72j, "0.09387372J"),
+            (1.0j, "1.J"),
             (1.0j, "1.0J"),
             (1.332j, "1.332J"),
             (-1.332j, "-1.332J"),
@@ -173,6 +309,7 @@ class TestInt:
             ("100", 100),
             ("99927273", 99_927_273),
             ("0", 0),
+            ("-0", 0),
             ("-1", -1),
             ("-538282", -538_282),
         ],
@@ -204,10 +341,13 @@ class TestFloat:
         "raw,v",
         [
             ("0.0", 0.0),
+            ("-0.0", 0.0),
             ("0.09387372", 0.093_873_72),
+            ("1.", 1.0),
             ("1.0", 1.0),
             ("1.332", 1.332),
             ("-1.332", -1.332),
+            ("-1.", -1.0),
             ("-1.0", -1.0),
             ("-0.332", -0.332),
         ],
@@ -221,6 +361,126 @@ class TestFloat:
             read_str_first(raw)
 
 
+class TestOctalLiteral:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("00", 0o0),
+            ("00N", 0o0),
+            ("-00", -0o0),
+            ("-03", -0o3),
+            ("03", 0o3),
+            ("0666", 0o666),
+            ("-0666", -0o666),
+            ("0666N", 0o666),
+            ("-0666N", -0o666),
+        ],
+    )
+    def test_legal_octal_literal(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize("raw", ["089", "01.", "0639"])
+    def test_malformed_octal_literal(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
+
+
+class TestHexLiteral:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("0x3", 0x3),
+            ("-0x3", -0x3),
+            ("0X3", 0x3),
+            ("0x0", 0x0),
+            ("0x0N", 0x0),
+            ("0xFACE", 0xFACE),
+            ("-0xFACE", -0xFACE),
+            ("0XFACE", 0xFACE),
+            ("0xFACEN", 0xFACE),
+            ("-0xFACEN", -0xFACE),
+            ("0xface", 0xFACE),
+            ("-0xface", -0xFACE),
+            ("0Xface", 0xFACE),
+            ("0xfaceN", 0xFACE),
+            ("-0xfaceN", -0xFACE),
+        ],
+    )
+    def test_legal_hex_literal(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize("raw", ["0x", "0x.", "0x3.", "0xFA-E"])
+    def test_malformed_hex_literal(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
+
+
+class TestArbitraryBaseLiteral:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("2r0", int("0", base=2)),
+            ("-2r0", -int("0", base=2)),
+            ("16rFACE", 0xFACE),
+            ("-16rFACE", -0xFACE),
+        ],
+    )
+    def test_legal_arbitrary_base_literal(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize("raw", ["1r1", "37r42", "0r53", "6r799", "6r", "432r382"])
+    def test_malformed_arbitrary_base_literal(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
+
+
+class TestScientificNotationLiteral:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("-0e4", -0e4),
+            ("0e0", 0e0),
+            ("0e12", 0e12),
+            ("-2e-6", -2e-6),
+            ("2e6", 2e6),
+            ("2E6", 2e6),
+            ("-2e6", -2e6),
+            ("-2E6", -2e6),
+            ("2.e6", 2.0e6),
+            ("-2.e6", -2.0e6),
+            ("3.14e8", 3.14e8),
+            ("3.14e-8", 3.14e-8),
+            ("0.443e12", 0.443e12),
+        ],
+    )
+    def test_legal_scientific_notation_literal(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize("raw", ["2e-3.6", "2e--4"])
+    def test_malformed_scientific_notation_literal(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
+
+
+class TestRatios:
+    @pytest.mark.parametrize(
+        "raw,v",
+        [
+            ("22/7", Fraction(22, 7)),
+            ("-22/7", Fraction(-22, 7)),
+            ("0/3", 0),
+            ("1/3", Fraction(1, 3)),
+        ],
+    )
+    def test_legal_arbitrary_base_literal(self, v: int, raw: str):
+        assert v == read_str_first(raw)
+
+    @pytest.mark.parametrize("raw", ["22/-7", "1/0"])
+    def test_malformed_ratio(self, raw: str):
+        with pytest.raises(reader.SyntaxError):
+            read_str_first(raw)
+
+
 class TestKeyword:
     @pytest.mark.parametrize(
         "v,raw",
@@ -228,6 +488,7 @@ class TestKeyword:
             ("kw", ":kw"),
             ("kebab-kw", ":kebab-kw"),
             ("underscore_kw", ":underscore_kw"),
+            ("dotted.kw", ":dotted.kw"),
             ("kw?", ":kw?"),
             ("+", ":+"),
             ("?", ":?"),
@@ -266,7 +527,7 @@ class TestKeyword:
         assert kw.keyword(k, ns=ns) == read_str_first(raw)
 
     @pytest.mark.parametrize(
-        "v", ["://", ":ns//kw", ":some/ns/sym", ":ns/sym/", ":/kw", ":dotted.kw"]
+        "v", ["://", ":ns//kw", ":some/ns/sym", ":ns/sym/", ":/kw"]
     )
     def test_illegal_symbol(self, v: str):
         with pytest.raises(reader.SyntaxError):
@@ -430,7 +691,7 @@ class TestByteString:
             read_str_first(rf'#b "{chr(432)}"')
 
     def test_invalid_escape_remains(self):
-        assert b"\q" == read_str_first(r'#b "\q"')
+        assert rb"\q" == read_str_first(r'#b "\q"')
 
     @pytest.mark.parametrize("v", [r'#b "\xjj"', r'#b "\xf"', r'#b "\x"'])
     def test_invalid_hex_escape_sequence(self, v: str):
@@ -776,6 +1037,30 @@ def test_syntax_quoted(test_ns: str, ns: runtime.Namespace):
         ),
     ) == read_str_first("`(~'my-symbol)"), "Do not resolve unquoted quoted syms"
 
+    assert llist.l(
+        reader._SEQ,
+        llist.l(
+            reader._CONCAT,
+            llist.l(
+                reader._LIST,
+                llist.l(
+                    reader._SEQ,
+                    llist.l(
+                        reader._CONCAT,
+                        llist.l(
+                            reader._LIST,
+                            llist.l(sym.symbol("quote"), sym.symbol("var")),
+                        ),
+                        llist.l(
+                            reader._LIST,
+                            llist.l(sym.symbol("quote"), sym.symbol("a-symbol")),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    ) == read_str_first("`(#'~'a-symbol)"), "Reader var macro works with unquote"
+
     assert llist.l(sym.symbol("quote"), sym.symbol("&")) == read_str_first(
         "`&"
     ), "do not resolve the not namespaced ampersand"
@@ -949,8 +1234,8 @@ def test_meta():
     assert issubmap(s.meta, lmap.map({kw.keyword("tag"): sym.symbol("str")}))
     assert issubmap(s.meta, lmap.map({reader.READER_LINE_KW: 1}))
     assert issubmap(s.meta, lmap.map({reader.READER_END_LINE_KW: 1}))
-    assert issubmap(s.meta, lmap.map({reader.READER_COL_KW: 6}))
-    assert issubmap(s.meta, lmap.map({reader.READER_END_COL_KW: 7}))
+    assert issubmap(s.meta, lmap.map({reader.READER_COL_KW: 5}))
+    assert issubmap(s.meta, lmap.map({reader.READER_END_COL_KW: 6}))
 
     s = read_str_first("^:dynamic *ns*")
     assert s == sym.symbol("*ns*")
@@ -1288,6 +1573,10 @@ def test_deref():
 
 def test_character_literal():
     assert "a" == read_str_first("\\a")
+    assert "[" == read_str_first("\\[")
+    assert "," == read_str_first("\\,")
+    assert "^" == read_str_first("\\^")
+    assert " " == read_str_first("\\ ")
     assert "Ω" == read_str_first("\\Ω")
 
     assert "Ω" == read_str_first("\\u03A9")
@@ -1300,6 +1589,7 @@ def test_character_literal():
     assert "\r" == read_str_first("\\return")
 
     assert vec.v("a") == read_str_first("[\\a]")
+    assert vec.v("]") == read_str_first("[\\]]")
     assert vec.v("Ω") == read_str_first("[\\Ω]")
 
     assert llist.l(sym.symbol("str"), "Ω") == read_str_first("(str \\u03A9)")
