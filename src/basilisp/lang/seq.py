@@ -48,8 +48,15 @@ class _EmptySequence(IWithMeta, ISequential, ISeq[T]):
     def rest(self) -> ISeq[T]:
         return self
 
-    def cons(self, elem: T) -> ISeq[T]:
-        return Cons(elem, self)
+    def cons(self, *elems: T) -> ISeq[T]:  # type: ignore[override]
+        l: ISeq = self
+        for elem in elems:
+            l = Cons(elem, l)
+        return l
+
+    @staticmethod
+    def empty():
+        return EMPTY
 
 
 EMPTY: ISeq = _EmptySequence()
@@ -80,8 +87,15 @@ class Cons(ISeq[T], ISequential, IWithMeta):
     def rest(self) -> ISeq[T]:
         return self._rest
 
-    def cons(self, elem: T) -> "Cons[T]":
-        return Cons(elem, self)
+    def cons(self, *elems: T) -> "Cons[T]":
+        l = self
+        for elem in elems:
+            l = Cons(elem, l)
+        return l
+
+    @staticmethod
+    def empty():
+        return EMPTY
 
     @property
     def meta(self) -> Optional[IPersistentMap]:
@@ -192,13 +206,20 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
         except AttributeError:
             return EMPTY
 
-    def cons(self, elem):
-        return Cons(elem, self)
+    def cons(self, *elems: T) -> ISeq[T]:  # type: ignore[override]
+        l: ISeq = self
+        for elem in elems:
+            l = Cons(elem, l)
+        return l
 
     @property
     def is_realized(self):
         with self._lock:
             return self._gen is None
+
+    @staticmethod
+    def empty():
+        return EMPTY
 
 
 def sequence(s: Iterable[T]) -> ISeq[T]:

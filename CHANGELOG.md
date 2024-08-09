@@ -8,11 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added `:end-line` and `:end-col` metadata to forms during compilation (#903)
  * Added `basilisp.repl/source` to allow inspecting source code from the REPL (#205)
+ * Added `conj` 1 and 0 arities (#954)
 
 ### Changed
  * Updated dozens of type annotations in the compiler to satisfy MyPy 1.11 (#910)
  * Update the `StreamReader` methods to stop using the term "token" to refer to individual UTF-8 characters (#915)
  * Update the list of Python dunder methods which are allowed to be implemented for all `deftype*` and `reify*` types (#943)
+ * ISeq now inherits from IPersistentCollection so `coll?`, `empty`, and `conj` can now be used with sequences (#954)
 
 ### Fixed
  * Fix a bug where `.` characters were not allowed in keyword names (#899)
@@ -61,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where `basilisp.lang.compiler.exception.CompilerException` would nearly always suppress line information in it's `data` map (#845)
  * Fix a bug where the function returned by `partial` retained the meta, arities, and `with_meta` method of the wrapped function rather than creating new ones (#847)
  * Fix a bug where exceptions arising while reading reader conditional forms did not include line and column information (#854)
- * Fix a bug where names `def`'ed without reader metadata would cause the compiler to throw an exception (#850) 
+ * Fix a bug where names `def`'ed without reader metadata would cause the compiler to throw an exception (#850)
  * Fix an issue where `concat` on maps was iterating over the keys instead of the key/value pairs (#871)
  * Fix a bug where the compiler would throw an exception partially macroexpanding forms with `recur` forms provided as arguments (#856)
  * Fix a bug where the original `(var ...)` form is not retained during analysis, causing it to be lost in calls to `macroexpand` (#888)
@@ -103,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix issue with keywords not testing for membership in sets when used as a function (#762)
  * Fix an issue for executing Basilisp scripts via a shebang where certain platforms may not support more than one argument in the shebang line (#764)
  * Fix issue with keywords throwing `TypeError` when used as a function on vectors (#770)
- * Fix an issue where the constructors of types created by `deftype` and `defrecord` could not be called if they contained `-` characters (#777) 
+ * Fix an issue where the constructors of types created by `deftype` and `defrecord` could not be called if they contained `-` characters (#777)
  * Fix issue with the variadic ampersand operator treated as a binding in macros (#772)
  * Fix a bug the variadic arg symbol was not correctly bound to `nil` when no variadic arguments were provided (#801)
  * Fix a bug where the quotient of very large numbers was incorrect (#822)
@@ -473,7 +475,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fixed a bug where comment literals were not be fully removed from reader outputs (#196)
  * Fixed a bug where comment literals caused syntax errors inside collection literals (#196)
  * Imported namespaces no longer create extra namespaces bound to munged Python module names (#216)
- * Fixed a bug where `import*`s would not work within other forms 
+ * Fixed a bug where `import*`s would not work within other forms
  * Fixed a bug where the Basilisp import hook could be added to `sys.meta_path` multiple times (#213)
  * Fixed a bug where keywords could not be used in function position (#174)
  * Fixed a bug where macro symbols were not resolved using the same heuristics as other symbols (#183)
