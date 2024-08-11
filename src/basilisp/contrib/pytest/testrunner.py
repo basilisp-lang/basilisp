@@ -1,4 +1,3 @@
-import importlib.util
 import inspect
 import os
 import traceback
@@ -219,7 +218,7 @@ class BasilispFile(pytest.File):
 
     def _import_module(self) -> runtime.BasilispModule:
         modname = _get_fully_qualified_module_name(self.path)
-        module = importlib.import_module(modname)
+        module = runtime.import_namespace(modname)
         assert isinstance(module, runtime.BasilispModule)
         return module
 

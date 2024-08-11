@@ -1,4 +1,3 @@
-import importlib
 import logging
 import site
 from pathlib import Path
@@ -17,32 +16,36 @@ logger.addHandler(DEFAULT_HANDLER)
 
 
 def init(opts: Optional[CompilerOpts] = None) -> None:
-    """
-    Initialize the runtime environment for Basilisp code evaluation.
+    """Initialize the runtime environment for Basilisp code evaluation.
 
-    Basilisp only needs to be initialized once per Python VM invocation. Subsequent
-    imports of Basilisp namespaces will work using Python's standard ``import``
-    statement and :external:py:func:`importlib.import_module` function.
+    Basilisp only needs to be initialized once per Python VM
+    invocation. Subsequent imports of Basilisp namespaces will work using
+    Python's standard ``import`` statement and
+    :external:py:func:`importlib.import_module` function. (with appropriate
+    namespace module suffix)
 
     If you want to execute a Basilisp file which is stored in a well-formed package
     or module structure, you probably want to use :py:func:`bootstrap`.
+
     """
     runtime.init_ns_var()
     runtime.bootstrap_core(opts if opts is not None else compiler_opts())
     importer.hook_imports()
-    importlib.import_module("basilisp.core")
+    runtime.import_namespace("basilisp.core")
 
 
 def bootstrap(
     target: str, opts: Optional[CompilerOpts] = None
 ) -> None:  # pragma: no cover
-    """
-    Import a Basilisp namespace or function identified by ``target``. If a function
+    """Import a Basilisp namespace or function identified by ``target``. If a function
     reference is given, the function will be called with no arguments.
 
-    Basilisp only needs to be initialized once per Python VM invocation. Subsequent
-    imports of Basilisp namespaces will work using Python's standard ``import``
-    statement and :external:py:func:`importlib.import_module` function.
+    Basilisp only needs to be initialized once per Python VM
+    invocation. Subsequent imports of Basilisp namespaces will work using
+    Python's standard ``import`` statement and
+    :external:py:func:`importlib.import_module` function. (with appropriate
+    namespace module suffix)
+
 
     ``target`` must be a string naming a Basilisp namespace. Namespace references may
     be given exactly as they are found in Basilisp code. ``target`` may optionally
@@ -51,10 +54,11 @@ def bootstrap(
 
     ``opts`` is a mapping of compiler options that may be supplied for bootstrapping.
     This setting should be left alone unless you know what you are doing.
+
     """
     init(opts=opts)
     pkg_name, *rest = target.split(":", maxsplit=1)
-    mod = importlib.import_module(munge(pkg_name))
+    mod = runtime.import_namespace(pkg_name)
     if rest:
         fn_name = munge(rest[0])
         getattr(mod, fn_name)()

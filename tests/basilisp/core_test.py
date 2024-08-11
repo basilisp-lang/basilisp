@@ -29,7 +29,7 @@ def setup_module():
     runtime.print_generated_python = orig
 
 
-import basilisp.core as core  # isort:skip
+import basilisp.core.basilisp_namespace as core  # isort:skip
 
 TRUTHY_VALUES = [
     True,

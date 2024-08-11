@@ -1363,7 +1363,7 @@ class TestDefType:
                 (cls x y z))
               (__eq__ [this other]
                 (operator/eq
-                 [x y z] 
+                 [x y z]
                  [(.-x other) (.-y other) (.-z other)])))"""
             )
             assert Point(1, 2, 3) == Point.create(1, 2, 3)
@@ -5212,7 +5212,7 @@ class TestRequire:
     @pytest.fixture
     def _import_ns(self, ns: runtime.Namespace):
         def _import_ns_module(name: str):
-            ns_module = importlib.import_module(name)
+            ns_module = runtime.import_namespace(name)
             runtime.set_current_ns(ns.name)
             return ns_module
 

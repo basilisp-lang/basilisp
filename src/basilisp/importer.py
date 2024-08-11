@@ -116,6 +116,22 @@ def _is_package(path: str) -> bool:
     return False
 
 
+def _is_namespace(fullname: str) -> bool:
+    """Return True if module fullname represents a loadable basilisp
+    namespace file and not a package module.
+    """
+    return fullname.endswith(runtime.NS_MODULE_SUFFIX)
+
+
+def _namespace_symbol(name: str) -> sym.Symbol:
+    """return the namespace name for basilisp module name"""
+    if _is_namespace(name):
+        name = name[: -len(runtime.NS_MODULE_SUFFIX)]
+    else:
+        name = name + runtime.PACKAGE_NS_SUFFIX
+    return sym.symbol(demunge(name))
+
+
 @lru_cache()
 def _is_namespace_package(path: str) -> bool:
     """Return True if the current directory is a namespace Basilisp package.
@@ -150,7 +166,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
 
         Returns None if the module is not a Basilisp module to allow import processing to continue.
         """
+        logger.debug(f"Searching for module {fullname}")
         package_components = fullname.split(".")
+        is_namespace = _is_namespace(fullname)
         if not path:
             path = sys.path
             module_name = package_components
@@ -159,45 +177,49 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
 
         for entry in path:
             root_path = os.path.join(entry, *module_name)
-            filenames = [
-                f"{os.path.join(root_path, '__init__')}.lpy",
-                f"{root_path}.lpy",
-            ]
-            for filename in filenames:
-                if os.path.isfile(filename):
-                    state = {
-                        "fullname": fullname,
-                        "filename": filename,
-                        "path": entry,
-                        "target": target,
-                        "cache_filename": _cache_from_source(filename),
-                    }
-                    logger.debug(
-                        f"Found potential Basilisp module '{fullname}' in file '{filename}'"
-                    )
-                    is_package = filename.endswith("__init__.lpy") or _is_package(
-                        root_path
-                    )
-                    spec = ModuleSpec(
-                        fullname,
-                        self,
-                        origin=filename,
-                        loader_state=state,
-                        is_package=is_package,
-                    )
-                    # The Basilisp loader can find packages regardless of
-                    # submodule_search_locations, but the Python loader cannot.
-                    # Set this to the root path to allow the Python loader to
-                    # load submodules of Basilisp "packages".
-                    if is_package:
-                        assert (
-                            spec.submodule_search_locations is not None
-                        ), "Package module spec must have submodule_search_locations list"
-                        spec.submodule_search_locations.append(root_path)
-                    return spec
+            if is_namespace:
+                root_path = root_path[: -len(runtime.NS_MODULE_SUFFIX)]
+                filename = f"{root_path}.lpy"
+            else:
+                filename = f"{os.path.join(root_path, '__init__')}.lpy"
+            is_package = _is_package(root_path)
+
+            if os.path.isfile(filename):
+                state = {
+                    "fullname": fullname,
+                    "filename": filename,
+                    "path": entry,
+                    "target": target,
+                    "cache_filename": _cache_from_source(filename),
+                }
+                logger.debug(
+                    f"Found potential Basilisp module '{fullname}' in file '{filename}'"
+                )
+                spec = ModuleSpec(
+                    fullname,
+                    self,
+                    origin=filename,
+                    loader_state=state,
+                    is_package=is_package,
+                )
+                # The Basilisp loader can find packages regardless of
+                # submodule_search_locations, but the Python loader cannot.
+                # Set this to the root path to allow the Python loader to
+                # load submodules of Basilisp "packages".
+                if is_package:
+                    assert (
+                        spec.submodule_search_locations is not None
+                    ), "Package module spec must have submodule_search_locations list"
+                    spec.submodule_search_locations.append(root_path)
+                return spec
+
             if os.path.isdir(root_path):
                 if _is_namespace_package(root_path):
+                    logger.debug(f"Found namespace package {fullname}")
                     return ModuleSpec(fullname, None, is_package=True)
+            elif os.path.isfile(f"{root_path}.lpy"):
+                logger.debug(f"Found psuedo-package {fullname}")
+                return ModuleSpec(fullname, None, is_package=True)
         return None
 
     def invalidate_caches(self) -> None:
@@ -246,7 +268,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
             # Set the *main-ns* variable to the current namespace.
             main_ns_var = core_ns.find(sym.symbol(runtime.MAIN_NS_VAR_NAME))
             assert main_ns_var is not None
-            main_ns_var.bind_root(sym.symbol(demunge(fullname)))
+
+            ns_sym = _namespace_symbol(fullname)
+            main_ns_var.bind_root(ns_sym)
 
             # Set command line args passed to the module
             if pyargs := sys.argv[1:]:
@@ -264,7 +288,7 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
             #
             # The target namespace is free to interpret
             code: List[types.CodeType] = []
-            path = "/" + "/".join(fullname.split("."))
+            path = "/" + "/".join(ns_sym.name.split("."))
             try:
                 compiler.load(
                     path,
@@ -307,7 +331,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
                 f"Loaded cached Basilisp module '{fullname}' in {duration / 1000000}ms"
             )
         ):
-            logger.debug(f"Checking for cached Basilisp module '{fullname}''")
+            logger.debug(
+                f"Checking for cached Basilisp module '{fullname}' for namespace '{ns}' in file '{filename}'"
+            )
             cache_data = self.get_data(cache_filename)
             cached_code = _get_basilisp_bytecode(
                 fullname, path_stats["mtime"], path_stats["size"], cache_data
@@ -385,8 +411,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         # a blank module. If we do not replace the module here with the module we are
         # generating, then we will not be able to use advanced compilation features such
         # as direct Python variable access to functions and other def'ed values.
-        ns_name = demunge(fullname)
-        ns: runtime.Namespace = runtime.Namespace.get_or_create(sym.symbol(ns_name))
+        ns: runtime.Namespace = runtime.Namespace.get_or_create(
+            _namespace_symbol(fullname)
+        )
         ns.module = module
         module.__basilisp_namespace__ = ns
 

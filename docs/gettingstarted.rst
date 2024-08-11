@@ -145,10 +145,10 @@ Specifically, any file with a ``.pth`` extension located in any of the known ``s
    $ python
    Python 3.12.1 (main, Jan  3 2024, 10:01:43) [GCC 11.4.0] on linux
    Type "help", "copyright", "credits" or "license" for more information.
-   >>> import importlib; importlib.import_module("basilisp.core")
-   <module 'basilisp.core' (/home/chris/Projects/basilisp/src/basilisp/core.lpy)>
+   >>> import importlib; importlib.import_module("basilisp.core.basilisp_namespace")
+   <module 'basilisp.core.basilisp_namespace' (/home/chris/Projects/basilisp/src/basilisp/core.lpy)>
 
-This method also enables you to directly execute Basilisp scripts as Python modules using ``python -m {namespace}``.
+This method also enables you to directly execute Basilisp scripts as Python modules using ``python -m {namespace}.basilisp_namespace``.
 Basilisp namespaces run as a Python module directly via ``python -m`` are resolved within the context of the current ``sys.path`` of the active Python interpreter.
 
 .. code-block:: bash

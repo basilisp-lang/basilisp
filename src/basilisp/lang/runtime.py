@@ -82,6 +82,13 @@ BASILISP_VERSION = vec.vector(
     (int(s) if s.isdigit() else s) for s in BASILISP_VERSION_STRING.split(".")
 )
 
+# Modules for a namespace are given this suffix. it will be used for
+# calling namespaces as python modules
+NS_MODULE_SUFFIX = ".basilisp_namespace"
+
+# Namespaces given to package modules e.g: `__init__.lpy`
+PACKAGE_NS_SUFFIX = ".--basilisp-package--"
+
 # Public basilisp.core symbol names
 COMPILER_OPTIONS_VAR_NAME = "*compiler-options*"
 COMMAND_LINE_ARGS_VAR_NAME = "*command-line-args*"
@@ -155,6 +162,10 @@ _SPECIAL_FORMS = lset.s(
 )
 
 
+def import_namespace(namespace: str) -> types.ModuleType:
+    return importlib.import_module(munge(namespace) + NS_MODULE_SUFFIX)
+
+
 # Reader Conditional default features
 def _supported_python_versions_features() -> Iterable[kw.Keyword]:
     """Yield successive reader features corresponding to the various Python
@@ -204,7 +215,7 @@ class BasilispModule(types.ModuleType):
 def _new_module(name: str, doc=None) -> BasilispModule:
     """Create a new empty Basilisp Python module.
     Modules are created for each Namespace when it is created."""
-    mod = BasilispModule(name, doc=doc)
+    mod = BasilispModule(name + NS_MODULE_SUFFIX, doc=doc)
     mod.__loader__ = None
     mod.__package__ = None
     mod.__spec__ = None
@@ -661,7 +672,7 @@ class Namespace(ReferenceBase):
 
         This method is called in code generated for the `require*` special form."""
         try:
-            ns_module = importlib.import_module(munge(ns_name))
+            ns_module = import_namespace(ns_name)
         except ModuleNotFoundError as e:
             raise ImportError(
                 f"Basilisp namespace '{ns_name}' not found",

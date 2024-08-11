@@ -56,6 +56,7 @@ def test_demunged_import(pytester: pytest.Pytester):
             ):
                 importlib.import_module(
                     "long__AMP__namespace_name__PLUS__with___LT__punctuation__GT__"
+                    + runtime.NS_MODULE_SUFFIX
                 )
 
             assert (
@@ -84,7 +85,7 @@ if get_start_method() != "fork":
     # the `basilisp.core` namespace will not be loaded in the child process.
     _import_module = bootstrap_basilisp
 else:
-    _import_module = importlib.import_module
+    _import_module = runtime.import_namespace
 
 
 class TestImporter:
@@ -162,7 +163,7 @@ class TestImporter:
         def _load_namespace(ns_name: str):
             """Load the named Namespace and return it."""
             namespaces.append(ns_name)
-            importlib.import_module(munge(ns_name))
+            runtime.import_namespace(ns_name)
             return runtime.Namespace.get(sym.symbol(ns_name))
 
         try:
@@ -215,7 +216,7 @@ class TestImporter:
 
         # Import the module out of the current process to avoid having to
         # monkeypatch sys.modules
-        p = Process(target=_import_module, args=(munge(cached_module_ns),))
+        p = Process(target=_import_module, args=(cached_module_ns,))
         p.start()
         p.join()
         return os.path.join(*file_path)
@@ -356,13 +357,15 @@ class TestImporter:
         ):
             """Load a Basilisp package namespace setup as a Python package
             and a child Basilisp namespace of that package."""
-            make_new_module("core", "__init__.lpy", ns_name="core")
+            make_new_module(
+                "core", "__init__.lpy", module_text="""(def pkgval "core.__init__")"""
+            )
             make_new_module("core", "sub.lpy", ns_name="core.sub")
 
-            core = load_namespace("core")
+            core = importlib.import_module("core")
             core_sub = load_namespace("core.sub")
 
-            assert "core" == core.find(sym.symbol("val")).value
+            assert "core.__init__" == core.pkgval
             assert "core.sub" == core_sub.find(sym.symbol("val")).value
 
         def test_import_module_without_init(self, make_new_module, load_namespace):
@@ -376,6 +379,45 @@ class TestImporter:
 
             assert "core" == core.find(sym.symbol("val")).value
             assert "core.child" == core_child.find(sym.symbol("val")).value
+
+        def test_import_module_requires_child_namespace(
+            self, make_new_module, load_namespace
+        ):
+            """Load a Basilisp namespace that requires a child namespace"""
+            make_new_module(
+                "core.lpy",
+                module_text="""
+            (ns core (:require [core.child]))
+            (def val core.child/val)
+            """,
+            )
+            make_new_module("core", "child.lpy", ns_name="core.child")
+
+            core = load_namespace("core")
+            core_child = load_namespace("core.child")
+
+            assert "core.child" == core.find(sym.symbol("val")).value
+            assert "core.child" == core_child.find(sym.symbol("val")).value
+
+        def test_import_module_requires_parent_namespace(
+            self, make_new_module, load_namespace
+        ):
+            """Load a Basilisp namespace that requires it's parent namespace"""
+            make_new_module("core.lpy", ns_name="core")
+            make_new_module(
+                "core",
+                "child.lpy",
+                module_text="""
+            (ns core.child (:require [core]))
+            (def val core/val)
+            """,
+            )
+
+            core = load_namespace("core")
+            core_child = load_namespace("core.child")
+
+            assert "core" == core.find(sym.symbol("val")).value
+            assert "core" == core_child.find(sym.symbol("val")).value
 
         def test_import_module_with_namespace_only_pkg(
             self, make_new_module, load_namespace
@@ -400,7 +442,9 @@ class TestImporter:
 
         def test_can_get_filename_when_module_exists(self, make_new_module):
             make_new_module("package", "module.lpy", ns_name="package.module")
-            filename = importer.BasilispImporter().get_filename("package.module")
+            filename = importer.BasilispImporter().get_filename(
+                "package.module" + runtime.NS_MODULE_SUFFIX
+            )
             assert filename is not None
 
             p = pathlib.Path(filename)
@@ -437,7 +481,9 @@ class TestImporter:
 
             monkeypatch.setattr("sys.argv", ["whatever", "1", "2", "3"])
 
-            code = importer.BasilispImporter().get_code("package.module")
+            code = importer.BasilispImporter().get_code(
+                "package.module" + runtime.NS_MODULE_SUFFIX
+            )
             exec(code)
             captured = capsys.readouterr()
             assert captured.out == 'package.module\n["1" "2" "3"]\n'
@@ -498,7 +544,12 @@ def test_run_namespace_as_python_module(
         )
     )
     res = subprocess.run(
-        [sys.executable, "-m", "package.test_run_ns_as_pymodule", *args],
+        [
+            sys.executable,
+            "-m",
+            "package.test_run_ns_as_pymodule" + runtime.NS_MODULE_SUFFIX,
+            *args,
+        ],
         check=True,
         capture_output=True,
         env={**os.environ, "PYTHONPATH": pythonpath},

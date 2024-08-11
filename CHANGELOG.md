@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added several missing functions to `basilisp.core` (#956)
 
+### Changed
+ * Separate basilisp namespaces from python module hierarchy (#957)
+
 ## [v0.1.0]
 ### Added
  * Added `:end-line` and `:end-col` metadata to forms during compilation (#903)

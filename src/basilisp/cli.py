@@ -18,7 +18,6 @@ from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.exception import print_exception
-from basilisp.lang.util import munge
 from basilisp.prompt import get_prompter
 
 CLI_INPUT_FILE_PATH = "<CLI Input>"
@@ -82,7 +81,7 @@ def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.Module
         ctx,
         ns,
     )
-    return importlib.import_module(REPL_NS)
+    return runtime.import_namespace(REPL_NS)
 
 
 def _to_bool(v: Optional[str]) -> Optional[bool]:
@@ -357,7 +356,7 @@ def nrepl_server(
 ) -> None:
     opts = compiler.compiler_opts()
     basilisp.init(opts)
-    nrepl_server_mod = importlib.import_module(munge(NREPL_SERVER_NS))
+    nrepl_server_mod = runtime.import_namespace(NREPL_SERVER_NS)
     nrepl_server_mod.start_server__BANG__(
         lmap.map(
             {
