@@ -414,6 +414,9 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
             load_state.complete(e)
             raise e
 
+    def module_repr(self, module: types.ModuleType) -> str:
+        return module.__name__
+
 
 class BasilispLazyModule(BasilispModule):
     """Represents a BasilispModule that will be loaded as soon as one of it's members is accessed.
