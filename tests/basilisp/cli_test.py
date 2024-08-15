@@ -312,7 +312,7 @@ class TestRun:
     def test_run_namespace(
         self, run_cli, namespace_name: str, namespace_file: pathlib.Path
     ):
-        namespace_file.write_text("(println (+ 1 2))")
+        namespace_file.write_text(f"(ns {namespace_name}) (println (+ 1 2))")
         result = run_cli(["run", "-n", namespace_name])
         assert f"3{os.linesep}" == result.lisp_out
 
@@ -337,7 +337,7 @@ class TestRun:
         args: List[str],
         ret: str,
     ):
-        namespace_file.write_text(self.cli_args_code)
+        namespace_file.write_text(f"(ns {namespace_name}) {self.cli_args_code}")
         result = run_cli(["run", "-n", namespace_name, *args])
         assert ret == result.lisp_out
 
