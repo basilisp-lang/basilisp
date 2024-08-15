@@ -589,7 +589,7 @@ class BasilispLazyImporter(BasilispImporter):
 
         if os.getenv(_EAGER_IMPORT_ENVVAR, "").lower() == "true":
             module.__class__ = BasilispModule
-            complete_exec_module(module)
+            self.complete_exec_module(module)
             return
 
         logger.debug(f"Preparing module '{module.__name__}' for loading")
