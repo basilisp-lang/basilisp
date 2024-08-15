@@ -570,7 +570,7 @@ class BasilispLazyImporter(BasilispImporter):
         module.__class__ = BasilispLazyModule
         logger.debug(f"Recreated stale Basilisp module '{spec.name}'")
 
-    def complete_exec_module(self, module: BasilispLazyModule):
+    def complete_exec_module(self, module: BasilispModule):
         """Load and compile the Basilisp module."""
         if not self.cache_has(module.__name__):
             self.recreate_module(module, True)
