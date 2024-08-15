@@ -1,4 +1,4 @@
-import importlib.util
+import importlib
 import logging
 import marshal
 import os
@@ -24,11 +24,12 @@ from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
-from basilisp.lang.runtime import BasilispModule
+from basilisp.lang.runtime import BasilispModule, ModuleLoadState
 from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import demunge
 from basilisp.util import timed
 
+_EAGER_IMPORT_ENVVAR = "BASILISP_USE_EAGER_IMPORT"
 _NO_CACHE_ENVVAR = "BASILISP_DO_NOT_CACHE_NAMESPACES"
 
 MAGIC_NUMBER = (1149).to_bytes(2, "little") + b"\r\n"
@@ -284,6 +285,8 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
     def create_module(self, spec: ModuleSpec) -> BasilispModule:
         logger.debug(f"Creating Basilisp module '{spec.name}'")
         mod = BasilispModule(spec.name)
+        mod.__basilisp_loaded__ = ModuleLoadState()
+        mod.__basilisp_bootstrapped__ = False
         mod.__file__ = spec.loader_state["filename"]
         mod.__loader__ = spec.loader
         mod.__package__ = spec.parent
@@ -373,33 +376,229 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         we incrementally compile a Python module by evaluating a single top-level
         form at a time and inserting the resulting AST nodes into the Pyton module."""
         assert isinstance(module, BasilispModule)
+        load_state = module.__basilisp_loaded__
+        try:
+            load_state.loading()
+            fullname = module.__name__
+            cached = self._cache[fullname]
+            cached["module"] = module
+            spec = cached["spec"]
+            filename = spec.loader_state["filename"]
+            path_stats = self.path_stats(filename)
 
-        fullname = module.__name__
-        cached = self._cache[fullname]
-        cached["module"] = module
-        spec = cached["spec"]
-        filename = spec.loader_state["filename"]
-        path_stats = self.path_stats(filename)
+            # During the bootstrapping process, the 'basilisp.core namespace is created with
+            # a blank module. If we do not replace the module here with the module we are
+            # generating, then we will not be able to use advanced compilation features such
+            # as direct Python variable access to functions and other def'ed values.
+            ns_name = demunge(fullname)
+            ns: runtime.Namespace = runtime.Namespace.get_or_create(
+                sym.symbol(ns_name), module
+            )
+            ns.module = module
+            module.__basilisp_namespace__ = ns
 
-        # During the bootstrapping process, the 'basilisp.core namespace is created with
-        # a blank module. If we do not replace the module here with the module we are
-        # generating, then we will not be able to use advanced compilation features such
-        # as direct Python variable access to functions and other def'ed values.
-        ns_name = demunge(fullname)
-        ns: runtime.Namespace = runtime.Namespace.get_or_create(sym.symbol(ns_name))
-        ns.module = module
-        module.__basilisp_namespace__ = ns
-
-        # Check if a valid, cached version of this Basilisp namespace exists and, if so,
-        # load it and bypass the expensive compilation process below.
-        if os.getenv(_NO_CACHE_ENVVAR, "").lower() == "true":
-            self._exec_module(fullname, spec.loader_state, path_stats, ns)
-        else:
-            try:
-                self._exec_cached_module(fullname, spec.loader_state, path_stats, ns)
-            except (EOFError, ImportError, IOError, OSError) as e:
-                logger.debug(f"Failed to load cached Basilisp module: {e}")
+            # Check if a valid, cached version of this Basilisp namespace exists and, if so,
+            # load it and bypass the expensive compilation process below.
+            if os.getenv(_NO_CACHE_ENVVAR, "").lower() == "true":
                 self._exec_module(fullname, spec.loader_state, path_stats, ns)
+            else:
+                try:
+                    self._exec_cached_module(
+                        fullname, spec.loader_state, path_stats, ns
+                    )
+                except (EOFError, ImportError, IOError, OSError) as e:
+                    logger.debug(f"Failed to load cached Basilisp module: {e}")
+                    self._exec_module(fullname, spec.loader_state, path_stats, ns)
+            load_state.complete()
+        except BaseException as e:
+            load_state.complete(e)
+            raise e
+
+
+class BasilispLazyModule(BasilispModule):
+    """Represents a BasilispModule that will be loaded as soon as one of it's members is accessed.
+
+    Adpated from `importlib.util._LazyModule`."""
+
+    def __getattribute__(self, attr):
+        """Trigger the load of the module and return the attribute."""
+
+        # We don't need to trigger a load to retrieve this information
+        if attr in {
+            "__name__",
+            "__path__",
+            "__spec__",
+            "__loader__",
+            "__dict__",
+            "__class__",
+            "__file__",
+            "__package__",
+        }:
+            return object.__getattribute__(self, attr)
+
+        spec = self.__spec__
+        if spec is None:
+            raise ImportError(f"No spec for module {self.__name__}")
+
+        load_state = spec.loader_state["basilisp_load_state"]
+
+        with load_state.lock():
+            loader = spec.loader
+            assert isinstance(loader, BasilispLazyImporter)
+            # if the loader cache was invalidated then we need to refresh the module
+            if not loader.cache_has(self.__name__):
+                loader.recreate_module(self)
+                return self.__getattribute__(attr)
+
+            # Only the first thread to get the lock should trigger the load
+            # and reset the module's class. The rest can now getattr().
+            if object.__getattribute__(self, "__class__") is BasilispLazyModule:
+                if not load_state.is_waiting:
+                    # If the load was a failure then raise that failure to the
+                    # thread trying to access it's members
+                    failure = load_state.failure
+                    if failure:
+                        raise failure
+                    # Reentrant calls from the same thread must be allowed to
+                    # proceed without triggering the load again.  exec_module()
+                    # and self-referential imports are the primary ways this can
+                    # happen, but in any case we must return something to avoid
+                    # deadlock.
+                    return object.__getattribute__(self, attr)
+
+                load_state.loading()
+
+                module_dict = self.__dict__
+
+                logger.debug(f"Load '{spec.name}' triggered for '{attr}'")
+
+                # All module metadata must be gathered from __spec__ in order to avoid
+                # using mutated values.
+                # Get the original name to make sure no object substitution occurred
+                # in sys.modules.
+                original_name = spec.name
+                # Figure out exactly what attributes were mutated between the creation
+                # of the module and now.
+                attrs_then = spec.loader_state["__dict__"]
+                attrs_now = module_dict
+                attrs_updated = {}
+                for key, value in attrs_now.items():
+                    # Code that set an attribute may have kept a reference to the
+                    # assigned object, making identity more important than equality.
+                    if key not in attrs_then:
+                        attrs_updated[key] = value
+                    elif id(attrs_now[key]) != id(attrs_then[key]):
+                        attrs_updated[key] = value
+
+                try:
+                    loader.complete_exec_module(self)
+                except BaseException as e:
+                    load_state.complete(e)
+                    raise e
+
+                # If exec_module() was used directly there is no guarantee the module
+                # object was put into sys.modules.
+                if original_name in sys.modules:
+                    if id(self) != id(sys.modules[original_name]):
+                        raise ValueError(
+                            f"module object for {original_name!r} "
+                            "substituted in sys.modules during a lazy "
+                            "load"
+                        )
+                # Update after loading since that's what would happen in an eager
+                # loading situation.
+                module_dict.update(attrs_updated)
+                # Stop triggering this method
+                self.__class__ = BasilispModule  # type: ignore[assignment]
+                self.__getattribute__(attr)
+            return self.__getattribute__(attr)
+
+    def __delattr__(self, attr):
+        """Trigger the load and then perform the deletion."""
+        # To trigger the load and raise an exception if the attribute
+        # doesn't exist.
+        self.__getattribute__(attr)
+        delattr(self, attr)
+
+
+class BasilispLazyImporter(BasilispImporter):
+    """Python import hook to allow directly loading Basilisp code within
+    Python. Modules are compiled and loaded lazily.
+
+    Adpapted from `importlib.util.LazyLoader`
+    """
+
+    def cache_has(self, module_name: str) -> bool:
+        """Return true if the module spec is cached"""
+        return module_name in self._cache
+
+    def recreate_module(self, module: BasilispModule, is_loading: bool = False):
+        """Recreate a module that has gone stale. lazy modules need to be
+        recreated when they are dropped from the loader cache."""
+        module_name = module.__name__
+        if module.__spec__ is None:
+            raise ImportError(
+                f"Missing loader state for stale Basilisp module {module_name}"
+            )
+        stale_spec = module.__spec__
+        load_state = stale_spec.loader_state.get("basilisp_load_state")
+        if load_state is None:
+            # XXX: We lost the lock, recreate it, cross fingers, and pray.
+            load_state = ModuleLoadState()
+            module.__basilisp_loaded__ = load_state
+        module_dict = stale_spec.loader_state.get("__dict__")
+        if module_dict is None:
+            module_dict = module.__dict__.copy()
+
+        spec = self.find_spec(module_name, None, module)
+        if spec is None:
+            raise ModuleNotFoundError(
+                f"Stale Basilisp module cannot be loaded. {module_name}"
+            )
+        spec.loader_state.update(
+            {"__dict__": module_dict, "basilisp_load_state": load_state}
+        )
+        module.__file__ = spec.loader_state["filename"]
+        module.__loader__ = spec.loader
+        module.__package__ = spec.parent
+        module.__spec__ = spec
+        self._cache[spec.name] = {"spec": spec}
+        if is_loading:
+            load_state.loading()
+        else:
+            load_state.waiting()
+        module.__class__ = BasilispLazyModule
+        logger.debug(f"Recreated stale Basilisp module '{spec.name}'")
+
+    def complete_exec_module(self, module: BasilispLazyModule):
+        """Load and compile the Basilisp module."""
+        if not self.cache_has(module.__name__):
+            self.recreate_module(module, True)
+        BasilispImporter.exec_module(self, module)
+
+    def create_module(self, spec: ModuleSpec) -> BasilispModule:
+        module = BasilispImporter.create_module(self, spec)
+        spec.loader_state["basilisp_load_state"] = module.__basilisp_loaded__
+        module.__class__ = BasilispLazyModule
+        return module
+
+    def exec_module(self, module: types.ModuleType):
+        """Apply lazy wrapper to the module then delegate to
+        `BasilispImporter.exec_module`."""
+        assert isinstance(module, BasilispModule)
+
+        if os.getenv(_EAGER_IMPORT_ENVVAR, "").lower() == "true":
+            module.__class__ = BasilispModule
+            complete_exec_module(module)
+            return
+
+        logger.debug(f"Preparing module '{module.__name__}' for loading")
+        if module.__spec__ is None:
+            raise ImportError(f"No spec for module {module.__name__}")
+        module.__spec__.loader_state.update({"__dict__": module.__dict__.copy()})
+        module.__basilisp_loaded__.waiting()
+        if not isinstance(module, BasilispLazyModule):
+            module.__class__ = BasilispLazyModule
 
 
 def hook_imports() -> None:
@@ -410,4 +609,4 @@ def hook_imports() -> None:
     using standard `import module.submodule` syntax."""
     if any(isinstance(o, BasilispImporter) for o in sys.meta_path):
         return
-    sys.meta_path.insert(0, BasilispImporter())
+    sys.meta_path.insert(0, BasilispLazyImporter())

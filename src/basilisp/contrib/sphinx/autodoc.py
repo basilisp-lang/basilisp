@@ -31,6 +31,7 @@ from basilisp.lang.interfaces import (
     IType,
 )
 from basilisp.lang.multifn import MultiFunction
+from basilisp.lang.util import munge
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,8 @@ class NamespaceDocumenter(Documenter):
 
     def import_object(self, raiseerror: bool = False) -> bool:
         try:
-            importlib.import_module(self.modname.replace("-", "_"))
+            mod = importlib.import_module(munge(self.modname))
+            mod.__basilisp_loaded__.wait()
         except (ImportError, ModuleNotFoundError):
             logger.exception(f"Error: can't import namespace {self.modname}")
             if raiseerror:
@@ -244,7 +246,8 @@ class VarDocumenter(Documenter):
 
     def import_object(self, raiseerror: bool = False) -> bool:
         try:
-            importlib.import_module(self.modname.replace("-", "_"))
+            mod = importlib.import_module(munge(self.modname))
+            mod.__basilisp_loaded__.wait()
         except (ImportError, ModuleNotFoundError):
             if raiseerror:
                 raise

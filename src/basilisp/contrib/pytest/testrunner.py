@@ -14,6 +14,7 @@ from basilisp.lang import map as lmap
 from basilisp.lang import runtime as runtime
 from basilisp.lang import vector as vec
 from basilisp.lang.obj import lrepr
+from basilisp.lang.util import munge
 from basilisp.util import Maybe
 
 _EACH_FIXTURES_META_KW = kw.keyword("each-fixtures", "basilisp.test")
@@ -219,8 +220,9 @@ class BasilispFile(pytest.File):
 
     def _import_module(self) -> runtime.BasilispModule:
         modname = _get_fully_qualified_module_name(self.path)
-        module = importlib.import_module(modname)
+        module = importlib.import_module(munge(modname))
         assert isinstance(module, runtime.BasilispModule)
+        module.__basilisp_loaded__.wait()
         return module
 
     def collect(self):

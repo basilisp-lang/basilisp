@@ -15,6 +15,7 @@ import sys
 import threading
 import types
 from collections.abc import Sequence, Sized
+from enum import Enum
 from fractions import Fraction
 from typing import (
     AbstractSet,
@@ -195,9 +196,93 @@ CompletionMatcher = Callable[[Tuple[sym.Symbol, Any]], bool]
 CompletionTrimmer = Callable[[Tuple[sym.Symbol, Any]], str]
 
 
+class ModuleLoadState:
+    """Loading state of a BasilispModule. Wait for modules to finish
+    loading with `wait`."""
+
+    class Status(Enum):
+        # module created but hasn't been executed
+        INITIALIZING = 0
+        # the module has been executed but is waiting until needed to
+        # finish loading.
+        WAITING = 1
+        # the module is in the process of loading.
+        LOADING = 2
+        # the module is done loading whether by success or failure
+        COMPLETE = 3
+
+    def __init__(self):
+        self._state = self.Status.INITIALIZING
+        self._condition: threading.Condition = threading.Condition()
+        self._failure: Optional[BaseException] = None
+
+    def lock(self) -> threading.Condition:
+        return self._condition
+
+    def wait(self):
+        """Wait for the load to complete and re-raise any failures
+        encountered."""
+        with self._condition:
+            if self._condition.wait_for(lambda: self._state == self.Status.COMPLETE):
+                if self._failure:
+                    raise self._failure
+
+    def loading(self):
+        """Indicate that this module is loading"""
+        with self._condition:
+            self._failure = None
+            self._state = self.Status.LOADING
+
+    def complete(self, failure: Optional[BaseException] = None) -> None:
+        """Indicate that this module is done loading. If an exception
+        was raised during the load process it will be stored in the
+        `failure` property."""
+        with self._condition:
+            self._failure = failure
+            self._state = self.Status.COMPLETE
+
+    def waiting(self):
+        """Indicate that this module is ready to be loaded"""
+        with self._condition:
+            self._failure = None
+            self._state = self.Status.WAITING
+
+    @property
+    def failure(self) -> Optional[BaseException]:
+        with self._condition:
+            return self._failure
+
+    @property
+    def state(self) -> Status:
+        with self._condition:
+            return self._state
+
+    @property
+    def is_success(self) -> bool:
+        with self._condition:
+            return self._state == self.Status.COMPLETE and self._failure is None
+
+    @property
+    def is_waiting(self) -> bool:
+        with self._condition:
+            return self._state == self.Status.WAITING and self._failure is None
+
+    @property
+    def is_loading(self) -> bool:
+        return self.state == self.Status.LOADING
+
+    @property
+    def is_complete(self):
+        return self.state == self.Status.COMPLETE
+
+
 class BasilispModule(types.ModuleType):
     __basilisp_namespace__: "Namespace"
     __basilisp_bootstrapped__: bool = False
+    __basilisp_loaded__: ModuleLoadState = ModuleLoadState()
+
+
+BasilispModule.__basilisp_loaded__.complete()
 
 
 # pylint: disable=attribute-defined-outside-init
@@ -208,6 +293,7 @@ def _new_module(name: str, doc=None) -> BasilispModule:
     mod.__loader__ = None
     mod.__package__ = None
     mod.__spec__ = None
+    mod.__basilisp_loaded__ = ModuleLoadState()
     mod.__basilisp_bootstrapped__ = False
     return mod
 
@@ -668,11 +754,19 @@ class Namespace(ReferenceBase):
             ) from e
         else:
             assert isinstance(ns_module, BasilispModule)
+            # core needs to be importable before it finishes loading for
+            # bootstrapping purposes
+            if ns_name != CORE_NS:
+                ns_module.__basilisp_loaded__.wait()
+
             ns_sym = sym.symbol(ns_name)
             ns = self.get(ns_sym)
             assert ns is not None, "Namespace must exist after being required"
             if aliases:
                 self.add_alias(ns, *aliases)
+            logger.debug(
+                f"required namespace {ns_name} from module {ns_module.__name__}"
+            )
             return ns_module
 
     def add_alias(self, namespace: "Namespace", *aliases: sym.Symbol) -> None:

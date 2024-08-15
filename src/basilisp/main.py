@@ -30,7 +30,7 @@ def init(opts: Optional[CompilerOpts] = None) -> None:
     runtime.init_ns_var()
     runtime.bootstrap_core(opts if opts is not None else compiler_opts())
     importer.hook_imports()
-    importlib.import_module("basilisp.core")
+    importlib.import_module("basilisp.core").__basilisp_loaded__.wait()
 
 
 def bootstrap(
@@ -55,6 +55,7 @@ def bootstrap(
     init(opts=opts)
     pkg_name, *rest = target.split(":", maxsplit=1)
     mod = importlib.import_module(munge(pkg_name))
+    mod.__basilisp_loaded__.wait()
     if rest:
         fn_name = munge(rest[0])
         getattr(mod, fn_name)()

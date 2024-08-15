@@ -15,8 +15,11 @@ import pytest
 
 import basilisp.main
 from basilisp import importer as importer
+from basilisp.importer import BasilispImporter, BasilispLazyImporter, BasilispLazyModule
+from basilisp.lang import compiler as compiler
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
+from basilisp.lang.runtime import BasilispModule
 from basilisp.lang.util import demunge, munge
 from basilisp.main import bootstrap as bootstrap_basilisp
 
@@ -33,10 +36,16 @@ def test_hook_imports():
         importer.hook_imports()
         assert 1 == importer_counter()
 
-    with patch("sys.meta_path", new=[importer.BasilispImporter()]):
+    with patch("sys.meta_path", new=[importer.BasilispLazyImporter()]):
         assert 1 == importer_counter()
         importer.hook_imports()
         assert 1 == importer_counter()
+
+
+def _import_and_load(module):
+    module = importlib.import_module(module)
+    module.__basilisp_loaded__.wait()
+    return module
 
 
 def test_demunged_import(pytester: pytest.Pytester):
@@ -52,9 +61,9 @@ def test_demunged_import(pytester: pytest.Pytester):
 
         with runtime.remove_ns_bindings():
             with patch("sys.path", new=[tmpdir]), patch(
-                "sys.meta_path", new=[importer.BasilispImporter()]
+                "sys.meta_path", new=[importer.BasilispLazyImporter()]
             ):
-                importlib.import_module(
+                _import_and_load(
                     "long__AMP__namespace_name__PLUS__with___LT__punctuation__GT__"
                 )
 
@@ -84,7 +93,7 @@ if get_start_method() != "fork":
     # the `basilisp.core` namespace will not be loaded in the child process.
     _import_module = bootstrap_basilisp
 else:
-    _import_module = importlib.import_module
+    _import_module = _import_and_load
 
 
 class TestImporter:
@@ -162,7 +171,7 @@ class TestImporter:
         def _load_namespace(ns_name: str):
             """Load the named Namespace and return it."""
             namespaces.append(ns_name)
-            importlib.import_module(munge(ns_name))
+            _import_and_load(munge(ns_name))
             return runtime.Namespace.get(sym.symbol(ns_name))
 
         try:
@@ -293,6 +302,39 @@ class TestImporter:
         using_cache = load_namespace(cached_module_ns)
         assert cached_module_ns == using_cache.find(sym.symbol("val")).value
 
+    def test_import_module_with_cached_requirement_failure(
+        self, make_new_module, load_namespace
+    ):
+        """When requiring a namespace that failed to load previously,
+        re-raise the exception that was produced from the failed load"""
+        make_new_module(
+            "failure.lpy",
+            module_text="""
+            (ns failure)
+            (let [a :b ] b)
+            """,
+        )
+        make_new_module(
+            "first_require.lpy",
+            module_text="""
+            (ns first-require (:require [failure]))
+            """,
+        )
+        make_new_module(
+            "second_require.lpy",
+            module_text="""
+            (ns second-require (:require [failure]))
+            """,
+        )
+
+        with pytest.raises(compiler.CompilerException) as e1:
+            core = load_namespace("first-require")
+
+        with pytest.raises(compiler.CompilerException) as e2:
+            core = load_namespace("second-require")
+
+        assert id(e1.value) == id(e2.value)
+
     class TestPackageStructure:
         def test_import_module_no_child(self, make_new_module, load_namespace):
             make_new_module("core.lpy", ns_name="core")
@@ -393,14 +435,54 @@ class TestImporter:
                 "core.nested.child" == core_nested_child.find(sym.symbol("val")).value
             )
 
+        def test_import_module_with_child_requirement(
+            self, make_new_module, load_namespace
+        ):
+            """Load a Basilisp namespace that depends on a child namespace."""
+            make_new_module(
+                "core.lpy",
+                module_text="""
+            (ns core (:require [core.child]))
+            (def val core.child/val)
+            """,
+            )
+            make_new_module("core", "child.lpy", ns_name="core.child")
+
+            core = load_namespace("core")
+            core_child = load_namespace("core.child")
+
+            assert "core.child" == core.find(sym.symbol("val")).value
+            assert "core.child" == core_child.find(sym.symbol("val")).value
+
+        def test_import_module_with_parent_requirement(
+            self, make_new_module, load_namespace
+        ):
+            """Load a Basilisp namespace that depends on it's parent
+            namespace."""
+            make_new_module("core.lpy", ns_name="core")
+            make_new_module(
+                "core",
+                "child.lpy",
+                module_text="""
+            (ns core.child (:require [core]))
+            (def val core/val)
+            """,
+            )
+
+            core = load_namespace("core")
+            core_child = load_namespace("core.child")
+
+            assert "core" == core.find(sym.symbol("val")).value
+            assert "core" == core_child.find(sym.symbol("val")).value
+
     class TestExecuteModule:
         def test_no_filename_if_no_module(self):
             with pytest.raises(ImportError):
-                importer.BasilispImporter().get_filename("package.module")
+                BasilispLazyImporter().get_filename("package.module")
 
         def test_can_get_filename_when_module_exists(self, make_new_module):
             make_new_module("package", "module.lpy", ns_name="package.module")
-            filename = importer.BasilispImporter().get_filename("package.module")
+            filename = BasilispLazyImporter().get_filename("package.module")
             assert filename is not None
 
             p = pathlib.Path(filename)
@@ -408,7 +490,7 @@ class TestImporter:
 
         def test_no_code_if_no_module(self):
             with pytest.raises(ImportError):
-                importer.BasilispImporter().get_code("package.module")
+                BasilispLazyImporter().get_code("package.module")
 
         @pytest.mark.parametrize(
             "args,output",
@@ -437,10 +519,52 @@ class TestImporter:
 
             monkeypatch.setattr("sys.argv", ["whatever", "1", "2", "3"])
 
-            code = importer.BasilispImporter().get_code("package.module")
+            code = BasilispLazyImporter().get_code("package.module")
             exec(code)
             captured = capsys.readouterr()
             assert captured.out == 'package.module\n["1" "2" "3"]\n'
+
+    @pytest.mark.skipif(
+        os.getenv(importer._EAGER_IMPORT_ENVVAR, "") == "true",
+        reason=("Lazy import is disabled"),
+    )
+    class TestLazyModule:
+        def test_access_lazy_module_resolves_contents(self, make_new_module):
+            make_new_module("core.lpy", ns_name="core")
+            module = importlib.import_module("core")
+            assert isinstance(module, BasilispLazyModule)
+            assert "core" == module.val
+            assert isinstance(module, BasilispModule)
+            # Lazy context is removed
+            assert not isinstance(module, BasilispLazyModule)
+            # Load is successful
+            module.__basilisp_loaded__.wait()
+
+        def test_access_lazy_module_with_failure(self, make_new_module):
+            make_new_module(
+                "core.lpy",
+                module_text="""
+            (ns core)
+            (let [a :b] b)
+            (def val "will-not-be-set")
+            """,
+            )
+            module = importlib.import_module("core")
+            assert isinstance(module, BasilispLazyModule)
+
+            with pytest.raises(compiler.CompilerException) as e1:
+                if "will-not-be-set" == module.val:
+                    assert False
+
+            with pytest.raises(compiler.CompilerException) as e2:
+                if "will-not-be-set" == module.val:
+                    assert False
+
+            with pytest.raises(compiler.CompilerException) as e_wait:
+                module.__basilisp_loaded__.wait()
+
+            assert id(e1.value) == id(e2.value)
+            assert id(e1.value) == id(e_wait.value)
 
 
 @pytest.fixture

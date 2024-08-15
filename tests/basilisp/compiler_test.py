@@ -197,14 +197,10 @@ class TestExceptionFormat:
         def source_file(self, tmp_path: Path) -> Path:
             return tmp_path / "compiler_test.lpy"
 
-        @pytest.fixture
-        def compiler_file_path(self, source_file: Path) -> str:
-            return str(source_file)
-
         @pytest.mark.parametrize("include_newline", [True, False])
         def test_shows_source_context(
             self,
-            monkeypatch,
+            monkeypatch: pytest.MonkeyPatch,
             source_file: Path,
             lcompile: CompileFn,
             include_newline: bool,
@@ -5213,6 +5209,7 @@ class TestRequire:
     def _import_ns(self, ns: runtime.Namespace):
         def _import_ns_module(name: str):
             ns_module = importlib.import_module(name)
+            ns_module.__basilisp_loaded__.wait()
             runtime.set_current_ns(ns.name)
             return ns_module
 
