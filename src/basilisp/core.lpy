@@ -6913,53 +6913,6 @@
   [x]
   (satisfies? Inst x))
 
-;;;;;;;;;;;;;;;;;;
-;; IO Utilities ;;
-;;;;;;;;;;;;;;;;;;
-
-;; This is a circular import since namespaces using 'ns will always try to refer all
-;; symbols from 'basilisp.core. This should be fine since we won't be using anything
-;; from core defined below this section, but still this is a bad pattern and should
-;; not be replicated.
-(require 'basilisp.io)
-
-(defn slurp
-  "Open a :lpy:fn:`basilisp.io/reader` instance on ``f`` and read the contents of ``f``
-  into a string.
-
-  Options may be provided as key value pairs and will be passed directly to
-  ``basilisp.io/reader``\\. Supported reader options depend on which type of reader is
-  selected for ``f``\\. Most readers support the ``:encoding`` option.
-
-  If ``f`` is a string, it first is resolved as a URL (via ``urllib.parse.urlparse``\\).
-  If the URL is invalid or refers to a filesystem location (via ``file://`` scheme),
-  then it will be resolved as a local filesystem path.
-
-  Return the string contents."
-  [f & opts]
-  (with-open [reader (apply basilisp.io/reader f opts)]
-    (.read reader)))
-
-(defn spit
-  "Open a :lpy:fn:`basilisp.io/writer` instance on ``f`` and write ``content`` out to
-  ``f`` before closing the writer.
-
-  Options may be provided as key value pairs and will be passed directly to
-  ``basilisp.io/writer``\\. Supported writer options depend on which type of writer is
-  selected for ``f``\\. Most writers support the ``:encoding`` option.
-
-  If ``f`` is a string, it first is resolved as a URL (via ``urllib.parse.urlparse``\\).
-  If the URL is invalid or refers to a filesystem location (via ``file://`` scheme),
-  then it will be resolved as a local filesystem path.
-
-  ``spit`` does not support writing to non-file URLs.
-
-  Return ``nil``\\."
-  [f content & opts]
-  (with-open [writer (apply basilisp.io/writer f opts)]
-    (.write writer content)
-    nil))
-
 ;;;;;;;;;;;;
 ;; Reduce ;;
 ;;;;;;;;;;;;
@@ -7017,6 +6970,53 @@
   [proc coll]
   (reduce #(proc %2) nil coll)
   nil)
+
+;;;;;;;;;;;;;;;;;;
+;; IO Utilities ;;
+;;;;;;;;;;;;;;;;;;
+
+;; This is a circular import since namespaces using 'ns will always try to refer all
+;; symbols from 'basilisp.core. This should be fine since we won't be using anything
+;; from core defined below this section, but still this is a bad pattern and should
+;; not be replicated.
+(require 'basilisp.io)
+
+(defn slurp
+  "Open a :lpy:fn:`basilisp.io/reader` instance on ``f`` and read the contents of ``f``
+  into a string.
+
+  Options may be provided as key value pairs and will be passed directly to
+  ``basilisp.io/reader``\\. Supported reader options depend on which type of reader is
+  selected for ``f``\\. Most readers support the ``:encoding`` option.
+
+  If ``f`` is a string, it first is resolved as a URL (via ``urllib.parse.urlparse``\\).
+  If the URL is invalid or refers to a filesystem location (via ``file://`` scheme),
+  then it will be resolved as a local filesystem path.
+
+  Return the string contents."
+  [f & opts]
+  (with-open [reader (apply basilisp.io/reader f opts)]
+    (.read reader)))
+
+(defn spit
+  "Open a :lpy:fn:`basilisp.io/writer` instance on ``f`` and write ``content`` out to
+  ``f`` before closing the writer.
+
+  Options may be provided as key value pairs and will be passed directly to
+  ``basilisp.io/writer``\\. Supported writer options depend on which type of writer is
+  selected for ``f``\\. Most writers support the ``:encoding`` option.
+
+  If ``f`` is a string, it first is resolved as a URL (via ``urllib.parse.urlparse``\\).
+  If the URL is invalid or refers to a filesystem location (via ``file://`` scheme),
+  then it will be resolved as a local filesystem path.
+
+  ``spit`` does not support writing to non-file URLs.
+
+  Return ``nil``\\."
+  [f content & opts]
+  (with-open [writer (apply basilisp.io/writer f opts)]
+    (.write writer content)
+    nil))
 
 ;;;;;;;;;;;;;;;;;
 ;; Transducers ;;
