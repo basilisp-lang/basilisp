@@ -1,5 +1,6 @@
 # pylint: disable=too-many-lines
 import builtins
+import collections.abc
 import contextlib
 import decimal
 import functools
@@ -58,10 +59,13 @@ from basilisp.lang.interfaces import (
     IPersistentSet,
     IPersistentStack,
     IPersistentVector,
+    IReduce,
     ISeq,
     ITransientAssociative,
     ITransientSet,
+    ReduceFunction,
 )
+from basilisp.lang.reduced import Reduced
 from basilisp.lang.reference import RefBase, ReferenceBase
 from basilisp.lang.typing import BasilispFunction, CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
@@ -1140,6 +1144,51 @@ to_seq = lseq.to_seq
 def concat(*seqs: Any) -> ISeq:
     """Concatenate the sequences given by seqs into a single ISeq."""
     return lseq.sequence(itertools.chain.from_iterable(filter(None, map(to_seq, seqs))))
+
+
+T_reduce_init = TypeVar("T_reduce_init")
+
+
+@functools.singledispatch
+def internal_reduce(
+    coll: Any,
+    f: ReduceFunction,
+    init: Union[T_reduce_init, object] = IReduce.REDUCE_SENTINEL,
+) -> T_reduce_init:
+    raise TypeError(f"Type {type(coll)} cannot be reduced")
+
+
+@internal_reduce.register(collections.abc.Iterable)
+@internal_reduce.register(type(None))
+def _internal_reduce_iterable(
+    coll: Optional[Iterable[T]],
+    f: ReduceFunction[T_reduce_init, T],
+    init: Union[T_reduce_init, object] = IReduce.REDUCE_SENTINEL,
+) -> T_reduce_init:
+    if (s := to_seq(coll)) is None:
+        if init is not IReduce.REDUCE_SENTINEL:
+            return cast(T_reduce_init, init)
+        else:
+            return f()
+
+    res = cast(T_reduce_init, init)
+    for item in s:
+        res = f(res, item)
+        if isinstance(res, Reduced):
+            return res.deref()
+
+    return res
+
+
+@internal_reduce.register(IReduce)
+def _internal_reduce_ireduce(
+    coll: IReduce,
+    f: ReduceFunction[T_reduce_init, T],
+    init: Union[T_reduce_init, object] = IReduce.REDUCE_SENTINEL,
+) -> T_reduce_init:
+    if init is IReduce.REDUCE_SENTINEL:
+        return coll.reduce(f)
+    return coll.reduce(f, cast(T_reduce_init, init))
 
 
 def apply(f, args):

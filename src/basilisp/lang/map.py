@@ -27,6 +27,7 @@ from basilisp.lang.interfaces import (
     ISeq,
     ITransientMap,
     IWithMeta,
+    ReduceKVFunction,
 )
 from basilisp.lang.obj import (
     PRINT_SEPARATOR,
@@ -44,7 +45,7 @@ from basilisp.util import partition
 T = TypeVar("T")
 K = TypeVar("K")
 V = TypeVar("V")
-
+T_reduce = TypeVar("T_reduce")
 
 _ENTRY_SENTINEL = object()
 
@@ -368,7 +369,7 @@ class PersistentMap(
     def to_transient(self) -> TransientMap[K, V]:
         return TransientMap(self._inner.mutate())
 
-    def reduce_kv(self, f, init):
+    def reduce_kv(self, f: ReduceKVFunction, init: T_reduce) -> T_reduce:
         for k, v in self._inner.items():
             init = f(init, k, v)
             if isinstance(init, Reduced):

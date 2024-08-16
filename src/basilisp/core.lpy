@@ -2554,16 +2554,11 @@
 
 ;; reduce is defined after loading basilisp.core.protocols
 (defn- reduce*
-  "Internal implementation of reduce which uses seq iteration and doesn't check for
-  reduced?"
+  "Internal implementation of reduce which uses seq iteration."
   ([f coll]
-   (if-let [s (seq coll)]
-     (reduce* f (first s) (next s))
-     (f)))
+   (basilisp.lang.runtime/internal-reduce coll f))
   ([f val coll]
-   (if-let [s (seq coll)]
-     (recur f (f val (first s)) (next s))
-     val)))
+   (basilisp.lang.runtime/internal-reduce coll f val)))
 
 (defn comp
   "Return a function which is the composition of all the functions given as arguments.
@@ -3705,16 +3700,6 @@
   :lpy:fn:`for` macro. Returns ``nil``\\."
   [bindings & body]
   `(dorun (for ~bindings ~@body)))
-
-(defn run!
-  "Runs the procedure ``(proc elem)`` for each element in ``coll`` (presumably for
-  side-effects)
-
-  Returns ``nil`` in all cases."
-  [proc coll]
-  (doseq [elem coll]
-    (proc elem))
-  nil)
 
 (defmacro ..
   "Expand into nested method calls on the returned objects from previous method calls.
@@ -7001,8 +6986,10 @@
 
   If ``f`` returns a ``reduced`` value at any point, reduction will terminate and the
   reduced value will be returned immediately."
-  ([f coll] (basilisp.core.protocols/coll-reduce coll f))
-  ([f val coll] (basilisp.core.protocols/coll-reduce coll f val)))
+  ([f coll]
+   (basilisp.core.protocols/coll-reduce coll f))
+  ([f val coll]
+   (basilisp.core.protocols/coll-reduce coll f val)))
 
 (defn reduce-kv
   "Reduce an associative ``coll`` by ``f``\\. ``f`` must be a function of 3 arguments:
@@ -7021,6 +7008,15 @@
   (if (seq coll)
     (basilisp.core.protocols/kv-reduce coll f init)
     init))
+
+(defn run!
+  "Runs the procedure ``(proc elem)`` for each element in ``coll`` (presumably for
+  side-effects) as by :lpy:fn:`reduce`\\.
+
+  Returns ``nil`` in all cases."
+  [proc coll]
+  (reduce #(proc %2) nil coll)
+  nil)
 
 ;;;;;;;;;;;;;;;;;
 ;; Transducers ;;

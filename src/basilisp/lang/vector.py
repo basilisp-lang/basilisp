@@ -1,5 +1,14 @@
 from functools import total_ordering
-from typing import TYPE_CHECKING, Iterable, Optional, Sequence, TypeVar, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Iterable,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
 from pyrsistent import PVector, pvector  # noqa # pylint: disable=unused-import
 from pyrsistent.typing import PVectorEvolver
@@ -16,6 +25,8 @@ from basilisp.lang.interfaces import (
     ISeq,
     ITransientVector,
     IWithMeta,
+    ReduceFunction,
+    ReduceKVFunction,
     seq_equals,
 )
 from basilisp.lang.obj import PrintSettings
@@ -28,6 +39,9 @@ if TYPE_CHECKING:
     from typing import Tuple
 
 T = TypeVar("T")
+
+T_reduce = TypeVar("T_reduce")
+V_contra = TypeVar("V_contra", contravariant=True)
 
 
 class TransientVector(ITransientVector[T]):
@@ -219,8 +233,16 @@ class PersistentVector(
     def to_transient(self) -> TransientVector:
         return TransientVector(self._inner.evolver())
 
-    def reduce(self, f, init=_reduce_sentinel_obj):
-        if init is _reduce_sentinel_obj:
+    @overload
+    def reduce(self, f: ReduceFunction[T_reduce, V_contra]) -> T_reduce: ...
+
+    @overload
+    def reduce(  # pylint: disable=arguments-differ
+        self, f: ReduceFunction[T_reduce, V_contra], init: T_reduce
+    ) -> T_reduce: ...
+
+    def reduce(self, f, init=IReduce.REDUCE_SENTINEL):
+        if init is IReduce.REDUCE_SENTINEL:
             if len(self) == 0:
                 return f()
             else:
@@ -236,7 +258,7 @@ class PersistentVector(
                     return init.deref()
         return init
 
-    def reduce_kv(self, f, init):
+    def reduce_kv(self, f: ReduceKVFunction, init: T_reduce) -> T_reduce:
         for idx, item in enumerate(self._inner):
             init = f(init, idx, item)
             if isinstance(init, Reduced):

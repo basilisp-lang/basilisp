@@ -5,14 +5,17 @@ from typing import (
     AbstractSet,
     Any,
     Callable,
+    Final,
     Generic,
     Iterable,
     Iterator,
     Mapping,
     Optional,
+    Protocol,
     Sequence,
     TypeVar,
     Union,
+    overload,
 )
 
 from typing_extensions import Self, Unpack
@@ -374,6 +377,23 @@ class IPersistentStack(IPersistentCollection[T]):
         raise NotImplementedError()
 
 
+T_key = TypeVar("T_key")
+V_contra = TypeVar("V_contra", contravariant=True)
+
+
+class ReduceFunction(Protocol[T, V_contra]):
+    @overload
+    def __call__(self) -> T: ...
+
+    @overload
+    def __call__(self, init: T, val: V_contra) -> T: ...
+
+    def __call__(self, *args, **kwargs): ...
+
+
+ReduceKVFunction = Callable[[T, T_key, V_contra], T]
+
+
 class IReduce(ABC):
     """``IReduce`` types define custom implementations of ``reduce``.
 
@@ -385,14 +405,22 @@ class IReduce(ABC):
        :lpy:fn:`reduce`
     """
 
+    REDUCE_SENTINEL: Final = object()
+
     __slots__ = ()
 
+    @overload
+    def reduce(self, f: ReduceFunction[T, V_contra]) -> T: ...
+
+    @overload
+    def reduce(self, f: ReduceFunction[T, V_contra], init: T) -> T: ...
+
     @abstractmethod
-    def reduce(self: Self, f: Callable[[T, Any], Any], init: Optional[T]):
+    def reduce(self, f, init=REDUCE_SENTINEL):
         raise NotImplementedError()
 
 
-class IReduceKV:
+class IReduceKV(ABC):
     """``IReduceKV`` types define custom implementations of ``reduce-kv``.
 
     Both vectors and maps are ``IReduceKV`` by default, providing faster iteration than
@@ -407,7 +435,7 @@ class IReduceKV:
     __slots__ = ()
 
     @abstractmethod
-    def reduce_kv(self: Self, f: Callable[[T, Any, Any], Any], init: T):
+    def reduce_kv(self: Self, f: ReduceKVFunction, init: T):
         raise NotImplementedError()
 
 
