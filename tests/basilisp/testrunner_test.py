@@ -132,31 +132,21 @@ class TestTestrunner:
         )
 
     @pytest.mark.xfail(
-        platform.python_implementation() == "PyPy" and sys.version_info < (3, 9),
+        platform.python_implementation() == "PyPy" and sys.version_info < (3, 10),
         reason=(
-            "PyPy 3.8 seems to fail this test, but 3.9 doesn't so it doesn't bear "
-            "further investigation."
+            "PyPy 3.9 fails this test because it intermittently produces an incorrect"
+            "line number (128014) in the exception traceback, which is clearly erroneous."
         ),
     )
     def test_error_repr(self, run_result: pytest.RunResult):
-        if sys.version_info < (3, 11):
-            expected = [
-                "ERROR in (assertion-test) (test_testrunner.lpy:14)",
-                "",
-                "Traceback (most recent call last):",
-                '  File "*test_testrunner.lpy", line 14, in assertion_test',
-                '    (is (throw (ex-info "Uncaught exception" {})))',
-                "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
-            ]
-        else:
-            expected = [
-                "ERROR in (assertion-test) (test_testrunner.lpy:14)",
-                "",
-                "Traceback (most recent call last):",
-                '  File "*test_testrunner.lpy", line 14, in assertion_test',
-                '    (is (throw (ex-info "Uncaught exception" {})))',
-                "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
-            ]
+        expected = [
+            "ERROR in (assertion-test) (test_testrunner.lpy:14)",
+            "",
+            "Traceback (most recent call last):",
+            '  File "*test_testrunner.lpy", line 14, in assertion_test',
+            '    (is (throw (ex-info "Uncaught exception" {})))',
+            "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
+        ]
 
         run_result.stdout.fnmatch_lines(
             expected,
