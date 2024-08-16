@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
  * Fixed an issue where attempting to run a namespace from the CLI could fail in certain cases (#957)
+ * Fixed an issue with `keep` and `keep-indexed` two-arity forms not preserving the transformed values (#962)
 
 ## [v0.1.0]
 ### Added

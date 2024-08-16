@@ -2861,10 +2861,10 @@
   ([f coll]
    (lazy-seq
     (when (seq coll)
-      (let [elem (first coll)]
-        (if-not (nil? (f elem))
-          (cons elem (keep f (rest coll)))
-          (keep f (rest coll))))))))
+      (let [elem (f (first coll))]
+        (if (nil? elem)
+          (keep f (rest coll))
+          (cons elem (keep f (rest coll)))))))))
 
 (defn keep-indexed
   "Return a lazy-sequence of non- ``nil`` results of ``(f index elem)`` for elements
@@ -2887,11 +2887,10 @@
                     [rng coll]
                     (lazy-seq
                      (when (seq coll)
-                       (let [idx  (first rng)
-                             elem (first coll)]
-                         (if-not (nil? (f idx elem))
-                           (cons elem (keep-idx (rest rng) (rest coll)))
-                           (keep-idx (rest rng) (rest coll)))))))]
+                       (let [elem (f (first rng) (first coll))]
+                         (if (nil? elem)
+                           (keep-idx (rest rng) (rest coll))
+                           (cons elem (keep-idx (rest rng) (rest coll))))))))]
      (keep-idx (range) coll))))
 
 (defn take
