@@ -1,53 +1,36 @@
 (ns basilisp.core.protocols)
 
-(defprotocol SeqReduce
-  "Protocol impl of reduce that's faster than first/next iteration. Called by reduce."
-  (seq-reduce-impl [s f init]))
-
-(extend-protocol SeqReduce
-  nil
-  (seq-reduce-impl [s f init] init)
-
-  python/object
-  (seq-reduce-impl [s f init]
-    (loop [out init
-           s (seq s)]
-      (cond
-        (reduced? out) @out
-        s (recur (f out (first s)) (next s))
-        :else out))))
-
-(defn- seq-reduce
-  ([s f]
-   (if-let [s (seq s)]
-     (seq-reduce-impl (next s) f (first s))
-     (f)))
-  ([s f init]
-   (seq-reduce-impl (seq s) f init)))
-
 (defprotocol CollReduce
-  "Protocol impl of reduce"
+  "Protocol implementation of :lpy:fn:`basilisp.core/reduce`."
   (coll-reduce [s f] [s f init]))
 
 (extend-protocol CollReduce
   nil
-  (coll-reduce [s f] (f))
-  (coll-reduce [s f init] init)
+  (coll-reduce [s f]
+    (f))
+  (coll-reduce [s f init]
+    init)
 
   python/object
-  (coll-reduce [s f] (seq-reduce s f))
-  (coll-reduce [s f init] (seq-reduce s f init))
+  (coll-reduce [s f]
+    (basilisp.lang.runtime/internal-reduce s f))
+  (coll-reduce [s f init]
+    (basilisp.lang.runtime/internal-reduce s f init))
 
   basilisp.lang.interfaces/IReduce
-  (coll-reduce [s f] (.reduce s f))
-  (coll-reduce [s f init] (.reduce s f init)))
+  (coll-reduce [s f]
+    (.reduce s f))
+  (coll-reduce [s f init]
+    (.reduce s f init)))
 
 (defprotocol KVReduce
+  "Protocol implementation of :lpy:fn:`basilisp.core/reduce-kv`."
   (kv-reduce [s f init]))
 
 (extend-protocol KVReduce
   nil
-  (kv-reduce [s f init] init)
+  (kv-reduce [s f init]
+    init)
 
   python/object
   (kv-reduce [s f init]
@@ -58,5 +41,6 @@
       s))
 
   basilisp.lang.interfaces/IReduceKV
-  (kv-reduce [s f init] (.reduce-kv s f init)))
+  (kv-reduce [s f init]
+    (.reduce-kv s f init)))
 

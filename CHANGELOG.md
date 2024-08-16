@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.1.1]
 ### Added
  * Added several missing functions to `basilisp.core` (#956)
+ * Added the `CollReduce` and `KVReduce` protocols in `basilisp.core.protocols` and implemented `reduce` in terms of those protocols (#927)
 
 ### Fixed
  * Fixed an issue where attempting to run a namespace from the CLI could fail in certain cases (#957)
