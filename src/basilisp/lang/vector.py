@@ -97,9 +97,6 @@ class TransientVector(ITransientVector[T]):
         return PersistentVector(self._inner.persistent())
 
 
-_reduce_sentinel_obj = object()
-
-
 @total_ordering
 class PersistentVector(
     IPersistentVector[T],
