@@ -60,14 +60,6 @@ def eval_file(filename: str, ctx: compiler.CompilerContext, ns: runtime.Namespac
         raise FileNotFoundError(f"Error: The file {filename} does not exist.")
 
 
-def eval_namespace(
-    namespace: str, ctx: compiler.CompilerContext, ns: runtime.Namespace
-):
-    """Evaluate a file with the given name into a Python module AST node."""
-    path = "/" + "/".join(namespace.split("."))
-    return compiler.load(path, ctx, ns)
-
-
 def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.ModuleType:
     """Bootstrap the REPL with a few useful vars and returned the bootstrapped
     module so it's functions can be used by the REPL command."""
@@ -499,7 +491,7 @@ def run(
             parser.error(
                 "argument --in-ns: not allowed with argument -n/--load-namespace"
             )
-        in_ns = target
+        in_ns = runtime.REPL_DEFAULT_NS
     else:
         in_ns = target if args.in_ns is not None else runtime.REPL_DEFAULT_NS
 
@@ -540,7 +532,7 @@ def run(
             assert main_ns_var is not None
             main_ns_var.bind_root(sym.symbol(target))
 
-            eval_namespace(target, ctx, ns)
+            importlib.import_module(munge(target))
         elif target == STDIN_FILE_NAME:
             eval_stream(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8"), ctx, ns)
         else:

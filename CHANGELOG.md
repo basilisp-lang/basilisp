@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added several missing functions to `basilisp.core` (#956)
 
+### Fixed
+ * Fixed an issue where attempting to run a namespace from the CLI could fail in certain cases (#957)
+
 ## [v0.1.0]
 ### Added
  * Added `:end-line` and `:end-col` metadata to forms during compilation (#903)
@@ -31,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where Basilisp vectors were not callable (#932)
  * Fix a bug where `basilisp.lang.seq.LazySeq` instances were not thread-safe (#934)
  * Fix a bug where Seqs wrapping Python Iterable instances were not thread-safe (#936)
- * Fix several bugs where code was being executed from a string with interpolated variables, which could've allowed for code (#938)
+ * Fix several bugs where code was being executed from a string with interpolated variables, which could've allowed for code injection (#938)
  * Fix a bug where record types and data readers whose fully qualified name started with a "b" could not be read (#947)
 
 ### Other

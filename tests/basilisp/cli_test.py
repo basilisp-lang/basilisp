@@ -3,6 +3,7 @@ import os
 import pathlib
 import platform
 import re
+import secrets
 import stat
 import subprocess
 import tempfile
@@ -286,40 +287,85 @@ class TestRun:
         assert ret == result.lisp_out
 
     @pytest.fixture
-    def namespace_file(self, monkeypatch, tmp_path: pathlib.Path) -> pathlib.Path:
-        parent = tmp_path / "package"
+    def namespace_name(self) -> str:
+        return f"package.core{secrets.token_hex(4)}"
+
+    @pytest.fixture
+    def namespace_file(
+        self, monkeypatch, tmp_path: pathlib.Path, namespace_name: str
+    ) -> pathlib.Path:
+        parent_ns, child_ns = namespace_name.split(".", maxsplit=1)
+        parent = tmp_path / parent_ns
         parent.mkdir()
-        nsfile = parent / "core.lpy"
+        nsfile = parent / f"{child_ns}.lpy"
         nsfile.touch()
         monkeypatch.syspath_prepend(str(tmp_path))
         yield nsfile
 
     def test_cannot_run_namespace_with_in_ns_arg(
-        self, run_cli, namespace_file: pathlib.Path
+        self, run_cli, namespace_name: str, namespace_file: pathlib.Path
     ):
         namespace_file.write_text("(println (+ 1 2))")
         with pytest.raises(SystemExit):
-            run_cli(["run", "--in-ns", "otherpackage.core", "-n", "package.core"])
+            run_cli(["run", "--in-ns", "otherpackage.core", "-n", namespace_name])
 
-    def test_run_namespace(self, run_cli, namespace_file: pathlib.Path):
-        namespace_file.write_text("(println (+ 1 2))")
-        result = run_cli(["run", "-n", "package.core"])
+    def test_run_namespace(
+        self, run_cli, namespace_name: str, namespace_file: pathlib.Path
+    ):
+        namespace_file.write_text(f"(ns {namespace_name}) (println (+ 1 2))")
+        result = run_cli(["run", "-n", namespace_name])
         assert f"3{os.linesep}" == result.lisp_out
 
-    def test_run_namespace_main_ns(self, run_cli, namespace_file: pathlib.Path):
+    def test_run_namespace_main_ns(
+        self, run_cli, namespace_name: str, namespace_file: pathlib.Path
+    ):
         namespace_file.write_text(
-            "(ns package.core) (println (name *ns*)) (println *main-ns*)"
+            f"(ns {namespace_name}) (println (name *ns*)) (println *main-ns*)"
         )
-        result = run_cli(["run", "-n", "package.core"])
-        assert f"package.core{os.linesep}package.core{os.linesep}" == result.lisp_out
+        result = run_cli(["run", "-n", namespace_name])
+        assert (
+            f"{namespace_name}{os.linesep}{namespace_name}{os.linesep}"
+            == result.lisp_out
+        )
 
     @pytest.mark.parametrize("args,ret", cli_args_params)
     def test_run_namespace_with_args(
-        self, run_cli, namespace_file: pathlib.Path, args: List[str], ret: str
+        self,
+        run_cli,
+        namespace_name: str,
+        namespace_file: pathlib.Path,
+        args: List[str],
+        ret: str,
     ):
-        namespace_file.write_text(self.cli_args_code)
-        result = run_cli(["run", "-n", "package.core", *args])
+        namespace_file.write_text(f"(ns {namespace_name}) {self.cli_args_code}")
+        result = run_cli(["run", "-n", namespace_name, *args])
         assert ret == result.lisp_out
+
+    def test_run_namespace_with_subnamespace(
+        self, run_cli, monkeypatch, tmp_path: pathlib.Path
+    ):
+        ns_name = f"parent{secrets.token_hex(4)}"
+        child = "child"
+
+        parent_ns_dir = tmp_path / ns_name
+        parent_ns_dir.mkdir()
+
+        parent_ns_file = tmp_path / f"{ns_name}.lpy"
+        parent_ns_file.touch()
+        parent_ns_file.write_text(
+            f'(ns {ns_name} (:require [{ns_name}.{child}])) (python/print "loading:" *ns*)'
+        )
+
+        child_ns_file = parent_ns_dir / f"{child}.lpy"
+        child_ns_file.touch()
+        child_ns_file.write_text(
+            f'(ns {ns_name}.{child}) (python/print "loading:" *ns*)'
+        )
+
+        monkeypatch.syspath_prepend(str(tmp_path))
+
+        result = run_cli(["run", "-n", ns_name])
+        assert f"loading: {ns_name}.{child}\nloading: {ns_name}\n" == result.out
 
     def test_run_stdin(self, run_cli):
         result = run_cli(["run", "-"], input="(println (+ 1 2))")
