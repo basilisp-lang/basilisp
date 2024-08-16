@@ -899,40 +899,54 @@
       '(2 4 6) odd?     [1 2 3 4 5 6])))
 
 (deftest keep-test
-  (testing "transducer"
-    (are [res input] (= res (into [] (keep identity) input))
-      []            []
-      [:a :b :c]    [:a :b :c]
-      [:a :b :c]    [:a :b nil :c]
-      [:a :b :c]    [:a :b nil nil :c]
-      [:a :b :c :d] [:a :b nil :c nil nil :d]))
+  (let [transform (fn [x] (when x (-> x name symbol)))]
+    (testing "transducer"
+      (are [res input] (= res (into [] (keep transform) input))
+        '[]        []
+        '[a b c]   [:a :b :c]
+        '[a b c]   [:a :b nil :c]
+        '[a b c]   [:a :b nil nil :c]
+        '[a b c d] [:a :b nil :c nil nil :d]))
 
-  (testing "higher order function"
-    (are [res input] (= res (keep identity input))
-      '()            []
-      '(:a :b :c)    [:a :b :c]
-      '(:a :b :c)    [:a :b nil :c]
-      '(:a :b :c)    [:a :b nil nil :c]
-      '(:a :b :c :d) [:a :b nil :c nil nil :d])))
+    (testing "higher order function"
+      (are [res input] (= res (keep transform input))
+        '()        []
+        '(a b c)   [:a :b :c]
+        '(a b c)   [:a :b nil :c]
+        '(a b c)   [:a :b nil nil :c]
+        '(a b c d) [:a :b nil :c nil nil :d]))
+
+    (testing "lazy"
+      (let [counter (atom 0)
+            vals    (keep (partial swap! counter +) (repeat 1 10))]
+        (is (= 0 @counter))
+        (seq vals)
+        (is (= 10 @counter))))))
 
 (deftest keep-indexed-test
-  (testing "transducer"
-    (let [f (fn [i v] v)]
+  (let [f (fn [i x] (when x [i (-> x name symbol)]))]
+    (testing "transducer"
       (are [res input] (= res (into [] (keep-indexed f) input))
-        []            []
-        [:a :b :c]    [:a :b :c]
-        [:a :b :c]    [:a :b nil :c]
-        [:a :b :c]    [:a :b nil nil :c]
-        [:a :b :c :d] [:a :b nil :c nil nil :d])))
+        '[]                        []
+        '[[0 a] [1 b] [2 c]]       [:a :b :c]
+        '[[0 a] [1 b] [3 c]]       [:a :b nil :c]
+        '[[0 a] [1 b] [4 c]]       [:a :b nil nil :c]
+        '[[0 a] [1 b] [3 c] [6 d]] [:a :b nil :c nil nil :d]))
 
-  (testing "higher order function"
-    (let [f (fn [i v] v)]
+    (testing "higher order function"
       (are [res input] (= res (keep-indexed f input))
-        '()            []
-        '(:a :b :c)    [:a :b :c]
-        '(:a :b :c)    [:a :b nil :c]
-        '(:a :b :c)    [:a :b nil nil :c]
-        '(:a :b :c :d) [:a :b nil :c nil nil :d]))))
+        '()                        []
+        '([0 a] [1 b] [2 c])       [:a :b :c]
+        '([0 a] [1 b] [3 c])       [:a :b nil :c]
+        '([0 a] [1 b] [4 c])       [:a :b nil nil :c]
+        '([0 a] [1 b] [3 c] [6 d]) [:a :b nil :c nil nil :d]))
+
+    (testing "lazy"
+      (let [counter (atom 0)
+            vals    (keep-indexed (fn [i x] (swap! counter + x)) (repeat 1 10))]
+        (is (= 0 @counter))
+        (seq vals)
+        (is (= 10 @counter))))))
 
 (deftest take-test
   (testing "transducer"
