@@ -27,5 +27,5 @@ In day-to-day usage, you will not typically need to use these interfaces, but th
 .. automodule:: basilisp.lang.interfaces
    :members:
    :undoc-members:
-   :exclude-members: seq_equals
+   :exclude-members: ReduceFunction, seq_equals
    :show-inheritance:

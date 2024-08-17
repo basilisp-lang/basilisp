@@ -23,9 +23,11 @@ from basilisp.lang.interfaces import (
     INamed,
     IPersistentMap,
     IPersistentVector,
+    IReduceKV,
     ISeq,
     ITransientMap,
     IWithMeta,
+    ReduceKVFunction,
 )
 from basilisp.lang.obj import (
     PRINT_SEPARATOR,
@@ -35,6 +37,7 @@ from basilisp.lang.obj import (
     lrepr,
     process_lrepr_kwargs,
 )
+from basilisp.lang.reduced import Reduced
 from basilisp.lang.seq import sequence
 from basilisp.lang.vector import MapEntry
 from basilisp.util import partition
@@ -42,7 +45,7 @@ from basilisp.util import partition
 T = TypeVar("T")
 K = TypeVar("K")
 V = TypeVar("V")
-
+T_reduce = TypeVar("T_reduce")
 
 _ENTRY_SENTINEL = object()
 
@@ -211,7 +214,11 @@ def _lrepr_py_dict(o: dict, **kwargs: Unpack[PrintSettings]) -> str:
 
 
 class PersistentMap(
-    IPersistentMap[K, V], IEvolveableCollection[TransientMap], ILispObject, IWithMeta
+    IPersistentMap[K, V],
+    IEvolveableCollection[TransientMap],
+    IReduceKV,
+    ILispObject,
+    IWithMeta,
 ):
     """Basilisp Map. Delegates internally to a immutables.Map object.
     Do not instantiate directly. Instead use the m() and map() factory
@@ -361,6 +368,13 @@ class PersistentMap(
 
     def to_transient(self) -> TransientMap[K, V]:
         return TransientMap(self._inner.mutate())
+
+    def reduce_kv(self, f: ReduceKVFunction, init: T_reduce) -> T_reduce:
+        for k, v in self._inner.items():
+            init = f(init, k, v)
+            if isinstance(init, Reduced):
+                return init.deref()
+        return init
 
 
 EMPTY: PersistentMap = PersistentMap.from_coll(())

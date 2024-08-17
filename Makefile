@@ -1,6 +1,10 @@
 DOCSOURCEDIR = "./docs"
 DOCBUILDDIR = "./docs/_build"
 
+.PHONY: clean-docs
+clean-docs:
+	@rm -rf ./docs/build
+
 .PHONY: docs
 docs:
 	@poetry run sphinx-build -M html "$(DOCSOURCEDIR)" "$(DOCBUILDDIR)"

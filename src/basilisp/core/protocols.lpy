@@ -1,0 +1,46 @@
+(ns basilisp.core.protocols)
+
+(defprotocol CollReduce
+  "Protocol implementation of :lpy:fn:`basilisp.core/reduce`."
+  (coll-reduce [s f] [s f init]))
+
+(extend-protocol CollReduce
+  nil
+  (coll-reduce [s f]
+    (f))
+  (coll-reduce [s f init]
+    init)
+
+  python/object
+  (coll-reduce [s f]
+    (basilisp.lang.runtime/internal-reduce s f))
+  (coll-reduce [s f init]
+    (basilisp.lang.runtime/internal-reduce s f init))
+
+  basilisp.lang.interfaces/IReduce
+  (coll-reduce [s f]
+    (.reduce s f))
+  (coll-reduce [s f init]
+    (.reduce s f init)))
+
+(defprotocol KVReduce
+  "Protocol implementation of :lpy:fn:`basilisp.core/reduce-kv`."
+  (kv-reduce [s f init]))
+
+(extend-protocol KVReduce
+  nil
+  (kv-reduce [s f init]
+    init)
+
+  python/object
+  (kv-reduce [s f init]
+    (coll-reduce
+     s
+     (fn [acc cur]
+       (f acc (key cur) (val cur)))
+     init))
+
+  basilisp.lang.interfaces/IReduceKV
+  (kv-reduce [s f init]
+    (.reduce-kv s f init)))
+

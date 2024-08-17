@@ -17,6 +17,7 @@ from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import SpecialForm
 from basilisp.lang.interfaces import ISeq
+from basilisp.lang.reduced import Reduced
 from tests.basilisp.helpers import get_or_create_ns
 
 
@@ -257,6 +258,59 @@ def test_concat():
 
     s1 = runtime.concat(vec.v(1, 2), None, "ab")
     assert s1 == llist.l(1, 2, "a", "b")
+
+
+@pytest.fixture
+def add():
+    def _add(*args):
+        if len(args) == 0:
+            return 0
+        elif len(args) == 1:
+            return args[0]
+        else:
+            if args[0] > 20:
+                return Reduced(args[0] + args[1])
+            return args[0] + args[1]
+
+    return _add
+
+
+def test_internal_reduce_type_errors(add):
+    with pytest.raises(TypeError):
+        runtime.internal_reduce(3, add)
+
+    with pytest.raises(TypeError):
+        runtime.internal_reduce(False, add, 8)
+
+
+@pytest.mark.parametrize(
+    "coll,res",
+    [
+        (None, 0),
+        (lseq.EMPTY, 0),
+        (lseq.sequence([1]), 1),
+        (lseq.sequence([1, 2, 3]), 6),
+        (vec.vector([1, 2, 3]), 6),
+        (lseq.sequence([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), 28),
+    ],
+)
+def test_internal_reduce(add, coll, res):
+    assert runtime.internal_reduce(coll, add) == res
+
+
+@pytest.mark.parametrize(
+    "coll,res, init",
+    [
+        (None, 45, 45),
+        (lseq.sequence([]), 45, 45),
+        (lseq.sequence([1]), 46, 45),
+        (lseq.sequence([1, 2, 3]), 10, 4),
+        (vec.vector([1, 2, 3]), 10, 4),
+        (lseq.sequence([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), 46, 45),
+    ],
+)
+def test_internal_reduce_init(add, coll, res, init):
+    assert runtime.internal_reduce(coll, add, init) == res
 
 
 def test_apply():
