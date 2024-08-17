@@ -185,7 +185,9 @@ jobs:
 
   report-coverage:
     runs-on: ubuntu-latest
-    needs: run-tests
+    needs:
+     - run-tests
+     - run-pypy-tests
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
