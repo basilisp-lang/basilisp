@@ -1171,10 +1171,7 @@ def _internal_reduce_iterable(
         if s is None:
             return f()
 
-        if (sn := to_seq(s.rest)) is None:
-            return f(cast(T, s.first))
-
-        init, s = s.first, sn
+        init, s = s.first, s.rest
     else:
         if s is None:
             return cast(T_reduce_init, init)
