@@ -325,7 +325,9 @@
             {:id @id* :ns "xyz" :status ["done"]})
 
           (client-send! client {:id (id-inc!) :op "eval" :code "(/ 3 0)"})
-          (is (= {:id @id* :err "ZeroDivisionError('Fraction(3, 0)')"} (client-recv! client)))
+          (let [{:keys [id err]} (client-recv! client)]
+               (is (= id @id* ))
+               (is (str/includes? err "ZeroDivisionError: Fraction(3, 0)")))
           (let [{:keys [id ex status ns]} (client-recv! client)]
             (is (= @id* id))
             (is (= "xyz" ns))
@@ -337,8 +339,10 @@
           (client-send! client {:id (id-inc!) :op "eval" :code "(println :hey)\n(/ 4 0)"})
           (are [response] (= response (client-recv! client))
             {:id @id* :out ":hey"}
-            {:id @id* :out os/linesep}
-            {:id @id* :err "ZeroDivisionError('Fraction(4, 0)')"})
+            {:id @id* :out os/linesep})
+          (let [{:keys [id err]} (client-recv! client)]
+            (is (= @id* id))
+            (is (str/includes? err "ZeroDivisionError: Fraction(4, 0)")))
           (let [{:keys [id ex status ns]} (client-recv! client)]
             (is (= @id* id))
             (is (= "xyz" ns))
@@ -347,15 +351,22 @@
           (are [response] (= response (client-recv! client))
             {:id @id* :ns "xyz" :status ["done"]})
 
-          (client-send! client {:id (id-inc!) :op "eval" :code "[*1 *2 *3 *e]"})
+          (client-send! client {:id (id-inc!) :op "eval" :code "[*1 *2 *3]"})
           (are [response] (= response (client-recv! client))
-            {:id @id* :ns "xyz" :value "[6 nil 4 ZeroDivisionError('Fraction(4, 0)')]"}
+            {:id @id* :ns "xyz" :value "[6 nil 4]"}
             {:id @id* :ns "xyz" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "*e"})
+          (let [{:keys [id value]} (client-recv! client)]
+            (is (= @id* id))
+            (is (str/includes? value "ZeroDivisionError: Fraction(4, 0)")))
+          (is (= {:id @id* :ns "xyz" :status ["done"]} (client-recv! client)))
 
           ;; error with :file
           (client-send! client {:id (id-inc!) :op "eval" :file "/hey/you.lpy" :code "1\n2\n(/ 5 0)"})
-          (are [response] (= response (client-recv! client))
-            {:id @id* :err "ZeroDivisionError('Fraction(5, 0)')"})
+          (let [{:keys [id err]} (client-recv! client)]
+            (is (= @id* id))
+            (is (str/includes? err "ZeroDivisionError: Fraction(5, 0)")))
           (let [{:keys [id ex status ns]} (client-recv! client)]
             (is (= @id* id))
             (is (= "xyz" ns))
@@ -363,12 +374,14 @@
             (is (not= -1 (.find ex "File \"/hey/you.lpy\", line 3")) ex))
           (are [response] (= response (client-recv! client))
             {:id @id* :ns "xyz" :status ["done"]})
-
           ;; error conditions
           (client-send! client {:id (id-inc!) :op "eval" :code "(xyz"})
           (let [{:keys [id err]} (client-recv! client)]
             (is (= @id* id))
-            (is (str/starts-with? err "basilisp.lang.reader.SyntaxError")))
+            (is (= [""
+                    "  exception: <class 'basilisp.lang.reader.UnexpectedEOFError'>"
+                    "    message: Unexpected EOF in list" "       line: 1:4"]
+                   (str/split-lines err))))
           (let [{:keys [id ex status ns]} (client-recv! client)]
             (is (= @id* id))
             (is (= "xyz" ns))
@@ -378,7 +391,15 @@
             {:id @id* :ns "xyz" :status ["done"]})
 
           (client-send! client {:id (id-inc!) :op "eval" :code "(+ 3 5)" :ns "not-there"})
-          (is (= {:id @id* :err "CompilerException(msg=\"unable to resolve symbol '+' in this context\", phase=<CompilerPhase.ANALYZING: :analyzing>, filename='<nREPL Input>', form=+, lisp_ast=None, py_ast=None)"} (client-recv! client)))
+          (let [{:keys [id err]} (client-recv! client)]
+            (is (= id @id*))
+            (is (= [""
+                    "  exception: <class 'basilisp.lang.compiler.exception.CompilerException'>"
+                    "      phase: :analyzing"
+                    "    message: unable to resolve symbol '+' in this context"
+                    "       form: +"
+                    "   location: <nREPL Input>:1"]
+                   (str/split-lines err))))
           (let [{:keys [id ex status ns]} (client-recv! client)]
             (is (= @id* id))
             (is (= "not-there" ns))
@@ -402,7 +423,13 @@
 
         ;; bad namespace
         (client-send! client {:id 3 :op "eval" :code "(+ 3 5)" :ns "#,,"})
-        (is (= {:id 3 :err "CompilerException(msg=\"unable to resolve symbol '+' in this context\", phase=<CompilerPhase.ANALYZING: :analyzing>, filename='<nREPL Input>', form=+, lisp_ast=None, py_ast=None)"} (client-recv! client)))
+        (let [{:keys [id err]} (client-recv! client)]
+          (is (= 3 id))
+          (is (= [""
+                  "  exception: <class 'basilisp.lang.compiler.exception.CompilerException'>"
+                  "      phase: :analyzing" "    message: unable to resolve symbol '+' in this context"
+                  "       form: +" "   location: <nREPL Input>:1"]
+                 (str/split-lines err))))
         (let [{:keys [id ex status ns]} (client-recv! client)]
           (is (= 3 id))
           (is (= "#,," ns))
@@ -533,7 +560,9 @@
 
           (client-send! client {:id (id-inc!) :op "load-file" :ns "user" :file "(ns abc.third)\n\n(/ 3 0)"
                                 :file-name "third.lpy" :file-path "/abc/third.lpy"})
-          (is (= {:id @id* :err "ZeroDivisionError('Fraction(3, 0)')"} (client-recv! client)))
+          (let [{:keys [id err]} (client-recv! client)]
+            (is (= @id* id))
+            (is (str/includes? err "ZeroDivisionError: Fraction(3, 0)") (str/split-lines err)))
           (let [{:keys [id ex status ns]} (client-recv! client)]
             (is (= @id* id))
             (is (= "abc.third" ns))

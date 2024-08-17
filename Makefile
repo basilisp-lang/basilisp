@@ -32,6 +32,11 @@ repl:
 	@BASILISP_USE_DEV_LOGGER=true poetry run basilisp repl
 
 
+LOGLEVEL ?= INFO
+.PHONY: nrepl-server
+nrepl-server:
+	@BASILISP_USE_DEV_LOGGER=true BASILISP_LOGGING_LEVEL=$(LOGLEVEL) poetry run basilisp nrepl-server
+
 .PHONY: test
 test:
 	@rm -f .coverage*
