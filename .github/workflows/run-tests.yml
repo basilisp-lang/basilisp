@@ -73,7 +73,7 @@ jobs:
         run: |
           tox run-parallel -p 2
           mkdir coverage
-          mv .coverage.* "coverage/.coverage.py${{ matrix.version }}"
+          mv .coverage "coverage/.coverage.py${{ matrix.version }}"
       - name: Archive code coverage results
         if: "startsWith (matrix.os, 'ubuntu')"
         uses: actions/upload-artifact@v3
