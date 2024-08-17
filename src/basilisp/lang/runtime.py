@@ -1165,11 +1165,19 @@ def _internal_reduce_iterable(
     f: ReduceFunction[T_reduce_init, T],
     init: Union[T_reduce_init, object] = IReduce.REDUCE_SENTINEL,
 ) -> T_reduce_init:
-    if (s := to_seq(coll)) is None:
-        if init is not IReduce.REDUCE_SENTINEL:
-            return cast(T_reduce_init, init)
-        else:
+    s = to_seq(coll)
+
+    if init is IReduce.REDUCE_SENTINEL:
+        if s is None:
             return f()
+
+        if (sn := to_seq(s.rest)) is None:
+            return f(cast(T, s.first))
+
+        init, s = s.first, sn
+    else:
+        if s is None:
+            return cast(T_reduce_init, init)
 
     res = cast(T_reduce_init, init)
     for item in s:
