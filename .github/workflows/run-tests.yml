@@ -73,7 +73,7 @@ jobs:
         run: |
           tox run-parallel -p 2
           mkdir coverage
-          ls -la
+          ls
           mv .coverage.py* "coverage/.coverage.py${{ matrix.version }}"
       - name: Archive code coverage results
         if: "startsWith (matrix.os, 'ubuntu')"
