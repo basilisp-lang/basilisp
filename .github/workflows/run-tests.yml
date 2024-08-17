@@ -172,6 +172,7 @@ jobs:
           pip install tox
       - name: Run minimum deps test
         env:
+          PYTEST_XDIST_PARALLEL_FLAG: -n 2
           TOX_PARALLEL_NO_SPINNER: 1
           TOX_SHOW_OUTPUT: "True"
           TOXENV: ${{ matrix.tox-env }}

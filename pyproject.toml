@@ -113,6 +113,7 @@ omit = [
 source = [
    "src/basilisp",
    ".tox/*/lib/python*/site-packages/basilisp",
+   ".tox/*/lib/pypy*/site-packages/basilisp",
    ".tox/pypy*/site-packages/basilisp",
 ]
 
