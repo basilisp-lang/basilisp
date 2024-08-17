@@ -128,7 +128,7 @@ class TestCompilerFlags:
         )
         assert f"3{os.linesep}" == result.lisp_out
 
-    @pytest.mark.parametrize("val", BOOL_TRUE | BOOL_FALSE)
+    @pytest.mark.parametrize("val", sorted(BOOL_TRUE | BOOL_FALSE))
     def test_valid_flag(self, run_cli, val):
         result = run_cli(
             ["run", "--warn-on-var-indirection", val, "-c", "(println  (+ 1 2))"]
