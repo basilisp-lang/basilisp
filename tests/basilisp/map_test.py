@@ -195,6 +195,27 @@ def test_map_seq():
     )
 
 
+def test_map_reduce_kv():
+    init = lmap.map({keyword("ks"): vec.v(), keyword("vs"): vec.v()})
+
+    def reduce_vec(acc: lmap.PersistentMap, i, v):
+        ks, vs = acc.get(keyword("ks")), acc.get(keyword("vs"))
+        return acc.assoc(
+            keyword("ks"),
+            ks.cons(i),
+            keyword("vs"),
+            vs.cons(v),
+        )
+
+    assert init == vec.v().reduce_kv(reduce_vec, init)
+    assert lmap.map(
+        {
+            keyword("ks"): vec.v(0, 1, 2),
+            keyword("vs"): vec.vector([keyword(s) for s in ("a", "b", "c")]),
+        }
+    ) == vec.vector([keyword(s) for s in ("a", "b", "c")]).reduce_kv(reduce_vec, init)
+
+
 def test_map_repr():
     m = lmap.m()
     assert repr(m) == "{}"

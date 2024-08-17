@@ -18,6 +18,7 @@ from basilisp.lang.interfaces import (
     IWithMeta,
 )
 from basilisp.lang.keyword import keyword
+from basilisp.lang.reduced import Reduced
 from basilisp.lang.symbol import symbol
 
 
@@ -216,6 +217,72 @@ def test_vector_greater_than(result, v1, v2):
 )
 def test_vector_pickleability(pickle_protocol: int, o: vec.PersistentVector):
     assert o == pickle.loads(pickle.dumps(o, protocol=pickle_protocol))
+
+
+@pytest.fixture
+def add():
+    def _add(*args):
+        if len(args) == 0:
+            return 0
+        elif len(args) == 1:
+            return args[0]
+        else:
+            if args[0] > 20:
+                return Reduced(args[0] + args[1])
+            return args[0] + args[1]
+
+    return _add
+
+
+@pytest.mark.parametrize(
+    "coll,res",
+    [
+        (vec.vector([]), 0),
+        (vec.vector([1]), 1),
+        (vec.vector([1, 2, 3]), 6),
+        (vec.vector([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), 28),
+    ],
+)
+def test_vector_reduce(add, coll: vec.PersistentVector, res):
+    assert coll.reduce(add) == res
+
+
+@pytest.mark.parametrize(
+    "coll,res, init",
+    [
+        (vec.vector([]), 45, 45),
+        (vec.vector([1]), 46, 45),
+        (vec.vector([1, 2, 3]), 10, 4),
+        (vec.vector([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), 46, 45),
+    ],
+)
+def test_vector_reduce_init(add, coll: vec.PersistentVector, res, init):
+    assert coll.reduce(add, init) == res
+
+
+def test_vector_reduce_kv():
+    init = lmap.map({keyword("ks"): vec.v(), keyword("vs"): vec.v()})
+
+    def reduce_vec(acc: lmap.PersistentMap, i, v):
+        ks, vs = acc.get(keyword("ks")), acc.get(keyword("vs"))
+        res = acc.assoc(keyword("ks"), ks.cons(i), keyword("vs"), vs.cons(v))
+        if i < 2:
+            return res
+        return Reduced(res)
+
+    assert init == vec.v().reduce_kv(reduce_vec, init)
+    assert (
+        lmap.map(
+            {
+                keyword("ks"): vec.v(0, 1, 2),
+                keyword("vs"): vec.vector([keyword(s) for s in ("a", "b", "c")]),
+            }
+        )
+        == vec.vector([keyword(s) for s in ("a", "b", "c")]).reduce_kv(reduce_vec, init)
+        == vec.vector([keyword(s) for s in ("a", "b", "c", "d", "e", "f")]).reduce_kv(
+            reduce_vec, init
+        )
+    )
 
 
 @pytest.mark.parametrize(
