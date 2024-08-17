@@ -20,16 +20,16 @@
      (.log logger basilisp.logconfig/TRACE (str/join " " [~@values]))))
 (defmacro ^:private debug [& values]
   `(when (.isEnabledFor logger logging/DEBUG)
-    (.debug logger (str/join " " [~@values]))))
+    (.log logger logging/DEBUG (str/join " " [~@values]))))
 (defmacro ^:private info [& values]
   `(when (.isEnabledFor logger logging/INFO)
-    (.info logger (str/join " " [~@values]))))
+    (.log logger logging/INFO (str/join " " [~@values]))))
 (defmacro ^:private warn [& values]
   `(when (.isEnabledFor logger logging/WARNING)
-     (.warning logger (str/join " " [~@values]))))
+     (.log logger logging/WARNING (str/join " " [~@values]))))
 (defmacro ^:private error [& values]
   `(when (.isEnabledFor logger logging/ERROR)
-     (.error logger (str/join " " [~@values]))))
+     (.log logger logging/ERROR (str/join " " [~@values]))))
 
 (definterface ^:private IStdOut
   ;; Pythonic interface for creating `sys/stdout` like File objects.
@@ -144,16 +144,7 @@
           (send-value request send-fn [result {:ns (str *ns*)}]))
         (catch python/Exception e
           (debug :eval-exception e)
-          (let [exc-type (condp instance? e
-                           basilisp.lang.reader/SyntaxError
-                           basilisp.lang.reader/SyntaxError
-
-                           basilisp.lang.compiler/CompilerException
-                           basilisp.lang.compiler/CompilerException
-
-                           python/Exception
-                           python/Exception)
-                msg (->> (basilisp.lang.exception/format_exception e exc-type (.-__traceback__ e))
+          (let [msg (->> (basilisp.lang.exception/format_exception e (type e) (.-__traceback__ e))
                          (str/join ""))]
             (handle-error send-fn (assoc request :ns (str *ns*)) msg)))
         (finally

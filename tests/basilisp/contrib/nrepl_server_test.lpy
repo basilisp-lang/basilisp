@@ -380,7 +380,8 @@
             (is (= @id* id))
             (is (= [""
                     "  exception: <class 'basilisp.lang.reader.UnexpectedEOFError'>"
-                    "    message: Unexpected EOF in list" "       line: 1:4"]
+                    "    message: Unexpected EOF in list"
+                    "       line: 1:4"]
                    (str/split-lines err))))
           (let [{:keys [id ex status ns]} (client-recv! client)]
             (is (= @id* id))
