@@ -15,6 +15,7 @@ from basilisp.lang.interfaces import (
     IWithMeta,
 )
 from basilisp.lang.keyword import keyword
+from basilisp.lang import set as lset
 from basilisp.lang.symbol import symbol
 from basilisp.lang.vector import MapEntry, v
 
@@ -196,24 +197,14 @@ def test_map_seq():
 
 
 def test_map_reduce_kv():
-    init = lmap.map({keyword("ks"): vec.v(), keyword("vs"): vec.v()})
 
-    def reduce_vec(acc: lmap.PersistentMap, i, v):
-        ks, vs = acc.get(keyword("ks")), acc.get(keyword("vs"))
-        return acc.assoc(
-            keyword("ks"),
-            ks.cons(i),
-            keyword("vs"),
-            vs.cons(v),
-        )
+    def reduce_map(acc: lset.PersistentSet, key, val):
+        return acc.cons(v(key, val))
 
-    assert init == vec.v().reduce_kv(reduce_vec, init)
-    assert lmap.map(
-        {
-            keyword("ks"): vec.v(0, 1, 2),
-            keyword("vs"): vec.vector([keyword(s) for s in ("a", "b", "c")]),
-        }
-    ) == vec.vector([keyword(s) for s in ("a", "b", "c")]).reduce_kv(reduce_vec, init)
+    assert lset.s() == lmap.m().reduce_kv(reduce_map, lset.s())
+    assert lset.s(v("a", 1), v("b", 2), v("c", 3)) == lmap.map(
+        {"a": 1, "b": 2, "c": 3}
+    ).reduce_kv(reduce_map, lset.s())
 
 
 def test_map_repr():
