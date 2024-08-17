@@ -35,10 +35,10 @@
   python/object
   (kv-reduce [s f init]
     (coll-reduce
-      (fn [acc cur]
-        (f acc (key cur) (val cur)))
-      init
-      s))
+     s
+     (fn [acc cur]
+       (f acc (key cur) (val cur)))
+     init))
 
   basilisp.lang.interfaces/IReduceKV
   (kv-reduce [s f init]
