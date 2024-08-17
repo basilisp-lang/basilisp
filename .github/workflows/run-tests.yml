@@ -64,7 +64,7 @@ jobs:
           pip install tox
       - name: Run tests
         env:
-          PYTEST_XDIST_PARALLEL_FLAG: -n 2
+          PYTEST_XDIST_PARALLEL_FLAG: -n 3
           TOX_PARALLEL_NO_SPINNER: 1
           TOX_SHOW_OUTPUT: "True"
           TOXENV: ${{ matrix.tox-env }}
