@@ -105,7 +105,6 @@ exclude = '''
 [tool.coverage.run]
 branch = true
 omit = [
-    "*/__version__.py",
     "*/basilisp/contrib/sphinx/*",
 ]
 
