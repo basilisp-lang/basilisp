@@ -19,6 +19,8 @@ class TestTestrunner:
           (testing "is assertions"
             (is true)
             (is false)
+            (is (some #{5} #{6 7}))
+            (is (some #{7} #{6 7}))
             (is (= "string" "string"))
             (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (ex-info "Exception" {}))))
             (is (thrown? basilisp.lang.exception/ExceptionInfo (throw (python/Exception))))
@@ -66,7 +68,7 @@ class TestTestrunner:
                 "FAIL in (assertion-test) (test_testrunner.lpy:8)",
                 "     is assertions :: Test failure: false",
                 "",
-                "    expected: false",
+                "    expected: (not false)",
                 "      actual: false",
             ],
             consecutive=True,
@@ -74,7 +76,18 @@ class TestTestrunner:
 
         run_result.stdout.fnmatch_lines(
             [
-                "FAIL in (assertion-test) (test_testrunner.lpy:11)",
+                "FAIL in (assertion-test) (test_testrunner.lpy:9)",
+                "     is assertions :: Test failure: (some #{5} #{6 7})",
+                "",
+                "    expected: (not nil)",
+                "      actual: nil",
+            ],
+            consecutive=True,
+        )
+
+        run_result.stdout.fnmatch_lines(
+            [
+                "FAIL in (assertion-test) (test_testrunner.lpy:13)",
                 "     is assertions :: Expected <class 'basilisp.lang.exception.ExceptionInfo'>; got <class 'Exception'> instead",
                 "",
                 "    expected: <class 'basilisp.lang.exception.ExceptionInfo'>",
@@ -85,7 +98,7 @@ class TestTestrunner:
 
         run_result.stdout.fnmatch_lines(
             [
-                "FAIL in (assertion-test) (test_testrunner.lpy:17)",
+                "FAIL in (assertion-test) (test_testrunner.lpy:19)",
                 "     is assertions :: Regex pattern did not match",
                 "",
                 '    expected: #"Known exception"',
@@ -119,31 +132,21 @@ class TestTestrunner:
         )
 
     @pytest.mark.xfail(
-        platform.python_implementation() == "PyPy" and sys.version_info < (3, 9),
+        platform.python_implementation() == "PyPy" and sys.version_info < (3, 10),
         reason=(
-            "PyPy 3.8 seems to fail this test, but 3.9 doesn't so it doesn't bear "
-            "further investigation."
+            "PyPy 3.9 fails this test because it intermittently produces an incorrect"
+            "line number (128014) in the exception traceback, which is clearly erroneous."
         ),
     )
     def test_error_repr(self, run_result: pytest.RunResult):
-        if sys.version_info < (3, 11):
-            expected = [
-                "ERROR in (assertion-test) (test_testrunner.lpy:12)",
-                "",
-                "Traceback (most recent call last):",
-                '  File "*test_testrunner.lpy", line 12, in assertion_test',
-                '    (is (throw (ex-info "Uncaught exception" {})))',
-                "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
-            ]
-        else:
-            expected = [
-                "ERROR in (assertion-test) (test_testrunner.lpy:12)",
-                "",
-                "Traceback (most recent call last):",
-                '  File "*test_testrunner.lpy", line 12, in assertion_test',
-                '    (is (throw (ex-info "Uncaught exception" {})))',
-                "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
-            ]
+        expected = [
+            "ERROR in (assertion-test) (test_testrunner.lpy:14)",
+            "",
+            "Traceback (most recent call last):",
+            '  File "*test_testrunner.lpy", line 14, in assertion_test',
+            '    (is (throw (ex-info "Uncaught exception" {})))',
+            "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
+        ]
 
         run_result.stdout.fnmatch_lines(
             expected,
@@ -154,7 +157,7 @@ class TestTestrunner:
             [
                 "ERROR in (error-test) (test_testrunner.lpy)",
                 "Traceback (most recent call last):",
-                '  File "*test_testrunner.lpy", line 33, in error_test',
+                '  File "*test_testrunner.lpy", line 35, in error_test',
                 "    (throw",
                 "basilisp.lang.exception.ExceptionInfo: This test will count as an error. {}",
             ]

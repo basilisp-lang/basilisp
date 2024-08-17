@@ -5,9 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Other
+ * Run PyPy CI checks on Github Actions rather than CircleCI (#971)
+
+## [v0.1.1]
 ### Added
  * Added several missing functions to `basilisp.core` (#956)
  * Added CLI argument parser in `basilisp.contrib.cli-tools` namespace (#535)
+
+### Fixed
+ * Fixed an issue where attempting to run a namespace from the CLI could fail in certain cases (#957)
+ * Fixed an issue with `keep` and `keep-indexed` two-arity forms not preserving the transformed values (#962)
+ * Fixed an issue with `basilisp.test/is` where the expected value was misreported on failure of non `(= ...)` expr (#965)
 
 ## [v0.1.0]
 ### Added
@@ -32,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where Basilisp vectors were not callable (#932)
  * Fix a bug where `basilisp.lang.seq.LazySeq` instances were not thread-safe (#934)
  * Fix a bug where Seqs wrapping Python Iterable instances were not thread-safe (#936)
- * Fix several bugs where code was being executed from a string with interpolated variables, which could've allowed for code (#938)
+ * Fix several bugs where code was being executed from a string with interpolated variables, which could've allowed for code injection (#938)
  * Fix a bug where record types and data readers whose fully qualified name started with a "b" could not be read (#947)
 
 ### Other
@@ -513,6 +522,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.1.1]: https://github.com/basilisp-lang/basilisp/compare/v0.1.0..v0.1.1
 [v0.1.0]: https://github.com/basilisp-lang/basilisp/compare/v0.1.0b2..v0.1.0
 [v0.1.0b2]: https://github.com/basilisp-lang/basilisp/compare/v0.1.0b1..v0.1.0b2
 [v0.1.0b1]: https://github.com/basilisp-lang/basilisp/compare/v0.1.0b0..v0.1.0b1

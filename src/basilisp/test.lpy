@@ -184,7 +184,7 @@
                 :message      ~msg
                 :expr         (quote ~expr)
                 :actual       computed#
-                :expected     computed#
+                :expected     (list (symbol "not") computed#)
                 :line         ~line-num
                 :type         :failure}))))
 
