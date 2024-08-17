@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
  * Run PyPy CI checks on Github Actions rather than CircleCI (#971)
- * Run CPython CI checks in parallel using pytest-xdist (#???)
+ * Run CPython CI checks in parallel using pytest-xdist (#974)
 
 ## [v0.1.1]
 ### Added
