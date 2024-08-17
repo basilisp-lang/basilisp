@@ -99,10 +99,10 @@ class TransientVector(ITransientVector[T]):
 
 @total_ordering
 class PersistentVector(
-    IPersistentVector[T],
-    IEvolveableCollection[TransientVector],
     IReduce,
     IReduceKV,
+    IPersistentVector[T],
+    IEvolveableCollection[TransientVector],
     ILispObject,
     IWithMeta,
 ):

@@ -4,6 +4,7 @@ from typing import Mapping
 import pytest
 
 from basilisp.lang import map as lmap
+from basilisp.lang import set as lset
 from basilisp.lang.interfaces import (
     IAssociative,
     ICounted,
@@ -11,11 +12,11 @@ from basilisp.lang.interfaces import (
     IMapEntry,
     IPersistentCollection,
     IPersistentMap,
+    IReduceKV,
     ISeqable,
     IWithMeta,
 )
 from basilisp.lang.keyword import keyword
-from basilisp.lang import set as lset
 from basilisp.lang.symbol import symbol
 from basilisp.lang.vector import MapEntry, v
 
@@ -33,6 +34,7 @@ def test_map_entry_interface_membership():
         ILispObject,
         IPersistentCollection,
         IPersistentMap,
+        IReduceKV,
         ISeqable,
         IWithMeta,
         Mapping,
