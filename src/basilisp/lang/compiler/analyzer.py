@@ -1699,9 +1699,12 @@ def __get_artificially_abstract_members(
     ) is None:
         return set()
 
-    if not isinstance(declared_abstract_members, lset.PersistentSet):
+    if (
+        not isinstance(declared_abstract_members, lset.PersistentSet)
+        or len(declared_abstract_members) == 0
+    ):
         raise ctx.AnalyzerException(
-            f"{special_form} artificially abstract members",
+            f"{special_form} artificially abstract members must be a set of keywords",
             form=interface.form,
         )
 
@@ -1881,7 +1884,7 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
     if unverifiably_abstract:
         logger.warning(
             f"Unable to verify abstractness for {special_form} supertype(s): "
-            f"{', '.join(unverifiably_abstract)}"
+            f"{', '.join(str(e.var) for e in unverifiably_abstract)}"
         )
     else:
         extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
