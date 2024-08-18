@@ -1,10 +1,10 @@
+import datetime
 import math
 import re
 import uuid
 from fractions import Fraction
 
 import pytest
-from dateutil import parser as dateparser
 
 from basilisp.lang import keyword as kw
 from tests.basilisp.helpers import CompileFn
@@ -227,7 +227,7 @@ def test_lrepr(lcompile: CompileFn, repr: str, code: str):
         ),
         (re.compile(r"\s"), '(read-string (pr-str #"\\s"))'),
         (
-            dateparser.parse("2018-11-28T12:43:25.477000+00:00"),
+            datetime.datetime.fromisoformat("2018-11-28T12:43:25.477000+00:00"),
             '(read-string (pr-str #inst "2018-11-28T12:43:25.477-00:00"))',
         ),
         ({}, "(read-string (pr-str #py {}))"),

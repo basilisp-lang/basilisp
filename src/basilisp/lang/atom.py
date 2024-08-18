@@ -1,6 +1,6 @@
+import threading
 from typing import Callable, Generic, Optional, TypeVar
 
-from readerwriterlock.rwlock import RWLockFair
 from typing_extensions import Concatenate, ParamSpec
 
 from basilisp.lang.interfaces import IPersistentMap, RefValidator
@@ -22,7 +22,7 @@ class Atom(RefBase[T], Generic[T]):
     ) -> None:
         self._meta: Optional[IPersistentMap] = meta
         self._state = state
-        self._lock = RWLockFair()
+        self._lock = threading.RLock()
         self._watches = PersistentMap.empty()
         self._validator = validator
 
@@ -30,7 +30,7 @@ class Atom(RefBase[T], Generic[T]):
             self._validate(state)
 
     def _compare_and_set(self, old: T, new: T) -> bool:
-        with self._lock.gen_wlock():
+        with self._lock:
             if self._state != old:
                 return False
             self._state = new
@@ -48,7 +48,7 @@ class Atom(RefBase[T], Generic[T]):
 
     def deref(self) -> T:
         """Return the state stored within the Atom."""
-        with self._lock.gen_rlock():
+        with self._lock:
             return self._state
 
     def reset(self, v: T) -> T:

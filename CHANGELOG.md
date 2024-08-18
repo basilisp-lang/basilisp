@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * Improved on the nREPL server exception messages by matching that of the REPL user friendly format (#968)
 
+### Removed
+ * Removed `python-dateutil` and `readerwriterlock` as dependencies, switching to standard library components instead (#976) 
+
 ### Other
  * Run PyPy CI checks on Github Actions rather than CircleCI (#971)
 
