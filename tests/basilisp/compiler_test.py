@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import decimal
 import importlib
 import inspect
@@ -15,7 +16,6 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
 import pytest
-from dateutil import parser as dateparser
 
 from basilisp.lang import compiler as compiler
 from basilisp.lang import keyword as kw
@@ -324,8 +324,12 @@ class TestLiterals:
         assert Fraction("22/7") == lcompile("22/7")
 
     def test_inst(self, lcompile: CompileFn):
-        assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
-            '#inst "2018-01-18T03:26:57.296-00:00"'
+        assert (
+            datetime.datetime.fromisoformat("2018-01-18T03:26:57.296-00:00")
+            == lcompile('#inst "2018-01-18T03:26:57.296-00:00"')
+            == datetime.datetime(
+                2018, 1, 18, 3, 26, 57, 296000, tzinfo=datetime.timezone.utc
+            )
         )
 
     def test_queue(self, lcompile: CompileFn):
@@ -3983,8 +3987,12 @@ class TestQuote:
         assert lcompile('\'#{:a 2 "str"}') == lset.s(kw.keyword("a"), 2, "str")
 
     def test_quoted_inst(self, lcompile: CompileFn):
-        assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
-            '(quote #inst "2018-01-18T03:26:57.296-00:00")'
+        assert (
+            datetime.datetime.fromisoformat("2018-01-18T03:26:57.296-00:00")
+            == lcompile('(quote #inst "2018-01-18T03:26:57.296-00:00")')
+            == datetime.datetime(
+                2018, 1, 18, 3, 26, 57, 296000, tzinfo=datetime.timezone.utc
+            )
         )
 
     def test_regex(self, lcompile: CompileFn):

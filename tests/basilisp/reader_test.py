@@ -1,3 +1,4 @@
+import datetime
 import io
 import math
 import os
@@ -1646,9 +1647,13 @@ def test_fraction_literal():
 
 
 def test_inst_reader_literal():
-    assert read_str_first(
-        '#inst "2018-01-18T03:26:57.296-00:00"'
-    ) == langutil.inst_from_str("2018-01-18T03:26:57.296-00:00")
+    assert (
+        read_str_first('#inst "2018-01-18T03:26:57.296-00:00"')
+        == langutil.inst_from_str("2018-01-18T03:26:57.296-00:00")
+        == datetime.datetime(
+            2018, 1, 18, 3, 26, 57, 296000, tzinfo=datetime.timezone.utc
+        )
+    )
 
     with pytest.raises(reader.SyntaxError):
         read_str_first('#inst "I am a little teapot short and stout"')

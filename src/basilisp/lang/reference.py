@@ -1,6 +1,6 @@
+import threading
 from typing import Any, Callable, Optional, TypeVar
 
-from readerwriterlock.rwlock import RWLockable
 from typing_extensions import Concatenate, ParamSpec
 
 from basilisp.lang import keyword as kw
@@ -27,21 +27,21 @@ class ReferenceBase(IReference):
 
     Implementers must have the `_lock` and `_meta` properties defined."""
 
-    _lock: RWLockable
+    _lock: threading.RLock
     _meta: Optional[IPersistentMap]
 
     @property
     def meta(self) -> Optional[IPersistentMap]:
-        with self._lock.gen_rlock():
+        with self._lock:
             return self._meta
 
     def alter_meta(self, f: AlterMeta, *args) -> Optional[IPersistentMap]:
-        with self._lock.gen_wlock():
+        with self._lock:
             self._meta = f(self._meta, *args)
             return self._meta
 
     def reset_meta(self, meta: Optional[IPersistentMap]) -> Optional[IPersistentMap]:
-        with self._lock.gen_wlock():
+        with self._lock:
             self._meta = meta
             return meta
 
@@ -63,7 +63,7 @@ class RefBase(IRef[T], ReferenceBase):
     _watches: IPersistentMap[RefWatchKey, RefWatcher[T]]
 
     def add_watch(self, k: RefWatchKey, wf: RefWatcher[T]) -> "RefBase[T]":
-        with self._lock.gen_wlock():
+        with self._lock:
             self._watches = self._watches.assoc(k, wf)
             return self
 
@@ -72,7 +72,7 @@ class RefBase(IRef[T], ReferenceBase):
             wf(k, self, old, new)
 
     def remove_watch(self, k: RefWatchKey) -> "RefBase[T]":
-        with self._lock.gen_wlock():
+        with self._lock:
             self._watches = self._watches.dissoc(k)
             return self
 
@@ -80,18 +80,10 @@ class RefBase(IRef[T], ReferenceBase):
         return self._validator
 
     def set_validator(self, vf: Optional[RefValidator[T]] = None) -> None:
-        # We cannot use a write lock here since we're calling `self.deref()` which
-        # attempts to acquire the read lock for the Ref and will deadlock if the
-        # lock is not reentrant.
-        #
-        # There are no guarantees that the Ref lock is reentrant and the default
-        # locks for Atoms and Vars are not).
-        #
-        # This is probably ok for most cases since we expect contention is low or
-        # non-existent while setting a validator function.
-        if vf is not None:
-            self._validate(self.deref(), vf=vf)
-        self._validator = vf
+        with self._lock:
+            if vf is not None:
+                self._validate(self.deref(), vf=vf)
+            self._validator = vf
 
     def _validate(self, val: Any, vf: Optional[RefValidator[T]] = None) -> None:
         vf = vf or self._validator
