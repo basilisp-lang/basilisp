@@ -4,7 +4,8 @@
   "A port of `nbb <https://github.com/babashka/nbb>`_ 's nREPL server implementation to Basilisp."
   (:require [basilisp.contrib.bencode :as bc]
             [basilisp.string :as str])
-  (:import logging
+  (:import basilisp.logconfig
+           logging
            socketserver
            sys
            traceback
@@ -14,18 +15,21 @@
   "The logger for this namespace."
   (logging/getLogger (namespace ::)))
 
+(defmacro ^:private trace [& values]
+  `(when (.isEnabledFor logger basilisp.logconfig/TRACE)
+     (.log logger basilisp.logconfig/TRACE (str/join " " [~@values]))))
 (defmacro ^:private debug [& values]
-  (when (.isEnabledFor logger logging/DEBUG)
-    `(.debug logger (str/join " " [~@values]))))
+  `(when (.isEnabledFor logger logging/DEBUG)
+    (.log logger logging/DEBUG (str/join " " [~@values]))))
 (defmacro ^:private info [& values]
-  (when (.isEnabledFor logger logging/INFO)
-    `(.info logger (str/join " " [~@values]))))
+  `(when (.isEnabledFor logger logging/INFO)
+    (.log logger logging/INFO (str/join " " [~@values]))))
 (defmacro ^:private warn [& values]
-  (when (.isEnabledFor logger logging/WARNING))
-  `(.warning logger (str/join " " [~@values])))
+  `(when (.isEnabledFor logger logging/WARNING)
+     (.log logger logging/WARNING (str/join " " [~@values]))))
 (defmacro ^:private error [& values]
-  ;; we want error to always output to `sys/stderr` unfiltered.
-  `(.write sys/stderr (str ~(keyword (str *ns*) "error") " " (str/join " " [~@values]) \newline)))
+  `(when (.isEnabledFor logger logging/ERROR)
+     (.log logger logging/ERROR (str/join " " [~@values]))))
 
 (definterface ^:private IStdOut
   ;; Pythonic interface for creating `sys/stdout` like File objects.
@@ -55,12 +59,12 @@
 
 (defn- log-request-mw [handler]
   (fn [request send-fn]
-    (info :request (dissoc request :client*))
+    (debug :request (dissoc request :client*))
     (handler request send-fn)))
 
 (defn- log-response-mw [handler]
   (fn [request response]
-    (info :response response)
+    (debug :response response)
     (handler request response)))
 
 (declare ops)
@@ -139,8 +143,10 @@
               result  (last results)]
           (send-value request send-fn [result {:ns (str *ns*)}]))
         (catch python/Exception e
-          (info :eval-exception e)
-          (handle-error send-fn (assoc request :ns (str *ns*)) e))
+          (debug :eval-exception e)
+          (let [msg (->> (basilisp.lang.exception/format_exception e (type e) (.-__traceback__ e))
+                         (str/join ""))]
+            (handle-error send-fn (assoc request :ns (str *ns*)) msg)))
         (finally
           (swap! client* assoc :eval-ns *ns*)
           (send-fn request {"ns"     (str *ns*)
@@ -181,7 +187,7 @@
                                                                                   *resolver*
                                                                                   *data-readers*))))}
                                   (catch python/Exception e
-                                    (info :symbol-identify-reader-error :input symbol-str :exception e)
+                                    (debug :symbol-identify-reader-error :input symbol-str :exception e)
                                     {:error (str e)}))]
 
     (cond
@@ -253,7 +259,7 @@
             status   (if (and (nil? symname) (= mapping-type :eldoc) )
                        ["done" "no-eldoc"]
                        ["done"])]
-        (debug :lookup :sym sym-str :doc doc :args arglists)
+        (trace :lookup :sym sym-str :doc doc :args arglists)
         (send-fn request (assoc response :status status)))
       (catch python/Exception e
         (let [status (cond->
@@ -338,7 +344,7 @@
 
 (defn- make-send-fn [socket]
   (fn [_request response]
-    (debug :sending (:id _request) :response-keys (keys response))
+    (trace :sending (:id _request) :response-keys (keys response))
     (try
       (.sendall socket (bc/encode response))
       (catch python/TypeError e
@@ -388,7 +394,7 @@
                                          data)
                 [requests unprocessed] (bc/decode-all data {:keywordize-keys true
                                                             :string-fn       #(.decode % "utf-8")})]
-            (debug :requests requests)
+            (trace :requests requests)
             (when (not (str/blank? unprocessed))
               (reset! pending unprocessed))
             (doseq [request requests]

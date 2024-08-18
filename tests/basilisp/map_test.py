@@ -4,6 +4,7 @@ from typing import Mapping
 import pytest
 
 from basilisp.lang import map as lmap
+from basilisp.lang import set as lset
 from basilisp.lang.interfaces import (
     IAssociative,
     ICounted,
@@ -11,6 +12,7 @@ from basilisp.lang.interfaces import (
     IMapEntry,
     IPersistentCollection,
     IPersistentMap,
+    IReduceKV,
     ISeqable,
     IWithMeta,
 )
@@ -32,6 +34,7 @@ def test_map_entry_interface_membership():
         ILispObject,
         IPersistentCollection,
         IPersistentMap,
+        IReduceKV,
         ISeqable,
         IWithMeta,
         Mapping,
@@ -193,6 +196,17 @@ def test_map_seq():
     assert {v("a", 1), v("b", 2), v("c", 3)} == set(
         lmap.map({"a": 1, "b": 2, "c": 3}).seq()
     )
+
+
+def test_map_reduce_kv():
+
+    def reduce_map(acc: lset.PersistentSet, key, val):
+        return acc.cons(v(key, val))
+
+    assert lset.s() == lmap.m().reduce_kv(reduce_map, lset.s())
+    assert lset.s(v("a", 1), v("b", 2), v("c", 3)) == lmap.map(
+        {"a": 1, "b": 2, "c": 3}
+    ).reduce_kv(reduce_map, lset.s())
 
 
 def test_map_repr():
