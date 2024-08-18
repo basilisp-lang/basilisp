@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import decimal
 import importlib
 import inspect
@@ -15,7 +16,6 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
 import pytest
-from dateutil import parser as dateparser
 
 from basilisp.lang import compiler as compiler
 from basilisp.lang import keyword as kw
@@ -324,8 +324,12 @@ class TestLiterals:
         assert Fraction("22/7") == lcompile("22/7")
 
     def test_inst(self, lcompile: CompileFn):
-        assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
-            '#inst "2018-01-18T03:26:57.296-00:00"'
+        assert (
+            datetime.datetime.fromisoformat("2018-01-18T03:26:57.296-00:00")
+            == lcompile('#inst "2018-01-18T03:26:57.296-00:00"')
+            == datetime.datetime(
+                2018, 1, 18, 3, 26, 57, 296000, tzinfo=datetime.timezone.utc
+            )
         )
 
     def test_queue(self, lcompile: CompileFn):
@@ -1110,6 +1114,118 @@ class TestDefType:
         ):
             with pytest.raises(ExceptionType):
                 lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code,ExceptionType",
+            [
+                (
+                    """
+                    (import* io)
+                    (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members '(:read)} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (import* io)
+                    (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members [:read]} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (import* io)
+                    (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members #py [:read]} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+            ],
+        )
+        def test_deftype_abstract_members_must_be_a_set(
+            self, lcompile: CompileFn, code: str, ExceptionType
+        ):
+            with pytest.raises(ExceptionType):
+                lcompile(code)
+
+        def test_deftype_abstract_members_must_have_elements(self, lcompile: CompileFn):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* io)
+                    (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members #{}} io/IOBase]
+                      (read [this v]))
+                    """
+                )
+
+        def test_deftype_abstract_should_not_have_namespaces(
+            self, lcompile: CompileFn, assert_matching_logs
+        ):
+            lcompile(
+                """
+                (import* io)
+                (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members #{:io/read}} io/IOBase]
+                  (read [this v]))
+                """
+            )
+            assert_matching_logs(
+                "basilisp.lang.compiler.analyzer",
+                logging.WARNING,
+                "Unexpected namespace for artificially abstract member to deftype*",
+            )
+
+        def test_deftype_abstract_members_names_must_be_str_keyword_or_symbol(
+            self,
+            lcompile: CompileFn,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* io)
+                    (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members #{1 :read}} io/IOBase]
+                      (read [this v]))
+                    """,
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* io)
+                (deftype* SomeReader []
+                  :implements [^:abstract ^{:abstract-members #{:read :write}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+                """
+                (import* io)
+                (deftype* SomeReader []
+                  :implements [^:abstract ^{:abstract-members #{read write}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+                """
+                (import* io)
+                (deftype* SomeReader []
+                  :implements [^:abstract ^{:abstract-members #{"read" "write"}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+            ],
+        )
+        def test_deftype_artificially_abstract_members(
+            self,
+            lcompile: CompileFn,
+            code: str,
+        ):
+            instance = lcompile(code)
+            assert instance.read is not None
+            assert instance.write is not None
 
     class TestDefTypeFields:
         def test_deftype_fields(self, lcompile: CompileFn):
@@ -3983,8 +4099,12 @@ class TestQuote:
         assert lcompile('\'#{:a 2 "str"}') == lset.s(kw.keyword("a"), 2, "str")
 
     def test_quoted_inst(self, lcompile: CompileFn):
-        assert dateparser.parse("2018-01-18T03:26:57.296-00:00") == lcompile(
-            '(quote #inst "2018-01-18T03:26:57.296-00:00")'
+        assert (
+            datetime.datetime.fromisoformat("2018-01-18T03:26:57.296-00:00")
+            == lcompile('(quote #inst "2018-01-18T03:26:57.296-00:00")')
+            == datetime.datetime(
+                2018, 1, 18, 3, 26, 57, 296000, tzinfo=datetime.timezone.utc
+            )
         )
 
     def test_regex(self, lcompile: CompileFn):
@@ -4619,11 +4739,114 @@ class TestReify:
                 ),
             ],
         )
-        def test_reify_disallows_extra_methods_if_not_in_aa_super_type(
+        def test_reify_disallows_extra_methods_if_not_in_a_super_type(
             self, lcompile: CompileFn, code: str, ExceptionType
         ):
             with pytest.raises(ExceptionType):
                 lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code,ExceptionType",
+            [
+                (
+                    """
+                    (import* io)
+                    (reify* :implements [^:abstract ^{:abstract-members '(:read)} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (import* io)
+                    (reify* :implements [^:abstract ^{:abstract-members [:read]} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (import* io)
+                    (reify* :implements [^:abstract ^{:abstract-members #py [:read]} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+            ],
+        )
+        def test_reify_abstract_members_must_be_a_set(
+            self, lcompile: CompileFn, code: str, ExceptionType
+        ):
+            with pytest.raises(ExceptionType):
+                lcompile(code)
+
+        def test_reify_abstract_members_must_have_elements(self, lcompile: CompileFn):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* io)
+                    (reify* :implements [^:abstract ^{:abstract-members #{}} io/IOBase]
+                      (read [this v]))
+                    """
+                )
+
+        def test_reify_abstract_should_not_have_namespaces(
+            self, lcompile: CompileFn, assert_matching_logs
+        ):
+            lcompile(
+                """
+                (import* io)
+                (reify* :implements [^:abstract ^{:abstract-members #{:io/read}} io/IOBase]
+                  (read [this v]))
+                """
+            )
+            assert_matching_logs(
+                "basilisp.lang.compiler.analyzer",
+                logging.WARNING,
+                "Unexpected namespace for artificially abstract member to reify*",
+            )
+
+        def test_reify_abstract_members_names_must_be_str_keyword_or_symbol(
+            self,
+            lcompile: CompileFn,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* io)
+                    (reify* :implements [^:abstract ^{:abstract-members #{1 :read}} io/IOBase]
+                      (read [this v]))
+                    """,
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* io)
+                (reify* :implements [^:abstract ^{:abstract-members #{:read :write}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+                """
+                (import* io)
+                (reify* :implements [^:abstract ^{:abstract-members #{read write}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+                """
+                (import* io)
+                (reify* :implements [^:abstract ^{:abstract-members #{"read" "write"}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+            ],
+        )
+        def test_reify_artificially_abstract_members(
+            self,
+            lcompile: CompileFn,
+            code: str,
+        ):
+            instance = lcompile(code)
+            assert instance.read is not None
+            assert instance.write is not None
 
     class TestReifyMember:
         @pytest.mark.parametrize(

@@ -8,8 +8,6 @@ from decimal import Decimal
 from fractions import Fraction
 from typing import Iterable, Match, Pattern, Type
 
-from dateutil import parser as dateparser
-
 from basilisp.lang import atom as atom
 
 _DOUBLE_DOT = ".."
@@ -259,7 +257,7 @@ def fraction(numerator: int, denominator: int) -> Fraction:
 
 def inst_from_str(inst_str: str) -> datetime.datetime:
     """Create a datetime instance from an RFC 3339 formatted date string."""
-    return dateparser.parse(inst_str)
+    return datetime.datetime.fromisoformat(inst_str)
 
 
 def regex_from_str(regex_str: str) -> Pattern:
