@@ -1743,7 +1743,7 @@ class _TypeAbstractness:
     supertype_already_weakref: bool
 
 
-def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-locals
+def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-locals,too-many-statements
     ctx: AnalyzerContext,
     special_form: sym.Symbol,
     fields: Iterable[str],
