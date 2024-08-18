@@ -135,7 +135,7 @@ jobs:
         version: ['3.11']
         include:
           - version: '3.11'
-            graalpy-version: 'graalpy-24.2.0'
+            graalpy-version: 'graalpy-24.0.2'
             tox-env: py311
     steps:
       - uses: actions/checkout@v3
