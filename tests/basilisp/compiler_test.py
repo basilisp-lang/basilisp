@@ -1115,6 +1115,118 @@ class TestDefType:
             with pytest.raises(ExceptionType):
                 lcompile(code)
 
+        @pytest.mark.parametrize(
+            "code,ExceptionType",
+            [
+                (
+                    """
+                    (import* io)
+                    (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members '(:read)} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (import* io)
+                    (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members [:read]} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (import* io)
+                    (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members #py [:read]} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+            ],
+        )
+        def test_deftype_abstract_members_must_be_a_set(
+            self, lcompile: CompileFn, code: str, ExceptionType
+        ):
+            with pytest.raises(ExceptionType):
+                lcompile(code)
+
+        def test_deftype_abstract_members_must_have_elements(self, lcompile: CompileFn):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* io)
+                    (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members #{}} io/IOBase]
+                      (read [this v]))
+                    """
+                )
+
+        def test_deftype_abstract_should_not_have_namespaces(
+            self, lcompile: CompileFn, assert_matching_logs
+        ):
+            lcompile(
+                """
+                (import* io)
+                (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members #{:io/read}} io/IOBase]
+                  (read [this v]))
+                """
+            )
+            assert_matching_logs(
+                "basilisp.lang.compiler.analyzer",
+                logging.WARNING,
+                "Unexpected namespace for artificially abstract member to deftype*",
+            )
+
+        def test_deftype_abstract_members_names_must_be_str_keyword_or_symbol(
+            self,
+            lcompile: CompileFn,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* io)
+                    (deftype* SomeReader []
+                      :implements [^:abstract ^{:abstract-members #{1 :read}} io/IOBase]
+                      (read [this v]))
+                    """,
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* io)
+                (deftype* SomeReader []
+                  :implements [^:abstract ^{:abstract-members #{:read :write}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+                """
+                (import* io)
+                (deftype* SomeReader []
+                  :implements [^:abstract ^{:abstract-members #{read write}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+                """
+                (import* io)
+                (deftype* SomeReader []
+                  :implements [^:abstract ^{:abstract-members #{"read" "write"}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+            ],
+        )
+        def test_deftype_artificially_abstract_members(
+            self,
+            lcompile: CompileFn,
+            code: str,
+        ):
+            instance = lcompile(code)
+            assert instance.read is not None
+            assert instance.write is not None
+
     class TestDefTypeFields:
         def test_deftype_fields(self, lcompile: CompileFn):
             Point = lcompile("(deftype* Point [x y z])")
@@ -4627,11 +4739,114 @@ class TestReify:
                 ),
             ],
         )
-        def test_reify_disallows_extra_methods_if_not_in_aa_super_type(
+        def test_reify_disallows_extra_methods_if_not_in_a_super_type(
             self, lcompile: CompileFn, code: str, ExceptionType
         ):
             with pytest.raises(ExceptionType):
                 lcompile(code)
+
+        @pytest.mark.parametrize(
+            "code,ExceptionType",
+            [
+                (
+                    """
+                    (import* io)
+                    (reify* :implements [^:abstract ^{:abstract-members '(:read)} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (import* io)
+                    (reify* :implements [^:abstract ^{:abstract-members [:read]} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+                (
+                    """
+                    (import* io)
+                    (reify* :implements [^:abstract ^{:abstract-members #py [:read]} io/IOBase]
+                      (read [this v]))""",
+                    compiler.CompilerException,
+                ),
+            ],
+        )
+        def test_reify_abstract_members_must_be_a_set(
+            self, lcompile: CompileFn, code: str, ExceptionType
+        ):
+            with pytest.raises(ExceptionType):
+                lcompile(code)
+
+        def test_reify_abstract_members_must_have_elements(self, lcompile: CompileFn):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* io)
+                    (reify* :implements [^:abstract ^{:abstract-members #{}} io/IOBase]
+                      (read [this v]))
+                    """
+                )
+
+        def test_reify_abstract_should_not_have_namespaces(
+            self, lcompile: CompileFn, assert_matching_logs
+        ):
+            lcompile(
+                """
+                (import* io)
+                (reify* :implements [^:abstract ^{:abstract-members #{:io/read}} io/IOBase]
+                  (read [this v]))
+                """
+            )
+            assert_matching_logs(
+                "basilisp.lang.compiler.analyzer",
+                logging.WARNING,
+                "Unexpected namespace for artificially abstract member to reify*",
+            )
+
+        def test_reify_abstract_members_names_must_be_str_keyword_or_symbol(
+            self,
+            lcompile: CompileFn,
+        ):
+            with pytest.raises(compiler.CompilerException):
+                lcompile(
+                    """
+                    (import* io)
+                    (reify* :implements [^:abstract ^{:abstract-members #{1 :read}} io/IOBase]
+                      (read [this v]))
+                    """,
+                )
+
+        @pytest.mark.parametrize(
+            "code",
+            [
+                """
+                (import* io)
+                (reify* :implements [^:abstract ^{:abstract-members #{:read :write}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+                """
+                (import* io)
+                (reify* :implements [^:abstract ^{:abstract-members #{read write}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+                """
+                (import* io)
+                (reify* :implements [^:abstract ^{:abstract-members #{"read" "write"}} io/IOBase]
+                  (read [this n])
+                  (write [this v]))
+                """,
+            ],
+        )
+        def test_reify_artificially_abstract_members(
+            self,
+            lcompile: CompileFn,
+            code: str,
+        ):
+            instance = lcompile(code)
+            assert instance.read is not None
+            assert instance.write is not None
 
     class TestReifyMember:
         @pytest.mark.parametrize(

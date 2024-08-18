@@ -1243,6 +1243,7 @@ Types may also optionally implement 0 or more Python `"dunder" methods <https://
    The best approximation is :external:py:class:`abc.ABC`, although this type is merely advisory and many libraries and applications eschew its use.
 
    For the cases where a host type is not defined as an ``abc.ABC`` instance, users can override the compiler check by setting the ``^:abstract`` meta key on the interface type symbol passed to the ``deftype`` form.
+   This is called "artificial abstractness" and it takes precedence over true abstract base classes via ``abc.ABC``.
    For example, take :external:py:class:`argparse.Action` which is required to be implemented for customizing :external:py:mod:`argparse` actions, but which is not defined as an ``abc.ABC``:
 
    .. code-block::
@@ -1252,6 +1253,23 @@ Types may also optionally implement 0 or more Python `"dunder" methods <https://
       (reify
         ^:abstract argparse/Action
         (__call__ [this parser namespace values option-string]
+          ;; ...
+          ))
+
+   Python libraries may also include implicit (documentation-only) abstract methods on their ``abc.ABC`` types.
+   Thus, it is sometimes necessary to annotate a base class using ``^{:abstract-members #{...}}`` to designate any methods which should be considered abstract in the base class since the compiler cannot check them for you.
+   Take for example :external:py:class:`io.IOBase` which does not declare ``read`` or ``write`` (or in fact *any* members at all in its ``__abstractmethods__`` set!) as part of the interface, but the documentation specifies that they should be considered part of the interface.
+   Below, we tell the compiler it is artificially abstract and that ``read`` is a member.
+
+   .. code-block::
+
+      (import io)
+
+      (reify
+        ^:abstract
+        ^{:abstract-members #{:read}}
+        io/TextIOBase
+        (read [n]
           ;; ...
           ))
 
