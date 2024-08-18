@@ -1878,7 +1878,12 @@ def __deftype_and_reify_impls_are_all_abstract(  # pylint: disable=too-many-loca
 
     # We cannot compute if there are extra methods defined if there are any
     # unverifiably abstract bases, so we just skip this check.
-    if not unverifiably_abstract:
+    if unverifiably_abstract:
+        logger.warning(
+            f"Unable to verify abstractness for {special_form} supertype(s): "
+            f"{', '.join(unverifiably_abstract)}"
+        )
+    else:
         extra_methods = member_names - all_interface_methods - OBJECT_DUNDER_METHODS
         if extra_methods and not extra_methods.issubset(
             artificially_abstract_base_members
