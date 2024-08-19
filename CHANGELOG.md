@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Types created via `deftype` and `reify` may declare supertypes as abstract (taking precedence over true `abc.ABC` types) and specify their member list using `^:abstract-members` metadata (#942)
 
 ### Fixed
- * Fixed inconsistent behavior with `basilisp.core\with` when the `body` contains more than one form (#981) 
+ * Fixed inconsistent behavior with `basilisp.core/with` when the `body` contains more than one form (#981)
 
 ### Removed
  * Removed `python-dateutil` and `readerwriterlock` as dependencies, switching to standard library components instead (#976) 
