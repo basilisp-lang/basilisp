@@ -3778,7 +3778,7 @@
                         [(concat
                           (list 'with (vec (nthrest bindings 2)))
                           body)]
-                        body)]
+                        (list (concat '(do) body)))]
            res#)
          (catch python/Exception e#
            (vreset! hit-except# true)

@@ -1,5 +1,5 @@
 (ns tests.basilisp.test-core-macros
-  (:import inspect os socket tempfile)
+  (:import contextlib inspect os socket tempfile)
   (:require
    [basilisp.test :refer [deftest is testing]]))
 
@@ -470,6 +470,18 @@
         (finally
           (os/close fh)
           (os/unlink filename)))))
+
+  (testing "with multiple body forms"
+    (let [v* (volatile! nil)]
+      (is (= 2 (with [_ (contextlib/nullcontext)]
+                     (vreset! v* 5) (vswap! v* inc) 2)))
+      (is (= 6 @v*)))
+
+    (let [v* (volatile! nil)]
+      (is (= 3 (with [_ (contextlib/nullcontext)
+                      _ (contextlib/nullcontext)]
+                     (vreset! v* 6) (vswap! v* inc) 3)))
+      (is (= 7 @v*))))
 
   (testing "exceptions"
     (is (thrown? python/FloatingPointError
