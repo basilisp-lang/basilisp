@@ -75,7 +75,7 @@ jobs:
         if: "startsWith (matrix.os, 'ubuntu')"
         uses: actions/upload-artifact@v4
         with:
-          name: code-coverage.pypy${{ matrix.version }}
+          name: code-coverage.py${{ matrix.version }}
           path: coverage/.coverage.py*
 
   run-pypy-tests:
@@ -124,7 +124,7 @@ jobs:
       - name: Archive code coverage results
         uses: actions/upload-artifact@v4
         with:
-          name: code-coverage.py${{ matrix.version }}
+          name: code-coverage.pypy${{ matrix.version }}
           path: coverage/.coverage.py*
 
   min-deps-test:
