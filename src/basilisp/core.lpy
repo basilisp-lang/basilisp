@@ -4516,12 +4516,13 @@
                     (.resolve)
                     (python/str))
         ctx (basilisp.lang.compiler.CompilerContext. (or src "<Load Input>"))]
-    (doseq [form (seq (basilisp.lang.reader/read reader
-                                                 *resolver*
-                                                 *data-readers*))]
-      (basilisp.lang.compiler/compile-and-exec-form form
-                                                    ctx
-                                                    *ns*))))
+    (last
+     (for [form (seq (basilisp.lang.reader/read reader
+                                                *resolver*
+                                                *data-readers*))]
+       (basilisp.lang.compiler/compile-and-exec-form form
+                                                     ctx
+                                                     *ns*)))))
 
 (defn load-file
   "Read and evaluate the set of forms contained in the file located at ``path``.
@@ -4581,8 +4582,8 @@
   :lpy:fn:`load-file` (or perhaps :lpy:fn:`load-reader` or :lpy:fn:`load-string`) to
   this function."
   [& paths]
-  (doseq [path (seq paths)]
-    (load-file (str (resolve-load-path path) ".lpy"))))
+  (last (for [path (seq paths)]
+          (load-file (str (resolve-load-path path) ".lpy")))))
 
 (defn ^:inline load-string
   "Read and evaluate the set of forms contained in the string ``s``\\."

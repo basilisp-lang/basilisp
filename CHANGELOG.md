@@ -12,12 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * Improved on the nREPL server exception messages by matching that of the REPL user friendly format (#968)
  * Types created via `deftype` and `reify` may declare supertypes as abstract (taking precedence over true `abc.ABC` types) and specify their member list using `^:abstract-members` metadata (#942)
+ * Load functions (`load`, `load-file`, `load-reader`, etc) now return the value of the last form evaluated. (#984)
 
 ### Fixed
  * Fixed inconsistent behavior with `basilisp.core/with` when the `body` contains more than one form (#981)
 
 ### Removed
- * Removed `python-dateutil` and `readerwriterlock` as dependencies, switching to standard library components instead (#976) 
+ * Removed `python-dateutil` and `readerwriterlock` as dependencies, switching to standard library components instead (#976)
 
 ### Other
  * Run PyPy CI checks on Github Actions rather than CircleCI (#971)

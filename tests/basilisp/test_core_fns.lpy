@@ -2302,13 +2302,15 @@
 
 (deftest load-test
 
-  (let [load-dir-test "tests/basilisp/corpus"
-        load-dir-filepath (str load-dir-test "/core_load_1.lpy")]
+  (let [load-dir-test      (str "tests/basilisp/corpus")
+        load-dir-filepath  (str load-dir-test "/core_load_1.lpy")
+        load-dir-otherfile (str load-dir-test "/core_load_2.lpy")]
     (try
       (when (bio/exists? load-dir-test)
         (shutil/rmtree load-dir-test))
       (bio/make-parents load-dir-filepath)
-      (spit load-dir-filepath "(print :core-load-1)")
+      (spit load-dir-filepath  "(print :core-load-1) :core-load-1")
+      (spit load-dir-otherfile "(print :core-load-2) :core-load-2")
 
       (testing "relative load path"
         (let [output (with-out-str (load "corpus/core-load-1"))]
@@ -2321,6 +2323,17 @@
 
       (testing "non-existent load path"
         (is (thrown? python/FileNotFoundError (load "corpus/core-load-99"))))
+
+      (testing "load multiple files"
+        (let [output (with-out-str (load "corpus/core-load-1"
+                                         "corpus/core-load-2"))]
+          (is (= ":core-load-1:core-load-2" output))))
+
+      (testing "return last form"
+        (let [output (load "corpus/core-load-1")]
+          (is (= :core-load-1 output)))
+        (let [output (load "corpus/core-load-1" "corpus/core-load-2")]
+          (is (= :core-load-2 output))))
 
       (finally
         (when (bio/exists? load-dir-test)
