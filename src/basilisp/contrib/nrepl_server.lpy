@@ -122,7 +122,6 @@
   [{:keys [client* code ns file _column _line] :as request} send-fn]
   (let [{:keys [*1 *2 *3 *e eval-ns]} @client*
         out-stream                    (StreamOutFn #(send-fn request {"out" %}))
-        reader                        (io/StringIO code)
         ctx                           (basilisp.lang.compiler.CompilerContext. (or file "<nREPL Input>"))
         eval-ns                       (if ns
                                         (create-ns (symbol ns))
@@ -134,13 +133,11 @@
               *3    *3
               *e    *e]
       (try
-        (let [results (for [form (seq (basilisp.lang.reader/read reader
-                                                                 *resolver*
-                                                                 *data-readers*))]
+        (let [result (last
+                      (for [form (read-all (io/StringIO code))]
                         (basilisp.lang.compiler/compile-and-exec-form form
                                                                       ctx
-                                                                      *ns*))
-              result  (last results)]
+                                                                      *ns*)))]
           (send-value request send-fn [result {:ns (str *ns*)}]))
         (catch python/Exception e
           (debug :eval-exception e)
@@ -183,9 +180,7 @@
   [resolve-ns symbol-str]
   (let [reader               (io/StringIO symbol-str)
         {:keys [form error]} (try {:form (binding [*ns* resolve-ns]
-                                           (first (seq (basilisp.lang.reader/read reader
-                                                                                  *resolver*
-                                                                                  *data-readers*))))}
+                                           (read reader))}
                                   (catch python/Exception e
                                     (debug :symbol-identify-reader-error :input symbol-str :exception e)
                                     {:error (str e)}))]

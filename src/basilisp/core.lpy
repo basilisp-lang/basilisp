@@ -4428,6 +4428,17 @@
   *resolver*
   basilisp.lang.runtime/resolve-alias)
 
+(defn- read-iterator
+  [opts x]
+  (let [read (:read opts basilisp.lang.reader/read)]
+    (read x
+          *resolver*
+          *data-readers*
+          (:eof opts)
+          (= (:eof opts) :eofthrow)
+          (:features opts)
+          (not= :preserve (:read-cond opts)))))
+
 (defn read-string
   "Read a string of Basilisp code.
 
@@ -4440,17 +4451,7 @@
   ([s]
    (read-string {:eof :eofthrow} s))
   ([opts s]
-   (first (basilisp.lang.reader/read-str s
-                                         *resolver*
-                                         *data-readers*
-                                         (:eof opts)
-                                         (if (= (:eof opts) :eofthrow)
-                                           true
-                                           false)
-                                         (:features opts)
-                                         (if (= :preserve (:read-cond opts))
-                                           false
-                                           true)))))
+   (first (read-iterator (assoc opts :read basilisp.lang.reader/read-str) s))))
 
 (defn read
   "Read the next form from the ``stream``\\. If no stream is specified, uses the value
@@ -4468,23 +4469,30 @@
   ([stream]
    (read stream true nil))
   ([opts stream]
-   (first (basilisp.lang.reader/read stream
-                                     *resolver*
-                                     *data-readers*
-                                     (:eof opts)
-                                     (if (= (:eof opts) :eofthrow)
-                                       true
-                                       false)
-                                     (:features opts)
-                                     (if (= :preserve (:read-cond opts))
-                                       false
-                                       true))))
+   (first (read-iterator opts stream)))
   ([stream eof-error? eof-value]
-   (first (basilisp.lang.reader/read stream
-                                     *resolver*
-                                     *data-readers*
-                                     eof-value
-                                     eof-error?))))
+   (first (read-iterator {:eof (if eof-error? :eofthrow eof-value)} stream))))
+
+(defn read-all
+   "Eagerly read all forms from the ``stream``\\. If no stream is specified, uses the
+  value currently bound to :lpy:var:`*in*`.
+
+  Callers may bind a map of readers to :lpy:var:`*data-readers*` or a default data
+  reader function to :lpy:var::`*default-data-reader-fn*` to customize the data
+  readers used reading this string
+
+  The stream must satisfy the interface of :external:py:class:`io.TextIOBase`\\, but
+  does not require any pushback capabilities. The default
+  ``basilisp.lang.reader.StreamReader`` can wrap any object implementing ``TextIOBase``
+  and provide pushback capabilities."
+  ([stream]
+   (read-all nil stream))
+  ([opts stream]
+   (let [eof (python/object)]
+     (->> (read-iterator (assoc opts :eof eof) stream)
+          seq
+          (take-while #(not (identical? % eof)))
+          doall))))
 
 (defn eval
   "Evaluate a form (not a string) and return its result.
@@ -4517,9 +4525,7 @@
                     (python/str))
         ctx (basilisp.lang.compiler.CompilerContext. (or src "<Load Input>"))]
     (last
-     (for [form (seq (basilisp.lang.reader/read reader
-                                                *resolver*
-                                                *data-readers*))]
+     (for [form (seq (read-all reader))]
        (basilisp.lang.compiler/compile-and-exec-form form
                                                      ctx
                                                      *ns*)))))
