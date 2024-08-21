@@ -3,11 +3,12 @@
    [basilisp.pprint :as pprint]
    [basilisp.string :as str]
    [basilisp.test :refer [deftest are is testing]])
-  (:import textwrap))
+  (:import os textwrap))
 
 (defn trim-newlines-and-dedent
   [s]
-  (str/ltrim (textwrap/dedent s)))
+  (-> (str/ltrim (textwrap/dedent s))
+      (str/replace "\n" os/linesep)))
 
 (deftest print-table-test
   (is (= "" (with-out-str (pprint/print-table []))))
