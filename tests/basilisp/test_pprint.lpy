@@ -7,7 +7,8 @@
 
 (defn trim-newlines-and-dedent
   [s]
-  (-> (str/ltrim (textwrap/dedent s))
+  (-> (textwrap/dedent s)
+      (str/ltrim)
       (str/replace "\n" os/linesep)))
 
 (deftest print-table-test
