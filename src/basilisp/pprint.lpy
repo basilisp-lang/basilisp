@@ -1,0 +1,46 @@
+(ns basilisp.pprint
+  (:require [basilisp.string :as str]))
+
+(defn print-table
+  "Print a collection of maps as a table to the buffer currently bound to
+  :lpy:var:`basilisp.core/*out*`.
+
+  If there is at least one element in ``rows``, a header row will be printed
+  followed by a single divider row followed by a line for each element in ``rows``.
+
+  If no keys are given (as ``ks``), then use the keys returned from the first
+  element in ``rows`` (as by ``(keys (first rows))``). Note that in this case,
+  the order of headers in the resulting table is based on the order of keys
+  returned by :lpy:fn:`basilisp.core/keys`."
+  ([rows]
+   (when (seq rows)
+     (print-table (keys (first rows)) rows)))
+  ([ks rows]
+   (when (seq rows)
+     (let [widths (persistent!
+                   (reduce (fn [counts row]
+                             (reduce (fn [counts [k col]]
+                                       (if-let [cnt (get counts k)]
+                                         (->> (max cnt (count (str col)))
+                                              (assoc! counts k))
+                                         counts))
+                                     counts
+                                     row))
+                           (->> ks
+                                (map (comp count str))
+                                (zipmap ks)
+                                transient)
+                           rows))]
+       (letfn [(fmt-row [start end joiner elems]
+                 (as-> elems $
+                   (str/join joiner $)
+                   (str start $ end)))
+               (row-str [row]
+                 (->> (map #(str/lpad (str (get row %)) (get widths %)) ks)
+                      (fmt-row "| " " |" " | ")))]
+         (println (row-str (zipmap ks ks)))
+         (->> (map #(apply str (repeat (get widths %) "-")) ks)
+              (fmt-row "+-" "-+" "-+-")
+              (println))
+         (doseq [row rows]
+           (println (row-str row))))))))

@@ -1,0 +1,52 @@
+(ns tests.basilisp.test-pprint
+  (:require
+   [basilisp.pprint :as pprint]
+   [basilisp.string :as str]
+   [basilisp.test :refer [deftest are is testing]])
+  (:import textwrap))
+
+(defn trim-newlines-and-dedent
+  [s]
+  (str/ltrim (textwrap/dedent s)))
+
+(deftest print-table-test
+  (is (= "" (with-out-str (pprint/print-table []))))
+  (is (= "" (with-out-str (pprint/print-table [:a :b :c] []))))
+
+  (is (= (trim-newlines-and-dedent
+          "
+          |     :a |
+          +--------+
+          |      1 |
+          |      b |
+          | :horse |
+          ")
+         (with-out-str (pprint/print-table [{:a 1} {:a "b"} {:a :horse}]))))
+
+  (is (= (trim-newlines-and-dedent
+          "
+          |  :a | :b |                 :c |
+          +-----+----+--------------------+
+          |   1 |  2 |                  3 |
+          |   7 |  5 | catdogbirdsquirrel |
+          | 432 |  f |                    |
+          ")
+         (with-out-str
+           (pprint/print-table [:a :b :c]
+                               [{:a 1 :b 2 :c 3}
+                                {:b 5 :a 7 :c "catdogbirdsquirrel"}
+                                {:a 432 :b "f"}]))))
+
+  (is (= (trim-newlines-and-dedent
+          "
+          |  :a | :b |                 :c | :d |
+          +-----+----+--------------------+----+
+          |   1 |  2 |                  3 |    |
+          |   7 |  5 | catdogbirdsquirrel |    |
+          | 432 |  f |                    |    |
+          ")
+         (with-out-str
+           (pprint/print-table [:a :b :c :d]
+                               [{:a 1 :b 2 :c 3}
+                                {:b 5 :a 7 :c "catdogbirdsquirrel"}
+                                {:a 432 :b "f"}])))))

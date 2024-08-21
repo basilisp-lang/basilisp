@@ -3049,7 +3049,7 @@ def _local_sym_to_py_ast(
     assert node.op == NodeOp.LOCAL
 
     sym_entry = ctx.symbol_table.find_symbol(sym.symbol(node.name))
-    assert sym_entry is not None
+    assert sym_entry is not None, f"Expected symbol {sym.symbol(node.name)}"
 
     if node.local == LocalType.FIELD:
         this_entry = ctx.symbol_table.find_symbol(ctx.current_this)
