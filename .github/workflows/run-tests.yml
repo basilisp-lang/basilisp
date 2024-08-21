@@ -36,12 +36,12 @@ jobs:
             tox-env: py312,safety
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.version }}
       - name: Cache dependencies
         id: cache-deps
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             .tox
@@ -73,7 +73,7 @@ jobs:
           mv .coverage.* "coverage/.coverage.py${{ matrix.version }}"
       - name: Archive code coverage results
         if: "startsWith (matrix.os, 'ubuntu')"
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: code-coverage
           path: coverage/.coverage.py*
@@ -91,12 +91,12 @@ jobs:
             tox-env: pypy310
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: pypy${{ matrix.version }}
       - name: Cache dependencies
         id: cache-deps
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             .tox
@@ -122,7 +122,7 @@ jobs:
           mkdir coverage
           mv .coverage.* "coverage/.coverage.py${{ matrix.version }}"
       - name: Archive code coverage results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: code-coverage
           path: coverage/.coverage.py*
@@ -148,12 +148,12 @@ jobs:
         tox-env: ['py38']
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.version }}
       - name: Cache dependencies
         id: cache-deps
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             .tox
@@ -190,12 +190,12 @@ jobs:
      - run-pypy-tests
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ vars.PYTHON_VERSION }}
       - name: Cache dependencies
         id: cache-deps
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             .tox
