@@ -4477,9 +4477,8 @@
    "Eagerly read all forms from the ``stream``\\. If no stream is specified, uses the
   value currently bound to :lpy:var:`*in*`.
 
-  Callers may bind a map of readers to :lpy:var:`*data-readers*` or a default data
-  reader function to :lpy:var::`*default-data-reader-fn*` to customize the data
-  readers used reading this string
+  Callers may bind a map of readers to :lpy:var:`*data-readers*` to customize
+  the data readers used reading this string
 
   The stream must satisfy the interface of :external:py:class:`io.TextIOBase`\\, but
   does not require any pushback capabilities. The default
