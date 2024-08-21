@@ -75,7 +75,7 @@ jobs:
         if: "startsWith (matrix.os, 'ubuntu')"
         uses: actions/upload-artifact@v4
         with:
-          name: code-coverage
+          name: code-coverage.pypy${{ matrix.version }}
           path: coverage/.coverage.py*
 
   run-pypy-tests:
@@ -124,7 +124,7 @@ jobs:
       - name: Archive code coverage results
         uses: actions/upload-artifact@v4
         with:
-          name: code-coverage
+          name: code-coverage.py${{ matrix.version }}
           path: coverage/.coverage.py*
 
   min-deps-test:
@@ -211,9 +211,9 @@ jobs:
           pip install -U pip
           pip install tox
       - name: Download code coverage
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: code-coverage
+          merge-multiple: true
       - name: Combine Coverage files from all supported Python versions
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
