@@ -1,0 +1,163 @@
+(ns tests.basilisp.test-data-readers
+  (:import os
+           [basilisp.lang.reader :as reader])
+  (:require
+   [basilisp.test :as test :refer [deftest are is testing]]
+   [basilisp.test.fixtures :as fixtures :refer [*tempdir*]]))
+
+(defn make-path-file
+  [path text]
+  (assert *tempdir* "Missing tempdir fixture")
+  (let [path (if (string? path) [path] path)
+        dir  (apply (.-join os/path) *tempdir*
+                    (butlast path))
+        file (.join os/path dir (last path))]
+    (os/makedirs dir ** :exist_ok true)
+    (with-open [wtr (python/open file ** :mode "w")]
+      (.write wtr text))))
+
+(defn path-files-fixture
+  []
+  (assert *tempdir* "Missing tempdir fixture")
+  (.insert sys/path 0 *tempdir*)
+  (yield))
+
+(defn reset-data-readers-fixture
+  []
+  (let [original *data-readers*]
+    (try
+      (yield)
+      (finally
+        (alter-var-root #'*data-readers* (constantly original))))))
+
+(test/use-fixtures :each
+  fixtures/tempdir
+  fixtures/reset-path
+  fixtures/reset-environment
+  (fixtures/reset-attribute (.-entry_points importlib/metadata))
+  path-files-fixture
+  reset-data-readers-fixture)
+
+(def custom-data-reader list)
+
+(deftest load-data-readers-from-path-test
+  (testing "top level"
+    (make-path-file "data_readers.lpy"
+                    (pr-str {'test/test `custom-data-reader}))
+    (#'basilisp.core/load-data-readers)
+    (is (= #'custom-data-reader (get *data-readers* 'test/test)))
+    (is (= '(x) (read-string "#test/test x"))))
+
+  (testing "from module"
+    (make-path-file ["my_module" "data_readers.lpy"]
+                    (pr-str {'test/test2 `custom-data-reader}))
+    (#'basilisp.core/load-data-readers)
+    (is (= #'custom-data-reader (get *data-readers* 'test/test2)))
+    (is (= '(x) (read-string "#test/test2 x"))))
+
+  (testing "from submodule"
+    (make-path-file ["my_module" "submodule" "data_readers.lpy"]
+                    (pr-str {'test/test3 `custom-data-reader}))
+    (#'basilisp.core/load-data-readers)
+    (is (= #'custom-data-reader (get *data-readers* 'test/test3)))
+    (is (= '(x) (read-string "#test/test3 x"))))
+
+  (testing "from cljc file"
+    (make-path-file ["from_cljc" "data_readers.cljc"]
+                    (pr-str {'test/test4 `custom-data-reader}))
+    (#'basilisp.core/load-data-readers)
+    (is (= #'custom-data-reader (get *data-readers* 'test/test4)))
+    (is (= '(x) (read-string "#test/test4 x"))))
+
+  (testing "prefer lpy to cljc"
+    (make-path-file ["prefer_lpy_to_cljc" "data_readers.lpy"]
+                    (pr-str {'test/test5 `custom-data-reader}))
+    (make-path-file ["prefer_lpy_to_cljc" "data_readers.cljc"]
+                    (pr-str {'test/test5 (constantly :fail)}))
+    (#'basilisp.core/load-data-readers)
+    (is (= #'custom-data-reader (get *data-readers* 'test/test3)))
+    (is (= '(x) (read-string "#test/test5 x"))))
+
+  (testing "does not load clj file"
+    (make-path-file ["from_clj" "data_readers.clj"]
+                    (pr-str {'test/fail `custom-data-reader}))
+    (#'basilisp.core/load-data-readers)
+    (is (not (contains? *data-readers* 'test/fail)))
+    (is (thrown? reader/SyntaxError (read-string "#test/fail x")))))
+
+(def data-readers
+  {'test/test (fn [x] (vector x))})
+
+(def other-data-readers
+  {'test/test2 'basilisp.core/list})
+
+(def fail-data-readers
+  {'test/fail (constantly :fail)})
+
+(defn entry-point
+  [entry-point-name group var]
+  (importlib.metadata/EntryPoint entry-point-name
+                                 (str (-> var namespace str munge)
+                                      ":"
+                                      (-> var name str munge))
+                                 group))
+
+(defn set-entry-points!
+  [m]
+  (set! (.-entry_points importlib/metadata)
+        #?(:lpy39-  (fn [] m)
+           :lpy310+
+           ^{:kwargs :collect}
+           (fn [{:keys [group]}] (get m group)))))
+
+(deftest load-data-readers-from-entry-points-test
+  (testing "load from \"basilisp_data_readers\" group"
+    (set-entry-points!
+     {"basilisp_data_readers" [(entry-point "test"
+                                            "basilisp_data_readers"
+                                            #'data-readers)]})
+    (#'basilisp.core/load-data-readers)
+    (is (= (get data-readers 'test/test) (get *data-readers* 'test/test)))
+    (is (= '[x] (read-string "#test/test x"))))
+
+  (testing "do not load from other groups"
+    (set-entry-points!
+     {"other_group" [(entry-point "do_not_load"
+                                  "other_group"
+                                  #'fail-data-readers)]})
+    (#'basilisp.core/load-data-readers)
+    (is (not (contains? *data-readers* 'test/fail))))
+
+  (testing "load nothing if disabled"
+    (set-entry-points! (reify
+                         basilisp.lang.interfaces/ILookup
+                         (val-at [k v not-found]
+                           (is (not (any? k)))
+                           [(entry-point "do_not_load"
+                                         "basilisp_data_readers"
+                                         #'fail-data-readers)])))
+    (.update os/environ {"BASILISP_DATA_READERS_ENTRY_POINTS" "false"})
+    (let [data-readers *data-readers*]
+      (#'basilisp.core/load-data-readers)
+      (is (= data-readers *data-readers*)))))
+
+(deftest load-data-readers-exceptional-cases-test
+  (testing "data readers must be a map"
+    (make-path-file "data_readers.lpy" (pr-str nil))
+    (is (thrown-with-msg? basilisp.lang.exception/ExceptionInfo
+                          #"Not a valid data-reader map"
+                          (#'basilisp.core/load-data-readers))))
+
+  (testing "tags must be namespaced"
+    (make-path-file "data_readers.lpy" (pr-str {'fail `vector}))
+    (is (thrown-with-msg?
+         basilisp.lang.exception/ExceptionInfo
+         #"Invalid tag in data-readers. Expected qualified symbol."
+         (#'basilisp.core/load-data-readers))))
+
+  (testing "tags cannot conflict"
+    (make-path-file "data_readers.lpy" (pr-str {'test/test `vector}))
+    (make-path-file ["other" "data_readers.lpy"] (pr-str {'test/test `list}))
+    (is (thrown-with-msg? basilisp.lang.exception/ExceptionInfo
+                          #"Conflicting data-reader mapping"
+                          (#'basilisp.core/load-data-readers)))))

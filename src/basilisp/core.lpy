@@ -4400,9 +4400,9 @@
   [fmt & args]
   (print (apply format fmt args)))
 
-;;;;;;;;;;;;;;;;;;;;
-;; REPL Utilities ;;
-;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Reading and Loading ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (def
   ^{:doc "The default data readers used in reader macros. Overriding or
@@ -4427,6 +4427,14 @@
     :dynamic true}
   *resolver*
   basilisp.lang.runtime/resolve-alias)
+
+(def ^{:doc "When no data reader is found for a tag and ``*default-data-reader-fn*``
+            is non-``nil``, it will be called with two arguments, the tag and the value.
+            If ``*default-data-reader-fn*`` is ``nil`` (the default), raise a
+            ``basilisp.lang.compiler.SyntaxError``."
+       :dynamic true}
+  *default-data-reader-fn*
+  nil)
 
 (defn- read-iterator
   [opts x]
@@ -4457,8 +4465,9 @@
   "Read the next form from the ``stream``\\. If no stream is specified, uses the value
   currently bound to :lpy:var:`*in*`.
 
-  Callers may bind a map of readers to :lpy:var:`*data-readers*` to customize the data
-  readers used reading this string.
+  Callers may bind a map of readers to :lpy:var:`*data-readers*` or a default data
+  reader function to :lpy:var::`*default-data-reader-fn*` to customize the data
+  readers used reading this string
 
   The stream must satisfy the interface of :external:py:class:`io.TextIOBase`\\, but
   does not require any pushback capabilities. The default
@@ -4477,8 +4486,9 @@
    "Eagerly read all forms from the ``stream``\\. If no stream is specified, uses the
   value currently bound to :lpy:var:`*in*`.
 
-  Callers may bind a map of readers to :lpy:var:`*data-readers*` to customize
-  the data readers used reading this string
+  Callers may bind a map of readers to :lpy:var:`*data-readers*` or a default data
+  reader function to :lpy:var::`*default-data-reader-fn*` to customize the data
+  readers used reading this string
 
   The stream must satisfy the interface of :external:py:class:`io.TextIOBase`\\, but
   does not require any pushback capabilities. The default
@@ -7023,6 +7033,94 @@
   (with-open [writer (apply basilisp.io/writer f opts)]
     (.write writer content)
     nil))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Custom Data Readers ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defmulti ^:private make-custom-data-readers
+  (fn [obj metadata] (type obj)))
+
+(defmethod make-custom-data-readers :default
+  [obj mta]
+  (throw (ex-info "Not a valid data-reader map" (assoc mta :object obj))))
+
+(defmethod make-custom-data-readers basilisp.lang.interfaces/IPersistentMap
+  [mappings mta]
+  (reduce (fn [m [k v]]
+            (let [v' (if (qualified-symbol? v)
+                       (intern (create-ns (symbol (namespace v)))
+                               (symbol (name v)))
+                       v)]
+              (cond
+                (not (qualified-symbol? k))
+                (throw
+                 (ex-info "Invalid tag in data-readers. Expected qualified symbol."
+                          (merge mta {:form k})))
+
+                (not (ifn? v'))
+                (throw (ex-info "Invalid reader function in data-readers"
+                                (merge mta {:form v})))
+
+                :else
+                (assoc m (with-meta k mta) v'))))
+          mappings
+          mappings))
+
+(defmethod make-custom-data-readers importlib.metadata/EntryPoint
+  [entry-point mta]
+  (make-custom-data-readers (.load entry-point)
+                            (assoc mta
+                                   :entry-point/name (.-name entry-point)
+                                   :entry-point/group (.-group entry-point))))
+
+(defmethod make-custom-data-readers pathlib/Path
+  [file mta]
+  (make-custom-data-readers
+   (with-open [rdr (basilisp.io/reader file)]
+     (read (if (.endswith (name file) "cljc")
+             {:eof nil :read-cond :allow}
+             {:eof nil})
+           rdr))
+   (assoc mta :file (str file))))
+
+(defn- data-readers-entry-points []
+  (when (#{"true" "t" "1" "yes" "y"} (.lower
+                                      (os/getenv
+                                       "BASILISP_DATA_READERS_ENTRY_POINTS"
+                                       "true")))
+    (#?@(:lpy39-  [get (.entry_points importlib/metadata)]
+         :lpy310+ [.entry_points importlib/metadata ** :group])
+     "basilisp_data_readers")))
+
+(defn- data-readers-files []
+  (->> sys/path
+       (mapcat file-seq)
+       (filter (comp #{"data_readers.lpy" "data_readers.cljc"} name))
+       (group-by #(.-parent %))
+       vals
+       ;; Only load one data readers file per directory and prefer
+       ;; `data_readers.lpy` to `data_readers.cljc`
+       (map #(first (sort-by name > %)))))
+
+(defn- load-data-readers []
+  (alter-var-root
+   #'*data-readers*
+   (fn [mappings additional-mappings]
+     (reduce (fn [m [k v]]
+               (if (not= (get m k v) v)
+                 (throw (ex-info "Conflicting data-reader mapping"
+                                 (merge (meta k) {:conflict k, :mappings m})))
+                 (assoc m k v)))
+             mappings
+             additional-mappings))
+   ;; Can't use `read` when altering `*data-readers*` so do reads ahead of time
+   (->> (concat (data-readers-files)
+                (data-readers-entry-points))
+        (mapcat #(make-custom-data-readers % nil))
+        doall)))
+
+(load-data-readers)
 
 ;;;;;;;;;;;;;;;;;
 ;; Transducers ;;

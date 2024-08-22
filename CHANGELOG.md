@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  * Added the `CollReduce` and `KVReduce` protocols in `basilisp.core.protocols` and implemented `reduce` in terms of those protocols (#927)
+ * Added support for custom data readers (#924)
+ * Added `*default-data-reader-fn*` (#924)
  * Added `basilisp.pprint/print-table` function (#983)
  * Added `basilisp.core/read-all` function (#986)
 
