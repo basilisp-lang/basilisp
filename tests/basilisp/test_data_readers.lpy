@@ -34,7 +34,7 @@
   fixtures/tempdir
   fixtures/reset-path
   fixtures/reset-environment
-  (fixtures/reset-attribute (.-entry_points importlib/metadata))
+  (fixtures/reset-attribute (.-entry-points importlib/metadata))
   path-files-fixture
   reset-data-readers-fixture)
 
