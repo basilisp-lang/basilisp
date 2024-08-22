@@ -481,7 +481,7 @@ It will search in :external:py:attr:`sys.path` for files named ``data_readers.lp
 
 It will also search for any :external:py:class:`importlib.metadata.EntryPoint` in the group ``basilisp_data_readers`` group.
 Entry points must refer to a map of data readers.
-This can be customized with the ``BASILISP_DATA_READERS_ENTRY_POINT_GROUPS`` environment variable.
+This can be disabled by setting the ``BASILISP_USE_DATA_READERS_ENTRY_POINT`` environment variable to ``false``.
 
 .. _default_data_reader_fn:
 
