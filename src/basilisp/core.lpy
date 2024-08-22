@@ -7071,8 +7071,8 @@
   [entry-point mta]
   (make-custom-data-readers (.load entry-point)
                             (assoc mta
-                                   :entry-point/name (.-name entry-point)
-                                   :entry-point/group (.-group entry-point))))
+                                   :basilisp.entry-point/name (.-name entry-point)
+                                   :basilisp.entry-point/group (.-group entry-point))))
 
 (defmethod make-custom-data-readers pathlib/Path
   [file mta]
