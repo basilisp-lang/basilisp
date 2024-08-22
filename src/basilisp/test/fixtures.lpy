@@ -39,7 +39,8 @@
       (finally (set! (.-path sys) original)))))
 
 (defn reset-environment
-  "Test fixture to reset environment variables back to their original state."
+  "Test fixture to reset :external:py:data:`os.environ` back to its original state
+  after a test run."
   []
   (let [original (into {} (.items os/environ))]
     (try
