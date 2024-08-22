@@ -260,7 +260,7 @@ def _add_runtime_arg_group(parser: argparse.ArgumentParser) -> None:
     group.add_argument(
         "--data-readers-entry-points",
         action=_set_envvar_action(
-            "BASILISP_DATA_READERS_ENTRY_POINTS", parent=argparse._StoreAction
+            "BASILISP_USE_DATA_READERS_ENTRY_POINT", parent=argparse._StoreAction
         ),
         nargs="?",
         const=_to_bool(os.getenv("BASILISP_DATA_READERS_ENTRY_POINTS", "true")),
