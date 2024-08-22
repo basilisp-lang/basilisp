@@ -30,7 +30,8 @@
          (finally (set! ~attr original#))))))
 
 (defn reset-path
-  "Test fixture to reset the system path back to it's original state."
+  "Test fixture to reset :external:py:data:`sys.path` back to its original state
+  after a test run."
   []
   (let [original (.copy sys/path)]
     (try
