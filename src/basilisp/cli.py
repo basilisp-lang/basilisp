@@ -263,12 +263,12 @@ def _add_runtime_arg_group(parser: argparse.ArgumentParser) -> None:
             "BASILISP_USE_DATA_READERS_ENTRY_POINT", parent=argparse._StoreAction
         ),
         nargs="?",
-        const=_to_bool(os.getenv("BASILISP_DATA_READERS_ENTRY_POINTS", "true")),
+        const=_to_bool(os.getenv("BASILISP_USE_DATA_READERS_ENTRY_POINT", "true")),
         type=_to_bool,
         help=(
             "If true, Load data readers from importlib entry points in the "
             '"basilisp_data_readers" group. (env: '
-            "BASILISP_DATA_READERS_ENTRY_POINTS; default: true)"
+            "BASILISP_USE_DATA_READERS_ENTRY_POINT; default: true)"
         ),
     )
 

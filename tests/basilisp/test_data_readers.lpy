@@ -136,7 +136,7 @@
                            [(entry-point "do_not_load"
                                          "basilisp_data_readers"
                                          #'fail-data-readers)])))
-    (.update os/environ {"BASILISP_DATA_READERS_ENTRY_POINTS" "false"})
+    (.update os/environ {"BASILISP_USE_DATA_READERS_ENTRY_POINT" "false"})
     (let [data-readers *data-readers*]
       (#'basilisp.core/load-data-readers)
       (is (= data-readers *data-readers*)))))

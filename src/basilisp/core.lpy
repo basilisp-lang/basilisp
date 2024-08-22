@@ -7087,7 +7087,7 @@
 (defn- data-readers-entry-points []
   (when (#{"true" "t" "1" "yes" "y"} (.lower
                                       (os/getenv
-                                       "BASILISP_DATA_READERS_ENTRY_POINTS"
+                                       "BASILISP_USE_DATA_READERS_ENTRY_POINT"
                                        "true")))
     (#?@(:lpy39-  [get (.entry_points importlib/metadata)]
          :lpy310+ [.entry_points importlib/metadata ** :group])
