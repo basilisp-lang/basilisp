@@ -110,7 +110,7 @@ omit = [
 [tool.coverage.paths]
 source = [
    "src/basilisp",
-   ".tox/*/lib/python*/site-packages/basilisp",
+   ".tox/*/lib/py*/site-packages/basilisp",
    ".tox/pypy*/site-packages/basilisp",
 ]
 
