@@ -1,6 +1,7 @@
 (ns tests.basilisp.test-core-macros
   (:import contextlib inspect os socket tempfile)
   (:require
+   [basilisp.string :as str]
    [basilisp.test :refer [deftest is testing]]))
 
 (deftest defn-test
@@ -487,6 +488,9 @@
     (is (thrown? python/FloatingPointError
                  (with [sock (socket/socket socket/AF_INET socket/SOCK_STREAM)]
                        (throw python/FloatingPointError))))))
+
+(deftest time-test
+  (is (str/includes? (with-out-str (time 123)) "msecs")))
 
 (deftest if-let-test
   (is (= :a (if-let [a :a] a :b)))
