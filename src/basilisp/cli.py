@@ -18,6 +18,7 @@ from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
 from basilisp.lang.exception import print_exception
+from basilisp.lang.typing import CompilerOpts
 from basilisp.lang.util import munge
 from basilisp.prompt import get_prompter
 
@@ -233,6 +234,20 @@ def _add_compiler_arg_group(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _compiler_opts(args: argparse.Namespace) -> CompilerOpts:
+    return compiler.compiler_opts(
+        generate_auto_inlines=args.generate_auto_inlines,
+        inline_functions=args.inline_functions,
+        warn_on_arity_mismatch=args.warn_on_arity_mismatch,
+        warn_on_shadowed_name=args.warn_on_shadowed_name,
+        warn_on_shadowed_var=args.warn_on_shadowed_var,
+        warn_on_non_dynamic_set=args.warn_on_non_dynamic_set,
+        warn_on_unused_names=args.warn_on_unused_names,
+        use_var_indirection=args.use_var_indirection,
+        warn_on_var_indirection=args.warn_on_var_indirection,
+    )
+
+
 def _add_debug_arg_group(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("debug options")
     group.add_argument(
@@ -370,8 +385,7 @@ def nrepl_server(
     _,
     args: argparse.Namespace,
 ) -> None:
-    opts = compiler.compiler_opts()
-    basilisp.init(opts)
+    basilisp.init(_compiler_opts(args))
     nrepl_server_mod = importlib.import_module(munge(NREPL_SERVER_NS))
     nrepl_server_mod.start_server__BANG__(
         lmap.map(
@@ -407,6 +421,7 @@ def _add_nrepl_server_subcommand(parser: argparse.ArgumentParser) -> None:
         default=".nrepl-port",
         help='the file path where the server port number is output to, defaults to ".nrepl-port".',
     )
+    _add_compiler_arg_group(parser)
     _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 
@@ -415,13 +430,7 @@ def repl(
     _,
     args: argparse.Namespace,
 ) -> None:
-    opts = compiler.compiler_opts(
-        warn_on_shadowed_name=args.warn_on_shadowed_name,
-        warn_on_shadowed_var=args.warn_on_shadowed_var,
-        warn_on_unused_names=args.warn_on_unused_names,
-        use_var_indirection=args.use_var_indirection,
-        warn_on_var_indirection=args.warn_on_var_indirection,
-    )
+    opts = _compiler_opts(args)
     basilisp.init(opts)
     ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts=opts)
     prompter = get_prompter()
@@ -521,13 +530,7 @@ def run(
     else:
         in_ns = target if args.in_ns is not None else runtime.REPL_DEFAULT_NS
 
-    opts = compiler.compiler_opts(
-        warn_on_shadowed_name=args.warn_on_shadowed_name,
-        warn_on_shadowed_var=args.warn_on_shadowed_var,
-        warn_on_unused_names=args.warn_on_unused_names,
-        use_var_indirection=args.use_var_indirection,
-        warn_on_var_indirection=args.warn_on_var_indirection,
-    )
+    opts = _compiler_opts(args)
     basilisp.init(opts)
     ctx = compiler.CompilerContext(
         filename=(
@@ -621,6 +624,7 @@ def _add_run_subcommand(parser: argparse.ArgumentParser) -> None:
 def test(
     parser: argparse.ArgumentParser, args: argparse.Namespace
 ) -> None:  # pragma: no cover
+    basilisp.init(_compiler_opts(args))
     try:
         import pytest
     except (ImportError, ModuleNotFoundError):
@@ -639,6 +643,7 @@ def test(
 )
 def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("args", nargs=-1)
+    _add_compiler_arg_group(parser)
     _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 

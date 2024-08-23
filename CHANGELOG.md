@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added `*default-data-reader-fn*` (#924)
  * Added `basilisp.pprint/print-table` function (#983)
  * Added `basilisp.core/read-all` function (#986)
+ * Added various compiler arguments to cli commands (#989)
 
 ### Changed
  * Improved on the nREPL server exception messages by matching that of the REPL user friendly format (#968)
