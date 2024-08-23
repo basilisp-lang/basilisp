@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
  * Fixed inconsistent behavior with `basilisp.core/with` when the `body` contains more than one form (#981)
  * Fixed an issue with `basilisp.core/time` failing when called outside of the core ns (#991)
+ * Fixed an issue with `basilisp.core/promise` where a thread waiting for a value from another thread might not wake up immediately upon delivery (#983).
 
 ### Removed
  * Removed `python-dateutil` and `readerwriterlock` as dependencies, switching to standard library components instead (#976)
