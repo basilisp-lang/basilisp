@@ -21,6 +21,7 @@ from typing import (
     Iterable,
     List,
     MutableMapping,
+    NoReturn,
     Optional,
     Pattern,
     Sequence,
@@ -129,6 +130,7 @@ COMMENT = Comment()
 
 LispReaderForm = Union[ReaderForm, Comment, "ReaderConditional"]
 RawReaderForm = Union[ReaderForm, "ReaderConditional"]
+DefaultDataReaderFn = Callable[[sym.Symbol, RawReaderForm], Any]
 
 
 # pylint:disable=redefined-builtin
@@ -334,6 +336,10 @@ def _uuid_from_str(uuid_str: str) -> uuid.UUID:
         raise SyntaxError(f"Unrecognized UUID format: {uuid_str}") from e
 
 
+def _raise_unknown_tag(s: sym.Symbol, v: LispReaderForm) -> NoReturn:
+    raise SyntaxError(f"No data reader found for tag #{s}")
+
+
 class ReaderContext:
     _DATA_READERS = lmap.map(
         {
@@ -346,6 +352,7 @@ class ReaderContext:
 
     __slots__ = (
         "_data_readers",
+        "_default_data_reader_fn",
         "_features",
         "_process_reader_cond",
         "_reader",
@@ -364,21 +371,13 @@ class ReaderContext:
         eof: Any = None,
         features: Optional[IPersistentSet[kw.Keyword]] = None,
         process_reader_cond: bool = True,
+        default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
     ) -> None:
-        data_readers = Maybe(data_readers).or_else_get(lmap.PersistentMap.empty())
-        for reader_sym in data_readers.keys():
-            if not isinstance(reader_sym, sym.Symbol):
-                raise TypeError("Expected symbol for data reader tag")
-            if not reader_sym.ns:
-                raise ValueError("Non-namespaced tags are reserved by the reader")
-
-        self._data_readers = ReaderContext._DATA_READERS.update_with(
-            lambda l, r: l,  # Do not allow callers to overwrite existing builtin readers
-            data_readers,
+        self._data_readers = Maybe(data_readers).or_else_get(lmap.EMPTY)
+        self._default_data_reader_fn = Maybe(default_data_reader_fn).or_else_get(
+            _raise_unknown_tag
         )
-        self._features = (
-            features if features is not None else READER_COND_DEFAULT_FEATURE_SET
-        )
+        self._features = Maybe(features).or_else_get(READER_COND_DEFAULT_FEATURE_SET)
         self._process_reader_cond = process_reader_cond
         self._reader = reader
         self._resolve = Maybe(resolver).or_else_get(lambda x: x)
@@ -390,6 +389,10 @@ class ReaderContext:
     @property
     def data_readers(self) -> lmap.PersistentMap:
         return self._data_readers
+
+    @property
+    def default_data_reader_fn(self) -> DefaultDataReaderFn:
+        return self._default_data_reader_fn
 
     @property
     def eof(self) -> Any:
@@ -1554,10 +1557,16 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
             return _read_byte_str(ctx)
 
         v = _read_next_consuming_comment(ctx)
+
+        data_reader = None
         if s in ctx.data_readers:
-            f = ctx.data_readers[s]
+            data_reader = ctx.data_readers[s]
+        elif s in ReaderContext._DATA_READERS:
+            data_reader = ReaderContext._DATA_READERS[s]
+
+        if data_reader is not None:
             try:
-                return f(v)
+                return data_reader(v)
             except SyntaxError as e:
                 raise ctx.syntax_error(e.message).with_traceback(
                     e.__traceback__
@@ -1565,7 +1574,12 @@ def _read_reader_macro(ctx: ReaderContext) -> LispReaderForm:  # noqa: MC0001
         elif s.ns is None and "." in s.name:
             return _load_record_or_type(ctx, s, v)
         else:
-            raise ctx.syntax_error(f"No data reader found for tag #{s}")
+            try:
+                return ctx.default_data_reader_fn(s, v)
+            except SyntaxError as e:
+                raise ctx.syntax_error(e.message).with_traceback(
+                    e.__traceback__
+                ) from None
 
     raise ctx.syntax_error(f"Unexpected char '{char}' in reader macro")
 
@@ -1656,6 +1670,7 @@ def syntax_quote(  # pylint: disable=too-many-arguments
     eof: Any = EOF,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
+    default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
 ):
     """Return the syntax quoted version of a form."""
     # the buffer is unused here, but is necessary to create a ReaderContext
@@ -1667,6 +1682,7 @@ def syntax_quote(  # pylint: disable=too-many-arguments
             eof=eof,
             features=features,
             process_reader_cond=process_reader_cond,
+            default_data_reader_fn=default_data_reader_fn,
         )
         return _process_syntax_quoted_form(ctx, form)
 
@@ -1679,6 +1695,7 @@ def read(  # pylint: disable=too-many-arguments
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
+    default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a stream as a Lisp expression.
 
@@ -1708,6 +1725,7 @@ def read(  # pylint: disable=too-many-arguments
         eof=eof,
         features=features,
         process_reader_cond=process_reader_cond,
+        default_data_reader_fn=default_data_reader_fn,
     )
     while True:
         expr = _read_next(ctx)
@@ -1733,6 +1751,7 @@ def read_str(  # pylint: disable=too-many-arguments
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
+    default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a string as a Lisp expression.
 
@@ -1747,6 +1766,7 @@ def read_str(  # pylint: disable=too-many-arguments
             is_eof_error=is_eof_error,
             features=features,
             process_reader_cond=process_reader_cond,
+            default_data_reader_fn=default_data_reader_fn,
         )
 
 
@@ -1758,6 +1778,7 @@ def read_file(  # pylint: disable=too-many-arguments
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
+    default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a file as a Lisp expression.
 
@@ -1772,4 +1793,5 @@ def read_file(  # pylint: disable=too-many-arguments
             is_eof_error=is_eof_error,
             features=features,
             process_reader_cond=process_reader_cond,
+            default_data_reader_fn=default_data_reader_fn,
         )

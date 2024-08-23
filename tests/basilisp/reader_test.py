@@ -36,6 +36,7 @@ def read_str_first(
     is_eof_error: bool = False,
     features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
+    default_data_reader_fn=None,
 ):
     """Read the first form from the input string. If no form
     is found, return None."""
@@ -48,6 +49,7 @@ def read_str_first(
                 is_eof_error=is_eof_error,
                 features=features,
                 process_reader_cond=process_reader_cond,
+                default_data_reader_fn=default_data_reader_fn,
             )
         )
     except StopIteration:
@@ -1724,23 +1726,25 @@ def test_python_literals():
         read_str_first("#py 3")
 
 
-def test_namespace_tags_allowed():
+def test_data_readers_qualified_tag():
     assert "s" == read_str_first(
         '#foo/bar "s"',
         data_readers=lmap.map({sym.symbol("bar", ns="foo"): lambda v: v}),
     )
 
 
-def test_non_namespaced_tags_reserved():
-    with pytest.raises(TypeError):
-        read_str_first(
-            "#boop :hi", data_readers=lmap.map({kw.keyword("boop"): lambda v: v})
-        )
+def test_data_readers_simple_tag():
+    assert "s" == read_str_first(
+        '#bar "s"',
+        data_readers=lmap.map({sym.symbol("bar"): lambda v: v}),
+    )
 
-    with pytest.raises(ValueError):
-        read_str_first(
-            "#boop :hi", data_readers=lmap.map({sym.symbol("boop"): lambda v: v})
-        )
+
+def test_default_data_reader_fn():
+    tag = sym.symbol("bar", ns="foo")
+    assert (tag, "s") == read_str_first(
+        '#foo/bar "s"', default_data_reader_fn=lambda tag, v: (tag, v)
+    )
 
 
 def test_not_found_tag_error():

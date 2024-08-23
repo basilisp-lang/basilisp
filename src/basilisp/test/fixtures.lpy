@@ -1,6 +1,7 @@
 (ns basilisp.test.fixtures
   "Built-in fixtures which may be useful in Basilisp tests."
   (:import
+   os
    tempfile))
 
 (def ^:dynamic *tempdir*
@@ -16,3 +17,38 @@
   (with-open [d (tempfile/TemporaryDirectory)]
     (binding [*tempdir* d]
       (yield))))
+
+(defmacro reset-attribute
+  "Test fixture to reset an attribute back to the value it referenced
+  before the fixture was applied. Note: if the original value has
+  mutated these mutations will not be undo."
+  [attr]
+  `(fn []
+     (let [original# ~attr]
+       (try
+         (yield)
+         (finally (set! ~attr original#))))))
+
+(defn reset-path
+  "Test fixture to reset :external:py:data:`sys.path` back to its original state
+  after a test run."
+  []
+  (let [original (.copy sys/path)]
+    (try
+      (yield)
+      (finally (set! (.-path sys) original)))))
+
+(defn reset-environment
+  "Test fixture to reset :external:py:data:`os.environ` back to its original state
+  after a test run."
+  []
+  (let [original (into {} (.items os/environ))]
+    (try
+      (yield)
+      (finally
+        (doseq [[env v] (into {} (.items os/environ))]
+          (if (contains? original env)
+            (let [ov (get original env)]
+              (when (not= ov v)
+                (.update os/environ {env ov})))
+            (.pop os/environ env)))))))

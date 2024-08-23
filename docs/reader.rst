@@ -465,6 +465,32 @@ Python literals use the matching syntax to the corresponding Python data type, w
 * ``#py {}`` produces a Python `dict <https://docs.python.org/3/library/stdtypes.html#dict>`_ type.
 * ``#py #{}`` produces a Python `set <https://docs.python.org/3/library/stdtypes.html#set>`_ type.
 
+.. _custom_data_readers:
+
+Custom Data Readers
+^^^^^^^^^^^^^^^^^^^
+
+`Like Clojure <https://clojure.org/reference/reader#tagged_literals>`_ , data readers can be changed by binding  :lpy:var:`*data-readers*`.
+
+When Basilisp starts it can load data readers from multiple sources.
+
+It will search in :external:py:attr:`sys.path` for files named ``data_readers.lpy`` or else ``data_readers.cljc``; each which must contain a mapping of qualified symbol tags to qualified symbols of function vars.
+
+.. code-block:: clojure
+    {my/tag my.namespace/tag-handler}
+
+It will also search for any :external:py:class:`importlib.metadata.EntryPoint` in the group ``basilisp_data_readers`` group.
+Entry points must refer to a map of data readers.
+This can be disabled by setting the ``BASILISP_USE_DATA_READERS_ENTRY_POINT`` environment variable to ``false``.
+
+.. _default_data_reader_fn:
+
+Default Data Reader Function
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+By default, an exception will be raised if the reader encounters a tag that it doesn't have a data reader for.
+This can be customised by binding :lpy:var:`*default-data-readers-fn*`.
+It should be a function which is a function that takes two arguments, the tag symbol, and the value form.
+
 .. _reader_special_chars:
 
 Special Characters

@@ -250,6 +250,29 @@ def _add_debug_arg_group(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_runtime_arg_group(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group(
+        "runtime arguments",
+        description=(
+            "The runtime arguments below affect reader and execution time features."
+        ),
+    )
+    group.add_argument(
+        "--data-readers-entry-points",
+        action=_set_envvar_action(
+            "BASILISP_USE_DATA_READERS_ENTRY_POINT", parent=argparse._StoreAction
+        ),
+        nargs="?",
+        const=_to_bool(os.getenv("BASILISP_USE_DATA_READERS_ENTRY_POINT", "true")),
+        type=_to_bool,
+        help=(
+            "If true, Load data readers from importlib entry points in the "
+            '"basilisp_data_readers" group. (env: '
+            "BASILISP_USE_DATA_READERS_ENTRY_POINT; default: true)"
+        ),
+    )
+
+
 Handler = Callable[[argparse.ArgumentParser, argparse.Namespace], None]
 
 
@@ -384,6 +407,8 @@ def _add_nrepl_server_subcommand(parser: argparse.ArgumentParser) -> None:
         default=".nrepl-port",
         help='the file path where the server port number is output to, defaults to ".nrepl-port".',
     )
+    _add_runtime_arg_group(parser)
+    _add_debug_arg_group(parser)
 
 
 def repl(
@@ -478,6 +503,7 @@ def _add_repl_subcommand(parser: argparse.ArgumentParser) -> None:
         help="default namespace to use for the REPL",
     )
     _add_compiler_arg_group(parser)
+    _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 
 
@@ -588,6 +614,7 @@ def _add_run_subcommand(parser: argparse.ArgumentParser) -> None:
         help="command line args made accessible to the script as basilisp.core/*command-line-args*",
     )
     _add_compiler_arg_group(parser)
+    _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 
 
@@ -612,6 +639,8 @@ def test(
 )
 def _add_test_subcommand(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("args", nargs=-1)
+    _add_runtime_arg_group(parser)
+    _add_debug_arg_group(parser)
 
 
 def version(_, __) -> None:
