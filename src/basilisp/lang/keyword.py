@@ -72,7 +72,7 @@ class Keyword(ILispObject, INamed):
         try:
             return m.val_at(self, default)
         except (AttributeError, TypeError):
-            return None
+            return default
 
     def __reduce__(self):
         return keyword_from_hash, (self._hash, self._name, self._ns)
