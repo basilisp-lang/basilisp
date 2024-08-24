@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added `basilisp.pprint/print-table` function (#983)
  * Added `basilisp.core/read-all` function (#986)
  * Added various compiler arguments to CLI commands (#989)
+ * Added `basilisp.reflect` namespace for Python VM runtime reflection (#837)
 
 ### Changed
  * Improved on the nREPL server exception messages by matching that of the REPL user-friendly format (#968)
