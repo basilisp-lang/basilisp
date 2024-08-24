@@ -19,6 +19,7 @@ class Promise(IBlockingDeref[T]):
             if not self._is_delivered:
                 self._is_delivered = True
                 self._value = value
+                self._condition.notify_all()
 
     def deref(
         self, timeout: Optional[float] = None, timeout_val: Optional[T] = None
