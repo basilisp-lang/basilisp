@@ -14,6 +14,7 @@ _DOUBLE_DOT = ".."
 _DOUBLE_DOT_REPLACEMENT = "__DOT_DOT__"
 
 _MUNGE_REPLACEMENTS = {
+    "'": "__PRIME__",
     "+": "__PLUS__",
     "-": "_",
     "*": "__STAR__",

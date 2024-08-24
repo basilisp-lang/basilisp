@@ -62,7 +62,7 @@ def test_keyword_as_function():
 
     assert kw == kw(lset.s(kw))
     assert None is kw(lset.s(1))
-    assert "hi" is kw(lset.s(1), default="hi")
+    assert "hi" == kw(lset.s(1), default="hi")
 
     assert 1 is kw(None, 1)
     assert None is kw(None, None)
