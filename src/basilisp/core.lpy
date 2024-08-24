@@ -4021,7 +4021,8 @@
        (fn []
          ~@body))))
 
-(defn ^:private perf-counter
+(defn perf-counter
+  "Implementation detail of :lpy:fn:`time`."
   []
   (py-time/perf-counter))
 
@@ -4031,7 +4032,7 @@
   [expr]
   `(let [start (perf-counter)]
      (try
-       ~expr
+       (do ~expr)
        (finally
          (println (* 1000 (- (perf-counter) start)) "msecs")))))
 
