@@ -11,18 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added `*default-data-reader-fn*` (#924)
  * Added `basilisp.pprint/print-table` function (#983)
  * Added `basilisp.core/read-all` function (#986)
- * Added various compiler arguments to cli commands (#989)
+ * Added various compiler arguments to CLI commands (#989)
 
 ### Changed
- * Improved on the nREPL server exception messages by matching that of the REPL user friendly format (#968)
+ * Improved on the nREPL server exception messages by matching that of the REPL user-friendly format (#968)
  * Types created via `deftype` and `reify` may declare supertypes as abstract (taking precedence over true `abc.ABC` types) and specify their member list using `^:abstract-members` metadata (#942)
- * Load functions (`load`, `load-file`, `load-reader`, etc) now return the value of the last form evaluated. (#984)
+ * Load functions (`load`, `load-file`, `load-reader`, etc.) now return the value of the last form evaluated. (#984)
 
 ### Fixed
- * Fixed inconsistent behavior with `basilisp.core/with` when the `body` contains more than one form (#981)
- * Fixed an issue with `basilisp.core/time` failing when called outside of the core ns (#991)
- * Fixed an issue with `basilisp.core/promise` where a thread waiting for a value from another thread might not wake up immediately upon delivery (#983).
- * Fixed using keyword as a function not returning the default value in some cases (#997)
+ * Fix inconsistent behavior with `basilisp.core/with` when the `body` contains more than one form (#981)
+ * Fix an issue with `basilisp.core/time` failing when called outside `basilisp.core` (#991)
+ * Fix an issue with `basilisp.core/promise` where a thread waiting for a value from another thread might not wake up immediately upon delivery (#983).
+ * Fix using keyword as a function not returning the default value in some cases (#997)
+ * Fix an issue where Python `SyntaxWarning`s would be emitted for certain compiled code (#???)
 
 ### Removed
  * Removed `python-dateutil` and `readerwriterlock` as dependencies, switching to standard library components instead (#976)

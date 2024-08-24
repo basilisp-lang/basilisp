@@ -1083,7 +1083,7 @@ class TestExceptionData:
         try:
             raise Exception("Exception Message")
         except Exception as e:
-            assert "Exception Message" is core.ex_message(e)
+            assert "Exception Message" == core.ex_message(e)
 
 
 class TestBitManipulation:

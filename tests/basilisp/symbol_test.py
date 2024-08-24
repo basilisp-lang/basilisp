@@ -56,7 +56,7 @@ def test_symbol_as_function():
 
     assert sym == sym(lset.s(sym))
     assert None is sym(lset.s(1))
-    assert "hi" is sym(lset.s(1), default="hi")
+    assert "hi" == sym(lset.s(1), default="hi")
 
     assert None is sym(lvector.v(1))
 

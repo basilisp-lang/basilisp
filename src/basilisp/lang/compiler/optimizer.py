@@ -20,6 +20,12 @@ def _filter_dead_code(nodes: Iterable[ast.stmt]) -> List[ast.stmt]:
     return new_nodes
 
 
+def _needs_eq_operator(arg: ast.expr) -> bool:
+    return isinstance(arg, ast.Constant) and all(
+        arg.value is not v for v in (True, False, None, ...)
+    )
+
+
 @functools.singledispatch
 def _optimize_operator_call(  # pylint: disable=unused-argument
     fn: ast.AST, node: ast.Call
@@ -73,13 +79,24 @@ def _optimize_operator_call_attr(  # pylint: disable=too-many-return-statements
             "ne": ast.NotEq,
             "gt": ast.Gt,
             "ge": ast.GtE,
-            "is_": ast.Is,
-            "is_not": ast.IsNot,
         }.get(fn.attr)
         if compareop is not None:
             arg1, arg2 = node.args
             assert len(node.args) == 2
             return ast.Compare(arg1, [compareop()], [arg2])
+
+        isop = {
+            "is_": (ast.Is, ast.Eq),
+            "is_not": (ast.IsNot, ast.NotEq),
+        }.get(fn.attr)
+        if isop is not None:
+            isoper, eqoper = isop
+            arg1, arg2 = node.args
+            assert len(node.args) == 2
+            oper = (
+                eqoper if any(_needs_eq_operator(arg) for arg in node.args) else isoper
+            )
+            return ast.Compare(arg1, [oper()], [arg2])
 
         if fn.attr == "contains":
             arg1, arg2 = node.args
