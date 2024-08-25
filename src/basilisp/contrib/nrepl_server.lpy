@@ -433,8 +433,10 @@
   (let [{:keys [host port] :or {host "127.0.0.1" port 0}} opts
         handler (python/type (name (gensym "nREPLTCPHandler"))
                              #py (socketserver/StreamRequestHandler)
-                             #py {"handle" #(on-connect % opts)})]
-    (socketserver/ThreadingTCPServer (python/tuple [host port]) handler)))
+                             #py {"handle" #(on-connect % opts)})
+        server (socketserver/ThreadingTCPServer (python/tuple [host port]) handler)]
+    (set! (.-daemon-threads server) true)
+    server))
 
 (def ^:private nrepl-server-signature
   "The de facto signature nrepl started message that is used by IDEs to identify the
@@ -455,8 +457,8 @@
        to pickup a random available port.
    :keyword ``:nrepl-port-file``: The file to write the port number to, it defaults
        to .nrepl-port.
-   :keyword ``:server*``: An atom to hold the server reference as returned from
-       :lpy:fn:`server-make` , useful for testing.
+   :keyword ``:server*``: A promise object that will receive the server reference
+       from :lpy:fn:`server-make` when is made avaiable.
 
   .. seealso::
 
@@ -467,11 +469,11 @@
    (let [{:keys [nrepl-port-file server*]
           :or   {nrepl-port-file ".nrepl-port"}} opts
          server                                  (server-make opts)]
-     (when server* (reset! server* server))
      (try
        (let [[host port] (py->lisp (.-server-address server))]
          (println (format nrepl-server-signature port host host port))
          (spit nrepl-port-file (str port)))
+       (when server* (deliver server* server))
        (.serve-forever server)
        (catch python/KeyboardInterrupt _e
          (println "Exiting in response to a keyboard interrupt..."))

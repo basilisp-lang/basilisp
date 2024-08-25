@@ -605,26 +605,48 @@
                    (throw python/ZeroDivisionError)))))
 
   (testing "nrepl-server port file and address"
-    (let [server* (atom nil)
+    (let [server* (promise)
           [fd filename] (tempfile/mkstemp "nrepl-server-port-test")]
       (doto (threading/Thread
              **
              :target #(nr/start-server! {:server* server* :nrepl-port-file filename :host "0.0.0.0"})
              :daemon true)
         (.start))
-      (try
-        (time/sleep 1) ;; give some time to the server to settle down
-        (is @server*)
-        (is (bio/exists? filename))
-        (let [port-filename  (slurp filename)
-              server @server*
-              [host port] (py->lisp (.-server-address server))]
-          (is (= host "0.0.0.0"))
-          (is (= (str port) port-filename)))
+      (let [server (deref server* 1 nil)]
+        (is server)
+        (try
+          (is (bio/exists? filename))
+          (let [port-filename  (slurp filename)
+                [host port] (py->lisp (.-server-address server))]
+            (is (= host "0.0.0.0"))
+            (is (= (str port) port-filename)))
 
-        (finally
-          (doto @server*
-            (.shutdown)
-            (.server-close))
-          (os/close fd)
-          (os/unlink filename))))))
+          (finally
+            (doto server
+              (.shutdown)
+              (.server-close))
+            (os/close fd)
+            (os/unlink filename)))))))
+
+(deftest nrepl-server-shutdown-test
+  (testing "server can exit even when client connections are still open."
+    (let [server* (promise)
+          server-thread (threading/Thread
+                         **
+                         :target #(nr/start-server! {:server* server*})
+                         :daemon true)]
+      (.start server-thread)
+      (let [server (deref server* 1 nil)]
+        (is server)
+        (let [[host_ port] (py->lisp (.-server-address server))]
+          (binding [*nrepl-port* port]
+            (with-connect client
+              (client-send! client {:id 1 :op "clone"})
+              (let [{:keys [status]} (client-recv! client)]
+                (is (= ["done"] status)))
+              ;; Shutdown server during an active client connection
+              (let [shutdown-thread (future (doto server
+                                              (.server-close))
+                                            :done)
+                    status (deref shutdown-thread 1 :time-out)]
+                (is (= :done status))))))))))
