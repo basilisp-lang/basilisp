@@ -134,7 +134,7 @@
               *e    *e]
       (try
         (let [result (last
-                      (for [form (read-all (io/StringIO code))]
+                      (for [form (read-seq (io/StringIO code))]
                         (basilisp.lang.compiler/compile-and-exec-form form
                                                                       ctx
                                                                       *ns*)))]

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added support for custom data readers (#924)
  * Added `*default-data-reader-fn*` (#924)
  * Added `basilisp.pprint/print-table` function (#983)
- * Added `basilisp.core/read-all` function (#986)
+ * Added `basilisp.core/read-seq` function (#986) (#999)
  * Added various compiler arguments to CLI commands (#989)
 
 ### Changed
