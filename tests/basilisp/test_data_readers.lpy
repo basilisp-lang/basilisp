@@ -38,6 +38,28 @@
   path-files-fixture
   reset-data-readers-fixture)
 
+(deftest data-readers-test
+  (alter-var-root #'*data-readers* assoc
+                    'test/test  vector
+                    'test/test2 list)
+
+  (testing "use var root value"
+    (is (= '[x] (read-string "#test/test x"))))
+
+  (testing "use bound value"
+    (binding [*data-readers* {'test/test (partial vector :pass)}]
+      (is (= '[:pass x] (read-string "#test/test x")))
+      (is (thrown? reader/SyntaxError
+                   #"No data reader found for tag #test/test2"
+                   (read-string "#test/test2 x")))))
+
+  (testing "fallback to defaults"
+    (is (= #py {} (read-string "#py {}"))))
+
+  (testing "override defaults"
+    (binding [*data-readers* {'py identity}]
+      (is (= {} (read-string "#py {}"))))))
+
 (def custom-data-reader list)
 
 (deftest load-data-readers-from-path-test
@@ -161,3 +183,13 @@
     (is (thrown-with-msg? basilisp.lang.exception/ExceptionInfo
                           #"Conflicting data-reader mapping"
                           (#'basilisp.core/load-data-readers)))))
+
+(deftest default-data-readers-fn-test
+  (testing "raise syntax exception by default"
+    (is (thrown-with-msg? reader/SyntaxError
+                          #"No data reader found for tag #default"
+                          (read-string "#default nil"))))
+
+  (testing "use *default-data-reader-fn* binding"
+    (binding [*default-data-reader-fn* vector]
+      (is (= ['default nil] (read-string "#default nil"))))))
