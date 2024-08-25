@@ -4446,7 +4446,8 @@
           (:eof opts)
           (= (:eof opts) :eofthrow)
           (:features opts)
-          (not= :preserve (:read-cond opts)))))
+          (not= :preserve (:read-cond opts))
+          *default-data-reader-fn*)))
 
 (defn read-string
   "Read a string of Basilisp code.
