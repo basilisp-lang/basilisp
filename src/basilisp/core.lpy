@@ -5578,6 +5578,12 @@
                      (filter keyword?)
                      (filter #(= "keys" (name %))))
 
+        ;; Symbols may also be destructured from namespaced values as
+        ;; keywords can.
+        sym-keys (->> (keys arg)
+                      (filter keyword?)
+                      (filter #(= "syms" (name %))))
+
         ;; Keyword, string, and symbol keys may all be destructured from
         ;; associative types.
         kws  (mapcat (fn [kw]
@@ -5587,14 +5593,19 @@
                            kw-ns (map #(symbol kw-ns (name %))))))
                      kw-keys)
         strs (:strs arg)
-        syms (:syms arg)
+        syms (mapcat (fn [sym]
+                       (let [sym-ns (namespace sym)
+                             syms   (get arg sym)]
+                         (cond->> syms
+                           sym-ns (map #(symbol sym-ns (name %))))))
+                     sym-keys)
 
         ;; Fetch all the remaining keys in the map which do not
         ;; correspond to special functionality.
         ;; Destructuring forms may be nested arbitrarily, so generate the
         ;; definitions for any nested destructured forms as well.
         children (->> [:as :or :strs :syms]
-                      (concat kw-keys)
+                      (concat kw-keys sym-keys)
                       (apply dissoc arg)
                       (map (fn [arg]
                              ;; The val in this case is actually the key from
@@ -5640,10 +5651,8 @@
 
 (defmethod destructure-def :default
   [arg]
-  (throw
-   (ex-info "Invalid destructuring argument type"
-            {:type (python/type arg)
-             :arg  arg})))
+  {:name arg
+   :type :other})
 
 (defmulti ^:private destructure-binding
   (fn [ddef]
@@ -5700,11 +5709,12 @@
                           [arg `(get ~fn-arg ~k)])))
 
         sym-binding (fn [arg]
-                      (let [k          (symbol (name arg))
-                            or-binding (get ors arg)]
+                      (let [sym-name   (name arg)
+                            sym        (symbol sym-name)
+                            or-binding (get ors sym)]
                         (if or-binding
-                          [arg `(or (get ~fn-arg (quote ~k)) ~or-binding)]
-                          [arg `(get ~fn-arg (quote ~k))])))
+                          [sym `(or (get ~fn-arg (quote ~arg)) ~or-binding)]
+                          [sym `(get ~fn-arg (quote ~arg))])))
 
         named-binding (fn [arg]
                         (let [binding    (get-in arg [:binding :name])

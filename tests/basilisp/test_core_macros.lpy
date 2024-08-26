@@ -825,16 +825,39 @@
       (is (= [:c m] (f m)))
       (is (= ["aa" m1] (f m1)))))
 
-  (testing "destructuring individual keys"
-    (let [m {:a "a" :b "b"}
+  (testing "destructuring namespaced symbols"
+    (let [m {'a   "a"
+             'b   "b"
+             'a/a "aa"
+             'a/b "bb"
+             'c/c "cc"
+             'c/d "dd"}
 
-          f (fn [{a :a}]
-              [a])
+          f (fn [{:a/syms [a] :syms [b]}]
+              [a b])
+          g (fn [{:syms [a b] :c/syms [c d]}]
+              [a b c d])]
+      (is (= ["aa" "b"] (f m)))
+      (is (= ["a" "b" "cc" "dd"] (g m))))
+
+    (let [m  {'a "a"}
+          m1 {'a/a "aa" 'a "a"}
+
+          f (fn [{:a/syms [a] :as m :or {a :c}}]
+              [a m])]
+      (is (= [:c m] (f m)))
+      (is (= ["aa" m1] (f m1)))))
+
+  (testing "destructuring individual keys"
+    (let [m {:a "a" :b "b" 3 "three" "key" "string-key"}
+
+          f (fn [{a :a three 3 s "key"}]
+              [a three s])
           g (fn [{a :a :as m}]
               [a m])
           h (fn [{a :a b :b :as m}]
               [a b m])]
-      (is (= ["a"] (f m)))
+      (is (= ["a" "three" "string-key"] (f m)))
       (is (= ["a" m] (g m)))
       (is (= ["a" "b" m] (h m))))
 
@@ -1042,9 +1065,11 @@
       (is (= {:a 1 :b "b" 'a :a} m))))
 
   (testing "destructuring individual keys"
-    (let [{a :a b :b} {:a "a" :b "b"}]
-      (is (= "a" a))
-      (is (= "b" b)))
+    (let [{a :a b :b three 3 s "key"} {:a "a"
+                                       :b "b"
+                                       3 "three"
+                                       "key" "string-key"}]
+      (is (= [a b three s] ["a" "b" "three" "string-key"])))
 
     (let [{a :a b :b :as m} {:a "a" :b "b"}]
       (is (= "a" a))
@@ -1084,6 +1109,36 @@
 
     (let [{:keys [a b] :c/keys [c d] :or {c "ee"}}
           {:a "a" :b "b" :a/a "aa" :a/b "bb" :c/d "dd"}]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= "ee" c))
+      (is (= "dd" d))))
+
+(testing "destructuring namespaced symbols"
+    (let [{:a/syms [a b] old-a 'a old-b 'b} {'a   "a"
+                                             'b   "b"
+                                             'a/a "aa"
+                                             'a/b "bb"
+                                             'c/c "cc"
+                                             'c/d "dd"}]
+      (is (= "aa" a))
+      (is (= "bb" b))
+      (is (= "a" old-a))
+      (is (= "b" old-b)))
+
+    (let [{:syms [a b] :c/syms [c d]} {'a   "a"
+                                       'b   "b"
+                                       'a/a "aa"
+                                       'a/b "bb"
+                                       'c/c "cc"
+                                       'c/d "dd"}]
+      (is (= "a" a))
+      (is (= "b" b))
+      (is (= "cc" c))
+      (is (= "dd" d)))
+
+    (let [{:syms [a b] :c/syms [c d] :or {c "ee"}}
+          {'a "a" 'b "b" 'a/a "aa" 'a/b "bb" 'c/d "dd"}]
       (is (= "a" a))
       (is (= "b" b))
       (is (= "ee" c))
@@ -1276,15 +1331,36 @@
         (is (= [:c m] (f m)))
         (is (= ["aa" m1] (f m1))))))
 
+  (testing "destructuring namespaced symbols"
+    (let [m {'a   "a"
+             'b   "b"
+             'a/a "aa"
+             'a/b "bb"
+             'c/c "cc"
+             'c/d "dd"}]
+      (letfn [(f [{:a/syms [a b] old-a 'a old-b 'b}]
+                [old-a old-b a b])
+              (g [{:syms [a b] :c/syms [c d]}]
+                [a b c d])]
+        (is (= ["a" "b" "aa" "bb"] (f m)))
+        (is (= ["a" "b" "cc" "dd"] (g m)))))
+
+    (let [m  {'a "a"}
+          m1 {'a/a "aa" 'a "a"}]
+      (letfn [(f [{:a/syms [a] :as m :or {a :c}}]
+                [a m])]
+        (is (= [:c m] (f m)))
+        (is (= ["aa" m1] (f m1))))))
+
   (testing "destructuring individual keys"
-    (let [m {:a "a" :b "b"}]
-      (letfn [(f [{a :a}]
-                [a])
+    (let [m {:a "a" :b "b" 3 "three" "key" "string-key"}]
+      (letfn [(f [{a :a three 3 s "key"}]
+                [a three s])
               (g [{a :a :as m}]
                 [a m])
               (h [{a :a b :b :as m}]
                 [a b m])]
-        (is (= ["a"] (f m)))
+        (is (= ["a" "three" "string-key"] (f m)))
         (is (= ["a" m] (g m)))
         (is (= ["a" "b" m] (h m)))))
 
@@ -1498,6 +1574,24 @@
                                                         {:a/a "C" :a "c" :b "d"}
                                                         {:a "e" :b "e"}]
                   {:a/keys [a] b :b :as m :or {a "Z"}} (first items)
+                  coll                                 []
+                  accum                                []]
+             (if m
+               (recur (rest items)
+                      (first (rest items))
+                      (conj coll m)
+                      (conj accum a b))
+               [coll (apply str accum)])))))
+
+  (testing "destructuring namespaced syms"
+    (is (= [[{'a/a "A" 'a "a" 'b "b"}
+             {'a/a "C" 'a "c" 'b "d"}
+             {'a "e" 'b "e"}]
+            "AbCdZe"]
+           (loop [items                                [{'a/a "A" 'a "a" 'b "b"}
+                                                        {'a/a "C" 'a "c" 'b "d"}
+                                                        {'a "e" 'b "e"}]
+                  {:a/syms [a] b 'b :as m :or {a "Z"}} (first items)
                   coll                                 []
                   accum                                []]
              (if m
