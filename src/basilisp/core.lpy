@@ -2523,18 +2523,21 @@
 
 (defn range
   "Return a range of integers from ``start``\\. If ``end`` is specified, the sequence
-  will terminate at ``end``\\."
+  will terminate at ``end``\\. If ``step`` is specified, that amount will be added
+  for each iteration. ``step`` may be negative."
   ([]
    (iterate inc 0))
   ([end]
    (lazy-seq (cons 0 (range 1 end))))
   ([start end]
-   (lazy-seq (cons start (when (< start (dec end))
-                           (range (inc start) end)))))
+   (lazy-seq
+    (when (< start end)
+      (cons start (range (inc start) end)))))
   ([start end step]
-   (lazy-seq (let [next-int (+ start step)]
-               (cons start (when (< next-int (dec end))
-                             (range next-int end step)))))))
+   (lazy-seq
+    (when (or (and (>= step 0) (< start end))
+              (and (< step 0) (> start end)))
+      (cons start (range (+ start step) end step))))))
 
 (defn complement
   "Return a function which returns the logical complement of the return value of

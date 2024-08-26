@@ -710,6 +710,26 @@
       (run! #(swap! a + %) (range 5))
       (is (= @a 10)))))
 
+(deftest range-test
+  (testing "0-arity"
+    (is (= '(0 1 2 3 4) (take 5 (range)))))
+
+  (testing "1-arity"
+    (is (= '(0 1 2) (take 5 (range 3))))
+    (is (= '(0 1 2) (range 3)))
+    (is (= '(0 1 2 3 4) (take 5 (range 10)))))
+
+  (testing "2-arity"
+    (is (= '() (range 3 3)))
+    (is (= '(1 2 3) (range 1 4)))
+    (is (= '(1 2 3 4 5) (take 5 (range 1 10)))))
+
+  (testing "3-arity"
+    (is (= '() (range 3 3 2)))
+    (is (= '(1 4 7) (range 1 10 3)))
+    (is (= '(3 2 1) (range 3 0 -1)))
+    (is (= '(10 7 4 1) (range 10 0 -3)))))
+
 (deftest partial-test
   (testing "no arguments"
     (let [f-no-args (fn [] :no-args)]
