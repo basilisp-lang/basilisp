@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Types created via `deftype` and `reify` may declare supertypes as abstract (taking precedence over true `abc.ABC` types) and specify their member list using `^:abstract-members` metadata (#942)
  * Load functions (`load`, `load-file`, `load-reader`, etc.) now return the value of the last form evaluated. (#984)
  * nREPL server no longer hangs waiting for client connections to close on exit (#1002)
+ * Align `basilisp.core/deref` with Clojure to by updating the timeout input argument to be in milliseconds instead of seconds (#1007)
 
 ### Fixed
  * Fix inconsistent behavior with `basilisp.core/with` when the `body` contains more than one form (#981)

@@ -1399,6 +1399,21 @@
   (is (= "lo w" (subs "hello world" 3 7)))
   (is (thrown? python/IndexError (subs "hello world" 12 3))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; State Management Functions ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest promises-test
+  (testing "timeout expires on time"
+    (let [p (promise)
+          start (time/perf-counter)
+          ;; block for 100ms
+          ret (deref p 100 :timed-out)
+          end (time/perf-counter)
+          diff (- end start)]
+      (is (= :timed-out ret))
+      (is (< 0.1 diff 0.5) (str "deref timeout is outside of [100ms, 500ms] range: " diff "ms")))))
+
 ;;;;;;;;;;;;;
 ;; Futures ;;
 ;;;;;;;;;;;;;
@@ -1416,8 +1431,14 @@
       (is (= true (realized? fut)))))
 
   (testing "timed deref of future"
-    (let [fut (future (time/sleep 3))]
-      (is (= :timed-out (deref fut 0.01 :timed-out)))
+    (let [fut (future (time/sleep 3))
+          start (time/perf-counter)
+          ;; block for 100ms
+          ret (deref fut 100 :timed-out)
+          end (time/perf-counter)
+          diff (- end start)]
+      (is (= :timed-out ret))
+      (is (< 0.1 diff 0.5) (str "deref timeout outside of [100ms, 500ms] range: " diff "ms"))
       (is (= false (future-cancelled? fut)))
       (is (= false (future-done? fut)))
       ;; can't always cancel a sleep-ed Future
