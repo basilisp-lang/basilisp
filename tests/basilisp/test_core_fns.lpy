@@ -2355,6 +2355,19 @@
         (let [output (load "corpus/core-load-1" "corpus/core-load-2")]
           (is (= :core-load-2 output))))
 
+      (testing "load ns form before reading more"
+        (let [ns     (-> *ns* name symbol)
+              file   (str load-dir-test "/core_load_before_read.lpy")
+              sub-ns 'tests.basilisp.corpus.core-load-before-read]
+          (spit file
+                (str "(ns " sub-ns
+                     ") (defmacro a [] 1) (defmacro b [] `(a)) (b)"))
+          (try
+            (= 1 (load "corpus/core-load-before-read"))
+            (finally
+              (remove-ns sub-ns)
+              (in-ns ns)))))
+
       (finally
         (when (bio/exists? load-dir-test)
           (shutil/rmtree load-dir-test))))))
