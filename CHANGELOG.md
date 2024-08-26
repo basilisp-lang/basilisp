@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Added `basilisp.pprint/print-table` function (#983)
  * Added `basilisp.core/read-seq` function (#986, #999)
  * Added various compiler arguments to CLI commands (#989)
+ * Added support for destructuring namespaced symbols using the `:ns/syms` syntax and non-keyword values in standard associative destructuring forms (#836)
 
 ### Changed
  * Improved on the nREPL server exception messages by matching that of the REPL user-friendly format (#968)

@@ -590,17 +590,17 @@ There exists a corresponding construct for the symbol and string key cases as we
 
    The keys for the ``:strs`` construct must be convertible to valid Basilisp symbols.
 
-It is possible to bind namespaced keys directly using either namespaced individual keys or a namespaced version of ``:keys`` as ``:ns/keys``.
+It is possible to bind namespaced keys and symbols directly using either namespaced individual values or a namespaced version of ``:keys`` (such as ``:ns/keys``) or ``:syms`` (``:ns/syms``).
 Values will be bound to the symbol by their *name* only (as by :lpy:fn:`name`) -- the namespace is only used for lookup in the associative data structure.
 
 .. code-block::
 
-   (let [{a :a b :a/b :c/keys [c d]} {:a   "a"
-                                      :b   "b"
-                                      :a/a "aa"
-                                      :a/b "bb"
-                                      :c/c "cc"
-                                      :c/d "dd"}]
+   (let [{a :a b 'a/b :c/keys [c] :c/syms [d]} {:a   "a"
+                                                :b   "b"
+                                                :a/a "aa"
+                                                'a/b "bb"
+                                                :c/c "cc"
+                                                'c/d "dd"}]
      [a b c d])
    ;;=> ["a" "bb" "cc" "dd"]
 
