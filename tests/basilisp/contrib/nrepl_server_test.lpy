@@ -612,7 +612,7 @@
              :target #(nr/start-server! {:server* server* :nrepl-port-file filename :host "0.0.0.0"})
              :daemon true)
         (.start))
-      (let [server (deref server* 1 nil)]
+      (let [server (deref server* 1000 nil)]
         (is server)
         (try
           (is (bio/exists? filename))
@@ -636,7 +636,7 @@
                          :target #(nr/start-server! {:server* server*})
                          :daemon true)]
       (.start server-thread)
-      (let [server (deref server* 1 nil)]
+      (let [server (deref server* 1000 nil)]
         (is server)
         (let [[host_ port] (py->lisp (.-server-address server))]
           (binding [*nrepl-port* port]
@@ -648,5 +648,5 @@
               (let [shutdown-thread (future (doto server
                                               (.server-close))
                                             :done)
-                    status (deref shutdown-thread 1 :time-out)]
+                    status (deref shutdown-thread 1000 :time-out)]
                 (is (= :done status))))))))))
