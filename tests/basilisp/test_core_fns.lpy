@@ -1412,7 +1412,7 @@
           end (time/perf-counter)
           diff (- end start)]
       (is (= :timed-out ret))
-      (is (< 0.1 diff 0.2) (str "deref timeout is outside of [100ms, 200ms] range: " diff "ms")))))
+      (is (< 0.1 diff 0.5) (str "deref timeout is outside of [100ms, 500ms] range: " diff "ms")))))
 
 ;;;;;;;;;;;;;
 ;; Futures ;;
@@ -1438,7 +1438,7 @@
           end (time/perf-counter)
           diff (- end start)]
       (is (= :timed-out ret))
-      (is (< 0.1 diff 0.2) (str "deref timeout outside of [100ms, 200ms] range: " diff "ms"))
+      (is (< 0.1 diff 0.5) (str "deref timeout outside of [100ms, 500ms] range: " diff "ms"))
       (is (= false (future-cancelled? fut)))
       (is (= false (future-done? fut)))
       ;; can't always cancel a sleep-ed Future

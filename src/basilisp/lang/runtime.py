@@ -1466,7 +1466,7 @@ def deref(o, timeout_ms=None, timeout_val=None):
 
 @deref.register(IBlockingDeref)
 def _deref_blocking(
-    o: IBlockingDeref, timeout_ms: Optional[float] = None, timeout_val=None
+    o: IBlockingDeref, timeout_ms: Optional[int] = None, timeout_val=None
 ):
     timeout_s = None
     if timeout_ms is not None:

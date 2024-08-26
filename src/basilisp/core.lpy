@@ -926,8 +926,8 @@
   milliseconds elapse and ``o`` has not returned."
   ([o]
    (basilisp.lang.runtime/deref o))
-  ([o timeout-s timeout-val]
-   (basilisp.lang.runtime/deref o timeout-s timeout-val)))
+  ([o timeout-ms timeout-val]
+   (basilisp.lang.runtime/deref o timeout-ms timeout-val)))
 
 (defn ^:inline compare-and-set!
   "Atomically set the value of ``atom`` to ``new-val`` if and only if ``old-val`` is
