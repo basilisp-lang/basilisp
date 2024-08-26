@@ -4458,14 +4458,14 @@
    (read-seq {} stream))
   ([opts stream]
    (let [read (:read opts basilisp.lang.reader/read)]
-      (lazy-seq (read stream
-                      *resolver*
-                      *data-readers*
-                      (:eof opts)
-                      (= (:eof opts) :eofthrow)
-                      (:features opts)
-                      (not= :preserve (:read-cond opts))
-                      *default-data-reader-fn*)))))
+      (seq (read stream
+                 *resolver*
+                 *data-readers*
+                 (:eof opts)
+                 (= (:eof opts) :eofthrow)
+                 (:features opts)
+                 (not= :preserve (:read-cond opts))
+                 *default-data-reader-fn*)))))
 
 (defn read-string
   "Read a string of Basilisp code.
