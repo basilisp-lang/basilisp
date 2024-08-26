@@ -24,7 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix an issue with `basilisp.core/time` failing when called outside `basilisp.core` (#991)
  * Fix an issue with `basilisp.core/promise` where a thread waiting for a value from another thread might not wake up immediately upon delivery (#983).
  * Fix using keyword as a function not returning the default value in some cases (#997)
- * Fix an issue where Python `SyntaxWarning`s would be emitted for certain compiled code (#???)
+ * Fix an issue where Python `SyntaxWarning`s would be emitted for certain compiled code (#996)
+ * Fix an issue where 2- and 3-arity `range` invocations returned unexpected results (#1004)
 
 ### Removed
  * Removed `python-dateutil` and `readerwriterlock` as dependencies, switching to standard library components instead (#976)
