@@ -921,9 +921,9 @@
   "Dereference a delay, atom, promise, future, volatile, or Var and returns its contents.
 
   If ``o`` is an object implementing :py:class:`basilisp.lang.interfaces.IBlockingDeref`
-  and ``timeout-s`` and ``timeout-val`` are supplied, ``deref`` will wait at most
-  ``timeout-s`` seconds, returning ``timeout-val`` if ``timeout-s`` seconds elapse and
-  ``o`` has not returned."
+  (i.e. futures and promises) and ``timeout-ms`` and ``timeout-val`` are supplied, ``deref``
+  will wait at most ``timeout-ms`` milliseconds, returning ``timeout-val`` if ``timeout-ms``
+  milliseconds elapse and ``o`` has not returned."
   ([o]
    (basilisp.lang.runtime/deref o))
   ([o timeout-s timeout-val]

@@ -1454,20 +1454,23 @@ def partial(f, *args, **kwargs):
 
 
 @functools.singledispatch
-def deref(o, timeout_s=None, timeout_val=None):
+def deref(o, timeout_ms=None, timeout_val=None):
     """Dereference a Deref object and return its contents.
 
-    If o is an object implementing IBlockingDeref and timeout_s and
-    timeout_val are supplied, deref will wait at most timeout_s seconds,
-    returning timeout_val if timeout_s seconds elapse and o has not
+    If o is an object implementing IBlockingDeref and timeout_ms and
+    timeout_val are supplied, deref will wait at most timeout_ms milliseconds,
+    returning timeout_val if timeout_ms milliseconds elapse and o has not
     returned."""
     raise TypeError(f"Object of type {type(o)} cannot be dereferenced")
 
 
 @deref.register(IBlockingDeref)
 def _deref_blocking(
-    o: IBlockingDeref, timeout_s: Optional[float] = None, timeout_val=None
+    o: IBlockingDeref, timeout_ms: Optional[float] = None, timeout_val=None
 ):
+    timeout_s = None
+    if timeout_ms is not None:
+        timeout_s = timeout_ms / 1000 if timeout_ms != 0 else 0
     return o.deref(timeout_s, timeout_val)
 
 
