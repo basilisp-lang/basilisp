@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
  * Exceptions occurring during inlining during macroexpansion are no longer obscured by the outer macroexpansion exception (#1013) 
 
+### Fixed
+ * Fix the behaviour of `nil` with several collection functions (#1011)
+
 ## [v0.2.0]
 ### Added
  * Added the `CollReduce` and `KVReduce` protocols in `basilisp.core.protocols` and implemented `reduce` in terms of those protocols (#927)
@@ -32,7 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix using keyword as a function not returning the default value in some cases (#997)
  * Fix an issue where Python `SyntaxWarning`s would be emitted for certain compiled code (#996)
  * Fix an issue where 2- and 3-arity `range` invocations returned unexpected results (#1004)
- * Fix the behaviour of `nil` with several collection functions (#1011)
 
 ### Removed
  * Removed `python-dateutil` and `readerwriterlock` as dependencies, switching to standard library components instead (#976)
