@@ -2639,7 +2639,7 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                 return __handle_macroexpanded_ast(form, expanded, ctx)
             except Exception as e:
                 if isinstance(e, CompilerException) and (  # pylint: disable=no-member
-                    e.phase == CompilerPhase.MACROEXPANSION
+                    e.phase in {CompilerPhase.MACROEXPANSION, CompilerPhase.INLINING}
                 ):
                     # Do not chain macroexpansion exceptions since they don't
                     # actually add anything of value over the cause exception
