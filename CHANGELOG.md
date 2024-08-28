@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix using keyword as a function not returning the default value in some cases (#997)
  * Fix an issue where Python `SyntaxWarning`s would be emitted for certain compiled code (#996)
  * Fix an issue where 2- and 3-arity `range` invocations returned unexpected results (#1004)
+ * Fix the behaviour of `nil` with several collection functions (#1011)
 
 ### Removed
  * Removed `python-dateutil` and `readerwriterlock` as dependencies, switching to standard library components instead (#976)

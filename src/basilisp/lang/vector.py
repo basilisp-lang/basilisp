@@ -300,9 +300,11 @@ EMPTY: PersistentVector = PersistentVector(pvector(()))
 
 
 def vector(
-    members: Iterable[T], meta: Optional[IPersistentMap] = None
+    members: Optional[Iterable[T]], meta: Optional[IPersistentMap] = None
 ) -> PersistentVector[T]:
     """Creates a new vector."""
+    if members is None:
+        members = []
     return PersistentVector(pvector(members), meta=meta)
 
 
