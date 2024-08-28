@@ -1229,10 +1229,14 @@ def apply_kw(f, args):
     except TypeError as e:
         logger.debug("Ignored %s: %s", type(e).__name__, e)
 
-    kwargs = {
-        to_py(k, lambda kw: munge(kw.name, allow_builtins=True)): v
-        for k, v in last.items()
-    }
+    if last is None:
+        kwargs = {}
+    else:
+        kwargs = {
+            to_py(k, lambda kw: munge(kw.name, allow_builtins=True)): v
+            for k, v in last.items()
+        }
+
     return f(*final, **kwargs)
 
 

@@ -373,7 +373,8 @@
 (deftest peek-test
   (are [x] (nil? (peek x))
     []
-    '())
+    '()
+    nil)
   (are [x y] (= x (peek y))
     :a '(:a)
     :a '(:a :b :c)
@@ -387,7 +388,8 @@
     '() '(:a)
     '(:b :c) '(:a :b :c)
     [] [:a]
-    [:a :b] [:a :b :c]))
+    [:a :b] [:a :b :c]
+    nil nil))
 
 (deftest reverse-test
   (are [x y] (= x (reverse y))
@@ -423,6 +425,22 @@
     '(3 2 1) [1 2 3]
     '(4 3 2 1) [1 2 3 4]
     '(:d :c :b :a) [:a :b :c :d]))
+
+(deftest rand-nth-test
+  (is (= nil (rand-nth nil)))
+  (is (= 1 (rand-nth [1])))
+  (is (#{1 2} (rand-nth [1 2]))))
+
+(deftest vec-test
+  (are [expected x] (= expected (vec x))
+    []       []
+    []       ()
+    []       #{}
+    []       {}
+    []       nil
+    [1]      (list 1)
+    [1]      #{1}
+    [1 2]    (list 1 2)))
 
 (deftest subvec-test
   (is (= [] (subvec [] 0)))
@@ -698,6 +716,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Higher Order and Collection Functions ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(deftest apply-kw-test
+  (let [kwargs ^{:kwargs :collect} (fn [x] x)]
+    (are [expected x] (= expected (apply-kw kwargs x))
+      {:test 1} {:test 1}
+      {}        {}
+      {}        nil)))
 
 (deftest run!-test
   (testing "empty collection"
@@ -1381,6 +1406,42 @@
     ^:neat {:a "A"}                              ^:neat {:a "a"}
     {:a "A" 'b 2}                                {:a "a" 'b 2}
     ^{:good :yes :great :also-yes} {:a "A" 'b 2} ^{:good :yes :great :also-yes} {:a "a" 'b 2}))
+
+(deftest keys-test
+  (are [expected m] (= expected (set (keys m)))
+    #{}      {}
+    #{}      nil
+    #{:a}    {:a 1}
+    #{:a}    {:a nil}
+    #{:a :b} {:a 1 :b 2}
+    #{"a"}   {"a" 1}
+    #{}      (python/dict {})
+    #{:a}    (python/dict {:a 1})))
+
+(deftest vals-test
+  (are [expected m] (= expected (set (vals m)))
+    #{}    {}
+    #{}    nil
+    #{1}   {:a 1}
+    #{nil} {:a nil}
+    #{1 2} {:a 1 :b 2}
+    #{1}   {"a" 1}
+    #{}    (python/dict {})
+    #{1}   (python/dict {:a 1})))
+
+(deftest find-test
+  (are [expected m k] (= expected (find m k))
+    nil      {}                   :a
+    nil      nil                  nil
+    nil      nil                  :a
+    [:a 1]   {:a 1}               :a
+    nil      {:a 1}               :b
+    [:a nil] {:a nil}             :a
+    [:b 2]   {:a 1 :b 2}          :b
+    ["a" 1]  {"a" 1}              "a"
+    nil      (python/dict {})     :a
+    nil      (python/dict {})     nil
+    [:a 1]   (python/dict {:a 1}) :a))
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;; String Functions ;;

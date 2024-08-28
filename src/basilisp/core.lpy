@@ -2155,7 +2155,7 @@
 
   For empty collections, returns ``nil``\\."
   [coll]
-  (.peek coll))
+  (when coll (.peek coll)))
 
 (defn ^:inline pop
   "For a list or a queue, return a new list without the first element.
@@ -2164,7 +2164,7 @@
 
   If ``coll`` is empty, throw an exception."
   [coll]
-  (.pop coll))
+  (when coll (.pop coll)))
 
 (defn reverse
   "Return a seq containing the elements in ``coll`` in reverse order. The returned
@@ -2308,8 +2308,8 @@
 (defn find
   "Find the map entry of ``k`` in ``m``\\, if it exists. Return ``nil`` otherwise."
   [m k]
-  (when-let [v (get m k)]
-    (map-entry k v)))
+  (when (contains? m k)
+    (map-entry k (get m k))))
 
 (defn ^:inline key
   "Return the key from a map entry."
@@ -2324,12 +2324,12 @@
 (defn ^:inline keys
   "Return a seq of the keys from a map."
   [m]
-  (seq (.keys m)))
+  (when m (seq (.keys m))))
 
 (defn ^:inline vals
   "Return a seq of the values from a map."
   [m]
-  (seq (.values m)))
+  (when m (seq (.values m))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Transient Collections ;;
@@ -3409,9 +3409,12 @@
 (defn rand-int
   "Return a random integer between ``lower`` (default: 0) and ``upper`` inclusive."
   ([upper]
-   (random/randrange 0 upper))
+   (rand-int 0 upper))
   ([lower upper]
-   (random/randrange lower upper)))
+   (cond
+      (= upper lower) upper
+      (< upper lower) (random/randrange upper lower)
+      :else           (random/randrange lower upper))))
 
 (defn rand-nth
   "Return a random element from ``coll``\\."
