@@ -3409,15 +3409,17 @@
 (defn rand-int
   "Return a random integer between ``lower`` (default: 0) and ``upper`` inclusive."
   ([upper]
-   (random/randrange 0 upper))
+   (rand-int 0 upper))
   ([lower upper]
-   (random/randrange lower upper)))
+   (cond
+      (= upper lower) upper
+      (< upper lower) (random/randrange upper lower)
+      :else           (random/randrange lower upper))))
 
 (defn rand-nth
   "Return a random element from ``coll``\\."
   [coll]
-  (when coll
-    (nth coll (rand-int (count coll)))))
+  (nth coll (rand-int (count coll))))
 
 (defn random-uuid
   "Return a random type 4 UUID."
