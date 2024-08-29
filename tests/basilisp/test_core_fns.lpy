@@ -9,7 +9,7 @@
    [basilisp.test :refer [deftest are is testing]]))
 
 (deftest vec-test
-  (is (= #{[:a 1 :b 2]} (set (vec {:a 1 :b 2}))))
+  (is (= #{[:a 1] [:b 2]} (set (vec {:a 1 :b 2}))))
   (is (= #{:a :b :c} (set (vec #{:a :b :c}))))
 
   (are [res v] (= res (vec v))
