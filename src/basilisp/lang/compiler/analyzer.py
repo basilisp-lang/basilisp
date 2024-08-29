@@ -2662,6 +2662,10 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                 expanded = inline_fn(*form.rest)
                 return __handle_macroexpanded_ast(form, expanded, ctx)
             except Exception as e:
+                if isinstance(e, CompilerException) and (  # pylint: disable=no-member
+                    e.phase == CompilerPhase.INLINING
+                ):
+                    raise
                 raise CompilerException(
                     "error occurred during inlining",
                     filename=ctx.filename,
