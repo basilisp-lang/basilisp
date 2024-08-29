@@ -8,6 +8,35 @@
    [basilisp.set :as set]
    [basilisp.test :refer [deftest are is testing]]))
 
+(deftest vec-test
+  (is (= #{[:a 1 :b 2]} (set (vec {:a 1 :b 2}))))
+  (is (= #{:a :b :c} (set (vec #{:a :b :c}))))
+
+  (are [res v] (= res (vec v))
+    []            nil
+    []            '()
+    []            []
+    []            #{}
+    []            {}
+    [:a :b :c]    [:a :b :c]
+    [:a :b :c]    '(:a :b :c)
+    ["a" "b" "c"] "abc"
+    [[:a 1]]      {:a 1}))
+
+(deftest set-test
+  (are [res v] (= res (set v))
+    #{}              nil
+    #{}              '()
+    #{}              []
+    #{}              #{}
+    #{}              {}
+    #{:a :b :c}      [:a :b :c]
+    #{:a :b :c}      '(:a :b :c)
+    #{:a :b :c}      #{:a :b :c}
+    #{"a" "b" "c"}   "abc"
+    #{[:a 1]}        {:a 1}
+    #{[:a 1] [:b 2]} {:a 1 :b 2}))
+
 (deftest keyword-test
   (testing "name only"
     (are [res name] (= res (keyword name))
@@ -431,16 +460,7 @@
   (is (= 1 (rand-nth [1])))
   (is (#{1 2} (rand-nth [1 2]))))
 
-(deftest vec-test
-  (are [expected x] (= expected (vec x))
-    []       []
-    []       ()
-    []       #{}
-    []       {}
-    []       nil
-    [1]      (list 1)
-    [1]      #{1}
-    [1 2]    (list 1 2)))
+
 
 (deftest subvec-test
   (is (= [] (subvec [] 0)))
@@ -1408,23 +1428,41 @@
     ^{:good :yes :great :also-yes} {:a "A" 'b 2} ^{:good :yes :great :also-yes} {:a "a" 'b 2}))
 
 (deftest keys-test
+  (is (thrown? python/TypeError (keys :abc)))
+  ;; use vec to actually realize the key sequence and trigger the error
+  (is (thrown? python/TypeError (vec (keys [:a :b :c]))))
+  (is (thrown? python/TypeError (vec (keys [[:a 1] [:b 2]]))))
+
   (are [expected m] (= expected (set (keys m)))
     #{}      {}
     #{}      nil
+    #{}    '()
+    #{}    []
+    #{}    #{}
     #{:a}    {:a 1}
     #{:a}    {:a nil}
     #{:a :b} {:a 1 :b 2}
+    #{:a :b} (seq {:a 1 :b 2})
     #{"a"}   {"a" 1}
     #{}      (python/dict {})
     #{:a}    (python/dict {:a 1})))
 
 (deftest vals-test
+  (is (thrown? python/TypeError (vals :abc)))
+  ;; use vec to actually realize the val sequence and trigger the error
+  (is (thrown? python/TypeError (vec (vals [:a :b :c]))))
+  (is (thrown? python/TypeError (vec (vals [[:a 1] [:b 2]]))))
+
   (are [expected m] (= expected (set (vals m)))
     #{}    {}
     #{}    nil
+    #{}    '()
+    #{}    []
+    #{}    #{}
     #{1}   {:a 1}
     #{nil} {:a nil}
     #{1 2} {:a 1 :b 2}
+    #{1 2} (seq {:a 1 :b 2})
     #{1}   {"a" 1}
     #{}    (python/dict {})
     #{1}   (python/dict {:a 1})))

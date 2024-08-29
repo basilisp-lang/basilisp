@@ -51,6 +51,7 @@ from basilisp.lang.interfaces import (
     IBlockingDeref,
     IDeref,
     ILookup,
+    IMapEntry,
     IPersistentCollection,
     IPersistentList,
     IPersistentMap,
@@ -59,6 +60,7 @@ from basilisp.lang.interfaces import (
     IPersistentVector,
     IReduce,
     ISeq,
+    ISeqable,
     ITransientAssociative,
     ITransientSet,
     ReduceFunction,
@@ -980,6 +982,36 @@ def pop_thread_bindings() -> None:
 T = TypeVar("T")
 
 
+@functools.singledispatch
+def to_set(s):
+    return lset.set(s)
+
+
+@to_set.register(type(None))
+def _to_set_none(_: None) -> lset.PersistentSet:
+    return lset.EMPTY
+
+
+@to_set.register(IPersistentMap)
+def _to_set_map(s: IPersistentMap) -> lset.PersistentSet:
+    return lset.set(s.seq())
+
+
+@functools.singledispatch
+def vector(v):
+    return vec.vector(v)
+
+
+@vector.register(type(None))
+def _vector_none(_: None) -> vec.PersistentVector:
+    return vec.EMPTY
+
+
+@vector.register(IPersistentMap)
+def _vector_map(v: IPersistentMap) -> vec.PersistentVector:
+    return vec.vector(v.seq())
+
+
 def keyword(name: Any, ns: Any = None) -> kw.Keyword:
     """Return a new keyword with runtime type checks for name and namespace."""
     if not isinstance(name, str):
@@ -1389,6 +1421,78 @@ def _update_iassociative(m: IAssociative, k, f, *args):
     old_v = m.val_at(k)
     new_v = f(old_v, *args)
     return m.assoc(k, new_v)
+
+
+@functools.singledispatch
+def keys(o):
+    raise TypeError(f"Object of type {type(o)} cannot be coerced to a key sequence")
+
+
+@keys.register(type(None))
+def _keys_none(_: None) -> None:
+    return None
+
+
+@keys.register(collections.abc.Iterable)
+@keys.register(ISeqable)
+def _keys_iterable(o: Union[ISeqable, Iterable]) -> Optional[ISeq]:
+    return keys(to_seq(o))
+
+
+@keys.register(ISeq)
+def _keys_iseq(o: ISeq) -> Optional[ISeq]:
+    def _key_seq(s: ISeq) -> Optional[ISeq]:
+        if to_seq(s) is not None:
+            e = s.first
+            if not isinstance(e, IMapEntry):
+                raise TypeError(
+                    f"Object of type {type(e)} cannot be coerced to a map entry"
+                )
+            return lseq.Cons(e.key, lseq.LazySeq(lambda: _key_seq(s.rest)))
+        return None
+
+    return lseq.LazySeq(lambda: _key_seq(o))
+
+
+@keys.register(collections.abc.Mapping)
+def _keys_mapping(o: Mapping) -> Optional[ISeq]:
+    return to_seq(o.keys())
+
+
+@functools.singledispatch
+def vals(o):
+    raise TypeError(f"Object of type {type(o)} cannot be coerced to a value sequence")
+
+
+@vals.register(type(None))
+def _vals_none(_: None) -> None:
+    return None
+
+
+@keys.register(collections.abc.Iterable)
+@vals.register(ISeqable)
+def _vals_iterable(o: Union[ISeqable, Iterable]) -> Optional[ISeq]:
+    return vals(to_seq(o))
+
+
+@vals.register(ISeq)
+def _vals_iseq(o: ISeq) -> Optional[ISeq]:
+    def _val_seq(s: ISeq) -> Optional[ISeq]:
+        if to_seq(s) is not None:
+            e = s.first
+            if not isinstance(e, IMapEntry):
+                raise TypeError(
+                    f"Object of type {type(e)} cannot be coerced to a map entry"
+                )
+            return lseq.Cons(e.value, lseq.LazySeq(lambda: _val_seq(s.rest)))
+        return None
+
+    return lseq.LazySeq(lambda: _val_seq(o))
+
+
+@vals.register(collections.abc.Mapping)
+def _vals_mapping(o: Mapping) -> Optional[ISeq]:
+    return to_seq(o.values())
 
 
 @functools.singledispatch
