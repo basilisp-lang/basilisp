@@ -1443,6 +1443,7 @@
     #{:a}    {:a nil}
     #{:a :b} {:a 1 :b 2}
     #{:a :b} (seq {:a 1 :b 2})
+    #{:a :b} (vec {:a 1 :b 2})
     #{"a"}   {"a" 1}
     #{}      (python/dict {})
     #{:a}    (python/dict {:a 1})))
@@ -1463,6 +1464,7 @@
     #{nil} {:a nil}
     #{1 2} {:a 1 :b 2}
     #{1 2} (seq {:a 1 :b 2})
+    #{1 2} (vec {:a 1 :b 2})
     #{1}   {"a" 1}
     #{}    (python/dict {})
     #{1}   (python/dict {:a 1})))
