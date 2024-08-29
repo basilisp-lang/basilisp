@@ -194,17 +194,15 @@ class LazySeq(IWithMeta, ISequential, ISeq[T]):
 
     @property
     def first(self) -> Optional[T]:
-        try:
-            return self.seq().first  # type: ignore[union-attr]
-        except AttributeError:
+        if self.is_empty:
             return None
+        return self.seq().first  # type: ignore[union-attr]
 
     @property
     def rest(self) -> "ISeq[T]":
-        try:
-            return self.seq().rest  # type: ignore[union-attr]
-        except AttributeError:
+        if self.is_empty:
             return EMPTY
+        return self.seq().rest  # type: ignore[union-attr]
 
     def cons(self, *elems: T) -> ISeq[T]:  # type: ignore[override]
         l: ISeq = self

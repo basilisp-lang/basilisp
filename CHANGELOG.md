@@ -6,12 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
- * Exceptions occurring during inlining during macroexpansion are no longer obscured by the outer macroexpansion exception (#1013) 
+ * Exceptions occurring during inlining during macroexpansion are no longer obscured by the outer macroexpansion exception (#1013)
 
 ### Fixed
  * Fix the behaviour of `nil` with several collection functions (#1011)
  * Fix a bug where `keys` and `vals` did not yield keys and values from sequences of map entries (#1018)
  * Fix a bug where `set` and `vec` do not produce collections of map entries when called on map arguments (#1020)
+ * Fix lazy sequences not propagating `AttributeError` (#1019)
 
 ## [v0.2.0]
 ### Added
