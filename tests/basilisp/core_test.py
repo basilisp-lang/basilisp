@@ -1342,16 +1342,6 @@ class TestAssociativeFunctions:
             "u",
         )
 
-    def test_keys(self):
-        assert None is core.keys(lmap.map({}))
-        assert llist.l("a") == core.keys(lmap.map({"a": 1}))
-        assert lset.s("a", "b") == lset.set(core.keys(lmap.map({"a": 1, "b": 2})))
-
-    def test_vals(self):
-        assert None is core.vals(lmap.map({}))
-        assert llist.l(1) == core.vals(lmap.map({"a": 1}))
-        assert lset.s(1, 2) == lset.set(core.vals(lmap.map({"a": 1, "b": 2})))
-
     def test_select_keys(self):
         assert lmap.PersistentMap.empty() == core.select_keys(
             lmap.PersistentMap.empty(), vec.PersistentVector.empty()

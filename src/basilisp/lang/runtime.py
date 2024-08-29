@@ -993,8 +993,10 @@ def _to_set_none(_: None) -> lset.PersistentSet:
 
 
 @to_set.register(IPersistentMap)
-def _to_set_map(s: IPersistentMap) -> lset.PersistentSet:
-    return lset.set(s.seq())
+def _to_set_map(m: IPersistentMap) -> lset.PersistentSet:
+    if (s := m.seq()) is None:
+        return lset.EMPTY
+    return to_set(s)
 
 
 @functools.singledispatch
@@ -1008,8 +1010,10 @@ def _vector_none(_: None) -> vec.PersistentVector:
 
 
 @vector.register(IPersistentMap)
-def _vector_map(v: IPersistentMap) -> vec.PersistentVector:
-    return vec.vector(v.seq())
+def _vector_map(m: IPersistentMap) -> vec.PersistentVector:
+    if (s := m.seq()) is None:
+        return vec.EMPTY
+    return vector(s)
 
 
 def keyword(name: Any, ns: Any = None) -> kw.Keyword:
