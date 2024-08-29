@@ -246,7 +246,7 @@
   set
   (fn set
     [coll]
-    (^:allow-builtins basilisp.lang.set/set coll)))
+    (^:allow-builtins basilisp.lang.runtime/to-set coll)))
 
 (def
   ^{:doc      "Create a vector from the input arguments."
@@ -261,7 +261,7 @@
   vec
   (fn vec
     [coll]
-    (basilisp.lang.vector/vector coll)))
+    (basilisp.lang.runtime/vector coll)))
 
 ;;;;;;;;;;;; full support for syntax quote begins here ;;;;;;;;;;;;
 
@@ -332,8 +332,8 @@
 (.alter-meta #'vector? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/IPersistentVector ~o)))
 (.alter-meta #'seq? assoc :inline (fn [o] `(instance? basilisp.lang.interfaces/ISeq ~o)))
 (.alter-meta #'seq assoc :inline (fn [o] `(basilisp.lang.runtime/to-seq ~o)))
-(.alter-meta #'set assoc :inline (fn [coll] `(basilisp.lang.set/set ~coll)))
-(.alter-meta #'vec assoc :inline (fn [coll] `(basilisp.lang.vector/vector ~coll)))
+(.alter-meta #'set assoc :inline (fn [coll] `(basilisp.lang.runtime/to-set ~coll)))
+(.alter-meta #'vec assoc :inline (fn [coll] `(basilisp.lang.runtime/vector ~coll)))
 
 (def
   ^{:macro    true
@@ -2322,14 +2322,32 @@
   (.-value entry))
 
 (defn ^:inline keys
-  "Return a seq of the keys from a map."
+  "Return a seq of the keys from a map-like object.
+
+  If ``m`` is ``nil``, return ``nil``.
+
+  If ``m`` is castable to a seq, cast it to a seq and call ``keys`` on that.
+
+  If ``m`` is a seq, yield the keys from successive entries (which must be map
+  entries).
+
+  If ``m`` is any type of mapping, return a seq of that mapping's keys."
   [m]
-  (when m (seq (.keys m))))
+  (basilisp.lang.runtime/keys m))
 
 (defn ^:inline vals
-  "Return a seq of the values from a map."
+  "Return a seq of the values from a map-like object
+
+  If ``m`` is ``nil``, return ``nil``.
+
+  If ``m`` is castable to a seq, cast it to a seq and call ``vals`` on that.
+
+  If ``m`` is a seq, yield the valuess from successive entries (which must be map
+  entries).
+
+  If ``m`` is any type of mapping, return a seq of that mapping's values."
   [m]
-  (when m (seq (.values m))))
+  (basilisp.lang.runtime/vals m))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Transient Collections ;;
