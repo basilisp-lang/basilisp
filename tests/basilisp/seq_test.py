@@ -1,3 +1,5 @@
+import pytest
+
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
 from basilisp.lang import runtime as runtime
@@ -71,6 +73,16 @@ def test_lazy_sequence():
     assert not t.is_empty, "LazySeq has been realized and is not empty"
 
     assert [1, 2, 3] == [e for e in s]
+
+    def raise_error(er):
+        raise er
+
+    s = lseq.LazySeq(lambda: raise_error(BaseException))
+    with pytest.raises(BaseException):
+        s.first
+    s = lseq.LazySeq(lambda: raise_error(AttributeError))
+    with pytest.raises(AttributeError):
+        s.first
 
 
 def test_empty_sequence():
