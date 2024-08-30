@@ -2651,7 +2651,8 @@ def _invoke_ast(form: Union[llist.PersistentList, ISeq], ctx: AnalyzerContext) -
                     phase=CompilerPhase.MACROEXPANSION,
                 ) from e
         elif (
-            not (isinstance(form, IMeta) and _is_no_inline(form))
+            ctx.should_inline_functions
+            and not (isinstance(form, IMeta) and _is_no_inline(form))
             and fn.var.meta
             and callable(fn.var.meta.get(SYM_INLINE_META_KW))
         ):
