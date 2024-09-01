@@ -6589,21 +6589,16 @@
   (let [ctor-name (with-meta
                     (symbol (str "->" (name type-name)))
                     (meta type-name))
-        ctors     [type-name ctor-name]
 
         {:keys [interfaces methods]} (collect-methods method-impls)]
     `(do
-       (declare ~@ctors)
+       (declare ~type-name ~ctor-name)
        (deftype* ~type-name ~fields
          :implements [~@interfaces
                       ~'basilisp.lang.interfaces/IType
                       ~'python/object]
          ~@methods)
        (def ~ctor-name ~type-name)
-
-       ~@(for [ctor ctors]
-           `(alter-meta! (var ~ctor) dissoc :redef))
-
        ~type-name)))
 
 (defmacro reify
@@ -6745,7 +6740,6 @@
         map-ctor      (with-meta
                         (symbol (str "map->" (name type-name)))
                         (meta type-name))
-        ctors         [type-name ctor-name map-ctor]
 
         record-fields (vec (concat fields
                                    ['^{:default nil} meta
@@ -6772,7 +6766,7 @@
     (validate-record-methods methods)
 
     `(do
-       (declare ~@ctors)
+       (declare ~type-name ~ctor-name ~map-ctor)
        (deftype* ~type-name ~record-fields
          :implements [~@interfaces]
 
@@ -6932,9 +6926,6 @@
            "map whose keys correspond to the fields of " type-name ".")
          [m#]
          ((.- ~type-name ~'create) m#))
-
-       ~@(for [ctor ctors]
-           `(alter-meta! (var ~ctor) dissoc :redef))
 
        ~type-name)))
 
