@@ -6592,6 +6592,7 @@
 
         {:keys [interfaces methods]} (collect-methods method-impls)]
     `(do
+       (declare ~type-name ~ctor-name)
        (deftype* ~type-name ~fields
          :implements [~@interfaces
                       ~'basilisp.lang.interfaces/IType
@@ -6765,6 +6766,7 @@
     (validate-record-methods methods)
 
     `(do
+       (declare ~type-name ~ctor-name ~map-ctor)
        (deftype* ~type-name ~record-fields
          :implements [~@interfaces]
 

@@ -1,12 +1,18 @@
 (ns tests.basilisp.test-defrecord
   (:import abc)
   (:require
-   [basilisp.test :refer [deftest is testing]]))
+   [basilisp.test :refer [deftest is testing are]]))
 
 (deftype Square [dim]
   (__eq__ [this other]
     (and (instance? Square other)
          (= dim (.-dim other)))))
+
+(deftype InvokeConstructorsType []
+  (__call__ [this ctor]
+    (case ctor
+      :positional (->InvokeConstructorsType)
+      :dot        (InvokeConstructorsType.))))
 
 (deftest deftype-constructors
   (let [elems [(tests.basilisp.test-defrecord.Square. 1)
@@ -14,7 +20,12 @@
                (new tests.basilisp.test-defrecord.Square 1)
                (new Square 1)
                (tests.basilisp.test-defrecord/Square 1)]]
-    (is (apply = elems))))
+    (is (apply = elems)))
+  (testing "can invoke own constructors"
+    (let [invoke (->InvokeConstructorsType)]
+      (are [k] (instance? InvokeConstructorsType (invoke k))
+        :positional
+        :dot))))
 
 (deftest deftype-reader-form
   (testing "type"
@@ -184,13 +195,26 @@
   (area [self]
     (* 3.14 radius radius)))
 
+(defrecord InvokeConstructorsRecord []
+  (__call__ [self ctor]
+    (case ctor
+      :map        (map->InvokeConstructorsRecord self)
+      :positional (->InvokeConstructorsRecord)
+      :dot        (InvokeConstructorsRecord.))))
+
 (deftest defrecord-constructors
   (let [elems [(tests.basilisp.test-defrecord.Circle. 1)
                (Circle. 1)
                (new tests.basilisp.test-defrecord.Circle 1)
                (new Circle 1)
                (tests.basilisp.test-defrecord/Circle 1)]]
-    (is (apply = elems))))
+    (is (apply = elems)))
+  (testing "can invoke own constructors"
+    (let [invoke (->InvokeConstructorsRecord)]
+      (are [k] (instance? InvokeConstructorsRecord (invoke k))
+        :map
+        :positional
+        :dot))))
 
 (deftest defrecord-with-methods
   (let [c  (->Circle 1)
