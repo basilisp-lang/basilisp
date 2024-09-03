@@ -51,6 +51,7 @@ SYM_NO_WARN_WHEN_UNUSED_META_KEY = kw.keyword("no-warn-when-unused")
 SYM_REDEF_META_KEY = kw.keyword("redef")
 SYM_STATICMETHOD_META_KEY = kw.keyword("staticmethod")
 SYM_TAG_META_KEY = kw.keyword("tag")
+SYM_USE_VAR_INDIRECTION_KEY = kw.keyword("use-var-indirection")
 
 ARGLISTS_KW = kw.keyword("arglists")
 INTERFACE_KW = kw.keyword("interface")

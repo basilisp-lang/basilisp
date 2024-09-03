@@ -77,6 +77,7 @@ from basilisp.lang.compiler.constants import (
     SYM_REDEF_META_KEY,
     SYM_STATICMETHOD_META_KEY,
     SYM_TAG_META_KEY,
+    SYM_USE_VAR_INDIRECTION_KEY,
     VAR_IS_PROTOCOL_META_KEY,
     SpecialForm,
 )
@@ -673,6 +674,7 @@ _is_py_property = _bool_meta_getter(SYM_PROPERTY_META_KEY)
 _is_py_staticmethod = _bool_meta_getter(SYM_STATICMETHOD_META_KEY)
 _is_macro = _bool_meta_getter(SYM_MACRO_META_KEY)
 _is_no_inline = _bool_meta_getter(SYM_NO_INLINE_META_KEY)
+_is_use_var_indirection = _bool_meta_getter(SYM_USE_VAR_INDIRECTION_KEY)
 _inline_meta = _meta_getter(SYM_INLINE_META_KW)
 _tag_meta = _meta_getter(SYM_TAG_META_KEY)
 
@@ -2017,6 +2019,7 @@ def _do_ast(form: ISeq, ctx: AnalyzerContext) -> Do:
         form=form,
         statements=vec.vector(statements),
         ret=ret,
+        use_var_indirection=_is_use_var_indirection(form.first),
         env=ctx.get_node_env(pos=ctx.syntax_position),
     )
 

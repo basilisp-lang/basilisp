@@ -532,6 +532,7 @@ class Do(Node[SpecialForm]):
     ret: Node
     env: NodeEnv
     is_body: bool = False
+    use_var_indirection: bool = False
     children: Sequence[kw.Keyword] = vec.v(STATEMENTS, RET)
     op: NodeOp = NodeOp.DO
     top_level: bool = False
