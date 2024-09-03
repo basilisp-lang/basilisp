@@ -301,6 +301,9 @@
                  (read-string "#tests.basilisp.test-defrecord.Point(1 2 3)")))))
 
 (deftest defrecord-field-restrictions
+  (testing "attrs does not strip prefixes"
+    (is (eval '(defrecord NonDuplicateFieldName [x -x]))))
+
   (testing "reserved fields"
     (is (thrown? basilisp.lang.compiler/CompilerException
                  (eval '(defrecord NewType [a b meta]))))

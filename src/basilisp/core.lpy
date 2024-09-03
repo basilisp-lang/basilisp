@@ -6789,12 +6789,10 @@
                                                                :map))))
 
                 new-recmap# (when (seq map#)
-                              ;; Python attrs does not allow the underscore prefixed
-                              ;; field name in the constructor
-                              ["recmap" (->> (mapcat identity map#)
-                                             (apply assoc ~'_recmap))])]
+                              ["_recmap" (->> (mapcat identity map#)
+                                              (apply assoc ~'_recmap))])]
             (->> fields#
-                 (map (fn [[k# v#]] [(.lstrip (-mangle-py-field '~type-name (munge k#)) "_") v#]))
+                 (map (fn [[k# v#]] [(munge k#) v#]))
                  (mapcat identity)
                  (concat new-recmap#)
                  (apply evolve ~this-gs))))
@@ -6856,7 +6854,7 @@
               (contains? (.- new-rec#  ~'_recmap) f#)
               (recur r#
                      (->> (dissoc (.- new-rec# ~'_recmap) f#)
-                          (evolve new-rec# "recmap")))
+                          (evolve new-rec# "_recmap")))
 
               :else
               (recur r# new-rec#))))
