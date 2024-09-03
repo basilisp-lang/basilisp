@@ -6823,11 +6823,11 @@
            (python/TypeError
             ~(str "Cannot create empty " type-name))))
          (~'seq [~this-gs]
-          (concat
-           [~@(map (fn [field]
-                     (map-entry (keyword (name field)) field))
-                   fields)]
-           (seq ~'_recmap)))
+          (seq (concat
+                [~@(map (fn [field]
+                          (map-entry (keyword (name field)) field))
+                        fields)]
+                (seq ~'_recmap))))
          (~'dissoc [~this-gs ~'& ks#]
           (loop [[f# ~'& r#] ks#
                  new-rec#    ~this-gs]
@@ -6869,9 +6869,9 @@
               (contains? ~'_recmap ~key-gs)
               (get ~'_recmap ~key-gs default#))))
          (~'__getitem__ [~this-gs ~key-gs]
-          (. ~this-gs ~'entry ~key-gs))
+          (.val-at ~this-gs ~key-gs))
          (~'__iter__ [~this-gs]
-          (seq ~this-gs))
+          (python/iter (map first (seq ~this-gs))))
          (~'__len__ [~this-gs]
           (+ ~(count field-kw-set)
              (count ~'_recmap)))

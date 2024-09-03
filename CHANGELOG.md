@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
  * Fix a bug where the compiler would always generate inline function definitions even if the `inline-functions` compiler option is disabled (#1023)
  * Fix a bug where `defrecord`/`deftype` constructors could not be used in the type's methods. (#1025)
+ * Fix a bug where `keys` and `vals` would fail for records (#1030)
 
 ## [v0.2.1]
 ### Changed

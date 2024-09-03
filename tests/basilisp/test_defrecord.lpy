@@ -73,6 +73,13 @@
              ((juxt :w :x :y :z :new-key) p2)))
       (is (= [1 nil 3] ((juxt :x :y :z) p3))))
 
+    (testing "__getitem__ field access"
+      (is (= 1 (.__getitem__ p :x)))
+      (is (= 2 (.__getitem__ p :y)))
+      (is (= 3 (.__getitem__ p :z)))
+      (is (nil? (.__getitem__ p :l)))
+      (is (= 0 (.__getitem__ p1 :w))))
+
     (testing "assoc"
       (is (= 4 (:x (assoc p :x 4))))
       (is (= 5 (:y (assoc p :y 5))))
@@ -149,6 +156,21 @@
              (set (seq p2))))
       (is (= #{[:x 1] [:z 3]}
              (set (seq p3)))))
+
+    (testing "iterator"
+      (is (= #{:x :y :z} (set (seq (python/iter p)))))
+      (is (= #{:w :x :y :z} (set (seq (python/iter p1)))))
+      (is (= #{:w :x :y :z :new-key} (set (seq (python/iter p2))))))
+
+    (testing "keys"
+      (is (= #{:x :y :z} (set (keys p))))
+      (is (= #{:w :x :y :z} (set (keys p1))))
+      (is (= #{:w :x :y :z :new-key} (set (keys p2)))))
+
+    (testing "vals"
+      (is (= #{1 2 3} (set (vals p))))
+      (is (= #{0 1 2 3} (set (vals p1))))
+      (is (= #{0 1 2 3 "some-value"} (set (vals p2)))))
 
     (testing "equals"
       (is (= (->Point 1 2 3) p))
