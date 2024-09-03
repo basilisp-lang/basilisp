@@ -71,17 +71,14 @@ jobs:
           tox run-parallel -p 4
           mkdir coverage
           mv .coverage.* "coverage/.coverage.py${{ matrix.version }}"
-      - name: Show filesystem
-        run: |
-          ls -la
-          ls -la coverage
-        if: "! startsWith (matrix.os, 'windows')"
       - name: Archive code coverage results
         if: "startsWith (matrix.os, 'ubuntu')"
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage.py${{ matrix.version }}
           path: coverage/.coverage.py*
+          include-hidden-files: true
+          if-no-files-found: error
 
   run-pypy-tests:
     runs-on: ${{matrix.os}}
@@ -131,6 +128,8 @@ jobs:
         with:
           name: code-coverage.pypy${{ matrix.version }}
           path: coverage/.coverage.py*
+          include-hidden-files: true
+          if-no-files-found: error
 
   min-deps-test:
     # Attempt to run the TOX-ENV tests for the given OS and python
