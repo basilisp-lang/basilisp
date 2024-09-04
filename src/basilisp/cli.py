@@ -2,6 +2,7 @@ import argparse
 import importlib.metadata
 import io
 import os
+import pathlib
 import sys
 import textwrap
 import types
@@ -76,6 +77,19 @@ def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.Module
         ns,
     )
     return importlib.import_module(REPL_NS)
+
+
+def init_path(args: argparse.Namespace) -> None:
+    def append_once(path: str) -> None:
+        if path in sys.path:
+            return
+        sys.path.insert(0, path)
+
+    for path in args.include_path or []:
+        p = pathlib.Path(path).resolve()
+        append_once(str(p))
+
+    append_once("")
 
 
 def _to_bool(v: Optional[str]) -> Optional[bool]:
@@ -265,6 +279,16 @@ def _add_debug_arg_group(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_import_arg_group(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group("path options")
+    group.add_argument(
+        "-p",
+        "--include-path",
+        action="append",
+        help="path to add to `sys.path`; maybe specified more than once",
+    )
+
+
 def _add_runtime_arg_group(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group(
         "runtime arguments",
@@ -386,6 +410,7 @@ def nrepl_server(
     args: argparse.Namespace,
 ) -> None:
     basilisp.init(_compiler_opts(args))
+    init_path(args)
     nrepl_server_mod = importlib.import_module(munge(NREPL_SERVER_NS))
     nrepl_server_mod.start_server__BANG__(
         lmap.map(
@@ -422,6 +447,7 @@ def _add_nrepl_server_subcommand(parser: argparse.ArgumentParser) -> None:
         help='the file path where the server port number is output to, defaults to ".nrepl-port".',
     )
     _add_compiler_arg_group(parser)
+    _add_import_arg_group(parser)
     _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 
@@ -432,6 +458,7 @@ def repl(
 ) -> None:
     opts = _compiler_opts(args)
     basilisp.init(opts)
+    init_path(args)
     ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts=opts)
     prompter = get_prompter()
     eof = object()
@@ -512,6 +539,7 @@ def _add_repl_subcommand(parser: argparse.ArgumentParser) -> None:
         help="default namespace to use for the REPL",
     )
     _add_compiler_arg_group(parser)
+    _add_import_arg_group(parser)
     _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 
@@ -532,6 +560,7 @@ def run(
 
     opts = _compiler_opts(args)
     basilisp.init(opts)
+    init_path(args)
     ctx = compiler.CompilerContext(
         filename=(
             CLI_INPUT_FILE_PATH
@@ -617,6 +646,7 @@ def _add_run_subcommand(parser: argparse.ArgumentParser) -> None:
         help="command line args made accessible to the script as basilisp.core/*command-line-args*",
     )
     _add_compiler_arg_group(parser)
+    _add_import_arg_group(parser)
     _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 

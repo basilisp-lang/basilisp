@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added the `-p`/`--include-path` CLI command to add entries to the `sys.path` (#???)
+
 ### Changed
  * The compiler will no longer require `Var` indirection for top-level `do` forms unless those forms specify `^:use-var-indirection` metadata (which currently is only used in the `ns` macro) (#1034)
  * nREPL server no longer sends ANSI color escape sequences in exception messages to clients (#1039)
