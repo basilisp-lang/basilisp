@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
- * The compiler will no longer require `Var` indirection for top-level `do` forms unless those forms specify `^:use-var-indirection` metadata (which currently is only used in the `ns` macro) (#???)
+ * The compiler will no longer require `Var` indirection for top-level `do` forms unless those forms specify `^:use-var-indirection` metadata (which currently is only used in the `ns` macro) (#1034)
 
 ### Fixed
  * Fix a bug where the compiler would always generate inline function definitions even if the `inline-functions` compiler option is disabled (#1023)
