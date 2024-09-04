@@ -1,3 +1,4 @@
+import importlib
 import io
 import os
 import pathlib
@@ -6,6 +7,7 @@ import re
 import secrets
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from threading import Thread
@@ -28,6 +30,16 @@ def env_vars():
         os.environ.clear()
         for var, val in environ:
             os.environ[var] = val
+
+
+@pytest.fixture(autouse=True)
+def sys_path():
+    sys_path = list(sys.path)
+    try:
+        yield
+    finally:
+        sys.path = sys_path
+        importlib.invalidate_caches()
 
 
 @pytest.fixture

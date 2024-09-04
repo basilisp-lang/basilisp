@@ -6,7 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
- * Added the `-p`/`--include-path` CLI command to add entries to the `sys.path` (#???)
+ * Added the `-p`/`--include-path` CLI command to prepend entries to the `sys.path` as an alternative to `PYTHONPATH` (#1027)
+ * Added an empty entry to `sys.path` for all CLI entrypoints (`basilisp run`, `basilisp repl`, etc.) (#1027)
 
 ### Changed
  * The compiler will no longer require `Var` indirection for top-level `do` forms unless those forms specify `^:use-var-indirection` metadata (which currently is only used in the `ns` macro) (#1034)
@@ -14,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
  * Fix a bug where the compiler would always generate inline function definitions even if the `inline-functions` compiler option is disabled (#1023)
- * Fix a bug where `defrecord`/`deftype` constructors could not be used in the type's methods. (#1025)
+ * Fix a bug where `defrecord`/`deftype` constructors could not be used in the type's methods (#1025)
  * Fix a bug where `keys` and `vals` would fail for records (#1030)
  * Fix a bug where operations on records created by `defrecord` failed for fields whose Python-safe names were mangled by the Python compiler (#1029)
  * Fix incorrect line numbers for compiler exceptions in nREPL when evaluating forms in loaded files (#1037)
