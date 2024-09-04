@@ -2439,6 +2439,45 @@
 
 
 ;;;;;;;;;;
+;; Read ;;
+;;;;;;;;;;
+
+(deftest read-seq-test
+
+  (testing "read-seq plain"
+    (with [stream (io/StringIO "(+ 1 2)\n(+ 4 \n5)")]
+          (let [[l1 l2] (read-seq stream)
+                {l1-l  :basilisp.lang.reader/line
+                 l1-el :basilisp.lang.reader/end-line
+                 l1-c  :basilisp.lang.reader/col
+                 l1-ec :basilisp.lang.reader/end-col} (meta l1)
+                {l2-l  :basilisp.lang.reader/line
+                 l2-el :basilisp.lang.reader/end-line
+                 l2-c  :basilisp.lang.reader/col
+                 l2-ec :basilisp.lang.reader/end-col} (meta l2)]
+            (is (= '(+ 1 2) l1))
+            (is (= '(+ 4 5) l2))
+            (is (= [1 1 0 7] [l1-l l1-el l1-c l1-ec]))
+            (is (= [2 3 0 2] [l2-l l2-el l2-c l2-ec])))))
+
+  (testing "read-seq with specified line and col numbers"
+      (with [stream (io/StringIO "(+ 1 2)\n(+ 4 \n5)")]
+            (let [[l1 l2] (read-seq {:line_num 10 :column_num 15} stream)
+                  {l1-l  :basilisp.lang.reader/line
+                   l1-el :basilisp.lang.reader/end-line
+                   l1-c  :basilisp.lang.reader/col
+                   l1-ec :basilisp.lang.reader/end-col} (meta l1)
+                  {l2-l  :basilisp.lang.reader/line
+                   l2-el :basilisp.lang.reader/end-line
+                   l2-c  :basilisp.lang.reader/col
+                   l2-ec :basilisp.lang.reader/end-col} (meta l2)]
+              (is (= '(+ 1 2) l1))
+              (is (= '(+ 4 5) l2))
+              (is (= [10 10 15 22] [l1-l l1-el l1-c l1-ec]))
+              (is (= [11 12 0 2] [l2-l l2-el l2-c l2-ec]))))))
+
+
+;;;;;;;;;;
 ;; Load ;;
 ;;;;;;;;;;
 

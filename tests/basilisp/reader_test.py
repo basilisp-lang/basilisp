@@ -134,6 +134,40 @@ def test_stream_reader_loc():
     assert (3, 1) == sreader.loc
 
 
+def test_stream_reader_loc_other():
+    s = str("i=1\n" "b=2\n" "i")
+    sreader = reader.StreamReader(io.StringIO(s), line_num=5, column_num=3)
+    assert (5, 3) == sreader.loc
+
+    assert "i" == sreader.peek()
+    assert (5, 3) == sreader.loc
+
+    assert "=" == sreader.next_char()
+    assert (5, 4) == sreader.loc
+
+    assert "=" == sreader.peek()
+    assert (5, 4) == sreader.loc
+
+    sreader.pushback()
+    assert "i" == sreader.peek()
+    assert (5, 3) == sreader.loc
+
+    assert "=" == sreader.next_char()
+    assert (5, 4) == sreader.loc
+
+    assert "1" == sreader.next_char()
+    assert (5, 5) == sreader.loc
+
+    assert "\n" == sreader.next_char()
+    assert (5, 6) == sreader.loc
+
+    assert "b" == sreader.next_char()
+    assert (6, 0) == sreader.loc
+
+    assert "=" == sreader.next_char()
+    assert (6, 1) == sreader.loc
+
+
 class TestReaderLines:
     def test_reader_lines_from_str(self, tmp_path):
         _, _, l = list(reader.read_str("1\n2\n(/ 5 0)"))
@@ -143,6 +177,25 @@ class TestReaderLines:
             l.meta.get(reader.READER_END_LINE_KW),
             l.meta.get(reader.READER_COL_KW),
             l.meta.get(reader.READER_END_COL_KW),
+        )
+
+    def test_reader_lines_from_str_other_loc(self, tmp_path):
+        l1, _, l3 = list(
+            reader.read_str("(+ 1 2)\n2\n(/ 5 0)", line_num=6, column_num=7)
+        )
+
+        assert (6, 6, 7, 14) == (
+            l1.meta.get(reader.READER_LINE_KW),
+            l1.meta.get(reader.READER_END_LINE_KW),
+            l1.meta.get(reader.READER_COL_KW),
+            l1.meta.get(reader.READER_END_COL_KW),
+        )
+
+        assert (8, 8, 0, 7) == (
+            l3.meta.get(reader.READER_LINE_KW),
+            l3.meta.get(reader.READER_END_LINE_KW),
+            l3.meta.get(reader.READER_COL_KW),
+            l3.meta.get(reader.READER_END_COL_KW),
         )
 
     def test_reader_lines_from_file(self, tmp_path):
