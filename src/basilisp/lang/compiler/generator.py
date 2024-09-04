@@ -1468,7 +1468,12 @@ def _deftype_to_py_ast(  # pylint: disable=too-many-locals
                 _tagged_assign(
                     target=ast.Name(id=safe_field, ctx=ast.Store()),
                     value=ast.Call(
-                        func=_ATTRIB_FIELD_FN_NAME, args=[], keywords=attr_default_kws
+                        func=_ATTRIB_FIELD_FN_NAME,
+                        args=[],
+                        keywords=[
+                            *attr_default_kws,
+                            ast.keyword(arg="alias", value=ast.Constant(safe_field)),
+                        ],
                     ),
                     annotation=tag,
                 )

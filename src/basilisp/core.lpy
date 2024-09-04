@@ -6675,6 +6675,16 @@
 
 (prefer-method evolve basilisp.lang.interfaces/IRecord basilisp.lang.interfaces/IPersistentMap)
 
+(defn -mangle-py-field
+  "Implementation detail of :lpy:fn:`defrecord` to support Python's managled field
+  names."
+  [type-sym field-name]
+  (if (and (.startswith field-name "__")
+           (not (.endswith field-name "__")))
+    (let [munged-type-name (.lstrip (munge type-sym) "_")]
+      (str "_" munged-type-name field-name))
+    field-name))
+
 (defn ^:private validate-record-fields
   "Validate that record fields do not contain any reserved entries, are not declared as
   mutable, and do not declare any default values."
@@ -6779,12 +6789,10 @@
                                                                :map))))
 
                 new-recmap# (when (seq map#)
-                              ;; Python attrs does not allow the underscore prefixed
-                              ;; field name in the constructor
-                              ["recmap" (->> (mapcat identity map#)
-                                             (apply assoc ~'_recmap))])]
+                              ["_recmap" (->> (mapcat identity map#)
+                                              (apply assoc ~'_recmap))])]
             (->> fields#
-                 (map (fn [[k# v#]] [(name k#) v#]))
+                 (map (fn [[k# v#]] [(munge k#) v#]))
                  (mapcat identity)
                  (concat new-recmap#)
                  (apply evolve ~this-gs))))
@@ -6846,7 +6854,7 @@
               (contains? (.- new-rec#  ~'_recmap) f#)
               (recur r#
                      (->> (dissoc (.- new-rec# ~'_recmap) f#)
-                          (evolve new-rec# "recmap")))
+                          (evolve new-rec# "_recmap")))
 
               :else
               (recur r# new-rec#))))
@@ -6854,17 +6862,13 @@
           (or (~field-kw-set ~key-gs)
               (contains? ~'_recmap ~key-gs)))
          (~'entry [~this-gs ~key-gs]
-          (cond
-            (contains? ~field-kw-set ~key-gs)
-            (map-entry ~key-gs (python/getattr ~this-gs (munge ~key-gs)))
-
-            (contains? ~'_recmap ~key-gs)
-            (map-entry ~key-gs (get ~'_recmap ~key-gs))))
+          (when-let [val# (.val-at ~this-gs ~key-gs)]
+            (map-entry ~key-gs val#)))
          (~'val-at [~this-gs ~key-gs ~'& args#]
           (let [[default#] args#]
             (cond
               (contains? ~field-kw-set ~key-gs)
-              (python/getattr ~this-gs (munge ~key-gs))
+              (python/getattr ~this-gs (-mangle-py-field '~type-name (munge ~key-gs)))
 
               (contains? ~'_recmap ~key-gs)
               (get ~'_recmap ~key-gs default#))))
@@ -6891,12 +6895,16 @@
          (~'_record_lrepr [~this-gs py-kwargs#]
           (let [{print-meta :print_meta} (py->lisp py-kwargs#)
 
-                ns-name   (name *ns*)
-                qual-name (.- ~type-name ~'__qualname__)]
+                ;; Accessing this type name directly as `(.-__qualname__ this)`
+                ;; can fail in cases where the type name is munged and starts
+                ;; with a leading double underscore. Python apparently mangles
+                ;; the name as it would for any object field prefixed with a
+                ;; dunder.
+                qual-name (.- (python/type ~this-gs) ~'__qualname__)]
             (cond->> (->> (mapcat identity ~this-gs)
                           (apply hash-map)
                           (repr)
-                          (str "#" ns-name "." qual-name))
+                          (str "#" ~(name *ns*) "." qual-name))
               print-meta (str "^" (repr (meta ~this-gs)) " "))))
 
          ;; object

@@ -77,6 +77,8 @@ jobs:
         with:
           name: code-coverage.py${{ matrix.version }}
           path: coverage/.coverage.py*
+          include-hidden-files: true
+          if-no-files-found: error
 
   run-pypy-tests:
     runs-on: ${{matrix.os}}
@@ -126,6 +128,8 @@ jobs:
         with:
           name: code-coverage.pypy${{ matrix.version }}
           path: coverage/.coverage.py*
+          include-hidden-files: true
+          if-no-files-found: error
 
   min-deps-test:
     # Attempt to run the TOX-ENV tests for the given OS and python
