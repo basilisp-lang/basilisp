@@ -79,22 +79,21 @@ def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.Module
     return importlib.import_module(REPL_NS)
 
 
-def _sys_path_prepend_once(path: str) -> None:
-    """Prepend an entry to `sys.path` if it is not already in `sys.path`."""
-    if path in sys.path:
-        return
-    sys.path.insert(0, path)
-
-
 def init_path(args: argparse.Namespace, unsafe_path: str = "") -> None:
     """Prepend any import group arguments to `sys.path`, including `unsafe_path` (which
     defaults to the empty string) if --include-unsafe-path is specified."""
-    for path in args.include_path or []:
-        p = pathlib.Path(path).resolve()
-        _sys_path_prepend_once(str(p))
+
+    def prepend_once(path: str) -> None:
+        if path in sys.path:
+            return
+        sys.path.insert(0, path)
+
+    for pth in args.include_path or []:
+        p = pathlib.Path(pth).resolve()
+        prepend_once(str(p))
 
     if args.include_unsafe_path:
-        _sys_path_prepend_once(unsafe_path)
+        prepend_once(unsafe_path)
 
 
 def _to_bool(v: Optional[str]) -> Optional[bool]:
@@ -294,11 +293,10 @@ def _add_import_arg_group(parser: argparse.ArgumentParser) -> None:
     )
     group.add_argument(
         "--include-unsafe-path",
-        action=_set_envvar_action(
-            "BASILISP_INCLUDE_UNSAFE_PATH", parent=argparse._StoreAction
-        ),
+        action="store",
         nargs="?",
         const=True,
+        default=os.getenv("BASILISP_INCLUDE_UNSAFE_PATH", "true"),
         type=_to_bool,
         help=(
             "if true, automatically prepend a potentially unsafe path to `sys.path`; "
