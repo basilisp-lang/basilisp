@@ -5189,7 +5189,7 @@
                         (map (fn [v]
                                `(import ~v))
                              (:import opts)))]
-    `(do
+    `(^:use-var-indirection do
        (in-ns (quote ~name))
        (swap! *loaded-libs* conj (quote ~name))
        ~(when doc

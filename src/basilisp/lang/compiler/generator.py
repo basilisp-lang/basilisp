@@ -1530,18 +1530,18 @@ def _wrap_override_var_indirection(
 ) -> "PyASTGenerator[T_node, P_generator, T_pynode]":
     """
     Wrap a Node generator to apply a special override requiring Var indirection
-    for any Var accesses generated within top-level `do` blocks.
+    for any Var accesses generated within `do` blocks which are marked with the
+    ^:use-var-indirection metadata.
 
-    This is a bit of a hack to account for the `ns` macro, which is the first
-    form in most standard Namespaces. When Basilisp `require`s a Namespace, it
-    (like in Clojure) simply loads the file and lets that Namespace's `ns` macro
-    create the new Namespace and perform any setup. However, the Basilisp
-    compiler desperately tries to emit "smarter" Python code which avoids using
-    `Var.find` whenever the resolved symbol can be safely called directly from
-    the generated Pythom module. Without this hack, the compiler will emit code
-    during macroexpansion to access `basilisp.core` functions used in the `ns`
-    macro directly, even though they will not be available yet in the target
-    Namespace module.
+    This is needed to account for the `ns` macro, which is the first form in most
+    standard Namespaces. When Basilisp `require`s a Namespace, it (like in Clojure)
+    simply loads the file and lets that Namespace's `ns` macro create the new
+    Namespace and perform any setup. However, the Basilisp compiler desperately
+    tries to emit "smarter" Python code which avoids using `Var.find` whenever
+    the resolved symbol can be safely called directly from the generated Python
+    module. Without this hack, the compiler will emit code during macroexpansion
+    to access `basilisp.core` functions used in the `ns` macro directly, even
+    though they will not be available yet in the target Namespace module.
     """
 
     @wraps(f)
@@ -1551,7 +1551,7 @@ def _wrap_override_var_indirection(
         *args: P_generator.args,
         **kwargs: P_generator.kwargs,
     ) -> GeneratedPyAST[T_pynode]:
-        if isinstance(node, Do) and node.top_level:
+        if isinstance(node, Do) and node.use_var_indirection:
             with ctx.with_var_indirection_override():
                 return f(ctx, cast(T_node, node), *args, **kwargs)
         else:
