@@ -223,12 +223,23 @@ class StreamReader:
 
     __slots__ = ("_stream", "_pushback_depth", "_idx", "_buffer", "_line", "_col")
 
-    def __init__(self, stream: io.TextIOBase, pushback_depth: int = 5) -> None:
+    def __init__(
+        self,
+        stream: io.TextIOBase,
+        pushback_depth: int = 5,
+        init_line: Optional[int] = None,
+        init_column: Optional[int] = None,
+    ) -> None:
+        """`init_line` and `init_column` refer to where the `stream`
+        starts in the broader context, defaulting to 1 and 0
+        respectively if not provided."""
+        init_line = init_line if init_line is not None else 1
+        init_column = init_column if init_column is not None else 0
         self._stream = stream
         self._pushback_depth = pushback_depth
         self._idx = -2
-        self._line = collections.deque([1], pushback_depth)
-        self._col = collections.deque([0], pushback_depth)
+        self._line = collections.deque([init_line], pushback_depth)
+        self._col = collections.deque([init_column], pushback_depth)
         self._buffer = collections.deque([self._stream.read(1)], pushback_depth)
 
         # Load up an extra character
@@ -1696,8 +1707,14 @@ def read(  # pylint: disable=too-many-arguments
     features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
     default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
+    init_line: Optional[int] = None,
+    init_column: Optional[int] = None,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a stream as a Lisp expression.
+
+    The optional `init_line` and `init_column` specify where the
+    `stream` location metadata starts in the broader context, if not
+    from the start.
 
     Callers may optionally specify a namespace resolver, which will be used
     to adjudicate the fully-qualified name of symbols appearing inside of
@@ -1717,7 +1734,7 @@ def read(  # pylint: disable=too-many-arguments
     are provided.
 
     The caller is responsible for closing the input stream."""
-    reader = StreamReader(stream)
+    reader = StreamReader(stream, init_line=init_line, init_column=init_column)
     ctx = ReaderContext(
         reader,
         resolver=resolver,
@@ -1752,8 +1769,14 @@ def read_str(  # pylint: disable=too-many-arguments
     features: Optional[IPersistentSet[kw.Keyword]] = None,
     process_reader_cond: bool = True,
     default_data_reader_fn: Optional[DefaultDataReaderFn] = None,
+    init_line: Optional[int] = None,
+    init_column: Optional[int] = None,
 ) -> Iterable[RawReaderForm]:
     """Read the contents of a string as a Lisp expression.
+
+    The optional `init_line` and `init_column` specify where the
+    `stream` location metadata starts in the broader context, if not
+    from the beginning.
 
     Keyword arguments to this function have the same meanings as those of
     basilisp.lang.reader.read."""
@@ -1767,6 +1790,8 @@ def read_str(  # pylint: disable=too-many-arguments
             features=features,
             process_reader_cond=process_reader_cond,
             default_data_reader_fn=default_data_reader_fn,
+            init_line=init_line,
+            init_column=init_column,
         )
 
 

@@ -106,8 +106,11 @@
                       "ns"     ns})))
 
 (defn- do-handle-eval
-  "Evaluate the ``request`` ``code`` of ``file`` in the ``ns`` namespace according
-  to the current state of the ``client*`` and sends its result with ``send-fn``.
+  "Evaluate the ``request`` ``code`` of ``file`` in the ``ns`` namespace
+  according to the current state of the ``client*`` and sends its
+  result with ``send-fn``. If ``line`` and/or ``column`` are provided,
+  they indicate the line and column numbers withing the ``file`` where
+  ``code`` is located.
 
   The result sent is either the last evaluated value or exception, followed by
   the \"done\" status.
@@ -119,7 +122,7 @@
   It binds the ``*1``, ``*2``, ``*3`` and ``*e`` variables for evaluation from
   the corresponding ones found in ``client*``, and updates the latter according
   to the result."
-  [{:keys [client* code ns file _column _line] :as request} send-fn]
+  [{:keys [client* code ns file column line] :as request} send-fn]
   (let [{:keys [*1 *2 *3 *e eval-ns]} @client*
         out-stream                    (StreamOutFn #(send-fn request {"out" %}))
         ctx                           (basilisp.lang.compiler.CompilerContext. (or file "<nREPL Input>"))
@@ -134,7 +137,10 @@
               *e    *e]
       (try
         (let [result (last
-                      (for [form (read-seq (io/StringIO code))]
+                      (for [form (read-seq (cond-> {}
+                                             line   (assoc :init-line   line)
+                                             column (assoc :init-column column))
+                                           (io/StringIO code))]
                         (basilisp.lang.compiler/compile-and-exec-form form
                                                                       ctx
                                                                       *ns*)))]

@@ -4474,7 +4474,16 @@
   The stream must satisfy the interface of :external:py:class:`io.TextIOBase`\\, but
   does not require any pushback capabilities. The default
   ``basilisp.lang.reader.StreamReader`` can wrap any object implementing ``TextIOBase``
-  and provide pushback capabilities."
+  and provide pushback capabilities.
+
+  ``opts`` may include, among other things, the following keys:
+
+  :keyword ``:init-line``:  optional initial line number for reader metadata;
+      helpful for contextualizing errors for chunks of code read from a
+      larger source document.
+  :keyword ``:init-column``: optional initial column number for reader metadata;
+      helpful for contextualizing errors for chunks of code read from a
+      larger source document."
   ([stream]
    (read-seq {} stream))
   ([opts stream]
@@ -4486,7 +4495,10 @@
                  (= (:eof opts) :eofthrow)
                  (:features opts)
                  (not= :preserve (:read-cond opts))
-                 *default-data-reader-fn*)))))
+                 *default-data-reader-fn*
+                 **
+                 :init-line (:init-line opts)
+                 :init-column (:init-column opts))))))
 
 (defn read-string
   "Read a string of Basilisp code.
