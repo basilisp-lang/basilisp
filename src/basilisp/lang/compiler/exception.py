@@ -114,8 +114,12 @@ def format_compiler_exception(  # pylint: disable=too-many-branches,unused-argum
     e: CompilerException,
     tp: Optional[Type[Exception]] = None,
     tb: Optional[TracebackType] = None,
+    disable_color: Optional[bool] = None,
 ) -> List[str]:
-    """Format a compiler exception as a list of newline-terminated strings."""
+    """Format a compiler exception as a list of newline-terminated strings.
+
+    If `disable_color` is True, no color formatting will be applied to the source
+    code."""
     context_exc: Optional[BaseException] = e.__cause__
 
     lines = [os.linesep]
@@ -154,7 +158,9 @@ def format_compiler_exception(  # pylint: disable=too-many-branches,unused-argum
     # derive source lines, but use the inner cause exception to place a marker
     # around the error.
     if line is not None and (
-        context_lines := format_source_context(e.filename, line, end_line=end_line)
+        context_lines := format_source_context(
+            e.filename, line, end_line=end_line, disable_color=disable_color
+        )
     ):
         lines.append(f"    context:{os.linesep}")
         lines.append(os.linesep)

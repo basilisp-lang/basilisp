@@ -220,13 +220,12 @@ class TestExceptionFormat:
                 ).lstrip()
                 + ("\n" if include_newline else "")
             )
-            monkeypatch.setenv("BASILISP_NO_COLOR", "true")
             monkeypatch.syspath_prepend(source_file.parent)
 
             with pytest.raises(compiler.CompilerException) as e:
                 lcompile("(require 'compiler-test)")
 
-            formatted = format_exception(e.value)
+            formatted = format_exception(e.value, disable_color=True)
             assert re.match(
                 (
                     rf"{os.linesep}"

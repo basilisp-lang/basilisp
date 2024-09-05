@@ -596,10 +596,7 @@
                     " 7   |   (xyz))"
                     " 8   | "
                     " 9   | (afn)"]
-                   (-> err
-                       ;; remove ansi control chars
-                       (str/replace #"\\x1B[@-_][0-?]*[ -/]*[@-~]" "")
-                       (str/split-lines)))))
+                   (str/split-lines err))))
           (let [{:keys [id ex status ns]} (client-recv! client)]
             (is (= @id* id))
             (is (= "abc.xyz" ns))
