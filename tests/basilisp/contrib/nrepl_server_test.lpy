@@ -5,13 +5,16 @@
    [basilisp.contrib.nrepl-server :as nr]
    [basilisp.set :as set]
    [basilisp.string :as str :refer [starts-with?]]
-   [basilisp.test :refer [deftest are is testing]])
+   [basilisp.test :refer [deftest are is testing use-fixtures]]
+   [basilisp.test.fixtures :as fixtures :refer [*tempdir*]])
   (:import
    os
    socket
    tempfile
    threading
    time))
+
+(use-fixtures :each fixtures/tempdir)
 
 (def ^:dynamic *nrepl-port*
   "The port the :lpy:py:`with-server` is bound to."
@@ -519,11 +522,16 @@
 (deftest nrepl-server-load-file
   (testing "basic"
 
-    ;; procreate a load test file that is also going to be accessed by
-    ;; the server.
-    (let [[fd filename] (tempfile/mkstemp)]
-      (try
-        (spit filename "(ns abc.xyz (:require [clojure.string :as str])
+    (with-server {}
+      (with-connect client
+        (let [id* (atom 0)
+              id-inc! #(swap! id* inc)
+              filename (str (bio/path *tempdir* "load-file-test.lpy"))]
+          (client-send! client {:id (id-inc!) :op "clone"})
+          (let [{:keys [status]} (client-recv! client)]
+            (is (= ["done"] status)))
+
+          (spit filename "(ns abc.xyz (:require [clojure.string :as str])
 (:import [sys :as s]))
 (defn afn []
   (str/lower-case \"ABC\"))
@@ -533,109 +541,98 @@
 
 (afn)")
 
-        (with-server {}
-          (with-connect client
-            (let [id* (atom 0)
-                  id-inc! #(swap! id* inc)]
-              (client-send! client {:id (id-inc!) :op "clone"})
-              (let [{:keys [status]} (client-recv! client)]
-                (is (= ["done"] status)))
-              (client-send! client {:id (id-inc!) :op "load-file"
-                                    :ns "user" :file (slurp filename)
-                                    :file-name "xyz.lpy" :file-path filename})
-              (are [response] (= response (client-recv! client))
-                {:id @id* :ns "abc.xyz" :value "\"abc\""}
-                {:id @id* :ns "abc.xyz" :status ["done"]})
-
-
-              (client-send! client {:id (id-inc!) :op "eval" :ns "abc.xyz" :code "s/__name__"})
-              (are [response] (= response (client-recv! client))
-                {:id @id* :ns "abc.xyz" :value "\"sys\""}
-                {:id @id* :ns "abc.xyz" :status ["done"]})
-
-              (client-send! client {:id (id-inc!) :op "eval" :code "(in-ns 'abc.other)"})
-              (are [response] (= response (client-recv! client))
-                {:id @id* :ns "abc.other" :value "abc.other"}
-                {:id @id* :ns "abc.other" :status ["done"]})
-              (client-send! client {:id (id-inc!) :op "load-file"
-                                    :ns "user" :file "(ns abc.other) (defn afn [] 55) (+ 5 4)"
-                                    :file-name "other.lpy" :file-path "/abc/other.lpy"})
-              (are [response] (= response (client-recv! client))
-                {:id @id* :ns "abc.other" :value "9"}
-                {:id @id* :ns "abc.other" :status ["done"]})
-
-              (client-send! client {:id (id-inc!) :op "eval" :code "(afn)"})
-              (are [response] (= response (client-recv! client))
-                {:id @id* :ns "abc.other" :value "55"}
-                {:id @id* :ns "abc.other" :status ["done"]})
-
-              (client-send! client {:id (id-inc!) :op "eval" :code "(abc.xyz/afn)"})
-              (are [response] (= response (client-recv! client))
-                {:id @id* :ns "abc.other" :value "\"abc\""}
-                {:id @id* :ns "abc.other" :status ["done"]})
-
-              (client-send! client {:id (id-inc!) :ns "abc.xyz":op "eval" :code "(abc)"
-                                    :file filename
-                                    :line 6 :column 2})
-              (let [{:keys [id err]} (client-recv! client)]
-                (is (= @id* id))
-                (is (= [""
-                        "  exception: <class 'basilisp.lang.compiler.exception.CompilerException'>"
-                        "      phase: :analyzing"
-                        "    message: unable to resolve symbol 'abc' in this context"
-                        "       form: abc"
-                        (str "   location: " filename ":6")
-                        "    context:"
-                        ""
-                        " 2   | (:import [sys :as s]))"
-                        " 3   | (defn afn []"
-                        " 4   |   (str/lower-case \"ABC\"))"
-                        " 5   | (comment"
-                        " 6 > |   (abc)"
-                        " 7   |   (xyz))"
-                        " 8   | "
-                        " 9   | (afn)"]
-                       (-> err
-                           ;; remove ansi control chars
-                           (str/replace #"\\x1B[@-_][0-?]*[ -/]*[@-~]" "")
-                           (str/split-lines)))))
-              (let [{:keys [id ex status ns]} (client-recv! client)]
-                (is (= @id* id))
-                (is (= "abc.xyz" ns))
-                (is (= ["eval-error"] status))
-                (is (str/starts-with? ex "Traceback (most recent call last):")))
-              (are [response] (= response (client-recv! client))
-                {:id @id* :ns "abc.xyz" :status ["done"]})
-
-
-              (client-send! client {:id (id-inc!) :op "load-file" :ns "user" :file "(ns abc.third)\n\n(/ 3 0)"
-                                    :file-name "third.lpy" :file-path "/abc/third.lpy"})
-              (let [{:keys [id err]} (client-recv! client)]
-                (is (= @id* id))
-                (is (str/includes? err "ZeroDivisionError: Fraction(3, 0)") (str/split-lines err)))
-              (let [{:keys [id ex status ns]} (client-recv! client)]
-                (is (= @id* id))
-                (is (= "abc.third" ns))
-                (is (= ["eval-error"] status))
-                (is (not= -1 (.find ex "File \"/abc/third.lpy\", line 3")) ex)
-                (is (str/starts-with? ex "Traceback (most recent call last):")))
-              (are [response] (= response (client-recv! client))
-                {:id @id* :ns "abc.third" :status ["done"]}))))
-
-        (finally
-          (os/close fd)
-          (os/unlink filename))))
-
-    (testing "no file"
-      (with-server {}
-        (with-connect client
-          (client-send! client {:id 1 :op "clone"})
-          (let [{:keys [status]} (client-recv! client)]
-            (is (= ["done"] status)))
-          (client-send! client {:id 2 :op "load-file" :ns "user"})
+          (client-send! client {:id (id-inc!) :op "load-file"
+                                :ns "user" :file (slurp filename)
+                                :file-name "xyz.lpy" :file-path filename})
           (are [response] (= response (client-recv! client))
-            {:id 2 :ns "user" :value "nil"}
-            {:id 2 :ns "user" :status ["done"]}))))))
+            {:id @id* :ns "abc.xyz" :value "\"abc\""}
+            {:id @id* :ns "abc.xyz" :status ["done"]})
+
+
+          (client-send! client {:id (id-inc!) :op "eval" :ns "abc.xyz" :code "s/__name__"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.xyz" :value "\"sys\""}
+            {:id @id* :ns "abc.xyz" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(in-ns 'abc.other)"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.other" :value "abc.other"}
+            {:id @id* :ns "abc.other" :status ["done"]})
+          (client-send! client {:id (id-inc!) :op "load-file"
+                                :ns "user" :file "(ns abc.other) (defn afn [] 55) (+ 5 4)"
+                                :file-name "other.lpy" :file-path "/abc/other.lpy"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.other" :value "9"}
+            {:id @id* :ns "abc.other" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(afn)"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.other" :value "55"}
+            {:id @id* :ns "abc.other" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :op "eval" :code "(abc.xyz/afn)"})
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.other" :value "\"abc\""}
+            {:id @id* :ns "abc.other" :status ["done"]})
+
+          (client-send! client {:id (id-inc!) :ns "abc.xyz":op "eval" :code "(abc)"
+                                :file filename
+                                :line 6 :column 2})
+          (let [{:keys [id err]} (client-recv! client)]
+            (is (= @id* id))
+            (is (= [""
+                    "  exception: <class 'basilisp.lang.compiler.exception.CompilerException'>"
+                    "      phase: :analyzing"
+                    "    message: unable to resolve symbol 'abc' in this context"
+                    "       form: abc"
+                    (str "   location: " filename ":6")
+                    "    context:"
+                    ""
+                    " 2   | (:import [sys :as s]))"
+                    " 3   | (defn afn []"
+                    " 4   |   (str/lower-case \"ABC\"))"
+                    " 5   | (comment"
+                    " 6 > |   (abc)"
+                    " 7   |   (xyz))"
+                    " 8   | "
+                    " 9   | (afn)"]
+                   (-> err
+                       ;; remove ansi control chars
+                       (str/replace #"\\x1B[@-_][0-?]*[ -/]*[@-~]" "")
+                       (str/split-lines)))))
+          (let [{:keys [id ex status ns]} (client-recv! client)]
+            (is (= @id* id))
+            (is (= "abc.xyz" ns))
+            (is (= ["eval-error"] status))
+            (is (str/starts-with? ex "Traceback (most recent call last):")))
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.xyz" :status ["done"]})
+
+
+          (client-send! client {:id (id-inc!) :op "load-file" :ns "user" :file "(ns abc.third)\n\n(/ 3 0)"
+                                :file-name "third.lpy" :file-path "/abc/third.lpy"})
+          (let [{:keys [id err]} (client-recv! client)]
+            (is (= @id* id))
+            (is (str/includes? err "ZeroDivisionError: Fraction(3, 0)") (str/split-lines err)))
+          (let [{:keys [id ex status ns]} (client-recv! client)]
+            (is (= @id* id))
+            (is (= "abc.third" ns))
+            (is (= ["eval-error"] status))
+            (is (not= -1 (.find ex "File \"/abc/third.lpy\", line 3")) ex)
+            (is (str/starts-with? ex "Traceback (most recent call last):")))
+          (are [response] (= response (client-recv! client))
+            {:id @id* :ns "abc.third" :status ["done"]})))))
+
+  (testing "no file"
+    (with-server {}
+      (with-connect client
+        (client-send! client {:id 1 :op "clone"})
+        (let [{:keys [status]} (client-recv! client)]
+          (is (= ["done"] status)))
+        (client-send! client {:id 2 :op "load-file" :ns "user"})
+        (are [response] (= response (client-recv! client))
+          {:id 2 :ns "user" :value "nil"}
+          {:id 2 :ns "user" :status ["done"]})))))
 
 (deftest nrepl-server-params
   (testing "buffer size"

@@ -138,8 +138,8 @@
       (try
         (let [result (last
                       (for [form (read-seq (cond-> {}
-                                             line (assoc :line_num line)
-                                             column (assoc :column_num column))
+                                             line   (assoc :init-line   line)
+                                             column (assoc :init-column column))
                                            (io/StringIO code))]
                         (basilisp.lang.compiler/compile-and-exec-form form
                                                                       ctx

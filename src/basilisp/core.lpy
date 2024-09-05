@@ -4478,11 +4478,12 @@
 
   ``opts`` may include, among other things, the following keys:
 
-  :keyword ``:line_num``: An optional starting line number in the
-  broader context where the `stream` is located.
-
-  :keyword ``:column_num``: An optional starting column number in the
-  broader context where the `stream` is located."
+  :keyword ``:init-line``:  optional initial line number for reader metadata;
+      helpful for contextualizing errors for chunks of code read from a
+      larger source document.
+  :keyword ``:init-col``: optional initial column number for reader metadata;
+      helpful for contextualizing errors for chunks of code read from a
+      larger source document."
   ([stream]
    (read-seq {} stream))
   ([opts stream]
@@ -4496,8 +4497,8 @@
                  (not= :preserve (:read-cond opts))
                  *default-data-reader-fn*
                  **
-                 :line_num (:line_num opts)
-                 :column_num (:column_num opts))))))
+                 :init-line (:init-line opts)
+                 :init-column (:init-column opts))))))
 
 (defn read-string
   "Read a string of Basilisp code.

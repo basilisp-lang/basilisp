@@ -2462,7 +2462,7 @@
 
   (testing "read-seq with specified line and col numbers"
       (with [stream (io/StringIO "(+ 1 2)\n(+ 4 \n5)")]
-            (let [[l1 l2] (read-seq {:line_num 10 :column_num 15} stream)
+            (let [[l1 l2] (read-seq {:init-line 10 :init-column 15} stream)
                   {l1-l  :basilisp.lang.reader/line
                    l1-el :basilisp.lang.reader/end-line
                    l1-c  :basilisp.lang.reader/col

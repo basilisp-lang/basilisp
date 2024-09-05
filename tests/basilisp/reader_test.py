@@ -136,7 +136,7 @@ def test_stream_reader_loc():
 
 def test_stream_reader_loc_other():
     s = str("i=1\n" "b=2\n" "i")
-    sreader = reader.StreamReader(io.StringIO(s), line_num=5, column_num=3)
+    sreader = reader.StreamReader(io.StringIO(s), init_line=5, init_column=3)
     assert (5, 3) == sreader.loc
 
     assert "i" == sreader.peek()
@@ -181,7 +181,7 @@ class TestReaderLines:
 
     def test_reader_lines_from_str_other_loc(self, tmp_path):
         l1, _, l3 = list(
-            reader.read_str("(+ 1 2)\n2\n(/ 5 0)", line_num=6, column_num=7)
+            reader.read_str("(+ 1 2)\n2\n(/ 5 0)", init_line=6, init_column=7)
         )
 
         assert (6, 6, 7, 14) == (
