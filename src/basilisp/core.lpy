@@ -4481,7 +4481,7 @@
   :keyword ``:init-line``:  optional initial line number for reader metadata;
       helpful for contextualizing errors for chunks of code read from a
       larger source document.
-  :keyword ``:init-col``: optional initial column number for reader metadata;
+  :keyword ``:init-column``: optional initial column number for reader metadata;
       helpful for contextualizing errors for chunks of code read from a
       larger source document."
   ([stream]

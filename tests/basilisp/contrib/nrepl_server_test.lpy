@@ -575,7 +575,7 @@
             {:id @id* :ns "abc.other" :value "\"abc\""}
             {:id @id* :ns "abc.other" :status ["done"]})
 
-          (client-send! client {:id (id-inc!) :ns "abc.xyz":op "eval" :code "(abc)"
+          (client-send! client {:id (id-inc!) :ns "abc.xyz" :op "eval" :code "(abc)"
                                 :file filename
                                 :line 6 :column 2})
           (let [{:keys [id err]} (client-recv! client)]
