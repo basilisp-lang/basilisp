@@ -9,17 +9,24 @@ try:
     import pygments.styles
 except ImportError:  # pragma: no cover
 
-    def _format_source(s: str) -> str:
+    def _format_source(
+        s: str, disable_color: Optional[bool] = None  # pylint: disable=unused-argument
+    ) -> str:
         return f"{s}{os.linesep}"
 
 else:
 
-    def _get_formatter_name() -> Optional[str]:  # pragma: no cover
+    def _get_formatter_name(
+        disable_color: Optional[bool] = None,
+    ) -> Optional[str]:  # pragma: no cover
         """Get the Pygments formatter name for formatting the source code by
         inspecting various environment variables set by terminals.
 
-        If `BASILISP_NO_COLOR` is set to a truthy value, use no formatting."""
-        if os.environ.get("BASILISP_NO_COLOR", "false").lower() in {"1", "true"}:
+        If If `disable_color` is explicitly True or `BASILISP_NO_COLOR` is set
+        to a truthy value, use no formatting."""
+        if (disable_color is True) or os.environ.get(
+            "BASILISP_NO_COLOR", "false"
+        ).lower() in {"1", "true"}:
             return None
         elif os.environ.get("COLORTERM", "") in {"truecolor", "24bit"}:
             return "terminal16m"
@@ -28,9 +35,13 @@ else:
         else:
             return "terminal"
 
-    def _format_source(s: str) -> str:  # pragma: no cover
-        """Format source code for terminal output."""
-        if (formatter_name := _get_formatter_name()) is None:
+    def _format_source(
+        s: str, disable_color: Optional[bool] = None
+    ) -> str:  # pragma: no cover
+        """Format source code for terminal output.
+
+        If `disable_color` is True, no formatting will be applied to the source code."""
+        if (formatter_name := _get_formatter_name(disable_color)) is None:
             return f"{s}{os.linesep}"
         return pygments.highlight(
             s,
@@ -41,15 +52,19 @@ else:
         )
 
 
-def format_source_context(  # pylint: disable=too-many-locals
+def format_source_context(  # pylint: disable=too-many-arguments,too-many-locals
     filename: str,
     line: int,
     end_line: Optional[int] = None,
     num_context_lines: int = 5,
     show_cause_marker: bool = True,
+    disable_color: Optional[bool] = None,
 ) -> List[str]:
     """Format source code context with line numbers and identifiers for the affected
-    line(s)."""
+    line(s).
+
+    If `disable_color` is True, no color formatting will be applied to the source code.
+    """
     assert num_context_lines >= 0
 
     lines = []
@@ -87,7 +102,7 @@ def format_source_context(  # pylint: disable=too-many-locals
 
                 line_num = str(n + 1).rjust(num_justify)
                 lines.append(
-                    f"{line_num}{line_marker}| {_format_source(source_line.rstrip())}"
+                    f"{line_num}{line_marker}| {_format_source(source_line.rstrip(), disable_color=disable_color)}"
                 )
 
     return lines

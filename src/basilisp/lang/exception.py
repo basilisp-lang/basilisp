@@ -25,17 +25,21 @@ class ExceptionInfo(IExceptionInfo):
 
 
 @functools.singledispatch
-def format_exception(
+def format_exception(  # pylint: disable=unused-argument
     e: Optional[BaseException],
     tp: Optional[Type[BaseException]] = None,
     tb: Optional[TracebackType] = None,
+    disable_color: Optional[bool] = None,
 ) -> List[str]:
     """Format an exception into something readable, returning a list of newline
     terminated strings.
 
     For the majority of Python exceptions, this will just be the result from calling
     `traceback.format_exception`. For Basilisp specific compilation errors, a custom
-    output will be returned."""
+    output will be returned.
+
+    If `disable_color` is True, no color formatting should be applied to the source
+    code."""
     if isinstance(e, BaseException):
         if tp is None:
             tp = type(e)

@@ -254,13 +254,12 @@ class TestSyntaxErrorFormat:
                     """
                 ).strip()
             )
-            monkeypatch.setenv("BASILISP_NO_COLOR", "true")
             monkeypatch.syspath_prepend(source_file.parent)
 
             with pytest.raises(reader.SyntaxError) as e:
                 list(reader.read_file(source_file))
 
-            v = format_exception(e.value)
+            v = format_exception(e.value, disable_color=True)
             assert re.match(
                 (
                     rf"{os.linesep}"

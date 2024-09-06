@@ -166,7 +166,11 @@ def format_syntax_error(  # pylint: disable=unused-argument
     e: SyntaxError,
     tp: Optional[Type[Exception]] = None,
     tb: Optional[TracebackType] = None,
+    disable_color: Optional[bool] = None,
 ) -> List[str]:
+    """If `disable_color` is True, no color formatting will be applied to the source
+    code."""
+
     context_exc: Optional[BaseException] = e.__cause__
 
     lines = [os.linesep]
@@ -199,7 +203,11 @@ def format_syntax_error(  # pylint: disable=unused-argument
     if (
         e.filename is not None
         and e.line is not None
-        and (context_lines := format_source_context(e.filename, e.line))
+        and (
+            context_lines := format_source_context(
+                e.filename, e.line, disable_color=disable_color
+            )
+        )
     ):
         lines.append(f"    context:{os.linesep}")
         lines.append(os.linesep)

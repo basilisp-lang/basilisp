@@ -147,7 +147,8 @@
           (send-value request send-fn [result {:ns (str *ns*)}]))
         (catch python/Exception e
           (debug :eval-exception e)
-          (let [msg (->> (basilisp.lang.exception/format_exception e (type e) (.-__traceback__ e))
+          (let [msg (->> (basilisp.lang.exception/format_exception e (type e) (.-__traceback__ e)
+                                                                   ** :disable-color true)
                          (str/join ""))]
             (handle-error send-fn (assoc request :ns (str *ns*)) msg)))
         (finally
