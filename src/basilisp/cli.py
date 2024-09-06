@@ -300,7 +300,8 @@ def _add_import_arg_group(parser: argparse.ArgumentParser) -> None:
         type=_to_bool,
         help=(
             "if true, automatically prepend a potentially unsafe path to `sys.path`; "
-            "this is the Basilisp equivalent to the PYTHONSAFEPATH environment variable "
+            "setting `--include-unsafe-path=false` is the Basilisp equivalent to "
+            "setting PYTHONSAFEPATH to a non-empty string for CPython's REPL "
             "(env: BASILISP_INCLUDE_UNSAFE_PATH; default: true)"
         ),
     )
@@ -622,7 +623,7 @@ def run(
             init_path(args)
             eval_stream(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8"), ctx, ns)
         else:
-            init_path(args, unsafe_path=str(pathlib.Path(target).resolve()))
+            init_path(args, unsafe_path=str(pathlib.Path(target).resolve().parent))
             eval_file(target, ctx, ns)
 
 

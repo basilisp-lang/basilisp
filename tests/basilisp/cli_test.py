@@ -33,13 +33,30 @@ def env_vars():
 
 
 @pytest.fixture(autouse=True)
-def sys_path():
+def sys_path() -> List[str]:
     sys_path = list(sys.path)
     try:
-        yield
+        yield sys_path
     finally:
         sys.path = sys_path
         importlib.invalidate_caches()
+
+
+@pytest.fixture()
+def temp_paths(tmp_path_factory) -> List[pathlib.Path]:
+    paths = []
+    for i in range(3):
+        path = tmp_path_factory.mktemp(f"dir{i}")
+        paths.append(path)
+    return paths
+
+
+@pytest.fixture
+def temp_path_args(temp_paths: List[pathlib.Path]) -> List[str]:
+    args = []
+    for p in temp_paths:
+        args.extend(("-p", str(p)))
+    return args
 
 
 @pytest.fixture
@@ -48,7 +65,7 @@ def isolated_filesystem():
         wd = os.getcwd()
         os.chdir(d)
         try:
-            yield
+            yield d
         finally:
             os.chdir(wd)
 
@@ -239,161 +256,401 @@ class TestREPL:
         assert "basilisp.user=> basilisp.user=> " == result.out
         assert "Exception: CLI test" in result.err
 
+    class TestPathConfig:
+        @pytest.mark.parametrize(
+            "args",
+            [
+                (),
+                ("--include-unsafe-path",),
+                ("--include-unsafe-path=true",),
+                ("--include-unsafe-path", "true"),
+            ],
+        )
+        def test_repl_include_unsafe_path(self, run_cli, args):
+            result = run_cli(
+                ["repl", *args], input="(import sys) (prn (first sys/path))"
+            )
+            assert '""\n' == result.lisp_out
+            assert "" == sys.path[0]
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                ("--include-unsafe-path=false",),
+                ("--include-unsafe-path", "false"),
+            ],
+        )
+        def test_repl_do_not_include_unsafe_path(self, run_cli, args, sys_path):
+            result = run_cli(
+                ["repl", *args], input="(import sys) (prn (first sys/path))"
+            )
+            assert '""\n' != result.lisp_out
+            assert sys_path[0] == sys.path[0]
+
+        def test_repl_include_extra_path(
+            self, run_cli, temp_paths: List[pathlib.Path], temp_path_args: List[str]
+        ):
+            result = run_cli(
+                ["repl", *temp_path_args],
+                input="(import sys) (doseq [path sys/path] (prn path))",
+            )
+            out_lines = set(result.lisp_out.splitlines())
+            assert {'""', *map(lambda p: f'"{p}"', temp_paths)}.issubset(out_lines)
+
+
+cli_run_args_params = [
+    ([], f"0{os.linesep}"),
+    (["--"], f"0{os.linesep}"),
+    (["1", "2", "3"], f"6{os.linesep}"),
+    (["--", "1", "2", "3"], f"6{os.linesep}"),
+]
+cli_run_args_code = "(println (apply + (map int *command-line-args*)))"
+
 
 class TestRun:
-    cli_args_params = [
-        ([], f"0{os.linesep}"),
-        (["--"], f"0{os.linesep}"),
-        (["1", "2", "3"], f"6{os.linesep}"),
-        (["--", "1", "2", "3"], f"6{os.linesep}"),
-    ]
-    cli_args_code = "(println (apply + (map int *command-line-args*)))"
-
     def test_run_ns_and_code_mutually_exclusive(self, run_cli):
         with pytest.raises(SystemExit):
             run_cli(["run", "-c", "-n"])
 
-    def test_run_code(self, run_cli):
-        result = run_cli(["run", "-c", "(println (+ 1 2))"])
-        assert f"3{os.linesep}" == result.lisp_out
+    class TestRunCode:
+        def test_run_code(self, run_cli):
+            result = run_cli(["run", "-c", "(println (+ 1 2))"])
+            assert f"3{os.linesep}" == result.lisp_out
 
-    def test_run_code_main_ns(self, run_cli):
-        result = run_cli(["run", "-c", "(println *main-ns*)"])
-        assert f"nil{os.linesep}" == result.lisp_out
+        def test_run_code_main_ns(self, run_cli):
+            result = run_cli(["run", "-c", "(println *main-ns*)"])
+            assert f"nil{os.linesep}" == result.lisp_out
 
-    @pytest.mark.parametrize("args,ret", cli_args_params)
-    def test_run_code_with_args(self, run_cli, args: List[str], ret: str):
-        result = run_cli(["run", "-c", self.cli_args_code, *args])
-        assert ret == result.lisp_out
+        @pytest.mark.parametrize("args,ret", cli_run_args_params)
+        def test_run_code_with_args(self, run_cli, args: List[str], ret: str):
+            result = run_cli(["run", "-c", cli_run_args_code, *args])
+            assert ret == result.lisp_out
 
-    def test_run_file_rel(self, isolated_filesystem, run_cli):
-        with open("test.lpy", mode="w") as f:
-            f.write("(println (+ 1 2))")
-        result = run_cli(["run", "test.lpy"])
-        assert f"3{os.linesep}" == result.lisp_out
-
-    def test_run_file_abs(self, isolated_filesystem, run_cli):
-        with open("test.lpy", mode="w") as f:
-            f.write("(println (+ 1 3))")
-        full_path = os.path.abspath("test.lpy")
-        result = run_cli(["run", full_path])
-        assert f"4{os.linesep}" == result.lisp_out
-
-    def test_run_file_not_found(self, isolated_filesystem, run_cli):
-        with pytest.raises(FileNotFoundError):
-            run_cli(["run", "xyz.lpy"])
-
-    def test_run_file_main_ns(self, isolated_filesystem, run_cli):
-        with open("test.lpy", mode="w") as f:
-            f.write("(println *main-ns*)")
-        result = run_cli(["run", "test.lpy"])
-        assert f"nil{os.linesep}" == result.lisp_out
-
-    @pytest.mark.parametrize("args,ret", cli_args_params)
-    def test_run_file_with_args(
-        self, isolated_filesystem, run_cli, args: List[str], ret: str
-    ):
-        with open("test.lpy", mode="w") as f:
-            f.write(self.cli_args_code)
-        result = run_cli(["run", "test.lpy", *args])
-        assert ret == result.lisp_out
-
-    @pytest.fixture
-    def namespace_name(self) -> str:
-        return f"package.core{secrets.token_hex(4)}"
-
-    @pytest.fixture
-    def namespace_file(
-        self, monkeypatch, tmp_path: pathlib.Path, namespace_name: str
-    ) -> pathlib.Path:
-        parent_ns, child_ns = namespace_name.split(".", maxsplit=1)
-        parent = tmp_path / parent_ns
-        parent.mkdir()
-        nsfile = parent / f"{child_ns}.lpy"
-        nsfile.touch()
-        monkeypatch.syspath_prepend(str(tmp_path))
-        yield nsfile
-
-    def test_cannot_run_namespace_with_in_ns_arg(
-        self, run_cli, namespace_name: str, namespace_file: pathlib.Path
-    ):
-        namespace_file.write_text("(println (+ 1 2))")
-        with pytest.raises(SystemExit):
-            run_cli(["run", "--in-ns", "otherpackage.core", "-n", namespace_name])
-
-    def test_run_namespace(
-        self, run_cli, namespace_name: str, namespace_file: pathlib.Path
-    ):
-        namespace_file.write_text(f"(ns {namespace_name}) (println (+ 1 2))")
-        result = run_cli(["run", "-n", namespace_name])
-        assert f"3{os.linesep}" == result.lisp_out
-
-    def test_run_namespace_main_ns(
-        self, run_cli, namespace_name: str, namespace_file: pathlib.Path
-    ):
-        namespace_file.write_text(
-            f"(ns {namespace_name}) (println (name *ns*)) (println *main-ns*)"
+        @pytest.mark.parametrize(
+            "args",
+            [
+                (),
+                ("--include-unsafe-path",),
+                ("--include-unsafe-path=true",),
+                ("--include-unsafe-path", "true"),
+            ],
         )
-        result = run_cli(["run", "-n", namespace_name])
-        assert (
-            f"{namespace_name}{os.linesep}{namespace_name}{os.linesep}"
-            == result.lisp_out
+        def test_run_code_include_unsafe_path(self, run_cli, args):
+            result = run_cli(
+                ["run", *args, "-c", "(import sys) (prn (first sys/path))"]
+            )
+            assert '""\n' == result.lisp_out
+            assert "" == sys.path[0]
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                ("--include-unsafe-path=false",),
+                ("--include-unsafe-path", "false"),
+            ],
         )
+        def test_run_code_do_not_include_unsafe_path(self, run_cli, args, sys_path):
+            result = run_cli(
+                ["run", *args, "-c", "(import sys) (prn (first sys/path))"]
+            )
+            assert '""\n' != result.lisp_out
+            assert sys_path[0] == sys.path[0]
 
-    @pytest.mark.parametrize("args,ret", cli_args_params)
-    def test_run_namespace_with_args(
-        self,
-        run_cli,
-        namespace_name: str,
-        namespace_file: pathlib.Path,
-        args: List[str],
-        ret: str,
-    ):
-        namespace_file.write_text(f"(ns {namespace_name}) {self.cli_args_code}")
-        result = run_cli(["run", "-n", namespace_name, *args])
-        assert ret == result.lisp_out
+        def test_run_code_include_extra_path(
+            self, run_cli, temp_paths: List[pathlib.Path], temp_path_args: List[str]
+        ):
+            result = run_cli(
+                [
+                    "run",
+                    *temp_path_args,
+                    "-c",
+                    "(import sys) (doseq [path sys/path] (prn path))",
+                ]
+            )
+            out_lines = set(result.lisp_out.splitlines())
+            assert {'""', *map(lambda p: f'"{p}"', temp_paths)}.issubset(out_lines)
 
-    def test_run_namespace_with_subnamespace(
-        self, run_cli, monkeypatch, tmp_path: pathlib.Path
-    ):
-        ns_name = f"parent{secrets.token_hex(4)}"
-        child = "child"
+    class TestRunFile:
+        def test_run_file_rel(self, isolated_filesystem, run_cli):
+            with open("test.lpy", mode="w") as f:
+                f.write("(println (+ 1 2))")
+            result = run_cli(["run", "test.lpy"])
+            assert f"3{os.linesep}" == result.lisp_out
 
-        parent_ns_dir = tmp_path / ns_name
-        parent_ns_dir.mkdir()
+        def test_run_file_abs(self, isolated_filesystem, run_cli):
+            with open("test.lpy", mode="w") as f:
+                f.write("(println (+ 1 3))")
+            full_path = os.path.abspath("test.lpy")
+            result = run_cli(["run", full_path])
+            assert f"4{os.linesep}" == result.lisp_out
 
-        parent_ns_file = tmp_path / f"{ns_name}.lpy"
-        parent_ns_file.touch()
-        parent_ns_file.write_text(
-            f'(ns {ns_name} (:require [{ns_name}.{child}])) (python/print "loading:" *ns*)'
+        def test_run_file_not_found(self, isolated_filesystem, run_cli):
+            with pytest.raises(FileNotFoundError):
+                run_cli(["run", "xyz.lpy"])
+
+        def test_run_file_main_ns(self, isolated_filesystem, run_cli):
+            with open("test.lpy", mode="w") as f:
+                f.write("(println *main-ns*)")
+            result = run_cli(["run", "test.lpy"])
+            assert f"nil{os.linesep}" == result.lisp_out
+
+        @pytest.mark.parametrize("args,ret", cli_run_args_params)
+        def test_run_file_with_args(
+            self, isolated_filesystem, run_cli, args: List[str], ret: str
+        ):
+            with open("test.lpy", mode="w") as f:
+                f.write(cli_run_args_code)
+            result = run_cli(["run", "test.lpy", *args])
+            assert ret == result.lisp_out
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                (),
+                ("--include-unsafe-path=true",),
+                ("--include-unsafe-path", "true"),
+            ],
         )
+        def test_run_file_include_unsafe_path(self, isolated_filesystem, run_cli, args):
+            with open("test.lpy", mode="w") as f:
+                f.write("(import sys) (prn (first sys/path))")
+            result = run_cli(["run", *args, "test.lpy"])
+            resolved_path = pathlib.Path(isolated_filesystem).resolve()
+            assert f'"{resolved_path}"\n' == result.lisp_out
+            assert str(resolved_path) == sys.path[0]
 
-        child_ns_file = parent_ns_dir / f"{child}.lpy"
-        child_ns_file.touch()
-        child_ns_file.write_text(
-            f'(ns {ns_name}.{child}) (python/print "loading:" *ns*)'
+        @pytest.mark.parametrize(
+            "args",
+            [
+                ("--include-unsafe-path=false",),
+                ("--include-unsafe-path", "false"),
+            ],
         )
+        def test_run_file_do_not_include_unsafe_path(
+            self, isolated_filesystem, run_cli, args, sys_path
+        ):
+            with open("test.lpy", mode="w") as f:
+                f.write("(import sys) (prn (first sys/path))")
+            result = run_cli(["run", *args, "test.lpy"])
+            resolved_path = pathlib.Path(isolated_filesystem).resolve()
+            assert f'"{resolved_path}"\n' != result.lisp_out
+            assert sys_path[0] == sys.path[0]
 
-        monkeypatch.syspath_prepend(str(tmp_path))
+        def test_run_file_include_extra_path(
+            self,
+            isolated_filesystem,
+            run_cli,
+            temp_paths: List[pathlib.Path],
+            temp_path_args: List[str],
+        ):
+            with open("test.lpy", mode="w") as f:
+                f.write("(import sys) (doseq [path sys/path] (prn path))")
+            result = run_cli(["run", *temp_path_args, "test.lpy"])
+            resolved_path = pathlib.Path(isolated_filesystem).resolve()
+            out_lines = set(result.lisp_out.splitlines())
+            assert {
+                f'"{resolved_path}"',
+                *map(lambda p: f'"{p}"', temp_paths),
+            }.issubset(out_lines)
 
-        result = run_cli(["run", "-n", ns_name])
-        assert f"loading: {ns_name}.{child}\nloading: {ns_name}\n" == result.out
+    class TestRunNamespace:
+        @pytest.fixture
+        def namespace_name(self) -> str:
+            return f"package.core{secrets.token_hex(4)}"
 
-    def test_run_stdin(self, run_cli):
-        result = run_cli(["run", "-"], input="(println (+ 1 2))")
-        assert f"3{os.linesep}" == result.lisp_out
+        @pytest.fixture
+        def namespace_file(
+            self, monkeypatch, tmp_path: pathlib.Path, namespace_name: str
+        ) -> pathlib.Path:
+            parent_ns, child_ns = namespace_name.split(".", maxsplit=1)
+            parent = tmp_path / parent_ns
+            parent.mkdir()
+            nsfile = parent / f"{child_ns}.lpy"
+            nsfile.touch()
+            monkeypatch.syspath_prepend(str(tmp_path))
+            yield nsfile
 
-    def test_run_stdin_main_ns(self, run_cli):
-        result = run_cli(["run", "-"], input="(println *main-ns*)")
-        assert f"nil{os.linesep}" == result.lisp_out
+        def test_cannot_run_namespace_with_in_ns_arg(
+            self, run_cli, namespace_name: str, namespace_file: pathlib.Path
+        ):
+            namespace_file.write_text("(println (+ 1 2))")
+            with pytest.raises(SystemExit):
+                run_cli(["run", "--in-ns", "otherpackage.core", "-n", namespace_name])
 
-    @pytest.mark.parametrize("args,ret", cli_args_params)
-    def test_run_stdin_with_args(self, run_cli, args: List[str], ret: str):
-        result = run_cli(
-            ["run", "-", *args],
-            input=self.cli_args_code,
+        def test_run_namespace(
+            self, run_cli, namespace_name: str, namespace_file: pathlib.Path
+        ):
+            namespace_file.write_text(f"(ns {namespace_name}) (println (+ 1 2))")
+            result = run_cli(["run", "-n", namespace_name])
+            assert f"3{os.linesep}" == result.lisp_out
+
+        def test_run_namespace_main_ns(
+            self, run_cli, namespace_name: str, namespace_file: pathlib.Path
+        ):
+            namespace_file.write_text(
+                f"(ns {namespace_name}) (println (name *ns*)) (println *main-ns*)"
+            )
+            result = run_cli(["run", "-n", namespace_name])
+            assert (
+                f"{namespace_name}{os.linesep}{namespace_name}{os.linesep}"
+                == result.lisp_out
+            )
+
+        @pytest.mark.parametrize("args,ret", cli_run_args_params)
+        def test_run_namespace_with_args(
+            self,
+            run_cli,
+            namespace_name: str,
+            namespace_file: pathlib.Path,
+            args: List[str],
+            ret: str,
+        ):
+            namespace_file.write_text(f"(ns {namespace_name}) {cli_run_args_code}")
+            result = run_cli(["run", "-n", namespace_name, *args])
+            assert ret == result.lisp_out
+
+        def test_run_namespace_with_subnamespace(
+            self, run_cli, monkeypatch, tmp_path: pathlib.Path
+        ):
+            ns_name = f"parent{secrets.token_hex(4)}"
+            child = "child"
+
+            parent_ns_dir = tmp_path / ns_name
+            parent_ns_dir.mkdir()
+
+            parent_ns_file = tmp_path / f"{ns_name}.lpy"
+            parent_ns_file.touch()
+            parent_ns_file.write_text(
+                f'(ns {ns_name} (:require [{ns_name}.{child}])) (python/print "loading:" *ns*)'
+            )
+
+            child_ns_file = parent_ns_dir / f"{child}.lpy"
+            child_ns_file.touch()
+            child_ns_file.write_text(
+                f'(ns {ns_name}.{child}) (python/print "loading:" *ns*)'
+            )
+
+            monkeypatch.syspath_prepend(str(tmp_path))
+
+            result = run_cli(["run", "-n", ns_name])
+            assert f"loading: {ns_name}.{child}\nloading: {ns_name}\n" == result.out
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                (),
+                ("--include-unsafe-path",),
+                ("--include-unsafe-path=true",),
+                ("--include-unsafe-path", "true"),
+            ],
         )
-        assert ret == result.lisp_out
+        def test_run_namespace_include_unsafe_path(
+            self, run_cli, namespace_name: str, namespace_file: pathlib.Path, args
+        ):
+            namespace_file.write_text(
+                f"(ns {namespace_name} (:import sys)) (prn (first sys/path))"
+            )
+            result = run_cli(["run", *args, "-n", namespace_name])
+            assert '""\n' == result.lisp_out
+            assert "" == sys.path[0]
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                ("--include-unsafe-path=false",),
+                ("--include-unsafe-path", "false"),
+            ],
+        )
+        def test_run_namespace_do_not_include_unsafe_path(
+            self,
+            run_cli,
+            namespace_name: str,
+            namespace_file: pathlib.Path,
+            args,
+            sys_path,
+        ):
+            namespace_file.write_text(
+                f"(ns {namespace_name} (:import sys)) (prn (first sys/path))"
+            )
+            result = run_cli(["run", *args, "-n", namespace_name])
+            assert '""\n' != result.lisp_out
+
+        def test_run_namespace_include_extra_path(
+            self,
+            run_cli,
+            namespace_name: str,
+            namespace_file: pathlib.Path,
+            temp_paths: List[pathlib.Path],
+            temp_path_args: List[str],
+        ):
+            namespace_file.write_text(
+                f"(ns {namespace_name} (:import sys)) (doseq [path sys/path] (prn path))"
+            )
+            result = run_cli(["run", *temp_path_args, "-n", namespace_name])
+            out_lines = set(result.lisp_out.splitlines())
+            assert {'""', *map(lambda p: f'"{p}"', temp_paths)}.issubset(out_lines)
+
+    class TestRunStdin:
+        def test_run_stdin(self, run_cli):
+            result = run_cli(["run", "-"], input="(println (+ 1 2))")
+            assert f"3{os.linesep}" == result.lisp_out
+
+        def test_run_stdin_main_ns(self, run_cli):
+            result = run_cli(["run", "-"], input="(println *main-ns*)")
+            assert f"nil{os.linesep}" == result.lisp_out
+
+        @pytest.mark.parametrize("args,ret", cli_run_args_params)
+        def test_run_stdin_with_args(self, run_cli, args: List[str], ret: str):
+            result = run_cli(
+                ["run", "-", *args],
+                input=cli_run_args_code,
+            )
+            assert ret == result.lisp_out
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                (),
+                ("--include-unsafe-path=true",),
+                ("--include-unsafe-path", "true"),
+            ],
+        )
+        def test_run_stdin_include_unsafe_path(self, run_cli, args):
+            result = run_cli(
+                ["run", *args, "-"], input="(import sys) (prn (first sys/path))"
+            )
+            assert '""\n' == result.lisp_out
+            assert "" == sys.path[0]
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                ("--include-unsafe-path=false",),
+                ("--include-unsafe-path", "false"),
+            ],
+        )
+        def test_run_stdin_do_not_include_unsafe_path(self, run_cli, args, sys_path):
+            result = run_cli(
+                ["run", *args, "-"], input="(import sys) (prn (first sys/path))"
+            )
+            assert '""\n' != result.lisp_out
+            assert sys_path[0] == sys.path[0]
+
+        def test_run_stdin_include_extra_path(
+            self,
+            run_cli,
+            temp_paths: List[pathlib.Path],
+            temp_path_args: List[str],
+        ):
+            result = run_cli(
+                ["run", *temp_path_args, "-"],
+                input="(import sys) (doseq [path sys/path] (prn path))",
+            )
+            out_lines = set(result.lisp_out.splitlines())
+            assert {
+                '""',
+                *map(lambda p: f'"{p}"', temp_paths),
+            }.issubset(out_lines)
 
 
 def test_version(run_cli):
