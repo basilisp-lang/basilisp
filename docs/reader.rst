@@ -474,9 +474,10 @@ Custom Data Readers
 
 When Basilisp starts it can load data readers from multiple sources.
 
-It will search in :external:py:attr:`sys.path` for files named ``data_readers.lpy`` or else ``data_readers.cljc``; each which must contain a mapping of qualified symbol tags to qualified symbols of function vars.
+It will search in :external:py:data:`sys.path` for files named ``data_readers.lpy`` or else ``data_readers.cljc``; each which must contain a mapping of qualified symbol tags to qualified symbols of function vars.
 
 .. code-block:: clojure
+
     {my/tag my.namespace/tag-handler}
 
 It will also search for any :external:py:class:`importlib.metadata.EntryPoint` in the group ``basilisp_data_readers`` group.

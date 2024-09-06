@@ -14,6 +14,28 @@ Basilisp exposes all of it's available configuration options as CLI flags and en
 All Basilisp CLI subcommands which include configuration note the available configuration options when the ``-h`` and ``--help`` flags are given.
 Generally the Basilisp CLI configuration options are simple passthroughs that correspond to :ref:`configuration options for the compiler <compiler_configuration>`.
 
+.. _cli_path_configuration:
+
+``PYTHONPATH`` Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Basilisp uses the ``PYTHONPATH`` environment variable and :external:py:data:`sys.path` to determine where to look for Basilisp code when :ref:`requiring namespaces <namespace_requires>`.
+Additional values may be set using the ``-p`` (or ``--include-path``) CLI flags.
+Depending on how Basilisp is invoked from the CLI, an additional entry will automatically be added unless explicitly disabled using ``--include-unsafe-path=false``:
+
+* An empty string (which implies the current working directory) will be prepended to the ``sys.path`` in the following cases:
+
+  * Starting a REPL
+  * Running a string of code directly (using ``run -c``)
+  * Running code directly from ``stdin`` (using ``run -``)
+  * Running a namespace directly (using ``run -n``)
+
+* When running a script directly (as by ``run /path/to/script.lpy``), the parent directory of the script will be prepended to ``sys.path``
+
+.. seealso::
+
+   :ref:`pythonpath_configuration`
+
 .. _start_a_repl_session:
 
 Start a REPL Session

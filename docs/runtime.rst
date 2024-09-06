@@ -101,6 +101,16 @@ See the documentation for :lpy:fn:`require` for more details.
 
    :lpy:fn:`ns-aliases`, :lpy:fn:`ns-interns`, :lpy:fn:`ns-map`, :lpy:fn:`ns-publics`, :lpy:fn:`ns-refers`, :lpy:fn:`ns-unalias`, :lpy:fn:`ns-unmap`, :lpy:fn:`refer`, :lpy:fn:`require`, :lpy:fn:`use`
 
+.. _pythonpath_configuration:
+
+``PYTHONPATH``, ``sys.path``, and Finding Basilisp Namespaces
+#############################################################
+
+Basilisp uses the ``PYTHONPATH`` environment variable and :external:py:data:`sys.path` to determine where to look for Basilisp code when requiring namespaces.
+This is roughly analogous to the Java classpath in Clojure.
+These values may be set manually, but are more often configured by some project management tool such as Poetry or defined in your Python virtualenv.
+These values may also be set via :ref:`cli` arguments.
+
 .. _vars:
 
 Vars
