@@ -270,7 +270,7 @@ class TestREPL:
             result = run_cli(
                 ["repl", *args], input="(import sys) (prn (first sys/path))"
             )
-            assert '""\n' == result.lisp_out
+            assert '""' == result.lisp_out.rstrip()
             assert "" == sys.path[0]
 
         @pytest.mark.parametrize(
@@ -295,7 +295,9 @@ class TestREPL:
                 input="(import sys) (doseq [path sys/path] (prn path))",
             )
             out_lines = set(result.lisp_out.splitlines())
-            assert {'""', *map(lambda p: f'"{p}"', temp_paths)}.issubset(out_lines)
+            assert {'""', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
+                out_lines
+            )
 
 
 cli_run_args_params = [
@@ -339,7 +341,7 @@ class TestRun:
             result = run_cli(
                 ["run", *args, "-c", "(import sys) (prn (first sys/path))"]
             )
-            assert '""\n' == result.lisp_out
+            assert '""' == result.lisp_out.rstrip()
             assert "" == sys.path[0]
 
         @pytest.mark.parametrize(
@@ -368,7 +370,9 @@ class TestRun:
                 ]
             )
             out_lines = set(result.lisp_out.splitlines())
-            assert {'""', *map(lambda p: f'"{p}"', temp_paths)}.issubset(out_lines)
+            assert {'""', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
+                out_lines
+            )
 
     class TestRunFile:
         def test_run_file_rel(self, isolated_filesystem, run_cli):
@@ -450,7 +454,7 @@ class TestRun:
             out_lines = set(result.lisp_out.splitlines())
             assert {
                 f'"{resolved_path}"',
-                *map(lambda p: f'"{p}"', temp_paths),
+                *map(lambda p: f'"{p.as_posix()}"', temp_paths),
             }.issubset(out_lines)
 
     class TestRunNamespace:
@@ -551,7 +555,7 @@ class TestRun:
                 f"(ns {namespace_name} (:import sys)) (prn (first sys/path))"
             )
             result = run_cli(["run", *args, "-n", namespace_name])
-            assert '""\n' == result.lisp_out
+            assert '""' == result.lisp_out.rstrip()
             assert "" == sys.path[0]
 
         @pytest.mark.parametrize(
@@ -588,7 +592,9 @@ class TestRun:
             )
             result = run_cli(["run", *temp_path_args, "-n", namespace_name])
             out_lines = set(result.lisp_out.splitlines())
-            assert {'""', *map(lambda p: f'"{p}"', temp_paths)}.issubset(out_lines)
+            assert {'""', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
+                out_lines
+            )
 
     class TestRunStdin:
         def test_run_stdin(self, run_cli):
@@ -619,7 +625,7 @@ class TestRun:
             result = run_cli(
                 ["run", *args, "-"], input="(import sys) (prn (first sys/path))"
             )
-            assert '""\n' == result.lisp_out
+            assert '""' == result.lisp_out.rstrip()
             assert "" == sys.path[0]
 
         @pytest.mark.parametrize(
@@ -649,7 +655,7 @@ class TestRun:
             out_lines = set(result.lisp_out.splitlines())
             assert {
                 '""',
-                *map(lambda p: f'"{p}"', temp_paths),
+                *map(lambda p: f'"{p.as_posix()}"', temp_paths),
             }.issubset(out_lines)
 
 
