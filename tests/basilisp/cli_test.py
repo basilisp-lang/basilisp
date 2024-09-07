@@ -292,13 +292,21 @@ class TestREPL:
         ):
             result = run_cli(
                 ["repl", *temp_path_args],
-                input="(import sys) (doseq [path sys/path] (prn path))",
+                input=" ".join(
+                    [
+                        f"(import pathlib sys)",
+                        "(doseq [path sys/path]",
+                        "  (prn (.as-posix (pathlib/Path path))))",
+                    ]
+                ),
             )
             out_lines = set(result.lisp_out.splitlines())
-            assert {'""', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
+            assert {'"."', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
                 out_lines
             )
 
+
+m
 
 cli_run_args_params = [
     ([], f"0{os.linesep}"),
@@ -366,11 +374,17 @@ class TestRun:
                     "run",
                     *temp_path_args,
                     "-c",
-                    "(import sys) (doseq [path sys/path] (prn path))",
+                    os.linesep.join(
+                        [
+                            f"(import pathlib sys)",
+                            "(doseq [path sys/path]",
+                            "  (prn (.as-posix (pathlib/Path path))))",
+                        ]
+                    ),
                 ]
             )
             out_lines = set(result.lisp_out.splitlines())
-            assert {'""', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
+            assert {'"."', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
                 out_lines
             )
 
@@ -430,7 +444,7 @@ class TestRun:
             print(resolved_path)
             print(result.lisp_out.rstrip())
             print(sys.path[0])
-            assert f'"{resolved_path}"' == result.lisp_out.rstrip()
+            assert f'"{resolved_path.as_posix()}"' == result.lisp_out.rstrip()
             assert str(resolved_path) == sys.path[0]
 
         @pytest.mark.parametrize(
@@ -454,10 +468,6 @@ class TestRun:
                 )
             result = run_cli(["run", *args, "test.lpy"])
             resolved_path = pathlib.Path(isolated_filesystem).resolve().as_posix()
-            print(resolved_path)
-            print(result.lisp_out.rstrip())
-            print(sys_path[0])
-            print(sys.path[0])
             assert f'"{resolved_path}"' != result.lisp_out.rstrip()
             assert sys_path[0] == sys.path[0]
 
@@ -480,9 +490,7 @@ class TestRun:
                 )
             result = run_cli(["run", *temp_path_args, "test.lpy"])
             resolved_path = pathlib.Path(isolated_filesystem).resolve().as_posix()
-            print(resolved_path)
             out_lines = set(result.lisp_out.splitlines())
-            print(out_lines)
             assert {
                 f'"{resolved_path}"',
                 *map(lambda p: f'"{p.as_posix()}"', temp_paths),
@@ -619,11 +627,17 @@ class TestRun:
             temp_path_args: List[str],
         ):
             namespace_file.write_text(
-                f"(ns {namespace_name} (:import sys)) (doseq [path sys/path] (prn path))"
+                os.linesep.join(
+                    [
+                        f"(ns {namespace_name} (:import pathlib sys))",
+                        "(doseq [path sys/path]",
+                        "  (prn (.as-posix (pathlib/Path path))))",
+                    ]
+                )
             )
             result = run_cli(["run", *temp_path_args, "-n", namespace_name])
             out_lines = set(result.lisp_out.splitlines())
-            assert {'""', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
+            assert {'"."', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
                 out_lines
             )
 
@@ -681,11 +695,17 @@ class TestRun:
         ):
             result = run_cli(
                 ["run", *temp_path_args, "-"],
-                input="(import sys) (doseq [path sys/path] (prn path))",
+                input=os.linesep.join(
+                    [
+                        f"(import pathlib sys)",
+                        "(doseq [path sys/path]",
+                        "  (prn (.as-posix (pathlib/Path path))))",
+                    ]
+                ),
             )
             out_lines = set(result.lisp_out.splitlines())
             assert {
-                '""',
+                '"."',
                 *map(lambda p: f'"{p.as_posix()}"', temp_paths),
             }.issubset(out_lines)
 
