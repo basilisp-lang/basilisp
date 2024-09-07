@@ -306,8 +306,6 @@ class TestREPL:
             )
 
 
-m
-
 cli_run_args_params = [
     ([], f"0{os.linesep}"),
     (["--"], f"0{os.linesep}"),
