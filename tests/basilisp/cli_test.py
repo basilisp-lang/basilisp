@@ -417,10 +417,17 @@ class TestRun:
         )
         def test_run_file_include_unsafe_path(self, isolated_filesystem, run_cli, args):
             with open("test.lpy", mode="w") as f:
-                f.write("(import sys) (prn (first sys/path))")
+                f.write(
+                    os.linesep.join(
+                        [
+                            "(import pathlib sys)",
+                            "(prn (.as-posix (pathlib/Path (first sys/path))))",
+                        ]
+                    )
+                )
             result = run_cli(["run", *args, "test.lpy"])
             resolved_path = pathlib.Path(isolated_filesystem).resolve()
-            assert f'"{resolved_path}"\n' == result.lisp_out
+            assert f'"{resolved_path}"' == result.lisp_out.rstrip()
             assert str(resolved_path) == sys.path[0]
 
         @pytest.mark.parametrize(
@@ -434,9 +441,16 @@ class TestRun:
             self, isolated_filesystem, run_cli, args, sys_path
         ):
             with open("test.lpy", mode="w") as f:
-                f.write("(import sys) (prn (first sys/path))")
+                f.write(
+                    os.linesep.join(
+                        [
+                            "(import pathlib sys)",
+                            "(prn (.as-posix (pathlib/Path (first sys/path))))",
+                        ]
+                    )
+                )
             result = run_cli(["run", *args, "test.lpy"])
-            resolved_path = pathlib.Path(isolated_filesystem).resolve()
+            resolved_path = pathlib.Path(isolated_filesystem).resolve().as_posix()
             assert f'"{resolved_path}"\n' != result.lisp_out
             assert sys_path[0] == sys.path[0]
 
@@ -448,9 +462,17 @@ class TestRun:
             temp_path_args: List[str],
         ):
             with open("test.lpy", mode="w") as f:
-                f.write("(import sys) (doseq [path sys/path] (prn path))")
+                f.write(
+                    os.linesep.join(
+                        [
+                            "(import pathlib sys)",
+                            "(doseq [path sys/path]",
+                            "  (prn (.as-posix (pathlib/Path path))))",
+                        ]
+                    )
+                )
             result = run_cli(["run", *temp_path_args, "test.lpy"])
-            resolved_path = pathlib.Path(isolated_filesystem).resolve()
+            resolved_path = pathlib.Path(isolated_filesystem).resolve().as_posix()
             out_lines = set(result.lisp_out.splitlines())
             assert {
                 f'"{resolved_path}"',
