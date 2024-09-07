@@ -427,7 +427,9 @@ class TestRun:
                 )
             result = run_cli(["run", *args, "test.lpy"])
             resolved_path = pathlib.Path(isolated_filesystem).resolve()
+            print(resolved_path)
             print(result.lisp_out.rstrip())
+            print(sys.path[0])
             assert f'"{resolved_path}"' == result.lisp_out.rstrip()
             assert str(resolved_path) == sys.path[0]
 
@@ -452,7 +454,10 @@ class TestRun:
                 )
             result = run_cli(["run", *args, "test.lpy"])
             resolved_path = pathlib.Path(isolated_filesystem).resolve().as_posix()
+            print(resolved_path)
             print(result.lisp_out.rstrip())
+            print(sys_path[0])
+            print(sys.path[0])
             assert f'"{resolved_path}"' != result.lisp_out.rstrip()
             assert sys_path[0] == sys.path[0]
 
@@ -475,6 +480,7 @@ class TestRun:
                 )
             result = run_cli(["run", *temp_path_args, "test.lpy"])
             resolved_path = pathlib.Path(isolated_filesystem).resolve().as_posix()
+            print(resolved_path)
             out_lines = set(result.lisp_out.splitlines())
             print(out_lines)
             assert {
