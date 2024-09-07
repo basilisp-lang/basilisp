@@ -5084,7 +5084,6 @@
         groups     (libspecs-and-flags args)
         libspecs   (first groups)
         flags      (second groups)]
-    (println libspecs flags)
     (doseq [libspec (map require-libspec libspecs)]
       (if (and (:as-alias libspec) (not (:as libspec)))
         (let [alias-target (or (find-ns (:namespace libspec))
