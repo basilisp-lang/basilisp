@@ -4940,33 +4940,11 @@
   - ``:exclude [sym1, sym2]`` to refer all except the specified symbols
   - ``:rename {sym1 new-sym1}`` to rename all the specified symbols to the given new name
 
-  Optional flags:
-
-  - ``:reload`` if provided, attempt to reload the namespace
-
   If a namespace name beginning with 'clojure.' does not exist on the import path,
   Basilisp will attempt to load a corresponding namespace starting with 'basilisp.'
   automatically, aliasing the imported namespace as the requested namespace name.
   This should allow for automatically importing Clojure's included core libraries such
-  as ``clojure.string``.
-
-  .. warning::
-
-     Reloading namespaces has many of the same limitations described for
-     :external:py:func:`importlib.reload_module`. Below is a non-exhaustive set of
-     limitations of reloading Basilisp namespace:
-
-     - Vars will be re-``def``'ed based on the current definition of the underlying
-       file. If the file has not changed, then the namespace file will be reloaded
-       according to the current :ref:`namespace_caching` settings. If a Var is
-       removed from the source file, it will not be removed or updated by a reload.
-     - References to objects from previous versions of modules (particularly those
-       external to the namespace) are not rebound by reloading. In Basilisp code,
-       this problem can be limited by disabling :ref:`inlining` and
-       :ref:`direct_linking`.
-     - Updates to type or record definitions will not be reflected to previously
-       instantiated objects of those types.
-     "
+  as ``clojure.string``."
   [req]
   (rewrite-clojure-libspec
    (cond
@@ -5075,8 +5053,32 @@
   - ``:refer [& syms]`` which will refer syms in the local namespace directly
   - ``:refer :all`` which will refer all symbols from the namespace directly
 
+  Arguments may also be flags, which are optional. Flags are keywords. The following
+  flags are supported:
+
+  - ``:reload`` if provided, attempt to reload the namespace
+  - ``:reload-all`` if provided, attempt to reload all named namespaces and the
+    namespaces loaded by those namespaces as a directed graph
+
   Use of ``require`` directly is discouraged in favor of the ``:require`` directive in
-  the :lpy:fn:`ns` macro."
+  the :lpy:fn:`ns` macro.
+
+  .. warning::
+
+     Reloading namespaces has many of the same limitations described for
+     :external:py:func:`importlib.reload_module`. Below is a non-exhaustive set of
+     limitations of reloading Basilisp namespace:
+
+     - Vars will be re-``def``'ed based on the current definition of the underlying
+       file. If the file has not changed, then the namespace file will be reloaded
+       according to the current :ref:`namespace_caching` settings. If a Var is
+       removed from the source file, it will not be removed or updated by a reload.
+     - References to objects from previous versions of modules (particularly those
+       external to the namespace) are not rebound by reloading. In Basilisp code,
+       this problem can be limited by disabling :ref:`inlining` and
+       :ref:`direct_linking`.
+     - Updates to type or record definitions will not be reflected to previously
+       instantiated objects of those types."
   [& args]
   (let [current-ns *ns*
         groups     (libspecs-and-flags args)
