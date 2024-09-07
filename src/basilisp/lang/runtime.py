@@ -71,6 +71,11 @@ from basilisp.lang.typing import BasilispFunction, CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
 from basilisp.util import Maybe
 
+try:
+    import graphlib
+except ImportError:
+    graphlib = None
+
 logger = logging.getLogger(__name__)
 
 # Public constants
@@ -669,6 +674,39 @@ class Namespace(ReferenceBase):
 
     def __hash__(self):
         return hash(self._name)
+
+    if graphlib is not None:
+
+        def _get_required_namespaces(self) -> vec.PersistentVector["Namespace"]:
+            """Return a vector of all required namespaces (loaded via `require`, `use`,
+            or `refer`).
+
+            This vector will include `basilisp.core` unless the namespace was created
+            manually without requiring it."""
+            ts = graphlib.TopologicalSorter()
+
+            def add_nodes(ns: Namespace) -> None:
+                for aliased_ns in ns.aliases.values():
+                    ts.add(ns, aliased_ns)
+                    add_nodes(aliased_ns)
+
+                for referred_var in ns.refers.values():
+                    referred_ns = referred_var.ns
+                    ts.add(ns, referred_ns)
+                    add_nodes(referred_ns)
+
+            add_nodes(self)
+            return vec.vector(ts.static_order())
+
+        def reload_all(self) -> "Namespace":
+            """Reload all dependency namespaces as by `Namespace.reload()`."""
+            sorted_reload_order = self._get_required_namespaces()
+            logger.debug(f"Computed :reload-all order: {sorted_reload_order}")
+
+            for ns in sorted_reload_order:
+                ns.reload()
+
+            return self
 
     def reload(self) -> "Namespace":
         """Reload code in this namespace by reloading the underlying Python module."""
