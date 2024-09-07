@@ -1,3 +1,4 @@
+import importlib
 import io
 import os
 import pathlib
@@ -6,6 +7,7 @@ import re
 import secrets
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from threading import Thread
@@ -28,6 +30,33 @@ def env_vars():
         os.environ.clear()
         for var, val in environ:
             os.environ[var] = val
+
+
+@pytest.fixture(autouse=True)
+def sys_path() -> List[str]:
+    sys_path = list(sys.path)
+    try:
+        yield sys_path
+    finally:
+        sys.path = sys_path
+        importlib.invalidate_caches()
+
+
+@pytest.fixture()
+def temp_paths(tmp_path_factory) -> List[pathlib.Path]:
+    paths = []
+    for i in range(3):
+        path = tmp_path_factory.mktemp(f"dir{i}")
+        paths.append(path)
+    return paths
+
+
+@pytest.fixture
+def temp_path_args(temp_paths: List[pathlib.Path]) -> List[str]:
+    args = []
+    for p in temp_paths:
+        args.extend(("-p", str(p)))
+    return args
 
 
 @pytest.fixture
@@ -227,6 +256,55 @@ class TestREPL:
         assert "basilisp.user=> basilisp.user=> " == result.out
         assert "Exception: CLI test" in result.err
 
+    class TestPathConfig:
+        @pytest.mark.parametrize(
+            "args",
+            [
+                (),
+                ("--include-unsafe-path",),
+                ("--include-unsafe-path=true",),
+                ("--include-unsafe-path", "true"),
+            ],
+        )
+        def test_repl_include_unsafe_path(self, run_cli, args):
+            result = run_cli(
+                ["repl", *args], input="(import sys) (prn (first sys/path))"
+            )
+            assert '""' == result.lisp_out.rstrip()
+            assert "" == sys.path[0]
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                ("--include-unsafe-path=false",),
+                ("--include-unsafe-path", "false"),
+            ],
+        )
+        def test_repl_do_not_include_unsafe_path(self, run_cli, args, sys_path):
+            result = run_cli(
+                ["repl", *args], input="(import sys) (prn (first sys/path))"
+            )
+            assert '""\n' != result.lisp_out
+            assert sys_path[0] == sys.path[0]
+
+        def test_repl_include_extra_path(
+            self, run_cli, temp_paths: List[pathlib.Path], temp_path_args: List[str]
+        ):
+            result = run_cli(
+                ["repl", *temp_path_args],
+                input=" ".join(
+                    [
+                        f"(import pathlib sys)",
+                        "(doseq [path sys/path]",
+                        "  (prn (.as-posix (pathlib/Path path))))",
+                    ]
+                ),
+            )
+            out_lines = set(result.lisp_out.splitlines())
+            assert {'"."', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
+                out_lines
+            )
+
 
 cli_run_args_params = [
     ([], f"0{os.linesep}"),
@@ -255,6 +333,58 @@ class TestRun:
         def test_run_code_with_args(self, run_cli, args: List[str], ret: str):
             result = run_cli(["run", "-c", cli_run_args_code, *args])
             assert ret == result.lisp_out
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                (),
+                ("--include-unsafe-path",),
+                ("--include-unsafe-path=true",),
+                ("--include-unsafe-path", "true"),
+            ],
+        )
+        def test_run_code_include_unsafe_path(self, run_cli, args):
+            result = run_cli(
+                ["run", *args, "-c", "(import sys) (prn (first sys/path))"]
+            )
+            assert '""' == result.lisp_out.rstrip()
+            assert "" == sys.path[0]
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                ("--include-unsafe-path=false",),
+                ("--include-unsafe-path", "false"),
+            ],
+        )
+        def test_run_code_do_not_include_unsafe_path(self, run_cli, args, sys_path):
+            result = run_cli(
+                ["run", *args, "-c", "(import sys) (prn (first sys/path))"]
+            )
+            assert '""\n' != result.lisp_out
+            assert sys_path[0] == sys.path[0]
+
+        def test_run_code_include_extra_path(
+            self, run_cli, temp_paths: List[pathlib.Path], temp_path_args: List[str]
+        ):
+            result = run_cli(
+                [
+                    "run",
+                    *temp_path_args,
+                    "-c",
+                    os.linesep.join(
+                        [
+                            f"(import pathlib sys)",
+                            "(doseq [path sys/path]",
+                            "  (prn (.as-posix (pathlib/Path path))))",
+                        ]
+                    ),
+                ]
+            )
+            out_lines = set(result.lisp_out.splitlines())
+            assert {'"."', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
+                out_lines
+            )
 
     class TestRunFile:
         def test_run_file_rel(self, isolated_filesystem, run_cli):
@@ -288,6 +418,78 @@ class TestRun:
                 f.write(cli_run_args_code)
             result = run_cli(["run", "test.lpy", *args])
             assert ret == result.lisp_out
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                (),
+                ("--include-unsafe-path=true",),
+                ("--include-unsafe-path", "true"),
+            ],
+        )
+        def test_run_file_include_unsafe_path(self, isolated_filesystem, run_cli, args):
+            with open("test.lpy", mode="w") as f:
+                f.write(
+                    os.linesep.join(
+                        [
+                            "(import pathlib sys)",
+                            "(prn (.as-posix (pathlib/Path (first sys/path))))",
+                        ]
+                    )
+                )
+            result = run_cli(["run", *args, "test.lpy"])
+            resolved_path = pathlib.Path(isolated_filesystem).resolve()
+            assert f'"{resolved_path.as_posix()}"' == result.lisp_out.rstrip()
+            assert str(resolved_path) == sys.path[0]
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                ("--include-unsafe-path=false",),
+                ("--include-unsafe-path", "false"),
+            ],
+        )
+        def test_run_file_do_not_include_unsafe_path(
+            self, isolated_filesystem, run_cli, args, sys_path
+        ):
+            with open("test.lpy", mode="w") as f:
+                f.write(
+                    os.linesep.join(
+                        [
+                            "(import pathlib sys)",
+                            "(prn (.as-posix (pathlib/Path (first sys/path))))",
+                        ]
+                    )
+                )
+            result = run_cli(["run", *args, "test.lpy"])
+            resolved_path = pathlib.Path(isolated_filesystem).resolve().as_posix()
+            assert f'"{resolved_path}"' != result.lisp_out.rstrip()
+            assert sys_path[0] == sys.path[0]
+
+        def test_run_file_include_extra_path(
+            self,
+            isolated_filesystem,
+            run_cli,
+            temp_paths: List[pathlib.Path],
+            temp_path_args: List[str],
+        ):
+            with open("test.lpy", mode="w") as f:
+                f.write(
+                    os.linesep.join(
+                        [
+                            "(import pathlib sys)",
+                            "(doseq [path sys/path]",
+                            "  (prn (.as-posix (pathlib/Path path))))",
+                        ]
+                    )
+                )
+            result = run_cli(["run", *temp_path_args, "test.lpy"])
+            resolved_path = pathlib.Path(isolated_filesystem).resolve().as_posix()
+            out_lines = set(result.lisp_out.splitlines())
+            assert {
+                f'"{resolved_path}"',
+                *map(lambda p: f'"{p.as_posix()}"', temp_paths),
+            }.issubset(out_lines)
 
     class TestRunNamespace:
         @pytest.fixture
@@ -371,6 +573,69 @@ class TestRun:
             result = run_cli(["run", "-n", ns_name])
             assert f"loading: {ns_name}.{child}\nloading: {ns_name}\n" == result.out
 
+        @pytest.mark.parametrize(
+            "args",
+            [
+                (),
+                ("--include-unsafe-path",),
+                ("--include-unsafe-path=true",),
+                ("--include-unsafe-path", "true"),
+            ],
+        )
+        def test_run_namespace_include_unsafe_path(
+            self, run_cli, namespace_name: str, namespace_file: pathlib.Path, args
+        ):
+            namespace_file.write_text(
+                f"(ns {namespace_name} (:import sys)) (prn (first sys/path))"
+            )
+            result = run_cli(["run", *args, "-n", namespace_name])
+            assert '""' == result.lisp_out.rstrip()
+            assert "" == sys.path[0]
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                ("--include-unsafe-path=false",),
+                ("--include-unsafe-path", "false"),
+            ],
+        )
+        def test_run_namespace_do_not_include_unsafe_path(
+            self,
+            run_cli,
+            namespace_name: str,
+            namespace_file: pathlib.Path,
+            args,
+            sys_path,
+        ):
+            namespace_file.write_text(
+                f"(ns {namespace_name} (:import sys)) (prn (first sys/path))"
+            )
+            result = run_cli(["run", *args, "-n", namespace_name])
+            assert '""\n' != result.lisp_out
+
+        def test_run_namespace_include_extra_path(
+            self,
+            run_cli,
+            namespace_name: str,
+            namespace_file: pathlib.Path,
+            temp_paths: List[pathlib.Path],
+            temp_path_args: List[str],
+        ):
+            namespace_file.write_text(
+                os.linesep.join(
+                    [
+                        f"(ns {namespace_name} (:import pathlib sys))",
+                        "(doseq [path sys/path]",
+                        "  (prn (.as-posix (pathlib/Path path))))",
+                    ]
+                )
+            )
+            result = run_cli(["run", *temp_path_args, "-n", namespace_name])
+            out_lines = set(result.lisp_out.splitlines())
+            assert {'"."', *map(lambda p: f'"{p.as_posix()}"', temp_paths)}.issubset(
+                out_lines
+            )
+
     class TestRunStdin:
         def test_run_stdin(self, run_cli):
             result = run_cli(["run", "-"], input="(println (+ 1 2))")
@@ -387,6 +652,57 @@ class TestRun:
                 input=cli_run_args_code,
             )
             assert ret == result.lisp_out
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                (),
+                ("--include-unsafe-path=true",),
+                ("--include-unsafe-path", "true"),
+            ],
+        )
+        def test_run_stdin_include_unsafe_path(self, run_cli, args):
+            result = run_cli(
+                ["run", *args, "-"], input="(import sys) (prn (first sys/path))"
+            )
+            assert '""' == result.lisp_out.rstrip()
+            assert "" == sys.path[0]
+
+        @pytest.mark.parametrize(
+            "args",
+            [
+                ("--include-unsafe-path=false",),
+                ("--include-unsafe-path", "false"),
+            ],
+        )
+        def test_run_stdin_do_not_include_unsafe_path(self, run_cli, args, sys_path):
+            result = run_cli(
+                ["run", *args, "-"], input="(import sys) (prn (first sys/path))"
+            )
+            assert '""\n' != result.lisp_out
+            assert sys_path[0] == sys.path[0]
+
+        def test_run_stdin_include_extra_path(
+            self,
+            run_cli,
+            temp_paths: List[pathlib.Path],
+            temp_path_args: List[str],
+        ):
+            result = run_cli(
+                ["run", *temp_path_args, "-"],
+                input=os.linesep.join(
+                    [
+                        f"(import pathlib sys)",
+                        "(doseq [path sys/path]",
+                        "  (prn (.as-posix (pathlib/Path path))))",
+                    ]
+                ),
+            )
+            out_lines = set(result.lisp_out.splitlines())
+            assert {
+                '"."',
+                *map(lambda p: f'"{p.as_posix()}"', temp_paths),
+            }.issubset(out_lines)
 
 
 def test_version(run_cli):

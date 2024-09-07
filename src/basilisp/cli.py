@@ -2,6 +2,7 @@ import argparse
 import importlib.metadata
 import io
 import os
+import pathlib
 import sys
 import textwrap
 import types
@@ -76,6 +77,23 @@ def bootstrap_repl(ctx: compiler.CompilerContext, which_ns: str) -> types.Module
         ns,
     )
     return importlib.import_module(REPL_NS)
+
+
+def init_path(args: argparse.Namespace, unsafe_path: str = "") -> None:
+    """Prepend any import group arguments to `sys.path`, including `unsafe_path` (which
+    defaults to the empty string) if --include-unsafe-path is specified."""
+
+    def prepend_once(path: str) -> None:
+        if path in sys.path:
+            return
+        sys.path.insert(0, path)
+
+    for pth in args.include_path or []:
+        p = pathlib.Path(pth).resolve()
+        prepend_once(str(p))
+
+    if args.include_unsafe_path:
+        prepend_once(unsafe_path)
 
 
 def _to_bool(v: Optional[str]) -> Optional[bool]:
@@ -265,6 +283,39 @@ def _add_debug_arg_group(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_import_arg_group(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group(
+        "path options",
+        description=(
+            "The path options below can be used to control how Basilisp (and Python) "
+            "find your code."
+        ),
+    )
+    group.add_argument(
+        "--include-unsafe-path",
+        action="store",
+        nargs="?",
+        const=True,
+        default=os.getenv("BASILISP_INCLUDE_UNSAFE_PATH", "true"),
+        type=_to_bool,
+        help=(
+            "if true, automatically prepend a potentially unsafe path to `sys.path`; "
+            "setting `--include-unsafe-path=false` is the Basilisp equivalent to "
+            "setting PYTHONSAFEPATH to a non-empty string for CPython's REPL "
+            "(env: BASILISP_INCLUDE_UNSAFE_PATH; default: true)"
+        ),
+    )
+    group.add_argument(
+        "-p",
+        "--include-path",
+        action="append",
+        help=(
+            "path to prepend to `sys.path`; may be specified more than once to "
+            "include multiple paths (env: PYTHONPATH)"
+        ),
+    )
+
+
 def _add_runtime_arg_group(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group(
         "runtime arguments",
@@ -281,8 +332,8 @@ def _add_runtime_arg_group(parser: argparse.ArgumentParser) -> None:
         const=_to_bool(os.getenv("BASILISP_USE_DATA_READERS_ENTRY_POINT", "true")),
         type=_to_bool,
         help=(
-            "If true, Load data readers from importlib entry points in the "
-            '"basilisp_data_readers" group. (env: '
+            "if true, Load data readers from importlib entry points in the "
+            '"basilisp_data_readers" group (env: '
             "BASILISP_USE_DATA_READERS_ENTRY_POINT; default: true)"
         ),
     )
@@ -386,6 +437,7 @@ def nrepl_server(
     args: argparse.Namespace,
 ) -> None:
     basilisp.init(_compiler_opts(args))
+    init_path(args)
     nrepl_server_mod = importlib.import_module(munge(NREPL_SERVER_NS))
     nrepl_server_mod.start_server__BANG__(
         lmap.map(
@@ -422,6 +474,7 @@ def _add_nrepl_server_subcommand(parser: argparse.ArgumentParser) -> None:
         help='the file path where the server port number is output to, defaults to ".nrepl-port".',
     )
     _add_compiler_arg_group(parser)
+    _add_import_arg_group(parser)
     _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 
@@ -432,6 +485,7 @@ def repl(
 ) -> None:
     opts = _compiler_opts(args)
     basilisp.init(opts)
+    init_path(args)
     ctx = compiler.CompilerContext(filename=REPL_INPUT_FILE_PATH, opts=opts)
     prompter = get_prompter()
     eof = object()
@@ -512,6 +566,7 @@ def _add_repl_subcommand(parser: argparse.ArgumentParser) -> None:
         help="default namespace to use for the REPL",
     )
     _add_compiler_arg_group(parser)
+    _add_import_arg_group(parser)
     _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 
@@ -554,6 +609,7 @@ def run(
             cli_args_var.bind_root(vec.vector(args.args))
 
         if args.code:
+            init_path(args)
             eval_str(target, ctx, ns, eof)
         elif args.load_namespace:
             # Set the requested namespace as the *main-ns*
@@ -561,10 +617,13 @@ def run(
             assert main_ns_var is not None
             main_ns_var.bind_root(sym.symbol(target))
 
+            init_path(args)
             importlib.import_module(munge(target))
         elif target == STDIN_FILE_NAME:
+            init_path(args)
             eval_stream(io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8"), ctx, ns)
         else:
+            init_path(args, unsafe_path=str(pathlib.Path(target).resolve().parent))
             eval_file(target, ctx, ns)
 
 
@@ -617,6 +676,7 @@ def _add_run_subcommand(parser: argparse.ArgumentParser) -> None:
         help="command line args made accessible to the script as basilisp.core/*command-line-args*",
     )
     _add_compiler_arg_group(parser)
+    _add_import_arg_group(parser)
     _add_runtime_arg_group(parser)
     _add_debug_arg_group(parser)
 
