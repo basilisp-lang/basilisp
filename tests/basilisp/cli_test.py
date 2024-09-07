@@ -439,9 +439,6 @@ class TestRun:
                 )
             result = run_cli(["run", *args, "test.lpy"])
             resolved_path = pathlib.Path(isolated_filesystem).resolve()
-            print(resolved_path)
-            print(result.lisp_out.rstrip())
-            print(sys.path[0])
             assert f'"{resolved_path.as_posix()}"' == result.lisp_out.rstrip()
             assert str(resolved_path) == sys.path[0]
 
