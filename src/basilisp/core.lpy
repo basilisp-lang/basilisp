@@ -4967,7 +4967,8 @@
     [(:libspecs groups) (set (:flags groups))]))
 
 (defn ^:private require-lib
-  "Require the library described by ``libspec`` into the Namespace ``requiring-ns``\\."
+  "Require the library described by ``libspec`` into the Namespace ``requiring-ns``\\
+  subject to the provided ``flags``."
   [requiring-ns libspec flags]
   (let [required-ns-sym  (:namespace libspec)]
     (cond
