@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  * Fix a bug where `keys` and `vals` would fail for records (#1030)
  * Fix a bug where operations on records created by `defrecord` failed for fields whose Python-safe names were mangled by the Python compiler (#1029)
  * Fix incorrect line numbers for compiler exceptions in nREPL when evaluating forms in loaded files (#1037)
+ * Fix issue where the compiler exception message from the nREPL server could refer to the initially loaded file instead of the updated one (#1042)
 
 ## [v0.2.1]
 ### Changed
