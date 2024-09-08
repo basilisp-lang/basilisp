@@ -32,6 +32,7 @@ include = ["README.md", "LICENSE"]
 [tool.poetry.dependencies]
 python = "^3.8"
 attrs = ">=22.2.0"
+graphlib-backport = { version = "^1.1.0", python = "<3.9" }
 immutables = ">=0.20,<1.0.0"
 prompt-toolkit = ">=3.0.0,<4.0.0"
 pyrsistent = ">=0.18.0,<1.0.0"

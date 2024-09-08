@@ -213,10 +213,7 @@ class TestImporter:
             "to_reload.lpy",
             module_text=f"""
             (ns {ns_name})
-
-            (defn status
-              []
-              "not-reloaded")
+            (defn status [] "not-reloaded")
             """,
         )
 
@@ -231,14 +228,8 @@ class TestImporter:
             "to_reload.lpy",
             module_text=f"""
             (ns {ns_name})
-
-            (defn status
-              []
-              "reloaded")
-
-            (defn other
-              []
-              "new function")
+            (defn status [] "reloaded")
+            (defn other [] "new function")
             """,
         )
 
