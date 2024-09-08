@@ -62,3 +62,47 @@ def test_format_source_context(monkeypatch, source_file, source_file_path):
         " 5   | (let [a 5]" + os.linesep,
         " 6   |   (b))" + os.linesep,
     ] == format_bnc
+
+
+def test_format_source_context_file_change(monkeypatch, source_file, source_file_path):
+    source_file.write_text(
+        textwrap.dedent(
+            """
+            (ns source-test)
+
+            (a)
+            (let [a 5]
+              (b))
+            """
+        )
+    )
+    format_nc1 = format_source_context(
+        source_file_path, 2, end_line=4, disable_color=True
+    )
+    assert [
+        " 1   | " + os.linesep,
+        " 2 > | (ns source-test)" + os.linesep,
+        " 3 > | " + os.linesep,
+        " 4 > | (a)" + os.linesep,
+        " 5   | (let [a 5]" + os.linesep,
+        " 6   |   (b))" + os.linesep,
+    ] == format_nc1
+
+    source_file.write_text(
+        textwrap.dedent(
+            """
+            (ns source-test)
+            (a)
+            (abcd)
+            """
+        )
+    )
+    format_nc2 = format_source_context(
+        source_file_path, 2, end_line=4, disable_color=True
+    )
+    assert [
+        " 1   | " + os.linesep,
+        " 2 > | (ns source-test)" + os.linesep,
+        " 3 > | (a)" + os.linesep,
+        " 4 > | (abcd)" + os.linesep,
+    ] == format_nc2

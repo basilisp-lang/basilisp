@@ -78,6 +78,7 @@ def format_source_context(  # pylint: disable=too-many-arguments,too-many-locals
         else:
             cause_range = range(line, line + 1)
 
+        linecache.checkcache(filename=filename)
         if source_lines := linecache.getlines(filename):
             selected_lines: Iterable[str]
             if end_line is None and line > len(source_lines):
