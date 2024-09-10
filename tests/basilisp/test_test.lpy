@@ -453,12 +453,11 @@
            stdout
            [#"Testing  test-test-generated\.test1"
             #""
-            #"ERROR in \(error-test\) \(.*/test_test_generated/test1\.lpy:6\)"
+            #"ERROR in \(error-test\) \(.*test_test_generated.+test1\.lpy:6\)"
             #"Exception in test: basilisp\.lang\.exception\.ExceptionInfo\(Boom\!, \{\}\)"
             #"Traceback \(most recent call last\):"
-            #"   File \".*/basilisp/test.lpy\", line \d+, in execute__STAR__.*"
-            #"    \(try"
-            #"   File \".*/test_test_generated/test1.lpy\", line 7, in __error_test.*"
+            #"   File \".*basilisp.+test.lpy\", line \d+, in execute__STAR__.*"
+            #"   File \".*test_test_generated.+test1.lpy\", line 7, in __error_test.*"
             #" basilisp.lang.exception.ExceptionInfo: Boom! \{\}"
             #""
             #"Ran 3 tests containing 3 assertions\."
@@ -467,7 +466,7 @@
            stdout
            [#"Testing  test-test-generated\.test1"
             #""
-            #"FAIL in \(fail-test\) \(.*/test_test_generated/test1\.lpy:10\)"
+            #"FAIL in \(fail-test\) \(.*test_test_generated.+test1\.lpy:10\)"
             #"Test failure: \(= 0 1\)"
             #"expected: 0"
             #"  actual: 1"
@@ -480,24 +479,24 @@
                          \newline)]
       (is (has-lines?
            stdout
-           [#"FAIL in \(message-test\) \(.*/test_test_generated/test2\.lpy:6\)"
+           [#"FAIL in \(message-test\) \(.*test_test_generated.+test2\.lpy:6\)"
             #"fail message"
             #"expected: 1"
             #"  actual: 0"]))
       (is (has-lines?
            stdout
-           [#"FAIL in \(section-test\) \(.*/test_test_generated/test2\.lpy:9\)"
+           [#"FAIL in \(section-test\) \(.*test_test_generated.+test2\.lpy:9\)"
             #"Test failure: \(= 0 1\)"
             #"expected: 0"
             #"  actual: 1"
             #""
-            #"FAIL in \(section-test\) \(.*/test_test_generated/test2\.lpy:11\)"
+            #"FAIL in \(section-test\) \(.*test_test_generated.+test2\.lpy:11\)"
             #"section"
             #"Test failure: \(= 1 0\)"
             #"expected: 1"
             #"  actual: 0"
             #""
-            #"FAIL in \(section-test\) \(.*/test_test_generated/test2\.lpy:14\)"
+            #"FAIL in \(section-test\) \(.*test_test_generated.+test2\.lpy:14\)"
             #"section"
             #"message"
             #"expected: \(not false\)"
