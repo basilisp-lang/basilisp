@@ -105,18 +105,16 @@
     self)
   (report-namespace-end [self ns assertions]
     (print-failures ns nil assertions)
-    (map->SimpleReport (->> assertions
-                            (map :type)
-                            frequencies
-                            (merge-with + (into {} self)))))
+    (reduce-kv #(update %1 %2 + %3)
+               self
+               (->> assertions (map :type) frequencies)))
 
   (report-test-begin [self _] self)
   (report-test-end [self test-var assertions]
     (print-failures (namespace test-var) test-var assertions)
-    (map->SimpleReport (->> assertions
-                            (map :type)
-                            frequencies
-                            (merge-with + (into {} self) {:tests 1})))))
+    (reduce-kv #(update %1 %2 + %3)
+               (update self :tests inc)
+               (->> assertions (map :type) frequencies))))
 
 (defmulti ^{:arglists '([fixture-type & fixtures])}
   use-fixtures
