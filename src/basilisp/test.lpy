@@ -19,12 +19,104 @@
   Tests may take advantage of Basilisp fixtures via :lpy:fn:`use-fixtures` to perform
   setup and teardown functions for each test or namespace. Fixtures are not the same
   (nor are they compatible with) PyTest fixtures."
+  (:import types)
   (:require
-   [basilisp.template :as template]))
+   [basilisp.template :as template]
+   [basilisp.stacktrace :refer [print-stack-trace]]))
 
-(def ^:dynamic *test-name* nil)
-(def ^:dynamic *test-section* nil)
-(def ^:dynamic *test-failures* nil)
+(def ^:dynamic *test-ns*         nil)
+(def ^:dynamic *test-var*        nil)
+(def ^:dynamic *test-name*       nil)
+(def ^:dynamic *test-section*    nil)
+(def ^:dynamic *test-assertions* nil)
+
+(def ^{:deprecated true
+       :dynamic    true}
+  *test-failures*
+  "Deprecated. Use :lpy:var:`*test-assertions*` instead."
+  nil)
+
+(defprotocol Report
+
+  (continue? [self]
+    "Return true if more tests should be processed, else false. Will
+  be called after each test to determine if the test runner should
+  continue.")
+
+  (report-begin [self]
+    "Record the start of this report. Return the modified report.")
+  (report-end [self]
+    "Record the end of this report. Return the modified report.")
+
+  (report-namespace-begin [self ns]
+    "Record the current namespace being tested. Return the modified report.")
+  (report-namespace-end [self ns assertions]
+    "Record the end of testing the namespace. Return the modified report.")
+
+  (report-test-begin [self test-var]
+    "Record the start of a test. Return the modified report.")
+  (report-test-end [self test-var assertions]
+    "Record the result of a test. Return the modified report."))
+
+(defn failures
+  "Get all assertions that represent either a failure or an
+  error. return ``nil`` if there are none."
+  [assertions]
+  (seq (filter (comp #{:failure :error} :type) assertions)))
+
+(defn- print-failures
+  [ns test-var assertions]
+  (when-let [fails (failures assertions)]
+    (let [file (-> test-var meta (:file (name ns)))]
+      (doseq [fail fails]
+        (let [{:keys [type expected actual
+                      message test-section line]} fail
+              error?                              (= :error type)]
+          (println (format "%s in (%s) (%s)"
+                           (if error? "ERROR" "FAIL")
+                           (if test-var (name test-var) "unknown")
+                           (cond-> file
+                             line (str ":" line))))
+          (when test-section (println test-section))
+          (when message (println message))
+          (if error?
+            (when (instance? BaseException actual)
+              (print-stack-trace actual)
+              (println))
+            (println "expected:" expected "\n  actual:" actual \newline)))))))
+
+(defrecord SimpleReport [pass failure error tests]
+  Report
+
+  (continue? [self] true)
+
+  (report-begin [self] self)
+  (report-end [self]
+    (println
+     (format "\nRan %d tests containing %d assertions.\n%d failures, %d errors."
+             tests
+             (+ pass failure)
+             failure
+             error))
+    self)
+
+  (report-namespace-begin [self ns]
+    (println "\nTesting " ns "\n")
+    self)
+  (report-namespace-end [self ns assertions]
+    (print-failures ns nil assertions)
+    (map->SimpleReport (->> assertions
+                            (map :type)
+                            frequencies
+                            (merge-with + (into {} self)))))
+
+  (report-test-begin [self _] self)
+  (report-test-end [self test-var assertions]
+    (print-failures (namespace test-var) test-var assertions)
+    (map->SimpleReport (->> assertions
+                            (map :type)
+                            frequencies
+                            (merge-with + (into {} self) {:tests 1})))))
 
 (defmulti ^{:arglists '([fixture-type & fixtures])}
   use-fixtures
@@ -67,6 +159,91 @@
   [_ & fixtures]
   (alter-meta! *ns* assoc ::once-fixtures fixtures))
 
+(defn generator?
+  "Return true if ``x`` is a generator type, else false."
+  [x]
+  (instance? types/GeneratorType x))
+
+(defmacro with-fixtures
+  "Wrap the ``body`` in the ``fixtures`` in the given order. Handle
+  setup and teardown for each of the ``fixtures``."
+  [fixtures & body]
+  (assert (vector? fixtures) "Expected a literal vector of fixtures")
+  (let [result (gensym "result")]
+    (reduce (fn [form fixture]
+              `(let [~result (~fixture)]
+                 (if (generator? ~result)
+                   (try
+                     (python/next ~result)
+                     ~form
+                     (finally
+                       (try
+                         (python/next ~result)
+                         (catch python/StopIteration ~'_ nil))))
+                   ~form)))
+            `(do ~@body)
+            (reverse fixtures))))
+
+(defmacro compose-fixtures
+  "Compose any number of ``fixtures``, in order, creating a new fixture
+  that combines their behavior. Always returns a valid fixture
+  function, even if no fixtures are given."
+  [& fixtures]
+  `(fn [] (with-fixtures [~@fixtures] (yield))))
+
+(defn join-fixtures
+  "Composes a collection of ``fixtures``, in order.  Always returns a valid
+  fixture function, even if the collection is empty.
+
+  Prefer :lpy:macro`compose-fixtures` if fixtures are known at compile time."
+  [fixtures]
+  (if (seq fixtures)
+    (reduce #(compose-fixtures %1 %2) fixtures)
+    (constantly nil)))
+
+(defn assert!
+  "Emit an assertion.
+
+  Use as a return value for :lpy:fn`gen-assert` methods."
+  [type expr msg line-num additional-data]
+  (vswap! *test-assertions* conj
+          (assoc additional-data
+                 :ns           *test-ns*
+                 :var          *test-var*
+                 :test-name    *test-name*
+                 :test-section *test-section*
+                 :expr         expr
+                 :message      msg
+                 :line         line-num
+                 :type         type)))
+
+(defn pass!
+  "Emit an assertion that indicates a test criteria has pass.
+
+  Use as a return value for :lpy:fn`gen-assert` methods."
+  [expr msg line-num & {:as additional-data}]
+  (assert! :pass expr msg line-num additional-data))
+
+(defn fail!
+  "Emit an assertion that indicates a test failure.
+
+  Use as a return value for :lpy:fn`gen-assert` methods."
+  [expr msg line-num expected actual & {:as additional-data}]
+  (assert! :failure expr msg line-num
+           (assoc additional-data
+                  :actual   actual
+                  :expected expected)))
+
+(defn error!
+  "Emit an assertion that indicates an error ``e`` has occurred.
+
+  Use as a return value for :lpy:fn`gen-assert` methods."
+  [expr msg line-num e & {:as additional-data}]
+  (assert! :error expr (str msg " " (python/repr e)) line-num
+           (assoc additional-data
+                  :actual   e
+                  :expected (:expected additional-data expr))))
+
 (defmulti
   ^{:arglists '([expr msg line-num])}
   gen-assert
@@ -88,46 +265,32 @@
   [expr msg line-num]
   `(let [actual#   ~(nth expr 2)
          expected# ~(second expr)]
-     (when-not (= expected# actual#)
-       (vswap! *test-failures*
-               conj
-               {:test-name    *test-name*
-                :test-section *test-section*
-                :message      ~msg
-                :expr         (quote ~expr)
-                :actual       actual#
-                :expected     expected#
-                :line         ~line-num
-                :type         :failure}))))
+     (if (= expected# actual#)
+       (pass! (quote ~expr) ~msg ~line-num)
+       (fail! (quote ~expr) ~msg ~line-num expected# actual#))))
+
+(defmethod gen-assert 'instance?
+  [expr msg line-num]
+  `(let [value# ~(nth expr 2)
+         cls#   ~(second expr)]
+     (if (instance? cls# value#)
+       (pass! (quote ~expr) ~msg ~line-num)
+       (fail! (quote ~expr) ~msg ~line-num cls# (list '~'type value#)))))
 
 (defmethod gen-assert 'thrown?
   [expr msg line-num]
   (let [exc-type (second expr)
         body     (nthnext expr 2)]
     `(try
-       (let [result# (do ~@body)]
-         (vswap! *test-failures*
-                 conj
-                 {:test-name    *test-name*
-                  :test-section *test-section*
-                  :message      ~msg
-                  :expr         (quote ~expr)
-                  :actual       result#
-                  :expected     (quote ~exc-type)
-                  :line         ~line-num
-                  :type         :failure}))
-       (catch ~exc-type _ nil)
+       (fail! (quote ~expr) ~msg ~line-num (quote ~exc-type) (do ~@body))
+       (catch ~exc-type _
+         (pass! (quote ~expr) ~msg ~line-num))
        (catch python/Exception e#
-         (vswap! *test-failures*
-                 conj
-                 {:test-name    *test-name*
-                  :test-section *test-section*
-                  :message      (str "Expected " ~exc-type "; got " (python/type e#) " instead")
-                  :expr         (quote ~expr)
-                  :actual       e#
-                  :expected     ~exc-type
-                  :line         ~line-num
-                  :type         :failure})))))
+         (fail! (quote ~expr)
+                (str "Expected " ~exc-type "; got " (python/type e#) " instead")
+                ~line-num
+                ~exc-type
+                e#)))))
 
 (defmethod gen-assert 'thrown-with-msg?
   [expr msg line-num]
@@ -135,58 +298,31 @@
         pattern  (nth expr 2)
         body     (nthnext expr 3)]
     `(try
-       (let [result# (do ~@body)]
-         (vswap! *test-failures*
-                 conj
-                 {:test-name    *test-name*
-                  :test-section *test-section*
-                  :message      ~msg
-                  :expr         (quote ~expr)
-                  :actual       result#
-                  :expected     (quote ~exc-type)
-                  :line         ~line-num
-                  :type         :failure}))
+       (fail! (quote ~expr) ~msg ~line-num (quote ~exc-type) (do ~@body))
        (catch ~exc-type e#
          ;; Use python/str rather than Basilisp str to get the raw "message"
          ;; from the exception.
          (let [string-exc# (python/str e#)]
-           (when-not (re-find ~pattern string-exc#)
-             (vswap! *test-failures*
-                     conj
-                     {:test-name    *test-name*
-                      :test-section *test-section*
-                      :message      "Regex pattern did not match"
-                      :expr         (quote ~expr)
-                      :actual       string-exc#
-                      :expected     ~pattern
-                      :line         ~line-num
-                      :type         :failure}))))
+           (if (re-find ~pattern string-exc#)
+             (pass! (quote ~expr) ~msg ~line-num)
+             (fail! (quote ~expr)
+                    "Regex pattern did not match"
+                    ~line-num
+                    ~pattern
+                    string-exc#))))
        (catch python/Exception e#
-         (vswap! *test-failures*
-                 conj
-                 {:test-name    *test-name*
-                  :test-section *test-section*
-                  :message      (str "Expected " ~exc-type "; got " (python/type e#) " instead")
-                  :expr         (quote ~expr)
-                  :actual       e#
-                  :expected     ~exc-type
-                  :line         ~line-num
-                  :type         :failure})))))
+         (fail! (quote ~expr)
+                (str "Expected " ~exc-type "; got " (python/type e#) " instead")
+                ~line-num
+                ~exc-type
+                e#)))))
 
 (defmethod gen-assert :default
   [expr msg line-num]
   `(let [computed# ~expr]
-     (when-not computed#
-       (vswap! *test-failures*
-               conj
-               {:test-name    *test-name*
-                :test-section *test-section*
-                :message      ~msg
-                :expr         (quote ~expr)
-                :actual       computed#
-                :expected     (list (symbol "not") computed#)
-                :line         ~line-num
-                :type         :failure}))))
+     (if computed#
+       (pass! (quote ~expr) ~msg ~line-num)
+       (fail! (quote ~expr) ~msg ~line-num (list '~'not computed#) computed#))))
 
 (defmacro is
   "Assert that a test condition, ``expr``, is true. :lpy:fn:`is` assertion failures are
@@ -217,18 +353,13 @@
      `(try
         ~(gen-assert expr msg line-num)
         (catch python/Exception ~exc-name
-          (vswap! *test-failures*
-                  conj
-                  {:test-name    *test-name*
-                   :test-section *test-section*
-                   :message      (str "Unexpected exception thrown during test run: " (python/repr ~exc-name))
-                   :expr         (quote ~expr)
-                   :actual       ~exc-name
-                   :expected     (quote ~expr)
-                   :line         ~(if line-num
-                                    line-num
-                                    `(.-tb_lineno (.-__traceback__ ~exc-name)))
-                   :type         :error}))))))
+          (error! (quote ~expr)
+                  "Unexpected exception thrown during test run:"
+                  ~(if line-num
+                     line-num
+                     `(.-tb_lineno
+                       (.-__traceback__ ~exc-name)))
+                  ~exc-name))))))
 
 (defmacro are
   "Generate assertions using the template expression ``expr``. Template expressions
@@ -276,6 +407,31 @@
                               ~msg)]
      ~@body))
 
+(defn execute*
+  "Execute the test var ``v`` with the given ``fixture`` if any. Return
+  a list of test assertions."
+  ([test-var]
+   (execute* (constantly nil) test-var))
+  ([fixture test-var]
+   (binding [*ns*              (namespace test-var)
+             *test-ns*         (namespace test-var)
+             *test-var*        test-var
+             *test-name*       (-> test-var name str)
+             *test-section*    nil
+             *test-assertions* (volatile! nil)
+             *test-failures*   *test-assertions*]
+     (let [{testf :test
+            line  :line} (meta test-var)]
+       (try
+         (with-fixtures [fixture]
+           (try
+             (testf)
+             (catch Exception e
+               (error! nil "Exception in test:" line e))))
+         (catch Exception e
+           (error! nil "Exception in test fixture:" line e)))
+       (reverse @*test-assertions*)))))
+
 (defmacro deftest
   "Define a new test.
 
@@ -284,15 +440,91 @@
 
   Tests defined by `deftest` will be run by default by the PyTest test runner using
   Basilisp's builtin PyTest hook."
-  [name-sym & body]
-  (let [test-name-sym (vary-meta name-sym assoc ::test true)
-        test-name-str (name test-name-sym)
-        test-ns-name  `(quote ~(symbol (name *ns*)))]
-    `(defn ~test-name-sym
-       []
-       (binding [*ns*            (the-ns ~test-ns-name)
-                 *test-name*     ~test-name-str
-                 *test-section*  nil
-                 *test-failures* (volatile! [])]
-         ~@body
-         {:failures (deref *test-failures*)}))))
+  [test-name & body]
+  `(defn ~(vary-meta test-name assoc
+                     ::test true
+                     ;; This key is used by some tools (emacs-cider) to
+                     ;; identify test vars.
+                     :test  `(fn ~test-name [] ~@body))
+     []
+     {:failures (failures (execute* (var ~test-name)))}))
+
+(defn- report-test
+  [report fixtures test-var]
+  (-> report
+      (report-test-begin test-var)
+      (report-test-end test-var (execute* fixtures test-var))))
+
+(defn- report-namespace
+  [report ns test-vars]
+  (let [report       (report-namespace-begin report ns)
+        once-fixture (-> ns meta ::once-fixtures join-fixtures)
+        each-fixture (-> ns meta ::each-fixtures join-fixtures)]
+    (try
+      (report-namespace-end (with-fixtures [once-fixture]
+                              (reduce (fn [report test-var]
+                                        (if (continue? report)
+                                          (report-test report each-fixture
+                                                       test-var)
+                                          (reduced report)))
+                                      report
+                                      test-vars))
+                            ns
+                            nil)
+      (catch Exception e
+        (report-namespace-end report
+                              ns
+                              [{:test-name    nil
+                                :test-section nil
+                                :ns           ns
+                                :var          nil
+                                :expr         nil
+                                :line         nil
+                                :type         :error
+                                :expected     nil
+                                :actual       e
+                                :message
+                                (str "Exception in namespace fixture: "
+                                     (python/repr e))}])))))
+
+(defn collect-tests
+  "Get all tests from the given vars and/or namespaces. If none are
+  given then default to the tests current namespace. Return a mapping
+  of namespaces to test vars."
+  [vars-or-namespaces]
+  (->> (or (seq vars-or-namespaces)
+           [*ns*])
+       (mapcat #(if (var? %) (list %) (-> % ns-interns vals)))
+       (filter (comp ::test meta))
+       (group-by namespace)))
+
+(defn compile-report
+  "Build a report by running all tests from the given vars and/or
+  namespaces. If none are given then default to the tests current
+  namespace."
+  [report vars-or-namespaces]
+  (report-end
+   (reduce (fn [report [ns test-vars]]
+             (if (continue? report)
+               (report-namespace report ns test-vars)
+               (reduced report)))
+           (report-begin report)
+           (collect-tests vars-or-namespaces))))
+
+(defn run-tests
+  "Run all tests from the given vars and/or namespaces. If none are
+  given then default to the tests current namespace. Print failures to
+  standard output."
+  [& vars-or-namespaces]
+  (into {} (compile-report (->SimpleReport 0 0 0 0) vars-or-namespaces)))
+
+(defn run-all-tests
+  "Run all loaded tests. Print failures to standard output. Optionally
+  filter tests by regex ``re``."
+  ([]
+   (apply run-tests (all-ns)))
+  ([re]
+   (->> (all-ns)
+        (mapcat (comp vals ns-interns))
+        (filter #(re-find re (subs (str %) 2)))
+        (apply run-tests))))

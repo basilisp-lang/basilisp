@@ -1,0 +1,190 @@
+(ns basilisp.contrib.nrepl-server.test
+  (:import time)
+  (:require [basilisp.stacktrace :refer [print-stack-trace]]
+            [basilisp.test :as test]
+            [basilisp.set :as set]))
+
+(defonce current-report
+  (atom nil))
+
+(defn- now
+  []
+  (time/time))
+
+(defrecord Report [fail-fast? failed? tests namespaces start end]
+  test/Report
+
+  (continue? [self]
+    (not (and fail-fast? failed?)))
+
+  (report-begin [self]
+    (assoc-in self [:start nil] (now)))
+  (report-end [self]
+    (assoc-in self [:end nil] (now)))
+
+  (report-namespace-begin [self ns]
+    (assoc-in self [:start ns] (now)))
+  (report-namespace-end [self ns assertions]
+    (-> self
+        (assoc :failed? (boolean (or failed? (test/failures assertions))))
+        (assoc-in [:namespaces ns] assertions)
+        (assoc-in [:end ns] (now))))
+
+  (report-test-begin [self test-var]
+    (assoc-in self [:start test-var] (now)))
+  (report-test-end [self test-var assertions]
+    (-> self
+        (assoc :failed? (boolean (or failed? (test/failures assertions))))
+        (assoc-in [:tests test-var] assertions)
+        (assoc-in [:end test-var] (now)))))
+
+(defn- make-result
+  [assertions]
+  (vec
+   (map-indexed (fn [i {:as   assertion
+                        :keys [ns var test-section message type
+                               actual expected expr line]}]
+                  (let [error? (= type :error)
+                        fail?  (#{:error :failure} type)
+                        file   (-> var meta :file)]
+                    (cond-> {:index   i
+                             :context test-section
+                             :message message
+                             :type    (case type
+                                        :failure "fail"
+                                        (name type))
+                             :var     (if var (-> var name str) "unknown")
+                             :ns      (if ns (name ns) "unknown")}
+                      error?           (assoc :fault "true"
+                                              :error
+                                              (when (instance? BaseException
+                                                               actual)
+                                                (with-out-str
+                                                  (print-stack-trace actual))))
+                      (and line fail?) (assoc :line line)
+                      (and file fail?) (assoc :file file)
+                      expr             (assoc :expr (pr-str expr))
+                      fail?            (assoc :actual   (str (pr-str actual)
+                                                             \newline)
+                                              :expected (str (pr-str expected)
+                                                             \newline))
+                      :always          (update-keys name))))
+                assertions)))
+
+(defn- make-elapsed-time
+  [start end]
+  (let [ms (python/int (* (- end start) 1000))]
+    {"ms"        ms
+     "humanized" (format "Completed in %d ms" ms)}))
+
+(defn- var-path
+  [var]
+  [(-> var namespace name) (-> var name str)])
+
+(defn- make-response
+  [{:as report :keys [tests namespaces start end]}]
+  (let [elapsed-time #(make-elapsed-time (get start %) (get end %))]
+    {"testing-ns"       (str (or (some-> namespaces first key)
+                                 (some-> tests first key namespace)))
+     "results"          (->> (update-keys namespaces
+                                          #(symbol (str %) "unknown"))
+                             (filter (comp test/failures val))
+                             (concat tests)
+                             (map (juxt (comp var-path key)
+                                        (comp make-result val)))
+                             (reduce #(apply assoc-in %1 %2) {}))
+     "summary"          (-> (reduce (let [+count (fnil + 0)]
+                                      (fn [summary [k assertions]]
+                                        (->> assertions
+                                             (map :type)
+                                             frequencies
+                                             (merge-with +count summary))))
+                                    (zipmap [:pass :failure :error]
+                                            (repeat 0))
+                                    (concat tests namespaces))
+                            (set/rename-keys {:failure :fail})
+                            (assoc :ns   (count namespaces)
+                                   :var  (count tests)
+                                   :test (->> (vals tests)
+                                              (concat (vals namespaces))
+                                              (transduce (map count) +)))
+                            (update-keys name))
+     "var-elapsed-time" (reduce (fn [acc v]
+                                  (assoc-in acc
+                                            (var-path v)
+                                            {"elapsed-time" (elapsed-time v)}))
+                                {}
+                                (keys tests))
+     "ns-elapsed-time"  (into {}
+                              (map (juxt name elapsed-time))
+                              (keys namespaces))
+     "elapsed-time"     (elapsed-time nil)}))
+
+(defn- make-report!
+  [request vars]
+  (let [{:keys [fail-fast
+                include
+                exclude]} request
+        include?          (if (seq include)
+                            (apply some-fn (map keyword include))
+                            (constantly true))
+        exclude?          (if (seq exclude)
+                            (apply some-fn (map keyword exclude))
+                            (constantly false))]
+    (->> vars
+         (filter (comp (every-pred ::test/test include? (complement exclude?))
+                       meta))
+         (test/compile-report (map->Report {:fail-fast? (= fail-fast "true")}))
+         (reset! current-report))))
+
+(defmacro ^:private print-errors
+  [& body]
+  `(try
+     ~@body
+     (catch python/Exception ~'e
+       (print-stack-trace ~'e)
+       (throw ~'e))))
+
+(defn handle-test
+  "Handle \"test\" nrepl command. Run specified tests or all tests in
+  specified namespace. Tests must be loaded."
+  [request send-fn]
+  (print-errors
+   (let [{:keys [ns tests]} request]
+     (->> (if (seq tests)
+            (keep (comp resolve (partial symbol ns)) tests)
+            (some-> ns symbol find-ns ns-publics vals))
+          (make-report! request)
+          make-response
+          (send-fn request)))))
+
+(defn handle-test-all
+  "Handle \"test-all\" nrepl command. Run all tests in all loaded
+  namespaces. Unable to load additional namespaces."
+  [request send-fn]
+  (print-errors
+   (->> (all-ns)
+        (mapcat (comp vals ns-publics))
+        (make-report! request)
+        make-response
+        (send-fn request))))
+
+(defn- failing-tests
+  [{:as   report
+    :keys [tests namespaces]}]
+  (let [ns-fail? (comp (memoize #(test/failures (get namespaces %)))
+                       namespace)]
+    (keep (fn [[test-var assertions]]
+            (when (or (ns-fail? test-var)
+                      (test/failures assertions))
+              test-var))
+          tests)))
+
+(defn handle-retest
+  "Handle \"retest\" nrepl command. Re-run any previously failing tests."
+  [request send-fn]
+  (print-errors
+   (->> (failing-tests @current-report)
+        (make-report! request)
+        make-response
+        (send-fn request))))

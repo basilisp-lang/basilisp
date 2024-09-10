@@ -143,7 +143,7 @@ class TestTestrunner:
             "ERROR in (assertion-test) (test_testrunner.lpy:14)",
             "",
             "Traceback (most recent call last):",
-            '  File "*test_testrunner.lpy", line 14, in assertion_test',
+            '  File "*test_testrunner.lpy", line 14, in __assertion_test_*',
             '    (is (throw (ex-info "Uncaught exception" {})))',
             "basilisp.lang.exception.ExceptionInfo: Uncaught exception {}",
         ]
@@ -155,9 +155,12 @@ class TestTestrunner:
 
         run_result.stdout.fnmatch_lines(
             [
-                "ERROR in (error-test) (test_testrunner.lpy)",
+                "ERROR in (error-test) (test_testrunner.lpy:34)",
+                "",
                 "Traceback (most recent call last):",
-                '  File "*test_testrunner.lpy", line 35, in error_test',
+                '  File "*basilisp/test.lpy", line *, in execute__STAR__*',
+                "    (try",
+                '  File "*test_testrunner.lpy", line 35, in __error_test_*',
                 "    (throw",
                 "basilisp.lang.exception.ExceptionInfo: This test will count as an error. {}",
             ]

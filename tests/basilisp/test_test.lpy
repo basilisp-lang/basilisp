@@ -1,0 +1,504 @@
+(ns tests.basilisp.test-test
+  (:import os)
+  (:require [basilisp.test :refer :all]
+            [basilisp.test.fixtures :as fixtures]))
+
+(defn- make-temp-file
+  [path text]
+  (assert fixtures/*tempdir* "Missing tempdir fixture")
+  (let [file (.join os/path fixtures/*tempdir* path)]
+    (os/makedirs (.dirname os/path file) ** :exist_ok true)
+    (with-open [wtr (python/open file ** :mode "w")]
+      (.write wtr text))))
+
+(defn- generated-tests-fixture
+  []
+  (with-fixtures [fixtures/reset-path
+                  fixtures/tempdir]
+    (.insert sys/path 0 fixtures/*tempdir*)
+    (make-temp-file
+     "test_test_generated/test1.lpy"
+     "(ns test-test-generated.test1
+        (:require [basilisp.test :refer :all]))
+
+      (def not-a-test true)
+
+      (deftest error-test
+        (throw (ex-info \"Boom!\" {})))
+
+      (deftest fail-test
+        (is (= 0 1)))
+
+      (deftest pass-test
+        (is (= 1 1))
+        (is (thrown? Exception (throw (ex-info \"Boom!\" {})))))")
+
+    (make-temp-file
+     "test_test_generated/test2.lpy"
+     "(ns test-test-generated.test2
+        (:require [basilisp.test :refer :all]))
+
+      (deftest message-test
+        (is (= 1 1) \"pass message\")
+        (is (= 1 0) \"fail message\"))
+
+      (deftest section-test
+        (is (= 0 1))
+        (testing \"section\"
+          (is (= 1 0))
+          (is (= 1 1))
+          (is (nil? nil) \"message\")
+          (is false \"message\")))")
+
+    (make-temp-file
+     "test_test_generated/test3.lpy"
+     "(ns test-test-generated.test3
+        (:require [basilisp.test :refer :all]))
+
+      (def ^:dynamic *once* false)
+      (def ^:dynamic *each* false)
+
+      (use-fixtures :each (fn [] (binding [*each* true] (yield))))
+      (use-fixtures :once (fn [] (binding [*once* true] (yield))))
+
+      (deftest fixture-test
+        (is *once*)
+        (is *each*))")
+
+    (make-temp-file
+     "test_test_generated/test4.lpy"
+     "(ns test-test-generated.test4
+        (:require [basilisp.test :refer :all]))
+
+      (use-fixtures :each (fn [] (throw (ex-info \"Boom!\" {}))))
+
+      (deftest each-fixture-test
+        (is true))")
+
+    (make-temp-file
+     "test_test_generated/test5.lpy"
+     "(ns test-test-generated.test5
+        (:require [basilisp.test :refer :all]))
+
+      (use-fixtures :once (fn [] (throw (ex-info \"Boom!\" {}))))
+
+      (deftest once-fixture-test
+        (is true))")
+
+    (require 'test-test-generated.test1
+             'test-test-generated.test2
+             'test-test-generated.test3
+             'test-test-generated.test4
+             'test-test-generated.test5)
+    (yield)))
+
+(use-fixtures :once generated-tests-fixture)
+
+(defn- before-after-fixture
+  [events]
+  (fn []
+    (swap! events conj :before)
+    (yield)
+    (swap! events conj :after)))
+
+(defn- index-fixture
+  [events idx]
+  (fn []
+    (swap! events conj idx)
+    (yield)
+    (swap! events conj idx)))
+
+(def ^:dynamic *state* nil)
+
+(deftest with-fixtures-test
+  (testing "setup and teardown"
+    (let [events (atom [])]
+      (with-fixtures [(before-after-fixture events)]
+        (swap! events conj :during))
+      (is (= [:before :during :after] @events))))
+
+  (testing "teardown on exception"
+    (let [events (atom [])]
+      (try
+        (with-fixtures [(before-after-fixture events)]
+          (swap! events conj :during)
+          (throw (ex-info "Boom!" {})))
+        (catch Exception _ nil))
+      (is (= [:before :during :after] @events))))
+
+  (testing "teardown on fixture setup exception"
+    (let [events (atom [])]
+      (try
+        (with-fixtures [(before-after-fixture events)
+                        #(throw (ex-info "Boom!" {}))]
+          (swap! events conj :during))
+        (catch Exception _ nil))
+      (is (= [:before :after] @events))))
+
+  (testing "teardown on fixture teardown exception"
+    (let [events (atom [])]
+      (try
+        (with-fixtures [(before-after-fixture events)
+                        (fn []
+                          (yield)
+                          (throw (ex-info "Boom!" {})))]
+          (swap! events conj :during))
+        (catch Exception _ nil))
+      (is (= [:before :during :after] @events))))
+
+  (testing "applied in order"
+    (let [events  (atom nil)]
+      (with-fixtures [(index-fixture events 1)
+                      (index-fixture events 2)
+                      (index-fixture events 3)]
+        (swap! events conj 4))
+      (is (= '(1 2 3 4 3 2 1) @events))))
+
+  (testing "nesting fixtures"
+    (with-fixtures [(fn []
+                      (with-fixtures [(fn []
+                                        (binding [*state* 1]
+                                          (yield)))]
+                        (yield)))]
+      (is (= 1 *state*)))))
+
+(deftest join-fixtures-test
+  (testing "applied in order"
+    (let [events  (atom nil)]
+      (with-fixtures [(join-fixtures [(index-fixture events 1)
+                                      (index-fixture events 2)
+                                      (index-fixture events 3)])]
+        (swap! events conj 4))
+      (is (= '(1 2 3 4 3 2 1) @events)))))
+
+(defrecord TestReport [events max-events assertions]
+  Report
+  (continue? [self]
+    (< (count events) max-events))
+  (report-begin [self]
+    (->TestReport (conj events [:begin]) max-events assertions))
+  (report-end [self]
+    (->TestReport (conj events [:end]) max-events assertions))
+  (report-namespace-begin [self ns]
+    (->TestReport (conj events [:begin ns]) max-events assertions))
+  (report-namespace-end [self ns asserts]
+    (->TestReport (conj events [:end ns])
+                  max-events
+                  (assoc assertions ns asserts)))
+  (report-test-begin [self var]
+    (->TestReport (conj events [:begin var]) max-events assertions))
+  (report-test-end [self var asserts]
+    (->TestReport (conj events [:end var])
+                  max-events
+                  (assoc assertions var asserts))))
+
+(deftest use-fixtures-test
+  (let [fixture-test         (resolve 'test-test-generated.test3/fixture-test)
+        {:keys [assertions]} (compile-report (->TestReport nil ##Inf nil)
+                                             [(namespace fixture-test)])
+        result               (group-by :expr (get assertions fixture-test))]
+    (are [expr] (= :pass (-> (get result expr) first :type))
+      '*once*
+      '*each*)))
+
+(deftest compile-report-test
+  (let [namespaces       (map find-ns ['test-test-generated.test1
+                                       'test-test-generated.test2
+                                       'test-test-generated.test3
+                                       'test-test-generated.test4
+                                       'test-test-generated.test5])
+        {:keys [events]} (compile-report (->TestReport nil ##Inf nil)
+                                         namespaces)
+        has-event?       (set events)
+        events           (reverse events)]
+    (testing "report begin/end"
+      (doseq [ns namespaces]
+        (is (has-event? [:begin ns]))
+        (is (has-event? [:end ns])))
+      (doseq [test ['test-test-generated.test1/pass-test
+                    'test-test-generated.test1/fail-test
+                    'test-test-generated.test1/error-test
+                    'test-test-generated.test2/message-test]]
+        (let [var (resolve test)]
+          (is (has-event? [:begin var]))
+          (is (has-event? [:end var]))))
+
+      (is (= [:begin] (first events))
+          "report-begin not called before testing starts")
+      (is (= [:end]   (last events))
+          "report-end not called when testing ends")
+      (reduce (fn [state [op k]]
+                (cond
+                  (= :end op)
+                  (if (= state k)
+                    (cond
+                      (nil? k) :report-end
+                      (var? k) (namespace k)
+                      :else    nil)
+                    (reduced
+                     (is (= state k) (str (cond
+                                            (nil? k) "report-end"
+                                            (var? k) "report-test-end"
+                                            :else    "report-namespace-end")
+                                          "call out of order"))))
+                  (nil? k)
+                  (reduced (is false "report-begin call out of order"))
+
+                  (var? k)
+                  (if (= state (namespace k))
+                    k
+                    (reduced (is (= state (namespace k))
+                                 "report-test-begin call out of order")))
+
+                  :else
+                  (if (nil? state)
+                    k
+                    (reduced (is (nil? state)
+                                 "report-namespace-begin call out of order")))))
+              nil
+              (rest events)))
+
+    (testing "continue"
+      (are [n]
+          (every? (comp #{:end} first)
+                  (->> namespaces
+                       (compile-report (->TestReport nil n nil))
+                       :events
+                       reverse
+                       (drop (inc n))))
+        1 2 4 6 7 10))))
+
+(deftest assertions-test
+  (let [[test1 test2 test3 test4
+         test5 :as namespaces] (map find-ns ['test-test-generated.test1
+                                             'test-test-generated.test2
+                                             'test-test-generated.test3
+                                             'test-test-generated.test4
+                                             'test-test-generated.test5])
+        {:keys [assertions]}   (compile-report (->TestReport nil ##Inf nil)
+                                               namespaces)]
+
+    (testing "pass"
+      (let [pass-test         (resolve 'test-test-generated.test1/pass-test)
+            test-name         (-> pass-test name str)
+            [assert1 assert2] (get assertions pass-test)]
+        (is (= {:ns           test1
+                :var          pass-test
+                :test-name    test-name
+                :test-section nil
+                :expr         '(= 1 1)
+                :line         13
+                :message      "Test failure: (= 1 1)"
+                :type         :pass}
+               assert1))
+        (is (= {:ns           test1
+                :var          pass-test
+                :test-name    test-name
+                :test-section nil
+                :expr         '(thrown? Exception (throw (ex-info "Boom!" {})))
+                :line         14
+                :message      "Test failure: (thrown? Exception (throw (ex-info \"Boom!\" {})))"
+                :type         :pass}
+               assert2))))
+
+    (testing "fail"
+      (let [fail-test (resolve 'test-test-generated.test1/fail-test)]
+        (is (= {:ns           test1
+                :var          fail-test
+                :test-name    (-> fail-test name str)
+                :test-section nil
+                :expr         '(= 0 1)
+                :expected     0
+                :actual       1
+                :line         10
+                :message      "Test failure: (= 0 1)"
+                :type         :failure}
+               (first (get assertions fail-test))))))
+
+    (testing "error"
+      (let [error-test (resolve 'test-test-generated.test1/error-test)
+            assertion  (first (get assertions error-test))]
+        (is (instance? Exception (:actual assertion)))
+        (is (= {:ns           test1
+                :var          error-test
+                :test-name    (-> error-test name str)
+                :test-section nil
+                :expected     nil
+                :line         6
+                :expr         nil
+                :message      "Exception in test: basilisp.lang.exception.ExceptionInfo(Boom!, {})"
+                :type         :error}
+               (dissoc assertion :actual)))))
+
+    (testing "error each fixture"
+      (let [test      (resolve 'test-test-generated.test4/each-fixture-test)
+            assertion (first (get assertions test))]
+        (is (instance? Exception (:actual assertion)))
+        (is (= {:ns           test4
+                :var          test
+                :test-name    (-> test name str)
+                :test-section nil
+                :expected     nil
+                :line         6
+                :expr         nil
+                :message      "Exception in test fixture: basilisp.lang.exception.ExceptionInfo(Boom!, {})"
+                :type         :error}
+               (dissoc assertion :actual)))))
+
+    (testing "error once fixture"
+      (let [assertion (first (get assertions test5))]
+        (is (instance? Exception (:actual assertion)))
+        (is (= {:ns           test5
+                :var          nil
+                :test-name    nil
+                :test-section nil
+                :expected     nil
+                :line         nil
+                :expr         nil
+                :message      "Exception in namespace fixture: basilisp.lang.exception.ExceptionInfo(Boom!, {})"
+                :type         :error}
+               (dissoc assertion :actual)))))
+
+    (testing "section"
+      (let [section-test (resolve 'test-test-generated.test2/section-test)
+            assertion    (nth (get assertions section-test) 3)]
+        (is (= "message" (:message assertion)))
+        (is (= "section" (:test-section assertion)))))))
+
+(defn- found-test?
+  [tests var]
+  (some #{var} (get tests (namespace var))))
+
+(deftest collect-tests-test
+  (testing "all tests"
+    (let [tests (collect-tests (all-ns))]
+      (are [test] (found-test? tests (resolve test))
+        'test-test-generated.test1/pass-test
+        'test-test-generated.test1/fail-test
+        'test-test-generated.test1/error-test
+        'test-test-generated.test2/message-test
+        'test-test-generated.test2/section-test
+        'collect-tests-test)
+      (is (not (found-test? tests
+                            (resolve 'test-test-generated.test1/not-a-test))))))
+
+  (testing "namespace tests"
+    (let [tests (collect-tests [(find-ns 'test-test-generated.test1)])]
+      (are [test] (found-test? tests (resolve test))
+        'test-test-generated.test1/pass-test
+        'test-test-generated.test1/fail-test
+        'test-test-generated.test1/error-test)
+      (are [x] (not (found-test? tests (resolve x)))
+        'test-test-generated.test1/not-a-test
+        'test-test-generated.test2/message-test
+        'test-test-generated.test2/section-test
+        'collect-tests-test)))
+
+  (testing "var tests"
+    (let [tests (collect-tests
+                 [(resolve 'test-test-generated.test1/pass-test)
+                  (resolve 'test-test-generated.test1/fail-test)])]
+      (are [test] (found-test? tests (resolve test))
+        'test-test-generated.test1/pass-test
+        'test-test-generated.test1/fail-test)
+      (are [x] (not (found-test? tests (resolve x)))
+        'test-test-generated.test1/not-a-test
+        'test-test-generated.test1/error-test
+        'test-test-generated.test2/message-test
+        'test-test-generated.test2/section-test
+        'collect-tests-test)))
+
+  (testing "current namespace"
+    (let [tests (collect-tests nil)]
+      (are [test] (found-test? tests (resolve test))
+        'collect-tests-test)
+      (are [x] (not (found-test? tests (resolve x)))
+        'test-test-generated.test1/not-a-test
+        'test-test-generated.test1/pass-test
+        'test-test-generated.test1/fail-test
+        'test-test-generated.test1/error-test
+        'test-test-generated.test2/message-test
+        'test-test-generated.test2/section-test))))
+
+(defn- has-lines?
+  "return true if the lines contain some match for the regexes in order"
+  [lines regexes]
+  (cond
+    (not regexes) true
+    (not lines)   false
+    :else         (recur (next lines)
+                         (if (re-find (first regexes) (first lines))
+                           (next regexes)
+                           regexes))))
+
+(deftest simple-report-test
+  (let [[result stdout] (binding [*out* (io/StringIO)]
+                          [(run-tests (find-ns 'test-test-generated.test1))
+                           (.split (.getvalue *out*) "\n")])]
+    (testing "summary"
+      (are [k n] (= n (get result k))
+        :pass    2
+        :failure 1
+        :error   1
+        :tests   3))
+
+    (testing "print failures"
+      (is (has-lines?
+           stdout
+           [#"Testing  test-test-generated\.test1"
+            #""
+            #"Ran 3 tests containing 3 assertions\."
+            #"1 failures, 1 errors\."]))
+      (is (has-lines?
+           stdout
+           [#"Testing  test-test-generated\.test1"
+            #""
+            #"ERROR in \(error-test\) \(.*/test_test_generated/test1\.lpy:6\)"
+            #"Exception in test: basilisp\.lang\.exception\.ExceptionInfo\(Boom\!, \{\}\)"
+            #"Traceback \(most recent call last\):"
+            #"   File \".*/basilisp/test.lpy\", line \d+, in execute__STAR__.*"
+            #"    \(try"
+            #"   File \".*/test_test_generated/test1.lpy\", line 7, in __error_test.*"
+            #" basilisp.lang.exception.ExceptionInfo: Boom! \{\}"
+            #""
+            #"Ran 3 tests containing 3 assertions\."
+            #"1 failures, 1 errors\."]))
+      (is (has-lines?
+           stdout
+           [#"Testing  test-test-generated\.test1"
+            #""
+            #"FAIL in \(fail-test\) \(.*/test_test_generated/test1\.lpy:10\)"
+            #"Test failure: \(= 0 1\)"
+            #"expected: 0"
+            #"  actual: 1"
+            #""
+            #"Ran 3 tests containing 3 assertions\."
+            #"1 failures, 1 errors\."]))))
+
+  (testing "print test context"
+    (let [stdout (.split (with-out-str (run-tests 'test-test-generated.test2))
+                         \newline)]
+      (is (has-lines?
+           stdout
+           [#"FAIL in \(message-test\) \(.*/test_test_generated/test2\.lpy:6\)"
+            #"fail message"
+            #"expected: 1"
+            #"  actual: 0"]))
+      (is (has-lines?
+           stdout
+           [#"FAIL in \(section-test\) \(.*/test_test_generated/test2\.lpy:9\)"
+            #"Test failure: \(= 0 1\)"
+            #"expected: 0"
+            #"  actual: 1"
+            #""
+            #"FAIL in \(section-test\) \(.*/test_test_generated/test2\.lpy:11\)"
+            #"section"
+            #"Test failure: \(= 1 0\)"
+            #"expected: 1"
+            #"  actual: 0"
+            #""
+            #"FAIL in \(section-test\) \(.*/test_test_generated/test2\.lpy:14\)"
+            #"section"
+            #"message"
+            #"expected: \(not false\)"
+            #"  actual: false"])))))

@@ -5,7 +5,7 @@
    [basilisp.contrib.nrepl-server :as nr]
    [basilisp.set :as set]
    [basilisp.string :as str :refer [starts-with?]]
-   [basilisp.test :refer [deftest are is testing use-fixtures]]
+   [basilisp.test :refer [deftest are is testing use-fixtures with-fixtures]]
    [basilisp.test.fixtures :as fixtures :refer [*tempdir*]])
   (:import
    os
@@ -13,6 +13,33 @@
    tempfile
    threading
    time))
+
+(defn- generated-tests-fixture
+  []
+  (with-fixtures [fixtures/reset-path
+                  fixtures/tempdir]
+    (.insert sys/path 0 fixtures/*tempdir*)
+    (let [file (.join os/path fixtures/*tempdir*
+                      "nrepl_server_test_generated/test1.lpy")]
+      (os/makedirs (.dirname os/path file) ** :exist_ok true)
+      (with-open [wtr (python/open file ** :mode "w")]
+        (.write wtr
+                "(ns nrepl-server-test-generated.test1
+                   (:require [basilisp.test :refer :all]))
+
+                 (deftest error-test
+                   (throw (ex-info \"Boom!\" {})))
+
+                 (deftest fail-test
+                   (is (= 0 1)))
+
+                 (deftest pass-test
+                   (testing \"section\"
+                     (is (= 1 1)))
+                   (is (thrown? Exception (throw (ex-info \"Boom!\" {})))))")))
+    (yield)))
+
+(use-fixtures :once generated-tests-fixture)
 
 (use-fixtures :each fixtures/tempdir)
 
@@ -112,7 +139,10 @@
         (client-send! client{:id 2 :op "describe"})
         (let [{:keys [ops versions status]} (client-recv! client)]
           (is (= ["done"] status))
-          (is (= {:clone {} :close {} :complete {} :describe {} :eldoc {} :eval {} :info {} :load-file {}} ops))
+          (is (= {:test {} :test-all {} :retest {} :clone {} :close {}
+                  :complete {} :describe {} :eldoc {} :eval {} :info {}
+                  :load-file {}}
+                 ops))
           (let [{:keys [basilisp python]} versions]
             (is (contains? basilisp :version-string))
             (is (contains? python :version-string)))))))
@@ -272,29 +302,58 @@
             {:id @id* :ns "user" :value "1"}
             {:id @id* :ns "user" :status ["done"]})
           (client-send! client {:id (id-inc!) :op "complete" :prefix "clojure.test/"})
-          (is (= {:id @id* :status ["done"]
-                  :completions  [{:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-failures*"}
-                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-name*"}
-                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/*test-section*"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/are"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/deftest"}
-                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/gen-assert"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/is"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "clojure.test/testing"}
-                                 {:type "var" :ns "basilisp.test" :candidate "clojure.test/use-fixtures"}]}
-                 (client-recv! client)))
+          (let [{:keys [status id completions]} (client-recv! client)
+                has-completion?                 (set completions)]
+            (is (= id @id*))
+            (is (= status ["done"]))
+            (are [expected] (has-completion? expected)
+              {:type "var" :candidate "clojure.test/*test-failures*" :ns "basilisp.test"}
+              {:type "var" :candidate "clojure.test/*test-name*" :ns "basilisp.test"}
+              {:type "var" :candidate "clojure.test/*test-section*" :ns "basilisp.test"}
+              {:type "var" :candidate "clojure.test/*test-var*" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/->SimpleReport" :ns "basilisp.test"}
+              {:type "var" :candidate "clojure.test/Report" :ns "basilisp.test"}
+              {:type "macro" :candidate "clojure.test/are" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/assert!" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/collect-tests" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/compile-report" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/continue?" :ns "basilisp.test"}
+              {:type "macro" :candidate "clojure.test/deftest" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/error!" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/failures" :ns "basilisp.test"}
+              {:type "var" :candidate "clojure.test/gen-assert" :ns "basilisp.test"}
+              {:type "macro" :candidate "clojure.test/is" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/map->SimpleReport" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/pass!" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/report-begin" :ns "basilisp.test"}
+              {:type "function" :candidate "clojure.test/report-end" :ns "basilisp.test"}))
+
           (client-send! client {:id (id-inc!) :op "complete" :prefix "test/"})
-          (is (= {:id @id* :status ["done"]
-                  :completions  [{:type "var" :ns "basilisp.test" :candidate "test/*test-failures*"}
-                                 {:type "var" :ns "basilisp.test" :candidate "test/*test-name*"}
-                                 {:type "var" :ns "basilisp.test" :candidate "test/*test-section*"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "test/are"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "test/deftest"}
-                                 {:type "var" :ns "basilisp.test" :candidate "test/gen-assert"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "test/is"}
-                                 {:type "macro" :ns "basilisp.test" :candidate "test/testing"}
-                                 {:type "var" :ns "basilisp.test" :candidate "test/use-fixtures"}]}
-                 (client-recv! client))))))))
+          (let [{:keys [status id completions]} (client-recv! client)
+                has-completion?                 (set completions)]
+            (is (= id @id*))
+            (is (= status ["done"]))
+            (are [expected] (has-completion? expected)
+              {:type "var" :candidate "test/*test-failures*" :ns "basilisp.test"}
+              {:type "var" :candidate "test/*test-name*" :ns "basilisp.test"}
+              {:type "var" :candidate "test/*test-section*" :ns "basilisp.test"}
+              {:type "var" :candidate "test/*test-var*" :ns "basilisp.test"}
+              {:type "function" :candidate "test/->SimpleReport" :ns "basilisp.test"}
+              {:type "var" :candidate "test/Report" :ns "basilisp.test"}
+              {:type "macro" :candidate "test/are" :ns "basilisp.test"}
+              {:type "function" :candidate "test/assert!" :ns "basilisp.test"}
+              {:type "function" :candidate "test/collect-tests" :ns "basilisp.test"}
+              {:type "function" :candidate "test/compile-report" :ns "basilisp.test"}
+              {:type "function" :candidate "test/continue?" :ns "basilisp.test"}
+              {:type "macro" :candidate "test/deftest" :ns "basilisp.test"}
+              {:type "function" :candidate "test/error!" :ns "basilisp.test"}
+              {:type "function" :candidate "test/failures" :ns "basilisp.test"}
+              {:type "var" :candidate "test/gen-assert" :ns "basilisp.test"}
+              {:type "macro" :candidate "test/is" :ns "basilisp.test"}
+              {:type "function" :candidate "test/map->SimpleReport" :ns "basilisp.test"}
+              {:type "function" :candidate "test/pass!" :ns "basilisp.test"}
+              {:type "function" :candidate "test/report-begin" :ns "basilisp.test"}
+              {:type "function" :candidate "test/report-end" :ns "basilisp.test"})))))))
 
 (deftest nrepl-server-eval
   (testing "basic"
@@ -697,3 +756,137 @@
                                             :done)
                     status (deref shutdown-thread 1000 :time-out)]
                 (is (= :done status))))))))))
+
+(defn elapsed-time?
+  [x]
+  (and (int? (:ms x nil)) (string? (:humanized x nil))))
+
+(deftest nrepl-server-test
+  (with-server {}
+    (with-connect client
+      (let [id*     (atom 0)
+            id-inc! #(swap! id* inc)]
+        (client-send! client
+                      {:id   (id-inc!) :op "eval"
+                       :code "(require 'nrepl-server-test-generated.test1)"})
+        (client-recv! client)
+        (is (= ["done"] (:status (client-recv! client))))
+
+        (testing "format"
+          (client-send! client {:id    (id-inc!)
+                                :op    "test"
+                                :ns    "nrepl-server-test-generated.test1"
+                                :tests nil})
+          (let [{:as   response
+                 :keys [results
+                        summary
+                        elapsed-time
+                        ns-elapsed-time
+                        var-elapsed-time]} (client-recv! client)]
+            (is (= {:test 4 :ns 1 :error 1 :pass 2 :fail 1 :var 3} summary))
+            (is (elapsed-time? elapsed-time))
+            (is (= '(:nrepl-server-test-generated.test1)
+                   (keys ns-elapsed-time)))
+            (is (every? elapsed-time? (vals ns-elapsed-time)))
+            (let [var-elapsed (get var-elapsed-time
+                                   :nrepl-server-test-generated.test1)]
+              (is (= #{:pass-test :fail-test :error-test}
+                     (-> var-elapsed keys set)))
+              (is (every? (comp elapsed-time? :elapsed-time)
+                          (vals var-elapsed)))
+            (let [ns-results   (get results :nrepl-server-test-generated.test1)
+                  error-result (:error-test ns-results)]
+              (is (re-find #".*/nrepl_server_test_generated/test1.lpy"
+                           (-> error-result first :file)))
+              (let [lines (-> error-result first :error (.split "\n"))]
+                (is (re-find #"Traceback \(most recent call last\):"
+                             (first lines)))
+                (is (re-find #"^ basilisp.lang.exception.ExceptionInfo: Boom! \{\}"
+                             (last (butlast lines)))))
+              (is (= 1 (count error-result)))
+              (is (= {:fault    "true"
+                      :actual   "basilisp.lang.exception.ExceptionInfo(Boom!, {})\n"
+                      :ns       "nrepl-server-test-generated.test1"
+                      :message  "Exception in test: basilisp.lang.exception.ExceptionInfo(Boom!, {})"
+                      :expected "nil\n"
+                      :index    0
+                      :type     "error"
+                      :var      "error-test"
+                      :line     4
+                      :context  ""}
+                     (dissoc (first error-result) :file :error)))
+
+              (let [pass-result (:pass-test ns-results)]
+                (is (= [{:ns      "nrepl-server-test-generated.test1"
+                         :message "Test failure: (= 1 1)"
+                         :index   0
+                         :expr    "(= 1 1)"
+                         :type    "pass"
+                         :var     "pass-test"
+                         :context "section"}
+                        {:ns      "nrepl-server-test-generated.test1"
+                         :message "Test failure: (thrown? Exception (throw (ex-info \"Boom!\" {})))"
+                         :index   1
+                         :expr    "(thrown? Exception (throw (ex-info \"Boom!\" {})))"
+                         :type    "pass"
+                         :var     "pass-test"
+                         :context ""}]
+                       pass-result)))
+
+              (let [fail-result (:fail-test ns-results)]
+                (is (= 1 (count fail-result)))
+                (is (re-find #".*/nrepl_server_test_generated/test1\.lpy"
+                             (-> fail-result first :file)))
+                (is (= {:actual "1\n"
+                        :ns "nrepl-server-test-generated.test1"
+                        :message "Test failure: (= 0 1)"
+                        :index 0
+                        :line 8
+                        :expected "0\n"
+                        :expr "(= 0 1)"
+                        :type "fail"
+                        :var "fail-test"
+                        :context ""}
+                       (dissoc (first fail-result) :file)))))))
+
+        (testing "specific tests"
+          (client-send! client {:id    (id-inc!)
+                                :op    "test"
+                                :ns    "nrepl-server-test-generated.test1"
+                                :tests ["pass-test" "fail-test"]})
+          (let [{:keys [summary results]} (client-recv! client)]
+            (is (= 2 (:var summary)))
+            (is (= #{:pass-test :fail-test}
+                   (-> results :nrepl-server-test-generated.test1 keys set)))))
+
+        (testing "fail fast"
+          (client-send! client {:id        (id-inc!)
+                                :op        "test"
+                                :ns        "nrepl-server-test-generated.test1"
+                                :fail-fast "true"
+                                :tests     ["fail-test" "pass-test"]})
+          (let [{:keys [summary results]} (client-recv! client)]
+            (is (= 1 (:var summary)))
+            (is (= '(:fail-test)
+                   (-> results :nrepl-server-test-generated.test1 keys))))))))))
+
+(deftest nrepl-server-retest
+  (with-server {}
+    (with-connect client
+      (let [id*     (atom 0)
+            id-inc! #(swap! id* inc)]
+        (client-send! client
+                      {:id   (id-inc!) :op "eval"
+                       :code "(require 'nrepl-server-test-generated.test1)"})
+        (client-recv! client)
+        (is (= ["done"] (:status (client-recv! client))))
+        (client-send! client {:id    (id-inc!)
+                              :op    "test"
+                              :ns    "nrepl-server-test-generated.test1"
+                              :tests nil})
+        (is (= 3 (-> (client-recv! client) :summary :var)))
+        (client-send! client {:id (id-inc!), :op "retest"})
+        (let [{:keys [results summary]} (client-recv! client)]
+          (is (= 2 (:var summary)))
+          (is (= #{:error-test :fail-test}
+                 (-> results :nrepl-server-test-generated.test1 keys set))))))))

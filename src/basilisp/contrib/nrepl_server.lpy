@@ -3,7 +3,8 @@
 (ns basilisp.contrib.nrepl-server
   "A port of `nbb <https://github.com/babashka/nbb>`_ 's nREPL server implementation to Basilisp."
   (:require [basilisp.contrib.bencode :as bc]
-            [basilisp.string :as str])
+            [basilisp.string :as str]
+            [basilisp.contrib.nrepl-server.test :as test])
   (:import basilisp.logconfig
            logging
            socketserver
@@ -330,7 +331,9 @@
    :complete  handle-complete
    ;; :macroexpand handle-macroexpand
    ;; :classpath handle-classpath
-   })
+   :test      test/handle-test
+   :test-all  test/handle-test-all
+   :retest    test/handle-retest})
 
 (defn- handle-request [{:keys [op] :as request} send-fn]
   (if-let [op-fn (get ops op)]
