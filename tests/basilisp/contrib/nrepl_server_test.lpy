@@ -796,7 +796,7 @@
                           (vals var-elapsed)))
             (let [ns-results   (get results :nrepl-server-test-generated.test1)
                   error-result (:error-test ns-results)]
-              (is (re-find #".*/nrepl_server_test_generated/test1.lpy"
+              (is (re-find #".*nrepl_server_test_generated.+test1.lpy"
                            (-> error-result first :file)))
               (let [lines (-> error-result first :error (.split "\n"))]
                 (is (re-find #"Traceback \(most recent call last\):"
@@ -835,7 +835,7 @@
 
               (let [fail-result (:fail-test ns-results)]
                 (is (= 1 (count fail-result)))
-                (is (re-find #".*/nrepl_server_test_generated/test1\.lpy"
+                (is (re-find #".*nrepl_server_test_generated.+test1\.lpy"
                              (-> fail-result first :file)))
                 (is (= {:actual "1\n"
                         :ns "nrepl-server-test-generated.test1"
