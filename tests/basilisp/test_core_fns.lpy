@@ -1614,8 +1614,8 @@
   (is (= #py [#py [1 2 3] #py [:a :b :c]]
          (to-array-2d '([1 2 3] (:a :b :c)))))
 
-  (is (thrown? python/TypeError)
-      (to-array-2d [[1 2 3] :b])))
+  (is (thrown? python/TypeError
+               (to-array-2d [[1 2 3] :b]))))
 
 (deftest into-array-test
   (testing "with no type"

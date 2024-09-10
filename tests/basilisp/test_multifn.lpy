@@ -91,8 +91,8 @@
       (is (= "operating system" (os-lineage {:os :os/windows}))))
 
     (testing "cannot establish conflicting preference"
-      (is (thrown? basilisp.lang.runtime/RuntimeException)
-          (prefer-method os-lineage :os/bsd :os/unix)))))
+      (is (thrown? basilisp.lang.runtime/RuntimeException
+                   (prefer-method os-lineage :os/bsd :os/unix))))))
 
 (defmulti args-test1 "test1" :x)
 (defmulti args-test2 {:test 2} :x)
