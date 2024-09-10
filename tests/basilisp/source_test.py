@@ -23,7 +23,7 @@ def test_format_source_context(monkeypatch, source_file, source_file_path):
         textwrap.dedent(
             """
             (ns source-test)
-
+            
             (a)
             (let [a 5]
               (b))
@@ -32,12 +32,12 @@ def test_format_source_context(monkeypatch, source_file, source_file_path):
     )
     format_c = format_source_context(source_file_path, 2, end_line=4)
     assert [
-        " 1   | \n",
-        " 2 > | (\x1b[38;5;129;01mns \x1b[39;00m\x1b[38;5;136msource-test\x1b[39m)\n",
-        " 3 > | \n",
-        " 4 > | (\x1b[38;5;34ma\x1b[39m)\n",
-        " 5   | (\x1b[38;5;129;01mlet \x1b[39;00m[\x1b[38;5;136ma\x1b[39m\x1b[38;5;250m \x1b[39m\x1b[38;5;241m5\x1b[39m]\n",
-        " 6   | \x1b[38;5;250m  \x1b[39m(\x1b[38;5;34mb\x1b[39m))\n",
+        " 1   | \x1b[37m\x1b[39;49;00m\n",
+        " 2 > | (\x1b[34mns \x1b[39;49;00m\x1b[31msource-test\x1b[39;49;00m)\x1b[37m\x1b[39;49;00m\n",
+        " 3 > | \x1b[37m\x1b[39;49;00m\n",
+        " 4 > | (\x1b[32ma\x1b[39;49;00m)\x1b[37m\x1b[39;49;00m\n",
+        " 5   | (\x1b[34mlet \x1b[39;49;00m[\x1b[31ma\x1b[39;49;00m\x1b[37m \x1b[39;49;00m\x1b[34m5\x1b[39;49;00m]\x1b[37m\x1b[39;49;00m\n",
+        " 6   | \x1b[37m  \x1b[39;49;00m(\x1b[32mb\x1b[39;49;00m))\x1b[37m\x1b[39;49;00m\n",
     ] == format_c
 
     format_nc = format_source_context(
