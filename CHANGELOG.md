@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [v0.2.2]
 ### Added
  * Added the `-p`/`--include-path` CLI command to prepend entries to the `sys.path` as an alternative to `PYTHONPATH` (#1027)
  * Added an empty entry to `sys.path` for all CLI entrypoints (`basilisp run`, `basilisp repl`, etc.) (#1027)
@@ -576,6 +578,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Basilisp language and compiler base.
 
+[v0.2.2]: https://github.com/basilisp-lang/basilisp/compare/v0.2.1..v0.2.2
 [v0.2.1]: https://github.com/basilisp-lang/basilisp/compare/v0.2.0..v0.2.1
 [v0.2.0]: https://github.com/basilisp-lang/basilisp/compare/v0.1.1..v0.2.0
 [v0.1.1]: https://github.com/basilisp-lang/basilisp/compare/v0.1.0..v0.1.1
