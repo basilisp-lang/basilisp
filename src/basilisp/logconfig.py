@@ -30,3 +30,13 @@ def get_handler(
     handler.setFormatter(logging.Formatter(fmt))
     handler.setLevel(level or get_level())
     return handler
+
+
+def configure_root_logger(
+    level: Optional[str] = None, fmt: str = DEFAULT_FORMAT
+) -> None:
+    """Configure the Basilisp root logger."""
+    level = level or get_level()
+    logger = logging.getLogger("basilisp")
+    logger.setLevel(level)
+    logger.addHandler(get_handler(level=level, fmt=fmt))
