@@ -5,15 +5,17 @@ from pathlib import Path
 from typing import List, Optional
 
 from basilisp import importer as importer
+from basilisp import logconfig
 from basilisp.lang import runtime as runtime
 from basilisp.lang.compiler import compiler_opts
 from basilisp.lang.typing import CompilerOpts
 from basilisp.lang.util import munge
-from basilisp.logconfig import DEFAULT_HANDLER, DEFAULT_LEVEL
 
-logger = logging.getLogger("basilisp")
-logger.setLevel(DEFAULT_LEVEL)
-logger.addHandler(DEFAULT_HANDLER)
+
+def configure_root_logger() -> None:
+    logger = logging.getLogger("basilisp")
+    logger.setLevel(logconfig.get_level())
+    logger.addHandler(logconfig.get_handler())
 
 
 def init(opts: Optional[CompilerOpts] = None) -> None:
@@ -27,6 +29,7 @@ def init(opts: Optional[CompilerOpts] = None) -> None:
     If you want to execute a Basilisp file which is stored in a well-formed package
     or module structure, you probably want to use :py:func:`bootstrap`.
     """
+    configure_root_logger()
     runtime.init_ns_var()
     runtime.bootstrap_core(opts if opts is not None else compiler_opts())
     importer.hook_imports()

@@ -281,6 +281,32 @@ def _add_debug_arg_group(parser: argparse.ArgumentParser) -> None:
             "(env: BASILISP_DO_NOT_CACHE_NAMESPACES; default: false)"
         ),
     )
+    group.add_argument(
+        "--enable-logger",
+        action=_set_envvar_action(
+            "BASILISP_USE_DEV_LOGGER", parent=argparse._StoreAction
+        ),
+        nargs="?",
+        const=True,
+        type=_to_bool,
+        help=(
+            "if true, enable the Basilisp root logger "
+            "(env: BASILISP_USE_DEV_LOGGER; default: false)"
+        ),
+    )
+    group.add_argument(
+        "-l",
+        "--log-level",
+        action=_set_envvar_action(
+            "BASILISP_LOGGING_LEVEL", parent=argparse._StoreAction
+        ),
+        type=lambda s: s.upper(),
+        default="WARNING",
+        help=(
+            "the logging level for logs emitted by the Basilisp compiler and runtime "
+            "(env: BASILISP_LOGGING_LEVEL; default: WARNING)"
+        ),
+    )
 
 
 def _add_import_arg_group(parser: argparse.ArgumentParser) -> None:
