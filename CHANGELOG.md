@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added the `-p`/`--include-path` CLI command to prepend entries to the `sys.path` as an alternative to `PYTHONPATH` (#1027)
  * Added an empty entry to `sys.path` for all CLI entrypoints (`basilisp run`, `basilisp repl`, etc.) (#1027)
+ * Added command line arguments for enabling the development logger and configuring the logging level (#1047)
 
 ### Changed
  * The compiler will no longer require `Var` indirection for top-level `do` forms unless those forms specify `^:use-var-indirection` metadata (which currently is only used in the `ns` macro) (#1034)
