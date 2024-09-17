@@ -3486,7 +3486,7 @@ class TestPythonInterop:
     def test_interop_new_with_import(self, lcompile: CompileFn, ns: runtime.Namespace):
         import builtins
 
-        ns.add_import(sym.symbol("builtins"), builtins)
+        ns.add_import(sym.symbol("builtins"), builtins, sym.symbol("builtins"))
         assert "hi" == lcompile('(builtins.str. "hi")')
         assert "1" == lcompile("(builtins.str. 1)")
 
@@ -6516,7 +6516,7 @@ class TestWarnOnVarIndirection:
     ):
         """Basilisp should be able to directly resolve a link to cross-namespace
         imports, so no warning should be raised."""
-        ns.add_import(sym.symbol("string"), __import__("string"))
+        ns.add_import(sym.symbol("string"), __import__("string"), sym.symbol("string"))
 
         with runtime.ns_bindings(ns.name):
             lcompile(
@@ -6533,7 +6533,7 @@ class TestWarnOnVarIndirection:
         self, lcompile: CompileFn, ns: runtime.Namespace, caplog
     ):
         """If a name does not exist, then a CompilerException will be raised."""
-        ns.add_import(sym.symbol("string"), __import__("string"))
+        ns.add_import(sym.symbol("string"), __import__("string"), sym.symbol("string"))
 
         with runtime.ns_bindings(ns.name), pytest.raises(compiler.CompilerException):
             lcompile(
