@@ -6501,6 +6501,19 @@ class TestWarnOnVarIndirection:
             rf"could not resolve a direct link to Var 'm' \({ns}:\d+\)",
         )
 
+    def test_no_warning_for_cross_ns_alias_reference_if_warning_enabled_but_suppressed_locally(
+        self, lcompile: CompileFn, other_ns, assert_no_matching_logs
+    ):
+        lcompile(
+            "(fn [] (^:no-warn-on-var-indirection other/m :z))",
+            opts={compiler.WARN_ON_VAR_INDIRECTION: True},
+        )
+        assert_no_matching_logs(
+            "basilisp.lang.compiler.generator",
+            logging.WARNING,
+            r"could not resolve a direct link to Var 'm' \(test:\d+\)",
+        )
+
     def test_no_warning_for_cross_ns_alias_reference_if_warning_disabled(
         self, lcompile: CompileFn, other_ns, assert_no_matching_logs
     ):
