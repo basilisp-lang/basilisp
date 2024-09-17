@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ * Added the `--emit-generated-python` CLI argument to control whether generated Python code strings are stored by the runtime for each compiled namespace (#1045)
+
+### Changed
+ * The compiler will issue a warning when adding any alias that might conflict with any other alias (#1045)
 
 ## [v0.2.2]
 ### Added

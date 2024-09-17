@@ -46,6 +46,7 @@ from basilisp.lang import vector as vec
 from basilisp.lang.compiler.constants import (
     DEFAULT_COMPILER_FILE_PATH,
     INTERFACE_KW,
+    OPERATOR_ALIAS,
     REST_KW,
     SYM_DYNAMIC_META_KEY,
     SYM_REDEF_META_KEY,
@@ -684,6 +685,13 @@ def _var_ns_as_python_sym(name: str) -> str:
 #######################
 
 
+_ATTR_ALIAS = genname("attr")
+_BUILTINS_ALIAS = genname("builtins")
+_FUNCTOOLS_ALIAS = genname("functools")
+_IMPORTLIB_ALIAS = genname("importlib")
+_IO_ALIAS = genname("io")
+_SYS_ALIAS = genname("sys")
+
 _ATOM_ALIAS = genname("atom")
 _COMPILER_ALIAS = genname("compiler")
 _CORE_ALIAS = genname("core")
@@ -706,9 +714,17 @@ _SYM_ALIAS = genname("sym")
 _VEC_ALIAS = genname("vec")
 _VOLATILE_ALIAS = genname("volatile")
 _VAR_ALIAS = genname("Var")
+_UNION_ALIAS = genname("Union")
 _UTIL_ALIAS = genname("langutil")
 
 _MODULE_ALIASES = {
+    "attr": _ATTR_ALIAS,
+    "builtins": _BUILTINS_ALIAS,
+    "functools": _FUNCTOOLS_ALIAS,
+    "importlib": _IMPORTLIB_ALIAS,
+    "io": _IO_ALIAS,
+    "operator": OPERATOR_ALIAS,
+    "sys": _SYS_ALIAS,
     "basilisp.lang.atom": _ATOM_ALIAS,
     "basilisp.lang.compiler": _COMPILER_ALIAS,
     "basilisp.core": _CORE_ALIAS,
@@ -732,6 +748,9 @@ _MODULE_ALIASES = {
     "basilisp.lang.volatile": _VOLATILE_ALIAS,
     "basilisp.lang.util": _UTIL_ALIAS,
 }
+assert set(_MODULE_ALIASES.keys()).issuperset(
+    map(lambda s: s.name, runtime.Namespace.DEFAULT_IMPORTS)
+), "All default Namespace imports should have generator aliases"
 
 _NS_VAR_VALUE = f"{_NS_VAR}.value"
 
@@ -753,16 +772,16 @@ _NEW_VEC_FN_NAME = _load_attr(f"{_VEC_ALIAS}.vector")
 _INTERN_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern")
 _INTERN_UNBOUND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.intern_unbound")
 _FIND_VAR_FN_NAME = _load_attr(f"{_VAR_ALIAS}.find_safe")
-_ATTR_CLASS_DECORATOR_NAME = _load_attr("attr.define")
-_ATTR_FROZEN_DECORATOR_NAME = _load_attr("attr.frozen")
-_ATTRIB_FIELD_FN_NAME = _load_attr("attr.field")
+_ATTR_CLASS_DECORATOR_NAME = _load_attr(f"{_ATTR_ALIAS}.define")
+_ATTR_FROZEN_DECORATOR_NAME = _load_attr(f"{_ATTR_ALIAS}.frozen")
+_ATTRIB_FIELD_FN_NAME = _load_attr(f"{_ATTR_ALIAS}.field")
 _COERCE_SEQ_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}.to_seq")
 _BASILISP_FN_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_fn")
 _FN_WITH_ATTRS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._with_attrs")
 _BASILISP_TYPE_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._basilisp_type")
 _BASILISP_WITH_META_INTERFACE_NAME = _load_attr(f"{_INTERFACES_ALIAS}.IWithMeta")
-_BUILTINS_IMPORT_FN_NAME = _load_attr("builtins.__import__")
-_IMPORTLIB_IMPORT_MODULE_FN_NAME = _load_attr("importlib.import_module")
+_BUILTINS_IMPORT_FN_NAME = _load_attr(f"{_BUILTINS_ALIAS}.__import__")
+_IMPORTLIB_IMPORT_MODULE_FN_NAME = _load_attr(f"{_IMPORTLIB_ALIAS}.import_module")
 _LISP_FN_APPLY_KWARGS_FN_NAME = _load_attr(f"{_RUNTIME_ALIAS}._lisp_fn_apply_kwargs")
 _LISP_FN_COLLECT_KWARGS_FN_NAME = _load_attr(
     f"{_RUNTIME_ALIAS}._lisp_fn_collect_kwargs"
@@ -1964,7 +1983,7 @@ def __multi_arity_dispatch_fn(  # pylint: disable=too-many-arguments,too-many-lo
             ret_ann_deps.extend(ret_ann.dependencies)
         ret_ann_ast = (
             ast.Subscript(
-                value=ast.Name(id="Union", ctx=ast.Load()),
+                value=ast.Name(id=_UNION_ALIAS, ctx=ast.Load()),
                 slice=ast_index(ast.Tuple(elts=ret_ann_asts, ctx=ast.Load())),
                 ctx=ast.Load(),
             )
@@ -3922,7 +3941,7 @@ def _from_module_imports() -> Iterable[ast.ImportFrom]:
         ast.ImportFrom(
             module="typing",
             names=[
-                ast.alias(name="Union", asname=None),
+                ast.alias(name="Union", asname=_UNION_ALIAS),
             ],
             level=0,
         ),

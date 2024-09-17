@@ -6,8 +6,6 @@
          datetime
          decimal
          fractions
-         functools
-         importlib
          importlib.util
          math
          multiprocessing
@@ -19,10 +17,6 @@
          threading
          [time :as py-time]
          uuid)
-
-(import* attr)
-
-(import* basilisp.lang.multifn)
 
 (def ^{:doc      "Create a list from the arguments."
        :arglists '([& args])}

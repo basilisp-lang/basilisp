@@ -307,6 +307,20 @@ def _add_debug_arg_group(parser: argparse.ArgumentParser) -> None:
             "(env: BASILISP_LOGGING_LEVEL; default: WARNING)"
         ),
     )
+    group.add_argument(
+        "--emit-generated-python",
+        action=_set_envvar_action(
+            "BASILISP_EMIT_GENERATED_PYTHON", parent=argparse._StoreAction
+        ),
+        nargs="?",
+        const=True,
+        type=_to_bool,
+        help=(
+            "if true, store generated Python code in `*generated-python*` dynamic "
+            "Vars within each namespace (env: BASILISP_EMIT_GENERATED_PYTHON; "
+            "default: true)"
+        ),
+    )
 
 
 def _add_import_arg_group(parser: argparse.ArgumentParser) -> None:

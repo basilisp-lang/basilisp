@@ -111,6 +111,31 @@ This is roughly analogous to the Java classpath in Clojure.
 These values may be set manually, but are more often configured by some project management tool such as Poetry or defined in your Python virtualenv.
 These values may also be set via :ref:`cli` arguments.
 
+.. _namespace_imports:
+
+Namespace Imports
+^^^^^^^^^^^^^^^^^
+
+Basilisp compiles Lisp code into Python code in Python modules exactly the same way the Python compiler does.
+The Python code compiled by the Basilisp compiler expects certain features to be available at runtime beyond the standard Python builtins.
+To support this, the Python modules compiled by Basilisp automatically import a number of modules both from the Basilisp runtime, the Python standard library, and Basilisp's Python dependencies.
+In Basilisp modules (particularly :lpy:ns:`basilisp.core`) you may find references to such modules without any corresponding :lpy:form:`import`.
+
+The modules imported by default are given below:
+
+- ``attr`` (from the `attrs <https://www.attrs.org/en/stable/>`_ project)
+- :external:py:mod:`builtins` (Basilisp users should prefer the ``python`` namespace for calling :ref:`python_builtins`)
+- :external:py:mod:`functools`
+- :external:py:mod:`io`
+- :external:py:mod:`importlib`
+- :external:py:mod:`operator`
+- :external:py:mod:`sys`
+- The majority of the modules in ``basilisp.lang.*``
+
+.. warning::
+
+   Using any of these names (particularly the Python standard library module names) as an alias for a required namespace or imported Python module will trigger a warning.
+
 .. _vars:
 
 Vars
