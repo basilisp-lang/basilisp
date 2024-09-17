@@ -727,6 +727,7 @@ class MaybeClass(Node[sym.Symbol]):
 @attr.frozen
 class MaybeHostForm(Node[sym.Symbol]):
     form: sym.Symbol
+    class_original: str
     class_: str
     field: str
     target: Any
