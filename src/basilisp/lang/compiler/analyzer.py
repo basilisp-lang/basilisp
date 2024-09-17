@@ -71,6 +71,7 @@ from basilisp.lang.compiler.constants import (
     SYM_NO_INLINE_META_KEY,
     SYM_NO_WARN_ON_REDEF_META_KEY,
     SYM_NO_WARN_ON_SHADOW_META_KEY,
+    SYM_NO_WARN_ON_VAR_INDIRECTION_META_KEY,
     SYM_NO_WARN_WHEN_UNUSED_META_KEY,
     SYM_PRIVATE_META_KEY,
     SYM_PROPERTY_META_KEY,
@@ -674,6 +675,7 @@ _is_py_property = _bool_meta_getter(SYM_PROPERTY_META_KEY)
 _is_py_staticmethod = _bool_meta_getter(SYM_STATICMETHOD_META_KEY)
 _is_macro = _bool_meta_getter(SYM_MACRO_META_KEY)
 _is_no_inline = _bool_meta_getter(SYM_NO_INLINE_META_KEY)
+_is_allow_var_indirection = _bool_meta_getter(SYM_NO_WARN_ON_VAR_INDIRECTION_META_KEY)
 _is_use_var_indirection = _bool_meta_getter(SYM_USE_VAR_INDIRECTION_KEY)
 _inline_meta = _meta_getter(SYM_INLINE_META_KW)
 _tag_meta = _meta_getter(SYM_TAG_META_KEY)
@@ -3506,6 +3508,7 @@ def __resolve_namespaced_symbol_in_ns(
         return VarRef(
             form=form,
             var=v,
+            is_allow_var_indirection=_is_allow_var_indirection(form),
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 
@@ -3525,6 +3528,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
             return VarRef(
                 form=form,
                 var=v,
+                is_allow_var_indirection=_is_allow_var_indirection(form),
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             )
     elif form.ns == _BUILTINS_NS:
@@ -3549,7 +3553,12 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
                 f"cannot resolve private Var {form.name} from namespace {form.ns}",
                 form=form,
             )
-        return VarRef(form=form, var=v, env=ctx.get_node_env(pos=ctx.syntax_position))
+        return VarRef(
+            form=form,
+            var=v,
+            is_allow_var_indirection=_is_allow_var_indirection(form),
+            env=ctx.get_node_env(pos=ctx.syntax_position),
+        )
 
     if "." in form.name and form.name != _DOUBLE_DOT_MACRO_NAME:
         raise ctx.AnalyzerException(
@@ -3610,6 +3619,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
             target=VarRef(
                 form=form,
                 var=maybe_type_or_class,
+                is_allow_var_indirection=_is_allow_var_indirection(form),
                 env=ctx.get_node_env(pos=ctx.syntax_position),
             ),
             is_assignable=False,
@@ -3624,8 +3634,7 @@ def __resolve_namespaced_symbol(  # pylint: disable=too-many-branches  # noqa: M
 def __resolve_bare_symbol(
     ctx: AnalyzerContext, form: sym.Symbol
 ) -> Union[Const, MaybeClass, VarRef]:
-    """Resolve a non-namespaced symbol into a Python name or a local
-    Basilisp Var."""
+    """Resolve a non-namespaced symbol into a Python name or a local Basilisp Var."""
     assert form.ns is None
 
     # Look up the symbol in the namespace mapping of the current namespace.
@@ -3635,6 +3644,7 @@ def __resolve_bare_symbol(
         return VarRef(
             form=form,
             var=v,
+            is_allow_var_indirection=_is_allow_var_indirection(form),
             env=ctx.get_node_env(pos=ctx.syntax_position),
         )
 

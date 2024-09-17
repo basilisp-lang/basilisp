@@ -622,7 +622,7 @@
     (.write writer "\"")
     nil)
   nil
-  (write* [this writer]
+  (write* [_this writer]
     (.write writer "nil")
     nil)
 

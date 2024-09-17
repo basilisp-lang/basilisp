@@ -257,7 +257,7 @@ class GeneratorContext:
     @property
     def warn_on_var_indirection(self) -> bool:
         """If True, warn when a Var reference cannot be direct linked (iff
-        use_var_indirection is False).."""
+        use_var_indirection is False)."""
         return not self.use_var_indirection and self._opts.val_at(
             WARN_ON_VAR_INDIRECTION, True
         )
@@ -3188,7 +3188,7 @@ def _var_sym_to_py_ast(
     if direct_link is not None:
         return direct_link
 
-    if ctx.warn_on_var_indirection:
+    if ctx.warn_on_var_indirection and not node.is_allow_var_indirection:
         logger.warning(
             f"could not resolve a direct link to Var '{var_name}' "
             f"({node.env.ns}:{node.env.line})"
