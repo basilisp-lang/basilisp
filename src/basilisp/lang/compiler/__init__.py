@@ -139,7 +139,7 @@ def _emit_ast_string(
     # TODO: eventually, this default should become "false" but during this
     #       period of heavy development, having it set to "true" by default
     #       is tremendously useful
-    if os.getenv("BASILISP_EMIT_GENERATED_PYTHON", "true") != "true":
+    if os.getenv("BASILISP_EMIT_GENERATED_PYTHON", "true").lower() != "true":
         return
 
     if runtime.print_generated_python():

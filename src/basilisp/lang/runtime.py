@@ -503,31 +503,42 @@ VarMap = lmap.PersistentMap[sym.Symbol, Var]
 
 
 class Namespace(ReferenceBase):
-    """Namespaces serve as organizational units in Basilisp code, just as
-    they do in Clojure code. Vars are mutable containers for functions and
-    data which may be interned in a namespace and referred to by a Symbol.
-    Namespaces additionally may have aliases to other namespaces, so code
-    organized in one namespace may conveniently refer to code or data in
-    other namespaces using that alias as the Symbol's namespace.
-    Namespaces are constructed def-by-def as Basilisp reads in each form
-    in a file (which will typically declare a namespace at the top).
+    """Namespaces serve as organizational units in Basilisp code, just as they do in
+    Clojure code.
+
+    Vars are mutable containers for functions and data which may be interned in a
+    namespace and referred to by a Symbol.
+
+    Namespaces additionally may have aliases to other namespaces, so code organized in
+    one namespace may conveniently refer to code or data in other namespaces using that
+    alias as the Symbol's namespace.
+
+    Namespaces are constructed def-by-def as Basilisp reads in each form in a file
+    (which will typically declare a namespace at the top).
+
     Namespaces have the following fields of interest:
-    - `aliases` is a mapping between a symbolic alias and another
-      Namespace. The fully qualified name of a namespace is also
-      an alias for itself.
 
-    - `imports` is a mapping of names to Python modules imported
-      into the current namespace.
+    - `aliases` is a mapping between a symbolic alias and another Namespace. The fully
+      qualified name of a namespace is also an alias for itself.
 
-    - `interns` is a mapping between a symbolic name and a Var. The
-      Var may point to code, data, or nothing, if it is unbound. Vars
-      in `interns` are interned in _this_ namespace.
+    - `imports` is a mapping of names to Python modules imported into the current
+      namespace.
 
-    - `refers` is a mapping between a symbolic name and a Var. Vars in
-      `refers` are interned in another namespace and are only referred
-      to without an alias in this namespace.
+    - `import_aliases` is a mapping of aliases for Python modules to the true module
+      name.
+
+    - `interns` is a mapping between a symbolic name and a Var. The Var may point to
+      code, data, or nothing, if it is unbound. Vars in `interns` are interned in
+      _this_ namespace.
+
+    - `refers` is a mapping between a symbolic name and a Var. Vars in `refers` are
+      interned in another namespace and are only referred to without an alias in
+      this namespace.
     """
 
+    # If this set is updated, be sure to update the following two locations:
+    # - basilisp.lang.compiler.generator._MODULE_ALIASES
+    # - the `namespace_imports` section in the documentation
     DEFAULT_IMPORTS = lset.set(
         map(
             sym.symbol,
@@ -659,6 +670,20 @@ class Namespace(ReferenceBase):
     def __hash__(self):
         return hash(self._name)
 
+    def _check_potential_name_conflicts(self, name: sym.Symbol) -> None:
+        if name in self._aliases:
+            logger.warning(
+                f"name '{name}' may be shadowed by existing alias in '{self}'"
+            )
+        if name in self._import_aliases:
+            logger.warning(
+                f"name '{name}' may be shadowed by existing import alias in '{self}'"
+            )
+        if name in self._imports:
+            logger.warning(
+                f"name '{name}' may be shadowed by existing import in '{self}'"
+            )
+
     def require(self, ns_name: str, *aliases: sym.Symbol) -> BasilispModule:
         """Require the Basilisp Namespace named by `ns_name` and add any aliases given
         to this Namespace.
@@ -684,6 +709,7 @@ class Namespace(ReferenceBase):
         with self._lock:
             new_m = self._aliases
             for alias in aliases:
+                self._check_potential_name_conflicts(alias)
                 new_m = new_m.assoc(alias, namespace)
             self._aliases = new_m
 
@@ -725,10 +751,12 @@ class Namespace(ReferenceBase):
         """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
         the aliases will be applied to the"""
         with self._lock:
+            self._check_potential_name_conflicts(sym)
             self._imports = self._imports.assoc(sym, module)
             if aliases:
                 m = self._import_aliases
                 for alias in aliases:
+                    self._check_potential_name_conflicts(alias)
                     m = m.assoc(alias, sym)
                 self._import_aliases = m
 

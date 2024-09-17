@@ -1,5 +1,6 @@
 from basilisp.lang import keyword as kw
 from basilisp.lang import symbol as sym
+from basilisp.lang.util import genname
 
 
 class SpecialForm:
@@ -31,6 +32,8 @@ class SpecialForm:
 AMPERSAND = sym.symbol("&")
 
 DEFAULT_COMPILER_FILE_PATH = "NO_SOURCE_PATH"
+
+OPERATOR_ALIAS = genname("operator")
 
 SYM_ABSTRACT_META_KEY = kw.keyword("abstract")
 SYM_ABSTRACT_MEMBERS_META_KEY = kw.keyword("abstract-members")

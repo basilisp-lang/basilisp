@@ -4,6 +4,7 @@ from collections import deque
 from contextlib import contextmanager
 from typing import Deque, Iterable, List, Optional, Set
 
+from basilisp.lang.compiler.constants import OPERATOR_ALIAS
 from basilisp.lang.compiler.utils import ast_FunctionDef, ast_index
 
 
@@ -43,7 +44,7 @@ def _optimize_operator_call_attr(  # pylint: disable=too-many-return-statements
     Using Python operators directly will allow for more direct bytecode to be
     emitted by the Python compiler and take advantage of any additional performance
     improvements in future versions of Python."""
-    if isinstance(fn.value, ast.Name) and fn.value.id == "operator":
+    if isinstance(fn.value, ast.Name) and fn.value.id == OPERATOR_ALIAS:
         binop = {
             "add": ast.Add,
             "and_": ast.BitAnd,
