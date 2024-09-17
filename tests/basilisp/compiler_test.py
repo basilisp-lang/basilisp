@@ -3294,6 +3294,10 @@ class TestIf:
 
 
 class TestImport:
+    def test_import_must_have_at_least_one_module(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import*)")
+
     @pytest.mark.parametrize(
         "code",
         [

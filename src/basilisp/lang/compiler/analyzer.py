@@ -9,6 +9,7 @@ import platform
 import re
 import sys
 import uuid
+from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
@@ -2505,6 +2506,60 @@ def _if_ast(form: ISeq, ctx: AnalyzerContext) -> If:
     )
 
 
+def _do_warn_on_import_name_clash(
+    ctx: AnalyzerContext, alias_nodes: List[ImportAlias]
+) -> None:
+    assert alias_nodes, "Must have at least one alias"
+
+    # Fetch these locally to avoid triggering more locks than we need to
+    current_ns = ctx.current_ns
+    aliases, import_aliases, imports = (
+        current_ns.aliases,
+        current_ns.import_aliases,
+        current_ns.imports,
+    )
+
+    def _node_loc(env: NodeEnv) -> str:
+        if env.line is None:
+            return str(env.ns)
+        return f"{env.ns}:{env.line}"
+
+    # Identify duplicates in the import list first
+    name_to_nodes = defaultdict(list)
+    for node in alias_nodes:
+        name_to_nodes[(node.alias or node.name)].append(node)
+
+    for name, nodes in name_to_nodes.items():
+        if len(nodes) < 2:
+            continue
+
+        locs = [_node_loc(node.env) for node in nodes]
+        logger.warning(
+            f"duplicate name or alias '{name}' in import ({'; '.join(locs)})"
+        )
+
+    # Now check against names in the namespace
+    for name, nodes in name_to_nodes.items():
+        name_sym = sym.symbol(name)
+        node, *_ = nodes
+
+        if name_sym in aliases:
+            logger.warning(
+                f"name '{name}' may be shadowed by existing alias in '{current_ns}' "
+                f"({_node_loc(node.env)})"
+            )
+        if name_sym in import_aliases:
+            logger.warning(
+                f"name '{name}' may be shadowed by existing import alias in "
+                f"'{current_ns}' ({_node_loc(node.env)})"
+            )
+        if name_sym in imports:
+            logger.warning(
+                f"name '{name}' may be shadowed by existing import in '{current_ns}' "
+                f"({_node_loc(node.env)})"
+            )
+
+
 def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
     assert form.first == SpecialForm.IMPORT
 
@@ -2567,6 +2622,12 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
             )
         )
 
+    if not aliases:
+        raise ctx.AnalyzerException(
+            "import forms must name at least one module", form=form
+        )
+
+    _do_warn_on_import_name_clash(ctx, aliases)
     return Import(
         form=form,
         aliases=aliases,

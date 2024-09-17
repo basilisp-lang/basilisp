@@ -670,20 +670,6 @@ class Namespace(ReferenceBase):
     def __hash__(self):
         return hash(self._name)
 
-    def _check_potential_name_conflicts(self, name: sym.Symbol) -> None:
-        if name in self._aliases:
-            logger.warning(
-                f"name '{name}' may be shadowed by existing alias in '{self}'"
-            )
-        if name in self._import_aliases:
-            logger.warning(
-                f"name '{name}' may be shadowed by existing import alias in '{self}'"
-            )
-        if name in self._imports:
-            logger.warning(
-                f"name '{name}' may be shadowed by existing import in '{self}'"
-            )
-
     def require(self, ns_name: str, *aliases: sym.Symbol) -> BasilispModule:
         """Require the Basilisp Namespace named by `ns_name` and add any aliases given
         to this Namespace.
@@ -709,7 +695,6 @@ class Namespace(ReferenceBase):
         with self._lock:
             new_m = self._aliases
             for alias in aliases:
-                self._check_potential_name_conflicts(alias)
                 new_m = new_m.assoc(alias, namespace)
             self._aliases = new_m
 
@@ -751,12 +736,10 @@ class Namespace(ReferenceBase):
         """Add the Symbol as an imported Symbol in this Namespace. If aliases are given,
         the aliases will be applied to the"""
         with self._lock:
-            self._check_potential_name_conflicts(sym)
             self._imports = self._imports.assoc(sym, module)
             if aliases:
                 m = self._import_aliases
                 for alias in aliases:
-                    self._check_potential_name_conflicts(alias)
                     m = m.assoc(alias, sym)
                 self._import_aliases = m
 
