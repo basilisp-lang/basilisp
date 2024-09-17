@@ -3164,6 +3164,11 @@ def _require_ast(form: ISeq, ctx: AnalyzerContext) -> Require:
             )
         )
 
+    if not aliases:
+        raise ctx.AnalyzerException(
+            "require forms must name at least one namespace", form=form
+        )
+
     return Require(
         form=form,
         aliases=aliases,

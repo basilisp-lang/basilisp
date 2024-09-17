@@ -5402,6 +5402,10 @@ class TestReify:
 
 
 class TestRequire:
+    def test_require_must_have_at_least_one_namespace(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(require*)")
+
     @pytest.mark.parametrize(
         "code",
         [
