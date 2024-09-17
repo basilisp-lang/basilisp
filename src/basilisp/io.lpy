@@ -5,7 +5,6 @@
   streams from a wide variety of different input types as well as utility functions for
   interacting with the filesystem."
   (:import
-   io
    os.path
    pathlib
    shutil
