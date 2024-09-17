@@ -127,6 +127,10 @@ The ``^:dynamic`` metadata key will force all accesses to the so-marked Var to b
 The ``^:redef`` metadata key can be used if you intend to re-``def`` a Var later and you need changes to be propagated.
 It is unlikely you will want to do this, but you can configure the compiler to emit all Var accesses with indirection using the ``use-var-indirection`` configuration option in :ref:`compiler_generation_configuration`.
 
+There may be cases where direct linking is impossible, such as in Var references generated within macros when the compiler cannot verify the existence of the referenced name.
+For such cases, the compiler will emit a warning if a direct link is not possible (if it is so configured).
+You can suppress those warnings locally by attaching the ``^:no-warn-on-var-indirection`` metadata to the symbol in question.
+
 .. note::
 
    Changes to Vars which were direct linked will not be propagated to any code that used the direct link, rather than Var indirection.

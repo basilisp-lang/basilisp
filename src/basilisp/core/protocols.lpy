@@ -6,9 +6,9 @@
 
 (extend-protocol CollReduce
   nil
-  (coll-reduce [s f]
+  (coll-reduce [_s f]
     (f))
-  (coll-reduce [s f init]
+  (coll-reduce [_s _f init]
     init)
 
   python/object
@@ -29,7 +29,7 @@
 
 (extend-protocol KVReduce
   nil
-  (kv-reduce [s f init]
+  (kv-reduce [_s _f init]
     init)
 
   python/object

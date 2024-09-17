@@ -6203,7 +6203,7 @@
                                         :object-type obj-type#})))))
                   arglists))))
      (let [dotted-method-name (symbol (str "." (name method-name)))]
-       `(.register ~method-name
+       `(.register ~(vary-meta method-name assoc :no-warn-on-var-indirection true)
                    ~interface-name
                    (fn ~method-name
                      ~@(map (fn [[obj-sym & args]]
@@ -6281,7 +6281,7 @@
                :interface ~interface-sym
                :methods   ~(apply hash-map
                                   (mapcat #(let [v (first %)]
-                                             [(keyword (name v)) v])
+                                             [(keyword (name v)) (vary-meta v assoc :no-warn-on-var-indirection true)])
                                           methods))
                :var       (var ~protocol-name)}
               (alter-var-root (var ~protocol-name) merge ~protocol-name)))
@@ -7091,14 +7091,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmulti ^:private make-custom-data-readers
-  (fn [obj metadata] (type obj)))
+  (fn [obj ^:no-warn-when-unused metadata]
+    (type obj)))
 
 (defmethod make-custom-data-readers :default
-  [obj mta]
-  (throw (ex-info "Not a valid data-reader map" (assoc mta :object obj))))
+  [obj metadata]
+  (throw (ex-info "Not a valid data-reader map" (assoc metadata :object obj))))
 
 (defmethod make-custom-data-readers basilisp.lang.interfaces/IPersistentMap
-  [mappings mta]
+  [mappings metadata]
   (reduce (fn [m [k v]]
             (let [v' (if (qualified-symbol? v)
                        (intern (create-ns (symbol (namespace v)))
@@ -7108,33 +7109,33 @@
                 (not (qualified-symbol? k))
                 (throw
                  (ex-info "Invalid tag in data-readers. Expected qualified symbol."
-                          (merge mta {:form k})))
+                          (merge metadata {:form k})))
 
                 (not (ifn? v'))
                 (throw (ex-info "Invalid reader function in data-readers"
-                                (merge mta {:form v})))
+                                (merge metadata {:form v})))
 
                 :else
-                (assoc m (with-meta k mta) v'))))
+                (assoc m (with-meta k metadata) v'))))
           mappings
           mappings))
 
 (defmethod make-custom-data-readers importlib.metadata/EntryPoint
-  [entry-point mta]
+  [entry-point metadata]
   (make-custom-data-readers (.load entry-point)
-                            (assoc mta
+                            (assoc metadata
                                    :basilisp.entry-point/name (.-name entry-point)
                                    :basilisp.entry-point/group (.-group entry-point))))
 
 (defmethod make-custom-data-readers pathlib/Path
-  [file mta]
+  [file metadata]
   (make-custom-data-readers
    (with-open [rdr (basilisp.io/reader file)]
      (read (if (.endswith (name file) "cljc")
              {:eof nil :read-cond :allow}
              {:eof nil})
            rdr))
-   (assoc mta :file (str file))))
+   (assoc metadata :file (str file))))
 
 (defn- data-readers-entry-points []
   (when (#{"true" "t" "1" "yes" "y"} (.lower

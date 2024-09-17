@@ -915,6 +915,7 @@ class VarRef(Node[Union[sym.Symbol, ISeq]], Assignable):
     env: NodeEnv
     return_var: bool = False
     is_assignable: bool = True
+    is_allow_var_indirection: bool = False
     children: Sequence[kw.Keyword] = vec.PersistentVector.empty()
     op: NodeOp = NodeOp.VAR
     top_level: bool = False
