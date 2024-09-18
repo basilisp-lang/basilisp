@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
  * Added a compiler metadata flag for suppressing warnings when Var indirection is unavoidable (#1052)
 
+### Fixed
+ * Basilisp now respects the value of Python's `sys.dont_write_bytecode` flag when generating bytecode (#1054)
+
 ## [v0.2.2]
 ### Added
  * Added the `-p`/`--include-path` CLI command to prepend entries to the `sys.path` as an alternative to `PYTHONPATH` (#1027)
