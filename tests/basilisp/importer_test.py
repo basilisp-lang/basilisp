@@ -17,6 +17,7 @@ import basilisp.main
 from basilisp import importer as importer
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
+from basilisp.lang import vector as vec
 from basilisp.lang.util import demunge, munge
 from basilisp.main import bootstrap as bootstrap_basilisp
 
@@ -240,6 +241,106 @@ class TestImporter:
 
         assert "new function" == ns.module.other()
         assert "new function" == ns.find(sym.symbol("other")).value()
+
+    def test_reload_all_modules(
+        self, do_not_cache_namespaces, make_new_module, load_namespace
+    ):
+        importlib.reload(runtime.Namespace.get(sym.symbol("basilisp.core")).module)
+
+        ns1_name = "importer.namespace.to-reload1"
+        ns2_name = "importer.namespace.to-reload2"
+        ns3_name = "importer.namespace.to-reload3"
+
+        make_new_module(
+            "importer",
+            "namespace",
+            "to_reload1.lpy",
+            module_text=f"""
+            (ns {ns1_name}
+              (:require [{ns2_name}]))
+            (defn statuses []
+              (conj ({ns2_name}/statuses) "1 not-reloaded"))
+            """,
+        )
+        make_new_module(
+            "importer",
+            "namespace",
+            "to_reload2.lpy",
+            module_text=f"""
+            (ns {ns2_name}
+              (:require [{ns3_name}]))
+            (defn statuses []
+              (conj ({ns3_name}/statuses) "2 not-reloaded"))
+            """,
+        )
+        make_new_module(
+            "importer",
+            "namespace",
+            "to_reload3.lpy",
+            module_text=f"""
+            (ns {ns3_name})
+            (defn statuses [] ["3 not-reloaded"])
+            """,
+        )
+
+        ns1 = load_namespace(ns1_name)
+
+        assert (
+            vec.v(
+                "3 not-reloaded",
+                "2 not-reloaded",
+                "1 not-reloaded",
+            )
+            == ns1.module.statuses()
+        )
+        assert (
+            vec.v(
+                "3 not-reloaded",
+                "2 not-reloaded",
+                "1 not-reloaded",
+            )
+            == ns1.find(sym.symbol("statuses")).value()
+        )
+
+        make_new_module(
+            "importer",
+            "namespace",
+            "to_reload1.lpy",
+            module_text=f"""
+            (ns {ns1_name}
+              (:require [{ns2_name}]))
+            (defn statuses []
+              (conj ({ns2_name}/statuses) "1 reloaded"))
+            """,
+        )
+        make_new_module(
+            "importer",
+            "namespace",
+            "to_reload3.lpy",
+            module_text=f"""
+            (ns {ns3_name})
+            (defn statuses [] ["3 reloaded"])
+            """,
+        )
+
+        ns1.reload_all()
+
+        assert (
+            vec.v(
+                "3 reloaded",
+                "2 not-reloaded",
+                "1 reloaded",
+            )
+            == ns1.module.statuses()
+        )
+        assert (
+            vec.v(
+                "3 reloaded",
+                "2 not-reloaded",
+                "1 reloaded",
+            )
+            == ns1.find(sym.symbol("statuses")).value()
+        )
 
     @pytest.fixture
     def cached_module_ns(self) -> str:
