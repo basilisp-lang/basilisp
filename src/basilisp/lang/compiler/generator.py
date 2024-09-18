@@ -2367,11 +2367,6 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
                                 keywords=[],
                             ),
                             last,
-                            ast.Call(
-                                func=_NEW_SYM_FN_NAME,
-                                args=[ast.Constant(full_import_name)],
-                                keywords=[],
-                            ),
                         ],
                         (
                             [
