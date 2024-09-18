@@ -359,6 +359,10 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
                 collect_bytecode=all_bytecode.append,
             )
 
+        if sys.dont_write_bytecode:
+            logger.debug(f"Skipping bytecode generation for '{fullname}'")
+            return
+
         # Cache the bytecode that was collected through the compilation run.
         cache_file_bytes = _basilisp_bytecode(
             path_stats["mtime"], path_stats["size"], all_bytecode

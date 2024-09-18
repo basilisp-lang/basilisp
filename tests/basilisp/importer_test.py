@@ -226,6 +226,21 @@ class TestImporter:
         using_cache = load_namespace(cached_module_ns)
         assert cached_module_ns == using_cache.find(sym.symbol("val")).value
 
+    def test_import_module_without_writing_cache(
+        self,
+        monkeypatch,
+        module_dir,
+        make_new_module,
+        load_namespace,
+    ):
+        monkeypatch.setattr(sys, "dont_write_bytecode", True)
+        module_path = ["importer", "namespace", "no_bytecode.lpy"]
+        make_new_module(*module_path, ns_name="importer.namespace.no-bytecode")
+        load_namespace("importer.namespace.no-bytecode")
+        assert not os.path.exists(
+            importer._cache_from_source(os.path.join(module_dir, *module_path))
+        )
+
     def test_import_module_with_invalid_cache_magic_number(
         self, module_dir, cached_module_ns, cached_module_file, load_namespace
     ):

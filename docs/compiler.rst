@@ -99,14 +99,12 @@ Namespace Caching
 
 The Basilisp compiler aggressively caches compiled namespace modules because compilation is relatively expensive and leads to significant slowdowns when starting Basilisp.
 Basilisp namespaces are cached using the `same mechanism as the Python compiler uses <https://docs.python.org/3/reference/import.html#cached-bytecode-invalidation>`_ -- namespaces are cached as bytecode and only recomputed when the ``mtime`` of the source file differs from the ``mtime`` stored in the header of the cached file.
+Cache files are stored with an ``.lpyc`` prefix and respect the Python ``PYTHONCACHEPREFIX`` (:external:py:data:`sys.pycache_prefix`) setting.
 
 There may be times when the caching behavior is undesirable for whatever reason.
 Often in development, it is not desirable to allow namespace caching since such files may get out of sync of other uncached modules you are frequently updating, causing hard-to-diagnose bugs.
-In such cases, you can tell the Basilisp import mechanism to always ignore the cached copy of a namespace using the ``BASILISP_DO_NOT_CACHE_NAMESPACES`` environment variable.
-
-.. code-block:: bash
-
-   export BASILISP_DO_NOT_CACHE_NAMESPACES=true
+In such cases, you can tell the Basilisp import mechanism to always ignore the cached copy of a namespace using the ``BASILISP_DO_NOT_CACHE_NAMESPACES`` environment variable or ``--disable-ns-cache`` CLI flag.
+Additionally, it is possible to disable Basilisp's generation of bytecode files using the standard Python ``PYTHONDONTWRITEBYTECODE`` environment variable or :external:py:data:`sys.dont_write_bytecode` value.
 
 .. _direct_linking:
 
