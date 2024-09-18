@@ -35,7 +35,7 @@ from basilisp.lang.compiler.generator import expressionize as _expressionize  # 
 from basilisp.lang.compiler.generator import gen_py_ast, py_module_preamble
 from basilisp.lang.compiler.generator import statementize as _statementize
 from basilisp.lang.compiler.optimizer import PythonASTOptimizer
-from basilisp.lang.interfaces import IPersistentList
+from basilisp.lang.interfaces import ISeq
 from basilisp.lang.typing import CompilerOpts, ReaderForm
 from basilisp.lang.util import genname
 from basilisp.util import Maybe
@@ -153,7 +153,7 @@ def _emit_ast_string(
 def _flatmap_forms(forms: Iterable[ReaderForm]) -> Iterable[ReaderForm]:
     """Unroll top-level `do` forms as a flatmap over a list of forms."""
     for form in forms:
-        if isinstance(form, IPersistentList) and form.first == SpecialForm.DO:
+        if isinstance(form, ISeq) and form.first == SpecialForm.DO:
             yield from form.rest
         else:
             yield form
