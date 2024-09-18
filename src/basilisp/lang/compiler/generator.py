@@ -2328,13 +2328,11 @@ def _import_to_py_ast(ctx: GeneratorContext, node: Import) -> GeneratedPyAST[ast
         # import if parent and child are both imported:
         #   (import* collections collections.abc)
         if alias.alias is not None:
-            py_import_alias, full_import_name = _import_name(munge(alias.alias))
+            py_import_alias, _ = _import_name(munge(alias.alias))
             import_func = _IMPORTLIB_IMPORT_MODULE_FN_NAME
         else:
             py_import_alias, *submodules = safe_name.split(".", maxsplit=1)
-            py_import_alias, full_import_name = _import_name(
-                py_import_alias, *submodules
-            )
+            py_import_alias, _ = _import_name(py_import_alias, *submodules)
             import_func = _BUILTINS_IMPORT_FN_NAME
 
         ctx.symbol_table.context_boundary.new_symbol(
@@ -3336,19 +3334,17 @@ def _maybe_class_to_py_ast(
 
 @_with_ast_loc
 def _maybe_host_form_to_py_ast(
-    ctx: GeneratorContext, node: MaybeHostForm
+    _: GeneratorContext, node: MaybeHostForm
 ) -> GeneratedPyAST[ast.expr]:
     """Generate a Python AST node for accessing a potential Python module variable name
     with a namespace."""
     assert node.op == NodeOp.MAYBE_HOST_FORM
     if (mod_name := _MODULE_ALIASES.get(node.class_)) is None:
-        current_ns = ctx.current_ns
-
         # At import time, the compiler generates a unique, consistent name for the root
         # level Python name to avoid clashing with names later def'ed in the namespace.
         # This is the same logic applied to completing the reference.
         root, *submodules = node.class_.split(".", maxsplit=1)
-        _, mod_name = _import_name(root, *submodules)
+        __, mod_name = _import_name(root, *submodules)
     return GeneratedPyAST(node=_load_attr(f"{mod_name}.{node.field}"))
 
 

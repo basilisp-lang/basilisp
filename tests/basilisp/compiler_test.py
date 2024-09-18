@@ -3311,6 +3311,10 @@ class TestImport:
         with pytest.raises(compiler.CompilerException):
             lcompile(code)
 
+    def test_import_alias_may_not_contain_dot(self, lcompile: CompileFn):
+        with pytest.raises(compiler.CompilerException):
+            lcompile("(import* [re :as reg.expr])")
+
     @pytest.mark.parametrize(
         "code",
         [
