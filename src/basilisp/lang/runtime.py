@@ -684,6 +684,12 @@ class Namespace(ReferenceBase):
         ts: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
 
         def add_nodes(ns: Namespace) -> None:
+            # basilisp.core does actually create a cycle by requiring namespaces
+            # that require it, so we cannot add it to the topological sorter here,
+            # or it will throw a cycle error
+            if ns.name == CORE_NS:
+                return
+
             for aliased_ns in ns.aliases.values():
                 ts.add(ns, aliased_ns)
                 add_nodes(aliased_ns)

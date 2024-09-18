@@ -4970,13 +4970,14 @@
   "Require the library described by ``libspec`` into the Namespace ``requiring-ns``\\
   subject to the provided ``flags``."
   [requiring-ns libspec flags]
-  (let [required-ns-sym  (:namespace libspec)]
+  (let [required-ns-sym  (:namespace libspec)
+        existing-ns      (find-ns required-ns-sym)]
     (cond
       #?@(:lpy39+
-          [(contains? flags :reload-all)
+          [(and existing-ns (contains? flags :reload-all))
            (.reload-all (the-ns required-ns-sym))])
 
-      (contains? flags :reload)
+      (and existing-ns (contains? flags :reload))
       (.reload (the-ns required-ns-sym))
 
       :else
