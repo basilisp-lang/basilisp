@@ -2595,6 +2595,10 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
                     "Python module alias must be a symbol", form=f
                 )
             module_alias = module_alias_sym.name
+            if "." in module_alias:
+                raise ctx.AnalyzerException(
+                    "Python module alias must not contain '.'", form=f
+                )
 
             ctx.put_new_symbol(
                 module_alias_sym,
