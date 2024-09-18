@@ -26,7 +26,7 @@ from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
 from basilisp.lang import symbol as sym
 from basilisp.lang import vector as vec
-from basilisp.lang.runtime import BasilispModule, RuntimeException
+from basilisp.lang.runtime import BasilispModule
 from basilisp.lang.typing import ReaderForm
 from basilisp.lang.util import demunge
 from basilisp.util import timed

@@ -734,6 +734,7 @@ class Namespace(ReferenceBase):
             ns_sym = sym.symbol(ns_name)
             ns = self.get(ns_sym)
             assert ns is not None, "Namespace must exist after being required"
+            self.add_alias(ns, ns_sym)
             if aliases:
                 self.add_alias(ns, *aliases)
             return ns_module
