@@ -4940,16 +4940,43 @@
   - ``:exclude [sym1, sym2]`` to refer all except the specified symbols
   - ``:rename {sym1 new-sym1}`` to rename all the specified symbols to the given new name
 
+  Optional flags:
+
+  - ``:reload`` if provided, attempt to reload the namespace
+
   If a namespace name beginning with 'clojure.' does not exist on the import path,
   Basilisp will attempt to load a corresponding namespace starting with 'basilisp.'
   automatically, aliasing the imported namespace as the requested namespace name.
   This should allow for automatically importing Clojure's included core libraries such
-  as ``clojure.string``"
+  as ``clojure.string``.
+
+  .. warning::
+
+     Reloading namespaces has many of the same limitations described for
+     :external:py:func:`importlib.reload_module`. Below is a non-exhaustive set of
+     limitations of reloading Basilisp namespace:
+
+     - Vars will be re-``def``'ed based on the current definition of the underlying
+       file. If the file has not changed, then the namespace file will be reloaded
+       according to the current :ref:`namespace_caching` settings. If a Var is
+       removed from the source file, it will not be removed or updated by a reload.
+     - References to objects from previous versions of modules (particularly those
+       external to the namespace) are not rebound by reloading. In Basilisp code,
+       this problem can be limited by disabling :ref:`inlining` and
+       :ref:`direct_linking`.
+     - Updates to type or record definitions will not be reflected to previously
+       instantiated objects of those types.
+     "
   [req]
   (rewrite-clojure-libspec
    (cond
-     (vector? req) (merge {:namespace (first req)}
-                          (apply hash-map (rest req)))
+     (vector? req) (let [groups (group-by #(if (contains? #{:reload} %)
+                                             :flags
+                                             :other)
+                                          (rest req))]
+                     (merge {:namespace (first req)
+                             :flags     (set (:flags groups))}
+                            (apply hash-map (:other groups))))
      (symbol? req) {:namespace req}
      :else         (throw
                     (ex-info "Invalid libspec for require"
@@ -4959,22 +4986,25 @@
   "Require the library described by ``libspec`` into the Namespace ``requiring-ns``\\."
   [requiring-ns libspec]
   (let [required-ns-sym  (:namespace libspec)]
-    ;; In order to enable direct linking of Vars as Python variables, required
-    ;; namespaces must be `require*`ed into the namespace. That's not possible
-    ;; to do without a macro, so we're using this hacky approach to eval the
-    ;; code directly (which will effectively add it to the root namespace module).
-    (eval (list 'require*
-                (if-let [ns-alias (:as libspec)]
-                  [required-ns-sym :as ns-alias]
-                  required-ns-sym))
-          requiring-ns)
-    ;; Add a special alias for the original namespace (e.g. `clojure.*`), if we
-    ;; rewrote the namespace on require.
-    (when-let [original-ns (:original-namespace libspec)]
-      (.add-alias requiring-ns (the-ns required-ns-sym) original-ns))
-    ;; If an `:as-alias` is requested, apply that as well.
-    (when-let [as-alias (:as-alias libspec)]
-      (.add-alias requiring-ns (the-ns required-ns-sym) as-alias))
+    (if (contains? (:flags libspec) :reload)
+      (.reload (the-ns required-ns-sym))
+      (do
+        ;; In order to enable direct linking of Vars as Python variables, required
+        ;; namespaces must be `require*`ed into the namespace. That's not possible
+        ;; to do without a macro, so we're using this hacky approach to eval the
+        ;; code directly (which will effectively add it to the root namespace module).
+        (eval (list 'require*
+                    (if-let [ns-alias (:as libspec)]
+                      [required-ns-sym :as ns-alias]
+                      required-ns-sym))
+              requiring-ns)
+        ;; Add a special alias for the original namespace (e.g. `clojure.*`), if we
+        ;; rewrote the namespace on require.
+        (when-let [original-ns (:original-namespace libspec)]
+          (.add-alias requiring-ns (the-ns required-ns-sym) original-ns))
+        ;; If an `:as-alias` is requested, apply that as well.
+        (when-let [as-alias (:as-alias libspec)]
+          (.add-alias requiring-ns (the-ns required-ns-sym) as-alias))))
     ;; Reset the namespace to the requiring namespace, since it was likely changed
     ;; during the require process
     (set! *ns* requiring-ns)))

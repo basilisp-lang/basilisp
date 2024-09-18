@@ -670,6 +670,12 @@ class Namespace(ReferenceBase):
     def __hash__(self):
         return hash(self._name)
 
+    def reload(self) -> "Namespace":
+        """Reload code in this namespace by reloading the underlying Python module."""
+        with self._lock:
+            importlib.reload(self.module)
+            return self
+
     def require(self, ns_name: str, *aliases: sym.Symbol) -> BasilispModule:
         """Require the Basilisp Namespace named by `ns_name` and add any aliases given
         to this Namespace.

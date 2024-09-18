@@ -114,7 +114,7 @@ class TestImporter:
     def make_new_module(self, module_dir):
         """Fixture returning a function which creates a new module and then
         removes it after the test run."""
-        filenames = []
+        filenames = set()
 
         def _make_new_module(
             *ns_path: str, ns_name: str = "", module_text: Optional[str] = None
@@ -134,7 +134,7 @@ class TestImporter:
                 os.makedirs(os.path.join(module_dir, *ns_path[:-1]), exist_ok=True)
 
             filename = os.path.join(module_dir, *ns_path)
-            filenames.append(filename)
+            filenames.add(filename)
 
             with open(filename, mode="w") as mod:
                 if ns_name != "" and module_text is None:
@@ -201,6 +201,54 @@ class TestImporter:
             "importer.namespace.without-cache"
             == not_cached.find(sym.symbol("val")).value
         )
+
+    def test_reload_module(
+        self, do_not_cache_namespaces, make_new_module, load_namespace
+    ):
+        ns_name = "importer.namespace.to-reload"
+
+        make_new_module(
+            "importer",
+            "namespace",
+            "to_reload.lpy",
+            module_text=f"""
+            (ns {ns_name})
+
+            (defn status
+              []
+              "not-reloaded")
+            """,
+        )
+
+        ns = load_namespace(ns_name)
+
+        assert "not-reloaded" == ns.module.status()
+        assert "not-reloaded" == ns.find(sym.symbol("status")).value()
+
+        make_new_module(
+            "importer",
+            "namespace",
+            "to_reload.lpy",
+            module_text=f"""
+            (ns {ns_name})
+
+            (defn status
+              []
+              "reloaded")
+
+            (defn other
+              []
+              "new function")
+            """,
+        )
+
+        ns.reload()
+
+        assert "reloaded" == ns.module.status()
+        assert "reloaded" == ns.find(sym.symbol("status")).value()
+
+        assert "new function" == ns.module.other()
+        assert "new function" == ns.find(sym.symbol("other")).value()
 
     @pytest.fixture
     def cached_module_ns(self) -> str:
