@@ -51,6 +51,7 @@ docs/_build/
 
 # Environments
 .env
+.graalvenv
 .venv
 env/
 venv/

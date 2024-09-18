@@ -9,6 +9,7 @@ import platform
 import re
 import sys
 import uuid
+from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 from fractions import Fraction
@@ -35,6 +36,7 @@ from typing import (
 )
 
 import attr
+from typing_extensions import Literal
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -611,7 +613,7 @@ class AnalyzerContext:
     def get_node_env(self, pos: Optional[NodeSyntacticPosition] = None) -> NodeEnv:
         """Return the current Node environment.
 
-        If a synax position is given, it will be included in the environment.
+        If a syntax position is given, it will be included in the environment.
         Otherwise, the position will be set to None."""
         return NodeEnv(
             ns=self.current_ns, file=self.filename, pos=pos, func_ctx=self.func_ctx
@@ -2505,6 +2507,55 @@ def _if_ast(form: ISeq, ctx: AnalyzerContext) -> If:
     )
 
 
+T_alias_node = TypeVar("T_alias_node", ImportAlias, RequireAlias)
+
+
+def _do_warn_on_import_or_require_name_clash(
+    ctx: AnalyzerContext,
+    alias_nodes: List[T_alias_node],
+    action: Literal["import", "require"],
+) -> None:
+    assert alias_nodes, "Must have at least one alias"
+
+    # Fetch these locally to avoid triggering more locks than we need to
+    current_ns = ctx.current_ns
+    aliases, import_aliases, imports = (
+        current_ns.aliases,
+        current_ns.import_aliases,
+        current_ns.imports,
+    )
+
+    # Identify duplicates in the import list first
+    name_to_nodes = defaultdict(list)
+    for node in alias_nodes:
+        name_to_nodes[(node.alias or node.name)].append(node)
+
+    for name, nodes in name_to_nodes.items():
+        if len(nodes) < 2:
+            continue
+
+        logger.warning(f"duplicate name or alias '{name}' in {action}")
+
+    # Now check against names in the namespace
+    for name, nodes in name_to_nodes.items():
+        name_sym = sym.symbol(name)
+        node, *_ = nodes
+
+        if name_sym in aliases:
+            logger.warning(
+                f"name '{name}' may shadow an existing alias in '{current_ns}'"
+            )
+        if name_sym in import_aliases:
+            logger.warning(
+                f"name '{name}' may be shadowed by an existing import alias in "
+                f"'{current_ns}'"
+            )
+        if name_sym in imports:
+            logger.warning(
+                f"name '{name}' may be shadowed by an existing import in '{current_ns}'"
+            )
+
+
 def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
     assert form.first == SpecialForm.IMPORT
 
@@ -2567,6 +2618,12 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
             )
         )
 
+    if not aliases:
+        raise ctx.AnalyzerException(
+            "import forms must name at least one module", form=form
+        )
+
+    _do_warn_on_import_or_require_name_clash(ctx, aliases, "import")
     return Import(
         form=form,
         aliases=aliases,
@@ -3103,6 +3160,12 @@ def _require_ast(form: ISeq, ctx: AnalyzerContext) -> Require:
             )
         )
 
+    if not aliases:
+        raise ctx.AnalyzerException(
+            "require forms must name at least one namespace", form=form
+        )
+
+    _do_warn_on_import_or_require_name_clash(ctx, aliases, "require")
     return Require(
         form=form,
         aliases=aliases,
