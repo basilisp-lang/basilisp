@@ -85,6 +85,7 @@ exclude = '''
     \.git
   | \.hg
   | \.cache
+  | \.graalvenv
   | \.mypy_cache
   | \.pytest_cache
   | \.tox
@@ -133,6 +134,7 @@ skip = [
   ".env",
   ".hg",
   ".git",
+  ".graalvenv",
   ".mypy_cache",
   ".pytest_cache",
   ".tox",

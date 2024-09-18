@@ -36,6 +36,7 @@ from typing import (
 )
 
 import attr
+from typing_extensions import Literal
 
 from basilisp.lang import keyword as kw
 from basilisp.lang import list as llist
@@ -2506,8 +2507,13 @@ def _if_ast(form: ISeq, ctx: AnalyzerContext) -> If:
     )
 
 
-def _do_warn_on_import_name_clash(
-    ctx: AnalyzerContext, alias_nodes: List[ImportAlias]
+T_alias_node = TypeVar("T_alias_node", ImportAlias, RequireAlias)
+
+
+def _do_warn_on_import_or_require_name_clash(
+    ctx: AnalyzerContext,
+    alias_nodes: List[T_alias_node],
+    action: Literal["import", "require"],
 ) -> None:
     assert alias_nodes, "Must have at least one alias"
 
@@ -2519,13 +2525,6 @@ def _do_warn_on_import_name_clash(
         current_ns.imports,
     )
 
-    def _node_loc(node: ImportAlias) -> str:
-        if (line := node.env.line) is None:
-            if (form_loc := _loc(node.form)) is None:
-                return str(node.env.ns)
-            line = form_loc[0]
-        return f"{node.env.ns}:{line}"
-
     # Identify duplicates in the import list first
     name_to_nodes = defaultdict(list)
     for node in alias_nodes:
@@ -2535,8 +2534,7 @@ def _do_warn_on_import_name_clash(
         if len(nodes) < 2:
             continue
 
-        loc = _node_loc(next(iter(nodes)))
-        logger.warning(f"duplicate name or alias '{name}' in import ({loc})")
+        logger.warning(f"duplicate name or alias '{name}' in {action}")
 
     # Now check against names in the namespace
     for name, nodes in name_to_nodes.items():
@@ -2545,18 +2543,16 @@ def _do_warn_on_import_name_clash(
 
         if name_sym in aliases:
             logger.warning(
-                f"name '{name}' may be shadowed by existing alias in '{current_ns}' "
-                f"({_node_loc(node)})"
+                f"name '{name}' may shadow an existing alias in '{current_ns}'"
             )
         if name_sym in import_aliases:
             logger.warning(
-                f"name '{name}' may be shadowed by existing import alias in "
-                f"'{current_ns}' ({_node_loc(node)})"
+                f"name '{name}' may be shadowed by an existing import alias in "
+                f"'{current_ns}'"
             )
         if name_sym in imports:
             logger.warning(
-                f"name '{name}' may be shadowed by existing import in '{current_ns}' "
-                f"({_node_loc(node)})"
+                f"name '{name}' may be shadowed by an existing import in '{current_ns}'"
             )
 
 
@@ -2627,7 +2623,7 @@ def _import_ast(form: ISeq, ctx: AnalyzerContext) -> Import:
             "import forms must name at least one module", form=form
         )
 
-    _do_warn_on_import_name_clash(ctx, aliases)
+    _do_warn_on_import_or_require_name_clash(ctx, aliases, "import")
     return Import(
         form=form,
         aliases=aliases,
@@ -3169,6 +3165,7 @@ def _require_ast(form: ISeq, ctx: AnalyzerContext) -> Require:
             "require forms must name at least one namespace", form=form
         )
 
+    _do_warn_on_import_or_require_name_clash(ctx, aliases, "require")
     return Require(
         form=form,
         aliases=aliases,
@@ -4040,7 +4037,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
     )
 
     if hasattr(form, "meta"):
-        form_meta = form.meta  # _clean_meta(form.meta)  # type: ignore
+        form_meta = _clean_meta(form.meta)  # type: ignore
         if form_meta is not None:
             meta_ast = _const_node(form_meta, ctx)
             assert isinstance(meta_ast, MapNode) or (

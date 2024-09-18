@@ -3386,7 +3386,7 @@ class TestImport:
         assert_matching_logs(
             "basilisp.lang.compiler.analyzer",
             logging.WARNING,
-            r"duplicate name or alias 'os.path' in import ([^)]+)",
+            r"duplicate name or alias 'os.path' in import",
         )
 
     def test_warn_on_duplicated_import_name_with_alias(
@@ -3396,7 +3396,37 @@ class TestImport:
         assert_matching_logs(
             "basilisp.lang.compiler.analyzer",
             logging.WARNING,
-            r"duplicate name or alias 'abc' in import ([^)]+)",
+            r"duplicate name or alias 'abc' in import",
+        )
+
+    def test_warn_on_shadowing_by_existing_import(
+        self, ns: runtime.Namespace, lcompile: CompileFn, assert_matching_logs
+    ):
+        lcompile("(import abc) (import [collections.abc :as abc])")
+        assert_matching_logs(
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            rf"name 'abc' may be shadowed by an existing import in '{ns}'",
+        )
+
+    def test_warn_on_shadowing_by_existing_import_alias(
+        self, ns: runtime.Namespace, lcompile: CompileFn, assert_matching_logs
+    ):
+        lcompile("(import [collections.abc :as abc]) (import abc)")
+        assert_matching_logs(
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            rf"name 'abc' may be shadowed by an existing import alias in '{ns}'",
+        )
+
+    def test_warn_on_shadowing_by_existing_namespace_alias(
+        self, ns: runtime.Namespace, lcompile: CompileFn, assert_matching_logs
+    ):
+        lcompile("(require '[basilisp.string :as abc]) (import abc)")
+        assert_matching_logs(
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            rf"name 'abc' may shadow an existing alias in '{ns}'",
         )
 
 
@@ -5506,6 +5536,58 @@ class TestRequire:
     )
     def test_multi_require(self, lcompile: CompileFn, string_ns, set_ns, code: str):
         assert [string_ns.join, set_ns.union] == list(lcompile(code))
+
+    def test_warn_on_duplicated_require_name(
+        self, lcompile: CompileFn, assert_matching_logs
+    ):
+        lcompile("(require* basilisp.string basilisp.string)")
+        assert_matching_logs(
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            r"duplicate name or alias 'basilisp.string' in require",
+        )
+
+    def test_warn_on_duplicated_import_name_with_alias(
+        self, lcompile: CompileFn, assert_matching_logs
+    ):
+        lcompile("(require* [basilisp.edn :as serde] [basilisp.json :as serde])")
+        assert_matching_logs(
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            r"duplicate name or alias 'serde' in require",
+        )
+
+    def test_warn_on_shadowing_by_existing_import(
+        self, ns: runtime.Namespace, lcompile: CompileFn, assert_matching_logs
+    ):
+        lcompile("(import json) (require* [basilisp.json :as json])")
+        assert_matching_logs(
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            rf"name 'json' may be shadowed by an existing import in '{ns}'",
+        )
+
+    def test_warn_on_shadowing_by_existing_import_alias(
+        self, ns: runtime.Namespace, lcompile: CompileFn, assert_matching_logs
+    ):
+        lcompile("(import [collections.abc :as abc]) (require* [basilisp.edn :as abc])")
+        assert_matching_logs(
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            rf"name 'abc' may be shadowed by an existing import alias in '{ns}'",
+        )
+
+    def test_warn_on_shadowing_by_existing_namespace_alias(
+        self, ns: runtime.Namespace, lcompile: CompileFn, assert_matching_logs
+    ):
+        lcompile(
+            "(require* [basilisp.string :as edn]) (require* [basilisp.json :as edn])"
+        )
+        assert_matching_logs(
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            rf"name 'edn' may shadow an existing alias in '{ns}'",
+        )
 
 
 class TestSetBang:
