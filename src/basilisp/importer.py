@@ -19,6 +19,8 @@ from typing import (
     cast,
 )
 
+from typing_extensions import TypedDict
+
 from basilisp.lang import compiler as compiler
 from basilisp.lang import reader as reader
 from basilisp.lang import runtime as runtime
@@ -133,12 +135,17 @@ def _is_namespace_package(path: str) -> bool:
     return no_inits and has_basilisp_files
 
 
+class ImporterCacheEntry(TypedDict, total=False):
+    spec: ModuleSpec
+    module: BasilispModule
+
+
 class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstract-method
     """Python import hook to allow directly loading Basilisp code within
     Python."""
 
     def __init__(self):
-        self._cache: MutableMapping[str, dict] = {}
+        self._cache: MutableMapping[str, ImporterCacheEntry] = {}
 
     def find_spec(
         self,
@@ -379,7 +386,11 @@ class BasilispImporter(MetaPathFinder, SourceLoader):  # pylint: disable=abstrac
         assert isinstance(module, BasilispModule)
 
         fullname = module.__name__
-        cached = self._cache[fullname]
+        if (cached := self._cache.get(fullname)) is None:
+            spec = module.__spec__
+            assert spec is not None, "Module must have a spec"
+            cached = {"spec": spec}
+            self._cache[spec.name] = cached
         cached["module"] = module
         spec = cached["spec"]
         filename = spec.loader_state["filename"]

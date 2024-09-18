@@ -71,6 +71,11 @@ from basilisp.lang.typing import BasilispFunction, CompilerOpts, LispNumber
 from basilisp.lang.util import OBJECT_DUNDER_METHODS, demunge, is_abstract, munge
 from basilisp.util import Maybe
 
+if sys.version_info >= (3, 9):
+    import graphlib
+else:
+    import graphlib  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 # Public constants
@@ -670,6 +675,49 @@ class Namespace(ReferenceBase):
     def __hash__(self):
         return hash(self._name)
 
+    def _get_required_namespaces(self) -> vec.PersistentVector["Namespace"]:
+        """Return a vector of all required namespaces (loaded via `require`, `use`,
+        or `refer`).
+
+        This vector will include `basilisp.core` unless the namespace was created
+        manually without requiring it."""
+        ts: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
+
+        def add_nodes(ns: Namespace) -> None:
+            # basilisp.core does actually create a cycle by requiring namespaces
+            # that require it, so we cannot add it to the topological sorter here,
+            # or it will throw a cycle error
+            if ns.name == CORE_NS:
+                return
+
+            for aliased_ns in ns.aliases.values():
+                ts.add(ns, aliased_ns)
+                add_nodes(aliased_ns)
+
+            for referred_var in ns.refers.values():
+                referred_ns = referred_var.ns
+                ts.add(ns, referred_ns)
+                add_nodes(referred_ns)
+
+        add_nodes(self)
+        return vec.vector(ts.static_order())
+
+    def reload_all(self) -> "Namespace":
+        """Reload all dependency namespaces as by `Namespace.reload()`."""
+        sorted_reload_order = self._get_required_namespaces()
+        logger.debug(f"Computed :reload-all order: {sorted_reload_order}")
+
+        for ns in sorted_reload_order:
+            ns.reload()
+
+        return self
+
+    def reload(self) -> "Namespace":
+        """Reload code in this namespace by reloading the underlying Python module."""
+        with self._lock:
+            importlib.reload(self.module)
+            return self
+
     def require(self, ns_name: str, *aliases: sym.Symbol) -> BasilispModule:
         """Require the Basilisp Namespace named by `ns_name` and add any aliases given
         to this Namespace.
@@ -686,6 +734,7 @@ class Namespace(ReferenceBase):
             ns_sym = sym.symbol(ns_name)
             ns = self.get(ns_sym)
             assert ns is not None, "Namespace must exist after being required"
+            self.add_alias(ns, ns_sym)
             if aliases:
                 self.add_alias(ns, *aliases)
             return ns_module

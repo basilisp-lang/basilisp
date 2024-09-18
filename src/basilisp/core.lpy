@@ -4944,7 +4944,7 @@
   Basilisp will attempt to load a corresponding namespace starting with 'basilisp.'
   automatically, aliasing the imported namespace as the requested namespace name.
   This should allow for automatically importing Clojure's included core libraries such
-  as ``clojure.string``"
+  as ``clojure.string``."
   [req]
   (rewrite-clojure-libspec
    (cond
@@ -4955,26 +4955,49 @@
                     (ex-info "Invalid libspec for require"
                              {:value req})))))
 
+(def ^:private require-flags #{:reload :reload-all})
+
+(defn ^:private libspecs-and-flags
+  "Return a vector of ``[libspecs flags]``."
+  [req]
+  (let [groups (group-by #(if (contains? require-flags %)
+                            :flags
+                            :libspecs)
+                         req)]
+    [(:libspecs groups) (set (:flags groups))]))
+
 (defn ^:private require-lib
-  "Require the library described by ``libspec`` into the Namespace ``requiring-ns``\\."
-  [requiring-ns libspec]
-  (let [required-ns-sym  (:namespace libspec)]
-    ;; In order to enable direct linking of Vars as Python variables, required
-    ;; namespaces must be `require*`ed into the namespace. That's not possible
-    ;; to do without a macro, so we're using this hacky approach to eval the
-    ;; code directly (which will effectively add it to the root namespace module).
-    (eval (list 'require*
-                (if-let [ns-alias (:as libspec)]
-                  [required-ns-sym :as ns-alias]
-                  required-ns-sym))
-          requiring-ns)
-    ;; Add a special alias for the original namespace (e.g. `clojure.*`), if we
-    ;; rewrote the namespace on require.
-    (when-let [original-ns (:original-namespace libspec)]
-      (.add-alias requiring-ns (the-ns required-ns-sym) original-ns))
-    ;; If an `:as-alias` is requested, apply that as well.
-    (when-let [as-alias (:as-alias libspec)]
-      (.add-alias requiring-ns (the-ns required-ns-sym) as-alias))
+  "Require the library described by ``libspec`` into the Namespace ``requiring-ns``\\
+  subject to the provided ``flags``."
+  [requiring-ns libspec flags]
+  (let [required-ns-sym  (:namespace libspec)
+        existing-ns      (find-ns required-ns-sym)]
+    (cond
+      #?@(:lpy39+
+          [(and existing-ns (contains? flags :reload-all))
+           (.reload-all (the-ns required-ns-sym))])
+
+      (and existing-ns (contains? flags :reload))
+      (.reload (the-ns required-ns-sym))
+
+      :else
+      (do
+        ;; In order to enable direct linking of Vars as Python variables, required
+        ;; namespaces must be `require*`ed into the namespace. That's not possible
+        ;; to do without a macro, so we're using this hacky approach to eval the
+        ;; code directly (which will effectively add it to the root namespace module).
+        (eval (list 'require*
+                    (if-let [ns-alias (:as libspec)]
+                      [required-ns-sym :as ns-alias]
+                      required-ns-sym))
+              requiring-ns)
+        ;; Add a special alias for the original namespace (e.g. `clojure.*`), if we
+        ;; rewrote the namespace on require.
+        (when-let [original-ns (:original-namespace libspec)]
+          (.add-alias requiring-ns (the-ns required-ns-sym) original-ns))
+        ;; If an `:as-alias` is requested, apply that as well.
+        (when-let [as-alias (:as-alias libspec)]
+          (.add-alias requiring-ns (the-ns required-ns-sym) as-alias))))
     ;; Reset the namespace to the requiring namespace, since it was likely changed
     ;; during the require process
     (set! *ns* requiring-ns)))
@@ -5032,17 +5055,44 @@
   - ``:refer [& syms]`` which will refer syms in the local namespace directly
   - ``:refer :all`` which will refer all symbols from the namespace directly
 
+  Arguments may also be flags, which are optional. Flags are keywords. The following
+  flags are supported:
+
+  - ``:reload`` if provided, attempt to reload the namespace
+  - ``:reload-all`` if provided, attempt to reload all named namespaces and the
+    namespaces loaded by those namespaces as a directed graph
+
   Use of ``require`` directly is discouraged in favor of the ``:require`` directive in
-  the :lpy:fn:`ns` macro."
+  the :lpy:fn:`ns` macro.
+
+  .. warning::
+
+     Reloading namespaces has many of the same limitations described for
+     :external:py:func:`importlib.reload_module`. Below is a non-exhaustive set of
+     limitations of reloading Basilisp namespace:
+
+     - Vars will be re-``def``'ed based on the current definition of the underlying
+       file. If the file has not changed, then the namespace file will be reloaded
+       according to the current :ref:`namespace_caching` settings. If a Var is
+       removed from the source file, it will not be removed or updated by a reload.
+     - References to objects from previous versions of modules (particularly those
+       external to the namespace) are not rebound by reloading. In Basilisp code,
+       this problem can be limited by disabling :ref:`inlining` and
+       :ref:`direct_linking`.
+     - Updates to type or record definitions will not be reflected to previously
+       instantiated objects of those types."
   [& args]
-  (let [current-ns *ns*]
-    (doseq [libspec (map require-libspec args)]
+  (let [current-ns *ns*
+        groups     (libspecs-and-flags args)
+        libspecs   (first groups)
+        flags      (second groups)]
+    (doseq [libspec (map require-libspec libspecs)]
       (if (and (:as-alias libspec) (not (:as libspec)))
         (let [alias-target (or (find-ns (:namespace libspec))
                                (create-ns (:namespace libspec)))]
           (.add-alias current-ns alias-target (:as-alias libspec)))
         (do
-          (require-lib current-ns libspec)
+          (require-lib current-ns libspec flags)
 
           ;; Add refers
           (let [new-ns    (the-ns (:namespace libspec))
@@ -5075,12 +5125,18 @@
   ``:require`` directive of the :lpy:fn:`ns` macro or the ``:use`` directive of the
   ``ns`` macro."
   [ns-sym & filters]
-  (let [current-ns *ns*]
+  (let [current-ns *ns*
+        groups     (group-by #(if (contains? require-flags %)
+                                :flags
+                                :filters)
+                             filters)]
     ;; It is necessary to first require the Namespace directly, otherwise
     ;; when refer attempts to load the Namespace later, it will fail.
-    (->> (require-libspec ns-sym)
-         (require-lib current-ns))
-    (->> (apply vector ns-sym filters)
+    (require-lib current-ns
+                 (require-libspec ns-sym)
+                 (set (:flags groups)))
+    (->> (:filters groups)
+         (apply vector ns-sym)
          (require-libspec)
          (refer-lib current-ns))))
 
@@ -5113,12 +5169,16 @@
   Use of ``use`` directly is discouraged in favor of the ``:use`` directive in the
   :lpy:fn:`ns` macro."
   [& args]
-  (let [current-ns *ns*]
-    (doseq [libspec (map require-libspec args)]
+  (let [current-ns *ns*
+        groups     (libspecs-and-flags args)
+        libspecs   (first groups)
+        flags      (second groups)]
+    (doseq [libspec (map require-libspec libspecs)]
       ;; Remove the :refer key to avoid having require-lib
       ;; perform a full :refer, instead we'll use refer-lib
-      (->> (dissoc libspec :refer)
-           (require-lib current-ns))
+      (require-lib current-ns
+                   (dissoc libspec :refer)
+                   flags)
       (refer-lib current-ns libspec))
     nil))
 
