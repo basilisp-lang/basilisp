@@ -3314,22 +3314,36 @@ def _interop_prop_to_py_ast(
 
 @_with_ast_loc
 def _maybe_class_to_py_ast(
-    _: GeneratorContext, node: MaybeClass
+    ctx: GeneratorContext, node: MaybeClass
 ) -> GeneratedPyAST[ast.expr]:
-    """Generate a Python AST node for accessing a potential Python module
-    variable name."""
+    """Generate a Python AST node for accessing a potential Python module variable
+    name."""
     assert node.op == NodeOp.MAYBE_CLASS
-    return GeneratedPyAST(
-        node=ast.Name(id=_MODULE_ALIASES.get(node.class_, node.class_), ctx=ast.Load())
-    )
+    if (mod_name := _MODULE_ALIASES.get(node.class_)) is None:
+        current_ns = ctx.current_ns
+
+        # For imported modules only, we should generate the name reference using a
+        # unique, consistent hash name (just as they are imported) to avoid clashing
+        # with names def'ed later in the namespace.
+        if (alias := current_ns.import_aliases.val_at(node.class_)) is not None:
+            _, mod_name = _import_name(alias)
+        elif sym.symbol(node.form.name) in current_ns.imports:
+            root, *submodules = node.class_.split(".", maxsplit=1)
+            _, mod_name = _import_name(root, *submodules)
+
+    # Names which are not module references should be passed through.
+    if mod_name is None:
+        mod_name = node.class_
+
+    return GeneratedPyAST(node=ast.Name(id=mod_name, ctx=ast.Load()))
 
 
 @_with_ast_loc
 def _maybe_host_form_to_py_ast(
     ctx: GeneratorContext, node: MaybeHostForm
 ) -> GeneratedPyAST[ast.expr]:
-    """Generate a Python AST node for accessing a potential Python module
-    variable name with a namespace."""
+    """Generate a Python AST node for accessing a potential Python module variable name
+    with a namespace."""
     assert node.op == NodeOp.MAYBE_HOST_FORM
     if (mod_name := _MODULE_ALIASES.get(node.class_)) is None:
         current_ns = ctx.current_ns
