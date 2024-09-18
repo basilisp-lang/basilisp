@@ -83,6 +83,56 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+  run-graalpy-tests:
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        version: ['3.11']
+        include:
+          - version: '3.11'
+            graalpy-version: '24.1.0'
+            tox-env: py311
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: graalpy-${{ matrix.graalpy-version }}
+      - name: Cache dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            .tox
+            ~/.cache/pip
+            ~/.cache/pypoetry
+            ~/.local/bin/poetry
+            ~/.local/share/pypoetry
+          key: ${{ runner.os }}-graalpy-${{ matrix.version }}-poetry-${{ hashFiles('.github/workflows/run-tests.yml', 'pyproject.toml', 'tox.ini') }}
+      - name: Install Poetry
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Install Tox
+        run: |
+          pip install -U pip
+          pip install tox
+      - name: Run tests
+        env:
+          TOX_PARALLEL_NO_SPINNER: 1
+          TOX_SHOW_OUTPUT: "True"
+          TOXENV: ${{ matrix.tox-env }}
+        run: |
+          tox run -- -n 2
+          mkdir coverage
+          mv .coverage.* "coverage/.coverage.pypy${{ matrix.version }}"
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage.graalpy${{ matrix.version }}
+          path: coverage/.coverage.py*
+          include-hidden-files: true
+          if-no-files-found: error
+
   run-pypy-tests:
     runs-on: ${{matrix.os}}
     strategy:
