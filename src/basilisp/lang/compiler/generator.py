@@ -2306,7 +2306,8 @@ def _import_hash(s: str) -> str:
 
 
 def _import_name(root: str, *submodules: str) -> Tuple[str, str]:
-    """Return the complete import name (with hash suffix) for an import."""
+    """Return a tuple of the root import name (with hash suffix) for an import and the
+    full import name (if submodules are provided)."""
     safe_root = f"{root}_{_import_hash(root)}"
     if not submodules:
         return safe_root, safe_root
