@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
  * The compiler will issue a warning when adding any alias that might conflict with any other alias (#1045)
+ * The compiler is now capable of unrolling top level `do` forms, allowing more sophisticated static analysis on blocks emitted by macros (#1028)
 
 ### Fixed
  * Fix a bug where Basilisp did not respect the value of Python's `sys.dont_write_bytecode` flag when generating bytecode (#1054)
