@@ -612,7 +612,7 @@ class AnalyzerContext:
     def get_node_env(self, pos: Optional[NodeSyntacticPosition] = None) -> NodeEnv:
         """Return the current Node environment.
 
-        If a synax position is given, it will be included in the environment.
+        If a syntax position is given, it will be included in the environment.
         Otherwise, the position will be set to None."""
         return NodeEnv(
             ns=self.current_ns, file=self.filename, pos=pos, func_ctx=self.func_ctx
@@ -2519,10 +2519,12 @@ def _do_warn_on_import_name_clash(
         current_ns.imports,
     )
 
-    def _node_loc(env: NodeEnv) -> str:
-        if env.line is None:
-            return str(env.ns)
-        return f"{env.ns}:{env.line}"
+    def _node_loc(node: ImportAlias) -> str:
+        if (line := node.env.line) is None:
+            if (form_loc := _loc(node.form)) is None:
+                return str(node.env.ns)
+            line = form_loc[0]
+        return f"{node.env.ns}:{line}"
 
     # Identify duplicates in the import list first
     name_to_nodes = defaultdict(list)
@@ -2533,10 +2535,8 @@ def _do_warn_on_import_name_clash(
         if len(nodes) < 2:
             continue
 
-        locs = [_node_loc(node.env) for node in nodes]
-        logger.warning(
-            f"duplicate name or alias '{name}' in import ({'; '.join(locs)})"
-        )
+        loc = _node_loc(next(iter(nodes)))
+        logger.warning(f"duplicate name or alias '{name}' in import ({loc})")
 
     # Now check against names in the namespace
     for name, nodes in name_to_nodes.items():
@@ -2546,17 +2546,17 @@ def _do_warn_on_import_name_clash(
         if name_sym in aliases:
             logger.warning(
                 f"name '{name}' may be shadowed by existing alias in '{current_ns}' "
-                f"({_node_loc(node.env)})"
+                f"({_node_loc(node)})"
             )
         if name_sym in import_aliases:
             logger.warning(
                 f"name '{name}' may be shadowed by existing import alias in "
-                f"'{current_ns}' ({_node_loc(node.env)})"
+                f"'{current_ns}' ({_node_loc(node)})"
             )
         if name_sym in imports:
             logger.warning(
                 f"name '{name}' may be shadowed by existing import in '{current_ns}' "
-                f"({_node_loc(node.env)})"
+                f"({_node_loc(node)})"
             )
 
 
@@ -4040,7 +4040,7 @@ def _const_node(form: ReaderForm, ctx: AnalyzerContext) -> Const:
     )
 
     if hasattr(form, "meta"):
-        form_meta = _clean_meta(form.meta)  # type: ignore
+        form_meta = form.meta  # _clean_meta(form.meta)  # type: ignore
         if form_meta is not None:
             meta_ast = _const_node(form_meta, ctx)
             assert isinstance(meta_ast, MapNode) or (

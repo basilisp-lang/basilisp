@@ -3379,6 +3379,26 @@ class TestImport:
 
         assert os.path.exists is lcompile("(import [os.path :as path]) path/exists")
 
+    def test_warn_on_duplicated_import_name(
+        self, lcompile: CompileFn, assert_matching_logs
+    ):
+        lcompile("(import os.path os.path)")
+        assert_matching_logs(
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            r"duplicate name or alias 'os.path' in import ([^)]+)",
+        )
+
+    def test_warn_on_duplicated_import_name_with_alias(
+        self, lcompile: CompileFn, assert_matching_logs
+    ):
+        lcompile("(import abc [collections.abc :as abc])")
+        assert_matching_logs(
+            "basilisp.lang.compiler.analyzer",
+            logging.WARNING,
+            r"duplicate name or alias 'abc' in import ([^)]+)",
+        )
+
 
 class TestInvoke:
     @pytest.mark.parametrize(
