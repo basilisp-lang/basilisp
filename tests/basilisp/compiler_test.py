@@ -6020,6 +6020,7 @@ class TestSymbolResolution:
             "(do (import* abc) abc/ABC)",
             "((fn [] (import* abc) abc/ABC))",
             "((fn [] (import* abc))) abc/ABC",
+            "(do ((fn [] (import* abc))) abc/ABC)",
             """
             (import* collections.abc)
             (deftype* Importer []
@@ -6033,6 +6034,12 @@ class TestSymbolResolution:
               (--call-- [this] (import* abc)))
             ((Importer))
             abc/ABC""",
+            """
+            (import* collections.abc)
+            (deftype* Importer []
+              :implements [collections.abc/Callable]
+              (--call-- [this] (import* abc) abc/ABC))
+            (do ((Importer)) abc/ABC)""",
         ],
     )
     def test_sym_from_import_resolves(self, lcompile: CompileFn, code: str):
@@ -6042,30 +6049,48 @@ class TestSymbolResolution:
         assert imported_ABC is ABC
 
     @pytest.mark.parametrize(
+        "code",
+        [
+            "(do ((fn [] (import* abc))) abc)",
+            """
+             (import* collections.abc)
+             (deftype* Importer []
+               :implements [collections.abc/Callable]
+               (--call-- [this] (import* abc) abc/ABC))
+             (do ((Importer)) abc)""",
+        ],
+    )
+    def test_module_from_import_resolves(self, lcompile: CompileFn, code: str):
+        import abc
+
+        imported_abc = lcompile(code)
+        assert imported_abc is abc
+
+    @pytest.mark.parametrize(
         "code,ExceptionType",
         [
-            ("(do ((fn [] (import* abc))) abc)", compiler.CompilerException),
+            ("(do (do ((fn [] (import* abc))) abc))", compiler.CompilerException),
             ("(if false (import* abc) nil) abc", NameError),
             ("(do (if false (import* abc) nil) abc)", NameError),
-            ("(do ((fn [] (import* abc))) abc/ABC)", compiler.CompilerException),
+            ("(do (do ((fn [] (import* abc))) abc/ABC))", compiler.CompilerException),
             ("(if false (import* abc) nil) abc/ABC", NameError),
             ("(do (if false (import* abc) nil) abc/ABC)", NameError),
             (
                 """
-            (import* collections.abc)
-            (deftype* Importer []
-              :implements [collections.abc/Callable]
-              (--call-- [this] (import* abc) abc/ABC))
-            (do ((Importer)) abc)""",
+                (import* collections.abc)
+                (deftype* Importer []
+                  :implements [collections.abc/Callable]
+                  (--call-- [this] (import* abc) abc/ABC))
+                (do (do ((Importer)) abc))""",
                 compiler.CompilerException,
             ),
             (
                 """
-            (import* collections.abc)
-            (deftype* Importer []
-              :implements [collections.abc/Callable]
-              (--call-- [this] (import* abc) abc/ABC))
-            (do ((Importer)) abc/ABC)""",
+                (import* collections.abc)
+                (deftype* Importer []
+                  :implements [collections.abc/Callable]
+                  (--call-- [this] (import* abc) abc/ABC))
+                (do (do ((Importer)) abc/ABC))""",
                 compiler.CompilerException,
             ),
         ],
