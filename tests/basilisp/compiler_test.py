@@ -6225,6 +6225,48 @@ class TestSymbolResolution:
                 monkeypatch.chdir(cwd)
                 os.unlink(module_file_path)
 
+    @pytest.mark.parametrize(
+        "code",
+        [
+            """
+        (import re)
+
+        (defn re [s]
+          (re/fullmatch #"[A-Z]+" s))
+
+        (re "YES")
+        """,
+            """
+        (import [re :as regex])
+
+        (defn regex [s]
+          (regex/fullmatch #"[A-Z]+" s))
+
+        (regex "YES")
+        """,
+        ],
+    )
+    def test_imports_dont_shadow_def_names(self, lcompile: CompileFn, code: str):
+        match = lcompile(code)
+        assert match is not None
+
+    def test_imports_names_resolve(self, lcompile: CompileFn):
+        import re
+
+        assert lcompile("(import re) re") is re
+        assert lcompile("(import [re :as regex]) regex") is re
+
+        import urllib.parse
+
+        assert (
+            lcompile("(import urllib.parse) urllib.parse/urlparse")
+            is urllib.parse.urlparse
+        )
+        assert (
+            lcompile("(import [urllib.parse :as urlparse]) urlparse/urlparse")
+            is urllib.parse.urlparse
+        )
+
     def test_aliased_var_does_not_resolve(
         self, lcompile: CompileFn, ns: runtime.Namespace
     ):

@@ -3325,9 +3325,10 @@ def _maybe_class_to_py_ast(
         # For imported modules only, we should generate the name reference using a
         # unique, consistent hash name (just as they are imported) to avoid clashing
         # with names def'ed later in the namespace.
-        if (alias := current_ns.import_aliases.val_at(node.class_)) is not None:
-            _, mod_name = _import_name(alias)
-        elif sym.symbol(node.form.name) in current_ns.imports:
+        name = sym.symbol(node.form.name)
+        if (alias := current_ns.import_aliases.val_at(name)) is not None:
+            _, mod_name = _import_name(munge(alias.name))
+        elif name in current_ns.imports:
             root, *submodules = node.class_.split(".", maxsplit=1)
             _, mod_name = _import_name(root, *submodules)
 
@@ -3351,11 +3352,8 @@ def _maybe_host_form_to_py_ast(
         # At import time, the compiler generates a unique, consistent name for the root
         # level Python name to avoid clashing with names later def'ed in the namespace.
         # This is the same logic applied to completing the reference.
-        if (alias := current_ns.import_aliases.val_at(node.class_)) is not None:
-            _, mod_name = _import_name(alias)
-        else:
-            root, *submodules = node.class_.split(".", maxsplit=1)
-            _, mod_name = _import_name(root, *submodules)
+        root, *submodules = node.class_.split(".", maxsplit=1)
+        _, mod_name = _import_name(root, *submodules)
     return GeneratedPyAST(node=_load_attr(f"{mod_name}.{node.field}"))
 
 
